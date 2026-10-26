@@ -7,10 +7,12 @@ import { isDuplicateKey } from '../tenancy/invitee-accounts.repository.js';
 /**
  * The `users` row a public sign-up creates.
  *
- * Unlike the invitee and first-owner inserts, `email_verified_at` stays NULL: nobody has proved
- * the mailbox yet (no token was mailed to it). Sign-in does not depend on the column, so the
- * account works at once — the open sign-up Peter asked for — and the column remains honest for
- * the day verification is required.
+ * Like the invitee insert (F03: an invitation link proves nothing about who opens it) and unlike
+ * the first-owner insert, `email_verified_at` stays NULL: nobody has proved the mailbox yet (no
+ * token was mailed to it). It is set later only by proof of the mailbox - a spent password reset
+ * link (`password-reset.repository.ts`) - or by Google asserting the address. Sign-in does not
+ * depend on the column, so the account works at once — the open sign-up Peter asked for — and
+ * the column remains honest for the day verification is required.
  */
 
 /** `uq_users_email` refused the insert: an account already uses this address. */

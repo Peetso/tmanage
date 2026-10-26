@@ -24,6 +24,8 @@ import {
   type EnrolledFactorView,
 } from './authentication.service.js';
 import { describePasswordRejection } from './password.js';
+import { RESET_SIGN_IN_GRANT_COOKIE, RESET_SIGN_IN_GRANT_PATH } from './reset-sign-in-grant.js';
+import { expireCookie, readCookie } from './session-token.js';
 
 /**
  * `D05`. The header a credential-changing request carries its re-authentication token in.
@@ -72,6 +74,11 @@ interface RequestLike {
 
 interface ReplyLike {
   header(name: string, value: string | readonly string[]): unknown;
+}
+
+function cookieHeaderOf(request: RequestLike): string | undefined {
+  const raw = request.headers['cookie'];
+  return Array.isArray(raw) ? raw.join('; ') : raw;
 }
 
 interface PasswordSignInBody {
@@ -157,11 +164,28 @@ export class AuthenticationController {
       ]);
     }
 
+    // N01 (wave 11). The reset sign-in grant travels only in its own `HttpOnly` cookie, scoped to
+    // this route. Any attempt that presents it clears it, whatever the outcome - the header is
+    // set before the attempt runs so a refusal carries it too - and the first succeeded sign-in
+    // row spends it server-side as well, so a copy kept elsewhere is no use either.
+    const resetGrant = readCookie(cookieHeaderOf(request), RESET_SIGN_IN_GRANT_COOKIE);
+    if (resetGrant !== undefined) {
+      reply.header(
+        'set-cookie',
+        expireCookie(RESET_SIGN_IN_GRANT_COOKIE, {
+          path: RESET_SIGN_IN_GRANT_PATH,
+          sameSite: 'Lax',
+          secure: true,
+        }),
+      );
+    }
+
     const outcome = await this.run(() =>
       this.authentication.signInWithPassword({
         email,
         password,
         context: this.contextOf(request, state.correlationId),
+        resetGrant,
       }),
     );
 

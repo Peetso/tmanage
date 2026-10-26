@@ -27,6 +27,7 @@ const SARA: ResetTarget = {
   locale: 'en',
 };
 const STRONG = 'violet-harbour-lantern-41';
+const PASSWORD_SET_AT = new Date('2026-10-26T09:00:00.123Z');
 
 function harness(options: { account?: ResetTarget | null; live?: boolean; spend?: boolean } = {}) {
   const runner = {};
@@ -47,6 +48,7 @@ function harness(options: { account?: ResetTarget | null; live?: boolean; spend?
   const credentials = {
     setPassword: vi.fn(() => Promise.resolve()),
     recordCredentialChange: vi.fn(() => Promise.resolve()),
+    findLatestPasswordSetAt: vi.fn(() => Promise.resolve<Date | null>(PASSWORD_SET_AT)),
   };
   const sessions = { revokeAllForUser: vi.fn(() => Promise.resolve(2)) };
   const service = new PasswordResetService(
@@ -122,6 +124,34 @@ describe('PasswordResetService.complete', () => {
       {},
       expect.objectContaining({ userId: SARA.userId, action: 'password_set' }),
     );
+  });
+
+  it('N01 (wave 11): resolves to the person and the stamp of the password_set row it wrote', async () => {
+    const { service, credentials } = harness();
+    await expect(service.complete(TOKEN, STRONG, { correlationId: CORR })).resolves.toEqual({
+      userId: SARA.userId,
+      passwordSetAt: PASSWORD_SET_AT,
+    });
+    // Read back after the change was recorded, inside the same transaction.
+    expect(credentials.findLatestPasswordSetAt).toHaveBeenCalledWith({}, SARA.userId);
+    const recorded = credentials.recordCredentialChange.mock.invocationCallOrder[0]!;
+    const readBack = credentials.findLatestPasswordSetAt.mock.invocationCallOrder[0]!;
+    expect(readBack).toBeGreaterThan(recorded);
+  });
+
+  it('N01 (wave 11): a failed read-back costs the grant, never the reset', async () => {
+    const { service, credentials, sessions } = harness();
+    credentials.findLatestPasswordSetAt.mockImplementationOnce(() =>
+      Promise.reject(new Error('read failed')),
+    );
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(service.complete(TOKEN, STRONG, { correlationId: CORR })).resolves.toEqual({
+      userId: SARA.userId,
+      passwordSetAt: null,
+    });
+    error.mockRestore();
+    expect(credentials.setPassword).toHaveBeenCalledTimes(1);
+    expect(sessions.revokeAllForUser).toHaveBeenCalledTimes(1);
   });
 
   it('refuses an unknown, used or expired link with one 404', async () => {

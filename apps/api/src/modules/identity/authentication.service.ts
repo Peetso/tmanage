@@ -21,6 +21,7 @@ import { SessionsRepository } from './sessions.repository.js';
 import { BEARER_CREDENTIALS_REVOKER, type BearerCredentialCutoff } from './bearer-credentials.js';
 import type { SignInAbuseControl, SignInAbuseReason } from './sign-in-abuse-control.js';
 import type { IdentityQueryRunner } from '../../common/database/tenant-context.js';
+import { openResetSignInGrant } from './reset-sign-in-grant.js';
 
 /**
  * ID-002 — what actually proves a person is who they say they are.
@@ -246,6 +247,9 @@ export type AuthenticationReason =
   | 'reauth_invalid'
   | 'reauth_expired'
   | 'reauth_wrong_session'
+  // N01 (wave 11). On a *succeeded* password sign-in row only: the correct password was let
+  // through a full lockout window by a reset sign-in grant (`reset-sign-in-grant.ts`).
+  | 'reset_grant'
   // `D08`. Which source budget refused, in the abuse control's own words — reused rather
   // than retyped, so the two lists cannot drift apart.
   | SignInAbuseReason;
@@ -293,13 +297,25 @@ export type VerifyFirstDecision = 'admit' | 'locked_out' | 'reject';
  * but the old wrong guesses still filled the window, so one wrong guess every few minutes kept
  * the account shut even for the new password. The window still never counts its own
  * `locked_out` refusals, so without a reset it drains once the guessing stops.
+ *
+ * **N01 (wave 11): a guesser could re-fill the window seconds after the reset.** So the browser
+ * that completed the reset holds a sealed, single-use reset sign-in grant
+ * (`reset-sign-in-grant.ts`), and `resetGrantValid` says it was presented, opened, names this
+ * account and this reset, and no sign-in has succeeded since. A full window with the **correct**
+ * password **and** a valid grant is the one combination that changes: `admit`. Everything else is
+ * as before - a wrong password with a grant is still `reject` / `locked_out` and is recorded, and
+ * a right password without one still meets F20's refusal. The second factor is not this
+ * function's business and is never skipped. `confirmReauthentication` always passes `false`.
  */
 export function decideVerifyFirst(input: {
   readonly passwordCorrect: boolean;
   readonly failuresInWindow: number;
   readonly maxFailuresInWindow: number;
+  readonly resetGrantValid: boolean;
 }): VerifyFirstDecision {
-  if (input.failuresInWindow >= input.maxFailuresInWindow) return 'locked_out';
+  if (input.failuresInWindow >= input.maxFailuresInWindow) {
+    return input.passwordCorrect && input.resetGrantValid ? 'admit' : 'locked_out';
+  }
   return input.passwordCorrect ? 'admit' : 'reject';
 }
 
@@ -463,6 +479,11 @@ export class AuthenticationService {
     email: string;
     password: string;
     context: SignInContext;
+    /**
+     * N01 (wave 11). The sealed reset sign-in grant from the `tm_reset_grant` cookie, as the
+     * controller read it; never from the body. See {@link decideVerifyFirst}.
+     */
+    resetGrant?: string | undefined;
   }): Promise<SignInOutcome> {
     const { email, password, context } = input;
 
@@ -488,16 +509,26 @@ export class AuthenticationService {
       throw new AuthenticationRejectedError('rate_limited', verdict.reason);
     }
 
+    // N01 (wave 11). An HMAC and a clock read, no I/O: a forged, tampered or expired grant is
+    // `undefined` here and changes nothing below.
+    const grant =
+      input.resetGrant === undefined
+        ? undefined
+        : openResetSignInGrant(input.resetGrant, this.options.sessionSecret, this.now());
+
     const found = await this.database.identityRead(
       { correlationId: context.correlationId, tables: [...IDENTITY_TABLES] },
       async (db) => {
         const user = await this.credentials.findUserIdByEmail(db, email);
         if (!user) return null;
-        const [stored, failures] = await Promise.all([
+        const [stored, failures, resetGrantValid] = await Promise.all([
           this.credentials.findPassword(db, user.id),
           this.credentials.countRecentFailures(db, user.id, this.options.failureWindowSeconds),
+          grant !== undefined && grant.userId === user.id
+            ? this.resetGrantStillOpen(db, user.id, grant.passwordSetAt)
+            : Promise.resolve(false),
         ]);
-        return { user, stored, failures };
+        return { user, stored, failures, resetGrantValid };
       },
     );
 
@@ -516,6 +547,7 @@ export class AuthenticationService {
       passwordCorrect: Boolean(found?.stored) && correct,
       failuresInWindow: found?.failures ?? 0,
       maxFailuresInWindow: this.options.maxFailuresInWindow,
+      resetGrantValid: found?.resetGrantValid ?? false,
     });
 
     if (decision !== 'admit') {
@@ -547,6 +579,9 @@ export class AuthenticationService {
     }
     const userId = found.user.id;
     const currentHash = found.stored.passwordHash;
+    // N01 (wave 11): only a grant that actually carried the attempt through a full window is
+    // named on the row. Either way the succeeded row written below is what spends the grant.
+    const admittedByGrant = found.failures >= this.options.maxFailuresInWindow;
 
     if (needsRehash(currentHash)) {
       // The one moment the plaintext is legitimately in memory. Compare-and-swap, so a
@@ -568,7 +603,7 @@ export class AuthenticationService {
         userId,
         action: AUTHENTICATION_ACTIONS.passwordSignIn,
         outcome: 'succeeded',
-        reason: null,
+        reason: admittedByGrant ? 'reset_grant' : null,
       });
       return { status: 'authenticated', userId };
     }
@@ -776,6 +811,22 @@ export class AuthenticationService {
     return { status: 'authenticated', userId };
   }
 
+  /**
+   * N01 (wave 11). A reset sign-in grant that opened and names this account still counts only
+   * while it belongs to the account's **latest** succeeded `password_set` row (a second reset or
+   * a password change makes it stale) and while **no** sign-in has succeeded since that row (the
+   * first one spends it). Both are reads of rows a guesser cannot write.
+   */
+  private async resetGrantStillOpen(
+    db: IdentityQueryRunner,
+    userId: string,
+    grantPasswordSetAt: number,
+  ): Promise<boolean> {
+    const latest = await this.credentials.findLatestPasswordSetAt(db, userId);
+    if (latest === null || latest.getTime() !== grantPasswordSetAt) return false;
+    return !(await this.credentials.hasSucceededSignInSince(db, userId, latest));
+  }
+
   // ───────────────────────────────────────────────────────────────────────────
   // Re-authentication — `D05`
   // ───────────────────────────────────────────────────────────────────────────
@@ -846,6 +897,8 @@ export class AuthenticationService {
       passwordCorrect: Boolean(found.stored) && correct,
       failuresInWindow: found.failures,
       maxFailuresInWindow: this.options.maxFailuresInWindow,
+      // A reset sign-in grant opens only the sign-in route; re-authentication never takes one.
+      resetGrantValid: false,
     });
 
     if (decision !== 'admit') {

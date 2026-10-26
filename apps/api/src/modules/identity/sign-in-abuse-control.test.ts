@@ -533,28 +533,75 @@ describe('the sign-in abuse control aggregates IPv6 sources by /64 (D08 follow-u
 describe('durable lockout decision (C-1 + F20)', () => {
   it('locks out a correct password once the window is full (F20)', () => {
     expect(
-      decideVerifyFirst({ passwordCorrect: true, failuresInWindow: 99, maxFailuresInWindow: 5 }),
+      decideVerifyFirst({
+        passwordCorrect: true,
+        failuresInWindow: 99,
+        maxFailuresInWindow: 5,
+        resetGrantValid: false,
+      }),
     ).toBe('locked_out');
     expect(
-      decideVerifyFirst({ passwordCorrect: true, failuresInWindow: 5, maxFailuresInWindow: 5 }),
+      decideVerifyFirst({
+        passwordCorrect: true,
+        failuresInWindow: 5,
+        maxFailuresInWindow: 5,
+        resetGrantValid: false,
+      }),
     ).toBe('locked_out');
   });
 
   it('admits a correct password below the bound', () => {
     expect(
-      decideVerifyFirst({ passwordCorrect: true, failuresInWindow: 4, maxFailuresInWindow: 5 }),
+      decideVerifyFirst({
+        passwordCorrect: true,
+        failuresInWindow: 4,
+        maxFailuresInWindow: 5,
+        resetGrantValid: false,
+      }),
     ).toBe('admit');
   });
 
   it('locks out a wrong password once the window is full', () => {
     expect(
-      decideVerifyFirst({ passwordCorrect: false, failuresInWindow: 5, maxFailuresInWindow: 5 }),
+      decideVerifyFirst({
+        passwordCorrect: false,
+        failuresInWindow: 5,
+        maxFailuresInWindow: 5,
+        resetGrantValid: false,
+      }),
     ).toBe('locked_out');
+  });
+
+  it('N01 (wave 11): a full window admits only a correct password that carries a valid grant', () => {
+    const full = { failuresInWindow: 5, maxFailuresInWindow: 5 } as const;
+    expect(decideVerifyFirst({ ...full, passwordCorrect: true, resetGrantValid: true })).toBe(
+      'admit',
+    );
+    expect(decideVerifyFirst({ ...full, passwordCorrect: false, resetGrantValid: true })).toBe(
+      'locked_out',
+    );
+    expect(decideVerifyFirst({ ...full, passwordCorrect: true, resetGrantValid: false })).toBe(
+      'locked_out',
+    );
+    // Below the bound a grant changes nothing: a wrong password is still an ordinary failure.
+    expect(
+      decideVerifyFirst({
+        passwordCorrect: false,
+        failuresInWindow: 4,
+        maxFailuresInWindow: 5,
+        resetGrantValid: true,
+      }),
+    ).toBe('reject');
   });
 
   it('rejects a wrong password below the window as an ordinary failure', () => {
     expect(
-      decideVerifyFirst({ passwordCorrect: false, failuresInWindow: 4, maxFailuresInWindow: 5 }),
+      decideVerifyFirst({
+        passwordCorrect: false,
+        failuresInWindow: 4,
+        maxFailuresInWindow: 5,
+        resetGrantValid: false,
+      }),
     ).toBe('reject');
   });
 });

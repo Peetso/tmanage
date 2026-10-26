@@ -238,6 +238,19 @@ export function clampToColumnCharacters(
 const PASSWORD_SET_ACTION = 'password_set';
 
 /**
+ * N01 (wave 11). Every action whose `succeeded` row means "this person signed in": the password
+ * step (also when it led to an MFA challenge), the code step, the recovery-code fallback and
+ * Google. Spelled here for the cycle reason above (`AUTHENTICATION_ACTIONS` in
+ * `authentication.service.ts`, `GOOGLE_SIGN_IN_ACTION` in `google-auth.service.ts`).
+ */
+const SIGN_IN_ACTIONS: readonly string[] = [
+  'password_sign_in',
+  'mfa_challenge',
+  'recovery_code',
+  'google_sign_in',
+];
+
+/**
  * The four actions that mean a credential *changed* — `D05d`, I1.
  *
  * Spelled here rather than imported from `authentication.service.ts` for the reason
@@ -964,6 +977,58 @@ export class CredentialsRepository {
         ),
       );
     return Number(rows[0]?.failures ?? 0);
+  }
+
+  /**
+   * N01 (wave 11). When the person's latest **succeeded** `password_set` row was written - the
+   * row a reset or a password change writes in its own transaction, and the bound
+   * {@link countRecentFailures} counts from. `null` when there is none. A reset sign-in grant
+   * (`reset-sign-in-grant.ts`) carries this value and is honoured only while it is still the
+   * latest, so a second reset makes an older grant stale. One descending read on
+   * `ix_authentication_events_user (user_id, occurred_at)`; valid on MariaDB and MySQL alike.
+   */
+  async findLatestPasswordSetAt(runner: IdentityQueryRunner, userId: string): Promise<Date | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({ at: authenticationEvents.occurredAt })
+      .from(authenticationEvents)
+      .where(
+        and(
+          eq(authenticationEvents.userId, userId),
+          eq(authenticationEvents.action, PASSWORD_SET_ACTION),
+          eq(authenticationEvents.outcome, 'succeeded'),
+        ),
+      )
+      .orderBy(desc(authenticationEvents.occurredAt))
+      .limit(1);
+    return rows[0]?.at ?? null;
+  }
+
+  /**
+   * N01 (wave 11). Whether the person has signed in successfully at or after `at` - by password
+   * (including the password step of an MFA sign-in), by code, by recovery code or by Google.
+   * This is what makes a reset sign-in grant single-use: the first succeeded sign-in after the
+   * reset writes the row that answers `true` here, and nothing a guesser can do removes it.
+   * `>=`, the stricter direction: a sign-in stamped in the reset's own millisecond spends it.
+   * One indexed probe on `ix_authentication_events_user`, `LIMIT 1`, valid on MariaDB.
+   */
+  async hasSucceededSignInSince(
+    runner: IdentityQueryRunner,
+    userId: string,
+    at: Date,
+  ): Promise<boolean> {
+    const rows = await tenantDrizzle(runner)
+      .select({ id: authenticationEvents.id })
+      .from(authenticationEvents)
+      .where(
+        and(
+          eq(authenticationEvents.userId, userId),
+          eq(authenticationEvents.outcome, 'succeeded'),
+          inArray(authenticationEvents.action, [...SIGN_IN_ACTIONS]),
+          gte(authenticationEvents.occurredAt, at),
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
   }
 
   /**

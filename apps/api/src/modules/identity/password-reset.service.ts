@@ -131,6 +131,12 @@ export interface PasswordResetContext {
   readonly userAgent?: string | null;
 }
 
+/** What a completed reset hands the controller - see {@link PasswordResetService.complete}. */
+export interface PasswordResetCompletion {
+  readonly userId: string;
+  readonly passwordSetAt: Date | null;
+}
+
 export class PasswordResetService {
   constructor(
     private readonly database: TenantDatabase,
@@ -195,8 +201,19 @@ export class PasswordResetService {
     return { delivery };
   }
 
-  /** Step 2. 404 for a link that is unknown, used, superseded or expired — all the same. */
-  async complete(token: unknown, password: unknown, context: PasswordResetContext): Promise<void> {
+  /**
+   * Step 2. 404 for a link that is unknown, used, superseded or expired — all the same.
+   *
+   * Resolves to what the controller needs to hand the browser a reset sign-in grant (N01, wave
+   * 11, `reset-sign-in-grant.ts`): the person and the time of the `password_set` row this very
+   * transaction wrote. `passwordSetAt` is `null` only if that row could not be read back, and then
+   * no grant is issued - the reset itself has committed and stands.
+   */
+  async complete(
+    token: unknown,
+    password: unknown,
+    context: PasswordResetContext,
+  ): Promise<PasswordResetCompletion> {
     if (typeof token !== 'string' || !looksLikeInvitationToken(token)) throw unusableLink();
     const tokenHash = hashInvitationToken(token);
 
@@ -232,9 +249,9 @@ export class PasswordResetService {
       userId: target.userId,
       correlationId: context.correlationId,
     });
-    await this.database.identityTransaction(
+    const passwordSetAt = await this.database.identityTransaction(
       { correlationId: context.correlationId, tables: [...RESET_TABLES] },
-      async (tx) => {
+      async (tx): Promise<Date | null> => {
         // F03 / NV04 (wave 10): spending the mailed link also marks the address verified - it
         // proves the mailbox - and the session and bearer cutoffs here end whatever a
         // pre-registrant of the address held.
@@ -248,12 +265,21 @@ export class PasswordResetService {
           ip: context.ip ?? null,
           userAgent: context.userAgent ?? null,
         });
+        // N01 (wave 11): the stamp of the row just written, read inside the same transaction so
+        // it is this reset's row and no other. A read failure costs the grant, never the reset.
+        try {
+          return (await this.credentials.findLatestPasswordSetAt(tx, target.userId)) ?? null;
+        } catch (error) {
+          console.error('[password-reset] password_set read-back failed', serializeForLog(error));
+          return null;
+        }
       },
     );
     await this.bearerCutoff.revokeAllForUser(this.database, {
       userId: target.userId,
       correlationId: context.correlationId,
     });
+    return { userId: target.userId, passwordSetAt };
   }
 }
 
