@@ -394,6 +394,11 @@ export const NEVER: readonly NeverEntry[] = [
     reason: 'calendar_connection',
   },
   {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/integrations/google-calendar/team',
+    reason: 'calendar_connection',
+  },
+  {
     method: 'POST',
     path: '/v1/organizations/:orgSlug/integrations/google-calendar/connect',
     reason: 'calendar_connection',

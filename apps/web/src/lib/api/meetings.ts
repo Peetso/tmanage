@@ -4,10 +4,10 @@ import type { ProjectSummary } from './projects';
 /**
  * CAL-01 / MTG-01 (x90 API, x122 web) — the meeting list / create.
  *
- * A meeting is a tenant-scoped, project-scoped record served at `.../meetings`: `GET` lists one
- * project's meetings behind `meeting.read`, `POST` creates one behind `meeting.write`. The list
- * is per-project by definition — the API requires a `projectId` query parameter and never lists a
- * whole tenant's meetings — so the screen chooses a project and reads that project's meetings.
+ * A meeting is a tenant-scoped, project-scoped record served at `.../meetings`: `GET` lists the
+ * meetings the caller may read (in a window, or one project's with `projectId`) behind
+ * `meeting.read`, `POST` creates one behind `meeting.write`. 0237 adds the meeting page's
+ * `/overview` read, cancel, sync and email guests.
  */
 
 /**
@@ -31,18 +31,87 @@ export interface MeetingView {
   readonly updatedAt: string;
 }
 
-/** What the create form sends. Not a paired projection — it is a request body, like `CreateProjectInput`. */
-export interface CreateMeetingInput {
+/** 0237. The video call a meeting carries; the organizer's connected calendar makes the link. */
+export type MeetingConference = 'none' | 'google_meet' | 'teams';
+/** 0237. An attendee's answer, as Google/Outlook or TManage recorded it. */
+export type MeetingAnswer = 'invited' | 'accepted' | 'declined' | 'tentative';
+
+/** 0237. One reminder: a notification or an email, so many minutes before the start. */
+interface MeetingReminderShape {
+  readonly method: 'popup' | 'email';
+  readonly minutes: number;
+}
+
+/**
+ * 0237. The event options the create/edit form sends — every option a Google Calendar event
+ * offers that TManage edits. A request body, not a paired projection.
+ */
+export interface MeetingOptionsInput {
+  readonly allDay?: boolean;
+  readonly timeZone?: string | null;
+  readonly location?: string | null;
+  /** One RFC-5545 RRULE, e.g. `RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20261221T000000Z`. */
+  readonly rrule?: string | null;
+  readonly visibility?: 'default' | 'public' | 'private';
+  readonly showAs?: 'busy' | 'free';
+  /** Google's event colour `1`..`11`. */
+  readonly colorId?: string | null;
+  readonly conference?: MeetingConference;
+  readonly reminders?: readonly MeetingReminderShape[] | null;
+  readonly guestsCanModify?: boolean;
+  readonly guestsCanInviteOthers?: boolean;
+  readonly guestsCanSeeOthers?: boolean;
+}
+
+/** A Drive or OneDrive file picked for the meeting (the API host-checks `webUrl`). */
+interface MeetingAttachmentShape {
+  readonly provider: 'google_drive' | 'onedrive';
+  readonly fileId: string;
+  readonly driveId?: string | null;
+  readonly title: string;
+  readonly mimeType: string;
+  readonly webUrl: string;
+}
+
+/** What the create form sends. Not a paired projection — it is a request body. */
+export interface CreateMeetingInput extends MeetingOptionsInput {
   readonly projectId: string;
   readonly title: string;
   /** An ISO-8601 instant, e.g. `2026-10-01T14:00:00.000Z`. */
   readonly startsAt: string;
+  readonly endsAt?: string;
   readonly agendaNote?: string;
+  /** Members; the organizer is always added by the API. */
+  readonly attendees?: readonly { readonly userId: string; readonly optional: boolean }[];
+  /** People outside the team, by email. */
+  readonly guests?: readonly {
+    readonly email: string;
+    readonly displayName?: string | null;
+    readonly optional: boolean;
+  }[];
+  readonly attachments?: readonly MeetingAttachmentShape[];
 }
 
 /**
- * List a project's meetings. The `projectId` is required — the API refuses the list without it
- * (400), because meetings are per-project and there is no "all projects at once" read to make.
+ * The meetings the caller may read in a time window, across every readable project — the
+ * calendar's default "All meetings" (`GET …/meetings` without `projectId`; owner bug 1).
+ */
+export async function listMeetingsInWindow(
+  client: ApiClient,
+  organizationSlug: string,
+  window: { readonly from: string; readonly to: string; readonly includeCancelled?: boolean },
+): Promise<readonly MeetingView[]> {
+  const query = new URLSearchParams({ from: window.from, to: window.to });
+  if (window.includeCancelled) query.set('includeCancelled', 'true');
+  const { data } = await client.request<{ readonly meetings: readonly MeetingView[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/meetings?${query.toString()}`,
+  });
+  return data.meetings;
+}
+
+/**
+ * List one project's meetings (`?projectId=`), one page. The calendar reads
+ * {@link listMeetingsInWindow}; this stays for project-scoped readers.
  */
 export async function listMeetings(
   client: ApiClient,
@@ -71,10 +140,10 @@ export async function createMeeting(
 
 /**
  * What the meeting edit form sends (`PATCH .../meetings/:meetingId`, behind `meeting.write`).
- * Absent fields are left alone; `endsAt` and `agendaNote` accept `null` to clear. The API refuses
- * an end that is not after the start (400). A request body, not a paired projection.
+ * Absent fields are left alone; `endsAt`, `agendaNote` and the nullable options accept `null`
+ * to clear. A request body, not a paired projection.
  */
-export interface UpdateMeetingInput {
+export interface UpdateMeetingInput extends MeetingOptionsInput {
   readonly title?: string;
   /** An ISO-8601 instant. */
   readonly startsAt?: string;
@@ -83,7 +152,7 @@ export interface UpdateMeetingInput {
   readonly agendaNote?: string | null;
 }
 
-/** Edit a meeting after creation (title, start, end, agenda note). Returns the updated meeting. */
+/** Edit a meeting after creation. Returns the updated meeting; the calendar push follows. */
 export async function updateMeeting(
   client: ApiClient,
   organizationSlug: string,
@@ -92,25 +161,21 @@ export async function updateMeeting(
 ): Promise<MeetingView> {
   const { data } = await client.request<MeetingView>({
     method: 'PATCH',
-    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/meetings/${encodeURIComponent(meetingId)}`,
+    path: meetingPath(organizationSlug, meetingId),
     body: input,
   });
   return data;
 }
 
-/** The API's page ceiling for the meetings and projects lists (both cap `limit` at 200). */
+/** The API's page ceiling for the projects list (`limit` caps at 200). */
 const PAGE_SIZE = 200;
-/** A guard on the page walks: 200 pages of 200 is far past any real tenant. */
+/** A guard on the page walk: 200 pages of 200 is far past any real tenant. */
 const MAX_PAGES = 200;
-/** How many projects are read at once when every project's meetings are needed. */
-const PROJECT_FAN_OUT = 6;
 
 /**
- * Every project the caller can read, walking the projects list page by page.
- *
- * `listProjects` reads one page at the API's default size (50, oldest first), so a tenant's newer
- * projects — and the meetings in them — were invisible to the calendar. The API filters a page by
- * relation after reading it, so a short page does not mean the end: the walk stops on an empty one.
+ * Every project the caller can read, walking the projects list page by page (the project filter
+ * and the form's project picker). The API filters a page by relation after reading it, so a short
+ * page does not mean the end: the walk stops on an empty one.
  */
 export async function listAllProjects(
   client: ApiClient,
@@ -133,76 +198,143 @@ export async function listAllProjects(
   return all;
 }
 
-/** Every meeting of one project, walking its pages with `after`. */
-async function listProjectMeetings(
-  client: ApiClient,
-  organizationSlug: string,
-  projectId: string,
-): Promise<readonly MeetingView[]> {
-  const all: MeetingView[] = [];
-  let after: string | undefined;
-  for (let page = 0; page < MAX_PAGES; page += 1) {
-    const query = new URLSearchParams({ projectId, limit: String(PAGE_SIZE) });
-    if (after) query.set('after', after);
-    const { data } = await client.request<{ readonly meetings: readonly MeetingView[] }>({
-      path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/meetings?${query.toString()}`,
-    });
-    all.push(...data.meetings);
-    const last = data.meetings[data.meetings.length - 1];
-    if (data.meetings.length < PAGE_SIZE || !last) break;
-    after = last.id;
-  }
-  return all;
+/**
+ * 0237. Everything the meeting page shows, in one read (`GET …/meetings/:meetingId/overview`):
+ * the meeting, its options, everyone invited with their answer, the Meet/Teams link and the sync
+ * state, and the attachments. Paired `Exact` with the API's `MeetingOverviewView`. It replaces the
+ * old project-by-project scan for one meeting (owner bug 2).
+ */
+export interface MeetingOverviewView {
+  readonly meeting: MeetingView;
+  readonly allDay: boolean;
+  readonly timeZone: string | null;
+  readonly location: string | null;
+  readonly rrule: string | null;
+  readonly visibility: string;
+  readonly showAs: string;
+  readonly colorId: string | null;
+  readonly conference: string;
+  /** `null` = the calendar's default reminders. */
+  readonly reminders: readonly MeetingReminderShape[] | null;
+  readonly guestsCanModify: boolean;
+  readonly guestsCanInviteOthers: boolean;
+  readonly guestsCanSeeOthers: boolean;
+  readonly cancelledAt: string | null;
+  readonly people: readonly {
+    readonly kind: 'member' | 'client' | 'guest';
+    /** The attendee or guest row id (a guest's is what `removeMeetingGuest` takes). */
+    readonly id: string;
+    readonly userId: string | null;
+    readonly displayName: string | null;
+    /** Shown for guests only. */
+    readonly email: string | null;
+    readonly optional: boolean;
+    readonly organizer: boolean;
+    readonly rsvp: MeetingAnswer;
+  }[];
+  /** `null` while the organizer has no calendar connected (the meeting is TManage-only). */
+  readonly external: {
+    readonly provider: string;
+    /** The Meet/Teams link — opened in a new tab; live calls cannot be embedded. */
+    readonly joinUrl: string | null;
+    readonly htmlLink: string | null;
+    readonly syncStatus: string;
+    readonly lastErrorCode: string | null;
+    readonly lastPushedAt: string | null;
+    readonly lastPulledAt: string | null;
+  } | null;
+  readonly attachments: readonly {
+    readonly id: string;
+    readonly provider: string;
+    readonly title: string;
+    readonly mimeType: string;
+    readonly webUrl: string | null;
+  }[];
 }
 
-/**
- * Every meeting in the given projects (all the caller can read when none are given) — the
- * calendar's default "All meetings" view. The API lists per project only, so the projects are read
- * a few at a time and their meetings merged, newest first (ids are UUIDv7, creation order).
- */
-export async function listAllMeetings(
-  client: ApiClient,
-  organizationSlug: string,
-  projectIds?: readonly string[],
-): Promise<readonly MeetingView[]> {
-  const ids = projectIds ?? (await listAllProjects(client, organizationSlug)).map((p) => p.id);
-  const all: MeetingView[] = [];
-  for (let start = 0; start < ids.length; start += PROJECT_FAN_OUT) {
-    const batch = ids.slice(start, start + PROJECT_FAN_OUT);
-    const lists = await Promise.all(
-      batch.map((projectId) => listProjectMeetings(client, organizationSlug, projectId)),
-    );
-    for (const list of lists) all.push(...list);
-  }
-  return all.sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+function meetingPath(organizationSlug: string, meetingId: string): string {
+  return `/v1/organizations/${encodeURIComponent(organizationSlug)}/meetings/${encodeURIComponent(meetingId)}`;
 }
 
-/**
- * Find one meeting by id, through the per-project lists.
- *
- * There is no `GET .../meetings/:meetingId` on the API yet, so the meeting is found in its
- * project's list: the given projects when the caller knows them, otherwise every project the caller
- * can read (all pages, not only the first 50). Resolves `null` when no readable project holds it —
- * the screen's not-found state.
- */
-export async function getMeeting(
+/** The meeting page's read. An unknown or unreadable id is a 404 (the not-found state). */
+export async function getMeetingOverview(
   client: ApiClient,
   organizationSlug: string,
   meetingId: string,
-  projectIds?: readonly string[],
-): Promise<MeetingView | null> {
-  const ids = projectIds ?? (await listAllProjects(client, organizationSlug)).map((p) => p.id);
-  for (let start = 0; start < ids.length; start += PROJECT_FAN_OUT) {
-    const batch = ids.slice(start, start + PROJECT_FAN_OUT);
-    const lists = await Promise.all(
-      batch.map((projectId) => listProjectMeetings(client, organizationSlug, projectId)),
-    );
-    for (const list of lists) {
-      const found = list.find((meeting) => meeting.id === meetingId);
-      if (found) return found;
-    }
-  }
-  return null;
+): Promise<MeetingOverviewView> {
+  const { data } = await client.request<MeetingOverviewView>({
+    path: `${meetingPath(organizationSlug, meetingId)}/overview`,
+  });
+  return data;
+}
+
+/** Cancel the meeting; Google/Outlook tell the guests. Returns the meeting. */
+export async function cancelMeeting(
+  client: ApiClient,
+  organizationSlug: string,
+  meetingId: string,
+): Promise<MeetingView> {
+  const { data } = await client.request<MeetingView>({
+    method: 'POST',
+    path: `${meetingPath(organizationSlug, meetingId)}/cancel`,
+  });
+  return data;
+}
+
+/** "Try again": push to the organizer's calendar again and pull the answers back. */
+export async function syncMeeting(
+  client: ApiClient,
+  organizationSlug: string,
+  meetingId: string,
+): Promise<MeetingOverviewView> {
+  const { data } = await client.request<MeetingOverviewView>({
+    method: 'POST',
+    path: `${meetingPath(organizationSlug, meetingId)}/sync`,
+  });
+  return data;
+}
+
+/** 0237. A guest invited by email, as the guest routes answer it (mirrors the API entry). */
+interface MeetingGuestEntry {
+  readonly id: string;
+  readonly meetingId: string;
+  readonly email: string;
+  readonly displayName: string | null;
+  readonly optional: boolean;
+  readonly rsvp: string;
+  readonly createdAt: string;
+}
+
+/** Invite someone outside the team by email (behind `meeting.write`). */
+export async function addMeetingGuest(
+  client: ApiClient,
+  organizationSlug: string,
+  meetingId: string,
+  guest: {
+    readonly email: string;
+    readonly displayName?: string | null;
+    readonly optional: boolean;
+  },
+): Promise<MeetingGuestEntry> {
+  const { data } = await client.request<MeetingGuestEntry>({
+    method: 'POST',
+    path: `${meetingPath(organizationSlug, meetingId)}/guests`,
+    body: guest,
+  });
+  return data;
+}
+
+/** Remove an email guest. */
+export async function removeMeetingGuest(
+  client: ApiClient,
+  organizationSlug: string,
+  meetingId: string,
+  guestId: string,
+): Promise<void> {
+  await client.request<unknown>({
+    method: 'DELETE',
+    path: `${meetingPath(organizationSlug, meetingId)}/guests/${encodeURIComponent(guestId)}`,
+  });
 }
 
 /**

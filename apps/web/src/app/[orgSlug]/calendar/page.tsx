@@ -7,11 +7,9 @@ import { FIXTURE_ORGANIZATION_NAME } from '../../../lib/fixtures';
 /**
  * **Calendar** — the fifth destination on the internal rail (`22-SCREEN-BY-SCREEN` §1).
  *
- * x90 landed the meetings API and x105/x108 the notes read screen, but this route stayed a
- * `PlannedInternalScreen` stub — backend-only, no UI, no journey (audit Top-10 #8). x122 builds
- * the missing list/create surface: {@link MeetingsScreen} chooses a project, lists that project's
- * meetings, schedules a new one, and links each row to its notes page. The rail stays intact —
- * `activeNavigationId="calendar"` — the destination is now answered rather than deferred.
+ * Opens on **All meetings** (approved Figma 414:6710): every meeting the person may read, in a
+ * week by default. `?view=day|month` opens another range and `?project=<id>` preselects a project,
+ * so a project screen (or a shared link) can open straight onto that project's meetings.
  *
  * The organization name is still a fixture, for the same reason as its sibling routes: no endpoint
  * returns the current organization's profile by slug.
@@ -21,19 +19,19 @@ export default function CalendarPage({
   searchParams,
 }: {
   params: Promise<{ orgSlug: string }>;
-  searchParams: Promise<{ project?: string | string[] }>;
+  searchParams: Promise<{ project?: string | string[]; view?: string | string[] }>;
 }) {
   const { orgSlug } = use(params);
-  // `?project=<id>` preselects a project, so a project screen (or a shared link) can open
-  // straight onto that project's meetings.
-  const { project } = use(searchParams);
+  const { project, view } = use(searchParams);
   const initialProjectId = typeof project === 'string' ? project : undefined;
+  const initialRange = view === 'day' || view === 'month' || view === 'week' ? view : undefined;
 
   return (
     <MeetingsScreen
       organizationSlug={orgSlug}
       organizationName={FIXTURE_ORGANIZATION_NAME}
       {...(initialProjectId ? { initialProjectId } : {})}
+      {...(initialRange ? { initialRange } : {})}
     />
   );
 }

@@ -40,6 +40,7 @@ import {
 import {
   GoogleCalendarService,
   type CalendarConnectionStatusView,
+  type CalendarTeamView,
 } from './google-calendar.service.js';
 import { CALENDAR_SYNC_JOB, CalendarSyncJob, calendarSyncJobEnabled } from './calendar-sync.job.js';
 
@@ -93,6 +94,13 @@ export class GoogleCalendarConnectionController {
   @RequireCapability('meeting.read')
   async status(@Ctx() context: TenantContext): Promise<CalendarConnectionStatusView> {
     return this.calendar.status(context);
+  }
+
+  /** Settings > Calendar connections, "Your team's calendars": owners only. */
+  @Get('team')
+  @RequireCapability('org.manage')
+  async team(@Ctx() context: TenantContext): Promise<CalendarTeamView> {
+    return this.calendar.team(context);
   }
 
   @Post('connect')

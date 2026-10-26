@@ -143,6 +143,10 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/calendar/focus-blocks': { en: 'Focus blocks', key: 'RouteTitle.calendarFocusBlocks' },
   '/[orgSlug]/calendar/grid': { en: 'Calendar grid', key: 'RouteTitle.calendarGrid' },
   '/[orgSlug]/calendar/meetings/[meetingId]': { en: 'Meeting', key: 'RouteTitle.meeting' },
+  '/[orgSlug]/calendar/meetings/[meetingId]/edit': {
+    en: 'Edit meeting',
+    key: 'RouteTitle.meetingEdit',
+  },
   '/[orgSlug]/calendar/meetings/[meetingId]/action-items': {
     en: 'Action items',
     key: 'RouteTitle.meetingActionItems',
@@ -160,6 +164,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     en: 'Time poll',
     key: 'RouteTitle.meetingTimePoll',
   },
+  '/[orgSlug]/calendar/new': { en: 'New meeting', key: 'RouteTitle.calendarNew' },
   '/[orgSlug]/calendar/series': { en: 'Meeting series', key: 'RouteTitle.calendarSeries' },
   '/[orgSlug]/capture': { en: 'Quick capture', key: 'RouteTitle.capture' },
   '/[orgSlug]/chat': { en: 'Chat', key: 'RouteTitle.chat' },
@@ -313,6 +318,10 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     key: 'RouteTitle.settingsAccessibility',
   },
   '/[orgSlug]/settings/ai-assistant': { en: 'AI assistant', key: 'RouteTitle.settingsAiAssistant' },
+  '/[orgSlug]/settings/calendar-connections': {
+    en: 'Calendar connections',
+    key: 'RouteTitle.settingsCalendarConnections',
+  },
   '/[orgSlug]/settings/connected-apps': {
     en: 'Connected apps',
     key: 'RouteTitle.settingsConnectedApps',

@@ -1,32 +1,31 @@
 'use client';
 
 import { use } from 'react';
-import { MeetingDetailScreen } from '../../../../../components/screens/MeetingDetailScreen';
+import { MeetingPageScreen } from '../../../../../components/meetings/MeetingPage';
 import { FIXTURE_ORGANIZATION_NAME } from '../../../../../lib/fixtures';
 
 /**
- * **A5 — a meeting's detail (Figma `mt-saved` / `mt-edit`).**
+ * **A meeting's page (approved Figma 418:10146 EN / 418:10594 AR).**
  *
- * The meeting is named by the path, so the URL is a link a colleague can be sent. The screen reads
- * the meeting (found through its project's list — there is no read by id), its attendees and the
- * people who may be added, and edits it behind `meeting.write`. The notes and decisions that used
- * to live here moved to `[meetingId]/notes`, reached from the meeting's sub-navigation.
- *
- * The organization name is still a fixture, for the same reason as its sibling routes: no
- * endpoint returns the current organization's profile by slug.
+ * The meeting is named by the path, so the URL is a link a colleague can be sent. One read by id
+ * (`GET …/meetings/:meetingId/overview`) replaces the old scan through every project's list, so a
+ * meeting in any project opens (owner bug 2). `?saved=1` says the invitations went out.
  */
 export default function MeetingDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ orgSlug: string; meetingId: string }>;
+  searchParams: Promise<{ saved?: string | string[] }>;
 }) {
   const { orgSlug, meetingId } = use(params);
-
+  const { saved } = use(searchParams);
   return (
-    <MeetingDetailScreen
+    <MeetingPageScreen
       organizationSlug={orgSlug}
       organizationName={FIXTURE_ORGANIZATION_NAME}
       meetingId={meetingId}
+      justSaved={saved === '1'}
     />
   );
 }

@@ -64,6 +64,19 @@ export interface CalendarConnectionStatusView {
   };
 }
 
+/**
+ * The owners' team list (`GET …/integrations/google-calendar/team`): one row per person and
+ * provider that was ever connected. Provider-generic — Microsoft rows live in the same table.
+ */
+export interface CalendarTeamView {
+  readonly connections: readonly {
+    readonly userId: string;
+    readonly provider: string;
+    /** `connected`, `error` or `disconnected`. */
+    readonly status: string;
+  }[];
+}
+
 export interface GoogleCalendarServiceDeps {
   readonly database: TenantDatabase;
   readonly audit: AuditService;
@@ -137,6 +150,14 @@ export class GoogleCalendarService implements CalendarSyncPort, CalendarProvider
       this.connections.findFor(runner, context, context.userId, GOOGLE),
     );
     return this.toStatus(row);
+  }
+
+  /** Every person's calendar connection in this organization (owners only, at the route). */
+  async team(context: TenantContext): Promise<CalendarTeamView> {
+    const connections = await this.deps.database.read(context, (runner) =>
+      this.connections.listForOrganization(runner, context),
+    );
+    return { connections };
   }
 
   startConnect(

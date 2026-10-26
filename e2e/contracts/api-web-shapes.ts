@@ -173,6 +173,12 @@ import type { InvitationView as ApiInvitationView } from '../../apps/api/src/mod
 import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { MeetingNoteView as ApiMeetingNoteView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MeetingView as ApiMeetingView } from '../../apps/api/src/modules/calendar/meetings.service.js';
+import type { MeetingOverviewView as ApiMeetingOverviewView } from '../../apps/api/src/modules/calendar/meetings.service.js';
+import type {
+  CalendarConnectionStatusView as ApiCalendarConnectionStatusView,
+  CalendarTeamView as ApiCalendarTeamView,
+} from '../../apps/api/src/modules/google-calendar/google-calendar.service.js';
+import type { MicrosoftCalendarStatusView as ApiMicrosoftCalendarStatusView } from '../../apps/api/src/modules/microsoft-calendar/microsoft-calendar.service.js';
 import type { MeetingAttendeeView as ApiMeetingAttendeeView } from '../../apps/api/src/modules/calendar/meeting-attendees.service.js';
 import type { MeetingClientAttendeeView as ApiMeetingClientAttendeeView } from '../../apps/api/src/modules/calendar/meeting-attendees.service.js';
 import type { ClientAttendeeCandidateView as ApiClientAttendeeCandidateView } from '../../apps/api/src/modules/calendar/meeting-attendees.service.js';
@@ -647,6 +653,12 @@ import type {
 } from '../../apps/web/src/lib/api/invitations';
 import type { MeetingNoteView as WebMeetingNoteView } from '../../apps/web/src/lib/api/meetings';
 import type { MeetingView as WebMeetingView } from '../../apps/web/src/lib/api/meetings';
+import type { MeetingOverviewView as WebMeetingOverviewView } from '../../apps/web/src/lib/api/meetings';
+import type {
+  CalendarConnectionStatusView as WebCalendarConnectionStatusView,
+  CalendarTeamView as WebCalendarTeamView,
+  MicrosoftCalendarStatusView as WebMicrosoftCalendarStatusView,
+} from '../../apps/web/src/lib/api/calendar-connections';
 import type { MeetingAttendeeView as WebMeetingAttendeeView } from '../../apps/web/src/lib/api/meeting-attendees';
 import type { MeetingClientAttendeeView as WebMeetingClientAttendeeView } from '../../apps/web/src/lib/api/meeting-attendees';
 import type { ClientAttendeeCandidateView as WebClientAttendeeCandidateView } from '../../apps/web/src/lib/api/meeting-attendees';
@@ -1444,6 +1456,20 @@ type _documentTemplate = Assert<Exact<ApiDocumentTemplateView, WebDocumentTempla
  * shape, so the exemption was retired and the view is paired Exact.
  */
 type _meeting = Assert<Exact<ApiMeetingView, WebMeetingView>>;
+
+/**
+ * 0237 meetings + Google Calendar (slice A API, slice C web). The meeting page's one read
+ * (`GET …/meetings/:meetingId/overview`, read by `MeetingPage`), the
+ * caller's own calendar connection and the owners' team list (Settings > Calendar connections).
+ */
+type _meetingOverview = Assert<Exact<ApiMeetingOverviewView, WebMeetingOverviewView>>;
+type _calendarConnectionStatus = Assert<
+  Exact<ApiCalendarConnectionStatusView, WebCalendarConnectionStatusView>
+>;
+type _calendarTeam = Assert<Exact<ApiCalendarTeamView, WebCalendarTeamView>>;
+type _microsoftCalendarStatus = Assert<
+  Exact<ApiMicrosoftCalendarStatusView, WebMicrosoftCalendarStatusView>
+>;
 
 /**
  * CAL-01 / MTG-01 attendees + RSVP (x126). `GET`/`POST .../meetings/:meetingId/attendees` and

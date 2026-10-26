@@ -123,19 +123,6 @@ const EXEMPT = new Map([
     'PortalMeetingDetailView',
     'No web consumer yet: BK5 portal meeting detail is API-only; the portal meetings screen is a follow-up.',
   ],
-  // 0237 meetings + Google Calendar (slice A, backend): the screens are slice C, after Figma approval.
-  [
-    'MeetingOverviewView',
-    'No web consumer yet: GET …/meetings/:meetingId/overview (the meeting page) is API-only until slice C redesigns the meeting page; pair it then.',
-  ],
-  [
-    'CalendarConnectionStatusView',
-    'No web consumer yet: the Connected apps calendar cards are slice C (after Figma approval); pair it then.',
-  ],
-  [
-    'MicrosoftCalendarStatusView',
-    'No web consumer yet: the Outlook card in Connected apps is slice C (after Figma approval); pair it then.',
-  ],
 ]);
 
 /**

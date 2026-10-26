@@ -1,19 +1,15 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import type { FormEvent, ReactNode } from 'react';
+import { useState } from 'react';
+import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { createMeeting, listAllMeetings, listAllProjects } from '../../lib/api/meetings';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
-import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
-import type { MessageKey } from '../../lib/i18n/t';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { MeetingsHub } from '../meetings/MeetingsHub';
+import { gmtOffset, type CalendarRange } from '../meetings/meeting-model';
 import '../../styles/screens/calendar.css';
 
 export interface MeetingsScreenProps {
@@ -21,327 +17,87 @@ export interface MeetingsScreenProps {
   organizationName: string;
   /** Preselect a project — how a project screen could hand off to its meetings. */
   initialProjectId?: string;
+  /** `?view=day|week|month`; the week by default (approved Figma 415:19974). */
+  initialRange?: CalendarRange;
   client?: ApiClient;
+  /** Fixed "now" for stories and tests. */
+  now?: Date;
 }
 
 /**
- * **CAL-01 / MTG-01 — the calendar meetings screen (x122).**
+ * **CAL-01 / MTG-01 — Meetings (approved Figma 414:6710, 0237 slice C).**
  *
- * `22-SCREEN-BY-SCREEN` §1 names Calendar the fifth internal-rail destination, and
- * `41-WHOLE-APP-SCREEN-AND-STATE-MATRIX` §Calendar asks for the meetings a project holds and a way
- * to schedule one. x90 landed the API (`GET`/`POST …/meetings`) and x105/x108 the notes read
- * screen, but the `/calendar` route was still `PlannedInternalScreen` — backend-only, no UI, no
- * journey (audit Top-10 #8). This screen is the missing list/create surface, and the click-through
- * from here into a meeting's notes is what earns module 9 its credit.
- *
- * ## What it draws, and what it cannot
- *
- * - **A project's meetings** — the list is per-project by definition. The API requires a
- *   `projectId` and never lists a whole tenant's meetings, so the screen chooses a project and
- *   shows that project's meetings; the scoping is the server's, carried as a query parameter, not
- *   a client-side filter. Each row links to the existing `calendar/meetings/[meetingId]` notes
- *   page (x108).
- * - **Scheduling a meeting** — a create form in the chosen project (title, a start instant, an
- *   optional agenda note) → `POST /meetings` behind `meeting.write`. On success the new meeting
- *   is listed; a `meeting.write` refusal is shown in the form, the list untouched.
- * - **The calendar grid/agenda, attendees/RSVP, recurrence and ICS export are not here.** They
- *   have no endpoint or table yet and are deferred to NEXT-SCOPES-12; this slice does not fabricate
- *   them, the same honesty the sibling read screens keep.
- *
- * The default is **All meetings**: every readable project's meetings, merged (the API lists per
- * project, so {@link listAllMeetings} reads them all). Choosing a project narrows the list and opens
- * the create form — a new meeting needs a project.
+ * `/calendar` opens on **All meetings** — every meeting the person may read, across projects, in
+ * a week (or day / month) window — never on "choose a project" (owner bug 1). The header carries
+ * today's date and zone, a search box and "New meeting"; {@link MeetingsHub} draws the next
+ * meeting with its Join button, the filters and the calendar itself.
  */
 export function MeetingsScreen({
   organizationSlug,
   organizationName,
   initialProjectId,
+  initialRange,
   client,
+  now,
 }: MeetingsScreenProps) {
   const api = client ?? browserApiClient();
-  const queries = useQueryClient();
   const t = useT();
-
-  const [projectId, setProjectId] = useState<string>(initialProjectId ?? '');
-  const [title, setTitle] = useState('');
-  const [startsAtLocal, setStartsAtLocal] = useState('');
-  const [agendaNote, setAgendaNote] = useState('');
-
-  const projects = useQuery({
-    queryKey: ['projects', organizationSlug],
-    queryFn: () => listAllProjects(api, organizationSlug),
-  });
-
-  // `''` is "All meetings": every project the projects query returned. A chosen project reads only
-  // its own meetings. Both walk every page, so no meeting is cut off at the API's page size.
-  const meetings = useQuery({
-    queryKey: ['meetings', organizationSlug, projectId === '' ? 'all' : projectId],
-    queryFn: async () => ({
-      meetings: await listAllMeetings(
-        api,
-        organizationSlug,
-        projectId === '' ? (projects.data ?? []).map((project) => project.id) : [projectId],
-      ),
-    }),
-    enabled: projectId !== '' || projects.isSuccess,
-  });
-
-  const create = useMutation({
-    mutationFn: () =>
-      createMeeting(api, organizationSlug, {
-        projectId,
-        title: title.trim(),
-        // A `datetime-local` value is a wall-clock string with no zone; `new Date` reads it in the
-        // browser's zone and `toISOString` normalises it to the UTC instant the API stores.
-        startsAt: new Date(startsAtLocal).toISOString(),
-        ...(agendaNote.trim() === '' ? {} : { agendaNote: agendaNote.trim() }),
-      }),
-    onSuccess: () => {
-      setTitle('');
-      setStartsAtLocal('');
-      setAgendaNote('');
-      // Both the chosen project's list and the All view hold the new meeting.
-      void queries.invalidateQueries({ queryKey: ['meetings', organizationSlug] });
-    },
-  });
-
-  // Newest first for reading — `listAllMeetings` already orders by id descending (creation order).
-  const rows = useMemo(() => meetings.data?.meetings ?? [], [meetings.data]);
-
-  const canCreate = projectId !== '' && title.trim() !== '' && startsAtLocal !== '';
-
-  function submitCreate(event: FormEvent) {
-    event.preventDefault();
-    if (!canCreate) return;
-    create.mutate();
-  }
-
-  // The first meeting still ahead gets the lime edge (CAL-02's live/next row); past ones are struck.
-  const now = Date.now();
-  const nextId = useMemo(() => {
-    let best: { id: string; at: number } | null = null;
-    for (const meeting of rows) {
-      const at = Date.parse(meeting.startsAt);
-      if (Number.isNaN(at) || at < now) continue;
-      if (best === null || at < best.at) best = { id: meeting.id, at };
-    }
-    return best?.id ?? null;
-  }, [rows, now]);
+  const [search, setSearch] = useState('');
+  const [today] = useState(() => now ?? new Date());
+  const eyebrow = `${new Intl.DateTimeFormat('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+    .format(today)
+    .replace(',', '')} · ${zoneCity()}${gmtOffset(today)}`.toUpperCase();
 
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="calendar"
-      title={t('MeetingsScreen.title')}
-      eyebrow={t('MeetingsScreen.eyebrow')}
-      actions={<CalendarHeaderActions organizationSlug={organizationSlug} current="meetings" />}
-    >
-      <div className="tm-cal">
-        <CalendarSubnav organizationSlug={organizationSlug} />
-
-        {rows.length > 0 ? (
-          <MeetingTrack
-            organizationSlug={organizationSlug}
-            label={t('MeetingsScreen.trackLabel')}
-            meetings={rows}
-            nextId={nextId}
-            now={now}
-          />
-        ) : null}
-
-        <div className="tm-cal-body">
-          <div className="tm-cal-main">
-            {meetings.isError ? (
-              <InlineAlert tone="danger" title={t('MeetingsScreen.loadErrorTitle')} live>
-                {describeError(t, meetings.error)}
-              </InlineAlert>
-            ) : null}
-
-            {meetings.isPending && !projects.isError ? (
-              <LoadingRegion label={t('MeetingsScreen.loadingLabel')}>
-                <Skeleton height="var(--row)" />
-                <Skeleton height="var(--row)" />
-                <Skeleton height="var(--row)" />
-              </LoadingRegion>
-            ) : null}
-
-            {!meetings.isPending && !meetings.isError && rows.length === 0 ? (
-              <InlineAlert tone="neutral" title={t('MeetingsScreen.emptyTitle')}>
-                {/* The body speaks of "this project"; the All view has no single project. */}
-                {projectId !== '' ? t('MeetingsScreen.emptyBody') : null}
-              </InlineAlert>
-            ) : null}
-
-            {rows.length > 0 ? (
-              <div className="tm-cal-sheet">
-                <div
-                  className="tm-cal-sheet__scroll"
-                  // A scrollable region must be focusable or a keyboard cannot reach its overflow
-                  // columns (WCAG 2.2 2.1.1), matching the other list screens' tables.
-                  // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-                  tabIndex={0}
-                  role="region"
-                  aria-label={t('MeetingsScreen.regionAria')}
-                >
-                  <table>
-                    <caption className="tm-visually-hidden">
-                      {t('MeetingsScreen.captionBefore')} {rows.length}{' '}
-                      {t('MeetingsScreen.captionAfter')}
-                    </caption>
-                    <thead>
-                      <tr>
-                        <th scope="col">{t('MeetingsScreen.colTime')}</th>
-                        <th scope="col">{t('MeetingsScreen.colWhat')}</th>
-                        <th scope="col">{t('MeetingsScreen.colKind')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((meeting) => {
-                        const state = meetingState(meeting.startsAt, meeting.id === nextId, now);
-                        return (
-                          <tr key={meeting.id} data-state={state}>
-                            <td className="tm-cal-sheet__time">
-                              <time dateTime={meeting.startsAt}>{whenLabel(meeting.startsAt)}</time>
-                            </td>
-                            <th scope="row" className="tm-cal-sheet__what">
-                              <Link href={`/${organizationSlug}/calendar/meetings/${meeting.id}`}>
-                                {meeting.title}
-                              </Link>
-                              <span className="tm-cal-sheet__sub">
-                                {meeting.agendaNote ? `${meeting.agendaNote} · ` : ''}
-                                {t('MeetingsScreen.createdPrefix')}{' '}
-                                {formatInstant(meeting.createdAt)}
-                              </span>
-                            </th>
-                            <td className="tm-cal-sheet__kind">
-                              {state === 'next' ? (
-                                <span className="tm-cal-pill tm-cal-pill--lime">
-                                  {t('MeetingsScreen.kindNext')}
-                                </span>
-                              ) : state === 'done' ? (
-                                t('MeetingsScreen.kindDone')
-                              ) : (
-                                t('MeetingsScreen.kindMeeting')
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="tm-cal-side">
-            <section className="tm-cal-card" aria-labelledby="tm-meetings-filter">
-              <h2 id="tm-meetings-filter" className="tm-cal-eyebrow">
-                {t('MeetingsScreen.projectHeading')}
-              </h2>
-              {/*
-                Inert until the projects query has answered — both controlled inputs are rendered in
-                the server HTML, so without this a project chosen before React hydrated would be
-                re-applied from state (`''`) and silently undone. `isError` means
-                `isPending === false`, so a failed project list still leaves the control usable.
-              */}
-              <fieldset className="tm-fieldset tm-stack" disabled={projects.isPending}>
-                <div className="tm-field">
-                  <label className="tm-field__label" htmlFor="tm-meetings-project">
-                    {t('MeetingsScreen.showMeetingsForLabel')}
-                  </label>
-                  <select
-                    id="tm-meetings-project"
-                    className="tm-field__control"
-                    value={projectId}
-                    onChange={(event) => setProjectId(event.target.value)}
-                  >
-                    <option value="">{t('MeetingsScreen.backAllMeetings')}</option>
-                    {(projects.data ?? []).map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <span className="tm-field__hint">{t('MeetingsScreen.projectHint')}</span>
-              </fieldset>
-            </section>
-
-            {projectId !== '' ? (
-              <section className="tm-cal-card" aria-labelledby="tm-meetings-create">
-                <h2 id="tm-meetings-create" className="tm-cal-eyebrow">
-                  {t('MeetingsScreen.createHeading')}
-                </h2>
-                <form className="tm-cal-form" onSubmit={submitCreate}>
-                  <div className="tm-field">
-                    <label className="tm-field__label" htmlFor="tm-meetings-title">
-                      {t('MeetingsScreen.titleLabel')}
-                    </label>
-                    <input
-                      id="tm-meetings-title"
-                      className="tm-field__control"
-                      value={title}
-                      onChange={(event) => setTitle(event.target.value)}
-                      maxLength={300}
-                      required
-                    />
-                  </div>
-                  <div className="tm-field">
-                    <label className="tm-field__label" htmlFor="tm-meetings-starts">
-                      {t('MeetingsScreen.startsLabel')}
-                    </label>
-                    <input
-                      id="tm-meetings-starts"
-                      type="datetime-local"
-                      className="tm-field__control"
-                      value={startsAtLocal}
-                      onChange={(event) => setStartsAtLocal(event.target.value)}
-                      required
-                    />
-                    <span className="tm-field__hint">{t('MeetingsScreen.startsHint')}</span>
-                  </div>
-                  <div className="tm-field">
-                    <label className="tm-field__label" htmlFor="tm-meetings-agenda">
-                      {t('MeetingsScreen.agendaLabel')}
-                    </label>
-                    <textarea
-                      id="tm-meetings-agenda"
-                      className="tm-field__control"
-                      value={agendaNote}
-                      onChange={(event) => setAgendaNote(event.target.value)}
-                      maxLength={8000}
-                      rows={3}
-                    />
-                  </div>
-
-                  {create.isError ? (
-                    <InlineAlert tone="danger" title={t('MeetingsScreen.createErrorTitle')} live>
-                      {create.error instanceof ApiRequestError
-                        ? create.error.message
-                        : t('MeetingsScreen.apiNoAnswer')}
-                    </InlineAlert>
-                  ) : null}
-
-                  <Button
-                    type="submit"
-                    tone="ink"
-                    size="accessible"
-                    loading={create.isPending}
-                    loadingLabel={t('MeetingsScreen.schedulingLabel')}
-                    disabled={!canCreate}
-                  >
-                    {t('MeetingsScreen.createSubmit')}
-                  </Button>
-                </form>
-              </section>
-            ) : null}
-          </div>
+      title={t('MeetingsHub.title')}
+      eyebrow={eyebrow}
+      actions={
+        <div className="tm-mtg-header-actions">
+          <label className="tm-mtg-search">
+            <span className="tm-mtg-search__icon" aria-hidden="true" />
+            <span className="tm-visually-hidden">{t('MeetingsHub.searchLabel')}</span>
+            <input
+              type="search"
+              value={search}
+              placeholder={t('MeetingsHub.searchPlaceholder')}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+          <Link
+            href={`/${organizationSlug}/calendar/new`}
+            className="tm-mtg-btn tm-mtg-btn--lime tm-mtg-btn--tall"
+          >
+            {t('MeetingsHub.newMeeting')}
+          </Link>
         </div>
-      </div>
+      }
+    >
+      <MeetingsHub
+        organizationSlug={organizationSlug}
+        client={api}
+        search={search}
+        {...(initialProjectId ? { initialProjectId } : {})}
+        {...(initialRange ? { initialRange } : {})}
+        {...(now ? { now } : {})}
+      />
     </AppShell>
   );
+}
+
+/** "CAIRO, " from the reader's zone (`Africa/Cairo`), or nothing for a bare offset zone. */
+function zoneCity(): string {
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? '';
+  const city = zone.split('/').pop()?.replace(/_/g, ' ') ?? '';
+  return city && city !== 'UTC' ? `${city}, ` : '';
 }
 
 /** A meeting as the track draws it — the subset of the API row it reads. */
@@ -611,10 +367,4 @@ function meetingState(startsAt: string, isNext: boolean, now: number): 'done' | 
   if (isNext) return 'next';
   const at = Date.parse(startsAt);
   return !Number.isNaN(at) && at < now ? 'done' : 'later';
-}
-
-function describeError(t: (key: MessageKey) => string, error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return t('MeetingsScreen.errorNetwork');
-  return t('MeetingsScreen.errorGeneric');
 }

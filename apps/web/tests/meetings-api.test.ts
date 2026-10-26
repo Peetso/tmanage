@@ -1,77 +1,57 @@
 import { describe, expect, it } from 'vitest';
+import { buildRrule, parseRrule, windowOf } from '../src/components/meetings/meeting-model';
+import { readCalendarReturn } from '../src/lib/api/calendar-connections';
 import { ApiClient } from '../src/lib/api/client';
-import { getMeeting } from '../src/lib/api/meetings';
+import { listMeetingsInWindow } from '../src/lib/api/meetings';
 
 /**
- * The meeting page finds its meeting through the per-project lists (`getMeeting`). The projects
- * list is paged — 50 by default, 200 at most, oldest first — so a lookup that read one page of
- * projects never found a meeting in the tenant's 51st or later project, and the meeting page said
- * "Meeting not found" for a meeting the calendar had just linked to.
+ * The calendar reads one org-wide window (`GET /meetings?from&to`, no projectId) instead of a
+ * per-project scan; the repeat menu writes the RRULE body the API takes; the settings page reads
+ * the connect callback's fragment.
  */
 
-const NOW = '2026-10-26T09:00:00.000Z';
-const projects = Array.from({ length: 60 }, (_, index) => ({
-  id: `project-${String(index + 1).padStart(3, '0')}`,
-  workspaceId: 'ws-1',
-  name: `Project ${index + 1}`,
-  status: 'active',
-  ownerUserId: null,
-  committedAt: null,
-  forecastAt: null,
-  createdAt: NOW,
-  updatedAt: NOW,
-  archivedAt: null,
-}));
-const LATE_PROJECT = 'project-055';
-const meeting = {
-  id: 'meeting-late',
-  projectId: LATE_PROJECT,
-  title: 'Launch review',
-  startsAt: NOW,
-  endsAt: null,
-  agendaNote: null,
-  createdByUserId: 'user-1',
-  createdAt: NOW,
-  updatedAt: NOW,
-};
-
-function json(body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { 'content-type': 'application/json' },
-  });
-}
-
-/** A fake API that pages the way the real one does: `limit` (default 50, max 200) and `after`. */
-function pagedApi(): ApiClient {
-  return new ApiClient({
-    baseUrl: 'https://api.example.test',
-    csrfCookieName: 'tm_session_csrf',
-    fetch: ((input: RequestInfo | URL) => {
-      const url = new URL(String(input));
-      const limit = Math.min(Number(url.searchParams.get('limit') ?? 50), 200);
-      const after = url.searchParams.get('after');
-      if (url.pathname.endsWith('/projects')) {
-        const rest = after ? projects.filter((p) => p.id > after) : projects;
-        return Promise.resolve(json({ projects: rest.slice(0, limit) }));
-      }
-      if (url.pathname.endsWith('/meetings')) {
-        const projectId = url.searchParams.get('projectId');
-        return Promise.resolve(json({ meetings: projectId === LATE_PROJECT ? [meeting] : [] }));
-      }
-      return Promise.resolve(json({}));
-    }) as typeof globalThis.fetch,
-    readCsrfToken: () => 'csrf-token',
-    newCorrelationId: () => 'correlation-fixed',
-  });
-}
-
-describe('getMeeting', () => {
-  it('finds a meeting in a project past the first page of projects', async () => {
-    await expect(getMeeting(pagedApi(), 'acme', 'meeting-late')).resolves.toEqual(meeting);
+describe('meetings web model', () => {
+  it('reads the whole org in one window, without a projectId', async () => {
+    const urls: string[] = [];
+    const client = new ApiClient({
+      baseUrl: 'https://api.example.test',
+      csrfCookieName: 'tm_session_csrf',
+      fetch: ((input: RequestInfo | URL) => {
+        urls.push(String(input));
+        return Promise.resolve(new Response('{"meetings":[]}', { status: 200 }));
+      }) as typeof globalThis.fetch,
+      readCsrfToken: () => 'csrf-token',
+      newCorrelationId: () => 'correlation-fixed',
+    });
+    const span = windowOf('week', new Date(2026, 9, 28, 10));
+    await listMeetingsInWindow(client, 'acme', span);
+    const url = new URL(urls[0] ?? '');
+    expect(url.pathname).toBe('/v1/organizations/acme/meetings');
+    expect(url.searchParams.get('projectId')).toBeNull();
+    expect(new Date(url.searchParams.get('from') ?? '').getDay()).toBe(1);
+    expect(new Date(span.to).getDay()).toBe(1); // the next Monday, DST-safe
   });
 
-  it('resolves null for a meeting no readable project holds', async () => {
-    await expect(getMeeting(pagedApi(), 'acme', 'meeting-missing')).resolves.toBeNull();
+  it('round-trips the repeat rule the form writes', () => {
+    const rule = {
+      freq: 'WEEKLY',
+      interval: 2,
+      byDay: ['MO', 'WE'],
+      until: '2026-12-21',
+      count: null,
+    } as const;
+    expect(buildRrule(rule)).toBe('FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;UNTIL=20261221T235959Z');
+    expect(parseRrule(buildRrule(rule))).toEqual(rule);
+  });
+
+  it('reads the Google and Microsoft connect callbacks', () => {
+    expect(readCalendarReturn('#gcal=complete&code=c1&state=s1')).toEqual({
+      kind: 'complete',
+      provider: 'google',
+      code: 'c1',
+      state: 's1',
+    });
+    expect(readCalendarReturn('#mscal=error')).toEqual({ kind: 'error', provider: 'microsoft' });
+    expect(readCalendarReturn('')).toBeNull();
   });
 });

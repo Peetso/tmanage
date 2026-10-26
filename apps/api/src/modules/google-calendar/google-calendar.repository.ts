@@ -134,6 +134,26 @@ export class GoogleCalendarRepository {
     return rows[0]?.email.toLowerCase() ?? null;
   }
 
+  /**
+   * The owners' "Your team's calendars" list: each person's connection per provider, any status.
+   * Provider and status only: an owner sees who is connected, never a token or an address.
+   */
+  async listForOrganization(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+  ): Promise<readonly { userId: string; provider: string; status: string }[]> {
+    return tenantDrizzle(runner)
+      .select({
+        userId: calendarConnections.userId,
+        provider: calendarConnections.provider,
+        status: calendarConnections.status,
+      })
+      .from(calendarConnections)
+      .where(eq(calendarConnections.organizationId, context.organizationId))
+      .orderBy(asc(calendarConnections.userId), asc(calendarConnections.provider))
+      .limit(2000);
+  }
+
   /** The sync job's bootstrap read: every connected connection of the given providers. */
   async connectedAcrossOrganizations(
     runner: BootstrapQueryRunner,

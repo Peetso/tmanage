@@ -81,7 +81,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // wave11 Q1: +1 NEVER google-drive project files list (was 804 after wave9 S8/S7).
 // 0236 OneDrive: +12 (4 ops, 8 NEVER), was 805.
 // 0237 meetings + Google Calendar: +11 (6 ops, 5 NEVER), was 817.
-const EXPECTED_ROUTE_COUNT = 833; // 0237 slice B Outlook calendar: +5 NEVER, was 828.
+// 0237 slice C: +1 NEVER, GET .../integrations/google-calendar/team (owners' team list), was 833.
+const EXPECTED_ROUTE_COUNT = 834; // 0237 slice B Outlook calendar: +5 NEVER, was 828.
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).
