@@ -35,6 +35,7 @@ describe('controlCenterSectionsFor', () => {
         ['security', '/admin/security'],
         ['audit', '/admin/audit'],
         ['data', '/admin/audit/export'],
+        ['storage', '/admin/storage'],
         // D5 (Figma F5): Privacy sits between Data and retention and Organization.
         ['privacy', '/admin/privacy'],
         ['organization', '/settings'],
@@ -54,6 +55,13 @@ describe('controlCenterSectionsFor', () => {
     expect(menuEntryFor('sessions')).toBe('security');
     expect(menuEntryFor('offboarding')).toBe('members');
     expect(menuEntryFor('audit')).toBe('audit');
+    expect(menuEntryFor('storage')).toBe('storage');
+  });
+
+  it('lists Storage (Google Drive) for an owner, linked to /admin/storage', () => {
+    const items = controlCenterSectionsFor('owner').groups.flatMap((group) => group.items);
+    expect(items.find((item) => item.href === '/admin/storage')?.id).toBe('storage');
+    expect(ids('member')).not.toContain('storage');
   });
 
   it('names every capability in words', () => {

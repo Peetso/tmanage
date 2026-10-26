@@ -176,6 +176,14 @@ const GROUPS: readonly SectionGroup[] = [
         href: '/admin/audit/export',
         capability: 'audit.export',
       },
+      // Google Drive storage: the Drive attach error sends people to "Storage in Control".
+      // `org.manage` is what the storage API asks to change the connection.
+      {
+        id: 'storage',
+        labelKey: 'ControlCenterShell.storage',
+        href: '/admin/storage',
+        capability: 'org.manage',
+      },
       // D5 (Figma F5): between "Data and retention" and "Organization", as in the frame.
       {
         id: 'privacy',
@@ -209,7 +217,6 @@ const MENU_ENTRY_FOR: Partial<Record<ControlCenterSection, ControlCenterSection>
   'ip-allowlist': 'security',
   policies: 'security',
   'policy-simulation': 'security',
-  storage: 'data',
   modules: 'organization',
 };
 
