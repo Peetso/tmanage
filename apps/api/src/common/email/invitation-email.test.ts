@@ -145,6 +145,12 @@ ${message.html ?? ''}`;
     expect(mailSafeName('Northstar Studio')).toBe('Northstar Studio');
   });
 
+  it('wave11 Q6 M03: a zero-width split does not get a link past the filter', () => {
+    const zwsp = String.fromCodePoint(0x20_0b);
+    expect(mailSafeName(`pay at evil${zwsp}.com`)).toBe(mailSafeName('pay at evil.com'));
+    expect(mailSafeName(`Northstar${zwsp} Studio`)).toBe('Northstar Studio');
+  });
+
   it.each(['en', 'ar'])(
     'wave10 R2 F36b: %s — non-ASCII digits, slash-separated phones and look-alike dots are neutralised',
     (locale) => {

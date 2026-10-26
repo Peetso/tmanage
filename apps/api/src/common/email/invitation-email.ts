@@ -99,11 +99,30 @@ const PHONE_LIKE = /\+?\p{Nd}(?:[\s()./-]*\p{Nd}){6,}/gu;
 const DOT_LOOKALIKES = /[\u3002\uFF0E\uFF61]/gu;
 
 /**
+ * M03 / F36: code points a reader does not see but that split a run for the filters below —
+ * "evil<U+200B>.com" renders as "evil.com" while no longer matching URL_LIKE. Every format
+ * character (`\p{Cf}`: U+200B-U+200F, U+2060-U+2064, U+FEFF, U+00AD, the bidi embeddings and
+ * isolates U+202A-U+202E / U+2066-U+2069, U+061C, tags, …) plus every
+ * Default_Ignorable_Code_Point, which covers the fillers that are not Cf: U+034F, the Hangul
+ * fillers U+115F / U+1160 / U+3164 / U+FFA0, U+17B4-U+17B5, the Mongolian selectors
+ * U+180B-U+180F and the variation selectors U+FE00-U+FE0F / U+E0100-U+E01EF. Property
+ * escapes, not a literal class, so no combining mark sits inside a character class.
+ *
+ * Decision for U+200F (RLM) and its kin inside an Arabic name: stripped silently, and the name
+ * passes. The templates already put one RLM at the head of every mixed Arabic/Latin line
+ * (`RLM` below), so a mark inside a typed name adds nothing the design needs, and a bidi
+ * override inside a name is exactly how text is made to read differently from what it is.
+ */
+const INVISIBLE = /\p{Cf}|\p{Default_Ignorable_Code_Point}/gu;
+
+/**
  * F36b: compatibility-normalise (NFKC: full-width letters, digits, '@' and '/' become their
- * plain forms) and fold the dot look-alikes, so the filters below see what a reader sees.
+ * plain forms), drop the invisible code points above (after NFKC, which maps U+3164 / U+FFA0
+ * to U+1160), and fold the dot look-alikes, so the filters below see what a reader sees. The
+ * name is rendered in this folded form, never the raw one, so what passed is what is shown.
  */
 function canonicalForFilters(value: string): string {
-  return value.normalize('NFKC').replaceAll(DOT_LOOKALIKES, '.');
+  return value.normalize('NFKC').replaceAll(INVISIBLE, '').replaceAll(DOT_LOOKALIKES, '.');
 }
 
 /** An email address, which a name must never smuggle into the copy either. */
