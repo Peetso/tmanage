@@ -25,6 +25,7 @@ const GB = 1024 ** 3;
 
 function usage(overrides: Partial<PlanUsageView> = {}): PlanUsageView {
   return {
+    billingMode: 'paid',
     planId: 'starter',
     pendingChange: false,
     currency: 'usd',
@@ -131,6 +132,31 @@ function mount(routes: Record<string, { status?: number; body: unknown }>) {
 }
 
 describe('PlanUsageScreen', () => {
+  it('beta_free: "Free during the beta", no price, no plan change, no payment', async () => {
+    const calls = mount({
+      '/billing/plan-usage': {
+        body: usage({
+          billingMode: 'beta_free',
+          people: { used: 14, limit: null, level: 'normal' },
+        }),
+      },
+    });
+    expect(
+      await screen.findByRole('heading', { level: 2, name: 'Free during the beta' }),
+    ).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Billing' })).toBeTruthy();
+    expect(
+      screen.getByText('Northstar is on the TManage beta. Everything is free while the beta runs.'),
+    ).toBeTruthy();
+    expect(screen.getByText('14 · all included')).toBeTruthy();
+    expect(screen.getByText('None')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Send feedback' })).toHaveAttribute('href', '/contact');
+    expect(screen.queryByRole('button', { name: 'Change plan' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'See all plans' })).toBeNull();
+    expect(screen.queryByText(/\$\d/u)).toBeNull();
+    expect(calls.every((call) => call.method === 'GET')).toBe(true);
+  });
+
   it('shows the near-limit alert, amber meters and the next bill', async () => {
     mount({ '/billing/plan-usage': { body: usage() } });
     expect(

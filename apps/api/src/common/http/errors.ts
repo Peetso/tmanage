@@ -39,6 +39,8 @@ export type ApiErrorCode =
   | 'conflict'
   | 'validation_failed'
   | 'rate_limited'
+  // BILLING_MODE=beta_free: a plan change or purchase while the public beta is free (409).
+  | 'billing_disabled_beta'
   | 'internal_error';
 
 export interface ApiErrorDetail {

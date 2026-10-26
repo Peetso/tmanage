@@ -20,6 +20,8 @@ import {
   readPlanId,
 } from './plan-catalog.js';
 import type { CatalogPlanId, PlanFeature } from './plan-catalog.js';
+import { billingMode, entitlementsFor } from './billing-mode.js';
+import type { BillingMode } from './billing-mode.js';
 
 /**
  * Plan and usage — Figma F4 (section 390:22381), Billing / module 19, doc 49 §8 / BIL-01–03.
@@ -76,6 +78,11 @@ export interface PlanUsageView {
   readonly nextPlanPeopleLimit: number | null;
   readonly nextPlanStorageBytes: number | null;
   readonly measuredAt: string;
+  /**
+   * `BILLING_MODE`. `beta_free`: the limits are the top plan's whatever `planId` is stored, nothing
+   * is billed (`monthlyCents` 0, `renewsOn` and `nextPlanId` null), and plan changes are refused.
+   */
+  readonly billingMode: BillingMode;
 }
 
 export type PlanChangeKind = 'people' | 'projects' | 'storage' | 'feature';
@@ -228,7 +235,9 @@ export class PlanUsageService {
     this.authorizeOrg(context, principal);
     const usage = await this.load(context);
     const now = this.now();
-    const limits = PLAN_LIMITS[usage.planId];
+    const mode = billingMode();
+    const beta = mode === 'beta_free';
+    const { limits } = entitlementsFor(usage.planId, mode);
     const people = { used: usage.people, limit: limits.people };
     const projects = { used: usage.projects, limit: limits.activeProjects };
     const storage = { used: usage.storageBytes, limit: limits.storageBytes };
@@ -237,9 +246,9 @@ export class PlanUsageService {
       level: levelOf(m.used, m.limit),
     }));
     const level = worst(meters.map((m) => m.level));
-    const monthlyCents = PLAN_MONTHLY_CENTS[usage.planId];
+    const monthlyCents = beta ? 0 : PLAN_MONTHLY_CENTS[usage.planId];
     const periodEnd = this.periodEnd(usage, now);
-    const next = nextPlanOf(usage.planId);
+    const next = beta ? null : nextPlanOf(usage.planId);
     return {
       planId: usage.planId,
       pendingChange: usage.pendingChange,
@@ -256,6 +265,7 @@ export class PlanUsageService {
       nextPlanPeopleLimit: next === null ? null : PLAN_LIMITS[next].people,
       nextPlanStorageBytes: next === null ? null : PLAN_LIMITS[next].storageBytes,
       measuredAt: now.toISOString(),
+      billingMode: mode,
     };
   }
 

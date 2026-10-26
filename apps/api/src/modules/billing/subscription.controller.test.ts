@@ -1,10 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { SubscriptionService } from './subscription.service.js';
 import type { SubscriptionRepository, UpsertPlanInput } from './subscription.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { SubscriptionRow } from '../../common/database/schema.js';
 import { ApiError } from '../../common/http/errors.js';
+
+// These suites prove the paid behaviour; BILLING_MODE=beta_free (the default) is covered in
+// billing-mode.test.ts.
+beforeEach(() => {
+  vi.stubEnv('BILLING_MODE', 'paid');
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 // Billing / module 19 (x177), SEC budget — one assertion per key behaviour: the default when no row,
 // the pending-change write, the off-catalog 400 with no write, the refusal without org.manage, and
@@ -75,6 +84,7 @@ describe('SubscriptionService.read', () => {
       internalPeopleCount: 8,
       nextBillAt: null,
       billingPeriod: 'monthly',
+      billingMode: 'paid',
     });
   });
 
@@ -113,6 +123,7 @@ describe('SubscriptionService.requestChange', () => {
       internalPeopleCount: 8,
       nextBillAt: '2026-11-01T00:00:00.000Z',
       billingPeriod: 'monthly',
+      billingMode: 'paid',
     });
     expect(sink.upserts).toEqual([{ planId: 'studio', status: 'pending_change' }]);
   });

@@ -50,7 +50,23 @@ function PlainEyebrow({
   );
 }
 
-/* ── 2. Hero ──────────────────────────────────────────────────────────────── */
+/* ── 2. Hero (open beta, Figma 415:21855 / 415:23448 / 418:9537) ─────────── */
+
+/** The hero's beta capsule: an ink "BETA" tag, then the line (shorter on the phone). */
+function BetaCapsule() {
+  const t = useT();
+  return (
+    <p className="tm-home-beta-capsule">
+      <span className="tm-home-beta-capsule__tag">{t('HomePage.betaTag')}</span>
+      <span className="tm-home-beta-capsule__text tm-home-wide-only">
+        {t('HomePage.betaCapsule')}
+      </span>
+      <span className="tm-home-beta-capsule__text tm-home-narrow-only">
+        {t('HomePage.betaCapsuleShort')}
+      </span>
+    </p>
+  );
+}
 
 function Hero() {
   const t = useT();
@@ -58,26 +74,107 @@ function Hero() {
     <section className="tm-home-hero" aria-labelledby="home-hero-title">
       <div className="tm-web-container tm-home-hero__grid">
         <div className="tm-home-hero__copy">
-          <PlainEyebrow>{t('HomePage.heroEyebrow')}</PlainEyebrow>
+          <BetaCapsule />
           <h1 id="home-hero-title" className="tm-home-hero__title">
-            {t('HomePage.heroTitle')}
+            {t('HomePage.betaHeroTitle')}
           </h1>
-          <p className="tm-home-hero__lede">{t('HomePage.heroLede')}</p>
+          <p className="tm-home-hero__lede">{t('HomePage.betaHeroLede')}</p>
           <div className="tm-home-hero__actions">
             <ButtonLink href={SIGN_UP_HREF} tone="lime">
               {t('HomePage.startFree')}
             </ButtonLink>
-            <ButtonLink href="/contact" tone="outline">
-              {t('HomePage.bookDemo')}
+            <ButtonLink href="/product" tone="outline">
+              {t('HomePage.seeProduct')}
             </ButtonLink>
           </div>
-          <p className="tm-home-hero__micro">{t('HomePage.heroMicro')}</p>
+          <p className="tm-home-hero__micro">
+            <span className="tm-home-wide-only">{t('HomePage.betaMicro')}</span>
+            <span className="tm-home-narrow-only">{t('HomePage.betaMicroShort')}</span>
+          </p>
         </div>
         <div className="tm-home-hero__visual">
           <HeroScene />
         </div>
       </div>
     </section>
+  );
+}
+
+/* ── 2b. What's in the beta, the free band and "Beta means…" ──────────────── */
+
+export const BETA_FEATURES: readonly { titleKey: MessageKey; bodyKey: MessageKey }[] = [
+  { titleKey: 'HomePage.betaFeature1Title', bodyKey: 'HomePage.betaFeature1Body' },
+  { titleKey: 'HomePage.betaFeature2Title', bodyKey: 'HomePage.betaFeature2Body' },
+  { titleKey: 'HomePage.betaFeature3Title', bodyKey: 'HomePage.betaFeature3Body' },
+  { titleKey: 'HomePage.betaFeature4Title', bodyKey: 'HomePage.betaFeature4Body' },
+  { titleKey: 'HomePage.betaFeature5Title', bodyKey: 'HomePage.betaFeature5Body' },
+  { titleKey: 'HomePage.betaFeature6Title', bodyKey: 'HomePage.betaFeature6Body' },
+];
+
+const BETA_POINTS: readonly { titleKey: MessageKey; bodyKey: MessageKey }[] = [
+  { titleKey: 'HomePage.betaPoint1Title', bodyKey: 'HomePage.betaPoint1Body' },
+  { titleKey: 'HomePage.betaPoint2Title', bodyKey: 'HomePage.betaPoint2Body' },
+  { titleKey: 'HomePage.betaPoint3Title', bodyKey: 'HomePage.betaPoint3Body' },
+];
+
+/** Where "Send feedback" goes: the public contact page (its Arabic twin on /ar). */
+export const FEEDBACK_HREF = '/contact';
+
+function BetaIncluded() {
+  const t = useT();
+  return (
+    <WebSection tone="surface" aria-labelledby="home-beta-title" className="tm-home-beta">
+      <p className="tm-home-beta__eyebrow">{t('HomePage.betaIncludedEyebrow')}</p>
+      <h2 id="home-beta-title" className="tm-home-beta__title">
+        {t('HomePage.betaIncludedTitle')}
+      </h2>
+      <ol className="tm-home-beta__grid">
+        {BETA_FEATURES.map((feature, i) => (
+          <li key={feature.titleKey} className="tm-home-beta__card">
+            <span className="tm-home-beta__n" aria-hidden="true">
+              {String(i + 1).padStart(2, '0')}
+            </span>
+            <h3 className="tm-home-beta__card-title">{t(feature.titleKey)}</h3>
+            <p className="tm-home-beta__card-body">{t(feature.bodyKey)}</p>
+          </li>
+        ))}
+      </ol>
+      <aside className="tm-home-beta-free" aria-labelledby="home-beta-free-title">
+        <div className="tm-home-beta-free__text">
+          <h2 id="home-beta-free-title" className="tm-home-beta-free__title">
+            {t('HomePage.betaFreeTitle')}
+          </h2>
+          <p className="tm-home-beta-free__body">{t('HomePage.betaFreeBody')}</p>
+        </div>
+        <ButtonLink href={SIGN_UP_HREF} tone="ink" size="default">
+          {t('HomePage.startFree')}
+        </ButtonLink>
+      </aside>
+      <section className="tm-home-beta-means" aria-labelledby="home-beta-means-title">
+        <p className="tm-home-beta__eyebrow tm-home-beta__eyebrow--lime">
+          {t('HomePage.betaMeansEyebrow')}
+        </p>
+        <h2 id="home-beta-means-title" className="tm-home-beta-means__title">
+          {t('HomePage.betaMeansTitle')}
+        </h2>
+        <ul className="tm-home-beta-means__points">
+          {BETA_POINTS.map((point) => (
+            <li key={point.titleKey}>
+              <h3 className="tm-home-beta-means__point-title">{t(point.titleKey)}</h3>
+              <p className="tm-home-beta-means__point-body">{t(point.bodyKey)}</p>
+            </li>
+          ))}
+        </ul>
+        <div className="tm-home-beta-means__actions">
+          <ButtonLink href={FEEDBACK_HREF} tone="lime" size="default">
+            {t('HomePage.sendFeedback')}
+          </ButtonLink>
+          <p className="tm-home-beta-means__note tm-home-wide-only">
+            {t('HomePage.betaFeedbackNote')}
+          </p>
+        </div>
+      </section>
+    </WebSection>
   );
 }
 
@@ -615,7 +712,7 @@ function HomeCta() {
                 {t('HomePage.bookDemo')}
               </ButtonLink>
             </div>
-            <p className="tm-web-cta__note">{t('HomePage.ctaNote')}</p>
+            <p className="tm-web-cta__note">{t('HomePage.betaMicro')}</p>
           </div>
           <div className="tm-web-cta__visual">
             <DeliveryRiskScene />
@@ -638,6 +735,7 @@ export function HomePage() {
   return (
     <div className="tm-home">
       <Hero />
+      <BetaIncluded />
       <WebSection spacing="flush" className="tm-home-logos">
         <LogoStrip variant="detailed" partners={partners} />
       </WebSection>

@@ -1,10 +1,15 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { PricingScreen } from '../src/components/screens/PricingScreen';
 import { PricingPage } from '../src/components/website/pages/pricing/PricingPage';
-import { PRICING_PLANS, planPrice } from '../src/components/website/pages/pricing/pricing-data';
+import {
+  BETA_FAQ,
+  BETA_INCLUDED,
+  PRICING_PLANS,
+  planPrice,
+} from '../src/components/website/pages/pricing/pricing-data';
 import { ApiClient } from '../src/lib/api/client';
 import { activeLocale } from '../src/lib/i18n/locale-store';
 import { translate, type MessageKey } from '../src/lib/i18n/t';
@@ -110,7 +115,8 @@ describe('PricingScreen', () => {
 
 /**
  * **Website /pricing (approved Figma section 376:2087, pr-desktop / pr-mobile).** Flat prices for
- * the whole team, yearly −20 %, the founding offer, and no per-seat wording anywhere on a card.
+ * the whole team, yearly −20 %, kept in the data for later; during the public beta the page shows
+ * one free card (Figma 415:23716 / 418:9605), no billing switch and no per-seat wording.
  * The page's new words arrive through the wave's i18n fragment, so expectations read the catalog
  * (`L` / `ar`) rather than literals and hold before and after the fragment is merged.
  */
@@ -119,9 +125,6 @@ describe('PricingPage (website /pricing)', () => {
 
   const L = (key: string) => translate('en-US', key as MessageKey);
   const ar = (key: string) => translate('ar-EG', key as MessageKey);
-  const fill = (text: string, amount: string) => text.replace('{amount}', amount);
-  const cardOf = (container: HTMLElement, id: string) =>
-    container.querySelector<HTMLElement>(`[aria-labelledby="plan-${id}"]`)!;
 
   it('yearly maths: monthly × 0.8 per month, ×12 a year, two decimals', () => {
     const byId = Object.fromEntries(PRICING_PLANS.map((plan) => [plan.id, plan.monthlyCents]));
@@ -144,70 +147,50 @@ describe('PricingPage (website /pricing)', () => {
     expect(planPrice(4900, 'monthly').perMonth).toBe('$49');
   });
 
-  it('opens on yearly as drawn and the toggle switches every paid card to monthly', () => {
+  it('beta: one free card for the whole team, no billing switch, no seats, no paid tiers', () => {
     const { container } = render(<PricingPage />);
-    const starter = within(cardOf(container, 'starter'));
-    expect(starter.getByText('$15.20')).toBeInTheDocument();
-    expect(starter.getByText(fill(L('PricingPage.flatPerYear'), '$182.40'))).toBeInTheDocument();
-    expect(starter.getByText(fill(L('PricingPage.ifBilledMonthly'), '$19'))).toBeInTheDocument();
-    expect(within(cardOf(container, 'studio')).getByText('$39.20')).toBeInTheDocument();
-    expect(within(cardOf(container, 'business')).getByText('$71.20')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(L('PricingPage.betaTitle'));
+    const card = within(screen.getByRole('article', { name: L('PricingPage.betaCardTitle') }));
+    expect(card.getByText('$0')).toBeInTheDocument();
+    expect(card.getByText(L('PricingPage.betaUnit'))).toBeInTheDocument();
+    expect(card.getByRole('link', { name: L('PricingPage.startFree') })).toHaveAttribute(
+      'href',
+      SIGN_UP_HREF,
+    );
+    for (const key of BETA_INCLUDED) expect(card.getByText(L(key))).toBeInTheDocument();
+    expect(card.getByText(L('PricingPage.betaAfterBody'))).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: L('PricingPage.toggleMonthly') }));
-    expect(within(cardOf(container, 'starter')).getByText('$19')).toBeInTheDocument();
-    expect(within(cardOf(container, 'studio')).getByText('$49')).toBeInTheDocument();
-    expect(within(cardOf(container, 'business')).getByText('$89')).toBeInTheDocument();
-    // Free and Enterprise never change with the period.
-    expect(within(cardOf(container, 'free')).getByText('$0')).toBeInTheDocument();
-    expect(
-      within(cardOf(container, 'enterprise')).getByText(L('PricingPage.customPrice')),
-    ).toBeInTheDocument();
-  });
-
-  it('shows the founding offer banner linking to /contact, and no comparison table', () => {
-    const { container } = render(<PricingPage />);
-    const banner = screen.getByRole('complementary', { name: L('PricingPage.foundingBadge') });
-    expect(within(banner).getByText(L('PricingPage.foundingText'))).toBeInTheDocument();
-    expect(
-      within(banner).getByRole('link', { name: L('PricingPage.foundingCta') }),
-    ).toHaveAttribute('href', '/contact');
+    // No period switch, no paid tier, no seat wording, no comparison, no price but $0.
+    expect(screen.queryByRole('group')).toBeNull();
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(container.querySelectorAll('.tm-pricing-plan')).toHaveLength(0);
     expect(container.querySelector('table')).toBeNull();
-    expect(screen.getByRole('heading', { name: L('PricingPage.basecampTitle') })).toBeVisible();
+    const cardText = container.querySelector('.tm-pricing-beta')?.textContent ?? '';
+    expect(cardText).not.toMatch(/\bseats?\b/i);
+    expect((container.textContent ?? '').match(/\$\d+/g)).toEqual(['$0']);
   });
 
-  it('no per-seat word on any card, and the CTAs keep their targets', () => {
-    const { container } = render(<PricingPage />);
-    const cards = [...container.querySelectorAll<HTMLElement>('.tm-pricing-plan')];
-    expect(cards).toHaveLength(5);
-    for (const card of cards) {
-      expect(card.textContent ?? '').not.toMatch(/seat/i);
-      expect(card.textContent ?? '').not.toContain(L('PricingPage.seatWord'));
+  it('beta FAQ: six questions with their answers', () => {
+    render(<PricingPage />);
+    expect(screen.getByRole('heading', { name: L('PricingPage.betaFaqTitle') })).toBeVisible();
+    expect(BETA_FAQ).toHaveLength(6);
+    for (const item of BETA_FAQ) {
+      expect(screen.getByText(L(item.questionKey))).toBeInTheDocument();
+      expect(screen.getByText(L(item.answerKey))).toBeInTheDocument();
     }
-    for (const plan of PRICING_PLANS) {
-      expect(plan.cta.href).toBe(plan.id === 'enterprise' ? '/contact' : SIGN_UP_HREF);
-    }
-    const featured = container.querySelectorAll('.tm-pricing-plan--featured');
-    expect(featured).toHaveLength(1);
-    expect(featured[0]!.getAttribute('aria-labelledby')).toBe('plan-studio');
   });
 
-  it('ar-EG: renders right-to-left from the Arabic catalog', () => {
+  it('ar-EG: renders right-to-left from the Arabic catalog', async () => {
     activeLocale.set('ar-EG');
     const { container } = render(<PricingPage />);
     expect(container.querySelector('.tm-pricing')).toHaveAttribute('dir', 'rtl');
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(ar('PricingPage.flatTitle'));
-
-    const cards = [...container.querySelectorAll<HTMLElement>('.tm-pricing-plan')];
-    PRICING_PLANS.forEach((plan, i) => {
-      const card = within(cards[i]!);
-      expect(card.getByRole('heading', { level: 3 }).textContent).toBe(ar(plan.nameKey));
-      expect(card.getByRole('link', { name: ar(plan.cta.labelKey) })).toHaveAttribute(
-        'href',
-        plan.cta.href,
-      );
-      for (const key of plan.featureKeys) expect(card.getByText(ar(key))).toBeInTheDocument();
-    });
-    // The Latin tier names carry U+200F in Arabic, like the catalog.
-    expect(ar('PricingPage.planStudioName').startsWith('‏')).toBe(true);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(ar('PricingPage.betaTitle'));
+    const card = within(screen.getByRole('article', { name: ar('PricingPage.betaCardTitle') }));
+    expect(card.getByRole('link', { name: ar('PricingPage.startFree') })).toHaveAttribute(
+      'href',
+      SIGN_UP_HREF,
+    );
+    for (const key of BETA_INCLUDED) expect(card.getByText(ar(key))).toBeInTheDocument();
+    await expectNoAxeViolations(container);
   });
 });

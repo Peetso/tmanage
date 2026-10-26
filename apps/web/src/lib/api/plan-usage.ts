@@ -17,7 +17,11 @@ export interface PlanUsageMeterView {
   readonly level: UsageLevel;
 }
 
+/** `beta_free` (the API's default during the public beta): everything is free, nothing is sold. */
+export type BillingMode = 'beta_free' | 'paid';
+
 export interface PlanUsageView {
+  readonly billingMode: BillingMode;
   readonly planId: string;
   readonly pendingChange: boolean;
   readonly currency: string;

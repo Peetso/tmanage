@@ -2512,3 +2512,229 @@
 [dir='rtl'] .tm-hs-chat__name {
   unicode-bidi: isolate;
 }
+
+/* ── Open beta (Figma 415:21855 desktop, 415:23448 phone, 418:9537 Arabic hero) ── */
+
+.tm-home-narrow-only {
+  display: none;
+}
+
+.tm-home-beta-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+  padding-block: var(--s1);
+  padding-inline: var(--s1) var(--s4);
+  border-radius: var(--r-capsule);
+  background: var(--lime-100);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-950);
+}
+
+.tm-home-beta-capsule__tag {
+  padding-block: var(--s1);
+  padding-inline: var(--s3);
+  border-radius: var(--r-capsule);
+  background: var(--web-ink);
+  color: var(--web-on-ink);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  letter-spacing: 0.06em;
+}
+
+.tm-home-beta__eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-home-beta__eyebrow--lime {
+  color: var(--lime-500);
+}
+
+.tm-home-beta__title {
+  margin-block-start: var(--s3);
+  max-inline-size: calc(var(--s24) * 7 + var(--s12));
+  font-size: var(--t-heading-page);
+  line-height: var(--t-heading-page-line);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--ink-950);
+}
+
+.tm-home-beta__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s4);
+  margin-block-start: var(--s10);
+  padding: 0;
+  list-style: none;
+}
+
+.tm-home-beta__card {
+  display: flex;
+  flex-direction: column;
+  padding: var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-home-beta__n {
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-home-beta__card-title {
+  margin-block-start: var(--s3);
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-home-beta__card-body {
+  margin-block-start: var(--s2);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+.tm-home-beta-free {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s6);
+  margin-block-start: var(--s10);
+  padding: var(--s8);
+  border-radius: var(--r-feature);
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+.tm-home-beta-free__title {
+  font-size: var(--t-heading-section);
+  line-height: var(--t-heading-section-line);
+  font-weight: 500;
+}
+
+.tm-home-beta-free__body {
+  margin-block-start: var(--s1);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+}
+
+.tm-home-beta-means {
+  margin-block-start: var(--s24);
+  padding: var(--s12);
+  border-radius: var(--r-feature);
+  background: var(--web-ink);
+  color: var(--web-on-ink);
+}
+
+.tm-home-beta-means__title {
+  margin-block-start: var(--s2);
+  font-size: var(--t-heading-page);
+  line-height: var(--t-heading-page-line);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.tm-home-beta-means__points {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s8);
+  margin-block-start: var(--s10);
+  padding: 0;
+  list-style: none;
+}
+
+.tm-home-beta-means__point-title {
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+}
+
+.tm-home-beta-means__point-body {
+  margin-block-start: var(--s2);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--web-on-ink-muted);
+}
+
+.tm-home-beta-means__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s4);
+  margin-block-start: var(--s8);
+}
+
+.tm-home-beta-means__note {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--web-on-ink);
+}
+
+/* The beta title runs into the grid gap, as drawn, so "free for everyone." holds one line. */
+@media (min-width: 1280px) {
+  .tm-home-hero__title {
+    margin-inline-end: calc(var(--s12) * -1);
+  }
+}
+
+@media (max-width: 1279px) {
+  .tm-home-beta__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .tm-home-wide-only {
+    display: none;
+  }
+
+  .tm-home-narrow-only {
+    display: inline;
+  }
+
+  .tm-home-beta__title {
+    font-size: var(--t-heading-page);
+    line-height: var(--t-heading-page-line);
+  }
+
+  .tm-home-beta__grid,
+  .tm-home-beta-means__points {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-home-beta__grid {
+    margin-block-start: var(--s6);
+  }
+
+  .tm-home-beta-free {
+    flex-direction: column;
+    align-items: flex-start;
+    margin-block-start: var(--s8);
+    padding: var(--s6);
+    border-radius: var(--r-card);
+  }
+
+  .tm-home-beta-means {
+    margin-block-start: var(--s16);
+    padding: var(--s8) var(--s6);
+    border-radius: var(--r-card);
+  }
+
+  .tm-home-beta-means__points {
+    gap: var(--s5);
+    margin-block-start: var(--s6);
+  }
+}

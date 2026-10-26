@@ -5,6 +5,8 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import { SubscriptionRepository } from './subscription.repository.js';
 import { PLAN_MONTHLY_CENTS, canonicalPlanId, isPlanId, readPlanId } from './plan-catalog.js';
 import type { BillingPeriod, CatalogPlanId, SubscriptionStatus } from './plan-catalog.js';
+import { assertBillingEnabled, billingMode } from './billing-mode.js';
+import type { BillingMode } from './billing-mode.js';
 import type { SubscriptionRow } from '../../common/database/schema.js';
 
 /**
@@ -56,6 +58,11 @@ export interface SubscriptionView {
   readonly internalPeopleCount: number;
   readonly nextBillAt: string | null;
   readonly billingPeriod: BillingPeriod;
+  /**
+   * `BILLING_MODE`. `beta_free`: everything is free during the public beta — nothing is billed
+   * (`nextBillAt` is null) and a plan change is refused with 409 `billing_disabled_beta`.
+   */
+  readonly billingMode: BillingMode;
 }
 
 /** The first instant of the month after `at`, in UTC — the default flat-plan billing day. */
@@ -75,7 +82,8 @@ export class SubscriptionService {
     const planId: CatalogPlanId = readPlanId(row?.planId);
     const status: SubscriptionStatus = row?.status ?? 'active';
     const currentPeriodEnd = row?.currentPeriodEnd ?? null;
-    const billed = (PLAN_MONTHLY_CENTS[planId] ?? 0) > 0;
+    const mode = billingMode();
+    const billed = mode === 'paid' && (PLAN_MONTHLY_CENTS[planId] ?? 0) > 0;
     return {
       planId,
       status,
@@ -85,6 +93,7 @@ export class SubscriptionService {
         ? (currentPeriodEnd ?? firstOfNextMonthUtc(this.now())).toISOString()
         : null,
       billingPeriod: 'monthly',
+      billingMode: mode,
     };
   }
 
@@ -153,6 +162,8 @@ export class SubscriptionService {
     }
 
     this.authorizeOrg(context, principal, 'org.manage');
+    // Public beta: no plan change is recorded, so nothing can later be charged for it.
+    assertBillingEnabled();
 
     const status: SubscriptionStatus = 'pending_change';
     const [row, people] = await this.database.transaction(

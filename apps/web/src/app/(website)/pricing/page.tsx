@@ -4,7 +4,7 @@ import { PricingPage } from '../../../components/website/pages/pricing/PricingPa
 export const metadata: Metadata = {
   title: 'Pricing',
   description:
-    'Priced per internal seat. Clients and their approvers join their portal at no cost, on every plan.',
+    'TManage is free for everyone during the beta. No card needed, and client users are always free.',
 };
 
 /** Public pricing page (`/pricing`), built from the website layer. Needs no session or API. */

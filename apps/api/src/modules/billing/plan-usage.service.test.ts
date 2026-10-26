@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { PlanUsageService, addMonthUtc, levelOf } from './plan-usage.service.js';
 import type { SubscriptionRepository } from './subscription.repository.js';
@@ -7,6 +7,15 @@ import type { UsageCountersRepository } from '../files/usage-counters.repository
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { SubscriptionRow, UsageCounterRow } from '../../common/database/schema.js';
 import { ApiError } from '../../common/http/errors.js';
+
+// These suites prove the paid behaviour; BILLING_MODE=beta_free (the default) is covered in
+// billing-mode.test.ts.
+beforeEach(() => {
+  vi.stubEnv('BILLING_MODE', 'paid');
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 // Figma F4 (Plan and usage) — one assertion per key behaviour: the meter levels, the near/over
 // read with its grace date, the prorated upgrade (Starter→Studio, 25 Oct = $6.77), the downgrade

@@ -1,0 +1,151 @@
+/*
+ * Billing during the public beta — approved Figma 419:9854. A lime-tinted card with four white
+ * tiles, then two white cards (after the beta, what is included) and a feedback line. TManage
+ * tokens only; logical properties, so the screen mirrors under dir="rtl" and follows dark mode.
+ */
+
+.tm-beta-billing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+}
+
+.tm-beta-billing__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: var(--s8);
+  border-radius: var(--r-sheet);
+  background: var(--lime-100);
+  color: var(--ink-950);
+}
+
+.tm-beta-billing__title {
+  margin: var(--s5) 0 0;
+  font-size: var(--t-heading-page);
+  line-height: var(--t-heading-page-line);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.tm-beta-billing__body {
+  margin: var(--s5) 0 0;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+.tm-beta-billing__tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s4);
+  inline-size: 100%;
+  margin: var(--s4) 0 0;
+}
+
+.tm-beta-billing__tile {
+  padding: var(--s5);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-beta-billing__label {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-beta-billing__value {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  color: var(--ink-950);
+}
+
+.tm-beta-billing__cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s4);
+  align-items: start;
+}
+
+.tm-beta-billing__card {
+  padding: var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  color: var(--ink-950);
+}
+
+.tm-beta-billing__card-title {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+}
+
+.tm-beta-billing__card-body {
+  margin: var(--s3) 0 0;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+.tm-beta-billing__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: var(--s3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-beta-billing__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+.tm-beta-billing__check {
+  flex: none;
+}
+
+.tm-beta-billing__foot {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-beta-billing__link {
+  color: var(--ink-950);
+  text-decoration: underline;
+}
+
+@media (max-width: 1023px) {
+  .tm-beta-billing__tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tm-beta-billing__cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 599px) {
+  .tm-beta-billing__hero {
+    padding: var(--s6);
+    border-radius: var(--r-card);
+  }
+
+  .tm-beta-billing__tiles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

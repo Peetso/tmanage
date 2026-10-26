@@ -1,12 +1,17 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
+  BETA_FEATURES,
   CURRENT_STEP,
+  FEEDBACK_HREF,
   HomePage,
   nextPillarIndex,
   storyStepState,
 } from '../src/components/website/pages/home/HomePage';
+import { activeLocale } from '../src/lib/i18n/locale-store';
+import { translate, type MessageKey } from '../src/lib/i18n/t';
+import { SIGN_UP_HREF } from '../src/lib/public-signup';
 
 /**
  * WEB-01 Home / WEB-18 Home on mobile (round-2 Figma 308:26, 308:43). Layout and painting are
@@ -57,5 +62,53 @@ describe('website home', () => {
       expect(body.hasAttribute('inert')).toBe(true);
     }
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+  });
+});
+
+/** The open beta (approved Figma 415:21855 desktop, 415:23448 phone, 418:9537 Arabic hero). */
+describe('website home — open beta', () => {
+  afterEach(() => activeLocale.set('en-US'));
+  const L = (key: string) => translate('en-US', key as MessageKey);
+  const ar = (key: string) => translate('ar-EG', key as MessageKey);
+
+  it('leads with the beta: free for everyone, start free and see the product', () => {
+    render(<HomePage />);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(L('HomePage.betaHeroTitle'));
+    expect(screen.getByText(L('HomePage.betaCapsule'))).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: L('HomePage.startFree') })[0]).toHaveAttribute(
+      'href',
+      SIGN_UP_HREF,
+    );
+    expect(screen.getByRole('link', { name: L('HomePage.seeProduct') })).toHaveAttribute(
+      'href',
+      '/product',
+    );
+    expect(screen.getAllByText(L('HomePage.betaMicro')).length).toBeGreaterThan(0);
+  });
+
+  it('lists the six beta features, the free band and the feedback link', () => {
+    render(<HomePage />);
+    const section = within(screen.getByRole('region', { name: L('HomePage.betaIncludedTitle') }));
+    expect(section.getAllByRole('listitem').length).toBeGreaterThanOrEqual(BETA_FEATURES.length);
+    for (const feature of BETA_FEATURES) {
+      expect(section.getByRole('heading', { name: L(feature.titleKey) })).toBeInTheDocument();
+    }
+    expect(section.getByText(L('HomePage.betaFreeTitle'))).toBeInTheDocument();
+    expect(section.getByRole('link', { name: L('HomePage.sendFeedback') })).toHaveAttribute(
+      'href',
+      FEEDBACK_HREF,
+    );
+    expect(FEEDBACK_HREF).toBe('/contact');
+  });
+
+  it('ar-EG: the beta hero and features come from the Arabic catalog', () => {
+    activeLocale.set('ar-EG');
+    render(<HomePage />);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
+      ar('HomePage.betaHeroTitle'),
+    );
+    for (const feature of BETA_FEATURES) {
+      expect(screen.getByRole('heading', { name: ar(feature.titleKey) })).toBeInTheDocument();
+    }
   });
 });

@@ -1,4 +1,5 @@
 import type { ApiClient } from './client';
+import type { BillingMode } from './plan-usage';
 
 /**
  * The organization subscription endpoints — Billing / module 19 (x177), behind the subscription
@@ -27,6 +28,8 @@ export interface SubscriptionView {
   /** The next bill date; null on a plan with no list price (Free, Enterprise). */
   readonly nextBillAt: string | null;
   readonly billingPeriod: 'monthly' | 'yearly';
+  /** `beta_free` during the public beta: the screen shows the free state, no plan picker. */
+  readonly billingMode: BillingMode;
 }
 
 export async function fetchSubscription(

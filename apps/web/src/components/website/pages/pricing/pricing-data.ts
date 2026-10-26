@@ -135,3 +135,29 @@ export const PRICING_FAQ: readonly { questionKey: PricingKey; answerKey: Pricing
   { questionKey: 'PricingPage.faqSwitchQuestion', answerKey: 'PricingPage.faqSwitchAnswer' },
   { questionKey: 'PricingPage.faqFreePlanQuestion', answerKey: 'PricingPage.faqFreePlanAnswer' },
 ];
+
+/**
+ * The public beta (approved Figma 415:23716 / 418:9605): everything is free, so the page shows one
+ * card. "Included in the beta" in two columns of five, read down the first column, then the second.
+ */
+export const BETA_INCLUDED: readonly PricingKey[] = [
+  'PricingPage.betaInclude1',
+  'PricingPage.betaInclude2',
+  'PricingPage.betaInclude3',
+  'PricingPage.betaInclude4',
+  'PricingPage.betaInclude5',
+  'PricingPage.betaInclude6',
+  'PricingPage.betaInclude7',
+  'PricingPage.betaInclude8',
+  'PricingPage.betaInclude9',
+  'PricingPage.betaInclude10',
+];
+
+export const BETA_FAQ: readonly { questionKey: PricingKey; answerKey: PricingKey }[] = [
+  { questionKey: 'PricingPage.betaFaq1Question', answerKey: 'PricingPage.betaFaq1Answer' },
+  { questionKey: 'PricingPage.betaFaq2Question', answerKey: 'PricingPage.betaFaq2Answer' },
+  { questionKey: 'PricingPage.betaFaq3Question', answerKey: 'PricingPage.betaFaq3Answer' },
+  { questionKey: 'PricingPage.betaFaq4Question', answerKey: 'PricingPage.betaFaq4Answer' },
+  { questionKey: 'PricingPage.betaFaq5Question', answerKey: 'PricingPage.betaFaq5Answer' },
+  { questionKey: 'PricingPage.betaFaq6Question', answerKey: 'PricingPage.betaFaq6Answer' },
+];

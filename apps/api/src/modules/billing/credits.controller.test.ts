@@ -1,10 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { BillingCreditsController } from './credits.controller.js';
 import { CreditsService } from './credits.service.js';
 import type { CreditsRepository } from './credits.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { BillingCreditRow } from '../../common/database/schema.js';
+
+// These suites prove the paid behaviour; BILLING_MODE=beta_free (the default) is covered in
+// billing-mode.test.ts.
+beforeEach(() => {
+  vi.stubEnv('BILLING_MODE', 'paid');
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 /**
  * Billing credits (x226) proofs, database-free over a fake repository with the *real* `authorize` (the

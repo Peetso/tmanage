@@ -4,6 +4,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { BillingCreditRow } from '../../common/database/schema.js';
 import { CreditsRepository } from './credits.repository.js';
+import { assertBillingEnabled } from './billing-mode.js';
 
 /**
  * Billing & entitlements (module 19, x226). The credits service — the business layer over the manual
@@ -91,6 +92,8 @@ export class CreditsService {
     params: PostCreditParams,
   ): Promise<BillingCreditView> {
     this.requireOrgManage(principal, context, 'billing_credit.post');
+    // Public beta: there is no balance to credit, so nothing is posted.
+    assertBillingEnabled();
     const row = await this.database.transaction(context, (tx) =>
       this.credits.create(tx, context, { ...params, createdBy: context.userId }),
     );

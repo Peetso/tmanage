@@ -4,6 +4,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { BillingPlanChangeRequestRow } from '../../common/database/schema.js';
 import { PlanChangeRequestsRepository } from './plan-change-requests.repository.js';
+import { assertBillingEnabled } from './billing-mode.js';
 import type { PlanId } from './plan-catalog.js';
 import type { AuditService } from '../audit/audit.service.js';
 
@@ -106,6 +107,8 @@ export class PlanChangeRequestsService {
     params: CreatePlanChangeRequestParams,
   ): Promise<PlanChangeRequestView> {
     this.requireOrgManage(principal, context, 'plan_change_request.create');
+    // Public beta: there is no plan to move to — every organization already has the top plan.
+    assertBillingEnabled();
     const row = await this.database.transaction(context, async (tx) => {
       const pending = await this.requests.findPending(tx, context);
       if (pending) {

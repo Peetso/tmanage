@@ -8,6 +8,7 @@ import { Badge, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui
 import { ControlCenterSections } from '../admin/ControlCenterShell';
 import { AppShell } from '../shell/AppShell';
 import { PlanChangeDialog } from '../billing/PlanChangeDialog';
+import { BetaBillingPanel, useBetaBillingHeading } from '../billing/BetaBillingPanel';
 import { dayMonth, fill, gb, money, planName, planUsageText } from '../billing/plan-usage-format';
 import type { PlanUsageText } from '../billing/plan-usage-format';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -55,6 +56,9 @@ export function PlanUsageScreen({
     queryKey: ['plan-usage', organizationSlug],
     queryFn: () => fetchPlanUsage(api, organizationSlug),
   });
+  // The public beta (BILLING_MODE=beta_free, the API's default): free for everyone, nothing to buy.
+  const beta = usage.data?.billingMode !== 'paid';
+  const betaHeading = useBetaBillingHeading(organizationName);
 
   const closeDialog = useCallback(
     (didRequest: boolean) => {
@@ -73,8 +77,8 @@ export function PlanUsageScreen({
       organizationName={organizationName}
       activeNavigationId="admin"
       contextRail={<ControlCenterSections organizationSlug={organizationSlug} section="billing" />}
-      title={tr('PlanUsage.title')}
-      description={tr('PlanUsage.lede')}
+      title={beta ? betaHeading.title : tr('PlanUsage.title')}
+      description={beta ? betaHeading.description : tr('PlanUsage.lede')}
     >
       <div className="tm-pu">
         {usage.isPending ? (
@@ -98,7 +102,11 @@ export function PlanUsageScreen({
           </InlineAlert>
         ) : null}
 
-        {usage.isSuccess ? (
+        {usage.isSuccess && beta ? (
+          <BetaBillingPanel internalPeople={usage.data.people.used} />
+        ) : null}
+
+        {usage.isSuccess && !beta ? (
           <PlanUsageBody
             view={usage.data}
             locale={locale}
@@ -109,7 +117,7 @@ export function PlanUsageScreen({
         ) : null}
       </div>
 
-      {changeTarget !== null ? (
+      {changeTarget !== null && usage.isSuccess && !beta ? (
         <PlanChangeDialog
           organizationSlug={organizationSlug}
           targetPlanId={changeTarget}

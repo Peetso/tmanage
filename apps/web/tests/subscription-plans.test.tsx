@@ -31,6 +31,7 @@ const STUDIO = {
   internalPeopleCount: 8,
   nextBillAt: '2026-11-01T00:00:00.000Z',
   billingPeriod: 'monthly',
+  billingMode: 'paid',
 };
 
 function mount() {

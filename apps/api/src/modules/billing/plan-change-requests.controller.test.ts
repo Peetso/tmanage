@@ -1,10 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { PlanChangeRequestsController } from './plan-change-requests.controller.js';
 import { PlanChangeRequestsService } from './plan-change-requests.service.js';
 import type { PlanChangeRequestsRepository } from './plan-change-requests.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { BillingPlanChangeRequestRow } from '../../common/database/schema.js';
+
+// These suites prove the paid behaviour; BILLING_MODE=beta_free (the default) is covered in
+// billing-mode.test.ts.
+beforeEach(() => {
+  vi.stubEnv('BILLING_MODE', 'paid');
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 /**
  * Billing plan-change-request (x284) proofs, database-free over a fake repository with the *real*

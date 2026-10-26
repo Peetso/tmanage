@@ -4,6 +4,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { BillingPurchaseOrderRow } from '../../common/database/schema.js';
 import { PurchaseOrdersRepository } from './purchase-orders.repository.js';
+import { assertBillingEnabled } from './billing-mode.js';
 
 /**
  * Billing & entitlements (module 19, x282). The purchase-orders service — the business layer over the
@@ -93,6 +94,8 @@ export class PurchaseOrdersService {
     params: CreatePurchaseOrderParams,
   ): Promise<PurchaseOrderView> {
     this.requireOrgManage(principal, context, 'purchase_order.create');
+    // Public beta: nothing is bought, so no purchase order is recorded.
+    assertBillingEnabled();
     const row = await this.database.transaction(context, async (tx) => {
       const existing = await this.purchaseOrders.findByNumber(tx, context, params.poNumber);
       if (existing) {

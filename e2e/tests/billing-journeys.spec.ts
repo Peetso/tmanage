@@ -125,7 +125,7 @@ test.beforeAll(async () => {
 });
 
 test.describe.serial('the billing subscription -> seat -> invoice journey', () => {
-  test('E2E-BILL-01: an owner reads the free tier, requests a plan change, and it persists as pending', async ({
+  test('E2E-BILL-01: an owner reads the free tier; during the free beta a plan change is refused and nothing persists', async ({
     browser,
   }) => {
     const owner = await browser.newContext();
@@ -141,23 +141,22 @@ test.describe.serial('the billing subscription -> seat -> invoice journey', () =
       currentPeriodEnd: null,
       nextBillAt: null,
       billingPeriod: 'monthly',
+      billingMode: 'beta_free',
     });
 
-    // Request a move to a catalog plan — recorded as an intent, no charge.
+    // BILLING_MODE=beta_free (the default): a move to a catalog plan is refused, nothing recorded.
     const changed = await owner.request.post(`${base}/change`, {
       headers: await writeHeaders(owner),
       data: { planId: 'studio' },
     });
-    expect(changed.ok()).toBe(true);
-    expect(await changed.json()).toMatchObject({
-      planId: 'studio',
-      status: 'pending_change',
-      currentPeriodEnd: null,
-    });
+    expect(changed.status()).toBe(409);
+    expect(((await changed.json()) as { error: { code: string } }).error.code).toBe(
+      'billing_disabled_beta',
+    );
 
-    // The intent persists on the next read.
+    // Nothing persisted: the next read is still the free tier, active.
     const reread = await owner.request.get(base);
-    expect(await reread.json()).toMatchObject({ planId: 'studio', status: 'pending_change' });
+    expect(await reread.json()).toMatchObject({ planId: 'free', status: 'active' });
 
     await owner.close();
   });
@@ -180,9 +179,9 @@ test.describe.serial('the billing subscription -> seat -> invoice journey', () =
       'validation_failed',
     );
 
-    // The prior intent (studio / pending_change from BILL-01) is untouched — the 400 wrote nothing.
+    // The recorded plan (free / active, as BILL-01 left it) is untouched — the 400 wrote nothing.
     const after = await owner.request.get(base);
-    expect(await after.json()).toMatchObject({ planId: 'studio', status: 'pending_change' });
+    expect(await after.json()).toMatchObject({ planId: 'free', status: 'active' });
 
     await owner.close();
   });

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { BetaBillingPanel, useBetaBillingHeading } from '../billing/BetaBillingPanel';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
@@ -141,6 +142,10 @@ export function SubscriptionScreen({
     queryFn: () => fetchSubscription(api, organizationSlug),
   });
 
+  // The public beta (BILLING_MODE=beta_free, the API's default): no plan to pick, nothing to buy.
+  const beta = subscription.data?.billingMode !== 'paid';
+  const betaHeading = useBetaBillingHeading(organizationName);
+
   const change = useMutation({
     mutationFn: (planId: PlanId) => requestPlanChange(api, organizationSlug, planId),
     onSuccess: (view) => {
@@ -171,12 +176,16 @@ export function SubscriptionScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      title={tOr(`${K}title`, 'Choose a plan')}
-      description={tOr(
-        `${K}subtitle`,
-        'Flat prices for your whole team, not per member. Clients are always free and never count as people.',
-      )}
-      actions={tabs}
+      title={beta ? betaHeading.title : tOr(`${K}title`, 'Choose a plan')}
+      description={
+        beta
+          ? betaHeading.description
+          : tOr(
+              `${K}subtitle`,
+              'Flat prices for your whole team, not per member. Clients are always free and never count as people.',
+            )
+      }
+      actions={beta ? undefined : tabs}
     >
       <div className="tm-plans">
         {subscription.isPending ? (
@@ -193,7 +202,11 @@ export function SubscriptionScreen({
           </InlineAlert>
         ) : null}
 
-        {subscription.isSuccess ? (
+        {subscription.isSuccess && beta ? (
+          <BetaBillingPanel internalPeople={subscription.data.internalPeopleCount} />
+        ) : null}
+
+        {subscription.isSuccess && !beta ? (
           <PlanPicker
             organizationSlug={organizationSlug}
             subscription={subscription.data}
