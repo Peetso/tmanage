@@ -7,10 +7,15 @@ import { CorrelationInterceptor } from './common/http/correlation.interceptor.js
 import { NOOP_TRACER, TRACER } from './common/observability/tracer.js';
 import { ALERT_NOTIFIER, createAlertNotifier } from './common/observability/alerts.js';
 import { DeepHealthModule } from './common/observability/deep-health.js';
-import { MAILER } from './common/http/tokens.js';
+import { MAILER, TENANT_DATABASE } from './common/http/tokens.js';
+import type { TenantDatabase } from './common/database/tenant-context.js';
 import type { Mailer } from '@tmanage/mail';
 import { ClientProjectionInterceptor } from './common/http/client-projection.interceptor.js';
 import { BoundTokenConfirmInterceptor } from './modules/ai-actions/bound-token-confirm.interceptor.js';
+import {
+  STORED_AUDIENCE_RESOLVER,
+  StoredAudienceRepository,
+} from './modules/ai-actions/stored-audience.repository.js';
 import { HttpExceptionFilter } from './common/http/http-exception.filter.js';
 import { SessionAuthGuard } from './common/http/guards/session-auth.guard.js';
 import { CsrfGuard } from './common/http/guards/csrf.guard.js';
@@ -1074,6 +1079,13 @@ export class AppModule {
         // boundary — see `ClientProjectionInterceptor`.
         { provide: APP_INTERCEPTOR, useClass: ClientProjectionInterceptor },
         { provide: APP_INTERCEPTOR, useClass: BoundTokenConfirmInterceptor }, // wave9 S7 NV01
+        // Audit run 3, M01. The stored work-item audience the bound-token gate reads, tenant-scoped.
+        {
+          provide: STORED_AUDIENCE_RESOLVER,
+          useFactory: (database: TenantDatabase | null) =>
+            database ? new StoredAudienceRepository(database) : null,
+          inject: [{ token: TENANT_DATABASE, optional: true }],
+        },
         // C10. Operator alerts: a 5xx mails `ALERT_EMAILS` through the app's mailer, at most once
         // per 15 minutes per kind. Off (no mail) when ALERT_EMAILS is unset.
         {

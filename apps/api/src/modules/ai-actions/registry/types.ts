@@ -93,7 +93,36 @@ export interface AiActionOp {
    * op; a call that does not match stays an everyday write. See {@link callNeedsConfirm}.
    */
   readonly confirmWhen?: ConfirmWhen;
+  /**
+   * Audit run 3, M01. A `write` op on an existing row that becomes confirm-class for one call when
+   * the row it changes is already client-facing — renaming, re-dating or moving a work item the
+   * client already sees is a client-facing change even when the call names no audience. Read from
+   * stored state by {@link callNeedsConfirmWithState}, never from the call's arguments.
+   */
+  readonly confirmWhenStored?: ConfirmWhenStored;
 }
+
+/**
+ * A "this call is confirm-class when the stored row matches" rule (M01). `param` names the path
+ * argument carrying the row id; the row's `field` is looked up tenant-scoped, and a value outside
+ * `notIn` makes the call confirm-class.
+ */
+export interface ConfirmWhenStored {
+  readonly resource: 'work_item';
+  readonly param: 'workItemId';
+  readonly field: 'audience';
+  readonly notIn: readonly ['internal'];
+}
+
+/**
+ * Reads one stored field of one row, tenant-scoped (the caller binds the organization). Resolves
+ * `undefined` when the row does not exist or is not readable.
+ */
+export type StoredFieldLookup = (
+  resource: ConfirmWhenStored['resource'],
+  id: string,
+  field: ConfirmWhenStored['field'],
+) => Promise<string | undefined>;
 
 /**
  * A declarative "this call is confirm-class when the body matches" rule, read from the call's own
@@ -122,6 +151,32 @@ export function callNeedsConfirm(op: AiActionOp, args: Readonly<Record<string, u
   if (rule.notIn !== undefined) return typeof value !== 'string' || !rule.notIn.includes(value);
   // A rule naming neither condition is malformed; treat any sent value as confirm-class.
   return true;
+}
+
+/**
+ * {@link callNeedsConfirm}, plus the stored-state rule (M01): also `true` when the op carries
+ * `confirmWhenStored` and the stored row's field is outside `notIn`. A missing id, a missing or
+ * unreadable row, or no `lookup` gives `false` for the stored rule — the handler answers 404 for a
+ * row that does not exist, so nothing client-facing can happen on that path.
+ */
+export async function callNeedsConfirmWithState(
+  op: AiActionOp,
+  args: Readonly<Record<string, unknown>>,
+  lookup: StoredFieldLookup | undefined,
+): Promise<boolean> {
+  if (callNeedsConfirm(op, args)) return true;
+  const rule = op.confirmWhenStored;
+  if (rule === undefined || lookup === undefined) return false;
+  const id = Object.prototype.hasOwnProperty.call(args, rule.param) ? args[rule.param] : undefined;
+  if (typeof id !== 'string' || id === '') return false;
+  let stored: string | undefined;
+  try {
+    stored = await lookup(rule.resource, id, rule.field);
+  } catch {
+    return false;
+  }
+  if (typeof stored !== 'string') return false;
+  return !(rule.notIn as readonly string[]).includes(stored);
 }
 
 /** A route withheld from the AI surface (architecture B3 deny-list). */

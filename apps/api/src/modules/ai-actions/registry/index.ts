@@ -907,7 +907,9 @@ export const OPS: readonly AiActionOp[] = [
     method: 'POST',
     path: '/v1/organizations/:orgSlug/client-requests/:clientRequestId/acceptance',
     capability: 'client_request.triage',
-    risk: 'write',
+    // M01: accepting notifies the client, writes a client-safe summary and can create client-audience
+    // work (`work.audience`), so a person approves it in TManage. Scope stays the everyday write.
+    risk: 'confirm',
     scope: 'write',
   },
   {
@@ -1271,6 +1273,8 @@ export const OPS: readonly AiActionOp[] = [
     capability: 'work.create',
     risk: 'write',
     scope: 'write',
+    // M01: a client audience publishes the new item to the portal; absent defaults to internal.
+    confirmWhen: { field: 'audience', notIn: ['internal'] },
   },
   {
     id: 'conversations.messages.search.list',
@@ -4878,6 +4882,13 @@ export const OPS: readonly AiActionOp[] = [
     scope: 'write',
     // N07: a client audience publishes the item to the portal; internal (the default) does not.
     confirmWhen: { field: 'audience', notIn: ['internal'] },
+    // M01: an item the client already sees stays client-facing whatever the call names.
+    confirmWhenStored: {
+      resource: 'work_item',
+      param: 'workItemId',
+      field: 'audience',
+      notIn: ['internal'],
+    },
   },
   {
     id: 'work_items.activity.list',
@@ -5102,6 +5113,13 @@ export const OPS: readonly AiActionOp[] = [
     capability: 'work.update',
     risk: 'write',
     scope: 'write',
+    // M01: the next occurrence copies the audience, so it publishes a new client-visible item.
+    confirmWhenStored: {
+      resource: 'work_item',
+      param: 'workItemId',
+      field: 'audience',
+      notIn: ['internal'],
+    },
   },
   {
     id: 'work_items.relations.graph.list',
@@ -5190,6 +5208,13 @@ export const OPS: readonly AiActionOp[] = [
     capability: 'work.transition',
     risk: 'write',
     scope: 'write',
+    // M01: the client sees the state as `progress` (in progress / waiting on you / done).
+    confirmWhenStored: {
+      resource: 'work_item',
+      param: 'workItemId',
+      field: 'audience',
+      notIn: ['internal'],
+    },
   },
   {
     id: 'work_items.watchers.delete',

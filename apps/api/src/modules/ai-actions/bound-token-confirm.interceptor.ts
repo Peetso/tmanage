@@ -1,13 +1,21 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { CallHandler, ExecutionContext, NestInterceptor } from '@nestjs/common';
-import { from, type Observable } from 'rxjs';
+import { from, switchMap, type Observable } from 'rxjs';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { requestState } from '../../common/http/request-state.js';
 import type { RequestState } from '../../common/http/request-state.js';
 import { API_CONFIG } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
-import { callNeedsConfirm, findOpByRoute, neverByKey, routeKey } from './registry/index.js';
-import type { AiActionOp } from './registry/index.js';
+import {
+  callNeedsConfirm,
+  callNeedsConfirmWithState,
+  findOpByRoute,
+  neverByKey,
+  routeKey,
+} from './registry/index.js';
+import type { AiActionOp, StoredFieldLookup } from './registry/index.js';
+import { STORED_AUDIENCE_RESOLVER } from './stored-audience.repository.js';
+import type { StoredAudienceResolver } from './stored-audience.repository.js';
 import { mcpBodyShapeRefusal } from '../mcp/mcp-body-shape.js';
 import { approvalUrl } from '../mcp/pending-actions.js';
 import type { PendingAiActionsService } from '../mcp/pending-actions.service.js';
@@ -41,6 +49,10 @@ import type { PendingAiActionsService } from '../mcp/pending-actions.service.js'
  * - **Conditionally confirm-class ops** (`confirmWhen`, audit run 2 N07): a `write` op whose call
  *   reaches a client — a client-audience work item, a client meeting attendee — is treated as a
  *   confirm op for that call; the same op with internal arguments stays an everyday write.
+ * - **Stored-state rule** (`confirmWhenStored`, audit run 3 M01): a `write` op on a work item the
+ *   client already sees (stored audience outside `internal`) is confirm-class for that call too,
+ *   even when it only renames or re-dates the item. The audience is read tenant-scoped through
+ *   {@link StoredAudienceResolver}; a row that does not exist leaves the call to the handler's 404.
  *
  * The route is resolved from the handler's own Nest metadata, never from the request URL, so a
  * crafted path cannot pick a different classification.
@@ -115,6 +127,9 @@ export class BoundTokenConfirmInterceptor implements NestInterceptor {
     @Optional()
     @Inject(API_CONFIG)
     private readonly config: Pick<ApiConfig, 'webPublicUrl'> = {},
+    @Optional()
+    @Inject(STORED_AUDIENCE_RESOLVER)
+    private readonly storedAudience?: StoredAudienceResolver | null,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
@@ -135,7 +150,35 @@ export class BoundTokenConfirmInterceptor implements NestInterceptor {
     if (op === undefined) return next.handle();
     // N07: a `write` op whose arguments reach a client (`confirmWhen`) is confirm-class for this
     // call, on the same pending/approval path as a `confirm` op.
-    if (!callNeedsConfirm(op, argsOf(op, request))) return next.handle();
+    const args = argsOf(op, request);
+    if (callNeedsConfirm(op, args)) return this.confirmClass(context, next, state, op, request);
+    if (op.confirmWhenStored === undefined) return next.handle();
+    // M01: the same op on a row the client already sees is confirm-class too (stored state).
+    return from(callNeedsConfirmWithState(op, args, this.lookupFor(state))).pipe(
+      switchMap((needs) =>
+        needs ? this.confirmClass(context, next, state, op, request) : next.handle(),
+      ),
+    );
+  }
+
+  /** The stored-field lookup for this request's tenant, or none when no resolver is wired. */
+  private lookupFor(state: RequestState): StoredFieldLookup | undefined {
+    const resolver = this.storedAudience;
+    const tenant = state.tenant;
+    if (resolver === undefined || resolver === null || tenant === undefined) return undefined;
+    return async (resource, id) =>
+      resource === 'work_item' ? resolver.workItemAudience(tenant, id) : undefined;
+  }
+
+  /** A confirm-class call: refuse the inner grant, or freeze the PAT's request for approval. */
+  private confirmClass(
+    context: ExecutionContext,
+    next: CallHandler,
+    state: RequestState,
+    op: AiActionOp,
+    request: RequestLike,
+  ): Observable<unknown> {
+    const scheme = state.authScheme;
     // GHSA-mrhx-c7xc-m3w5: a PAT confirm-class call freezes its arguments through the op's zod
     // schema (`freezeConfirmAction`), so its body gets the same shape cap as `POST /mcp` first.
     const shape =

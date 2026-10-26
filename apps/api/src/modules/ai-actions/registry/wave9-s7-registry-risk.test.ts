@@ -99,3 +99,43 @@ describe('F33 — client-exposure-widening ops are never plain write', () => {
     expect(grantCoversOp(DEFAULT_GRANT, findOpById('projects.clients.create')!)).toBe(false);
   });
 });
+
+describe('M01 — client-facing everyday writes are approval-gated (audit run 3)', () => {
+  it('client_requests.acceptance.create is confirm-class (scope stays write)', () => {
+    const op = findOpById('client_requests.acceptance.create')!;
+    expect(op.risk).toBe('confirm');
+    expect(op.scope).toBe('write');
+  });
+
+  it('converting a message carries the client-audience rule', () => {
+    const op = findOpById('conversations.messages.work_items.create')!;
+    expect(op.risk).toBe('write');
+    expect(op.confirmWhen).toEqual({ field: 'audience', notIn: ['internal'] });
+  });
+
+  it('edits of a client-visible work item are confirm-class by stored audience', () => {
+    const rule = {
+      resource: 'work_item',
+      param: 'workItemId',
+      field: 'audience',
+      notIn: ['internal'],
+    };
+    for (const id of [
+      'work_items.update',
+      'work_items.transitions.create',
+      'work_items.recurrence.generate_next.create',
+    ]) {
+      const op = findOpById(id);
+      expect(op, id).toBeDefined();
+      expect(op!.confirmWhenStored, id).toEqual(rule);
+      expect(op!.path, id).toContain(':workItemId');
+    }
+  });
+
+  it('every stored rule names a path parameter of its own op', () => {
+    for (const op of OPS.filter((o) => o.confirmWhenStored !== undefined)) {
+      expect(op.path, op.id).toContain(`:${op.confirmWhenStored!.param}`);
+      expect(op.risk, op.id).toBe('write');
+    }
+  });
+});

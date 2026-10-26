@@ -6,8 +6,13 @@ import type {
   CatalogTool,
   RunResult,
 } from '@tmanage/mcp-server';
-import { OPS, callNeedsConfirm, findOpById, isNever } from '../ai-actions/registry/index.js';
-import type { AiActionOp, AiScope } from '../ai-actions/registry/index.js';
+import {
+  OPS,
+  callNeedsConfirmWithState,
+  findOpById,
+  isNever,
+} from '../ai-actions/registry/index.js';
+import type { AiActionOp, AiScope, StoredFieldLookup } from '../ai-actions/registry/index.js';
 import {
   KNOWN_SCOPES,
   grantCoversScope,
@@ -97,6 +102,26 @@ export interface CatalogRuntimeOptions {
   readonly baseUrl: string;
   /** An in-process `fetch` (`inProcessFetch`): strips the client's token, mints a grant, audits. */
   readonly fetch: typeof fetch;
+  /**
+   * M01. Reads a stored field for `confirmWhenStored` ops. Defaults to an in-process
+   * `GET …/work-items/:id` through {@link fetch} — the member's own tenant-scoped read — so the
+   * runtime refuses an edit of a client-visible item before any inner write request is made.
+   */
+  readonly storedField?: StoredFieldLookup;
+}
+
+/** The default M01 lookup: the stored field as the member's own `work_items.get` returns it. */
+function storedFieldViaApi(options: CatalogRuntimeOptions): StoredFieldLookup {
+  const get = findOpById('work_items.get');
+  return async (resource, id, field) => {
+    if (resource !== 'work_item' || get === undefined) return undefined;
+    const built = buildOpRequest(get, { workItemId: id }, options.orgSlug);
+    const response = await options.fetch(`${options.baseUrl}${built.url}`, { method: 'GET' });
+    if (!response.ok) return undefined;
+    const body = (await response.json()) as Record<string, unknown> | null;
+    const value = body?.[field];
+    return typeof value === 'string' ? value : undefined;
+  };
 }
 
 /** The catalogue and the runtime that executes it, for one authenticated `/mcp` request. */
@@ -105,6 +130,7 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
   readonly runtime: CatalogRuntime;
 } {
   const request = { scopes: aiScopesOf(options.scopes), capabilities: options.capabilities };
+  const storedField = options.storedField ?? storedFieldViaApi(options);
   const catalog = buildToolCatalog({ ...request, profile: options.profile });
   // What `find`/`describe`/`run_action` may reach: every op tool the grant may run.
   const permitted = new Map(
@@ -119,8 +145,9 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
     if (!grantCoversOp(options.scopes, op)) {
       return { isError: true, data: `insufficient_scope: ${opId} needs ${op.scope}` };
     }
-    // N07: a `write` op whose arguments reach a client (`confirmWhen`) is refused like a confirm op.
-    if (callNeedsConfirm(op, args)) {
+    // N07: a `write` op whose arguments reach a client (`confirmWhen`) is refused like a confirm op;
+    // M01: so is one on a row the client already sees (`confirmWhenStored`, read from storage).
+    if (await callNeedsConfirmWithState(op, args, storedField)) {
       return {
         isError: true,
         data: `${opId} needs your approval in TManage and cannot run over this connection yet.`,
