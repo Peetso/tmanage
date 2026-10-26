@@ -1,5 +1,5 @@
 import type { ApiClient } from './client';
-import { listProjects } from './projects';
+import type { ProjectSummary } from './projects';
 
 /**
  * CAL-01 / MTG-01 (x90 API, x122 web) — the meeting list / create.
@@ -98,16 +98,92 @@ export async function updateMeeting(
   return data;
 }
 
-/** The API's page ceiling for the meetings list. */
-const MEETINGS_PAGE_SIZE = 200;
+/** The API's page ceiling for the meetings and projects lists (both cap `limit` at 200). */
+const PAGE_SIZE = 200;
+/** A guard on the page walks: 200 pages of 200 is far past any real tenant. */
+const MAX_PAGES = 200;
+/** How many projects are read at once when every project's meetings are needed. */
+const PROJECT_FAN_OUT = 6;
 
 /**
- * Find one meeting by id, through the per-project list.
+ * Every project the caller can read, walking the projects list page by page.
  *
- * There is no `GET .../meetings/:meetingId` (a bare id route would clash with `/meetings/agenda`),
- * so the meeting is found in its project's list: the given project when the caller knows it,
- * otherwise each project the caller can read, paging with `after` until the id is seen. Resolves
- * `null` when no readable project holds it — the screen's not-found state.
+ * `listProjects` reads one page at the API's default size (50, oldest first), so a tenant's newer
+ * projects — and the meetings in them — were invisible to the calendar. The API filters a page by
+ * relation after reading it, so a short page does not mean the end: the walk stops on an empty one.
+ */
+export async function listAllProjects(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<readonly ProjectSummary[]> {
+  const all: ProjectSummary[] = [];
+  let after: string | undefined;
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const query = new URLSearchParams({ limit: String(PAGE_SIZE) });
+    if (after) query.set('after', after);
+    const { data } = await client.request<{ projects: readonly ProjectSummary[] }>({
+      path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/projects?${query.toString()}`,
+    });
+    const last = data.projects[data.projects.length - 1];
+    // An empty page is the end; a page that does not move the cursor would repeat itself.
+    if (!last || last.id === after) break;
+    all.push(...data.projects);
+    after = last.id;
+  }
+  return all;
+}
+
+/** Every meeting of one project, walking its pages with `after`. */
+async function listProjectMeetings(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+): Promise<readonly MeetingView[]> {
+  const all: MeetingView[] = [];
+  let after: string | undefined;
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const query = new URLSearchParams({ projectId, limit: String(PAGE_SIZE) });
+    if (after) query.set('after', after);
+    const { data } = await client.request<{ readonly meetings: readonly MeetingView[] }>({
+      path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/meetings?${query.toString()}`,
+    });
+    all.push(...data.meetings);
+    const last = data.meetings[data.meetings.length - 1];
+    if (data.meetings.length < PAGE_SIZE || !last) break;
+    after = last.id;
+  }
+  return all;
+}
+
+/**
+ * Every meeting in the given projects (all the caller can read when none are given) — the
+ * calendar's default "All meetings" view. The API lists per project only, so the projects are read
+ * a few at a time and their meetings merged, newest first (ids are UUIDv7, creation order).
+ */
+export async function listAllMeetings(
+  client: ApiClient,
+  organizationSlug: string,
+  projectIds?: readonly string[],
+): Promise<readonly MeetingView[]> {
+  const ids = projectIds ?? (await listAllProjects(client, organizationSlug)).map((p) => p.id);
+  const all: MeetingView[] = [];
+  for (let start = 0; start < ids.length; start += PROJECT_FAN_OUT) {
+    const batch = ids.slice(start, start + PROJECT_FAN_OUT);
+    const lists = await Promise.all(
+      batch.map((projectId) => listProjectMeetings(client, organizationSlug, projectId)),
+    );
+    for (const list of lists) all.push(...list);
+  }
+  return all.sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+}
+
+/**
+ * Find one meeting by id, through the per-project lists.
+ *
+ * There is no `GET .../meetings/:meetingId` on the API yet, so the meeting is found in its
+ * project's list: the given projects when the caller knows them, otherwise every project the caller
+ * can read (all pages, not only the first 50). Resolves `null` when no readable project holds it —
+ * the screen's not-found state.
  */
 export async function getMeeting(
   client: ApiClient,
@@ -115,20 +191,15 @@ export async function getMeeting(
   meetingId: string,
   projectIds?: readonly string[],
 ): Promise<MeetingView | null> {
-  const candidates = projectIds ?? (await listProjects(client, organizationSlug)).map((p) => p.id);
-  for (const projectId of candidates) {
-    let after: string | undefined;
-    for (;;) {
-      const query = new URLSearchParams({ projectId, limit: String(MEETINGS_PAGE_SIZE) });
-      if (after) query.set('after', after);
-      const { data } = await client.request<{ readonly meetings: readonly MeetingView[] }>({
-        path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/meetings?${query.toString()}`,
-      });
-      const found = data.meetings.find((meeting) => meeting.id === meetingId);
+  const ids = projectIds ?? (await listAllProjects(client, organizationSlug)).map((p) => p.id);
+  for (let start = 0; start < ids.length; start += PROJECT_FAN_OUT) {
+    const batch = ids.slice(start, start + PROJECT_FAN_OUT);
+    const lists = await Promise.all(
+      batch.map((projectId) => listProjectMeetings(client, organizationSlug, projectId)),
+    );
+    for (const list of lists) {
+      const found = list.find((meeting) => meeting.id === meetingId);
       if (found) return found;
-      const last = data.meetings[data.meetings.length - 1];
-      if (data.meetings.length < MEETINGS_PAGE_SIZE || !last) break;
-      after = last.id;
     }
   }
   return null;

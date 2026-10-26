@@ -127,6 +127,30 @@ describe('MeetingsScreen', () => {
     await expectNoAxeViolations(container);
   });
 
+  it("opens on All meetings and lists every project's meetings", async () => {
+    const other = { ...project, id: 'project-2', name: 'Website' };
+    const { client } = clientOver((call) => {
+      if (call.url.includes('/meetings?projectId=project-2')) {
+        return json({
+          meetings: [
+            meetingView({ id: 'meeting-9', projectId: 'project-2', title: 'Site review' }),
+          ],
+        });
+      }
+      if (call.url.includes('/projects')) return json({ projects: [project, other] });
+      return routeList(call);
+    });
+    render(
+      withQuery(<MeetingsScreen organizationSlug="acme" organizationName="Acme" client={client} />),
+    );
+
+    // Both projects' meetings are listed without choosing a project first.
+    expect(await screen.findByRole('link', { name: 'Kickoff' })).toBeTruthy();
+    expect(await screen.findByRole('link', { name: 'Site review' })).toBeTruthy();
+    const select = screen.getByLabelText('Show the meetings for');
+    expect((select as HTMLSelectElement).selectedOptions[0]?.textContent).toBe('All meetings');
+  });
+
   it('posts a new meeting to the chosen project', async () => {
     const created: Call[] = [];
     const { client, calls } = clientOver((call) => {

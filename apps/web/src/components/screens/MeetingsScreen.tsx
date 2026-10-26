@@ -7,8 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { listProjects } from '../../lib/api/projects';
-import { createMeeting, listMeetings } from '../../lib/api/meetings';
+import { createMeeting, listAllMeetings, listAllProjects } from '../../lib/api/meetings';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
@@ -49,8 +48,9 @@ export interface MeetingsScreenProps {
  *   have no endpoint or table yet and are deferred to NEXT-SCOPES-12; this slice does not fabricate
  *   them, the same honesty the sibling read screens keep.
  *
- * A project must be chosen before anything is fetched or created: meetings are per-project, and
- * there is no all-projects read to make.
+ * The default is **All meetings**: every readable project's meetings, merged (the API lists per
+ * project, so {@link listAllMeetings} reads them all). Choosing a project narrows the list and opens
+ * the create form — a new meeting needs a project.
  */
 export function MeetingsScreen({
   organizationSlug,
@@ -69,13 +69,21 @@ export function MeetingsScreen({
 
   const projects = useQuery({
     queryKey: ['projects', organizationSlug],
-    queryFn: () => listProjects(api, organizationSlug),
+    queryFn: () => listAllProjects(api, organizationSlug),
   });
 
+  // `''` is "All meetings": every project the projects query returned. A chosen project reads only
+  // its own meetings. Both walk every page, so no meeting is cut off at the API's page size.
   const meetings = useQuery({
-    queryKey: ['meetings', organizationSlug, projectId],
-    queryFn: () => listMeetings(api, organizationSlug, projectId),
-    enabled: projectId !== '',
+    queryKey: ['meetings', organizationSlug, projectId === '' ? 'all' : projectId],
+    queryFn: async () => ({
+      meetings: await listAllMeetings(
+        api,
+        organizationSlug,
+        projectId === '' ? (projects.data ?? []).map((project) => project.id) : [projectId],
+      ),
+    }),
+    enabled: projectId !== '' || projects.isSuccess,
   });
 
   const create = useMutation({
@@ -92,16 +100,13 @@ export function MeetingsScreen({
       setTitle('');
       setStartsAtLocal('');
       setAgendaNote('');
-      void queries.invalidateQueries({ queryKey: ['meetings', organizationSlug, projectId] });
+      // Both the chosen project's list and the All view hold the new meeting.
+      void queries.invalidateQueries({ queryKey: ['meetings', organizationSlug] });
     },
   });
 
-  // Newest first for reading. The server orders by id ascending (creation order); reversing a copy
-  // of that view is presentation, not a competing sort on a field the API did not order by.
-  const rows = useMemo(
-    () => (meetings.data ? [...meetings.data.meetings].reverse() : []),
-    [meetings.data],
-  );
+  // Newest first for reading — `listAllMeetings` already orders by id descending (creation order).
+  const rows = useMemo(() => meetings.data?.meetings ?? [], [meetings.data]);
 
   const canCreate = projectId !== '' && title.trim() !== '' && startsAtLocal !== '';
 
@@ -147,19 +152,13 @@ export function MeetingsScreen({
 
         <div className="tm-cal-body">
           <div className="tm-cal-main">
-            {projectId === '' ? (
-              <InlineAlert tone="neutral" title={t('MeetingsScreen.chooseProjectTitle')}>
-                {t('MeetingsScreen.chooseProjectBody')}
-              </InlineAlert>
-            ) : null}
-
             {meetings.isError ? (
               <InlineAlert tone="danger" title={t('MeetingsScreen.loadErrorTitle')} live>
                 {describeError(t, meetings.error)}
               </InlineAlert>
             ) : null}
 
-            {projectId !== '' && meetings.isPending ? (
+            {meetings.isPending && !projects.isError ? (
               <LoadingRegion label={t('MeetingsScreen.loadingLabel')}>
                 <Skeleton height="var(--row)" />
                 <Skeleton height="var(--row)" />
@@ -167,9 +166,10 @@ export function MeetingsScreen({
               </LoadingRegion>
             ) : null}
 
-            {projectId !== '' && !meetings.isPending && !meetings.isError && rows.length === 0 ? (
+            {!meetings.isPending && !meetings.isError && rows.length === 0 ? (
               <InlineAlert tone="neutral" title={t('MeetingsScreen.emptyTitle')}>
-                {t('MeetingsScreen.emptyBody')}
+                {/* The body speaks of "this project"; the All view has no single project. */}
+                {projectId !== '' ? t('MeetingsScreen.emptyBody') : null}
               </InlineAlert>
             ) : null}
 
@@ -257,7 +257,7 @@ export function MeetingsScreen({
                     value={projectId}
                     onChange={(event) => setProjectId(event.target.value)}
                   >
-                    <option value="">{t('MeetingsScreen.projectPlaceholder')}</option>
+                    <option value="">{t('MeetingsScreen.backAllMeetings')}</option>
                     {(projects.data ?? []).map((project) => (
                       <option key={project.id} value={project.id}>
                         {project.name}
