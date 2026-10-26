@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { channelFromMetadata } from './activity-log.service.js';
+import { actorAppAuditValue, actorAppFromMetadata } from '../audit/actor-app.js';
 
 /**
  * AUT-08. The activity feed marks a move "via AI assistant" when the audit row's metadata
@@ -23,5 +24,12 @@ describe('channelFromMetadata', () => {
     expect(channelFromMetadata(undefined)).toBeNull();
     expect(channelFromMetadata('ai_assistant')).toBeNull();
     expect(channelFromMetadata(['ai_assistant'])).toBeNull();
+  });
+
+  it('round-trips the app name and records nothing for a placeholder', () => {
+    expect(actorAppFromMetadata({ actor_app: actorAppAuditValue('Claude Desktop') })).toBe(
+      'Claude Desktop',
+    );
+    expect(actorAppAuditValue('AI assistant')).toBeUndefined();
   });
 });

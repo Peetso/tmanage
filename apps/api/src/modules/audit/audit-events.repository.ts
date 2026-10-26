@@ -5,6 +5,7 @@ import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { auditEvents } from '../../common/database/schema.js';
 import type { AuditEventRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+import { actorAppAuditValue } from './actor-app.js';
 
 /**
  * The append-only audit table — AUD-001, `25-AUTH-AND-TENANT-ISOLATION` §12.
@@ -113,9 +114,18 @@ export class AuditEventsRepository {
     // `actor_channel` onto the row it writes, so a work item's activity feed can mark the move
     // "via AI assistant". The caller never sets this key, and an ordinary cookie session carries
     // no channel, so its metadata — and the stored row — are byte-for-byte what they were before.
+    // The connected app's name rides along as `actor_app` (safe form; omitted when unknown).
+    const actorApp =
+      context.actorChannel !== undefined ? actorAppAuditValue(context.actorApp) : undefined;
     const metadata: AuditMetadata =
       context.actorChannel !== undefined && !('actor_channel' in input.metadata)
-        ? { ...input.metadata, actor_channel: context.actorChannel }
+        ? {
+            ...input.metadata,
+            actor_channel: context.actorChannel,
+            ...(actorApp !== undefined && !('actor_app' in input.metadata)
+              ? { actor_app: actorApp }
+              : {}),
+          }
         : input.metadata;
     // Before anything else. A statement is never built from metadata that has not passed — and
     // the check is on the metadata actually written, the stamped `actor_channel` included.

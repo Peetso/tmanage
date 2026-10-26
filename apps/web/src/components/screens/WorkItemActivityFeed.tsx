@@ -10,6 +10,7 @@ import { listWorkActivity, type WorkActivityEntry } from '../../lib/api/work-act
 import type { ApiClient } from '../../lib/api/client';
 import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
+import { connectorSentence } from '../../lib/work-activity-presentation';
 import { useT } from '../../lib/i18n/use-t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
@@ -121,13 +122,30 @@ export function WorkItemActivityFeed({
                       {formatWhen(entry.occurredAt)}
                     </time>
                     <span className="tm-wk-story__what">
-                      {entry.actorId
-                        ? `${memberDisplayName(entry.actorId, directory.members, directory.isPending)} — `
-                        : t('WorkItemActivityFeed.system')}
-                      {entry.summary}
-                      {entry.via === 'ai_assistant' ? (
-                        <span className="tm-wk-story__via"> {t('WorkItemActivityFeed.viaAi')}</span>
-                      ) : null}
+                      {entry.via === 'ai_assistant' && entry.actorId ? (
+                        <>
+                          <span className="tm-wk-story__via">
+                            {connectorSentence(
+                              t,
+                              entry.action,
+                              memberDisplayName(
+                                entry.actorId,
+                                directory.members,
+                                directory.isPending,
+                              ),
+                              entry.viaApp,
+                            )}
+                          </span>
+                          {entry.kind === 'comment' ? ` ${entry.summary}` : null}
+                        </>
+                      ) : (
+                        <>
+                          {entry.actorId
+                            ? `${memberDisplayName(entry.actorId, directory.members, directory.isPending)} — `
+                            : t('WorkItemActivityFeed.system')}
+                          {entry.summary}
+                        </>
+                      )}
                     </span>
                   </li>
                 ))}

@@ -18,10 +18,12 @@ export interface WorkActivityEntry {
   readonly occurredAt: string;
   /**
    * AUT-08. `'ai_assistant'` when the move was made through the member's AI assistant (a
-   * personal access token / the MCP connector), so the timeline can mark it "via AI assistant";
-   * `null` for an ordinary move or a comment.
+   * personal access token / the MCP connector), so the timeline can name the person and the app;
+   * `null` for an ordinary move or comment.
    */
   readonly via: 'ai_assistant' | null;
+  /** The connected app's name ("Claude") for an AI move when it was recorded; else `null`. */
+  readonly viaApp: string | null;
 }
 
 export async function listWorkActivity(

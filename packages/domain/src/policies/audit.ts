@@ -164,6 +164,16 @@ export const AUDIT_ACTION_CATALOG = {
       'evidence a health signal once had a reason',
   },
   /**
+   * A comment written through a connected AI app (the hosted connector). Ordinary comments are
+   * not audited — the row records who and when — but one an AI app wrote on a member's behalf is
+   * accountable to that member and the app, so the activity feed can say "from Claude via the
+   * connector". Metadata: the comment's id (`entry_id`) and the stamped channel and app only.
+   */
+  'work_item.commented': {
+    objectType: 'work_item',
+    clause: '§12 — an action taken for a member by an AI app is attributed to both',
+  },
+  /**
    * CLIENT-001. The access-granting half of the system, and every one of these is §12's
    * "role changes" or a disclosure decision rather than a field edit.
    *
@@ -792,6 +802,7 @@ const AUDIT_ACTION_LABELS = {
   'work_item.audience_changed': 'Changed who can see a work item',
   'work_item.deleted': 'Deleted a work item',
   'work_item.dependency_removed': 'Removed a work item dependency',
+  'work_item.commented': 'Commented through an AI app',
   'client_organization.created': 'Added a client company',
   'client_organization.updated': 'Renamed a client company',
   'client_organization.archived': 'Archived a client company',

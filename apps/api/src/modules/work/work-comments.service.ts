@@ -8,6 +8,7 @@ import type {
 } from '../../common/database/tenant-context.js';
 import type { WorkItemCommentRow, WorkItemRow } from '../../common/database/schema.js';
 import type { WorkItemsRepository } from './work-items.repository.js';
+import { AuditEventsRepository } from '../audit/audit-events.repository.js';
 import { WorkCommentsRepository } from './work-comments.repository.js';
 
 /**
@@ -52,6 +53,7 @@ export class WorkCommentsService {
     private readonly database: TenantDatabase,
     private readonly workItems: WorkItemsRepository,
     private readonly comments: WorkCommentsRepository = new WorkCommentsRepository(),
+    private readonly audit: AuditEventsRepository = new AuditEventsRepository(),
   ) {}
 
   /** The work item's comments, created-at ascending. Behind `work.read` on the parent item. */
@@ -91,6 +93,16 @@ export class WorkCommentsService {
         authorMembershipId,
         body: input.body,
       });
+      // A comment written through a connected AI app is attributed to the member AND the app: one
+      // audit row on the item (the append stamps channel and app), read back by the activity feed.
+      if (context.actorChannel !== undefined) {
+        await this.audit.append(tx, context, {
+          action: 'work_item.commented',
+          result: 'allowed',
+          objectId: workItemId,
+          metadata: { entry_id: row.id },
+        });
+      }
       return toView(row);
     });
   }

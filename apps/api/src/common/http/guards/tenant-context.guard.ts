@@ -253,7 +253,7 @@ export class TenantContextGuard implements CanActivate {
     // AI assistant". A cookie session is untagged, leaving its context — and every audit row it
     // writes — exactly as before.
     state.tenant = isBoundTokenScheme(state.authScheme)
-      ? withActorChannel(resolved.context, 'ai_assistant')
+      ? withActorChannel(resolved.context, 'ai_assistant', state.aiGrant?.clientName)
       : resolved.context;
     state.principal = loaded.principal;
 

@@ -13,6 +13,7 @@ import type {
 } from '../../common/database/tenant-context.js';
 import type { WorkItemsRepository } from './work-items.repository.js';
 import { AuditEventsRepository } from '../audit/audit-events.repository.js';
+import { actorAppFromMetadata } from '../audit/actor-app.js';
 import { WorkCommentsRepository } from './work-comments.repository.js';
 
 /**
@@ -53,6 +54,9 @@ const DEFAULT_ACTIVITY_PAGE = 50;
 /** A comment body is truncated to this many characters in the timeline summary. */
 const SUMMARY_MAX = 280;
 
+/** The audit action recorded for a comment written through a connected AI app. */
+const COMMENT_ACTION = 'work_item.commented';
+
 /** Plain-language phrases for the work-item audit actions this feed surfaces. */
 const AUDIT_SUMMARIES: Readonly<Record<string, string>> = {
   'work_item.created': 'Created this item',
@@ -78,9 +82,11 @@ export interface WorkActivityEntryView {
    * AUT-08. `'ai_assistant'` when the move was made through the AI-assistant / MCP channel (a
    * personal access token), so the timeline can mark it "via AI assistant"; `null` otherwise.
    * Read back from the audit row's `actor_channel` metadata the audit append stamps; comments
-   * carry no channel and are always `null`.
+   * written through the connector are matched to their `work_item.commented` audit row.
    */
   readonly via: 'ai_assistant' | null;
+  /** The connected app's name ("Claude") for an AI move when it was recorded; else `null`. */
+  readonly viaApp: string | null;
 }
 
 export interface ActivityFeedOptions {
@@ -115,7 +121,16 @@ export class WorkActivityLogService {
         this.comments.listForWorkItem(runner, context, workItemId, limit),
       ]);
 
-      const entries = [...auditRows.map(toAuditEntry), ...commentRows.map(toCommentEntry)];
+      // An AI comment's audit row annotates the comment itself rather than being its own entry.
+      const aiComments = new Map<string, string | null>();
+      for (const row of auditRows) {
+        const entryId = commentIdOf(row);
+        if (entryId !== null) aiComments.set(entryId, actorAppFromMetadata(row.metadataJson));
+      }
+      const entries = [
+        ...auditRows.filter((row) => row.action !== COMMENT_ACTION).map(toAuditEntry),
+        ...commentRows.map((row) => toCommentEntry(row, aiComments)),
+      ];
       // Newest first; a shared millisecond falls back to id descending so a page is stable.
       entries.sort((a, b) => {
         if (a.occurredAt !== b.occurredAt) return a.occurredAt < b.occurredAt ? 1 : -1;
@@ -170,10 +185,21 @@ function toAuditEntry(row: AuditEventRow): WorkActivityEntryView {
     summary: AUDIT_SUMMARIES[row.action] ?? row.action,
     occurredAt: row.createdAt.toISOString(),
     via: channelFromMetadata(row.metadataJson),
+    viaApp: actorAppFromMetadata(row.metadataJson),
   };
 }
 
-function toCommentEntry(row: WorkItemCommentRow): WorkActivityEntryView {
+function commentIdOf(row: AuditEventRow): string | null {
+  if (row.action !== COMMENT_ACTION) return null;
+  const metadata = row.metadataJson as Record<string, unknown> | null;
+  const entryId = metadata !== null && typeof metadata === 'object' ? metadata['entry_id'] : null;
+  return typeof entryId === 'string' ? entryId : null;
+}
+
+function toCommentEntry(
+  row: WorkItemCommentRow,
+  aiComments: ReadonlyMap<string, string | null>,
+): WorkActivityEntryView {
   const body = row.body.trim();
   return {
     id: row.id,
@@ -182,8 +208,9 @@ function toCommentEntry(row: WorkItemCommentRow): WorkActivityEntryView {
     actorId: row.authorMembershipId,
     summary: body.length > SUMMARY_MAX ? `${body.slice(0, SUMMARY_MAX)}…` : body,
     occurredAt: row.createdAt.toISOString(),
-    // Comments are read from `work_item_comments`, which carries no channel.
-    via: null,
+    // `work_item_comments` carries no channel; an AI comment is known by its audit row.
+    via: aiComments.has(row.id) ? 'ai_assistant' : null,
+    viaApp: aiComments.get(row.id) ?? null,
   };
 }
 

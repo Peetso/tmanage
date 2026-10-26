@@ -71,6 +71,12 @@ export interface TenantContext {
    * "via AI assistant".
    */
   readonly actorChannel?: ActorChannel;
+  /**
+   * The connected AI app's display name (the OAuth client name, e.g. "Claude") when the request
+   * came through the hosted connector; `undefined` when unknown or on an ordinary session. The
+   * audit append stamps a safe form of it so the activity feed can say "from Claude".
+   */
+  readonly actorApp?: string;
 }
 
 export type TenantContextInput = {
@@ -129,6 +135,7 @@ export function createTenantContext(input: TenantContextInput): TenantContext {
     // Omitted entirely when absent, so an ordinary session's context is byte-for-byte what it
     // was before AUT-08 and nothing downstream (audit metadata, equality in tests) changes.
     ...(input.actorChannel ? { actorChannel: input.actorChannel } : {}),
+    ...(input.actorApp ? { actorApp: input.actorApp } : {}),
   });
 }
 
@@ -144,8 +151,9 @@ export function createTenantContext(input: TenantContextInput): TenantContext {
 export function withActorChannel(
   context: TenantContext,
   actorChannel: ActorChannel,
+  actorApp?: string,
 ): TenantContext {
-  return Object.freeze({ ...context, actorChannel });
+  return Object.freeze({ ...context, actorChannel, ...(actorApp ? { actorApp } : {}) });
 }
 
 /**
