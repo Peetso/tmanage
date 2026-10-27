@@ -20,6 +20,7 @@ describe('robots.txt and sitemap.xml (live 307 to /robots.txt/home, 2026-10-26)'
         'https://tmanage.peetrix.com/ar/pricing',
       ]),
     );
-    expect(urls.length).toBe(44);
+    // 22 website pages, 12 library articles, sign-in and sign-up — each in English and Arabic.
+    expect(urls.length).toBe(72);
   });
 });

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { ALL_RESOURCES } from '../../components/website/pages/resources/resources-data';
 import type { DisplayLocale } from '../api/display-preferences';
 import { PAGE_OWNS_TITLE, ROUTE_TITLES, TITLE_SUFFIX } from '../route-titles';
 import { siteDescription } from './locale-html';
@@ -57,6 +58,37 @@ export function isLocalizablePath(path: string | null | undefined): path is Publ
   return typeof path === 'string' && LOCALIZED.has(path);
 }
 
+/**
+ * The sign-in and sign-up pages, which also have an Arabic twin (`/ar/sign-in`, `/ar/sign-up`):
+ * the same screens and API, rendered right to left in Arabic. Not website pages, so they are not in
+ * {@link PUBLIC_LOCALIZED_PATHS} (the catch-all's table) and get no website chrome.
+ */
+export const ARABIC_AUTH_PATHS = ['/sign-in', '/sign-up'] as const;
+
+/** Every article of the resources library (`/resources/<slug>`), which has an Arabic twin. */
+export const ARTICLE_PATHS: readonly string[] = ALL_RESOURCES.map(
+  (item) => `/resources/${item.slug}`,
+);
+
+const WITH_TWIN: ReadonlySet<string> = new Set<string>([
+  ...PUBLIC_LOCALIZED_PATHS,
+  ...ARABIC_AUTH_PATHS,
+  ...ARTICLE_PATHS,
+]);
+
+/**
+ * True when `path` (no query or hash) has an Arabic twin under `/ar`: a website page, sign-in,
+ * sign-up or a library article.
+ */
+export function hasArabicTwin(path: string | null | undefined): path is string {
+  return typeof path === 'string' && WITH_TWIN.has(path);
+}
+
+/** The Arabic twin of any path {@link hasArabicTwin} accepts (`/sign-in` → `/ar/sign-in`). */
+export function arabicTwinPath(path: string): string {
+  return path === '/' ? ARABIC_PREFIX : `${ARABIC_PREFIX}${path}`;
+}
+
 /** True for `/ar` and everything under `/ar/`. */
 export function isArabicPublicPath(pathname: string | null | undefined): boolean {
   if (typeof pathname !== 'string') return false;
@@ -96,14 +128,14 @@ function splitHref(href: string): { path: string; rest: string } {
 }
 
 /**
- * A link's `href` as an Arabic page writes it: a public page with an Arabic twin points at the
- * twin, keeping its query and hash; anything else (sign-in, the app, an article, `#anchor`,
- * `mailto:`, another origin) is returned unchanged.
+ * A link's `href` as an Arabic page writes it: a page with an Arabic twin (a website page,
+ * sign-in, sign-up, a library article) points at the twin, keeping its query and hash; anything
+ * else (the app, `/recover`, `#anchor`, `mailto:`, another origin) is returned unchanged.
  */
 export function localizeHref(href: string): string {
   if (!href.startsWith('/') || href.startsWith('//')) return href;
   const { path, rest } = splitHref(href);
-  return isLocalizablePath(path) ? `${arabicPublicPath(path)}${rest}` : href;
+  return hasArabicTwin(path) ? `${arabicTwinPath(path)}${rest}` : href;
 }
 
 /**
@@ -120,21 +152,21 @@ export function languageSwitchTarget(
   if (typeof pathname !== 'string') return undefined;
   const arabicNow = isArabicPublicPath(pathname);
   const english = englishPublicPath(pathname);
-  if (!isLocalizablePath(english) || arabicNow === toArabic) return undefined;
+  if (!hasArabicTwin(english) || arabicNow === toArabic) return undefined;
   const params = new URLSearchParams(search);
   params.delete('lang');
   const query = params.toString();
-  const target = toArabic ? arabicPublicPath(english) : english;
+  const target = toArabic ? arabicTwinPath(english) : english;
   return `${target}${query === '' ? '' : `?${query}`}${hash}`;
 }
 
-/** The `hreflang` alternates of a public page, or `undefined` for a page without a twin. */
+/** The `hreflang` alternates of a page with a twin, or `undefined` for a page without one. */
 export function publicAlternates(
   pathname: string | null | undefined,
 ): { readonly en: string; readonly ar: string } | undefined {
   if (typeof pathname !== 'string') return undefined;
   const english = englishPublicPath(pathname);
-  return isLocalizablePath(english) ? { en: english, ar: arabicPublicPath(english) } : undefined;
+  return hasArabicTwin(english) ? { en: english, ar: arabicTwinPath(english) } : undefined;
 }
 
 /** The home page's absolute title prefix (`(website)/page.tsx`, `WebsiteDocumentTitle`). */
@@ -160,6 +192,22 @@ export function arabicPublicTitle(path: PublicLocalizedPath): string {
 export function arabicPublicMetadata(path: PublicLocalizedPath): Metadata {
   return {
     title: { absolute: arabicPublicTitle(path) },
+    description: siteDescription(ARABIC_ROUTE_LOCALE),
+  };
+}
+
+/**
+ * The metadata of the Arabic twin of a route whose name is in `ROUTE_TITLES` (`/sign-in`,
+ * `/sign-up`): its Arabic tab title and the Arabic site description.
+ */
+export function arabicRouteMetadata(pattern: '/sign-in' | '/sign-up'): Metadata {
+  const entry = ROUTE_TITLES[pattern];
+  if (entry === undefined || entry === PAGE_OWNS_TITLE) {
+    throw new Error(`No page name for route ${pattern}`);
+  }
+  const name = translate(ARABIC_ROUTE_LOCALE, entry.key as MessageKey);
+  return {
+    title: { absolute: `${name === entry.key ? entry.en : name}${TITLE_SUFFIX}` },
     description: siteDescription(ARABIC_ROUTE_LOCALE),
   };
 }

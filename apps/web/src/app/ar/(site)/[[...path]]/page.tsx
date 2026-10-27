@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { ARABIC_PAGES } from '../arabic-pages';
+import { ARABIC_PAGES } from '../../arabic-pages';
 import {
   arabicPublicMetadata,
   pathFromSegments,
   PUBLIC_LOCALIZED_PATHS,
   segmentsOf,
-} from '../../../lib/i18n/public-locale-routes';
+} from '../../../../lib/i18n/public-locale-routes';
 
 /**
  * Every public page's Arabic twin (`/ar` … `/ar/status`), prerendered at build time from the

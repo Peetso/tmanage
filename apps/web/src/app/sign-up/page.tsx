@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { SignUpScreen } from '../../components/screens/SignUpScreen';
+import { PublicLocaleAlternates } from '../../components/website/PublicLocaleAlternates';
 
 /**
  * **Sign up** — public self-service account creation (`PUBLIC_SIGNUP`, default on). The screen
@@ -11,5 +12,10 @@ export const metadata: Metadata = {
 };
 
 export default function SignUpPage() {
-  return <SignUpScreen />;
+  return (
+    <>
+      <PublicLocaleAlternates />
+      <SignUpScreen />
+    </>
+  );
 }

@@ -130,12 +130,13 @@ describe('Arabic paths and links', () => {
     expect(englishPublicPath('/pricing')).toBe('/pricing');
   });
 
-  it('points public links at their Arabic twin and leaves everything else alone', () => {
+  it('points links with an Arabic twin at it and leaves everything else alone', () => {
     expect(localizeHref('/')).toBe('/ar');
     expect(localizeHref('/pricing')).toBe('/ar/pricing');
     expect(localizeHref('/contact?plan=team#form')).toBe('/ar/contact?plan=team#form');
-    expect(localizeHref('/sign-in')).toBe('/sign-in');
-    expect(localizeHref('/sign-up')).toBe('/sign-up');
+    expect(localizeHref('/sign-in')).toBe('/ar/sign-in');
+    expect(localizeHref('/sign-up?plan=team')).toBe('/ar/sign-up?plan=team');
+    expect(localizeHref('/recover')).toBe('/recover');
     expect(localizeHref('/resources/some-article')).toBe('/resources/some-article');
     expect(localizeHref('#featured-story')).toBe('#featured-story');
     expect(localizeHref('mailto:security@example.com')).toBe('mailto:security@example.com');
@@ -149,7 +150,8 @@ describe('Arabic paths and links', () => {
     expect(languageSwitchTarget('/ar', false)).toBe('/');
     expect(languageSwitchTarget('/ar/pricing', true)).toBeUndefined();
     expect(languageSwitchTarget('/pricing', false)).toBeUndefined();
-    expect(languageSwitchTarget('/sign-in', true)).toBeUndefined();
+    expect(languageSwitchTarget('/sign-in', true)).toBe('/ar/sign-in');
+    expect(languageSwitchTarget('/recover', true)).toBeUndefined();
     expect(languageSwitchTarget('/acme/home', true)).toBeUndefined();
     expect(languageSwitchTarget(null, true)).toBeUndefined();
   });
@@ -157,7 +159,8 @@ describe('Arabic paths and links', () => {
   it('lists hreflang alternates for both languages of a public page only', () => {
     expect(publicAlternates('/pricing')).toEqual({ en: '/pricing', ar: '/ar/pricing' });
     expect(publicAlternates('/ar')).toEqual({ en: '/', ar: '/ar' });
-    expect(publicAlternates('/sign-in')).toBeUndefined();
+    expect(publicAlternates('/sign-in')).toEqual({ en: '/sign-in', ar: '/ar/sign-in' });
+    expect(publicAlternates('/recover')).toBeUndefined();
   });
 });
 
@@ -204,7 +207,7 @@ describe('rendering under the Arabic route locale', () => {
     expect(html).toContain('>ar-EG<');
     expect(html).toContain(translate('ar-EG', 'WebsiteChrome.skipLink'));
     expect(html).toMatch(/<a[^>]*href="\/ar\/pricing"/);
-    expect(html).toMatch(/<a[^>]*href="\/sign-in"/);
+    expect(html).toMatch(/<a[^>]*href="\/ar\/sign-in"/);
     expect(html).not.toMatch(/<a[^>]*href="\/pricing"/);
     expect(html).toMatch(/<link rel="alternate" hrefLang="en" href="\/pricing"\/>/i);
     expect(html).toMatch(/<link rel="alternate" hrefLang="ar" href="\/ar\/pricing"\/>/i);

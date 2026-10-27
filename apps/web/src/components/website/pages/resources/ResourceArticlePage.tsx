@@ -5,19 +5,25 @@ import { Badge } from '@tmanage/ui';
 import { ArrowLink, ButtonLink, IconOrb } from '../../primitives';
 import { CtaBand, SectionHeader, WebSection } from '../../sections';
 import { ResourceCard } from './ResourceCard';
-import { ALL_RESOURCES, CATEGORY_ICON, CATEGORY_LABEL, type Resource } from './resources-data';
+import { ALL_RESOURCES, CATEGORY_BADGE_KEY, CATEGORY_ICON, type Resource } from './resources-data';
+import { pointsIn } from './resources-data-ar';
 import './resources.css';
 import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 import { useT } from '../../../../lib/i18n/use-t';
+import { useActiveLocale } from '../../../../lib/i18n/use-active-locale';
+import { languageOf } from '../../../../lib/i18n/route-locale';
 
 /**
  * WEB-15 article page (`/resources/[slug]`) for every card on the Resources index. Same visual
  * language as the index: paper hero with the category badge, an ink "what you'll take away" panel,
- * then three more articles to keep reading. Tokens and packages/ui parts only.
+ * then three more articles to keep reading. Tokens and packages/ui parts only. Every word comes
+ * from the catalog or the takeaways in the reader's language, so `/ar/resources/<slug>` (Figma
+ * `426:13485`) is the same page in Arabic.
  */
 export function ResourceArticlePage({ item }: { item: Resource }) {
   const t = useT();
-  const label = CATEGORY_LABEL[item.category];
+  const label = t(CATEGORY_BADGE_KEY[item.category]);
+  const points = pointsIn(item, languageOf(useActiveLocale()));
   const more = [
     ...ALL_RESOURCES.filter((r) => r.slug !== item.slug && r.category === item.category),
     ...ALL_RESOURCES.filter((r) => r.slug !== item.slug && r.category !== item.category),
@@ -40,11 +46,11 @@ export function ResourceArticlePage({ item }: { item: Resource }) {
             size="page"
             id="res-article-title"
             eyebrow={label.toUpperCase()}
-            title={item.title}
-            lede={item.line}
+            title={t(item.titleKey)}
+            lede={t(item.lineKey)}
           >
             <p className="tm-web-res-article__meta">
-              <span>{item.meta}</span>
+              <span>{t(item.metaKey)}</span>
               <span aria-hidden="true"> · </span>
               <span>{t('ResourceArticlePage.writtenBy')}</span>
             </p>
@@ -60,7 +66,7 @@ export function ResourceArticlePage({ item }: { item: Resource }) {
               {t('ResourceArticlePage.takeaways')}
             </h2>
             <ol className="tm-web-res-takeaways__list">
-              {item.points.map((point, i) => (
+              {points.map((point, i) => (
                 <li key={point}>
                   <span className="tm-web-res-takeaways__n" aria-hidden="true">
                     {i + 1}

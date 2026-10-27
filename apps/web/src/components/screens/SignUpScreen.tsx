@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import Link from 'next/link';
+import Link from '../website/WebLink';
 import { Badge, Button, Checkbox, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -13,6 +13,7 @@ import { useHydrated } from '../../lib/use-hydrated';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { readsApiLanguage, refusalLine } from '../../lib/api/auth-refusal';
 import { GETTING_IN_MIN_PASSWORD, gettingIn, type GettingInKey } from '../../lib/public-signup';
 import {
   GoogleErrorMessage,
@@ -175,11 +176,15 @@ export function SignUpScreen({
         const next: Partial<Record<SignUpField, string>> = {};
         for (const field of API_FIELDS) {
           const message = byField.get(field);
-          if (message !== undefined) next[field] = message;
+          // The API words field errors in English; another language gets the catalog's line.
+          if (message !== undefined) {
+            next[field] = readsApiLanguage(locale) ? message : t('AuthRefusal.checkField');
+          }
         }
         setFieldErrors(next);
       }
-      setFailure(describe(error, t));
+      const line = refusalLine(error, locale);
+      setFailure(line === undefined ? describe(error, t) : t(line));
     } finally {
       setSubmitting(false);
     }

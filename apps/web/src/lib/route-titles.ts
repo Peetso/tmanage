@@ -356,6 +356,9 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/': PAGE_OWNS_TITLE,
   // The Arabic public pages set their Arabic titles themselves (`public-locale-routes.ts`).
   '/ar/[[...path]]': PAGE_OWNS_TITLE,
+  '/ar/resources/[slug]': PAGE_OWNS_TITLE,
+  '/ar/sign-in': PAGE_OWNS_TITLE,
+  '/ar/sign-up': PAGE_OWNS_TITLE,
   '/resources/[slug]': PAGE_OWNS_TITLE,
   '/website-kit': PAGE_OWNS_TITLE,
 };

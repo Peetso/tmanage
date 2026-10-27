@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import Link from 'next/link';
+import Link from '../website/WebLink';
 import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { MfaChallengeScreen } from './MfaChallengeScreen';
@@ -24,6 +24,8 @@ import {
   useGoogleAvailability,
 } from './GoogleSignInButton';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { refusalLine } from '../../lib/api/auth-refusal';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import '../../styles/screens/identity.css';
 
 export interface SignInScreenProps {
@@ -121,6 +123,7 @@ export function SignInScreen({
    */
   const hydrated = useHydrated();
   const t = useT();
+  const locale = useActiveLocale();
 
   /**
    * A new principal is a boundary (review finding D01). Announced before the caller
@@ -225,7 +228,9 @@ export function SignInScreen({
       }
       signedIn();
     } catch (error) {
-      setFailure(describe(error));
+      // English shows the API's refusal verbatim; another language its catalog line (`/ar/sign-in`).
+      const line = refusalLine(error, locale);
+      setFailure(line === undefined ? describe(error) : t(line));
     } finally {
       setSigningIn(false);
     }
