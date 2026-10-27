@@ -35,22 +35,26 @@ export const Tokens: Story = {
 
 /**
  * The see-once dialog: the plaintext token the screen shows once, right after creation. The play
- * types a name, submits, and waits for the secret to paint before letting the shot be taken.
+ * opens *New token*, types a name, submits, and waits for the secret to paint before letting the
+ * shot be taken.
  */
 export const SeeOnce: Story = {
   tags: ['vr', 'vr-play'],
   args: { client: tokensClient([SECURITY_TOKENS[0]!]) },
   play: async ({ canvasElement }) => {
-    const name = await waitForElement<HTMLInputElement>(canvasElement, '#tm-pat-name');
+    // The form lives in a dialog that *New token* opens; the dialog may render outside the
+    // story canvas, so everything after that click is looked up on the whole document.
+    const open = await waitForElement<HTMLButtonElement>(canvasElement, '.tm-sec-card button');
+    open.click();
+    const name = await waitForElement<HTMLInputElement>(document, 'form.tm-sec-form .tm-sec-input');
     setReactInputValue(name, 'MCP server — reporting');
-    const submit = await waitForElement<HTMLButtonElement>(
-      canvasElement,
-      'form button[type="submit"]',
-    );
     // React re-enables the button a tick after the controlled value lands.
-    await waitForElement(canvasElement, 'form button[type="submit"]:not([disabled])');
+    const submit = await waitForElement<HTMLButtonElement>(
+      document,
+      'form.tm-sec-form button[type="submit"]:not([disabled])',
+    );
     submit.click();
-    await waitForElement(canvasElement, '[data-testid="tm-pat-secret"]');
+    await waitForElement(document, '[data-testid="tm-token-secret"]');
     markVrReady();
   },
 };
