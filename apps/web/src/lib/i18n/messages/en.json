@@ -12674,5 +12674,10 @@
   "MeetingsHub.weekAria": "Week of meetings",
   "MeetingsHub.whenAria": "Upcoming or past",
   "MeetingsHub.yes": "Yes",
-  "MeetingsHub.yourCalendars": "Your calendars"
+  "MeetingsHub.yourCalendars": "Your calendars",
+  "ClientPortalShell.deliveredBy": "Delivered by {provider}",
+  "ClientPortalShell.previewLabel": "Client preview",
+  "ClientPortalShell.previewNote": "This is what {client} sees. Nothing here is internal.",
+  "ClientPortalShell.badge": "Client portal",
+  "ClientPortalShell.yourClient": "Your client"
 }

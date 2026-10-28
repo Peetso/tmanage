@@ -12674,5 +12674,10 @@
   "MeetingsHub.weekAria": "اجتماعات الأسبوع",
   "MeetingsHub.whenAria": "القادمة أو السابقة",
   "MeetingsHub.yes": "نعم",
-  "MeetingsHub.yourCalendars": "تقويماتك"
+  "MeetingsHub.yourCalendars": "تقويماتك",
+  "ClientPortalShell.deliveredBy": "يقدّمها {provider}",
+  "ClientPortalShell.previewLabel": "معاينة العميل",
+  "ClientPortalShell.previewNote": "هذا ما يراه {client}. لا شيء هنا داخلي.",
+  "ClientPortalShell.badge": "بوابة العملاء",
+  "ClientPortalShell.yourClient": "عميلك"
 }
