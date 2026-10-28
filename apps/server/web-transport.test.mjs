@@ -465,6 +465,11 @@ test('the desktop installer is served from the downloads folder as octet-stream;
     assert.equal(res.body, 'MZ-installer');
     assert.equal((await get(served, '/downloads/TManage-Setup.exe.sha256')).status, 503);
     assert.equal((await get(missing, '/downloads/TManage-Setup.exe')).status, 503);
+    // The AI connector bridge's checksum is served from the same folder; the tarball goes to the API.
+    writeFileSync(join(dir, 'tmanage-mcp.tgz.sha256'), 'abc  tmanage-mcp.tgz\n');
+    const sum = await get(served, '/downloads/tmanage-mcp.tgz.sha256');
+    assert.equal(sum.status, 200);
+    assert.equal(sum.body, 'abc  tmanage-mcp.tgz\n');
     assert.deepEqual(routed, []);
   } finally {
     served.close();

@@ -1,11 +1,14 @@
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { ReadStream } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   AiConnectorFallbacksController,
   BRIDGE_TARBALL_NAME,
+  defaultBridgeTarballPath,
+  resolveBridgeTarballPath,
 } from './ai-connector-fallbacks.controller.js';
 import type { AiConnectorFallbacksOptions } from './ai-connector-fallbacks.controller.js';
 import { PAT_SECURITY_SCHEME } from '../ai-actions/openapi.js';
@@ -109,5 +112,92 @@ describe('AiConnectorFallbacksController — GET /downloads/tmanage-mcp.tgz', ()
       stream.on('error', reject);
     });
     expect(bytes).toBe(36);
+  });
+});
+
+describe('the default bridge tarball path (no TMANAGE_MCP_BRIDGE_PATH)', () => {
+  /** A bundle laid out as deploy/hostinger/build.mjs writes it and npm installs it. */
+  function bundle(withTarball: boolean): { root: string; moduleUrl: string } {
+    const root = mkdtempSync(join(tmpdir(), 'tmanage-bundle-'));
+    tmpDirs.push(root);
+    const moduleDir = join(root, 'node_modules', '@tmanage', 'api', 'dist', 'modules', 'mcp');
+    mkdirSync(moduleDir, { recursive: true });
+    if (withTarball) {
+      mkdirSync(join(root, 'downloads'));
+      writeFileSync(join(root, 'downloads', BRIDGE_TARBALL_NAME), 'tgz');
+    }
+    const moduleUrl = pathToFileURL(join(moduleDir, 'ai-connector-fallbacks.controller.js')).href;
+    return { root, moduleUrl };
+  }
+  const isFile = (path: string): boolean => existsSync(path) && statSync(path).isFile();
+
+  it('resolves to the bundle root downloads/tmanage-mcp.tgz, whatever the working directory', () => {
+    const { root, moduleUrl } = bundle(true);
+    const path = defaultBridgeTarballPath({ moduleUrl, cwd: tmpdir(), isFile });
+    expect(path).toBe(join(root, 'downloads', BRIDGE_TARBALL_NAME));
+  });
+
+  it('falls back to <cwd>/downloads/tmanage-mcp.tgz outside node_modules', () => {
+    const { root } = bundle(true);
+    const moduleUrl = pathToFileURL(join(root, 'apps', 'api', 'dist', 'x.js')).href;
+    expect(defaultBridgeTarballPath({ moduleUrl, cwd: root, isFile })).toBe(
+      join(root, 'downloads', BRIDGE_TARBALL_NAME),
+    );
+  });
+
+  it('is undefined when the bundle has no tarball, so the route answers 503', async () => {
+    const { root, moduleUrl } = bundle(false);
+    const path = defaultBridgeTarballPath({ moduleUrl, cwd: root, isFile });
+    expect(path).toBeUndefined();
+    const reply = new FakeReply();
+    await controller({ baseUrl: 'http://localhost', bridgeTarballPath: path }).bridgeTarball(
+      reply as never,
+    );
+    expect(reply.statusCode).toBe(503);
+  });
+
+  it('serves the bundled tarball with no environment variable set', async () => {
+    const { root, moduleUrl } = bundle(true);
+    const path = resolveBridgeTarballPath({}, { moduleUrl, cwd: root, isFile });
+    const reply = new FakeReply();
+    await controller({ baseUrl: 'http://localhost', bridgeTarballPath: path }).bridgeTarball(
+      reply as never,
+    );
+    expect(reply.statusCode).toBe(200);
+    // Drain before afterEach removes the bundle (the stream opens lazily).
+    const text = await new Promise<string>((done, fail) => {
+      let body = '';
+      const stream = reply.payload as ReadStream;
+      stream.on('data', (chunk: Buffer | string) => (body += chunk.toString()));
+      stream.on('end', () => done(body));
+      stream.on('error', fail);
+    });
+    expect(text).toBe('tgz');
+  });
+
+  it('lets TMANAGE_MCP_BRIDGE_PATH override the bundled default', () => {
+    const { moduleUrl } = bundle(true);
+    expect(
+      resolveBridgeTarballPath(
+        { TMANAGE_MCP_BRIDGE_PATH: ' /srv/bridge.tgz ' },
+        { moduleUrl, cwd: tmpdir(), isFile },
+      ),
+    ).toBe('/srv/bridge.tgz');
+  });
+
+  it('considers only the exact tarball path, never another file under downloads/', () => {
+    const { root, moduleUrl } = bundle(false);
+    mkdirSync(join(root, 'downloads'));
+    writeFileSync(join(root, 'downloads', 'other.tgz'), 'x');
+    const seen: string[] = [];
+    defaultBridgeTarballPath({
+      moduleUrl,
+      cwd: root,
+      isFile: (p) => {
+        seen.push(p);
+        return false;
+      },
+    });
+    expect(seen.every((p) => p.endsWith(join('downloads', BRIDGE_TARBALL_NAME)))).toBe(true);
   });
 });

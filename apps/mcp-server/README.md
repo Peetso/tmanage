@@ -49,14 +49,17 @@ reach the hosted endpoint, run this package as a local bridge straight from your
 npm account and nothing to clone:
 
 ```
-TMANAGE_API_URL=https://<host>/api TMANAGE_TOKEN=<token> \
+TMANAGE_API_URL=https://<host> TMANAGE_TOKEN=<token> \
   npx -y https://<host>/downloads/tmanage-mcp.tgz
 ```
 
-It runs over stdio (the default transport) and talks to the same HTTP API with your token. The
-tarball is published by the deploy step `pnpm --filter @tmanage/mcp-server pack:bridge`, whose
-output is placed at the path the API reads from `TMANAGE_MCP_BRIDGE_PATH`; until then the download
-route answers `503` with that guidance rather than serving a missing file.
+It runs over stdio (the default transport) and talks to the same HTTP API with your token. On the
+single-app (Hostinger) deployment the API answers `/v1` at the site root, so `TMANAGE_API_URL` is
+the site address itself. The tarball is `pnpm pack` of this package; the deploy build
+(`deploy/hostinger/build.mjs`) ships it in the bundle as `downloads/tmanage-mcp.tgz` (with
+`downloads/tmanage-mcp.tgz.sha256`), and the API serves that file with no setting needed.
+`TMANAGE_MCP_BRIDGE_PATH` overrides the path on other layouts; with no tarball the route answers
+`503` rather than serving a missing file.
 
 **OpenAPI / GPT Actions.** Clients that call an OpenAPI tool instead of MCP read
 `https://<host>/openapi/ai.json` (generated from the same action registry) and call the REST API

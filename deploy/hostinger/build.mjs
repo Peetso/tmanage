@@ -619,20 +619,60 @@ function buildDesktopInstaller() {
   return built;
 }
 
+/**
+ * Copy `source` into `<stageDir>/downloads/<name>` with a `sha256sum`-style `<name>.sha256` beside
+ * it. Returns the checksum and the size in bytes.
+ */
+export function stageDownload(stageDir, source, name) {
+  const dir = join(stageDir, 'downloads');
+  mkdirSync(dir, { recursive: true });
+  cpSync(source, join(dir, name));
+  const bytes = readFileSync(source);
+  const sha256 = createHash('sha256').update(bytes).digest('hex');
+  writeFileSync(join(dir, `${name}.sha256`), `${sha256}  ${name}\n`);
+  return { sha256, bytes: bytes.length };
+}
+
 /** Copy the installer into the stage's downloads/ with a `sha256sum`-style checksum file. */
 function stageDesktopInstaller(installer) {
   if (installer === undefined) return;
-  const dir = join(STAGE, 'downloads');
-  mkdirSync(dir, { recursive: true });
-  cpSync(installer, join(dir, DESKTOP_INSTALLER_NAME));
-  const bytes = readFileSync(installer);
-  const sha256 = createHash('sha256').update(bytes).digest('hex');
-  writeFileSync(
-    join(dir, `${DESKTOP_INSTALLER_NAME}.sha256`),
-    `${sha256}  ${DESKTOP_INSTALLER_NAME}\n`,
-  );
+  const { sha256, bytes } = stageDownload(STAGE, installer, DESKTOP_INSTALLER_NAME);
   process.stdout.write(
-    `\ndesktop installer: ${(bytes.length / (1024 * 1024)).toFixed(1)} MB, sha256 ${sha256}\n`,
+    `\ndesktop installer: ${(bytes / (1024 * 1024)).toFixed(1)} MB, sha256 ${sha256}\n`,
+  );
+}
+
+/**
+ * The AI connector's local stdio bridge, served at /downloads/tmanage-mcp.tgz by the API
+ * (ai-connector-fallbacks.controller.ts reads `<bundle>/downloads/tmanage-mcp.tgz` by default, no
+ * variable needed) and run with `npx -y https://<host>/downloads/tmanage-mcp.tgz`. It is
+ * `pnpm pack` of apps/mcp-server: the `tmanage-mcp` bin, dist/ and README, with its registry
+ * dependencies declared so npx installs them. Platform-independent, so every build ships it.
+ */
+export const MCP_BRIDGE_TARBALL_NAME = 'tmanage-mcp.tgz';
+
+/** `pnpm pack`'s file name for a package name and version (`@scope/name` -> `scope-name`). */
+export function packTarballName(name, version) {
+  return `${name.replace(/^@/, '').replace('/', '-')}-${version}.tgz`;
+}
+
+/** Pack @tmanage/mcp-server into a fresh `destDir` and return the tarball's path. */
+export function packMcpBridge(destDir, runner = run) {
+  rmSync(destDir, { recursive: true, force: true });
+  mkdirSync(destDir, { recursive: true });
+  runner('pnpm', ['--filter', '@tmanage/mcp-server', 'pack', '--pack-destination', destDir]);
+  const { name, version } = JSON.parse(
+    readFileSync(join(REPO, 'apps/mcp-server/package.json'), 'utf8'),
+  );
+  const packed = join(destDir, packTarballName(name, version));
+  if (!existsSync(packed)) throw new Error(`pnpm pack did not write ${packed}`);
+  return packed;
+}
+
+function stageMcpBridge(tarball) {
+  const { sha256, bytes } = stageDownload(STAGE, tarball, MCP_BRIDGE_TARBALL_NAME);
+  process.stdout.write(
+    `\nAI connector bridge: ${(bytes / 1024).toFixed(0)} KB, sha256 ${sha256}\n`,
   );
 }
 
@@ -829,8 +869,10 @@ if (process.argv[1] && samePath(resolve(process.argv[1]), fileURLToPath(import.m
   buildArtifacts();
   verifyWebBuild(startedAtMs);
   const installer = buildDesktopInstaller();
+  const bridge = packMcpBridge(join(OUT, 'mcp-bridge'));
   assemble();
   stageDesktopInstaller(installer);
+  stageMcpBridge(bridge);
   zip();
 
   const sizeMb = (readFileSync(ZIP).length / (1024 * 1024)).toFixed(1);

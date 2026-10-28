@@ -46,7 +46,7 @@ const API_EXACT_PATHS = new Set([
 /**
  * The files the one process serves itself from the bundle's `downloads/` folder (Figma 409:6602):
  * the Windows desktop installer, which deploy/hostinger/build.mjs builds with electron-builder,
- * and its SHA-256. Exact paths only — nothing else under /downloads is ever read from disk, and
+ * and its SHA-256, plus the AI connector bridge tarball's SHA-256. Exact paths only — nothing else under /downloads is ever read from disk, and
  * neither file is in git.
  */
 export const DOWNLOADS_DIR = 'downloads';
@@ -58,6 +58,12 @@ const DOWNLOAD_FILES = new Map([
   [
     '/downloads/TManage-Setup.exe.sha256',
     { file: 'TManage-Setup.exe.sha256', contentType: 'text/plain; charset=utf-8' },
+  ],
+  // The AI connector bridge's checksum. The tarball itself (/downloads/tmanage-mcp.tgz) is answered
+  // by the API (API_EXACT_PATHS above), which reads it from this same folder by default.
+  [
+    '/downloads/tmanage-mcp.tgz.sha256',
+    { file: 'tmanage-mcp.tgz.sha256', contentType: 'text/plain; charset=utf-8' },
   ],
 ]);
 

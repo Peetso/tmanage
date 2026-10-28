@@ -1,5 +1,7 @@
-import { createReadStream } from 'node:fs';
+import { createReadStream, statSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
+import { join, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Controller, Get, Inject, Module, Res } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import { Public, NoTenant } from '../../common/http/decorators.js';
@@ -22,9 +24,10 @@ import type { OpenApiDocument } from '../ai-actions/openapi.js';
  *  - `GET /downloads/tmanage-mcp.tgz` — the downloadable stdio bridge (`@tmanage/mcp-server`),
  *    packed as an npm tarball, so a local-only client can run it with
  *    `npx -y https://<host>/downloads/tmanage-mcp.tgz` and a `TMANAGE_TOKEN`. The tarball is a
- *    deploy-time artifact (built with `pnpm --filter @tmanage/mcp-server pack`); the route streams
- *    it from the path given by `TMANAGE_MCP_BRIDGE_PATH`, and answers 503 with guidance when it has
- *    not been built on this host rather than pretending to serve it.
+ *    deploy-time artifact: deploy/hostinger/build.mjs packs `@tmanage/mcp-server` into the
+ *    bundle's `downloads/tmanage-mcp.tgz`, and the route streams that file by default (see
+ *    `defaultBridgeTarballPath`; `TMANAGE_MCP_BRIDGE_PATH` still overrides it). It answers 503 with
+ *    guidance when the tarball is not on this host rather than pretending to serve it.
  *
  * Both are `@Public()` and `@NoTenant()`: discovery and download happen before any sign-in. The
  * OpenAPI document never exposes a route the registry withholds — `NEVER` entries are not ops, so
@@ -37,12 +40,60 @@ export const AI_FALLBACKS_OPTIONS = Symbol.for('tmanage.AiConnectorFallbacksOpti
 export interface AiConnectorFallbacksOptions {
   /** The API's public base URL, emitted as the OpenAPI `servers` entry. */
   readonly baseUrl: string;
-  /** Absolute path to the prebuilt bridge tarball, or `undefined` when not configured. */
+  /** Absolute path to the prebuilt bridge tarball, or `undefined` when there is none. */
   readonly bridgeTarballPath: string | undefined;
 }
 
 /** The download name the bridge tarball is served under (what `npx` fetches). */
 export const BRIDGE_TARBALL_NAME = 'tmanage-mcp.tgz';
+
+/** The bundle folder the deploy build writes the tarball into (apps/server `DOWNLOADS_DIR`). */
+export const BRIDGE_DOWNLOADS_DIR = 'downloads';
+
+export interface BridgePathInputs {
+  /** This module's file URL (`import.meta.url`). */
+  readonly moduleUrl: string;
+  /** The process working directory. */
+  readonly cwd: string;
+  /** Whether a path is an existing regular file. */
+  readonly isFile: (path: string) => boolean;
+}
+
+/**
+ * The bundled tarball the API serves when `TMANAGE_MCP_BRIDGE_PATH` is unset, or `undefined`.
+ *
+ * In the Hostinger bundle this module is installed (copied, `install-links`) at
+ * `<bundle>/node_modules/@tmanage/api/dist/...`, and the deploy build writes
+ * `<bundle>/downloads/tmanage-mcp.tgz`. The bundle root is therefore the folder that holds the
+ * outermost `node_modules`; the working directory is the fallback for any other layout. Only these
+ * exact paths are ever considered — nothing under downloads/ but the one tarball is read.
+ */
+export function defaultBridgeTarballPath(inputs: BridgePathInputs): string | undefined {
+  const candidates: string[] = [];
+  const modulePath = fileURLToPath(inputs.moduleUrl);
+  const marker = `${sep}node_modules${sep}`;
+  const at = modulePath.indexOf(marker);
+  if (at > 0)
+    candidates.push(join(modulePath.slice(0, at), BRIDGE_DOWNLOADS_DIR, BRIDGE_TARBALL_NAME));
+  candidates.push(resolve(inputs.cwd, BRIDGE_DOWNLOADS_DIR, BRIDGE_TARBALL_NAME));
+  return candidates.find((path) => inputs.isFile(path));
+}
+
+/** `TMANAGE_MCP_BRIDGE_PATH` when set, else the bundled tarball (`defaultBridgeTarballPath`). */
+export function resolveBridgeTarballPath(
+  env: Record<string, string | undefined>,
+  inputs: BridgePathInputs,
+): string | undefined {
+  return env['TMANAGE_MCP_BRIDGE_PATH']?.trim() || defaultBridgeTarballPath(inputs);
+}
+
+function isFile(path: string): boolean {
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
+}
 
 interface FastifyReplyLike {
   status(code: number): FastifyReplyLike;
@@ -77,8 +128,9 @@ export class AiConnectorFallbacksController {
         .send({
           error: 'bridge_unavailable',
           message:
-            'The TManage MCP stdio bridge tarball is not available on this server. Build it with ' +
-            '`pnpm --filter @tmanage/mcp-server pack` and set TMANAGE_MCP_BRIDGE_PATH to the result.',
+            'The TManage MCP stdio bridge tarball is not available on this server. Deploy a bundle ' +
+            'built with deploy/hostinger/build.mjs (it ships downloads/tmanage-mcp.tgz), or set ' +
+            'TMANAGE_MCP_BRIDGE_PATH to a tarball packed with `pnpm --filter @tmanage/mcp-server pack`.',
         });
 
     if (path === undefined) return unavailable();
@@ -116,7 +168,11 @@ export class AiConnectorFallbacksModule {
       inject: [API_CONFIG],
       useFactory: (config: ApiConfig): AiConnectorFallbacksOptions => ({
         baseUrl: publicBaseUrl(config),
-        bridgeTarballPath: process.env['TMANAGE_MCP_BRIDGE_PATH']?.trim() || undefined,
+        bridgeTarballPath: resolveBridgeTarballPath(process.env, {
+          moduleUrl: import.meta.url,
+          cwd: process.cwd(),
+          isFile,
+        }),
       }),
     };
     return {
