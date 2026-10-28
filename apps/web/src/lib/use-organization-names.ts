@@ -5,6 +5,7 @@ import { QueryClient, QueryClientContext, useQuery } from '@tanstack/react-query
 import { browserApiClient } from './api/browser-client';
 import { listOrganizations, type OrganizationSummary } from './api/organizations';
 import { FIXTURE_CLIENT_NAME, FIXTURE_ORGANIZATION_NAME } from './fixtures';
+import { useT } from './i18n/use-t';
 
 /**
  * The real names behind the shells' headers.
@@ -77,6 +78,7 @@ export function usePortalNames(
   passedProviderName: string,
 ): { readonly clientName: string; readonly providerName: string } {
   const { summary } = useOrganizationSummary(organizationSlug);
+  const t = useT();
   const clientName = resolve(
     summary?.clientOrganizationName,
     passedClientName,
@@ -86,7 +88,7 @@ export function usePortalNames(
     // An internal person previewing the portal: their row has no client name to show.
     clientName:
       summary && !summary.clientOrganizationName && passedClientName === FIXTURE_CLIENT_NAME
-        ? 'Your client'
+        ? t('ClientPortalShell.yourClient')
         : clientName,
     providerName: resolve(summary?.name, passedProviderName, FIXTURE_ORGANIZATION_NAME),
   };

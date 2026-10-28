@@ -119,9 +119,9 @@ export function ClientPortalShell({
 
         {preview ? (
           <div className="tm-portal__preview-bar">
-            <StatusDot tone="client">Client preview</StatusDot>
+            <StatusDot tone="client">{t('ClientPortalShell.previewLabel')}</StatusDot>
             <p className="tm-portal__preview-note">
-              This is what {clientName} sees. Nothing here is internal.
+              {t('ClientPortalShell.previewNote').replace('{client}', clientName)}
             </p>
           </div>
         ) : null}
@@ -135,7 +135,13 @@ export function ClientPortalShell({
             </span>
             <div>
               <p className="tm-portal__client">{clientName}</p>
-              <p className="tm-portal__provider">Delivered by {providerName}</p>
+              {/* Held back while the organization's name is still unknown, so the line never ends in
+                  a dangling "Delivered by". */}
+              {providerName ? (
+                <p className="tm-portal__provider">
+                  {t('ClientPortalShell.deliveredBy').replace('{provider}', providerName)}
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -178,7 +184,7 @@ export function ClientPortalShell({
               />
             ) : null}
             <Badge tone="client" mono>
-              Client portal
+              {t('ClientPortalShell.badge')}
             </Badge>
             <AccountMenu
               organizationSlug={organizationSlug}

@@ -17,7 +17,9 @@ const meta = {
   args: {
     organizationSlug: 'northstar',
     clientName: 'Meridian Health',
-    providerName: 'Northstar Studio',
+    // Not the shell's fixture name ('Northstar Studio'), which the header holds back as sample
+    // data; a story has no session to read the real name from, so it brings its own.
+    providerName: 'Harbor & Pine Studio',
     client: portalMilestonesClient(),
   },
 } satisfies Meta<typeof PortalMilestonesScreen>;
