@@ -10,7 +10,7 @@ import type { TestDatabase } from './support/test-database.js';
 import { seedTwoTenants } from './seed-two-tenants.js';
 
 /**
- * PLAT-022 — the platform-admin v2 migrations (0239–0247) apply on MariaDB 11.8 on top of a
+ * PLAT-022 — the platform-admin v2 migrations (0239–0248) apply on MariaDB 11.8 on top of a
  * populated database at 0238, the schema the live site runs before this wave ships.
  *
  * The rest of the suite migrates an empty database; this proves the upgrade path the deploy takes:
@@ -19,7 +19,8 @@ import { seedTwoTenants } from './seed-two-tenants.js';
  */
 
 const LIVE_HEAD = 238;
-const WAVE = [239, 240, 241, 242, 243, 244, 245, 246, 247];
+const LIVE_ROLE_ID = '0199aa00-0000-7000-8000-00000000c022';
+const WAVE = [239, 240, 241, 242, 243, 244, 245, 246, 247, 248];
 
 let db: TestDatabase;
 let connection: Connection;
@@ -53,7 +54,18 @@ describe('upgrade from the live schema (0238) with data in it', () => {
     const ledger = await readLedger(connection);
     expect(Math.max(...ledger.map((row) => row.version))).toBe(LIVE_HEAD);
 
-    await seedTwoTenants(db.admin);
+    const world = await seedTwoTenants(db.admin);
+    // A custom role saved on the live site before the wave (0071 shape).
+    await connection.query(
+      `insert into custom_roles (id, organization_id, name, capabilities_json, created_by)
+       values (?, ?, 'Delivery lead', ?, ?)`,
+      [
+        LIVE_ROLE_ID,
+        world.northstar.organizationId,
+        JSON.stringify(['work.read', 'work.update', 'meeting.write']),
+        world.northstar.owner.id,
+      ],
+    );
     for (const table of tables) before[table] = await count(table);
     expect(before['organizations']).toBeGreaterThan(0);
     expect(before['work_items']).toBeGreaterThan(0);
@@ -99,6 +111,27 @@ describe('upgrade from the live schema (0238) with data in it', () => {
     ]) {
       expect(await count(table), table).toBe(0);
     }
+  });
+
+  it('keeps a stored custom role able to do what it could before (0248 back-fill)', async () => {
+    const [role] = await connection.query<RowDataPacket[]>(
+      'select capabilities_json as caps from custom_roles where id = ?',
+      [LIVE_ROLE_ID],
+    );
+    const caps = JSON.parse(String(role[0]?.['caps'])) as string[];
+    expect([...caps].sort()).toEqual(
+      [
+        'work.read',
+        'work.update',
+        'meeting.write',
+        'people.view',
+        'report.view',
+        'ai.use',
+        'decision.read',
+        'decision.write',
+        'work.delete',
+      ].sort(),
+    );
   });
 
   it('is a no-op the second time (a redeploy re-runs the migrator)', async () => {

@@ -235,8 +235,16 @@ describe('who may edit and delete', () => {
     ).toHaveLength(0);
   });
 
-  it('lets an ordinary member on the project delete, audited once with the actor and tenant', async () => {
+  it('refuses an ordinary member the delete (work.delete, SPEC §3.3), and the item stays', async () => {
     const session = await signIn(world.northstar.designer.id);
+    const item = await createItem(session);
+    const refused = await send('DELETE', `/work-items/${item.id}`, session);
+    expect(refused.statusCode).toBe(403);
+    expect((await row(item.id))?.['deleted_at']).toBeNull();
+  });
+
+  it('lets a manager on the project delete, audited once with the actor and tenant', async () => {
+    const session = await signIn(world.northstar.manager.id);
     const item = await createItem(session);
 
     expect((await send('DELETE', `/work-items/${item.id}`, session)).statusCode).toBe(204);
@@ -256,7 +264,7 @@ describe('who may edit and delete', () => {
     );
     expect(events).toHaveLength(1);
     expect(events[0]?.['organization_id']).toBe(world.northstar.organizationId);
-    expect(events[0]?.['actor_user_id']).toBe(world.northstar.designer.id);
+    expect(events[0]?.['actor_user_id']).toBe(world.northstar.manager.id);
   });
 });
 

@@ -309,6 +309,10 @@ export class PlatformMaintenanceController {
         endsAt,
         published,
         createdAt: inserted.createdAt,
+        messageAr: messageAr ?? null,
+        blockSignIn: blockSignIn ?? false,
+        updatedAt: null,
+        endedAt: null,
       },
       now,
     );

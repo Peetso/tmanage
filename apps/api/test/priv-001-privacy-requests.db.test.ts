@@ -171,7 +171,10 @@ describe('0231 — registry: the privacy tables in all four places', () => {
         `tmanage.${table}:INSERT`,
         `tmanage.${table}:UPDATE`,
       ]);
-      expect(onTable('tmanage_worker')).toEqual([]);
+      // platform-admin v2 · PA-07: the organization purge appends one executed company deletion.
+      expect(onTable('tmanage_worker')).toEqual(
+        table === 'privacy_deletion_requests' ? [`tmanage.${table}:INSERT`] : [],
+      );
     },
   );
 });

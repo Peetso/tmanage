@@ -188,7 +188,12 @@ describe('authenticating a request', () => {
       correlationId: uuidv7(),
     });
     // Exactly what MembershipResolver.resolve() needs, and nothing more.
-    expect(authenticated).toEqual({ sessionId: started.sessionId, userId: userId() });
+    // PA-06 (0247) adds whether the operator asked for two-step at the next sign-in.
+    expect(authenticated).toEqual({
+      sessionId: started.sessionId,
+      userId: userId(),
+      twoStepRequired: false,
+    });
   });
 
   it('refuses a request with no cookie', async () => {

@@ -165,7 +165,12 @@ describe('0237 — registry, identity and tenancy', () => {
       expect(Object.keys(TABLES)).toContain(table);
       expect(TENANT_TABLES[table]).toBe('organization_id');
       expect(onTable('tmanage_app', table)).toContain(`tmanage.${table}:INSERT`);
-      expect(onTable('tmanage_worker', table)).toEqual([]);
+      // platform-admin v2 · PA-03: the content purge reads and deletes soft-deleted attachments.
+      expect(onTable('tmanage_worker', table).sort()).toEqual(
+        table === 'meeting_attachments'
+          ? ['tmanage.meeting_attachments:DELETE', 'tmanage.meeting_attachments:SELECT']
+          : [],
+      );
     }
     const columns = await observe(
       `select column_name as name from information_schema.columns

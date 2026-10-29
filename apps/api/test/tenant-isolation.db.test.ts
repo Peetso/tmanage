@@ -215,9 +215,20 @@ describe('schema invariants (ADR-0001 layer 1)', () => {
       .filter(([, column]) => column === 'organization_id')
       .map(([table]) => table)
       .sort();
+    // Platform tables that NAME an organization but belong to none (platform-admin v2: the
+    // operator's audit log, support sessions and per-org flag overrides). Each is declared global
+    // in NON_TENANT_TABLES on purpose and listed here by name, so a new one is still a decision.
+    const globalNamingAnOrganization = [
+      'platform_admin_audit_events',
+      'platform_org_flag_overrides',
+      'platform_support_sessions',
+    ];
+    for (const table of globalNamingAnOrganization) expect(isNonTenantTable(table)).toBe(true);
     // A module migration that adds a tenant table without registering it would otherwise
     // be invisible to the guard — the exact bug this assertion exists to prevent.
-    expect(withColumn).toEqual(registered);
+    expect(withColumn.filter((table) => !globalNamingAnOrganization.includes(table))).toEqual(
+      registered,
+    );
   });
 
   it('classifies every table in the database as tenant-owned or global', async () => {

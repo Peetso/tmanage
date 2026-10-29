@@ -6908,6 +6908,12 @@ export const maintenanceWindows = mysqlTable(
     endsAt: datetime('ends_at', { mode: 'date', fsp: 3 }).notNull(),
     published: boolean('published').notNull().default(false),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- platform-admin v2 · PA-10 (0244) ---- the Arabic message, the sign-in gate, edits and an
+    // early end.
+    messageAr: text('message_ar'),
+    blockSignIn: boolean('block_sign_in').notNull().default(false),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }),
+    endedAt: datetime('ended_at', { mode: 'date', fsp: 3 }),
   },
   (table) => [index('ix_maintenance_windows_published_ends').on(table.published, table.endsAt)],
 );

@@ -275,7 +275,20 @@ describe('the global table refuses tenant scope', () => {
     expect(names).not.toContain('organization_id');
     // The window's state lives entirely in these columns — global, not tenant-owned.
     expect(new Set(names)).toEqual(
-      new Set(['id', 'message', 'severity', 'starts_at', 'ends_at', 'published', 'created_at']),
+      new Set([
+        'id',
+        'message',
+        'severity',
+        'starts_at',
+        'ends_at',
+        'published',
+        'created_at',
+        // 0244 (platform-admin v2 · PA-10): Arabic text, the sign-in gate, edits, early end.
+        'message_ar',
+        'block_sign_in',
+        'updated_at',
+        'ended_at',
+      ]),
     );
   });
 

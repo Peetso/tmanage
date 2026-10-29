@@ -57,9 +57,12 @@ const DELIVERY_LEAD_CAPABILITIES = [
   'work.read',
   'client_projection.read',
   'deliverable.create',
+  // platform-admin v2 (SPEC §3.3): the People directory needs `people.view` since PA-01. Roles
+  // saved before the wave got it from 0248's back-fill; a role created now names it.
+  'people.view',
 ] as const;
 const WORK_VIEWER = 'Work viewer';
-const WORK_VIEWER_CAPABILITIES = ['work.read', 'client_projection.read'] as const;
+const WORK_VIEWER_CAPABILITIES = ['work.read', 'client_projection.read', 'people.view'] as const;
 
 let app: NestFastifyApplication;
 let db: TestDatabase;

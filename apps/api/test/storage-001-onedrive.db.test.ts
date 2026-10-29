@@ -131,7 +131,12 @@ describe('0236 — registry in all four places', () => {
     for (const table of ['onedrive_folders', 'onedrive_attachments']) {
       expect(Object.keys(TABLES)).toContain(table);
       expect(TENANT_TABLES[table]).toBe('organization_id');
-      expect(onTable('tmanage_worker', table)).toEqual([]);
+      // platform-admin v2 · PA-03: the content purge reads and deletes soft-deleted attachments.
+      expect(onTable('tmanage_worker', table)).toEqual(
+        table === 'onedrive_attachments'
+          ? ['tmanage.onedrive_attachments:DELETE', 'tmanage.onedrive_attachments:SELECT']
+          : [],
+      );
     }
     expect(onTable('tmanage_app', 'onedrive_folders')).toEqual(['tmanage.onedrive_folders:INSERT']);
     expect(onTable('tmanage_app', 'onedrive_attachments')).toEqual([
