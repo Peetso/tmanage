@@ -5,7 +5,8 @@ import { ApiConfigModule } from './common/http/api-config.js';
 import type { ApiConfig } from './common/http/api-config.js';
 import { CorrelationInterceptor } from './common/http/correlation.interceptor.js';
 import { NOOP_TRACER, TRACER } from './common/observability/tracer.js';
-import { ALERT_NOTIFIER, createAlertNotifier } from './common/observability/alerts.js';
+import { ALERT_NOTIFIER } from './common/observability/alerts.js';
+import { createGroupedAlertNotifier } from './common/observability/error-groups.js';
 import { DeepHealthModule } from './common/observability/deep-health.js';
 import { MAILER, TENANT_DATABASE } from './common/http/tokens.js';
 import type { TenantDatabase } from './common/database/tenant-context.js';
@@ -889,7 +890,9 @@ export class AppModule {
         // x188. Also serves `GET /v1/public/site/legal/:doc` (terms/privacy), `@Public()`, deterministic
         // code-defined copy from the same PublicContentService — no table, no tenant, no capability;
         // `:doc` is a two-value allowlist so an arbitrary segment is a 404.
-        PublicSiteModule.register(),
+        // 51-12. Also serves `GET /v1/public/site/status/summary` (public, cached 30 s) carrying the
+        // optional `STATUS_PAGE_URL` link.
+        PublicSiteModule.register({ statusPageUrl: options.config.statusPageUrl ?? null }),
         // x187. Module 1, the public resources/guides surface — `GET /v1/public/site/resources` and
         // `…/resources/:slug`, both `@Public()`: no session, no tenant, no capability. Deterministic,
         // code-defined content reused from the public-content service; no table, no shared capability,
@@ -1115,12 +1118,13 @@ export class AppModule {
             database ? new StoredAudienceRepository(database) : null,
           inject: [{ token: TENANT_DATABASE, optional: true }],
         },
-        // C10. Operator alerts: a 5xx mails `ALERT_EMAILS` through the app's mailer, at most once
-        // per 15 minutes per kind. Off (no mail) when ALERT_EMAILS is unset.
+        // C10 + 51-13a. Operator alerts: a 5xx mails `ALERT_EMAILS` through the app's mailer, grouped
+        // per kind — one mail per 15 minutes, then one summary of what was held back (error-groups.ts).
+        // Off (no mail, no timer) when ALERT_EMAILS is unset.
         {
           provide: ALERT_NOTIFIER,
           useFactory: (mailer: Mailer | null) =>
-            createAlertNotifier(options.config.alertEmails ?? [], mailer ?? null),
+            createGroupedAlertNotifier(options.config.alertEmails ?? [], mailer ?? null),
           inject: [{ token: MAILER, optional: true }],
         },
         { provide: APP_FILTER, useClass: HttpExceptionFilter },

@@ -40,6 +40,7 @@ import { spawn } from 'node:child_process';
 import { createConnection } from 'node:net';
 import { request as httpRequest, createServer as createHttpServer } from 'node:http';
 import { createRequire } from 'node:module';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -50,9 +51,9 @@ import { NestFactory } from '@nestjs/core';
 import {
   composeAppModule,
   corsOptions,
-  createAlertNotifier,
   createFastifyAdapter,
   createFixedWindowLimiter,
+  createGroupedAlertNotifier,
   describeReconciliation,
   describeSweep,
   migrateOnStart,
@@ -78,6 +79,7 @@ import {
   reportJobOutcome,
   WATCHDOG_INTERVAL_MS,
 } from './job-alerts.mjs';
+import { installProcessAlerts } from './process-alerts.mjs';
 import { createMigrationGate } from './migration-shutdown.mjs';
 import {
   apiReconcileJobs,
@@ -390,7 +392,7 @@ async function startInProcessWorker(env, attachRealtime) {
 
   // C10. A failed or parked job mails ALERT_EMAILS (at most once per 15 min per kind); a clean
   // pass records the heartbeat GET /healthz/deep reads (job-alerts.mjs).
-  const alerts = createAlertNotifier(parseAlertEmails(env.ALERT_EMAILS), transport);
+  const alerts = createGroupedAlertNotifier(parseAlertEmails(env.ALERT_EMAILS), transport);
   let running = false;
   const tick = async () => {
     if (running) return;
@@ -571,6 +573,20 @@ async function main() {
 
   const api = await createApi(env);
   app = api.app;
+  // 51-13a. An exception nothing caught (or an unhandled rejection) mails ALERT_EMAILS through the
+  // API's notifier — at most once per 15 minutes across restarts — then exits 1 as Node would.
+  let crashAlerts = null;
+  try {
+    crashAlerts = app.get(Symbol.for('tmanage.AlertNotifier'), { strict: false });
+  } catch {
+    // no notifier registered: crashes are only logged
+  }
+  installProcessAlerts(process, crashAlerts, {
+    log,
+    describe: serializeForLog,
+    stateFile: resolve(ROOT, '.crash-alert.json'),
+    fs: { readFileSync, writeFileSync },
+  });
   // The port the child is told to use: real on TCP, nominal (never bound) on a socket.
   const nominalPort = transport.kind === 'tcp' ? transport.port : port + 1;
   await startWeb(transport, nominalPort);

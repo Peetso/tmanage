@@ -528,6 +528,15 @@ export const envSchema = z
       .string()
       .optional()
       .transform((value) => (value === undefined || value.trim() === '' ? undefined : value)),
+    /**
+     * 51-12. Optional: the free uptime monitor's public status page (UptimeRobot / Better Stack).
+     * Returned as `liveStatusUrl` by `GET /v1/public/site/status/summary`; the controller accepts
+     * only a plain `https:` URL without credentials (anything else is answered as `null`).
+     */
+    STATUS_PAGE_URL: z
+      .string()
+      .optional()
+      .transform((value) => (value === undefined || value.trim() === '' ? undefined : value)),
     PUBLIC_SIGNUP: z
       .string()
       .optional()

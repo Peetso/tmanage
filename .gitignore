@@ -45,3 +45,6 @@ e2e/playwright-report/
 
 # Knowledge graph built locally by graphify (AST-only); rebuilt with `graphify update .`
 graphify-out/
+
+# 51-13a: the process crash-alert de-dup state (apps/server/process-alerts.mjs)
+.crash-alert.json

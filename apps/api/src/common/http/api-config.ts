@@ -148,6 +148,8 @@ export interface ApiConfig extends SessionServiceOptions {
   readonly authAbuseMaxGlobal: number;
   /** C10. `ALERT_EMAILS`, parsed: who is mailed on a server error or a failed job. Empty = off. */
   readonly alertEmails?: readonly string[];
+  /** 51-12. `STATUS_PAGE_URL`: the external public status page; absent = no link. */
+  readonly statusPageUrl?: string | undefined;
   /** C10. What `GET /healthz/deep` checks. */
   readonly deepHealth?: DeepHealthConfig;
 }
@@ -206,6 +208,7 @@ export interface ApiConfigSource {
   readonly RATE_LIMIT_AUTH_MAX_GLOBAL?: number;
   /** C10. Optional so hand-built bags keep compiling; absent = alerts off / checks not configured. */
   readonly ALERT_EMAILS?: string | undefined;
+  readonly STATUS_PAGE_URL?: string | undefined;
   readonly OUTBOX_HEARTBEAT_FILE?: string | undefined;
   readonly OUTBOX_HEARTBEAT_MAX_AGE_SECONDS?: number;
   readonly MALWARE_SCAN_DRIVER?: string;
@@ -281,6 +284,7 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
       env.RATE_LIMIT_AUTH_MAX_REQUESTS ?? AUTH_ABUSE_MAX_PER_SOURCE_ACCOUNT_DEFAULT,
     authAbuseMaxGlobal: env.RATE_LIMIT_AUTH_MAX_GLOBAL ?? 3000,
     alertEmails: parseAlertEmails(env.ALERT_EMAILS),
+    statusPageUrl: env.STATUS_PAGE_URL,
     deepHealth: {
       heartbeatFile: env.OUTBOX_HEARTBEAT_FILE,
       heartbeatMaxAgeSeconds: env.OUTBOX_HEARTBEAT_MAX_AGE_SECONDS ?? 900,

@@ -26,6 +26,8 @@ export { MigrationError } from './common/database/migrator.js';
 export type { MigrateReport } from './common/database/migrator.js';
 // C10. Operator alerts, so the in-process worker's job failures mail the same `ALERT_EMAILS`.
 export { createAlertNotifier, parseAlertEmails } from './common/observability/alerts.js';
+// 51-13a. The grouped notifier the in-process worker uses (one mail + one summary per kind per window).
+export { createGroupedAlertNotifier } from './common/observability/error-groups.js';
 // The API's two job passes (`sweep:once`, `reconcile:once`), so the one process runs them on a
 // timer instead of cron: the tokens resolve them from the in-process application, the describe
 // functions print the same report line the standalone passes print.

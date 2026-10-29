@@ -8,6 +8,7 @@ import { PlanCatalogService } from './plan-catalog.service.js';
 import { PUBLIC_SITE_STATUS_REPOSITORY } from '../../common/http/tokens.js';
 import { StatusRepository } from './status.repository.js';
 import { PublicSiteStatusController } from './status.controller.js';
+import { PUBLIC_STATUS_LINK, PublicStatusSummaryController } from './status-summary.controller.js';
 
 /**
  * Public & trust site (module 1) wiring.
@@ -22,7 +23,8 @@ import { PublicSiteStatusController } from './status.controller.js';
  */
 @Module({})
 export class PublicSiteModule {
-  static register(): DynamicModule {
+  /** `statusPageUrl` (51-12): the operator's external status page, `STATUS_PAGE_URL`; optional. */
+  static register(options: { readonly statusPageUrl?: string | null } = {}): DynamicModule {
     const service: Provider = {
       provide: PUBLIC_CONTENT_SERVICE,
       useFactory: () => new PublicContentService(),
@@ -38,15 +40,21 @@ export class PublicSiteModule {
       useFactory: () => new StatusRepository(),
     };
 
+    const statusLink: Provider = {
+      provide: PUBLIC_STATUS_LINK,
+      useValue: options.statusPageUrl ?? null,
+    };
+
     return {
       module: PublicSiteModule,
-      providers: [service, planCatalog, repository],
+      providers: [service, planCatalog, repository, statusLink],
       exports: [service],
       controllers: [
         PublicContentController,
         LegalController,
         PlanCatalogController,
         PublicSiteStatusController,
+        PublicStatusSummaryController,
       ],
     };
   }

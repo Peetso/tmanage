@@ -50,6 +50,13 @@ In Hostinger (hPanel):
 6. Test: open the site and confirm it works. Without `ALERT_EMAILS` the alerts are only written
    to the app log — nothing breaks, you just do not hear about it.
 
+**Grouping (51-13a).** Errors of the same kind are grouped: the first one mails at once, the
+rest are counted, and when the 15 minutes are over one summary mail says how many more happened
+and on which routes (ids in addresses are shown as `:id`). A crash of the whole process (an error
+nothing caught) also mails, once per 15 minutes even if the app keeps restarting; the next crash
+mail says how many restarts were held back. These mails go straight through the SMTP settings,
+not through the database, so "the database is down" still reaches you.
+
 ## 3. Uptime monitor on `/healthz/deep`
 
 `/healthz/deep` answers **200** when the database, the migrations and the worker are fine, and
@@ -78,6 +85,16 @@ mail settings, at most once per 15 minutes, plus one "recovered" mail.
 3. Task Scheduler → **Create Basic Task** → repeat every 5 minutes → action
    `node C:\path\to\scripts\ops\uptime-check.mjs`. One run exits with code 1 while anything fails.
    Or leave a window open with `node scripts/ops/uptime-check.mjs --loop` (every 5 minutes).
+
+### Public status link (51-12)
+
+If the monitor offers a free public status page (UptimeRobot and Better Stack both do), copy its
+`https://` address into hPanel as `STATUS_PAGE_URL` and Restart. It is then returned by
+`GET /v1/public/site/status/summary` as `liveStatusUrl`, for the `/status` page's
+"Live status →" link. That route is public and small — the overall state from published
+incidents, the number still open, the link, and the time — and is cached for 30 seconds. Leave
+`STATUS_PAGE_URL` unset and the link is simply `null`. Only a plain `https://` address without a
+user name or password is accepted.
 
 ## 4. When an alert arrives
 

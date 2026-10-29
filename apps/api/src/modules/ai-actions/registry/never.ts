@@ -303,6 +303,7 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/public/site/resources/', reason: 'public_site' },
   { method: 'GET', path: '/v1/public/site/resources/:slug', reason: 'public_site' },
   { method: 'GET', path: '/v1/public/site/status', reason: 'public_site' },
+  { method: 'GET', path: '/v1/public/site/status/summary', reason: 'public_site' },
   { method: 'GET', path: '/v1/public/site/trust', reason: 'public_site' },
   { method: 'DELETE', path: '/v1/sessions/', reason: 'session' },
   { method: 'DELETE', path: '/v1/sessions/:sessionId', reason: 'session' },
