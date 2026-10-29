@@ -113,6 +113,11 @@ const ROUTES: Record<string, RouteRow> = {
     from: 'website/pages/security/SecurityPage',
     title: 'Security & trust',
   },
+  '/security/data-location': {
+    component: 'DataLocationPage',
+    from: 'website/pages/data-location/DataLocationPage',
+    title: 'Where your data lives',
+  },
   '/solutions/agencies': {
     component: 'SolutionsAgenciesPage',
     from: 'website/pages/solutions-agencies/SolutionsAgenciesPage',

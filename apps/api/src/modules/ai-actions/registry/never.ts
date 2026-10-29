@@ -308,6 +308,8 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'POST', path: '/v1/public/email/unsubscribe', reason: 'public_site' },
   { method: 'GET', path: '/v1/public/email/unsubscribe', reason: 'public_site' },
   { method: 'GET', path: '/v1/public/site/trust', reason: 'public_site' },
+  // 54-17. The deployment's hosting region label: public, names nothing about any organization.
+  { method: 'GET', path: '/v1/public/site/data-location', reason: 'public_site' },
   { method: 'DELETE', path: '/v1/sessions/', reason: 'session' },
   { method: 'DELETE', path: '/v1/sessions/:sessionId', reason: 'session' },
   { method: 'DELETE', path: '/v1/sessions/current', reason: 'session' },

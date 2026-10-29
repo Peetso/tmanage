@@ -76,6 +76,7 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'GET /v1/public/site/status/summary': 'read: marketing site',
   'GET /v1/public/site/status': 'read: marketing site',
   'GET /v1/public/site/trust': 'read: marketing site',
+  'GET /v1/public/site/data-location': 'read: marketing site',
   'GET /public/setup/': 'read: is first-owner setup open',
   'POST /public/setup/': 'named',
   'GET /v1/public/sign-up/': 'read: is sign-up open',

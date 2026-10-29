@@ -389,6 +389,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   },
   '/platform/activity': { en: 'Action log', key: 'RouteTitle.platformActivity' },
   '/platform/activity/access': { en: 'Access log', key: 'RouteTitle.platformActivityAccess' },
+  '/platform/activity/ease-scoreboard': { en: 'Ease scoreboard', key: 'EaseScoreboard.title' },
   '/platform/activity/exports': { en: 'Exports', key: 'RouteTitle.platformActivityExports' },
   '/platform/activity/platform': {
     en: 'Platform admins activity',
@@ -436,6 +437,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     key: 'RouteTitle.platformAnnouncements',
   },
   '/platform/settings/flags': { en: 'Feature flags', key: 'RouteTitle.platformFlags' },
+  '/platform/settings/keys': { en: 'Keys', key: 'PlatformKeys.title' },
   '/platform/settings/maintenance': { en: 'Maintenance', key: 'RouteTitle.platformMaintenance' },
   '/platform/team': { en: 'Platform team', key: 'RouteTitle.platformTeam' },
   '/platform/team/presets': { en: 'Permission presets', key: 'RouteTitle.platformTeamPresets' },
