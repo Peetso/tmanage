@@ -108,7 +108,7 @@ const PLAN_CATALOG: readonly PublicPlanView[] = Object.freeze([
     featured: false,
     features: Object.freeze([
       'Unlimited internal people',
-      'SSO and security controls',
+      'IP allowlist and session controls',
       'Admin console and roles',
       'Audit log and priority support',
     ]),
@@ -123,9 +123,9 @@ const PLAN_CATALOG: readonly PublicPlanView[] = Object.freeze([
     featured: false,
     features: Object.freeze([
       'Everything in Business',
-      'SCIM and data residency',
       'Contract and invoicing',
       'Named success lead',
+      'Security questionnaire support',
     ]),
   },
 ]);

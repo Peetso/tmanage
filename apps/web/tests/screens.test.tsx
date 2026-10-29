@@ -195,12 +195,11 @@ describe('ID-01 Sign in', () => {
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled();
   });
 
-  it('still disables the two methods that are not built, and names why', () => {
+  it('does not render the passkey or company SSO buttons that are not built (57-05)', () => {
     render(<SignInScreen developmentSignInEnabled={false} />);
 
-    expect(screen.getByRole('button', { name: /passkey/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /company SSO/i })).toBeDisabled();
-    expect(screen.getByText(/Not available yet/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /passkey/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /SSO/i })).toBeNull();
   });
 
   it('does not render the development panel when the API would not accept it', () => {

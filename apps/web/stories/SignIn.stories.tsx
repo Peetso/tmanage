@@ -5,8 +5,8 @@ import { refusingClient } from './support/stub-client';
 /**
  * **ID-01 Sign in.**
  *
- * The email-and-password form is real; passkeys and company SSO are `disabled` and say which
- * ticket closes them. The two stories below are the two shapes this screen actually ships in,
+ * The email-and-password form is real; passkeys and company SSO are not built, so they are not
+ * rendered (57-05) until 56-22 and 54-14 ship them. The two stories below are the two shapes this screen actually ships in,
  * and the difference is not cosmetic: the development panel is rendered only where the API
  * registered `/v1/dev/sessions`, which production does not do at all.
  *

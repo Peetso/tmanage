@@ -90,7 +90,7 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
     cta: { labelKey: 'PricingPage.planEnterpriseCta', href: '/contact' },
     featureKeys: [
       'PricingPage.flatEnterpriseFeature1',
-      'PricingPage.flatEnterpriseFeature2',
+      // 57-05: the "SCIM and data residency" bullet is gone until 54-16/54-17 ship with proof.
       'PricingPage.flatEnterpriseFeature3',
       'PricingPage.flatEnterpriseFeature4',
     ],
@@ -134,6 +134,8 @@ export const PRICING_FAQ: readonly { questionKey: PricingKey; answerKey: Pricing
   { questionKey: 'PricingPage.faqFoundingQuestion', answerKey: 'PricingPage.faqFoundingAnswer' },
   { questionKey: 'PricingPage.faqSwitchQuestion', answerKey: 'PricingPage.faqSwitchAnswer' },
   { questionKey: 'PricingPage.faqFreePlanQuestion', answerKey: 'PricingPage.faqFreePlanAnswer' },
+  // 57-05: the honest SAML/SCIM answer ("Not yet…"), allowlisted as planned in public-claims.ts.
+  { questionKey: 'PricingPage.faqSsoQuestion', answerKey: 'PricingPage.faqSsoAnswer' },
 ];
 
 /**

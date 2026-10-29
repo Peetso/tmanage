@@ -299,8 +299,9 @@ export function SignInScreen({
       </div>
 
       {/*
-        Passkeys and company SSO are not built (WebAuthn needs a browser authenticator, SSO an
-        identity provider), so both stay disabled and the line under them says so in plain words.
+        57-05 honesty fix: passkeys (56-22) and company SSO (54-14) are not built, so their buttons
+        are not rendered at all. The owning slices add them back with the feature and its proof
+        (`packages/domain/src/legal/public-claims.ts`).
       */}
       {googleError ? (
         <InlineAlert tone="danger" live>
@@ -314,27 +315,14 @@ export function SignInScreen({
         </InlineAlert>
       ) : null}
 
-      <div className="tm-id-methods">
-        {google ? <GoogleSignInButton api={api} input={() => ({ intent: 'sign-in' })} /> : null}
-        <Button tone="ink" size="accessible" disabled aria-describedby="tm-sign-in-methods-note">
-          {/* The design's passkey orb; its dot is painted by CSS, so no glyph sits in the text. */}
-          <span className="tm-id-orb" aria-hidden="true" />
-          {t('SignInScreen.continuePasskey')}
-        </Button>
-        <Button
-          tone="outline"
-          size="accessible"
-          disabled
-          aria-describedby="tm-sign-in-methods-note"
-        >
-          {t('SignInScreen.continueSso')}
-        </Button>
-        <p className="tm-id-methods__note" id="tm-sign-in-methods-note">
-          <strong>{t('SignInScreen.notAvailableYet')}</strong> {t('SignInScreen.methodsNote')}
-        </p>
-      </div>
-
-      <p className="tm-divider">{t('SignInScreen.orEmail')}</p>
+      {google ? (
+        <>
+          <div className="tm-id-methods">
+            <GoogleSignInButton api={api} input={() => ({ intent: 'sign-in' })} />
+          </div>
+          <p className="tm-divider">{t('SignInScreen.orEmail')}</p>
+        </>
+      ) : null}
 
       {/*
         `noValidate` because this form does its own checking and reports it through the design

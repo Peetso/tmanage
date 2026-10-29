@@ -88,7 +88,7 @@ const PLANS: readonly PlanCard[] = [
     monthlyCents: 8900,
     features: [
       [`${K}businessFeature1`, 'Unlimited internal people'],
-      [`${K}businessFeature2`, 'SSO and security controls'],
+      [`${K}businessFeature2`, 'IP allowlist and session controls'],
       [`${K}businessFeature3`, 'Admin console and roles'],
       [`${K}businessFeature4`, 'Audit log and priority support'],
     ],
@@ -99,7 +99,6 @@ const PLANS: readonly PlanCard[] = [
     monthlyCents: null,
     features: [
       [`${K}enterpriseFeature1`, 'Everything in Business'],
-      [`${K}enterpriseFeature2`, 'SCIM and data residency'],
       [`${K}enterpriseFeature3`, 'Contracts and invoicing'],
       [`${K}enterpriseFeature4`, 'Named success lead'],
     ],

@@ -298,16 +298,8 @@ export function MfaChallengeScreen({
             {t('MfaChallengeScreen.enter')}
           </span>
         </label>
-        {/* Passkeys and admin-assisted verification are not built: shown, never offered. */}
-        <div className="tm-id-fallback tm-id-fallback--off">
-          <span className="tm-id-fallback__glyph" aria-hidden="true">
-            ◉
-          </span>
-          <span className="tm-id-fallback__text">
-            <span className="tm-id-fallback__name">{t('MfaChallengeScreen.passkeyName')}</span>
-          </span>
-          <span className="tm-id-fallback__action">{t('MfaChallengeScreen.notAvailable')}</span>
-        </div>
+        {/* Admin-assisted verification is not built: shown, never offered. Passkeys are not
+            shown at all until 56-22 ships them (57-05 honesty fix). */}
         <div className="tm-id-fallback tm-id-fallback--off">
           <span className="tm-id-fallback__glyph" aria-hidden="true">
             ✉
