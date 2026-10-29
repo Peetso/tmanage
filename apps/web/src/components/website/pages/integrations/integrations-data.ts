@@ -1,143 +1,221 @@
-import type { MessageKey } from '../../../../lib/i18n/t';
-
 /**
- * WEB-13 Integrations content (Figma "T-Manage Website" frame 308:38). Every status is "Planned"
- * until engineering confirms a connection is live — the spec's honesty rule, not a placeholder.
- * Copy lives in the i18n catalog; brand names stay Latin in every language.
+ * 54-02 Integrations content, truth-in-copy (Figma 443:20507 EN / 443:20899 AR). Three groups:
+ * what works in TManage today, what connects with the customer's own account, and what is only
+ * planned. A card is listed under "Works today" or "Connect with your own account" only when the
+ * product really does it; an own-account connector stays off the page until it ships
+ * (`shipped: true`). Dropbox and Deploy hooks are not offered and are not listed.
+ *
+ * Copy keys are new (merged from the 54-02 i18n fragment), so every key carries its English text
+ * for `useTOr`. Brand names stay Latin in every language and have no key.
  */
 
-export type IntegrationCategory = 'calendar' | 'files' | 'identity' | 'developer' | 'ai' | 'email';
-
-export interface IntegrationFilter {
-  id: 'all' | IntegrationCategory;
-  labelKey: MessageKey;
-}
-
-export const INTEGRATION_FILTERS: readonly IntegrationFilter[] = [
-  { id: 'all', labelKey: 'IntegrationsPage.catAll' },
-  { id: 'calendar', labelKey: 'IntegrationsPage.catCalendar' },
-  { id: 'files', labelKey: 'IntegrationsPage.catFiles' },
-  { id: 'identity', labelKey: 'IntegrationsPage.catIdentity' },
-  { id: 'developer', labelKey: 'IntegrationsPage.catDeveloper' },
-  { id: 'ai', labelKey: 'IntegrationsPage.catAi' },
-];
-
-export const CATEGORY_LABEL_KEY: Record<IntegrationCategory, MessageKey> = {
-  calendar: 'IntegrationsPage.catCalendar',
-  files: 'IntegrationsPage.catFiles',
-  identity: 'IntegrationsPage.catIdentity',
-  developer: 'IntegrationsPage.catDeveloper',
-  ai: 'IntegrationsPage.catAi',
-  email: 'IntegrationsPage.catEmail',
-};
-
-/** One line per category, as the design repeats it on every card of that category. */
-export const CATEGORY_LINE_KEY: Record<IntegrationCategory, MessageKey> = {
-  calendar: 'IntegrationsPage.lineCalendar',
-  files: 'IntegrationsPage.lineFiles',
-  identity: 'IntegrationsPage.lineIdentity',
-  developer: 'IntegrationsPage.lineDeveloper',
-  ai: 'IntegrationsPage.lineAi',
-  email: 'IntegrationsPage.lineEmail',
-};
+export type IntegrationGroupId = 'today' | 'own-account' | 'planned';
 
 export interface Integration {
   id: string;
   /** Brand or product name, shown as-is in every language. */
   name: string;
-  /** A translated name for the generic ones ("Inbound email"); brand names have none. */
-  nameKey?: MessageKey;
-  category: IntegrationCategory;
-  status: 'available' | 'planned';
+  /** A translated name for the generic ones ("Webhooks"); brand names have none. */
+  nameKey?: string;
+  lineKey: string;
+  line: string;
+  group: IntegrationGroupId;
+  /** Own-account connectors only: true once the connector is live in the product. */
+  shipped?: boolean;
 }
 
+const K = 'IntegrationsPage.truth.';
+
 export const INTEGRATIONS: readonly Integration[] = [
-  { id: 'google-calendar', name: 'Google Calendar', category: 'calendar', status: 'planned' },
-  { id: 'microsoft-365', name: 'Microsoft 365', category: 'calendar', status: 'planned' },
-  { id: 'google-drive', name: 'Google Drive', category: 'files', status: 'planned' },
-  { id: 'onedrive', name: 'OneDrive', category: 'files', status: 'planned' },
-  { id: 'dropbox', name: 'Dropbox', category: 'files', status: 'planned' },
-  { id: 'saml-sso', name: 'SAML SSO', category: 'identity', status: 'planned' },
-  { id: 'scim', name: 'SCIM', category: 'identity', status: 'planned' },
+  {
+    id: 'google-calendar',
+    name: 'Google Calendar',
+    lineKey: `${K}lineGoogleCalendar`,
+    line: 'Due dates and meetings appear in your own calendar.',
+    group: 'today',
+  },
+  {
+    id: 'google-drive',
+    name: 'Google Drive',
+    lineKey: `${K}lineGoogleDrive`,
+    line: 'Keep project files in your own Drive.',
+    group: 'today',
+  },
+  {
+    id: 'onedrive',
+    name: 'OneDrive',
+    lineKey: `${K}lineOneDrive`,
+    line: 'Keep project files in your own OneDrive.',
+    group: 'today',
+  },
   {
     id: 'webhooks',
     name: 'Webhooks',
-    nameKey: 'IntegrationsPage.nameWebhooks',
-    category: 'developer',
-    status: 'planned',
+    nameKey: `${K}nameWebhooks`,
+    lineKey: `${K}lineWebhooks`,
+    line: 'Send events to your own systems when work changes.',
+    group: 'today',
   },
   {
-    id: 'deploy-hooks',
-    name: 'Deploy hooks',
-    nameKey: 'IntegrationsPage.nameDeployHooks',
-    category: 'developer',
-    status: 'planned',
+    id: 'rest-api',
+    name: 'REST API',
+    lineKey: `${K}lineRestApi`,
+    line: 'Read and update your work from your own code.',
+    group: 'today',
   },
-  { id: 'rest-api', name: 'REST API', category: 'developer', status: 'planned' },
   {
     id: 'mcp-server',
     name: 'MCP server',
-    nameKey: 'IntegrationsPage.nameMcpServer',
-    category: 'ai',
-    status: 'planned',
+    nameKey: `${K}nameMcpServer`,
+    lineKey: `${K}lineMcpServer`,
+    line: 'Let your AI assistant work in TManage, with your approval.',
+    group: 'today',
+  },
+  {
+    id: 'personal-access-tokens',
+    name: 'Personal access tokens',
+    nameKey: `${K}namePersonalAccessTokens`,
+    lineKey: `${K}linePersonalAccessTokens`,
+    line: 'Create keys for scripts and tools, and revoke them any time.',
+    group: 'today',
+  },
+  {
+    id: 'slack',
+    name: 'Slack',
+    lineKey: `${K}lineSlack`,
+    line: 'Post updates to a Slack channel with your own link.',
+    group: 'own-account',
+    shipped: false,
+  },
+  {
+    id: 'microsoft-teams',
+    name: 'Microsoft Teams',
+    lineKey: `${K}lineTeams`,
+    line: 'Post updates to a Teams channel with your own link.',
+    group: 'own-account',
+    shipped: false,
+  },
+  {
+    id: 'whatsapp',
+    name: 'WhatsApp',
+    lineKey: `${K}lineWhatsApp`,
+    line: 'Send notices from your own WhatsApp Business number.',
+    group: 'own-account',
+    shipped: false,
+  },
+  {
+    id: 'figma',
+    name: 'Figma',
+    lineKey: `${K}lineFigma`,
+    line: 'Paste a Figma link to show a live preview on a task.',
+    group: 'own-account',
+    shipped: false,
+  },
+  {
+    id: 'github',
+    name: 'GitHub',
+    lineKey: `${K}lineGitHub`,
+    line: 'Link code changes and pull requests to your tasks.',
+    group: 'own-account',
+    shipped: false,
+  },
+  {
+    id: 'zapier-make-n8n',
+    name: 'Zapier · Make · n8n',
+    lineKey: `${K}lineAutomation`,
+    line: 'Connect thousands of apps through webhooks.',
+    group: 'own-account',
+    shipped: false,
+  },
+  {
+    id: 'saml-sso',
+    name: 'SAML single sign-on',
+    nameKey: `${K}nameSaml`,
+    lineKey: `${K}lineSaml`,
+    line: 'Sign in with your company identity provider.',
+    group: 'planned',
+  },
+  {
+    id: 'scim',
+    name: 'SCIM provisioning',
+    nameKey: `${K}nameScim`,
+    lineKey: `${K}lineScim`,
+    line: 'Add and remove people automatically from your directory.',
+    group: 'planned',
   },
   {
     id: 'inbound-email',
     name: 'Inbound email',
-    nameKey: 'IntegrationsPage.nameInboundEmail',
-    category: 'email',
-    status: 'planned',
+    nameKey: `${K}nameInboundEmail`,
+    lineKey: `${K}lineInboundEmail`,
+    line: 'Turn emails into requests and tasks.',
+    group: 'planned',
+  },
+  {
+    id: 'data-region',
+    name: 'Data region choice',
+    nameKey: `${K}nameDataRegion`,
+    lineKey: `${K}lineDataRegion`,
+    line: 'Choose where your data is stored.',
+    group: 'planned',
+  },
+  {
+    id: 'self-host',
+    name: 'Self-host',
+    nameKey: `${K}nameSelfHost`,
+    lineKey: `${K}lineSelfHost`,
+    line: 'Run TManage on your own servers.',
+    group: 'planned',
   },
 ];
 
-/**
- * The cards a filter and a search leave on screen. `textOf` returns every visible string of a
- * card (its name, line and category, in the active language), so a search matches what the
- * reader sees; the English brand name always matches too.
- */
-export function filterIntegrations(
-  items: readonly Integration[],
-  filter: IntegrationFilter['id'],
-  query: string,
-  textOf: (item: Integration) => readonly string[],
+export interface IntegrationGroup {
+  id: IntegrationGroupId;
+  titleKey: string;
+  title: string;
+  ledeKey: string;
+  lede: string;
+  badge: { key: string; text: string; tone: 'client' | 'mono' | 'neutral' };
+}
+
+export const INTEGRATION_GROUPS: readonly IntegrationGroup[] = [
+  {
+    id: 'today',
+    titleKey: `${K}groupTodayTitle`,
+    title: 'Works today',
+    ledeKey: `${K}groupTodayLede`,
+    lede: 'Live in TManage now, on every plan.',
+    badge: { key: `${K}badgeAvailable`, text: 'Available', tone: 'client' },
+  },
+  {
+    id: 'own-account',
+    titleKey: `${K}groupOwnTitle`,
+    title: 'Connect with your own account',
+    ledeKey: `${K}groupOwnLede`,
+    lede: 'Paste your own link or key. No extra app to install.',
+    badge: { key: `${K}badgeBeta`, text: 'Beta', tone: 'mono' },
+  },
+  {
+    id: 'planned',
+    titleKey: `${K}groupPlannedTitle`,
+    title: 'Planned',
+    ledeKey: `${K}groupPlannedLede`,
+    lede: 'Not built yet. Tell us you need it and we will let you know when it ships.',
+    badge: { key: `${K}badgePlanned`, text: 'Planned', tone: 'neutral' },
+  },
+];
+
+/** The cards a group shows: an own-account connector only once it has shipped. */
+export function cardsOf(
+  group: IntegrationGroupId,
+  items: readonly Integration[] = INTEGRATIONS,
 ): Integration[] {
-  const q = query.trim().toLocaleLowerCase();
   return items.filter(
-    (item) =>
-      (filter === 'all' || item.category === filter) &&
-      (q === '' ||
-        [item.name, ...textOf(item)].some((text) => text.toLocaleLowerCase().includes(q))),
+    (item) => item.group === group && (item.group !== 'own-account' || item.shipped === true),
   );
 }
 
-export interface ConnectionStep {
-  titleKey: MessageKey;
-  bodyKey: MessageKey;
+/** The contact-lead message a "Tell us you need it" request carries: its tag, nothing else. */
+export function integrationRequestMessage(id: string): string {
+  return `integration_request:${id}`;
 }
-
-export const CONNECTION_STEPS: readonly ConnectionStep[] = [
-  { titleKey: 'IntegrationsPage.step1Title', bodyKey: 'IntegrationsPage.step1Body' },
-  { titleKey: 'IntegrationsPage.step2Title', bodyKey: 'IntegrationsPage.step2Body' },
-  { titleKey: 'IntegrationsPage.step3Title', bodyKey: 'IntegrationsPage.step3Body' },
-];
-
-export interface DeveloperLink {
-  title: string;
-  titleKey?: MessageKey;
-  hintKey: MessageKey;
-}
-
-/** "Build your own" link cards; each opens the developer guide. */
-export const DEVELOPER_LINKS: readonly DeveloperLink[] = [
-  {
-    title: 'Webhooks',
-    titleKey: 'IntegrationsPage.nameWebhooks',
-    hintKey: 'IntegrationsPage.devWebhooksHint',
-  },
-  { title: 'REST API', hintKey: 'IntegrationsPage.devRestHint' },
-  {
-    title: 'Deploy hooks',
-    titleKey: 'IntegrationsPage.nameDeployHooks',
-    hintKey: 'IntegrationsPage.devDeployHint',
-  },
-];

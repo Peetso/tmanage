@@ -1,81 +1,53 @@
 /*
- * WEB-13 Integrations — page-only layout for the round-2 Figma frame 308:38. Every value is a
- * TManage token (tokens.css) or a website-layer variable from website.css.
+ * 54-02 Integrations — page-only layout for Figma 443:20507 (EN) / 443:20899 (AR). Every value is
+ * a TManage token (tokens.css) or a website-layer variable from website.css. Logical properties
+ * mirror the page for Arabic without a separate rule set.
  */
 
-/* ── Hero (centred copy + search) ─────────────────────────────────────── */
+/* ── Hero: space/20 top, space/10 bottom, centred 880 copy ─────────────── */
 
-.tm-web-int-hero__inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--s6);
+.tm-web-int-hero.tm-web-section--default {
+  padding-block: var(--s20) var(--s10);
 }
 
 .tm-web-int-hero .tm-web-header {
   max-inline-size: calc(var(--s24) * 9 + var(--s8));
+  margin-inline: auto;
 }
 
-.tm-web-int-hero .tm-web-header + * {
-  margin-block-start: 0;
+/* ── Groups: space/6 top, space/16 between groups, space/24 bottom ─────── */
+
+.tm-web-int-groups.tm-web-section--flush {
+  padding-block: var(--s6) var(--s24);
 }
 
-.tm-web-int-search {
-  inline-size: 100%;
-  max-inline-size: calc(var(--s24) * 5 + var(--s10));
+.tm-web-int-group + .tm-web-int-group {
+  margin-block-start: var(--s16);
 }
 
-.tm-web-int-search .tm-search-field,
-.tm-web-int-search .tm-search-field__control {
-  inline-size: 100%;
-}
-
-/* ── Catalogue: filter bar + grid ─────────────────────────────────────── */
-
-.tm-web-int-filters {
+.tm-web-int-group__header {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--s4);
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--s2);
-  border: var(--b-quiet) solid var(--line-300);
-  border-radius: var(--r-capsule);
-  background: var(--paper-0);
-}
-
-.tm-web-int-filters__chips {
-  display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: var(--s2);
 }
 
-.tm-web-int-chip {
+.tm-web-int-group__title {
+  font-size: var(--t-heading-section);
+  line-height: var(--t-heading-section-line);
+  font-weight: 600;
   color: var(--ink-950);
-  font-family: inherit;
-  cursor: pointer;
 }
 
-.tm-web-int-chip:hover {
-  border-color: var(--ink-650);
-}
-
-.tm-web-int-chip:focus-visible {
-  outline: var(--b-expressive) solid var(--focus-ring);
-  outline-offset: var(--b-structural);
-}
-
-.tm-web-int-filters__count {
-  padding-inline-end: var(--s4);
-  font-size: var(--t-caption);
-  line-height: var(--t-caption-line);
+.tm-web-int-group__lede {
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
   color: var(--ink-650);
 }
 
 .tm-web-int-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--s6);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s4);
   margin-block-start: var(--s6);
   padding: 0;
   list-style: none;
@@ -89,241 +61,78 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  padding: var(--s8);
+  align-items: flex-start;
+  gap: var(--s3);
+  min-block-size: 188px;
+  padding: var(--s6);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
   color: var(--ink-950);
 }
 
-.tm-web-int-card__head {
-  display: flex;
-  gap: var(--s3);
-  align-items: center;
-  justify-content: space-between;
+.tm-web-int-card__badge {
+  background: var(--paper-50);
 }
 
-/* The placeholder logo orb: a quiet paper disc until each partner logo is licensed. */
-.tm-web-int-card__head .tm-web-orb {
-  background: var(--paper-150);
-  color: var(--ink-650);
-}
-
-.tm-web-int-card__category {
-  margin-block-start: var(--s5);
-  font-family: var(--font-mono);
-  font-size: var(--t-caption);
-  line-height: var(--t-caption-line);
-  text-transform: uppercase;
-  color: var(--ink-650);
+/* Arabic badge words use the Arabic face, not the Latin mono. */
+:lang(ar) .tm-web-int-card__badge.tm-badge--mono {
+  font-family: inherit;
 }
 
 .tm-web-int-card__name {
-  margin-block-start: var(--s4);
+  inline-size: 100%;
   font-size: var(--t-heading-card);
   line-height: var(--t-heading-card-line);
   font-weight: 600;
 }
 
 .tm-web-int-card__line {
-  margin-block-start: var(--s4);
+  inline-size: 100%;
   font-size: var(--t-body-md);
   line-height: var(--t-body-md-line);
   color: var(--ink-650);
 }
 
-.tm-web-int-empty {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s3);
-  align-items: flex-start;
-  margin-block-start: var(--s6);
-  padding: var(--s10);
-  border: var(--b-quiet) solid var(--line-300);
-  border-radius: var(--r-card);
-  background: var(--paper-0);
-}
-
-.tm-web-int-empty__title {
-  font-size: var(--t-heading-card);
-  line-height: var(--t-heading-card-line);
-  font-weight: 600;
+/* The Figma text button sits on the card edge with space/2 inline padding. */
+.tm-web-int-card > .tm-button--text {
+  padding-inline: var(--s2);
   color: var(--ink-950);
 }
 
-.tm-web-int-empty__body {
-  color: var(--ink-650);
+.tm-web-int-card > .tm-inline-alert,
+.tm-web-int-request {
+  inline-size: 100%;
 }
 
-/* ── How connections work (ink panel) ─────────────────────────────────── */
-
-.tm-web-int-how {
+.tm-web-int-request {
   display: flex;
   flex-direction: column;
-  gap: var(--s12);
-  padding: var(--s16);
-  border-radius: var(--r-feature);
-  background: var(--web-ink);
-  color: var(--web-on-ink);
-}
-
-.tm-web-int-how .tm-web-header + * {
-  margin-block-start: 0;
-}
-
-.tm-web-int-steps {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--s6);
-  padding: 0;
-  list-style: none;
-}
-
-.tm-web-int-step {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s4);
   align-items: flex-start;
-  padding: var(--s8);
-  border: var(--b-quiet) solid var(--line-700);
-  border-radius: var(--r-card);
-}
-
-.tm-web-int-step__marker {
-  display: inline-flex;
   gap: var(--s3);
-  align-items: center;
 }
 
-.tm-web-int-step__orb {
-  display: inline-grid;
-  place-items: center;
-  inline-size: var(--orb-default);
-  block-size: var(--orb-default);
-  border-radius: var(--r-capsule);
-  background: var(--lime-500);
-  color: var(--tm-on-lime);
-  font-size: var(--t-ui-md);
-  line-height: var(--t-ui-md-line);
-  font-weight: 500;
+.tm-web-int-request .tm-field,
+.tm-web-int-request .tm-inline-alert {
+  inline-size: 100%;
 }
-
-.tm-web-int-step__label {
-  font-family: var(--font-mono);
-  font-size: var(--t-caption);
-  line-height: var(--t-caption-line);
-  text-transform: uppercase;
-  white-space: pre;
-  color: var(--web-on-ink);
-}
-
-.tm-web-int-step__arrow {
-  display: inline-block;
-}
-
-[dir='rtl'] .tm-web-int-step__arrow {
-  transform: scaleX(-1);
-}
-
-.tm-web-int-step__title {
-  font-size: var(--t-heading-card);
-  line-height: var(--t-heading-card-line);
-  font-weight: 600;
-  color: var(--web-on-ink);
-}
-
-.tm-web-int-step__body {
-  font-size: var(--t-body-md);
-  line-height: var(--t-body-md-line);
-  color: var(--web-on-ink);
-}
-
-/* ── Build your own ───────────────────────────────────────────────────── */
-
-.tm-web-int-build__row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--s16);
-  align-items: center;
-}
-
-.tm-web-int-build__row .tm-web-header + * {
-  margin-block-start: 0;
-}
-
-.tm-web-int-build__links {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s4);
-}
-
-/* ── Responsive ───────────────────────────────────────────────────────── */
 
 @media (max-width: 1279px) {
-  .tm-web-int-filters {
-    border-radius: var(--r-card);
-  }
-
-  .tm-web-int-filters__count {
-    padding-inline: var(--s2);
-  }
-
   .tm-web-int-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .tm-web-int-how {
-    padding: var(--s12);
-  }
-
-  .tm-web-int-steps,
-  .tm-web-int-build__row {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .tm-web-int-build__row {
-    gap: var(--s10);
   }
 }
 
 @media (max-width: 767px) {
+  .tm-web-int-hero.tm-web-section--default {
+    padding-block: var(--s16) var(--s8);
+  }
+
   .tm-web-int-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .tm-web-int-filters {
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: var(--s3);
-    align-items: stretch;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: none;
-  }
-
-  .tm-web-int-filters__chips {
-    flex-wrap: nowrap;
-    margin-inline: calc(var(--web-gutter) * -1);
-    padding-inline: var(--web-gutter);
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .tm-web-int-filters__chips::-webkit-scrollbar {
-    display: none;
-  }
-
-  .tm-web-int-filters__count {
-    padding-inline: 0;
-  }
-
-  .tm-web-int-how {
-    padding: var(--s8) var(--s5);
-  }
-
-  .tm-web-int-card,
-  .tm-web-int-step {
-    padding: var(--s6);
+  .tm-web-int-group + .tm-web-int-group {
+    margin-block-start: var(--s12);
   }
 }
