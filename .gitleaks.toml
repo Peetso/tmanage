@@ -43,3 +43,9 @@ paths = [
   '''^docs/design/source/project/uploads/''',
   '''^pnpm-lock\.yaml$''',
 ]
+
+# 56-02. A FieldCipher envelope committed to the repo is a database secret that leaked.
+[[rules]]
+id = "tmanage-field-cipher-envelope"
+description = "TManage FieldCipher envelope (fc1.<purpose>.<keyId>.<iv>.<ct>.<tag>)"
+regex = '''\bfc1\.[a-z][a-z0-9_]*\.[1-9][0-9]*\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{22}\b'''

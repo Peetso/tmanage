@@ -1,0 +1,172 @@
+/**
+ * 56-02: the FieldCipher re-encrypt job. A rotation row in `key_rotations` (0249) names a purpose
+ * and the key it must end on; this job walks that purpose's column in {@link ROTATION_BATCH}-row
+ * batches (ordered by id), re-encrypts every `fc1.` envelope still on an older key, and saves the
+ * resume point and counts after each batch — so a worker killed mid-run leaves a `running` row
+ * whose heartbeat goes stale, and the next run carries on from `last_row_id`.
+ *
+ * - The target key must already be the cipher's newest (it is in env before the job is queued).
+ * - Values that are not `fc1.` envelopes (legacy `mfa1.` rows, a writer not yet on FieldCipher)
+ *   are counted `skipped` and left untouched: rewriting them would break their current reader.
+ * - A row that fails to open (unknown key, tampered) is counted `failed`; the job goes on.
+ * - The write is a compare-and-swap on the old value, so a concurrent writer always wins.
+ * - Logged by purpose with counts only, never a value (56-02 STRIDE "R").
+ *
+ * The MFA purpose is not here: the worker holds no grant on `user_mfa_factors` (grants.test.ts),
+ * and MFA seeds rotate through the API's `mfa:encrypt-seeds` backfill.
+ */
+
+export const ROTATION_BATCH = 500;
+export const ROTATION_INTERVAL_MS = 60_000;
+/** A `running` rotation with no heartbeat for this long is resumed by the next worker. */
+export const ROTATION_STALE_MS = 5 * 60 * 1000;
+
+/** Where each rotatable purpose lives. `ownerColumn` feeds the AAD and must match the writer. */
+export const ROTATION_TARGETS = {
+  storage_token: { table: 'storage_connections', column: 'refresh_token_enc', ownerColumn: 'id' },
+  calendar_token: {
+    table: 'calendar_connections',
+    column: 'refresh_token_enc',
+    ownerColumn: 'id',
+  },
+} as const;
+export type RotationPurpose = keyof typeof ROTATION_TARGETS;
+export type RotationTarget = (typeof ROTATION_TARGETS)[RotationPurpose];
+
+export function isRotationPurpose(value: string): value is RotationPurpose {
+  return Object.hasOwn(ROTATION_TARGETS, value);
+}
+
+/** The slice of `@tmanage/domain/field-cipher`'s FieldCipher this job uses. */
+export interface RotationCipher {
+  activeKeyId(purpose: RotationPurpose): string | null;
+  isEnvelope(value: string): boolean;
+  rotate(envelope: string, aad: { purpose: RotationPurpose; ownerId: string }): string | null;
+}
+
+export interface ClaimedRotation {
+  readonly id: string;
+  readonly purpose: string;
+  readonly toKeyId: string;
+  readonly lastRowId: string | null;
+  readonly counts: RotationCounts;
+}
+
+export interface RotationCounts {
+  readonly done: number;
+  readonly skipped: number;
+  readonly failed: number;
+}
+
+export interface SecretRow {
+  readonly id: string;
+  readonly ownerId: string;
+  readonly value: string;
+}
+
+/** The statements the job needs. Faked by the unit test. */
+export interface RotationStore {
+  /** Claim the oldest queued rotation, or a running one whose heartbeat is stale. */
+  claimNext(staleMs: number): Promise<ClaimedRotation | null>;
+  /** Count the purpose's non-null values and stamp `rows_total` when the job is fresh. */
+  countTotal(rotationId: string, target: RotationTarget): Promise<void>;
+  readBatch(target: RotationTarget, afterId: string | null, limit: number): Promise<SecretRow[]>;
+  /** Compare-and-swap; false when the row changed since it was read. */
+  writeValue(target: RotationTarget, id: string, from: string, to: string): Promise<boolean>;
+  saveProgress(rotationId: string, lastRowId: string, counts: RotationCounts): Promise<void>;
+  finish(rotationId: string, status: 'done' | 'failed', error: string | null): Promise<void>;
+  /** Back to `queued`, keeping `last_row_id` and the counts, so the next run resumes at once. */
+  pause(rotationId: string): Promise<void>;
+}
+
+export interface RotationRunResult {
+  readonly rotationId: string | null;
+  readonly status: 'idle' | 'done' | 'failed' | 'paused';
+  readonly counts: RotationCounts;
+}
+
+const IDLE: RotationRunResult = {
+  rotationId: null,
+  status: 'idle',
+  counts: { done: 0, skipped: 0, failed: 0 },
+};
+
+/** Run (or resume) one rotation, for at most `maxBatches` batches; `paused` means more remain. */
+export async function runKeyRotation(deps: {
+  readonly store: RotationStore;
+  readonly cipher: RotationCipher;
+  readonly maxBatches?: number;
+  readonly log?: (line: string) => void;
+}): Promise<RotationRunResult> {
+  const { store, cipher } = deps;
+  const log = deps.log ?? (() => undefined);
+  const job = await store.claimNext(ROTATION_STALE_MS);
+  if (job === null) return IDLE;
+
+  const fail = async (error: string): Promise<RotationRunResult> => {
+    await store.finish(job.id, 'failed', error);
+    log(`key rotation ${job.id} (${job.purpose}) failed: ${error}`);
+    return { rotationId: job.id, status: 'failed', counts: job.counts };
+  };
+  if (!isRotationPurpose(job.purpose)) return fail(`"${job.purpose}" is not a rotatable purpose`);
+  const purpose = job.purpose;
+  if (cipher.activeKeyId(purpose) !== job.toKeyId) {
+    return fail(`key ${job.toKeyId} is not the newest key in FIELD_CIPHER_KEYS; add it and deploy`);
+  }
+  const target = ROTATION_TARGETS[purpose];
+  if (job.lastRowId === null) await store.countTotal(job.id, target);
+
+  let { done, skipped, failed } = job.counts;
+  let cursor = job.lastRowId;
+  for (let batch = 0; batch < (deps.maxBatches ?? Number.POSITIVE_INFINITY); batch += 1) {
+    const rows = await store.readBatch(target, cursor, ROTATION_BATCH);
+    if (rows.length === 0) {
+      await store.finish(job.id, 'done', null);
+      log(
+        `key rotation ${job.id} (${purpose}) done: ${done} rotated, ${skipped} skipped, ${failed} failed`,
+      );
+      return { rotationId: job.id, status: 'done', counts: { done, skipped, failed } };
+    }
+    for (const row of rows) {
+      if (!cipher.isEnvelope(row.value)) {
+        skipped += 1;
+        continue;
+      }
+      try {
+        const next = cipher.rotate(row.value, { purpose, ownerId: row.ownerId });
+        if (next !== null) await store.writeValue(target, row.id, row.value, next);
+        done += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    cursor = (rows[rows.length - 1] as SecretRow).id;
+    await store.saveProgress(job.id, cursor, { done, skipped, failed });
+  }
+  await store.pause(job.id);
+  return { rotationId: job.id, status: 'paused', counts: { done, skipped, failed } };
+}
+
+/** Loop mode: drain queued rotations, then wait {@link ROTATION_INTERVAL_MS}; stops on `signal`. */
+export async function runKeyRotationLoop(
+  deps: { readonly store: RotationStore; readonly cipher: RotationCipher },
+  signal: AbortSignal,
+  onError: (error: unknown) => void = (error) =>
+    console.error('[worker] key rotation failed', error),
+): Promise<void> {
+  const log = (line: string): void => console.warn(`[worker] ${line}`);
+  while (!signal.aborted) {
+    try {
+      let result = await runKeyRotation({ ...deps, maxBatches: 20, log });
+      while (result.status !== 'idle' && !signal.aborted) {
+        result = await runKeyRotation({ ...deps, maxBatches: 20, log });
+      }
+    } catch (error) {
+      onError(error);
+    }
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, ROTATION_INTERVAL_MS);
+      signal.addEventListener('abort', () => (clearTimeout(timer), resolve()), { once: true });
+    });
+  }
+}

@@ -1789,6 +1789,18 @@ GRANT SELECT ON `tmanage`.`audit_events`                        TO 'tmanage_work
 GRANT SELECT ON `tmanage`.`sessions`                            TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`platform_admin_audit_events`         TO 'tmanage_worker'@'%';
 
+-- ---- 56-02 FieldCipher ----
+-- 0249 `key_rotations` (global). The API queues a rotation (POST /v1/platform/keys/rotate, later
+-- slice) — INSERT; SELECT rides the database-wide read. The worker's rotation job
+-- (apps/worker/src/jobs/field-cipher-rotation.ts) claims, resumes and finishes it, and its CLI can
+-- queue one. It re-encrypts the connector refresh tokens in place: SELECT + UPDATE on the two
+-- connection tables, compare-and-swap on `refresh_token_enc` only. No DELETE anywhere, and still
+-- nothing on `user_mfa_factors` (MFA seeds rotate through the API's `mfa:encrypt-seeds`).
+GRANT INSERT ON `tmanage`.`key_rotations`                       TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`key_rotations`       TO 'tmanage_worker'@'%';
+GRANT SELECT, UPDATE ON `tmanage`.`storage_connections`         TO 'tmanage_worker'@'%';
+GRANT SELECT, UPDATE ON `tmanage`.`calendar_connections`        TO 'tmanage_worker'@'%';
+
 -- ---- 55-21 · usability measurement ----
 -- 0251 `product_events` (tenant-owned): the API inserts a session's own metadata-only events
 -- (`POST /v1/organizations/:orgSlug/events` and `.../portal/events`). SELECT rides the

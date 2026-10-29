@@ -361,6 +361,30 @@ export const envSchema = z
       }
     }),
 
+    /**
+     * 56-02. The FieldCipher keyring: `<id>:<base64 32 bytes>` entries separated by `;`, highest id
+     * active (`openssl rand -base64 32`). Optional: without it FieldCipher reports "disabled" and
+     * every feature that would store a recoverable secret refuses instead of storing plaintext.
+     */
+    FIELD_CIPHER_KEYS: z
+      .string()
+      .optional()
+      .refine(
+        (value) =>
+          value === undefined ||
+          value.trim() === '' ||
+          value
+            .trim()
+            .split(';')
+            .every((entry) =>
+              /^[1-9]\d{0,8}:(?:[A-Za-z0-9+/]{43}=|[A-Za-z0-9_-]{43})$/.test(entry.trim()),
+            ),
+        {
+          message:
+            'entries must be <id>:<32-byte key from `openssl rand -base64 32`>, ";"-separated',
+        },
+      ),
+
     // Invitations and client access
     INVITATION_TTL_HOURS: positiveInt.default(168),
     CLIENT_MEMBERSHIP_DEFAULT_EXPIRY_DAYS: positiveInt.default(180),
@@ -793,6 +817,9 @@ export const envSchema = z
       // The install token is a credential too while it is set: a copied placeholder or a reused
       // session secret would let anyone who knows one of them create the first owner.
       ['SETUP_TOKEN', env.SETUP_TOKEN],
+      // 56-02. Compared as a whole by the pairwise check below; a key reused inside another
+      // keyring is caught by the worker/API at start with `sharedKeyIds` (field-cipher.ts).
+      ['FIELD_CIPHER_KEYS', env.FIELD_CIPHER_KEYS],
     ];
     for (const [key, value] of secrets) {
       if (value === undefined) continue;

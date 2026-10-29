@@ -23,7 +23,8 @@
     "relay:unpark": "node dist/main.js --unpark",
     "sweep:invitations": "node dist/main.js --sweep-invitations",
     "sweep:deferred-requests": "node dist/main.js --sweep-deferred-requests",
-    "sweep:due-soon": "node dist/main.js --sweep-due-soon"
+    "sweep:due-soon": "node dist/main.js --sweep-due-soon",
+    "keys:rotate": "node dist/main.js --rotate-keys"
   },
   "dependencies": {
     "@tmanage/config": "workspace:*",

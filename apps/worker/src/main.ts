@@ -52,6 +52,9 @@ import {
 import './jobs/purge-organizations.js';
 // ---- platform-admin v2 · PA-09 ---- the Platform admin CSV export job.
 import { exportWriterFor, runExportJobsLoop, runExportJobsOnce } from './jobs/export-jobs.js';
+import { createFieldCipher, loadFieldCipherKeyring } from '@tmanage/domain/field-cipher';
+import { createRotationStore } from './common/database/field-cipher-rotation-store.js';
+import { runKeyRotation, runKeyRotationLoop } from './jobs/field-cipher-rotation.js';
 
 /**
  * The worker process entry point.
@@ -377,6 +380,22 @@ async function main(): Promise<void> {
     return;
   }
 
+  // ---- 56-02 FieldCipher ---- run queued key rotations to the end, once.
+  if (command.kind === 'rotate-keys') {
+    try {
+      const deps = {
+        store: createRotationStore(database),
+        cipher: createFieldCipher(loadFieldCipherKeyring(env)),
+        log: (line: string) => console.warn(`[worker] ${line}`),
+      };
+      let result = await runKeyRotation(deps);
+      while (result.status !== 'idle') result = await runKeyRotation(deps);
+    } finally {
+      await database.end();
+    }
+    return;
+  }
+
   // ---- platform-admin v2 · PA-09 ---- queued CSV exports: write, expire, remove.
   if (command.kind === 'run-exports') {
     try {
@@ -477,6 +496,15 @@ async function main(): Promise<void> {
   const supportSweep = runSupportSessionSweepLoop(database, controller.signal);
   // ---- platform-admin v2 · PA-09 ---- the export job, every 30 seconds beside the relay.
   const exportJobs = runExportJobsLoop(database, exportWriterFor(env), controller.signal);
+  // ---- 56-02 FieldCipher ---- queued key rotations, every minute beside the relay. Keyless,
+  // every queued rotation fails with "key … is not the newest key" — nothing is rewritten.
+  const keyRotations = runKeyRotationLoop(
+    {
+      store: createRotationStore(database),
+      cipher: createFieldCipher(loadFieldCipherKeyring(env)),
+    },
+    controller.signal,
+  );
 
   // RT-001. Sockets exist only in loop mode — a controlled batch has no process to keep a
   // socket open — and only when a port is configured; 0 is the honest default on a host
@@ -566,6 +594,7 @@ async function main(): Promise<void> {
     await supportSweep;
     // ---- platform-admin v2 · PA-09 ----
     await exportJobs;
+    await keyRotations;
     await database.end();
   }
 }

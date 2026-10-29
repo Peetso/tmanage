@@ -32,6 +32,8 @@ export type WorkerCommand =
   | { readonly kind: 'sweep-support-sessions' }
   // ---- platform-admin v2 · PA-09 ---- the Platform admin CSV export job.
   | { readonly kind: 'run-exports' }
+  // ---- 56-02 FieldCipher ---- re-encrypt queued key rotations to the newest key.
+  | { readonly kind: 'rotate-keys' }
   | { readonly kind: 'status' }
   | { readonly kind: 'once' }
   | { readonly kind: 'loop' };
@@ -73,6 +75,8 @@ export function selectWorkerCommand(argv: readonly string[]): WorkerCommand {
   if (argv.includes('--sweep-support-sessions')) return { kind: 'sweep-support-sessions' };
   // ---- platform-admin v2 · PA-09 ---- same rank: one invocation does one thing.
   if (argv.includes('--run-exports')) return { kind: 'run-exports' };
+  // ---- 56-02 FieldCipher ---- same rank: one invocation does one thing.
+  if (argv.includes('--rotate-keys')) return { kind: 'rotate-keys' };
   if (status) return { kind: 'status' };
   if (once) return { kind: 'once' };
   return { kind: 'loop' };

@@ -1196,6 +1196,9 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // 0246. The operators' CSV export jobs (C6): who asked, the scope and filter, the file key and
   // its expiry. A filter may name an organization but the job belongs to no tenant.
   'platform_export_jobs',
+  // ---- 56-02 FieldCipher ----
+  // 0249. The key-rotation ledger: purpose, key ids and counts across every organization.
+  'key_rotations',
 ]);
 
 export function isTenantTable(name: string): boolean {

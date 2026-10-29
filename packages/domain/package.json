@@ -12,6 +12,10 @@
     "./realtime-ticket": {
       "types": "./dist/realtime/ticket.d.ts",
       "default": "./dist/realtime/ticket.js"
+    },
+    "./field-cipher": {
+      "types": "./dist/security/field-cipher.d.ts",
+      "default": "./dist/security/field-cipher.js"
     }
   },
   "main": "./dist/index.js",

@@ -10000,6 +10000,45 @@ Object.assign(TABLES, {
   platform_export_jobs: platformExportJobs,
 });
 
+// ---- 56-02 FieldCipher ----
+
+/**
+ * 0249. The FieldCipher re-encrypt job's ledger (56-02). Global (NON_TENANT_TABLES): a rotation
+ * spans every organization and holds counts and key ids only, never a key or a secret. The worker
+ * (`apps/worker/src/jobs/field-cipher-rotation.ts`) resumes a killed run from `last_row_id`.
+ */
+export const keyRotations = mysqlTable(
+  'key_rotations',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    purpose: varchar('purpose', { length: 32 }).notNull(),
+    fromKeyId: varchar('from_key_id', { length: 16 }),
+    toKeyId: varchar('to_key_id', { length: 16 }).notNull(),
+    status: varchar('status', { length: 16 }).notNull().default('queued'),
+    rowsTotal: int('rows_total').notNull().default(0),
+    rowsDone: int('rows_done').notNull().default(0),
+    rowsSkipped: int('rows_skipped').notNull().default(0),
+    rowsFailed: int('rows_failed').notNull().default(0),
+    lastRowId: char('last_row_id', { length: 36 }),
+    requestedBy: char('requested_by', { length: 36 }),
+    error: varchar('error', { length: 500 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    startedAt: datetime('started_at', { mode: 'date', fsp: 3 }),
+    heartbeatAt: datetime('heartbeat_at', { mode: 'date', fsp: 3 }),
+    finishedAt: datetime('finished_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    index('ix_key_rotations_status').on(table.status, table.createdAt),
+    index('ix_key_rotations_purpose').on(table.purpose, table.createdAt),
+  ],
+);
+
+export type KeyRotationRow = typeof keyRotations.$inferSelect;
+
+Object.assign(TABLES, {
+  key_rotations: keyRotations,
+});
+
 // ---- 55-21 · usability measurement ----
 
 /**

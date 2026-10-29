@@ -164,7 +164,9 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // ---- platform-admin v2 · PA-09 ---- +4: the CSV export job reads `platform_export_jobs`
     // where it claims and finishes a job, and the three logs it exports (`audit_events`,
     // `sessions`, `platform_admin_audit_events`).
-    expect(reads).toHaveLength(26 + 15 + 1 + 4);
+    // ---- 56-02 FieldCipher ---- +3: the key-rotation job reads `key_rotations` and the two
+    // connection tables whose `refresh_token_enc` it re-encrypts.
+    expect(reads).toHaveLength(26 + 15 + 1 + 4 + 3);
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });
 
