@@ -219,7 +219,7 @@ export class InsightsAdoptionController {
    * 400). A pure read — no write, no new column.
    */
   @Get('adoption')
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async adoptionMetrics(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

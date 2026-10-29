@@ -198,7 +198,7 @@ export class BillingSeatsController {
 
   /** List the tenant's active seats and their count. `org.manage`. */
   @Get()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.view')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -208,7 +208,7 @@ export class BillingSeatsController {
 
   /** Assign a seat to a membership. `org.manage`. */
   @Post()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   @HttpCode(201)
   async assign(
     @Ctx() context: TenantContext,
@@ -221,7 +221,7 @@ export class BillingSeatsController {
 
   /** Reclaim (release) a seat, tenant-scoped. `org.manage`. */
   @Delete(':seatId')
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   async release(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

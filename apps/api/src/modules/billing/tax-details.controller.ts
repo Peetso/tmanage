@@ -15,7 +15,7 @@ import type {
  * upsert them. Distinct from the billing-profile contact slice (x180): legal name, tax id, registration
  * number and tax country only — no contact, no address, and deliberately no card or bank field.
  *
- * The controller is the HTTP surface only. `CapabilityGuard` (`@RequireCapability('org.manage')`) is
+ * The controller is the HTTP surface only. `CapabilityGuard` (`@RequireCapability('billing.view' | 'billing.manage')`, PA-01) is
  * the coarse gate; the authoritative deny-by-default `authorize()`, the whole-body validation and the
  * single read/upsert all live in {@link BillingTaxDetailsService}. Neither route takes an
  * organization-id parameter — the tenant is `context.organizationId`, resolved from an active
@@ -29,7 +29,7 @@ export class BillingTaxDetailsController {
 
   /** Read the acting tenant's tax details, or the defaults when none has been saved. */
   @Get()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.view')
   read(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -39,7 +39,7 @@ export class BillingTaxDetailsController {
 
   /** Create or replace the acting tenant's tax details. */
   @Put()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   update(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

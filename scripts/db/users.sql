@@ -1681,6 +1681,12 @@ GRANT INSERT, UPDATE ON `tmanage`.`platform_permission_presets` TO 'tmanage_app'
 GRANT INSERT, UPDATE ON `tmanage`.`platform_support_sessions`   TO 'tmanage_app'@'%';
 GRANT INSERT ON `tmanage`.`audit_event_changes`                 TO 'tmanage_app'@'%';
 
+-- ---- platform-admin v2 · PA-01 ----
+-- 0242 `membership_permission_overrides`: INSERT (add an override) and UPDATE (revoke it by
+-- `revoked_at`). No DELETE: a removed override stays as the record of who gave what. SELECT is
+-- the database-wide read. The worker holds nothing here.
+GRANT INSERT, UPDATE ON `tmanage`.`membership_permission_overrides` TO 'tmanage_app'@'%';
+
 -- ---- platform-admin v2 · PA-03 ----
 -- 0245 content soft delete (SPEC P7). A delete from the product now sets `deleted_at`,
 -- `deleted_by_user_id`, `deleted_reason` and `purge_after` instead of removing the row, so the

@@ -1,11 +1,12 @@
 import { Body, Controller, Get, Inject, Optional, Param, Patch } from '@nestjs/common';
 import {
+  ASSIGNABLE_INTERNAL_ROLES,
   CAPABILITIES,
   capabilitiesFor,
   CLIENT_ROLES,
   hasCapability,
-  INTERNAL_ROLES,
   isInternalRole,
+  isPlatformSupportRole,
   mayGrantCapability,
   PROJECT_ROLES,
 } from '@tmanage/domain';
@@ -106,7 +107,8 @@ function requireRoleAssigner(principal: Principal): void {
 /** Every built-in role with its capability ceiling, internal roles first (most-privileged first). */
 export function builtInRoles(principal: Principal): readonly BuiltInRoleView[] {
   const assigner = isRoleAssigner(principal);
-  const internal = INTERNAL_ROLES.map((role) => ({
+  // PA-01: the hidden `platform_support` role is never listed or assignable here.
+  const internal = ASSIGNABLE_INTERNAL_ROLES.map((role) => ({
     role,
     kind: 'internal' as const,
     capabilities: capabilitiesFor(role),
@@ -172,7 +174,8 @@ export class MemberRoleController {
       ]);
     }
     const role = customRoleId ?? (typeof body?.role === 'string' ? body.role.trim() : '');
-    if (customRoleId === undefined && !isInternalRole(role)) {
+    // PA-01: the Support-session role is internal but only the support service writes it.
+    if (customRoleId === undefined && (!isInternalRole(role) || isPlatformSupportRole(role))) {
       throw new ApiError(400, 'validation_failed', 'Choose a role.', [
         { field: 'role', message: 'must be one of the built-in staff roles' },
       ]);

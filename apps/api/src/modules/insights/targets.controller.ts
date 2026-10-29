@@ -62,7 +62,7 @@ export class InsightTargetsController {
 
   /** List the org's targets. Org-level `work.read` (refusal is a 403), tenant-scoped by `orgSlug`. */
   @Get()
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -73,7 +73,7 @@ export class InsightTargetsController {
 
   /** Compare each stored target to its live metric value — on-track / behind. Org-level `work.read`. */
   @Get('status')
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async status(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

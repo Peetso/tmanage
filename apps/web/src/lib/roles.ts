@@ -92,6 +92,14 @@ const DESCRIPTIONS: Record<InternalRole, RoleDescription> = {
     withholds:
       'Cannot change anything. Not for clients: clients are invited to their own portal, separately.',
   },
+  // ---- platform-admin v2 · PA-01 ----
+  // The hidden Support-session role (SPEC §3.2). Never offered in a picker; described only so a
+  // row that carries it reads as what it is.
+  platform_support: {
+    label: 'TManage support',
+    grants: ['Everything an owner can do, for the length of a recorded support visit'],
+    withholds: 'Cannot be given to anyone from this workspace.',
+  },
 };
 
 /**

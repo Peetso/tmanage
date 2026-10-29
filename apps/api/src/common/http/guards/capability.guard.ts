@@ -1,7 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { hasCapability, isClientRole, isInternalOnlyCapability } from '@tmanage/domain';
+import {
+  hasCapability,
+  isClientRole,
+  isInternalOnlyCapability,
+  principalHoldsCapability,
+} from '@tmanage/domain';
 import type { Capability } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../errors.js';
 import { IS_PUBLIC, REQUIRED_CAPABILITY, SKIPS_TENANT } from '../decorators.js';
@@ -116,8 +121,16 @@ export class CapabilityGuard implements CanActivate {
     // the role table: if a future edit wrongly grants an internal capability to a client role,
     // this still denies, and the cost of that particular mistake is a client reading internal
     // content. `authorize()` makes the same check for the same reason.
-    if (!hasCapability(principal.role, capability)) {
-      throw await this.denial(state, capability, 'capability_not_in_role_ceiling');
+    // PA-01 (SPEC §3.3): a per-member override can add a capability the role lacks or take one
+    // away; the route gate reads the same effective set `authorize()` step 3 does.
+    if (!principalHoldsCapability(principal, capability)) {
+      throw await this.denial(
+        state,
+        capability,
+        hasCapability(principal.role, capability)
+          ? 'capability_denied_by_override'
+          : 'capability_not_in_role_ceiling',
+      );
     }
 
     const isClient = principal.kind === 'client' || isClientRole(principal.role);

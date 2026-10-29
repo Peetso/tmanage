@@ -154,7 +154,7 @@ export class InsightCustomReportsController {
 
   /** List the acting user's custom reports (200). */
   @Get()
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() _principal: Principal,
@@ -165,7 +165,7 @@ export class InsightCustomReportsController {
 
   /** Create a custom report owned by the acting user (201). Bad name/keys/layout → 400, no write. */
   @Post()
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   @HttpCode(201)
   async create(
     @Ctx() context: TenantContext,
@@ -183,7 +183,7 @@ export class InsightCustomReportsController {
    * caller's to learn.
    */
   @Get(':reportId')
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async getById(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -200,7 +200,7 @@ export class InsightCustomReportsController {
    * user's report (or none) is a 404, and a bad body is a 400 with no write.
    */
   @Put(':reportId')
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async replace(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() _principal: Principal,
@@ -218,7 +218,7 @@ export class InsightCustomReportsController {
    * nothing and answers 404 — a private report's existence is not the caller's to learn.
    */
   @Delete(':reportId')
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   @HttpCode(204)
   async remove(
     @Ctx() context: TenantContext,

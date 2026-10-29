@@ -1,14 +1,17 @@
 import { and, eq, gt, gte, isNull, ne, or, sql } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
 import {
-  capabilitiesFor,
+  CAPABILITIES,
   customRoleKey,
+  effectiveCapabilitySet,
   isClientRole,
   isCustomRoleId,
   isInternalRole,
+  isPlatformSupportRole,
   isRole,
   parseCustomRoleCapabilities,
 } from '@tmanage/domain';
-import type { PrincipalRole, Role } from '@tmanage/domain';
+import type { PermissionOverrides, PrincipalRole, Role } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
   clientMemberships,
@@ -24,6 +27,7 @@ import type {
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
 import { AuditService } from '../audit/audit.service.js';
+import { MembershipOverridesRepository, NO_OVERRIDES } from './membership-overrides.repository.js';
 
 /**
  * The membership resolver — spec section 3 steps 2 and 3.
@@ -93,6 +97,26 @@ export interface ResolvedMembership {
    * project-membership fallback untouched.
    */
   readonly workspaceScopeId: string | null;
+  /**
+   * platform-admin v2 · PA-01 (SPEC §3.3). The member's live permission overrides (not revoked,
+   * not expired), loaded tenant-scoped with the membership. `principalFor` puts them on the
+   * principal, where `authorize()` step 3 reads them. The resolver always sets it (empty lists when
+   * there are none); optional only so hand-built test fixtures keep compiling.
+   */
+  readonly overrides?: PermissionOverrides;
+  /**
+   * platform-admin v2 · PA-01 (SPEC §3.2). Set only for the hidden `platform_support` role: the
+   * live Support session the membership is bound to. A `platform_support` membership whose session
+   * has ended or expired never resolves, so this is never stale on a resolved membership.
+   */
+  readonly supportSession?: ResolvedSupportSession | null;
+}
+
+/** PA-01. The live Support session behind a `platform_support` membership. */
+export interface ResolvedSupportSession {
+  readonly id: string;
+  readonly adminUserId: string;
+  readonly expiresAt: Date;
 }
 
 /**
@@ -122,11 +146,21 @@ export type MembershipResolutionFailure =
    * the client row has proved the caller belongs; mapped like every other refusal (the neutral
    * organization-not-found answer), so it tells the caller nothing about the company.
    */
-  | 'staff_access_stopped';
+  | 'staff_access_stopped'
+  /**
+   * platform-admin v2 · PA-01 (SPEC §6 0243). A proved member of an organization the platform
+   * operator has deleted (`organizations.deleted_at`; restorable until `purge_after`). Raised only
+   * after the membership row matched, like `organization_suspended`.
+   */
+  | 'organization_closed';
 
 /** What a member of a suspended company is told. The data is kept; support can reopen it. */
 export const SUSPENDED_MESSAGE =
   'This workspace is suspended. Contact TManage support to have it reopened.';
+
+/** PA-01. What a member of a deleted (not yet purged) company is told. */
+export const CLOSED_MESSAGE =
+  'This workspace has been closed. Contact TManage support if you think this is a mistake.';
 
 /**
  * One message for every failure, and the reason it must stay that way.
@@ -200,7 +234,46 @@ interface Candidate {
   readonly workspaceScopeId: string | null;
   /** 0206. Set when the platform operator suspended the company; the member is refused. */
   readonly suspendedAt: Date | null;
+  /** PA-01 / 0243. Set when the platform operator deleted the company; the member is refused. */
+  readonly deletedAt?: Date | null;
 }
+
+/**
+ * PA-01. Whether `organizations.deleted_at` (migration 0243, PA-07, wave 2) exists yet.
+ *
+ * The resolver reads the column only once it is there: it asks the server once per process
+ * (`SELECT deleted_at … LIMIT 0`), remembers the answer, and from then on the deleted check costs
+ * nothing extra. A deploy runs the migrations before the new process starts, so the first probe
+ * after 0243 sees the column. Exported for the tests only.
+ */
+export const ORGANIZATION_DELETED_AT = {
+  state: 'unknown' as 'unknown' | 'present' | 'absent',
+  reset(): void {
+    this.state = 'unknown';
+  },
+};
+
+/** MySQL/MariaDB "unknown column" (ER_BAD_FIELD_ERROR), however the driver wrapped it. */
+function isUnknownColumn(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 5 && current !== null && typeof current === 'object'; depth += 1) {
+    const candidate = current as { errno?: unknown; code?: unknown; cause?: unknown };
+    if (candidate.errno === 1054 || candidate.code === 'ER_BAD_FIELD_ERROR') return true;
+    current = candidate.cause;
+  }
+  return false;
+}
+
+/**
+ * PA-01. The live Support session behind a `platform_support` membership (SPEC §3.2: live means
+ * `ended_at IS NULL AND expires_at > now`, by the server's clock). `platform_support_sessions` is a
+ * global table (0240), so the read names no tenant table beyond the allowlist.
+ */
+const LIVE_SUPPORT_SESSION_SQL =
+  'SELECT id, admin_user_id, expires_at FROM platform_support_sessions ' +
+  'WHERE organization_id = ? AND membership_id = ? AND admin_user_id = ? ' +
+  'AND ended_at IS NULL AND expires_at > now(3) ' +
+  'ORDER BY started_at DESC LIMIT 1';
 
 /** How many shadowed client rows one resolver remembers having audited (bounded, per process). */
 const SHADOW_AUDIT_MEMORY = 1000;
@@ -212,23 +285,46 @@ export class MembershipResolver {
   constructor(
     private readonly database: TenantDatabase,
     private readonly audit: Pick<AuditService, 'recordStandalone'> = new AuditService(database),
+    private readonly overrides: Pick<
+      MembershipOverridesRepository,
+      'liveOverrides'
+    > = new MembershipOverridesRepository(),
   ) {}
 
   async resolve(request: ResolveMembershipRequest): Promise<ResolvedMembership> {
-    const { internal, client, staffStopped } = await this.database.bootstrapRead(
+    // PA-01: learn once per process whether 0243's `organizations.deleted_at` exists. Its own
+    // short read, so the resolution transaction below runs the same statements in the same order.
+    if (ORGANIZATION_DELETED_AT.state === 'unknown') {
+      await this.database.bootstrapRead(
+        {
+          correlationId: request.correlationId,
+          reason: RESOLUTION_REASON,
+          tables: ['organizations'],
+        },
+        (tx) => this.probeDeletedAt(tx),
+      );
+    }
+    const { internal, client, staffStopped, supportSession } = await this.database.bootstrapRead(
       {
         correlationId: request.correlationId,
         reason: RESOLUTION_REASON,
         tables: [...RESOLUTION_TABLES],
       },
       async (tx) => {
-        const internal = await this.internalMembership(tx, request);
+        let internal = await this.internalMembership(tx, request);
+        // PA-01 (SPEC §3.2): the hidden Support-session role resolves only while its session row
+        // is live. An ended or expired session leaves the row unresolved — `no_active_membership`.
+        let supportSession: ResolvedSupportSession | null = null;
+        if (internal !== null && isPlatformSupportRole(internal.role)) {
+          supportSession = await this.liveSupportSession(tx, request, internal);
+          if (supportSession === null) internal = null;
+        }
         const client = await this.clientMembership(tx, request);
         // Wave 11 Q4 (M05): only a client-only resolution needs the staff row's history. Active
         // staff are the F27b case above and resolve as staff, unchanged.
         const staffStopped =
           internal === null && client !== null && (await this.staffStopped(tx, request, client));
-        return { internal, client, staffStopped };
+        return { internal, client, staffStopped, supportSession };
       },
     );
 
@@ -252,17 +348,21 @@ export class MembershipResolver {
     if (candidate.suspendedAt !== null) {
       throw new MembershipNotResolvedError('organization_suspended');
     }
+    // PA-01: a deleted (restorable) company refuses its members the same way, after the proof.
+    if (candidate.deletedAt != null) throw new MembershipNotResolvedError('organization_closed');
     // Wave 11 Q4 (M05). After the client row proved membership, like the check above.
     if (staffStopped) throw new MembershipNotResolvedError('staff_access_stopped');
 
     const kind = internal ? 'internal' : 'client';
-    const contextFor = (role: PrincipalRole) =>
+    const contextFor = (role: PrincipalRole, overrides: PermissionOverrides = NO_OVERRIDES) =>
       createTenantContext({
         organizationId: candidate.organizationId,
         userId: request.userId,
         principalKind: kind,
         membershipId: candidate.membershipId,
-        capabilities: capabilitiesFor(role),
+        // PA-01: the context carries the effective set — role ∪ allow − deny — in
+        // `CAPABILITIES` order, so every reader of `context.capabilities` sees the overrides.
+        capabilities: effectiveCapabilities(role, overrides),
         policyVersion: policyVersionOf(
           candidate.organizationPolicyVersion,
           candidate.membershipPolicyVersion,
@@ -275,15 +375,56 @@ export class MembershipResolver {
         ? await this.customRole(candidate.role, contextFor)
         : this.validateRole(candidate.role, kind);
 
-    const context = contextFor(role);
+    // PA-01: the member's live overrides, read on the ordinary scoped path bound to the
+    // organization the membership row just proved (same as the custom role read above).
+    const overrides = await this.database.read(contextFor(role), (runner) =>
+      this.overrides.liveOverrides(runner, contextFor(role), candidate.membershipId, kind),
+    );
+    const context = contextFor(role, overrides);
     if (shadowedClient !== null) await this.recordShadowedClient(context, shadowedClient);
 
     return {
       context,
       role,
       clientOrganizationId: candidate.clientOrganizationId,
-      hasOrgWideScope: candidate.hasOrgWideScope,
-      workspaceScopeId: candidate.workspaceScopeId,
+      // A live Support session is org-wide by definition (SPEC P3), whatever the row says.
+      hasOrgWideScope: supportSession !== null ? true : candidate.hasOrgWideScope,
+      workspaceScopeId: supportSession !== null ? null : candidate.workspaceScopeId,
+      overrides,
+      supportSession,
+    };
+  }
+
+  /** PA-01. Learn once per process whether `organizations.deleted_at` exists (0243). */
+  private async probeDeletedAt(tx: BootstrapQueryRunner): Promise<void> {
+    if (ORGANIZATION_DELETED_AT.state !== 'unknown') return;
+    try {
+      await tx.query('SELECT deleted_at FROM organizations LIMIT 0');
+      ORGANIZATION_DELETED_AT.state = 'present';
+    } catch (error) {
+      if (!isUnknownColumn(error)) throw error;
+      ORGANIZATION_DELETED_AT.state = 'absent';
+    }
+  }
+
+  /** PA-01. The live Support session for a `platform_support` membership, or null. */
+  private async liveSupportSession(
+    tx: BootstrapQueryRunner,
+    request: ResolveMembershipRequest,
+    internal: Candidate,
+  ): Promise<ResolvedSupportSession | null> {
+    const rows = (await tx.query(LIVE_SUPPORT_SESSION_SQL, [
+      internal.organizationId,
+      internal.membershipId,
+      request.userId,
+    ])) as unknown as readonly Record<string, unknown>[];
+    const row = rows[0];
+    if (!row) return null;
+    const expiresAt = row['expires_at'];
+    return {
+      id: String(row['id']),
+      adminUserId: String(row['admin_user_id']),
+      expiresAt: expiresAt instanceof Date ? expiresAt : new Date(String(expiresAt)),
     };
   }
 
@@ -389,6 +530,7 @@ export class MembershipResolver {
         hasOrgWideScope: memberships.hasOrgWideScope,
         workspaceScopeId: memberships.workspaceScopeId,
         suspendedAt: organizations.suspendedAt,
+        ...deletedAtColumn(),
       })
       .from(organizations)
       .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
@@ -468,6 +610,7 @@ export class MembershipResolver {
         membershipUpdatedAt: clientMemberships.updatedAt,
         clientOrganizationId: clientMemberships.clientOrganizationId,
         suspendedAt: organizations.suspendedAt,
+        ...deletedAtColumn(),
       })
       .from(organizations)
       .innerJoin(clientMemberships, eq(clientMemberships.organizationId, organizations.id))
@@ -506,6 +649,26 @@ export class MembershipResolver {
       workspaceScopeId: null,
     };
   }
+}
+
+/** PA-01. `organizations.deleted_at` as a select field, only once 0243 has added it. */
+function deletedAtColumn(): { deletedAt?: SQL<Date | null> } {
+  if (ORGANIZATION_DELETED_AT.state !== 'present') return {};
+  return { deletedAt: sql<Date | null>`${organizations}.deleted_at`.mapWith(toDateOrNull) };
+}
+
+function toDateOrNull(value: unknown): Date | null {
+  if (value === null || value === undefined) return null;
+  return value instanceof Date ? value : new Date(String(value));
+}
+
+/** PA-01. The context's capability list: role ∪ allow − deny, in `CAPABILITIES` order. */
+function effectiveCapabilities(
+  role: PrincipalRole,
+  overrides: PermissionOverrides,
+): readonly (typeof CAPABILITIES)[number][] {
+  const held = effectiveCapabilitySet({ role, overrides });
+  return CAPABILITIES.filter((capability) => held.has(capability));
 }
 
 /** A client row still open (not offboarded) for one person in the acting tenant. */

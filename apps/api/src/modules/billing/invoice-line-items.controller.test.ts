@@ -143,7 +143,7 @@ describe('invoice line-items route capabilities', () => {
   const capabilityOf = (proto: object, key: string): unknown =>
     Reflect.getMetadata(REQUIRED_CAPABILITY, (proto as Record<string, unknown>)[key] as object);
 
-  it('guards the list with org.manage', () => {
-    expect(capabilityOf(InvoiceLineItemsController.prototype, 'list')).toBe('org.manage');
+  it('guards the list with billing.view (PA-01)', () => {
+    expect(capabilityOf(InvoiceLineItemsController.prototype, 'list')).toBe('billing.view');
   });
 });

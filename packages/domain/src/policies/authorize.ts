@@ -1,6 +1,7 @@
 import {
+  capabilitySetFor,
   customRoleIdOf,
-  hasCapability,
+  isPlatformSupportRole,
   isClientRole,
   isInternalOnlyCapability,
   type Capability,
@@ -74,6 +75,59 @@ export interface Principal {
    * Derived at session build time from role, kept here so the evaluator stays pure.
    */
   readonly hasOrgWideScope: boolean;
+  /**
+   * platform-admin v2 · PA-01 (SPEC §3.3). Live per-member overrides from
+   * `membership_permission_overrides`, loaded by the membership resolver. `allow` adds a
+   * capability on top of the role; `deny` removes one. Absent means none. Step 3 of
+   * {@link authorize} is the only reader; org policy and the internal-only guard still run after
+   * it, so an override can never widen a client principal into internal content.
+   */
+  readonly overrides?: PermissionOverrides;
+}
+
+/** PA-01. A member's live allow/deny overrides, as the resolver loads them. */
+export interface PermissionOverrides {
+  readonly allow: readonly Capability[];
+  readonly deny: readonly Capability[];
+}
+
+/**
+ * PA-01. Does the principal's role, as adjusted by their overrides, hold `capability`? The
+ * ceiling half of step 3, shared with the route guard so both read overrides the same way.
+ * A deny never applies to the hidden `platform_support` role (SPEC §3.3).
+ */
+export function principalHoldsCapability(
+  principal: Pick<Principal, 'role' | 'overrides'>,
+  capability: Capability,
+): boolean {
+  return ceilingCheck(principal, capability) === null;
+}
+
+/** The capability set a principal holds after overrides: role ∪ allow − deny. */
+export function effectiveCapabilitySet(
+  principal: Pick<Principal, 'role' | 'overrides'>,
+): ReadonlySet<Capability> {
+  const base = capabilitySetFor(principal.role);
+  if (!principal.overrides) return base;
+  const out = new Set<Capability>(base);
+  for (const capability of principal.overrides.allow) out.add(capability);
+  if (!isPlatformSupportRole(principal.role)) {
+    for (const capability of principal.overrides.deny) out.delete(capability);
+  }
+  return out;
+}
+
+function ceilingCheck(
+  principal: Pick<Principal, 'role' | 'overrides'>,
+  capability: Capability,
+): 'capability_not_in_role_ceiling' | 'capability_denied_by_override' | null {
+  const overrides = principal.overrides;
+  if (overrides?.deny.includes(capability) === true && !isPlatformSupportRole(principal.role)) {
+    return 'capability_denied_by_override';
+  }
+  const inRole = capabilitySetFor(principal.role).has(capability);
+  if (inRole || overrides?.allow.includes(capability) === true) return null;
+  return 'capability_not_in_role_ceiling';
 }
 
 /** The thing being acted upon. Loaded tenant-scoped before the decision (§3 step 4). */
@@ -116,6 +170,8 @@ export type DenialCode =
   | 'membership_inactive'
   | 'tenant_mismatch'
   | 'capability_not_in_role_ceiling'
+  /** PA-01. The role holds it, but a live per-member deny override removes it. */
+  | 'capability_denied_by_override'
   | 'capability_disabled_by_policy'
   | 'capability_is_internal_only'
   | 'client_organization_mismatch'
@@ -198,8 +254,15 @@ export function authorize(request: AuthorizationRequest): AuthorizationDecision 
     return deny('tenant_mismatch', 'resource belongs to a different organization');
   }
 
-  // 3. Role ceiling — a built-in role's ceiling, or a custom role's exact capability set.
-  if (!hasCapability(principal.role, capability)) {
+  // 3. Role ceiling — a built-in role's ceiling, or a custom role's exact capability set —
+  //    adjusted by the member's live overrides (PA-01, SPEC §3.3): allowed when the role holds
+  //    it or an allow names it, and no deny names it. Org policy (4) and the internal-only
+  //    guard (5) still run after, so an override narrows or widens only inside them.
+  const ceiling = ceilingCheck(principal, capability);
+  if (ceiling === 'capability_denied_by_override') {
+    return deny(ceiling, `${capability} is removed for this member by an override`);
+  }
+  if (ceiling !== null) {
     const label = customRoleIdOf(principal.role) === null ? principal.role : 'custom role';
     return deny('capability_not_in_role_ceiling', `role ${label} does not include ${capability}`);
   }
@@ -319,7 +382,11 @@ export function mayGrantCapability(
   capability: Capability,
   organizationId: string,
 ): AuthorizationDecision {
-  const isOwner = principal.kind === 'internal' && principal.role === 'owner';
+  // PA-01: a live Support session (`platform_support`) carries the owner's ceiling and grants
+  // as the owner does (SPEC §3.2 — ownership can be transferred from inside support mode).
+  const isOwner =
+    principal.kind === 'internal' &&
+    (principal.role === 'owner' || isPlatformSupportRole(principal.role));
   return authorize({
     principal,
     capability,

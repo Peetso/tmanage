@@ -23,6 +23,8 @@ const CORRELATION = '0199aa00-0000-7000-8000-0000000000e9';
 
 function setup(rows: { internal: boolean; client: boolean; clientOrg?: string }) {
   const database = {
+    // PA-01: the resolver reads the member's live permission overrides on the scoped path.
+    read: async () => ({ allow: [], deny: [] }),
     bootstrapRead: async <T>(_o: unknown, work: (db: unknown) => Promise<T>) => {
       let call = 0;
       return work({

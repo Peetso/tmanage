@@ -78,9 +78,67 @@ export const CAPABILITIES = [
   'file.upload',
   'file.download',
   'search.use',
+  // ---- platform-admin v2 · PA-01 (SPEC §3.3) ----
+  // The permission matrix (areas × view/create/edit/delete/approve/export/manage) needs one
+  // capability per meaningful cell. Appended, never inserted: a custom role key's mask is rebuilt
+  // from `custom_roles.capabilities_json` on every request, and appending keeps every existing
+  // nibble where it was. SPEC §3.3 calls them "22"; its bold list names 24 and every one is kept,
+  // so the list is 56 long.
+  'project.delete',
+  'work.delete',
+  'work.export',
+  'conversation.delete',
+  'conversation.export',
+  'doc.delete',
+  'doc.export',
+  'decision.read',
+  'decision.write',
+  'decision.delete',
+  'meeting.delete',
+  'file.delete',
+  'storage.manage',
+  'people.view',
+  'people.invite',
+  'people.edit',
+  'roles.assign',
+  'billing.view',
+  'billing.manage',
+  'settings.view',
+  'ai.use',
+  'ai.manage',
+  'report.view',
+  'report.export',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
+
+/** PA-01: the capabilities SPEC §3.3 added (its bold cells), in `CAPABILITIES` order. */
+export const MATRIX_NEW_CAPABILITIES: readonly Capability[] = [
+  'project.delete',
+  'work.delete',
+  'work.export',
+  'conversation.delete',
+  'conversation.export',
+  'doc.delete',
+  'doc.export',
+  'decision.read',
+  'decision.write',
+  'decision.delete',
+  'meeting.delete',
+  'file.delete',
+  'storage.manage',
+  'people.view',
+  'people.invite',
+  'people.edit',
+  'roles.assign',
+  'billing.view',
+  'billing.manage',
+  'settings.view',
+  'ai.use',
+  'ai.manage',
+  'report.view',
+  'report.export',
+];
 
 /** `12-PERMISSION-MATRIX.md` §1. Internal principals. */
 export const INTERNAL_ROLES = [
@@ -91,7 +149,40 @@ export const INTERNAL_ROLES = [
   'moderator',
   'member',
   'guest',
+  /**
+   * platform-admin v2 · PA-01 (SPEC P3, §3.2). The hidden membership a TManage platform admin
+   * holds while a Support session is live in this organization: the full ceiling, org-wide
+   * scope, internal. Never offered in a role picker and never granted through an org route
+   * (`role-grant-ceiling.ts` refuses it); only the Support-session service writes it, and the
+   * membership resolver accepts it only while its `platform_support_sessions` row is live.
+   * Listed last so the "most-privileged first" order of the real roles is unchanged.
+   */
+  'platform_support',
 ] as const;
+
+/** The internal role only a Support session writes; never assignable from an org screen. */
+export const PLATFORM_SUPPORT_ROLE = 'platform_support' as const;
+
+/**
+ * The internal roles a person can be given from an organization screen or seeded as a real
+ * member: every internal role except the hidden Support-session role. Role pickers, role grids
+ * and per-role test sweeps iterate this; `INTERNAL_ROLES` is the full vocabulary the resolver
+ * and the ceiling table know.
+ */
+export const ASSIGNABLE_INTERNAL_ROLES = [
+  'owner',
+  'org_admin',
+  'workspace_admin',
+  'manager',
+  'moderator',
+  'member',
+  'guest',
+] as const satisfies readonly (typeof INTERNAL_ROLES)[number][];
+
+/** Is this the hidden Support-session role? */
+export function isPlatformSupportRole(role: string): boolean {
+  return role === PLATFORM_SUPPORT_ROLE;
+}
 
 /**
  * The roles a person can hold *on a project* — a subset of {@link INTERNAL_ROLES}.
@@ -168,6 +259,9 @@ export function isRole(role: string): role is Role {
 const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
   owner: [...CAPABILITIES],
 
+  /** PA-01. A live Support session acts with the owner's ceiling (SPEC P3). */
+  platform_support: [...CAPABILITIES],
+
   /**
    * ADM-03. §2 reads "Billing/ownership: Policy" for Org Admin, and a `Policy` cell is granted in
    * the ceiling (the header above), so `org.manage` belongs here. Leaving it out locked the
@@ -213,6 +307,27 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     'file.upload',
     'file.download',
     'search.use',
+    // PA-01 (SPEC §3.3): every new matrix capability except billing, settings, roles and the AI
+    // connector's administration.
+    'project.delete',
+    'work.delete',
+    'work.export',
+    'conversation.delete',
+    'conversation.export',
+    'doc.delete',
+    'doc.export',
+    'decision.read',
+    'decision.write',
+    'decision.delete',
+    'meeting.delete',
+    'file.delete',
+    'storage.manage',
+    'people.view',
+    'people.invite',
+    'people.edit',
+    'ai.use',
+    'report.view',
+    'report.export',
   ],
 
   manager: [
@@ -247,6 +362,25 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     'file.upload',
     'file.download',
     'search.use',
+    // PA-01 (SPEC §3.3): delete on their projects' work, docs, meetings, decisions and files (the
+    // project relation still gates which projects), the exports, and the member set below.
+    // `conversation.delete` keeps the authority over other people's messages `conversation.moderate`
+    // gives a manager.
+    'work.delete',
+    'work.export',
+    'conversation.delete',
+    'conversation.export',
+    'doc.delete',
+    'doc.export',
+    'decision.read',
+    'decision.write',
+    'decision.delete',
+    'meeting.delete',
+    'file.delete',
+    'people.view',
+    'ai.use',
+    'report.view',
+    'report.export',
   ],
 
   moderator: [
@@ -274,6 +408,14 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     'file.upload',
     'file.download',
     'search.use',
+    // PA-01 (SPEC §3.3): a moderator deletes messages; the decision register keeps the reach it
+    // had through `meeting.*`; plus the member set (directory, reports, AI connector).
+    'conversation.delete',
+    'decision.read',
+    'decision.write',
+    'people.view',
+    'ai.use',
+    'report.view',
   ],
 
   member: [
@@ -301,6 +443,12 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     'file.upload',
     'file.download',
     'search.use',
+    // PA-01 (SPEC §3.3): directory, reports, AI connector, and the decision register.
+    'decision.read',
+    'decision.write',
+    'people.view',
+    'ai.use',
+    'report.view',
   ],
 
   guest: [
@@ -321,6 +469,12 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     'approval.decide',
     'file.download',
     'search.use',
+    // PA-01 (SPEC §3.3): the directory and reading decisions. `report.view` and `ai.use` keep what
+    // a guest already reached through `work.read` before insights and token minting moved.
+    'decision.read',
+    'people.view',
+    'ai.use',
+    'report.view',
   ],
 
   // ── Client roles ────────────────────────────────────────────────────────────
@@ -567,6 +721,9 @@ export const INTERNAL_ONLY_CAPABILITIES: readonly Capability[] = [
   'audit.export',
   'member.offboard',
   'search.use',
+  // PA-01 (SPEC §3.3): every new matrix capability is internal-only. Client roles gain nothing,
+  // and no per-member override can widen a client principal past this guard.
+  ...MATRIX_NEW_CAPABILITIES,
 ];
 
 const INTERNAL_ONLY_SET: ReadonlySet<Capability> = new Set(INTERNAL_ONLY_CAPABILITIES);

@@ -69,7 +69,7 @@ export class FileFoldersController {
   }
 
   @Delete('projects/:projectId/folders/:folderId')
-  @RequireCapability('file.upload')
+  @RequireCapability('file.delete')
   @HttpCode(204)
   async remove(
     @Ctx() context: TenantContext,

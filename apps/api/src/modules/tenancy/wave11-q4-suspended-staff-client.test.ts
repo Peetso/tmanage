@@ -17,6 +17,7 @@ import {
   MembershipNotResolvedError,
   MembershipResolver,
   StaffClientRowsRepository,
+  ORGANIZATION_DELETED_AT,
 } from './membership-resolver.repository.js';
 
 /**
@@ -55,7 +56,12 @@ interface Staff {
  */
 function setup(options: { staff: Staff | null; client: boolean }) {
   const statements: { sql: string; params: readonly unknown[] }[] = [];
+  // PA-01: 0243's `organizations.deleted_at` is probed once per process; these statements are
+  // the resolution transaction's, so the probe is settled here.
+  ORGANIZATION_DELETED_AT.state = 'absent';
   const database = {
+    // PA-01: the resolver reads the member's live permission overrides on the scoped path.
+    read: async () => ({ allow: [], deny: [] }),
     bootstrapRead: async <T>(_o: unknown, work: (db: unknown) => Promise<T>) => {
       let call = 0;
       return work({

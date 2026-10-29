@@ -4,7 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { RowDataPacket } from 'mysql2/promise';
-import { INTERNAL_ROLES, uuidv7 } from '@tmanage/domain';
+import { ASSIGNABLE_INTERNAL_ROLES, uuidv7 } from '@tmanage/domain';
 import type { Capability, InternalRole } from '@tmanage/domain';
 import { expectedCeilingGrants } from '@tmanage/test-kit';
 import { AppModule } from '../src/app.module.js';
@@ -162,7 +162,7 @@ beforeAll(async () => {
   await truncateAll(db.admin);
   world = await seedTwoTenants(db.admin);
 
-  for (const role of INTERNAL_ROLES) {
+  for (const role of ASSIGNABLE_INTERNAL_ROLES) {
     const userId = uuidv7();
     await db.admin.execute(
       `insert into users (id, email, display_name, email_verified_at)
@@ -201,7 +201,7 @@ afterAll(async () => {
 });
 
 describe('§11 role grid, internal side', () => {
-  for (const role of INTERNAL_ROLES) {
+  for (const role of ASSIGNABLE_INTERNAL_ROLES) {
     it(`'${role}' is allowed exactly the cells its ceiling grants`, async () => {
       const session = await signIn(roleUsers.get(role) as string);
       for (const cell of GRID) {
@@ -230,7 +230,7 @@ describe('§11 role grid, internal side', () => {
     // attempts are security events". The count is exact: a missing row is a silent
     // refusal, a surplus row is a phantom attempt.
     let refusals = 0;
-    for (const role of INTERNAL_ROLES) {
+    for (const role of ASSIGNABLE_INTERNAL_ROLES) {
       for (const cell of GRID) {
         if (!expectedCeilingGrants(role, cell.capability)) refusals += 1;
       }

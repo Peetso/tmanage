@@ -58,7 +58,7 @@ export class BillingDiscountsController {
 
   /** List the acting tenant's discounts, each marked active or expired. `org.manage`. */
   @Get()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.view')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -68,7 +68,7 @@ export class BillingDiscountsController {
 
   /** Record a discount / adjustment. `org.manage`. An invalid field is a 400 with no write. */
   @Post()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   @HttpCode(201)
   async create(
     @Ctx() context: TenantContext,
@@ -84,7 +84,7 @@ export class BillingDiscountsController {
 
   /** Remove a discount, tenant-scoped. A cross-tenant or absent id is a 404. `org.manage`. */
   @Delete(':discountId')
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   @HttpCode(204)
   async remove(
     @Ctx() context: TenantContext,

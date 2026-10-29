@@ -49,7 +49,7 @@ export class InsightAnnotationsController {
 
   /** List one snapshot's annotations, newest first. Unknown snapshot → 404. */
   @Get()
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -61,7 +61,7 @@ export class InsightAnnotationsController {
 
   /** Attach a note to a snapshot, authored by the caller (201). Empty/over-long note → 400. */
   @Post()
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   @HttpCode(201)
   async add(
     @Ctx() context: TenantContext,
@@ -79,7 +79,7 @@ export class InsightAnnotationsController {
    * another member is a 403, with no delete.
    */
   @Delete(':annotationId')
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   @HttpCode(204)
   async remove(
     @Ctx() context: TenantContext,

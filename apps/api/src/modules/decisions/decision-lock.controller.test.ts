@@ -225,7 +225,7 @@ describe('decision-lock route capability', () => {
   const capabilityOf = (proto: object, key: string): unknown =>
     Reflect.getMetadata(REQUIRED_CAPABILITY, (proto as Record<string, unknown>)[key] as object);
 
-  it('guards the lock route with meeting.write', () => {
-    expect(capabilityOf(DecisionLockController.prototype, 'lock')).toBe('meeting.write');
+  it('guards the lock route with decision.write', () => {
+    expect(capabilityOf(DecisionLockController.prototype, 'lock')).toBe('decision.write');
   });
 });

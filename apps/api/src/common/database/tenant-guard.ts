@@ -1082,6 +1082,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // keyed `(organization_id, id)` with a composite FK to `audit_events (organization_id, id)`.
   // INSERT-only for the app, like `audit_events`.
   audit_event_changes: 'organization_id',
+  // ---- platform-admin v2 · PA-01 ----
+  // 0242. Tenant-owned: one member's allow/deny permission override, keyed `(organization_id, id)`
+  // with a composite FK to `memberships (organization_id, id)`. Revoked by UPDATE, never deleted.
+  membership_permission_overrides: 'organization_id',
 });
 
 /**

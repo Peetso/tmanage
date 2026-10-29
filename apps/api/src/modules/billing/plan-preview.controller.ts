@@ -27,7 +27,7 @@ export class PlanPreviewController {
    * otherwise the deterministic delta against the tenant's current subscription.
    */
   @Get('preview')
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.view')
   async preview(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

@@ -59,7 +59,7 @@ export class UsageAlertsController {
 
   /** List the acting tenant's usage-alert rules, metric-ascending. `org.manage`. */
   @Get()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.view')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -69,7 +69,7 @@ export class UsageAlertsController {
 
   /** Read which rules are currently breached. `org.manage`. Computes only; dispatches nothing. */
   @Get('status')
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.view')
   async status(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -79,7 +79,7 @@ export class UsageAlertsController {
 
   /** Create a usage-alert rule. `org.manage`. An off-list metric or out-of-range threshold is a 400. */
   @Post()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   @HttpCode(201)
   async create(
     @Ctx() context: TenantContext,
@@ -97,7 +97,7 @@ export class UsageAlertsController {
    * threshold is a 400 with no write. `org.manage`.
    */
   @Patch(':id')
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   async update(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

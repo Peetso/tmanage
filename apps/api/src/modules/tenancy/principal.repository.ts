@@ -39,7 +39,7 @@ import type { ResolvedMembership } from './membership-resolver.repository.js';
  * an organization that wants an org-wide workspace admin can have one as a recorded decision
  * rather than as a silent consequence of a role name.
  */
-export const ORG_WIDE_DEFAULT_ROLES: readonly string[] = ['owner', 'org_admin'];
+export const ORG_WIDE_DEFAULT_ROLES: readonly string[] = ['owner', 'org_admin', 'platform_support'];
 
 export function defaultOrgWideScope(role: string): boolean {
   return ORG_WIDE_DEFAULT_ROLES.includes(role);
@@ -151,5 +151,7 @@ export function principalFor(
     clientOrganizationId: resolved.clientOrganizationId,
     projectIds,
     hasOrgWideScope: resolved.hasOrgWideScope,
+    // PA-01 (SPEC §3.3): the live per-member overrides `authorize()` step 3 reads.
+    ...(resolved.overrides ? { overrides: resolved.overrides } : {}),
   };
 }

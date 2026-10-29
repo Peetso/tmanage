@@ -516,3 +516,68 @@ describe('mayGrantCapability (ADM-08) and the org admin ceiling (ADM-03)', () =>
     expect(verdict.allowed).toBe(true);
   });
 });
+
+// ---- platform-admin v2 · PA-01 ----
+describe('authorize — per-member overrides (SPEC §3.3)', () => {
+  const orgWide = resource({ projectId: null, audience: 'internal' });
+
+  it('an allow adds a capability the role lacks', () => {
+    const member = internal({ overrides: { allow: ['report.export'], deny: [] } });
+    expect(
+      authorize({ principal: internal(), capability: 'report.export', resource: orgWide }),
+    ).toMatchObject({ allowed: false, code: 'capability_not_in_role_ceiling' });
+    expect(
+      authorize({ principal: member, capability: 'report.export', resource: orgWide }).allowed,
+    ).toBe(true);
+  });
+
+  it('a deny takes away a capability the role holds, with its own code', () => {
+    const member = internal({ overrides: { allow: [], deny: ['work.read'] } });
+    expect(
+      authorize({ principal: member, capability: 'work.read', resource: resource() }),
+    ).toMatchObject({ allowed: false, code: 'capability_denied_by_override' });
+  });
+
+  it('a deny wins over an allow of the same capability', () => {
+    const member = internal({ overrides: { allow: ['report.export'], deny: ['report.export'] } });
+    expect(
+      authorize({ principal: member, capability: 'report.export', resource: orgWide }),
+    ).toMatchObject({ allowed: false, code: 'capability_denied_by_override' });
+  });
+
+  it('never widens a client past the internal-only guard', () => {
+    const reviewer = client({ overrides: { allow: ['work.read', 'org.manage'], deny: [] } });
+    for (const capability of ['work.read', 'org.manage'] as const) {
+      const verdict = authorize({
+        principal: reviewer,
+        capability,
+        resource: resource({ audience: 'client_visible', clientOrganizationId: CLIENT_ATLAS }),
+      });
+      expect(verdict.allowed).toBe(false);
+    }
+  });
+
+  it('a deny does not apply to TManage support', () => {
+    const support = internal({
+      role: 'platform_support',
+      hasOrgWideScope: true,
+      overrides: { allow: [], deny: ['work.read'] },
+    });
+    expect(
+      authorize({ principal: support, capability: 'work.read', resource: resource() }).allowed,
+    ).toBe(true);
+  });
+
+  it('an owner keeps every internal capability with no overrides present', () => {
+    const owner = internal({ role: 'owner', hasOrgWideScope: true, projectIds: [] });
+    for (const capability of CAPABILITIES) {
+      if (capability === 'client_request.submit') continue;
+      const verdict = authorize({
+        principal: owner,
+        capability,
+        resource: orgWide,
+      });
+      if (!verdict.allowed) expect(verdict.code).not.toBe('capability_not_in_role_ceiling');
+    }
+  });
+});

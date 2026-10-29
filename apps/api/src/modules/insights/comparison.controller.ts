@@ -51,7 +51,7 @@ export class InsightComparisonController {
    * runs. A pure read — no write, no stored row.
    */
   @Get('compare')
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async compare(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

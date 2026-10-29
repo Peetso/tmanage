@@ -23,7 +23,7 @@ export class PlanUsageController {
 
   /** The current plan, its limits and the usage against them. */
   @Get()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.view')
   async read(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -33,7 +33,7 @@ export class PlanUsageController {
 
   /** What changing to `target` would do: price, start, due today, gains, losses, overages. */
   @Get('preview')
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.view')
   async preview(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

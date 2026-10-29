@@ -31,7 +31,7 @@ export class InsightMetricFavoritesController {
 
   /** List the caller's starred metrics, newest first. */
   @Get()
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async list(
     @Ctx() context: TenantContext,
   ): Promise<{ readonly favorites: readonly MetricFavoriteView[] }> {
@@ -40,7 +40,7 @@ export class InsightMetricFavoritesController {
 
   /** Star a metric for the caller. Idempotent: a repeated PUT returns the same view (200). */
   @Put(':metricKey')
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async add(
     @Ctx() context: TenantContext,
     @Param('metricKey') metricKey: string,
@@ -50,7 +50,7 @@ export class InsightMetricFavoritesController {
 
   /** Unstar a metric for the caller. Idempotent: no favorite is still 204. */
   @Delete(':metricKey')
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   @HttpCode(204)
   async remove(
     @Ctx() context: TenantContext,

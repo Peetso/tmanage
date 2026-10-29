@@ -1,10 +1,10 @@
-import { CAPABILITIES } from '@tmanage/domain';
-import type { Capability } from '@tmanage/domain';
+import { CAPABILITIES, MATRIX, MATRIX_ACTIONS, MATRIX_AREAS } from '@tmanage/domain';
+import type { Capability, MatrixAction, MatrixArea, MatrixRow } from '@tmanage/domain';
 
 /**
  * Plain names for the fixed capability list (ADM-09).
  *
- * The Roles and Policy simulation screens listed the 32 capability codes as they are written in
+ * The Roles and Policy simulation screens listed the capability codes (56 since platform-admin v2 · PA-01) as they are written in
  * `packages/domain` (`org.manage`, `client_projection.read`, `member.offboard`). A person choosing
  * what a role may do reads a sentence, not a code. The code is still what is sent to the API.
  *
@@ -22,7 +22,11 @@ export type CapabilityArea =
   | 'Clients'
   | 'Deliverables and approvals'
   | 'Files and search'
-  | 'Audit';
+  | 'Audit'
+  | 'Decisions'
+  | 'People and roles'
+  | 'Billing and settings'
+  | 'AI and reports';
 
 interface CapabilityLabel {
   readonly area: CapabilityArea;
@@ -68,6 +72,31 @@ const LABELS: Readonly<Record<Capability, CapabilityLabel>> = {
   'search.use': { area: 'Files and search', label: 'Search the workspace' },
   'audit.read': { area: 'Audit', label: 'Read the audit log' },
   'audit.export': { area: 'Audit', label: 'Export the audit log and organization data' },
+  // ---- platform-admin v2 · PA-01 ----
+  'project.delete': { area: 'Projects', label: 'Delete projects' },
+  'work.delete': { area: 'Work', label: 'Delete work items' },
+  'work.export': { area: 'Work', label: 'Export work items' },
+  'conversation.delete': { area: 'Chat', label: 'Delete chat messages' },
+  'conversation.export': { area: 'Chat', label: 'Export chat history' },
+  'doc.delete': { area: 'Meetings and docs', label: 'Delete docs' },
+  'doc.export': { area: 'Meetings and docs', label: 'Export docs' },
+  'decision.read': { area: 'Decisions', label: 'See decisions' },
+  'decision.write': { area: 'Decisions', label: 'Record and edit decisions' },
+  'decision.delete': { area: 'Decisions', label: 'Delete decisions' },
+  'meeting.delete': { area: 'Meetings and docs', label: 'Delete meetings' },
+  'file.delete': { area: 'Files and search', label: 'Delete files and folders' },
+  'storage.manage': { area: 'Files and search', label: 'Manage storage and connected drives' },
+  'people.view': { area: 'People and roles', label: 'See the people directory' },
+  'people.invite': { area: 'People and roles', label: 'Invite people' },
+  'people.edit': { area: 'People and roles', label: 'Edit people’s details' },
+  'roles.assign': { area: 'People and roles', label: 'Give roles and permissions' },
+  'billing.view': { area: 'Billing and settings', label: 'See billing and invoices' },
+  'billing.manage': { area: 'Billing and settings', label: 'Manage billing and the plan' },
+  'settings.view': { area: 'Billing and settings', label: 'See organization settings' },
+  'ai.use': { area: 'AI and reports', label: 'Use AI features' },
+  'ai.manage': { area: 'AI and reports', label: 'Manage AI connections and access' },
+  'report.view': { area: 'AI and reports', label: 'See reports and insights' },
+  'report.export': { area: 'AI and reports', label: 'Export reports' },
 };
 
 const AREA_ORDER: readonly CapabilityArea[] = [
@@ -80,6 +109,10 @@ const AREA_ORDER: readonly CapabilityArea[] = [
   'Deliverables and approvals',
   'Files and search',
   'Audit',
+  'Decisions',
+  'People and roles',
+  'Billing and settings',
+  'AI and reports',
 ];
 
 /** The plain name for a capability code; an unknown string (an old stored value) is shown as is. */
@@ -91,3 +124,8 @@ export function capabilityLabel(capability: string): string {
 export const CAPABILITIES_BY_AREA: readonly Capability[] = [...CAPABILITIES].sort(
   (a, b) => AREA_ORDER.indexOf(LABELS[a].area) - AREA_ORDER.indexOf(LABELS[b].area),
 );
+
+// ---- platform-admin v2 · PA-01 ----
+/** The area × action layout the permission matrix draws (SPEC §3.3), re-exported for the screens. */
+export { MATRIX, MATRIX_ACTIONS, MATRIX_AREAS };
+export type { MatrixAction, MatrixArea, MatrixRow };

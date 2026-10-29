@@ -32,7 +32,7 @@ export class CostCenterReportController {
 
   /** The acting tenant's spend-by-cost-centre roll-up, code-ascending. `org.manage`. */
   @Get()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.view')
   async report(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

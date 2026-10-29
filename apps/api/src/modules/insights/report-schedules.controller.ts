@@ -153,7 +153,7 @@ export class InsightReportSchedulesController {
 
   /** List the acting user's report schedules (200). */
   @Get()
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() _principal: Principal,
@@ -164,7 +164,7 @@ export class InsightReportSchedulesController {
 
   /** Create a report schedule owned by the acting user (201). An invalid body → 400. */
   @Post()
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   @HttpCode(201)
   async create(
     @Ctx() context: TenantContext,
@@ -182,7 +182,7 @@ export class InsightReportSchedulesController {
    * learn.
    */
   @Delete(':scheduleId')
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   @HttpCode(200)
   async remove(
     @Ctx() context: TenantContext,

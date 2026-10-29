@@ -168,13 +168,13 @@ describe('InsightDashboardLayoutController (x302)', () => {
     expect(result).toEqual({ tiles: DEFAULT_INSIGHT_DASHBOARD_TILES });
   });
 
-  it('guards both routes with work.read, so a caller without it is refused 403 by CapabilityGuard', () => {
+  it('guards both routes with report.view, so a caller without it is refused 403 by CapabilityGuard', () => {
     for (const method of ['get', 'put'] as const) {
       const capability = Reflect.getMetadata(
         REQUIRED_CAPABILITY,
         InsightDashboardLayoutController.prototype[method],
       );
-      expect(capability).toBe('work.read');
+      expect(capability).toBe('report.view');
     }
   });
 });

@@ -3204,6 +3204,39 @@ type _d5PrivacyMemberOption = Assert<Exact<ApiPrivacyMemberOptionView, WebPrivac
 type _d5PrivacyOverview = Assert<Exact<ApiPrivacyOverviewView, WebPrivacyOverviewView>>;
 type _d5MyPrivacy = Assert<Exact<ApiMyPrivacyView, WebMyPrivacyView>>;
 
+// ---- platform-admin v2 · PA-01 ----
+// The role matrix, per-member overrides, the effective-permissions preview and the org `me` view
+// (SPEC §3.3), read by `apps/web/src/lib/api/permission-matrix.ts`.
+import type {
+  MatrixRoleView as ApiMatrixRoleView,
+  RolesMatrixView as ApiRolesMatrixView,
+} from '../../apps/api/src/modules/admin/roles-matrix.controller.js';
+import type {
+  MemberEffectivePermissionsView as ApiMemberEffectivePermissionsView,
+  MembershipOverrideView as ApiMembershipOverrideView,
+  MembershipOverridesChangeView as ApiMembershipOverridesChangeView,
+  MembershipOverridesView as ApiMembershipOverridesView,
+  OrganizationMeView as ApiOrganizationMeView,
+} from '../../apps/api/src/modules/tenancy/membership-overrides.controller.js';
+import type {
+  EffectivePermissions as WebEffectivePermissions,
+  MatrixRole as WebMatrixRole,
+  MemberOverride as WebMemberOverride,
+  MemberOverrides as WebMemberOverrides,
+  MemberOverridesChange as WebMemberOverridesChange,
+  OrganizationMe as WebOrganizationMe,
+  RolesMatrix as WebRolesMatrix,
+} from '../../apps/web/src/lib/api/permission-matrix';
+type _pa01MatrixRole = Assert<Exact<ApiMatrixRoleView, WebMatrixRole>>;
+type _pa01RolesMatrix = Assert<Exact<ApiRolesMatrixView, WebRolesMatrix>>;
+type _pa01Override = Assert<Exact<ApiMembershipOverrideView, WebMemberOverride>>;
+type _pa01Overrides = Assert<Exact<ApiMembershipOverridesView, WebMemberOverrides>>;
+type _pa01OverridesChange = Assert<
+  Exact<ApiMembershipOverridesChangeView, WebMemberOverridesChange>
+>;
+type _pa01Effective = Assert<Exact<ApiMemberEffectivePermissionsView, WebEffectivePermissions>>;
+type _pa01Me = Assert<Exact<ApiOrganizationMeView, WebOrganizationMe>>;
+
 // ---- platform-admin v2 · PA-02 ----
 // `GET /v1/platform/me` support sessions and the platform admin team + presets (SPEC §5.1),
 // read by `apps/web/src/lib/api/platform-admin.ts` and `platform-team.ts`.

@@ -39,7 +39,7 @@ export class BillingCreditsController {
 
   /** List the acting tenant's credits newest-first with a running balance. `org.manage`. */
   @Get()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.view')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -49,7 +49,7 @@ export class BillingCreditsController {
 
   /** Post a credit / adjustment. `org.manage`. An out-of-bounds amount or bad reason is a 400. */
   @Post()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   @HttpCode(201)
   async post(
     @Ctx() context: TenantContext,

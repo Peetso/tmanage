@@ -121,7 +121,7 @@ export class InsightSavedViewsController {
 
   /** List the acting user's saved insights views (200). */
   @Get()
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() _principal: Principal,
@@ -132,7 +132,7 @@ export class InsightSavedViewsController {
 
   /** Create a saved view owned by the acting user (201). Unknown report kind → 400. */
   @Post()
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   @HttpCode(201)
   async create(
     @Ctx() context: TenantContext,
@@ -149,7 +149,7 @@ export class InsightSavedViewsController {
    * removes nothing and answers 404 — a private view's existence is not the caller's to learn.
    */
   @Delete(':viewId')
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   @HttpCode(200)
   async remove(
     @Ctx() context: TenantContext,

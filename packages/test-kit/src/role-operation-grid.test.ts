@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CAPABILITIES,
   CLIENT_ROLES,
-  INTERNAL_ROLES,
+  ASSIGNABLE_INTERNAL_ROLES,
   hasCapability,
   isInternalRole,
 } from '@tmanage/domain';
@@ -63,7 +63,7 @@ describe('role × operation grid coverage', () => {
 describe('buildRoleOperationGrid', () => {
   it('enumerates every role against every guarded operation', () => {
     const grid = buildRoleOperationGrid();
-    const roles = [...INTERNAL_ROLES, ...CLIENT_ROLES];
+    const roles = [...ASSIGNABLE_INTERNAL_ROLES, ...CLIENT_ROLES];
 
     expect(grid).toHaveLength(roles.length * GUARDED_OPERATIONS.length);
     expect(GRID_ROLES).toEqual(roles);

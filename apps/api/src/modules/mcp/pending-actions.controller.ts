@@ -83,7 +83,7 @@ export class PendingAiActionsController {
   ) {}
 
   @Get(':id')
-  @RequireCapability('work.read')
+  @RequireCapability('ai.use')
   async view(
     @Ctx() context: TenantContext,
     @Param('orgSlug') orgSlug: string,
@@ -95,7 +95,7 @@ export class PendingAiActionsController {
   }
 
   @Post(':id/approve')
-  @RequireCapability('work.read')
+  @RequireCapability('ai.use')
   @HttpCode(200)
   async approve(
     @Ctx() context: TenantContext,
@@ -112,7 +112,7 @@ export class PendingAiActionsController {
   }
 
   @Post(':id/decline')
-  @RequireCapability('work.read')
+  @RequireCapability('ai.use')
   @HttpCode(200)
   async decline(
     @Ctx() context: TenantContext,

@@ -111,7 +111,7 @@ export class PeopleDirectoryController {
    * the browser to filter it there would ship the staff list to answer a keystroke.
    */
   @Get()
-  @RequireCapability('work.read')
+  @RequireCapability('people.view')
   async list(
     @Ctx() context: TenantContext,
     @Query('after') after?: string,

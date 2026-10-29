@@ -90,7 +90,7 @@ export class BillingProfileController {
 
   /** Read the acting tenant's billing profile, or the defaults when none has been saved. */
   @Get()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.view')
   async read(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -109,7 +109,7 @@ export class BillingProfileController {
    * body is valid is the single upsert issued.
    */
   @Put()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   async update(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

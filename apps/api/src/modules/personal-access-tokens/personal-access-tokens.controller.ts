@@ -92,7 +92,7 @@ export class PersonalAccessTokensController {
 
   /** List the member's own tokens, newest first. No hash, no plaintext. */
   @Get()
-  @RequireCapability('work.read')
+  @RequireCapability('ai.use')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -102,7 +102,7 @@ export class PersonalAccessTokensController {
 
   /** Create a token. The response carries the plaintext once; the client must save it then. */
   @Post()
-  @RequireCapability('work.read')
+  @RequireCapability('ai.use')
   @HttpCode(201)
   async create(
     @Ctx() context: TenantContext,
@@ -130,7 +130,7 @@ export class PersonalAccessTokensController {
 
   /** Revoke one of the member's own tokens. Unknown, foreign, or already-revoked is a 404. */
   @Delete(':tokenId')
-  @RequireCapability('work.read')
+  @RequireCapability('ai.use')
   @HttpCode(204)
   async revoke(
     @Ctx() context: TenantContext,

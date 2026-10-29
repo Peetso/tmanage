@@ -87,7 +87,7 @@ export class DecisionsController {
   constructor(@Inject(DECISIONS_SERVICE) private readonly decisions: DecisionsService) {}
 
   @Get()
-  @RequireCapability('meeting.read')
+  @RequireCapability('decision.read')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -116,7 +116,7 @@ export class DecisionsController {
   }
 
   @Post()
-  @RequireCapability('meeting.write')
+  @RequireCapability('decision.write')
   @HttpCode(201)
   async create(
     @Ctx() context: TenantContext,
@@ -193,7 +193,7 @@ export class DecisionsController {
    * the relation gate and the not-found for an unknown/cross-tenant/non-member id are the service's.
    */
   @Get(':decisionId')
-  @RequireCapability('meeting.read')
+  @RequireCapability('decision.read')
   async detail(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -215,7 +215,7 @@ export class DecisionsController {
    * A15. Without a `status`, the body is the detail page's Edit: `rationale` and/or `audience`.
    */
   @Patch(':decisionId')
-  @RequireCapability('meeting.write')
+  @RequireCapability('decision.write')
   async patch(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -254,7 +254,7 @@ export class DecisionsController {
    */
   @Post(':decisionId/supersede')
   @HttpCode(200)
-  @RequireCapability('meeting.write')
+  @RequireCapability('decision.write')
   async supersede(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

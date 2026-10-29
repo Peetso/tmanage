@@ -248,14 +248,14 @@ describe('F21 — snapshot payloads are filtered for the reader', () => {
 });
 
 describe('F39 — approval-cycle insight refuses client principals', () => {
-  it('the route is gated on internal-only work.read, which no client role holds', () => {
+  it('the route is gated on internal-only report.view (PA-01), which no client role holds', () => {
     const required = Reflect.getMetadata(
       REQUIRED_CAPABILITY,
       InsightsController.prototype.approvalCycle,
     ) as string;
-    expect(required).toBe('work.read');
-    expect(hasCapability('client_admin', 'work.read')).toBe(false);
-    expect(hasCapability('member', 'work.read')).toBe(true);
+    expect(required).toBe('report.view');
+    expect(hasCapability('client_admin', 'report.view')).toBe(false);
+    expect(hasCapability('member', 'report.view')).toBe(true);
   });
 
   it('the service counts no approval for a client and still counts for an internal member', async () => {

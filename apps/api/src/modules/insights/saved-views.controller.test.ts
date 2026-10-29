@@ -94,11 +94,11 @@ describe('InsightSavedViewsController (x210)', () => {
     await expectStatus(controllerWith(service).remove(context, principal, 'x'), 404);
   });
 
-  it('guards all three routes with work.read (403 by CapabilityGuard for a caller without it)', () => {
+  it('guards all three routes with report.view (403 by CapabilityGuard for a caller without it)', () => {
     for (const method of ['list', 'create', 'remove'] as const) {
       expect(
         Reflect.getMetadata(REQUIRED_CAPABILITY, InsightSavedViewsController.prototype[method]),
-      ).toBe('work.read');
+      ).toBe('report.view');
     }
   });
 });

@@ -37,7 +37,7 @@ export class WorkloadForecastController {
    * caller who asks for 0 or 13 is told, rather than quietly given 1 or 12.
    */
   @Get('workload-forecast')
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async workloadForecast(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

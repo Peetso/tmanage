@@ -190,7 +190,7 @@ export class InvoicesController {
   constructor(@Inject(INVOICES_SERVICE) private readonly invoices: InvoicesService) {}
 
   @Get()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.view')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -211,7 +211,7 @@ export class InvoicesController {
   }
 
   @Get(':invoiceId')
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.view')
   async detail(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

@@ -47,7 +47,7 @@ export class PlanChangeRequestsController {
 
   /** List the acting tenant's plan-change requests, newest-first. `org.manage`. */
   @Get()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.view')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -60,7 +60,7 @@ export class PlanChangeRequestsController {
    * a 400 with no write; a second request while one is pending is a 409.
    */
   @Post()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   @HttpCode(201)
   async create(
     @Ctx() context: TenantContext,
@@ -78,7 +78,7 @@ export class PlanChangeRequestsController {
    * idempotent (re-cancelling returns the row unchanged).
    */
   @Put(':id/cancel')
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   async cancel(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

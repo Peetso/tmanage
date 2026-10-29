@@ -4,7 +4,7 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { RowDataPacket } from 'mysql2/promise';
 import {
   CLIENT_ROLES,
-  INTERNAL_ROLES,
+  ASSIGNABLE_INTERNAL_ROLES,
   hasCapability,
   mayGrantCapability,
   uuidv7,
@@ -460,7 +460,7 @@ beforeAll(async () => {
   ({ app, db } = await bootHttpHarness({ secretTag: 'the_role_prohibitions_suite' }));
   world = await reseed(db);
 
-  for (const role of INTERNAL_ROLES) {
+  for (const role of ASSIGNABLE_INTERNAL_ROLES) {
     const userId = uuidv7();
     await db.admin.execute(
       `insert into users (id, email, display_name, email_verified_at)
@@ -574,7 +574,7 @@ describe('§2 prohibitions, transcribed by hand and not derived', () => {
 
     // The two lists together are exactly §1's roster, with nothing invented and nothing lost.
     expect([...rolesWithAssertedProhibitions, ...rolesRecordedAsDivergences].sort()).toEqual(
-      [...INTERNAL_ROLES, ...CLIENT_ROLES].sort(),
+      [...ASSIGNABLE_INTERNAL_ROLES, ...CLIENT_ROLES].sort(),
     );
   });
 

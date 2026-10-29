@@ -791,6 +791,15 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'organization',
     clause: '§12 policy change — who must use two-step sign-in, and from where',
   },
+  // ---- platform-admin v2 · PA-01 ----
+  /**
+   * PA-01. One member's per-person permission overrides were changed (0242). Metadata: the target
+   * user, how many overrides were added and removed; the `changes[]` rows name each capability.
+   */
+  'membership.permission_overrides_changed': {
+    objectType: 'membership',
+    clause: '§12 role and permission changes — one person gains or loses a permission',
+  },
   // ---- platform-admin v2 · PA-03 ----
   /**
    * 0245 (SPEC P7): soft-deleted content is restored inside its window (`purge_after`). The
@@ -962,6 +971,8 @@ const AUDIT_ACTION_LABELS = {
   'member_admin_note.created': 'Added a private note about a member',
   'member_admin_note.deleted': 'Deleted a private note about a member',
   'organization.security_settings_changed': 'Changed how people sign in',
+  // ---- platform-admin v2 · PA-01 ----
+  'membership.permission_overrides_changed': "Changed one person's permissions",
   // ---- platform-admin v2 · PA-03 ----
   'work_item.restored': 'Restored a deleted work item',
   'message.restored': 'Restored a deleted message',

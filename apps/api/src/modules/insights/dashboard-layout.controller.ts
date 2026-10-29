@@ -51,7 +51,7 @@ export class InsightDashboardLayoutController {
   ) {}
 
   @Get()
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async get(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -61,7 +61,7 @@ export class InsightDashboardLayoutController {
   }
 
   @Put()
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   @HttpCode(200)
   async put(
     @Ctx() context: TenantContext,

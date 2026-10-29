@@ -71,7 +71,7 @@ function usageExportToCsv(rows: readonly UsageExportView[]): string {
  *
  * The security-critical halves are **not** re-implemented here:
  *
- *   - **Capability + tenant scope.** `@RequireCapability('org.manage')` refuses a caller without the
+ *   - **Capability + tenant scope.** `@RequireCapability('billing.view')` (PA-01) refuses a caller without the
  *     grant with the ordinary 403 before the handler runs, and {@link UsageExportService.listForExport}
  *     makes the authoritative org-scoped `authorize()` decision again and scopes every read to the
  *     caller's `TenantContext`, so a usage counter can never cross tenants.
@@ -93,7 +93,7 @@ export class UsageExportController {
   ) {}
 
   @Get('export.csv')
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.view')
   async export(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

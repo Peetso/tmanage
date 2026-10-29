@@ -56,7 +56,7 @@ export class InsightMetricAlertsController {
 
   /** List the caller's alerts, each evaluated breached/ok against the latest workload snapshot. */
   @Get()
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -67,7 +67,7 @@ export class InsightMetricAlertsController {
 
   /** Set (create or replace) the caller's alert for one metric. Unknown metric/comparator or bad threshold → 400. */
   @Put()
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async set(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -84,7 +84,7 @@ export class InsightMetricAlertsController {
 
   /** Delete the caller's alert for one metric. Unknown metric key → 400; success is a 204 (idempotent). */
   @Delete(':metricKey')
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   @HttpCode(204)
   async remove(
     @Ctx() context: TenantContext,

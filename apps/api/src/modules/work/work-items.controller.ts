@@ -286,7 +286,7 @@ export class WorkItemsController {
    * matrix does not list would put a permission in the code that no role can be granted.
    */
   @Delete(':workItemId')
-  @RequireCapability('work.update')
+  @RequireCapability('work.delete')
   @HttpCode(204)
   async remove(
     @Ctx() context: TenantContext,

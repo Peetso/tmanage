@@ -9797,3 +9797,44 @@ Object.assign(TABLES, {
   platform_support_sessions: platformSupportSessions,
   audit_event_changes: auditEventChanges,
 });
+
+// ---- platform-admin v2 · PA-01 ----
+
+/**
+ * 0242. One member's allow/deny override of a single capability (SPEC §3.3). Tenant-owned; revoked
+ * by setting `revoked_at`, never deleted. Read by the membership resolver (live rows only) and by
+ * `membership-overrides.repository.ts`.
+ */
+export const membershipPermissionOverrides = mysqlTable(
+  'membership_permission_overrides',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    audience: varchar('audience', { length: 16 }).notNull().default('internal'),
+    capability: varchar('capability', { length: 64 }).notNull(),
+    effect: varchar('effect', { length: 8 }).notNull(),
+    reason: varchar('reason', { length: 500 }),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    revokedAt: datetime('revoked_at', { mode: 'date', fsp: 3 }),
+    revokedBy: char('revoked_by', { length: 36 }),
+  },
+  (table) => [
+    uniqueIndex('uq_mpo_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_mpo_live').on(
+      table.organizationId,
+      table.membershipId,
+      table.capability,
+      table.revokedAt,
+    ),
+    index('ix_mpo_membership').on(table.organizationId, table.membershipId, table.revokedAt),
+  ],
+);
+
+export type MembershipPermissionOverrideRow = typeof membershipPermissionOverrides.$inferSelect;
+
+Object.assign(TABLES, {
+  membership_permission_overrides: membershipPermissionOverrides,
+});

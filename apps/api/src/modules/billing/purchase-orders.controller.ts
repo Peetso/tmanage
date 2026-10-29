@@ -53,7 +53,7 @@ export class PurchaseOrdersController {
 
   /** List the acting tenant's PO references, number-ascending. `org.manage`. */
   @Get()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.view')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -64,7 +64,7 @@ export class PurchaseOrdersController {
   /** Record a PO reference. `org.manage`. An empty number or a negative amount is a 400; a duplicate
    * number is a 409. */
   @Post()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   @HttpCode(201)
   async create(
     @Ctx() context: TenantContext,
@@ -85,7 +85,7 @@ export class PurchaseOrdersController {
 
   /** Close a PO reference. A cross-tenant or missing id is a 404. Idempotent. `org.manage`. */
   @Put(':id/close')
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   async close(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -97,7 +97,7 @@ export class PurchaseOrdersController {
 
   /** Remove a PO reference. Idempotent (204 whether or not it existed). `org.manage`. */
   @Delete(':id')
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   @HttpCode(204)
   async remove(
     @Ctx() context: TenantContext,

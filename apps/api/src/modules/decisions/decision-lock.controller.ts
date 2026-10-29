@@ -24,7 +24,7 @@ export class DecisionLockController {
   constructor(@Inject(DECISIONS_SERVICE) private readonly decisions: DecisionsService) {}
 
   @Post(':decisionId/lock')
-  @RequireCapability('meeting.write')
+  @RequireCapability('decision.write')
   @HttpCode(201)
   async lock(
     @Ctx() context: TenantContext,

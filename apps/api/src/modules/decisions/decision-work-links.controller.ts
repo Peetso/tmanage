@@ -41,7 +41,7 @@ export class DecisionWorkLinksController {
   ) {}
 
   @Get()
-  @RequireCapability('work.read')
+  @RequireCapability('decision.read')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -70,7 +70,7 @@ export class DecisionWorkLinksController {
   }
 
   @Post()
-  @RequireCapability('meeting.write')
+  @RequireCapability('decision.write')
   @HttpCode(201)
   async link(
     @Ctx() context: TenantContext,
@@ -94,7 +94,7 @@ export class DecisionWorkLinksController {
   }
 
   @Delete(':linkId')
-  @RequireCapability('meeting.write')
+  @RequireCapability('decision.write')
   @HttpCode(204)
   async unlink(
     @Ctx() context: TenantContext,

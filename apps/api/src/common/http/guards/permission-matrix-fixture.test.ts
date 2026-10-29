@@ -56,7 +56,8 @@ describe('the hand-written permission matrix is complete', () => {
     expect(sorted(Object.keys(PERMISSION_MATRIX) as Capability[])).toEqual(
       sorted(ALL_ROLES as unknown as Capability[]),
     );
-    expect(ALL_ROLES).toHaveLength(11);
+    // PA-01: eleven roles of `12-PERMISSION-MATRIX` §2 plus the hidden `platform_support`.
+    expect(ALL_ROLES).toHaveLength(12);
   });
 
   for (const role of [...INTERNAL_ROLES, ...CLIENT_ROLES]) {
@@ -89,6 +90,22 @@ describe('the hand-written permission matrix agrees with the shipped ceiling', (
       ).toEqual(sorted(expectedCeilingFor(role)));
     });
   }
+});
+
+describe('PA-01: the matrix capabilities are transcribed for every role', () => {
+  it('has 56 capabilities: the 32 of §2 and the 24 of the platform-admin SPEC §3.3', () => {
+    expect(CAPABILITIES).toHaveLength(56);
+  });
+
+  it('gives no client role any of the new capabilities, in the transcription or the ceiling', () => {
+    const added = CAPABILITIES.slice(32);
+    for (const role of CLIENT_ROLES) {
+      for (const capability of added) {
+        expect(PERMISSION_MATRIX[role].denied, `${role} ${capability}`).toContain(capability);
+        expect(capabilitiesFor(role), `${role} ${capability}`).not.toContain(capability);
+      }
+    }
+  });
 });
 
 describe('every accepted divergence is still real', () => {

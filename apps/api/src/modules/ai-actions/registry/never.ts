@@ -486,6 +486,31 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/me/privacy/deletion/cancel',
     reason: 'org_creation_or_account',
   },
+  // ---- platform-admin v2 · PA-01 ----
+  // The role matrix, per-member permission overrides and the effective-permissions preview are
+  // role definitions: an assistant never reads or changes who may do what. `me` is the caller's
+  // own account view.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/admin/roles/matrix/',
+    reason: 'role_definitions',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/people/:membershipId/permissions/overrides',
+    reason: 'role_definitions',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/people/:membershipId/permissions/overrides',
+    reason: 'role_definitions',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/people/:membershipId/effective-permissions',
+    reason: 'role_definitions',
+  },
+  { method: 'GET', path: '/v1/organizations/:orgSlug/me', reason: 'org_creation_or_account' },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

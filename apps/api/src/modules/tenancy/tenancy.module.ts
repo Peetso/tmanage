@@ -43,6 +43,9 @@ import { MembershipResolver } from './membership-resolver.repository.js';
 import { OrganizationDirectoryRepository } from './organization-directory.repository.js';
 import { OrganizationsController } from './organizations.controller.js';
 import { PrincipalRepository } from './principal.repository.js';
+// ---- platform-admin v2 · PA-01 ----
+import { MembershipOverridesController } from './membership-overrides.controller.js';
+import { RolesMatrixController } from '../admin/roles-matrix.controller.js';
 import { ProvisioningService } from './provisioning.service.js';
 import { WorkspacesController } from './workspaces.controller.js';
 import { WorkspacesRepository } from './workspaces.repository.js';
@@ -206,6 +209,11 @@ export class TenancyModule {
         // whose whole purpose is the pre-membership path, rather than on one method of a
         // controller where every other route is tenant-scoped.
         InvitationAcceptanceController,
+        // ---- platform-admin v2 · PA-01 ----
+        // Per-member permission overrides, the effective-permissions preview, the caller's own
+        // `me` view, and the role matrix the D7 editor draws (SPEC §3.3).
+        MembershipOverridesController,
+        RolesMatrixController,
       ],
     };
   }

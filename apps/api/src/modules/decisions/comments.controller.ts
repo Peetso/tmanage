@@ -35,7 +35,7 @@ export class DecisionCommentsController {
   ) {}
 
   @Get()
-  @RequireCapability('work.read')
+  @RequireCapability('decision.read')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -45,7 +45,7 @@ export class DecisionCommentsController {
   }
 
   @Post()
-  @RequireCapability('work.read')
+  @RequireCapability('decision.read')
   @HttpCode(201)
   async add(
     @Ctx() context: TenantContext,
@@ -58,7 +58,7 @@ export class DecisionCommentsController {
   }
 
   @Delete(':commentId')
-  @RequireCapability('work.read')
+  @RequireCapability('decision.read')
   @HttpCode(204)
   async remove(
     @Ctx() context: TenantContext,

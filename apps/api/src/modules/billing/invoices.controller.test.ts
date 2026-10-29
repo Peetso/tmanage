@@ -134,7 +134,7 @@ describe('invoices route capabilities', () => {
     Reflect.getMetadata(REQUIRED_CAPABILITY, (proto as Record<string, unknown>)[key] as object);
 
   it('guards the list and detail with org.manage', () => {
-    expect(capabilityOf(InvoicesController.prototype, 'list')).toBe('org.manage');
-    expect(capabilityOf(InvoicesController.prototype, 'detail')).toBe('org.manage');
+    expect(capabilityOf(InvoicesController.prototype, 'list')).toBe('billing.view');
+    expect(capabilityOf(InvoicesController.prototype, 'detail')).toBe('billing.view');
   });
 });

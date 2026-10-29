@@ -65,7 +65,7 @@ export class InsightsController {
    * (default 20 / max 50), keyset by project id via `after`.
    */
   @Get('portfolio')
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async portfolio(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -93,7 +93,7 @@ export class InsightsController {
    * (the `TenantContextGuard`), authorized per item by the service.
    */
   @Get('projects/:projectId/delivery-flow')
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async deliveryFlow(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -110,7 +110,7 @@ export class InsightsController {
    * service still re-checks `approval.read` per approval. Tenant-scoped by `orgSlug`.
    */
   @Get('projects/:projectId/approval-cycle')
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async approvalCycle(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -128,7 +128,7 @@ export class InsightsController {
    * optional `?limit=` bounds how many projects are rolled up (clamped to `[1, 50]`, default 20).
    */
   @Get('workload')
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async workload(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

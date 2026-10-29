@@ -346,10 +346,10 @@ describe('F31: the list discloses only items still in the decision project', () 
 });
 
 describe('the route ceilings the CapabilityGuard enforces', () => {
-  it('requires meeting.write to link/unlink and work.read to list', () => {
+  it('requires decision.write to link/unlink and decision.read to list', () => {
     const cap = (method: unknown) => Reflect.getMetadata(REQUIRED_CAPABILITY, method as object);
-    expect(cap(DecisionWorkLinksController.prototype.link)).toBe('meeting.write');
-    expect(cap(DecisionWorkLinksController.prototype.unlink)).toBe('meeting.write');
-    expect(cap(DecisionWorkLinksController.prototype.list)).toBe('work.read');
+    expect(cap(DecisionWorkLinksController.prototype.link)).toBe('decision.write');
+    expect(cap(DecisionWorkLinksController.prototype.unlink)).toBe('decision.write');
+    expect(cap(DecisionWorkLinksController.prototype.list)).toBe('decision.read');
   });
 });

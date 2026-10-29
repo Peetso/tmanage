@@ -61,7 +61,7 @@ export class InsightsExportController {
   constructor(@Inject(INSIGHTS_SERVICE) private readonly insights: InsightsService) {}
 
   @Get('workload/export.csv')
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async exportWorkload(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

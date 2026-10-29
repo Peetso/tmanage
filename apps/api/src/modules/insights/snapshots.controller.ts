@@ -57,7 +57,7 @@ export class InsightSnapshotsController {
    * (refusal is a 403), tenant-scoped by `orgSlug`; unknown kind → 400.
    */
   @Post()
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   @HttpCode(201)
   async capture(
     @Ctx() context: TenantContext,
@@ -74,7 +74,7 @@ export class InsightSnapshotsController {
    * (refusal is a 403), tenant-scoped by `orgSlug`; unknown or missing kind → 400.
    */
   @Get()
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -99,7 +99,7 @@ export class InsightSnapshotsController {
    * tenant-scoped by `orgSlug`; a snapshot from another tenant (or none) → 404.
    */
   @Get(':snapshotId')
-  @RequireCapability('work.read')
+  @RequireCapability('report.view')
   async getById(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

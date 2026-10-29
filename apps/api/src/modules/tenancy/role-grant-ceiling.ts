@@ -2,7 +2,10 @@ import {
   capabilitiesFor,
   capabilitySetFor,
   CAPABILITIES,
+  hasCapability,
+  INTERNAL_ROLES,
   isCustomRoleId,
+  isPlatformSupportRole,
   isRole,
   mayGrantCapability,
   parseCustomRoleCapabilities,
@@ -24,8 +27,33 @@ import { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
  * an owner (CQ-06).
  */
 
-/** The roles that may assign roles at all (`12-PERMISSION-MATRIX` §2 "Assign roles"). */
-export const ROLE_ASSIGNERS: readonly string[] = ['owner', 'org_admin'];
+/**
+ * platform-admin v2 · PA-01 (SPEC §3.3 footnote 4). Who may assign roles is now the capability
+ * `roles.assign`, not a hard-coded role list: the owner and org_admin ceilings hold it (so
+ * nothing changes for them), the Support-session role holds it, and a custom role or a member's
+ * allow override may now hold it too — still bounded by the "only what you hold" subset rule in
+ * {@link requireMayGrantRole}.
+ */
+export const ROLE_ASSIGN_CAPABILITY = 'roles.assign' as const;
+
+/**
+ * The built-in roles whose ceiling holds every capability (owner, org_admin, platform_support):
+ * granting any built-in role never widens past them, so the subset walk is skipped for them.
+ */
+const FULL_CEILING_ROLES: ReadonlySet<string> = new Set(
+  INTERNAL_ROLES.filter((role) =>
+    CAPABILITIES.every((capability) => hasCapability(role, capability)),
+  ),
+);
+
+/**
+ * @deprecated PA-01 — use {@link isRoleAssigner} (the `roles.assign` capability). Kept, computed
+ * from the ceiling, so callers that compare a role name keep compiling: the built-in roles whose
+ * ceiling holds `roles.assign` (owner, org_admin, platform_support).
+ */
+export const ROLE_ASSIGNERS: readonly string[] = INTERNAL_ROLES.filter((role) =>
+  hasCapability(role, ROLE_ASSIGN_CAPABILITY),
+);
 
 /** Same refusal text everywhere a role grant goes beyond the caller. */
 export const ROLE_ESCALATION_MESSAGE = 'You can only give a role whose rights you hold yourself.';
@@ -34,11 +62,19 @@ export function isOwnerPrincipal(principal: Principal): boolean {
   return principal.kind === 'internal' && principal.role === 'owner';
 }
 
+/**
+ * PA-01: may this principal assign roles at all? An internal principal that can exercise
+ * `roles.assign` org-wide — role ceiling, custom role or allow override, minus a deny override,
+ * under org policy — decided by the real evaluator.
+ */
 export function isRoleAssigner(principal: Principal): boolean {
-  return principal.kind === 'internal' && ROLE_ASSIGNERS.includes(principal.role);
+  return (
+    principal.kind === 'internal' &&
+    mayGrantCapability(principal, ROLE_ASSIGN_CAPABILITY, principal.organizationId).allowed
+  );
 }
 
-/** 403 unless the caller is an internal owner or organization admin. */
+/** 403 unless the caller holds `roles.assign` (owner and org_admin always do). */
 export function requireRoleAssigner(principal: Principal, action: string): void {
   if (!isRoleAssigner(principal)) {
     throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, `${action}.assigner`);
@@ -62,8 +98,20 @@ export function requireMayGrantRole(
   organizationId: string,
   action: string,
 ): void {
+  // PA-01: the Support-session role is written only by the support service, never granted.
+  if (isPlatformSupportRole(role)) {
+    throw new ApiError(
+      403,
+      'forbidden',
+      MESSAGES.forbidden,
+      [{ field: 'role', message: 'Choose another role.' }],
+      `${action}:platform_support_not_assignable`,
+    );
+  }
   if (role === 'owner') {
+    // PA-01 (SPEC §3.2): ownership can be transferred from inside a live Support session.
     if (isOwnerPrincipal(principal)) return;
+    if (principal.kind === 'internal' && isPlatformSupportRole(principal.role)) return;
     throw new ApiError(
       403,
       'forbidden',
@@ -73,7 +121,16 @@ export function requireMayGrantRole(
     );
   }
   if (!isRole(role)) return;
-  if (isRoleAssigner(principal)) return;
+  // A full-ceiling built-in assigner (owner, org_admin, platform_support) holds everything any
+  // built-in role carries. Everyone else — a custom role or override holding `roles.assign`
+  // included — passes the subset walk below (SPEC §3.3: "same subset rule").
+  if (
+    principal.kind === 'internal' &&
+    FULL_CEILING_ROLES.has(principal.role) &&
+    isRoleAssigner(principal)
+  ) {
+    return;
+  }
   const held = capabilitySetFor(principal.role);
   for (const capability of capabilitiesFor(role)) {
     const allowed =

@@ -206,13 +206,13 @@ describe('InsightAnnotationsController (x271)', () => {
     expect(repo.rows).toHaveLength(0);
   });
 
-  it('guards every route with work.read', () => {
+  it('guards every route with report.view', () => {
     for (const method of ['list', 'add', 'remove'] as const) {
       const capability = Reflect.getMetadata(
         REQUIRED_CAPABILITY,
         InsightAnnotationsController.prototype[method],
       );
-      expect(capability).toBe('work.read');
+      expect(capability).toBe('report.view');
     }
   });
 });

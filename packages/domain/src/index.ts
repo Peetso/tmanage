@@ -257,6 +257,44 @@ export type {
 export { LEGAL_DOCUMENTS } from './legal/legal-content.js';
 export type { LegalDocument, LegalDocumentKey } from './legal/legal-content.js';
 
+// ---- platform-admin v2 · PA-01 ----
+// SPEC §3.3: the permission matrix layout, per-member overrides and "what can this person do".
+export {
+  ASSIGNABLE_INTERNAL_ROLES,
+  MATRIX_NEW_CAPABILITIES,
+  PLATFORM_SUPPORT_ROLE,
+  isPlatformSupportRole,
+} from './policies/capabilities.js';
+export { effectiveCapabilitySet, principalHoldsCapability } from './policies/authorize.js';
+export type { PermissionOverrides } from './policies/authorize.js';
+export {
+  MATRIX,
+  MATRIX_ACTIONS,
+  MATRIX_AREAS,
+  MATRIX_MERGED_CELLS,
+  MATRIX_MIRRORED_CELLS,
+  actionCapabilities,
+  areaCapabilities,
+  capabilitiesWithoutCell,
+  capabilityCell,
+  cellsOfCapability,
+} from './policies/permission-matrix-layout.js';
+export type {
+  MatrixAction,
+  MatrixArea,
+  MatrixCell,
+  MatrixRow,
+} from './policies/permission-matrix-layout.js';
+export { computeEffectivePermissions } from './policies/effective-permissions.js';
+export type {
+  ComputeEffectivePermissionsInput,
+  EffectivePermissionEntry,
+  EffectivePermissionScope,
+  EffectivePermissionSource,
+  EffectivePermissionsView,
+  SimulatedProject,
+} from './policies/effective-permissions.js';
+
 // ---- platform-admin v2 · PA-02 ----
 // Platform permissions — who may do what in the Platform admin (SPEC §3.1)
 export {

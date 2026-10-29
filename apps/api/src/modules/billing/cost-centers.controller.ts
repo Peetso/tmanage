@@ -50,7 +50,7 @@ export class CostCentersController {
 
   /** List the acting tenant's cost centers with their assigned project ids. `org.manage`. */
   @Get()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.view')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -60,7 +60,7 @@ export class CostCentersController {
 
   /** Create a cost-center definition. `org.manage`. An empty code/name is a 400; a duplicate code 409. */
   @Post()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   @HttpCode(201)
   async create(
     @Ctx() context: TenantContext,
@@ -74,7 +74,7 @@ export class CostCentersController {
 
   /** Delete a cost center and its assignments. A cross-tenant or missing id is a 404. `org.manage`. */
   @Delete(':id')
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   @HttpCode(204)
   async remove(
     @Ctx() context: TenantContext,
@@ -90,7 +90,7 @@ export class CostCentersController {
    * cross-tenant or missing cost center or project id is a 404 with no write. `org.manage`.
    */
   @Put(':id/projects/:projectId')
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   @HttpCode(204)
   async assign(
     @Ctx() context: TenantContext,
@@ -108,7 +108,7 @@ export class CostCentersController {
    * cross-tenant or missing cost center id is a 404. `org.manage`.
    */
   @Delete(':id/projects/:projectId')
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   @HttpCode(204)
   async unassign(
     @Ctx() context: TenantContext,

@@ -147,9 +147,9 @@ describe('GET /v1/organizations/:orgSlug/people', () => {
     PeopleDirectoryController.prototype.list,
   ) as Capability | undefined;
 
-  it('is behind work.read — open to every internal role, closed to every client role', () => {
+  it('is behind people.view (PA-01) — open to every internal role, closed to every client role', () => {
     // `CapabilityGuard` refuses a tenant-scoped route that names none; this pins which one.
-    expect(capability).toBe('work.read');
+    expect(capability).toBe('people.view');
     for (const role of INTERNAL_ROLES) expect(capabilitiesFor(role), role).toContain(capability);
     // The denial that matters: no client role holds `work.read`, so the portal can never be
     // handed the agency's staff roster — the refusal is the capability ceiling's, not a check

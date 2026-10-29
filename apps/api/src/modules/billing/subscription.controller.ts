@@ -28,7 +28,7 @@ export class SubscriptionController {
 
   /** The current plan, its status and renewal date — defaulting to the free/base tier if none. */
   @Get()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.view')
   async read(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -42,7 +42,7 @@ export class SubscriptionController {
    * is executed here** (real charging is Needs-Peter).
    */
   @Post('change')
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   async change(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

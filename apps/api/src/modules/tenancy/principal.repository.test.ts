@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createTenantContext } from '../../common/database/tenant-context.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import type { ResolvedMembership } from './membership-resolver.repository.js';
-import { PrincipalRepository } from './principal.repository.js';
+import { defaultOrgWideScope, PrincipalRepository, principalFor } from './principal.repository.js';
 
 /**
  * x65 item B1 (carried from review-x59 Minor). `projectScope`'s workspace-scope branch (0023 /
@@ -95,5 +95,26 @@ describe('PrincipalRepository.projectScope — workspace scope (0023)', () => {
     expect(scope).toEqual(['proj-9']);
     expect(statements).toHaveLength(1);
     expect(statements[0]?.toLowerCase() ?? '').toContain('project_memberships');
+  });
+});
+
+// ---- platform-admin v2 · PA-01 ----
+describe('principalFor — per-member overrides and TManage support (SPEC §3.3)', () => {
+  it('carries the resolved overrides onto the principal', () => {
+    const context = internalContext();
+    const overrides = { allow: ['report.export'], deny: ['work.delete'] } as const;
+    const principal = principalFor({ ...resolvedFor(context, null), overrides }, ['proj-1']);
+    expect(principal.overrides).toEqual(overrides);
+    expect(principal.projectIds).toEqual(['proj-1']);
+  });
+
+  it('leaves overrides absent when the resolver supplied none', () => {
+    const principal = principalFor(resolvedFor(internalContext(), null), []);
+    expect(principal).not.toHaveProperty('overrides');
+  });
+
+  it('gives TManage support organization-wide scope by default', () => {
+    expect(defaultOrgWideScope('platform_support')).toBe(true);
+    expect(defaultOrgWideScope('member')).toBe(false);
   });
 });

@@ -50,7 +50,7 @@ export class BillingContactsController {
 
   /** List the tenant's billing contacts. `org.manage`. */
   @Get()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.view')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -61,7 +61,7 @@ export class BillingContactsController {
 
   /** Add a billing contact. `org.manage`. */
   @Post()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   @HttpCode(201)
   async add(
     @Ctx() context: TenantContext,
@@ -73,7 +73,7 @@ export class BillingContactsController {
 
   /** Remove a billing contact, tenant-scoped. `org.manage`. */
   @Delete(':contactId')
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.manage')
   async remove(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

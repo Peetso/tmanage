@@ -52,7 +52,12 @@
  * in the domain turns the corresponding grid cell red — which is the mutation check that proves
  * this harness is load-bearing rather than tautological.
  */
-import { CAPABILITIES, CLIENT_ROLES, INTERNAL_ROLES, isInternalRole } from '@tmanage/domain';
+import {
+  ASSIGNABLE_INTERNAL_ROLES,
+  CAPABILITIES,
+  CLIENT_ROLES,
+  isInternalRole,
+} from '@tmanage/domain';
 import type { Capability, Role } from '@tmanage/domain';
 import { expectedCeilingGrants } from './permission-matrix.js';
 
@@ -251,6 +256,88 @@ export const GUARDED_OPERATIONS: readonly GuardedOperation[] = [
     collection: true,
     declaredAt: 'clients/portal.controller.ts @Get(requests) client_request.submit',
   },
+  // ---- platform-admin v2 · PA-01: routes moved to the SPEC §3.3 matrix capabilities ----
+  {
+    capability: 'work.delete',
+    method: 'DELETE',
+    path: '/work-items/00000000-0000-7000-8000-000000000000',
+    surface: 'internal',
+    collection: false,
+    declaredAt: 'work/work-items.controller.ts @Delete(:workItemId) work.delete (PA-01)',
+  },
+  {
+    capability: 'file.delete',
+    method: 'DELETE',
+    path: '/projects/00000000-0000-7000-8000-000000000000/folders/00000000-0000-7000-8000-000000000000',
+    surface: 'internal',
+    collection: false,
+    declaredAt:
+      'files/folders.controller.ts @Delete(projects/:projectId/folders/:folderId) file.delete (PA-01)',
+  },
+  {
+    capability: 'decision.read',
+    method: 'GET',
+    path: '/decisions',
+    surface: 'internal',
+    collection: true,
+    declaredAt: 'decisions/decisions.controller.ts @Get() decision.read (PA-01)',
+  },
+  {
+    capability: 'decision.write',
+    method: 'POST',
+    path: '/decisions',
+    surface: 'internal',
+    collection: true,
+    declaredAt: 'decisions/decisions.controller.ts @Post() decision.write (PA-01)',
+  },
+  {
+    capability: 'people.view',
+    method: 'GET',
+    path: '/people',
+    surface: 'internal',
+    collection: true,
+    declaredAt: 'people/directory.controller.ts @Get() people.view (PA-01)',
+  },
+  {
+    capability: 'roles.assign',
+    method: 'GET',
+    path: '/people/00000000-0000-7000-8000-000000000000/permissions/overrides',
+    surface: 'internal',
+    collection: false,
+    declaredAt: 'tenancy/membership-overrides.controller.ts @Get() roles.assign (PA-01)',
+  },
+  {
+    capability: 'billing.view',
+    method: 'GET',
+    path: '/billing/contacts',
+    surface: 'internal',
+    collection: true,
+    declaredAt: 'billing/contacts.controller.ts @Get() billing.view (PA-01)',
+  },
+  {
+    capability: 'billing.manage',
+    method: 'POST',
+    path: '/billing/contacts',
+    surface: 'internal',
+    collection: true,
+    declaredAt: 'billing/contacts.controller.ts @Post() billing.manage (PA-01)',
+  },
+  {
+    capability: 'ai.use',
+    method: 'GET',
+    path: '/me/personal-access-tokens',
+    surface: 'internal',
+    collection: true,
+    declaredAt: 'personal-access-tokens/personal-access-tokens.controller.ts @Get() ai.use (PA-01)',
+  },
+  {
+    capability: 'report.view',
+    method: 'GET',
+    path: '/insights/portfolio',
+    surface: 'internal',
+    collection: true,
+    declaredAt: 'insights/insights.controller.ts @Get(portfolio) report.view (PA-01)',
+  },
 ];
 
 /**
@@ -324,10 +411,71 @@ export const UNGUARDED_CAPABILITIES: readonly UnguardedCapability[] = [
     capability: 'search.use',
     why: 'Declared but unwired: no search surface is built yet; the capability exists in §4 ahead of its route.',
   },
+  // ---- platform-admin v2 · PA-01 ----
+  {
+    capability: 'project.delete',
+    why: 'Declared but unwired (PA-01): the SPEC §3.3 matrix names it ahead of its route; no route or service exercises it yet.',
+  },
+  {
+    capability: 'work.export',
+    why: 'Declared but unwired (PA-01): the SPEC §3.3 matrix names it ahead of its route; no route or service exercises it yet.',
+  },
+  {
+    capability: 'conversation.delete',
+    why: 'Declared but unwired (PA-01): the SPEC §3.3 matrix names it ahead of its route; no route or service exercises it yet.',
+  },
+  {
+    capability: 'conversation.export',
+    why: 'Declared but unwired (PA-01): the SPEC §3.3 matrix names it ahead of its route; no route or service exercises it yet.',
+  },
+  {
+    capability: 'doc.delete',
+    why: 'Declared but unwired (PA-01): the SPEC §3.3 matrix names it ahead of its route; no route or service exercises it yet.',
+  },
+  {
+    capability: 'doc.export',
+    why: 'Declared but unwired (PA-01): the SPEC §3.3 matrix names it ahead of its route; no route or service exercises it yet.',
+  },
+  {
+    capability: 'decision.delete',
+    why: 'Declared but unwired (PA-01): the SPEC §3.3 matrix names it ahead of its route; no route or service exercises it yet.',
+  },
+  {
+    capability: 'meeting.delete',
+    why: 'Declared but unwired (PA-01): the SPEC §3.3 matrix names it ahead of its route; no route or service exercises it yet.',
+  },
+  {
+    capability: 'storage.manage',
+    why: 'Declared but unwired (PA-01): the SPEC §3.3 matrix names it ahead of its route; no route or service exercises it yet.',
+  },
+  {
+    capability: 'people.invite',
+    why: 'Declared but unwired (PA-01): the SPEC §3.3 matrix names it ahead of its route; no route or service exercises it yet.',
+  },
+  {
+    capability: 'people.edit',
+    why: 'Declared but unwired (PA-01): the SPEC §3.3 matrix names it ahead of its route; no route or service exercises it yet.',
+  },
+  {
+    capability: 'settings.view',
+    why: 'Declared but unwired (PA-01): the SPEC §3.3 matrix names it ahead of its route; no route or service exercises it yet.',
+  },
+  {
+    capability: 'ai.manage',
+    why: 'Declared but unwired (PA-01): the SPEC §3.3 matrix names it ahead of its route; no route or service exercises it yet.',
+  },
+  {
+    capability: 'report.export',
+    why: 'Declared but unwired (PA-01): the SPEC §3.3 matrix names it ahead of its route; no route or service exercises it yet.',
+  },
 ];
 
-/** Every role, internal then client — the grid's row axis, taken from the domain tables. */
-export const GRID_ROLES: readonly Role[] = [...INTERNAL_ROLES, ...CLIENT_ROLES];
+/**
+ * Every role a real member can hold, internal then client — the grid's row axis, taken from the
+ * domain tables. PA-01: the hidden `platform_support` role is not a row; it resolves only while a
+ * Support session is live, and its ceiling is held to the owner's by the fixture guard instead.
+ */
+export const GRID_ROLES: readonly Role[] = [...ASSIGNABLE_INTERNAL_ROLES, ...CLIENT_ROLES];
 
 /**
  * One generated cell: a role, the operation it is driven against, and the verdict the §2

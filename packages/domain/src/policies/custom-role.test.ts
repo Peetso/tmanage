@@ -104,3 +104,27 @@ describe('authorize with a custom role', () => {
     expect(mayGrantCapability(subject, 'approval.decide', ORG).allowed).toBe(false);
   });
 });
+
+// ---- platform-admin v2 · PA-01 ----
+describe('custom role masks after the 24 new capabilities', () => {
+  it('the allowlist has 56 capabilities and a mask round-trips every one of them', () => {
+    expect(CAPABILITIES).toHaveLength(56);
+    const key = customRoleKey(ROLE_ID, CAPABILITIES);
+    expect(customRoleIdOf(key)).toBe(ROLE_ID);
+    expect([...capabilitySetFor(key)].sort()).toEqual([...CAPABILITIES].sort());
+  });
+
+  it('a role stored before the new capabilities is rebuilt with exactly its old set', () => {
+    const old = ['work.read', 'work.create', 'org.manage'];
+    const key = customRoleKey(ROLE_ID, parseCustomRoleCapabilities(JSON.stringify(old)));
+    expect([...capabilitySetFor(key)].sort()).toEqual([...old].sort());
+    expect(hasCapability(key, 'roles.assign')).toBe(false);
+  });
+
+  it('a new capability in a stored role is honoured and unknown strings are dropped', () => {
+    const json = JSON.stringify(['decision.read', 'report.export', 'not.a.capability']);
+    expect(parseCustomRoleCapabilities(json)).toEqual(['decision.read', 'report.export']);
+    const key = customRoleKey(ROLE_ID, parseCustomRoleCapabilities(json));
+    expect(hasCapability(key, 'report.export')).toBe(true);
+  });
+});

@@ -1,0 +1,190 @@
+/*
+ * platform-admin v2 · PA-01 — the permission matrix (Figma D7 439:19450 / 439:20300, D8
+ * 439:22016 / 439:22713). Tokens only; logical properties so the grid mirrors in Arabic.
+ *
+ * A white card with a paper-50 head row of mono uppercase action names, one row per area with a
+ * "tick the whole row" box before the area name, centred cells. A changed cell sits in a lime pill
+ * with a "+" or "–"; a locked cell is disabled with a small lock. Readonly chips are tinted by why
+ * the cell is on or off.
+ */
+
+.tm-pm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-inline-size: 0;
+}
+
+.tm-pm__card {
+  overflow-x: auto;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-pm__grid {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-ui-md);
+  color: var(--ink-950);
+}
+
+.tm-pm__head {
+  padding-block: 12px;
+  padding-inline: var(--s2);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  line-height: 15px;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--ink-650);
+  white-space: nowrap;
+}
+
+.tm-pm__head--area {
+  padding-inline-start: var(--s3);
+  text-align: start;
+}
+
+.tm-pm__head .tm-choice__label {
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.tm-pm__row + .tm-pm__row > * {
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-pm__area {
+  padding-block: 8px;
+  padding-inline: var(--s3) var(--s2);
+  font-weight: 400;
+  text-align: start;
+  white-space: nowrap;
+}
+
+.tm-pm__cell {
+  padding-block: 8px;
+  padding-inline: var(--s2);
+  text-align: center;
+  vertical-align: middle;
+}
+
+.tm-pm__cell .tm-tooltip {
+  display: inline-flex;
+}
+
+.tm-pm__none {
+  color: var(--ink-650);
+}
+
+.tm-pm__same {
+  font-size: var(--t-caption);
+  color: var(--ink-650);
+  white-space: nowrap;
+}
+
+.tm-pm__box {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: 4px;
+  border: var(--b-quiet) solid transparent;
+  border-radius: var(--r-control);
+}
+
+.tm-pm__box .tm-choice {
+  display: inline-flex;
+}
+
+.tm-pm__box .tm-choice__row {
+  gap: 0;
+}
+
+.tm-pm__box--added,
+.tm-pm__box--removed {
+  border-color: var(--lime-500);
+  background: var(--lime-100);
+}
+
+.tm-pm__mark {
+  font-size: var(--t-caption);
+  line-height: 1;
+  color: var(--ink-800);
+}
+
+.tm-pm__box--locked {
+  color: var(--ink-650);
+}
+
+.tm-pm__lock {
+  flex: none;
+}
+
+.tm-pm__chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 28px;
+  block-size: 22px;
+  padding-inline: 6px;
+  border-radius: var(--r-capsule);
+  font-size: var(--t-caption);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.tm-pm__chip--role {
+  background: var(--lime-100);
+  color: var(--ink-950);
+}
+
+.tm-pm__chip--allow {
+  background: color-mix(in srgb, var(--success-600) 16%, transparent);
+  color: var(--success-600);
+}
+
+.tm-pm__chip--deny {
+  background: color-mix(in srgb, var(--danger-600) 14%, transparent);
+  color: var(--danger-600);
+}
+
+.tm-pm__chip--policy_off {
+  background: color-mix(in srgb, var(--warning-600) 16%, transparent);
+  color: var(--warning-600);
+}
+
+.tm-pm__chip--not_in_ceiling,
+.tm-pm__chip--locked {
+  color: var(--ink-650);
+}
+
+.tm-pm__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-ui-sm);
+  color: var(--ink-800);
+}
+
+.tm-pm__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-pm__footnote {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: 18px;
+  color: var(--ink-650);
+}

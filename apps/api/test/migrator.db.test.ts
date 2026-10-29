@@ -15,7 +15,7 @@ import {
 } from '../src/common/database/migrator.js';
 import { migrationsDirectory, startTestDatabase } from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
-import { INTERNAL_ROLES } from '@tmanage/domain';
+import { ASSIGNABLE_INTERNAL_ROLES } from '@tmanage/domain';
 
 /**
  * Migrator behaviour against a real server.
@@ -343,7 +343,7 @@ describe('0012: calendar dates survive the DATETIME -> DATE conversion', () => {
 describe('0026: project_memberships.role is constrained to the internal role set', () => {
   beforeAll(freshDatabase);
 
-  it('admits exactly INTERNAL_ROLES and rejects any other string', async () => {
+  it('admits exactly ASSIGNABLE_INTERNAL_ROLES and rejects any other string', async () => {
     // Anti-drift: the CHECK values are read from the migration, never restated here, so the
     // constraint and the packages/domain union cannot become two independently edited copies.
     const sql = await readFile(
@@ -352,7 +352,7 @@ describe('0026: project_memberships.role is constrained to the internal role set
     );
     const check = sql.slice(sql.indexOf('chk_project_memberships_role'));
     const roles = [...check.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
-    expect(roles.sort()).toEqual([...INTERNAL_ROLES].sort());
+    expect(roles.sort()).toEqual([...ASSIGNABLE_INTERNAL_ROLES].sort());
 
     await migrate(connection, { directory: migrationsDirectory, appliedBy: 'migrator.db.test' });
 
@@ -371,12 +371,12 @@ describe('0026: project_memberships.role is constrained to the internal role set
     // uq_project_memberships_identity is (organization_id, project_id, user_id), so every
     // membership below needs its own user: one per accepted role, one shared by the rejected
     // inserts (which never commit), and one for the final accepted 'owner'.
-    const users = INTERNAL_ROLES.map((_, i) => [id(`b${i}`), `r${i}@e.test`, 'R']);
+    const users = ASSIGNABLE_INTERNAL_ROLES.map((_, i) => [id(`b${i}`), `r${i}@e.test`, 'R']);
     users.push([id('c0'), 'rej@e.test', 'R'], [id('c1'), 'ok@e.test', 'R']);
     await connection.query(`INSERT INTO users (id, email, display_name) VALUES ?`, [users]);
 
     // Every internal role is accepted (one write), each on its own (project, user) identity...
-    const rows = INTERNAL_ROLES.map((role, i) => [
+    const rows = ASSIGNABLE_INTERNAL_ROLES.map((role, i) => [
       id(`1${i}`),
       id('a1'),
       id('a3'),

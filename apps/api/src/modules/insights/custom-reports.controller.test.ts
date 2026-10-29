@@ -135,11 +135,11 @@ describe('InsightCustomReportsController (x320)', () => {
     await expectStatus(controllerWith(service).remove(context, principal, 'other'), 404);
   });
 
-  it('guards every route with work.read (403 by CapabilityGuard for a caller without it)', () => {
+  it('guards every route with report.view (403 by CapabilityGuard for a caller without it)', () => {
     for (const method of ['list', 'create', 'getById', 'replace', 'remove'] as const) {
       expect(
         Reflect.getMetadata(REQUIRED_CAPABILITY, InsightCustomReportsController.prototype[method]),
-      ).toBe('work.read');
+      ).toBe('report.view');
     }
   });
 });

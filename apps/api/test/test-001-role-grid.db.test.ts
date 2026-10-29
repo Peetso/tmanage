@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { RowDataPacket } from 'mysql2/promise';
-import { CLIENT_ROLES, INTERNAL_ROLES, uuidv7 } from '@tmanage/domain';
+import { CLIENT_ROLES, ASSIGNABLE_INTERNAL_ROLES, uuidv7 } from '@tmanage/domain';
 import type { Role } from '@tmanage/domain';
 import {
   buildRoleOperationGrid,
@@ -84,7 +84,7 @@ beforeAll(async () => {
   // this suite counts. Internal roles get a membership (org-wide scope only where the ceiling is
   // org-wide, per x59); client roles get a client membership in Atlas, which is already shared to
   // the Atlas project, so their allowed portal reads resolve to a real projection.
-  for (const role of INTERNAL_ROLES) {
+  for (const role of ASSIGNABLE_INTERNAL_ROLES) {
     const userId = uuidv7();
     await db.admin.execute(
       `insert into users (id, email, display_name, email_verified_at)
@@ -130,7 +130,7 @@ describe('§11 role × operation grid, generated from the capability ceiling', (
   it('covers every role and every operation the generator emits', () => {
     // A guard against silent shrinkage: the seeded rows and the grid must line up before a
     // single request is made.
-    expect(GRID_ROLES).toEqual([...INTERNAL_ROLES, ...CLIENT_ROLES]);
+    expect(GRID_ROLES).toEqual([...ASSIGNABLE_INTERNAL_ROLES, ...CLIENT_ROLES]);
     for (const role of GRID_ROLES) expect(roleUsers.has(role)).toBe(true);
     expect(GUARDED_OPERATIONS.length).toBeGreaterThan(0);
   });

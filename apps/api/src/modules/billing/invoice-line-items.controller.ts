@@ -183,7 +183,7 @@ export class InvoiceLineItemsController {
   ) {}
 
   @Get()
-  @RequireCapability('org.manage')
+  @RequireCapability('billing.view')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

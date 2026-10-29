@@ -74,6 +74,19 @@
  * `doc.read` mirrors `work.read`'s roles and `doc.write` mirrors `work.create`'s (internal minus
  * guest). Recorded in the same capabilities file; every doc line below cites that decision.
  *
+ * ## platform-admin v2 · PA-01 — the 24 matrix capabilities and `platform_support`
+ *
+ * The capabilities `project.delete` … `report.export` have no §2 row either; their source is the
+ * ceiling paragraph under the matrix table in the platform-admin SPEC §3.3 ("owner/org_admin get
+ * all; workspace_admin gets all but billing/settings/roles/ai.manage; manager gets delete on own
+ * projects' work/docs/meetings/decisions + export; moderator gets `conversation.delete`; member
+ * gets `people.view`, `report.view`, `ai.use`, `decision.read/write`; guest gets `people.view`,
+ * `decision.read`; client roles gain nothing"). Three readings are flagged: the moderator keeps
+ * the member set and the decision register it reached through `meeting.*`; the guest keeps
+ * `report.view` and `ai.use` it reached through `work.read` before insights and token minting
+ * moved; manager holds `file.delete`, the delete of the files area. Each such line cites
+ * "SPEC §3.3 ceiling paragraph". `platform_support` (SPEC §3.2) is transcribed as the owner.
+ *
  * ## How the qualifying words in §2 are read
  *
  * §2's cells are not booleans. A ceiling is "is this role categorically barred?", so:
@@ -166,6 +179,31 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'file.upload', // Create/edit work: "Scope"
       'file.download', // View internal project: "Scope"
       'search.use', // View internal project: "Scope"
+      // ---- platform-admin v2 · PA-01: SPEC §3.3 matrix capabilities ----
+      'project.delete', // SPEC §3.3 ceiling paragraph
+      'work.delete', // SPEC §3.3 ceiling paragraph
+      'work.export', // SPEC §3.3 ceiling paragraph
+      'conversation.delete', // SPEC §3.3 ceiling paragraph
+      'conversation.export', // SPEC §3.3 ceiling paragraph
+      'doc.delete', // SPEC §3.3 ceiling paragraph
+      'doc.export', // SPEC §3.3 ceiling paragraph
+      'decision.read', // SPEC §3.3 ceiling paragraph
+      'decision.write', // SPEC §3.3 ceiling paragraph
+      'decision.delete', // SPEC §3.3 ceiling paragraph
+      'meeting.delete', // SPEC §3.3 ceiling paragraph
+      'file.delete', // SPEC §3.3 ceiling paragraph
+      'storage.manage', // SPEC §3.3 ceiling paragraph
+      'people.view', // SPEC §3.3 ceiling paragraph
+      'people.invite', // SPEC §3.3 ceiling paragraph
+      'people.edit', // SPEC §3.3 ceiling paragraph
+      'roles.assign', // SPEC §3.3 ceiling paragraph
+      'billing.view', // SPEC §3.3 ceiling paragraph
+      'billing.manage', // SPEC §3.3 ceiling paragraph
+      'settings.view', // SPEC §3.3 ceiling paragraph
+      'ai.use', // SPEC §3.3 ceiling paragraph
+      'ai.manage', // SPEC §3.3 ceiling paragraph
+      'report.view', // SPEC §3.3 ceiling paragraph
+      'report.export', // SPEC §3.3 ceiling paragraph
     ],
     denied: [
       'client_request.submit', // Submit client request: "No"
@@ -212,9 +250,102 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'file.upload', // Create/edit work: "Scope"
       'file.download', // View internal project: "Scope"
       'search.use', // View internal project: "Scope"
+      // ---- platform-admin v2 · PA-01: SPEC §3.3 matrix capabilities ----
+      'project.delete', // SPEC §3.3 ceiling paragraph
+      'work.delete', // SPEC §3.3 ceiling paragraph
+      'work.export', // SPEC §3.3 ceiling paragraph
+      'conversation.delete', // SPEC §3.3 ceiling paragraph
+      'conversation.export', // SPEC §3.3 ceiling paragraph
+      'doc.delete', // SPEC §3.3 ceiling paragraph
+      'doc.export', // SPEC §3.3 ceiling paragraph
+      'decision.read', // SPEC §3.3 ceiling paragraph
+      'decision.write', // SPEC §3.3 ceiling paragraph
+      'decision.delete', // SPEC §3.3 ceiling paragraph
+      'meeting.delete', // SPEC §3.3 ceiling paragraph
+      'file.delete', // SPEC §3.3 ceiling paragraph
+      'storage.manage', // SPEC §3.3 ceiling paragraph
+      'people.view', // SPEC §3.3 ceiling paragraph
+      'people.invite', // SPEC §3.3 ceiling paragraph
+      'people.edit', // SPEC §3.3 ceiling paragraph
+      'roles.assign', // SPEC §3.3 ceiling paragraph
+      'billing.view', // SPEC §3.3 ceiling paragraph
+      'billing.manage', // SPEC §3.3 ceiling paragraph
+      'settings.view', // SPEC §3.3 ceiling paragraph
+      'ai.use', // SPEC §3.3 ceiling paragraph
+      'ai.manage', // SPEC §3.3 ceiling paragraph
+      'report.view', // SPEC §3.3 ceiling paragraph
+      'report.export', // SPEC §3.3 ceiling paragraph
     ],
     denied: [
       'client_request.submit', // Submit client request: "No"
+    ],
+  },
+  /**
+   * platform-admin v2 · PA-01 (SPEC P3, §3.2). The hidden Support-session membership. It is not
+   * a §2 column: SPEC §3.2 gives it "the full capability ceiling", the owner's column, so it is
+   * transcribed as the owner is — every capability, and "Submit client request: No" like every
+   * internal column (the blanket grant is recorded as an accepted divergence below).
+   */
+  platform_support: {
+    granted: [
+      'meeting.read', // SPEC §3.2: full ceiling, as owner
+      'meeting.write', // SPEC §3.2: full ceiling, as owner
+      'doc.read', // SPEC §3.2: full ceiling, as owner
+      'doc.write', // SPEC §3.2: full ceiling, as owner
+      'org.manage', // SPEC §3.2: full ceiling, as owner
+      'org.security.manage', // SPEC §3.2: full ceiling, as owner
+      'workspace.manage', // SPEC §3.2: full ceiling, as owner
+      'project.create', // SPEC §3.2: full ceiling, as owner
+      'project.manage', // SPEC §3.2: full ceiling, as owner
+      'project.member.manage', // SPEC §3.2: full ceiling, as owner
+      'conversation.read', // SPEC §3.2: full ceiling, as owner
+      'conversation.write', // SPEC §3.2: full ceiling, as owner
+      'conversation.moderate', // SPEC §3.2: full ceiling, as owner
+      'work.read', // SPEC §3.2: full ceiling, as owner
+      'work.create', // SPEC §3.2: full ceiling, as owner
+      'work.update', // SPEC §3.2: full ceiling, as owner
+      'work.transition', // SPEC §3.2: full ceiling, as owner
+      'client_projection.read', // SPEC §3.2: full ceiling, as owner
+      'client_request.triage', // SPEC §3.2: full ceiling, as owner
+      'deliverable.create', // SPEC §3.2: full ceiling, as owner
+      'deliverable.review', // SPEC §3.2: full ceiling, as owner
+      'deliverable.publish', // SPEC §3.2: full ceiling, as owner
+      'approval.read', // SPEC §3.2: full ceiling, as owner
+      'approval.decide', // SPEC §3.2: full ceiling, as owner
+      'client_member.manage', // SPEC §3.2: full ceiling, as owner
+      'audit.read', // SPEC §3.2: full ceiling, as owner
+      'audit.export', // SPEC §3.2: full ceiling, as owner
+      'member.offboard', // SPEC §3.2: full ceiling, as owner
+      'file.upload', // SPEC §3.2: full ceiling, as owner
+      'file.download', // SPEC §3.2: full ceiling, as owner
+      'search.use', // SPEC §3.2: full ceiling, as owner
+      'project.delete', // SPEC §3.2: full ceiling, as owner
+      'work.delete', // SPEC §3.2: full ceiling, as owner
+      'work.export', // SPEC §3.2: full ceiling, as owner
+      'conversation.delete', // SPEC §3.2: full ceiling, as owner
+      'conversation.export', // SPEC §3.2: full ceiling, as owner
+      'doc.delete', // SPEC §3.2: full ceiling, as owner
+      'doc.export', // SPEC §3.2: full ceiling, as owner
+      'decision.read', // SPEC §3.2: full ceiling, as owner
+      'decision.write', // SPEC §3.2: full ceiling, as owner
+      'decision.delete', // SPEC §3.2: full ceiling, as owner
+      'meeting.delete', // SPEC §3.2: full ceiling, as owner
+      'file.delete', // SPEC §3.2: full ceiling, as owner
+      'storage.manage', // SPEC §3.2: full ceiling, as owner
+      'people.view', // SPEC §3.2: full ceiling, as owner
+      'people.invite', // SPEC §3.2: full ceiling, as owner
+      'people.edit', // SPEC §3.2: full ceiling, as owner
+      'roles.assign', // SPEC §3.2: full ceiling, as owner
+      'billing.view', // SPEC §3.2: full ceiling, as owner
+      'billing.manage', // SPEC §3.2: full ceiling, as owner
+      'settings.view', // SPEC §3.2: full ceiling, as owner
+      'ai.use', // SPEC §3.2: full ceiling, as owner
+      'ai.manage', // SPEC §3.2: full ceiling, as owner
+      'report.view', // SPEC §3.2: full ceiling, as owner
+      'report.export', // SPEC §3.2: full ceiling, as owner
+    ],
+    denied: [
+      'client_request.submit', // internal principal; same reading as owner
     ],
   },
 
@@ -254,12 +385,38 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'file.upload', // Create/edit work: "Scope"
       'file.download', // View internal project: "Scope"
       'search.use', // View internal project: "Scope"
+      // ---- platform-admin v2 · PA-01: SPEC §3.3 matrix capabilities ----
+      'project.delete', // SPEC §3.3 ceiling paragraph
+      'work.delete', // SPEC §3.3 ceiling paragraph
+      'work.export', // SPEC §3.3 ceiling paragraph
+      'conversation.delete', // SPEC §3.3 ceiling paragraph
+      'conversation.export', // SPEC §3.3 ceiling paragraph
+      'doc.delete', // SPEC §3.3 ceiling paragraph
+      'doc.export', // SPEC §3.3 ceiling paragraph
+      'decision.read', // SPEC §3.3 ceiling paragraph
+      'decision.write', // SPEC §3.3 ceiling paragraph
+      'decision.delete', // SPEC §3.3 ceiling paragraph
+      'meeting.delete', // SPEC §3.3 ceiling paragraph
+      'file.delete', // SPEC §3.3 ceiling paragraph
+      'storage.manage', // SPEC §3.3 ceiling paragraph
+      'people.view', // SPEC §3.3 ceiling paragraph
+      'people.invite', // SPEC §3.3 ceiling paragraph
+      'people.edit', // SPEC §3.3 ceiling paragraph
+      'ai.use', // SPEC §3.3 ceiling paragraph
+      'report.view', // SPEC §3.3 ceiling paragraph
+      'report.export', // SPEC §3.3 ceiling paragraph
     ],
     denied: [
       'org.manage', // Billing/ownership: "No"
       'org.security.manage', // Org security/SSO: "No"
       'client_request.submit', // Submit client request: "No"
       'audit.export', // Export tenant: "No"
+      // ---- platform-admin v2 · PA-01: SPEC §3.3 matrix capabilities ----
+      'billing.view', // SPEC §3.3 ceiling paragraph
+      'billing.manage', // SPEC §3.3 ceiling paragraph
+      'settings.view', // SPEC §3.3 ceiling paragraph
+      'roles.assign', // SPEC §3.3 ceiling paragraph
+      'ai.manage', // SPEC §3.3 ceiling paragraph
     ],
   },
 
@@ -300,6 +457,22 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'file.upload', // Create/edit work: "Project"
       'file.download', // View internal project: "Member"
       'search.use', // View internal project: "Member"
+      // ---- platform-admin v2 · PA-01: SPEC §3.3 matrix capabilities ----
+      'work.delete', // SPEC §3.3 ceiling paragraph
+      'work.export', // SPEC §3.3 ceiling paragraph
+      'conversation.delete', // SPEC §3.3 ceiling paragraph
+      'conversation.export', // SPEC §3.3 ceiling paragraph
+      'doc.delete', // SPEC §3.3 ceiling paragraph
+      'doc.export', // SPEC §3.3 ceiling paragraph
+      'decision.read', // SPEC §3.3 ceiling paragraph
+      'decision.write', // SPEC §3.3 ceiling paragraph
+      'decision.delete', // SPEC §3.3 ceiling paragraph
+      'meeting.delete', // SPEC §3.3 ceiling paragraph
+      'file.delete', // SPEC §3.3 ceiling paragraph
+      'people.view', // SPEC §3.3 ceiling paragraph
+      'ai.use', // SPEC §3.3 ceiling paragraph
+      'report.view', // SPEC §3.3 ceiling paragraph
+      'report.export', // SPEC §3.3 ceiling paragraph
     ],
     denied: [
       'org.manage', // Billing/ownership: "No"
@@ -308,6 +481,16 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'client_request.submit', // Submit client request: "No"
       'audit.export', // Export tenant: "No"
       'member.offboard', // Workspace settings: "Limited" — offboarding is org-level
+      // ---- platform-admin v2 · PA-01: SPEC §3.3 matrix capabilities ----
+      'project.delete', // SPEC §3.3 ceiling paragraph
+      'storage.manage', // SPEC §3.3 ceiling paragraph
+      'people.invite', // SPEC §3.3 ceiling paragraph
+      'people.edit', // SPEC §3.3 ceiling paragraph
+      'roles.assign', // SPEC §3.3 ceiling paragraph
+      'billing.view', // SPEC §3.3 ceiling paragraph
+      'billing.manage', // SPEC §3.3 ceiling paragraph
+      'settings.view', // SPEC §3.3 ceiling paragraph
+      'ai.manage', // SPEC §3.3 ceiling paragraph
     ],
   },
 
@@ -340,6 +523,13 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'file.upload', // Create/edit work: "Policy"
       'file.download', // View internal project: "Member"
       'search.use', // View internal project: "Member"
+      // ---- platform-admin v2 · PA-01: SPEC §3.3 matrix capabilities ----
+      'conversation.delete', // SPEC §3.3 ceiling paragraph
+      'decision.read', // SPEC §3.3 ceiling paragraph
+      'decision.write', // SPEC §3.3 ceiling paragraph
+      'people.view', // SPEC §3.3 ceiling paragraph
+      'ai.use', // SPEC §3.3 ceiling paragraph
+      'report.view', // SPEC §3.3 ceiling paragraph
     ],
     denied: [
       'org.manage', // Billing/ownership: "No"
@@ -354,6 +544,25 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'audit.read', // View audit log: "No"
       'audit.export', // Export tenant: "No"
       'member.offboard', // Workspace settings: "No"
+      // ---- platform-admin v2 · PA-01: SPEC §3.3 matrix capabilities ----
+      'project.delete', // SPEC §3.3 ceiling paragraph
+      'work.delete', // SPEC §3.3 ceiling paragraph
+      'work.export', // SPEC §3.3 ceiling paragraph
+      'conversation.export', // SPEC §3.3 ceiling paragraph
+      'doc.delete', // SPEC §3.3 ceiling paragraph
+      'doc.export', // SPEC §3.3 ceiling paragraph
+      'decision.delete', // SPEC §3.3 ceiling paragraph
+      'meeting.delete', // SPEC §3.3 ceiling paragraph
+      'file.delete', // SPEC §3.3 ceiling paragraph
+      'storage.manage', // SPEC §3.3 ceiling paragraph
+      'people.invite', // SPEC §3.3 ceiling paragraph
+      'people.edit', // SPEC §3.3 ceiling paragraph
+      'roles.assign', // SPEC §3.3 ceiling paragraph
+      'billing.view', // SPEC §3.3 ceiling paragraph
+      'billing.manage', // SPEC §3.3 ceiling paragraph
+      'settings.view', // SPEC §3.3 ceiling paragraph
+      'ai.manage', // SPEC §3.3 ceiling paragraph
+      'report.export', // SPEC §3.3 ceiling paragraph
     ],
   },
 
@@ -385,6 +594,12 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'file.upload', // Create/edit work: "Assigned/member"
       'file.download', // View internal project: "Member"
       'search.use', // View internal project: "Member"
+      // ---- platform-admin v2 · PA-01: SPEC §3.3 matrix capabilities ----
+      'decision.read', // SPEC §3.3 ceiling paragraph
+      'decision.write', // SPEC §3.3 ceiling paragraph
+      'people.view', // SPEC §3.3 ceiling paragraph
+      'ai.use', // SPEC §3.3 ceiling paragraph
+      'report.view', // SPEC §3.3 ceiling paragraph
     ],
     denied: [
       'org.manage', // Billing/ownership: "No"
@@ -400,6 +615,26 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'client_member.manage', // Invite client users: "No"
       'audit.export', // Export tenant: "No"
       'member.offboard', // Workspace settings: "No"
+      // ---- platform-admin v2 · PA-01: SPEC §3.3 matrix capabilities ----
+      'project.delete', // SPEC §3.3 ceiling paragraph
+      'work.delete', // SPEC §3.3 ceiling paragraph
+      'work.export', // SPEC §3.3 ceiling paragraph
+      'conversation.delete', // SPEC §3.3 ceiling paragraph
+      'conversation.export', // SPEC §3.3 ceiling paragraph
+      'doc.delete', // SPEC §3.3 ceiling paragraph
+      'doc.export', // SPEC §3.3 ceiling paragraph
+      'decision.delete', // SPEC §3.3 ceiling paragraph
+      'meeting.delete', // SPEC §3.3 ceiling paragraph
+      'file.delete', // SPEC §3.3 ceiling paragraph
+      'storage.manage', // SPEC §3.3 ceiling paragraph
+      'people.invite', // SPEC §3.3 ceiling paragraph
+      'people.edit', // SPEC §3.3 ceiling paragraph
+      'roles.assign', // SPEC §3.3 ceiling paragraph
+      'billing.view', // SPEC §3.3 ceiling paragraph
+      'billing.manage', // SPEC §3.3 ceiling paragraph
+      'settings.view', // SPEC §3.3 ceiling paragraph
+      'ai.manage', // SPEC §3.3 ceiling paragraph
+      'report.export', // SPEC §3.3 ceiling paragraph
     ],
   },
 
@@ -426,6 +661,11 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'approval.decide', // Approve governed version: "If reviewer"
       'file.download', // View internal project: "Explicit"
       'search.use', // View internal project: "Explicit"
+      // ---- platform-admin v2 · PA-01: SPEC §3.3 matrix capabilities ----
+      'decision.read', // SPEC §3.3 ceiling paragraph
+      'people.view', // SPEC §3.3 ceiling paragraph
+      'ai.use', // SPEC §3.3 ceiling paragraph
+      'report.view', // SPEC §3.3 ceiling paragraph
     ],
     denied: [
       'org.manage', // Billing/ownership: "No"
@@ -450,6 +690,27 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'audit.export', // Export tenant: "No"
       'member.offboard', // Workspace settings: "No"
       'file.upload', // Create/edit work: "Explicit" — amend, not originate
+      // ---- platform-admin v2 · PA-01: SPEC §3.3 matrix capabilities ----
+      'project.delete', // SPEC §3.3 ceiling paragraph
+      'work.delete', // SPEC §3.3 ceiling paragraph
+      'work.export', // SPEC §3.3 ceiling paragraph
+      'conversation.delete', // SPEC §3.3 ceiling paragraph
+      'conversation.export', // SPEC §3.3 ceiling paragraph
+      'doc.delete', // SPEC §3.3 ceiling paragraph
+      'doc.export', // SPEC §3.3 ceiling paragraph
+      'decision.write', // SPEC §3.3 ceiling paragraph
+      'decision.delete', // SPEC §3.3 ceiling paragraph
+      'meeting.delete', // SPEC §3.3 ceiling paragraph
+      'file.delete', // SPEC §3.3 ceiling paragraph
+      'storage.manage', // SPEC §3.3 ceiling paragraph
+      'people.invite', // SPEC §3.3 ceiling paragraph
+      'people.edit', // SPEC §3.3 ceiling paragraph
+      'roles.assign', // SPEC §3.3 ceiling paragraph
+      'billing.view', // SPEC §3.3 ceiling paragraph
+      'billing.manage', // SPEC §3.3 ceiling paragraph
+      'settings.view', // SPEC §3.3 ceiling paragraph
+      'ai.manage', // SPEC §3.3 ceiling paragraph
+      'report.export', // SPEC §3.3 ceiling paragraph
     ],
   },
 
@@ -501,6 +762,31 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'audit.export', // Export tenant: "No"
       'member.offboard', // Workspace settings: "No"
       'search.use', // View internal project: "Never"
+      // ---- platform-admin v2 · PA-01: SPEC §3.3 matrix capabilities ----
+      'project.delete', // SPEC §3.3 ceiling paragraph
+      'work.delete', // SPEC §3.3 ceiling paragraph
+      'work.export', // SPEC §3.3 ceiling paragraph
+      'conversation.delete', // SPEC §3.3 ceiling paragraph
+      'conversation.export', // SPEC §3.3 ceiling paragraph
+      'doc.delete', // SPEC §3.3 ceiling paragraph
+      'doc.export', // SPEC §3.3 ceiling paragraph
+      'decision.read', // SPEC §3.3 ceiling paragraph
+      'decision.write', // SPEC §3.3 ceiling paragraph
+      'decision.delete', // SPEC §3.3 ceiling paragraph
+      'meeting.delete', // SPEC §3.3 ceiling paragraph
+      'file.delete', // SPEC §3.3 ceiling paragraph
+      'storage.manage', // SPEC §3.3 ceiling paragraph
+      'people.view', // SPEC §3.3 ceiling paragraph
+      'people.invite', // SPEC §3.3 ceiling paragraph
+      'people.edit', // SPEC §3.3 ceiling paragraph
+      'roles.assign', // SPEC §3.3 ceiling paragraph
+      'billing.view', // SPEC §3.3 ceiling paragraph
+      'billing.manage', // SPEC §3.3 ceiling paragraph
+      'settings.view', // SPEC §3.3 ceiling paragraph
+      'ai.use', // SPEC §3.3 ceiling paragraph
+      'ai.manage', // SPEC §3.3 ceiling paragraph
+      'report.view', // SPEC §3.3 ceiling paragraph
+      'report.export', // SPEC §3.3 ceiling paragraph
     ],
   },
 
@@ -544,6 +830,31 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'audit.export', // Export tenant: "No"
       'member.offboard', // Workspace settings: "No"
       'search.use', // View internal project: "Never"
+      // ---- platform-admin v2 · PA-01: SPEC §3.3 matrix capabilities ----
+      'project.delete', // SPEC §3.3 ceiling paragraph
+      'work.delete', // SPEC §3.3 ceiling paragraph
+      'work.export', // SPEC §3.3 ceiling paragraph
+      'conversation.delete', // SPEC §3.3 ceiling paragraph
+      'conversation.export', // SPEC §3.3 ceiling paragraph
+      'doc.delete', // SPEC §3.3 ceiling paragraph
+      'doc.export', // SPEC §3.3 ceiling paragraph
+      'decision.read', // SPEC §3.3 ceiling paragraph
+      'decision.write', // SPEC §3.3 ceiling paragraph
+      'decision.delete', // SPEC §3.3 ceiling paragraph
+      'meeting.delete', // SPEC §3.3 ceiling paragraph
+      'file.delete', // SPEC §3.3 ceiling paragraph
+      'storage.manage', // SPEC §3.3 ceiling paragraph
+      'people.view', // SPEC §3.3 ceiling paragraph
+      'people.invite', // SPEC §3.3 ceiling paragraph
+      'people.edit', // SPEC §3.3 ceiling paragraph
+      'roles.assign', // SPEC §3.3 ceiling paragraph
+      'billing.view', // SPEC §3.3 ceiling paragraph
+      'billing.manage', // SPEC §3.3 ceiling paragraph
+      'settings.view', // SPEC §3.3 ceiling paragraph
+      'ai.use', // SPEC §3.3 ceiling paragraph
+      'ai.manage', // SPEC §3.3 ceiling paragraph
+      'report.view', // SPEC §3.3 ceiling paragraph
+      'report.export', // SPEC §3.3 ceiling paragraph
     ],
   },
 
@@ -592,6 +903,31 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'audit.export', // Export tenant: "No"
       'member.offboard', // Workspace settings: "No"
       'search.use', // View internal project: "Never"
+      // ---- platform-admin v2 · PA-01: SPEC §3.3 matrix capabilities ----
+      'project.delete', // SPEC §3.3 ceiling paragraph
+      'work.delete', // SPEC §3.3 ceiling paragraph
+      'work.export', // SPEC §3.3 ceiling paragraph
+      'conversation.delete', // SPEC §3.3 ceiling paragraph
+      'conversation.export', // SPEC §3.3 ceiling paragraph
+      'doc.delete', // SPEC §3.3 ceiling paragraph
+      'doc.export', // SPEC §3.3 ceiling paragraph
+      'decision.read', // SPEC §3.3 ceiling paragraph
+      'decision.write', // SPEC §3.3 ceiling paragraph
+      'decision.delete', // SPEC §3.3 ceiling paragraph
+      'meeting.delete', // SPEC §3.3 ceiling paragraph
+      'file.delete', // SPEC §3.3 ceiling paragraph
+      'storage.manage', // SPEC §3.3 ceiling paragraph
+      'people.view', // SPEC §3.3 ceiling paragraph
+      'people.invite', // SPEC §3.3 ceiling paragraph
+      'people.edit', // SPEC §3.3 ceiling paragraph
+      'roles.assign', // SPEC §3.3 ceiling paragraph
+      'billing.view', // SPEC §3.3 ceiling paragraph
+      'billing.manage', // SPEC §3.3 ceiling paragraph
+      'settings.view', // SPEC §3.3 ceiling paragraph
+      'ai.use', // SPEC §3.3 ceiling paragraph
+      'ai.manage', // SPEC §3.3 ceiling paragraph
+      'report.view', // SPEC §3.3 ceiling paragraph
+      'report.export', // SPEC §3.3 ceiling paragraph
     ],
   },
 
@@ -643,6 +979,31 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'member.offboard', // Workspace settings: "No"
       'file.upload', // no client write surface besides a request this role may not always raise
       'search.use', // View internal project: "Never"
+      // ---- platform-admin v2 · PA-01: SPEC §3.3 matrix capabilities ----
+      'project.delete', // SPEC §3.3 ceiling paragraph
+      'work.delete', // SPEC §3.3 ceiling paragraph
+      'work.export', // SPEC §3.3 ceiling paragraph
+      'conversation.delete', // SPEC §3.3 ceiling paragraph
+      'conversation.export', // SPEC §3.3 ceiling paragraph
+      'doc.delete', // SPEC §3.3 ceiling paragraph
+      'doc.export', // SPEC §3.3 ceiling paragraph
+      'decision.read', // SPEC §3.3 ceiling paragraph
+      'decision.write', // SPEC §3.3 ceiling paragraph
+      'decision.delete', // SPEC §3.3 ceiling paragraph
+      'meeting.delete', // SPEC §3.3 ceiling paragraph
+      'file.delete', // SPEC §3.3 ceiling paragraph
+      'storage.manage', // SPEC §3.3 ceiling paragraph
+      'people.view', // SPEC §3.3 ceiling paragraph
+      'people.invite', // SPEC §3.3 ceiling paragraph
+      'people.edit', // SPEC §3.3 ceiling paragraph
+      'roles.assign', // SPEC §3.3 ceiling paragraph
+      'billing.view', // SPEC §3.3 ceiling paragraph
+      'billing.manage', // SPEC §3.3 ceiling paragraph
+      'settings.view', // SPEC §3.3 ceiling paragraph
+      'ai.use', // SPEC §3.3 ceiling paragraph
+      'ai.manage', // SPEC §3.3 ceiling paragraph
+      'report.view', // SPEC §3.3 ceiling paragraph
+      'report.export', // SPEC §3.3 ceiling paragraph
     ],
   },
 };
@@ -686,6 +1047,15 @@ export const ACCEPTED_CEILING_DIVERGENCES: readonly CeilingDivergence[] = [
     capability: 'client_request.submit',
     ceiling: 'grants',
     why: 'Same blanket-grant artefact as owner: org_admin is `[...CAPABILITIES]` (ADM-03).',
+  },
+  {
+    role: 'platform_support',
+    capability: 'client_request.submit',
+    ceiling: 'grants',
+    why:
+      'PA-01. Same blanket-grant artefact as owner: the Support-session role is `[...CAPABILITIES]` ' +
+      '(SPEC §3.2 "full capability ceiling"), and the portal services refuse any internal ' +
+      'principal raising a client request.',
   },
   {
     role: 'moderator',

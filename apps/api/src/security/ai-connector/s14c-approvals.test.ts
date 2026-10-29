@@ -161,7 +161,8 @@ describe('S14C approvals — only the owning member decides', () => {
   it('every decision route demands a capability (the guard chain runs as the member)', () => {
     const proto = PendingAiActionsController.prototype;
     for (const handler of [proto.view, proto.approve, proto.decline]) {
-      expect(Reflect.getMetadata(REQUIRED_CAPABILITY, handler)).toBe('work.read');
+      // PA-01 (SPEC §3.3): the AI connector's member routes ride `ai.use`.
+      expect(Reflect.getMetadata(REQUIRED_CAPABILITY, handler)).toBe('ai.use');
     }
   });
 });
