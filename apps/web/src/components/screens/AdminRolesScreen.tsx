@@ -73,7 +73,8 @@ export function AdminRolesScreen({
     });
   }
 
-  const rows = roles.data?.roles ?? [];
+  // A role the platform deleted stays as a retired row (PA-04); it is not shown.
+  const rows = (roles.data?.roles ?? []).filter((role) => !role.name.startsWith('†deleted:'));
 
   return (
     <ControlCenterShell
@@ -143,7 +144,11 @@ export function AdminRolesScreen({
                   {rows.map((role) => (
                     <tr key={role.id}>
                       <td>
-                        <strong className="tm-cc-cell-title">{role.name}</strong>
+                        <strong className="tm-cc-cell-title">
+                          <Link href={`/${organizationSlug}/admin/roles/${role.id}`}>
+                            {role.name}
+                          </Link>
+                        </strong>
                         <span className="tm-cc-cell-sub">
                           {role.capabilities.slice(0, 3).map(capabilityLabel).join(' · ')}
                           {role.capabilities.length > 3 ? ' …' : ''}

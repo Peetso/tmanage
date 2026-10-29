@@ -12,6 +12,11 @@ import { cloneCustomRole, editCustomRole } from '../../lib/api/admin-role-edit';
 import type { ApiClient } from '../../lib/api/client';
 import { CAPABILITIES_BY_AREA, capabilityLabel } from '../../lib/capability-labels';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { useRouter } from 'next/navigation';
+import type { Capability } from '@tmanage/domain';
+import { readOrganizationMe, readRolesMatrix } from '../../lib/api/permission-matrix';
+import { RoleMatrixEditor, isRetiredRoleName } from '../permissions/RoleMatrixEditor';
+import type { BuiltInRoleRef, EditorRole, RoleEditorDialog } from '../permissions/RoleMatrixEditor';
 
 export interface RoleEditScreenProps {
   organizationSlug: string;
@@ -49,7 +54,10 @@ export function RoleEditScreen({
     queryFn: () => readCustomRoles(api, organizationSlug),
   });
 
-  const rows = useMemo(() => roles.data?.roles ?? [], [roles.data]);
+  const rows = useMemo(
+    () => (roles.data?.roles ?? []).filter((role) => !role.name.startsWith('†deleted:')),
+    [roles.data],
+  );
 
   const [selectedId, setSelectedId] = useState('');
   const [name, setName] = useState('');
@@ -362,4 +370,146 @@ function describeEffect(gains: number, losses: number, renamed: boolean): string
   if (losses > 0) parts.push(`loses ${losses} ${losses === 1 ? 'capability' : 'capabilities'}`);
   if (renamed) parts.push('sees the role under a new name');
   return parts.join(' and ');
+}
+
+// ---- platform-admin v2 · PA-04 ----
+
+export interface OrgRoleMatrixScreenProps extends RoleEditScreenProps {
+  readonly roleId: string;
+}
+
+/**
+ * **D7 role matrix editor, organization side** (Figma `439:20300`) at `/{orgSlug}/admin/roles/{roleId}`.
+ *
+ * PA-01's matrix over the role's capabilities, with the cells the editor does not hold locked (the
+ * ceiling is the caller's own permissions from `/me`; an owner has none). The rail lists the other
+ * custom roles. Save sends the edit through x195's PATCH (the name is kept); a refused widening comes
+ * back as 403 and is shown as the escalation banner. "Clone role" copies it under a new name.
+ */
+export function OrgRoleMatrixScreen({
+  organizationSlug,
+  organizationName,
+  roleId,
+  client,
+}: OrgRoleMatrixScreenProps) {
+  const api = client ?? browserApiClient();
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const t = useT();
+  const [dialog, setDialog] = useState<RoleEditorDialog>(null);
+
+  const roles = useQuery({
+    queryKey: ['admin-roles', organizationSlug],
+    queryFn: () => readCustomRoles(api, organizationSlug),
+  });
+  const matrix = useQuery({
+    queryKey: ['roles-matrix', organizationSlug],
+    queryFn: () => readRolesMatrix(api, organizationSlug),
+    retry: false,
+  });
+  const me = useQuery({
+    queryKey: ['organization-me', organizationSlug],
+    queryFn: () => readOrganizationMe(api, organizationSlug),
+    retry: false,
+  });
+
+  const live = (roles.data?.roles ?? []).filter((role) => !isRetiredRoleName(role.name));
+  const current = live.find((role) => role.id === roleId) ?? null;
+  const builtInRoles: BuiltInRoleRef[] = (matrix.data?.roles ?? [])
+    .filter((role) => role.builtIn)
+    .map((role) => ({ id: role.id, kind: role.kind, capabilities: role.capabilities }));
+  const ceiling =
+    me.data && me.data.role !== 'owner' ? new Set<Capability>(me.data.capabilities) : undefined;
+
+  const save = useMutation({
+    mutationFn: (capabilities: readonly Capability[]) =>
+      editCustomRole(api, organizationSlug, roleId, {
+        name: current?.name ?? '',
+        capabilities,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-roles', organizationSlug] });
+      await queryClient.invalidateQueries({ queryKey: ['roles-matrix', organizationSlug] });
+    },
+  });
+
+  const editorRole: EditorRole | null = current
+    ? {
+        id: current.id,
+        name: current.name,
+        builtIn: false,
+        capabilities: current.capabilities as readonly Capability[],
+        holders: null,
+      }
+    : null;
+
+  const rail = (
+    <nav aria-label={t('PermissionEditor.customRolesNav')} className="tm-stack tm-stack--tight">
+      {live.map((role) => (
+        <Link
+          key={role.id}
+          href={`/${organizationSlug}/admin/roles/${role.id}`}
+          aria-current={role.id === roleId ? 'page' : undefined}
+        >
+          {role.name}
+        </Link>
+      ))}
+    </nav>
+  );
+
+  return (
+    <ControlCenterShell
+      organizationSlug={organizationSlug}
+      organizationName={organizationName}
+      section="roles"
+      crumbs={[t('PermissionEditor.crumbRoles'), current?.name ?? '…']}
+      title={current?.name ?? t('PermissionEditor.roleLoading')}
+      description={t('PermissionEditor.orgRoleSub')}
+      rail={rail}
+      {...(client ? { client } : {})}
+      actions={
+        current ? (
+          <Button type="button" tone="outline" onClick={() => setDialog('clone')}>
+            {t('PermissionEditor.cloneRole')}
+          </Button>
+        ) : null
+      }
+    >
+      {roles.isPending ? (
+        <LoadingRegion label={t('PermissionEditor.loading')}>
+          <Skeleton height="var(--row)" />
+          <Skeleton height="var(--row)" />
+        </LoadingRegion>
+      ) : null}
+      {roles.isError ? (
+        <InlineAlert tone="danger" title={t('PermissionEditor.loadFailed')} live>
+          {t('PermissionEditor.errorGeneric')}
+        </InlineAlert>
+      ) : null}
+      {roles.isSuccess && !current ? (
+        <InlineAlert tone="neutral" title={t('PermissionEditor.roleMissing')}>
+          <Link href={`/${organizationSlug}/admin/roles`}>{t('PermissionEditor.backToRoles')}</Link>
+        </InlineAlert>
+      ) : null}
+      {editorRole ? (
+        <RoleMatrixEditor
+          role={editorRole}
+          builtInRoles={builtInRoles}
+          ceiling={ceiling}
+          withReason={false}
+          saving={save.isPending}
+          saveError={save.error}
+          onSave={(capabilities) => save.mutateAsync(capabilities).catch(() => undefined)}
+          dialog={dialog}
+          onDialogClose={() => setDialog(null)}
+          onClone={async (name) => {
+            const created = await cloneCustomRole(api, organizationSlug, roleId, { name });
+            await queryClient.invalidateQueries({ queryKey: ['admin-roles', organizationSlug] });
+            setDialog(null);
+            router.push(`/${organizationSlug}/admin/roles/${created.role.id}`);
+          }}
+        />
+      ) : null}
+    </ControlCenterShell>
+  );
 }

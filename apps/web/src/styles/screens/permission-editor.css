@@ -1,0 +1,225 @@
+/*
+ * platform-admin v2 · PA-04 — the permission editors around PA-01's matrix: D7 role editor
+ * (Figma 439:19450, 439:20300, guard 439:21130) and D8 member overrides (439:22016, 439:22713).
+ * Tokens only; logical properties so both screens mirror in Arabic.
+ */
+
+.tm-pe {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-inline-size: 0;
+}
+
+.tm-pe__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s4);
+}
+
+.tm-pe__toolbar > .tm-pe__count {
+  margin-inline-start: auto;
+}
+
+.tm-pe__compare {
+  inline-size: min(280px, 100%);
+}
+
+.tm-pe__count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.tm-pe__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
+  align-items: start;
+  gap: var(--s4);
+}
+
+@media (max-width: 960px) {
+  .tm-pe__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.tm-pe__aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-inline-size: 0;
+}
+
+.tm-pe__diff {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-pe__diff-item {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: start;
+  column-gap: var(--s2);
+}
+
+.tm-pe__dot {
+  inline-size: 7px;
+  block-size: 7px;
+  margin-block-start: 7px;
+  border-radius: 50%;
+  background: var(--success-600);
+}
+
+.tm-pe__dot--removed,
+.tm-pe__dot--deny {
+  background: var(--danger-600);
+}
+
+.tm-pe__dot--expired {
+  background: var(--line-300);
+}
+
+.tm-pe__sign {
+  font-size: var(--t-ui-sm);
+  color: var(--ink-650);
+}
+
+.tm-pe__key {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-650);
+}
+
+.tm-pe__roles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-pe__role-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+  inline-size: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-pe__role-summary {
+  font-size: var(--t-ui-sm);
+  color: var(--ink-650);
+  text-align: end;
+}
+
+.tm-pe__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+
+.tm-pe__explain {
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-card);
+  background: var(--ink-950);
+  color: var(--paper-0);
+}
+
+.tm-pe__explain-sub {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  opacity: 0.7;
+}
+
+.tm-pe__override {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  padding: var(--s3);
+  border-radius: var(--r-card);
+  background: var(--paper-50);
+}
+
+.tm-pe__override[data-expired='true'] {
+  opacity: 0.55;
+}
+
+.tm-pe__override-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-pe__override-head > :last-child {
+  margin-inline-start: auto;
+}
+
+.tm-pe__override-meta {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  color: var(--ink-650);
+}
+
+.tm-pe__effect {
+  font-size: var(--t-ui-sm);
+  color: var(--ink-650);
+}
+
+.tm-pe__segmented {
+  display: flex;
+  gap: var(--s2);
+}
+
+.tm-pe__segmented [aria-pressed='true'] {
+  background: var(--lime-100);
+}
+
+.tm-pe__disabled {
+  opacity: 0.55;
+}
+
+.tm-pe-guard__changes {
+  margin: 0;
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-card);
+  background: var(--paper-50);
+  list-style: none;
+  font-size: var(--t-ui-sm);
+}
+
+.tm-pe-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+}
+
+.tm-pe-table th,
+.tm-pe-table td {
+  padding-block: var(--s3);
+  padding-inline: var(--s3);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  text-align: start;
+  vertical-align: middle;
+}
+
+.tm-pe-table th {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}

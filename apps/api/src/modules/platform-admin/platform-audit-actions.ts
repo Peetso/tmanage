@@ -25,6 +25,12 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.team_admin_enabled',
   'platform.team_admin_removed',
   'platform.team_preset_updated',
+  // ---- platform-admin v2 · PA-04 ----
+  'platform.org_role_created',
+  'platform.org_role_updated',
+  'platform.org_role_cloned',
+  'platform.org_role_deleted',
+  'platform.member_overrides_changed',
   // ---- platform-admin v2 · PA-05 ----
   'platform.support_session_started',
   'platform.support_session_extended',

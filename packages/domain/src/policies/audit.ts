@@ -847,6 +847,16 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'request_message',
     clause: '§12 — a removed request message shown again, possibly to the client',
   },
+  // ---- platform-admin v2 · PA-04 ----
+  /**
+   * PA-04. A custom role was deleted from the permission editor: its holders were moved to the
+   * replacement role first (one `membership.role_changed` each), then the role was retired.
+   * Metadata: how many holders were reassigned.
+   */
+  'custom_role.deleted': {
+    objectType: 'custom_role',
+    clause: '§12 role and permission changes — a set of capabilities nobody can hold any more',
+  },
   // ---- platform-admin v2 · PA-05 ----
   /**
    * PA-05 (SPEC P3, §3.2). TManage support entered the organization through a hidden, time-limited
@@ -999,6 +1009,8 @@ const AUDIT_ACTION_LABELS = {
   'comment.restored': 'Restored a deleted comment',
   'attachment.restored': 'Restored a removed attachment',
   'request_message.restored': 'Restored a deleted request message',
+  // ---- platform-admin v2 · PA-04 ----
+  'custom_role.deleted': 'Deleted a custom role',
   // ---- platform-admin v2 · PA-05 ----
   'support.session_started': 'TManage support entered the workspace',
   'support.session_ended': 'TManage support left the workspace',
