@@ -1816,3 +1816,11 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`rate_limit_buckets` TO 'tmanage_app'@
 -- 0250 `org_quota_counters` (tenant table): INSERT and UPDATE only — a day's counter is charged
 -- by upsert and never deleted.
 GRANT INSERT, UPDATE ON `tmanage`.`org_quota_counters`         TO 'tmanage_app'@'%';
+
+-- ---- 51-11 · e-mail deliverability ----
+-- 0252 `email_suppressions` (global): the API records a one-click unsubscribe by upsert
+-- (INSERT … ON DUPLICATE KEY UPDATE needs INSERT and UPDATE). No DELETE — re-subscribing is a
+-- later signed-in flow. SELECT rides the database-wide read. The worker reads it before each
+-- notification send.
+GRANT INSERT, UPDATE ON `tmanage`.`email_suppressions`         TO 'tmanage_app'@'%';
+GRANT SELECT ON `tmanage`.`email_suppressions`                 TO 'tmanage_worker'@'%';

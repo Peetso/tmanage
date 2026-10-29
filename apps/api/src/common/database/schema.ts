@@ -10126,3 +10126,29 @@ Object.assign(TABLES, {
   rate_limit_buckets: rateLimitBuckets,
   org_quota_counters: orgQuotaCounters,
 });
+
+// ---- 51-11 · e-mail deliverability ----
+
+/**
+ * 0252. The e-mail suppression list (51-11). GLOBAL (NON_TENANT_TABLES): one row per suppressed
+ * address hash (base64url SHA-256 of the trimmed, lower-cased address — never the address) and
+ * scope (`notifications`). The API upserts on a one-click unsubscribe; the worker reads it before
+ * each notification send. Transactional and security mail is never suppressed.
+ */
+export const emailSuppressions = mysqlTable(
+  'email_suppressions',
+  {
+    addressHash: varchar('address_hash', { length: 64 }).notNull(),
+    scope: varchar('scope', { length: 32 }).notNull().default('notifications'),
+    reason: varchar('reason', { length: 32 }).notNull().default('one_click'),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.addressHash, table.scope] })],
+);
+
+export type EmailSuppressionRow = typeof emailSuppressions.$inferSelect;
+
+Object.assign(TABLES, {
+  email_suppressions: emailSuppressions,
+});

@@ -304,6 +304,9 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/public/site/resources/:slug', reason: 'public_site' },
   { method: 'GET', path: '/v1/public/site/status', reason: 'public_site' },
   { method: 'GET', path: '/v1/public/site/status/summary', reason: 'public_site' },
+  // 51-11. One-click unsubscribe (RFC 8058): public, the signed token is the authority.
+  { method: 'POST', path: '/v1/public/email/unsubscribe', reason: 'public_site' },
+  { method: 'GET', path: '/v1/public/email/unsubscribe', reason: 'public_site' },
   { method: 'GET', path: '/v1/public/site/trust', reason: 'public_site' },
   { method: 'DELETE', path: '/v1/sessions/', reason: 'session' },
   { method: 'DELETE', path: '/v1/sessions/:sessionId', reason: 'session' },
@@ -1010,6 +1013,8 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/organizations/:orgSlug/support-session', reason: 'platform_admin' },
   // 55-21. The cross-tenant usability scoreboard is a platform-admin read.
   { method: 'GET', path: '/v1/platform/ease-scoreboard', reason: 'platform_admin' },
+  // 51-11. SPF / DKIM / DMARC verdicts for the sending domain (platform admin read).
+  { method: 'GET', path: '/v1/platform/email-deliverability', reason: 'platform_admin' },
   // 55-21. The web and portal clients' own usability events: a session-bound measurement feed,
   // never an AI-driven tool (an AI caller would pollute the measurement).
   { method: 'POST', path: '/v1/organizations/:orgSlug/events', reason: 'product_telemetry' },

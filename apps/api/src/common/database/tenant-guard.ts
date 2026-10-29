@@ -1209,6 +1209,11 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // organization, and the key is a daily-peppered hash of an address or link token, never tenant
   // data. Reached only through `identityTransaction(['rate_limit_buckets'])`.
   'rate_limit_buckets',
+  // ---- 51-11 ----
+  // 0252. The e-mail suppression list. GLOBAL: keyed by an address hash that may belong to a
+  // client, a member of several organizations, or nobody yet; a one-click unsubscribe arrives
+  // with no session. Reached only through `identityTransaction(['email_suppressions'])`.
+  'email_suppressions',
 ]);
 
 export function isTenantTable(name: string): boolean {

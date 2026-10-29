@@ -25,3 +25,20 @@ export type { MailDelivery, MailFromOptions, Mailer, MailMessage } from './maile
 export { ConsoleMailer } from './console-mailer.js';
 export { SmtpMailer } from './smtp-mailer.js';
 export type { SmtpMailerOptions } from './smtp-mailer.js';
+// 51-11 — deliverability: one-click unsubscribe, the notification transport, the host ceiling.
+export {
+  deriveUnsubscribeKey,
+  emailAddressHash,
+  listUnsubscribeHeaders,
+  signUnsubscribeToken,
+  verifyUnsubscribeToken,
+} from './list-unsubscribe.js';
+export { NotificationMailTransport } from './notification-transport.js';
+export type { NotificationTransportOptions, SuppressionLookup } from './notification-transport.js';
+export {
+  HOST_MAIL_CEILING,
+  MailCeilingReachedError,
+  SendCeilingMailer,
+  isBulkMessage,
+} from './send-ceiling.js';
+export type { SendCeiling } from './send-ceiling.js';

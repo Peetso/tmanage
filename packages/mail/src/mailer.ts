@@ -38,6 +38,12 @@ export interface MailMessage {
    * copy says "reply to the inviter" has to route the reply there or it says something untrue.
    */
   readonly replyTo?: string;
+  /**
+   * 51-11. Extra message headers — today only `List-Unsubscribe` and `List-Unsubscribe-Post`,
+   * stamped by `NotificationMailTransport` on notification mail (Gmail/Yahoo bulk-sender rule).
+   * A producer never sets these itself; a value holding CR or LF is refused by the transport.
+   */
+  readonly headers?: Readonly<Record<string, string>>;
 }
 
 /** What became of one message: accepted by a server, or printed by the console driver. */

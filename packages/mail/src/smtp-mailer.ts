@@ -80,6 +80,7 @@ export class SmtpMailer implements Mailer {
       text: message.text,
       ...(message.html === undefined ? {} : { html: message.html }),
       ...(message.replyTo === undefined ? {} : { replyTo: message.replyTo }),
+      ...(message.headers === undefined ? {} : { headers: { ...message.headers } }),
     });
     // `sendMail` resolves once the server accepts the message; a recipient the server
     // refused is in `rejected` without the promise rejecting, and swallowing that would

@@ -87,7 +87,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // read and the public announcement read), was 839.
 // 55-21 product events: +3 NEVER (ease-scoreboard, events, portal/events), was 984.
 // 51-12 public status summary: +1 NEVER (public/site/status/summary), was 987.
-const EXPECTED_ROUTE_COUNT = 988; // 0237 slice B Outlook calendar: +5 NEVER, was 828.
+// 51-11 deliverability: +3 NEVER (public/email/unsubscribe GET+POST, platform/email-deliverability), was 988.
+const EXPECTED_ROUTE_COUNT = 991; // 0237 slice B Outlook calendar: +5 NEVER, was 828.
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

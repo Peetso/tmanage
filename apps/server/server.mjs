@@ -337,11 +337,18 @@ async function startInProcessWorker(env, attachRealtime) {
     PrivacyMailer,
     writeHeartbeat,
     readHeartbeat,
+    createEmailSuppressionLookup,
   } = worker;
-  const { ConsoleMailer, SmtpMailer } = await import('@tmanage/mail');
+  const {
+    ConsoleMailer,
+    NotificationMailTransport,
+    SendCeilingMailer,
+    SmtpMailer,
+    deriveUnsubscribeKey,
+  } = await import('@tmanage/mail');
 
   const from = { fromAddress: env.EMAIL_FROM_ADDRESS, fromName: env.EMAIL_FROM_NAME };
-  const transport =
+  const driver =
     env.EMAIL_DRIVER === 'console'
       ? new ConsoleMailer(from)
       : env.SMTP_HOST
@@ -361,9 +368,21 @@ async function startInProcessWorker(env, attachRealtime) {
     statementTimeoutMs: env.DATABASE_STATEMENT_TIMEOUT_MS,
     onConnectionError: (error) => log(`worker connection rejected: ${serializeForLog(error)}`),
   });
+  // 51-11: every send passes the host ceiling (§9.2); notification mail also goes through the
+  // suppression list and carries the signed one-click List-Unsubscribe headers. Privacy and
+  // credential notices stay transactional — no unsubscribe, never suppressed.
+  const transport = driver === null ? null : new SendCeilingMailer(driver);
+  const notificationTransport =
+    transport === null
+      ? null
+      : new NotificationMailTransport(transport, {
+          unsubscribeUrl: `${env.API_PUBLIC_URL.replace(/\/+$/u, '')}/v1/public/email/unsubscribe`,
+          key: deriveUnsubscribeKey(env.SESSION_SECRET),
+          suppressions: createEmailSuppressionLookup(database),
+        });
   const relayHandlers = createWorkerOutboxHandlers({
-    clientRequestMailer: new ClientRequestMailer(transport, env.WEB_PUBLIC_URL),
-    usageThresholdMailer: new UsageThresholdMailer(transport),
+    clientRequestMailer: new ClientRequestMailer(notificationTransport, env.WEB_PUBLIC_URL),
+    usageThresholdMailer: new UsageThresholdMailer(notificationTransport),
     // H3 — data export ready, deletion scheduled / cancelled / carried out.
     privacyMailer: new PrivacyMailer(transport, env.WEB_PUBLIC_URL),
   });

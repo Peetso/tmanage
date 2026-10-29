@@ -1,6 +1,12 @@
 import { loadEnv } from '@tmanage/config';
 import type { Env } from '@tmanage/config';
-import { ConsoleMailer, SmtpMailer } from '@tmanage/mail';
+import {
+  ConsoleMailer,
+  NotificationMailTransport,
+  SendCeilingMailer,
+  SmtpMailer,
+  deriveUnsubscribeKey,
+} from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
 import { createWorkerDatabase, workerConnectionLimit } from './common/database/worker-database.js';
 import type { WorkerMode } from './common/database/worker-database.js';
@@ -38,6 +44,7 @@ import { createDirectMessageFanOut, createMessageFanOut } from './realtime/fan-o
 import { createInvitationSweepStore } from './common/database/invitations-sweep-store.js';
 import { sweepOverdueInvitations } from './invitations/invitation-sweep.js';
 import { createRequestDeferSweepStore } from './common/database/request-defer-store.js';
+import { createEmailSuppressionLookup } from './common/database/email-suppression-store.js';
 import { sweepDeferredRequests } from './jobs/request-defer-sweeper.js';
 import { createDueSoonSweepStore } from './common/database/due-soon-store.js';
 import { sweepDueSoon } from './jobs/due-soon-sweeper.js';
@@ -418,14 +425,26 @@ async function main(): Promise<void> {
   // One transport, two registries. `mailerFrom` is called once: two drivers would mean two
   // SMTP connection pools for one process, and the console driver would print each message
   // under a different banner.
-  const transport = mailerFrom(env);
+  // 51-11: every send passes the host ceiling (§9.2); notification mail additionally goes through
+  // the suppression list and carries the signed one-click List-Unsubscribe headers. Privacy and
+  // credential notices stay transactional — no unsubscribe, never suppressed.
+  const driver = mailerFrom(env);
+  const transport = driver === null ? null : new SendCeilingMailer(driver);
+  const notificationTransport =
+    transport === null
+      ? null
+      : new NotificationMailTransport(transport, {
+          unsubscribeUrl: `${env.API_PUBLIC_URL.replace(/\/+$/u, '')}/v1/public/email/unsubscribe`,
+          key: deriveUnsubscribeKey(env.SESSION_SECRET),
+          suppressions: createEmailSuppressionLookup(database),
+        });
   const handlers = createWorkerOutboxHandlers({
-    clientRequestMailer: new ClientRequestMailer(transport, env.WEB_PUBLIC_URL),
+    clientRequestMailer: new ClientRequestMailer(notificationTransport, env.WEB_PUBLIC_URL),
     // USAGE-001 slice 4c — the storage-threshold mail. No link, so no WEB_PUBLIC_URL: the usage
     // screen it would point at is a later slice and does not exist yet.
-    usageThresholdMailer: new UsageThresholdMailer(transport),
+    usageThresholdMailer: new UsageThresholdMailer(notificationTransport),
     // CQ-12 — mentions, comments, meeting invites, project adds and client-action emails.
-    collaborationMailer: new CollaborationMailer(transport, env.WEB_PUBLIC_URL),
+    collaborationMailer: new CollaborationMailer(notificationTransport, env.WEB_PUBLIC_URL),
     // H3 — data export ready, deletion scheduled / cancelled / carried out.
     privacyMailer: new PrivacyMailer(transport, env.WEB_PUBLIC_URL),
   });
