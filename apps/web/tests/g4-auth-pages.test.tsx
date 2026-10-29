@@ -58,7 +58,8 @@ describe('G4 auth pages', () => {
     const { container } = render(<SignInScreen client={client} developmentSignInEnabled={false} />);
     const text = container.textContent ?? '';
     expect(text).not.toContain('◉');
-    expect(container.querySelector('.tm-id-orb')?.textContent).toBe('');
+    // 57-05: the passkey button (and its orb) is no longer rendered until passkeys ship.
+    expect(container.querySelector('.tm-id-orb')).toBeNull();
     render(<InlineAlert tone="neutral">Note</InlineAlert>);
     const glyph = document.querySelector('.tm-inline-alert__glyph[data-glyph="i"]');
     expect(glyph).not.toBeNull();

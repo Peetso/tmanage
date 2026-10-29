@@ -1007,6 +1007,12 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'POST', path: '/v1/platform/maintenance/:windowId/end', reason: 'platform_admin' },
   { method: 'GET', path: '/public/site/announcements', reason: 'public_site' },
   { method: 'GET', path: '/v1/organizations/:orgSlug/support-session', reason: 'platform_admin' },
+  // 55-21. The cross-tenant usability scoreboard is a platform-admin read.
+  { method: 'GET', path: '/v1/platform/ease-scoreboard', reason: 'platform_admin' },
+  // 55-21. The web and portal clients' own usability events: a session-bound measurement feed,
+  // never an AI-driven tool (an AI caller would pollute the measurement).
+  { method: 'POST', path: '/v1/organizations/:orgSlug/events', reason: 'product_telemetry' },
+  { method: 'POST', path: '/v1/organizations/:orgSlug/portal/events', reason: 'product_telemetry' },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

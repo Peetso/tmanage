@@ -58,6 +58,8 @@ export const NEVER_REASONS = [
   'org_security_manage',
   'platform_admin',
   'policy_definitions',
+  // 55-21. The clients' own usability-event ingestion: session-bound measurement, not an action.
+  'product_telemetry',
   'public_site',
   'public_upload_part',
   'role_definitions',

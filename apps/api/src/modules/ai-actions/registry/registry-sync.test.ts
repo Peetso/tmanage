@@ -85,7 +85,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // platform-admin v2 · PA-01: +5 NEVER (roles matrix, overrides GET/PUT, effective-permissions, me).
 // platform-admin v2 verifier: +145 NEVER (every /v1/platform route of PA-02..PA-10, the banner
 // read and the public announcement read), was 839.
-const EXPECTED_ROUTE_COUNT = 984; // 0237 slice B Outlook calendar: +5 NEVER, was 828.
+// 55-21 product events: +3 NEVER (ease-scoreboard, events, portal/events), was 984.
+const EXPECTED_ROUTE_COUNT = 987; // 0237 slice B Outlook calendar: +5 NEVER, was 828.
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

@@ -14,7 +14,7 @@ import { activeLocale } from '../src/lib/i18n/locale-store';
 
 /** Latin that is allowed to remain in an Arabic scene: brands, the channel, IDs, protocols. */
 const ALLOWED_LATIN =
-  /TManage|Northstar Studio|Northstar|Atlas Hospitality|Atlas|Meridian Group|#atlas-relaunch|#atlas|macOS|SSO|CSV|DEC-\d+|RUN-\d+|EV·\w+|TSK|DEL|[0-9a-f]{4}·[0-9a-f]{4}/g;
+  /TManage|Northstar Studio|Northstar|Atlas Hospitality|Atlas|Meridian Group|#atlas-relaunch|#atlas|macOS|Google|SSO|CSV|DEC-\d+|RUN-\d+|EV·\w+|TSK|DEL|[0-9a-f]{4}·[0-9a-f]{4}/g;
 
 /** Any Latin word of three letters or more left after the allowed names are removed. */
 function strayEnglish(text: string): string[] {
