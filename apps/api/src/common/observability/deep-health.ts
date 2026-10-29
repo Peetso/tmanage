@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Controller, Get, Inject, Module, Res } from '@nestjs/common';
 import type { DynamicModule, OnApplicationBootstrap, Provider } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, ModuleRef } from '@nestjs/core';
 import { Public } from '../http/decorators.js';
 import { TENANT_DATABASE } from '../http/tokens.js';
 import type { TenantDatabase } from '../database/tenant-context.js';
@@ -22,6 +22,10 @@ import {
 import type { SchemaDriftMode, SchemaDriftState } from './schema-drift.js';
 import { readBackupHealth } from './backup-health.repository.js';
 import type { BackupCheckState } from './backup-health.js';
+import { ALERT_NOTIFIER } from './alerts.js';
+import type { AlertNotifier } from './alerts.js';
+import { OriginTlsMonitor } from './origin-tls.js';
+import type { OriginTlsCheck } from './origin-tls.js';
 
 /**
  * `GET /healthz/deep` (C10) — the readiness check a free external uptime monitor polls.
@@ -39,6 +43,12 @@ import type { BackupCheckState } from './backup-health.js';
  *   shipped files and every declared table exists; `not_configured` when it cannot be read;
  * - **backups** — 51-09's reading of `platform_backup_runs` (`backup-health.ts`): `ok` / `stale` /
  *   `not_configured`. Reported only — a late backup is an alert, never a 503.
+ * - **origin_tls** — 56-30's reading of the origin's own certificate (`origin-tls.ts`): `ok` while
+ *   it has more than 14 days left, `fail` at 14 or fewer or when unreadable, `not_configured`
+ *   without `ORIGIN_TLS_PROBE_ADDRESS`. Reported only (plus a daily operator alert), never a 503:
+ *   the API answering here is itself proof the origin serves, and a 503 would not renew anything.
+ * - **realtime** — `ok` when the in-process socket is attached (`realtimeSocketUrl` set), else
+ *   `not_configured`. Reported only.
  *
  * `fail` on database, migrations, worker or schema makes the answer 503 — the status code is what a
  * monitor matches on. `not_configured` is reported but is not a failure: a shared host that
@@ -60,6 +70,8 @@ export interface DeepHealthReport {
     readonly scanner: CheckState;
     readonly schema: CheckState;
     readonly backups: BackupCheckState;
+    readonly origin_tls: OriginTlsCheck;
+    readonly realtime: 'ok' | 'not_configured';
   };
   readonly checkedAt: string;
 }
@@ -76,6 +88,12 @@ export interface DeepHealthConfig {
    * `undefined` = `enforce` in production, `report` elsewhere.
    */
   readonly schemaDriftMode?: SchemaDriftMode | undefined;
+  /** 56-30. `ORIGIN_TLS_PROBE_ADDRESS` (`<origin ip>:443`); unset = `origin_tls: not_configured`. */
+  readonly originTlsAddress?: string | undefined;
+  /** 56-30. SNI for that handshake; the host of `WEB_PUBLIC_URL`. */
+  readonly originTlsServername?: string | undefined;
+  /** 51-06. The API's `realtimeSocketUrl`: set only when the in-process socket is attached. */
+  readonly realtimeSocketUrl?: string | null | undefined;
 }
 
 /** The readings the verdict is computed from — injected so the unit suite needs no database. */
@@ -97,6 +115,7 @@ export async function evaluateDeepHealth(
   now: Date,
   schema: SchemaDriftState = 'not_configured',
   backups: BackupCheckState = 'not_configured',
+  originTls: OriginTlsCheck = { state: 'not_configured' },
 ): Promise<DeepHealthReport> {
   let database: CheckState = 'ok';
   let migrations: CheckState = 'ok';
@@ -123,10 +142,22 @@ export async function evaluateDeepHealth(
       ? 'ok'
       : 'not_configured';
 
+  const realtime = config.realtimeSocketUrl ? 'ok' : 'not_configured';
+
+  // By design only these four decide the 503; origin_tls, backups, scanner and realtime report.
   const failed = [database, migrations, worker, schema].includes('fail');
   return {
     status: failed ? 'fail' : 'ok',
-    checks: { database, migrations, worker, scanner, schema, backups },
+    checks: {
+      database,
+      migrations,
+      worker,
+      scanner,
+      schema,
+      backups,
+      origin_tls: originTls,
+      realtime,
+    },
     checkedAt: now.toISOString(),
   };
 }
@@ -176,12 +207,28 @@ export const DEEP_HEALTH_CONFIG = Symbol.for('tmanage.DeepHealthConfig');
 export class DeepHealthController {
   private cached: { at: number; report: DeepHealthReport } | null = null;
   private readonly probes: DeepHealthProbes;
+  /** 56-30. Owns the 1 h handshake cache and the once-per-UTC-day alert (`lastAlertDay`). */
+  private readonly originTls: OriginTlsMonitor;
 
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
     @Inject(DEEP_HEALTH_CONFIG) private readonly config: DeepHealthConfig,
     @Inject(SCHEMA_DRIFT_MONITOR) private readonly schemaDrift: SchemaDriftMonitor,
+    @Inject(ModuleRef) moduleRef: ModuleRef,
   ) {
+    // The notifier is a root-module provider; looked up non-strictly so this module needs no
+    // new import, and absent (a bare test module) simply means no alert.
+    const alerts = (): AlertNotifier | null => {
+      try {
+        return moduleRef.get<AlertNotifier | null>(ALERT_NOTIFIER, { strict: false });
+      } catch {
+        return null;
+      }
+    };
+    this.originTls = new OriginTlsMonitor(
+      { address: config.originTlsAddress, servername: config.originTlsServername },
+      alerts,
+    );
     const dir = findMigrationsDir(config.migrationsDir);
     this.probes = {
       readLedger: () => readMigrationLedger(database),
@@ -204,6 +251,7 @@ export class DeepHealthController {
     if (this.cached === null || now - this.cached.at > DEEP_HEALTH_CACHE_MS) {
       const schema = await this.schemaDrift.fresh();
       const backups = await readBackupHealth(this.database, new Date(now));
+      const originTls = await this.originTls.check(new Date(now));
       this.cached = {
         at: now,
         report: await evaluateDeepHealth(
@@ -212,6 +260,7 @@ export class DeepHealthController {
           new Date(now),
           schema.state,
           backups,
+          originTls,
         ),
       };
     }

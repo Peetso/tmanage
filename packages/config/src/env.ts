@@ -540,6 +540,16 @@ export const envSchema = z
       .string()
       .optional()
       .transform((value) => (value === undefined || value.trim() === '' ? undefined : value)),
+    /**
+     * 56-30. Optional: `<origin ip>:443`, where `GET /healthz/deep` reads the origin's own TLS
+     * certificate (`checks.origin_tls`). Unset = `not_configured`.
+     */
+    ORIGIN_TLS_PROBE_ADDRESS: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value === undefined || value.trim() === '' ? undefined : value.trim(),
+      ),
     PUBLIC_SIGNUP: z
       .string()
       .optional()

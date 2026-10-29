@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Uptime check (C10) — poll TManage's health endpoints from somewhere else and mail when they fail.
 //
-//   UPTIME_URL=https://tmanage.example.com node scripts/ops/uptime-check.mjs          # one pass
+//   UPTIME_URL=https://tmanage.example.com node scripts/ops/uptime-check.mjs          # one pass (= --once)
 //   UPTIME_URL=https://tmanage.example.com node scripts/ops/uptime-check.mjs --loop   # every 5 min
 //
 // Run it from a machine that is NOT the server (a home PC's Task Scheduler, a cron box): a check
@@ -17,16 +17,26 @@
 // failing check passes again, one "recovered" mail is sent. Without ALERT_EMAILS or SMTP_HOST the
 // alert is printed instead. One pass exits 1 while anything fails, so the scheduler sees it too.
 //
+// 56-30. With UPTIME_ORIGIN_ADDRESS (`<origin ip>:443`) it also handshakes with the origin directly,
+// bypassing Cloudflare, with SNI UPTIME_ORIGIN_SERVERNAME (default: the host of UPTIME_URL), and
+// reads the leaf certificate: `origin_tls_expiring` at 14 days or fewer, `origin_tls_unreadable`
+// when the handshake fails. Unset = the check is skipped (and printed). The app's own reading,
+// `/healthz/deep` `checks.origin_tls`, is printed beside it. Runbook: docs/runbooks/origin-tls-526.md.
+//
 // No secret lives here: every credential is read from the environment.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
+import { connect } from 'node:tls';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const ALERT_WINDOW_MS = 15 * 60 * 1_000;
 const TIMEOUT_MS = 15_000;
+/** 56-30. At or below this many days the origin certificate is an alert. */
+export const ORIGIN_TLS_WARN_DAYS = 14;
+const DAY_MS = 24 * 60 * 60 * 1_000;
 
 /** Parse ALERT_EMAILS the way the app does: lower-cased, de-duplicated, junk dropped. */
 export function parseAlertEmails(raw) {
@@ -70,6 +80,77 @@ export function failuresFrom(results) {
     });
   }
   return out;
+}
+
+/** `1.2.3.4:443` / `host` / `[::1]:8443` → `{ host, port }`, or null. */
+export function parseOriginAddress(address) {
+  const match = /^(?:\[([^\]]+)\]|([^:\s]+))(?::(\d{1,5}))?$/u.exec(String(address).trim());
+  const host = match?.[1] ?? match?.[2];
+  if (host === undefined) return null;
+  const port = match?.[3] === undefined ? 443 : Number(match[3]);
+  return port >= 1 && port <= 65_535 ? { host, port } : null;
+}
+
+/**
+ * 56-30. One TLS handshake; reads the leaf certificate only (`rejectUnauthorized: false`: an
+ * Origin CA certificate is trusted by Cloudflare alone, and nothing is sent).
+ * @returns {Promise<{ issuer: string, notAfter: string, daysLeft: number } | { error: string }>}
+ */
+export function readOriginTls(address, servername, now = Date.now(), timeoutMs = TIMEOUT_MS) {
+  const target = parseOriginAddress(address);
+  if (target === null) return Promise.resolve({ error: 'bad_address' });
+  return new Promise((done) => {
+    let settled = false;
+    const socket = connect({
+      host: target.host,
+      port: target.port,
+      rejectUnauthorized: false,
+      ...(servername ? { servername } : {}),
+    });
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      done(value);
+    };
+    socket.setTimeout(timeoutMs, () => finish({ error: 'TimeoutError' }));
+    socket.once('error', (error) => finish({ error: error?.code ?? 'error' }));
+    socket.once('secureConnect', () => {
+      const cert = socket.getPeerCertificate();
+      const notAfter = new Date(cert?.valid_to ?? '');
+      if (Number.isNaN(notAfter.getTime())) return finish({ error: 'no_certificate' });
+      const issuer = [cert.issuer?.CN, cert.issuer?.O].filter(Boolean).join(', ');
+      finish({
+        issuer,
+        notAfter: notAfter.toISOString(),
+        daysLeft: Math.floor((notAfter.getTime() - now) / DAY_MS),
+      });
+    });
+  });
+}
+
+/** 56-30. The origin reading as failing kinds; `undefined` (not configured) is none. */
+export function originTlsFailures(reading) {
+  if (reading === undefined) return [];
+  if ('error' in reading)
+    return [{ kind: 'origin_tls_unreadable', detail: `handshake failed (${reading.error})` }];
+  if (reading.daysLeft <= ORIGIN_TLS_WARN_DAYS)
+    return [
+      {
+        kind: 'origin_tls_expiring',
+        detail: `daysLeft=${String(reading.daysLeft)} (notAfter ${reading.notAfter}, issuer ${reading.issuer})`,
+      },
+    ];
+  return [];
+}
+
+/** 56-30. `/healthz/deep`'s own `checks.origin_tls`, as one printable line (or null). */
+export function deepOriginTlsLine(body) {
+  const check = body && typeof body === 'object' ? body.checks?.origin_tls : undefined;
+  if (!check || typeof check !== 'object' || typeof check.state !== 'string') return null;
+  return check.state === 'not_configured'
+    ? 'deep origin_tls not_configured'
+    : `deep origin_tls ${check.state} daysLeft=${String(check.daysLeft)}`;
 }
 
 /**
@@ -196,6 +277,21 @@ export async function runOnce(env = process.env, now = Date.now()) {
     probe(`${base}/healthz/deep`),
   ]);
   const failures = failuresFrom({ healthz, deep });
+  const originAddress = (env.UPTIME_ORIGIN_ADDRESS ?? '').trim();
+  if (originAddress === '') {
+    process.stdout.write('[uptime] origin_tls skipped (UPTIME_ORIGIN_ADDRESS unset)\n');
+  } else {
+    const servername = env.UPTIME_ORIGIN_SERVERNAME || new URL(base).hostname;
+    const reading = await readOriginTls(originAddress, servername, now);
+    process.stdout.write(
+      'error' in reading
+        ? `[uptime] origin_tls unreadable (${reading.error})\n`
+        : `[uptime] origin_tls daysLeft=${String(reading.daysLeft)} notAfter=${reading.notAfter}\n`,
+    );
+    failures.push(...originTlsFailures(reading));
+  }
+  const deepLine = 'error' in deep ? null : deepOriginTlsLine(deep.body);
+  if (deepLine !== null) process.stdout.write(`[uptime] ${deepLine}\n`);
   const { send, next } = decide(readState(statePath), failures, now);
   if (send.length > 0)
     await deliver(

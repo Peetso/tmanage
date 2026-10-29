@@ -215,6 +215,8 @@ export interface ApiConfigSource {
   readonly SCHEMA_DRIFT_MODE?: 'enforce' | 'report' | undefined;
   readonly MALWARE_SCAN_DRIVER?: string;
   readonly CLAMAV_HOST?: string | undefined;
+  /** 56-30. `<origin ip>:443` the deep check reads the origin certificate from; absent = not_configured. */
+  readonly ORIGIN_TLS_PROBE_ADDRESS?: string | undefined;
 }
 
 /**
@@ -293,8 +295,21 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
       scannerDriver: env.MALWARE_SCAN_DRIVER,
       scannerHost: env.CLAMAV_HOST,
       schemaDriftMode: env.SCHEMA_DRIFT_MODE,
+      originTlsAddress: env.ORIGIN_TLS_PROBE_ADDRESS,
+      originTlsServername: hostOf(env.WEB_PUBLIC_URL),
+      realtimeSocketUrl: env.REALTIME_PUBLIC_URL ?? null,
     },
   };
+}
+
+/** 56-30. The SNI for the origin probe: the public web host, or none when unset/unparsable. */
+function hostOf(url: string | undefined): string | undefined {
+  if (url === undefined) return undefined;
+  try {
+    return new URL(url).hostname || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**

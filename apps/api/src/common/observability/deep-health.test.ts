@@ -31,6 +31,8 @@ describe('evaluateDeepHealth', () => {
         scanner: 'not_configured',
         schema: 'not_configured',
         backups: 'not_configured',
+        origin_tls: { state: 'not_configured' },
+        realtime: 'not_configured',
       },
       checkedAt: NOW.toISOString(),
     });
@@ -97,6 +99,22 @@ describe('evaluateDeepHealth', () => {
     const off = await evaluateDeepHealth({ ...base, scannerDriver: 'none' }, probes(), NOW);
     expect(off.checks.scanner).toBe('not_configured');
     expect(off.status).toBe('ok');
+  });
+});
+
+describe('evaluateDeepHealth — reported-only readings (56-30, 51-06)', () => {
+  it('origin_tls fail is reported but never yields a 503; realtime reads the socket url', async () => {
+    const report = await evaluateDeepHealth(
+      { ...base, realtimeSocketUrl: 'wss://tmanage.example/realtime' },
+      probes(),
+      NOW,
+      'ok',
+      'ok',
+      { state: 'fail', issuer: 'CN=x', notAfter: NOW.toISOString(), daysLeft: 0 },
+    );
+    expect(report.status).toBe('ok');
+    expect(report.checks.origin_tls.state).toBe('fail');
+    expect(report.checks.realtime).toBe('ok');
   });
 });
 

@@ -13,6 +13,7 @@ cannot be ticked blocks the release unless an exception is written down with its
 - [ ] Secrets and dependency scans clean.
 - [ ] Threat models updated; logging and alerts verified.
 - [ ] Privacy impact assessment complete for AI and analytics.
+- [ ] origin_tls daysLeft ≥ 30 (SEC56-30) — `/healthz/deep` `checks.origin_tls`; see `docs/runbooks/origin-tls-526.md`.
 
 ## Evidence
 
