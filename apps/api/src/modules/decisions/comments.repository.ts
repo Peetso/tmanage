@@ -1,5 +1,6 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
+import { softDeleteValues } from '../../common/database/content-retention.js';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { decisionComments } from '../../common/database/schema.js';
 import type { DecisionCommentRow } from '../../common/database/schema.js';
@@ -61,6 +62,8 @@ export class DecisionCommentsRepository {
         and(
           eq(decisionComments.organizationId, context.organizationId),
           eq(decisionComments.decisionId, decisionId),
+          // PA-03 (0245): a soft-deleted comment leaves the list.
+          isNull(decisionComments.deletedAt),
         ),
       )
       .orderBy(asc(decisionComments.createdAt), asc(decisionComments.id))
@@ -106,15 +109,19 @@ export class DecisionCommentsRepository {
     decisionId: string,
     commentId: string,
     authorMembershipId: string,
+    reason: string | null = null,
   ): Promise<void> {
+    // PA-03 (0245): a soft delete with a restore window; the worker purges it afterwards.
     await tenantDrizzle(runner)
-      .delete(decisionComments)
+      .update(decisionComments)
+      .set(await softDeleteValues(runner, context.userId, reason))
       .where(
         and(
           eq(decisionComments.organizationId, context.organizationId),
           eq(decisionComments.decisionId, decisionId),
           eq(decisionComments.id, commentId),
           eq(decisionComments.authorMembershipId, authorMembershipId),
+          isNull(decisionComments.deletedAt),
         ),
       );
   }

@@ -1,5 +1,6 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
+import { softDeleteValues } from '../../common/database/content-retention.js';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { fileComments } from '../../common/database/schema.js';
 import type { FileCommentRow } from '../../common/database/schema.js';
@@ -49,6 +50,8 @@ export class FileCommentsRepository {
         and(
           eq(fileComments.organizationId, context.organizationId),
           eq(fileComments.fileAssetId, fileAssetId),
+          // PA-03 (0245): a soft-deleted comment leaves the list.
+          isNull(fileComments.deletedAt),
         ),
       )
       .orderBy(asc(fileComments.createdAt), asc(fileComments.id))
@@ -102,22 +105,28 @@ export class FileCommentsRepository {
     return created;
   }
 
-  /** Remove one comment, scoped to the tenant and its file. `true` if a row was removed. */
+  /**
+   * Remove one comment, scoped to the tenant and its file. `true` if a live comment was removed.
+   * PA-03 (0245): a soft delete with a restore window; the worker purges it afterwards.
+   */
   async deleteOnFile(
     runner: TenantQueryRunner,
     context: TenantContext,
     fileAssetId: string,
     commentId: string,
+    reason: string | null = null,
   ): Promise<boolean> {
     const existing = await this.findOnFile(runner, context, fileAssetId, commentId);
-    if (!existing) return false;
+    if (!existing || existing.deletedAt !== null) return false;
     await tenantDrizzle(runner)
-      .delete(fileComments)
+      .update(fileComments)
+      .set(await softDeleteValues(runner, context.userId, reason))
       .where(
         and(
           eq(fileComments.organizationId, context.organizationId),
           eq(fileComments.fileAssetId, fileAssetId),
           eq(fileComments.id, commentId),
+          isNull(fileComments.deletedAt),
         ),
       );
     return true;

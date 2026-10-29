@@ -1,6 +1,7 @@
 import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { uuidv7, workItemStateMachine } from '@tmanage/domain';
 import type { Audience, WorkItemState } from '@tmanage/domain';
+import { softDeleteValues } from '../../common/database/content-retention.js';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { workItems } from '../../common/database/schema.js';
 import type { WorkItemRow } from '../../common/database/schema.js';
@@ -524,11 +525,14 @@ export class WorkItemsRepository {
     runner: TenantQueryRunner,
     context: TenantContext,
     workItemId: string,
+    reason: string | null = null,
   ): Promise<WorkItemRow> {
+    // PA-03 (0245): who, why and the restore window (`purge_after`) travel with the delete.
+    const softDelete = await softDeleteValues(runner, context.userId, reason);
     const result = await tenantDrizzle(runner)
       .update(workItems)
       .set({
-        deletedAt: sql`current_timestamp(3)`,
+        ...softDelete,
         version: sql`version + 1`,
         updatedAt: sql`current_timestamp(3)`,
       })

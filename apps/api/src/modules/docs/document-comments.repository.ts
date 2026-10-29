@@ -1,4 +1,4 @@
-import { and, asc, eq, gt } from 'drizzle-orm';
+import { and, asc, eq, gt, isNull } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
@@ -61,6 +61,8 @@ export class DocumentCommentsRepository {
     const predicates = [
       eq(documentComments.organizationId, context.organizationId),
       eq(documentComments.documentId, documentId),
+      // PA-03 (0245): a soft-deleted comment leaves the list.
+      isNull(documentComments.deletedAt),
     ];
     if (options.after) predicates.push(gt(documentComments.id, options.after));
 

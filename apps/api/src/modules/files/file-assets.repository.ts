@@ -620,6 +620,8 @@ export class FileAssetsRepository {
         and(
           eq(fileAssets.organizationId, context.organizationId),
           eq(fileAssets.purpose, 'deliverable'),
+          // PA-03 (0245): a soft-deleted file leaves the list.
+          isNull(fileAssets.deletedAt),
           eq(fileAssets.objectId, input.deliverableId),
           inArray(fileAssets.audience, clientAudiences),
           eq(fileAssets.clientOrganizationId, input.clientOrganizationId),
@@ -690,6 +692,8 @@ export class FileAssetsRepository {
           eq(fileAssets.organizationId, context.organizationId),
           eq(fileAssets.projectId, projectId),
           eq(fileAssets.purpose, 'request_attachment'),
+          // PA-03 (0245): a soft-deleted file leaves the list.
+          isNull(fileAssets.deletedAt),
           // F48. Only client audiences are candidates: a staff attachment marked `internal` on a
           // client's request is never a client's file, whatever the service does next.
           inArray(fileAssets.audience, ['client_visible', 'client_action_required']),

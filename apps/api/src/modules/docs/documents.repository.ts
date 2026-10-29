@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { documents } from '../../common/database/schema.js';
@@ -51,6 +51,8 @@ export interface ListDocumentsOptions {
   /** Keyset pagination. Cursors are ids, and the sort is `id` (UUIDv7 ≈ creation order). */
   readonly after?: string;
   readonly limit?: number;
+  /** PA-03 (0245): include soft-deleted documents (the Platform admin trash, PA-08). */
+  readonly includeDeleted?: boolean;
 }
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -81,6 +83,8 @@ export class DocumentsRepository {
       eq(documents.organizationId, context.organizationId),
       eq(documents.projectId, options.projectId),
     ];
+    // PA-03 (0245): a soft-deleted document leaves the list unless the caller asks for it.
+    if (!options.includeDeleted) predicates.push(isNull(documents.deletedAt));
     if (options.after) predicates.push(gt(documents.id, options.after));
 
     return db

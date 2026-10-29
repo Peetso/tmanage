@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
+import { RESTORE_VALUES, softDeleteValues } from '../../common/database/content-retention.js';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { unwrapQueryError } from '../../common/database/query-error.js';
 import {
@@ -87,7 +88,28 @@ export class MessageAttachmentsRepository {
     input: { readonly messageId: string; readonly fileAssetId: string },
   ): Promise<{ readonly row: MessageAttachmentRow; readonly created: boolean }> {
     const existing = await this.findAttachment(runner, context, input.messageId, input.fileAssetId);
-    if (existing) return { row: existing, created: false };
+    if (existing && existing.deletedAt === null) return { row: existing, created: false };
+    if (existing) {
+      // PA-03: the pair was detached inside its restore window — the unique key still holds the
+      // row, so re-attaching revives it rather than inserting a duplicate.
+      await tenantDrizzle(runner)
+        .update(messageAttachments)
+        .set(RESTORE_VALUES)
+        .where(
+          and(
+            eq(messageAttachments.organizationId, context.organizationId),
+            eq(messageAttachments.id, existing.id),
+          ),
+        );
+      const revived = await this.findAttachment(
+        runner,
+        context,
+        input.messageId,
+        input.fileAssetId,
+      );
+      if (!revived) throw new Error('message_attachments row vanished immediately after restore');
+      return { row: revived, created: true };
+    }
 
     try {
       await tenantDrizzle(runner)
@@ -128,14 +150,18 @@ export class MessageAttachmentsRepository {
     context: TenantContext,
     messageId: string,
     fileAssetId: string,
+    reason: string | null = null,
   ): Promise<boolean> {
+    // PA-03 (0245): detaching is a soft delete with a restore window, not a DELETE.
     const result = await tenantDrizzle(runner)
-      .delete(messageAttachments)
+      .update(messageAttachments)
+      .set(await softDeleteValues(runner, context.userId, reason))
       .where(
         and(
           eq(messageAttachments.organizationId, context.organizationId),
           eq(messageAttachments.messageId, messageId),
           eq(messageAttachments.fileAssetId, fileAssetId),
+          isNull(messageAttachments.deletedAt),
         ),
       );
     return result[0].affectedRows > 0;
@@ -160,6 +186,8 @@ export class MessageAttachmentsRepository {
           eq(messages.organizationId, context.organizationId),
           eq(messages.conversationId, conversationId),
           inArray(messages.id, [...messageIds]),
+          // PA-03 (0245): a soft-deleted message answers for nothing in a list read.
+          isNull(messages.deletedAt),
         ),
       );
     return rows.map((row) => row.id);
@@ -233,6 +261,8 @@ export class MessageAttachmentsRepository {
         and(
           eq(messageAttachments.organizationId, context.organizationId),
           inArray(messageAttachments.messageId, [...messageIds]),
+          // PA-03 (0245): a detached (soft-deleted) attachment leaves the list.
+          isNull(messageAttachments.deletedAt),
         ),
       )
       .orderBy(asc(messageAttachments.createdAt), asc(messageAttachments.id));

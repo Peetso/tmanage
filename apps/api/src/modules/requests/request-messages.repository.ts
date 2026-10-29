@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
@@ -62,6 +62,8 @@ export class RequestMessagesRepository {
     const scope = and(
       eq(requestMessages.organizationId, context.organizationId),
       eq(requestMessages.requestId, requestId),
+      // PA-03 (0245): a soft-deleted message leaves the thread.
+      isNull(requestMessages.deletedAt),
     );
     return tenantDrizzle(runner)
       .select()
@@ -126,6 +128,8 @@ export class RequestMessagesRepository {
       inArray(fileAssets.purpose, [...REQUEST_MESSAGE_FILE_PURPOSES]),
       eq(fileAssets.objectId, input.requestId),
       inArray(fileAssets.status, [...ATTACHABLE_UPLOAD_STATES]),
+      // PA-03 (0245): a soft-deleted file cannot be attached.
+      isNull(fileAssets.deletedAt),
     ];
     if (input.clientOrganizationId !== null) {
       predicates.push(eq(fileAssets.clientOrganizationId, input.clientOrganizationId));
@@ -188,6 +192,8 @@ export class RequestMessagesRepository {
         and(
           eq(requestMessageFiles.organizationId, context.organizationId),
           eq(requestMessageFiles.requestId, requestId),
+          // PA-03 (0245): a soft-deleted file is not listed.
+          isNull(fileAssets.deletedAt),
         ),
       )
       .orderBy(asc(requestMessageFiles.createdAt), asc(requestMessageFiles.id));

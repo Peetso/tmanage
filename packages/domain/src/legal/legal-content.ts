@@ -5,7 +5,16 @@
  * same object: the API's `GET /v1/public/site/legal/:doc` serves it, and the web's `/legal/*` pages
  * render it on the server, so the policy text is in the HTML itself for readers and crawlers that
  * run no JavaScript (Google's OAuth brand verification). `effectiveDate` is a frozen ISO date.
+ *
+ * platform-admin v2 · PA-03 (2026-10-28): both documents gain the `operator-access` section (SPEC P1
+ * and §8 — the platform operator may read and change an organization's data for support, safety
+ * and legal reasons, and every such access is recorded), the effective date moves to 2026-10-28,
+ * and the Arabic documents are built here too ({@link LEGAL_DOCUMENTS_AR}, from
+ * `legal-content-ar.ts`) so a caller asks for a document by locale ({@link legalDocumentFor}).
+ * `LEGAL_DOCUMENTS` stays the English map every existing caller reads.
  */
+
+import { LEGAL_COPY_AR, OPERATOR_ACCESS_AR } from './legal-content-ar.js';
 
 /** The two legal documents — a closed allowlist. */
 export type LegalDocumentKey = 'terms' | 'privacy';
@@ -32,14 +41,26 @@ function section(id: string, heading: string, body: string) {
   return Object.freeze({ id, heading, body });
 }
 
-/** The two frozen legal documents, keyed by the allowlisted doc id. Last updated 18 October 2026. */
+/** The date both documents took effect — bumped whenever their text changes. */
+export const LEGAL_EFFECTIVE_DATE = '2026-10-28';
+
+/** The id (and DOM anchor) of the operator-access section, present in both documents. */
+export const OPERATOR_ACCESS_SECTION_ID = 'operator-access';
+
+/** SPEC §8, verbatim — the English operator-access clause. */
+const OPERATOR_ACCESS_EN = Object.freeze({
+  heading: 'Operator access for support, safety and legal reasons',
+  body: 'TManage staff with platform-administrator rights can view and change data in any organization’s workspace — including messages, files, documents and settings — when needed to provide support you ask for, to investigate abuse, security incidents or policy violations, to keep the service running, or to meet a legal obligation. Such access is restricted to named administrators, requires a fresh identity confirmation, is limited in time, and is recorded (who, when, which organization, what was changed). Organization owners can see these entries in their audit log. We do not use this access for advertising or to read your content without one of these reasons.',
+});
+
+/** The two frozen legal documents, keyed by the allowlisted doc id. Last updated 28 October 2026. */
 export const LEGAL_DOCUMENTS: Readonly<Record<LegalDocumentKey, LegalDocument>> = Object.freeze({
   terms: Object.freeze({
     doc: 'terms',
     title: 'Terms of Service',
-    effectiveDate: '2026-10-18',
+    effectiveDate: LEGAL_EFFECTIVE_DATE,
     intro:
-      'Last updated: 18 October 2026. These terms govern access to and use of TManage, a work-management service at tmanage.peetrix.com operated by Peter Designs (peetrix.com). By creating an account or using the service, an organization and its members agree to them.',
+      'Last updated: 28 October 2026. These terms govern access to and use of TManage, a work-management service at tmanage.peetrix.com operated by Peter Designs (peetrix.com). By creating an account or using the service, an organization and its members agree to them.',
     sections: Object.freeze([
       section(
         'operator',
@@ -61,6 +82,7 @@ export const LEGAL_DOCUMENTS: Readonly<Record<LegalDocumentKey, LegalDocument>> 
         'Your content',
         'Content an organization puts into the service remains that organization’s content. The organization grants TManage only the permissions needed to operate the service — to store, process, and display that content back to the organization’s own members and to the client audiences the organization chooses to share it with. How we handle personal data is described in the Privacy Policy at https://tmanage.peetrix.com/legal/privacy, which forms part of these terms.',
       ),
+      section(OPERATOR_ACCESS_SECTION_ID, OPERATOR_ACCESS_EN.heading, OPERATOR_ACCESS_EN.body),
       section(
         'google-drive',
         'Google Drive and other integrations',
@@ -91,9 +113,9 @@ export const LEGAL_DOCUMENTS: Readonly<Record<LegalDocumentKey, LegalDocument>> 
   privacy: Object.freeze({
     doc: 'privacy',
     title: 'Privacy Policy',
-    effectiveDate: '2026-10-18',
+    effectiveDate: LEGAL_EFFECTIVE_DATE,
     intro:
-      'Last updated: 18 October 2026. This policy explains what personal data TManage collects, how we use and share it, how long we keep it, how we protect it, and the rights you have. A dedicated section explains how TManage handles data it receives from Google when a workspace connects Google Drive.',
+      'Last updated: 28 October 2026. This policy explains what personal data TManage collects, how we use and share it, how long we keep it, how we protect it, and the rights you have. A dedicated section explains how TManage handles data it receives from Google when a workspace connects Google Drive.',
     sections: Object.freeze([
       section(
         'who-we-are',
@@ -135,6 +157,7 @@ export const LEGAL_DOCUMENTS: Readonly<Record<LegalDocumentKey, LegalDocument>> 
         'Separation between organizations',
         'Each organization’s data is isolated. Cross-organization reads are refused before any handler runs, so one customer’s members cannot see another customer’s data through the service.',
       ),
+      section(OPERATOR_ACCESS_SECTION_ID, OPERATOR_ACCESS_EN.heading, OPERATOR_ACCESS_EN.body),
       section(
         'retention',
         'Retention and deletion',
@@ -173,3 +196,67 @@ export const LEGAL_DOCUMENTS: Readonly<Record<LegalDocumentKey, LegalDocument>> 
     ]),
   }),
 }) as Readonly<Record<LegalDocumentKey, LegalDocument>>;
+
+// ---- platform-admin v2 · PA-03 ----
+
+/** The locales the legal documents are published in. English prevails. */
+export type LegalLocale = 'en' | 'ar';
+export const LEGAL_LOCALES: readonly LegalLocale[] = ['en', 'ar'];
+
+/** Shown under the intro of each Arabic legal page. */
+export { LEGAL_ENGLISH_PREVAILS_AR } from './legal-content-ar.js';
+export { LEGAL_COPY_AR } from './legal-content-ar.js';
+export type { ArabicLegalCopy } from './legal-content-ar.js';
+
+/**
+ * One English document rendered in Arabic: the same ids, order and effective date, each section's
+ * heading and body from the translation (English where a section has none).
+ */
+function arabicDocument(english: LegalDocument): LegalDocument {
+  const copy = LEGAL_COPY_AR[english.doc];
+  return Object.freeze({
+    doc: english.doc,
+    title: copy.title,
+    effectiveDate: english.effectiveDate,
+    intro: copy.intro,
+    sections: Object.freeze(
+      english.sections.map((entry) => {
+        const translated = copy.sections[entry.id];
+        return section(
+          entry.id,
+          translated?.heading ?? entry.heading,
+          translated?.body ?? entry.body,
+        );
+      }),
+    ),
+  });
+}
+
+/** The Arabic documents, keyed like {@link LEGAL_DOCUMENTS}. */
+export const LEGAL_DOCUMENTS_AR: Readonly<Record<LegalDocumentKey, LegalDocument>> = Object.freeze({
+  terms: arabicDocument(LEGAL_DOCUMENTS.terms),
+  privacy: arabicDocument(LEGAL_DOCUMENTS.privacy),
+});
+
+/** Every document by locale then key: `LEGAL_DOCUMENTS_BY_LOCALE.ar.privacy`. */
+export const LEGAL_DOCUMENTS_BY_LOCALE: Readonly<
+  Record<LegalLocale, Readonly<Record<LegalDocumentKey, LegalDocument>>>
+> = Object.freeze({ en: LEGAL_DOCUMENTS, ar: LEGAL_DOCUMENTS_AR });
+
+/** Normalise any BCP-47 tag (`ar-EG`, `en-GB`, `fr`) to a published legal locale. */
+export function legalLocaleOf(tag: string | null | undefined): LegalLocale {
+  return (tag ?? '').split('-')[0]?.toLowerCase() === 'ar' ? 'ar' : 'en';
+}
+
+/** One document in the reader's language; English for every locale but Arabic. */
+export function legalDocumentFor(
+  doc: LegalDocumentKey,
+  locale: string | null | undefined,
+): LegalDocument {
+  return LEGAL_DOCUMENTS_BY_LOCALE[legalLocaleOf(locale)][doc];
+}
+
+/** The SPEC §8 operator-access clause in both locales (for tests and the runbook). */
+export const OPERATOR_ACCESS_CLAUSE: Readonly<
+  Record<LegalLocale, { readonly heading: string; readonly body: string }>
+> = Object.freeze({ en: OPERATOR_ACCESS_EN, ar: OPERATOR_ACCESS_AR });

@@ -267,9 +267,33 @@ describe('the runtime user is actually least-privilege', () => {
     expect(effective).toEqual(['SELECT']);
   });
 
-  it('withholds DELETE from the worker everywhere', () => {
+  it('withholds DELETE from the worker everywhere but the content purge tables', () => {
     // A defective consumer must not be able to destroy work.
+    // ---- platform-admin v2 · PA-03 ---- 0245: the `--sweep-purge` job is the one hard delete of
+    // soft-deleted content past `purge_after` (SPEC P7); it holds DELETE on exactly these tables.
+    const purgeTables = new Set([
+      'messages',
+      'work_items',
+      'direct_conversations',
+      'direct_messages',
+      'message_attachments',
+      'work_item_comments',
+      'work_item_files',
+      'documents',
+      'document_comments',
+      'decisions',
+      'decision_comments',
+      'meetings',
+      'meeting_attachments',
+      'request_messages',
+      'request_comments',
+      'file_comments',
+      'project_update_comments',
+      'google_drive_attachments',
+      'onedrive_attachments',
+    ]);
     for (const grant of grantsFor('tmanage_worker')) {
+      if (purgeTables.has(grant.table)) continue;
       expect(grant.privileges, `worker grant on ${grant.table}`).not.toContain('DELETE');
     }
   });

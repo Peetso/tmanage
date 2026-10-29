@@ -440,6 +440,8 @@ export class OneDriveRepository {
           eq(onedriveAttachments.organizationId, context.organizationId),
           eq(onedriveAttachments.workItemId, workItemId),
           isNull(onedriveAttachments.removedAt),
+          // PA-03 (0245): a soft-deleted attachment leaves the list.
+          isNull(onedriveAttachments.deletedAt),
         ),
       )
       .orderBy(asc(onedriveAttachments.id));

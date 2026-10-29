@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, lt } from 'drizzle-orm';
+import { and, asc, eq, gte, isNull, lt } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { meetings } from '../../common/database/schema.js';
 import type { MeetingRow } from '../../common/database/schema.js';
@@ -61,6 +61,8 @@ export class MeetingAgendaRepository {
           eq(meetings.organizationId, context.organizationId),
           gte(meetings.startsAt, window.fromInclusive),
           lt(meetings.startsAt, window.toExclusive),
+          // PA-03 (0245): a soft-deleted meeting leaves the list.
+          isNull(meetings.deletedAt),
         ),
       )
       .orderBy(asc(meetings.startsAt), asc(meetings.id))

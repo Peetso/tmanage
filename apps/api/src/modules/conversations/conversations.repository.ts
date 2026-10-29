@@ -1,6 +1,7 @@
 import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import type { RichTextDocument } from '@tmanage/domain';
+import { softDeleteValues } from '../../common/database/content-retention.js';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { unwrapQueryError } from '../../common/database/query-error.js';
 import {
@@ -193,6 +194,11 @@ export interface ListMessagesOptions {
    * an export wants and what a channel view must not use.
    */
   readonly parentMessageId?: string | null;
+  /**
+   * PA-03 (0245): a soft-deleted (moderated) message leaves every list. `true` includes it — the
+   * Platform admin trash (PA-08) asks for deleted rows; nothing member-facing does.
+   */
+  readonly includeDeleted?: boolean;
 }
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -574,6 +580,7 @@ export class ConversationsRepository {
       eq(messages.organizationId, context.organizationId),
       eq(messages.conversationId, conversationId),
     ];
+    if (!options.includeDeleted) predicates.push(isNull(messages.deletedAt));
     if (options.parentMessageId === null) {
       predicates.push(isNull(messages.parentMessageId));
     } else if (options.parentMessageId !== undefined) {
@@ -864,12 +871,15 @@ export class ConversationsRepository {
     context: TenantContext,
     messageId: string,
     deletedByUserId: string,
+    reason: string | null = null,
   ): Promise<MessageRow> {
     await this.requireMessageById(runner, context, messageId);
 
+    // PA-03 (0245): the reason and the restore window travel with the take-down.
+    const softDelete = await softDeleteValues(runner, deletedByUserId, reason);
     await tenantDrizzle(runner)
       .update(messages)
-      .set({ deletedAt: new Date(), deletedByUserId })
+      .set(softDelete)
       .where(
         and(
           eq(messages.organizationId, context.organizationId),

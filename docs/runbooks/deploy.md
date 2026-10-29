@@ -678,3 +678,61 @@ notice queue will not drain and its backlog will age into `relay:status`.
 4. Several at once — the relay is not running, or not keeping up, and work is piling up. The
    queue is durable, so there is nothing to recover: start the relay and it drains; replay any
    parked rows separately with `relay:unpark`.
+
+## Support access — the platform operator inside an organization (SPEC P1)
+
+This replaces the old "no impersonation" rule (§12 of the authorization spec, which said the
+operator never sees customer content). From 2026-10-28 the governing rule is:
+
+> The platform operator may read and change any organization's data for support, safety and
+> legal reasons. Every such access is recorded with the operator's identity, the organization, the
+> time, and the reason when given; the organization's own audit log shows it; the operator acts
+> through the same application rules as a member, never through direct database access.
+
+The Privacy Policy and the Terms of Service say the same to customers (section "Operator access
+for support, safety and legal reasons", English and Arabic, effective 2026-10-28).
+
+### Who may do it
+
+- `PLATFORM_ADMIN_EMAILS` (see `.env.example`) are the **bootstrap super admins**. They are always
+  super admins and cannot be demoted or disabled from the UI.
+- Every other admin is added in **Platform admin → Team** with a preset (support, …) and is
+  disabled there, with a reason, when they leave.
+
+### The procedure
+
+1. Sign in at `/platform` with your own account, then confirm your identity again (password and
+   two-step code) — the confirmation lasts 15 minutes; entering a Support session needs one that
+   still has more than a minute left.
+2. Open the organization (**Organizations → the company**) and choose **Enter support mode**.
+   Pick the duration (2 hours by default, 8 hours at most) and give the reason — the ticket or the
+   customer's request. The reason is optional unless the platform setting `support.require_reason`
+   is on, but always give one: it is what the owner reads.
+3. You now act inside that one organization as a hidden member with the `platform_support` role.
+   A red banner with a countdown and **Exit** is on every page and cannot be dismissed. Everything
+   you do goes through the normal product rules (an approved version stays locked, a client still
+   sees only what is shared with clients).
+4. Deletions are soft: deleted content stays restorable for `retention.content_purge_days`
+   (30 days by default) before the worker's `--sweep-purge` removes it. A destructive act
+   (delete, suspend, disable, sign out, reset two-step, purge, ownership transfer, billing mode,
+   admin-team change, ending a session) always requires a reason.
+5. Choose **Exit** in the banner when you are done. Signing out of the browser, or the session
+   expiring, ends it as well; the hidden membership is offboarded at once.
+
+### Where it is recorded
+
+- **The organization's own audit log** (Admin → Audit in the company) shows every action, with
+  the operator as the effective actor and the Support session id — owners can see that support
+  was there.
+- **Platform admin → Activity**: _Platform actions_ (every platform-admin action with reason, IP,
+  device and before/after) and _Support sessions_ (who entered which organization, when, why, how
+  long, how many actions).
+- Database: `platform_admin_audit_events`, `platform_support_sessions`, `audit_events`
+  (`effective_actor_id`, `platform_support_session_id`) and `audit_event_changes`.
+
+### The purge job
+
+`node apps/worker/dist/main.js --sweep-purge` hard-deletes soft-deleted content whose
+`purge_after` has passed, in bounded batches per organization; run it from cron once an hour. It is
+idempotent (a second run with nothing due deletes nothing). A row still referenced by other rows
+(for example a message with replies that are not yet due) is skipped and retried on the next run.

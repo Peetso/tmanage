@@ -320,6 +320,8 @@ export class DirectConversationsRepository {
         and(
           eq(directConversations.organizationId, context.organizationId),
           or(eq(directConversations.userLowId, userId), eq(directConversations.userHighId, userId)),
+          // PA-03 (0245): a soft-deleted conversation leaves the list.
+          isNull(directConversations.deletedAt),
         ),
       )
       .orderBy(desc(directConversations.updatedAt), desc(directConversations.id))
@@ -341,6 +343,8 @@ export class DirectConversationsRepository {
           eq(directMessages.organizationId, context.organizationId),
           eq(directMessages.directConversationId, directConversationId),
           gt(directMessages.sequenceNo, afterSequenceNo),
+          // PA-03 (0245): a soft-deleted message leaves the list.
+          isNull(directMessages.deletedAt),
         ),
       )
       .orderBy(asc(directMessages.sequenceNo))

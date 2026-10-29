@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
@@ -93,6 +93,8 @@ export interface ListDecisionsOptions {
   /** Required: this slice lists one project's register, never a whole tenant's. */
   readonly projectId: string;
   readonly limit?: number;
+  /** PA-03 (0245): include soft-deleted decisions (the Platform admin trash, PA-08). */
+  readonly includeDeleted?: boolean;
 }
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -126,6 +128,8 @@ export class DecisionsRepository {
         and(
           eq(decisions.organizationId, context.organizationId),
           eq(decisions.projectId, options.projectId),
+          // PA-03 (0245): a soft-deleted decision leaves the register unless asked for.
+          ...(options.includeDeleted ? [] : [isNull(decisions.deletedAt)]),
         ),
       )
       .orderBy(desc(decisions.decidedAt), desc(decisions.id))

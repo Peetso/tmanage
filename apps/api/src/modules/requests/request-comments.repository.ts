@@ -1,5 +1,6 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
+import { softDeleteValues } from '../../common/database/content-retention.js';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { requestComments } from '../../common/database/schema.js';
 import type { RequestCommentRow } from '../../common/database/schema.js';
@@ -64,6 +65,8 @@ export class RequestCommentsRepository {
         and(
           eq(requestComments.organizationId, context.organizationId),
           eq(requestComments.requestId, requestId),
+          // PA-03 (0245): a soft-deleted comment leaves the list.
+          isNull(requestComments.deletedAt),
         ),
       )
       .orderBy(asc(requestComments.createdAt), asc(requestComments.id))
@@ -100,31 +103,37 @@ export class RequestCommentsRepository {
 
   /**
    * Delete a comment's direct replies, then the comment itself, within the acting tenant and its
-   * parent request. Children first so the RESTRICT self-reference (0167) is never violated — a reply
-   * cannot itself have children (one level only), so a single sweep is enough.
+   * parent request. PA-03 (0245): both are soft deletes with one restore window; the worker purges
+   * replies before their parent so the RESTRICT self-reference (0167) is never violated.
    */
   async deleteWithReplies(
     runner: TenantQueryRunner,
     context: TenantContext,
     requestId: string,
     commentId: string,
+    reason: string | null = null,
   ): Promise<void> {
+    const softDelete = await softDeleteValues(runner, context.userId, reason);
     await tenantDrizzle(runner)
-      .delete(requestComments)
+      .update(requestComments)
+      .set(softDelete)
       .where(
         and(
           eq(requestComments.organizationId, context.organizationId),
           eq(requestComments.requestId, requestId),
           eq(requestComments.parentId, commentId),
+          isNull(requestComments.deletedAt),
         ),
       );
     await tenantDrizzle(runner)
-      .delete(requestComments)
+      .update(requestComments)
+      .set(softDelete)
       .where(
         and(
           eq(requestComments.organizationId, context.organizationId),
           eq(requestComments.requestId, requestId),
           eq(requestComments.id, commentId),
+          isNull(requestComments.deletedAt),
         ),
       );
   }

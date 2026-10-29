@@ -326,6 +326,8 @@ export class MeetingCalendarRepository {
           eq(meetingAttachments.organizationId, context.organizationId),
           eq(meetingAttachments.meetingId, meetingId),
           isNull(meetingAttachments.removedAt),
+          // PA-03 (0245): a soft-deleted attachment leaves the list.
+          isNull(meetingAttachments.deletedAt),
         ),
       )
       .orderBy(asc(meetingAttachments.id))

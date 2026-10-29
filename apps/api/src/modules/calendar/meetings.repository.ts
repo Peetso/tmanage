@@ -134,6 +134,8 @@ export class MeetingsRepository {
     const predicates = [
       eq(meetings.organizationId, context.organizationId),
       eq(meetings.projectId, options.projectId),
+      // PA-03 (0245): a soft-deleted meeting leaves the list.
+      isNull(meetings.deletedAt),
     ];
     if (options.after) predicates.push(gt(meetings.id, options.after));
 
@@ -160,6 +162,8 @@ export class MeetingsRepository {
       eq(meetings.organizationId, context.organizationId),
       gte(meetings.startsAt, options.from),
       lt(meetings.startsAt, options.to),
+      // PA-03 (0245): a soft-deleted meeting leaves the list.
+      isNull(meetings.deletedAt),
     ];
     if (!options.includeCancelled) predicates.push(isNull(meetings.cancelledAt));
     return tenantDrizzle(runner)

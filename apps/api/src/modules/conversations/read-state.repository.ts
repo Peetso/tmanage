@@ -1,4 +1,4 @@
-import { and, eq, gt, sql } from 'drizzle-orm';
+import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { conversationReadState, messages } from '../../common/database/schema.js';
@@ -85,6 +85,8 @@ export class ConversationReadStateRepository {
     const predicates = [
       eq(messages.organizationId, context.organizationId),
       eq(messages.conversationId, conversationId),
+      // PA-03 (0245): a soft-deleted message is not unread.
+      isNull(messages.deletedAt),
     ];
     if (after !== null) predicates.push(gt(messages.createdAt, after));
 

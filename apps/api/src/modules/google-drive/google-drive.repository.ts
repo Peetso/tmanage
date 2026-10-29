@@ -408,6 +408,8 @@ export class GoogleDriveRepository {
           eq(googleDriveAttachments.organizationId, context.organizationId),
           eq(googleDriveAttachments.workItemId, workItemId),
           isNull(googleDriveAttachments.removedAt),
+          // PA-03 (0245): a soft-deleted attachment leaves the list.
+          isNull(googleDriveAttachments.deletedAt),
         ),
       )
       .orderBy(asc(googleDriveAttachments.id));

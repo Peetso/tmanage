@@ -324,6 +324,8 @@ export class MeetingClientAttendeesRepository {
       eq(meetings.organizationId, context.organizationId),
       eq(meetingClientAttendees.clientMembershipId, input.clientMembershipId),
       eq(projectClients.clientOrganizationId, input.clientOrganizationId),
+      // PA-03 (0245): a soft-deleted meeting leaves the list.
+      isNull(meetings.deletedAt),
     ];
     if (input.meetingId !== undefined) predicates.push(eq(meetings.id, input.meetingId));
     const rows = await tenantDrizzle(runner)

@@ -41,6 +41,8 @@ import { createRequestDeferSweepStore } from './common/database/request-defer-st
 import { sweepDeferredRequests } from './jobs/request-defer-sweeper.js';
 import { createDueSoonSweepStore } from './common/database/due-soon-store.js';
 import { sweepDueSoon } from './jobs/due-soon-sweeper.js';
+// ---- platform-admin v2 · PA-03 ---- the content purge.
+import { PURGE_HOOKS, runPurge } from './jobs/purge-sweeper.js';
 
 /**
  * The worker process entry point.
@@ -70,6 +72,8 @@ import { sweepDueSoon } from './jobs/due-soon-sweeper.js';
  *   delivers nothing from the outbox and leaves the manual route in place as a fallback.
  * - **`--sweep-due-soon`** (C1) runs every enabled "work item due in N days" automation rule
  *   for its open items due within its window, at most once per item per rule per day.
+ * - **`--sweep-purge`** (platform-admin v2 · PA-03) removes soft-deleted content whose restore
+ *   window (`purge_after`) has passed, in bounded tenant-scoped batches, then runs PURGE_HOOKS.
  * - **No flag** runs the polling loop until SIGINT/SIGTERM, finishing the in-flight batch
  *   before leaving — the standalone-worker shape for a host that supports one.
  *
@@ -327,6 +331,21 @@ async function main(): Promise<void> {
         `[worker] due-soon sweep: ${String(result.rules)} rule(s), ` +
           `fired for ${String(result.fired)} work item(s), ` +
           `delivered ${String(result.delivered)} weekend-held run(s)`,
+      );
+    } finally {
+      await database.end();
+    }
+    return;
+  }
+
+  // ---- platform-admin v2 · PA-03 ---- the content purge: rows past purge_after, hourly cron.
+  if (command.kind === 'sweep-purge') {
+    try {
+      const result = await runPurge(database, PURGE_HOOKS);
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      console.warn(
+        `[worker] content purge: deleted ${String(result.deleted)} row(s), ` +
+          `${String(result.blocked)} still referenced`,
       );
     } finally {
       await database.end();

@@ -1680,3 +1680,45 @@ GRANT INSERT, UPDATE ON `tmanage`.`platform_admins`             TO 'tmanage_app'
 GRANT INSERT, UPDATE ON `tmanage`.`platform_permission_presets` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`platform_support_sessions`   TO 'tmanage_app'@'%';
 GRANT INSERT ON `tmanage`.`audit_event_changes`                 TO 'tmanage_app'@'%';
+
+-- ---- platform-admin v2 · PA-03 ----
+-- 0245 content soft delete (SPEC P7). A delete from the product now sets `deleted_at`,
+-- `deleted_by_user_id`, `deleted_reason` and `purge_after` instead of removing the row, so the
+-- app needs UPDATE on the content tables that were INSERT(+DELETE)-only. The 0245 triggers admit
+-- only those four columns on the append-only tables; what was said stays immutable.
+GRANT UPDATE ON `tmanage`.`work_item_comments`      TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`work_item_files`         TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`document_comments`       TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`decision_comments`       TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`request_comments`        TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`request_messages`        TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`direct_messages`         TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`message_attachments`     TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`file_comments`           TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`project_update_comments` TO 'tmanage_app'@'%';
+-- The worker's `--sweep-purge` (apps/worker/src/jobs/purge-sweeper.ts) is the only hard delete of
+-- content: SELECT to find rows past `purge_after`, DELETE to remove them. The bound is in the job —
+-- every DELETE names the organization, the ids it selected and `purge_after <= now` again — since a
+-- grant cannot be row-scoped. `file_assets` is not here: a stored file is erased by the existing
+-- file purge path, which also removes the object.
+GRANT SELECT, DELETE ON `tmanage`.`messages`                 TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_items`               TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`direct_conversations`     TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`direct_messages`          TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`message_attachments`      TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_comments`       TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_files`          TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`documents`                TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`document_comments`        TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`decisions`                TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`decision_comments`        TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`meetings`                 TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`meeting_attachments`      TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`request_messages`         TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`request_comments`         TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`file_comments`            TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_update_comments`  TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`google_drive_attachments` TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`onedrive_attachments`     TO 'tmanage_worker'@'%';
+-- The restore window the sweep honours is read from `platform_settings` only by the API; the
+-- worker compares `purge_after` (already computed at delete time) with the database clock.

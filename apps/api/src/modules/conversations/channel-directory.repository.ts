@@ -52,6 +52,8 @@ export class ChannelDirectoryRepository {
         and(
           eq(messages.organizationId, context.organizationId),
           inArray(messages.conversationId, ids),
+          // PA-03 (0245): a soft-deleted message is not counted.
+          isNull(messages.deletedAt),
         ),
       )
       .groupBy(messages.conversationId);

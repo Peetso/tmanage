@@ -26,6 +26,8 @@ export type WorkerCommand =
   | { readonly kind: 'sweep-deferred-requests' }
   // C1: the "work item due in N days" automation sweep.
   | { readonly kind: 'sweep-due-soon' }
+  // ---- platform-admin v2 · PA-03 ---- the content purge (0245).
+  | { readonly kind: 'sweep-purge' }
   | { readonly kind: 'status' }
   | { readonly kind: 'once' }
   | { readonly kind: 'loop' };
@@ -61,6 +63,8 @@ export function selectWorkerCommand(argv: readonly string[]): WorkerCommand {
   if (sweepDeferredRequests) return { kind: 'sweep-deferred-requests' };
   // C1: same rank — one invocation does one thing.
   if (sweepDueSoon) return { kind: 'sweep-due-soon' };
+  // ---- platform-admin v2 · PA-03 ---- same rank: one invocation does one thing.
+  if (argv.includes('--sweep-purge')) return { kind: 'sweep-purge' };
   if (status) return { kind: 'status' };
   if (once) return { kind: 'once' };
   return { kind: 'loop' };

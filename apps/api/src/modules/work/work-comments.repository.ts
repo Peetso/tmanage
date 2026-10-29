@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { workItemComments } from '../../common/database/schema.js';
@@ -63,6 +63,8 @@ export class WorkCommentsRepository {
         and(
           eq(workItemComments.organizationId, context.organizationId),
           eq(workItemComments.workItemId, workItemId),
+          // PA-03 (0245): a soft-deleted comment leaves the list.
+          isNull(workItemComments.deletedAt),
         ),
       )
       .orderBy(asc(workItemComments.createdAt), asc(workItemComments.id))

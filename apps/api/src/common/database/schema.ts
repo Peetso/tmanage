@@ -483,6 +483,11 @@ export const meetings = mysqlTable(
     guestsCanInviteOthers: boolean('guests_can_invite_others').notNull().default(true),
     guestsCanSeeOthers: boolean('guests_can_see_others').notNull().default(true),
     cancelledAt: datetime('cancelled_at', { mode: 'date', fsp: 3 }),
+    // ---- platform-admin v2 · PA-03 ---- 0245: soft delete + restore window (SPEC P7).
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_meetings_org_id').on(table.organizationId, table.id),
@@ -516,6 +521,11 @@ export const documents = mysqlTable(
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
     /** 0227 (F2): who last renamed the document; NULL until its first rename. */
     titleUpdatedByUserId: char('title_updated_by_user_id', { length: 36 }),
+    // ---- platform-admin v2 · PA-03 ---- 0245: soft delete + restore window (SPEC P7).
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_documents_org_id').on(table.organizationId, table.id),
@@ -580,6 +590,11 @@ export const projectUpdateComments = mysqlTable(
     body: text('body').notNull(),
     createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- platform-admin v2 · PA-03 ---- 0245: soft delete + restore window (SPEC P7).
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_project_update_comments_org_id').on(table.organizationId, table.id),
@@ -612,6 +627,11 @@ export const requestComments = mysqlTable(
     body: text('body').notNull(),
     authorMembershipId: char('author_membership_id', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- platform-admin v2 · PA-03 ---- 0245: soft delete + restore window (SPEC P7).
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_request_comments_org_id').on(table.organizationId, table.id),
@@ -641,6 +661,11 @@ export const requestMessages = mysqlTable(
     body: text('body').notNull(),
     clientVisible: boolean('client_visible').notNull().default(true),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- platform-admin v2 · PA-03 ---- 0245: soft delete + restore window (SPEC P7).
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_request_messages_org_id').on(table.organizationId, table.id),
@@ -1670,6 +1695,11 @@ export const documentComments = mysqlTable(
     authorMembershipId: char('author_membership_id', { length: 36 }).notNull(),
     body: text('body').notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- platform-admin v2 · PA-03 ---- 0245: soft delete + restore window (SPEC P7).
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_document_comments_org_id').on(table.organizationId, table.id),
@@ -1758,6 +1788,11 @@ export const decisions = mysqlTable(
     decidedBy: char('decided_by', { length: 36 }).notNull(),
     decidedAt: datetime('decided_at', { mode: 'date', fsp: 3 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- platform-admin v2 · PA-03 ---- 0245: soft delete + restore window (SPEC P7).
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_decisions_org_id').on(table.organizationId, table.id),
@@ -1880,6 +1915,11 @@ export const decisionComments = mysqlTable(
     authorMembershipId: char('author_membership_id', { length: 36 }).notNull(),
     body: text('body').notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- platform-admin v2 · PA-03 ---- 0245: soft delete + restore window (SPEC P7).
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_decision_comments_org_id').on(table.organizationId, table.id),
@@ -2858,6 +2898,10 @@ export const workItems = mysqlTable(
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
     deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    // ---- platform-admin v2 · PA-03 ---- 0245: soft delete + restore window (SPEC P7).
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_work_items_org_id').on(table.organizationId, table.id),
@@ -3024,6 +3068,11 @@ export const workItemComments = mysqlTable(
     authorMembershipId: char('author_membership_id', { length: 36 }).notNull(),
     body: text('body').notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- platform-admin v2 · PA-03 ---- 0245: soft delete + restore window (SPEC P7).
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_work_item_comments_org_id').on(table.organizationId, table.id),
@@ -3097,6 +3146,11 @@ export const workItemFiles = mysqlTable(
     fileAssetId: char('file_asset_id', { length: 36 }).notNull(),
     attachedByMembershipId: char('attached_by_membership_id', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- platform-admin v2 · PA-03 ---- 0245: soft delete + restore window (SPEC P7).
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_work_item_files_org_id').on(table.organizationId, table.id),
@@ -5345,6 +5399,11 @@ export const fileAssets = mysqlTable(
     version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- platform-admin v2 · PA-03 ---- 0245: soft delete + restore window (SPEC P7).
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_file_assets_org_id').on(table.organizationId, table.id),
@@ -5616,6 +5675,9 @@ export const messages = mysqlTable(
     deletedByUserId: char('deleted_by_user_id', { length: 36 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- platform-admin v2 · PA-03 ---- 0245: soft delete + restore window (SPEC P7).
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_messages_org_id_depth').on(table.organizationId, table.id, table.depth),
@@ -5810,6 +5872,11 @@ export const messageAttachments = mysqlTable(
     fileAssetId: char('file_asset_id', { length: 36 }).notNull(),
     attachedByMembershipId: char('attached_by_membership_id', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- platform-admin v2 · PA-03 ---- 0245: soft delete + restore window (SPEC P7).
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_message_attachments_org_id').on(table.organizationId, table.id),
@@ -6184,6 +6251,11 @@ export const directConversations = mysqlTable(
     lastMessageAt: datetime('last_message_at', { mode: 'date', fsp: 3 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- platform-admin v2 · PA-03 ---- 0245: soft delete + restore window (SPEC P7).
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_direct_conversations_org_id').on(table.organizationId, table.id),
@@ -6208,6 +6280,11 @@ export const directMessages = mysqlTable(
     body: text('body').notNull(),
     clientGeneratedId: char('client_generated_id', { length: 36 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- platform-admin v2 · PA-03 ---- 0245: soft delete + restore window (SPEC P7).
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_direct_messages_org_id').on(table.organizationId, table.id),
@@ -7812,6 +7889,11 @@ export const fileComments = mysqlTable(
     body: text('body').notNull(),
     createdBy: char('created_by', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- platform-admin v2 · PA-03 ---- 0245: soft delete + restore window (SPEC P7).
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_file_comments_org_id').on(table.organizationId, table.id),
@@ -8931,6 +9013,11 @@ export const googleDriveAttachments = mysqlTable(
     attachedByUserId: char('attached_by_user_id', { length: 36 }).notNull(),
     removedAt: datetime('removed_at', { mode: 'date', fsp: 3 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- platform-admin v2 · PA-03 ---- 0245: soft delete + restore window (SPEC P7).
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_google_drive_attachments_org_id').on(table.organizationId, table.id),
@@ -8989,6 +9076,11 @@ export const onedriveAttachments = mysqlTable(
     attachedByUserId: char('attached_by_user_id', { length: 36 }).notNull(),
     removedAt: datetime('removed_at', { mode: 'date', fsp: 3 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- platform-admin v2 · PA-03 ---- 0245: soft delete + restore window (SPEC P7).
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_onedrive_attachments_org_id').on(table.organizationId, table.id),
@@ -9114,6 +9206,11 @@ export const meetingAttachments = mysqlTable(
     attachedByUserId: char('attached_by_user_id', { length: 36 }).notNull(),
     removedAt: datetime('removed_at', { mode: 'date', fsp: 3 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- platform-admin v2 · PA-03 ---- 0245: soft delete + restore window (SPEC P7).
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_meeting_attachments_org_id').on(table.organizationId, table.id),

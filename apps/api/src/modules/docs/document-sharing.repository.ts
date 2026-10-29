@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { CLIENT_ROLES } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
@@ -83,6 +83,8 @@ export class DocumentSharingRepository {
     const predicates = [
       eq(documents.organizationId, context.organizationId),
       eq(projects.organizationId, context.organizationId),
+      // PA-03 (0245): a soft-deleted document leaves the list.
+      isNull(documents.deletedAt),
       ...(filter.projectId ? [eq(documents.projectId, filter.projectId)] : []),
     ];
     let query = tenantDrizzle(runner)
@@ -221,6 +223,8 @@ export class DocumentSharingRepository {
         and(
           eq(documentComments.organizationId, context.organizationId),
           eq(documentComments.documentId, documentId),
+          // PA-03 (0245): a soft-deleted comment does not make its author a contributor.
+          isNull(documentComments.deletedAt),
         ),
       );
     return {

@@ -791,6 +791,53 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'organization',
     clause: '§12 policy change — who must use two-step sign-in, and from where',
   },
+  // ---- platform-admin v2 · PA-03 ----
+  /**
+   * 0245 (SPEC P7): soft-deleted content is restored inside its window (`purge_after`). The
+   * delete side already has its actions (`work_item.deleted`, `message.deleted`, …); a restore
+   * brings content back into lists members read, so it is accounted for the same way.
+   */
+  'work_item.restored': {
+    objectType: 'work_item',
+    clause: '§12 — a deleted item returns to every list; who brought it back must be traceable',
+  },
+  'message.restored': {
+    objectType: 'message',
+    clause: '§12 moderation — a taken-down message shown again is a moderation decision reversed',
+  },
+  'direct_message.restored': {
+    objectType: 'direct_message',
+    clause: '§12 moderation — a removed direct message shown again',
+  },
+  'document.restored': {
+    objectType: 'document',
+    clause: '§12 — a deleted document returns to the project',
+  },
+  'decision.restored': {
+    objectType: 'decision',
+    clause: '§12 — a deleted decision returns to the register',
+  },
+  'meeting.restored': {
+    objectType: 'meeting',
+    clause: '§12 — a deleted meeting returns to the calendar',
+  },
+  'file_asset.restored': {
+    objectType: 'file_asset',
+    clause: '§12 — a deleted file is reachable again',
+  },
+  'comment.restored': {
+    objectType: 'comment',
+    clause:
+      '§12 moderation — a deleted comment shown again (work, document, decision, file, request)',
+  },
+  'attachment.restored': {
+    objectType: 'attachment',
+    clause: '§12 — a detached file link returns (message, work item, meeting, Drive, OneDrive)',
+  },
+  'request_message.restored': {
+    objectType: 'request_message',
+    clause: '§12 — a removed request message shown again, possibly to the client',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -915,6 +962,17 @@ const AUDIT_ACTION_LABELS = {
   'member_admin_note.created': 'Added a private note about a member',
   'member_admin_note.deleted': 'Deleted a private note about a member',
   'organization.security_settings_changed': 'Changed how people sign in',
+  // ---- platform-admin v2 · PA-03 ----
+  'work_item.restored': 'Restored a deleted work item',
+  'message.restored': 'Restored a deleted message',
+  'direct_message.restored': 'Restored a deleted direct message',
+  'document.restored': 'Restored a deleted document',
+  'decision.restored': 'Restored a deleted decision',
+  'meeting.restored': 'Restored a deleted meeting',
+  'file_asset.restored': 'Restored a deleted file',
+  'comment.restored': 'Restored a deleted comment',
+  'attachment.restored': 'Restored a removed attachment',
+  'request_message.restored': 'Restored a deleted request message',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

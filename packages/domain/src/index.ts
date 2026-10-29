@@ -277,3 +277,17 @@ export type {
   PlatformPermission,
   PlatformPreset,
 } from './policies/platform-permissions.js';
+// ---- platform-admin v2 · PA-03 ----
+export {
+  LEGAL_COPY_AR,
+  LEGAL_DOCUMENTS_AR,
+  LEGAL_DOCUMENTS_BY_LOCALE,
+  LEGAL_EFFECTIVE_DATE,
+  LEGAL_ENGLISH_PREVAILS_AR,
+  LEGAL_LOCALES,
+  OPERATOR_ACCESS_CLAUSE,
+  OPERATOR_ACCESS_SECTION_ID,
+  legalDocumentFor,
+  legalLocaleOf,
+} from './legal/legal-content.js';
+export type { ArabicLegalCopy, LegalLocale } from './legal/legal-content.js';

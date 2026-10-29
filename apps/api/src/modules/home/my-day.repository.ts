@@ -58,6 +58,10 @@ const MY_DAY_COLUMNS = {
   createdAt: workItems.createdAt,
   updatedAt: workItems.updatedAt,
   deletedAt: workItems.deletedAt,
+  // platform-admin v2 · PA-03 (0245): the rest of the soft-delete columns.
+  deletedByUserId: workItems.deletedByUserId,
+  deletedReason: workItems.deletedReason,
+  purgeAfter: workItems.purgeAfter,
 } as const;
 
 /** One count group: open items of one project and audience (the two facts `work.read` needs). */

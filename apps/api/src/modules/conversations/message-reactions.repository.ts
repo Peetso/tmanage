@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { messageReactions, messages } from '../../common/database/schema.js';
@@ -138,6 +138,8 @@ export class MessageReactionsRepository {
           eq(messages.organizationId, context.organizationId),
           eq(messages.conversationId, conversationId),
           inArray(messages.id, [...messageIds]),
+          // PA-03 (0245): a soft-deleted message answers for nothing in a list read.
+          isNull(messages.deletedAt),
         ),
       );
     return rows.map((row) => row.id);

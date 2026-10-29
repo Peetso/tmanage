@@ -156,7 +156,10 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // asserted rather than the list so that a grant added without a reviewer noticing fails here.
     const worker = intents.get("'tmanage_worker'@'%'");
     const reads = [...(worker?.privileges ?? [])].filter((p) => p.endsWith(':SELECT'));
-    expect(reads).toHaveLength(26);
+    // ---- platform-admin v2 · PA-03 ---- +15 since 0245: the `--sweep-purge` job reads the
+    // content tables it purges (19, of which `documents`, `meetings`, `work_items` and
+    // `direct_conversations` were already readable).
+    expect(reads).toHaveLength(26 + 15);
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });
 

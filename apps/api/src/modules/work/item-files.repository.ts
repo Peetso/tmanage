@@ -1,5 +1,6 @@
-import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
+import { RESTORE_VALUES, softDeleteValues } from '../../common/database/content-retention.js';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { fileAssets, workItemFiles } from '../../common/database/schema.js';
 import type { WorkItemFileRow } from '../../common/database/schema.js';
@@ -83,6 +84,10 @@ export class WorkItemFilesRepository {
         fileAssetId: workItemFiles.fileAssetId,
         attachedByMembershipId: workItemFiles.attachedByMembershipId,
         createdAt: workItemFiles.createdAt,
+        deletedAt: workItemFiles.deletedAt,
+        deletedByUserId: workItemFiles.deletedByUserId,
+        deletedReason: workItemFiles.deletedReason,
+        purgeAfter: workItemFiles.purgeAfter,
         fileName: fileAssets.name,
         status: fileAssets.status,
         fileProjectId: fileAssets.projectId,
@@ -99,6 +104,8 @@ export class WorkItemFilesRepository {
         and(
           eq(workItemFiles.organizationId, context.organizationId),
           eq(workItemFiles.workItemId, workItemId),
+          // PA-03 (0245): a detached (soft-deleted) link is not listed.
+          isNull(workItemFiles.deletedAt),
           // F50: only files of the work item's current project.
           ...(projectId === undefined ? [] : [eq(fileAssets.projectId, projectId)]),
         ),
@@ -108,7 +115,10 @@ export class WorkItemFilesRepository {
     return rows;
   }
 
-  /** The existing link for this (work item, file) pair, if any — the idempotent-attach guard. */
+  /**
+   * The existing live link for this (work item, file) pair, if any — the idempotent-attach guard.
+   * PA-03: a detached (soft-deleted) link is not "already attached"; {@link create} revives it.
+   */
   async findByPair(
     runner: TenantQueryRunner,
     context: TenantContext,
@@ -123,18 +133,51 @@ export class WorkItemFilesRepository {
           eq(workItemFiles.organizationId, context.organizationId),
           eq(workItemFiles.workItemId, workItemId),
           eq(workItemFiles.fileAssetId, fileAssetId),
+          isNull(workItemFiles.deletedAt),
         ),
       )
       .limit(1);
     return rows[0] ?? null;
   }
 
-  /** Attach a file. The server timestamp is read back rather than reconstructed. */
+  /**
+   * Attach a file. The server timestamp is read back rather than reconstructed. PA-03: when the
+   * pair was detached earlier (soft-deleted, still inside its restore window) the unique edge key
+   * still holds that row, so the attach revives it instead of inserting a duplicate.
+   */
   async create(
     runner: TenantQueryRunner,
     context: TenantContext,
     input: CreateWorkItemFileInput,
   ): Promise<WorkItemFileRow> {
+    const detached = await tenantDrizzle(runner)
+      .select({ id: workItemFiles.id })
+      .from(workItemFiles)
+      .where(
+        and(
+          eq(workItemFiles.organizationId, context.organizationId),
+          eq(workItemFiles.workItemId, input.workItemId),
+          eq(workItemFiles.fileAssetId, input.fileAssetId),
+          isNotNull(workItemFiles.deletedAt),
+        ),
+      )
+      .limit(1);
+    const revived = detached[0];
+    if (revived) {
+      await tenantDrizzle(runner)
+        .update(workItemFiles)
+        .set(RESTORE_VALUES)
+        .where(
+          and(
+            eq(workItemFiles.organizationId, context.organizationId),
+            eq(workItemFiles.id, revived.id),
+          ),
+        );
+      const row = await this.findLink(runner, context, input.workItemId, revived.id);
+      if (!row) throw new Error('work item file attachment vanished immediately after restore');
+      return row;
+    }
+
     const id = uuidv7();
 
     await tenantDrizzle(runner)
@@ -201,20 +244,27 @@ export class WorkItemFilesRepository {
     return result[0].affectedRows;
   }
 
-  /** Detach a file. Returns whether a row was removed, so the service can answer 404 for none. */
+  /**
+   * Detach a file. Returns whether a live link was detached, so the service can answer 404 for
+   * none. PA-03 (0245): a soft delete — the link keeps its row with who, why and `purge_after`,
+   * leaves the list at once and is purged by the worker after the restore window.
+   */
   async delete(
     runner: TenantQueryRunner,
     context: TenantContext,
     workItemId: string,
     linkId: string,
+    reason: string | null = null,
   ): Promise<boolean> {
     const result = await tenantDrizzle(runner)
-      .delete(workItemFiles)
+      .update(workItemFiles)
+      .set(await softDeleteValues(runner, context.userId, reason))
       .where(
         and(
           eq(workItemFiles.organizationId, context.organizationId),
           eq(workItemFiles.workItemId, workItemId),
           eq(workItemFiles.id, linkId),
+          isNull(workItemFiles.deletedAt),
         ),
       );
     return result[0].affectedRows > 0;
