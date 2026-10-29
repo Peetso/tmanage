@@ -1,0 +1,112 @@
+/* 55-21 · Platform admin Ease scoreboard (Figma 444:21040 EN / 444:21528 AR). Tokens only. */
+
+.tm-ease-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-ease-kpis .tm-cc-metric__value {
+  font-size: 36px;
+  line-height: 40px;
+}
+
+.tm-ease-sub,
+.tm-ease-privacy,
+.tm-ease-legend,
+.tm-ease-funnel__figure {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 17px;
+  letter-spacing: 0.04em;
+  color: var(--ink-650);
+}
+
+.tm-ease-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-ease-legend__now,
+.tm-ease-legend__base {
+  display: inline-block;
+  inline-size: 10px;
+  block-size: 6px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-950);
+}
+
+.tm-ease-legend__base {
+  margin-inline-start: var(--s2);
+  background: var(--ink-650);
+}
+
+.tm-ease-funnel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-ease-funnel__step {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(120px, 1.3fr) auto;
+  align-items: center;
+  gap: var(--s4);
+}
+
+.tm-ease-funnel__label {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-950);
+}
+
+.tm-ease-funnel__bars {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tm-ease-bar {
+  display: block;
+  block-size: 8px;
+}
+
+.tm-ease-bar .tm-cc-bar__fill {
+  display: block;
+}
+
+.tm-ease-bar--base {
+  block-size: 3px;
+}
+
+.tm-ease-bar--base .tm-cc-bar__fill {
+  background: var(--ink-650);
+}
+
+.tm-ease-table th[scope='row'] {
+  font-weight: 400;
+  text-align: start;
+}
+
+@media (max-width: 640px) {
+  .tm-ease-funnel__step {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .tm-ease-funnel__bars {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .tm-ease-table {
+    display: block;
+    overflow-x: auto;
+  }
+}

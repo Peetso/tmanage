@@ -7,6 +7,7 @@ import type { ApiClient } from '../../../lib/api/client';
 import type { PlatformMeView } from '../../../lib/api/platform-admin';
 import { listActivitySupportSessions } from '../../../lib/api/platform-activity';
 import { useT } from '../../../lib/i18n/use-t';
+import { useTOr } from '../../../lib/i18n/use-t-or';
 import type { MessageKey } from '../../../lib/i18n/t';
 import { PlatformGate } from '../shared/platform-kit';
 
@@ -20,7 +21,15 @@ export type ActivityTab = 'actions' | 'access' | 'platform' | 'support' | 'expor
 
 export const ACTIVITY_KEY = ['platform', 'activity'] as const;
 
-const TABS: readonly { id: ActivityTab; labelKey: MessageKey; href: string }[] = [
+/** 55-21: the Ease scoreboard is reached from the Activity tab row (Figma 444:21040). */
+export type ActivityTabRowId = ActivityTab | 'ease';
+
+const TABS: readonly {
+  id: ActivityTabRowId;
+  labelKey: MessageKey;
+  english?: string;
+  href: string;
+}[] = [
   { id: 'actions', labelKey: 'PlatformActivity.tabActions', href: '/platform/activity' },
   { id: 'access', labelKey: 'PlatformActivity.tabAccess', href: '/platform/activity/access' },
   { id: 'platform', labelKey: 'PlatformActivity.tabPlatform', href: '/platform/activity/platform' },
@@ -30,6 +39,12 @@ const TABS: readonly { id: ActivityTab; labelKey: MessageKey; href: string }[] =
     href: '/platform/activity/support-sessions',
   },
   { id: 'exports', labelKey: 'PlatformActivity.tabExports', href: '/platform/activity/exports' },
+  {
+    id: 'ease',
+    labelKey: 'PlatformActivity.tabEase' as MessageKey,
+    english: 'Ease scoreboard',
+    href: '/platform/activity/ease-scoreboard',
+  },
 ];
 
 const TITLES: Record<ActivityTab, MessageKey> = {
@@ -79,8 +94,9 @@ export function ActivityFrame({
   );
 }
 
-function ActivityTabs({ api, tab }: { api: ApiClient; tab: ActivityTab }) {
+export function ActivityTabs({ api, tab }: { api: ApiClient; tab: ActivityTabRowId }) {
   const t = useT();
+  const tOr = useTOr();
   const open = useQuery({
     queryKey: [...ACTIVITY_KEY, 'support-sessions', 'open-count'],
     queryFn: () => listActivitySupportSessions(api, { state: 'open' }),
@@ -95,7 +111,7 @@ function ActivityTabs({ api, tab }: { api: ApiClient; tab: ActivityTab }) {
           className={`tm-cc-pill${item.id === tab ? ' tm-cc-pill--on' : ''}`}
           {...(item.id === tab ? { 'aria-current': 'page' as const } : {})}
         >
-          {t(item.labelKey)}
+          {item.english ? tOr(item.labelKey, item.english) : t(item.labelKey)}
           {item.id === 'support' && open.data && open.data.openCount > 0
             ? ` · ${String(open.data.openCount)}`
             : ''}
