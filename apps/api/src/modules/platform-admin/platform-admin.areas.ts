@@ -14,6 +14,8 @@ import { PlatformContentModule } from './content/content.module.js';
 import { EaseScoreboardModule } from '../product-events/product-events.module.js';
 // ---- 51-11 · e-mail deliverability ----
 import { EmailDeliverabilityModule } from '../email-deliverability/email-deliverability.module.js';
+// ---- 56-32 · host capacity ----
+import { PlatformCapacityModule } from './health/capacity.module.js';
 
 /**
  * Every Platform admin area, one Nest module each (platform-admin v2, PA-02 split). Each area
@@ -39,4 +41,6 @@ export const PLATFORM_AREA_MODULES: DynamicModule[] = [
   EaseScoreboardModule.register(),
   // ---- 51-11 · e-mail deliverability ----
   EmailDeliverabilityModule.register(),
+  // ---- 56-32 · host capacity ----
+  PlatformCapacityModule.register(),
 ];

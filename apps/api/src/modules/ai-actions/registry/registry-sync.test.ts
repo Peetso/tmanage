@@ -88,7 +88,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // 55-21 product events: +3 NEVER (ease-scoreboard, events, portal/events), was 984.
 // 51-12 public status summary: +1 NEVER (public/site/status/summary), was 987.
 // 51-11 deliverability: +3 NEVER (public/email/unsubscribe GET+POST, platform/email-deliverability), was 988.
-const EXPECTED_ROUTE_COUNT = 994; // 56-02 keys +2, 54-17 data-location +1 NEVER; was 991.
+// 56-02 keys +2, 54-17 data-location +1 NEVER; was 991.
+// 56-32 host capacity: +1 NEVER (GET /v1/platform/health/capacity), was 994.
+const EXPECTED_ROUTE_COUNT = 995;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

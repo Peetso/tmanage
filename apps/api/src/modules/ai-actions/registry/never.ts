@@ -1024,6 +1024,8 @@ export const NEVER: readonly NeverEntry[] = [
   // 56-02. Platform admin → Settings → Keys: keyring status and queueing a key rotation.
   { method: 'GET', path: '/v1/platform/keys/status', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/keys/rotate', reason: 'platform_admin' },
+  // 56-32. Platform → Health: the host capacity gauges and the "move to KVM" trigger.
+  { method: 'GET', path: '/v1/platform/health/capacity', reason: 'platform_admin' },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

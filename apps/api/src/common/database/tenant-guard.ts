@@ -1219,6 +1219,11 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // platform, no tenant data is stored. Written by scripts/ops (migration credential), read by
   // `/healthz/deep` through `identityRead(['platform_backup_runs'])`.
   'platform_backup_runs',
+  // ---- 56-32 ----
+  // 0254. The capacity budget's host readings (memory, loop lag, sockets, inodes, disk, DB).
+  // GLOBAL: platform readings, no tenant data. Written by the API's capacity sampler through
+  // `identityTransaction(['host_capacity_readings'])`, read by `GET /v1/platform/health/capacity`.
+  'host_capacity_readings',
 ]);
 
 export function isTenantTable(name: string): boolean {

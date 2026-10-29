@@ -10190,3 +10190,37 @@ export type PlatformBackupRunRow = typeof platformBackupRuns.$inferSelect;
 Object.assign(TABLES, {
   platform_backup_runs: platformBackupRuns,
 });
+
+// ---- 56-32 · host capacity ----
+
+/**
+ * 0254. The shared-hosting capacity budget's readings (56-32, spec 56 §12.2). GLOBAL
+ * (NON_TENANT_TABLES): readings describe the host, never an organization. Written by the API's
+ * `CapacitySampler` (a `sample` row every 5 min, a `nightly` row at 03:30 UTC; 90-day retention)
+ * through `identityTransaction(['host_capacity_readings'])`. `source` sample | nightly | train —
+ * closed list checked in code. The nightly-only columns are NULL on a sample row.
+ */
+export const hostCapacityReadings = mysqlTable(
+  'host_capacity_readings',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    takenAt: datetime('taken_at', { mode: 'date', fsp: 3 }).notNull(),
+    source: varchar('source', { length: 8 }).notNull(),
+    rssMb: int('rss_mb').notNull(),
+    heapMb: int('heap_mb').notNull(),
+    loopLagMs: int('loop_lag_ms').notNull(),
+    sockets: int('sockets'),
+    inodes: int('inodes'),
+    diskMb: int('disk_mb'),
+    dbMb: int('db_mb'),
+    dbConnections: int('db_connections'),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [index('ix_host_capacity_readings_taken').on(table.takenAt)],
+);
+
+export type HostCapacityReadingRow = typeof hostCapacityReadings.$inferSelect;
+
+Object.assign(TABLES, {
+  host_capacity_readings: hostCapacityReadings,
+});

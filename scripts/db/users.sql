@@ -1829,3 +1829,9 @@ GRANT SELECT ON `tmanage`.`email_suppressions`                 TO 'tmanage_worke
 -- 0253 `platform_backup_runs` (global): written only by scripts/ops/backup.mjs and
 -- restore-drill.mjs through the operator's migration credential; the API reads it for
 -- /healthz/deep through the database-wide SELECT. No grant here on purpose (users-sql.test.ts).
+
+-- ---- 56-32 · host capacity ----
+-- 0254 `host_capacity_readings` (global): the API's capacity sampler appends a reading every
+-- 5 minutes and a nightly one, and purges rows older than 90 days. No UPDATE: a reading is never
+-- amended. SELECT rides the database-wide read.
+GRANT INSERT, DELETE ON `tmanage`.`host_capacity_readings`     TO 'tmanage_app'@'%';
