@@ -1739,6 +1739,21 @@ GRANT SELECT, DELETE ON `tmanage`.`onedrive_attachments`     TO 'tmanage_worker'
 GRANT INSERT, UPDATE ON `tmanage`.`platform_feature_flags`      TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`platform_org_flag_overrides` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`platform_announcements`      TO 'tmanage_app'@'%';
+
+-- ---- platform-admin v2 · PA-07 ----
+-- 0243 `organization_limits` (tenant table): INSERT and UPDATE — the operator sets or clears an
+-- override; a cleared override is a row of NULLs, never a DELETE. SELECT is the database-wide read.
+-- The new `organizations` columns ride the existing UPDATE grant.
+GRANT INSERT, UPDATE ON `tmanage`.`organization_limits` TO 'tmanage_app'@'%';
+-- The worker's organization purge (apps/worker/src/jobs/purge-organizations.ts, a PURGE_HOOKS
+-- entry of `--sweep-purge`) hands an organization whose restore window has passed to the privacy
+-- erasure path: it records an executed company deletion (INSERT on `privacy_deletion_requests`)
+-- and closes the organization (UPDATE `archived_at`/`suspended_at` on `organizations`, which it
+-- already reads). It never reads the requests table — the organization it closes leaves the due
+-- set in the same transaction — and deletes nothing itself: the API's privacy job erases the rows.
+GRANT UPDATE ON `tmanage`.`organizations`              TO 'tmanage_worker'@'%';
+GRANT INSERT ON `tmanage`.`privacy_deletion_requests`  TO 'tmanage_worker'@'%';
+
 -- ---- platform-admin v2 · PA-05 ----
 -- The worker's Support-session sweeper (apps/worker/src/jobs/support-session-sweeper.ts, every
 -- minute and `--sweep-support-sessions`) ends sessions past `expires_at`: it reads and stamps the
