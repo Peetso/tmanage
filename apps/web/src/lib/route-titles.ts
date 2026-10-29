@@ -49,6 +49,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/product': { en: 'Product overview', key: 'WebsiteTitle.product' },
   '/resources': { en: 'Resources', key: 'WebsiteTitle.resources' },
   '/security': { en: 'Security & trust', key: 'WebsiteTitle.security' },
+  '/security/data-location': { en: 'Where your data lives', key: 'WebsiteTitle.dataLocation' },
   '/solutions/agencies': { en: 'Agencies & studios', key: 'WebsiteTitle.solutionsAgencies' },
   '/solutions/consultancies': { en: 'Consultancies', key: 'WebsiteTitle.solutionsConsultancies' },
   '/solutions/in-house': { en: 'In-house teams', key: 'WebsiteTitle.solutionsInHouse' },

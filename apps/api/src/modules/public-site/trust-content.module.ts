@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
 import { TrustContentController } from './trust-content.controller.js';
 import { TrustContentService } from './trust-content.service.js';
+import { DataLocationService } from './data-location.service.js';
 
 /**
  * The public trust page's wiring — module 1 (x158).
@@ -16,7 +17,7 @@ export class TrustContentModule {
     return {
       module: TrustContentModule,
       controllers: [TrustContentController],
-      providers: [TrustContentService],
+      providers: [TrustContentService, DataLocationService],
       exports: [TrustContentService],
     };
   }

@@ -1,0 +1,320 @@
+/*
+ * 54-17 — "Where your data lives" (Figma 443:21293 / 443:21645) and the shared transfer notice.
+ * TManage tokens only; logical properties so the Arabic twin mirrors.
+ */
+
+.tm-dloc {
+  background: var(--paper-50);
+}
+
+.tm-dloc__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s12, 48px);
+  padding-block: var(--s16, 64px);
+}
+
+/* ── Hero ───────────────────────────────────────────────────────────────────── */
+
+.tm-dloc-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s4);
+}
+
+.tm-dloc-hero__eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.tm-dloc-hero__title {
+  margin: 0;
+  font-size: var(--t-display-lg);
+  line-height: var(--t-display-lg-line);
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  color: var(--ink-950);
+}
+
+.tm-dloc-hero__lede {
+  margin: 0;
+  font-size: var(--t-body-lg);
+  line-height: var(--t-body-lg-line);
+  color: var(--ink-650);
+}
+
+.tm-dloc-hero__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.tm-dloc-badge {
+  background: var(--paper-50);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+}
+
+/* ── Sections and tables ────────────────────────────────────────────────────── */
+
+.tm-dloc-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-dloc-section__head {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s6);
+}
+
+.tm-dloc-section__text {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-dloc-section__title {
+  margin: 0;
+  font-size: var(--t-heading-section);
+  line-height: var(--t-heading-section-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-dloc-section__lede {
+  margin: 0;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+.tm-dloc-table {
+  inline-size: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  background: var(--paper-0);
+  border: 1px solid var(--line-300);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+
+.tm-dloc-table th,
+.tm-dloc-table td {
+  padding-block: var(--s4);
+  padding-inline: var(--s3);
+  text-align: start;
+  vertical-align: top;
+  border-block-end: 1px solid var(--line-300);
+}
+
+.tm-dloc-table tr > :first-child {
+  padding-inline-start: var(--s6);
+}
+
+.tm-dloc-table tr > :last-child {
+  padding-inline-end: var(--s6);
+}
+
+.tm-dloc-table tbody tr:last-child > * {
+  border-block-end: 0;
+}
+
+.tm-dloc-table thead th {
+  background: var(--paper-150);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+.tm-dloc-table tbody th {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-dloc-table tbody td {
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+/* Column widths from the frames: 240 / fill / 320 and 300 / fill / 320, plus the cell padding. */
+.tm-dloc-table--where tr > :first-child {
+  inline-size: calc(240px + var(--s6) + var(--s3));
+}
+
+.tm-dloc-table--subs tr > :first-child {
+  inline-size: calc(300px + var(--s6) + var(--s3));
+}
+
+.tm-dloc-table tr > :last-child {
+  inline-size: calc(320px + var(--s6) + var(--s3));
+}
+
+.tm-dloc-table tr > :nth-child(2) {
+  inline-size: auto;
+}
+
+/* ── Transfer notice (InlineAlert, Warning) ─────────────────────────────────── */
+
+.tm-inline-alert.tm-dloc-transfer {
+  padding-block: var(--s3);
+  padding-inline: var(--s4);
+  border-width: var(--b-structural);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+}
+
+.tm-dloc-transfer > .tm-inline-alert__glyph {
+  display: none;
+}
+
+.tm-dloc-transfer > div {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.tm-dloc-transfer__title {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--warning-600);
+}
+
+.tm-dloc-transfer__body {
+  flex: 1;
+  min-inline-size: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--ink-800);
+}
+
+/* ── Region request band ────────────────────────────────────────────────────── */
+
+.tm-dloc-request {
+  display: flex;
+  align-items: center;
+  gap: var(--s8);
+  padding: var(--s10);
+  border-radius: var(--r-feature);
+  background: var(--ink-950);
+  color: var(--paper-0);
+}
+
+.tm-dloc-request__text {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-dloc-request__title {
+  margin: 0;
+  font-size: var(--t-heading-section);
+  line-height: var(--t-heading-section-line);
+  font-weight: 600;
+  color: inherit;
+}
+
+.tm-dloc-request__lede {
+  margin: 0;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: inherit;
+}
+
+.tm-dloc-button.tm-button {
+  flex: none;
+  padding-inline: var(--s5);
+  font-size: var(--t-ui-md);
+}
+
+/* ── Narrow screens: rows become stacked blocks ─────────────────────────────── */
+
+@media (max-width: 767px) {
+  .tm-dloc__content {
+    gap: var(--s10);
+    padding-block: var(--s10);
+  }
+
+  .tm-dloc-hero__title {
+    font-size: var(--t-heading-page);
+    line-height: var(--t-heading-page-line);
+  }
+
+  .tm-dloc-transfer > div,
+  .tm-dloc-section__head,
+  .tm-dloc-request {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .tm-dloc-transfer__title {
+    white-space: normal;
+  }
+
+  .tm-dloc-request {
+    padding: var(--s6);
+  }
+
+  .tm-dloc-table,
+  .tm-dloc-table tbody,
+  .tm-dloc-table tr,
+  .tm-dloc-table th,
+  .tm-dloc-table td {
+    display: block;
+    inline-size: auto;
+  }
+
+  .tm-dloc-table thead {
+    display: none;
+  }
+
+  .tm-dloc-table tbody tr {
+    padding-block: var(--s3);
+    padding-inline: var(--s4);
+    border-block-end: 1px solid var(--line-300);
+  }
+
+  .tm-dloc-table tbody tr:last-child {
+    border-block-end: 0;
+  }
+
+  .tm-dloc-table tbody tr > * {
+    padding: 0;
+    border: 0;
+  }
+
+  .tm-dloc-table tr > :first-child,
+  .tm-dloc-table tr > :last-child,
+  .tm-dloc-table--where tr > :first-child,
+  .tm-dloc-table--subs tr > :first-child {
+    inline-size: auto;
+    padding-inline: 0;
+  }
+
+  .tm-dloc-table tbody tr > * + * {
+    margin-block-start: var(--s1);
+  }
+}

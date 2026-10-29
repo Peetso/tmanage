@@ -37,6 +37,7 @@ export const WEBSITE_TITLE_KEYS: Readonly<Record<string, string>> = {
   'Product overview': 'WebsiteTitle.product',
   Resources: 'WebsiteTitle.resources',
   'Security & trust': 'WebsiteTitle.security',
+  'Where your data lives': 'WebsiteTitle.dataLocation',
   'Terms of Service': 'WebsiteTitle.terms',
   'Agencies & studios': 'WebsiteTitle.solutionsAgencies',
   Consultancies: 'WebsiteTitle.solutionsConsultancies',

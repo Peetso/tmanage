@@ -1,0 +1,170 @@
+/* 54-17 — Organization → Data location card and "Who processes your data" (Figma 445:20785). */
+
+.tm-dloc-org {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s6);
+  margin-block-start: var(--s6);
+}
+
+.tm-dloc-card {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  padding: var(--s6);
+  background: var(--paper-0);
+  border: 1px solid var(--line-300);
+  border-radius: var(--r-card);
+}
+
+.tm-dloc-card--side {
+  flex: 0 0 380px;
+  gap: var(--s4);
+}
+
+.tm-dloc-card__heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-dloc-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-dloc-card__title {
+  flex: 1;
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-dloc-card__lede {
+  margin: 0;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+.tm-dloc-card__rows {
+  margin: 0;
+  border: 1px solid var(--line-300);
+  border-radius: var(--r-compact);
+  overflow: hidden;
+}
+
+.tm-dloc-card__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s4);
+  padding-block: var(--s3);
+  padding-inline: var(--s4);
+  border-block-end: 1px solid var(--line-300);
+}
+
+.tm-dloc-card__row:last-child {
+  border-block-end: 0;
+}
+
+.tm-dloc-card__row dt {
+  flex: 0 0 180px;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+.tm-dloc-card__row dd {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-dloc-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+
+.tm-dloc-card__statement.tm-button {
+  padding-inline: var(--s2);
+  font-size: var(--t-ui-md);
+}
+
+.tm-dloc-card__processors {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-dloc-card__processor {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding-block: var(--s3);
+  border-block-end: 1px solid var(--line-300);
+}
+
+.tm-dloc-card__processor-text {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  font-weight: 500;
+}
+
+.tm-dloc-card__processor-name {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-950);
+}
+
+.tm-dloc-card__processor-purpose {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-dloc-card__note {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+@media (max-width: 1100px) {
+  .tm-dloc-org {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tm-dloc-card--side {
+    flex-basis: auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .tm-dloc-card__row {
+    flex-direction: column;
+    gap: var(--s1);
+  }
+
+  .tm-dloc-card__row dt {
+    flex-basis: auto;
+  }
+}

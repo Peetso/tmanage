@@ -38,6 +38,7 @@ import { roleMayUse } from '../../lib/role-capability';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { DownloadScanPolicyCard } from './DownloadScanPolicyCard';
+import { DataLocationCard } from './DataLocationCard';
 import './org-settings.css';
 
 export interface OrgSettingsScreenProps {
@@ -529,6 +530,8 @@ export function OrgSettingsScreen({
           </>
         ) : null}
       </section>
+
+      <DataLocationCard organizationName={organizationName} client={api} />
 
       {mayManage === true ? (
         <DownloadScanPolicyCard

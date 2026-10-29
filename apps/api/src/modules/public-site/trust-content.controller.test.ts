@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { TrustContentController } from './trust-content.controller.js';
 import { TrustContentService } from './trust-content.service.js';
+import { DataLocationService } from './data-location.service.js';
 import { IS_PUBLIC, SKIPS_TENANT, REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
 
 /**
@@ -35,5 +36,16 @@ describe('TrustContentController', () => {
     expect(Reflect.getMetadata(IS_PUBLIC, handler)).toBe(true);
     expect(Reflect.getMetadata(SKIPS_TENANT, handler)).toBe(true);
     expect(Reflect.getMetadata(REQUIRED_CAPABILITY, handler)).toBeUndefined();
+  });
+
+  it('54-17: the data-location read is public and names the configured region label', () => {
+    const service = new DataLocationService();
+    expect(service.getDataLocation({ TMANAGE_DATA_REGION_LABEL: ' Germany (Hostinger) ' })).toEqual(
+      { region: 'default', regionLabel: 'Germany (Hostinger)', updatedOn: '2026-10-29' },
+    );
+    expect(service.getDataLocation({}).regionLabel).toBeNull();
+    const handler = TrustContentController.prototype.getDataLocation;
+    expect(Reflect.getMetadata(IS_PUBLIC, handler)).toBe(true);
+    expect(Reflect.getMetadata(SKIPS_TENANT, handler)).toBe(true);
   });
 });

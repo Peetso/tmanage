@@ -406,6 +406,7 @@ import type { OrganizationLogoView as ApiOrganizationLogoView } from '../../apps
 import type { DownloadScanPolicyView as ApiDownloadScanPolicyView } from '../../apps/api/src/modules/tenancy/download-scan-policy.controller.js';
 import type { DownloadScanPolicyView as WebDownloadScanPolicyView } from '../../apps/web/src/lib/api/download-scan-policy';
 import type { PublicTrustView as ApiPublicTrustView } from '../../apps/api/src/modules/public-site/trust-content.service.js';
+import type { PublicDataLocationView as ApiPublicDataLocationView } from '../../apps/api/src/modules/public-site/data-location.service.js';
 import type { PublicLegalView as ApiPublicLegalView } from '../../apps/api/src/modules/public-site/public-content.service.js';
 import type {
   PublicIncidentView as ApiPublicIncidentView,
@@ -875,6 +876,7 @@ import type { SearchHistoryEntry as WebSearchHistoryEntry } from '../../apps/web
 import type { SearchPin as WebSearchPin } from '../../apps/web/src/lib/api/search-pins';
 import type { SearchScope as WebSearchScope } from '../../apps/web/src/lib/api/saved-scopes';
 import type { PublicTrustView as WebPublicTrustView } from '../../apps/web/src/lib/api/public-trust';
+import type { PublicDataLocationView as WebPublicDataLocationView } from '../../apps/web/src/lib/api/public-data-location';
 import type { PublicFaqView as WebPublicFaqView } from '../../apps/web/src/lib/api/public-faq';
 import type { PublicLegalView as WebPublicLegalView } from '../../apps/web/src/lib/api/public-legal';
 import type { FocusBlockView as WebFocusBlockView } from '../../apps/web/src/lib/api/focus-blocks';
@@ -2868,6 +2870,8 @@ type _clientDecide = Assert<Exact<ApiClientDecideView, WebClientDecideResult>>;
  * the API serves and the copy the screen renders from drifting into two security postures.
  */
 type _publicTrust = Assert<Exact<ApiPublicTrustView, WebPublicTrustView>>;
+/** `GET /v1/public/site/data-location` (54-17) — the region behind the data-location page and card. */
+type _publicDataLocation = Assert<Exact<ApiPublicDataLocationView, WebPublicDataLocationView>>;
 /**
  * `GET /v1/public/site/faq` — the public FAQ page (x186, module 1).
  *

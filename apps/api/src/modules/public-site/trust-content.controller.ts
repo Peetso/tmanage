@@ -1,7 +1,9 @@
-import { Controller, Get, Inject } from '@nestjs/common';
+import { Controller, Get, Inject, Optional } from '@nestjs/common';
 import { Public, NoTenant } from '../../common/http/decorators.js';
 import { TrustContentService } from './trust-content.service.js';
 import type { PublicTrustView } from './trust-content.service.js';
+import { DataLocationService } from './data-location.service.js';
+import type { PublicDataLocationView } from './data-location.service.js';
 
 /**
  * The public security-and-trust page's HTTP surface — module 1 (x158).
@@ -19,7 +21,12 @@ import type { PublicTrustView } from './trust-content.service.js';
  */
 @Controller('v1/public/site')
 export class TrustContentController {
-  constructor(@Inject(TrustContentService) private readonly trust: TrustContentService) {}
+  constructor(
+    @Inject(TrustContentService) private readonly trust: TrustContentService,
+    @Optional()
+    @Inject(DataLocationService)
+    private readonly dataLocation: DataLocationService = new DataLocationService(),
+  ) {}
 
   /** `GET /v1/public/site/trust` — the security controls, data handling, and subprocessor list. */
   @Get('trust')
@@ -27,5 +34,17 @@ export class TrustContentController {
   @NoTenant()
   getTrust(): PublicTrustView {
     return this.trust.getTrust();
+  }
+
+  /**
+   * `GET /v1/public/site/data-location` (54-17) — the region and data-centre label behind the
+   * "Where your data lives" page and every organization's Data-location card. Public: it names the
+   * deployment's hosting, nothing about any organization (all are in `default` until 54-18).
+   */
+  @Get('data-location')
+  @Public()
+  @NoTenant()
+  getDataLocation(): PublicDataLocationView {
+    return this.dataLocation.getDataLocation();
   }
 }

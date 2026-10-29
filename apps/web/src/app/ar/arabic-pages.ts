@@ -18,6 +18,7 @@ import PricingRoute from '../(website)/pricing/page';
 import ProductRoute from '../(website)/product/page';
 import ResourcesRoute from '../(website)/resources/page';
 import SecurityRoute from '../(website)/security/page';
+import DataLocationRoute from '../(website)/security/data-location/page';
 import SolutionsAgenciesRoute from '../(website)/solutions/agencies/page';
 import SolutionsConsultanciesRoute from '../(website)/solutions/consultancies/page';
 import SolutionsInHouseRoute from '../(website)/solutions/in-house/page';
@@ -50,6 +51,7 @@ export const ARABIC_PAGES: Readonly<Record<PublicLocalizedPath, ComponentType>> 
   '/product': ProductRoute,
   '/resources': ResourcesRoute,
   '/security': SecurityRoute,
+  '/security/data-location': DataLocationRoute,
   '/solutions/agencies': SolutionsAgenciesRoute,
   '/solutions/consultancies': SolutionsConsultanciesRoute,
   '/solutions/in-house': SolutionsInHouseRoute,
