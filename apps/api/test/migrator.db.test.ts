@@ -522,6 +522,11 @@ describe('0029: meetings is a tenant-scoped, project-owned, forward-only table',
         'guests_can_invite_others',
         'guests_can_see_others',
         'cancelled_at',
+        // 0245 (platform-admin v2 · PA-03, soft delete with a restore window).
+        'deleted_at',
+        'deleted_by_user_id',
+        'deleted_reason',
+        'purge_after',
       ].sort(),
     );
     // A meeting's start is an instant, not a DATE (that is the projects.forecast_at distinction).
@@ -610,6 +615,11 @@ describe('0030: documents is a tenant-scoped, project-owned, forward-only table'
         // 0227 (F2 rename in the editor, approved D2 design): who made the current title.
         'title_updated_by_user_id',
         'updated_at',
+        // 0245 (platform-admin v2 · PA-03, soft delete with a restore window).
+        'deleted_at',
+        'deleted_by_user_id',
+        'deleted_reason',
+        'purge_after',
       ].sort(),
     );
     // A document body is prose a person types â€” TEXT, and NOT NULL like conversations.body.
@@ -1242,6 +1252,11 @@ describe('0037: decisions is a tenant-scoped, project-owned, append-only registe
         'rationale',
         'source_message_id',
         'audience',
+        // 0245 (platform-admin v2 · PA-03, soft delete with a restore window).
+        'deleted_at',
+        'deleted_by_user_id',
+        'deleted_reason',
+        'purge_after',
       ].sort(),
     );
     // A decision's statement is prose a person types — TEXT, and NOT NULL like documents.body.
