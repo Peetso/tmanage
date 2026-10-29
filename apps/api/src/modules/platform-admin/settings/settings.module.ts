@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
 import type { TenantDatabase } from '../../../common/database/tenant-context.js';
-import { TENANT_DATABASE } from '../../../common/http/tokens.js';
+import { loadFieldCipherKeyring, keyringFromSeedKeyring } from '@tmanage/domain/field-cipher';
+import type { ApiConfig } from '../../../common/http/api-config.js';
+import { API_CONFIG, TENANT_DATABASE } from '../../../common/http/tokens.js';
 import {
   PLATFORM_PUBLIC_SIGNUP_DEFAULT,
   platformAdminCore,
@@ -17,6 +19,9 @@ import { PlatformAnnouncementsService } from './announcements.service.js';
 import { PLATFORM_FLAGS_SERVICE, PlatformFlagsController } from './flags.controller.js';
 import { PlatformFlagsRepository } from './flags.repository.js';
 import { PlatformFlagsService } from './flags.service.js';
+import { PLATFORM_KEYS_SERVICE, PlatformKeysController } from './keys.controller.js';
+import { PlatformKeysRepository } from './keys.repository.js';
+import { PlatformKeysService } from './keys.service.js';
 import { PLATFORM_SETTINGS_SERVICE, PlatformSettingsController } from './settings.controller.js';
 import { PlatformSettingsRepository } from './settings.repository.js';
 import { PlatformSettingsService } from './settings.service.js';
@@ -57,11 +62,26 @@ export class PlatformSettingsModule {
           useFactory: (database: TenantDatabase) =>
             new PlatformAnnouncementsService(new PlatformAnnouncementsRepository(database)),
         },
+        // ---- 56-02 Keys ---- status only; key ids from env, never a value.
+        {
+          provide: PLATFORM_KEYS_SERVICE,
+          inject: [TENANT_DATABASE, { token: API_CONFIG, optional: true }],
+          useFactory: (database: TenantDatabase, config: ApiConfig | undefined) =>
+            new PlatformKeysService(new PlatformKeysRepository(database), {
+              keyring: loadFieldCipherKeyring(process.env),
+              mfaFallback:
+                config?.mfaSeedKeys === undefined
+                  ? null
+                  : keyringFromSeedKeyring(config.mfaSeedKeys),
+              sessionOverlap: (process.env['SESSION_SECRET_PREVIOUS'] ?? '').trim() !== '',
+            }),
+        },
       ],
       controllers: [
         PlatformSettingsController,
         PlatformFlagsController,
         PlatformAnnouncementsController,
+        PlatformKeysController,
       ],
     };
   }

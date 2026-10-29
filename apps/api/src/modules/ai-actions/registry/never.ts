@@ -1019,6 +1019,9 @@ export const NEVER: readonly NeverEntry[] = [
   // never an AI-driven tool (an AI caller would pollute the measurement).
   { method: 'POST', path: '/v1/organizations/:orgSlug/events', reason: 'product_telemetry' },
   { method: 'POST', path: '/v1/organizations/:orgSlug/portal/events', reason: 'product_telemetry' },
+  // 56-02. Platform admin → Settings → Keys: keyring status and queueing a key rotation.
+  { method: 'GET', path: '/v1/platform/keys/status', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/keys/rotate', reason: 'platform_admin' },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

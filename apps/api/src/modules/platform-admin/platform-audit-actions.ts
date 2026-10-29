@@ -93,6 +93,8 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.export_requested',
   'platform.export_deleted',
   'platform.session_ended',
+  // ---- 56-02 Keys ----
+  'platform.key_rotation_started',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];
