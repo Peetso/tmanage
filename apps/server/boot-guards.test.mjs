@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  CSP_REPORT_ONLY,
+  COOP_VALUE,
+  CSP_FALLBACK_REPORT_ONLY,
   HSTS_VALUE,
   isApiPath,
   resolveNodeEnv,
@@ -92,24 +93,29 @@ test('the AI connector OAuth discovery and authorization endpoints go to the API
   }
 });
 
-test('HSTS on every web response, the report-only CSP on HTML only', () => {
+test('HSTS with preload on every web response; COOP and the CSP fallback on HTML only', () => {
   const html = webSecurityHeaders({ 'content-type': 'text/html; charset=utf-8' });
   assert.equal(html['strict-transport-security'], HSTS_VALUE);
-  assert.match(HSTS_VALUE, /max-age=(\d+)/);
   assert.ok(Number(/max-age=(\d+)/.exec(HSTS_VALUE)[1]) >= 31_536_000);
-  assert.match(HSTS_VALUE, /includeSubDomains/);
-  assert.equal(html['content-security-policy-report-only'], CSP_REPORT_ONLY);
+  assert.match(HSTS_VALUE, /includeSubDomains; preload$/);
+  assert.equal(html['cross-origin-opener-policy'], COOP_VALUE);
+  assert.equal(html['content-security-policy-report-only'], CSP_FALLBACK_REPORT_ONLY);
+  assert.doesNotMatch(CSP_FALLBACK_REPORT_ONLY, /unsafe-inline/);
 
   const js = webSecurityHeaders({ 'content-type': 'application/javascript' });
-  assert.equal(js['strict-transport-security'], HSTS_VALUE);
-  assert.equal(js['content-security-policy-report-only'], undefined);
+  assert.deepEqual(js, { 'strict-transport-security': HSTS_VALUE });
+});
 
-  const kept = webSecurityHeaders({
-    'content-type': 'text/html',
-    'strict-transport-security': 'max-age=63072000',
-    'content-security-policy': "default-src 'self'",
-  });
-  assert.deepEqual(kept, {});
+test("the web app's own nonce CSP (either header) and HSTS/COOP are kept, never overwritten", () => {
+  for (const name of ['content-security-policy', 'content-security-policy-report-only']) {
+    const kept = webSecurityHeaders({
+      'content-type': 'text/html',
+      'strict-transport-security': 'max-age=63072000',
+      'cross-origin-opener-policy': 'same-origin',
+      [name]: "script-src 'nonce-abc'",
+    });
+    assert.deepEqual(kept, {}, name);
+  }
 });
 
 test('the deep health check at /healthz/deep goes to the API; /healthz stays with the server', () => {

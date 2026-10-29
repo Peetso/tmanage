@@ -704,6 +704,8 @@ export const SERVER_FILES = Object.freeze([
   'realtime-inprocess.mjs',
   // server.mjs imports the migration shutdown gate from here; missing it, boot fails.
   'migration-shutdown.mjs',
+  // server.mjs imports the CSP violation report receiver (56-01) from here; missing it, boot fails.
+  'csp-report.mjs',
 ]);
 
 function assemble() {

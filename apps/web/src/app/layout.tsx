@@ -121,8 +121,10 @@ const LOCALE_BOOT_SCRIPT = localeBootScript();
  * before the first paint; `LocaleDirectionProvider` (mounted just inside `<body>`) keeps them in
  * step whenever a member changes locale, so `ar-EG` reads right-to-left on reload and without one.
  * `suppressHydrationWarning` covers only `<html>`'s own attributes, which that script changes by
- * design. There is no script-src CSP yet (`next.config.ts`), so the inline script needs no nonce;
- * when one lands it must allow this script's hash or nonce. The CSS throughout uses logical
+ * design. The script-src CSP (56-01, `src/proxy.ts`) allows this one inline script by its SHA-256,
+ * not by the per-request nonce: reading `headers()` here would make every route dynamic (see
+ * `metadata` above). Its text must therefore stay exactly `localeBootScript()`, which the proxy
+ * hashes. The CSS throughout uses logical
  * properties, so that switch is a value change rather than a rewrite. The Arabic face the tokens
  * name (Alexandria) is still not packaged — recorded as open in `docs/implementation-status.md`.
  */

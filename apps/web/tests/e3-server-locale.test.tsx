@@ -123,8 +123,15 @@ describe('the root layout stays static (public pages prerendered)', () => {
 
   it('has no request proxy left over from the server render', () => {
     expect(existsSync(LAYOUT_SOURCE)).toBe(true);
-    expect(existsSync(join(SRC, 'proxy.ts'))).toBe(false);
     expect(existsSync(join(SRC, 'middleware.ts'))).toBe(false);
+    // 56-01's `proxy.ts` only sets the CSP nonce headers; it must never pick a locale (read the
+    // cookie, rewrite or redirect) — that is what the removed server-locale proxy did.
+    const proxy = join(SRC, 'proxy.ts');
+    if (existsSync(proxy)) {
+      const source = readFileSync(proxy, 'utf8');
+      expect(source).not.toMatch(/locale-cookie|server-locale|\.cookies\b/);
+      expect(source).not.toMatch(/NextResponse\.(rewrite|redirect)/);
+    }
   });
 });
 

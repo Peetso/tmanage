@@ -94,30 +94,38 @@ export function isApiPath(url) {
   );
 }
 
-/** One year, the minimum the HSTS preload guidance accepts. */
-export const HSTS_VALUE = 'max-age=31536000; includeSubDomains';
+/**
+ * One year, the minimum the HSTS preload list accepts, with `preload` (56-01). Submitting the host
+ * to hstspreload.org is an optional, separate step (docs/runbooks/csp-enforcement.md). Same value
+ * as `apps/web/next.config.ts`, which sets it first; this is the fallback for a response without.
+ */
+export const HSTS_VALUE = 'max-age=31536000; includeSubDomains; preload';
 
 /**
- * Report-only first (security review §3, Low): it blocks nothing, so it cannot break a page,
- * and the browser console names whatever would be blocked before an enforcing policy ships.
- * Next.js inlines its bootstrap scripts and styles, hence 'unsafe-inline' for now.
+ * Same value as `apps/web/next.config.ts` — `-allow-popups` because the OneDrive picker is a popup
+ * the page opens and talks to; plain `same-origin` would sever it.
  */
-export const CSP_REPORT_ONLY = [
+export const COOP_VALUE = 'same-origin-allow-popups';
+
+/**
+ * The page's real policy is set by the web app per request, with a nonce (`apps/web/src/proxy.ts`,
+ * 56-01); the old `'unsafe-inline'` report-only policy that stood in for it is gone. An HTML
+ * response that arrives WITHOUT either CSP header escaped the web app's matcher, so it gets this
+ * strict report-only stand-in: it blocks nothing, and every inline script on such a page shows up
+ * in the `/csp-report` log, which names the path that needs fixing.
+ */
+export const CSP_FALLBACK_REPORT_ONLY = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "font-src 'self' data:",
-  "connect-src 'self'",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
+  "script-src 'self'",
   "object-src 'none'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'",
+  'report-uri /csp-report',
 ].join('; ');
 
 /**
- * Headers to add to a web response: HSTS on every one, the report-only CSP on HTML. A header
- * the web server already set is kept as it is.
+ * Headers to add to a web response: HSTS on every one; on HTML, COOP and — only when the web app
+ * set no CSP of either kind — the fallback above. A header the web server already set is kept.
  */
 export function webSecurityHeaders(upstreamHeaders) {
   const added = {};
@@ -125,12 +133,15 @@ export function webSecurityHeaders(upstreamHeaders) {
     added['strict-transport-security'] = HSTS_VALUE;
   }
   const type = String(upstreamHeaders['content-type'] ?? '');
+  if (!type.includes('text/html')) return added;
+  if (!('cross-origin-opener-policy' in upstreamHeaders)) {
+    added['cross-origin-opener-policy'] = COOP_VALUE;
+  }
   if (
-    type.includes('text/html') &&
     !('content-security-policy-report-only' in upstreamHeaders) &&
     !('content-security-policy' in upstreamHeaders)
   ) {
-    added['content-security-policy-report-only'] = CSP_REPORT_ONLY;
+    added['content-security-policy-report-only'] = CSP_FALLBACK_REPORT_ONLY;
   }
   return added;
 }

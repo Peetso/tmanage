@@ -13,10 +13,12 @@ import { staticAssetHeaderRules } from './src/lib/static-headers';
  * here rather than in a middleware because a header that ships with the response from the
  * framework itself cannot be skipped by a route that forgot to opt in.
  *
- * There is deliberately no Content-Security-Policy yet. A CSP written before the app has
- * its final asset origins is a CSP that gets loosened once and never tightened again; it
- * is recorded as an open item in `docs/implementation-status.md` instead of being guessed
- * at here. Every other header below is already correct at this stage.
+ * The Content-Security-Policy is NOT here (56-01): it carries a per-request nonce, so it is
+ * set by `src/proxy.ts` (policy in `src/lib/csp.ts`, report-only until `CSP_MODE=enforce`,
+ * see `docs/runbooks/csp-enforcement.md`). That includes the enforced `frame-ancestors 'none'`
+ * the consent and AI-approve pages used to get from this file — one writer per header name.
+ * HSTS and COOP are set here too so `next dev` (the e2e stack) shows them; the single-process
+ * server adds the same values when a response arrives without them (`apps/server/boot-guards.mjs`).
  *
  * ## The public configuration is validated here, at load
  *
@@ -75,32 +77,40 @@ const config: NextConfig = {
         source: '/:path*',
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },
+          // Public-link pages switch to `no-referrer` when 56-07 adds them (no route yet): a
+          // share token in the URL must never leave in a Referer header.
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'X-Frame-Options', value: 'DENY' },
           {
-            // No screen in this app needs a camera, a microphone, or a location.
+            // No screen needs a camera or a location. The microphone is this origin's only, for
+            // voice capture (55-20); no embedded frame may ask for it.
             key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
+            value: 'camera=(), microphone=(self), geolocation=(), interest-cohort=()',
           },
+          // Same value as `apps/server/boot-guards.mjs` HSTS_VALUE (preload-eligible; the list
+          // submission is optional, docs/runbooks/csp-enforcement.md). Ignored over plain http.
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=31536000; includeSubDomains; preload',
+          },
+          // `same-origin-allow-popups`, not `same-origin`: the OneDrive picker is a popup this
+          // page opens and talks to over postMessage; plain `same-origin` severs that opener.
+          // Still no cross-origin page can keep a handle on a TManage window.
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
         ],
       },
       // S9: the AI-app consent page decides what an outside app may do, so it is never framed
-      // (threat model B2, clickjacking) and never cached. Enforced here, not report-only.
+      // (threat model B2, clickjacking — the enforced `frame-ancestors 'none'` comes from
+      // `src/proxy.ts`) and never cached.
       {
         source: '/connect/:path*',
-        headers: [
-          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
-          { key: 'Cache-Control', value: 'no-store' },
-        ],
+        headers: [{ key: 'Cache-Control', value: 'no-store' }],
       },
       // S10: the AI approve page runs a confirm-class action on one click, so the same rule:
-      // never framed (B2, clickjacking), never cached.
+      // never framed (B2, clickjacking, `src/proxy.ts`), never cached.
       {
         source: '/:orgSlug/ai/approve/:id',
-        headers: [
-          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
-          { key: 'Cache-Control', value: 'no-store' },
-        ],
+        headers: [{ key: 'Cache-Control', value: 'no-store' }],
       },
       // Long-lived caching for the content-hashed build assets (and the self-hosted font). The
       // catch-all rule above still matches these paths, so a static asset keeps the security

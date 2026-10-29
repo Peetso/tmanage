@@ -10,6 +10,8 @@
 //     so the API receives the request DIRECTLY — there is exactly one proxy hop in front of it,
 //     Hostinger's, which is what `TRUSTED_PROXY_ADDRESSES` names;
 //   * `/healthz` is answered here, as a dependency-light liveness probe;
+//   * `POST /csp-report` (browser CSP violation reports, 56-01) is answered here too, before the
+//     API hand-off — rate-limited, size-capped, one redacted log line (csp-report.mjs);
 //   * everything else is reverse-proxied to a Next.js production server (`next start`) this
 //     process launches as a child, over a private Unix socket file (web-transport.mjs: Hostinger
 //     refuses loopback TCP between the app's own processes).
@@ -66,6 +68,7 @@ import {
 
 import { DOWNLOADS_DIR, webSecurityHeaders } from './boot-guards.mjs';
 import { webCacheHeaders } from './cache-headers.mjs';
+import { createCspReportHandler, isCspReportPath } from './csp-report.mjs';
 import { resolveDatabaseEnv } from './database-env.mjs';
 import {
   applyRealtimePublicUrl,
@@ -519,13 +522,20 @@ async function main() {
   // Listen FIRST: LiteSpeed restarts an app that has not opened its port within ~3 s. Every
   // request — /healthz included — answers 503 "starting" until `state.ready` is set below.
   const state = { ready: undefined };
-  const server = createHttpServer(
-    createPublicHandler(
-      state,
-      (req, res) => proxyToWeb(req, res, transport),
-      resolve(ROOT, DOWNLOADS_DIR),
-    ),
+  const publicHandler = createPublicHandler(
+    state,
+    (req, res) => proxyToWeb(req, res, transport),
+    resolve(ROOT, DOWNLOADS_DIR),
   );
+  // 56-01. The client address is read by the API's own rule (TRUSTED_PROXY_ADDRESSES, D09).
+  const cspReport = createCspReportHandler({
+    trustedProxies: process.env['TRUSTED_PROXY_ADDRESSES'],
+    log,
+  });
+  const server = createHttpServer((req, res) => {
+    if (state.ready && isCspReportPath(req.url)) cspReport(req, res);
+    else publicHandler(req, res);
+  });
   // H2: WebSocket upgrades go to the attached realtime socket once the app is ready; any other
   // upgrade (or one while starting) is closed.
   let realtimeServer;

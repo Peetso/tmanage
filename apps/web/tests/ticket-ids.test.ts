@@ -41,6 +41,12 @@ import { describe, expect, it } from 'vitest';
 const TICKET_PATTERN = /\b[A-Z][A-Z0-9]*-\d{3}\b/g;
 
 /**
+ * Standard algorithm names that share the ticket shape: the Web Crypto digest argument
+ * (`crypto.subtle.digest('SHA-256', …)`, the 52-21 form proof) is code, not a ticket id.
+ */
+const NOT_TICKET_IDS: ReadonlySet<string> = new Set(['SHA-256', 'SHA-384', 'SHA-512']);
+
+/**
  * `process.cwd()` rather than `import.meta.url`: vitest's transform does not give this module
  * a `file:` URL, and `fileURLToPath` throws on what it does give. The config sets no `root`,
  * so the working directory is `apps/web`.
@@ -102,7 +108,7 @@ describe('ticket ids cited by apps/web', () => {
       const text = readFileSync(file, 'utf8');
       for (const match of text.matchAll(TICKET_PATTERN)) {
         const id = match[0];
-        if (!scheduled.has(id)) {
+        if (!scheduled.has(id) && !NOT_TICKET_IDS.has(id)) {
           invented.push(`${relative(repositoryRoot, file)}: ${id}`);
         }
       }
@@ -187,6 +193,7 @@ describe('internal identifiers in copy a person reads', () => {
     for (const file of sourceFiles(sourceRoot)) {
       const copy = copyOnly(readFileSync(file, 'utf8'));
       for (const match of copy.matchAll(COPY_TICKET_PATTERN)) {
+        if (NOT_TICKET_IDS.has(match[0])) continue;
         offenders.push(`${relative(repositoryRoot, file)}: ${match[0]}`);
       }
     }
