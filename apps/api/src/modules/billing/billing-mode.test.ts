@@ -4,9 +4,17 @@ import {
   TOP_PLAN_ID,
   assertBillingEnabled,
   billingMode,
+  effectiveBillingMode,
   entitlementsFor,
   parseBillingMode,
+  resolveBillingMode,
 } from './billing-mode.js';
+import {
+  PLATFORM_SETTINGS_CACHE_MS,
+  PlatformSettingsReader,
+  installPlatformSettingsReader,
+  resetPlatformSettingsReader,
+} from './platform-settings-reader.js';
 import { PLAN_FEATURE_SET, PLAN_LIMITS } from './plan-catalog.js';
 import { PlanUsageService } from './plan-usage.service.js';
 import { SubscriptionService } from './subscription.service.js';
@@ -198,5 +206,88 @@ describe('checkout and plan-change refusal in beta_free', () => {
     await expect(
       new SubscriptionService(readOnlyDatabase(), repo).read(context, owner()),
     ).resolves.toMatchObject({ planId: 'studio', nextBillAt: null, billingMode: 'beta_free' });
+  });
+});
+
+// ---- platform-admin v2 · PA-07 ----
+// The Platform admin's `platform_settings.billing_mode` wins over BILLING_MODE (30 s cache), and
+// one organization can be pinned to a mode or given its own limits.
+describe('billing mode from the platform setting (PA-07)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    resetPlatformSettingsReader();
+  });
+
+  function readerOver(value: () => string | null, clock: { now: number }) {
+    let loads = 0;
+    const reader = new PlatformSettingsReader(
+      async () => {
+        loads += 1;
+        return value();
+      },
+      PLATFORM_SETTINGS_CACHE_MS,
+      () => clock.now,
+    );
+    return { reader, loads: () => loads };
+  }
+
+  it('the DB setting overrides the environment', async () => {
+    vi.stubEnv('BILLING_MODE', 'beta_free');
+    const { reader } = readerOver(() => 'paid', { now: 0 });
+    expect(await resolveBillingMode(process.env, reader)).toBe('paid');
+    expect(billingMode(process.env, reader)).toBe('paid');
+  });
+
+  it('falls back to the environment with no row or an unknown value', async () => {
+    vi.stubEnv('BILLING_MODE', 'paid');
+    expect(await resolveBillingMode(process.env, readerOver(() => null, { now: 0 }).reader)).toBe(
+      'paid',
+    );
+    expect(await resolveBillingMode(process.env, readerOver(() => 'free', { now: 0 }).reader)).toBe(
+      'paid',
+    );
+    expect(billingMode(process.env, null)).toBe('paid');
+  });
+
+  it('caches the setting for 30 s, then reads it again', async () => {
+    const clock = { now: 1_000 };
+    let stored = 'paid';
+    const { reader, loads } = readerOver(() => stored, clock);
+    expect(await resolveBillingMode({}, reader)).toBe('paid');
+    stored = 'beta_free';
+    clock.now += PLATFORM_SETTINGS_CACHE_MS - 1;
+    expect(await resolveBillingMode({}, reader)).toBe('paid');
+    expect(loads()).toBe(1);
+    clock.now += 2;
+    expect(await resolveBillingMode({}, reader)).toBe('beta_free');
+    expect(loads()).toBe(2);
+  });
+
+  it('uses the installed reader by default once a module installed one', async () => {
+    const { reader } = readerOver(() => 'paid', { now: 0 });
+    installPlatformSettingsReader(reader);
+    expect(await resolveBillingMode({})).toBe('paid');
+    expect(billingMode({})).toBe('paid');
+  });
+
+  it('a per-organization override wins over the platform mode; inherit keeps it', () => {
+    expect(effectiveBillingMode('beta_free', 'paid')).toBe('paid');
+    expect(effectiveBillingMode('paid', 'beta_free')).toBe('beta_free');
+    expect(effectiveBillingMode('paid', null)).toBe('paid');
+    expect(effectiveBillingMode('beta_free', 'inherit')).toBe('beta_free');
+  });
+
+  it('organization limits win over the plan field by field', () => {
+    const merged = entitlementsFor('starter', 'paid', {
+      people: 40,
+      activeProjects: null,
+      storageBytes: 5,
+    });
+    expect(merged.limits).toEqual({
+      people: 40,
+      activeProjects: PLAN_LIMITS.starter.activeProjects,
+      storageBytes: 5,
+    });
+    expect(entitlementsFor('starter', 'paid', null).limits).toEqual(PLAN_LIMITS.starter);
   });
 });

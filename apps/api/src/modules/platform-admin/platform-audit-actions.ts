@@ -61,6 +61,27 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.user_two_step_required',
   'platform.user_two_step_not_required',
   'platform.user_session_ended',
+  // ---- platform-admin v2 · PA-07 ----
+  'platform.organization_created',
+  'platform.organization_updated',
+  'platform.organization_settings_changed',
+  'platform.organization_policy_changed',
+  'platform.organization_flag_changed',
+  'platform.organization_plan_changed',
+  'platform.organization_limits_changed',
+  'platform.organization_storage_recounted',
+  'platform.organization_storage_disconnected',
+  'platform.member_role_changed',
+  'platform.member_added',
+  'platform.member_offboarded',
+  'platform.invitation_revoked',
+  'platform.organization_ownership_transferred',
+  'platform.organization_deleted',
+  'platform.organization_restored',
+  'platform.organization_purge_requested',
+  'platform.organization_archived',
+  'platform.organization_unarchived',
+  'platform.organization_policy_refreshed',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];

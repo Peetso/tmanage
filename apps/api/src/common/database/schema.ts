@@ -337,6 +337,12 @@ export const organizations = mysqlTable(
     archivedAt: datetime('archived_at', { mode: 'date', fsp: 3 }),
     /** 0206. Set by the platform operator; a suspended company's members are refused. */
     suspendedAt: datetime('suspended_at', { mode: 'date', fsp: 3 }),
+    // ---- platform-admin v2 · PA-07 ---- 0243: soft delete, restore window, operator overrides.
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    billingModeOverride: varchar('billing_mode_override', { length: 16 }),
+    operatorNotes: text('operator_notes'),
   },
   (table) => [uniqueIndex('uq_organizations_slug').on(table.slug)],
 );
@@ -9921,4 +9927,35 @@ Object.assign(TABLES, {
   platform_feature_flags: platformFeatureFlags,
   platform_org_flag_overrides: platformOrgFlagOverrides,
   platform_announcements: platformAnnouncements,
+});
+
+// ---- platform-admin v2 · PA-07 ----
+
+/**
+ * 0243. Per-organization limit overrides set by the platform operator (SPEC §6). One optional row
+ * per organization; a NULL column means "the plan's value". `entitlementsFor()` merges the row over
+ * the plan (the override wins). Tenant-owned, keyed `(organization_id, id)`.
+ */
+export const organizationLimits = mysqlTable(
+  'organization_limits',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    peopleLimit: int('people_limit'),
+    activeProjectsLimit: int('active_projects_limit'),
+    storageBytesLimit: bigint('storage_bytes_limit', { mode: 'number' }),
+    updatedBy: char('updated_by', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_org_limits_org').on(table.organizationId),
+    uniqueIndex('uq_org_limits_org_id').on(table.organizationId, table.id),
+  ],
+);
+
+export type OrganizationLimitsRow = typeof organizationLimits.$inferSelect;
+
+Object.assign(TABLES, {
+  organization_limits: organizationLimits,
 });

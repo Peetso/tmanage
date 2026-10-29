@@ -49,6 +49,8 @@ export const PLATFORM_METADATA_TABLES = [
   'workflow_runs',
   'outbox_events',
   // ---- platform-admin v2 · append-only, limited to SPEC P2's list ----
+  // ---- platform-admin v2 · PA-07 ----
+  'organization_limits',
 ] as const;
 
 /** Global tables the identity path reaches. All registered in `NON_TENANT_TABLES`. */

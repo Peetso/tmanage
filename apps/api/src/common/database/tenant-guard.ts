@@ -1086,6 +1086,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0242. Tenant-owned: one member's allow/deny permission override, keyed `(organization_id, id)`
   // with a composite FK to `memberships (organization_id, id)`. Revoked by UPDATE, never deleted.
   membership_permission_overrides: 'organization_id',
+  // ---- platform-admin v2 · PA-07 ----
+  // 0243. Tenant-owned: one organization's limit overrides set by the platform operator, keyed
+  // `(organization_id, id)` with a `(organization_id)` upsert key. INSERT/UPDATE only, no DELETE.
+  organization_limits: 'organization_id',
 });
 
 /**

@@ -3334,6 +3334,38 @@ type _pa10MaintenanceWindow = Assert<
 type _pa10MaintenanceList = Assert<
   Exact<ApiPlatformMaintenanceListView, WebPlatformMaintenanceListView>
 >;
+
+// ---- platform-admin v2 · PA-05 ----
+import type {
+  OrganizationSupportSessionView as ApiOrganizationSupportSessionView,
+  PlatformSupportSessionDetailView as ApiPlatformSupportSessionDetailView,
+  PlatformSupportSessionView as ApiPlatformSupportSessionView,
+  PlatformSupportSessionsView as ApiPlatformSupportSessionsView,
+  StartSupportSessionView as ApiStartSupportSessionView,
+} from '../../apps/api/src/modules/platform-admin/support/support-session.service';
+import type {
+  PlatformSupportSessionDetailView as WebPlatformSupportSessionDetailView,
+  PlatformSupportSessionView as WebPlatformSupportSessionView,
+  PlatformSupportSessionsView as WebPlatformSupportSessionsView,
+  StartSupportSessionView as WebStartSupportSessionView,
+} from '../../apps/web/src/lib/api/platform-support';
+import type { OrganizationSupportSessionView as WebOrganizationSupportSessionView } from '../../apps/web/src/lib/api/organizations';
+type _pa05StartSupportSession = Assert<
+  Exact<ApiStartSupportSessionView, WebStartSupportSessionView>
+>;
+type _pa05SupportSession = Assert<
+  Exact<ApiPlatformSupportSessionView, WebPlatformSupportSessionView>
+>;
+type _pa05SupportSessions = Assert<
+  Exact<ApiPlatformSupportSessionsView, WebPlatformSupportSessionsView>
+>;
+type _pa05SupportSessionDetail = Assert<
+  Exact<ApiPlatformSupportSessionDetailView, WebPlatformSupportSessionDetailView>
+>;
+type _pa05OrganizationSupportSession = Assert<
+  Exact<ApiOrganizationSupportSessionView, WebOrganizationSupportSessionView>
+>;
+
 // ---- platform-admin v2 · PA-04 ----
 import type {
   PlatformMemberOverrideView as ApiPlatformMemberOverrideView,
@@ -3437,3 +3469,83 @@ type _pa06PersonOrganizationsView = Assert<
 type _pa06PersonSecurityResultView = Assert<
   Exact<ApiPlatformPersonSecurityResultView, WebPlatformPersonSecurityResultView>
 >;
+
+// ---- platform-admin v2 · PA-07 ----
+// Organizations (SPEC §5.2, A1–A9): `/v1/platform/organizations…`, read by `apps/web/src/lib/api/platform-organizations.ts`.
+import type {
+  PlatformOrgListView as ApiPlatformOrgListView,
+  PlatformOrgOverviewView as ApiPlatformOrgOverviewView,
+  PlatformOrgSearchView as ApiPlatformOrgSearchView,
+  PlatformOrgDetailView as ApiPlatformOrgDetailView,
+  PlatformOrgWriteView as ApiPlatformOrgWriteView,
+  PlatformOrgPlanView as ApiPlatformOrgPlanView,
+  PlatformOrgStorageView as ApiPlatformOrgStorageView,
+  PlatformOrgDeletedView as ApiPlatformOrgDeletedView,
+} from '../../apps/api/src/modules/platform-admin/organizations/organizations.service';
+import type { PlatformOrgSettingsView as ApiPlatformOrgSettingsView } from '../../apps/api/src/modules/platform-admin/organizations/org-settings.service';
+import type {
+  PlatformOrgMembersView as ApiPlatformOrgMembersView,
+  PlatformOrgMemberWriteView as ApiPlatformOrgMemberWriteView,
+} from '../../apps/api/src/modules/platform-admin/organizations/members.service';
+import type {
+  PlatformOrgListView as WebPlatformOrgListView,
+  PlatformOrgOverviewView as WebPlatformOrgOverviewView,
+  PlatformOrgSearchView as WebPlatformOrgSearchView,
+  PlatformOrgDetailView as WebPlatformOrgDetailView,
+  PlatformOrgWriteView as WebPlatformOrgWriteView,
+  PlatformOrgPlanView as WebPlatformOrgPlanView,
+  PlatformOrgStorageView as WebPlatformOrgStorageView,
+  PlatformOrgDeletedView as WebPlatformOrgDeletedView,
+  PlatformOrgSettingsView as WebPlatformOrgSettingsView,
+  PlatformOrgMembersView as WebPlatformOrgMembersView,
+  PlatformOrgMemberWriteView as WebPlatformOrgMemberWriteView,
+} from '../../apps/web/src/lib/api/platform-organizations';
+type _pa07OrgListView = Assert<Exact<ApiPlatformOrgListView, WebPlatformOrgListView>>;
+type _pa07OrgOverviewView = Assert<Exact<ApiPlatformOrgOverviewView, WebPlatformOrgOverviewView>>;
+type _pa07OrgSearchView = Assert<Exact<ApiPlatformOrgSearchView, WebPlatformOrgSearchView>>;
+type _pa07OrgDetailView = Assert<Exact<ApiPlatformOrgDetailView, WebPlatformOrgDetailView>>;
+type _pa07OrgWriteView = Assert<Exact<ApiPlatformOrgWriteView, WebPlatformOrgWriteView>>;
+type _pa07OrgPlanView = Assert<Exact<ApiPlatformOrgPlanView, WebPlatformOrgPlanView>>;
+type _pa07OrgStorageView = Assert<Exact<ApiPlatformOrgStorageView, WebPlatformOrgStorageView>>;
+type _pa07OrgDeletedView = Assert<Exact<ApiPlatformOrgDeletedView, WebPlatformOrgDeletedView>>;
+type _pa07OrgSettingsView = Assert<Exact<ApiPlatformOrgSettingsView, WebPlatformOrgSettingsView>>;
+type _pa07OrgMembersView = Assert<Exact<ApiPlatformOrgMembersView, WebPlatformOrgMembersView>>;
+type _pa07OrgMemberWriteView = Assert<
+  Exact<ApiPlatformOrgMemberWriteView, WebPlatformOrgMemberWriteView>
+>;
+// PA-07 nested views, paired so a field added on one side cannot drift.
+import type {
+  PlatformOrgSummaryView as ApiPlatformOrgSummaryItem,
+  PlatformOrgCountsView as ApiPlatformOrgCountsItem,
+  PlatformOrgAttentionView as ApiPlatformOrgAttentionItem,
+  PlatformOrgActionView as ApiPlatformOrgActionItem,
+  PlatformOrgAuditView as ApiPlatformOrgAuditItem,
+  PlatformOrgLimitView as ApiPlatformOrgLimitItem,
+} from '../../apps/api/src/modules/platform-admin/organizations/organizations.service';
+import type {
+  PlatformOrgSettingView as ApiPlatformOrgSettingItem,
+  PlatformOrgFlagView as ApiPlatformOrgFlagItem,
+} from '../../apps/api/src/modules/platform-admin/organizations/org-settings.service';
+import type { PlatformOrgMemberView as ApiPlatformOrgMemberItem } from '../../apps/api/src/modules/platform-admin/organizations/members.service';
+import type {
+  PlatformOrgSummaryView as WebPlatformOrgSummaryItem,
+  PlatformOrgCountsView as WebPlatformOrgCountsItem,
+  PlatformOrgAttentionView as WebPlatformOrgAttentionItem,
+  PlatformOrgActionView as WebPlatformOrgActionItem,
+  PlatformOrgAuditView as WebPlatformOrgAuditItem,
+  PlatformOrgLimitView as WebPlatformOrgLimitItem,
+  PlatformOrgSettingView as WebPlatformOrgSettingItem,
+  PlatformOrgFlagView as WebPlatformOrgFlagItem,
+  PlatformOrgMemberView as WebPlatformOrgMemberItem,
+} from '../../apps/web/src/lib/api/platform-organizations';
+type _pa07OrgSummaryItem = Assert<Exact<ApiPlatformOrgSummaryItem, WebPlatformOrgSummaryItem>>;
+type _pa07OrgCountsItem = Assert<Exact<ApiPlatformOrgCountsItem, WebPlatformOrgCountsItem>>;
+type _pa07OrgAttentionItem = Assert<
+  Exact<ApiPlatformOrgAttentionItem, WebPlatformOrgAttentionItem>
+>;
+type _pa07OrgActionItem = Assert<Exact<ApiPlatformOrgActionItem, WebPlatformOrgActionItem>>;
+type _pa07OrgAuditItem = Assert<Exact<ApiPlatformOrgAuditItem, WebPlatformOrgAuditItem>>;
+type _pa07OrgLimitItem = Assert<Exact<ApiPlatformOrgLimitItem, WebPlatformOrgLimitItem>>;
+type _pa07OrgSettingItem = Assert<Exact<ApiPlatformOrgSettingItem, WebPlatformOrgSettingItem>>;
+type _pa07OrgFlagItem = Assert<Exact<ApiPlatformOrgFlagItem, WebPlatformOrgFlagItem>>;
+type _pa07OrgMemberItem = Assert<Exact<ApiPlatformOrgMemberItem, WebPlatformOrgMemberItem>>;

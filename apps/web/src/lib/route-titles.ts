@@ -353,6 +353,32 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/work/saved-views': { en: 'Saved views', key: 'RouteTitle.workSavedViews' },
   '/[orgSlug]/work/timeline': { en: 'Timeline', key: 'RouteTitle.workTimeline' },
   '/[orgSlug]/work/workload': { en: 'Workload', key: 'RouteTitle.workWorkload' },
+  // ---- platform-admin v2 · PA-07 ----
+  '/platform/organizations': { en: 'Organizations', key: 'PlatformOrgs.routeList' },
+  '/platform/organizations/deleted': {
+    en: 'Deleted organizations',
+    key: 'PlatformOrgs.routeDeleted',
+  },
+  '/platform/organizations/[organizationId]': {
+    en: 'Organization',
+    key: 'PlatformOrgs.routeDetail',
+  },
+  '/platform/organizations/[organizationId]/settings': {
+    en: 'Organization settings',
+    key: 'PlatformOrgs.routeSettings',
+  },
+  '/platform/organizations/[organizationId]/plan': {
+    en: 'Organization plan',
+    key: 'PlatformOrgs.routePlan',
+  },
+  '/platform/organizations/[organizationId]/members': {
+    en: 'Organization members',
+    key: 'PlatformOrgs.routeMembers',
+  },
+  '/platform/organizations/[organizationId]/lifecycle': {
+    en: 'Organization lifecycle',
+    key: 'PlatformOrgs.routeLifecycle',
+  },
   '/': PAGE_OWNS_TITLE,
   // The Arabic public pages set their Arabic titles themselves (`public-locale-routes.ts`).
   '/ar/[[...path]]': PAGE_OWNS_TITLE,

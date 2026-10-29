@@ -1,8 +1,8 @@
 'use client';
 
-import { PlatformOverviewScreen } from '../../components/platform/PlatformAdminScreens';
+import { PlatformOrgOverviewScreen } from '../../components/platform/organizations/PlatformOrgOverviewScreen';
 
-/** Platform admin — the overview of the whole service. The API decides who may see it (404 for everyone not listed). */
+/** Platform admin — A1, the health of every organization. The API decides who may see it (404 for everyone not listed). */
 export default function Page() {
-  return <PlatformOverviewScreen />;
+  return <PlatformOrgOverviewScreen />;
 }

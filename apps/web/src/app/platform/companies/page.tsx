@@ -1,8 +1,6 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { PlatformCompaniesScreen } from '../../../components/platform/PlatformAdminScreens';
-
-/** Platform admin — every company on TManage, metadata only. The API decides who may see it (404 for everyone not listed). */
+/** The v1 address of the organizations list; v2 lives at /platform/organizations. */
 export default function Page() {
-  return <PlatformCompaniesScreen />;
+  redirect('/platform/organizations');
 }

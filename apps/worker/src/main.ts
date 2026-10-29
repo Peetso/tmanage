@@ -48,6 +48,8 @@ import {
   runSupportSessionSweep,
   runSupportSessionSweepLoop,
 } from './jobs/support-session-sweeper.js';
+// ---- platform-admin v2 · PA-07 ---- the organization purge registers itself in PURGE_HOOKS.
+import './jobs/purge-organizations.js';
 
 /**
  * The worker process entry point.
