@@ -1,0 +1,265 @@
+/*
+ * PUB-03 · Download (Figma 443:20300 EN / 443:20400 AR). TManage tokens only; logical properties
+ * throughout, so the Arabic page mirrors without a second stylesheet.
+ */
+
+.tm-dlp {
+  padding-block: var(--s12);
+}
+
+.tm-dlp__stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s8);
+}
+
+.tm-dlp__intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-dlp__eyebrow,
+.tm-dlp__step-label {
+  margin: 0;
+  color: var(--ink-500);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+[dir='rtl'] .tm-dlp__eyebrow,
+[dir='rtl'] .tm-dlp__step-label {
+  font-family: inherit;
+}
+
+.tm-dlp__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: 44px;
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+[dir='rtl'] .tm-dlp__title {
+  font-weight: 500;
+}
+
+.tm-dlp__lead {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+/* InlineAlert · Warning: heading and message side by side, as drawn. */
+.tm-dlp__alert {
+  padding: var(--s3) var(--s4);
+  border: var(--b-structural) solid var(--warning-600);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  color: var(--ink-800);
+  font-weight: 500;
+}
+
+.tm-dlp__alert .tm-inline-alert__glyph {
+  color: var(--warning-600);
+}
+
+.tm-dlp__alert > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s3);
+}
+
+.tm-dlp__alert .tm-inline-alert__title {
+  color: var(--warning-600);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+}
+
+[dir='rtl'] .tm-dlp__alert .tm-inline-alert__title {
+  font-family: inherit;
+}
+
+.tm-dlp__alert .tm-inline-alert__title + div {
+  flex: 1 1 320px;
+}
+
+.tm-dlp__platforms {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s6);
+}
+
+.tm-dlp__card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s4);
+  min-inline-size: 0;
+  padding: var(--s8);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-dlp__card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-dlp__card-title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-heading-section);
+  line-height: normal;
+  font-weight: 600;
+}
+
+[dir='rtl'] .tm-dlp__card-title,
+[dir='rtl'] .tm-dlp__howto-title {
+  font-weight: 500;
+}
+
+.tm-dlp__body {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-body-md);
+  line-height: 1.5;
+}
+
+.tm-dlp__file {
+  margin: 0;
+  color: var(--ink-500);
+  font-family: var(--font-mono);
+  font-size: var(--t-ui-sm);
+  font-weight: 500;
+}
+
+.tm-dlp__button {
+  --tm-control-h: 48px;
+  padding-inline: var(--s5);
+  font-size: var(--t-ui-md);
+  text-decoration: none;
+}
+
+.tm-dlp__label {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+  font-weight: 500;
+}
+
+.tm-dlp__sha {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  align-self: stretch;
+  padding: var(--s3);
+  border-radius: var(--r-control);
+  background: var(--paper-150);
+}
+
+.tm-dlp__sha-value {
+  flex: 1 1 0;
+  min-inline-size: 0;
+  color: var(--ink-950);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: 1.5;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.tm-dlp__aside {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-dlp__step-chip {
+  align-self: stretch;
+  margin: 0;
+  padding: var(--s3);
+  border-radius: var(--r-control);
+  background: var(--paper-150);
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  font-weight: 500;
+}
+
+.tm-dlp__howto {
+  gap: var(--s5);
+}
+
+.tm-dlp__howto-title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-heading-card);
+  line-height: normal;
+  font-weight: 600;
+}
+
+.tm-dlp__steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s6);
+  align-self: stretch;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-dlp__step {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s2);
+  min-inline-size: 0;
+}
+
+.tm-dlp__step-text {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-body-md);
+  line-height: 1.5;
+}
+
+.tm-dlp__command {
+  max-inline-size: 100%;
+  padding: var(--s2);
+  border-radius: var(--r-control);
+  background: var(--paper-150);
+  color: var(--ink-950);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1023px) {
+  .tm-dlp__platforms,
+  .tm-dlp__steps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .tm-dlp {
+    padding-block: var(--s8);
+  }
+
+  .tm-dlp__title {
+    font-size: var(--t-heading-page);
+  }
+
+  .tm-dlp__card {
+    padding: var(--s6);
+  }
+}

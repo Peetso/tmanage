@@ -47,6 +47,11 @@ const ROUTES: Record<string, RouteRow> = {
     from: 'website/pages/customers/CustomersPage',
     title: 'Customers & stories',
   },
+  '/download': {
+    component: 'DownloadPage',
+    from: 'website/pages/download/DownloadPage',
+    title: 'Download',
+  },
   '/faq': { component: 'MarketingFaqScreen', from: 'screens/MarketingFaqScreen', title: 'FAQ' },
   '/features/communication': {
     component: 'FeaturesCommunicationPage',

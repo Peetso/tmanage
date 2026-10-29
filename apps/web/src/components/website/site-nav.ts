@@ -50,8 +50,8 @@ export type WebNavEntry =
       accent?: true;
     };
 
-/** Where the site's desktop-app links land: the "TManage for Windows" card on /product. */
-export const DESKTOP_APP_HREF = '/product#desktop-app';
+/** Where the site's desktop-app links land: the download page (PUB-03, Figma 443:20300). */
+export const DESKTOP_APP_HREF = '/download';
 
 export const PRODUCT_MENU: WebMegaMenu = {
   id: 'product',

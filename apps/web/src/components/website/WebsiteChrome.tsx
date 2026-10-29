@@ -28,6 +28,7 @@ const CURRENT_BY_PREFIX: readonly [string, string][] = [
   ['/features', 'product'],
   ['/solutions', 'solutions'],
   ['/client-portal', 'client-portal'],
+  ['/download', 'desktop-app'],
   ['/pricing', 'pricing'],
   ['/resources', 'resources'],
   ['/faq', 'resources'],

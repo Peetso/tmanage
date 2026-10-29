@@ -31,6 +31,7 @@ export const PUBLIC_LOCALIZED_PATHS = [
   '/client-portal',
   '/contact',
   '/customers',
+  '/download',
   '/faq',
   '/features/communication',
   '/features/insights',
