@@ -203,6 +203,9 @@ describe('the grants and the schema agree', () => {
         'subscription lifecycle or the seed, not by a request under this credential, so ' +
         'INSERT/UPDATE/DELETE are withheld — the provider-driven billing run (Needs-Peter) adds the ' +
         'write grant with the code that writes it',
+      platform_backup_runs:
+        '51-09 operator-written only: scripts/ops/backup.mjs and restore-drill.mjs record runs ' +
+        'through the migration credential; the API only reads it for /healthz/deep (database-wide read)',
       workflow_due_soon_fires:
         'C1 worker-written only: the due-soon sweep claims one (rule, item, day) on the worker ' +
         'credential (INSERT); no API route writes it, so tmanage_app holds only the database-wide read',

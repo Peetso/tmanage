@@ -156,3 +156,77 @@ export function stripDefiner(line) {
     .replace(/\/\*!50017 DEFINER=`[^`]*`@`[^`]*`\*\/ ?/g, '')
     .replace(/DEFINER=`[^`]*`@`[^`]*` ?/g, '');
 }
+
+/** `20261022T031500Z` back to its instant. */
+export function stampToDate(stamp) {
+  if (!isStamp(stamp)) throw new Error(`Not a backup stamp: ${stamp}`);
+  const s = stamp;
+  return new Date(
+    `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}T${s.slice(9, 11)}:${s.slice(11, 13)}:${s.slice(13, 15)}Z`,
+  );
+}
+
+/**
+ * Off-site retention (56-12 / 56-29): every copy younger than 48 h (the 6-hourly set), the newest
+ * copy of each of the 30 newest UTC days, and the newest copy of each of the 12 newest months.
+ * Returns the stamps to delete; entries that are not stamps are never selected.
+ */
+export function selectOffsiteForPruning(stamps, now, { days = 30, months = 12 } = {}) {
+  const sorted = [...new Set(stamps.filter(isStamp))].sort().reverse();
+  const keep = new Set();
+  const seenDays = new Set();
+  const seenMonths = new Set();
+  for (const s of sorted) {
+    if (now.getTime() - stampToDate(s).getTime() <= 48 * 3600 * 1000) keep.add(s);
+    const day = s.slice(0, 8);
+    if (!seenDays.has(day) && seenDays.size < days) {
+      seenDays.add(day);
+      keep.add(s);
+    }
+    const month = s.slice(0, 6);
+    if (!seenMonths.has(month) && seenMonths.size < months) {
+      seenMonths.add(month);
+      keep.add(s);
+    }
+  }
+  return sorted.filter((s) => !keep.has(s));
+}
+
+/** A MariaDB string literal: quotes doubled, backslashes escaped, NUL dropped; NULL for null. */
+export function sqlString(value) {
+  if (value === null || value === undefined) return 'NULL';
+  return `'${String(value).replace(/\0/g, '').replace(/\\/g, '\\\\').replace(/'/g, "''")}'`;
+}
+
+export const RUN_KINDS = ['scheduled', 'manual', 'drill'];
+export const FREQUENCY_KINDS = ['daily', 'sixhourly', 'manual', 'drill'];
+export const OFFSITE_STATES = ['not_requested', 'skipped', 'uploaded', 'failed'];
+
+const sqlDate = (d) => (d ? sqlString(d.toISOString().slice(0, 23).replace('T', ' ')) : 'NULL');
+const sqlInt = (n) => (Number.isFinite(n) ? String(Math.trunc(n)) : 'NULL');
+
+/** The `platform_backup_runs` row (migration 0253) as one INSERT statement. */
+export function backupRunInsertSql(run) {
+  if (!RUN_KINDS.includes(run.kind)) throw new Error(`bad run kind ${run.kind}`);
+  if (!FREQUENCY_KINDS.includes(run.frequencyKind)) throw new Error('bad frequency kind');
+  if (!['ok', 'failed'].includes(run.status)) throw new Error('bad run status');
+  if (!OFFSITE_STATES.includes(run.offsiteStatus)) throw new Error('bad off-site status');
+  const cols = {
+    id: sqlString(run.id),
+    kind: sqlString(run.kind),
+    frequency_kind: sqlString(run.frequencyKind),
+    stamp: sqlString(run.stamp ?? null),
+    started_at: sqlDate(run.startedAt),
+    finished_at: sqlDate(run.finishedAt),
+    status: sqlString(run.status),
+    db_bytes: sqlInt(run.dbBytes),
+    uploads_bytes: sqlInt(run.uploadsBytes),
+    manifest_sha: sqlString(run.manifestSha ?? null),
+    git_sha: sqlString(run.gitSha ?? null),
+    offsite_status: sqlString(run.offsiteStatus),
+    offsite_location: sqlString(run.offsiteLocation ?? null),
+    offsite_at: sqlDate(run.offsiteAt),
+    error: sqlString(run.error ? String(run.error).slice(0, 500) : null),
+  };
+  return `INSERT INTO platform_backup_runs (${Object.keys(cols).join(', ')}) VALUES (${Object.values(cols).join(', ')});`;
+}

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  backupRunInsertSql,
   buildManifest,
   checkTargetName,
   compareMigrations,
@@ -9,6 +10,7 @@ import {
   parseArgs,
   parseDatabaseUrl,
   selectForPruning,
+  selectOffsiteForPruning,
   stampOf,
   stripDefiner,
   validateManifest,
@@ -75,4 +77,34 @@ test('stripDefiner removes both definer forms', () => {
   const line =
     '/*!50017 DEFINER=`u`@`localhost`*/ /*!50003 TRIGGER t */ CREATE DEFINER=`u`@`%` PROC';
   assert.equal(stripDefiner(line), '/*!50003 TRIGGER t */ CREATE PROC');
+});
+
+test('selectOffsiteForPruning keeps 48 h, one per day for 30 days and one per month for 12', () => {
+  const now = new Date('2026-10-29T12:00:00Z');
+  const stamps = [
+    '20261029T000000Z',
+    '20261027T030000Z',
+    '20261027T090000Z',
+    '20260115T030000Z',
+    '20260116T030000Z',
+  ];
+  assert.deepEqual(selectOffsiteForPruning(stamps, now, { days: 2, months: 2 }), [
+    '20261027T030000Z',
+    '20260115T030000Z',
+  ]);
+});
+
+test('backupRunInsertSql quotes text and refuses unknown kinds', () => {
+  const run = {
+    id: 'x',
+    kind: 'manual',
+    frequencyKind: 'manual',
+    status: 'failed',
+    offsiteStatus: 'skipped',
+    startedAt: new Date('2026-10-29T03:00:00Z'),
+    error: "it's \\ bad",
+  };
+  assert.match(backupRunInsertSql(run), /'it''s \\\\ bad'.*\);$/);
+  assert.match(backupRunInsertSql(run), /'2026-10-29 03:00:00.000'/);
+  assert.throws(() => backupRunInsertSql({ ...run, kind: 'x' }), /kind/);
 });

@@ -1824,3 +1824,8 @@ GRANT INSERT, UPDATE ON `tmanage`.`org_quota_counters`         TO 'tmanage_app'@
 -- notification send.
 GRANT INSERT, UPDATE ON `tmanage`.`email_suppressions`         TO 'tmanage_app'@'%';
 GRANT SELECT ON `tmanage`.`email_suppressions`                 TO 'tmanage_worker'@'%';
+
+-- ---- 51-09 · backups ----
+-- 0253 `platform_backup_runs` (global): written only by scripts/ops/backup.mjs and
+-- restore-drill.mjs through the operator's migration credential; the API reads it for
+-- /healthz/deep through the database-wide SELECT. No grant here on purpose (users-sql.test.ts).

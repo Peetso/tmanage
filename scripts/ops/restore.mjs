@@ -3,10 +3,14 @@
  * Restores a backup written by `backup.mjs`. Dry run unless `--apply` is given.
  *
  *   node scripts/ops/restore.mjs --from backups/<stamp> --target mysql://u:p@h/tm_restore \
- *     [--uploads <dir>] [--apply] [--i-know]
+ *     [--uploads <dir>] [--identity <age key file>] [--apply] [--i-know]
  *
  * Env: MYSQL (client binary, default `mysql`; `mariadb` on MariaDB-only hosts),
- * STORAGE_LOCAL_DIR / STORAGE_FILESYSTEM_ROOT (default uploads destination).
+ * STORAGE_LOCAL_DIR / STORAGE_FILESYSTEM_ROOT (default uploads destination),
+ * BACKUP_AGE_IDENTITY_FILE (the offline `AGE-SECRET-KEY-1` file, for `.age` backups).
+ *
+ * Integrity: when the manifest records a file's SHA-256 it is checked before anything is replayed
+ * (a mismatch stops the restore). Encrypted (`.age`) files are decrypted on the fly.
  *
  * Guards: the target database name must contain "restore" or "test", and the uploads
  * destination must be empty, unless `--i-know` is passed (a real rollback onto production).
@@ -14,6 +18,7 @@
  * exits 2.
  */
 import { execFileSync, spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   closeSync,
   createReadStream,
@@ -28,6 +33,8 @@ import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 import { createGunzip } from 'node:zlib';
+
+import { decryptStream } from './backup-encrypt.mjs';
 
 import {
   checkTargetName,
@@ -69,7 +76,22 @@ function definerStripper() {
   });
 }
 
-async function replayDump(db, file) {
+async function sha256File(file) {
+  const hash = createHash('sha256');
+  await pipeline(createReadStream(file), hash);
+  return hash.digest('hex');
+}
+
+/** The file as plaintext: decrypted when it is `.age`. */
+function plainStream(file, identity) {
+  const raw = createReadStream(file);
+  if (!file.endsWith('.age')) return raw;
+  if (!identity)
+    throw new Error(`${file} is encrypted: pass --identity or BACKUP_AGE_IDENTITY_FILE`);
+  return raw.pipe(decryptStream(identity));
+}
+
+async function replayDump(db, file, identity) {
   const child = spawn(CLIENT, [...clientArgs(db), '--default-character-set=utf8mb4'], {
     env: clientEnv(db),
     stdio: ['pipe', 'inherit', 'inherit'],
@@ -79,7 +101,7 @@ async function replayDump(db, file) {
     child.on('close', (code) => (code === 0 ? ok() : fail(new Error(`client exited ${code}`))));
   });
   await Promise.all([
-    pipeline(createReadStream(file), createGunzip(), definerStripper(), child.stdin),
+    pipeline(plainStream(file, identity), createGunzip(), definerStripper(), child.stdin),
     exited,
   ]);
 }
@@ -108,6 +130,7 @@ async function main() {
     from: 'string',
     target: 'string',
     uploads: 'string',
+    identity: 'string',
     apply: 'boolean',
     'i-know': 'boolean',
   });
@@ -116,8 +139,21 @@ async function main() {
   const iKnow = Boolean(args['i-know']);
 
   const dir = resolve(ROOT, args.from);
-  const manifest = validateManifest(JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8')));
-  const dbFile = join(dir, manifest.files.db.name);
+  // A folder downloaded from the off-site copy holds `<stamp>-<name>` files; accept both layouts.
+  const manifestName =
+    [
+      'manifest.json',
+      ...readdirSync(dir)
+        .filter((n) => /^\d{8}T\d{6}Z-manifest\.json$/.test(n))
+        .sort()
+        .reverse(),
+    ].find((n) => existsSync(join(dir, n))) ?? 'manifest.json';
+  const manifest = validateManifest(JSON.parse(readFileSync(join(dir, manifestName), 'utf8')));
+  const at = (name) => {
+    const prefixed = join(dir, `${manifest.stamp}-${name}`);
+    return existsSync(join(dir, name)) || !existsSync(prefixed) ? join(dir, name) : prefixed;
+  };
+  const dbFile = at(manifest.files.db.name);
   if (!existsSync(dbFile)) throw new Error(`${dbFile} is missing`);
 
   const db = parseDatabaseUrl(args.target);
@@ -132,7 +168,17 @@ async function main() {
       process.env.STORAGE_FILESYSTEM_ROOT ??
       '.local/storage',
   );
-  const upFile = manifest.files.uploads ? join(dir, manifest.files.uploads.name) : null;
+  const upFile = manifest.files.uploads ? at(manifest.files.uploads.name) : null;
+  const identityFile = args.identity ?? process.env.BACKUP_AGE_IDENTITY_FILE;
+  const identity = identityFile ? readFileSync(identityFile, 'utf8') : null;
+
+  for (const f of [manifest.files.db, manifest.files.uploads].filter(Boolean)) {
+    if (typeof f.sha256 !== 'string') continue;
+    const actual = await sha256File(at(f.name));
+    if (actual !== f.sha256)
+      throw new Error(`${f.name}: SHA-256 differs from the manifest (damaged or altered)`);
+  }
+  console.log('  sha256   files match the manifest');
 
   console.log(
     `Backup ${manifest.stamp} (git ${manifest.gitSha ?? 'unknown'}), from ${manifest.database}`,
@@ -152,17 +198,29 @@ async function main() {
   }
 
   console.log('Replaying the dump...');
-  await replayDump(db, dbFile);
+  await replayDump(db, dbFile, identity);
 
   const check = compareMigrations(manifest.migrations.versions, appliedVersions(db));
   if (upFile) {
     mkdirSync(uploadsDest, { recursive: true });
     // No paths on tar's command line (see backup.mjs): archive on stdin, destination as cwd.
-    const fd = openSync(upFile, 'r');
-    try {
-      execFileSync('tar', ['-xz'], { cwd: uploadsDest, stdio: [fd, 'inherit', 'inherit'] });
-    } finally {
-      closeSync(fd);
+    if (upFile.endsWith('.age')) {
+      const tar = spawn('tar', ['-xz'], {
+        cwd: uploadsDest,
+        stdio: ['pipe', 'inherit', 'inherit'],
+      });
+      const done = new Promise((ok, fail) => {
+        tar.on('error', fail);
+        tar.on('close', (code) => (code === 0 ? ok() : fail(new Error(`tar exited ${code}`))));
+      });
+      await Promise.all([pipeline(plainStream(upFile, identity), tar.stdin), done]);
+    } else {
+      const fd = openSync(upFile, 'r');
+      try {
+        execFileSync('tar', ['-xz'], { cwd: uploadsDest, stdio: [fd, 'inherit', 'inherit'] });
+      } finally {
+        closeSync(fd);
+      }
     }
     console.log(`Uploads restored to ${uploadsDest}`);
   }

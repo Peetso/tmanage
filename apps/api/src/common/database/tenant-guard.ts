@@ -1214,6 +1214,11 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // client, a member of several organizations, or nobody yet; a one-click unsubscribe arrives
   // with no session. Reached only through `identityTransaction(['email_suppressions'])`.
   'email_suppressions',
+  // ---- 51-09 ----
+  // 0253. One row per backup, off-site copy and restore drill. GLOBAL: backups belong to the
+  // platform, no tenant data is stored. Written by scripts/ops (migration credential), read by
+  // `/healthz/deep` through `identityRead(['platform_backup_runs'])`.
+  'platform_backup_runs',
 ]);
 
 export function isTenantTable(name: string): boolean {

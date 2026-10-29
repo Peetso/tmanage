@@ -10152,3 +10152,41 @@ export type EmailSuppressionRow = typeof emailSuppressions.$inferSelect;
 Object.assign(TABLES, {
   email_suppressions: emailSuppressions,
 });
+
+// ---- 51-09 · backups ----
+
+/**
+ * 0253. One row per backup, off-site copy and restore drill (51-09, 56-12, 56-29). GLOBAL
+ * (NON_TENANT_TABLES): backups belong to the platform. Written by `scripts/ops/backup.mjs` and
+ * `restore-drill.mjs` through the migration credential; `/healthz/deep` reads the freshness.
+ * `kind` scheduled | manual | drill; `status` ok | failed; `offsite_status` not_requested |
+ * skipped | uploaded | failed — closed lists checked in the scripts.
+ */
+export const platformBackupRuns = mysqlTable(
+  'platform_backup_runs',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    kind: varchar('kind', { length: 16 }).notNull(),
+    frequencyKind: varchar('frequency_kind', { length: 16 }).notNull(),
+    stamp: varchar('stamp', { length: 20 }),
+    startedAt: datetime('started_at', { mode: 'date', fsp: 3 }).notNull(),
+    finishedAt: datetime('finished_at', { mode: 'date', fsp: 3 }),
+    status: varchar('status', { length: 16 }).notNull(),
+    dbBytes: bigint('db_bytes', { mode: 'number' }),
+    uploadsBytes: bigint('uploads_bytes', { mode: 'number' }),
+    manifestSha: char('manifest_sha', { length: 64 }),
+    gitSha: varchar('git_sha', { length: 64 }),
+    offsiteStatus: varchar('offsite_status', { length: 16 }).notNull().default('not_requested'),
+    offsiteLocation: varchar('offsite_location', { length: 255 }),
+    offsiteAt: datetime('offsite_at', { mode: 'date', fsp: 3 }),
+    error: varchar('error', { length: 500 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [index('ix_platform_backup_runs_kind_finished').on(table.kind, table.finishedAt)],
+);
+
+export type PlatformBackupRunRow = typeof platformBackupRuns.$inferSelect;
+
+Object.assign(TABLES, {
+  platform_backup_runs: platformBackupRuns,
+});

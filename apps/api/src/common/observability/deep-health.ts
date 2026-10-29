@@ -20,6 +20,8 @@ import {
   readShippedMigrations,
 } from './schema-drift.js';
 import type { SchemaDriftMode, SchemaDriftState } from './schema-drift.js';
+import { readBackupHealth } from './backup-health.repository.js';
+import type { BackupCheckState } from './backup-health.js';
 
 /**
  * `GET /healthz/deep` (C10) — the readiness check a free external uptime monitor polls.
@@ -34,7 +36,9 @@ import type { SchemaDriftMode, SchemaDriftState } from './schema-drift.js';
  * - **scanner** — a malware scanner (`MALWARE_SCAN_DRIVER=clamav` with a host) is configured;
  *   `not_configured` otherwise;
  * - **schema** — 56-27's schema-drift reading (`schema-drift.ts`): ledger checksums equal the
- *   shipped files and every declared table exists; `not_configured` when it cannot be read.
+ *   shipped files and every declared table exists; `not_configured` when it cannot be read;
+ * - **backups** — 51-09's reading of `platform_backup_runs` (`backup-health.ts`): `ok` / `stale` /
+ *   `not_configured`. Reported only — a late backup is an alert, never a 503.
  *
  * `fail` on database, migrations, worker or schema makes the answer 503 — the status code is what a
  * monitor matches on. `not_configured` is reported but is not a failure: a shared host that
@@ -55,6 +59,7 @@ export interface DeepHealthReport {
     readonly worker: CheckState;
     readonly scanner: CheckState;
     readonly schema: CheckState;
+    readonly backups: BackupCheckState;
   };
   readonly checkedAt: string;
 }
@@ -91,6 +96,7 @@ export async function evaluateDeepHealth(
   probes: DeepHealthProbes,
   now: Date,
   schema: SchemaDriftState = 'not_configured',
+  backups: BackupCheckState = 'not_configured',
 ): Promise<DeepHealthReport> {
   let database: CheckState = 'ok';
   let migrations: CheckState = 'ok';
@@ -120,7 +126,7 @@ export async function evaluateDeepHealth(
   const failed = [database, migrations, worker, schema].includes('fail');
   return {
     status: failed ? 'fail' : 'ok',
-    checks: { database, migrations, worker, scanner, schema },
+    checks: { database, migrations, worker, scanner, schema, backups },
     checkedAt: now.toISOString(),
   };
 }
@@ -172,7 +178,7 @@ export class DeepHealthController {
   private readonly probes: DeepHealthProbes;
 
   constructor(
-    @Inject(TENANT_DATABASE) database: TenantDatabase,
+    @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
     @Inject(DEEP_HEALTH_CONFIG) private readonly config: DeepHealthConfig,
     @Inject(SCHEMA_DRIFT_MONITOR) private readonly schemaDrift: SchemaDriftMonitor,
   ) {
@@ -197,9 +203,16 @@ export class DeepHealthController {
     const now = Date.now();
     if (this.cached === null || now - this.cached.at > DEEP_HEALTH_CACHE_MS) {
       const schema = await this.schemaDrift.fresh();
+      const backups = await readBackupHealth(this.database, new Date(now));
       this.cached = {
         at: now,
-        report: await evaluateDeepHealth(this.config, this.probes, new Date(now), schema.state),
+        report: await evaluateDeepHealth(
+          this.config,
+          this.probes,
+          new Date(now),
+          schema.state,
+          backups,
+        ),
       };
     }
     reply.header('cache-control', 'no-store');
