@@ -58,6 +58,10 @@ export function composeAppModule(env: Env): DynamicModule {
       smtpSecure: env.SMTP_SECURE,
       smtpUsername: env.SMTP_USERNAME,
       smtpPassword: env.SMTP_PASSWORD,
+      // 56-31. `MAIL_QUEUE=on` routes every message through `mail_queue` and the worker drainer
+      // (lane order, shared hour window). Read here rather than in `packages/config` so the one
+      // schema stays untouched this batch; off until the drainer runs beside this API on live.
+      queue: process.env['MAIL_QUEUE']?.trim().toLowerCase() === 'on',
     }),
     // FILE-001b. `local` is the production single-host driver (Hostinger shared hosting):
     // it stores under `STORAGE_LOCAL_ROOT`, which the module checks at boot is absolute and

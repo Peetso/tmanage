@@ -191,3 +191,15 @@ export { createExportJobStore } from './common/database/export-jobs-store.js';
 // such as the organization purge), exported so the single Hostinger app schedules it too.
 export { runContentPurge } from './jobs/content-purge-entry.js';
 export type { PurgeReport } from './jobs/purge-sweeper.js';
+// ---- 56-31 ---- the mail priority lanes: the drainer and its store, exported so the db suite
+// and the in-process worker (apps/server) run the same drain tick.
+export {
+  DRAIN_BATCH,
+  DRAIN_INTERVAL_MS,
+  createMailDrainerState,
+  drainMailOnce,
+  runMailDrainLoop,
+} from './jobs/mail-drainer.js';
+export type { MailDrainReport, MailDrainerDeps, MailDrainerState } from './jobs/mail-drainer.js';
+export { createMailQueueStore } from './common/database/mail-queue-store.js';
+export type { ClaimedMail, MailQueueStore } from './common/database/mail-queue-store.js';

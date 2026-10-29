@@ -1836,6 +1836,19 @@ GRANT SELECT ON `tmanage`.`email_suppressions`                 TO 'tmanage_worke
 -- amended. SELECT rides the database-wide read.
 GRANT INSERT, DELETE ON `tmanage`.`host_capacity_readings`     TO 'tmanage_app'@'%';
 
+-- ---- 56-31 · mail lanes ----
+-- 0256 `mail_queue` / `mail_hour_windows` (global). The API enqueues every message (INSERT only;
+-- SELECT rides the database-wide read for GET /v1/platform/mail/health). The worker drainer
+-- claims (UPDATE … claim_token, then SELECT by token), marks sent/deferred/failed (UPDATE),
+-- purges rows 7 days after sent/failed (DELETE — the queue is transient delivery state, never
+-- work a person made), and enqueues its own notification and alert mail (INSERT). It counts each
+-- mailbox's hour with an upsert on `mail_hour_windows` (INSERT … ON DUPLICATE KEY UPDATE, read
+-- where it writes), and reads the lane pauses and hour ceilings from `platform_settings`.
+GRANT INSERT ON `tmanage`.`mail_queue`                         TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`mail_queue` TO 'tmanage_worker'@'%';
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`mail_hour_windows`  TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`platform_settings`                  TO 'tmanage_worker'@'%';
+
 -- ---- 52-21 · public-endpoint abuse engine ----
 -- 0255 `org_block_rules` (tenant): an organization's block list, added and removed behind
 -- `org.security.manage`; UPDATE for a reason edit. SELECT rides the database-wide read.

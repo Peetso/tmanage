@@ -1,4 +1,4 @@
-import type { MailDelivery, Mailer, MailMessage } from './mailer.js';
+import type { MailDelivery, Mailer, MailMessage, MailReceipt, ReceiptMailer } from './mailer.js';
 
 /**
  * 51-11 / §9.2 — the host ceiling. Hostinger's hosting mail caps each mailbox per hour and per
@@ -40,7 +40,7 @@ export function isBulkMessage(message: MailMessage): boolean {
   return message.headers?.['List-Unsubscribe'] !== undefined;
 }
 
-export class SendCeilingMailer implements Mailer {
+export class SendCeilingMailer implements ReceiptMailer {
   /** Submission instants (ms) inside the last day, oldest first. */
   private readonly sent: number[] = [];
 
@@ -51,6 +51,11 @@ export class SendCeilingMailer implements Mailer {
   ) {}
 
   async send(message: MailMessage): Promise<MailDelivery> {
+    return (await this.submit(message)).delivery;
+  }
+
+  /** 56-31: the same ceiling, passing the inner transport's receipt through when it has one. */
+  async submit(message: MailMessage): Promise<MailReceipt> {
     const at = this.now();
     while (this.sent.length > 0 && (this.sent[0] ?? at) <= at - DAY_MS) this.sent.shift();
     const share = isBulkMessage(message) ? Math.min(Math.max(this.ceiling.bulkShare, 0), 1) : 1;
@@ -61,6 +66,8 @@ export class SendCeilingMailer implements Mailer {
     if (this.sent.length >= dayLimit) throw new MailCeilingReachedError('day');
     // Counted before the attempt: the server counts a submission it then refuses, too.
     this.sent.push(at);
-    return this.inner.send(message);
+    const inner = this.inner as Partial<ReceiptMailer> & Mailer;
+    if (typeof inner.submit === 'function') return inner.submit(message);
+    return { delivery: await this.inner.send(message), messageId: null };
   }
 }

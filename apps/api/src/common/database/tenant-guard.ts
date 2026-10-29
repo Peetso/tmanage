@@ -1229,6 +1229,13 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // GLOBAL: platform readings, no tenant data. Written by the API's capacity sampler through
   // `identityTransaction(['host_capacity_readings'])`, read by `GET /v1/platform/health/capacity`.
   'host_capacity_readings',
+  // ---- 56-31 ----
+  // 0256. The mail priority lane and its per-mailbox hour counters. GLOBAL: the recipient is
+  // hashed, the lane is fixed in code (`laneForTemplate`), and platform mail (sign-in codes,
+  // resets, alerts) has no organization — `organization_id` is nullable. Reached only through
+  // `identityTransaction(['mail_queue'])` / `identityRead([...])`; the worker drains it.
+  'mail_queue',
+  'mail_hour_windows',
   // ---- 52-21 ----
   // 0255. Public abuse telemetry and issued challenges. GLOBAL: the callers are anonymous (no
   // organization yet, or a visitor of one), every key is a hash (submitted values, the challenge

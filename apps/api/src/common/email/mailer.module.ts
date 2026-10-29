@@ -1,11 +1,14 @@
 import { Global, Module } from '@nestjs/common';
-import { ConsoleMailer, SmtpMailer } from '@tmanage/mail';
+import { ConsoleMailer, QueueMailer, SmtpMailer, withTemplateKey } from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
+import { MailQueueRepository } from '../database/mail-queue.repository.js';
+import type { TenantDatabase } from '../database/tenant-context.js';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
   INVITATION_MAILER,
   MAILER,
   PASSWORD_RESET_MAILER,
+  TENANT_DATABASE,
   WELCOME_MAILER,
 } from '../http/tokens.js';
 import { InvitationMailer } from './invitation-mailer.js';
@@ -36,6 +39,12 @@ export interface MailerModuleConfig {
   readonly smtpSecure?: boolean | undefined;
   readonly smtpUsername?: string | undefined;
   readonly smtpPassword?: string | undefined;
+  /**
+   * 56-31. Enqueue into `mail_queue` instead of submitting: the worker drainer sends in lane order
+   * against the shared hour window. Only with `driver: 'smtp'` — the console driver keeps
+   * printing in-process. Off until the drainer runs wherever this API runs (MAIL_QUEUE=on).
+   */
+  readonly queue?: boolean | undefined;
 }
 
 function driverFrom(config: MailerModuleConfig): Mailer {
@@ -58,20 +67,26 @@ function driverFrom(config: MailerModuleConfig): Mailer {
   });
 }
 
-function moduleFor(mailer: Mailer | null, webPublicUrl: string): DynamicModule {
-  const mailerProvider: Provider = { provide: MAILER, useValue: mailer };
-  const invitationMailer: Provider = {
-    provide: INVITATION_MAILER,
-    useValue: new InvitationMailer(mailer, webPublicUrl),
+/** The producers over one transport. Template keys are stamped here so lanes.ts can map them. */
+function producersFor(mailer: Mailer | null, webPublicUrl: string) {
+  const keyed = (key: string): Mailer | null =>
+    mailer === null ? null : withTemplateKey(mailer, key);
+  return {
+    invitation: new InvitationMailer(keyed('invitation'), webPublicUrl),
+    passwordReset: new PasswordResetMailer(keyed('password_reset'), webPublicUrl),
+    welcome: new WelcomeMailer(keyed('welcome'), webPublicUrl),
   };
+}
+
+function moduleFor(mailer: Mailer | null, webPublicUrl: string): DynamicModule {
+  const producers = producersFor(mailer, webPublicUrl);
+  const mailerProvider: Provider = { provide: MAILER, useValue: mailer };
+  const invitationMailer: Provider = { provide: INVITATION_MAILER, useValue: producers.invitation };
   const passwordResetMailer: Provider = {
     provide: PASSWORD_RESET_MAILER,
-    useValue: new PasswordResetMailer(mailer, webPublicUrl),
+    useValue: producers.passwordReset,
   };
-  const welcomeMailer: Provider = {
-    provide: WELCOME_MAILER,
-    useValue: new WelcomeMailer(mailer, webPublicUrl),
-  };
+  const welcomeMailer: Provider = { provide: WELCOME_MAILER, useValue: producers.welcome };
   return {
     module: MailerModule,
     global: true,
@@ -80,10 +95,42 @@ function moduleFor(mailer: Mailer | null, webPublicUrl: string): DynamicModule {
   };
 }
 
+/** 56-31: every producer enqueues through `mail_queue` on the global `TENANT_DATABASE`. */
+function queuedModule(webPublicUrl: string): DynamicModule {
+  const QUEUE = Symbol.for('tmanage.MailQueueProducers');
+  const queue: Provider = {
+    provide: QUEUE,
+    inject: [TENANT_DATABASE],
+    useFactory: (database: TenantDatabase) => {
+      const mailer = new QueueMailer(new MailQueueRepository(database));
+      return { mailer, ...producersFor(mailer, webPublicUrl) };
+    },
+  };
+  type Queued = { mailer: Mailer } & ReturnType<typeof producersFor>;
+  const from = (token: symbol, pick: (queued: Queued) => unknown): Provider => ({
+    provide: token,
+    inject: [QUEUE],
+    useFactory: pick,
+  });
+  const providers = [
+    from(MAILER, (q) => q.mailer),
+    from(INVITATION_MAILER, (q) => q.invitation),
+    from(PASSWORD_RESET_MAILER, (q) => q.passwordReset),
+    from(WELCOME_MAILER, (q) => q.welcome),
+  ];
+  return {
+    module: MailerModule,
+    global: true,
+    providers: [queue, ...providers],
+    exports: providers,
+  };
+}
+
 @Global()
 @Module({})
 export class MailerModule {
   static forConfig(config: MailerModuleConfig): DynamicModule {
+    if (config.queue === true && config.driver === 'smtp') return queuedModule(config.webPublicUrl);
     return moduleFor(driverFrom(config), config.webPublicUrl);
   }
 

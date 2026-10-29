@@ -10227,6 +10227,62 @@ Object.assign(TABLES, {
   host_capacity_readings: hostCapacityReadings,
 });
 
+// ---- 56-31 · mail lanes ----
+
+/**
+ * 0256. The transactional e-mail priority lane (56-31). GLOBAL (NON_TENANT_TABLES):
+ * `organization_id` is nullable — platform mail (sign-in codes, resets, alerts) has none. `lane`
+ * auth | transactional | digest | bulk and `mailbox` security | noreply are fixed in code by
+ * `laneForTemplate` (packages/mail/src/lanes.ts); `status` queued | sending | sent | deferred |
+ * failed | suppressed. The API enqueues (INSERT); the worker drainer claims, sends and purges.
+ */
+export const mailQueue = mysqlTable(
+  'mail_queue',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }),
+    lane: varchar('lane', { length: 16 }).notNull(),
+    mailbox: varchar('mailbox', { length: 16 }).notNull(),
+    toHash: char('to_hash', { length: 64 }).notNull(),
+    templateKey: varchar('template_key', { length: 64 }).notNull(),
+    payloadJson: text('payload_json').notNull(),
+    status: varchar('status', { length: 16 }).notNull().default('queued'),
+    attempts: tinyint('attempts').notNull().default(0),
+    claimToken: char('claim_token', { length: 36 }),
+    availableAt: datetime('available_at', { mode: 'date', fsp: 3 }).notNull(),
+    deadlineAt: datetime('deadline_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    sentAt: datetime('sent_at', { mode: 'date', fsp: 3 }),
+    providerMessageId: varchar('provider_message_id', { length: 255 }),
+    error: varchar('error', { length: 255 }),
+  },
+  (table) => [
+    index('ix_mail_queue_drain').on(table.status, table.lane, table.availableAt),
+    index('ix_mail_queue_org').on(table.organizationId, table.id),
+    index('ix_mail_queue_claim').on(table.claimToken),
+  ],
+);
+
+export type MailQueueRow = typeof mailQueue.$inferSelect;
+
+/** 0256. One send counter per mailbox per clock hour (56-31), upserted like `rate_limit_buckets`. */
+export const mailHourWindows = mysqlTable(
+  'mail_hour_windows',
+  {
+    mailbox: varchar('mailbox', { length: 16 }).notNull(),
+    windowStart: datetime('window_start', { mode: 'date', fsp: 3 }).notNull(),
+    count: int('count').notNull().default(0),
+  },
+  (table) => [primaryKey({ columns: [table.mailbox, table.windowStart] })],
+);
+
+export type MailHourWindowRow = typeof mailHourWindows.$inferSelect;
+
+Object.assign(TABLES, {
+  mail_queue: mailQueue,
+  mail_hour_windows: mailHourWindows,
+});
+
 // ---- 52-21 · public-endpoint abuse engine ----
 
 /**

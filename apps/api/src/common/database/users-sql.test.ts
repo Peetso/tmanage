@@ -206,6 +206,10 @@ describe('the grants and the schema agree', () => {
       platform_backup_runs:
         '51-09 operator-written only: scripts/ops/backup.mjs and restore-drill.mjs record runs ' +
         'through the migration credential; the API only reads it for /healthz/deep (database-wide read)',
+      // ---- 56-31 ----
+      mail_hour_windows:
+        '56-31 worker-written only: the mail drainer counts each mailbox hour by upsert on the ' +
+        'worker credential; the API only reads it for /v1/platform/mail/health (database-wide read)',
       workflow_due_soon_fires:
         'C1 worker-written only: the due-soon sweep claims one (rule, item, day) on the worker ' +
         'credential (INSERT); no API route writes it, so tmanage_app holds only the database-wide read',
@@ -310,6 +314,9 @@ describe('the runtime user is actually least-privilege', () => {
       'google_drive_attachments',
       'onedrive_attachments',
     ]);
+    // ---- 56-31 ---- 0256: the mail drainer purges `mail_queue` rows 7 days after sent/failed.
+    // The queue is transient delivery state, never work a person made.
+    purgeTables.add('mail_queue');
     for (const grant of grantsFor('tmanage_worker')) {
       if (purgeTables.has(grant.table)) continue;
       expect(grant.privileges, `worker grant on ${grant.table}`).not.toContain('DELETE');

@@ -167,7 +167,9 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // ---- 56-02 FieldCipher ---- +3: the key-rotation job reads `key_rotations` and the two
     // connection tables whose `refresh_token_enc` it re-encrypts.
     // ---- 51-11 ---- +1: the notification transport reads `email_suppressions` before each send.
-    expect(reads).toHaveLength(26 + 15 + 1 + 4 + 3 + 1);
+    // ---- 56-31 ---- +3: the mail drainer reads `mail_queue` (claim by token) and
+    // `mail_hour_windows` where it writes them, and `platform_settings` for lane pauses/ceilings.
+    expect(reads).toHaveLength(26 + 15 + 1 + 4 + 3 + 1 + 3);
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });
 

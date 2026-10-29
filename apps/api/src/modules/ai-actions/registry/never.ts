@@ -1026,6 +1026,9 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'POST', path: '/v1/platform/keys/rotate', reason: 'platform_admin' },
   // 56-32. Platform → Health: the host capacity gauges and the "move to KVM" trigger.
   { method: 'GET', path: '/v1/platform/health/capacity', reason: 'platform_admin' },
+  // 56-31. Platform → E-mail health: lane counts (never addresses) and the lane pause.
+  { method: 'GET', path: '/v1/platform/mail/health', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/mail/lanes/:lane/pause', reason: 'platform_admin' },
   // 52-21. The public form proof (anonymous, nothing an AI acts on) and an organization's block
   // list for its public doors — `org.security.manage`, withheld like the other security routes.
   { method: 'GET', path: '/v1/public/form-proof/', reason: 'public_site' },

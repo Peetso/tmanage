@@ -1,6 +1,12 @@
 import { createTransport } from 'nodemailer';
 import type { Transporter } from 'nodemailer';
-import type { MailDelivery, MailFromOptions, Mailer, MailMessage } from './mailer.js';
+import type {
+  MailDelivery,
+  MailFromOptions,
+  MailMessage,
+  MailReceipt,
+  ReceiptMailer,
+} from './mailer.js';
 
 /**
  * The `smtp` driver — nodemailer over one configured submission endpoint.
@@ -29,7 +35,7 @@ export interface SmtpMailerOptions extends MailFromOptions {
   readonly tls?: { readonly rejectUnauthorized?: boolean } | undefined;
 }
 
-export class SmtpMailer implements Mailer {
+export class SmtpMailer implements ReceiptMailer {
   private readonly transport: Transporter;
   private readonly from: string;
 
@@ -73,6 +79,11 @@ export class SmtpMailer implements Mailer {
   }
 
   async send(message: MailMessage): Promise<MailDelivery> {
+    return (await this.submit(message)).delivery;
+  }
+
+  /** 56-31: `send`, plus the server's message id for DSN matching (56-26). */
+  async submit(message: MailMessage): Promise<MailReceipt> {
     const result = await this.transport.sendMail({
       from: this.from,
       to: message.to,
@@ -89,6 +100,7 @@ export class SmtpMailer implements Mailer {
     if (rejected.length > 0) {
       throw new Error(`the SMTP server refused ${rejected.length} recipient(s)`);
     }
-    return 'sent';
+    const messageId = typeof result.messageId === 'string' ? result.messageId.slice(0, 255) : null;
+    return { delivery: 'sent', messageId };
   }
 }

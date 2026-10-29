@@ -95,6 +95,9 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.session_ended',
   // ---- 56-02 Keys ----
   'platform.key_rotation_started',
+  // ---- 56-31 mail lanes ----
+  'platform.mail_lane_paused',
+  'platform.mail_lane_resumed',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];

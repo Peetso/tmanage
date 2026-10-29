@@ -3,11 +3,18 @@ import type { Env } from '@tmanage/config';
 import {
   ConsoleMailer,
   NotificationMailTransport,
+  QueueMailer,
   SendCeilingMailer,
   SmtpMailer,
   deriveUnsubscribeKey,
+  withTemplateKey,
 } from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
+// ---- 56-31 ---- the mail priority lanes: the queue store and its drainer.
+import { createMailQueueStore } from './common/database/mail-queue-store.js';
+import type { MailQueueStore } from './common/database/mail-queue-store.js';
+import { createMailDrainerState, drainMailOnce, runMailDrainLoop } from './jobs/mail-drainer.js';
+import type { MailDrainerDeps } from './jobs/mail-drainer.js';
 import { createWorkerDatabase, workerConnectionLimit } from './common/database/worker-database.js';
 import type { WorkerMode } from './common/database/worker-database.js';
 import { selectWorkerCommand, unparkDiagnosticLines, workerModeFor } from './cli.js';
@@ -146,6 +153,52 @@ function mailerFrom(env: Env): Mailer | null {
     username: env.SMTP_USERNAME,
     password: env.SMTP_PASSWORD,
   });
+}
+
+/**
+ * 56-31 — the security@ mailbox (`SMTP_SECURITY_USERNAME` / `SMTP_SECURITY_PASSWORD`, optional
+ * `EMAIL_SECURITY_FROM_ADDRESS`) on the same SMTP host. Read from `process.env` rather than the
+ * one schema this batch (packages/config is not this slice's file). Absent = one mailbox.
+ */
+function securityMailerFrom(env: Env): SmtpMailer | null {
+  const username = process.env['SMTP_SECURITY_USERNAME']?.trim();
+  const password = process.env['SMTP_SECURITY_PASSWORD'];
+  if (env.SMTP_HOST === undefined || env.SMTP_HOST === '' || !username || !password) return null;
+  return new SmtpMailer({
+    fromAddress: process.env['EMAIL_SECURITY_FROM_ADDRESS']?.trim() || username,
+    fromName: env.EMAIL_FROM_NAME,
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT,
+    secure: env.SMTP_SECURE,
+    username,
+    password,
+  });
+}
+
+/** `MAIL_QUEUE=on` (and an SMTP driver): producers enqueue, the drainer alone submits. */
+function mailQueueOn(env: Env): boolean {
+  return env.EMAIL_DRIVER === 'smtp' && process.env['MAIL_QUEUE']?.trim().toLowerCase() === 'on';
+}
+
+/** The drainer's alert hook: a short ops mail to ALERT_EMAILS, itself queued (transactional). */
+function mailAlertsFor(env: Env, queue: Mailer): MailDrainerDeps['alert'] {
+  const recipients = (env.ALERT_EMAILS ?? '')
+    .split(',')
+    .map((address) => address.trim())
+    .filter((address) => address.includes('@'));
+  if (recipients.length === 0) return undefined;
+  return async (kind, facts) => {
+    const lines = Object.entries(facts).map(([key, value]) => `${key}: ${String(value)}`);
+    const text = [`Mail lane alert: ${kind}`, `Time (UTC): ${new Date().toISOString()}`, ...lines];
+    for (const to of recipients) {
+      await queue.send({
+        to,
+        subject: `[TManage alert] mail: ${kind}`,
+        text: text.join('\n'),
+        templateKey: 'ops_alert',
+      });
+    }
+  };
 }
 
 /**
@@ -429,7 +482,30 @@ async function main(): Promise<void> {
   // the suppression list and carries the signed one-click List-Unsubscribe headers. Privacy and
   // credential notices stay transactional — no unsubscribe, never suppressed.
   const driver = mailerFrom(env);
-  const transport = driver === null ? null : new SendCeilingMailer(driver);
+  // 56-31: with the queue on, every producer enqueues and the drainer below is the only sender;
+  // `SendCeilingMailer` stays the drainer's last in-process guard over each SMTP mailbox.
+  const queueStore: MailQueueStore | null = mailQueueOn(env)
+    ? createMailQueueStore(database)
+    : null;
+  const securityDriver = securityMailerFrom(env);
+  const drainer: MailDrainerDeps | null =
+    queueStore === null || driver === null
+      ? null
+      : {
+          store: queueStore,
+          noreply: new SendCeilingMailer(driver),
+          security: securityDriver === null ? null : new SendCeilingMailer(securityDriver),
+          suppressions: createEmailSuppressionLookup(database),
+          alert: mailAlertsFor(env, new QueueMailer(queueStore)),
+        };
+  const transport: Mailer | null =
+    driver === null
+      ? null
+      : queueStore !== null
+        ? new QueueMailer(queueStore)
+        : new SendCeilingMailer(driver);
+  const keyed = (key: string): Mailer | null =>
+    transport === null ? null : withTemplateKey(transport, key);
   const notificationTransport =
     transport === null
       ? null
@@ -438,20 +514,26 @@ async function main(): Promise<void> {
           key: deriveUnsubscribeKey(env.SESSION_SECRET),
           suppressions: createEmailSuppressionLookup(database),
         });
+  // 56-31: each producer's template key, so lanes.ts can put it in its lane.
+  const notice = (key: string): Mailer | null =>
+    notificationTransport === null ? null : withTemplateKey(notificationTransport, key);
   const handlers = createWorkerOutboxHandlers({
-    clientRequestMailer: new ClientRequestMailer(notificationTransport, env.WEB_PUBLIC_URL),
+    clientRequestMailer: new ClientRequestMailer(notice('client_request'), env.WEB_PUBLIC_URL),
     // USAGE-001 slice 4c — the storage-threshold mail. No link, so no WEB_PUBLIC_URL: the usage
     // screen it would point at is a later slice and does not exist yet.
-    usageThresholdMailer: new UsageThresholdMailer(notificationTransport),
+    usageThresholdMailer: new UsageThresholdMailer(notice('usage_threshold')),
     // CQ-12 — mentions, comments, meeting invites, project adds and client-action emails.
-    collaborationMailer: new CollaborationMailer(notificationTransport, env.WEB_PUBLIC_URL),
+    collaborationMailer: new CollaborationMailer(
+      notice('collaboration_notice'),
+      env.WEB_PUBLIC_URL,
+    ),
     // H3 — data export ready, deletion scheduled / cancelled / carried out.
-    privacyMailer: new PrivacyMailer(transport, env.WEB_PUBLIC_URL),
+    privacyMailer: new PrivacyMailer(keyed('privacy_notice'), env.WEB_PUBLIC_URL),
   });
   // x31: the notice queue's own registry. Empty when no transport is wired, which drains and
   // stamps rather than growing a tail — see `createWorkerNoticeHandlers`.
   const noticeHandlers = createWorkerNoticeHandlers({
-    credentialChangeMailer: new CredentialChangeMailer(transport),
+    credentialChangeMailer: new CredentialChangeMailer(keyed('credential_change')),
   });
 
   const options = {
@@ -474,6 +556,8 @@ async function main(): Promise<void> {
         noticeHandlers,
         options,
       );
+      // 56-31: one drain tick after the batches, so mail they enqueued leaves in this pass.
+      if (drainer !== null) await drainMailOnce(drainer, createMailDrainerState());
       await beat(env.OUTBOX_HEARTBEAT_FILE, new Date());
       console.warn(`[worker] batch: ${describe(report)}`);
       console.warn(`[worker] notice batch: ${describe(noticeReport)}`);
@@ -517,6 +601,9 @@ async function main(): Promise<void> {
   const exportJobs = runExportJobsLoop(database, exportWriterFor(env), controller.signal);
   // ---- 56-02 FieldCipher ---- queued key rotations, every minute beside the relay. Keyless,
   // every queued rotation fails with "key … is not the newest key" — nothing is rewritten.
+  // ---- 56-31 ---- the mail drainer, every 5 seconds beside the relay (only with MAIL_QUEUE=on).
+  const mailDrain =
+    drainer === null ? Promise.resolve() : runMailDrainLoop(drainer, controller.signal);
   const keyRotations = runKeyRotationLoop(
     {
       store: createRotationStore(database),
@@ -614,6 +701,8 @@ async function main(): Promise<void> {
     // ---- platform-admin v2 · PA-09 ----
     await exportJobs;
     await keyRotations;
+    // ---- 56-31 ----
+    await mailDrain;
     await database.end();
   }
 }

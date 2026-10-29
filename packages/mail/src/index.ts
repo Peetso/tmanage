@@ -21,7 +21,14 @@
  * — and a shared template file would make one product decision on behalf of two features.
  */
 
-export type { MailDelivery, MailFromOptions, Mailer, MailMessage } from './mailer.js';
+export type {
+  MailDelivery,
+  MailFromOptions,
+  Mailer,
+  MailMessage,
+  MailReceipt,
+  ReceiptMailer,
+} from './mailer.js';
 export { ConsoleMailer } from './console-mailer.js';
 export { SmtpMailer } from './smtp-mailer.js';
 export type { SmtpMailerOptions } from './smtp-mailer.js';
@@ -42,3 +49,31 @@ export {
   isBulkMessage,
 } from './send-ceiling.js';
 export type { SendCeiling } from './send-ceiling.js';
+// 56-31 — the priority lanes and the queue the drainer empties.
+export {
+  CEILING_SAFETY_MARGIN,
+  LOWER_LANE_SHARE,
+  MAILBOXES,
+  MAIL_LANES,
+  allowance,
+  authDeadlineMs,
+  effectiveCeiling,
+  hourWindowStart,
+  isMailLane,
+  laneForTemplate,
+  laneIsPaused,
+  lanePausedSettingKey,
+  mailboxCeilingSettingKey,
+  mailboxForLane,
+  parseCeiling,
+  spreadMinute,
+} from './lanes.js';
+export type { MailLane, Mailbox } from './lanes.js';
+export {
+  QueueMailer,
+  decodeQueuedMessage,
+  encodeQueuedMessage,
+  recipientHash,
+  withTemplateKey,
+} from './queue-mailer.js';
+export type { MailQueueEntry, MailQueueWriter, QueueMailerOptions } from './queue-mailer.js';

@@ -11,6 +11,13 @@ import {
   EmailDeliverabilityReader,
 } from './email-deliverability.controller.js';
 import { EmailSuppressionsRepository } from './email-suppressions.repository.js';
+import { PlatformAdminRepository } from '../platform-admin/platform-admin.repository.js';
+import {
+  MAIL_HEALTH_SERVICE,
+  MailHealthController,
+  MailHealthService,
+} from './mail-health.controller.js';
+import { MailHealthRepository } from './mail-health.repository.js';
 import {
   EMAIL_SUPPRESSION_WRITER,
   UNSUBSCRIBE_CONFIG,
@@ -80,8 +87,18 @@ export class EmailDeliverabilityModule {
               dkimSelectorsFromEnv(),
             ),
         },
+        // 56-31 — GET /v1/platform/mail/health and the lane pause.
+        {
+          provide: MAIL_HEALTH_SERVICE,
+          inject: [TENANT_DATABASE],
+          useFactory: (database: TenantDatabase) =>
+            new MailHealthService(
+              new MailHealthRepository(database),
+              new PlatformAdminRepository(database),
+            ),
+        },
       ],
-      controllers: [EmailDeliverabilityController],
+      controllers: [EmailDeliverabilityController, MailHealthController],
       exports: [EMAIL_DELIVERABILITY_READER],
     };
   }

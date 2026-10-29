@@ -44,10 +44,28 @@ export interface MailMessage {
    * A producer never sets these itself; a value holding CR or LF is refused by the transport.
    */
   readonly headers?: Readonly<Record<string, string>>;
+  /**
+   * 56-31. Which template this is (`password_reset`, `invitation`, `digest`, …). The queue maps it
+   * to a lane in exactly one place, `laneForTemplate` (lanes.ts); there is deliberately no `lane`
+   * field, so no producer and no request can pick its own priority. Unknown or absent keys are
+   * `transactional`, never `auth`.
+   */
+  readonly templateKey?: string;
 }
 
 /** What became of one message: accepted by a server, or printed by the console driver. */
 export type MailDelivery = 'sent' | 'none';
+
+/** 56-31. What the drainer records from a submission: the SMTP server's message id, if any. */
+export interface MailReceipt {
+  readonly delivery: MailDelivery;
+  readonly messageId: string | null;
+}
+
+/** A transport that can report its receipt (SmtpMailer, SendCeilingMailer over one). */
+export interface ReceiptMailer extends Mailer {
+  submit(message: MailMessage): Promise<MailReceipt>;
+}
 
 export interface Mailer {
   /**
