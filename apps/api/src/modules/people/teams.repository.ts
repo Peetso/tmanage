@@ -1,6 +1,6 @@
-import { and, asc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/mysql-core';
-import { uuidv7 } from '@tmanage/domain';
+import { PLATFORM_SUPPORT_ROLE, uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { memberships, memberTeams, users } from '../../common/database/schema.js';
 import type { MemberTeamRow } from '../../common/database/schema.js';
@@ -173,6 +173,7 @@ export class PeopleTeamsRepository {
           eq(memberTeams.organizationId, context.organizationId),
           eq(memberTeams.teamId, teamId),
           isNotNull(memberTeams.membershipId),
+          ne(memberships.role, PLATFORM_SUPPORT_ROLE), // PA-05 (SPEC §3.2): the hidden Support-mode role never shows here.
         ),
       )
       .orderBy(asc(users.displayName), asc(memberships.id));

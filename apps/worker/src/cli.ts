@@ -28,6 +28,8 @@ export type WorkerCommand =
   | { readonly kind: 'sweep-due-soon' }
   // ---- platform-admin v2 · PA-03 ---- the content purge (0245).
   | { readonly kind: 'sweep-purge' }
+  // ---- platform-admin v2 · PA-05 ---- the Support-session expiry sweep.
+  | { readonly kind: 'sweep-support-sessions' }
   | { readonly kind: 'status' }
   | { readonly kind: 'once' }
   | { readonly kind: 'loop' };
@@ -65,6 +67,8 @@ export function selectWorkerCommand(argv: readonly string[]): WorkerCommand {
   if (sweepDueSoon) return { kind: 'sweep-due-soon' };
   // ---- platform-admin v2 · PA-03 ---- same rank: one invocation does one thing.
   if (argv.includes('--sweep-purge')) return { kind: 'sweep-purge' };
+  // ---- platform-admin v2 · PA-05 ---- same rank: one invocation does one thing.
+  if (argv.includes('--sweep-support-sessions')) return { kind: 'sweep-support-sessions' };
   if (status) return { kind: 'status' };
   if (once) return { kind: 'once' };
   return { kind: 'loop' };

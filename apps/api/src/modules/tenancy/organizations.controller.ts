@@ -46,6 +46,11 @@ import type {
   OrganizationSummaryView,
   ProvisioningService,
 } from './provisioning.service.js';
+// ---- platform-admin v2 · PA-05 ---- the Support-mode banner's read.
+import { supportSessionOf } from '../../common/http/guards/tenant-context.guard.js';
+import { PlatformAuditService } from '../platform-admin/platform-audit.service.js';
+import { SupportSessionService } from '../platform-admin/support/support-session.service.js';
+import type { OrganizationSupportSessionView } from '../platform-admin/support/support-session.service.js';
 
 /**
  * The two routes `ON-01` and `ID-04` have been waiting for — TEN-001's unbuilt half.
@@ -282,6 +287,37 @@ export class OrganizationsController {
       throw error;
     }
   }
+
+  // ── platform-admin v2 · PA-05: the Support-mode banner ───────────────────────────────────
+
+  /**
+   * The caller's live Support session in this organization (SPEC §3.2), for the banner every
+   * page draws: `{supportSession: null}` for an ordinary member. Only a `platform_support`
+   * membership carries one (PA-01's resolver sets it while the session is live), so a member can
+   * never read anyone else's. Every role holds `approval.read`, like `GET …/me`.
+   */
+  @Get(':orgSlug/support-session')
+  @RequireCapability('approval.read')
+  async supportSession(
+    @CurrentSession() session: AuthenticatedSession,
+    @Req() request: RequestLike,
+  ): Promise<{ readonly supportSession: OrganizationSupportSessionView | null }> {
+    const state = requireRequestState(request);
+    const stamp = supportSessionOf(request) ?? null;
+    if (stamp === null || stamp.adminUserId !== session.userId) return { supportSession: null };
+    this.support ??= new SupportSessionService(
+      this.database,
+      new PlatformAuditService(this.database),
+    );
+    const view = await this.support.forMember(
+      stamp,
+      state.authScheme === 'cookie' ? session.sessionId : null,
+      state.correlationId,
+    );
+    return { supportSession: view };
+  }
+
+  private support: SupportSessionService | undefined;
 
   // ── A11: the Organization settings card — name and logo (org.manage) ─────────────────────
 

@@ -1,5 +1,5 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
-import { INTERNAL_ROLES, uuidv7 } from '@tmanage/domain';
+import { and, eq, inArray, ne, sql } from 'drizzle-orm';
+import { INTERNAL_ROLES, PLATFORM_SUPPORT_ROLE, uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { memberships, subscriptions } from '../../common/database/schema.js';
 import type { SubscriptionRow } from '../../common/database/schema.js';
@@ -62,6 +62,7 @@ export class SubscriptionRepository {
           eq(memberships.organizationId, context.organizationId),
           eq(memberships.status, 'active'),
           inArray(memberships.role, [...INTERNAL_ROLES]),
+          ne(memberships.role, PLATFORM_SUPPORT_ROLE), // PA-05 (SPEC §3.2): the hidden Support-mode role never shows here.
         ),
       );
     return Number(rows[0]?.people ?? 0);

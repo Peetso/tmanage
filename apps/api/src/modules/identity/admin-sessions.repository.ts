@@ -1,4 +1,5 @@
 import { and, asc, eq, gt, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { PLATFORM_SUPPORT_ROLE } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { clientMemberships, memberships, sessions, users } from '../../common/database/schema.js';
 import type {
@@ -88,6 +89,7 @@ export class AdminSessionsRepository {
         and(
           eq(memberships.organizationId, context.organizationId),
           eq(memberships.status, 'active'),
+          ne(memberships.role, PLATFORM_SUPPORT_ROLE), // PA-05 (SPEC §3.2): the hidden Support-mode role never shows here.
         ),
       )
       .orderBy(asc(memberships.id));

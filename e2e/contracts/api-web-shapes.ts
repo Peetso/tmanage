@@ -3264,3 +3264,31 @@ type _pa02Team = Assert<Exact<ApiPlatformTeamView, WebPlatformTeamView>>;
 type _pa02Preset = Assert<Exact<ApiPlatformPresetView, WebPlatformPresetView>>;
 type _pa02Presets = Assert<Exact<ApiPlatformPresetsView, WebPlatformPresetsView>>;
 type _pa02TeamWrite = Assert<Exact<ApiPlatformTeamWriteView, WebPlatformTeamWriteView>>;
+
+// ---- platform-admin v2 · PA-04 ----
+import type {
+  PlatformMemberOverrideView as ApiPlatformMemberOverrideView,
+  PlatformMemberPermissionsView as ApiPlatformMemberPermissionsView,
+  PlatformOrgRoleDeleteView as ApiPlatformOrgRoleDeleteView,
+  PlatformOrgRoleView as ApiPlatformOrgRoleView,
+  PlatformOrgRoleWriteView as ApiPlatformOrgRoleWriteView,
+  PlatformOrgRolesView as ApiPlatformOrgRolesView,
+} from '../../apps/api/src/modules/platform-admin/permissions/permissions.service';
+import type {
+  PlatformMemberOverrideView as WebPlatformMemberOverrideView,
+  PlatformMemberPermissionsView as WebPlatformMemberPermissionsView,
+  PlatformOrgRoleDeleteView as WebPlatformOrgRoleDeleteView,
+  PlatformOrgRoleView as WebPlatformOrgRoleView,
+  PlatformOrgRoleWriteView as WebPlatformOrgRoleWriteView,
+  PlatformOrgRolesView as WebPlatformOrgRolesView,
+} from '../../apps/web/src/lib/api/platform-permissions';
+type _pa04OrgRole = Assert<Exact<ApiPlatformOrgRoleView, WebPlatformOrgRoleView>>;
+type _pa04OrgRoles = Assert<Exact<ApiPlatformOrgRolesView, WebPlatformOrgRolesView>>;
+type _pa04OrgRoleWrite = Assert<Exact<ApiPlatformOrgRoleWriteView, WebPlatformOrgRoleWriteView>>;
+type _pa04OrgRoleDelete = Assert<Exact<ApiPlatformOrgRoleDeleteView, WebPlatformOrgRoleDeleteView>>;
+type _pa04MemberOverride = Assert<
+  Exact<ApiPlatformMemberOverrideView, WebPlatformMemberOverrideView>
+>;
+type _pa04MemberPermissions = Assert<
+  Exact<ApiPlatformMemberPermissionsView, WebPlatformMemberPermissionsView>
+>;

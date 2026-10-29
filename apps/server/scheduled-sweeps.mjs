@@ -96,6 +96,15 @@ export function workerSweepJobs(worker, database) {
         `due-soon: ${String(result.rules)} rule(s), fired for ${String(result.fired)} work item(s)`,
       changed: (result) => result.fired > 0,
     },
+    // ---- platform-admin v2 · PA-05 ----
+    {
+      // `--sweep-support-sessions`: ends expired Support sessions and takes their hidden
+      // memberships away; idempotent, each session is claimed with `ended_at is null`.
+      name: 'support-sessions',
+      run: () => worker.sweepSupportSessions(worker.createSupportSessionSweepStore(database)),
+      describe: (result) => `support sessions: ended ${String(result.ended)} expired session(s)`,
+      changed: (result) => result.ended > 0,
+    },
   ];
 }
 

@@ -43,6 +43,11 @@ import { createDueSoonSweepStore } from './common/database/due-soon-store.js';
 import { sweepDueSoon } from './jobs/due-soon-sweeper.js';
 // ---- platform-admin v2 · PA-03 ---- the content purge.
 import { PURGE_HOOKS, runPurge } from './jobs/purge-sweeper.js';
+// ---- platform-admin v2 · PA-05 ---- the Support-session expiry sweep.
+import {
+  runSupportSessionSweep,
+  runSupportSessionSweepLoop,
+} from './jobs/support-session-sweeper.js';
 
 /**
  * The worker process entry point.
@@ -353,6 +358,21 @@ async function main(): Promise<void> {
     return;
   }
 
+  // ---- platform-admin v2 · PA-05 ---- expired Support sessions: end, offboard/restore, bump.
+  if (command.kind === 'sweep-support-sessions') {
+    try {
+      const result = await runSupportSessionSweep(database);
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      console.warn(
+        `[worker] support sessions: ended ${String(result.ended)} expired session(s), ` +
+          `offboarded ${String(result.offboarded)}, restored ${String(result.restored)}`,
+      );
+    } finally {
+      await database.end();
+    }
+    return;
+  }
+
   // The relay's own producer. The console driver counts as a transport — printing the
   // composed message is its whole job, and the bootstrap profile is where a developer reads
   // what a client would have received.
@@ -430,6 +450,11 @@ async function main(): Promise<void> {
   const stop = (): void => controller.abort();
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
+
+  // ---- platform-admin v2 · PA-05 ---- the Support-session sweep, every minute beside the
+  // relay. It borrows a pool connection only while it runs, logs its own failures and stops with
+  // the same signal.
+  const supportSweep = runSupportSessionSweepLoop(database, controller.signal);
 
   // RT-001. Sockets exist only in loop mode — a controlled batch has no process to keep a
   // socket open — and only when a port is configured; 0 is the honest default on a host
@@ -514,6 +539,9 @@ async function main(): Promise<void> {
     ]);
   } finally {
     await realtime?.close();
+    // ---- platform-admin v2 · PA-05 ---- let the sweep finish its pass before the pool closes.
+    controller.abort();
+    await supportSweep;
     await database.end();
   }
 }

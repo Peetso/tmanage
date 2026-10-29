@@ -1,5 +1,5 @@
 import { and, asc, eq, gt, inArray, like, ne, sql } from 'drizzle-orm';
-import { uuidv7 } from '@tmanage/domain';
+import { PLATFORM_SUPPORT_ROLE, uuidv7 } from '@tmanage/domain';
 import type { InternalRole } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { type MEMBERSHIP_STATUS, memberships, users } from '../../common/database/schema.js';
@@ -164,6 +164,7 @@ export class MembershipsRepository {
     const predicates = [
       eq(memberships.organizationId, context.organizationId),
       inArray(memberships.status, [...statuses]),
+      ne(memberships.role, PLATFORM_SUPPORT_ROLE), // PA-05 (SPEC §3.2): the hidden Support-mode role never shows here.
     ];
     if (options.after) predicates.push(gt(memberships.id, options.after));
 
@@ -217,6 +218,7 @@ export class MembershipsRepository {
     const predicates = [
       eq(memberships.organizationId, context.organizationId),
       inArray(memberships.status, [...statuses]),
+      ne(memberships.role, PLATFORM_SUPPORT_ROLE), // PA-05 (SPEC §3.2): the hidden Support-mode role never shows here.
     ];
     if (options.after) predicates.push(gt(memberships.id, options.after));
     if (search !== '') {

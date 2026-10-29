@@ -1,4 +1,5 @@
-import { and, asc, eq, like, or } from 'drizzle-orm';
+import { and, asc, eq, like, ne, or } from 'drizzle-orm';
+import { PLATFORM_SUPPORT_ROLE } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
   conversationMemberships,
@@ -76,6 +77,7 @@ export class MentionCandidatesRepository {
           eq(memberships.organizationId, context.organizationId),
           eq(conversationMemberships.conversationId, conversationId),
           eq(memberships.status, 'active'),
+          ne(memberships.role, PLATFORM_SUPPORT_ROLE), // PA-05 (SPEC §3.2): the hidden Support-mode role never shows here.
           nameFilter,
         ),
       )
@@ -91,6 +93,7 @@ export class MentionCandidatesRepository {
           eq(memberships.organizationId, context.organizationId),
           eq(memberships.status, 'active'),
           eq(memberships.hasOrgWideScope, true),
+          ne(memberships.role, PLATFORM_SUPPORT_ROLE), // PA-05 (SPEC §3.2): the hidden Support-mode role never shows here.
           nameFilter,
         ),
       )

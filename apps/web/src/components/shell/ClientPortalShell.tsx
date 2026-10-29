@@ -11,6 +11,9 @@ import { WorkspaceSuspendedGate } from '../platform/WorkspaceSuspendedGate';
 import { AccountMenu } from './AccountMenu';
 import { PortalMenu, usePortalShellProjects } from './PortalMenu';
 import { PortalProjectSwitcher } from './PortalProjectSwitcher';
+// ---- platform-admin v2 · PA-05 ----
+import { ShellBanners } from './ShellBanners';
+import { SupportSessionEndedGate } from '../platform/support/SupportSessionEndedGate';
 
 /**
  * fq9's switcher in the desktop portal header. Mounted only with a `QueryClient` in the tree, and
@@ -116,6 +119,10 @@ export function ClientPortalShell({
     <LiveAnnouncer>
       <div className="tm-portal" data-preview={preview ? 'true' : undefined}>
         <SkipLink targetId="tm-main" />
+        {/* Platform admin v2 (PA-05): Support mode banner and platform announcement. */}
+        {queryClient ? (
+          <ShellBanners organizationSlug={organizationSlug} organizationName={providerName} />
+        ) : null}
 
         {preview ? (
           <div className="tm-portal__preview-bar">
@@ -214,7 +221,9 @@ export function ClientPortalShell({
   );
   // A suspended company's client portal shows the same "workspace suspended" page.
   return queryClient ? (
-    <WorkspaceSuspendedGate organizationSlug={organizationSlug}>{shell}</WorkspaceSuspendedGate>
+    <SupportSessionEndedGate organizationSlug={organizationSlug}>
+      <WorkspaceSuspendedGate organizationSlug={organizationSlug}>{shell}</WorkspaceSuspendedGate>
+    </SupportSessionEndedGate>
   ) : (
     shell
   );

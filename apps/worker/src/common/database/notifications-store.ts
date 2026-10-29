@@ -52,7 +52,8 @@ export async function listActiveInternalMemberships(
             ) AS on_project
        FROM memberships m
        ${customRoleJoin('m')}
-      WHERE m.organization_id = ? AND m.status = 'active'`,
+      WHERE m.organization_id = ? AND m.status = 'active'
+        AND m.role <> 'platform_support'`, // PA-05 (SPEC §3.2): the hidden Support-mode role never shows here.
     [projectId, organizationId],
   );
   return rows.map((row) => ({
@@ -91,7 +92,8 @@ export async function listActiveOrgWideMemberships(
   const rows = await tx.query<readonly Row[]>(
     `SELECT m.user_id, m.role, m.has_org_wide_scope
        FROM memberships m
-      WHERE m.organization_id = ? AND m.status = 'active'`,
+      WHERE m.organization_id = ? AND m.status = 'active'
+        AND m.role <> 'platform_support'`, // PA-05 (SPEC §3.2): the hidden Support-mode role never shows here.
     [organizationId],
   );
   return rows.map((row) => ({

@@ -1,0 +1,234 @@
+/*
+ * Support mode (platform-admin v2 · PA-05, Figma A8 437:18252 / 437:18480 / 437:18974).
+ *
+ * The banner sits above the top bar inside the shell's column flex, so the canvas below it
+ * shrinks rather than sliding under it. Red while the session runs, amber under five minutes
+ * (with "Extend 30 min"), grey once it has ended. Never dismissible: there is no close control.
+ */
+
+.tm-support-banner {
+  --tm-support-ground: var(--danger-600);
+  display: flex;
+  align-items: center;
+  gap: var(--s4, 16px);
+  min-block-size: 72px;
+  padding-block: var(--s3, 12px);
+  padding-inline: var(--s5, 24px);
+  background: var(--tm-support-ground);
+  color: var(--tm-on-tone, #fff);
+  flex: none;
+}
+
+.tm-support-banner[data-state='warning'] {
+  --tm-support-ground: var(--warning-600);
+}
+
+.tm-support-banner[data-state='ended'] {
+  --tm-support-ground: var(--ink-500);
+}
+
+.tm-support-banner__badge {
+  flex: none;
+  padding-block: 3px;
+  padding-inline: 8px;
+  border-radius: 999px;
+  background: var(--tm-paper-absolute, #fff);
+  color: var(--tm-support-ground);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tm-support-banner__text {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+  font-size: 15px;
+}
+
+.tm-support-banner__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s4, 16px);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.tm-support-banner__clock {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tm-support-banner__link {
+  color: inherit;
+  font-size: 14px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+
+.tm-support-banner__link[data-tone='plain'] {
+  text-decoration: none;
+  color: var(--ink-950);
+}
+
+.tm-support-banner__button {
+  min-block-size: 44px;
+  padding-inline: 18px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tm-support-banner__button:hover,
+.tm-support-banner__button:focus-visible {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.tm-support-banner__button:focus-visible,
+.tm-support-banner__link:focus-visible {
+  outline: 2px solid var(--tm-paper-absolute, #fff);
+  outline-offset: 2px;
+}
+
+/* Expired (437:18974): the grey banner over an empty paper page with one card. */
+.tm-support-ended {
+  min-block-size: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper-50);
+}
+
+.tm-support-ended__body {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: var(--s5, 24px);
+}
+
+.tm-support-ended__card {
+  inline-size: min(600px, 100%);
+}
+
+.tm-support-ended__fact {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding-block: 10px;
+  padding-inline: 16px;
+  border: 1px solid var(--line-300);
+  border-radius: 16px;
+  font-size: 14px;
+}
+
+.tm-support-ended__fact-icon {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--ink-500);
+}
+
+.tm-support-ended__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3, 12px);
+}
+
+/* Enter dialog (435:14175) and exit dialog (437:18712). */
+.tm-support-dialog__points,
+.tm-support-dialog__actions-list {
+  margin: 0;
+  padding-block: 12px;
+  padding-inline: 16px;
+  border-radius: 12px;
+  background: var(--paper-150);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.tm-support-dialog__points {
+  padding-inline-start: 32px;
+}
+
+.tm-support-dialog__actions-list {
+  list-style: none;
+}
+
+.tm-support-dialog__durations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.tm-support-dialog__durations legend {
+  margin-block-end: 8px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.tm-support-dialog__duration {
+  min-block-size: 36px;
+  padding-inline: 14px;
+  border: 1px solid var(--line-300);
+  border-radius: 999px;
+  background: var(--paper-0, transparent);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.tm-support-dialog__duration[aria-checked='true'] {
+  border-color: var(--lime-600);
+  background: var(--lime-100);
+}
+
+.tm-support-dialog__duration:focus-visible {
+  outline: 2px solid var(--ink-950);
+  outline-offset: 2px;
+}
+
+.tm-support-dialog__owners-note {
+  display: flex;
+  gap: 10px;
+  padding-block: 12px;
+  padding-inline: 16px;
+  border: 1px solid var(--warning-600);
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+.tm-support-dialog__owners-note span:first-child {
+  color: var(--warning-600);
+}
+
+.tm-support-dialog__log-link {
+  color: var(--ink-950);
+  font-size: 14px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 760px) {
+  .tm-support-banner {
+    flex-wrap: wrap;
+    padding-inline: 16px;
+  }
+
+  .tm-support-banner__meta {
+    inline-size: 100%;
+    justify-content: flex-start;
+  }
+}

@@ -52,6 +52,12 @@ function fakeWorker(calls, { expired = 0, reopened = 0, reminded = 0 } = {}) {
       calls.push(store);
       return { rules: 0, fired: 0 };
     },
+    // ---- platform-admin v2 · PA-05 ----
+    createSupportSessionSweepStore: (database) => ({ database, kind: 'support-sessions' }),
+    sweepSupportSessions: async (store) => {
+      calls.push(store);
+      return { ended: 0, offboarded: 0, restored: 0 };
+    },
   };
 }
 
@@ -81,7 +87,7 @@ test('every --sweep-* command the worker CLI offers has a job, bound to the one 
   for (const job of jobs) await job.run();
   assert.deepEqual(
     calls.map((store) => store.kind),
-    ['invitations', 'deferred', 'due-soon'],
+    ['invitations', 'deferred', 'due-soon', 'support-sessions'],
   );
   assert.ok(calls.every((store) => store.database === database));
 });
@@ -100,10 +106,10 @@ test('start runs a tick at once, schedules the rest, and logs only what moved', 
   await scheduler.stop();
   assert.equal(timers.intervalMs, 60_000);
   assert.equal(timers.cleared, true);
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
   assert.match(
     lines[0],
-    /scheduled sweeps on \(invitations, deferred-requests, due-soon\), every 60000ms/,
+    /scheduled sweeps on \(invitations, deferred-requests, due-soon, support-sessions\), every 60000ms/,
   );
   assert.deepEqual(lines.slice(1), ['sweep invitations: expired 2 overdue invitation(s)']);
 });

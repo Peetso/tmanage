@@ -1,6 +1,6 @@
-import { and, asc, eq, gt, gte, inArray, isNull, like, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, gte, inArray, isNull, like, lte, ne, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/mysql-core';
-import { WORK_ITEM_STATES } from '@tmanage/domain';
+import { PLATFORM_SUPPORT_ROLE, WORK_ITEM_STATES } from '@tmanage/domain';
 import type { WorkItemState } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
@@ -130,6 +130,7 @@ export class PeopleDirectoryRepository {
     const predicates = [
       eq(memberships.organizationId, context.organizationId),
       inArray(memberships.status, ['active']),
+      ne(memberships.role, PLATFORM_SUPPORT_ROLE), // PA-05 (SPEC §3.2): the hidden Support-mode role never shows here.
     ];
     if (options.after) predicates.push(gt(memberships.id, options.after));
     if (search !== '') {

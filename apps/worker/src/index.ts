@@ -172,3 +172,9 @@ export { createDirectMessageFanOut } from './realtime/fan-out.js';
 export { checkConversationSubscription } from './common/database/realtime-store.js';
 export type { SubscriptionVerdict } from './common/database/realtime-store.js';
 export type { InternalRecipientCandidate } from './common/database/notifications-store.js';
+// ---- platform-admin v2 · PA-05 ----
+// The Support-session sweep, exported so the single Hostinger app (`apps/server`) schedules it and
+// the db suite drives the same pass.
+export { sweepSupportSessions } from './jobs/support-session-sweeper.js';
+export type { SupportSweepResult } from './jobs/support-session-sweeper.js';
+export { createSupportSessionSweepStore } from './common/database/support-session-sweep-store.js';

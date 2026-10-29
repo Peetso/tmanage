@@ -21,6 +21,9 @@ import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { PlatformAdminLink } from '../platform/PlatformAdminLink';
 import { WorkspaceSuspendedGate } from '../platform/WorkspaceSuspendedGate';
 import { MembershipGoneGate } from './MembershipGoneGate';
+// ---- platform-admin v2 · PA-05 ----
+import { ShellBanners } from './ShellBanners';
+import { SupportSessionEndedGate } from '../platform/support/SupportSessionEndedGate';
 import { AccountMenu } from './AccountMenu';
 import { AiPanelLauncher } from '../ai-panel/AiPanelLauncher';
 import { BetaTag } from './BetaTag';
@@ -211,6 +214,14 @@ export function AppShell({
       <div className="tm-app">
         <SkipLink targetId="tm-main">{t('Shell.skipLink')}</SkipLink>
 
+        {/* Platform admin v2 (PA-05): the Support mode banner and the platform announcement, above
+            the top bar so the canvas shrinks under them. */}
+        {queryClient ? (
+          <ShellBanners
+            organizationSlug={organizationSlug}
+            organizationName={displayedOrganizationName}
+          />
+        ) : null}
         {/* Platform states (SYS-04): the maintenance / degraded-mode banner across the whole
             window. Renders nothing unless a window is active. */}
         <MaintenanceBanner />
@@ -335,9 +346,11 @@ export function AppShell({
   // A removed member sees one no-access page instead of the sample-company header and raw errors
   // (ACC-14); a company the platform operator suspended shows its members one page instead of the app.
   return queryClient ? (
-    <MembershipGoneGate organizationSlug={organizationSlug}>
-      <WorkspaceSuspendedGate organizationSlug={organizationSlug}>{shell}</WorkspaceSuspendedGate>
-    </MembershipGoneGate>
+    <SupportSessionEndedGate organizationSlug={organizationSlug}>
+      <MembershipGoneGate organizationSlug={organizationSlug}>
+        <WorkspaceSuspendedGate organizationSlug={organizationSlug}>{shell}</WorkspaceSuspendedGate>
+      </MembershipGoneGate>
+    </SupportSessionEndedGate>
   ) : (
     shell
   );

@@ -206,7 +206,8 @@ const COMPANY_COLUMNS = `
      where m.organization_id = o.id and m.role = 'owner' and m.status = 'active'
      order by m.created_at asc limit 1) as owner_email,
   (select count(*) from memberships m
-     where m.organization_id = o.id and m.status = 'active') as people,
+     where m.organization_id = o.id and m.status = 'active'
+       and m.role <> 'platform_support') as people,
   (select count(*) from client_organizations c
      where c.organization_id = o.id and c.archived_at is null) as clients,
   (select count(*) from projects p

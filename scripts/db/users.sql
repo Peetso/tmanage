@@ -1728,3 +1728,16 @@ GRANT SELECT, DELETE ON `tmanage`.`google_drive_attachments` TO 'tmanage_worker'
 GRANT SELECT, DELETE ON `tmanage`.`onedrive_attachments`     TO 'tmanage_worker'@'%';
 -- The restore window the sweep honours is read from `platform_settings` only by the API; the
 -- worker compares `purge_after` (already computed at delete time) with the database clock.
+
+-- ---- platform-admin v2 · PA-05 ----
+-- The worker's Support-session sweeper (apps/worker/src/jobs/support-session-sweeper.ts, every
+-- minute and `--sweep-support-sessions`) ends sessions past `expires_at`: it reads and stamps the
+-- session row, offboards the hidden `platform_support` membership (or restores the admin's own
+-- row), bumps `organizations.policy_version` and writes `support.session_ended` (audit_events,
+-- INSERT already held) and `platform.support_session_ended`. No DELETE anywhere. The UPDATE on
+-- `organizations` repeats PA-07's line on purpose: each job states what it needs.
+GRANT SELECT, UPDATE ON `tmanage`.`platform_support_sessions`   TO 'tmanage_worker'@'%';
+GRANT UPDATE ON `tmanage`.`memberships`                         TO 'tmanage_worker'@'%';
+GRANT UPDATE ON `tmanage`.`organizations`                       TO 'tmanage_worker'@'%';
+GRANT INSERT ON `tmanage`.`platform_admin_audit_events`         TO 'tmanage_worker'@'%';
+

@@ -847,6 +847,21 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'request_message',
     clause: '§12 — a removed request message shown again, possibly to the client',
   },
+  // ---- platform-admin v2 · PA-05 ----
+  /**
+   * PA-05 (SPEC P3, §3.2). TManage support entered the organization through a hidden, time-limited
+   * membership. The actor and the effective actor are the platform admin. Metadata: the support
+   * session id, its length in minutes, and whether the admin's own membership was upgraded.
+   */
+  'support.session_started': {
+    objectType: 'support_session',
+    clause: '§12 cross-tenant support access — the owners must see that support was inside',
+  },
+  /** PA-05. The Support session ended (exit, expiry, sign-out or ended by another admin). */
+  'support.session_ended': {
+    objectType: 'support_session',
+    clause: '§12 cross-tenant support access — when the operator access stopped, and how',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -984,6 +999,9 @@ const AUDIT_ACTION_LABELS = {
   'comment.restored': 'Restored a deleted comment',
   'attachment.restored': 'Restored a removed attachment',
   'request_message.restored': 'Restored a deleted request message',
+  // ---- platform-admin v2 · PA-05 ----
+  'support.session_started': 'TManage support entered the workspace',
+  'support.session_ended': 'TManage support left the workspace',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

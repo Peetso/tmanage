@@ -232,3 +232,27 @@ export async function uploadOrganizationLogo(
     throw error;
   }
 }
+
+// ---- platform-admin v2 · PA-05 ----
+
+/**
+ * The live Support session in this organization (A8 banner). `null` when no TManage support is
+ * inside it. Paired with the API's `OrganizationSupportSessionView`.
+ */
+export interface OrganizationSupportSessionView {
+  readonly id: string;
+  readonly expiresAt: string;
+  readonly adminEmail: string;
+  readonly startedAt: string;
+  readonly actionsCount: number;
+}
+
+export async function fetchOrganizationSupportSession(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<OrganizationSupportSessionView | null> {
+  const { data } = await client.request<{
+    readonly supportSession: OrganizationSupportSessionView | null;
+  }>({ path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/support-session` });
+  return data.supportSession;
+}
