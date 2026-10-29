@@ -53,7 +53,7 @@ export const FIXTURE_ALLOWLIST = new Map([
   ],
   [
     'apps/api/src/modules/automations/directory.controller.test.ts|Slack token',
-    "the literal 'xoxb-should-never-persist', proving secret-shaped config is refused",
+    'a literal bot-token-shaped string, proving secret-shaped config is refused',
   ],
 ]);
 
