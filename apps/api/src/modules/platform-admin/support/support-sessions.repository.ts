@@ -44,6 +44,8 @@ export const SUPPORT_SQL = {
     where s.admin_user_id = ? and s.organization_id = ? and s.ended_at is null
       and s.expires_at > current_timestamp(3)
     order by s.started_at desc limit 1`,
+  rebindSession: `update platform_support_sessions set browser_session_id = ?
+    where id = ? and ended_at is null`,
   insertSession: `insert into platform_support_sessions
       (id, admin_user_id, browser_session_id, organization_id, membership_id, reason,
        started_at, expires_at, actions_count, previous_role, previous_has_org_wide_scope)
@@ -217,6 +219,15 @@ export class SupportSessionsRepository {
   ): Promise<SupportSessionRecord | null> {
     const rows = await tx.query<Row[]>(SUPPORT_SQL.liveFor, [adminUserId, organizationId]);
     return rows[0] ? toRecord(rows[0]) : null;
+  }
+
+  /** Move a live visit to the admin's current browser session (a re-entry from a new sign-in). */
+  async rebindBrowserSession(
+    tx: TenantQueryRunner,
+    sessionId: string,
+    browserSessionId: string,
+  ): Promise<void> {
+    await tx.query(SUPPORT_SQL.rebindSession, [browserSessionId, sessionId]);
   }
 
   /** Insert the session row. Returns its id. */

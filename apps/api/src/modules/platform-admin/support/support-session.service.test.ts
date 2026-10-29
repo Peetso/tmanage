@@ -89,6 +89,7 @@ function harness(
       suspended: false,
     })),
     liveFor: vi.fn(async () => null),
+    rebindBrowserSession: vi.fn(async () => undefined),
     membershipFor: vi.fn(async () => options.existing ?? null),
     insertSession: vi.fn(async () => SESSION),
     insertHiddenMembership: vi.fn(async () => MEMBERSHIP),
@@ -232,6 +233,19 @@ describe('entering Support mode', () => {
     const view = await service.start(actor(600), ORG, {}, REQUEST);
     expect(view.id).toBe(SESSION);
     expect(repo.insertSession).not.toHaveBeenCalled();
+    expect(repo.rebindBrowserSession).not.toHaveBeenCalled();
+  });
+
+  it('moves the running visit to a new sign-in instead of leaving it on the old one', async () => {
+    const { service, repo, platformAudit } = harness();
+    repo.liveFor.mockResolvedValueOnce(
+      record({ browserSessionId: 'old-browser-session' }) as never,
+    );
+    const view = await service.start(actor(600), ORG, {}, REQUEST);
+    expect(view.id).toBe(SESSION);
+    expect(repo.insertSession).not.toHaveBeenCalled();
+    expect(repo.rebindBrowserSession).toHaveBeenCalledWith(expect.anything(), SESSION, BROWSER);
+    expect(platformAudit.insert).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -159,7 +159,12 @@ export function StepUpForm({ api, me }: { api: ApiClient; me: PlatformMeView }) 
     onSuccess: async () => {
       setPassword('');
       setCode('');
-      await queryClient.invalidateQueries({ queryKey: ['platform'] });
+      // Every platform query refused before the step-up (`['platform', …]` and the
+      // `'platform-…'` keys of the permission screens) loads again now that it is live.
+      await queryClient.invalidateQueries({
+        predicate: (query) =>
+          typeof query.queryKey[0] === 'string' && query.queryKey[0].startsWith('platform'),
+      });
     },
   });
 

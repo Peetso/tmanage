@@ -141,6 +141,30 @@ export class SupportSessionService {
       // Already inside: hand back the visit that is running rather than stacking a second one.
       const running = await this.repository.liveFor(tx, adminUserId, organizationId);
       if (running) {
+        // Entered again from a different sign-in (the earlier browser session was never signed
+        // out): the visit follows the admin to this browser session, or the banner read would end
+        // it as signed out and leave this browser inside the organization without a banner.
+        if (running.browserSessionId !== actor.sessionId) {
+          await this.repository.rebindBrowserSession(tx, running.id, actor.sessionId);
+          await this.platformAudit.insert(
+            tx,
+            this.platformAudit.build({
+              actor,
+              action: 'platform.support_session_started',
+              targetType: 'support_session',
+              targetId: running.id,
+              targetLabel: organization.name,
+              organizationId,
+              supportSessionId: running.id,
+              before: { browserSession: 'previous' },
+              after: { browserSession: 'current', expiresAt: running.expiresAt.toISOString() },
+              reason,
+              reasonRequired: false,
+              request,
+              correlationId: request.correlationId,
+            }),
+          );
+        }
         return {
           id: running.id,
           slug: organization.slug,

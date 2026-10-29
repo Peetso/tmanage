@@ -41,7 +41,9 @@ export function PersonProfileScreen({ client, userId }: ScreenProps & { userId: 
   const api = client ?? browserApiClient();
   return (
     <PersonFrame api={api} userId={userId} tab="profile">
-      {(context) => <ProfileBody key={context.person.email} {...context} />}
+      {/* Keyed on the person, not the email: an email save refreshes `person.email`, and a
+          remount there would drop the "every session ended" notice the save just set. */}
+      {(context) => <ProfileBody key={context.person.id} {...context} />}
     </PersonFrame>
   );
 }

@@ -215,10 +215,9 @@ export function ContentBrowser({ api, home }: { api: ApiClient; home: PlatformCo
       >
         {selected === null ? (
           <p className="tm-cc-note">{t('PlatformContent.pickSomething')}</p>
-        ) : stream &&
-          selected.kind !== 'message' &&
-          selected.kind !== 'direct_message' &&
-          selected.kind !== 'request_message' ? (
+        ) : stream ? (
+          // In Chats, DMs and Requests every row of the list is a conversation (or a request),
+          // which the API tags with its messages' kind: it always opens as a message stream.
           <MessageStream
             api={api}
             organizationId={organizationId}
