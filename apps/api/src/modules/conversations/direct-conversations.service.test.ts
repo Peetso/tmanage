@@ -60,6 +60,10 @@ describe('DirectConversationsService', () => {
     lastMessageAt: null,
     createdAt: new Date('2026-10-22T00:00:00Z'),
     updatedAt: new Date('2026-10-22T00:00:00Z'),
+    deletedAt: null,
+    deletedByUserId: null,
+    deletedReason: null,
+    purgeAfter: null,
   };
 
   function service(

@@ -58,6 +58,10 @@ function decision(over: Partial<DecisionRow> = {}): DecisionRow {
     decidedBy: '01890000-0000-7000-8000-000000000001',
     decidedAt: now,
     createdAt: now,
+    deletedAt: null,
+    deletedByUserId: null,
+    deletedReason: null,
+    purgeAfter: null,
     ...over,
   };
 }
@@ -91,6 +95,10 @@ class FakeCommentsRepository {
       authorMembershipId: input.authorMembershipId,
       body: input.body,
       createdAt: new Date(Date.now() + this.rows.length),
+      deletedAt: null,
+      deletedByUserId: null,
+      deletedReason: null,
+      purgeAfter: null,
     };
     this.rows.push(row);
     return row;
@@ -207,6 +215,10 @@ describe('DecisionCommentsController', () => {
       authorMembershipId: OTHER_MEMBERSHIP,
       body: 'Written by someone else',
       createdAt: new Date(),
+      deletedAt: null,
+      deletedByUserId: null,
+      deletedReason: null,
+      purgeAfter: null,
     });
     const status = await statusOf(() =>
       controller.remove(context, member([PROJECT]), DECISION, 'comment-x'),

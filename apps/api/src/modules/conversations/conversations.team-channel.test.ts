@@ -102,6 +102,8 @@ class FakeConversations extends ConversationsRepository {
       deletedByUserId: null,
       createdAt: NOW,
       updatedAt: NOW,
+      deletedReason: null,
+      purgeAfter: null,
     };
   }
 }

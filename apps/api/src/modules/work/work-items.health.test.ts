@@ -50,6 +50,9 @@ function successorRow(): WorkItemRow {
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
+    deletedByUserId: null,
+    deletedReason: null,
+    purgeAfter: null,
   };
 }
 

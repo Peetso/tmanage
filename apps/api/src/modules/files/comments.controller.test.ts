@@ -84,6 +84,10 @@ class FakeCommentsRepository {
       body: input.body,
       createdBy: input.createdBy,
       createdAt: new Date(Date.now() + this.rows.length),
+      deletedAt: null,
+      deletedByUserId: null,
+      deletedReason: null,
+      purgeAfter: null,
     };
     this.rows.push(row);
     return row;

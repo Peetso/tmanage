@@ -56,6 +56,9 @@ function workItem(over: Partial<WorkItemRow> = {}): WorkItemRow {
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
+    deletedByUserId: null,
+    deletedReason: null,
+    purgeAfter: null,
     ...over,
   };
 }
@@ -88,6 +91,10 @@ class FakeCommentsRepository {
       authorMembershipId: input.authorMembershipId,
       body: input.body,
       createdAt: new Date(Date.now() + this.rows.length),
+      deletedAt: null,
+      deletedByUserId: null,
+      deletedReason: null,
+      purgeAfter: null,
     };
     this.rows.push(row);
     return row;

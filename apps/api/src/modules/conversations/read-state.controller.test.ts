@@ -77,6 +77,8 @@ function messageInOther(): MessageRow {
     deletedByUserId: null,
     createdAt: now,
     updatedAt: now,
+    deletedReason: null,
+    purgeAfter: null,
   };
 }
 

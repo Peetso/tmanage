@@ -62,6 +62,9 @@ function workItem(over: Partial<WorkItemRow> = {}): WorkItemRow {
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
+    deletedByUserId: null,
+    deletedReason: null,
+    purgeAfter: null,
     ...over,
   };
 }
@@ -125,6 +128,10 @@ class FakeLinksRepository {
       fileName: 'brand-book.pdf',
       status: 'ready',
       fileProjectId: PROJECT,
+      deletedAt: null,
+      deletedByUserId: null,
+      deletedReason: null,
+      purgeAfter: null,
     };
     this.rows.push(row);
     return row;
@@ -314,6 +321,10 @@ describe('F50: a file left in the source project is not listed after a move', ()
       fileName: 'A-salary-review.pdf',
       status: 'ready',
       fileProjectId: PROJECT,
+      deletedAt: null,
+      deletedByUserId: null,
+      deletedReason: null,
+      purgeAfter: null,
     });
     const listed = await controller.list(context, member([OTHER_PROJECT]), WORK_ID);
     expect(listed.files).toEqual([]);

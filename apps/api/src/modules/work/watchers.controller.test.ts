@@ -58,6 +58,9 @@ function workItem(over: Partial<WorkItemRow> = {}): WorkItemRow {
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
+    deletedByUserId: null,
+    deletedReason: null,
+    purgeAfter: null,
     ...over,
   };
 }
