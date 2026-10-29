@@ -3549,3 +3549,61 @@ type _pa07OrgLimitItem = Assert<Exact<ApiPlatformOrgLimitItem, WebPlatformOrgLim
 type _pa07OrgSettingItem = Assert<Exact<ApiPlatformOrgSettingItem, WebPlatformOrgSettingItem>>;
 type _pa07OrgFlagItem = Assert<Exact<ApiPlatformOrgFlagItem, WebPlatformOrgFlagItem>>;
 type _pa07OrgMemberItem = Assert<Exact<ApiPlatformOrgMemberItem, WebPlatformOrgMemberItem>>;
+
+// ---- platform-admin v2 · PA-08 ----
+// Content (SPEC §5.4, B5–B7): `/v1/platform/organizations/:id/content…`, read by `apps/web/src/lib/api/platform-content.ts`.
+import type {
+  PlatformContentOrgView as ApiPlatformContentOrgView,
+  PlatformContentSessionView as ApiPlatformContentSessionView,
+  PlatformContentCountsView as ApiPlatformContentCountsView,
+  PlatformContentHomeView as ApiPlatformContentHomeView,
+  PlatformContentRowView as ApiPlatformContentRowView,
+  PlatformContentListView as ApiPlatformContentListView,
+  PlatformContentMessagesView as ApiPlatformContentMessagesView,
+  PlatformContentChangeView as ApiPlatformContentChangeView,
+  PlatformContentHistoryView as ApiPlatformContentHistoryView,
+  PlatformContentLockView as ApiPlatformContentLockView,
+  PlatformContentVersionView as ApiPlatformContentVersionView,
+  PlatformContentItemView as ApiPlatformContentItemView,
+  PlatformContentTrashView as ApiPlatformContentTrashView,
+  PlatformContentWriteView as ApiPlatformContentWriteView,
+} from '../../apps/api/src/modules/platform-admin/content/content.service';
+import type {
+  PlatformContentOrgView as WebPlatformContentOrgView,
+  PlatformContentSessionView as WebPlatformContentSessionView,
+  PlatformContentCountsView as WebPlatformContentCountsView,
+  PlatformContentHomeView as WebPlatformContentHomeView,
+  PlatformContentRowView as WebPlatformContentRowView,
+  PlatformContentListView as WebPlatformContentListView,
+  PlatformContentMessagesView as WebPlatformContentMessagesView,
+  PlatformContentChangeView as WebPlatformContentChangeView,
+  PlatformContentHistoryView as WebPlatformContentHistoryView,
+  PlatformContentLockView as WebPlatformContentLockView,
+  PlatformContentVersionView as WebPlatformContentVersionView,
+  PlatformContentItemView as WebPlatformContentItemView,
+  PlatformContentTrashView as WebPlatformContentTrashView,
+  PlatformContentWriteView as WebPlatformContentWriteView,
+} from '../../apps/web/src/lib/api/platform-content';
+
+type _pa08ContentOrg = Assert<Exact<ApiPlatformContentOrgView, WebPlatformContentOrgView>>;
+type _pa08ContentSession = Assert<
+  Exact<ApiPlatformContentSessionView, WebPlatformContentSessionView>
+>;
+type _pa08ContentCounts = Assert<Exact<ApiPlatformContentCountsView, WebPlatformContentCountsView>>;
+type _pa08ContentHome = Assert<Exact<ApiPlatformContentHomeView, WebPlatformContentHomeView>>;
+type _pa08ContentRow = Assert<Exact<ApiPlatformContentRowView, WebPlatformContentRowView>>;
+type _pa08ContentList = Assert<Exact<ApiPlatformContentListView, WebPlatformContentListView>>;
+type _pa08ContentMessages = Assert<
+  Exact<ApiPlatformContentMessagesView, WebPlatformContentMessagesView>
+>;
+type _pa08ContentChange = Assert<Exact<ApiPlatformContentChangeView, WebPlatformContentChangeView>>;
+type _pa08ContentHistory = Assert<
+  Exact<ApiPlatformContentHistoryView, WebPlatformContentHistoryView>
+>;
+type _pa08ContentLock = Assert<Exact<ApiPlatformContentLockView, WebPlatformContentLockView>>;
+type _pa08ContentVersion = Assert<
+  Exact<ApiPlatformContentVersionView, WebPlatformContentVersionView>
+>;
+type _pa08ContentItem = Assert<Exact<ApiPlatformContentItemView, WebPlatformContentItemView>>;
+type _pa08ContentTrash = Assert<Exact<ApiPlatformContentTrashView, WebPlatformContentTrashView>>;
+type _pa08ContentWrite = Assert<Exact<ApiPlatformContentWriteView, WebPlatformContentWriteView>>;

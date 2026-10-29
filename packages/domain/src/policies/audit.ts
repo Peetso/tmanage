@@ -872,6 +872,61 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'support_session',
     clause: '§12 cross-tenant support access — when the operator access stopped, and how',
   },
+  // ---- platform-admin v2 · PA-08 ----
+  /**
+   * PA-08 (SPEC §5.4). Content moderation from the Platform admin content browser, written under
+   * the Support session's tenant context: `effective_actor_id` is the platform admin, the before
+   * and after values go to `audit_event_changes`. The delete side of the kinds that had no delete
+   * action yet, and the edits that had none.
+   */
+  'message.edited': {
+    objectType: 'message',
+    clause: '§12 moderation — somebody else changed what a person said; before and after kept',
+  },
+  'work_item.updated': {
+    objectType: 'work_item',
+    clause: '§12 cross-tenant support access — support changed a work item; before and after kept',
+  },
+  'decision.updated': {
+    objectType: 'decision',
+    clause: '§12 cross-tenant support access — support changed a recorded decision',
+  },
+  'meeting.updated': {
+    objectType: 'meeting',
+    clause: '§12 cross-tenant support access — support changed a meeting',
+  },
+  'direct_message.deleted': {
+    objectType: 'direct_message',
+    clause: '§12 moderation — a direct message taken down',
+  },
+  'comment.deleted': {
+    objectType: 'comment',
+    clause: '§12 moderation — a comment taken down (work, document, decision, file, request)',
+  },
+  'document.deleted': {
+    objectType: 'document',
+    clause: '§12 — a document leaves the project; who removed it must be traceable',
+  },
+  'decision.deleted': {
+    objectType: 'decision',
+    clause: '§12 — a decision leaves the register; who removed it must be traceable',
+  },
+  'meeting.deleted': {
+    objectType: 'meeting',
+    clause: '§12 — a meeting leaves the calendar; who removed it must be traceable',
+  },
+  'file_asset.deleted': {
+    objectType: 'file_asset',
+    clause: '§12 — a file is no longer reachable; who removed it must be traceable',
+  },
+  'attachment.deleted': {
+    objectType: 'attachment',
+    clause: '§12 — a Drive or OneDrive file link removed from a work item',
+  },
+  'request_message.deleted': {
+    objectType: 'request_message',
+    clause: '§12 moderation — a request message taken down, possibly one the client saw',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1014,6 +1069,19 @@ const AUDIT_ACTION_LABELS = {
   // ---- platform-admin v2 · PA-05 ----
   'support.session_started': 'TManage support entered the workspace',
   'support.session_ended': 'TManage support left the workspace',
+  // ---- platform-admin v2 · PA-08 ----
+  'message.edited': 'Edited a message',
+  'work_item.updated': 'Changed a work item',
+  'decision.updated': 'Changed a decision',
+  'meeting.updated': 'Changed a meeting',
+  'direct_message.deleted': 'Deleted a direct message',
+  'comment.deleted': 'Deleted a comment',
+  'document.deleted': 'Deleted a document',
+  'decision.deleted': 'Deleted a decision',
+  'meeting.deleted': 'Deleted a meeting',
+  'file_asset.deleted': 'Deleted a file',
+  'attachment.deleted': 'Removed an attachment',
+  'request_message.deleted': 'Deleted a request message',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

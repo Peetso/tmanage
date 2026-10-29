@@ -8,6 +8,8 @@ import { PlatformTeamModule } from './team/team.module.js';
 import { PlatformPermissionsModule } from './permissions/permissions.module.js';
 // ---- platform-admin v2 · PA-05 ----
 import { PlatformSupportModule } from './support/support.module.js';
+// ---- platform-admin v2 · PA-08 ----
+import { PlatformContentModule } from './content/content.module.js';
 
 /**
  * Every Platform admin area, one Nest module each (platform-admin v2, PA-02 split). Each area
@@ -27,4 +29,6 @@ export const PLATFORM_AREA_MODULES: DynamicModule[] = [
   PlatformPermissionsModule.register(),
   // ---- platform-admin v2 · PA-05 ----
   PlatformSupportModule.register(),
+  // ---- platform-admin v2 · PA-08 ----
+  PlatformContentModule.register(),
 ];

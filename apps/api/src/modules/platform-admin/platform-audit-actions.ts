@@ -82,6 +82,12 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.organization_archived',
   'platform.organization_unarchived',
   'platform.organization_policy_refreshed',
+  // ---- platform-admin v2 · PA-08 ----
+  'platform.content_edited',
+  'platform.content_deleted',
+  'platform.content_restored',
+  'platform.content_downloaded',
+  'platform.content_edit_refused',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];
