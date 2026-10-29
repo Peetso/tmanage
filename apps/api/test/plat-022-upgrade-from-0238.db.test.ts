@@ -1,0 +1,111 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { copyFile, mkdtemp, readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { Connection, RowDataPacket } from 'mysql2/promise';
+import { createMigrationConnection } from '../src/common/database/connection.js';
+import { migrate, readLedger } from '../src/common/database/migrator.js';
+import { migrationsDirectory, startTestDatabase } from './support/test-database.js';
+import type { TestDatabase } from './support/test-database.js';
+import { seedTwoTenants } from './seed-two-tenants.js';
+
+/**
+ * PLAT-022 — the platform-admin v2 migrations (0239–0247) apply on MariaDB 11.8 on top of a
+ * populated database at 0238, the schema the live site runs before this wave ships.
+ *
+ * The rest of the suite migrates an empty database; this proves the upgrade path the deploy takes:
+ * existing organizations, people, memberships and content survive, every new column starts in its
+ * neutral state (nothing deleted, nobody disabled), and the ledger records each file once.
+ */
+
+const LIVE_HEAD = 238;
+const WAVE = [239, 240, 241, 242, 243, 244, 245, 246, 247];
+
+let db: TestDatabase;
+let connection: Connection;
+
+async function count(table: string): Promise<number> {
+  const [rows] = await connection.query<RowDataPacket[]>(`select count(*) as n from ${table}`);
+  return Number(rows[0]?.['n']);
+}
+
+beforeAll(async () => {
+  db = await startTestDatabase({ applyMigrations: false, scratch: true });
+  connection = await createMigrationConnection(db.url);
+}, 240_000);
+
+afterAll(async () => {
+  await connection?.end();
+  await db?.stop();
+});
+
+describe('upgrade from the live schema (0238) with data in it', () => {
+  const before: Record<string, number> = {};
+  const tables = ['organizations', 'users', 'memberships', 'projects', 'work_items', 'messages'];
+
+  it('builds the live schema at 0238 and fills it', async () => {
+    const files = (await readdir(migrationsDirectory)).filter((file) => file.endsWith('.sql'));
+    const live = await mkdtemp(join(tmpdir(), 'tmanage-live-0238-'));
+    for (const file of files.filter((name) => Number(name.slice(0, 4)) <= LIVE_HEAD)) {
+      await copyFile(join(migrationsDirectory, file), join(live, file));
+    }
+    await migrate(connection, { directory: live, appliedBy: 'plat-022-live' });
+    const ledger = await readLedger(connection);
+    expect(Math.max(...ledger.map((row) => row.version))).toBe(LIVE_HEAD);
+
+    await seedTwoTenants(db.admin);
+    for (const table of tables) before[table] = await count(table);
+    expect(before['organizations']).toBeGreaterThan(0);
+    expect(before['work_items']).toBeGreaterThan(0);
+  });
+
+  it('applies 0239–0247 on MariaDB 11.8 and keeps every row', async () => {
+    const [version] = await connection.query<RowDataPacket[]>('select version() as v');
+    expect(String(version[0]?.['v'])).toMatch(/^11\.8\..*MariaDB/i);
+
+    const report = await migrate(connection, {
+      directory: migrationsDirectory,
+      appliedBy: 'plat-022-deploy',
+    });
+    expect(report.applied.map((file) => file.version)).toEqual(WAVE);
+    const ledger = await readLedger(connection);
+    for (const wave of WAVE) {
+      expect(ledger.filter((row) => row.version === wave && row.status === 'applied')).toHaveLength(
+        1,
+      );
+    }
+    for (const table of tables) expect(await count(table), table).toBe(before[table]);
+  });
+
+  it('starts every new column in its neutral state', async () => {
+    const [orgs] = await connection.query<RowDataPacket[]>(
+      'select count(*) as n from organizations where deleted_at is not null or purge_after is not null',
+    );
+    expect(Number(orgs[0]?.['n'])).toBe(0);
+    const [users] = await connection.query<RowDataPacket[]>(
+      'select count(*) as n from users where disabled_at is not null or two_step_required_at is not null',
+    );
+    expect(Number(users[0]?.['n'])).toBe(0);
+    const [items] = await connection.query<RowDataPacket[]>(
+      'select count(*) as n from work_items where purge_after is not null',
+    );
+    expect(Number(items[0]?.['n'])).toBe(0);
+    for (const table of [
+      'platform_admins',
+      'platform_support_sessions',
+      'membership_permission_overrides',
+      'organization_limits',
+      'platform_export_jobs',
+    ]) {
+      expect(await count(table), table).toBe(0);
+    }
+  });
+
+  it('is a no-op the second time (a redeploy re-runs the migrator)', async () => {
+    const again = await migrate(connection, {
+      directory: migrationsDirectory,
+      appliedBy: 'plat-022-redeploy',
+    });
+    expect(again.applied).toEqual([]);
+  });
+});

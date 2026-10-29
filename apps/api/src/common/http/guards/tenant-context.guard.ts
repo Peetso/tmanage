@@ -216,6 +216,19 @@ export class TenantContextGuard implements CanActivate {
       );
     }
 
+    // Platform admin v2 (verifier). A Support visit is a browser session of the operator, bound to
+    // that session and its live step-up (SPEC §3.2): a token (a PAT minted inside the visit, an
+    // OAuth grant) never acts through the hidden `platform_support` row, now or on a later visit.
+    if (isBoundTokenScheme(state.authScheme) && supportSessionFromResolved(resolved) !== null) {
+      throw new ApiError(
+        404,
+        'not_found',
+        MESSAGES.organizationNotFound,
+        undefined,
+        'support_membership_token_refused',
+      );
+    }
+
     // F10. A bound token is an AI app's key: the owner's "Allow AI apps" switch and the operator's
     // platform switch stop it on REST exactly as they stop it on `/mcp`.
     if (isBoundTokenScheme(state.authScheme)) await this.enforceAiSwitches(state);

@@ -143,3 +143,23 @@ describe('TenantContextGuard — support session and request origin (PA-02)', ()
     expect(supportSessionOf(request)).toBeNull();
   });
 });
+
+// ---- platform-admin v2 · verifier ----
+describe('TenantContextGuard — a token never acts through a Support visit', () => {
+  it('refuses a bound token whose membership is a live platform_support row', async () => {
+    const support = { id: 'pss-2', adminUserId: USER, expiresAt: new Date('2999-01-01') };
+    const { guard, loadPrincipal } = guardResolvingTo('org-s', undefined, support);
+    const request = { params: { orgSlug: 'org-s' } };
+    const state = requireRequestState(request);
+    state.session = { sessionId: 'pat:t9', userId: USER };
+    state.authScheme = 'personal_access_token';
+    state.personalAccessToken = { organizationId: 'org-s', membershipId: 'm-support' };
+
+    await expect(guard.canActivate(contextFor(request))).rejects.toMatchObject({
+      status: 404,
+      auditCode: 'support_membership_token_refused',
+    });
+    expect(loadPrincipal).not.toHaveBeenCalled();
+    expect(state.tenant).toBeUndefined();
+  });
+});
