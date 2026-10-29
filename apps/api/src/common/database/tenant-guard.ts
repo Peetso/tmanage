@@ -1077,6 +1077,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // C6 (0229). Tenant-owned: one studio's company logo, keyed `(organization_id, id)` with a
   // `(organization_id)` upsert key. An unscoped read would be every studio's logo.
   organization_logos: 'organization_id',
+  // ---- platform-admin v2 · PA-02 ----
+  // 0241. Tenant-owned: the before/after values of one org audit event, one row per field,
+  // keyed `(organization_id, id)` with a composite FK to `audit_events (organization_id, id)`.
+  // INSERT-only for the app, like `audit_events`.
+  audit_event_changes: 'organization_id',
 });
 
 /**
@@ -1160,6 +1165,13 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // legitimate, and the identity path (`makeIdentityRunner`) may reach it. The public read still
   // filters `published = 1` in SQL; the guard's job here is only to allow the unscoped access.
   'maintenance_windows',
+  // ---- platform-admin v2 · PA-02 ----
+  // 0239/0240. The platform admin team, the preset → permission mapping and the support sessions
+  // describe the operators, not a tenant; a support session names one organization but is read
+  // before any tenant context exists (resolver, platform screens), so it is global too.
+  'platform_admins',
+  'platform_permission_presets',
+  'platform_support_sessions',
 ]);
 
 export function isTenantTable(name: string): boolean {

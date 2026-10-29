@@ -41,6 +41,9 @@ export type ApiErrorCode =
   | 'rate_limited'
   // BILLING_MODE=beta_free: a plan change or purchase while the public beta is free (409).
   | 'billing_disabled_beta'
+  // ---- platform-admin v2 · PA-02 ----
+  // A platform admin whose preset lacks the route's permission (403; details name the key).
+  | 'platform_permission_missing'
   | 'internal_error';
 
 export interface ApiErrorDetail {

@@ -6,6 +6,9 @@ import { auditEvents } from '../../common/database/schema.js';
 import type { AuditEventRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import { actorAppAuditValue } from './actor-app.js';
+import { auditOriginOf } from '../../common/http/request-origin.js';
+import { AuditEventChangesRepository } from './audit-event-changes.repository.js';
+import type { AuditChangeInput } from './audit-redaction.js';
 
 /**
  * The append-only audit table — AUD-001, `25-AUTH-AND-TENANT-ISOLATION` §12.
@@ -71,6 +74,12 @@ export interface AppendAuditEventInput {
   /** Set only for impersonation and cross-tenant support (§10, §12). */
   readonly effectiveActorId?: string | null;
   readonly metadata: AuditMetadata;
+  /**
+   * Platform admin v2 (PA-02, 0241): what changed — one `{field, before, after}` per field. The
+   * values go to `audit_event_changes` in the same transaction, redacted by field name and capped
+   * at 2000 characters (`audit-redaction.ts`); never into `metadata_json`.
+   */
+  readonly changes?: readonly AuditChangeInput[];
 }
 
 export interface ListAuditEventsOptions {
@@ -90,7 +99,13 @@ export interface ListAuditEventsOptions {
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
 
+/** 0240: a support session's action counter, bumped once per audit row written inside it. */
+export const SQL_BUMP_SUPPORT_ACTIONS =
+  'update platform_support_sessions set actions_count = actions_count + 1 where id = ?';
+
 export class AuditEventsRepository {
+  constructor(private readonly changes = new AuditEventChangesRepository()) {}
+
   /**
    * Append one event.
    *
@@ -150,6 +165,11 @@ export class AuditEventsRepository {
     }
 
     const id = uuidv7();
+    // PA-02 (0241). The request's IP and device, and — inside Support mode — the support session
+    // and the platform admin behind it, from the origin the tenant guard bound to this context.
+    // A service or worker context has none, and its rows are exactly what they were before.
+    const origin = auditOriginOf(context);
+    const support = origin?.supportSession ?? null;
 
     await tenantDrizzle(runner)
       .insert(auditEvents)
@@ -158,7 +178,7 @@ export class AuditEventsRepository {
         // From the context. Not from `input` — there is no such field.
         organizationId: context.organizationId,
         actorUserId: input.actorUserId === undefined ? context.userId : input.actorUserId,
-        effectiveActorId: input.effectiveActorId ?? null,
+        effectiveActorId: input.effectiveActorId ?? support?.adminUserId ?? null,
         action: input.action,
         objectType: auditObjectTypeFor(input.action),
         objectId: input.objectId,
@@ -173,7 +193,17 @@ export class AuditEventsRepository {
         // so the value is supplied as an expression rather than as a literal — which keeps
         // the timestamp the database's in either case.
         createdAt: sql`current_timestamp(3)`,
+        ip: origin?.ip ?? null,
+        userAgent: origin?.userAgent ?? null,
+        platformSupportSessionId: support?.id ?? null,
       });
+
+    if (input.changes !== undefined && input.changes.length > 0) {
+      await this.changes.appendFor(runner, context, id, input.changes);
+    }
+    if (support !== null && input.result === 'allowed') {
+      await runner.query(SQL_BUMP_SUPPORT_ACTIONS, [support.id]);
+    }
 
     return this.requireById(runner, context, id);
   }

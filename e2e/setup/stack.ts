@@ -89,8 +89,15 @@ function apiEnv(databaseUrl: string, storageRoot?: string): NodeJS.ProcessEnv {
     EMAIL_DRIVER: 'console',
     EMAIL_FROM_ADDRESS: 'dev@tmanage.local',
     MALWARE_SCAN_DRIVER: 'stub',
+    // ---- platform-admin v2 · PA-02 ----
+    // The seeded platform operator (`world().platformAdmin`, a verified user in no organization)
+    // is the bootstrap super admin, so the platform journeys can open `/platform`.
+    PLATFORM_ADMIN_EMAILS: PLATFORM_ADMIN_EMAIL,
   };
 }
+
+/** `seed-two-tenants.ts` seeds this address as `world().platformAdmin`. */
+export const PLATFORM_ADMIN_EMAIL = 'nour.platform@tmanage.example';
 
 function run(
   command: string,

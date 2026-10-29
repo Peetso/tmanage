@@ -2,14 +2,14 @@ import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import type { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { ensureRequestState } from '../../common/http/request-state.js';
-import { TenantContextGuard } from '../../common/http/guards/tenant-context.guard.js';
-import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import { ensureRequestState } from '../../../common/http/request-state.js';
+import { TenantContextGuard } from '../../../common/http/guards/tenant-context.guard.js';
+import type { TenantDatabase } from '../../../common/database/tenant-context.js';
 import {
   MembershipResolver,
   SUSPENDED_MESSAGE,
-} from '../tenancy/membership-resolver.repository.js';
-import type { PrincipalRepository } from '../tenancy/principal.repository.js';
+} from '../../tenancy/membership-resolver.repository.js';
+import type { PrincipalRepository } from '../../tenancy/principal.repository.js';
 
 /** A suspended company stops its members — the owner included — at the tenant guard. */
 
@@ -21,11 +21,17 @@ function guardOver(suspendedAt: string | null) {
   let call = 0;
   // The internal-membership query returns one owner row (positional, as Drizzle asks); client none.
   const runner = {
-    query: async () => (++call === 1 ? [[ORG, 1, ORG, 'owner', 1, 1, null, suspendedAt]] : []),
+    query: async (sql: string) => {
+      // PA-01's once-per-process probe for `organizations.deleted_at` (0243): answer "no column".
+      if (/limit 0/iu.test(sql)) throw Object.assign(new Error('unknown column'), { errno: 1054 });
+      return ++call === 1 ? [[ORG, 1, ORG, 'owner', 1, 1, null, suspendedAt]] : [];
+    },
   };
   const database = {
     bootstrapRead: async <T>(_o: unknown, work: (db: unknown) => Promise<T>) => work(runner),
-    read: async () => ({}),
+    // PA-01's live-overrides read (none) runs through `read`; anything else answers `{}` as before.
+    read: async <T>(_c: unknown, work?: (db: unknown) => Promise<T>) =>
+      work ? work({ query: async () => [] }) : ({} as T),
   } as unknown as TenantDatabase;
   const guard = new TenantContextGuard(
     new Reflector(),

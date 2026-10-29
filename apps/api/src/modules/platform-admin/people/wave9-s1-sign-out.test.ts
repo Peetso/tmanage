@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { TenantDatabase } from '../../common/database/tenant-context.js';
-import { BEARER_CUTOFF_BOOTSTRAP_REASON } from '../identity/bearer-credentials.js';
-import { PlatformAdminRepository } from './platform-admin.repository.js';
+import type { TenantDatabase } from '../../../common/database/tenant-context.js';
+import { BEARER_CUTOFF_BOOTSTRAP_REASON } from '../../identity/bearer-credentials.js';
+import { PlatformAdminRepository } from '../platform-admin.repository.js';
 
 /**
  * Wave 9, lane S1, F19: the platform operator's "sign out everywhere" used to end only the

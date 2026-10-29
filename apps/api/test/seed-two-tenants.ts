@@ -1,5 +1,6 @@
 import type { Pool } from 'mysql2/promise';
 import { uuidv7 } from '@tmanage/domain';
+import { hashPassword } from '../src/modules/identity/password.js';
 
 /**
  * The seed world, and the adversarial pair the isolation corpus is built on.
@@ -100,7 +101,33 @@ export interface SeedWorld {
     readonly projectId: string;
   };
   readonly brightops: SeededTenant & { readonly owner: SeededUser };
+  // ---- platform-admin v2 · PA-02 ----
+  /**
+   * The TManage operator: a verified account that belongs to no organization. The e2e stack names
+   * this address in `PLATFORM_ADMIN_EMAILS`, so it is the bootstrap super admin.
+   */
+  readonly platformAdmin: SeededPlatformUser;
+  /** A second verified account in no organization, added to the platform team by a journey. */
+  readonly supportCandidate: SeededPlatformUser;
 }
+
+/** A verified account with no membership anywhere (platform-admin v2). */
+export interface SeededPlatformUser {
+  readonly id: string;
+  readonly email: string;
+  readonly displayName: string;
+  /** Test-only password for the step-up. */
+  readonly password: string;
+}
+
+/** `e2e/setup/stack.ts` puts this address in `PLATFORM_ADMIN_EMAILS`. */
+export const SEEDED_PLATFORM_ADMIN_EMAIL = 'nour.platform@tmanage.example';
+export const SEEDED_SUPPORT_CANDIDATE_EMAIL = 'karim.support@tmanage.example';
+/**
+ * Both platform accounts get this password so a journey can pass the Platform admin step-up
+ * (password re-confirmation; neither account has a two-step factor). A test-only value.
+ */
+export const SEEDED_PLATFORM_PASSWORD = 'platform-e2e-passphrase-2026';
 
 /**
  * Derive an id one hex digit away from `id`.
@@ -361,6 +388,17 @@ export async function seedTwoTenants(admin: Pool): Promise<SeedWorld> {
     tarekId,
   );
 
+  // ---- platform-admin v2 · PA-02 ----
+  const platformAdminId = await user(SEEDED_PLATFORM_ADMIN_EMAIL, 'Nour Platform');
+  const supportCandidateId = await user(SEEDED_SUPPORT_CANDIDATE_EMAIL, 'Karim Support');
+  const platformPasswordHash = await hashPassword(SEEDED_PLATFORM_PASSWORD);
+  for (const id of [platformAdminId, supportCandidateId]) {
+    await admin.execute('insert into user_passwords (user_id, password_hash) values (?, ?)', [
+      id,
+      platformPasswordHash,
+    ]);
+  }
+
   return {
     northstar: {
       organizationId: northstarOrg,
@@ -463,6 +501,18 @@ export async function seedTwoTenants(admin: Pool): Promise<SeedWorld> {
         membershipId: tarekMembership,
         role: 'owner',
       },
+    },
+    platformAdmin: {
+      id: platformAdminId,
+      email: SEEDED_PLATFORM_ADMIN_EMAIL,
+      displayName: 'Nour Platform',
+      password: SEEDED_PLATFORM_PASSWORD,
+    },
+    supportCandidate: {
+      id: supportCandidateId,
+      email: SEEDED_SUPPORT_CANDIDATE_EMAIL,
+      displayName: 'Karim Support',
+      password: SEEDED_PLATFORM_PASSWORD,
     },
   };
 }

@@ -1,45 +1,27 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  Inject,
-  Param,
-  Post,
-  Put,
-  Query,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Post, Req, UseGuards } from '@nestjs/common';
 import { NoTenant } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
-import { requireRequestState } from '../../common/http/request-state.js';
 import { AuthenticationRejectedError } from '../identity/authentication.service.js';
+import { PLATFORM_ADMIN_SERVICE } from './platform-admin-core.module.js';
+import { platformRequestContext } from './platform-admin.access.js';
 import {
   CurrentPlatformAdmin,
   PlatformAdminGuard,
   PlatformStepUpExempt,
 } from './platform-admin.guard.js';
 import type { PlatformAdminActor } from './platform-admin.guard.js';
-import type { PlatformAdminService, RequestContext } from './platform-admin.service.js';
+import type { PlatformAdminService } from './platform-admin.service.js';
 
-export const PLATFORM_ADMIN_SERVICE = Symbol.for('tmanage.PlatformAdminService');
-
-interface RequestLike {
-  readonly ip?: string;
-  readonly headers: Record<string, string | string[] | undefined>;
-}
-
-interface ReasonInput {
-  readonly reason?: unknown;
-}
+export { PLATFORM_ADMIN_SERVICE } from './platform-admin-core.module.js';
 
 /**
- * `/v1/platform/*` — the TManage operator's surface (see `platform-admin.access.ts`).
+ * `/v1/platform/me` and `/v1/platform/step-up` — the two routes a platform admin may call before
+ * stepping up, and the only ones that need no platform permission. Every other route lives in
+ * its area's controller (`platform-admin.areas.ts`).
  *
  * `@NoTenant()` on the class: no organization is resolved and no organization role is
- * consulted. `PlatformAdminGuard` is the whole of the authorization, and it runs on every
- * route here. POSTs and PUTs ride the global CSRF guard like every other cookie-session write.
+ * consulted. `PlatformAdminGuard` is the whole of the authorization. POSTs ride the global CSRF
+ * guard like every other cookie-session write.
  */
 @Controller('v1/platform')
 @NoTenant()
@@ -49,8 +31,8 @@ export class PlatformAdminController {
 
   @Get('me')
   @PlatformStepUpExempt()
-  me(@CurrentPlatformAdmin() actor: PlatformAdminActor) {
-    return this.service.me(actor);
+  me(@CurrentPlatformAdmin() actor: PlatformAdminActor, @Req() request: object) {
+    return this.service.me(actor, platformRequestContext(request));
   }
 
   @Post('step-up')
@@ -59,10 +41,10 @@ export class PlatformAdminController {
   async stepUp(
     @CurrentPlatformAdmin() actor: PlatformAdminActor,
     @Body() body: { password?: unknown; code?: unknown },
-    @Req() request: RequestLike,
+    @Req() request: object,
   ) {
     try {
-      return await this.service.stepUp(actor, body ?? {}, contextOf(request));
+      return await this.service.stepUp(actor, body ?? {}, platformRequestContext(request));
     } catch (error) {
       if (error instanceof AuthenticationRejectedError) {
         if (error.rejection === 'rate_limited') {
@@ -86,107 +68,4 @@ export class PlatformAdminController {
       throw error;
     }
   }
-
-  @Get('overview')
-  overview(@Req() request: RequestLike) {
-    return this.service.overview(contextOf(request));
-  }
-
-  @Get('companies')
-  companies(@Query('q') search: unknown, @Req() request: RequestLike) {
-    return this.service.companies(search, contextOf(request));
-  }
-
-  @Get('companies/:organizationId')
-  company(@Param('organizationId') id: string, @Req() request: RequestLike) {
-    return this.service.company(id, contextOf(request));
-  }
-
-  @Post('companies/:organizationId/suspension')
-  @HttpCode(200)
-  suspend(
-    @CurrentPlatformAdmin() actor: PlatformAdminActor,
-    @Param('organizationId') id: string,
-    @Body() body: ReasonInput,
-    @Req() request: RequestLike,
-  ) {
-    return this.service.setSuspended(actor, id, true, body ?? {}, contextOf(request));
-  }
-
-  @Post('companies/:organizationId/reactivation')
-  @HttpCode(200)
-  reactivate(
-    @CurrentPlatformAdmin() actor: PlatformAdminActor,
-    @Param('organizationId') id: string,
-    @Body() body: ReasonInput,
-    @Req() request: RequestLike,
-  ) {
-    return this.service.setSuspended(actor, id, false, body ?? {}, contextOf(request));
-  }
-
-  @Get('people')
-  people(@Query('email') email: unknown, @Req() request: RequestLike) {
-    return this.service.people(email, contextOf(request));
-  }
-
-  @Post('people/:userId/sign-out')
-  @HttpCode(200)
-  signOut(
-    @CurrentPlatformAdmin() actor: PlatformAdminActor,
-    @Param('userId') id: string,
-    @Body() body: ReasonInput,
-    @Req() request: RequestLike,
-  ) {
-    return this.service.signOutEverywhere(actor, id, body ?? {}, contextOf(request));
-  }
-
-  @Post('people/:userId/password-reset')
-  @HttpCode(202)
-  passwordReset(
-    @CurrentPlatformAdmin() actor: PlatformAdminActor,
-    @Param('userId') id: string,
-    @Body() body: ReasonInput,
-    @Req() request: RequestLike,
-  ) {
-    return this.service.sendPasswordReset(actor, id, body ?? {}, contextOf(request));
-  }
-
-  @Get('settings')
-  settings(@Req() request: RequestLike) {
-    return this.service.settings(contextOf(request));
-  }
-
-  @Put('settings/public-signup')
-  setPublicSignup(
-    @CurrentPlatformAdmin() actor: PlatformAdminActor,
-    @Body() body: { open?: unknown; reason?: unknown },
-    @Req() request: RequestLike,
-  ) {
-    return this.service.setPublicSignup(actor, body ?? {}, contextOf(request));
-  }
-
-  /** S11: the platform AI kill switch — `/mcp` and the OAuth endpoints answer 503 while off. */
-  @Put('settings/ai-access')
-  setAiAccess(
-    @CurrentPlatformAdmin() actor: PlatformAdminActor,
-    @Body() body: { on?: unknown; reason?: unknown },
-    @Req() request: RequestLike,
-  ) {
-    return this.service.setAiAccess(actor, body ?? {}, contextOf(request));
-  }
-
-  @Get('audit')
-  audit(@Req() request: RequestLike) {
-    return this.service.auditLog(contextOf(request));
-  }
-}
-
-function contextOf(request: RequestLike): RequestContext {
-  const state = requireRequestState(request);
-  const userAgent = request.headers['user-agent'];
-  return {
-    correlationId: state.correlationId,
-    ip: request.ip ?? null,
-    userAgent: typeof userAgent === 'string' ? userAgent.slice(0, 255) : null,
-  };
 }

@@ -1669,3 +1669,14 @@ REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'tmanage_migrator'@'%';
 GRANT ALL PRIVILEGES ON `tmanage`.* TO 'tmanage_migrator'@'%';
 
 FLUSH PRIVILEGES;
+
+-- ---- platform-admin v2 · PA-02 ----
+-- 0239/0240 platform admin team, preset mapping, support sessions (global tables): INSERT and
+-- UPDATE (add, change preset/permissions, disable; a support session ends by `ended_at`). No
+-- DELETE: removing an admin disables the row, which stays as evidence. SELECT is the
+-- database-wide read. 0241 `audit_event_changes`: INSERT only, append-only like `audit_events`.
+-- `platform_admin_audit_events` keeps its INSERT-only grant above. The worker holds nothing here.
+GRANT INSERT, UPDATE ON `tmanage`.`platform_admins`             TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`platform_permission_presets` TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`platform_support_sessions`   TO 'tmanage_app'@'%';
+GRANT INSERT ON `tmanage`.`audit_event_changes`                 TO 'tmanage_app'@'%';

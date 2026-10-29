@@ -354,6 +354,8 @@ export const memberships = mysqlTable(
      * `organization_id` keeps the scope inside the membership's own tenant.
      */
     workspaceScopeId: char('workspace_scope_id', { length: 36 }),
+    /** PA-02 (0240): the support session a hidden `platform_support` membership belongs to. */
+    platformSupportSessionId: char('platform_support_session_id', { length: 36 }),
     version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
     /**
      * The membership half of the context's policy-version epoch (0023). Bumped on a role or
@@ -376,6 +378,7 @@ export const memberships = mysqlTable(
     // FK made the engine create this one implicitly under the constraint's own name. Declared
     // here only so `schema.ts` and the migrated database agree — it adds no migration.
     index('fk_memberships_workspace_scope_tenant').on(table.organizationId, table.workspaceScopeId),
+    index('ix_memberships_support').on(table.platformSupportSessionId),
   ],
 );
 
@@ -6348,9 +6351,15 @@ export const auditEvents = mysqlTable(
     /** Identifiers and classifications, never request bodies or content (spec §12). */
     metadataJson: json('metadata_json').notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** PA-02 (0241): where the action came from, and the support session it ran in. */
+    ip: varchar('ip', { length: 45 }),
+    userAgent: varchar('user_agent', { length: 255 }),
+    platformSupportSessionId: char('platform_support_session_id', { length: 36 }),
   },
   (table) => [
     uniqueIndex('uq_audit_events_org_id').on(table.organizationId, table.id),
+    index('ix_audit_events_support').on(table.platformSupportSessionId),
+    index('ix_audit_events_time_global').on(table.createdAt, table.id),
     index('ix_audit_events_org_time').on(table.organizationId, table.createdAt),
     index('ix_audit_events_org_actor_time').on(
       table.organizationId,
@@ -6449,16 +6458,25 @@ export const platformAdminAuditEvents = mysqlTable(
     id: char('id', { length: 36 }).primaryKey(),
     actorUserId: char('actor_user_id', { length: 36 }).notNull(),
     actorEmail: varchar('actor_email', { length: 254 }).notNull(),
-    action: varchar('action', { length: 64 }).notNull(),
+    action: varchar('action', { length: 96 }).notNull(),
     targetType: varchar('target_type', { length: 32 }).notNull(),
     targetId: char('target_id', { length: 36 }),
     targetLabel: varchar('target_label', { length: 254 }),
-    reason: varchar('reason', { length: 500 }).notNull(),
+    /** PA-02 (0239): organization, support session, redacted before/after, IP and device. */
+    organizationId: char('organization_id', { length: 36 }),
+    reason: varchar('reason', { length: 500 }),
     correlationId: char('correlation_id', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    supportSessionId: char('support_session_id', { length: 36 }),
+    beforeJson: text('before_json'),
+    afterJson: text('after_json'),
+    ip: varchar('ip', { length: 45 }),
+    userAgent: varchar('user_agent', { length: 255 }),
   },
   (table) => [
     index('ix_platform_admin_audit_events_time').on(table.createdAt),
+    index('ix_paae_org_time').on(table.organizationId, table.createdAt),
+    index('ix_paae_support').on(table.supportSessionId),
     index('ix_platform_admin_audit_events_target').on(
       table.targetType,
       table.targetId,
@@ -6470,7 +6488,7 @@ export const platformAdminAuditEvents = mysqlTable(
 /** 0206. Operator switches; today `public_signup` = `open` | `closed`. */
 export const platformSettings = mysqlTable('platform_settings', {
   settingKey: varchar('setting_key', { length: 64 }).primaryKey(),
-  settingValue: varchar('setting_value', { length: 255 }).notNull(),
+  settingValue: text('setting_value').notNull(),
   updatedByUserId: char('updated_by_user_id', { length: 36 }),
   updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
 });
@@ -9590,3 +9608,95 @@ export type OrgBrandingRow = typeof orgBranding.$inferSelect;
 export type OrganizationLogoRow = typeof organizationLogos.$inferSelect;
 export type PrivacyExportRow = typeof privacyExports.$inferSelect;
 export type PrivacyDeletionRequestRow = typeof privacyDeletionRequests.$inferSelect;
+
+// ---- platform-admin v2 · PA-02 ----
+
+/**
+ * 0239. The platform admin team (global, `NON_TENANT_TABLES`). `PLATFORM_ADMIN_EMAILS` stays the
+ * bootstrap super admins and is never stored here. `preset` is `super_admin` | `support` |
+ * `auditor` | `custom`; `permissions_json` holds the explicit list for `custom`.
+ */
+export const platformAdmins = mysqlTable(
+  'platform_admins',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    preset: varchar('preset', { length: 32 }).notNull().default('support'),
+    permissionsJson: text('permissions_json'),
+    status: varchar('status', { length: 16 }).notNull().default('active'),
+    createdBy: char('created_by', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    disabledAt: datetime('disabled_at', { mode: 'date', fsp: 3 }),
+    disabledReason: varchar('disabled_reason', { length: 500 }),
+  },
+  (table) => [
+    uniqueIndex('uq_platform_admins_user').on(table.userId),
+    index('ix_platform_admins_status').on(table.status),
+  ],
+);
+
+/** 0239. Preset → permission mapping edited from D6 (`super_admin` is fixed in code). */
+export const platformPermissionPresets = mysqlTable('platform_permission_presets', {
+  preset: varchar('preset', { length: 32 }).primaryKey(),
+  permissionsJson: text('permissions_json').notNull(),
+  updatedBy: char('updated_by', { length: 36 }),
+  updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+});
+
+/** 0240. One platform admin's visit to one organization (global: read before a tenant exists). */
+export const platformSupportSessions = mysqlTable(
+  'platform_support_sessions',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    adminUserId: char('admin_user_id', { length: 36 }).notNull(),
+    browserSessionId: char('browser_session_id', { length: 36 }).notNull(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }),
+    reason: varchar('reason', { length: 500 }),
+    startedAt: datetime('started_at', { mode: 'date', fsp: 3 }).notNull(),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+    endedAt: datetime('ended_at', { mode: 'date', fsp: 3 }),
+    endedReason: varchar('ended_reason', { length: 32 }),
+    actionsCount: int('actions_count').notNull().default(0),
+    previousRole: varchar('previous_role', { length: 64 }),
+    previousHasOrgWideScope: boolean('previous_has_org_wide_scope'),
+  },
+  (table) => [
+    index('ix_pss_open').on(table.organizationId, table.endedAt, table.expiresAt),
+    index('ix_pss_admin').on(table.adminUserId, table.startedAt),
+  ],
+);
+
+/** 0241. Before/after values of one org audit event, one row per field. INSERT-only. */
+export const auditEventChanges = mysqlTable(
+  'audit_event_changes',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    auditEventId: char('audit_event_id', { length: 36 }).notNull(),
+    field: varchar('field', { length: 64 }).notNull(),
+    beforeValue: varchar('before_value', { length: 2000 }),
+    afterValue: varchar('after_value', { length: 2000 }),
+    redacted: boolean('redacted').notNull().default(false),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_aec_org_id').on(table.organizationId, table.id),
+    index('ix_aec_event').on(table.organizationId, table.auditEventId),
+  ],
+);
+
+export type PlatformAdminRow = typeof platformAdmins.$inferSelect;
+export type PlatformPermissionPresetRow = typeof platformPermissionPresets.$inferSelect;
+export type PlatformSupportSessionRow = typeof platformSupportSessions.$inferSelect;
+export type AuditEventChangeRow = typeof auditEventChanges.$inferSelect;
+
+// Registered after the definitions above: `TABLES` is declared earlier in the file, and a
+// literal entry there would read these constants before they exist.
+Object.assign(TABLES, {
+  platform_admins: platformAdmins,
+  platform_permission_presets: platformPermissionPresets,
+  platform_support_sessions: platformSupportSessions,
+  audit_event_changes: auditEventChanges,
+});

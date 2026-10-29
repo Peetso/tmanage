@@ -16,6 +16,21 @@ export interface PlatformMeView {
   readonly mfaEnabled: boolean;
   readonly stepUpExpiresAt: string | null;
   readonly stepUpMinutes: number;
+  // ---- platform-admin v2 · PA-02 ----
+  /** `env` = on `PLATFORM_ADMIN_EMAILS` (bootstrap super admin); `db` = added in Team. */
+  readonly source: 'env' | 'db';
+  readonly preset: 'super_admin' | 'support' | 'auditor' | 'custom';
+  /** Every platform permission this admin holds (SPEC §3.1 keys). */
+  readonly permissions: readonly string[];
+  /** The admin's live Support sessions. */
+  readonly supportSessions: readonly PlatformMeSupportSessionView[];
+}
+
+export interface PlatformMeSupportSessionView {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly slug: string | null;
+  readonly expiresAt: string;
 }
 
 export interface PlatformOverviewView {
@@ -97,7 +112,8 @@ export interface PlatformAuditEventView {
   readonly targetType: string;
   readonly targetId: string | null;
   readonly targetLabel: string | null;
-  readonly reason: string;
+  /** `null` since 0239: a reason is optional on reads and edits. */
+  readonly reason: string | null;
   readonly occurredAt: string;
 }
 

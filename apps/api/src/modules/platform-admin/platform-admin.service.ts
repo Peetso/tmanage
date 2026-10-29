@@ -1,32 +1,20 @@
-import { ApiError, MESSAGES } from '../../common/http/errors.js';
-import { PLATFORM_STEP_UP_MINUTES, requireId, requireReason } from './platform-admin.access.js';
+import { PLATFORM_PERMISSIONS } from '@tmanage/domain';
+import { ApiError } from '../../common/http/errors.js';
+import { PLATFORM_STEP_UP_MINUTES } from './platform-admin.access.js';
+import type { PlatformRequestContext } from './platform-admin.access.js';
 import type { PlatformAdminActor } from './platform-admin.guard.js';
-import type {
-  PlatformAdminRepository,
-  PlatformAuditInput,
-  PlatformCompanyRow,
-} from './platform-admin.repository.js';
-import { MAX_PLATFORM_AUDIT } from './platform-admin.repository.js';
-import {
-  environmentAiDisabled,
-  PLATFORM_AI_ACCESS_SETTING,
-  platformAiAccessOn,
-} from '../oauth/ai-access.js';
-import { PUBLIC_SIGNUP_SETTING, publicSignupFromSetting } from './platform-settings.js';
+import type { PlatformAdminRepository } from './platform-admin.repository.js';
+import { platformAuditFor } from './platform-audit.service.js';
 
 /**
- * Platform admin — the operator's reads and actions. Every action takes a typed reason and
- * writes the platform audit row in the same transaction as the change (or, for the reset
- * email, before the email is composed). Nothing here reads customer content, and there is
- * no impersonation: the operator can stop a company, end a person's sessions and send them
- * the ordinary reset email, and that is all.
+ * Platform admin — the session part: who the operator is (`me`) and the step-up.
+ *
+ * Platform admin v2 split the rest by area (`platform-admin.areas.ts`): organizations, people,
+ * settings, activity and the team each have their own controller, service and module. The view
+ * types stay here so the web contract (`e2e/contracts/api-web-shapes.ts`) keeps one import.
  */
 
-export interface RequestContext {
-  readonly correlationId: string;
-  readonly ip: string | null;
-  readonly userAgent: string | null;
-}
+export type RequestContext = PlatformRequestContext;
 
 /** The slice of `AuthenticationService` the step-up needs: password (+ code) re-confirmation. */
 export interface Reauthenticator {
@@ -50,6 +38,21 @@ export interface PlatformMeView {
   readonly mfaEnabled: boolean;
   readonly stepUpExpiresAt: string | null;
   readonly stepUpMinutes: number;
+  // ---- platform-admin v2 · PA-02 ----
+  /** `env` = on `PLATFORM_ADMIN_EMAILS` (bootstrap super admin); `db` = added in Team. */
+  readonly source: 'env' | 'db';
+  readonly preset: 'super_admin' | 'support' | 'auditor' | 'custom';
+  /** Every platform permission this admin holds (SPEC §3.1 keys). */
+  readonly permissions: readonly string[];
+  /** The admin's live Support sessions (PA-03 opens them; empty until then). */
+  readonly supportSessions: readonly PlatformMeSupportSessionView[];
+}
+
+export interface PlatformMeSupportSessionView {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly slug: string | null;
+  readonly expiresAt: string;
 }
 
 export interface PlatformCompanyView {
@@ -134,7 +137,8 @@ export interface PlatformAuditEventView {
   readonly targetType: string;
   readonly targetId: string | null;
   readonly targetLabel: string | null;
-  readonly reason: string;
+  /** `null` since 0239: a reason is optional on reads and edits (SPEC P6). */
+  readonly reason: string | null;
   readonly occurredAt: string;
 }
 
@@ -142,18 +146,32 @@ export class PlatformAdminService {
   constructor(
     private readonly repository: PlatformAdminRepository,
     private readonly reauth: Reauthenticator,
-    private readonly resets: ResetMailer,
-    private readonly publicSignupDefault: boolean,
-    private readonly now: () => Date = () => new Date(),
   ) {}
 
-  me(actor: PlatformAdminActor): PlatformMeView {
+  async me(actor: PlatformAdminActor, context: RequestContext): Promise<PlatformMeView> {
+    const sessions = await this.repository.admins.liveSupportSessions(
+      actor.account.userId,
+      context.correlationId,
+    );
+    const slugs = await this.repository.organizationSlugs(
+      [...new Set(sessions.map((session) => session.organizationId))],
+      context.correlationId,
+    );
     return {
       email: actor.account.email,
       displayName: actor.account.displayName,
       mfaEnabled: actor.account.mfaEnabled,
       stepUpExpiresAt: actor.stepUp ? actor.stepUp.expiresAt.toISOString() : null,
       stepUpMinutes: PLATFORM_STEP_UP_MINUTES,
+      source: actor.source ?? 'env',
+      preset: actor.preset ?? 'super_admin',
+      permissions: [...(actor.permissions ?? PLATFORM_PERMISSIONS)],
+      supportSessions: sessions.map((session) => ({
+        id: session.id,
+        organizationId: session.organizationId,
+        slug: slugs.get(session.organizationId) ?? null,
+        expiresAt: session.expiresAt.toISOString(),
+      })),
     };
   }
 
@@ -186,7 +204,7 @@ export class PlatformAdminService {
       sessionId: actor.sessionId,
       mfaVerified: actor.account.mfaEnabled,
       minutes: PLATFORM_STEP_UP_MINUTES,
-      audit: this.audit(actor, context, {
+      audit: platformAuditFor(actor, context, {
         action: 'platform.step_up',
         targetType: 'platform',
         targetId: null,
@@ -198,276 +216,4 @@ export class PlatformAdminService {
     });
     return { expiresAt: expiresAt.toISOString(), mfaVerified: actor.account.mfaEnabled };
   }
-
-  async overview(context: RequestContext): Promise<PlatformOverviewView> {
-    const row = await this.repository.overview(this.now(), context.correlationId);
-    return { ...row, computedAt: this.now().toISOString() };
-  }
-
-  async companies(
-    rawSearch: unknown,
-    context: RequestContext,
-  ): Promise<{ readonly companies: readonly PlatformCompanyView[] }> {
-    const search = typeof rawSearch === 'string' ? rawSearch.trim().slice(0, 190) : '';
-    const rows = await this.repository.listCompanies(
-      search === '' ? null : search,
-      context.correlationId,
-    );
-    return { companies: rows.map(toCompanyView) };
-  }
-
-  async company(rawId: unknown, context: RequestContext): Promise<PlatformCompanyDetailView> {
-    const id = requireId(rawId);
-    const row = await this.repository.findCompany(id, context.correlationId);
-    if (!row) throw new ApiError(404, 'not_found', MESSAGES.notFound);
-    const events = await this.repository.listCompanyAudit(id, context.correlationId);
-    return {
-      company: toCompanyView(row),
-      recentAdminEvents: events.map((event) => ({
-        id: event.id,
-        action: event.action,
-        objectType: event.objectType,
-        result: event.result,
-        occurredAt: event.createdAt.toISOString(),
-      })),
-    };
-  }
-
-  async setSuspended(
-    actor: PlatformAdminActor,
-    rawId: unknown,
-    suspend: boolean,
-    body: { readonly reason?: unknown },
-    context: RequestContext,
-  ): Promise<{ readonly company: PlatformCompanyView }> {
-    const id = requireId(rawId);
-    const reason = requireReason(body?.reason);
-    const row = await this.repository.findCompany(id, context.correlationId);
-    if (!row) throw new ApiError(404, 'not_found', MESSAGES.notFound);
-    const already = row.suspendedAt !== null;
-    if (already === suspend) {
-      throw new ApiError(
-        409,
-        'conflict',
-        suspend ? 'This company is already suspended.' : 'This company is not suspended.',
-      );
-    }
-    await this.repository.setSuspended(
-      id,
-      suspend,
-      this.audit(actor, context, {
-        action: suspend ? 'platform.company_suspended' : 'platform.company_reactivated',
-        targetType: 'organization',
-        targetId: id,
-        targetLabel: row.name,
-        reason,
-      }),
-    );
-    const updated = await this.repository.findCompany(id, context.correlationId);
-    return { company: toCompanyView(updated ?? row) };
-  }
-
-  async people(
-    rawEmail: unknown,
-    context: RequestContext,
-  ): Promise<{ readonly people: readonly PlatformPersonView[] }> {
-    const fragment = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
-    if (fragment.length < 3 || fragment.length > 254) {
-      throw new ApiError(400, 'validation_failed', 'Type at least three characters of an email.', [
-        { field: 'email', message: '3–254 characters' },
-      ]);
-    }
-    const found = await this.repository.searchPeople(fragment, context.correlationId);
-    return {
-      people: found.people.map((person) => ({
-        id: person.userId,
-        email: person.email,
-        displayName: person.displayName,
-        emailVerified: person.emailVerified,
-        createdAt: person.createdAt.toISOString(),
-        lastSignInAt: person.lastSignInAt ? person.lastSignInAt.toISOString() : null,
-        mfaEnabled: person.mfaEnabled,
-        companies: found.memberships
-          .filter((membership) => membership.userId === person.userId)
-          .map((membership) => ({
-            id: membership.organizationId,
-            name: membership.organizationName,
-            slug: membership.organizationSlug,
-            audience: membership.audience,
-            role: membership.role,
-            status: membership.status,
-          })),
-      })),
-    };
-  }
-
-  async signOutEverywhere(
-    actor: PlatformAdminActor,
-    rawId: unknown,
-    body: { readonly reason?: unknown },
-    context: RequestContext,
-  ) {
-    const id = requireId(rawId);
-    const reason = requireReason(body?.reason);
-    const person = await this.repository.findPerson(id, context.correlationId);
-    if (!person) throw new ApiError(404, 'not_found', MESSAGES.notFound);
-    const ended = await this.repository.signOutEverywhere(
-      id,
-      this.audit(actor, context, {
-        action: 'platform.user_signed_out',
-        targetType: 'user',
-        targetId: id,
-        targetLabel: person.email,
-        reason,
-      }),
-    );
-    return { sessionsEnded: ended };
-  }
-
-  async sendPasswordReset(
-    actor: PlatformAdminActor,
-    rawId: unknown,
-    body: { readonly reason?: unknown },
-    context: RequestContext,
-  ) {
-    const id = requireId(rawId);
-    const reason = requireReason(body?.reason);
-    const person = await this.repository.findPerson(id, context.correlationId);
-    if (!person) throw new ApiError(404, 'not_found', MESSAGES.notFound);
-    // Audited first: if composing the mail fails, the attempt is still on the record.
-    await this.repository.recordAudit(
-      this.audit(actor, context, {
-        action: 'platform.password_reset_sent',
-        targetType: 'user',
-        targetId: id,
-        targetLabel: person.email,
-        reason,
-      }),
-    );
-    // The ordinary self-service reset: a single-use 30-minute link to the person's own
-    // address. The operator never sees the link or sets a password.
-    await this.resets.request(person.email, context);
-    return { status: 'sent' as const };
-  }
-
-  async settings(context: RequestContext): Promise<PlatformSettingsView> {
-    const stored = await this.repository.readSetting(PUBLIC_SIGNUP_SETTING, context.correlationId);
-    const ai = await this.repository.readSetting(PLATFORM_AI_ACCESS_SETTING, context.correlationId);
-    return this.settingsView(stored, ai);
-  }
-
-  /** S11: turn every AI app off (or back on) for the whole platform. Audited with a reason. */
-  async setAiAccess(
-    actor: PlatformAdminActor,
-    body: { readonly on?: unknown; readonly reason?: unknown },
-    context: RequestContext,
-  ): Promise<PlatformSettingsView> {
-    if (typeof body?.on !== 'boolean') {
-      throw new ApiError(400, 'validation_failed', 'Choose on or off.', [
-        { field: 'on', message: 'must be a boolean' },
-      ]);
-    }
-    const reason = requireReason(body?.reason);
-    await this.repository.writeSetting(
-      PLATFORM_AI_ACCESS_SETTING,
-      body.on ? 'on' : 'off',
-      this.audit(actor, context, {
-        action: body.on ? 'platform.ai_access_on' : 'platform.ai_access_off',
-        targetType: 'setting',
-        targetId: null,
-        targetLabel: PLATFORM_AI_ACCESS_SETTING,
-        reason,
-      }),
-    );
-    return this.settings(context);
-  }
-
-  async setPublicSignup(
-    actor: PlatformAdminActor,
-    body: { readonly open?: unknown; readonly reason?: unknown },
-    context: RequestContext,
-  ): Promise<PlatformSettingsView> {
-    if (typeof body?.open !== 'boolean') {
-      throw new ApiError(400, 'validation_failed', 'Choose open or closed.', [
-        { field: 'open', message: 'must be a boolean' },
-      ]);
-    }
-    const reason = requireReason(body?.reason);
-    const value = body.open ? 'open' : 'closed';
-    await this.repository.writeSetting(
-      PUBLIC_SIGNUP_SETTING,
-      value,
-      this.audit(actor, context, {
-        action: body.open ? 'platform.public_signup_opened' : 'platform.public_signup_closed',
-        targetType: 'setting',
-        targetId: null,
-        targetLabel: PUBLIC_SIGNUP_SETTING,
-        reason,
-      }),
-    );
-    return this.settings(context);
-  }
-
-  async auditLog(
-    context: RequestContext,
-  ): Promise<{ readonly events: readonly PlatformAuditEventView[] }> {
-    const rows = await this.repository.listAudit(MAX_PLATFORM_AUDIT, context.correlationId);
-    return {
-      events: rows.map((row) => ({
-        id: row.id,
-        actorEmail: row.actorEmail,
-        action: row.action,
-        targetType: row.targetType,
-        targetId: row.targetId,
-        targetLabel: row.targetLabel,
-        reason: row.reason,
-        occurredAt: row.createdAt.toISOString(),
-      })),
-    };
-  }
-
-  private settingsView(stored: string | null, aiStored: string | null): PlatformSettingsView {
-    const environmentDisabled = environmentAiDisabled(process.env['TMANAGE_MCP_DISABLED']);
-    return {
-      aiAccess: {
-        on: platformAiAccessOn(aiStored, environmentDisabled),
-        environmentDisabled,
-      },
-      publicSignup: {
-        open: publicSignupFromSetting(stored, this.publicSignupDefault),
-        source: stored === null ? ('environment' as const) : ('platform_setting' as const),
-        environmentDefault: this.publicSignupDefault,
-      },
-    };
-  }
-
-  private audit(
-    actor: PlatformAdminActor,
-    context: RequestContext,
-    fields: Omit<PlatformAuditInput, 'actorUserId' | 'actorEmail' | 'correlationId'>,
-  ): PlatformAuditInput {
-    return {
-      actorUserId: actor.account.userId,
-      actorEmail: actor.account.email,
-      correlationId: context.correlationId,
-      ...fields,
-    };
-  }
-}
-
-function toCompanyView(row: PlatformCompanyRow): PlatformCompanyView {
-  return {
-    id: row.id,
-    name: row.name,
-    slug: row.slug,
-    ownerEmail: row.ownerEmail,
-    people: row.people,
-    clients: row.clients,
-    projects: row.projects,
-    plan: row.planId,
-    createdAt: row.createdAt.toISOString(),
-    lastActiveAt: row.lastActiveAt ? row.lastActiveAt.toISOString() : null,
-    status: row.archivedAt ? 'archived' : row.suspendedAt ? 'suspended' : 'active',
-    suspendedAt: row.suspendedAt ? row.suspendedAt.toISOString() : null,
-  };
 }

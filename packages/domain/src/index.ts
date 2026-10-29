@@ -256,3 +256,24 @@ export type {
 // Public legal documents — x188, rendered server-side by the web and served by the API
 export { LEGAL_DOCUMENTS } from './legal/legal-content.js';
 export type { LegalDocument, LegalDocumentKey } from './legal/legal-content.js';
+
+// ---- platform-admin v2 · PA-02 ----
+// Platform permissions — who may do what in the Platform admin (SPEC §3.1)
+export {
+  EDITABLE_PLATFORM_PRESETS,
+  PLATFORM_PERMISSION_AREAS,
+  PLATFORM_PERMISSIONS,
+  PLATFORM_PRESET_NAMES,
+  PLATFORM_PRESETS,
+  SUPER_ADMIN_ONLY_PERMISSIONS,
+  isPlatformPermission,
+  isPlatformPreset,
+  normalizePlatformPermissions,
+  platformPermissionsFor,
+} from './policies/platform-permissions.js';
+export type {
+  EditablePlatformPreset,
+  PlatformNamedPreset,
+  PlatformPermission,
+  PlatformPreset,
+} from './policies/platform-permissions.js';

@@ -3203,3 +3203,31 @@ type _d5PrivacyDeletion = Assert<Exact<ApiPrivacyDeletionView, WebPrivacyDeletio
 type _d5PrivacyMemberOption = Assert<Exact<ApiPrivacyMemberOptionView, WebPrivacyMemberOptionView>>;
 type _d5PrivacyOverview = Assert<Exact<ApiPrivacyOverviewView, WebPrivacyOverviewView>>;
 type _d5MyPrivacy = Assert<Exact<ApiMyPrivacyView, WebMyPrivacyView>>;
+
+// ---- platform-admin v2 · PA-02 ----
+// `GET /v1/platform/me` support sessions and the platform admin team + presets (SPEC §5.1),
+// read by `apps/web/src/lib/api/platform-admin.ts` and `platform-team.ts`.
+import type { PlatformMeSupportSessionView as ApiPlatformMeSupportSessionView } from '../../apps/api/src/modules/platform-admin/platform-admin.service.js';
+import type {
+  PlatformPresetView as ApiPlatformPresetView,
+  PlatformPresetsView as ApiPlatformPresetsView,
+  PlatformTeamMemberView as ApiPlatformTeamMemberView,
+  PlatformTeamView as ApiPlatformTeamView,
+  PlatformTeamWriteView as ApiPlatformTeamWriteView,
+} from '../../apps/api/src/modules/platform-admin/team/team.service.js';
+import type { PlatformMeSupportSessionView as WebPlatformMeSupportSessionView } from '../../apps/web/src/lib/api/platform-admin';
+import type {
+  PlatformPresetView as WebPlatformPresetView,
+  PlatformPresetsView as WebPlatformPresetsView,
+  PlatformTeamMemberView as WebPlatformTeamMemberView,
+  PlatformTeamView as WebPlatformTeamView,
+  PlatformTeamWriteView as WebPlatformTeamWriteView,
+} from '../../apps/web/src/lib/api/platform-team';
+type _pa02MeSupportSession = Assert<
+  Exact<ApiPlatformMeSupportSessionView, WebPlatformMeSupportSessionView>
+>;
+type _pa02TeamMember = Assert<Exact<ApiPlatformTeamMemberView, WebPlatformTeamMemberView>>;
+type _pa02Team = Assert<Exact<ApiPlatformTeamView, WebPlatformTeamView>>;
+type _pa02Preset = Assert<Exact<ApiPlatformPresetView, WebPlatformPresetView>>;
+type _pa02Presets = Assert<Exact<ApiPlatformPresetsView, WebPlatformPresetsView>>;
+type _pa02TeamWrite = Assert<Exact<ApiPlatformTeamWriteView, WebPlatformTeamWriteView>>;

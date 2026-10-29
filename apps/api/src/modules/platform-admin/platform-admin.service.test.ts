@@ -2,12 +2,15 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PlatformAdminActor } from './platform-admin.guard.js';
 import type { PlatformAdminRepository, PlatformAuditInput } from './platform-admin.repository.js';
 import { PlatformAdminService } from './platform-admin.service.js';
+import { PlatformOrganizationsService } from './organizations/organizations.service.js';
+import { PlatformPeopleService } from './people/people.service.js';
+import { PlatformSettingsService } from './settings/settings.service.js';
 
 /** Every platform action carries a typed reason into the platform audit log; none runs without. */
 
 const ORG = '0199aa00-0000-7000-8000-0000000000c1';
 const PERSON = '0199aa00-0000-7000-8000-0000000000d1';
-const ctx = { correlationId: 'c', ip: null, userAgent: null };
+const ctx = { correlationId: 'c', ip: '203.0.113.9', userAgent: 'Firefox' };
 const account = {
   userId: 'u',
   email: 'peter@example.com',
@@ -51,15 +54,32 @@ function harness() {
     recordAudit: vi.fn(async (a: PlatformAuditInput) => keep(a)),
     writeSetting: vi.fn(async (_k: string, _v: string, a: PlatformAuditInput) => keep(a)),
     readSetting: vi.fn(async () => null),
+    recordStepUp: vi.fn(async (input: { audit: PlatformAuditInput }) => {
+      keep(input.audit);
+      return new Date('2026-10-28T10:15:00Z');
+    }),
+    organizationSlugs: async () => new Map([[ORG, 'northstar']]),
+    admins: {
+      liveSupportSessions: async () => [
+        { id: 'ss', organizationId: ORG, expiresAt: new Date('2026-10-28T12:00:00Z') },
+      ],
+    },
   } as unknown as PlatformAdminRepository;
   const resets = { request: vi.fn(async () => ({})) };
-  const service = new PlatformAdminService(
-    repository,
-    { confirmReauthentication: async () => ({}) },
-    resets,
-    true,
-  );
-  return { service, repository, resets, audits };
+  const core = new PlatformAdminService(repository, { confirmReauthentication: async () => ({}) });
+  const organizations = new PlatformOrganizationsService(repository);
+  const people = new PlatformPeopleService(repository, resets);
+  const settings = new PlatformSettingsService(repository, true);
+  // The PA-02 split: the same calls, now on the area services.
+  const service = {
+    setSuspended: organizations.setSuspended.bind(organizations),
+    company: organizations.company.bind(organizations),
+    signOutEverywhere: people.signOutEverywhere.bind(people),
+    sendPasswordReset: people.sendPasswordReset.bind(people),
+    setPublicSignup: settings.setPublicSignup.bind(settings),
+    setAiAccess: settings.setAiAccess.bind(settings),
+  };
+  return { service, core, repository, resets, audits };
 }
 
 const REASON = 'Customer asked us to pause the account';
@@ -110,5 +130,37 @@ describe('PlatformAdminService', () => {
     ]);
     expect(Object.keys(view.company)).not.toContain('metadata');
     await expect(harness().service.company('../x', ctx)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('stamps the IP and device of the request on every platform audit row', async () => {
+    const { service, audits } = harness();
+    await service.setSuspended(actor, ORG, true, { reason: REASON }, ctx);
+    expect(audits[0]).toMatchObject({
+      ip: '203.0.113.9',
+      userAgent: 'Firefox',
+      organizationId: ORG,
+    });
+  });
+
+  it('me carries the permissions, the preset and the live support sessions', async () => {
+    const { core } = harness();
+    const view = await core.me(
+      { ...actor, source: 'db', preset: 'auditor', permissions: ['platform.orgs.view'] },
+      ctx,
+    );
+    expect(view).toMatchObject({
+      source: 'db',
+      preset: 'auditor',
+      permissions: ['platform.orgs.view'],
+      supportSessions: [
+        { id: 'ss', organizationId: ORG, slug: 'northstar', expiresAt: '2026-10-28T12:00:00.000Z' },
+      ],
+    });
+  });
+
+  it('step-up writes its own audit row with the origin', async () => {
+    const { core, audits } = harness();
+    await core.stepUp(actor, { password: 'pw', code: '123456' }, ctx);
+    expect(audits[0]).toMatchObject({ action: 'platform.step_up', ip: '203.0.113.9' });
   });
 });

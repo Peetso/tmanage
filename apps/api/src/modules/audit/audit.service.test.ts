@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Principal, Role } from '@tmanage/domain';
 import { AuditService, EXPORT_MAX_ROWS } from './audit.service.js';
-import type { AuditEventsRepository, ListAuditEventsOptions } from './audit-events.repository.js';
+import { AuditEventsRepository, SQL_BUMP_SUPPORT_ACTIONS } from './audit-events.repository.js';
+import type { ListAuditEventsOptions } from './audit-events.repository.js';
+import { bindAuditOrigin } from '../../common/http/request-origin.js';
 import { auditEventsToCsv, escapeCsvCell } from './audit-export-csv.js';
 import { ApiError } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -317,5 +319,80 @@ describe('audit CSV serialization', () => {
     const cells = csv.split('\r\n')[1]!.split(',');
     expect(cells[3]).toBe("'=IMPORTXML(evil)");
     expect(csv.startsWith('id,occurredAt,actorId,action,entityType,entityId,summary')).toBe(true);
+  });
+});
+
+// ---- platform-admin v2 · PA-02 ----
+describe('AuditService.record — origin, support session and changes (0240, 0241)', () => {
+  type Sent = { sql: string; params: readonly unknown[] };
+
+  async function recordWith(
+    origin: Parameters<typeof bindAuditOrigin>[1] | null,
+    result = 'allowed',
+  ) {
+    const sent: Sent[] = [];
+    const runner = {
+      query: async (sql: string, params: readonly unknown[] = []) => {
+        sent.push({ sql, params });
+        return { affectedRows: 1, insertId: 0 };
+      },
+    };
+    const events = new AuditEventsRepository();
+    vi.spyOn(events, 'requireById').mockResolvedValue(row({}));
+    const service = new AuditService({} as TenantDatabase, events);
+    const base = {
+      organizationId: ORG,
+      userId: ACTOR,
+      correlationId: 'c',
+    } as unknown as TenantContext;
+    const bound = origin ? bindAuditOrigin(base, origin) : base;
+    await service.record(runner as never, bound, {
+      action: 'project.created',
+      result: result as 'allowed',
+      objectId: 'project-0000-0000-0000-0000-000000000001',
+      metadata: {},
+      changes: [
+        { field: 'name', before: 'Old', after: 'New' },
+        { field: 'password_hash', before: 'x', after: 'y' },
+      ],
+    });
+    return sent;
+  }
+
+  it('stamps IP, device, the support session and the admin as effective actor, and counts the action', async () => {
+    const sent = await recordWith({
+      ip: '203.0.113.9',
+      userAgent: 'Firefox',
+      supportSession: { id: 'support-session-1', adminUserId: 'admin-user-1' },
+    });
+    const insert = sent.find((s) => /insert into `audit_events`/iu.test(s.sql));
+    expect(insert?.params).toEqual(
+      expect.arrayContaining(['203.0.113.9', 'Firefox', 'support-session-1', 'admin-user-1']),
+    );
+    const changes = sent.find((s) => /insert into `audit_event_changes`/iu.test(s.sql));
+    expect(changes?.params).toEqual(
+      expect.arrayContaining(['name', 'Old', 'New', 'password_hash']),
+    );
+    // A secret-looking field keeps its name and loses both values.
+    expect(changes?.params).not.toContain('x');
+    expect(changes?.params).not.toContain('y');
+    expect(sent.filter((s) => s.sql === SQL_BUMP_SUPPORT_ACTIONS)).toEqual([
+      { sql: SQL_BUMP_SUPPORT_ACTIONS, params: ['support-session-1'] },
+    ]);
+  });
+
+  it('writes a service or worker row exactly as before: no origin, no effective actor, no counter', async () => {
+    const sent = await recordWith(null);
+    const insert = sent.find((s) => /insert into `audit_events`/iu.test(s.sql));
+    expect(insert?.params).not.toContain('admin-user-1');
+    expect(sent.some((s) => s.sql === SQL_BUMP_SUPPORT_ACTIONS)).toBe(false);
+  });
+
+  it('does not count a denied attempt against the support session', async () => {
+    const sent = await recordWith(
+      { ip: null, userAgent: null, supportSession: { id: 's', adminUserId: 'a' } },
+      'denied',
+    );
+    expect(sent.some((s) => s.sql === SQL_BUMP_SUPPORT_ACTIONS)).toBe(false);
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ExecutionContext } from '@nestjs/common';
-import { TenantContextGuard } from './tenant-context.guard.js';
+import { supportSessionOf, TenantContextGuard } from './tenant-context.guard.js';
+import { auditOriginOf } from '../request-origin.js';
 import { ApiError } from '../errors.js';
 import { requireRequestState } from '../request-state.js';
 
@@ -24,7 +25,11 @@ function contextFor(request: unknown): ExecutionContext {
   } as unknown as ExecutionContext;
 }
 
-function guardResolvingTo(organizationId: string, loadPrincipal = vi.fn(async () => ({}))) {
+function guardResolvingTo(
+  organizationId: string,
+  loadPrincipal = vi.fn(async () => ({})),
+  supportSession: unknown = undefined,
+) {
   const resolver = {
     resolve: vi.fn(async () => ({
       context: { organizationId, userId: USER },
@@ -32,6 +37,7 @@ function guardResolvingTo(organizationId: string, loadPrincipal = vi.fn(async ()
       clientOrganizationId: null,
       hasOrgWideScope: true,
       workspaceScopeId: null,
+      ...(supportSession === undefined ? {} : { supportSession }),
     })),
   } as never;
   const principals = { load: loadPrincipal } as never;
@@ -83,5 +89,57 @@ describe('TenantContextGuard — personal access token org binding', () => {
 
     await expect(guard.canActivate(contextFor(request))).resolves.toBe(true);
     expect(state.tenant?.organizationId).toBe('org-b');
+  });
+});
+
+// ---- platform-admin v2 · PA-02 ----
+describe('TenantContextGuard — support session and request origin (PA-02)', () => {
+  const SUPPORT = { id: 'pss-1', adminUserId: 'admin-1', expiresAt: new Date('2999-01-01') };
+
+  it('puts the resolver’s support session on the request state and the context origin', async () => {
+    const { guard } = guardResolvingTo('org-s', undefined, SUPPORT);
+    const request = {
+      params: { orgSlug: 'org-s' },
+      ip: '203.0.113.9',
+      headers: { 'user-agent': 'Browser/1.0' },
+    };
+    const state = requireRequestState(request);
+    state.session = { sessionId: 's1', userId: USER };
+    state.authScheme = 'cookie';
+
+    await expect(guard.canActivate(contextFor(request))).resolves.toBe(true);
+    expect(supportSessionOf(request)).toEqual(SUPPORT);
+    expect(auditOriginOf(state.tenant!)).toEqual({
+      ip: '203.0.113.9',
+      userAgent: 'Browser/1.0',
+      supportSession: SUPPORT,
+    });
+  });
+
+  it('is null for an ordinary member, and the origin still carries ip and device', async () => {
+    const { guard } = guardResolvingTo('org-m', undefined, null);
+    const request = { params: { orgSlug: 'org-m' }, ip: '198.51.100.1', headers: {} };
+    const state = requireRequestState(request);
+    state.session = { sessionId: 's1', userId: USER };
+    state.authScheme = 'cookie';
+
+    await guard.canActivate(contextFor(request));
+    expect(supportSessionOf(request)).toBeNull();
+    expect(auditOriginOf(state.tenant!)).toEqual({
+      ip: '198.51.100.1',
+      userAgent: null,
+      supportSession: null,
+    });
+  });
+
+  it('works before the resolver carries the field at all', async () => {
+    const { guard } = guardResolvingTo('org-x');
+    const request = { params: { orgSlug: 'org-x' }, headers: {} };
+    const state = requireRequestState(request);
+    state.session = { sessionId: 's1', userId: USER };
+    state.authScheme = 'cookie';
+
+    await guard.canActivate(contextFor(request));
+    expect(supportSessionOf(request)).toBeNull();
   });
 });

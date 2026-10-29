@@ -9,6 +9,8 @@ import type {
 } from '../../common/database/tenant-context.js';
 import { likeContains } from './platform-admin.access.js';
 import { revokeAllBearerCredentialsForUser } from '../identity/bearer-credentials.js';
+import { PlatformAdminsRepository } from './platform-admins.repository.js';
+import type { PlatformAdminRecord } from './platform-admins.repository.js';
 
 /**
  * Platform admin — every statement the operator surface issues, and the limits on them.
@@ -46,6 +48,7 @@ export const PLATFORM_METADATA_TABLES = [
   'usage_counters',
   'workflow_runs',
   'outbox_events',
+  // ---- platform-admin v2 · append-only, limited to SPEC P2's list ----
 ] as const;
 
 /** Global tables the identity path reaches. All registered in `NON_TENANT_TABLES`. */
@@ -105,11 +108,28 @@ export interface PlatformAuditInput {
   readonly actorUserId: string;
   readonly actorEmail: string;
   readonly action: string;
-  readonly targetType: 'platform' | 'organization' | 'user' | 'setting';
+  readonly targetType:
+    | 'platform'
+    | 'organization'
+    | 'user'
+    | 'setting'
+    | 'platform_admin'
+    | 'platform_preset'
+    | 'support_session'
+    | 'content'
+    | 'export';
   readonly targetId: string | null;
   readonly targetLabel: string | null;
-  readonly reason: string;
+  /** Required on the destructive list, optional elsewhere (0239 made the column nullable). */
+  readonly reason: string | null;
   readonly correlationId: string;
+  /** Platform admin v2 (0239): where, what changed (redacted JSON), from where. */
+  readonly organizationId?: string | null;
+  readonly supportSessionId?: string | null;
+  readonly beforeJson?: string | null;
+  readonly afterJson?: string | null;
+  readonly ip?: string | null;
+  readonly userAgent?: string | null;
 }
 
 export interface PlatformAuditEventRow {
@@ -119,7 +139,7 @@ export interface PlatformAuditEventRow {
   readonly targetType: string;
   readonly targetId: string | null;
   readonly targetLabel: string | null;
-  readonly reason: string;
+  readonly reason: string | null;
   readonly createdAt: Date;
 }
 
@@ -263,6 +283,8 @@ export const SQL = {
   revokeSessions: `update sessions set revoked_at = current_timestamp(3), revoked_reason = ?
     where user_id = ? and revoked_at is null`,
   readSetting: `select setting_value from platform_settings where setting_key = ? limit 1`,
+  organizationSlugs: (ids: number) => `select o.id as id, o.slug as slug from organizations o
+    where o.id in (${Array.from({ length: ids }, () => '?').join(', ')})`,
   writeSetting: `insert into platform_settings (setting_key, setting_value, updated_by_user_id, updated_at)
     values (?, ?, ?, current_timestamp(3))
     on duplicate key update setting_value = values(setting_value),
@@ -304,7 +326,36 @@ function toCompany(row: Row): PlatformCompanyRow {
 }
 
 export class PlatformAdminRepository {
-  constructor(private readonly database: TenantDatabase) {}
+  /** The team table (0239), shared with the team service and `me`. */
+  readonly admins: PlatformAdminsRepository;
+
+  constructor(private readonly database: TenantDatabase) {
+    this.admins = new PlatformAdminsRepository(database);
+  }
+
+  // ── Platform admin v2 (PA-02): the DB half of the guard's lookup ─────────
+
+  /** The person's `platform_admins` row with its resolved permissions, or `null`. */
+  findPlatformAdmin(userId: string, correlationId: string): Promise<PlatformAdminRecord | null> {
+    return this.admins.findForUser(userId, correlationId);
+  }
+
+  /** Whether any `platform_admins` row is active — the feature is on with an empty env list. */
+  hasActivePlatformAdmins(correlationId: string): Promise<boolean> {
+    return this.admins.anyActive(correlationId);
+  }
+
+  /** `id → slug` for a handful of organizations (metadata path). */
+  async organizationSlugs(
+    ids: readonly string[],
+    correlationId: string,
+  ): Promise<ReadonlyMap<string, string>> {
+    if (ids.length === 0) return new Map();
+    return this.metadata(correlationId, async (db) => {
+      const rows = await db.query<Row[]>(SQL.organizationSlugs(ids.length), [...ids]);
+      return new Map(rows.map((row) => [String(row['id']), String(row['slug'])]));
+    });
+  }
 
   // ── Identity path ────────────────────────────────────────────────────────
 
@@ -389,7 +440,7 @@ export class PlatformAdminRepository {
         targetType: String(row['target_type']),
         targetId: text(row['target_id']),
         targetLabel: text(row['target_label']),
-        reason: String(row['reason']),
+        reason: text(row['reason']),
         createdAt: date(row['created_at']) ?? new Date(0),
       }));
     });
@@ -599,7 +650,24 @@ async function insertAudit(
   tx: IdentityQueryRunner | TenantQueryRunner,
   audit: PlatformAuditInput,
 ): Promise<void> {
-  await tx.query(SQL.insertAudit, [
+  // Platform admin v2 (0239): the full row — organization, support session, before/after, IP and
+  // device ride along when the caller set them.
+  await insertPlatformAudit(tx, audit);
+}
+
+/** The full insert. The 0206 nine-column `SQL.insertAudit` stays for older writers (maintenance). */
+export const PLATFORM_AUDIT_INSERT_SQL = `insert into platform_admin_audit_events
+    (id, actor_user_id, actor_email, action, target_type, target_id, target_label,
+     organization_id, reason, correlation_id, created_at, support_session_id, before_json,
+     after_json, ip, user_agent)
+  values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp(3), ?, ?, ?, ?, ?)`;
+
+/** Write one platform audit row on a runner the caller holds (identity or tenant transaction). */
+export async function insertPlatformAudit(
+  tx: IdentityQueryRunner | TenantQueryRunner,
+  audit: PlatformAuditInput,
+): Promise<void> {
+  await tx.query(PLATFORM_AUDIT_INSERT_SQL, [
     uuidv7(),
     audit.actorUserId,
     audit.actorEmail,
@@ -607,7 +675,13 @@ async function insertAudit(
     audit.targetType,
     audit.targetId,
     audit.targetLabel,
+    audit.organizationId ?? null,
     audit.reason,
     audit.correlationId,
+    audit.supportSessionId ?? null,
+    audit.beforeJson ?? null,
+    audit.afterJson ?? null,
+    audit.ip ?? null,
+    audit.userAgent ?? null,
   ]);
 }

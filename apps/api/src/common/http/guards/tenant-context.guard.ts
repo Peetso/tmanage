@@ -50,6 +50,8 @@ import type { MembershipResolver } from '../../../modules/tenancy/membership-res
 import type { PrincipalRepository } from '../../../modules/tenancy/principal.repository.js';
 import type { TenantDatabase } from '../../database/tenant-context.js';
 import { withActorChannel } from '../../database/tenant-context.js';
+import { bindAuditOrigin, requestOriginOf } from '../request-origin.js';
+import type { SupportSessionStamp } from '../request-origin.js';
 
 /**
  * Spec §3 steps 2 to 4 — resolve the organization, build the context, load the policy facts.
@@ -252,9 +254,16 @@ export class TenantContextGuard implements CanActivate {
     // stamps it onto the metadata it writes, and the item's activity feed reads that back as "via
     // AI assistant". A cookie session is untagged, leaving its context — and every audit row it
     // writes — exactly as before.
-    state.tenant = isBoundTokenScheme(state.authScheme)
+    const channelled = isBoundTokenScheme(state.authScheme)
       ? withActorChannel(resolved.context, 'ai_assistant', state.aiGrant?.clientName)
       : resolved.context;
+    // Platform admin v2 (PA-02). The support session the resolver found for this membership (a
+    // hidden `platform_support` row; PA-01's resolver field, read optionally), plus the request's
+    // IP and device, travel beside a per-request copy of the context so every audit row this
+    // request writes is stamped with them (`request-origin.ts`).
+    const supportSession = supportSessionFromResolved(resolved);
+    SUPPORT_SESSIONS.set(request, supportSession);
+    state.tenant = bindAuditOrigin(channelled, { ...requestOriginOf(request), supportSession });
     state.principal = loaded.principal;
 
     return true;
@@ -278,6 +287,32 @@ export class TenantContextGuard implements CanActivate {
       throw aiWorkspaceDisabledError();
     }
   }
+}
+
+/**
+ * Platform admin v2 (PA-02): the request state's support session. Kept in a map keyed by the
+ * request (the request-state shape belongs to the session layer), set by the guard on every
+ * tenant-scoped request: the live session when the membership is a support visit, else `null`.
+ */
+const SUPPORT_SESSIONS = new WeakMap<object, SupportSessionStamp | null>();
+
+/** `state.supportSession` — `undefined` before the guard ran, `null` for an ordinary member. */
+export function supportSessionOf(request: object): SupportSessionStamp | null | undefined {
+  return SUPPORT_SESSIONS.get(request);
+}
+
+function supportSessionFromResolved(resolved: object): SupportSessionStamp | null {
+  const raw = (resolved as { supportSession?: unknown }).supportSession;
+  if (raw === null || typeof raw !== 'object') return null;
+  const candidate = raw as { id?: unknown; adminUserId?: unknown; expiresAt?: unknown };
+  if (typeof candidate.id !== 'string' || typeof candidate.adminUserId !== 'string') return null;
+  return {
+    id: candidate.id,
+    adminUserId: candidate.adminUserId,
+    ...(candidate.expiresAt instanceof Date || typeof candidate.expiresAt === 'string'
+      ? { expiresAt: candidate.expiresAt }
+      : {}),
+  };
 }
 
 /** Recorded on `sessions.revoked_reason` when a company's session lifetime ends a session. */
