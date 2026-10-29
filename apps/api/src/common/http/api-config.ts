@@ -211,6 +211,8 @@ export interface ApiConfigSource {
   readonly STATUS_PAGE_URL?: string | undefined;
   readonly OUTBOX_HEARTBEAT_FILE?: string | undefined;
   readonly OUTBOX_HEARTBEAT_MAX_AGE_SECONDS?: number;
+  /** 56-27. `enforce` | `report`; absent = enforce in production, report elsewhere. */
+  readonly SCHEMA_DRIFT_MODE?: 'enforce' | 'report' | undefined;
   readonly MALWARE_SCAN_DRIVER?: string;
   readonly CLAMAV_HOST?: string | undefined;
 }
@@ -290,6 +292,7 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
       heartbeatMaxAgeSeconds: env.OUTBOX_HEARTBEAT_MAX_AGE_SECONDS ?? 900,
       scannerDriver: env.MALWARE_SCAN_DRIVER,
       scannerHost: env.CLAMAV_HOST,
+      schemaDriftMode: env.SCHEMA_DRIFT_MODE,
     },
   };
 }

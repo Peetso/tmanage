@@ -421,6 +421,9 @@ export const envSchema = z
     // Tighten it wherever delivery latency actually matters.
     OUTBOX_BACKLOG_MAX_AGE_SECONDS: positiveInt.default(900),
     OUTBOX_HEARTBEAT_MAX_AGE_SECONDS: positiveInt.default(900),
+    // 56-27 / ADR-0007. `enforce` (production default when unset) answers 503 on every API route
+    // but /healthz/deep while the schema has drifted; `report` only logs. Kill switch only.
+    SCHEMA_DRIFT_MODE: z.enum(['enforce', 'report']).optional(),
     // Where a completed batch records the time, for a later `relay:status` — or any monitor
     // that can stat a file — to read. Absent means no heartbeat is kept, which is honest on
     // a host with no writable path and leaves backlog age as the only reading.

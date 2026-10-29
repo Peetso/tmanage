@@ -3,11 +3,23 @@ import { readdir, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Controller, Get, Inject, Module, Res } from '@nestjs/common';
-import type { DynamicModule, Provider } from '@nestjs/common';
+import type { DynamicModule, OnApplicationBootstrap, Provider } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { Public } from '../http/decorators.js';
 import { TENANT_DATABASE } from '../http/tokens.js';
 import type { TenantDatabase } from '../database/tenant-context.js';
-import { readMigrationLedger } from './deep-health.repository.js';
+import {
+  declaredTableNames,
+  readMigrationLedger,
+  schemaDriftReads,
+} from './deep-health.repository.js';
+import {
+  SCHEMA_DRIFT_MONITOR,
+  SchemaDriftGuard,
+  SchemaDriftMonitor,
+  readShippedMigrations,
+} from './schema-drift.js';
+import type { SchemaDriftMode, SchemaDriftState } from './schema-drift.js';
 
 /**
  * `GET /healthz/deep` (C10) — the readiness check a free external uptime monitor polls.
@@ -20,9 +32,11 @@ import { readMigrationLedger } from './deep-health.repository.js';
  * - **worker** — the relay's heartbeat file (`OUTBOX_HEARTBEAT_FILE`) is fresher than
  *   `OUTBOX_HEARTBEAT_MAX_AGE_SECONDS`; `not_configured` when no heartbeat is kept;
  * - **scanner** — a malware scanner (`MALWARE_SCAN_DRIVER=clamav` with a host) is configured;
- *   `not_configured` otherwise.
+ *   `not_configured` otherwise;
+ * - **schema** — 56-27's schema-drift reading (`schema-drift.ts`): ledger checksums equal the
+ *   shipped files and every declared table exists; `not_configured` when it cannot be read.
  *
- * `fail` on database, migrations or worker makes the answer 503 — the status code is what a
+ * `fail` on database, migrations, worker or schema makes the answer 503 — the status code is what a
  * monitor matches on. `not_configured` is reported but is not a failure: a shared host that
  * keeps no heartbeat and runs no clamd is a supported shape, not an outage.
  *
@@ -40,6 +54,7 @@ export interface DeepHealthReport {
     readonly migrations: CheckState;
     readonly worker: CheckState;
     readonly scanner: CheckState;
+    readonly schema: CheckState;
   };
   readonly checkedAt: string;
 }
@@ -51,6 +66,11 @@ export interface DeepHealthConfig {
   readonly scannerHost?: string | undefined;
   /** Where this build's migration files are; `undefined` = find them (see {@link findMigrationsDir}). */
   readonly migrationsDir?: string | undefined;
+  /**
+   * 56-27. `enforce` refuses service (503) on schema drift; `report` only logs and reports.
+   * `undefined` = `enforce` in production, `report` elsewhere.
+   */
+  readonly schemaDriftMode?: SchemaDriftMode | undefined;
 }
 
 /** The readings the verdict is computed from — injected so the unit suite needs no database. */
@@ -70,6 +90,7 @@ export async function evaluateDeepHealth(
   config: DeepHealthConfig,
   probes: DeepHealthProbes,
   now: Date,
+  schema: SchemaDriftState = 'not_configured',
 ): Promise<DeepHealthReport> {
   let database: CheckState = 'ok';
   let migrations: CheckState = 'ok';
@@ -96,10 +117,10 @@ export async function evaluateDeepHealth(
       ? 'ok'
       : 'not_configured';
 
-  const failed = [database, migrations, worker].includes('fail');
+  const failed = [database, migrations, worker, schema].includes('fail');
   return {
     status: failed ? 'fail' : 'ok',
-    checks: { database, migrations, worker, scanner },
+    checks: { database, migrations, worker, scanner, schema },
     checkedAt: now.toISOString(),
   };
 }
@@ -153,6 +174,7 @@ export class DeepHealthController {
   constructor(
     @Inject(TENANT_DATABASE) database: TenantDatabase,
     @Inject(DEEP_HEALTH_CONFIG) private readonly config: DeepHealthConfig,
+    @Inject(SCHEMA_DRIFT_MONITOR) private readonly schemaDrift: SchemaDriftMonitor,
   ) {
     const dir = findMigrationsDir(config.migrationsDir);
     this.probes = {
@@ -174,9 +196,10 @@ export class DeepHealthController {
   ): Promise<DeepHealthReport> {
     const now = Date.now();
     if (this.cached === null || now - this.cached.at > DEEP_HEALTH_CACHE_MS) {
+      const schema = await this.schemaDrift.fresh();
       this.cached = {
         at: now,
-        report: await evaluateDeepHealth(this.config, this.probes, new Date(now)),
+        report: await evaluateDeepHealth(this.config, this.probes, new Date(now), schema.state),
       };
     }
     reply.header('cache-control', 'no-store');
@@ -185,10 +208,48 @@ export class DeepHealthController {
   }
 }
 
+/** 56-27. `undefined` = `enforce` in production, `report` elsewhere (tests, development). */
+export function schemaDriftModeOf(config: DeepHealthConfig): SchemaDriftMode {
+  return (
+    config.schemaDriftMode ?? (process.env['NODE_ENV'] === 'production' ? 'enforce' : 'report')
+  );
+}
+
 @Module({})
-export class DeepHealthModule {
+export class DeepHealthModule implements OnApplicationBootstrap {
+  constructor(@Inject(SCHEMA_DRIFT_MONITOR) private readonly schemaDrift: SchemaDriftMonitor) {}
+
+  /** 56-27. The boot reading. Never blocks boot: it logs, and the guard acts on the verdict. */
+  onApplicationBootstrap(): void {
+    void this.schemaDrift.check();
+  }
+
   static register(config: DeepHealthConfig): DynamicModule {
     const provider: Provider = { provide: DEEP_HEALTH_CONFIG, useValue: config };
-    return { module: DeepHealthModule, controllers: [DeepHealthController], providers: [provider] };
+    const monitor: Provider = {
+      provide: SCHEMA_DRIFT_MONITOR,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) => {
+        const dir = findMigrationsDir(config.migrationsDir);
+        return new SchemaDriftMonitor(
+          declaredTableNames(),
+          {
+            ...schemaDriftReads(database),
+            shippedMigrations: async () => (dir === undefined ? null : readShippedMigrations(dir)),
+          },
+          schemaDriftModeOf(config),
+        );
+      },
+    };
+    const guard: Provider = {
+      provide: APP_GUARD,
+      inject: [SCHEMA_DRIFT_MONITOR],
+      useFactory: (m: SchemaDriftMonitor) => new SchemaDriftGuard(m),
+    };
+    return {
+      module: DeepHealthModule,
+      controllers: [DeepHealthController],
+      providers: [provider, monitor, guard],
+    };
   }
 }

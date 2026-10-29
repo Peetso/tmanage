@@ -29,6 +29,7 @@ describe('evaluateDeepHealth', () => {
         migrations: 'ok',
         worker: 'not_configured',
         scanner: 'not_configured',
+        schema: 'not_configured',
       },
       checkedAt: NOW.toISOString(),
     });
