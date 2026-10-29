@@ -1095,6 +1095,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // own organization (multi-row, every tuple carries the context org); the Platform admin
   // scoreboard reads aggregates via `bootstrapRead` with `product_events` as its only table.
   product_events: 'organization_id',
+  // ---- 56-05 ----
+  // 0250. Tenant-owned: one organization's daily quota counter per metric, keyed
+  // `(organization_id, id)` with a `(organization_id, metric_key, day_utc)` upsert key.
+  // INSERT/UPDATE only, no DELETE.
+  org_quota_counters: 'organization_id',
 });
 
 /**
@@ -1199,6 +1204,11 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // ---- 56-02 FieldCipher ----
   // 0249. The key-rotation ledger: purpose, key ids and counts across every organization.
   'key_rotations',
+  // ---- 56-05 ----
+  // 0250. Durable rate-limit windows for anonymous routes. GLOBAL: an anonymous caller has no
+  // organization, and the key is a daily-peppered hash of an address or link token, never tenant
+  // data. Reached only through `identityTransaction(['rate_limit_buckets'])`.
+  'rate_limit_buckets',
 ]);
 
 export function isTenantTable(name: string): boolean {

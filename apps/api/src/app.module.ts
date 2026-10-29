@@ -18,6 +18,8 @@ import {
 } from './modules/ai-actions/stored-audience.repository.js';
 import { HttpExceptionFilter } from './common/http/http-exception.filter.js';
 import { SessionAuthGuard } from './common/http/guards/session-auth.guard.js';
+import { RateLimitsModule } from './modules/rate-limits/rate-limits.module.js';
+import { DurableThrottleGuard } from './modules/rate-limits/durable-throttle.guard.js';
 import { CsrfGuard } from './common/http/guards/csrf.guard.js';
 import { TenantContextGuard } from './common/http/guards/tenant-context.guard.js';
 import { TwoStepRequirementGuard } from './common/http/guards/two-step-requirement.guard.js';
@@ -214,6 +216,7 @@ import { BillingUsageExportModule } from './modules/billing/usage-export.control
  *
  * | # | Guard                | §3 step | Refuses                                          |
  * | - | -------------------- | ------- | ------------------------------------------------ |
+ * | 0 | `DurableThrottleGuard` | 56-05 | anonymous route over its durable budget → 429    |
  * | 1 | `SessionAuthGuard`   | 1       | no/forged/revoked/expired session → 401          |
  * | 2 | `CsrfGuard`          | 04 §3   | unsafe method without a session-bound token → 403 |
  * | 3 | `TenantContextGuard` | 2–4     | no active membership for the named org → 404     |
@@ -904,6 +907,14 @@ export class AppModule {
         // it carries no session, CSRF, tenant or capability. It depends only on `TENANT_DATABASE`
         // (the repository writes on the identity/no-tenant path over the global `marketing_leads`),
         // so it couples to no feature module; position here is by subject (public surface, last).
+        // 56-05. The durable limiter (MariaDB `rate_limit_buckets`), the anonymous circuit breaker
+        // and the daily org quota service. Global; the guard below charges every @Public() route.
+        RateLimitsModule.register({
+          secret: options.config.publicLinkPepper ?? options.config.csrfSecret,
+          ...(options.config.rateLimitScale === undefined
+            ? {}
+            : { limitScale: options.config.rateLimitScale }),
+        }),
         ContactModule.register({
           ...(options.config.contactWindowMs === undefined
             ? {}
@@ -1113,6 +1124,9 @@ export class AppModule {
           inject: [{ token: MAILER, optional: true }],
         },
         { provide: APP_FILTER, useClass: HttpExceptionFilter },
+        // 56-05. First: an anonymous route over its durable budget is a 429 + Retry-After before
+        // any session, CSRF or tenant work. Routes behind a session are passed straight through.
+        { provide: APP_GUARD, useClass: DurableThrottleGuard },
         { provide: APP_GUARD, useClass: SessionAuthGuard },
         { provide: APP_GUARD, useClass: CsrfGuard },
         { provide: APP_GUARD, useClass: TenantContextGuard },

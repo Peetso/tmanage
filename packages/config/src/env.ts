@@ -468,6 +468,17 @@ export const envSchema = z
     RATE_LIMIT_CONTACT_MAX_REQUESTS: positiveInt.default(5),
     RATE_LIMIT_CONTACT_WINDOW_SECONDS: positiveInt.default(600),
     /**
+     * 56-05. The daily-pepper source for durable rate-limit keys. Optional: absent (or empty, as
+     * hPanel's blank field) falls back to `CSRF_SECRET`. A secret — never log it.
+     */
+    PUBLIC_LINK_PEPPER: z
+      .string()
+      .transform((value) => (value === '' ? undefined : value))
+      .pipe(secret('PUBLIC_LINK_PEPPER').optional())
+      .optional(),
+    /** 56-05. Multiplies every durable rate-limit ceiling; e2e/dev only, production never sets it. */
+    RATE_LIMIT_SCALE: z.coerce.number().positive().optional(),
+    /**
      * One-time install secret for the first-owner setup (no public sign-up exists). Set it in
      * hPanel, open /setup, create the first owner, then delete the variable and restart. With
      * it unset the setup routes are not registered at all. Empty (hPanel's blank field) means
@@ -817,6 +828,8 @@ export const envSchema = z
       // The install token is a credential too while it is set: a copied placeholder or a reused
       // session secret would let anyone who knows one of them create the first owner.
       ['SETUP_TOKEN', env.SETUP_TOKEN],
+      // 56-05. The rate-limit key pepper, when set, is a server secret like the CSRF secret.
+      ['PUBLIC_LINK_PEPPER', env.PUBLIC_LINK_PEPPER],
       // 56-02. Compared as a whole by the pairwise check below; a key reused inside another
       // keyring is caught by the worker/API at start with `sharedKeyIds` (field-cipher.ts).
       ['FIELD_CIPHER_KEYS', env.FIELD_CIPHER_KEYS],

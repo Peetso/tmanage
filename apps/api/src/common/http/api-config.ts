@@ -44,6 +44,10 @@ export interface ApiConfig extends SessionServiceOptions {
   /** `POST /public/site/contact` submissions admitted per address per window; absent = module default. */
   readonly contactMaxPerWindow?: number;
   readonly contactWindowMs?: number;
+  /** 56-05: the daily-pepper source for rate-limit keys; absent → `csrfSecret`. Never log it. */
+  readonly publicLinkPepper?: string;
+  /** 56-05: multiplies every rate-limit ceiling (e2e only); 1 when absent. */
+  readonly rateLimitScale?: number;
   /**
    * The one-time install secret that unlocks `/setup` (first-owner creation on an empty install).
    * `null` or absent = the setup routes are not registered at all. Never log or expose it.
@@ -154,6 +158,10 @@ export interface ApiConfigSource {
   readonly ALLOW_DEV_SIGN_IN?: boolean;
   readonly RATE_LIMIT_CONTACT_MAX_REQUESTS?: number;
   readonly RATE_LIMIT_CONTACT_WINDOW_SECONDS?: number;
+  /** 56-05. Optional rate-limit pepper; `| undefined` for EOPT. */
+  readonly PUBLIC_LINK_PEPPER?: string | undefined;
+  /** 56-05. Optional rate-limit ceiling multiplier (e2e only). */
+  readonly RATE_LIMIT_SCALE?: number | undefined;
   /** First-owner setup secret; absent or empty = setup routes off. `| undefined` for EOPT. */
   readonly SETUP_TOKEN?: string | undefined;
   /** Public self-service sign-up; `packages/config` defaults it to true. */
@@ -238,6 +246,10 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
     ...(env.RATE_LIMIT_CONTACT_WINDOW_SECONDS === undefined
       ? {}
       : { contactWindowMs: env.RATE_LIMIT_CONTACT_WINDOW_SECONDS * 1_000 }),
+    ...(env.PUBLIC_LINK_PEPPER === undefined || env.PUBLIC_LINK_PEPPER === ''
+      ? {}
+      : { publicLinkPepper: env.PUBLIC_LINK_PEPPER }),
+    ...(env.RATE_LIMIT_SCALE === undefined ? {} : { rateLimitScale: env.RATE_LIMIT_SCALE }),
     setupToken: env.SETUP_TOKEN && env.SETUP_TOKEN.length > 0 ? env.SETUP_TOKEN : null,
     publicSignup: env.PUBLIC_SIGNUP === true,
     platformAdminEmails: parsePlatformAdminEmails(env.PLATFORM_ADMIN_EMAILS),

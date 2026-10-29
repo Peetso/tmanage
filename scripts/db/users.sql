@@ -1807,3 +1807,12 @@ GRANT SELECT, UPDATE ON `tmanage`.`calendar_connections`        TO 'tmanage_work
 -- database-wide read (the Platform admin scoreboard aggregates). No UPDATE, no DELETE: events are
 -- append-only; the 13-month retention purge is a follow-up with its own worker grant.
 GRANT INSERT ON `tmanage`.`product_events`                      TO 'tmanage_app'@'%';
+
+-- ---- 56-05 ----
+-- 0250 `rate_limit_buckets` (global): the API upserts a window (INSERT … ON DUPLICATE KEY UPDATE
+-- needs INSERT and UPDATE) and sweeps rows untouched for 2 h (DELETE — this table only; the rows
+-- are peppered hashes kept ≤ 48 h for minimisation). SELECT rides the database-wide read.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`rate_limit_buckets` TO 'tmanage_app'@'%';
+-- 0250 `org_quota_counters` (tenant table): INSERT and UPDATE only — a day's counter is charged
+-- by upsert and never deleted.
+GRANT INSERT, UPDATE ON `tmanage`.`org_quota_counters`         TO 'tmanage_app'@'%';

@@ -10073,3 +10073,56 @@ export type ProductEventRow = typeof productEvents.$inferSelect;
 Object.assign(TABLES, {
   product_events: productEvents,
 });
+
+// ---- 56-05 · durable rate limits and daily org quotas ----
+
+/**
+ * 0250. Durable rate-limit windows (56-05). GLOBAL (NON_TENANT_TABLES): anonymous callers have no
+ * organization; `bucket_key` is `<policy>:<kind>:<m|h>:<hmac>` — a daily-peppered hash, never a
+ * raw address. Charged by `rate-limit-buckets.repository.ts` (raw upsert), swept after 2 h.
+ */
+export const rateLimitBuckets = mysqlTable(
+  'rate_limit_buckets',
+  {
+    bucketKey: varchar('bucket_key', { length: 190 }).primaryKey(),
+    windowStart: datetime('window_start', { mode: 'date', fsp: 3 }).notNull(),
+    hitCount: int('hit_count').notNull().default(0),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [index('ix_rate_limit_buckets_updated').on(table.updatedAt)],
+);
+
+export type RateLimitBucketRow = typeof rateLimitBuckets.$inferSelect;
+
+/**
+ * 0250. Per-organization daily quota counters (56-05): one row per org × metric × UTC day
+ * (`api_calls`, `webhook_deliveries`, `public_link_views`, `push_sends`). Tenant-owned, keyed
+ * `(organization_id, id)`; INSERT/UPDATE only.
+ */
+export const orgQuotaCounters = mysqlTable(
+  'org_quota_counters',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    metricKey: varchar('metric_key', { length: 40 }).notNull(),
+    dayUtc: date('day_utc', { mode: 'string' }).notNull(),
+    usedCount: bigint('used_count', { mode: 'number' }).notNull().default(0),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_org_quota_counters_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_org_quota_counters_day').on(
+      table.organizationId,
+      table.metricKey,
+      table.dayUtc,
+    ),
+  ],
+);
+
+export type OrgQuotaCounterRow = typeof orgQuotaCounters.$inferSelect;
+
+Object.assign(TABLES, {
+  rate_limit_buckets: rateLimitBuckets,
+  org_quota_counters: orgQuotaCounters,
+});
