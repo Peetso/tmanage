@@ -48,6 +48,13 @@ import { mintRealtimeTicket } from './api/realtime';
  * `mintRealtimeTicket` goes through `ApiClient`, whose refresh-refused path announces
  * `session-ended` and navigates this screen away, unmounting the hook.
  *
+ * ## A capped socket (51-06)
+ *
+ * The worker caps sockets per process and per member and closes the one past either cap with
+ * code 4429 and a reason of `retry-after=<seconds>`. That is load, not a verdict: the hook waits
+ * the hinted seconds (falling back to its ordinary backoff when the reason carries no hint) and
+ * then mints and connects again. It is never terminal — only `revoked` is.
+ *
  * ## The seam
  *
  * `socketFactory` exists because jsdom has no WebSocket and a suite must drive this hook
@@ -61,7 +68,23 @@ export interface LiveSocket {
   close(): void;
   onopen: (() => void) | null;
   onmessage: ((event: { readonly data: unknown }) => void) | null;
-  onclose: (() => void) | null;
+  /** The browser's `CloseEvent` carries `code` and `reason`; a fake may pass nothing. */
+  onclose: ((event?: LiveCloseEvent) => void) | null;
+}
+
+export interface LiveCloseEvent {
+  readonly code?: number;
+  readonly reason?: string;
+}
+
+/** The worker's close code for a socket past its process or member cap (51-06). */
+export const CLOSE_CAPPED = 4429;
+
+/** The `retry-after=<seconds>` hint of a capped close, in milliseconds; `null` when absent. */
+export function retryAfterMs(reason: string | undefined): number | null {
+  const match = /(?:^|[;\s])retry-after=(\d{1,5})(?:$|[;\s])/.exec(reason ?? '');
+  if (match === null) return null;
+  return Number(match[1]) * 1_000;
 }
 
 export type LiveSocketFactory = (url: string) => LiveSocket | null;
@@ -221,19 +244,22 @@ export function useChannelLiveFeed(options: ChannelLiveFeedOptions): LiveFeedSta
         // A first-subscribe `refused` and anything unknown: leave the socket be — the server
         // said its piece, and the screen's reload behaviour still stands underneath.
       };
-      socket.onclose = () => {
+      socket.onclose = (event) => {
         socket = null;
-        scheduleRetry();
+        // A capped socket says how long to wait; honour it rather than hammering a full server.
+        const hinted = event?.code === CLOSE_CAPPED ? retryAfterMs(event.reason) : null;
+        scheduleRetry(hinted);
       };
     };
 
-    const scheduleRetry = (): void => {
+    const scheduleRetry = (hintedMs: number | null = null): void => {
       if (disposed) return;
       attempts += 1;
       setStatus('retrying');
-      // Exponential with full jitter — §6's "exponential backoff with jitter".
+      // Exponential with full jitter — §6's "exponential backoff with jitter" — unless the
+      // server named the wait itself (a 4429's `retry-after=`).
       const ceiling = Math.min(RECONNECT_CAP_MS, baseMs * 2 ** Math.min(attempts - 1, 10));
-      const delay = Math.floor(Math.random() * ceiling);
+      const delay = hintedMs ?? Math.floor(Math.random() * ceiling);
       timer = setTimeout(() => void connect(), delay);
     };
 

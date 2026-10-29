@@ -86,6 +86,124 @@ export interface RealtimeServerOptions {
    * the expiry close. A suite injects a small value to observe a revocation without waiting.
    */
   readonly revalidateIntervalMs?: number;
+  /**
+   * 51-06. Sockets this process holds at once; the next is closed 4429 with
+   * `retry-after=30`. Defaults to `REALTIME_MAX_SOCKETS` (500, the shared-hosting figure).
+   */
+  readonly maxSockets?: number;
+  /**
+   * 51-06. Sockets one member (`organizationId:userId`) holds at once; the next is closed 4429
+   * with `retry-after=5`. Defaults to `REALTIME_MAX_SOCKETS_PER_MEMBER` (5).
+   */
+  readonly maxSocketsPerMember?: number;
+  /**
+   * 51-06. The server's ping period; a socket that misses two pongs is terminated. Defaults to
+   * `REALTIME_PING_INTERVAL_MS` (25 s) — under LiteSpeed's idle timeout, which is what keeps a
+   * quiet channel's socket alive through the Hostinger proxy.
+   */
+  readonly pingIntervalMs?: number;
+}
+
+/** 51-06's knobs, as the environment names them. */
+export interface RealtimeLimits {
+  readonly maxSockets: number;
+  readonly maxSocketsPerMember: number;
+  readonly pingIntervalMs: number;
+}
+
+export const DEFAULT_REALTIME_LIMITS: RealtimeLimits = {
+  maxSockets: 500,
+  maxSocketsPerMember: 5,
+  pingIntervalMs: 25_000,
+};
+
+/** Close code for a capped socket — the 4xxx mirror of HTTP 429. */
+export const CLOSE_CAPPED = 4429;
+/** The hint a capped client waits before retrying, in seconds: process cap, member cap. */
+export const RETRY_AFTER_PROCESS_CAP_SECONDS = 30;
+export const RETRY_AFTER_MEMBER_CAP_SECONDS = 5;
+
+function positiveIntFrom(raw: string | undefined, fallback: number): number {
+  const value = Number(raw);
+  return Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+/**
+ * Read the caps and the ping period from an environment. A missing or malformed value takes the
+ * default rather than failing boot: these are tuning knobs, and the defaults are safe.
+ */
+export function realtimeLimitsFromEnv(
+  env: Readonly<Record<string, string | undefined>>,
+): RealtimeLimits {
+  return {
+    maxSockets: positiveIntFrom(env['REALTIME_MAX_SOCKETS'], DEFAULT_REALTIME_LIMITS.maxSockets),
+    maxSocketsPerMember: positiveIntFrom(
+      env['REALTIME_MAX_SOCKETS_PER_MEMBER'],
+      DEFAULT_REALTIME_LIMITS.maxSocketsPerMember,
+    ),
+    pingIntervalMs: positiveIntFrom(
+      env['REALTIME_PING_INTERVAL_MS'],
+      DEFAULT_REALTIME_LIMITS.pingIntervalMs,
+    ),
+  };
+}
+
+/** What a keepalive needs of a socket: ws's own `ping` and `terminate`. */
+export interface KeepaliveSocket {
+  ping(): void;
+  terminate(): void;
+}
+
+export interface Keepalive {
+  track(socket: KeepaliveSocket): void;
+  /** A pong arrived: the socket is alive, its missed count resets. */
+  pong(socket: KeepaliveSocket): void;
+  untrack(socket: KeepaliveSocket): void;
+  stop(): void;
+}
+
+/** Pongs a socket may miss before it is terminated. */
+const MAX_MISSED_PONGS = 2;
+
+/**
+ * One server-wide ping loop (51-06). Every tick pings each tracked socket and counts the ping as
+ * outstanding until its pong; a socket with two outstanding pings at a tick is terminated — a dead
+ * peer behind a proxy that never sent a FIN. `onTick` rides the same timer (the used-ticket sweep).
+ */
+export function createKeepalive(intervalMs: number, onTick?: () => void): Keepalive {
+  const missed = new Map<KeepaliveSocket, number>();
+  const timer = setInterval(() => {
+    for (const [socket, count] of [...missed]) {
+      if (count >= MAX_MISSED_PONGS) {
+        missed.delete(socket);
+        socket.terminate();
+        continue;
+      }
+      missed.set(socket, count + 1);
+      try {
+        socket.ping();
+      } catch {
+        // A socket mid-close throws on ping; its close handler untracks it.
+      }
+    }
+    onTick?.();
+  }, intervalMs);
+  // The keepalive must never be the reason the process stays alive.
+  timer.unref?.();
+  return {
+    track: (socket) => void missed.set(socket, 0),
+    pong: (socket) => {
+      if (missed.has(socket)) missed.set(socket, 0);
+    },
+    untrack: (socket) => void missed.delete(socket),
+    stop: () => clearInterval(timer),
+  };
+}
+
+/** Live socket counts — for tests only; no HTTP route serves this. */
+export interface RealtimeServerStats {
+  readonly sockets: number;
+  readonly perMember: Readonly<Record<string, number>>;
 }
 
 /** The ticket's intended TTL is seconds, so a minute is a bounded, low-cost recheck period. */
@@ -97,6 +215,8 @@ export interface RealtimeServer {
   readonly port: number;
   /** Complete one HTTP upgrade on a caller-owned server (the `'attached'` mode). */
   handleUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): void;
+  /** 51-06. Open-socket counts, for tests only. */
+  stats(): RealtimeServerStats;
   close(): Promise<void>;
 }
 
@@ -107,6 +227,24 @@ export async function createRealtimeServer(
   const now = options.now ?? (() => new Date());
   const revalidateIntervalMs = options.revalidateIntervalMs ?? DEFAULT_REVALIDATE_INTERVAL_MS;
   const attached = options.port === 'attached';
+  const envLimits = realtimeLimitsFromEnv(process.env);
+  const maxSockets = options.maxSockets ?? envLimits.maxSockets;
+  const maxSocketsPerMember = options.maxSocketsPerMember ?? envLimits.maxSocketsPerMember;
+  const pingIntervalMs = options.pingIntervalMs ?? envLimits.pingIntervalMs;
+
+  // 51-06. Admitted sockets, process-wide and per member (`organizationId:userId`).
+  let socketCount = 0;
+  const perMember = new Map<string, number>();
+  // Single-use tickets: the signature of every ticket that has opened a socket, until the ticket
+  // would have expired anyway. Expired entries are swept on each keepalive tick, so the map is
+  // bounded by the tickets minted in one TTL.
+  const usedTickets = new Map<string, number>();
+  const keepalive = createKeepalive(pingIntervalMs, () => {
+    const at = now().getTime();
+    for (const [signature, expiresAt] of usedTickets) {
+      if (expiresAt <= at) usedTickets.delete(signature);
+    }
+  });
   const wss = attached
     ? new WebSocketServer({ noServer: true })
     : new WebSocketServer({ port: options.port as number });
@@ -120,8 +258,9 @@ export async function createRealtimeServer(
 
   wss.on('connection', (socket: WebSocket, request) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
+    const ticket = url.searchParams.get('ticket') ?? '';
     const claims: RealtimeTicketClaims | null = verifyRealtimeTicket(
-      url.searchParams.get('ticket') ?? '',
+      ticket,
       options.sessionSecret,
       now(),
     );
@@ -129,6 +268,31 @@ export async function createRealtimeServer(
       socket.close(4401);
       return;
     }
+    // A ticket opens one socket, once. A replay — a ticket lifted from a log or a referrer and
+    // presented again inside its TTL — gets the same silent 4401 a forgery does.
+    const signature = ticket.slice(ticket.indexOf('.') + 1);
+    if (usedTickets.has(signature)) {
+      socket.close(4401);
+      return;
+    }
+    usedTickets.set(signature, claims.expiresAt);
+
+    // The caps (51-06). The socket was accepted at the upgrade so this close code reaches the
+    // client; the reason carries how long to wait, which the browser hook honours.
+    if (socketCount >= maxSockets) {
+      socket.close(CLOSE_CAPPED, `retry-after=${RETRY_AFTER_PROCESS_CAP_SECONDS}`);
+      return;
+    }
+    const memberKey = `${claims.organizationId}:${claims.userId}`;
+    const memberCount = perMember.get(memberKey) ?? 0;
+    if (memberCount >= maxSocketsPerMember) {
+      socket.close(CLOSE_CAPPED, `retry-after=${RETRY_AFTER_MEMBER_CAP_SECONDS}`);
+      return;
+    }
+    socketCount += 1;
+    perMember.set(memberKey, memberCount + 1);
+    keepalive.track(socket);
+    socket.on('pong', () => keepalive.pong(socket));
 
     // Active subscriptions keyed by conversation, so a second subscribe to the same channel
     // is an idempotent ack rather than a second listener (R05's dedup half). The value is
@@ -248,6 +412,11 @@ export async function createRealtimeServer(
     socket.on('close', () => {
       disposed = true;
       clearInterval(timer);
+      keepalive.untrack(socket);
+      socketCount -= 1;
+      const remaining = (perMember.get(memberKey) ?? 1) - 1;
+      if (remaining > 0) perMember.set(memberKey, remaining);
+      else perMember.delete(memberKey);
       for (const unsubscribe of subscriptions.values()) unsubscribe();
       subscriptions.clear();
     });
@@ -269,7 +438,11 @@ export async function createRealtimeServer(
         wss.emit('connection', client, request);
       });
     },
+    stats(): RealtimeServerStats {
+      return { sockets: socketCount, perMember: Object.fromEntries(perMember) };
+    },
     async close(): Promise<void> {
+      keepalive.stop();
       for (const client of wss.clients) client.terminate();
       await new Promise<void>((resolve, reject) => {
         wss.close((error) => (error ? reject(error) : resolve()));

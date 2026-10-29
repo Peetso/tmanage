@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 import { signRealtimeTicket } from '@tmanage/domain/realtime-ticket';
-import { createRealtimeServer } from './server.js';
+import { createKeepalive, createRealtimeServer, realtimeLimitsFromEnv } from './server.js';
 import type { RealtimeServer } from './server.js';
 import type { RealtimeEventFrame } from './hub.js';
 import type { WorkerDatabase, WorkerTransaction } from '../common/database/worker-database.js';
@@ -252,6 +252,145 @@ describe('the attached mode (H2: the single Hostinger process)', () => {
       await closed(client.socket);
     } finally {
       await new Promise<void>((resolve) => http.close(() => resolve()));
+    }
+  });
+});
+
+// 51-06 — caps, keepalive, single-use tickets.
+
+let ticketSeq = 0;
+/** A distinct ticket per call: same member, expiry one millisecond apart, so no two collide. */
+function freshTicket(userId = USER): string {
+  ticketSeq += 1;
+  return signRealtimeTicket(
+    { organizationId: ORG, userId, expiresAt: Date.now() + 60_000 + ticketSeq },
+    SESSION_SECRET,
+  );
+}
+
+function closeOf(socket: WebSocket): Promise<{ code: number; reason: string }> {
+  return new Promise((resolve) => {
+    socket.once('close', (code, reason) => resolve({ code, reason: String(reason) }));
+  });
+}
+
+async function until(predicate: () => boolean): Promise<void> {
+  for (let i = 0; i < 100 && !predicate(); i += 1) await delay(10);
+}
+
+describe('51-06: socket caps, single-use tickets, keepalive', () => {
+  it('reads the documented defaults from an empty environment', () => {
+    expect(realtimeLimitsFromEnv({})).toEqual({
+      maxSockets: 500,
+      maxSocketsPerMember: 5,
+      pingIntervalMs: 25_000,
+    });
+    expect(
+      realtimeLimitsFromEnv({ REALTIME_MAX_SOCKETS_PER_MEMBER: '2' }).maxSocketsPerMember,
+    ).toBe(2);
+  });
+
+  it('closes the socket past the process cap 4429 retry-after=30, and the count falls on close', async () => {
+    server = await createRealtimeServer({
+      database: makeDatabase(() => ALLOWED_ROWS),
+      sessionSecret: SESSION_SECRET,
+      port: 0,
+      maxSockets: 2,
+    });
+    const a = connect(server.port, freshTicket('u-a'));
+    const b = connect(server.port, freshTicket('u-b'));
+    await Promise.all([opened(a.socket), opened(b.socket)]);
+    await until(() => server?.stats().sockets === 2);
+
+    const third = connect(server.port, freshTicket('u-c'));
+    expect(await closeOf(third.socket)).toEqual({ code: 4429, reason: 'retry-after=30' });
+    expect(server.stats().sockets).toBe(2);
+
+    a.socket.close();
+    await closed(a.socket);
+    await until(() => server?.stats().sockets === 1);
+    expect(server.stats()).toEqual({ sockets: 1, perMember: { [`${ORG}:u-b`]: 1 } });
+    b.socket.close();
+    await closed(b.socket);
+  });
+
+  it('closes one member’s socket past the member cap 4429 retry-after=5', async () => {
+    server = await createRealtimeServer({
+      database: makeDatabase(() => ALLOWED_ROWS),
+      sessionSecret: SESSION_SECRET,
+      port: 0,
+      maxSocketsPerMember: 2,
+    });
+    const first = connect(server.port, freshTicket());
+    const second = connect(server.port, freshTicket());
+    await Promise.all([opened(first.socket), opened(second.socket)]);
+    await until(() => server?.stats().perMember[`${ORG}:${USER}`] === 2);
+
+    const extra = connect(server.port, freshTicket());
+    expect(await closeOf(extra.socket)).toEqual({ code: 4429, reason: 'retry-after=5' });
+    // Another member is not capped by this one.
+    const other = connect(server.port, freshTicket('user-other'));
+    await opened(other.socket);
+    for (const client of [first, second, other]) client.socket.close();
+    await Promise.all([first, second, other].map((client) => closed(client.socket)));
+  });
+
+  it('refuses a replayed ticket with 4401', async () => {
+    server = await createRealtimeServer({
+      database: makeDatabase(() => ALLOWED_ROWS),
+      sessionSecret: SESSION_SECRET,
+      port: 0,
+    });
+    const ticket = freshTicket();
+    const original = connect(server.port, ticket);
+    await opened(original.socket);
+    const replay = connect(server.port, ticket);
+    expect((await closeOf(replay.socket)).code).toBe(4401);
+    original.socket.close();
+    await closed(original.socket);
+  });
+
+  it('ignores a client frame other than subscribe: no listener, the socket stays usable', async () => {
+    server = await createRealtimeServer({
+      database: makeDatabase(() => ALLOWED_ROWS),
+      sessionSecret: SESSION_SECRET,
+      port: 0,
+    });
+    const client = connect(server.port, freshTicket());
+    await opened(client.socket);
+    client.socket.send(JSON.stringify({ type: 'publish', conversationId: CONV, body: 'x' }));
+    expect(await client.next()).toEqual({ type: 'error' });
+    expect(server.hub.subscriberCount(ORG, CONV)).toBe(0);
+    client.socket.send(JSON.stringify({ type: 'subscribe', conversationId: CONV }));
+    expect(await client.next()).toMatchObject({ type: 'subscribed' });
+    client.socket.close();
+    await closed(client.socket);
+  });
+
+  it('pings every interval and terminates a socket that missed two pongs (fake timers)', () => {
+    vi.useFakeTimers();
+    try {
+      const keepalive = createKeepalive(25_000);
+      const live = { ping: vi.fn(), terminate: vi.fn() };
+      const dead = { ping: vi.fn(), terminate: vi.fn() };
+      keepalive.track(live);
+      keepalive.track(dead);
+
+      vi.advanceTimersByTime(25_000);
+      expect(live.ping).toHaveBeenCalledTimes(1);
+      expect(dead.ping).toHaveBeenCalledTimes(1);
+      keepalive.pong(live);
+      vi.advanceTimersByTime(25_000);
+      keepalive.pong(live);
+      expect(dead.terminate).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(25_000);
+      expect(dead.terminate).toHaveBeenCalledTimes(1);
+      expect(live.terminate).not.toHaveBeenCalled();
+      expect(live.ping).toHaveBeenCalledTimes(3);
+      keepalive.stop();
+    } finally {
+      vi.useRealTimers();
     }
   });
 });
