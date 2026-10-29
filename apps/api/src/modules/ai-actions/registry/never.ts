@@ -1026,6 +1026,24 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'POST', path: '/v1/platform/keys/rotate', reason: 'platform_admin' },
   // 56-32. Platform → Health: the host capacity gauges and the "move to KVM" trigger.
   { method: 'GET', path: '/v1/platform/health/capacity', reason: 'platform_admin' },
+  // 52-21. The public form proof (anonymous, nothing an AI acts on) and an organization's block
+  // list for its public doors — `org.security.manage`, withheld like the other security routes.
+  { method: 'GET', path: '/v1/public/form-proof/', reason: 'public_site' },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/admin/block-rules/',
+    reason: 'org_security_manage',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/admin/block-rules/',
+    reason: 'org_security_manage',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/admin/block-rules/:ruleId',
+    reason: 'org_security_manage',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

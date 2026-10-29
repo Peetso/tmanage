@@ -84,6 +84,8 @@ function clientOver(status: number, body: unknown) {
     baseUrl: 'https://api.example.test',
     csrfCookieName: 'tm_session_csrf',
     fetch: ((input: RequestInfo | URL, init?: RequestInit) => {
+      // 52-21: the form fetches its invisible proof on mount; that GET is not a submission.
+      if (String(input).includes('/public/form-proof')) return Promise.resolve(json({}, 200));
       calls.push({ url: String(input), body: init?.body ? JSON.parse(String(init.body)) : null });
       return Promise.resolve(json(body, status));
     }) as typeof globalThis.fetch,

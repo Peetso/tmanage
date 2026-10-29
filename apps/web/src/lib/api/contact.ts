@@ -13,6 +13,10 @@ export interface ContactSubmitInput {
   readonly name: string;
   readonly email: string;
   readonly message: string;
+  /** 52-21's invisible form proof (`lib/form-proof.ts`); absent when it could not be fetched. */
+  readonly startedAt?: string;
+  readonly nonce?: string;
+  readonly proof?: string;
 }
 
 /**
@@ -20,7 +24,8 @@ export interface ContactSubmitInput {
  * carries nothing that was stored (no id, no echoed values, no other lead).
  */
 export interface ContactSubmitView {
-  readonly status: 'received';
+  /** `not_sent` (52-21): refused calmly; the form shows its generic "could not send". */
+  readonly status: 'received' | 'not_sent';
 }
 
 export async function submitContact(

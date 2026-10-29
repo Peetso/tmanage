@@ -1835,3 +1835,13 @@ GRANT SELECT ON `tmanage`.`email_suppressions`                 TO 'tmanage_worke
 -- 5 minutes and a nightly one, and purges rows older than 90 days. No UPDATE: a reading is never
 -- amended. SELECT rides the database-wide read.
 GRANT INSERT, DELETE ON `tmanage`.`host_capacity_readings`     TO 'tmanage_app'@'%';
+
+-- ---- 52-21 · public-endpoint abuse engine ----
+-- 0255 `org_block_rules` (tenant): an organization's block list, added and removed behind
+-- `org.security.manage`; UPDATE for a reason edit. SELECT rides the database-wide read.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`org_block_rules`    TO 'tmanage_app'@'%';
+-- 0255 `public_abuse_events` (global): one row per assessed public action, appended and purged
+-- after 30 days. No UPDATE: a decision is never amended.
+GRANT INSERT, DELETE ON `tmanage`.`public_abuse_events`        TO 'tmanage_app'@'%';
+-- 0255 `public_challenges` (global): issued, counted (attempts), solved and purged once expired.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`public_challenges`  TO 'tmanage_app'@'%';

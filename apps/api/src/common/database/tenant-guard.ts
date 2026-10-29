@@ -1100,6 +1100,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `(organization_id, id)` with a `(organization_id, metric_key, day_utc)` upsert key.
   // INSERT/UPDATE only, no DELETE.
   org_quota_counters: 'organization_id',
+  // ---- 52-21 ----
+  // 0255. Tenant-owned: one organization's block rule (email | domain | ip), keyed
+  // `(organization_id, id)`, unique per `(organization_id, kind, value)`. Managed behind
+  // `org.security.manage`; the public guard reads one organization's rules via `bootstrapRead`.
+  org_block_rules: 'organization_id',
 });
 
 /**
@@ -1224,6 +1229,13 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // GLOBAL: platform readings, no tenant data. Written by the API's capacity sampler through
   // `identityTransaction(['host_capacity_readings'])`, read by `GET /v1/platform/health/capacity`.
   'host_capacity_readings',
+  // ---- 52-21 ----
+  // 0255. Public abuse telemetry and issued challenges. GLOBAL: the callers are anonymous (no
+  // organization yet, or a visitor of one), every key is a hash (submitted values, the challenge
+  // target and code) and the IP is truncated before it is written — no tenant data is stored.
+  // Reached only through `identityTransaction(['public_abuse_events' | 'public_challenges'])`.
+  'public_abuse_events',
+  'public_challenges',
 ]);
 
 export function isTenantTable(name: string): boolean {

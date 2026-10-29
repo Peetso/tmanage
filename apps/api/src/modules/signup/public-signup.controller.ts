@@ -5,6 +5,8 @@ import { clientAddressKey, type RequestAdmission } from '../../common/http/rate-
 import { requireRequestState } from '../../common/http/request-state.js';
 import type { SessionService } from '../identity/session.service.js';
 import type { PublicSignupSwitch } from '../platform-admin/platform-settings.js';
+import { PUBLIC_ABUSE_ASSESS } from '../public-abuse/public-abuse.guard.js';
+import type { AssessPublicWrite } from '../public-abuse/public-abuse.guard.js';
 import {
   ACCOUNT_EXISTS_SIGNUP_MESSAGE,
   normaliseSignupEmail,
@@ -37,8 +39,12 @@ const RATE_LIMITED = 'Too many attempts. Wait a few minutes and try again.';
  * `GET /v1/public/sign-up` (is it open?) and `POST /v1/public/sign-up` (create account +
  * organization, signed in). Registered only while `PUBLIC_SIGNUP` is on; otherwise both 404.
  *
- * Order on POST: per-source limit, honeypot, per-address limit, then the service. A refused
- * caller never reaches the password hash or the database.
+ * Order on POST: per-source limit, honeypot, per-address limit, the 52-21 abuse assessment, then
+ * the service. A refused caller never reaches the password hash or the database.
+ *
+ * 52-21: a sign-up is never held — a person signing up must not wait on a review. It is refused
+ * only when the assessment says `blocked` (a window: 429) or `spam` (score ≥ 70: the same opaque
+ * 400 the honeypot gives). A form filled fast but carrying the JS proof scores 60 and goes on.
  */
 @Controller('v1/public/sign-up')
 export class PublicSignupController {
@@ -52,6 +58,10 @@ export class PublicSignupController {
     @Optional()
     @Inject(PUBLIC_SIGNUP_SWITCH)
     private readonly signupSwitch?: PublicSignupSwitch,
+    // 52-21. Absent (a hand-built controller) means no assessment, the pre-52-21 behaviour.
+    @Optional()
+    @Inject(PUBLIC_ABUSE_ASSESS)
+    private readonly assess?: AssessPublicWrite,
   ) {}
 
   @Get()
@@ -92,6 +102,33 @@ export class PublicSignupController {
     const email = normaliseSignupEmail(body?.email);
     if (email !== undefined && !this.admitEmail(email)) {
       throw new ApiError(429, 'rate_limited', RATE_LIMITED);
+    }
+    const acceptLanguage = request.headers['accept-language'];
+    const verdict = await this.assess?.({
+      surface: 'signup',
+      kind: 'signup',
+      body: (body ?? {}) as Readonly<Record<string, unknown>>,
+      email,
+      texts: [
+        typeof body?.displayName === 'string' ? body.displayName : undefined,
+        typeof body?.organizationName === 'string' ? body.organizationName : undefined,
+      ],
+      ip: request.ip,
+      acceptLanguage: typeof acceptLanguage === 'string' ? acceptLanguage : undefined,
+      pageLocale: typeof body?.defaultLocale === 'string' ? body.defaultLocale : undefined,
+      correlationId: state.correlationId,
+    });
+    if (verdict?.decision === 'blocked' && verdict.retryAfterSeconds !== undefined) {
+      throw new ApiError(429, 'rate_limited', RATE_LIMITED);
+    }
+    if (verdict?.decision === 'blocked' || verdict?.decision === 'spam') {
+      throw new ApiError(
+        400,
+        'validation_failed',
+        'That account cannot be created.',
+        undefined,
+        'signup_abuse_refused',
+      );
     }
 
     let result;

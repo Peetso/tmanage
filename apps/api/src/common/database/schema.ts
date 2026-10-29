@@ -4110,6 +4110,8 @@ export const marketingLeads = mysqlTable(
     email: varchar('email', { length: 254 }).notNull(),
     message: varchar('message', { length: 4000 }).notNull(),
     source: varchar('source', { length: 100 }).notNull(),
+    /** 0255 (52-21): `clear | held | spam` — the abuse engine's verdict; held/spam are never delivered. */
+    reviewStatus: varchar('review_status', { length: 16 }).notNull().default('clear'),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
   },
   (table) => [index('ix_marketing_leads_created_at').on(table.createdAt, table.id)],
@@ -10223,4 +10225,83 @@ export type HostCapacityReadingRow = typeof hostCapacityReadings.$inferSelect;
 
 Object.assign(TABLES, {
   host_capacity_readings: hostCapacityReadings,
+});
+
+// ---- 52-21 · public-endpoint abuse engine ----
+
+/**
+ * 0255. An organization's own block list for its public doors (52-21): one e-mail address, one
+ * e-mail domain or one IP address per row. TENANT: keyed `(organization_id, id)`, unique per
+ * `(organization_id, kind, value)`. `kind` email | domain | ip — closed list checked in
+ * `public-abuse/block-rules.repository.ts`. Managed behind `org.security.manage`.
+ */
+export const orgBlockRules = mysqlTable(
+  'org_block_rules',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    kind: varchar('kind', { length: 8 }).notNull(),
+    value: varchar('value', { length: 254 }).notNull(),
+    reason: varchar('reason', { length: 200 }),
+    createdByUserId: char('created_by_user_id', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_org_block_rules_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_org_block_rules_value').on(table.organizationId, table.kind, table.value),
+  ],
+);
+
+export type OrgBlockRuleRow = typeof orgBlockRules.$inferSelect;
+
+/**
+ * 0255. One row per assessed public action (52-21 abuse telemetry). GLOBAL (NON_TENANT_TABLES):
+ * the caller is anonymous. No content — `key_hash` is an HMAC of the submitted values, `ip_text`
+ * is truncated to /24 or /56 at write time. `decision` allow | hold | spam | blocked | challenge.
+ * Purged after 30 days.
+ */
+export const publicAbuseEvents = mysqlTable(
+  'public_abuse_events',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    kind: varchar('kind', { length: 32 }).notNull(),
+    surface: varchar('surface', { length: 64 }).notNull(),
+    keyHash: char('key_hash', { length: 64 }).notNull(),
+    ipText: varchar('ip_text', { length: 45 }),
+    decision: varchar('decision', { length: 16 }).notNull(),
+    score: smallint('score').notNull(),
+    reasons: varchar('reasons', { length: 255 }),
+    organizationId: char('organization_id', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [index('ix_public_abuse_events_created').on(table.createdAt)],
+);
+
+export type PublicAbuseEventRow = typeof publicAbuseEvents.$inferSelect;
+
+/**
+ * 0255. An issued public challenge (52-21): e-mail code, proof-of-work or Turnstile. GLOBAL:
+ * the target and the code are hashes. `kind` email_code | pow | turnstile. Purged once expired.
+ */
+export const publicChallenges = mysqlTable(
+  'public_challenges',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    kind: varchar('kind', { length: 16 }).notNull(),
+    targetHash: char('target_hash', { length: 64 }).notNull(),
+    codeHash: char('code_hash', { length: 64 }),
+    attempts: tinyint('attempts').notNull().default(0),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+    solvedAt: datetime('solved_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [index('ix_public_challenges_expires').on(table.expiresAt)],
+);
+
+export type PublicChallengeRow = typeof publicChallenges.$inferSelect;
+
+Object.assign(TABLES, {
+  org_block_rules: orgBlockRules,
+  public_abuse_events: publicAbuseEvents,
+  public_challenges: publicChallenges,
 });

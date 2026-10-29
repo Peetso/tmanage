@@ -10,6 +10,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
 import { useHydrated } from '../../lib/use-hydrated';
+import { useFormProof } from '../../lib/form-proof';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
@@ -88,6 +89,8 @@ export function SignUpScreen({
   const [created, setCreated] = useState<Created | undefined>(undefined);
   const google = useGoogleAvailability(api);
   const [googleError, setGoogleError] = useState<MessageKey | undefined>(undefined);
+  // 52-21: the invisible form proof, fetched once when the form is shown.
+  const formProof = useFormProof(api);
   useEffect(() => setGoogleError(googleErrorKey(window.location.search)), []);
 
   useEffect(() => {
@@ -151,6 +154,7 @@ export function SignUpScreen({
         timezone: guessTimezone(),
         defaultLocale: locale.toLowerCase().startsWith('ar') ? 'ar' : 'en',
         website,
+        ...(await formProof.fields()),
       });
       setPassword('');
       api.rememberCsrfToken(outcome.csrfToken);
@@ -354,6 +358,9 @@ export function SignUpScreen({
                   onChange={(event) => setWebsite(event.target.value)}
                 />
               </div>
+              {/* 52-21 form proof: invisible; the submit adds the browser-computed proof. */}
+              <input type="hidden" name="startedAt" value={formProof.issue?.startedAt ?? ''} />
+              <input type="hidden" name="nonce" value={formProof.issue?.nonce ?? ''} />
             </fieldset>
 
             {failure ? (

@@ -9,6 +9,7 @@ import type { ApiClient } from '../../../../lib/api/client';
 import { useT } from '../../../../lib/i18n/use-t';
 import type { MessageKey } from '../../../../lib/i18n/t';
 import { useHydrated } from '../../../../lib/use-hydrated';
+import { useFormProof } from '../../../../lib/form-proof';
 import { WebIcon } from '../../WebIcon';
 
 /**
@@ -82,6 +83,8 @@ export function DemoRequestForm({ client }: DemoRequestFormProps) {
   const [sending, setSending] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
   const [sent, setSent] = useState(false);
+  // 52-21: the invisible form proof, fetched once when the form is shown.
+  const formProof = useFormProof(api);
 
   function set<K extends keyof Draft>(key: K, value: Draft[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -110,7 +113,16 @@ export function DemoRequestForm({ client }: DemoRequestFormProps) {
     setSending(true);
     setFailure(undefined);
     try {
-      await submitContact(api, { name, email, message: composeDemoMessage(draft) });
+      const outcome = await submitContact(api, {
+        name,
+        email,
+        message: composeDemoMessage(draft),
+        ...(await formProof.fields()),
+      });
+      if (outcome.status === 'not_sent') {
+        setFailure(t('DemoRequestForm.errorGeneric'));
+        return;
+      }
       setSent(true);
       setDraft(EMPTY);
     } catch (error) {
@@ -143,6 +155,9 @@ export function DemoRequestForm({ client }: DemoRequestFormProps) {
       {/* `noValidate` for the reason `SignInScreen` gives: errors use the design system. */}
       <form noValidate onSubmit={submit} aria-label={t('DemoRequestForm.formLabel')}>
         <fieldset className="tm-fieldset tm-web-contact-form__fields" disabled={!hydrated}>
+          {/* 52-21 form proof: invisible; the submit adds the browser-computed proof. */}
+          <input type="hidden" name="startedAt" value={formProof.issue?.startedAt ?? ''} />
+          <input type="hidden" name="nonce" value={formProof.issue?.nonce ?? ''} />
           <Field
             label={t('DemoRequestForm.fieldName')}
             name="name"

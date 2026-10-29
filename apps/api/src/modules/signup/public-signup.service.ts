@@ -51,6 +51,10 @@ export interface PublicSignupBody {
   readonly defaultLocale?: unknown;
   /** The honeypot. Hidden from people; a bot that fills every field fills this one too. */
   readonly website?: unknown;
+  /** 52-21 form proof: the signed `startedAt`, its `nonce` and the browser-computed `proof`. */
+  readonly startedAt?: unknown;
+  readonly nonce?: unknown;
+  readonly proof?: unknown;
 }
 
 export interface PublicSignupResult {

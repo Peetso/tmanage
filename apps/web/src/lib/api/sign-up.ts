@@ -22,6 +22,10 @@ export interface PublicSignupInput {
   readonly defaultLocale: string;
   /** The honeypot; a person never sees or fills it. */
   readonly website: string;
+  /** 52-21's invisible form proof (`lib/form-proof.ts`); absent when it could not be fetched. */
+  readonly startedAt?: string;
+  readonly nonce?: string;
+  readonly proof?: string;
 }
 
 /** The new owner's session, already issued (cookies set by the response). */

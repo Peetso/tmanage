@@ -1,10 +1,12 @@
-import { Body, Controller, HttpCode, Inject, Post, Req } from '@nestjs/common';
+import { Body, Controller, HttpCode, Inject, Optional, Post, Req, Res } from '@nestjs/common';
 import { ApiError } from '../../common/http/errors.js';
 import { Public } from '../../common/http/decorators.js';
 import { requireRequestState } from '../../common/http/request-state.js';
 import { CONTACT_ADMISSION, MARKETING_LEADS_REPOSITORY } from '../../common/http/tokens.js';
 import { clientAddressKey, type RequestAdmission } from '../../common/http/rate-limiter.js';
 import type { MarketingLeadsRepository } from './contact.repository.js';
+import { PUBLIC_ABUSE_ASSESS } from '../public-abuse/public-abuse.guard.js';
+import type { AssessPublicWrite } from '../public-abuse/public-abuse.guard.js';
 
 /** Column bounds, mirrored from `0062_marketing_leads.sql`. Over-length is a 400, never a truncation. */
 const MAX_NAME = 200;
@@ -23,6 +25,8 @@ interface ContactSubmitBody {
   readonly name?: unknown;
   readonly email?: unknown;
   readonly message?: unknown;
+  /** 52-21's invisible inputs (`startedAt`, `nonce`, `proof`, `website`, `pageLocale`). */
+  readonly [proofField: string]: unknown;
 }
 
 /**
@@ -31,7 +35,12 @@ interface ContactSubmitBody {
  * any other lead. A public write door has no business handing data back.
  */
 export interface ContactSubmitView {
-  readonly status: 'received';
+  /**
+   * `received` — stored (a held or spam lead is stored too, marked, and is answered the same so a
+   * script learns nothing). `not_sent` — a 200 the form shows as its calm "could not send": the
+   * organization's block list or a 52-21 window refused it, and nothing was stored.
+   */
+  readonly status: 'received' | 'not_sent';
 }
 
 /**
@@ -57,12 +66,22 @@ export interface ContactSubmitView {
  *    a lead is written and, in this slice, never read back over HTTP.
  *
  * Email delivery of the lead is Needs-Peter (an external mail provider); this slice persists only.
+ *
+ * 52-21: after validation the submission is assessed by the abuse engine (`assessPublicWrite`):
+ * `allow` stores the lead as before; `hold` and `spam` store it marked (`review_status`), never
+ * delivered, and answer the same `received`; `blocked` stores nothing and answers the calm 200
+ * `not_sent` (or the 429 when a window refused). The form cannot render a challenge yet (F-33/F-30
+ * are 52-20's), so a person is never shown one here.
  */
 @Controller('public/site')
 export class ContactController {
   constructor(
     @Inject(MARKETING_LEADS_REPOSITORY) private readonly leads: MarketingLeadsRepository,
     @Inject(CONTACT_ADMISSION) private readonly admit: RequestAdmission,
+    // 52-21. Absent (a hand-built controller) means every valid submission is stored clear.
+    @Optional()
+    @Inject(PUBLIC_ABUSE_ASSESS)
+    private readonly assess?: AssessPublicWrite,
   ) {}
 
   @Post('contact')
@@ -71,6 +90,7 @@ export class ContactController {
   async submit(
     @Body() body: ContactSubmitBody,
     @Req() request: { headers: Record<string, string | string[] | undefined>; ip?: string },
+    @Res({ passthrough: true }) reply?: { status(code: number): unknown },
   ): Promise<ContactSubmitView> {
     const state = requireRequestState(request);
     if (!this.admit(clientAddressKey(request.ip))) {
@@ -100,11 +120,36 @@ export class ContactController {
       throw new ApiError(400, 'validation_failed', 'name, email and message are required', details);
     }
 
+    const acceptLanguage = request.headers['accept-language'];
+    const verdict = await this.assess?.({
+      surface: 'contact',
+      kind: 'contact',
+      body: body ?? {},
+      email,
+      texts: [name, message],
+      ip: request.ip,
+      acceptLanguage: typeof acceptLanguage === 'string' ? acceptLanguage : undefined,
+      correlationId: state.correlationId,
+    });
+    if (verdict?.decision === 'blocked') {
+      if (verdict.retryAfterSeconds !== undefined) {
+        throw new ApiError(429, 'rate_limited', 'too many submissions; try again later');
+      }
+      reply?.status(200);
+      return { status: 'not_sent' };
+    }
+
     await this.leads.insert({
       name,
       email,
       message,
       source: 'contact_form',
+      reviewStatus:
+        verdict === undefined || verdict.decision === 'allow'
+          ? 'clear'
+          : verdict.decision === 'spam'
+            ? 'spam'
+            : 'held',
       correlationId: state.correlationId,
     });
 

@@ -28,6 +28,8 @@ export class MarketingLeadsRepository {
     email: string;
     message: string;
     source: string;
+    /** 52-21: `clear` (default) | `held` | `spam` — a held or spam lead is never delivered. */
+    reviewStatus?: 'clear' | 'held' | 'spam';
     correlationId: string;
   }): Promise<{ id: string }> {
     const id = uuidv7();
@@ -42,6 +44,7 @@ export class MarketingLeadsRepository {
             email: input.email,
             message: input.message,
             source: input.source,
+            reviewStatus: input.reviewStatus ?? 'clear',
             createdAt: sql`current_timestamp(3)`,
           }),
     );

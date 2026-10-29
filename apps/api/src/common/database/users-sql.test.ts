@@ -265,6 +265,21 @@ describe('the runtime user is actually least-privilege', () => {
     expect(effective).not.toContain('DELETE');
   });
 
+  it('52-21: abuse telemetry is append-and-purge only; block rules and challenges are managed', () => {
+    // A recorded decision is evidence: the app may append and purge it, never amend it.
+    expect([...privilegesOn('tmanage_app', 'public_abuse_events')].sort()).toEqual([
+      'DELETE',
+      'INSERT',
+    ]);
+    for (const table of ['org_block_rules', 'public_challenges']) {
+      expect([...privilegesOn('tmanage_app', table)].sort(), table).toEqual([
+        'DELETE',
+        'INSERT',
+        'UPDATE',
+      ]);
+    }
+  });
+
   it('cannot forge a migration ledger row', () => {
     const effective = effectivePrivilegesOn('tmanage_app', 'schema_migrations');
     expect(effective).toEqual(['SELECT']);
