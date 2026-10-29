@@ -72,7 +72,12 @@ import {
   realtimeInProcessEnabled,
   withRealtimeFanOut,
 } from './realtime-inprocess.mjs';
-import { beat, reportJobOutcome } from './job-alerts.mjs';
+import {
+  beat,
+  createHeartbeatWatchdog,
+  reportJobOutcome,
+  WATCHDOG_INTERVAL_MS,
+} from './job-alerts.mjs';
 import { createMigrationGate } from './migration-shutdown.mjs';
 import {
   apiReconcileJobs,
@@ -329,6 +334,7 @@ async function startInProcessWorker(env, attachRealtime) {
     CredentialChangeMailer,
     PrivacyMailer,
     writeHeartbeat,
+    readHeartbeat,
   } = worker;
   const { ConsoleMailer, SmtpMailer } = await import('@tmanage/mail');
 
@@ -409,10 +415,20 @@ async function startInProcessWorker(env, attachRealtime) {
   };
   const timer = setInterval(() => void tick(), env.OUTBOX_POLL_INTERVAL_MS);
   timer.unref();
+  // 51-07. A stale heartbeat (wedged or dead relay) mails ALERT_EMAILS once per stale spell.
+  const watchdog = createHeartbeatWatchdog({
+    alerts,
+    readHeartbeat,
+    path: env.OUTBOX_HEARTBEAT_FILE,
+    maxAgeSeconds: env.OUTBOX_HEARTBEAT_MAX_AGE_SECONDS,
+  });
+  const watchdogTimer = setInterval(() => void watchdog.check(), WATCHDOG_INTERVAL_MS);
+  watchdogTimer.unref();
   log(`in-process worker on, polling every ${env.OUTBOX_POLL_INTERVAL_MS}ms`);
   void tick();
   return async () => {
     clearInterval(timer);
+    clearInterval(watchdogTimer);
     await realtime?.close();
     await database.end();
   };

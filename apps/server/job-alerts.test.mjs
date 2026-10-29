@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { beat, reportJobOutcome } from './job-alerts.mjs';
+import { beat, createHeartbeatWatchdog, reportJobOutcome } from './job-alerts.mjs';
 
 function recorder() {
   const calls = [];
@@ -53,4 +53,31 @@ test('beat writes the heartbeat when a path is set and swallows a write failure'
   await beat(() => Promise.reject(new Error('EACCES')), '/tmp/hb.json');
   await beat(() => assert.fail('must not write without a path'), undefined);
   assert.deepEqual(writes, [['/tmp/hb.json', true]]);
+});
+
+test('51-07: a stale heartbeat mails once per spell, then once on recovery; a wake is skipped', async () => {
+  const alerts = recorder();
+  let clock = 1_000_000;
+  let last = new Date(clock - 2_000_000);
+  const dog = createHeartbeatWatchdog({
+    alerts,
+    readHeartbeat: () => Promise.resolve(last),
+    path: 'hb.json',
+    maxAgeSeconds: 900,
+    intervalMs: 60_000,
+    now: () => clock,
+  });
+  assert.equal(await dog.check(), 'stale');
+  clock += 60_000;
+  assert.equal(await dog.check(), 'stale');
+  last = new Date(clock);
+  clock += 60_000;
+  assert.equal(await dog.check(), 'ok');
+  assert.deepEqual(
+    alerts.calls.map((c) => c.kind),
+    ['worker_stale:relay', 'worker_recovered:relay'],
+  );
+  clock += 3_600_000;
+  assert.equal(await dog.check(), 'woke');
+  assert.equal(alerts.calls.length, 2);
 });

@@ -67,8 +67,17 @@ export interface PlatformIntegrationView {
   readonly lastSuccessAt: string | null;
 }
 
+/** 51-07 — the worker heartbeat, for "Background jobs: last batch N s ago". */
+export interface BackgroundJobsView {
+  readonly worker: 'ok' | 'stale' | 'not_configured';
+  readonly lastBatchAt: string | null;
+  readonly lastBatchAgeSeconds: number | null;
+  readonly maxAgeSeconds: number;
+}
+
 export interface PlatformIntegrationsView {
   readonly integrations: readonly PlatformIntegrationView[];
+  readonly backgroundJobs: BackgroundJobsView;
 }
 
 export type PlatformFlagKey =

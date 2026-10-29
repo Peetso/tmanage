@@ -94,6 +94,12 @@ const INTEGRATIONS: PlatformIntegrationsView = {
       lastSuccessAt: null,
     },
   ],
+  backgroundJobs: {
+    worker: 'ok',
+    lastBatchAt: null,
+    lastBatchAgeSeconds: null,
+    maxAgeSeconds: 900,
+  },
 };
 
 function flag(overrides: Partial<PlatformFlagView>): PlatformFlagView {

@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { ApiError } from '../../../common/http/errors.js';
 import {
   environmentAiDisabled,
@@ -69,8 +70,65 @@ export interface PlatformIntegrationView {
   readonly lastSuccessAt: string | null;
 }
 
+/**
+ * 51-07 — the in-process worker's heartbeat, for "Background jobs: last batch 23 s ago". Here and
+ * not on `/healthz/deep`, which is public and stays ok / fail only.
+ */
+export interface BackgroundJobsView {
+  /** `not_configured` when `OUTBOX_HEARTBEAT_FILE` is unset. */
+  readonly worker: 'ok' | 'stale' | 'not_configured';
+  readonly lastBatchAt: string | null;
+  readonly lastBatchAgeSeconds: number | null;
+  readonly maxAgeSeconds: number;
+}
+
 export interface PlatformIntegrationsView {
   readonly integrations: readonly PlatformIntegrationView[];
+  readonly backgroundJobs: BackgroundJobsView;
+}
+
+/** The heartbeat reading as a view. Pure; the age is whole seconds, never negative. */
+export function backgroundJobsView(
+  env: NodeJS.ProcessEnv,
+  lastBatchAt: Date | null,
+  now: Date,
+): BackgroundJobsView {
+  const parsed = Number(env['OUTBOX_HEARTBEAT_MAX_AGE_SECONDS']);
+  const maxAgeSeconds = Number.isInteger(parsed) && parsed > 0 ? parsed : 900;
+  if (!present(env, 'OUTBOX_HEARTBEAT_FILE')) {
+    return {
+      worker: 'not_configured',
+      lastBatchAt: null,
+      lastBatchAgeSeconds: null,
+      maxAgeSeconds,
+    };
+  }
+  const age =
+    lastBatchAt === null
+      ? null
+      : Math.max(0, Math.floor((now.getTime() - lastBatchAt.getTime()) / 1_000));
+  return {
+    worker: age !== null && age <= maxAgeSeconds ? 'ok' : 'stale',
+    lastBatchAt: lastBatchAt?.toISOString() ?? null,
+    lastBatchAgeSeconds: age,
+    maxAgeSeconds,
+  };
+}
+
+/** The relay's heartbeat file (`{"lastPollAt": ISO}`), or `null` when absent or unreadable. */
+async function readHeartbeatFile(path: string | undefined): Promise<Date | null> {
+  if (path === undefined || path.trim() === '') return null;
+  try {
+    const parsed: unknown = JSON.parse(await readFile(path.trim(), 'utf8'));
+    const value =
+      parsed !== null && typeof parsed === 'object'
+        ? (parsed as Record<string, unknown>)['lastPollAt']
+        : undefined;
+    const at = typeof value === 'string' ? new Date(value) : null;
+    return at === null || Number.isNaN(at.getTime()) ? null : at;
+  } catch {
+    return null;
+  }
 }
 
 const EMPTY: ConnectionCount = {
@@ -145,6 +203,11 @@ export class IntegrationsService {
     return {
       integrations: INTEGRATION_KEYS.map((key) =>
         integrationView(key, this.env, rows.get(integrationSettingKey(key)), counts),
+      ),
+      backgroundJobs: backgroundJobsView(
+        this.env,
+        await readHeartbeatFile(this.env['OUTBOX_HEARTBEAT_FILE']),
+        new Date(),
       ),
     };
   }

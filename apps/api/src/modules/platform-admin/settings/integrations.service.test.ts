@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { PlatformAdminActor } from '../platform-admin.guard.js';
 import type { PlatformAdminRepository } from '../platform-admin.repository.js';
-import { IntegrationsService, integrationView } from './integrations.service.js';
+import {
+  backgroundJobsView,
+  IntegrationsService,
+  integrationView,
+} from './integrations.service.js';
 import type { IntegrationCounts, PlatformSettingsRepository } from './settings.repository.js';
 
 /** PA-10 · D1 integrations: configured = env present (read only), switch, counts, last error. */
@@ -129,5 +133,19 @@ describe('IntegrationsService.setEnabled', () => {
       service.setEnabled(actor, 'dropbox', { enabled: true, reason: 'Turn it on' }, ctx),
     ).rejects.toMatchObject({ status: 404 });
     expect(writeSetting).not.toHaveBeenCalled();
+  });
+});
+
+describe('51-07 background jobs heartbeat view', () => {
+  it('is not_configured without a file, ok when fresh and stale past the max age', () => {
+    const now = new Date('2026-10-29T12:00:00Z');
+    const env = { OUTBOX_HEARTBEAT_FILE: 'hb.json', OUTBOX_HEARTBEAT_MAX_AGE_SECONDS: '900' };
+    expect(backgroundJobsView({}, null, now).worker).toBe('not_configured');
+    expect(backgroundJobsView(env, new Date('2026-10-29T11:59:37Z'), now)).toMatchObject({
+      worker: 'ok',
+      lastBatchAgeSeconds: 23,
+    });
+    expect(backgroundJobsView(env, new Date('2026-10-29T11:00:00Z'), now).worker).toBe('stale');
+    expect(backgroundJobsView(env, null, now).worker).toBe('stale');
   });
 });
