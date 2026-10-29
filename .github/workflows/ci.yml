@@ -281,3 +281,19 @@ jobs:
             exit 1
           fi
           echo "no tracked .env files"
+
+      # 56-15: the offline half of secret scanning. gitleaks above finds credential shapes in
+      # history; this census also fails when a secret-named variable is read from the
+      # environment, or declared in packages/config, without being listed in .env.example.
+      - name: Secrets census
+        run: node scripts/security/secrets-census.mjs
+
+      # 56-15: every pull request carries the SECURITY: block of
+      # docs/security/ticket-security-template.md, each line answered. The body reaches the
+      # script through the environment, never through `${{ }}` in the shell, so a crafted
+      # description cannot inject a command.
+      - name: Pull request SECURITY block
+        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/security/pr-security-block.mjs
