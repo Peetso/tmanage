@@ -1,8 +1,9 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { PlatformAiAccessScreen } from '../../../components/platform/PlatformAiAccessScreen';
-
-/** Platform admin — the AI kill switch (OPS-2..5). The API decides who may see it (404 for everyone not listed). */
-export default function Page() {
-  return <PlatformAiAccessScreen />;
+/**
+ * The AI kill switch moved into Platform settings (PA-10, D1 "AI access" card). The old address
+ * keeps working: it lands on the card.
+ */
+export default function Page(): never {
+  redirect('/platform/settings#ai-access');
 }

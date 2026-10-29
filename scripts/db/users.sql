@@ -1729,6 +1729,16 @@ GRANT SELECT, DELETE ON `tmanage`.`onedrive_attachments`     TO 'tmanage_worker'
 -- The restore window the sweep honours is read from `platform_settings` only by the API; the
 -- worker compares `purge_after` (already computed at delete time) with the database clock.
 
+-- ---- platform-admin v2 · PA-10 ----
+-- 0244 platform feature flags, per-organization forced overrides and the platform banner (global
+-- tables): INSERT and UPDATE. No DELETE: removing a forced override sets its `removed_at` (forcing
+-- it again clears it); Delete on an announcement unpublishes it and sets `archived`. SELECT is the database-wide read.
+-- `maintenance_windows` already holds INSERT and UPDATE (0080 + wave 9): PA-10's edit, publish and
+-- "End now" (`ended_at`) are UPDATEs on that grant, so nothing is added for it. The worker holds
+-- nothing here.
+GRANT INSERT, UPDATE ON `tmanage`.`platform_feature_flags`      TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`platform_org_flag_overrides` TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`platform_announcements`      TO 'tmanage_app'@'%';
 -- ---- platform-admin v2 · PA-05 ----
 -- The worker's Support-session sweeper (apps/worker/src/jobs/support-session-sweeper.ts, every
 -- minute and `--sweep-support-sessions`) ends sessions past `expires_at`: it reads and stamps the

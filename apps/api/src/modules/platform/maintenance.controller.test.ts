@@ -10,12 +10,15 @@ import type { MaintenanceWindowRow } from '../../common/database/schema.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { PlatformAdminGuard } from '../platform-admin/platform-admin.guard.js';
 import type { PlatformAdminActor } from '../platform-admin/platform-admin.guard.js';
+import { PlatformAdminRepository } from '../platform-admin/platform-admin.repository.js';
 import {
   MaintenanceModule,
   PlatformMaintenanceController,
   PublicMaintenanceController,
+  assertSignInOpen,
 } from './maintenance.controller.js';
-import type { MaintenanceWindowsRepository } from './maintenance.repository.js';
+import { MaintenanceWindowsRepository } from './maintenance.repository.js';
+import type { MaintenanceWindowRecord } from './maintenance.repository.js';
 
 /**
  * Platform states (x185) — the maintenance window, proved without a database.
@@ -183,7 +186,9 @@ describe('wave9-S8 F07 regression: an organization owner cannot publish a platfo
   it('no tenant route writes maintenance: the module serves no /v1/organizations/... path', () => {
     const registered = MaintenanceModule.register().controllers ?? [];
     const paths = registered.map((c) => Reflect.getMetadata('path', c as object) as string);
-    expect(paths).toEqual(['public/site', 'v1/platform/maintenance']);
+    // PA-10 adds the public announcements read on the same public prefix; still no tenant path.
+    expect(paths).toEqual(['public/site', 'v1/platform/maintenance', 'public/site']);
+    expect(paths.some((path) => path.includes('organizations'))).toBe(false);
     // The only writer is behind PlatformAdminGuard and resolves no organization.
     const guards = Reflect.getMetadata(GUARDS_METADATA, PlatformMaintenanceController) as unknown[];
     expect(guards).toContain(PlatformAdminGuard);
@@ -213,5 +218,163 @@ describe('wave9-S8 F07 regression: an organization owner cannot publish a platfo
     const error = await guard.canActivate(context).catch((e: ApiError) => e);
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).status).toBe(404);
+  });
+});
+
+// ---- platform-admin v2 · PA-10 ----
+
+function record(overrides: Partial<MaintenanceWindowRecord> = {}): MaintenanceWindowRecord {
+  return {
+    id: WINDOW_ID,
+    message: 'TManage is down for an upgrade',
+    messageAr: '‏تطبيق TManage متوقف للتحديث',
+    severity: 'down',
+    startsAt: new Date('2000-01-01T00:00:00.000Z'),
+    endsAt: new Date('2999-01-01T00:00:00.000Z'),
+    published: true,
+    blockSignIn: true,
+    createdAt: new Date('2000-01-01T00:00:00.000Z'),
+    updatedAt: null,
+    endedAt: null,
+    ...overrides,
+  };
+}
+
+function editHarness(stored: MaintenanceWindowRecord | null = record()) {
+  let current = stored;
+  const find = vi.fn(async () => current);
+  const update = vi.fn(async (_id: string, next: Partial<MaintenanceWindowRecord>) => {
+    if (current) current = { ...current, ...next };
+    return true;
+  });
+  const end = vi.fn(async (_id: string, now: Date) => {
+    if (current) current = { ...current, endedAt: now, endsAt: now };
+    return current !== null;
+  });
+  const repository = { find, update, end } as unknown as MaintenanceWindowsRepository;
+  return { controller: new PlatformMaintenanceController(repository), find, update, end };
+}
+
+describe('PA-10 · D4 maintenance edit and End now', () => {
+  it('PATCH merges over the stored window and audits before/after', async () => {
+    const { controller, update } = editHarness();
+    const view = await controller.edit(
+      OPERATOR,
+      WINDOW_ID,
+      { severity: 'degraded', blockSignIn: false },
+      operatorRequest(),
+    );
+    expect(update).toHaveBeenCalledWith(
+      WINDOW_ID,
+      expect.objectContaining({ severity: 'degraded', blockSignIn: false, published: true }),
+      expect.objectContaining({ action: 'platform.maintenance_updated', reason: null }),
+    );
+    expect(view.severity).toBe('degraded');
+    expect(view.blockSignIn).toBe(false);
+  });
+
+  it('PATCH refuses an end before the start and writes nothing; 404s an unknown window', async () => {
+    const { controller, update } = editHarness();
+    const error = await controller
+      .edit(OPERATOR, WINDOW_ID, { endsAt: '1999-01-01T00:00:00.000Z' }, operatorRequest())
+      .catch((e: ApiError) => e);
+    expect((error as ApiError).status).toBe(400);
+    expect(update).not.toHaveBeenCalled();
+    const missing = editHarness(null);
+    const notFound = await missing.controller
+      .edit(OPERATOR, WINDOW_ID, { severity: 'info' }, operatorRequest())
+      .catch((e: ApiError) => e);
+    expect((notFound as ApiError).status).toBe(404);
+  });
+
+  it('End now marks the window ended (no reason needed) and the state is "ended"', async () => {
+    const { controller, end } = editHarness();
+    const view = await controller.end(OPERATOR, WINDOW_ID, {}, operatorRequest());
+    expect(end).toHaveBeenCalledWith(
+      WINDOW_ID,
+      expect.any(Date),
+      expect.objectContaining({ action: 'platform.maintenance_ended' }),
+    );
+    expect(view.state).toBe('ended');
+    expect(view.endedAt).not.toBeNull();
+  });
+});
+
+describe('PA-10 · the block_sign_in gate', () => {
+  const database = {} as TenantDatabase;
+  const member = {
+    userId: 'user-member',
+    email: 'member@northstar.test',
+    displayName: 'Member',
+    emailVerified: true,
+    mfaEnabled: false,
+  };
+
+  function gate(block: MaintenanceWindowRecord | null, adminRow: 'active' | null = null) {
+    vi.spyOn(MaintenanceWindowsRepository.prototype, 'activeSignInBlock').mockResolvedValue(block);
+    vi.spyOn(PlatformAdminRepository.prototype, 'findAccount').mockResolvedValue(member);
+    vi.spyOn(PlatformAdminRepository.prototype, 'findPlatformAdmin').mockResolvedValue(
+      (adminRow ? { status: adminRow } : null) as Awaited<
+        ReturnType<PlatformAdminRepository['findPlatformAdmin']>
+      >,
+    );
+  }
+
+  it('refuses a non-admin with 403 and the maintenance message, in Arabic when asked', async () => {
+    gate(record());
+    const en = await assertSignInOpen(database, [], {
+      userId: member.userId,
+      acceptLanguage: 'en-GB',
+      correlationId: 'c',
+    }).catch((e: ApiError) => e);
+    expect(en).toBeInstanceOf(ApiError);
+    expect((en as ApiError).status).toBe(403);
+    expect((en as ApiError).message).toBe('TManage is down for an upgrade');
+    const ar = await assertSignInOpen(database, [], {
+      userId: member.userId,
+      acceptLanguage: 'ar-EG,ar;q=0.9',
+      correlationId: 'c',
+    }).catch((e: ApiError) => e);
+    expect((ar as ApiError).message).toBe('‏تطبيق TManage متوقف للتحديث');
+  });
+
+  it('lets platform admins in (server list or active platform_admins row)', async () => {
+    gate(record());
+    await expect(
+      assertSignInOpen(database, ['member@northstar.test'], {
+        userId: member.userId,
+        acceptLanguage: 'en',
+        correlationId: 'c',
+      }),
+    ).resolves.toBeUndefined();
+    gate(record(), 'active');
+    await expect(
+      assertSignInOpen(database, [], {
+        userId: member.userId,
+        acceptLanguage: 'en',
+        correlationId: 'c',
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('lets everyone in when no blocking window is running, or the read fails', async () => {
+    gate(null);
+    await expect(
+      assertSignInOpen(database, [], {
+        userId: member.userId,
+        acceptLanguage: 'en',
+        correlationId: 'c',
+      }),
+    ).resolves.toBeUndefined();
+    vi.spyOn(MaintenanceWindowsRepository.prototype, 'activeSignInBlock').mockRejectedValue(
+      new Error('db down'),
+    );
+    await expect(
+      assertSignInOpen(database, [], {
+        userId: member.userId,
+        acceptLanguage: 'en',
+        correlationId: 'c',
+      }),
+    ).resolves.toBeUndefined();
   });
 });

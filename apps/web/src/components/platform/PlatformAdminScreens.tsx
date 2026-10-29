@@ -6,5 +6,4 @@
 export { PLATFORM_ME_KEY } from './shared/platform-kit';
 export { PlatformOverviewScreen } from './PlatformOverviewScreen';
 export { PlatformCompaniesScreen, PlatformCompanyScreen } from './PlatformCompaniesScreens';
-export { PlatformSettingsScreen } from './PlatformSettingsScreen';
 export { PlatformAuditScreen } from './PlatformAuditScreen';

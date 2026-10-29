@@ -3265,6 +3265,75 @@ type _pa02Preset = Assert<Exact<ApiPlatformPresetView, WebPlatformPresetView>>;
 type _pa02Presets = Assert<Exact<ApiPlatformPresetsView, WebPlatformPresetsView>>;
 type _pa02TeamWrite = Assert<Exact<ApiPlatformTeamWriteView, WebPlatformTeamWriteView>>;
 
+// ---- platform-admin v2 · PA-10 ----
+// Platform settings, integrations, feature flags, announcements and maintenance windows (SPEC §4
+// D1–D4), read by `apps/web/src/lib/api/platform-settings.ts` and `maintenance.ts`.
+import type {
+  PlatformSettingChangeView as ApiPlatformSettingChangeView,
+  PlatformSettingsFullView as ApiPlatformSettingsFullView,
+} from '../../apps/api/src/modules/platform-admin/settings/settings.service.js';
+import type {
+  PlatformIntegrationView as ApiPlatformIntegrationView,
+  PlatformIntegrationsView as ApiPlatformIntegrationsView,
+} from '../../apps/api/src/modules/platform-admin/settings/integrations.service.js';
+import type {
+  PlatformFlagOrganizationView as ApiPlatformFlagOrganizationView,
+  PlatformFlagOrganizationsView as ApiPlatformFlagOrganizationsView,
+  PlatformFlagView as ApiPlatformFlagView,
+  PlatformFlagsView as ApiPlatformFlagsView,
+} from '../../apps/api/src/modules/platform-admin/settings/flags.service.js';
+import type {
+  PlatformAnnouncementView as ApiPlatformAnnouncementView,
+  PlatformAnnouncementsView as ApiPlatformAnnouncementsView,
+  PublicAnnouncementView as ApiPublicAnnouncementView,
+  PublicAnnouncementsView as ApiPublicAnnouncementsView,
+} from '../../apps/api/src/modules/platform-admin/settings/announcements.service.js';
+import type {
+  PlatformMaintenanceListView as ApiPlatformMaintenanceListView,
+  PlatformMaintenanceWindowView as ApiPlatformMaintenanceWindowView,
+} from '../../apps/api/src/modules/platform/maintenance.controller.js';
+import type {
+  PlatformAnnouncementView as WebPlatformAnnouncementView,
+  PlatformAnnouncementsView as WebPlatformAnnouncementsView,
+  PlatformFlagOrganizationView as WebPlatformFlagOrganizationView,
+  PlatformFlagOrganizationsView as WebPlatformFlagOrganizationsView,
+  PlatformFlagView as WebPlatformFlagView,
+  PlatformFlagsView as WebPlatformFlagsView,
+  PlatformIntegrationView as WebPlatformIntegrationView,
+  PlatformIntegrationsView as WebPlatformIntegrationsView,
+  PlatformSettingChangeView as WebPlatformSettingChangeView,
+  PlatformSettingsFullView as WebPlatformSettingsFullView,
+  PublicAnnouncementView as WebPublicAnnouncementView,
+  PublicAnnouncementsView as WebPublicAnnouncementsView,
+} from '../../apps/web/src/lib/api/platform-settings';
+import type {
+  PlatformMaintenanceListView as WebPlatformMaintenanceListView,
+  PlatformMaintenanceWindowView as WebPlatformMaintenanceWindowView,
+} from '../../apps/web/src/lib/api/maintenance';
+type _pa10SettingChange = Assert<Exact<ApiPlatformSettingChangeView, WebPlatformSettingChangeView>>;
+type _pa10SettingsFull = Assert<Exact<ApiPlatformSettingsFullView, WebPlatformSettingsFullView>>;
+type _pa10Integration = Assert<Exact<ApiPlatformIntegrationView, WebPlatformIntegrationView>>;
+type _pa10Integrations = Assert<Exact<ApiPlatformIntegrationsView, WebPlatformIntegrationsView>>;
+type _pa10Flag = Assert<Exact<ApiPlatformFlagView, WebPlatformFlagView>>;
+type _pa10Flags = Assert<Exact<ApiPlatformFlagsView, WebPlatformFlagsView>>;
+type _pa10FlagOrganization = Assert<
+  Exact<ApiPlatformFlagOrganizationView, WebPlatformFlagOrganizationView>
+>;
+type _pa10FlagOrganizations = Assert<
+  Exact<ApiPlatformFlagOrganizationsView, WebPlatformFlagOrganizationsView>
+>;
+type _pa10Announcement = Assert<Exact<ApiPlatformAnnouncementView, WebPlatformAnnouncementView>>;
+type _pa10Announcements = Assert<Exact<ApiPlatformAnnouncementsView, WebPlatformAnnouncementsView>>;
+type _pa10PublicAnnouncement = Assert<Exact<ApiPublicAnnouncementView, WebPublicAnnouncementView>>;
+type _pa10PublicAnnouncements = Assert<
+  Exact<ApiPublicAnnouncementsView, WebPublicAnnouncementsView>
+>;
+type _pa10MaintenanceWindow = Assert<
+  Exact<ApiPlatformMaintenanceWindowView, WebPlatformMaintenanceWindowView>
+>;
+type _pa10MaintenanceList = Assert<
+  Exact<ApiPlatformMaintenanceListView, WebPlatformMaintenanceListView>
+>;
 // ---- platform-admin v2 · PA-04 ----
 import type {
   PlatformMemberOverrideView as ApiPlatformMemberOverrideView,

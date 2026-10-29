@@ -1,8 +1,8 @@
 'use client';
 
-import { PlatformSettingsScreen } from '../../../components/platform/PlatformAdminScreens';
+import { PlatformGeneralSettingsScreen } from '../../../components/platform/settings/PlatformGeneralSettingsScreen';
 
-/** Platform admin — platform switches (public sign-up). The API decides who may see it (404 for everyone not listed). */
+/** Platform admin — Settings · General (PA-10, D1). The API decides who may see it (404 for everyone not listed). */
 export default function Page() {
-  return <PlatformSettingsScreen />;
+  return <PlatformGeneralSettingsScreen />;
 }

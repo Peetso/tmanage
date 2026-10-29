@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { useParams, usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { browserApiClient } from '../../../lib/api/browser-client';
 import type { ApiClient } from '../../../lib/api/client';
@@ -108,19 +107,36 @@ export function AnnouncementBannerView({
   );
 }
 
+/**
+ * The organization slug and surface from the address (`/{orgSlug}/…`, `/{orgSlug}/portal/…`). Read
+ * from `window.location` rather than the router so the banner mounts in any shell, test or story.
+ */
+export function locationOf(pathname: string): { slug: string | null; surface: 'app' | 'portal' } {
+  const segments = pathname.split('/').filter(Boolean);
+  const first = segments[0] ?? null;
+  const slug = first !== null && /^[a-z0-9][a-z0-9-]{0,79}$/u.test(first) ? first : null;
+  return { slug, surface: segments[1] === 'portal' ? 'portal' : 'app' };
+}
+
 export function PlatformAnnouncementBanner({ client }: { client?: ApiClient } = {}) {
   const api = client ?? browserApiClient();
   const locale: 'en' | 'ar' = useActiveLocale().toLowerCase().startsWith('ar') ? 'ar' : 'en';
-  const params = useParams<{ orgSlug?: string }>();
-  const pathname = usePathname() ?? '';
-  const slug = typeof params?.orgSlug === 'string' ? params.orgSlug : null;
-  const surface = /\/portal(\/|$)/u.test(pathname) ? 'portal' : 'app';
+  const [where, setWhere] = useState<{
+    slug: string | null;
+    surface: 'app' | 'portal';
+  } | null>(null);
   const [dismissed, setDismissed] = useState<readonly string[]>([]);
-  useEffect(() => setDismissed(readDismissed()), []);
+  useEffect(() => {
+    setDismissed(readDismissed());
+    setWhere(locationOf(window.location.pathname));
+  }, []);
+  const slug = where?.slug ?? null;
+  const surface = where?.surface ?? 'app';
 
   const query = useQuery({
     queryKey: ['public', 'announcements', locale, surface, slug],
     queryFn: () => fetchPublicAnnouncement(api, { locale, surface, organizationSlug: slug }),
+    enabled: where !== null,
     retry: false,
     staleTime: 60_000,
     refetchInterval: 5 * 60_000,

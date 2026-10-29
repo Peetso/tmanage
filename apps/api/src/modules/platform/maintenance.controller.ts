@@ -6,6 +6,7 @@ import {
   Inject,
   Module,
   Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -24,7 +25,12 @@ import {
 import { MAINTENANCE_SEVERITIES } from '../../common/database/schema.js';
 import type { MaintenanceWindowRow } from '../../common/database/schema.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
-import { requireId, requireReason } from '../platform-admin/platform-admin.access.js';
+import {
+  optionalReason,
+  platformRequestContext,
+  requireId,
+  requireReason,
+} from '../platform-admin/platform-admin.access.js';
 import {
   CurrentPlatformAdmin,
   PLATFORM_ADMIN_ALLOWLIST,
@@ -33,7 +39,12 @@ import {
 } from '../platform-admin/platform-admin.guard.js';
 import type { PlatformAdminActor } from '../platform-admin/platform-admin.guard.js';
 import { PlatformAdminRepository } from '../platform-admin/platform-admin.repository.js';
+import { platformAuditFor } from '../platform-admin/platform-audit.service.js';
+import { RequirePlatformPermission } from '../platform-admin/require-platform-permission.decorator.js';
+import { PublicSiteAnnouncementsController } from '../public-site/site-announcements.controller.js';
+import { PlatformAnnouncementsRepository } from '../platform-admin/settings/announcements.repository.js';
 import { MaintenanceWindowsRepository } from './maintenance.repository.js';
+import type { MaintenanceWindowRecord } from './maintenance.repository.js';
 
 /**
  * Platform states (x185) — the platform maintenance / degraded-mode window.
@@ -70,6 +81,9 @@ export interface MaintenanceWindowView {
   readonly endsAt: string;
   /** `true` when `startsAt <= now < endsAt` — the banner shows; `false` for an upcoming window. */
   readonly active: boolean;
+  // ---- platform-admin v2 · PA-10 ----
+  /** The Arabic message (0244), when one was written. */
+  readonly messageAr?: string;
 }
 
 /** The public read's response: the current-or-next published window (or none), and the snapshot time. */
@@ -86,6 +100,80 @@ interface ScheduleMaintenanceInput {
   readonly startsAt?: unknown;
   readonly endsAt?: unknown;
   readonly published?: unknown;
+  // ---- platform-admin v2 · PA-10 ----
+  readonly messageAr?: unknown;
+  readonly blockSignIn?: unknown;
+}
+
+// ---- platform-admin v2 · PA-10 ----
+
+/** D4: one window as the operator's screen shows it, with every 0244 column and its state. */
+export interface PlatformMaintenanceWindowView {
+  readonly id: string;
+  readonly message: string;
+  readonly messageAr: string | null;
+  readonly severity: (typeof MAINTENANCE_SEVERITIES)[number];
+  readonly startsAt: string;
+  readonly endsAt: string;
+  readonly published: boolean;
+  readonly blockSignIn: boolean;
+  /** `draft` (not published), `scheduled`, `active` (running now) or `ended`. */
+  readonly state: 'draft' | 'scheduled' | 'active' | 'ended';
+  readonly endedAt: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string | null;
+}
+
+/** D4: the windows, the running one (if any) for the status card, and the snapshot time. */
+export interface PlatformMaintenanceListView {
+  readonly windows: readonly PlatformMaintenanceWindowView[];
+  readonly current: PlatformMaintenanceWindowView | null;
+  readonly asOf: string;
+}
+
+/** The most windows the D4 list shows. */
+export const MAX_ADMIN_WINDOWS = 100;
+
+/** The state of one window at `now`. Pure. */
+export function maintenanceState(
+  record: Pick<MaintenanceWindowRecord, 'published' | 'startsAt' | 'endsAt' | 'endedAt'>,
+  now: Date,
+): PlatformMaintenanceWindowView['state'] {
+  if (record.endedAt !== null || record.endsAt.getTime() <= now.getTime()) return 'ended';
+  if (!record.published) return 'draft';
+  return record.startsAt.getTime() <= now.getTime() ? 'active' : 'scheduled';
+}
+
+export function toPlatformMaintenanceView(
+  record: MaintenanceWindowRecord,
+  now: Date,
+): PlatformMaintenanceWindowView {
+  return {
+    id: record.id,
+    message: record.message,
+    messageAr: record.messageAr,
+    severity: record.severity,
+    startsAt: record.startsAt.toISOString(),
+    endsAt: record.endsAt.toISOString(),
+    published: record.published,
+    blockSignIn: record.blockSignIn,
+    state: maintenanceState(record, now),
+    endedAt: record.endedAt?.toISOString() ?? null,
+    createdAt: record.createdAt.toISOString(),
+    updatedAt: record.updatedAt?.toISOString() ?? null,
+  };
+}
+
+/**
+ * The maintenance message for a sign-in refusal, in the person's language when an Arabic one was
+ * written (`Accept-Language: ar…`).
+ */
+export function maintenanceMessageFor(
+  record: Pick<MaintenanceWindowRecord, 'message' | 'messageAr'>,
+  acceptLanguage: unknown,
+): string {
+  const arabic = typeof acceptLanguage === 'string' && /^\s*ar\b/iu.test(acceptLanguage);
+  return arabic && record.messageAr ? record.messageAr : record.message;
 }
 
 @Controller('public/site')
@@ -104,7 +192,14 @@ export class PublicMaintenanceController {
       { correlationId: uuidv7(), tables: ['maintenance_windows'] },
       (runner) => this.repository.listPublishableWindows(runner, now, MAX_MAINTENANCE_WINDOWS),
     );
-    return toPublicMaintenance(rows, now);
+    const view = toPublicMaintenance(rows, now);
+    // PA-10: the Arabic message (0244) rides along when one was written.
+    if (view.window && typeof this.repository.find === 'function') {
+      const record = await this.repository.find(view.window.id, uuidv7());
+      if (record?.messageAr)
+        return { ...view, window: { ...view.window, messageAr: record.messageAr } };
+    }
+    return view;
   }
 }
 
@@ -125,8 +220,26 @@ export class PlatformMaintenanceController {
     private readonly repository: MaintenanceWindowsRepository,
   ) {}
 
+  /** D4: every window with its state, and the running one for the status card. */
+  @Get()
+  @RequirePlatformPermission('platform.orgs.view')
+  async list(@Req() request: object): Promise<PlatformMaintenanceListView> {
+    const now = new Date();
+    const rows = await this.repository.listAll(
+      MAX_ADMIN_WINDOWS,
+      requireRequestState(request).correlationId,
+    );
+    const windows = rows.map((row) => toPlatformMaintenanceView(row, now));
+    return {
+      windows,
+      current: windows.find((window) => window.state === 'active') ?? null,
+      asOf: now.toISOString(),
+    };
+  }
+
   @Post()
   @HttpCode(201)
+  @RequirePlatformPermission('platform.announcements.edit')
   async schedule(
     @CurrentPlatformAdmin() actor: PlatformAdminActor,
     @Body() body: ScheduleMaintenanceInput,
@@ -138,6 +251,8 @@ export class PlatformMaintenanceController {
     const startsAt = asInstant(body?.startsAt);
     const endsAt = asInstant(body?.endsAt);
     const published = body?.published === undefined ? true : asBoolean(body?.published);
+    const messageAr = optionalText(body?.messageAr, MAX_MESSAGE);
+    const blockSignIn = body?.blockSignIn === undefined ? false : asBoolean(body?.blockSignIn);
 
     const details: { field: string; message: string }[] = [];
     if (message === undefined)
@@ -152,8 +267,14 @@ export class PlatformMaintenanceController {
     if (startsAt !== undefined && endsAt !== undefined && startsAt.getTime() >= endsAt.getTime()) {
       details.push({ field: 'endsAt', message: 'endsAt must be after startsAt' });
     }
+    if (messageAr === false)
+      details.push({ field: 'messageAr', message: `at most ${MAX_MESSAGE} chars` });
+    if (blockSignIn === undefined)
+      details.push({ field: 'blockSignIn', message: 'must be a boolean' });
 
     if (
+      messageAr === false ||
+      blockSignIn === undefined ||
       details.length > 0 ||
       message === undefined ||
       severity === undefined ||
@@ -168,7 +289,7 @@ export class PlatformMaintenanceController {
     const reason = requireReason(body?.reason);
 
     const inserted = await this.repository.schedule(
-      { message, severity, startsAt, endsAt, published },
+      { message, severity, startsAt, endsAt, published, messageAr, blockSignIn },
       {
         actorUserId: actor.account.userId,
         actorEmail: actor.account.email,
@@ -196,6 +317,7 @@ export class PlatformMaintenanceController {
   /** Take a window off the banner. Unknown id is a 404 with nothing written. Audited with the reason. */
   @Post(':windowId/unpublish')
   @HttpCode(200)
+  @RequirePlatformPermission('platform.announcements.edit')
   async unpublish(
     @CurrentPlatformAdmin() actor: PlatformAdminActor,
     @Param('windowId') windowId: string,
@@ -215,6 +337,169 @@ export class PlatformMaintenanceController {
     if (!found) throw new ApiError(404, 'not_found', MESSAGES.notFound);
     return { unpublished: true };
   }
+
+  // ---- platform-admin v2 · PA-10 ----
+
+  /** D4 edit: the whole window (EN + AR message, severity, window, publish, block sign-in). */
+  @Patch(':windowId')
+  @HttpCode(200)
+  @RequirePlatformPermission('platform.announcements.edit')
+  async edit(
+    @CurrentPlatformAdmin() actor: PlatformAdminActor,
+    @Param('windowId') windowId: string,
+    @Body() body: ScheduleMaintenanceInput,
+    @Req() request: object,
+  ): Promise<PlatformMaintenanceWindowView> {
+    const id = requireId(windowId);
+    const context = platformRequestContext(request);
+    const existing = await this.repository.find(id, context.correlationId);
+    if (!existing) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    const message =
+      body?.message === undefined ? existing.message : boundedText(body.message, MAX_MESSAGE);
+    const messageAr =
+      body?.messageAr === undefined
+        ? existing.messageAr
+        : optionalText(body.messageAr, MAX_MESSAGE);
+    const severity = body?.severity === undefined ? existing.severity : asSeverity(body.severity);
+    const startsAt = body?.startsAt === undefined ? existing.startsAt : asInstant(body.startsAt);
+    const endsAt = body?.endsAt === undefined ? existing.endsAt : asInstant(body.endsAt);
+    const published =
+      body?.published === undefined ? existing.published : asBoolean(body.published);
+    const blockSignIn =
+      body?.blockSignIn === undefined ? existing.blockSignIn : asBoolean(body.blockSignIn);
+    const details: { field: string; message: string }[] = [];
+    if (message === undefined)
+      details.push({ field: 'message', message: `required, 1–${MAX_MESSAGE} chars` });
+    if (messageAr === false)
+      details.push({ field: 'messageAr', message: `at most ${MAX_MESSAGE} chars` });
+    if (severity === undefined)
+      details.push({ field: 'severity', message: `one of ${MAINTENANCE_SEVERITIES.join(', ')}` });
+    if (startsAt === undefined)
+      details.push({ field: 'startsAt', message: 'required ISO-8601 instant' });
+    if (endsAt === undefined)
+      details.push({ field: 'endsAt', message: 'required ISO-8601 instant' });
+    if (published === undefined) details.push({ field: 'published', message: 'must be a boolean' });
+    if (blockSignIn === undefined)
+      details.push({ field: 'blockSignIn', message: 'must be a boolean' });
+    if (startsAt !== undefined && endsAt !== undefined && startsAt.getTime() >= endsAt.getTime()) {
+      details.push({ field: 'endsAt', message: 'endsAt must be after startsAt' });
+    }
+    if (
+      details.length > 0 ||
+      message === undefined ||
+      messageAr === false ||
+      severity === undefined ||
+      startsAt === undefined ||
+      endsAt === undefined ||
+      published === undefined ||
+      blockSignIn === undefined
+    ) {
+      throw new ApiError(400, 'validation_failed', 'The maintenance window is invalid', details);
+    }
+    const reason = optionalReason(body?.reason);
+    const next = { message, messageAr, severity, startsAt, endsAt, published, blockSignIn };
+    await this.repository.update(
+      id,
+      next,
+      platformAuditFor(actor, context, {
+        action: 'platform.maintenance_updated',
+        targetType: 'platform',
+        targetId: id,
+        targetLabel: severity,
+        reason,
+        beforeJson: JSON.stringify(auditShape(existing)),
+        afterJson: JSON.stringify(auditShape(next)),
+      }),
+    );
+    const updated = await this.repository.find(id, context.correlationId);
+    if (!updated) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    return toPlatformMaintenanceView(updated, new Date());
+  }
+
+  /** D4 publish. Reason optional. */
+  @Post(':windowId/publish')
+  @HttpCode(200)
+  @RequirePlatformPermission('platform.announcements.edit')
+  async publish(
+    @CurrentPlatformAdmin() actor: PlatformAdminActor,
+    @Param('windowId') windowId: string,
+    @Body() body: { readonly reason?: unknown },
+    @Req() request: object,
+  ): Promise<PlatformMaintenanceWindowView> {
+    const id = requireId(windowId);
+    const context = platformRequestContext(request);
+    const reason = optionalReason(body?.reason);
+    const found = await this.repository.setPublished(
+      id,
+      true,
+      platformAuditFor(actor, context, {
+        action: 'platform.maintenance_published',
+        targetType: 'platform',
+        targetId: id,
+        targetLabel: null,
+        reason,
+      }),
+    );
+    if (!found) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    const record = await this.repository.find(id, context.correlationId);
+    if (!record) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    return toPlatformMaintenanceView(record, new Date());
+  }
+
+  /**
+   * D4 "End now" (frame 440:20171): the banner disappears and sign-in opens for everyone at once.
+   * Reason optional (as drawn); audited.
+   */
+  @Post(':windowId/end')
+  @HttpCode(200)
+  @RequirePlatformPermission('platform.announcements.edit')
+  async end(
+    @CurrentPlatformAdmin() actor: PlatformAdminActor,
+    @Param('windowId') windowId: string,
+    @Body() body: { readonly reason?: unknown },
+    @Req() request: object,
+  ): Promise<PlatformMaintenanceWindowView> {
+    const id = requireId(windowId);
+    const context = platformRequestContext(request);
+    const reason = optionalReason(body?.reason);
+    const now = new Date();
+    const found = await this.repository.end(
+      id,
+      now,
+      platformAuditFor(actor, context, {
+        action: 'platform.maintenance_ended',
+        targetType: 'platform',
+        targetId: id,
+        targetLabel: null,
+        reason,
+      }),
+    );
+    if (!found) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    const record = await this.repository.find(id, context.correlationId);
+    if (!record) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    return toPlatformMaintenanceView(record, now);
+  }
+}
+
+/** The fields an audit row records for a maintenance edit (no ids, no timestamps). */
+function auditShape(record: {
+  message: string;
+  messageAr: string | null;
+  severity: string;
+  startsAt: Date;
+  endsAt: Date;
+  published: boolean;
+  blockSignIn: boolean;
+}) {
+  return {
+    message: record.message,
+    messageAr: record.messageAr,
+    severity: record.severity,
+    startsAt: record.startsAt.toISOString(),
+    endsAt: record.endsAt.toISOString(),
+    published: record.published,
+    blockSignIn: record.blockSignIn,
+  };
 }
 
 /**
@@ -237,7 +522,10 @@ export function toPublicMaintenance(
   };
 }
 
-function toMaintenanceWindowView(row: MaintenanceWindowRow, now: Date): MaintenanceWindowView {
+function toMaintenanceWindowView(
+  row: MaintenanceWindowRow & { readonly messageAr?: string | null },
+  now: Date,
+): MaintenanceWindowView {
   return {
     id: row.id,
     message: row.message,
@@ -245,6 +533,7 @@ function toMaintenanceWindowView(row: MaintenanceWindowRow, now: Date): Maintena
     startsAt: row.startsAt.toISOString(),
     endsAt: row.endsAt.toISOString(),
     active: row.startsAt.getTime() <= now.getTime() && now.getTime() < row.endsAt.getTime(),
+    ...(row.messageAr ? { messageAr: row.messageAr } : {}),
   };
 }
 
@@ -268,6 +557,18 @@ function asInstant(value: unknown): Date | undefined {
   if (typeof value !== 'string') return undefined;
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
+/**
+ * PA-10: an optional text — `null` when absent or empty, the trimmed string when it fits, `false`
+ * when it is not a string or is over-length (a 400).
+ */
+function optionalText(value: unknown, max: number): string | null | false {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (trimmed === '') return null;
+  return trimmed.length > max ? false : trimmed;
 }
 
 /** A boolean, or `undefined` for anything else (a missing default is applied by the caller). */
@@ -304,10 +605,69 @@ export class MaintenanceModule {
       useFactory: (config: ApiConfig) => config.platformAdminEmails ?? [],
     };
 
+    // ---- platform-admin v2 · PA-10 ---- the public announcement read sits beside the public
+    // maintenance read (`GET /public/site/announcements`), over the same global identity path.
+    const announcements: Provider = {
+      provide: PlatformAnnouncementsRepository,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) => new PlatformAnnouncementsRepository(database),
+    };
+
     return {
       module: MaintenanceModule,
-      providers: [repository, lookup, allowlist, PlatformAdminGuard],
-      controllers: [PublicMaintenanceController, PlatformMaintenanceController],
+      providers: [repository, lookup, allowlist, PlatformAdminGuard, announcements],
+      controllers: [
+        PublicMaintenanceController,
+        PlatformMaintenanceController,
+        PublicSiteAnnouncementsController,
+      ],
     };
   }
+}
+
+// ---- platform-admin v2 · PA-10 ----
+
+/**
+ * The maintenance sign-in gate (SPEC §4 D4): while a published `down` window with
+ * `block_sign_in = 1` is running, sign-in is refused for everyone except platform admins (the
+ * server list ∪ active `platform_admins` rows). Called by `authentication.controller.ts` right
+ * before a session is created, so a refused person gets no session and sees the maintenance
+ * message (Arabic when the browser asks for it and one was written).
+ *
+ * A failed read lets the sign-in through: the gate protects a maintenance window, and a database
+ * that cannot answer this question will refuse the sign-in on its own anyway.
+ */
+export async function assertSignInOpen(
+  database: TenantDatabase,
+  allowlist: readonly string[],
+  input: {
+    readonly userId: string;
+    readonly acceptLanguage: unknown;
+    readonly correlationId: string;
+  },
+): Promise<void> {
+  let block: MaintenanceWindowRecord | null;
+  try {
+    block = await new MaintenanceWindowsRepository(database).activeSignInBlock(
+      new Date(),
+      input.correlationId,
+    );
+  } catch {
+    return;
+  }
+  if (!block) return;
+  const admins = new PlatformAdminRepository(database);
+  const account = await admins.findAccount(input.userId, input.correlationId);
+  if (account?.emailVerified) {
+    if (allowlist.includes(account.email.trim().toLowerCase())) return;
+    const row = await admins.findPlatformAdmin(input.userId, input.correlationId);
+    if (row?.status === 'active') return;
+  }
+  throw new ApiError(
+    403,
+    'forbidden',
+    maintenanceMessageFor(block, input.acceptLanguage),
+    undefined,
+    'maintenance_sign_in_blocked',
+  );
 }

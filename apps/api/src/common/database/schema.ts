@@ -9845,3 +9845,80 @@ export type MembershipPermissionOverrideRow = typeof membershipPermissionOverrid
 Object.assign(TABLES, {
   membership_permission_overrides: membershipPermissionOverrides,
 });
+
+// ---- platform-admin v2 · PA-10 ----
+
+/**
+ * 0244. One platform-level switch per optional module (`OPTIONAL_MODULE_FLAGS`): its platform
+ * default and its rollout (`everyone` | `allowlist` | `percentage`). Global. Read and written with
+ * raw SQL in `platform-admin/settings/flags.repository.ts`.
+ */
+export const platformFeatureFlags = mysqlTable('platform_feature_flags', {
+  flagKey: varchar('flag_key', { length: 64 }).primaryKey(),
+  enabled: boolean('enabled').notNull().default(false),
+  rollout: varchar('rollout', { length: 16 }).notNull().default('everyone'),
+  percentage: tinyint('percentage'),
+  allowlistOrgIdsJson: text('allowlist_org_ids_json'),
+  updatedBy: char('updated_by', { length: 36 }),
+  updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+});
+
+/** 0244. A flag forced on or off for one organization from the platform side. Global. */
+export const platformOrgFlagOverrides = mysqlTable(
+  'platform_org_flag_overrides',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    flagKey: varchar('flag_key', { length: 64 }).notNull(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    enabled: boolean('enabled').notNull(),
+    removedAt: datetime('removed_at', { mode: 'date', fsp: 3 }),
+    updatedBy: char('updated_by', { length: 36 }),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_pofo').on(table.flagKey, table.organizationId),
+    index('ix_pofo_org').on(table.organizationId),
+  ],
+);
+
+/**
+ * 0244. The platform banner, EN + AR, with severity, link, audience, window and publish state.
+ * Global. Delete sets `archived` (and unpublishes); nothing is hard-deleted.
+ */
+export const platformAnnouncements = mysqlTable(
+  'platform_announcements',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    titleEn: varchar('title_en', { length: 190 }).notNull(),
+    titleAr: varchar('title_ar', { length: 190 }),
+    bodyEn: text('body_en').notNull(),
+    bodyAr: text('body_ar'),
+    severity: varchar('severity', { length: 16 }).notNull().default('info'),
+    linkUrl: varchar('link_url', { length: 2048 }),
+    audience: varchar('audience', { length: 16 }).notNull().default('everyone'),
+    audienceOrgIdsJson: text('audience_org_ids_json'),
+    dismissible: boolean('dismissible').notNull().default(true),
+    startsAt: datetime('starts_at', { mode: 'date', fsp: 3 }),
+    endsAt: datetime('ends_at', { mode: 'date', fsp: 3 }),
+    published: boolean('published').notNull().default(false),
+    archived: boolean('archived').notNull().default(false),
+    createdBy: char('created_by', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [index('ix_pa_live').on(table.published, table.startsAt, table.endsAt)],
+);
+
+export type PlatformFeatureFlagRow = typeof platformFeatureFlags.$inferSelect;
+export type PlatformOrgFlagOverrideRow = typeof platformOrgFlagOverrides.$inferSelect;
+export type PlatformAnnouncementRow = typeof platformAnnouncements.$inferSelect;
+
+// 0244 also adds `message_ar`, `block_sign_in`, `updated_at` and `ended_at` to
+// `maintenance_windows`; the platform maintenance repository reads and writes them with raw SQL so
+// the 0080 mirror above (`maintenanceWindows`) stays as it was.
+
+Object.assign(TABLES, {
+  platform_feature_flags: platformFeatureFlags,
+  platform_org_flag_overrides: platformOrgFlagOverrides,
+  platform_announcements: platformAnnouncements,
+});

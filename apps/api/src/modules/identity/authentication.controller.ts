@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   Inject,
+  Optional,
   Param,
   Post,
   Req,
@@ -14,6 +15,11 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { CurrentSession, NoTenant, Public } from '../../common/http/decorators.js';
 import { requireRequestState } from '../../common/http/request-state.js';
 import { AUTHENTICATION_SERVICE, SESSION_SERVICE } from '../../common/http/tokens.js';
+// ---- platform-admin v2 · PA-10 ---- (the maintenance sign-in gate)
+import { API_CONFIG, TENANT_DATABASE } from '../../common/http/tokens.js';
+import type { ApiConfig } from '../../common/http/api-config.js';
+import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import { assertSignInOpen } from '../platform/maintenance.controller.js';
 import type { AuthenticatedSession, SessionService } from './session.service.js';
 import {
   AuthenticationRejectedError,
@@ -133,6 +139,9 @@ export class AuthenticationController {
   constructor(
     @Inject(AUTHENTICATION_SERVICE) private readonly authentication: AuthenticationService,
     @Inject(SESSION_SERVICE) private readonly sessions: SessionService,
+    // ---- platform-admin v2 · PA-10 ---- optional so the controller still builds without them
+    @Optional() @Inject(TENANT_DATABASE) private readonly database?: TenantDatabase,
+    @Optional() @Inject(API_CONFIG) private readonly config?: ApiConfig,
   ) {}
 
   /**
@@ -250,6 +259,15 @@ export class AuthenticationController {
     reply: ReplyLike,
     correlationId: string,
   ): Promise<EstablishedView> {
+    // ---- platform-admin v2 · PA-10 ---- maintenance with "block sign-in": only platform admins
+    // get a session; everyone else sees the maintenance message. Checked before the session exists.
+    if (this.database) {
+      await assertSignInOpen(this.database, this.config?.platformAdminEmails ?? [], {
+        userId,
+        acceptLanguage: request.headers['accept-language'],
+        correlationId,
+      });
+    }
     const userAgent = request.headers['user-agent'];
     const established = await this.sessions.start({
       userId,

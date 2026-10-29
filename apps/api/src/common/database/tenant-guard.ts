@@ -1176,6 +1176,13 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   'platform_admins',
   'platform_permission_presets',
   'platform_support_sessions',
+  // ---- platform-admin v2 · PA-10 ----
+  // 0244. Platform feature flags, per-organization forced overrides and the platform banner
+  // describe the platform; an override names an organization but is read on the identity path
+  // (the org-side flag read folds it in after its own tenant read), so all three are global.
+  'platform_feature_flags',
+  'platform_org_flag_overrides',
+  'platform_announcements',
 ]);
 
 export function isTenantTable(name: string): boolean {
