@@ -204,7 +204,11 @@ function world() {
     },
     credentials as unknown as CredentialsRepository,
     () => clock,
-    { revokeAllForUser: () => Promise.resolve(0) } as unknown as SessionsRepository,
+    // ---- platform-admin v2 · PA-06 ---- `findStanding`: an enabled account (0247).
+    {
+      revokeAllForUser: () => Promise.resolve(0),
+      findStanding: () => Promise.resolve({ disabledAt: null, twoStepRequiredAt: null }),
+    } as unknown as SessionsRepository,
     { revokeAllForUser: () => Promise.resolve({ personalAccessTokens: 0, grants: 0 }) },
   );
 
@@ -217,7 +221,11 @@ function world() {
       spend: (_r: unknown, hash: string) => Promise.resolve(tokens.delete(hash)),
     } as unknown as PasswordResetRepository,
     credentials as unknown as CredentialsRepository,
-    { revokeAllForUser: () => Promise.resolve(0) } as unknown as SessionsRepository,
+    // ---- platform-admin v2 · PA-06 ---- `findStanding`: an enabled account (0247).
+    {
+      revokeAllForUser: () => Promise.resolve(0),
+      findStanding: () => Promise.resolve({ disabledAt: null, twoStepRequiredAt: null }),
+    } as unknown as SessionsRepository,
     { revokeAllForUser: () => Promise.resolve({ personalAccessTokens: 0, grants: 0 }) },
   );
   const resetController = new PasswordResetController(resets, () => true, {

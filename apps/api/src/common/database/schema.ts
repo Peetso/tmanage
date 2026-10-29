@@ -70,6 +70,10 @@ export const users = mysqlTable(
     emailVerifiedAt: datetime('email_verified_at', { mode: 'date', fsp: 3 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- platform-admin v2 · PA-06 ---- 0247: disabled by a platform admin; two-step required.
+    disabledAt: datetime('disabled_at', { mode: 'date', fsp: 3 }),
+    disabledReason: varchar('disabled_reason', { length: 500 }),
+    twoStepRequiredAt: datetime('two_step_required_at', { mode: 'date', fsp: 3 }),
   },
   (table) => [uniqueIndex('uq_users_email').on(table.email)],
 );
@@ -89,6 +93,9 @@ export const sessions = mysqlTable(
     /** Why the session ended. Carries `refresh_reuse_detected`, which is a security finding. */
     revokedReason: varchar('revoked_reason', { length: 64 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- platform-admin v2 · PA-06 ---- 0247: first and latest address the session was used from.
+    ipFirst: varchar('ip_first', { length: 45 }),
+    ipLast: varchar('ip_last', { length: 45 }),
   },
   (table) => [
     uniqueIndex('uq_sessions_refresh_token_hash').on(table.refreshTokenHash),

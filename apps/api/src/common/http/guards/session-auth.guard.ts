@@ -2,7 +2,7 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ApiError, MESSAGES } from '../errors.js';
-import { IS_PUBLIC } from '../decorators.js';
+import { IS_PUBLIC, SKIPS_TENANT } from '../decorators.js';
 import { requireRequestState } from '../request-state.js';
 import {
   API_CONFIG,
@@ -18,6 +18,10 @@ import type { SessionService } from '../../../modules/identity/session.service.j
 import { readCookie } from '../../../modules/identity/session-token.js';
 import { PersonalAccessTokenNotAuthenticatedError } from '../../../modules/personal-access-tokens/personal-access-tokens.service.js';
 import type { PersonalAccessTokensService } from '../../../modules/personal-access-tokens/personal-access-tokens.service.js';
+import { isTwoStepExemptPath, twoStepRequiredError } from './two-step-requirement.guard.js';
+import { hasActiveSecondFactorRow } from '../../../modules/identity/second-factor-presence.repository.js';
+import { TENANT_DATABASE } from '../tokens.js';
+import type { TenantDatabase } from '../../database/tenant-context.js';
 import {
   INTERNAL_GRANT_HEADER,
   internalGrants,
@@ -70,6 +74,13 @@ export class SessionAuthGuard implements CanActivate {
     @Optional()
     @Inject(MCP_OAUTH_AUTHENTICATOR)
     private readonly mcpOAuth?: McpOAuthTokenAuthenticator,
+    /**
+     * Platform admin v2 (PA-06): reads whether the person holds a confirmed factor, only when an
+     * operator requires two-step for them. Optional so the guard's existing unit wiring stands.
+     */
+    @Optional()
+    @Inject(TENANT_DATABASE)
+    private readonly database?: TenantDatabase,
   ) {}
 
   /**
@@ -218,22 +229,51 @@ export class SessionAuthGuard implements CanActivate {
       }
     }
 
+    let twoStepRequired = false;
     try {
-      state.session = await this.sessions.authenticate({
+      const authed = await this.sessions.authenticate({
         accessToken,
         correlationId: state.correlationId,
+        ip: request.ip ?? null,
       });
+      state.session = { sessionId: authed.sessionId, userId: authed.userId };
       state.authScheme = 'cookie';
+      twoStepRequired = authed.twoStepRequired === true;
     } catch (error) {
       if (error instanceof SessionNotAuthenticatedError) {
         // Record the denied attempt before refusing. Best-effort by the seam's contract — it
         // returns immediately and never throws — so the 401 below is untouched in status, body
         // and timing whether or not the row is written. The `try` is defence in depth: the
         // refusal is the control and no recorder, however it misbehaves, may take its place.
-        this.recordRefusal(request, state.correlationId);
+        // PA-06: a disabled account is the one cause named on the row (`account_disabled`) —
+        // the body stays the same neutral 401.
+        this.recordRefusal(
+          request,
+          state.correlationId,
+          error.code === 'account_disabled' ? ACCOUNT_DISABLED_REASON : undefined,
+        );
         throw this.unauthenticated(request, error.code);
       }
       throw error;
+    }
+
+    // ---- platform-admin v2 · PA-06 ---- An operator required two-step for this person
+    // (`users.two_step_required_at`, 0247). The same rule as the company switch
+    // (`two-step-requirement.guard.ts`): organization routes answer 403 `two_step_required` until
+    // a confirmed factor exists; `@NoTenant()` routes (enrolment, sign-out, sessions) and the
+    // person's own profile stay open, so nobody is locked out.
+    if (twoStepRequired && this.database !== undefined) {
+      const targets = [context.getHandler(), context.getClass()];
+      const skipsTenant = this.reflector.getAllAndOverride<boolean>(SKIPS_TENANT, targets);
+      const url = typeof request.url === 'string' ? request.url : undefined;
+      if (!skipsTenant && !isTwoStepExemptPath(url)) {
+        const userId = state.session.userId;
+        const enrolled = await this.database.identityRead(
+          { correlationId: state.correlationId, tables: ['user_mfa_factors'] },
+          (runner) => hasActiveSecondFactorRow(runner, userId),
+        );
+        if (!enrolled) throw twoStepRequiredError();
+      }
     }
 
     return true;
@@ -261,6 +301,7 @@ export class SessionAuthGuard implements CanActivate {
       readonly headers: Record<string, string | string[] | undefined>;
     },
     correlationId: string,
+    reason: string = GUARD_REFUSAL_REASONS.missingSession,
   ): void {
     try {
       // NV02. Each row is a detached insert holding a pool connection; anonymous traffic must not
@@ -269,7 +310,7 @@ export class SessionAuthGuard implements CanActivate {
       const userAgent = request.headers['user-agent'];
       this.events.recordGuardRefusal({
         action: GUARD_REFUSAL_ACTIONS.session,
-        reason: GUARD_REFUSAL_REASONS.missingSession,
+        reason,
         ip: request.ip ?? null,
         userAgent: typeof userAgent === 'string' ? userAgent : null,
         correlationId,
@@ -279,6 +320,12 @@ export class SessionAuthGuard implements CanActivate {
     }
   }
 }
+
+/**
+ * Platform admin v2 (PA-06, 0247): the `authentication_events.reason` written when a disabled
+ * account's session is refused. Sign-in writes the same token (`authentication.service.ts`).
+ */
+export const ACCOUNT_DISABLED_REASON = 'account_disabled';
 
 /** NV02: at most this many refusal rows per source address per window. */
 export const REFUSAL_ROWS_PER_ADDRESS = 1;

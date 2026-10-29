@@ -35,6 +35,14 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.support_session_started',
   'platform.support_session_extended',
   'platform.support_session_ended',
+  // ---- platform-admin v2 · PA-06 ----
+  'platform.user_profile_updated',
+  'platform.user_disabled',
+  'platform.user_enabled',
+  'platform.user_two_step_reset',
+  'platform.user_two_step_required',
+  'platform.user_two_step_not_required',
+  'platform.user_session_ended',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];

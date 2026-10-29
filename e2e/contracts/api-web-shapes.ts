@@ -3292,3 +3292,79 @@ type _pa04MemberOverride = Assert<
 type _pa04MemberPermissions = Assert<
   Exact<ApiPlatformMemberPermissionsView, WebPlatformMemberPermissionsView>
 >;
+
+// ---- platform-admin v2 · PA-06 ----
+// People (SPEC §5.3, B1–B4): `/v1/platform/people…`, read by `apps/web/src/lib/api/platform-people.ts`.
+import type {
+  PlatformPeopleOrgChipView as ApiPlatformPeopleOrgChipView,
+  PlatformPeopleRowView as ApiPlatformPeopleRowView,
+  PlatformPeopleListView as ApiPlatformPeopleListView,
+  PlatformPersonFactsView as ApiPlatformPersonFactsView,
+  PlatformPersonActionView as ApiPlatformPersonActionView,
+  PlatformPersonAccessView as ApiPlatformPersonAccessView,
+  PlatformPersonDetailView as ApiPlatformPersonDetailView,
+  PlatformPersonSessionView as ApiPlatformPersonSessionView,
+  PlatformPersonSessionsView as ApiPlatformPersonSessionsView,
+  PlatformPersonStepUpView as ApiPlatformPersonStepUpView,
+  PlatformPersonAccessListView as ApiPlatformPersonAccessListView,
+  PlatformPersonActionsView as ApiPlatformPersonActionsView,
+  PlatformPersonMembershipView as ApiPlatformPersonMembershipView,
+  PlatformPersonOrganizationsView as ApiPlatformPersonOrganizationsView,
+  PlatformPersonSecurityResultView as ApiPlatformPersonSecurityResultView,
+} from '../../apps/api/src/modules/platform-admin/people/people.service.js';
+import type {
+  PlatformPeopleOrgChipView as WebPlatformPeopleOrgChipView,
+  PlatformPeopleRowView as WebPlatformPeopleRowView,
+  PlatformPeopleListView as WebPlatformPeopleListView,
+  PlatformPersonFactsView as WebPlatformPersonFactsView,
+  PlatformPersonActionView as WebPlatformPersonActionView,
+  PlatformPersonAccessView as WebPlatformPersonAccessView,
+  PlatformPersonDetailView as WebPlatformPersonDetailView,
+  PlatformPersonSessionView as WebPlatformPersonSessionView,
+  PlatformPersonSessionsView as WebPlatformPersonSessionsView,
+  PlatformPersonStepUpView as WebPlatformPersonStepUpView,
+  PlatformPersonAccessListView as WebPlatformPersonAccessListView,
+  PlatformPersonActionsView as WebPlatformPersonActionsView,
+  PlatformPersonMembershipView as WebPlatformPersonMembershipView,
+  PlatformPersonOrganizationsView as WebPlatformPersonOrganizationsView,
+  PlatformPersonSecurityResultView as WebPlatformPersonSecurityResultView,
+} from '../../apps/web/src/lib/api/platform-people';
+type _pa06PeopleOrgChipView = Assert<
+  Exact<ApiPlatformPeopleOrgChipView, WebPlatformPeopleOrgChipView>
+>;
+type _pa06PeopleRowView = Assert<Exact<ApiPlatformPeopleRowView, WebPlatformPeopleRowView>>;
+type _pa06PeopleListView = Assert<Exact<ApiPlatformPeopleListView, WebPlatformPeopleListView>>;
+type _pa06PersonFactsView = Assert<Exact<ApiPlatformPersonFactsView, WebPlatformPersonFactsView>>;
+type _pa06PersonActionView = Assert<
+  Exact<ApiPlatformPersonActionView, WebPlatformPersonActionView>
+>;
+type _pa06PersonAccessView = Assert<
+  Exact<ApiPlatformPersonAccessView, WebPlatformPersonAccessView>
+>;
+type _pa06PersonDetailView = Assert<
+  Exact<ApiPlatformPersonDetailView, WebPlatformPersonDetailView>
+>;
+type _pa06PersonSessionView = Assert<
+  Exact<ApiPlatformPersonSessionView, WebPlatformPersonSessionView>
+>;
+type _pa06PersonSessionsView = Assert<
+  Exact<ApiPlatformPersonSessionsView, WebPlatformPersonSessionsView>
+>;
+type _pa06PersonStepUpView = Assert<
+  Exact<ApiPlatformPersonStepUpView, WebPlatformPersonStepUpView>
+>;
+type _pa06PersonAccessListView = Assert<
+  Exact<ApiPlatformPersonAccessListView, WebPlatformPersonAccessListView>
+>;
+type _pa06PersonActionsView = Assert<
+  Exact<ApiPlatformPersonActionsView, WebPlatformPersonActionsView>
+>;
+type _pa06PersonMembershipView = Assert<
+  Exact<ApiPlatformPersonMembershipView, WebPlatformPersonMembershipView>
+>;
+type _pa06PersonOrganizationsView = Assert<
+  Exact<ApiPlatformPersonOrganizationsView, WebPlatformPersonOrganizationsView>
+>;
+type _pa06PersonSecurityResultView = Assert<
+  Exact<ApiPlatformPersonSecurityResultView, WebPlatformPersonSecurityResultView>
+>;

@@ -4,6 +4,7 @@ import type { PlatformAdminRepository, PlatformAuditInput } from './platform-adm
 import { PlatformAdminService } from './platform-admin.service.js';
 import { PlatformOrganizationsService } from './organizations/organizations.service.js';
 import { PlatformPeopleService } from './people/people.service.js';
+import type { PlatformPeopleRepository } from './people/people.repository.js';
 import { PlatformSettingsService } from './settings/settings.service.js';
 
 /** Every platform action carries a typed reason into the platform audit log; none runs without. */
@@ -68,7 +69,29 @@ function harness() {
   const resets = { request: vi.fn(async () => ({})) };
   const core = new PlatformAdminService(repository, { confirmReauthentication: async () => ({}) });
   const organizations = new PlatformOrganizationsService(repository);
-  const people = new PlatformPeopleService(repository, resets);
+  // ---- platform-admin v2 · PA-06 ---- People reads the person through its own repository.
+  const peopleRepository = {
+    findPerson: async () => ({
+      userId: PERSON,
+      email: 'sara@x.test',
+      displayName: 'Sara',
+      locale: 'en',
+      timezone: 'UTC',
+      emailVerifiedAt: null,
+      createdAt: new Date(),
+      lastSignInAt: null,
+      lastSignInUserAgent: null,
+      mfaEnabled: false,
+      liveSessions: 0,
+      disabledAt: null,
+      disabledReason: null,
+      disabledByEmail: null,
+      twoStepRequiredAt: null,
+    }),
+  } as unknown as PlatformPeopleRepository;
+  const people = new PlatformPeopleService(repository, peopleRepository, resets, {
+    notify: async () => ({}),
+  });
   const settings = new PlatformSettingsService(repository, true);
   // The PA-02 split: the same calls, now on the area services.
   const service = {

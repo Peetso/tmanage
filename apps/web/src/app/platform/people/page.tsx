@@ -1,8 +1,8 @@
 'use client';
 
-import { PlatformPeopleScreen } from '../../../components/platform/PlatformAdminScreens';
+import { PeopleListScreen } from '../../../components/platform/people/PeopleListScreen';
 
-/** Platform admin — find a person by email. The API decides who may see it (404 for everyone not listed). */
+/** Platform admin — B1 People: everyone across every organization (platform-admin v2 · PA-06). */
 export default function Page() {
-  return <PlatformPeopleScreen />;
+  return <PeopleListScreen />;
 }

@@ -1,11 +1,14 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Inject,
   Param,
+  Patch,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
@@ -15,7 +18,7 @@ import { platformRequestContext } from '../platform-admin.access.js';
 import { CurrentPlatformAdmin, PlatformAdminGuard } from '../platform-admin.guard.js';
 import type { PlatformAdminActor } from '../platform-admin.guard.js';
 import { RequirePlatformPermission } from '../require-platform-permission.decorator.js';
-import type { PlatformPeopleService } from './people.service.js';
+import type { PeopleQuery, PlatformPeopleService } from './people.service.js';
 
 export const PLATFORM_PEOPLE_SERVICE = Symbol.for('tmanage.PlatformPeopleService');
 
@@ -23,7 +26,11 @@ interface ReasonInput {
   readonly reason?: unknown;
 }
 
-/** `/v1/platform/people…` — Platform admin · People. Moved here unchanged by the PA-02 split. */
+/**
+ * `/v1/platform/people…` — Platform admin v2 · People (PA-06, SPEC §5.3). Reads need
+ * `platform.people.view`, the profile edit `platform.people.edit`, every security action
+ * `platform.people.security`. Role changes and overrides use the organization routes (PA-07, PA-04).
+ */
 @Controller('v1/platform')
 @NoTenant()
 @UseGuards(PlatformAdminGuard)
@@ -32,8 +39,50 @@ export class PlatformPeopleController {
 
   @Get('people')
   @RequirePlatformPermission('platform.people.view')
-  people(@Query('email') email: unknown, @Req() request: object) {
-    return this.service.people(email, platformRequestContext(request));
+  people(@Query() query: PeopleQuery, @Req() request: object) {
+    return this.service.list(query ?? {}, platformRequestContext(request));
+  }
+
+  @Get('people/:userId')
+  @RequirePlatformPermission('platform.people.view')
+  person(@Param('userId') id: string, @Req() request: object) {
+    return this.service.detail(id, platformRequestContext(request));
+  }
+
+  @Patch('people/:userId')
+  @RequirePlatformPermission('platform.people.edit')
+  update(
+    @CurrentPlatformAdmin() actor: PlatformAdminActor,
+    @Param('userId') id: string,
+    @Body() body: Readonly<Record<string, unknown>>,
+    @Req() request: object,
+  ) {
+    return this.service.updateProfile(actor, id, body ?? {}, platformRequestContext(request));
+  }
+
+  @Get('people/:userId/sessions')
+  @RequirePlatformPermission('platform.people.view')
+  sessions(@Param('userId') id: string, @Req() request: object) {
+    return this.service.sessions(id, platformRequestContext(request));
+  }
+
+  @Delete('people/:userId/sessions/:sessionId')
+  @RequirePlatformPermission('platform.people.security')
+  @HttpCode(200)
+  endSession(
+    @CurrentPlatformAdmin() actor: PlatformAdminActor,
+    @Param('userId') id: string,
+    @Param('sessionId') sessionId: string,
+    @Body() body: ReasonInput,
+    @Req() request: object,
+  ) {
+    return this.service.endSession(
+      actor,
+      id,
+      sessionId,
+      body ?? {},
+      platformRequestContext(request),
+    );
   }
 
   @Post('people/:userId/sign-out')
@@ -58,5 +107,70 @@ export class PlatformPeopleController {
     @Req() request: object,
   ) {
     return this.service.sendPasswordReset(actor, id, body ?? {}, platformRequestContext(request));
+  }
+
+  @Post('people/:userId/two-step/reset')
+  @RequirePlatformPermission('platform.people.security')
+  @HttpCode(200)
+  resetTwoStep(
+    @CurrentPlatformAdmin() actor: PlatformAdminActor,
+    @Param('userId') id: string,
+    @Body() body: { readonly reason?: unknown; readonly signOut?: unknown },
+    @Req() request: object,
+  ) {
+    return this.service.resetTwoStep(actor, id, body ?? {}, platformRequestContext(request));
+  }
+
+  @Put('people/:userId/two-step/required')
+  @RequirePlatformPermission('platform.people.security')
+  twoStepRequired(
+    @CurrentPlatformAdmin() actor: PlatformAdminActor,
+    @Param('userId') id: string,
+    @Body() body: { readonly required?: unknown; readonly reason?: unknown },
+    @Req() request: object,
+  ) {
+    return this.service.setTwoStepRequired(actor, id, body ?? {}, platformRequestContext(request));
+  }
+
+  @Post('people/:userId/disable')
+  @RequirePlatformPermission('platform.people.security')
+  @HttpCode(200)
+  disable(
+    @CurrentPlatformAdmin() actor: PlatformAdminActor,
+    @Param('userId') id: string,
+    @Body() body: ReasonInput,
+    @Req() request: object,
+  ) {
+    return this.service.disable(actor, id, body ?? {}, platformRequestContext(request));
+  }
+
+  @Post('people/:userId/enable')
+  @RequirePlatformPermission('platform.people.security')
+  @HttpCode(200)
+  enable(
+    @CurrentPlatformAdmin() actor: PlatformAdminActor,
+    @Param('userId') id: string,
+    @Body() body: ReasonInput,
+    @Req() request: object,
+  ) {
+    return this.service.enable(actor, id, body ?? {}, platformRequestContext(request));
+  }
+
+  @Get('people/:userId/organizations')
+  @RequirePlatformPermission('platform.people.view')
+  organizations(@Param('userId') id: string, @Req() request: object) {
+    return this.service.organizations(id, platformRequestContext(request));
+  }
+
+  @Get('people/:userId/access')
+  @RequirePlatformPermission('platform.people.view')
+  access(@Param('userId') id: string, @Query() query: PeopleQuery, @Req() request: object) {
+    return this.service.access(id, query ?? {}, platformRequestContext(request));
+  }
+
+  @Get('people/:userId/actions')
+  @RequirePlatformPermission('platform.people.view')
+  actions(@Param('userId') id: string, @Query() query: PeopleQuery, @Req() request: object) {
+    return this.service.actions(id, query ?? {}, platformRequestContext(request));
   }
 }

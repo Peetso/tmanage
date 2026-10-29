@@ -1741,3 +1741,9 @@ GRANT UPDATE ON `tmanage`.`memberships`                         TO 'tmanage_work
 GRANT UPDATE ON `tmanage`.`organizations`                       TO 'tmanage_worker'@'%';
 GRANT INSERT ON `tmanage`.`platform_admin_audit_events`         TO 'tmanage_worker'@'%';
 
+-- ---- platform-admin v2 · PA-06 ----
+-- 0247 adds `users.disabled_at`, `disabled_reason`, `two_step_required_at` and `sessions.ip_first`,
+-- `ip_last`. Every People write (profile, disable/enable, reset or require two-step, end a session)
+-- rides grants the API already holds: UPDATE on `users`, `sessions`, `user_mfa_factors` and
+-- `user_recovery_codes`, INSERT on `credential_change_notices`, `authentication_events` and
+-- `platform_admin_audit_events`. No new grant, no DELETE.

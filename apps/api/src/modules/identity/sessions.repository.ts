@@ -1,7 +1,7 @@
 import { and, asc, eq, gt, gte, isNull, ne, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { sessionRefreshTokens, sessions } from '../../common/database/schema.js';
+import { sessionRefreshTokens, sessions, users } from '../../common/database/schema.js';
 import type { SessionRefreshTokenRow, SessionRow } from '../../common/database/schema.js';
 import type { IdentityQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -41,6 +41,8 @@ export interface CreateSessionInput {
   readonly userAgent?: string | null;
   /** The session's absolute lifetime. `REFRESH_TTL_SECONDS` in `packages/config`. */
   readonly ttlSeconds: number;
+  /** Platform admin v2 (0247): the address the sign-in came from — `ip_first` and `ip_last`. */
+  readonly ip?: string | null;
 }
 
 export interface RotateSessionInput {
@@ -50,6 +52,25 @@ export interface RotateSessionInput {
   readonly nextHash: string;
   /** When the token being superseded was issued — `rotatedAt ?? createdAt` of the session. */
   readonly issuedAt: Date;
+  /** Platform admin v2 (0247): the address the refresh came from — moves `ip_last`. */
+  readonly ip?: string | null;
+}
+
+/**
+ * Platform admin v2 (0247). What the account's holder may do, read on every session check and
+ * every sign-in: a disabled account is refused, and an account whose two-step an operator
+ * requires must hold a confirmed factor before it reaches an organization.
+ */
+export interface AccountStanding {
+  readonly disabledAt: Date | null;
+  readonly twoStepRequiredAt: Date | null;
+}
+
+/** `sessions.ip_*` hold `VARCHAR(45)` — an IPv6 text form at most. Longer input is not an address. */
+export function storableIp(ip: string | null | undefined): string | null {
+  if (typeof ip !== 'string') return null;
+  const trimmed = ip.trim();
+  return trimmed === '' || trimmed.length > 45 ? null : trimmed;
 }
 
 /** A session row plus the one fact about it the application must not compute for itself. */
@@ -82,6 +103,8 @@ export class SessionsRepository {
         userId: input.userId,
         refreshTokenHash: input.refreshTokenHash,
         userAgent: input.userAgent ?? null,
+        ipFirst: storableIp(input.ip),
+        ipLast: storableIp(input.ip),
         // Fixed here and never moved again. Rotation issues a new token inside the same
         // window; it does not extend the window, because a refresh token that slides its own
         // expiry produces a session that never ends — and a stolen one that never ends either.
@@ -167,7 +190,11 @@ export class SessionsRepository {
 
     const swapped = await db
       .update(sessions)
-      .set({ refreshTokenHash: input.nextHash, rotatedAt: sql`current_timestamp(3)` })
+      .set({
+        refreshTokenHash: input.nextHash,
+        rotatedAt: sql`current_timestamp(3)`,
+        ...(storableIp(input.ip) === null ? {} : { ipLast: storableIp(input.ip) }),
+      })
       .where(
         and(
           eq(sessions.id, input.sessionId),
@@ -299,5 +326,56 @@ export class SessionsRepository {
         ),
       )
       .orderBy(asc(sessions.id));
+  }
+
+  // ---- platform-admin v2 · PA-06 ----
+
+  /**
+   * Stamp the address a session is being used from: `ip_first` once, `ip_last` every time it
+   * changes. The session check calls this only when the address differs from the stored
+   * `ip_last`, so an ordinary request writes nothing.
+   */
+  async stampAddress(
+    runner: IdentityQueryRunner,
+    sessionId: string,
+    ip: string | null | undefined,
+  ): Promise<void> {
+    const address = storableIp(ip);
+    if (address === null) return;
+    await tenantDrizzle(runner)
+      .update(sessions)
+      .set({ ipFirst: sql`coalesce(${sessions.ipFirst}, ${address})`, ipLast: address })
+      .where(eq(sessions.id, sessionId));
+  }
+
+  /** The account's standing (disabled, two-step required). `null` for an unknown user. */
+  async findStanding(runner: IdentityQueryRunner, userId: string): Promise<AccountStanding | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({ disabledAt: users.disabledAt, twoStepRequiredAt: users.twoStepRequiredAt })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /**
+   * End ONE live session, and only if it is this person's: the operator's "End this session"
+   * (B3) names both, so a session id from another account changes nothing.
+   */
+  async revokeOneForUser(
+    runner: IdentityQueryRunner,
+    input: { readonly userId: string; readonly sessionId: string; readonly reason: string },
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(sessions)
+      .set({ revokedAt: sql`current_timestamp(3)`, revokedReason: input.reason })
+      .where(
+        and(
+          eq(sessions.id, input.sessionId),
+          eq(sessions.userId, input.userId),
+          isNull(sessions.revokedAt),
+        ),
+      );
+    return result[0].affectedRows > 0;
   }
 }

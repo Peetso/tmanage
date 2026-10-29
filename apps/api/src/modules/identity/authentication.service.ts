@@ -251,6 +251,9 @@ export type AuthenticationReason =
   // N01 (wave 11). On a *succeeded* password sign-in row only: the correct password was let
   // through a full lockout window by a reset sign-in grant (`reset-sign-in-grant.ts`).
   | 'reset_grant'
+  // ---- platform-admin v2 · PA-06 ---- A platform admin disabled the account (0247). The caller
+  // hears the ordinary `invalid_credentials`; only this row says why.
+  | 'account_disabled'
   // `D08`. Which source budget refused, in the abuse control's own words — reused rather
   // than retyped, so the two lists cannot drift apart.
   | SignInAbuseReason;
@@ -522,14 +525,15 @@ export class AuthenticationService {
       async (db) => {
         const user = await this.credentials.findUserIdByEmail(db, email);
         if (!user) return null;
-        const [stored, failures, resetGrantValid] = await Promise.all([
+        const [stored, failures, resetGrantValid, standing] = await Promise.all([
           this.credentials.findPassword(db, user.id),
           this.credentials.countRecentFailures(db, user.id, this.options.failureWindowSeconds),
           grant !== undefined && grant.userId === user.id
             ? this.resetGrantStillOpen(db, user.id, grant.passwordSetAt)
             : Promise.resolve(false),
+          this.sessions.findStanding(db, user.id),
         ]);
-        return { user, stored, failures, resetGrantValid };
+        return { user, stored, failures, resetGrantValid, standing };
       },
     );
 
@@ -579,6 +583,18 @@ export class AuthenticationService {
       throw new AuthenticationRejectedError('invalid_credentials', 'bad_password');
     }
     const userId = found.user.id;
+    // ---- platform-admin v2 · PA-06 ---- A disabled account (0247) is refused with the same
+    // neutral answer as a wrong password, and only after the password was checked, so the answer
+    // says nothing to someone who does not know it. The row names the cause.
+    if (found.standing?.disabledAt) {
+      await this.record(context, {
+        userId,
+        action: AUTHENTICATION_ACTIONS.passwordSignIn,
+        outcome: 'failed',
+        reason: 'account_disabled',
+      });
+      throw new AuthenticationRejectedError('invalid_credentials', 'account_disabled');
+    }
     const currentHash = found.stored.passwordHash;
     // N01 (wave 11): only a grant that actually carried the attempt through a full window is
     // named on the row. Either way the succeeded row written below is what spends the grant.
@@ -705,6 +721,8 @@ export class AuthenticationService {
     const outcome = await this.database.identityTransaction(
       { correlationId: context.correlationId, tables: [...IDENTITY_TABLES] },
       async (tx): Promise<AuthenticationReason | null> => {
+        // PA-06: disabled between the password step and this one (0247).
+        if ((await this.sessions.findStanding(tx, userId))?.disabledAt) return 'account_disabled';
         const failures = await this.credentials.countRecentFailures(
           tx,
           userId,
@@ -789,6 +807,8 @@ export class AuthenticationService {
     const outcome = await this.database.identityTransaction(
       { correlationId: context.correlationId, tables: [...IDENTITY_TABLES] },
       async (tx): Promise<AuthenticationReason | null> => {
+        // PA-06: disabled between the password step and this one (0247).
+        if ((await this.sessions.findStanding(tx, userId))?.disabledAt) return 'account_disabled';
         const failures = await this.credentials.countRecentFailures(
           tx,
           userId,

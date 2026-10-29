@@ -42,6 +42,7 @@ import { REAUTH_TTL_SECONDS, signReauthToken } from './reauth-token.js';
 import { createSeedCipher } from './seed-cipher.js';
 import { SessionController } from './session.controller.js';
 import { SessionsRepository } from './sessions.repository.js';
+import type { AccountStanding } from './sessions.repository.js';
 import type { SignInAbuseControl } from './sign-in-abuse-control.js';
 import { base32Decode, generateTotpSecret, hotpCode, totpCounterAt } from './totp.js';
 
@@ -138,6 +139,10 @@ class FakeCredentials extends CredentialsRepository {
 class FakeSessions extends SessionsRepository {
   fresh = new Set<string>();
   readonly freshAsked: string[] = [];
+  // ---- platform-admin v2 · PA-06 ---- An enabled account (0247): sign-in reads its standing.
+  override async findStanding(): Promise<AccountStanding> {
+    return { disabledAt: null, twoStepRequiredAt: null };
+  }
   override async isEstablishedWithin(
     _runner: IdentityQueryRunner,
     input: { sessionId: string; userId: string; maxAgeSeconds: number },

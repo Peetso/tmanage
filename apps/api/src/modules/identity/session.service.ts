@@ -10,7 +10,7 @@ import {
 } from './session-token.js';
 import { mintCsrfToken, verifyCsrfToken } from '../../common/http/csrf.js';
 import type { CookieAttributes } from './session-token.js';
-import { SessionsRepository } from './sessions.repository.js';
+import { SessionsRepository, storableIp } from './sessions.repository.js';
 import type { SessionSummary } from './sessions.repository.js';
 
 /**
@@ -56,6 +56,8 @@ import type { SessionSummary } from './sessions.repository.js';
 
 /** The global tables this service reaches. Enforced by `TenantDatabase.identity*`. */
 const IDENTITY_TABLES = ['sessions', 'session_refresh_tokens'] as const;
+/** Platform admin v2 (PA-06): the session check also reads the account's standing (0247). */
+const AUTHENTICATE_TABLES = ['sessions', 'users'] as const;
 
 /** Recorded on `sessions.revoked_reason`. A security finding, not a lifecycle event. */
 export const REUSE_REVOCATION_REASON = 'refresh_reuse_detected';
@@ -97,7 +99,9 @@ export type SessionRejection =
   | 'access_expired'
   | 'session_unknown'
   | 'session_revoked'
-  | 'session_expired';
+  | 'session_expired'
+  // ---- platform-admin v2 · PA-06 ---- a platform admin disabled the account (0247).
+  | 'account_disabled';
 
 export type RefreshRejection =
   | 'no_cookie'
@@ -136,6 +140,14 @@ export interface AuthenticatedSession {
 }
 
 /**
+ * Platform admin v2 (PA-06): the verified session plus the one standing fact the guard acts on —
+ * an operator requires two-step for this account (`users.two_step_required_at`, 0247).
+ */
+export interface AuthenticatedSessionStanding extends AuthenticatedSession {
+  readonly twoStepRequired: boolean;
+}
+
+/**
  * A newly established or newly rotated session.
  *
  * `accessToken` and `refreshToken` are the credentials themselves. They are returned rather
@@ -164,6 +176,8 @@ export interface StartSessionInput {
   readonly userId: string;
   readonly userAgent?: string | null;
   readonly correlationId: string;
+  /** Platform admin v2 (0247): stamped as `ip_first` and `ip_last`. */
+  readonly ip?: string | null;
 }
 
 /**
@@ -232,6 +246,7 @@ export class SessionService {
           refreshTokenHash: refresh.hash,
           userAgent: input.userAgent ?? null,
           ttlSeconds: this.options.refreshTtlSeconds,
+          ip: input.ip ?? null,
         }),
     );
 
@@ -247,7 +262,9 @@ export class SessionService {
   async authenticate(input: {
     readonly accessToken: string | undefined;
     readonly correlationId: string;
-  }): Promise<AuthenticatedSession> {
+    /** Platform admin v2 (0247): the request's address, stamped when it changed. */
+    readonly ip?: string | null;
+  }): Promise<AuthenticatedSessionStanding> {
     if (!input.accessToken) throw new SessionNotAuthenticatedError('no_cookie');
 
     const verified = verifyAccessToken(input.accessToken, this.options.sessionSecret);
@@ -257,16 +274,39 @@ export class SessionService {
       );
     }
 
-    const state = await this.database.identityRead(
-      { correlationId: input.correlationId, tables: [...IDENTITY_TABLES] },
-      (tx) => this.sessions.findById(tx, verified.claims.sessionId),
+    const found = await this.database.identityRead(
+      { correlationId: input.correlationId, tables: [...AUTHENTICATE_TABLES] },
+      async (tx) => {
+        const state = await this.sessions.findById(tx, verified.claims.sessionId);
+        const standing = state ? await this.sessions.findStanding(tx, state.session.userId) : null;
+        return { state, standing };
+      },
     );
+    const { state, standing } = found;
 
     if (!state) throw new SessionNotAuthenticatedError('session_unknown');
     if (state.session.revokedAt !== null) throw new SessionNotAuthenticatedError('session_revoked');
     if (state.expired) throw new SessionNotAuthenticatedError('session_expired');
+    // ---- platform-admin v2 · PA-06 ---- A disabled account is refused like any dead session:
+    // the same 401, the cause on `auditCode` only.
+    if (standing?.disabledAt) throw new SessionNotAuthenticatedError('account_disabled');
 
-    return { sessionId: state.session.id, userId: state.session.userId };
+    // `ip_first`/`ip_last` (0247): written only when the address moved, so an ordinary request
+    // costs no write. Best-effort: an address stamp never refuses a live session.
+    const address = storableIp(input.ip);
+    if (address !== null && state.session.ipLast !== address) {
+      await this.database
+        .identityTransaction({ correlationId: input.correlationId, tables: ['sessions'] }, (tx) =>
+          this.sessions.stampAddress(tx, state.session.id, address),
+        )
+        .catch(() => undefined);
+    }
+
+    return {
+      sessionId: state.session.id,
+      userId: state.session.userId,
+      twoStepRequired: Boolean(standing?.twoStepRequiredAt),
+    };
   }
 
   /**
@@ -293,6 +333,8 @@ export class SessionService {
      */
     readonly csrfToken: string | undefined;
     readonly correlationId: string;
+    /** Platform admin v2 (0247): moves `ip_last`. */
+    readonly ip?: string | null;
   }): Promise<EstablishedSession> {
     if (!input.refreshToken) throw new RefreshRejectedError('no_cookie');
 
@@ -323,6 +365,7 @@ export class SessionService {
             // The superseded token has been live since the previous rotation, or since the
             // session began if this is the first one.
             issuedAt: live.session.rotatedAt ?? live.session.createdAt,
+            ip: input.ip ?? null,
           });
           if (!rotated) return { kind: 'rejected', code: 'rotation_lost' };
 
@@ -373,6 +416,22 @@ export class SessionService {
     return this.database.identityTransaction(
       { correlationId: input.correlationId, tables: [...IDENTITY_TABLES] },
       (tx) => this.sessions.revokeAllForUser(tx, input.userId, input.reason),
+    );
+  }
+
+  /**
+   * Platform admin v2 (PA-06): end ONE session of this person ("End this session", B3). `false`
+   * when it is not theirs or already ended.
+   */
+  async revokeOneForUser(input: {
+    readonly userId: string;
+    readonly sessionId: string;
+    readonly reason: string;
+    readonly correlationId: string;
+  }): Promise<boolean> {
+    return this.database.identityTransaction(
+      { correlationId: input.correlationId, tables: [...IDENTITY_TABLES] },
+      (tx) => this.sessions.revokeOneForUser(tx, input),
     );
   }
 
