@@ -58,6 +58,10 @@ function fakeWorker(calls, { expired = 0, reopened = 0, reminded = 0 } = {}) {
       calls.push(store);
       return { ended: 0, offboarded: 0, restored: 0 };
     },
+    runContentPurge: async (database) => {
+      calls.push({ database, kind: 'purge' });
+      return { deleted: 0, blocked: 0, tables: [], hooks: [] };
+    },
   };
 }
 
@@ -87,7 +91,7 @@ test('every --sweep-* command the worker CLI offers has a job, bound to the one 
   for (const job of jobs) await job.run();
   assert.deepEqual(
     calls.map((store) => store.kind),
-    ['invitations', 'deferred', 'due-soon', 'support-sessions'],
+    ['invitations', 'deferred', 'due-soon', 'support-sessions', 'purge'],
   );
   assert.ok(calls.every((store) => store.database === database));
 });
@@ -106,10 +110,10 @@ test('start runs a tick at once, schedules the rest, and logs only what moved', 
   await scheduler.stop();
   assert.equal(timers.intervalMs, 60_000);
   assert.equal(timers.cleared, true);
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 5);
   assert.match(
     lines[0],
-    /scheduled sweeps on \(invitations, deferred-requests, due-soon, support-sessions\), every 60000ms/,
+    /scheduled sweeps on \(invitations, deferred-requests, due-soon, support-sessions, purge\), every 60000ms/,
   );
   assert.deepEqual(lines.slice(1), ['sweep invitations: expired 2 overdue invitation(s)']);
 });
@@ -294,4 +298,14 @@ test('server.mjs runs both API passes in-process, behind the same SWEEPS_INPROCE
   ]) {
     assert.match(exports, new RegExp(String.raw`export \{[^}]*\b${name}\b`), name);
   }
+});
+
+test('the content purge runs on the first tick and then at most once an hour', async () => {
+  const calls = [];
+  const job = workerSweepJobs(fakeWorker(calls), {}).find((entry) => entry.name === 'purge');
+  await job.run();
+  const second = await job.run();
+  assert.equal(calls.filter((call) => call.kind === 'purge').length, 1);
+  assert.equal(second.skipped, true);
+  assert.equal(job.changed(second), false);
 });

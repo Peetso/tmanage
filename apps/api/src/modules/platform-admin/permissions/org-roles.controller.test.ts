@@ -157,7 +157,9 @@ describe('delete', () => {
       expect.anything(),
       ROLE,
     );
-    const actions = h.audit.record.mock.calls.map((call) => (call[2] as { action: string }).action);
+    const actions = h.audit.record.mock.calls.map(
+      (call) => ((call as unknown[])[2] as { action: string }).action,
+    );
     expect(actions).toEqual(['membership.role_changed', 'custom_role.deleted']);
   });
 });

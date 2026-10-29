@@ -131,7 +131,8 @@ describe('MembershipsRepository.listWithNames', () => {
     await repository.listWithNames(runner, contextFor(ORG), { after: cursor, limit: 2 });
 
     const statement = captured[0];
-    expect(statement?.params).toEqual([ORG, 'active', cursor, 2]);
+    // PA-05: the hidden `platform_support` row never appears in the directory.
+    expect(statement?.params).toEqual([ORG, 'active', 'platform_support', cursor, 2]);
     expect(statement?.sql).toMatch(/order by\s+`memberships`\.`id`/i);
   });
 

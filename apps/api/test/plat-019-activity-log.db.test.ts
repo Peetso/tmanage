@@ -58,7 +58,7 @@ function actor(permissions: readonly string[] = PLATFORM_PERMISSIONS): PlatformA
     stepUp: null,
     source: 'env',
     preset: 'super_admin',
-    permissions: [...permissions],
+    permissions: [...permissions] as NonNullable<PlatformAdminActor['permissions']>,
   };
 }
 

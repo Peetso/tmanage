@@ -143,7 +143,7 @@ export interface BearerCounts {
   readonly aiAppNames: readonly string[];
 }
 
-export interface SessionRowView {
+export interface PersonSessionRow {
   readonly id: string;
   readonly userAgent: string | null;
   readonly createdAt: Date;
@@ -528,7 +528,7 @@ export class PlatformPeopleRepository {
     );
   }
 
-  async sessions(userId: string, correlationId: string): Promise<readonly SessionRowView[]> {
+  async sessions(userId: string, correlationId: string): Promise<readonly PersonSessionRow[]> {
     return this.database.identityRead({ correlationId, tables: ['sessions'] }, async (db) => {
       const rows = await db.query<Row[]>(PEOPLE_SQL.sessions, [userId]);
       return rows.map((row) => ({

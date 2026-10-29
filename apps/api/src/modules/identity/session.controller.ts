@@ -28,6 +28,7 @@ import {
   type AuthenticationService,
 } from './authentication.service.js';
 import { REAUTH_HEADER } from './authentication.controller.js';
+import { notifyBrowserSessionEnded } from '../platform-admin/support/support-session.service.js';
 import { readCookie } from './session-token.js';
 
 /**
@@ -134,6 +135,9 @@ export class SessionController {
       reason: 'user_sign_out',
       correlationId: state.correlationId,
     });
+    // SPEC §3.2: a platform admin's sign-out ends any Support session bound to this browser
+    // session. Never throws (the sweeper and the banner read are the fallbacks).
+    await notifyBrowserSessionEnded(session.userId, session.sessionId, state.correlationId);
     reply.header('set-cookie', this.sessions.clearedCookies());
   }
 
@@ -227,6 +231,7 @@ export class SessionController {
       throw error;
     }
     if (!removed) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    await notifyBrowserSessionEnded(session.userId, sessionId, state.correlationId);
     // Revoking your own current session from the device list is signing out of it: clear the
     // credentials the same way `DELETE current` does (same helper, one source of the cookie
     // attributes), so the browser stops believing it is signed in. Any other device: no cookies.

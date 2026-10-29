@@ -161,7 +161,10 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // `direct_conversations` were already readable).
     // ---- platform-admin v2 · PA-05 ---- +1: the Support-session sweeper reads
     // `platform_support_sessions` where it stamps `ended_at`.
-    expect(reads).toHaveLength(26 + 15 + 1);
+    // ---- platform-admin v2 · PA-09 ---- +4: the CSV export job reads `platform_export_jobs`
+    // where it claims and finishes a job, and the three logs it exports (`audit_events`,
+    // `sessions`, `platform_admin_audit_events`).
+    expect(reads).toHaveLength(26 + 15 + 1 + 4);
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });
 

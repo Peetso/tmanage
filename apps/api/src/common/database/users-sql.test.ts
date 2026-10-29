@@ -345,6 +345,10 @@ describe('the runtime user is actually least-privilege', () => {
       audit_events:
         'the relay appends a system audit row and never reads one back, so SELECT ' +
         'would be privilege granted against no statement',
+      // platform-admin v2 · PA-07: the organization purge records an executed company deletion
+      // with a plain INSERT (no ON DUPLICATE KEY) and never reads a request back.
+      privacy_deletion_requests:
+        'the organization purge appends one executed request and never reads one back',
     };
     const written = new Set(
       grantsFor('tmanage_worker')

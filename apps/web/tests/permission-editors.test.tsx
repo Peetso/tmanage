@@ -154,7 +154,7 @@ describe('MemberOverridesBody (D8)', () => {
     createdByName: 'Peter',
     live: true,
   };
-  const expired: OverrideRow = { ...live, id: 'o2', capability: 'docs.write', live: false };
+  const expired: OverrideRow = { ...live, id: 'o2', capability: 'doc.write', live: false };
 
   it('drops expired rows on save and adds a deny', () => {
     const onSave = vi.fn(() => Promise.resolve());

@@ -105,6 +105,13 @@ export function workerSweepJobs(worker, database, env = process.env) {
       describe: (result) => `support sessions: ended ${String(result.ended)} expired session(s)`,
       changed: (result) => result.ended > 0,
     },
+    // ---- platform-admin v2 · PA-03 (scheduled by the verifier) ----
+    // `--sweep-purge`: soft-deleted content (and organizations) past `purge_after`. Hourly, not
+    // every tick: the first tick runs it, then at most once an hour. Idempotent across instances —
+    // each row is deleted only while still past its window, in tenant-scoped batches.
+    ...(typeof worker.runContentPurge === 'function'
+      ? [purgeJob(() => worker.runContentPurge(database))]
+      : []),
     // ---- platform-admin v2 · PA-09 ----
     // The Platform admin CSV exports (`--run-exports`): queued jobs written to the object store's
     // private zone, expired files removed. Idempotent across instances: a job is claimed with
@@ -219,5 +226,23 @@ export function createSweepScheduler({
       timer = undefined;
       await running;
     },
+  };
+}
+
+/** The hourly content purge as a minute-tick job: a skipped tick reports nothing moved. */
+export const PURGE_EVERY_MS = 60 * 60 * 1000;
+
+function purgeJob(run, now = () => Date.now()) {
+  let last = Number.NEGATIVE_INFINITY;
+  return {
+    name: 'purge',
+    run: async () => {
+      if (now() - last < PURGE_EVERY_MS) return { deleted: 0, blocked: 0, skipped: true };
+      last = now();
+      return run();
+    },
+    describe: (result) =>
+      `purge: deleted ${String(result.deleted)} row(s), ${String(result.blocked)} still referenced`,
+    changed: (result) => result.deleted > 0,
   };
 }

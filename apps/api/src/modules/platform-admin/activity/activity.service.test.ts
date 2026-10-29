@@ -29,7 +29,7 @@ function actor(permissions: readonly string[]): PlatformAdminActor {
     },
     sessionId: 'browser',
     stepUp: null,
-    permissions: permissions as PlatformAdminActor['permissions'],
+    permissions: permissions as NonNullable<PlatformAdminActor['permissions']>,
   };
 }
 

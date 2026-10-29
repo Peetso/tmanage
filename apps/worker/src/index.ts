@@ -184,3 +184,8 @@ export { createSupportSessionSweepStore } from './common/database/support-sessio
 export { exportWriterFor, filesystemExportWriter, runExportJobs } from './jobs/export-jobs.js';
 export type { ExportObjectWriter, ExportRunResult } from './jobs/export-jobs.js';
 export { createExportJobStore } from './common/database/export-jobs-store.js';
+// ---- platform-admin v2 · verifier ----
+// The content purge (`--sweep-purge`: soft-deleted content past `purge_after`, then the PURGE_HOOKS
+// such as the organization purge), exported so the single Hostinger app schedules it too.
+export { runContentPurge } from './jobs/content-purge-entry.js';
+export type { PurgeReport } from './jobs/purge-sweeper.js';

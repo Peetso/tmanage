@@ -27,11 +27,8 @@ import type { PlatformAdminActor } from '../platform-admin.guard.js';
  * membership is not a support visit, so nothing they read here would be stamped as support.
  */
 
-/**
- * The response code of the prompt. Not in the shared `ApiErrorCode` union (that file belongs to
- * PA-02); the envelope serialises the string as is, and the web reads the 428 status.
- */
-export const SUPPORT_SESSION_REQUIRED = 'support_session_required' as unknown as ApiErrorCode;
+/** The response code of the prompt (in the shared `ApiErrorCode` union); the web reads the 428 status. */
+export const SUPPORT_SESSION_REQUIRED: ApiErrorCode = 'support_session_required';
 
 export const SUPPORT_SESSION_REQUIRED_MESSAGE =
   'Open a support session for this organization to read or change its content';

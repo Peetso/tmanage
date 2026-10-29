@@ -379,6 +379,64 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     en: 'Organization lifecycle',
     key: 'PlatformOrgs.routeLifecycle',
   },
+  // ---- platform-admin v2 · verifier: pages of PA-02/04/06/08/09/10 ----
+  '/[orgSlug]/admin/roles/[roleId]': { en: 'Edit role', key: 'RouteTitle.orgRoleEdit' },
+  '/[orgSlug]/people/[membershipId]/permissions': {
+    en: 'Member permissions',
+    key: 'RouteTitle.orgMemberPermissions',
+  },
+  '/platform/activity': { en: 'Action log', key: 'RouteTitle.platformActivity' },
+  '/platform/activity/access': { en: 'Access log', key: 'RouteTitle.platformActivityAccess' },
+  '/platform/activity/exports': { en: 'Exports', key: 'RouteTitle.platformActivityExports' },
+  '/platform/activity/platform': {
+    en: 'Platform admins activity',
+    key: 'RouteTitle.platformActivityAdmins',
+  },
+  '/platform/activity/support-sessions': {
+    en: 'Support sessions',
+    key: 'RouteTitle.platformSupportSessions',
+  },
+  '/platform/organizations/[organizationId]/content': {
+    en: 'Organization content',
+    key: 'RouteTitle.platformOrgContent',
+  },
+  '/platform/organizations/[organizationId]/content/[kind]/[itemId]': {
+    en: 'Content item',
+    key: 'RouteTitle.platformOrgContentItem',
+  },
+  '/platform/organizations/[organizationId]/content/trash': {
+    en: 'Organization trash',
+    key: 'RouteTitle.platformOrgTrash',
+  },
+  '/platform/organizations/[organizationId]/members/[membershipId]/permissions': {
+    en: 'Member permissions',
+    key: 'RouteTitle.platformOrgMemberPermissions',
+  },
+  '/platform/organizations/[organizationId]/roles': {
+    en: 'Organization roles',
+    key: 'RouteTitle.platformOrgRoles',
+  },
+  '/platform/organizations/[organizationId]/roles/[roleId]': {
+    en: 'Edit role',
+    key: 'RouteTitle.platformOrgRoleEdit',
+  },
+  '/platform/people/[userId]': { en: 'Person', key: 'RouteTitle.platformPerson' },
+  '/platform/people/[userId]/organizations': {
+    en: 'Person organizations',
+    key: 'RouteTitle.platformPersonOrganizations',
+  },
+  '/platform/people/[userId]/security': {
+    en: 'Person security',
+    key: 'RouteTitle.platformPersonSecurity',
+  },
+  '/platform/settings/announcements': {
+    en: 'Announcements',
+    key: 'RouteTitle.platformAnnouncements',
+  },
+  '/platform/settings/flags': { en: 'Feature flags', key: 'RouteTitle.platformFlags' },
+  '/platform/settings/maintenance': { en: 'Maintenance', key: 'RouteTitle.platformMaintenance' },
+  '/platform/team': { en: 'Platform team', key: 'RouteTitle.platformTeam' },
+  '/platform/team/presets': { en: 'Permission presets', key: 'RouteTitle.platformTeamPresets' },
   '/': PAGE_OWNS_TITLE,
   // The Arabic public pages set their Arabic titles themselves (`public-locale-routes.ts`).
   '/ar/[[...path]]': PAGE_OWNS_TITLE,

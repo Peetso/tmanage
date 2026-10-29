@@ -44,6 +44,7 @@ export type ApiErrorCode =
   // ---- platform-admin v2 · PA-02 ----
   // A platform admin whose preset lacks the route's permission (403; details name the key).
   | 'platform_permission_missing'
+  | 'support_session_required'
   | 'internal_error';
 
 export interface ApiErrorDetail {

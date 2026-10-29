@@ -83,7 +83,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // 0237 meetings + Google Calendar: +11 (6 ops, 5 NEVER), was 817.
 // 0237 slice C: +1 NEVER, GET .../integrations/google-calendar/team (owners' team list), was 833.
 // platform-admin v2 · PA-01: +5 NEVER (roles matrix, overrides GET/PUT, effective-permissions, me).
-const EXPECTED_ROUTE_COUNT = 839; // 0237 slice B Outlook calendar: +5 NEVER, was 828.
+// platform-admin v2 verifier: +145 NEVER (every /v1/platform route of PA-02..PA-10, the banner
+// read and the public announcement read), was 839.
+const EXPECTED_ROUTE_COUNT = 984; // 0237 slice B Outlook calendar: +5 NEVER, was 828.
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).
