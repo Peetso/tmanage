@@ -55,6 +55,7 @@ import { ShortcutPrefsModule } from './modules/preferences/shortcut-prefs.module
 import { StartupPrefsModule } from './modules/preferences/startup-prefs.module.js';
 import { PreferencesModule } from './modules/preferences/preferences.module.js';
 import { DigestPreferenceModule } from './modules/preferences/digest.module.js';
+import { ProductEventsModule } from './modules/product-events/product-events.module.js';
 import { ConversationsModule } from './modules/conversations/conversations.module.js';
 import { MessagePinsModule } from './modules/conversations/message-pins.module.js';
 import { MessageBookmarksModule } from './modules/conversations/message-bookmarks.controller.js';
@@ -467,6 +468,9 @@ export class AppModule {
         // depends on nothing but the database; file-disjoint from x182/x183/x215. Storage only — no
         // dispatcher or email in this slice.
         DigestPreferenceModule.register(),
+        // 55-21 usability measurement (migration 0251). The caller's own metadata-only product
+        // events (POST /events, POST /portal/events). Depends on nothing but the database.
+        ProductEventsModule.register(),
         // After `ProjectsModule`: `ClientsService` reads `PROJECTS_REPOSITORY` to answer 404
         // rather than 500 when a caller shares a project that is not in this tenant.
         ClientsModule.register(),

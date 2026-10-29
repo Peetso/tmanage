@@ -9999,3 +9999,38 @@ export type PlatformExportJobRow = typeof platformExportJobs.$inferSelect;
 Object.assign(TABLES, {
   platform_export_jobs: platformExportJobs,
 });
+
+// ---- 55-21 · usability measurement ----
+
+/**
+ * 0251. Metadata-only product events (55-21): allowlisted names and properties, a quarterly
+ * salted actor hash, no content/email/IP. Tenant-owned (TENANT_TABLES); the API inserts, the
+ * Platform admin scoreboard reads aggregates through the bootstrap path. No DELETE grant yet
+ * (13-month retention purge is a follow-up).
+ */
+export const productEvents = mysqlTable(
+  'product_events',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    occurredAt: datetime('occurred_at', { mode: 'date', fsp: 3 }).notNull(),
+    receivedAt: datetime('received_at', { mode: 'date', fsp: 3 }).notNull(),
+    eventName: varchar('event_name', { length: 64 }).notNull(),
+    eventVersion: smallint('event_version').notNull().default(1),
+    actorHash: char('actor_hash', { length: 64 }),
+    principalKind: varchar('principal_kind', { length: 16 }).notNull(),
+    locale: varchar('locale', { length: 10 }),
+    platform: varchar('platform', { length: 16 }).notNull().default('web'),
+    propertiesJson: text('properties_json'),
+  },
+  (table) => [
+    index('ix_product_events_name_time').on(table.eventName, table.occurredAt),
+    index('ix_product_events_org_time').on(table.organizationId, table.occurredAt),
+  ],
+);
+
+export type ProductEventRow = typeof productEvents.$inferSelect;
+
+Object.assign(TABLES, {
+  product_events: productEvents,
+});

@@ -1788,3 +1788,10 @@ GRANT SELECT, UPDATE ON `tmanage`.`platform_export_jobs`        TO 'tmanage_work
 GRANT SELECT ON `tmanage`.`audit_events`                        TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`sessions`                            TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`platform_admin_audit_events`         TO 'tmanage_worker'@'%';
+
+-- ---- 55-21 · usability measurement ----
+-- 0251 `product_events` (tenant-owned): the API inserts a session's own metadata-only events
+-- (`POST /v1/organizations/:orgSlug/events` and `.../portal/events`). SELECT rides the
+-- database-wide read (the Platform admin scoreboard aggregates). No UPDATE, no DELETE: events are
+-- append-only; the 13-month retention purge is a follow-up with its own worker grant.
+GRANT INSERT ON `tmanage`.`product_events`                      TO 'tmanage_app'@'%';

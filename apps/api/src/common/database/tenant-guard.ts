@@ -1090,6 +1090,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0243. Tenant-owned: one organization's limit overrides set by the platform operator, keyed
   // `(organization_id, id)` with a `(organization_id)` upsert key. INSERT/UPDATE only, no DELETE.
   organization_limits: 'organization_id',
+  // ---- 55-21 · usability measurement ----
+  // 0251. Tenant-owned: one organization's metadata-only product events. The app INSERTs in its
+  // own organization (multi-row, every tuple carries the context org); the Platform admin
+  // scoreboard reads aggregates via `bootstrapRead` with `product_events` as its only table.
+  product_events: 'organization_id',
 });
 
 /**

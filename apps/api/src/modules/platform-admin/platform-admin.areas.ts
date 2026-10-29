@@ -10,6 +10,8 @@ import { PlatformPermissionsModule } from './permissions/permissions.module.js';
 import { PlatformSupportModule } from './support/support.module.js';
 // ---- platform-admin v2 · PA-08 ----
 import { PlatformContentModule } from './content/content.module.js';
+// ---- 55-21 · usability measurement ----
+import { EaseScoreboardModule } from '../product-events/product-events.module.js';
 
 /**
  * Every Platform admin area, one Nest module each (platform-admin v2, PA-02 split). Each area
@@ -31,4 +33,6 @@ export const PLATFORM_AREA_MODULES: DynamicModule[] = [
   PlatformSupportModule.register(),
   // ---- platform-admin v2 · PA-08 ----
   PlatformContentModule.register(),
+  // ---- 55-21 · usability measurement ----
+  EaseScoreboardModule.register(),
 ];
