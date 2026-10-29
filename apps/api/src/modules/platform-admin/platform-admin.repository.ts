@@ -51,6 +51,16 @@ export const PLATFORM_METADATA_TABLES = [
   // ---- platform-admin v2 · append-only, limited to SPEC P2's list ----
   // ---- platform-admin v2 · PA-07 ----
   'organization_limits',
+  // ---- platform-admin v2 · PA-09 ----
+  // The rest of SPEC P2's list: the action log over `audit_events` (ids, action names, results,
+  // IP/device — never `metadata_json` content; `audit_event_changes` is NOT here, the C2 detail
+  // opens one organization through the tenant path) and the role/membership/flag metadata the
+  // filters name. `authentication_events` is global and needs no entry.
+  'audit_events',
+  'custom_roles',
+  'org_feature_flags',
+  'project_memberships',
+  'member_profiles',
 ] as const;
 
 /** Global tables the identity path reaches. All registered in `NON_TENANT_TABLES`. */

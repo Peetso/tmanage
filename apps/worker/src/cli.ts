@@ -30,6 +30,8 @@ export type WorkerCommand =
   | { readonly kind: 'sweep-purge' }
   // ---- platform-admin v2 · PA-05 ---- the Support-session expiry sweep.
   | { readonly kind: 'sweep-support-sessions' }
+  // ---- platform-admin v2 · PA-09 ---- the Platform admin CSV export job.
+  | { readonly kind: 'run-exports' }
   | { readonly kind: 'status' }
   | { readonly kind: 'once' }
   | { readonly kind: 'loop' };
@@ -69,6 +71,8 @@ export function selectWorkerCommand(argv: readonly string[]): WorkerCommand {
   if (argv.includes('--sweep-purge')) return { kind: 'sweep-purge' };
   // ---- platform-admin v2 · PA-05 ---- same rank: one invocation does one thing.
   if (argv.includes('--sweep-support-sessions')) return { kind: 'sweep-support-sessions' };
+  // ---- platform-admin v2 · PA-09 ---- same rank: one invocation does one thing.
+  if (argv.includes('--run-exports')) return { kind: 'run-exports' };
   if (status) return { kind: 'status' };
   if (once) return { kind: 'once' };
   return { kind: 'loop' };

@@ -73,7 +73,7 @@ export function reconcileIntervalMs(env) {
  * The worker's sweeps as scheduler jobs, bound to one worker pool. `worker` is the
  * `@tmanage/worker` module (or a fake of it); one job per `--sweep-*` CLI command.
  */
-export function workerSweepJobs(worker, database) {
+export function workerSweepJobs(worker, database, env = process.env) {
   return [
     {
       name: 'invitations',
@@ -105,6 +105,30 @@ export function workerSweepJobs(worker, database) {
       describe: (result) => `support sessions: ended ${String(result.ended)} expired session(s)`,
       changed: (result) => result.ended > 0,
     },
+    // ---- platform-admin v2 · PA-09 ----
+    // The Platform admin CSV exports (`--run-exports`): queued jobs written to the object store's
+    // private zone, expired files removed. Idempotent across instances: a job is claimed with
+    // `FOR UPDATE SKIP LOCKED` and finished only `where status = 'running'`. Present only when the
+    // worker module offers it.
+    ...(typeof worker.runExportJobs === 'function'
+      ? [
+          {
+            name: 'exports',
+            run: () =>
+              worker.runExportJobs(
+                worker.createExportJobStore(database),
+                worker.exportWriterFor({
+                  STORAGE_DRIVER: env['STORAGE_DRIVER'] ?? 's3',
+                  STORAGE_LOCAL_ROOT: env['STORAGE_LOCAL_ROOT'],
+                  STORAGE_FILESYSTEM_ROOT: env['STORAGE_FILESYSTEM_ROOT'] ?? '.local/storage',
+                }),
+              ),
+            describe: (result) =>
+              `exports: wrote ${String(result.written)}, failed ${String(result.failed)}, removed ${String(result.removed)}`,
+            changed: (result) => result.written + result.failed + result.removed > 0,
+          },
+        ]
+      : []),
   ];
 }
 

@@ -3607,3 +3607,82 @@ type _pa08ContentVersion = Assert<
 type _pa08ContentItem = Assert<Exact<ApiPlatformContentItemView, WebPlatformContentItemView>>;
 type _pa08ContentTrash = Assert<Exact<ApiPlatformContentTrashView, WebPlatformContentTrashView>>;
 type _pa08ContentWrite = Assert<Exact<ApiPlatformContentWriteView, WebPlatformContentWriteView>>;
+
+// ---- platform-admin v2 · PA-09 ----
+import type {
+  PlatformActionView as ApiPlatformActionView,
+  PlatformActionTotalsView as ApiPlatformActionTotalsView,
+  PlatformActionsPageView as ApiPlatformActionsPageView,
+  PlatformActionChangeView as ApiPlatformActionChangeView,
+  PlatformRelatedActionView as ApiPlatformRelatedActionView,
+  PlatformActionSupportSessionView as ApiPlatformActionSupportSessionView,
+  PlatformActionDetailView as ApiPlatformActionDetailView,
+  PlatformSignInView as ApiPlatformSignInView,
+  PlatformSignInsPageView as ApiPlatformSignInsPageView,
+  PlatformLiveSessionView as ApiPlatformLiveSessionView,
+  PlatformLiveSessionsPageView as ApiPlatformLiveSessionsPageView,
+  PlatformSessionEndedView as ApiPlatformSessionEndedView,
+  PlatformStepUpView as ApiPlatformStepUpView,
+  PlatformStepUpsPageView as ApiPlatformStepUpsPageView,
+  PlatformSuspiciousPatternView as ApiPlatformSuspiciousPatternView,
+  PlatformSuspiciousView as ApiPlatformSuspiciousView,
+  PlatformAdminActionView as ApiPlatformAdminActionView,
+  PlatformAdminActionsPageView as ApiPlatformAdminActionsPageView,
+  PlatformExportJobView as ApiPlatformExportJobView,
+  PlatformExportJobsView as ApiPlatformExportJobsView,
+} from '../../apps/api/src/modules/platform-admin/activity/activity.service';
+import type { PlatformActivitySupportSessionsView as ApiPlatformActivitySupportSessionsView } from '../../apps/api/src/modules/platform-admin/activity/activity.service';
+import type {
+  PlatformActionView as WebPlatformActionView,
+  PlatformActionTotalsView as WebPlatformActionTotalsView,
+  PlatformActionsPageView as WebPlatformActionsPageView,
+  PlatformActionChangeView as WebPlatformActionChangeView,
+  PlatformRelatedActionView as WebPlatformRelatedActionView,
+  PlatformActionSupportSessionView as WebPlatformActionSupportSessionView,
+  PlatformActionDetailView as WebPlatformActionDetailView,
+  PlatformSignInView as WebPlatformSignInView,
+  PlatformSignInsPageView as WebPlatformSignInsPageView,
+  PlatformLiveSessionView as WebPlatformLiveSessionView,
+  PlatformLiveSessionsPageView as WebPlatformLiveSessionsPageView,
+  PlatformSessionEndedView as WebPlatformSessionEndedView,
+  PlatformStepUpView as WebPlatformStepUpView,
+  PlatformStepUpsPageView as WebPlatformStepUpsPageView,
+  PlatformSuspiciousPatternView as WebPlatformSuspiciousPatternView,
+  PlatformSuspiciousView as WebPlatformSuspiciousView,
+  PlatformAdminActionView as WebPlatformAdminActionView,
+  PlatformAdminActionsPageView as WebPlatformAdminActionsPageView,
+  PlatformExportJobView as WebPlatformExportJobView,
+  PlatformExportJobsView as WebPlatformExportJobsView,
+  PlatformActivitySupportSessionsView as WebPlatformActivitySupportSessionsView,
+} from '../../apps/web/src/lib/api/platform-activity';
+type _pa09Action = Assert<Exact<ApiPlatformActionView, WebPlatformActionView>>;
+type _pa09ActionTotals = Assert<Exact<ApiPlatformActionTotalsView, WebPlatformActionTotalsView>>;
+type _pa09ActionsPage = Assert<Exact<ApiPlatformActionsPageView, WebPlatformActionsPageView>>;
+type _pa09ActionChange = Assert<Exact<ApiPlatformActionChangeView, WebPlatformActionChangeView>>;
+type _pa09RelatedAction = Assert<Exact<ApiPlatformRelatedActionView, WebPlatformRelatedActionView>>;
+type _pa09ActionSupportSession = Assert<
+  Exact<ApiPlatformActionSupportSessionView, WebPlatformActionSupportSessionView>
+>;
+type _pa09ActionDetail = Assert<Exact<ApiPlatformActionDetailView, WebPlatformActionDetailView>>;
+type _pa09SignIn = Assert<Exact<ApiPlatformSignInView, WebPlatformSignInView>>;
+type _pa09SignInsPage = Assert<Exact<ApiPlatformSignInsPageView, WebPlatformSignInsPageView>>;
+type _pa09LiveSession = Assert<Exact<ApiPlatformLiveSessionView, WebPlatformLiveSessionView>>;
+type _pa09LiveSessionsPage = Assert<
+  Exact<ApiPlatformLiveSessionsPageView, WebPlatformLiveSessionsPageView>
+>;
+type _pa09SessionEnded = Assert<Exact<ApiPlatformSessionEndedView, WebPlatformSessionEndedView>>;
+type _pa09StepUp = Assert<Exact<ApiPlatformStepUpView, WebPlatformStepUpView>>;
+type _pa09StepUpsPage = Assert<Exact<ApiPlatformStepUpsPageView, WebPlatformStepUpsPageView>>;
+type _pa09SuspiciousPattern = Assert<
+  Exact<ApiPlatformSuspiciousPatternView, WebPlatformSuspiciousPatternView>
+>;
+type _pa09Suspicious = Assert<Exact<ApiPlatformSuspiciousView, WebPlatformSuspiciousView>>;
+type _pa09AdminAction = Assert<Exact<ApiPlatformAdminActionView, WebPlatformAdminActionView>>;
+type _pa09AdminActionsPage = Assert<
+  Exact<ApiPlatformAdminActionsPageView, WebPlatformAdminActionsPageView>
+>;
+type _pa09ExportJob = Assert<Exact<ApiPlatformExportJobView, WebPlatformExportJobView>>;
+type _pa09ExportJobs = Assert<Exact<ApiPlatformExportJobsView, WebPlatformExportJobsView>>;
+type _pa09ActivitySupportSessions = Assert<
+  Exact<ApiPlatformActivitySupportSessionsView, WebPlatformActivitySupportSessionsView>
+>;

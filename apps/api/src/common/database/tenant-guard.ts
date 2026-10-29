@@ -1187,6 +1187,10 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   'platform_feature_flags',
   'platform_org_flag_overrides',
   'platform_announcements',
+  // ---- platform-admin v2 · PA-09 ----
+  // 0246. The operators' CSV export jobs (C6): who asked, the scope and filter, the file key and
+  // its expiry. A filter may name an organization but the job belongs to no tenant.
+  'platform_export_jobs',
 ]);
 
 export function isTenantTable(name: string): boolean {

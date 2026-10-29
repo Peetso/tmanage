@@ -1,8 +1,30 @@
 'use client';
 
-import { PlatformAuditScreen } from '../../../components/platform/PlatformAdminScreens';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect } from 'react';
 
-/** Platform admin — the platform audit log. The API decides who may see it (404 for everyone not listed). */
+/**
+ * `/platform/audit` (PA-02) moved to Activity & access (platform-admin v2 · PA-09): a person's
+ * actions go to C1 filtered to them, everything else to C4 Platform admins.
+ */
+function Redirect() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const actor = params.get('actorUserId');
+  useEffect(() => {
+    router.replace(
+      actor
+        ? `/platform/activity?actorUserId=${encodeURIComponent(actor)}`
+        : '/platform/activity/platform',
+    );
+  }, [actor, router]);
+  return null;
+}
+
 export default function Page() {
-  return <PlatformAuditScreen />;
+  return (
+    <Suspense fallback={null}>
+      <Redirect />
+    </Suspense>
+  );
 }

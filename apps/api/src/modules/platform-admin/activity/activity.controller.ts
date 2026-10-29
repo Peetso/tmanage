@@ -7,7 +7,10 @@ import type { PlatformActivityService } from './activity.service.js';
 
 export const PLATFORM_ACTIVITY_SERVICE = Symbol.for('tmanage.PlatformActivityService');
 
-/** `/v1/platform/audit` — Platform admin · Activity. Moved here unchanged by the PA-02 split. */
+/**
+ * `/v1/platform/audit` — the PA-02 alias of C4, kept so older clients keep working (platform-admin
+ * v2 · PA-09: `activity/platform` is the new route; the C1–C6 routes live beside this file).
+ */
 @Controller('v1/platform')
 @NoTenant()
 @UseGuards(PlatformAdminGuard)

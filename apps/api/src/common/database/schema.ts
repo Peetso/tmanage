@@ -9959,3 +9959,37 @@ export type OrganizationLimitsRow = typeof organizationLimits.$inferSelect;
 Object.assign(TABLES, {
   organization_limits: organizationLimits,
 });
+
+// ---- platform-admin v2 · PA-09 ----
+
+/**
+ * 0246. The operators' CSV export jobs (SPEC §4 C6). Global (NON_TENANT_TABLES): the API inserts
+ * a `queued` row, the worker writes the file and stamps `ready`/`failed`, the file expires 24 h
+ * later. "Delete" is `status = 'deleted'` — no DELETE grant.
+ */
+export const platformExportJobs = mysqlTable(
+  'platform_export_jobs',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    requestedBy: char('requested_by', { length: 36 }).notNull(),
+    scope: varchar('scope', { length: 32 }).notNull(),
+    filterJson: text('filter_json').notNull(),
+    status: varchar('status', { length: 16 }).notNull().default('queued'),
+    rowCount: int('row_count'),
+    objectKey: varchar('object_key', { length: 512 }),
+    error: varchar('error', { length: 500 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    finishedAt: datetime('finished_at', { mode: 'date', fsp: 3 }),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    index('ix_platform_export_jobs_status').on(table.status, table.createdAt),
+    index('ix_platform_export_jobs_requested').on(table.requestedBy, table.createdAt),
+  ],
+);
+
+export type PlatformExportJobRow = typeof platformExportJobs.$inferSelect;
+
+Object.assign(TABLES, {
+  platform_export_jobs: platformExportJobs,
+});

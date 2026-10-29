@@ -50,6 +50,8 @@ import {
 } from './jobs/support-session-sweeper.js';
 // ---- platform-admin v2 · PA-07 ---- the organization purge registers itself in PURGE_HOOKS.
 import './jobs/purge-organizations.js';
+// ---- platform-admin v2 · PA-09 ---- the Platform admin CSV export job.
+import { exportWriterFor, runExportJobsLoop, runExportJobsOnce } from './jobs/export-jobs.js';
 
 /**
  * The worker process entry point.
@@ -375,6 +377,22 @@ async function main(): Promise<void> {
     return;
   }
 
+  // ---- platform-admin v2 · PA-09 ---- queued CSV exports: write, expire, remove.
+  if (command.kind === 'run-exports') {
+    try {
+      const result = await runExportJobsOnce(database, exportWriterFor(env));
+      process.stdout.write(`${JSON.stringify(result)}
+`);
+      console.warn(
+        `[worker] exports: wrote ${String(result.written)}, failed ${String(result.failed)}, ` +
+          `removed ${String(result.removed)} file(s)`,
+      );
+    } finally {
+      await database.end();
+    }
+    return;
+  }
+
   // The relay's own producer. The console driver counts as a transport — printing the
   // composed message is its whole job, and the bootstrap profile is where a developer reads
   // what a client would have received.
@@ -457,6 +475,8 @@ async function main(): Promise<void> {
   // relay. It borrows a pool connection only while it runs, logs its own failures and stops with
   // the same signal.
   const supportSweep = runSupportSessionSweepLoop(database, controller.signal);
+  // ---- platform-admin v2 · PA-09 ---- the export job, every 30 seconds beside the relay.
+  const exportJobs = runExportJobsLoop(database, exportWriterFor(env), controller.signal);
 
   // RT-001. Sockets exist only in loop mode — a controlled batch has no process to keep a
   // socket open — and only when a port is configured; 0 is the honest default on a host
@@ -544,6 +564,8 @@ async function main(): Promise<void> {
     // ---- platform-admin v2 · PA-05 ---- let the sweep finish its pass before the pool closes.
     controller.abort();
     await supportSweep;
+    // ---- platform-admin v2 · PA-09 ----
+    await exportJobs;
     await database.end();
   }
 }

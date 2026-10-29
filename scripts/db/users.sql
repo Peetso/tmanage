@@ -1757,3 +1757,19 @@ GRANT INSERT ON `tmanage`.`platform_admin_audit_events`         TO 'tmanage_work
 -- rides grants the API already holds: UPDATE on `users`, `sessions`, `user_mfa_factors` and
 -- `user_recovery_codes`, INSERT on `credential_change_notices`, `authentication_events` and
 -- `platform_admin_audit_events`. No new grant, no DELETE.
+
+-- ---- platform-admin v2 · PA-09 ----
+-- 0246 `platform_export_jobs` (global): the API inserts a queued export, lists them and marks one
+-- `deleted` (UPDATE — never DELETE). SELECT rides the database-wide read.
+GRANT INSERT, UPDATE ON `tmanage`.`platform_export_jobs`        TO 'tmanage_app'@'%';
+-- The worker's export job (apps/worker/src/jobs/export-jobs.ts, `--run-exports` and its loop)
+-- claims queued jobs and stamps them ready/failed/expired, and reads the rows each scope exports:
+-- the org action log (metadata only — `metadata_json` and `audit_event_changes` are never read),
+-- sessions (no token hash), the platform admin log, organizations and people. The
+-- `organizations`, `users` and `memberships` reads are already held above. NOT
+-- `authentication_events`: the relay never reads the security log (least-privilege.db.test.ts),
+-- so the API writes a sign-ins export itself, at request time.
+GRANT SELECT, UPDATE ON `tmanage`.`platform_export_jobs`        TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`audit_events`                        TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`sessions`                            TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`platform_admin_audit_events`         TO 'tmanage_worker'@'%';

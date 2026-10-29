@@ -178,3 +178,9 @@ export type { InternalRecipientCandidate } from './common/database/notifications
 export { sweepSupportSessions } from './jobs/support-session-sweeper.js';
 export type { SupportSweepResult } from './jobs/support-session-sweeper.js';
 export { createSupportSessionSweepStore } from './common/database/support-session-sweep-store.js';
+// ---- platform-admin v2 · PA-09 ----
+// The Platform admin CSV export job, exported so the single Hostinger app (`apps/server`)
+// schedules it and the db suite drives the same pass.
+export { exportWriterFor, filesystemExportWriter, runExportJobs } from './jobs/export-jobs.js';
+export type { ExportObjectWriter, ExportRunResult } from './jobs/export-jobs.js';
+export { createExportJobStore } from './common/database/export-jobs-store.js';

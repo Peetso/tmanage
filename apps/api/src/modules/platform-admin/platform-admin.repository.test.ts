@@ -70,3 +70,31 @@ describe('platform admin statements', () => {
     expect(analyzeStatement(SQL.setSuspended(true), [OTHER], ORG).violations).not.toEqual([]);
   });
 });
+
+// ---- platform-admin v2 · PA-09 ----
+describe('PLATFORM_METADATA_TABLES (SPEC P2)', () => {
+  it('is exactly the metadata allowlist: no content table, no before/after values', () => {
+    expect([...PLATFORM_METADATA_TABLES].sort()).toEqual(
+      [
+        'organizations',
+        'memberships',
+        'client_memberships',
+        'client_organizations',
+        'projects',
+        'subscriptions',
+        'usage_counters',
+        'workflow_runs',
+        'outbox_events',
+        'organization_limits',
+        'audit_events',
+        'custom_roles',
+        'org_feature_flags',
+        'project_memberships',
+        'member_profiles',
+      ].sort(),
+    );
+    // The C2 detail opens ONE organization through the tenant path; the change values never
+    // join a cross-organization read.
+    expect(PLATFORM_METADATA_TABLES).not.toContain('audit_event_changes');
+  });
+});
