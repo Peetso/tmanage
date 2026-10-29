@@ -20,9 +20,9 @@ function harness(revokeOne = true) {
   const authentication = { revokeSession: vi.fn(async () => revokeOne) };
   const controller = new SessionController(sessions as never, {} as never, authentication as never);
   const request = { headers: {} };
-  requireRequestState(request).correlationId = 'corr-1';
+  const correlationId = requireRequestState(request).correlationId;
   const reply = { header: vi.fn() };
-  return { controller, request, reply };
+  return { controller, request, reply, correlationId };
 }
 
 afterEach(() => registerSupportSignOutListener(null));
@@ -31,13 +31,13 @@ describe('sign-out ends the bound Support session', () => {
   it('tells the support module on DELETE current', async () => {
     const ended = vi.fn(async () => undefined);
     registerSupportSignOutListener({ browserSessionEnded: ended });
-    const { controller, request, reply } = harness();
+    const { controller, request, reply, correlationId } = harness();
     await controller.signOut(
       { sessionId: 's-1', userId: USER } as never,
       request as never,
       reply as never,
     );
-    expect(ended).toHaveBeenCalledWith(USER, 's-1', 'corr-1');
+    expect(ended).toHaveBeenCalledWith(USER, 's-1', correlationId);
   });
 
   it('tells it for a revoked session of one’s own, never for a refused one', async () => {
@@ -50,7 +50,7 @@ describe('sign-out ends the bound Support session', () => {
       ok.request as never,
       ok.reply as never,
     );
-    expect(ended).toHaveBeenCalledWith(USER, 's-2', 'corr-1');
+    expect(ended).toHaveBeenCalledWith(USER, 's-2', ok.correlationId);
     ended.mockClear();
     const refused = harness(false);
     await expect(
