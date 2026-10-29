@@ -159,8 +159,11 @@ test.describe.serial('the platform organizations journeys', () => {
       `${API_URL}/v1/organizations/${BRIGHTOPS}/members`,
     );
     expect(refused.status()).toBe(403);
-    const body = (await refused.json()) as { error?: { code?: string } };
-    expect(body.error?.code).toBe('organization_suspended');
+    // The 0206 contract: a proved member of a suspended company gets 403 `forbidden` with the
+    // suspended message (the resolver's `organization_suspended` is the audit code, not the body).
+    const body = (await refused.json()) as { error?: { code?: string; message?: string } };
+    expect(body.error?.code).toBe('forbidden');
+    expect(body.error?.message).toMatch(/workspace is suspended/);
 
     await page.getByRole('button', { name: 'Reactivate…' }).click();
     await confirmAct(page, 'Reactivate');
@@ -185,13 +188,13 @@ test.describe.serial('the platform organizations journeys', () => {
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel('Type the organization slug to confirm').fill('brightops');
     await dialog.getByLabel('Reason (required)').fill(REASON);
-    await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
-    // A slug that does not match keeps the dialog open and deletes nothing.
+    // A slug that does not match keeps Delete disabled: nothing can be deleted.
+    await expect(dialog.getByRole('button', { name: 'Delete', exact: true })).toBeDisabled();
     await expect(dialog).toBeVisible();
     await dialog.getByLabel('Type the organization slug to confirm').fill(BRIGHTOPS);
     await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
     await expect(dialog).toBeHidden();
-    await expect(page.getByText('This organization is deleted')).toBeVisible();
+    await expect(page.getByText('This organization is deleted', { exact: true })).toBeVisible();
 
     await page.goto('/platform/organizations/deleted');
     const row = page.getByRole('row').filter({ hasText: BRIGHTOPS });
@@ -200,7 +203,7 @@ test.describe.serial('the platform organizations journeys', () => {
     await confirmAct(page, 'Restore');
     await expect(page.getByRole('row').filter({ hasText: BRIGHTOPS })).toHaveCount(0);
     await page.goto(`/platform/organizations/${brightops.organizationId}`);
-    await expect(page.getByText('This organization is deleted')).toBeHidden();
+    await expect(page.getByText('This organization is deleted', { exact: true })).toBeHidden();
     await context.close();
   });
 

@@ -105,7 +105,7 @@ test.describe.serial('Platform content journeys', () => {
     await expect(page.getByTestId('content-browser')).toBeVisible();
 
     // Browse the channel, read the message, edit it as support.
-    await page.getByRole('button', { name: new RegExp(`^${CHANNEL}`) }).click();
+    await page.getByRole('button', { name: new RegExp(`^# ${CHANNEL}`) }).click();
     const stream = page.getByTestId('content-stream');
     await expect(stream).toContainText(MESSAGE);
     await stream.getByRole('button', { name: new RegExp(MESSAGE.slice(0, 20)) }).click();

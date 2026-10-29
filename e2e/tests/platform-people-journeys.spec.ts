@@ -176,7 +176,8 @@ test.describe.serial('the platform people journeys', () => {
     await page.reload();
     const require = page.getByLabel('Require two-step at next sign-in');
     await expect(require).toBeChecked();
-    await require.uncheck();
+    // The switch shows the server's state: it flips once the PUT has landed, not on the click.
+    await require.click();
     await expect(require).not.toBeChecked();
     await context.close();
   });

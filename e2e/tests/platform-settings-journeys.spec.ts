@@ -62,11 +62,9 @@ async function openAdmin(browser: Browser, path: string) {
 
 /** `datetime-local` text for now + `minutes`, in the browser's (and this machine's) time zone. */
 function localInput(minutes: number): string {
-  const at = new Date(Date.now() + minutes * 60_000);
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}T${pad(
-    at.getHours(),
-  )}:${pad(at.getMinutes())}`;
+  // The browser runs in UTC (playwright.config `timezoneId`), so its `datetime-local` value is
+  // UTC wall time; the test runner's own zone (Cairo on this machine) must not leak in.
+  return new Date(Date.now() + minutes * 60_000).toISOString().slice(0, 16);
 }
 
 /** A password sign-in from our own pages (F43: same origin), as the sign-in form sends it. */

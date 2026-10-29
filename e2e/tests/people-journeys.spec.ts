@@ -203,6 +203,8 @@ test.describe('the People & capacity directory journeys', () => {
               'work.read',
               'client_projection.read',
               'org.manage',
+              // platform-admin v2 (SPEC §3.3): the People directory is `people.view` now.
+              'people.view',
             ],
           },
         },

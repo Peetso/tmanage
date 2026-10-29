@@ -64,6 +64,13 @@ function apiEnv(databaseUrl: string, storageRoot?: string): NodeJS.ProcessEnv {
     // The lead journeys post many contact submissions from one address; the production
     // budget (5 per 10 minutes) is proved by the API unit suite and the Hostinger smoke.
     RATE_LIMIT_CONTACT_MAX_REQUESTS: '1000',
+    // platform-admin v2: the platform journeys step the same operator up from one address dozens
+    // of times in a run; the source+account budget (4 per 5 minutes) counts every confirmation.
+    // It must stay below the lockout threshold, so both move together. The production budget is
+    // proved by the API unit suite.
+    RATE_LIMIT_AUTH_MAX_REQUESTS: '200',
+    AUTH_MAX_FAILURES_IN_WINDOW: '250',
+    RATE_LIMIT_AUTH_MAX_PER_SOURCE: '300',
     API_PORT: String(API_PORT),
     API_PUBLIC_URL: API_URL,
     WEB_PUBLIC_URL: WEB_URL,

@@ -92,7 +92,14 @@ test.describe.serial('the platform activity journeys', () => {
     await page.getByRole('searchbox', { name: 'Search sessions' }).fill(owner.email);
     const table = page.getByRole('table', { name: 'Live sessions' });
     await expect(table.getByText(owner.email).first()).toBeVisible();
-    await table.getByRole('button', { name: 'End session' }).first().click();
+    // The row of the owner's session, not the first row: until the search lands the table still
+    // lists every live session, the admin's own first.
+    await table
+      .getByRole('row')
+      .filter({ hasText: owner.email })
+      .getByRole('button', { name: 'End session' })
+      .first()
+      .click();
 
     const dialog = page.getByRole('dialog');
     await dialog.getByRole('button', { name: 'End session' }).click();
@@ -123,7 +130,7 @@ test.describe.serial('the platform activity journeys', () => {
     expect(response.status()).toBe(200);
     expect(response.headers()['content-type']).toContain('text/csv');
     const csv = await response.text();
-    expect(csv.split('\r\n')[0]).toMatch(/Email/u);
+    expect(csv.split('\r\n')[0]).toMatch(/^occurredAt,email,/u);
     await context.close();
   });
 });

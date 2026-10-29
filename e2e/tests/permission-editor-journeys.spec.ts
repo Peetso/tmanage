@@ -79,7 +79,10 @@ test.describe.serial('the permission editor journeys', () => {
     await page.goto(`/${ORG}/admin/roles/${shared.roleId}`);
     await page.getByRole('checkbox', { name: DELETE_BOX }).check();
     await expect(page.getByText('1 unsaved change')).toBeVisible();
-    await expect(page.getByText('+ Work items · delete').first()).toBeVisible();
+    // The change list names the added cell, drawn as "+" then the cell label.
+    const added = page.getByTestId('role-diff').locator('[data-change="added"]');
+    await expect(added).toHaveCount(1);
+    await expect(added).toContainText('Work items · delete');
     await page.getByRole('button', { name: 'Save role' }).click();
     await expect(page.getByText('1 unsaved change')).toHaveCount(0);
 
@@ -110,7 +113,7 @@ test.describe.serial('the permission editor journeys', () => {
     const { context, page } = await openAs(browser, world().northstar.owner.id);
     const member = world().northstar.offboardee.membershipId;
     await page.goto(`/${ORG}/people/${member}/permissions`);
-    await page.getByLabel('Permission').selectOption('conversation.write');
+    await page.getByLabel('Permission', { exact: true }).selectOption('conversation.write');
     await page.getByRole('button', { name: 'Deny', exact: true }).click();
     await page.getByLabel('Reason', { exact: true }).fill('Read-only during handover');
     await page.getByRole('button', { name: 'Add override' }).last().click();
