@@ -888,6 +888,14 @@ GRANT INSERT                 ON `tmanage`.`portal_access_log` TO 'tmanage_app'@'
 -- adds UPDATE with the code that writes it. No DELETE. Submitting a form writes no work_forms row —
 -- it creates a `work_items` row through the existing work path, which is granted above.
 GRANT INSERT                 ON `tmanage`.`work_forms`        TO 'tmanage_app'@'%';
+-- ---- 52-20 · public intake forms ----
+-- 0258: publish/unpublish moves `public_slug`, `public_enabled`, `published_at`, `updated_at`
+-- (UPDATE; the 0052 trigger still pins organization_id/created_by). Still no DELETE.
+GRANT UPDATE                 ON `tmanage`.`work_forms`        TO 'tmanage_app'@'%';
+-- 0258 `form_submissions` (tenant): the public door appends (INSERT), triage moves `state`
+-- (spam, converting, converted — UPDATE); DELETE only for the company erasure and the later
+-- retention purge. SELECT rides the database-wide read.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`form_submissions`  TO 'tmanage_app'@'%';
 -- SRCH ranking (x148) search index. INSERT, UPDATE and DELETE: the index is a rebuildable mirror of
 -- work items and documents, kept fresh by reindexing a source row (INSERT … ON DUPLICATE KEY UPDATE
 -- refreshes title/body/audience/updated_at in place) and dropped when its source is removed. It is

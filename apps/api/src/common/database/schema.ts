@@ -4062,10 +4062,58 @@ export const workForms = mysqlTable(
     fieldsJson: json('fields_json').$type<readonly WorkFormFieldDef[]>().notNull(),
     createdBy: char('created_by', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** 0258 (52-20). The random public slug; NULL until first published, kept on unpublish. */
+    publicSlug: varchar('public_slug', { length: 16 }),
+    /** 0258 (52-20). An unpublished slug answers the same 404 as an unknown one. */
+    publicEnabled: boolean('public_enabled').notNull().default(false),
+    publishedAt: datetime('published_at', { mode: 'date', fsp: 3 }),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_work_forms_org_id').on(table.organizationId, table.id),
     index('ix_work_forms_org_name').on(table.organizationId, table.name, table.id),
+    uniqueIndex('uq_work_forms_public_slug').on(table.publicSlug),
+  ],
+);
+
+/** 0258 (52-20). A public submission's triage state — closed list checked in `public-forms`. */
+export const FORM_SUBMISSION_STATES = ['new', 'converting', 'converted', 'spam'] as const;
+export type FormSubmissionState = (typeof FORM_SUBMISSION_STATES)[number];
+
+/**
+ * 0258 (52-20). One accepted public intake submission. TENANT: keyed `(organization_id, id)`,
+ * `reference` unique per organization, composite foreign key to `work_forms`. `values_json` is
+ * the visitor's values keyed by field label, typed and length-capped by the public door. No IP
+ * or user agent (52-21's telemetry keeps the abuse signal). `risk_*` copies 52-21's verdict.
+ */
+export const formSubmissions = mysqlTable(
+  'form_submissions',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    formId: char('form_id', { length: 36 }).notNull(),
+    reference: varchar('reference', { length: 12 }).notNull(),
+    valuesJson: text('values_json').notNull(),
+    language: varchar('language', { length: 5 }),
+    state: varchar('state', { length: 12 }).notNull().default('new'),
+    riskDecision: varchar('risk_decision', { length: 12 }).notNull().default('allow'),
+    riskScore: int('risk_score').notNull().default(0),
+    riskReasons: varchar('risk_reasons', { length: 255 }),
+    createdWorkItemId: char('created_work_item_id', { length: 36 }),
+    convertedBy: char('converted_by', { length: 36 }),
+    convertedAt: datetime('converted_at', { mode: 'date', fsp: 3 }),
+    spamMarkedBy: char('spam_marked_by', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_form_submissions_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_form_submissions_reference').on(table.organizationId, table.reference),
+    index('ix_form_submissions_form').on(
+      table.organizationId,
+      table.formId,
+      table.createdAt,
+      table.id,
+    ),
   ],
 );
 
@@ -9418,6 +9466,7 @@ export const TABLES = {
   inbox_snoozes: inboxSnoozes,
   inbox_source_mutes: inboxSourceMutes,
   work_forms: workForms,
+  form_submissions: formSubmissions,
   search_index: searchIndex,
   notification_kind_prefs: notificationKindPrefs,
   org_settings: orgSettings,
@@ -9598,6 +9647,7 @@ export type DocReviewRow = typeof docReviews.$inferSelect;
 export type NewDocReviewRow = typeof docReviews.$inferInsert;
 export type DecisionRow = typeof decisions.$inferSelect;
 export type WorkFormRow = typeof workForms.$inferSelect;
+export type FormSubmissionRow = typeof formSubmissions.$inferSelect;
 export type WorkflowTemplateRow = typeof workflowTemplates.$inferSelect;
 export type WorkflowRunRow = typeof workflowRuns.$inferSelect;
 export type IntegrationConnectionRow = typeof integrationConnections.$inferSelect;

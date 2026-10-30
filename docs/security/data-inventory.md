@@ -21,12 +21,12 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 
 ## Totals
 
-- Tables: 266 (100 % of `TABLES`).
-- `delete`: 219
+- Tables: 267 (100 % of `TABLES`).
+- `delete`: 220
 - `pseudonymise`: 3
 - `keep-fiscal-redacted`: 5
 - `none-no-personal-data`: 39
-- Today `enforced`: 192, `gap`: 35, `n/a`: 39.
+- Today `enforced`: 193, `gap`: 35, `n/a`: 39.
 
 ## Inventory
 
@@ -101,6 +101,7 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 | `file_tags`                       | -                                                                                                      | `none-no-personal-data` | n/a      | H3    | No personal field. Deleted with the company anyway (H3).                                                                                                                            |
 | `file_versions`                   | -                                                                                                      | `none-no-personal-data` | n/a      | H3    | No personal field. Deleted with the company anyway (H3).                                                                                                                            |
 | `focus_blocks`                    | `membership_id`                                                                                        | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
+| `form_submissions`                | `values_json`, `converted_by`, `spam_marked_by`                                                        | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
 | `glossary_terms`                  | -                                                                                                      | `none-no-personal-data` | n/a      | H3    | No personal field. Deleted with the company anyway (H3).                                                                                                                            |
 | `google_drive_attachments`        | `attached_by_user_id`, `deleted_by_user_id`                                                            | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
 | `google_drive_folders`            | `subject_id`                                                                                           | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |

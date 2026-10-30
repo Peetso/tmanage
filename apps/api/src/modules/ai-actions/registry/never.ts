@@ -1047,6 +1047,35 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/admin/block-rules/:ruleId',
     reason: 'org_security_manage',
   },
+  // 52-20. Public intake forms: the publish switch, the anonymous door and the triage of what
+  // anonymous visitors sent (untrusted outside content).
+  { method: 'GET', path: '/v1/public/forms/:slug', reason: 'public_intake' },
+  { method: 'POST', path: '/v1/public/forms/:slug/submissions', reason: 'public_intake' },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/work-forms/:formId/publish',
+    reason: 'public_intake',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/work-forms/:formId/unpublish',
+    reason: 'public_intake',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/work-forms/:formId/submissions',
+    reason: 'public_intake',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/work-forms/:formId/submissions/:submissionId/spam',
+    reason: 'public_intake',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/work-forms/:formId/submissions/:submissionId/convert',
+    reason: 'public_intake',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

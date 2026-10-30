@@ -86,6 +86,8 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'POST /v1/public/email/unsubscribe': 'pending named budget: RFC 8058 one-click, signed token',
   'GET /v1/public/email/unsubscribe': 'read: redirects to the unsubscribe page',
   'GET /v1/public/form-proof/': 'named',
+  'GET /v1/public/forms/:slug': 'named',
+  'POST /v1/public/forms/:slug/submissions': 'named',
 };
 
 /** Signed-in routes with no capability because they act only on the caller's own account. */

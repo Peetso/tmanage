@@ -61,6 +61,10 @@ export const NEVER_REASONS = [
   // 55-21. The clients' own usability-event ingestion: session-bound measurement, not an action.
   'product_telemetry',
   'public_site',
+  // 52-20. A form's public door (publish switch, the anonymous definition and submission) and
+  // the triage of what anonymous visitors sent: untrusted outside content an AI must not be fed
+  // or act on until a reviewed op exists.
+  'public_intake',
   'public_upload_part',
   'role_definitions',
   'session',

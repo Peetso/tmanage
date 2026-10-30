@@ -179,6 +179,7 @@ import { PublicResourcesModule } from './modules/public-site/resources.controlle
 import { TrustContentModule } from './modules/public-site/trust-content.module.js';
 import { PublicChangelogModule } from './modules/public-site/changelog.module.js';
 import { ContactModule } from './modules/public-site/contact.module.js';
+import { PublicFormsModule } from './modules/public-forms/public-forms.module.js';
 import { FirstOwnerModule } from './modules/setup/first-owner.module.js';
 import { publicSignupModules } from './modules/signup/public-signup.module.js';
 import { PlatformAdminModule } from './modules/platform-admin/platform-admin.module.js';
@@ -930,6 +931,9 @@ export class AppModule {
             ? {}
             : { max: options.config.contactMaxPerWindow }),
         }),
+        // 52-20. Public intake forms: publish/triage under work-forms and the anonymous door
+        // `/v1/public/forms/:slug`. After `RateLimitsModule` (52-21's global assess).
+        PublicFormsModule.register(),
         // First-owner setup (`GET/POST /public/setup`) for a fresh production install, which has no
         // public sign-up. Registered ONLY when `SETUP_TOKEN` is set, so with no token the routes do
         // not exist and return the router's ordinary 404 (same reasoning as

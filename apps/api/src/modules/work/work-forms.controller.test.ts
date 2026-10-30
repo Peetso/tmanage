@@ -19,6 +19,8 @@ const ORG = 'organization-0000-0000-0000-000000000001';
 const OTHER_ORG = 'organization-0000-0000-0000-000000000002';
 const PROJECT = 'project-0000-0000-0000-0000-000000000001';
 const USER = 'user-0000-0000-0000-0000-000000000001';
+/** 52-20 (0258): the public columns of a form that was never published. */
+const NOT_PUBLIC = { publicSlug: null, publicEnabled: false, publishedAt: null, updatedAt: null };
 
 function principal(role: Principal['role']): Principal {
   return {
@@ -87,6 +89,7 @@ function controllerWith(seed: readonly WorkFormRow[] = []) {
         fieldsJson: input.fields,
         createdBy: input.createdBy,
         createdAt: new Date('2026-09-26T10:00:00.000Z'),
+        ...NOT_PUBLIC,
       };
       store.push(row);
       return row;
@@ -165,6 +168,7 @@ describe('WorkFormsController', () => {
       fieldsJson: [{ label: 'Summary', type: 'text', required: true }],
       createdBy: 'user-0000-0000-0000-0000-0000000000ff',
       createdAt: new Date('2026-09-26T10:00:00.000Z'),
+      ...NOT_PUBLIC,
     };
     const { controller, createCalls } = controllerWith([foreignForm]);
 

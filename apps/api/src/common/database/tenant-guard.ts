@@ -647,6 +647,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // server. `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant
   // table has, so the guard must scope its reads and its writes.
   work_forms: 'organization_id',
+  // ---- 52-20 ---- 0258. Tenant-owned: one organization's public intake submissions. Members
+  // triage them through their own context; the public door finds the form by slug on
+  // `bootstrapRead(['work_forms'])`, then writes under a service context for the form's org.
+  form_submissions: 'organization_id',
   // SRCH ranking (x148, migration 0054). Tenant-owned: the search index mirrors a studio's work
   // items and documents, and an unscoped `MATCH … AGAINST search_index` would rank another studio's
   // titles and bodies into this caller's results. `organization_id` is NOT NULL and it carries the
