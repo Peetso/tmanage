@@ -16,17 +16,17 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 ## What erasure does today
 
 - **Account deletion** (`/me/privacy/deletion`): after the grace period the privacy job offboards the membership. The person can no longer sign in to that company, and their personal access tokens stop working. Their rows and the global account stay.
-- **Company deletion** (`/admin/privacy/deletion`): the job closes the company, and one day later empties every tenant table except the five in `RETAINED_TABLES` (organizations, audit_events, audit_retention_policy, privacy_exports, privacy_deletion_requests), plus the OAuth codes and tokens issued under its grants.
+- **Company deletion** (`/admin/privacy/deletion`): the job closes the company, and one day later empties every tenant table except the seven in `RETAINED_TABLES` (organizations, audit_events, audit_heads, audit_anchors, audit_retention_policy, privacy_exports, privacy_deletion_requests), plus the OAuth codes and tokens issued under its grants.
 - Nothing pseudonymises or redacts yet. Those rows are marked `gap`.
 
 ## Totals
 
-- Tables: 277 (100 % of `TABLES`).
+- Tables: 280 (100 % of `TABLES`).
 - `delete`: 227
 - `pseudonymise`: 3
 - `keep-fiscal-redacted`: 5
-- `none-no-personal-data`: 42
-- Today `enforced`: 199, `gap`: 36, `n/a`: 42.
+- `none-no-personal-data`: 45
+- Today `enforced`: 199, `gap`: 36, `n/a`: 45.
 
 ## Inventory
 
@@ -40,8 +40,10 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 | `approval_steps`                  | `approver_user_id`, `decided_by`                                                                       | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
 | `approvals`                       | `decided_by_user_id`                                                                                   | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
 | `attachment_versions`             | `note`, `created_by_user_id`                                                                           | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
+| `audit_anchors`                   | -                                                                                                      | `none-no-personal-data` | n/a      | 56-11 | Hashes and counts only. Kept with the audit trail (RETAINED_TABLES).                                                                                                                |
 | `audit_event_changes`             | `before_value`, `after_value`                                                                          | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
 | `audit_events`                    | `actor_user_id`, `ip`, `user_agent`                                                                    | `keep-fiscal-redacted`  | gap      | 56-18 | Kept by the company erasure (RETAINED_TABLES, 33-LEGAL §7). The keep half is enforced; the personal fields are not redacted yet.                                                    |
+| `audit_heads`                     | -                                                                                                      | `none-no-personal-data` | n/a      | 56-11 | Hashes and ids only. Kept with the audit trail (RETAINED_TABLES).                                                                                                                   |
 | `audit_retention_policy`          | `updated_by`                                                                                           | `keep-fiscal-redacted`  | gap      | 56-18 | Kept by the company erasure (RETAINED_TABLES, 33-LEGAL §7). The keep half is enforced; the personal fields are not redacted yet.                                                    |
 | `authentication_events`           | `user_id`, `ip`, `user_agent`                                                                          | `pseudonymise`          | gap      | 56-18 | Global security or mail record; to be kept without the person (hash or drop the identifying fields). Not automated yet.                                                             |
 | `automation_schedules`            | -                                                                                                      | `none-no-personal-data` | n/a      | H3    | No personal field. Deleted with the company anyway (H3).                                                                                                                            |
@@ -208,6 +210,7 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 | `platform_admin_step_ups`         | `user_id`                                                                                              | `delete`                | gap      | 56-18 | Global platform/operator or public-intake table, outside the company erasure. No automated erasure path yet.                                                                        |
 | `platform_admins`                 | `user_id`, `created_by`                                                                                | `delete`                | gap      | 56-18 | Global platform/operator or public-intake table, outside the company erasure. No automated erasure path yet.                                                                        |
 | `platform_announcements`          | `created_by`                                                                                           | `delete`                | gap      | 56-18 | Global platform/operator or public-intake table, outside the company erasure. No automated erasure path yet.                                                                        |
+| `platform_audit_anchors`          | -                                                                                                      | `none-no-personal-data` | n/a      | 56-11 | Global platform table with no personal field.                                                                                                                                       |
 | `platform_backup_runs`            | -                                                                                                      | `none-no-personal-data` | n/a      | 53-20 | Global platform table with no personal field.                                                                                                                                       |
 | `platform_export_jobs`            | `requested_by`                                                                                         | `delete`                | gap      | 56-18 | Global platform/operator or public-intake table, outside the company erasure. No automated erasure path yet.                                                                        |
 | `platform_feature_flags`          | `updated_by`                                                                                           | `delete`                | gap      | 56-18 | Global platform/operator or public-intake table, outside the company erasure. No automated erasure path yet.                                                                        |

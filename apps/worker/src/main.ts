@@ -69,6 +69,8 @@ import { exportWriterFor, runExportJobsLoop, runExportJobsOnce } from './jobs/ex
 import { createFieldCipher, loadFieldCipherKeyring } from '@tmanage/domain/field-cipher';
 import { createRotationStore } from './common/database/field-cipher-rotation-store.js';
 import { runKeyRotation, runKeyRotationLoop } from './jobs/field-cipher-rotation.js';
+import { createAuditAnchorStore } from './common/database/audit-anchor-store.js';
+import { anchorSignerFromEnv, runAuditAnchorLoop } from './jobs/audit-anchor.js';
 
 /**
  * The worker process entry point.
@@ -597,6 +599,11 @@ async function main(): Promise<void> {
   // relay. It borrows a pool connection only while it runs, logs its own failures and stops with
   // the same signal.
   const supportSweep = runSupportSessionSweepLoop(database, controller.signal);
+  // ---- 56-11 ---- audit chain start backfill + daily anchors, hourly beside the relay.
+  const auditAnchors = runAuditAnchorLoop(
+    { store: createAuditAnchorStore(database), signer: anchorSignerFromEnv(process.env) },
+    controller.signal,
+  );
   // ---- platform-admin v2 · PA-09 ---- the export job, every 30 seconds beside the relay.
   const exportJobs = runExportJobsLoop(database, exportWriterFor(env), controller.signal);
   // ---- 56-02 FieldCipher ---- queued key rotations, every minute beside the relay. Keyless,
@@ -701,6 +708,8 @@ async function main(): Promise<void> {
     // ---- platform-admin v2 · PA-09 ----
     await exportJobs;
     await keyRotations;
+    // ---- 56-11 ----
+    await auditAnchors;
     // ---- 56-31 ----
     await mailDrain;
     await database.end();

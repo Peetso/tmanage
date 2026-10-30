@@ -9,6 +9,8 @@ import { actorAppAuditValue } from './actor-app.js';
 import { auditOriginOf } from '../../common/http/request-origin.js';
 import { AuditEventChangesRepository } from './audit-event-changes.repository.js';
 import type { AuditChangeInput } from './audit-redaction.js';
+import { AuditChainRepository } from './audit-chain.repository.js';
+import { chainRowHash } from './audit-chain.js';
 
 /**
  * The append-only audit table — AUD-001, `25-AUTH-AND-TENANT-ISOLATION` §12.
@@ -104,7 +106,15 @@ export const SQL_BUMP_SUPPORT_ACTIONS =
   'update platform_support_sessions set actions_count = actions_count + 1 where id = ?';
 
 export class AuditEventsRepository {
-  constructor(private readonly changes = new AuditEventChangesRepository()) {}
+  /**
+   * 56-11: `chain` links every appended row into its organization's hash chain (0261). `null`
+   * turns the chain off — only for database-free unit tests whose fake runner cannot answer the
+   * head read; every production path takes the default.
+   */
+  constructor(
+    private readonly changes = new AuditEventChangesRepository(),
+    private readonly chain: AuditChainRepository | null = new AuditChainRepository(),
+  ) {}
 
   /**
    * Append one event.
@@ -170,6 +180,41 @@ export class AuditEventsRepository {
     // A service or worker context has none, and its rows are exactly what they were before.
     const origin = auditOriginOf(context);
     const support = origin?.supportSession ?? null;
+    const actorUserId = input.actorUserId === undefined ? context.userId : input.actorUserId;
+    const effectiveActorId = input.effectiveActorId ?? support?.adminUserId ?? null;
+    const objectType = auditObjectTypeFor(input.action);
+
+    // 56-11. Lock the organization's chain head (serialising this organization's audit writers
+    // until commit), then hash the row exactly as it will be stored — `created_at` included, which
+    // is why the server clock is read under the lock and written as a value rather than defaulted.
+    let chained: {
+      readonly headId: string;
+      readonly createdAt: Date;
+      readonly chainSeq: number;
+      readonly prevHash: string;
+      readonly rowHash: string;
+    } | null = null;
+    if (this.chain !== null) {
+      const { head, now } = await this.chain.lockHead(runner, context);
+      const chainSeq = head.chainSeq + 1;
+      const rowHash = chainRowHash(
+        {
+          organizationId: context.organizationId,
+          id,
+          createdAt: now,
+          actorUserId,
+          effectiveActorId,
+          action: input.action,
+          objectType,
+          objectId: input.objectId,
+          result: input.result,
+          metadataJson: metadata,
+        },
+        chainSeq,
+        head.headHash,
+      );
+      chained = { headId: head.id, createdAt: now, chainSeq, prevHash: head.headHash, rowHash };
+    }
 
     await tenantDrizzle(runner)
       .insert(auditEvents)
@@ -177,10 +222,10 @@ export class AuditEventsRepository {
         id,
         // From the context. Not from `input` — there is no such field.
         organizationId: context.organizationId,
-        actorUserId: input.actorUserId === undefined ? context.userId : input.actorUserId,
-        effectiveActorId: input.effectiveActorId ?? support?.adminUserId ?? null,
+        actorUserId,
+        effectiveActorId,
         action: input.action,
-        objectType: auditObjectTypeFor(input.action),
+        objectType,
         objectId: input.objectId,
         result: input.result,
         // From the context as well. An audit row whose correlation id did not match the
@@ -192,11 +237,22 @@ export class AuditEventsRepository {
         // `CURRENT_TIMESTAMP(3)` in the DDL; the Drizzle description does not carry defaults,
         // so the value is supplied as an expression rather than as a literal — which keeps
         // the timestamp the database's in either case.
-        createdAt: sql`current_timestamp(3)`,
+        createdAt: chained?.createdAt ?? sql`current_timestamp(3)`,
         ip: origin?.ip ?? null,
         userAgent: origin?.userAgent ?? null,
         platformSupportSessionId: support?.id ?? null,
+        chainSeq: chained?.chainSeq ?? null,
+        prevHash: chained?.prevHash ?? null,
+        rowHash: chained?.rowHash ?? null,
       });
+
+    if (this.chain !== null && chained !== null) {
+      await this.chain.advanceHead(runner, context, chained.headId, {
+        chainSeq: chained.chainSeq,
+        headHash: chained.rowHash,
+        lastEventId: id,
+      });
+    }
 
     if (input.changes !== undefined && input.changes.length > 0) {
       await this.changes.appendFor(runner, context, id, input.changes);

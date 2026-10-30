@@ -1111,6 +1111,22 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/platform/security-reports/', reason: 'platform_admin' },
   { method: 'GET', path: '/v1/platform/security-reports/:id', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/security-reports/:id', reason: 'platform_admin' },
+  // 56-11. Audit chain integrity, catalog and signed export head: security evidence, not for AI.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/admin/audit/integrity',
+    reason: 'audit_retention',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/admin/audit/catalog',
+    reason: 'audit_retention',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/admin/audit/export.sig',
+    reason: 'audit_retention',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

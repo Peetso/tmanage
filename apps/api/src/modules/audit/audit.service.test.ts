@@ -337,7 +337,8 @@ describe('AuditService.record — origin, support session and changes (0240, 024
         return { affectedRows: 1, insertId: 0 };
       },
     };
-    const events = new AuditEventsRepository();
+    // 56-11: the fake runner cannot answer the chain-head read; the chain has its own tests.
+    const events = new AuditEventsRepository(undefined, null);
     vi.spyOn(events, 'requireById').mockResolvedValue(row({}));
     const service = new AuditService({} as TenantDatabase, events);
     const base = {

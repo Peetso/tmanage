@@ -6496,6 +6496,10 @@ export const auditEvents = mysqlTable(
     ip: varchar('ip', { length: 45 }),
     userAgent: varchar('user_agent', { length: 255 }),
     platformSupportSessionId: char('platform_support_session_id', { length: 36 }),
+    /** 56-11 (0261): position in the organization's hash chain; NULL for pre-chain rows. */
+    chainSeq: bigint('chain_seq', { mode: 'number' }),
+    prevHash: char('prev_hash', { length: 64 }),
+    rowHash: char('row_hash', { length: 64 }),
   },
   (table) => [
     uniqueIndex('uq_audit_events_org_id').on(table.organizationId, table.id),
@@ -6513,6 +6517,7 @@ export const auditEvents = mysqlTable(
       table.action,
       table.createdAt,
     ),
+    index('ix_audit_events_org_chain').on(table.organizationId, table.chainSeq),
   ],
 );
 
@@ -10756,4 +10761,71 @@ export type SecurityReportRow = typeof securityReports.$inferSelect;
 
 Object.assign(TABLES, {
   security_reports: securityReports,
+});
+
+// ---- 56-11 · audit hash chain ----
+
+/**
+ * 0261 (56-11). One row per organization: the head of its audit hash chain. TENANT. Written only
+ * inside an audit write's transaction (read FOR UPDATE, then advanced); the worker inserts the
+ * chain-start row for organizations that have none. `legacy_last_event_id` names the newest
+ * pre-chain `audit_events` row.
+ */
+export const auditHeads = mysqlTable(
+  'audit_heads',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    chainSeq: bigint('chain_seq', { mode: 'number' }).notNull().default(0),
+    headHash: char('head_hash', { length: 64 }).notNull(),
+    lastEventId: char('last_event_id', { length: 36 }),
+    legacyLastEventId: char('legacy_last_event_id', { length: 36 }),
+    chainStartedAt: datetime('chain_started_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_audit_heads_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_audit_heads_org').on(table.organizationId),
+  ],
+);
+export type AuditHeadRow = typeof auditHeads.$inferSelect;
+
+/** 0261 (56-11). One daily anchor per organization (HMAC under AUDIT_ANCHOR_KEY, or NULL). TENANT. */
+export const auditAnchors = mysqlTable(
+  'audit_anchors',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    day: date('day', { mode: 'string' }).notNull(),
+    headHash: char('head_hash', { length: 64 }).notNull(),
+    eventCount: bigint('event_count', { mode: 'number' }).notNull(),
+    signature: varchar('signature', { length: 512 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_audit_anchors_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_audit_anchors_org_day').on(table.organizationId, table.day),
+  ],
+);
+export type AuditAnchorRow = typeof auditAnchors.$inferSelect;
+
+/** 0261 (56-11). One platform root per UTC day over that day's organization anchors. GLOBAL. */
+export const platformAuditAnchors = mysqlTable(
+  'platform_audit_anchors',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    day: date('day', { mode: 'string' }).notNull(),
+    rootHash: char('root_hash', { length: 64 }).notNull(),
+    orgCount: int('org_count').notNull(),
+    signature: varchar('signature', { length: 512 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [uniqueIndex('uq_platform_audit_anchors_day').on(table.day)],
+);
+export type PlatformAuditAnchorRow = typeof platformAuditAnchors.$inferSelect;
+
+Object.assign(TABLES, {
+  audit_heads: auditHeads,
+  audit_anchors: auditAnchors,
+  platform_audit_anchors: platformAuditAnchors,
 });

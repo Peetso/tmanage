@@ -1123,6 +1123,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // under a service context bound to the link's organization.
   quotes: 'organization_id',
   quote_lines: 'organization_id',
+  // ---- 56-11 ----
+  // 0261. Tenant-owned: one organization's audit chain head and its daily anchors. The head is
+  // read FOR UPDATE and advanced inside every audit write's transaction; anchors are written by
+  // the worker and only read here (integrity verify).
+  audit_heads: 'organization_id',
+  audit_anchors: 'organization_id',
   // ---- 52-23 ----
   // 0260. Tenant-owned: one organization's finance profile, tax rates, document counters and
   // manual exchange rates. Reached only by members through their own context.
@@ -1268,6 +1274,10 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // Reached only through `identityTransaction(['public_abuse_events' | 'public_challenges'])`.
   'public_abuse_events',
   'public_challenges',
+  // ---- 56-11 ----
+  // 0261. One platform root hash per UTC day over the organization anchors. GLOBAL: hashes and
+  // counts only, no tenant data. Written by the worker; nothing in the API reads it yet (56-21b).
+  'platform_audit_anchors',
   // ---- 56-17 ----
   // 0262. Vulnerability reports from the public disclosure form. GLOBAL: a report is about the
   // platform, never one organization's data (no organization_id); the reporter e-mail is a

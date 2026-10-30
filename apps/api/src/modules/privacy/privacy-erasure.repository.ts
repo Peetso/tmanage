@@ -27,6 +27,10 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 export const RETAINED_TABLES: ReadonlySet<string> = new Set([
   'organizations',
   'audit_events',
+  // 56-11: the chain head and anchors are the trail's tamper evidence and are kept with it (and
+  // the runtime credential holds no DELETE on them).
+  'audit_heads',
+  'audit_anchors',
   'audit_retention_policy',
   'privacy_exports',
   'privacy_deletion_requests',

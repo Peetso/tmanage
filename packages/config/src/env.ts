@@ -482,6 +482,15 @@ export const envSchema = z
     /** 56-05. Multiplies every durable rate-limit ceiling; e2e/dev only, production never sets it. */
     RATE_LIMIT_SCALE: z.coerce.number().positive().optional(),
     /**
+     * 56-11. HMAC key for the daily audit anchors and the signed export head, in the 56-02 keyring
+     * format (`<id>:<base64 32 bytes>;…`, highest id signs). Optional: absent or malformed, anchors
+     * are written unsigned and the integrity report says so. A secret — never log it.
+     */
+    AUDIT_ANCHOR_KEY: z
+      .string()
+      .transform((value) => (value === '' ? undefined : value))
+      .optional(),
+    /**
      * One-time install secret for the first-owner setup (no public sign-up exists). Set it in
      * hPanel, open /setup, create the first owner, then delete the variable and restart. With
      * it unset the setup routes are not registered at all. Empty (hPanel's blank field) means
@@ -855,6 +864,8 @@ export const envSchema = z
       // 56-02. Compared as a whole by the pairwise check below; a key reused inside another
       // keyring is caught by the worker/API at start with `sharedKeyIds` (field-cipher.ts).
       ['FIELD_CIPHER_KEYS', env.FIELD_CIPHER_KEYS],
+      // 56-11. The audit anchor key must not reuse another secret either.
+      ['AUDIT_ANCHOR_KEY', env.AUDIT_ANCHOR_KEY],
     ];
     for (const [key, value] of secrets) {
       if (value === undefined) continue;

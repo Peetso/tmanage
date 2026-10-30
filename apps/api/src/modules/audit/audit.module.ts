@@ -9,6 +9,8 @@ import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { AuditEventsRepository } from './audit-events.repository.js';
 import { AuditService } from './audit.service.js';
 import { AuditController } from './audit.controller.js';
+import { AuditIntegrityController } from './audit-integrity.controller.js';
+import { AUDIT_INTEGRITY_SERVICE, AuditIntegrityService } from './audit-integrity.service.js';
 
 /**
  * AUD-001's wiring.
@@ -31,6 +33,10 @@ import { AuditController } from './audit.controller.js';
  * bulk-egress half behind the distinct, stronger `audit.export`, a row-capped CSV of the same
  * projection. The scope narrowing this table can support (org-wide vs own-activity) lives in
  * `AuditService.view` and is applied by both.
+ *
+ * 56-11 adds the hash chain (written inside `AuditEventsRepository.append`, so every path through
+ * this repository is chained) and a second controller, `AuditIntegrityController`, for the
+ * read-only `…/admin/audit/{integrity,catalog,export.sig}` routes.
  */
 @Global()
 @Module({})
@@ -47,12 +53,18 @@ export class AuditModule {
         new AuditService(database, events),
     };
 
+    const integrity: Provider = {
+      provide: AUDIT_INTEGRITY_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) => new AuditIntegrityService(database),
+    };
+
     return {
       module: AuditModule,
       global: true,
-      providers: [repository, service],
+      providers: [repository, service, integrity],
       exports: [service, repository],
-      controllers: [AuditController],
+      controllers: [AuditController, AuditIntegrityController],
     };
   }
 }

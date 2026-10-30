@@ -1903,3 +1903,15 @@ GRANT INSERT, DELETE ON `tmanage`.`org_exchange_rates`             TO 'tmanage_a
 -- the platform triage (status, credit) are UPDATEs. No DELETE yet: the 24-month retention purge
 -- is not built (data-inventory gap). SELECT rides the database-wide read.
 GRANT INSERT, UPDATE ON `tmanage`.`security_reports`           TO 'tmanage_app'@'%';
+
+-- ---- 56-11 · audit hash chain ----
+-- 0261 `audit_heads` (tenant): created on an organization's first chained write (INSERT … ON
+-- DUPLICATE KEY UPDATE no-op, which needs UPDATE too) and advanced by every audit write. No DELETE.
+GRANT INSERT, UPDATE ON `tmanage`.`audit_heads`                TO 'tmanage_app'@'%';
+-- The worker's backfill inserts the chain-start head for organizations without one; never UPDATE
+-- (the head belongs to the API writer). SELECT for the anchor job.
+GRANT SELECT, INSERT ON `tmanage`.`audit_heads`                TO 'tmanage_worker'@'%';
+-- 0261 `audit_anchors` (tenant) and `platform_audit_anchors` (global): written once per day by the
+-- worker (INSERT IGNORE), never updated or deleted. The app only reads them (database-wide SELECT).
+GRANT SELECT, INSERT ON `tmanage`.`audit_anchors`              TO 'tmanage_worker'@'%';
+GRANT SELECT, INSERT ON `tmanage`.`platform_audit_anchors`     TO 'tmanage_worker'@'%';
