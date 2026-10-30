@@ -3,6 +3,7 @@ import {
   boolean,
   char,
   date,
+  decimal,
   datetime,
   index,
   json,
@@ -10585,4 +10586,131 @@ export type QuoteLineRow = typeof quoteLines.$inferSelect;
 Object.assign(TABLES, {
   quotes,
   quote_lines: quoteLines,
+});
+
+// ---- 52-23 · money foundations ----
+
+/**
+ * 0260 (52-23). One finance profile per organization (`uq_ofp_org`). TENANT. Internal only: never
+ * part of a client projection. Closed lists (`numbering_reset`, `digits`, `tax_scheme`) are checked
+ * in `finance/finance-rules.ts`. Absent until the first save; the API answers defaults until then.
+ */
+export const orgFinanceProfiles = mysqlTable(
+  'org_finance_profiles',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    country: char('country', { length: 2 }).notNull(),
+    baseCurrency: char('base_currency', { length: 3 }).notNull(),
+    taxRegistrationNo: varchar('tax_registration_no', { length: 32 }),
+    taxScheme: varchar('tax_scheme', { length: 16 }).notNull().default('VAT'),
+    defaultTaxRateBp: int('default_tax_rate_bp').notNull().default(0),
+    legalNameEn: varchar('legal_name_en', { length: 200 }),
+    legalNameAr: varchar('legal_name_ar', { length: 200 }),
+    addressEn: varchar('address_en', { length: 500 }),
+    addressAr: varchar('address_ar', { length: 500 }),
+    invoicePrefix: varchar('invoice_prefix', { length: 16 }).notNull().default('INV'),
+    quotePrefix: varchar('quote_prefix', { length: 16 }).notNull().default('QT'),
+    creditNotePrefix: varchar('credit_note_prefix', { length: 16 }).notNull().default('CN'),
+    numberingReset: varchar('numbering_reset', { length: 8 })
+      .$type<'yearly' | 'never'>()
+      .notNull()
+      .default('yearly'),
+    roundingMinutes: int('rounding_minutes').notNull().default(15),
+    weekStart: tinyint('week_start').notNull().default(0),
+    digits: varchar('digits', { length: 8 }).$type<'latn' | 'arab'>().notNull().default('latn'),
+    showHijri: boolean('show_hijri').notNull().default(false),
+    bankDetailsText: text('bank_details_text'),
+    paymentTermsDays: int('payment_terms_days').notNull().default(30),
+    version: int('version').notNull().default(1),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_ofp_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_ofp_org').on(table.organizationId),
+  ],
+);
+
+export type OrgFinanceProfileRow = typeof orgFinanceProfiles.$inferSelect;
+
+/** 0260 (52-23). An organization's tax rates, unique by `code`; archived, never deleted. TENANT. */
+export const orgTaxRates = mysqlTable(
+  'org_tax_rates',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    code: varchar('code', { length: 16 }).notNull(),
+    nameEn: varchar('name_en', { length: 64 }).notNull(),
+    nameAr: varchar('name_ar', { length: 64 }).notNull(),
+    rateBp: int('rate_bp').notNull(),
+    zatcaCategory: varchar('zatca_category', { length: 4 }).$type<'S' | 'Z' | 'E' | 'O'>(),
+    isDefault: boolean('is_default').notNull().default(false),
+    archivedAt: datetime('archived_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_otr_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_otr_org_code').on(table.organizationId, table.code),
+  ],
+);
+
+export type OrgTaxRateRow = typeof orgTaxRates.$inferSelect;
+
+/**
+ * 0260 (52-23). Gapless counter per organization, document kind and period (`2026`, or `0000` for
+ * never-reset). Locked FOR UPDATE inside the issuing transaction (`finance/document-sequences.ts`).
+ */
+export const orgDocumentSequences = mysqlTable(
+  'org_document_sequences',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    kind: varchar('kind', { length: 16 }).$type<'invoice' | 'quote' | 'credit_note'>().notNull(),
+    periodKey: char('period_key', { length: 4 }).notNull(),
+    nextValue: int('next_value').notNull().default(1),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_ods_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_ods_key').on(table.organizationId, table.kind, table.periodKey),
+  ],
+);
+
+export type OrgDocumentSequenceRow = typeof orgDocumentSequences.$inferSelect;
+
+/** 0260 (52-23). Manual dated FX rates, one per pair per day. `rate` is DECIMAL(18,8) as text. */
+export const orgExchangeRates = mysqlTable(
+  'org_exchange_rates',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    fromCurrency: char('from_currency', { length: 3 }).notNull(),
+    toCurrency: char('to_currency', { length: 3 }).notNull(),
+    rate: decimal('rate', { precision: 18, scale: 8 }).notNull(),
+    effectiveOn: date('effective_on', { mode: 'string' }).notNull(),
+    source: varchar('source', { length: 32 }).notNull().default('manual'),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_oer_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_oer_pair_day').on(
+      table.organizationId,
+      table.fromCurrency,
+      table.toCurrency,
+      table.effectiveOn,
+    ),
+  ],
+);
+
+export type OrgExchangeRateRow = typeof orgExchangeRates.$inferSelect;
+
+Object.assign(TABLES, {
+  org_finance_profiles: orgFinanceProfiles,
+  org_tax_rates: orgTaxRates,
+  org_document_sequences: orgDocumentSequences,
+  org_exchange_rates: orgExchangeRates,
 });

@@ -21,12 +21,12 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 
 ## Totals
 
-- Tables: 272 (100 % of `TABLES`).
-- `delete`: 224
+- Tables: 276 (100 % of `TABLES`).
+- `delete`: 226
 - `pseudonymise`: 3
 - `keep-fiscal-redacted`: 5
-- `none-no-personal-data`: 40
-- Today `enforced`: 197, `gap`: 35, `n/a`: 40.
+- `none-no-personal-data`: 42
+- Today `enforced`: 199, `gap`: 35, `n/a`: 42.
 
 ## Inventory
 
@@ -182,12 +182,16 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 | `org_announcements`               | `body`, `created_by`                                                                                   | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
 | `org_block_rules`                 | `created_by_user_id`                                                                                   | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
 | `org_branding`                    | `updated_by`                                                                                           | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
+| `org_document_sequences`          | -                                                                                                      | `none-no-personal-data` | n/a      | H3    | No personal field. Deleted with the company anyway (H3).                                                                                                                            |
+| `org_exchange_rates`              | `created_by`                                                                                           | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
 | `org_feature_flags`               | `updated_by`                                                                                           | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
+| `org_finance_profiles`            | `legal_name_en`, `legal_name_ar`, `address_en`, `address_ar`, `bank_details_text`                      | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
 | `org_ip_allowlist`                | -                                                                                                      | `none-no-personal-data` | n/a      | H3    | No personal field. Deleted with the company anyway (H3).                                                                                                                            |
 | `org_objectives`                  | `created_by`                                                                                           | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
 | `org_policies`                    | `updated_by`                                                                                           | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
 | `org_quota_counters`              | -                                                                                                      | `none-no-personal-data` | n/a      | H3    | No personal field. Deleted with the company anyway (H3).                                                                                                                            |
 | `org_settings`                    | `updated_by`                                                                                           | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
+| `org_tax_rates`                   | -                                                                                                      | `none-no-personal-data` | n/a      | H3    | No personal field. Deleted with the company anyway (H3).                                                                                                                            |
 | `organization_limits`             | `updated_by`                                                                                           | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
 | `organization_logos`              | `updated_by`                                                                                           | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
 | `organizations`                   | `deleted_by_user_id`                                                                                   | `keep-fiscal-redacted`  | gap      | 56-18 | Kept by the company erasure (RETAINED_TABLES, 33-LEGAL §7). The keep half is enforced; the personal fields are not redacted yet.                                                    |

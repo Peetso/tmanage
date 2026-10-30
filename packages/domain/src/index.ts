@@ -329,3 +329,20 @@ export {
   legalLocaleOf,
 } from './legal/legal-content.js';
 export type { ArabicLegalCopy, LegalLocale } from './legal/legal-content.js';
+
+// Money — 52-FEATURE-GAPS-AGENCY-CORE.md §4 (52-23)
+export {
+  CURRENCY_DIGITS,
+  MoneyError,
+  addMoney,
+  computeLineTax,
+  currencyDigits,
+  divideHalfUp,
+  formatMoney,
+  isCurrencyCode,
+  lineNetFromQuantity,
+  money,
+  parseMoney,
+  sumLines,
+} from './money/money.js';
+export type { DocumentTotals, LineAmounts, Money, MoneyDigits } from './money/money.js';

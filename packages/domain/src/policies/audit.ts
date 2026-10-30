@@ -965,6 +965,27 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'quote',
     clause: '§12 52-08 — a client declined a quote through its link',
   },
+  // ---- 52-23 · money foundations ----
+  'finance_profile.updated': {
+    objectType: 'finance_profile',
+    clause: '§12 52-23 — the organization finance profile was changed (TRN kept as last four)',
+  },
+  'tax_rate.created': {
+    objectType: 'tax_rate',
+    clause: '§12 52-23 — a tax rate was added',
+  },
+  'tax_rate.updated': {
+    objectType: 'tax_rate',
+    clause: '§12 52-23 — a tax rate was changed or restored',
+  },
+  'tax_rate.archived': {
+    objectType: 'tax_rate',
+    clause: '§12 52-23 — a tax rate was archived',
+  },
+  'exchange_rate.created': {
+    objectType: 'exchange_rate',
+    clause: '§12 52-23 — a manual exchange rate was recorded',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1129,6 +1150,11 @@ const AUDIT_ACTION_LABELS = {
   'quote.sent': 'Sent a quote',
   'quote.accepted': 'A quote was accepted',
   'quote.declined': 'A quote was declined',
+  'finance_profile.updated': 'Changed the finance settings',
+  'tax_rate.created': 'Added a tax rate',
+  'tax_rate.updated': 'Changed a tax rate',
+  'tax_rate.archived': 'Archived a tax rate',
+  'exchange_rate.created': 'Recorded an exchange rate',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

@@ -182,6 +182,7 @@ import { PublicChangelogModule } from './modules/public-site/changelog.module.js
 import { ContactModule } from './modules/public-site/contact.module.js';
 import { PublicFormsModule } from './modules/public-forms/public-forms.module.js';
 import { QuotesModule } from './modules/quotes/quotes.module.js';
+import { FinanceModule } from './modules/finance/finance.module.js';
 import { FirstOwnerModule } from './modules/setup/first-owner.module.js';
 import { publicSignupModules } from './modules/signup/public-signup.module.js';
 import { PlatformAdminModule } from './modules/platform-admin/platform-admin.module.js';
@@ -945,6 +946,9 @@ export class AppModule {
         // 52-08. Quotes (create/list/get/update draft/send) under `/quotes`; send issues a 56-07
         // `quote` link and the module registers the `quote` target adapter on its registry.
         QuotesModule.register(),
+        // 52-23. Settings → Finance: profile, tax rates, manual FX, readiness under `/finance`;
+        // global DOCUMENT_SEQUENCES (gapless numbers) for the issuing modules that follow.
+        FinanceModule.register(),
         // First-owner setup (`GET/POST /public/setup`) for a fresh production install, which has no
         // public sign-up. Registered ONLY when `SETUP_TOKEN` is set, so with no token the routes do
         // not exist and return the router's ordinary 404 (same reasoning as

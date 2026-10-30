@@ -1123,6 +1123,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // under a service context bound to the link's organization.
   quotes: 'organization_id',
   quote_lines: 'organization_id',
+  // ---- 52-23 ----
+  // 0260. Tenant-owned: one organization's finance profile, tax rates, document counters and
+  // manual exchange rates. Reached only by members through their own context.
+  org_finance_profiles: 'organization_id',
+  org_tax_rates: 'organization_id',
+  org_document_sequences: 'organization_id',
+  org_exchange_rates: 'organization_id',
 });
 
 /**

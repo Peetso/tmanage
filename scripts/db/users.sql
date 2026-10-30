@@ -1884,3 +1884,16 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`quotes`             TO 'tmanage_app'@
 -- 0259 `quote_lines` (tenant): replaced as a set (DELETE + INSERT) while the quote is a draft.
 -- No UPDATE: a line is never amended in place.
 GRANT INSERT, DELETE ON `tmanage`.`quote_lines`                TO 'tmanage_app'@'%';
+
+-- ---- 52-23 · money foundations ----
+-- 0260 `org_finance_profiles` (tenant): first save INSERTs, later saves UPDATE; DELETE only for the
+-- company erasure. SELECT rides the database-wide read.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`org_finance_profiles`   TO 'tmanage_app'@'%';
+-- 0260 `org_tax_rates` (tenant): seeded with INSERT ... ON DUPLICATE KEY UPDATE (needs UPDATE),
+-- edited and archived (UPDATE); DELETE only for the company erasure.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`org_tax_rates`          TO 'tmanage_app'@'%';
+-- 0260 `org_document_sequences` (tenant): ensured with ON DUPLICATE KEY UPDATE, advanced under
+-- FOR UPDATE (UPDATE); DELETE only for the company erasure.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`org_document_sequences` TO 'tmanage_app'@'%';
+-- 0260 `org_exchange_rates` (tenant): append-only manual rates. No UPDATE: a rate is never amended.
+GRANT INSERT, DELETE ON `tmanage`.`org_exchange_rates`             TO 'tmanage_app'@'%';

@@ -1,0 +1,120 @@
+import { describe, expect, it } from 'vitest';
+import type { TenantQueryRunner } from '../../common/database/tenant-context.js';
+import { DocumentSequenceService, periodKeyFor } from './document-sequences.js';
+import type { DocumentSequenceStore } from './document-sequences.js';
+import {
+  defaultProfile,
+  profileChanges,
+  readiness,
+  validateExchangeRate,
+  validateTaxRate,
+} from './finance-rules.js';
+
+/** An in-memory store whose `lockAndTake` serializes issuers on a per-row lock, like FOR UPDATE. */
+function fakeStore(timeZone: string): DocumentSequenceStore {
+  const rows = new Map<string, number>();
+  const locks = new Map<string, Promise<void>>();
+  return {
+    settings: () => Promise.resolve({ prefix: 'INV', reset: 'yearly', timeZone }),
+    ensure: (_tx, org, kind, period) => {
+      const key = `${org}/${kind}/${period}`;
+      if (!rows.has(key)) rows.set(key, 1);
+      return Promise.resolve();
+    },
+    lockAndTake: async (_tx, org, kind, period) => {
+      const key = `${org}/${kind}/${period}`;
+      const previous = locks.get(key) ?? Promise.resolve();
+      let release = (): void => undefined;
+      locks.set(key, new Promise<void>((resolve) => (release = resolve)));
+      await previous;
+      const value = rows.get(key) ?? 1;
+      await new Promise((resolve) => setTimeout(resolve, Math.random() * 3));
+      rows.set(key, value + 1);
+      release();
+      return value;
+    },
+  };
+}
+
+const tx = {} as TenantQueryRunner;
+
+describe('52-23 finance foundations', () => {
+  it('issues gapless, unique numbers to 20 concurrent issuers', async () => {
+    const service = new DocumentSequenceService(fakeStore('Asia/Riyadh'));
+    const at = new Date('2026-06-01T10:00:00Z');
+    const issued = await Promise.all(
+      Array.from({ length: 20 }, () => service.nextNumber(tx, 'org-1', 'invoice', at)),
+    );
+    expect(issued.map((n) => n.value).sort((a, b) => a - b)).toEqual(
+      Array.from({ length: 20 }, (_, i) => i + 1),
+    );
+    expect(issued.find((n) => n.value === 7)?.number).toBe('INV-2026-0007');
+  });
+
+  it('resets yearly on 1 January in the organization time zone', async () => {
+    // 2026-12-31 22:30 UTC is already 2027 in Riyadh (UTC+3) but still 2026 in UTC.
+    const at = new Date('2026-12-31T22:30:00Z');
+    expect(periodKeyFor(at, 'Asia/Riyadh', 'yearly')).toBe('2027');
+    expect(periodKeyFor(at, 'UTC', 'yearly')).toBe('2026');
+    expect(periodKeyFor(at, 'Not/AZone', 'yearly')).toBe('2026');
+    expect(periodKeyFor(at, 'Asia/Riyadh', 'never')).toBe('0000');
+    const first = await new DocumentSequenceService(fakeStore('Asia/Riyadh')).nextNumber(
+      tx,
+      'o',
+      'invoice',
+      at,
+    );
+    expect(first.number).toBe('INV-2027-0001');
+  });
+
+  it('validates rate_bp 0–10000 and ISO currency codes', () => {
+    expect(() =>
+      validateTaxRate({ code: 'STD', nameEn: 'a', nameAr: 'b', rateBp: 10_001 }),
+    ).toThrow();
+    expect(validateTaxRate({ code: 'VAT5', nameEn: 'a', nameAr: 'b', rateBp: 500 }).rateBp).toBe(
+      500,
+    );
+    expect(() =>
+      validateExchangeRate({
+        fromCurrency: 'usd',
+        toCurrency: 'SAR',
+        rate: '3.75',
+        effectiveOn: '2026-10-30',
+      }),
+    ).toThrow();
+    expect(() =>
+      validateExchangeRate({
+        fromCurrency: 'USD',
+        toCurrency: 'SAR',
+        rate: '0',
+        effectiveOn: '2026-10-30',
+      }),
+    ).toThrow();
+    expect(() =>
+      validateExchangeRate({
+        fromCurrency: 'USD',
+        toCurrency: 'SAR',
+        rate: '3.75',
+        effectiveOn: '2026-02-30',
+      }),
+    ).toThrow();
+  });
+
+  it('keeps only the last four TRN characters in the audit changes and reports readiness', () => {
+    const before = defaultProfile({ name: 'Acme', defaultLocale: 'ar-SA' });
+    expect([before.country, before.baseCurrency, before.defaultTaxRateBp]).toEqual([
+      'SA',
+      'SAR',
+      1500,
+    ]);
+    const after = { ...before, taxRegistrationNo: '300123456700003' };
+    expect(profileChanges(before, after)).toEqual([
+      { field: 'taxRegistrationNo', before: null, after: '****0003' },
+    ]);
+    expect(readiness(before, false, 4)).toMatchObject({
+      ready: false,
+      invoicing: ['profile_not_saved'],
+    });
+    expect(readiness(after, true, 4).einvoicing).toEqual(['legal_name_ar', 'address']);
+  });
+});
