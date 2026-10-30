@@ -1,0 +1,4 @@
+{
+  "$comment": "56-14: production packages reviewed to ship despite a GPL/AGPL/SSPL-only licence. Key is \"name\" or \"name@version\"; value is the review note (who, when, why). Read by scripts/security/license-check.mjs. Empty: no shipped package needs one (2026-10-30).",
+  "packages": {}
+}
