@@ -7,6 +7,7 @@ import type {
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
 import type { WorkItemRow, WorkItemTimeLogRow } from '../../common/database/schema.js';
+import type { AuditService } from '../audit/audit.service.js';
 import type { WorkItemsRepository } from './work-items.repository.js';
 import { WorkTimeLogsRepository } from './time-logs.repository.js';
 
@@ -53,6 +54,14 @@ export interface AddTimeLogInput {
   readonly minutes: number;
   readonly spentOn: string;
   readonly note: string | null;
+  /**
+   * 52-01. When the entry was worked, both or neither, already bounded to the last 31 days by the
+   * controller (`parseManualSpan`). Stored with `source = 'manual'`.
+   */
+  readonly startedAt?: Date | null;
+  readonly endedAt?: Date | null;
+  /** 52-01. Default true. */
+  readonly billable?: boolean;
 }
 
 export class WorkTimeLogsService {
@@ -60,6 +69,8 @@ export class WorkTimeLogsService {
     private readonly database: TenantDatabase,
     private readonly workItems: WorkItemsRepository,
     private readonly timeLogs: WorkTimeLogsRepository = new WorkTimeLogsRepository(),
+    /** 52-01. `time_log.created` on every entry; optional until `work.module.ts` passes it. */
+    private readonly audit: Pick<AuditService, 'record'> | null = null,
   ) {}
 
   /** The work item's time-log entries plus a summed total. Behind `work.read` on the parent item. */
@@ -71,7 +82,7 @@ export class WorkTimeLogsService {
     return this.database.read(context, async (runner) => {
       await this.readableParent(runner, context, principal, workItemId);
       const rows = await this.timeLogs.listForWorkItem(runner, context, workItemId);
-      const entries = rows.map(toView);
+      const entries = rows.map((row) => toView(row, workItemId));
       const totalMinutes = entries.reduce((sum, entry) => sum + entry.minutes, 0);
       return { entries, totalMinutes };
     });
@@ -87,14 +98,32 @@ export class WorkTimeLogsService {
     return this.database.transaction(context, async (tx) => {
       const parent = await this.readableParent(tx, context, principal, workItemId);
       this.requireWrite(principal, parent);
+      if (principal.kind !== 'internal') {
+        // 52-01. Time is internal: a client principal with `work.update` still logs nothing.
+        throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'time.internal_only');
+      }
       const row = await this.timeLogs.create(tx, context, {
         workItemId,
+        projectId: parent.projectId,
         loggedBy: principal.membershipId,
         minutes: input.minutes,
         spentOn: input.spentOn,
         note: input.note,
+        startedAt: input.startedAt ?? null,
+        endedAt: input.endedAt ?? null,
+        billable: input.billable ?? true,
+        source: 'manual',
       });
-      return toView(row);
+      if (this.audit) {
+        await this.audit.record(tx, context, {
+          action: 'time_log.created',
+          result: 'allowed',
+          objectId: row.id,
+          actorUserId: context.userId,
+          metadata: {},
+        });
+      }
+      return toView(row, workItemId);
     });
   }
 
@@ -118,6 +147,12 @@ export class WorkTimeLogsService {
 
       if (existing.loggedBy !== principal.membershipId) {
         throw new ApiError(403, 'forbidden', MESSAGES.forbidden);
+      }
+      if (existing.lockedAt instanceof Date) {
+        // 52-01 (0265). A locked period (52-03) keeps its entries; delete is refused like edit.
+        throw new ApiError(409, 'conflict', 'This entry is in a locked period.', [
+          { field: 'lockedAt', message: 'time_log_locked' },
+        ]);
       }
 
       await this.timeLogs.remove(tx, context, workItemId, entryId);
@@ -171,10 +206,10 @@ function resourceOf(row: WorkItemRow) {
   };
 }
 
-function toView(row: WorkItemTimeLogRow): TimeLogView {
+function toView(row: WorkItemTimeLogRow, workItemId: string): TimeLogView {
   return {
     id: row.id,
-    workItemId: row.workItemId,
+    workItemId: row.workItemId ?? workItemId,
     loggedBy: row.loggedBy,
     minutes: row.minutes,
     spentOn: row.spentOn,

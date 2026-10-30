@@ -4,6 +4,8 @@ import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/deco
 import { ApiError } from '../../common/http/errors.js';
 import { WORK_TIME_LOGS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
+import { optionalBoolean, parseManualSpan, utcDay } from '../time/time-rules.js';
+import { spanMinutes } from '../time/time-rounding.js';
 import type { TimeLogListView, TimeLogView, WorkTimeLogsService } from './time-logs.service.js';
 
 /**
@@ -32,6 +34,10 @@ interface CreateTimeLogBody {
   readonly minutes?: unknown;
   readonly spentOn?: unknown;
   readonly note?: unknown;
+  /** 52-01. Both or neither; inside the last 31 days. */
+  readonly startedAt?: unknown;
+  readonly endedAt?: unknown;
+  readonly billable?: unknown;
 }
 
 @Controller('v1/organizations/:orgSlug/work-items/:workItemId/time-logs')
@@ -57,10 +63,27 @@ export class WorkTimeLogsController {
     @Param('workItemId') workItemId: string,
     @Body() body: CreateTimeLogBody,
   ): Promise<TimeLogView> {
-    const minutes = requiredMinutes(body?.minutes);
-    const spentOn = requiredSpentOn(body?.spentOn);
+    // 52-01. A start/end pair may stand in for `minutes` and `spentOn` (whole minutes of the span,
+    // the UTC day it started); sent together with them, the typed values win.
+    const span = parseManualSpan(body?.startedAt, body?.endedAt, new Date());
+    const minutes =
+      span !== null && body?.minutes === undefined
+        ? Math.min(spanMinutes(span.endedAt.getTime() - span.startedAt.getTime()), MAX_MINUTES)
+        : requiredMinutes(body?.minutes);
+    const spentOn =
+      span !== null && body?.spentOn === undefined
+        ? utcDay(span.startedAt)
+        : requiredSpentOn(body?.spentOn);
     const note = optionalNote(body?.note);
-    return this.timeLogs.add(context, principal, workItemId, { minutes, spentOn, note });
+    const billable = optionalBoolean(body?.billable, 'billable', true);
+    return this.timeLogs.add(context, principal, workItemId, {
+      minutes,
+      spentOn,
+      note,
+      startedAt: span?.startedAt ?? null,
+      endedAt: span?.endedAt ?? null,
+      billable,
+    });
   }
 
   @Delete(':entryId')

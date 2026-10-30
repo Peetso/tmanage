@@ -174,7 +174,9 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // ---- 56-23 ---- +6: the security detector reads `security_signals` and `platform_alert_rules`
     // where it writes them, and its sources `public_link_events`, `rate_limit_buckets`,
     // `webhook_deliveries` and `platform_backup_runs`.
-    expect(reads).toHaveLength(26 + 15 + 1 + 4 + 3 + 1 + 3 + 3 + 1 + 6);
+    // ---- 52-01 ---- +4: the timer auto-stop reads `time_timers`, `org_policies` and
+    // `org_finance_profiles`, and `work_item_time_logs` where it files the entry.
+    expect(reads).toHaveLength(26 + 15 + 1 + 4 + 3 + 1 + 3 + 3 + 1 + 6 + 4);
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });
 

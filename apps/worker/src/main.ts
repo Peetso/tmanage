@@ -75,6 +75,9 @@ import { createSecurityReportPurgeStore } from './common/database/security-repor
 import { runSecurityReportPurgeLoop } from './jobs/security-report-purge.js';
 import { createAuditAnchorStore } from './common/database/audit-anchor-store.js';
 import { anchorSignerFromEnv, runAuditAnchorLoop } from './jobs/audit-anchor.js';
+// ---- 52-01 ---- forgotten-timer auto-stop.
+import { createTimerAutostopStore } from './common/database/timer-autostop-store.js';
+import { runTimerAutostopLoop } from './jobs/timer-autostop.js';
 // ---- 56-23 ---- the security detector and its signal store.
 import { createSecuritySignalStore } from './common/database/security-signal-store.js';
 import { runSecurityDetectorLoop } from './jobs/security-detector.js';
@@ -606,6 +609,8 @@ async function main(): Promise<void> {
   // relay. It borrows a pool connection only while it runs, logs its own failures and stops with
   // the same signal.
   const supportSweep = runSupportSessionSweepLoop(database, controller.signal);
+  // ---- 52-01 ---- stop forgotten timers (org limit 4..24 h, default 12), every 5 minutes.
+  const timerAutostop = runTimerAutostopLoop(createTimerAutostopStore(database), controller.signal);
   // ---- 56-11 ---- audit chain start backfill + daily anchors, hourly beside the relay.
   const auditAnchors = runAuditAnchorLoop(
     { store: createAuditAnchorStore(database), signer: anchorSignerFromEnv(process.env) },
@@ -732,6 +737,8 @@ async function main(): Promise<void> {
     // ---- platform-admin v2 · PA-05 ---- let the sweep finish its pass before the pool closes.
     controller.abort();
     await supportSweep;
+    // ---- 52-01 ----
+    await timerAutostop;
     // ---- platform-admin v2 · PA-09 ----
     await exportJobs;
     await keyRotations;

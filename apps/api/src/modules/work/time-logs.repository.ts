@@ -19,11 +19,19 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
 export const MAX_TIME_LOG_PAGE = 500;
 
 export interface CreateTimeLogInput {
-  readonly workItemId: string;
+  /** `null` files the entry in the project's unsorted bucket (52-01, 0265). */
+  readonly workItemId: string | null;
   readonly loggedBy: string;
   readonly minutes: number;
   readonly spentOn: string;
   readonly note: string | null;
+  /** 52-01 (0265). Copied from the work item, or the timer's project; `null` when neither. */
+  readonly projectId?: string | null;
+  readonly startedAt?: Date | null;
+  readonly endedAt?: Date | null;
+  readonly billable?: boolean;
+  readonly source?: 'manual' | 'timer';
+  readonly needsReview?: boolean;
 }
 
 export class WorkTimeLogsRepository {
@@ -41,6 +49,25 @@ export class WorkTimeLogsRepository {
         and(
           eq(workItemTimeLogs.organizationId, context.organizationId),
           eq(workItemTimeLogs.workItemId, workItemId),
+          eq(workItemTimeLogs.id, entryId),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /** One time-log entry by id alone (an unsorted entry has no work item), tenant-scoped. */
+  async findById(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    entryId: string,
+  ): Promise<WorkItemTimeLogRow | null> {
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(workItemTimeLogs)
+      .where(
+        and(
+          eq(workItemTimeLogs.organizationId, context.organizationId),
           eq(workItemTimeLogs.id, entryId),
         ),
       )
@@ -82,14 +109,20 @@ export class WorkTimeLogsRepository {
         id,
         organizationId: context.organizationId,
         workItemId: input.workItemId,
+        projectId: input.projectId ?? null,
         loggedBy: input.loggedBy,
         minutes: input.minutes,
         spentOn: input.spentOn,
+        startedAt: input.startedAt ?? null,
+        endedAt: input.endedAt ?? null,
+        billable: input.billable ?? true,
+        source: input.source ?? 'manual',
+        needsReview: input.needsReview ?? false,
         note: input.note,
         createdAt: sql`current_timestamp(3)`,
       });
 
-    const created = await this.findEntry(runner, context, input.workItemId, id);
+    const created = await this.findById(runner, context, id);
     if (!created) {
       // Unreachable: the insert above committed this row in this transaction.
       throw new Error('time-log entry vanished immediately after insert');

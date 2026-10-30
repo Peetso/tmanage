@@ -1937,3 +1937,17 @@ GRANT SELECT ON `tmanage`.`public_link_events`                  TO 'tmanage_work
 GRANT SELECT ON `tmanage`.`rate_limit_buckets`                  TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`webhook_deliveries`                  TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`platform_backup_runs`                TO 'tmanage_worker'@'%';
+
+-- ---- 52-01 · timer (backend half) ----
+-- 0265 `time_timers` (tenant): start INSERTs, the heartbeat UPDATEs `last_heartbeat_at`, stop / force
+-- / company erasure DELETE. SELECT rides the database-wide read.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`time_timers`            TO 'tmanage_app'@'%';
+-- `work_item_time_logs` stays INSERT, DELETE for the app: no edit statement exists yet (52-02/52-03
+-- add it with its own grant); a timer stop is an INSERT.
+-- Worker auto-stop (`jobs/timer-autostop.ts`): reads old timers with their org settings, deletes the
+-- timer, files one entry (and may read the log it writes). SELECT on `work_items` and INSERT on
+-- `audit_events` are already held.
+GRANT SELECT, DELETE ON `tmanage`.`time_timers`                     TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`org_policies`                            TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`org_finance_profiles`                    TO 'tmanage_worker'@'%';
+GRANT SELECT, INSERT ON `tmanage`.`work_item_time_logs`             TO 'tmanage_worker'@'%';

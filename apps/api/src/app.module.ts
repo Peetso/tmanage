@@ -185,6 +185,7 @@ import { QuotesModule } from './modules/quotes/quotes.module.js';
 import { SecurityReportsModule } from './modules/security-reports/security-reports.module.js';
 import { SecuritySignalsModule } from './modules/security-signals/security-signals.module.js';
 import { FinanceModule } from './modules/finance/finance.module.js';
+import { TimeModule } from './modules/time/time.module.js';
 import { FirstOwnerModule } from './modules/setup/first-owner.module.js';
 import { publicSignupModules } from './modules/signup/public-signup.module.js';
 import { PlatformAdminModule } from './modules/platform-admin/platform-admin.module.js';
@@ -956,6 +957,8 @@ export class AppModule {
         // 52-23. Settings → Finance: profile, tax rates, manual FX, readiness under `/finance`;
         // global DOCUMENT_SEQUENCES (gapless numbers) for the issuing modules that follow.
         FinanceModule.register(),
+        // 52-01. The member's own running timer and (policy-gated) presence under `/time`.
+        TimeModule.register(),
         // First-owner setup (`GET/POST /public/setup`) for a fresh production install, which has no
         // public sign-up. Registered ONLY when `SETUP_TOKEN` is set, so with no token the routes do
         // not exist and return the router's ordinary 404 (same reasoning as

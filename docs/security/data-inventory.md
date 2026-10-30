@@ -21,12 +21,12 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 
 ## Totals
 
-- Tables: 282 (100 % of `TABLES`).
-- `delete`: 229
+- Tables: 283 (100 % of `TABLES`).
+- `delete`: 230
 - `pseudonymise`: 3
 - `keep-fiscal-redacted`: 5
 - `none-no-personal-data`: 45
-- Today `enforced`: 200, `gap`: 37, `n/a`: 45.
+- Today `enforced`: 201, `gap`: 37, `n/a`: 45.
 
 ## Inventory
 
@@ -277,6 +277,7 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 | `sessions`                        | `user_id`, `refresh_token_hash`, `user_agent`, `ip_first`, `ip_last`                                   | `delete`                | gap      | 56-18 | Global identity. An account deletion today only offboards the membership; these rows stay until they expire.                                                                                 |
 | `storage_connections`             | `account_email`, `refresh_token_enc`, `connected_by_user_id`                                           | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                            |
 | `subscriptions`                   | -                                                                                                      | `none-no-personal-data` | n/a      | H3    | No personal field. Deleted with the company anyway (H3). Fiscal record: deleted today with the company; a fiscal retention decision (33-LEGAL §7) is open.                                   |
+| `time_timers`                     | `membership_id`, `user_id`, `note`                                                                     | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                            |
 | `upload_sessions`                 | `actor_user_id`                                                                                        | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                            |
 | `usage_counters`                  | -                                                                                                      | `none-no-personal-data` | n/a      | H3    | No personal field. Deleted with the company anyway (H3).                                                                                                                                     |
 | `usage_ledger_entries`            | -                                                                                                      | `none-no-personal-data` | n/a      | H3    | No personal field. Deleted with the company anyway (H3). Fiscal record: deleted today with the company; a fiscal retention decision (33-LEGAL §7) is open.                                   |
@@ -306,7 +307,7 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 | `work_item_recurrence`            | -                                                                                                      | `none-no-personal-data` | n/a      | H3    | No personal field. Deleted with the company anyway (H3).                                                                                                                                     |
 | `work_item_reminders`             | `membership_id`                                                                                        | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                            |
 | `work_item_subtasks`              | `created_by`                                                                                           | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                            |
-| `work_item_time_logs`             | `logged_by`, `note`                                                                                    | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                            |
+| `work_item_time_logs`             | `logged_by`, `note`, `updated_by`                                                                      | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                            |
 | `work_item_watchers`              | `member_id`                                                                                            | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                            |
 | `work_items`                      | `owner_user_id`, `deleted_by_user_id`                                                                  | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                            |
 | `workflow_conditions`             | `created_by`                                                                                           | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                            |

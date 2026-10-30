@@ -340,6 +340,9 @@ describe('the runtime user is actually least-privilege', () => {
     purgeTables.add('mail_queue');
     // ---- 56-17 follow-up ---- the 24-month retention purge of public security reports.
     purgeTables.add('security_reports');
+    // ---- 52-01 ---- the forgotten-timer auto-stop deletes the running timer it files as an entry.
+    // A timer is transient state, never work a person made (the entry is kept).
+    purgeTables.add('time_timers');
     for (const grant of grantsFor('tmanage_worker')) {
       if (purgeTables.has(grant.table)) continue;
       expect(grant.privileges, `worker grant on ${grant.table}`).not.toContain('DELETE');

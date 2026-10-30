@@ -201,9 +201,9 @@ export class WorkModule {
     // policy (resolve-before-authorize, minutes bound, delete-own).
     const timeLogsService: Provider = {
       provide: WORK_TIME_LOGS_SERVICE,
-      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
-      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
-        new WorkTimeLogsService(database, workItems, new WorkTimeLogsRepository()),
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY, AUDIT_SERVICE],
+      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository, audit: AuditService) =>
+        new WorkTimeLogsService(database, workItems, new WorkTimeLogsRepository(), audit),
     };
 
     // x258. An effort estimate per work item — a tenant-scoped sub-resource behind

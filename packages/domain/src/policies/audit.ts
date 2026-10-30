@@ -986,6 +986,19 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'exchange_rate',
     clause: '§12 52-23 — a manual exchange rate was recorded',
   },
+  // ---- 52-01 · timer ----
+  'time_timer.started': {
+    objectType: 'time_timer',
+    clause: '§12 52-01 — a member started their timer (ids only)',
+  },
+  'time_timer.auto_stopped': {
+    objectType: 'time_timer',
+    clause: '§12 52-01 — the worker stopped a forgotten timer and filed an entry to review',
+  },
+  'time_log.created': {
+    objectType: 'time_log',
+    clause: '§12 52-01 — a time entry was logged (manual or a stopped timer)',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1155,6 +1168,9 @@ const AUDIT_ACTION_LABELS = {
   'tax_rate.updated': 'Changed a tax rate',
   'tax_rate.archived': 'Archived a tax rate',
   'exchange_rate.created': 'Recorded an exchange rate',
+  'time_timer.started': 'Started a timer',
+  'time_timer.auto_stopped': 'A forgotten timer was stopped',
+  'time_log.created': 'Logged time',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

@@ -1141,6 +1141,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // platform rows: org reads name their own id (NULL never matches); the platform list is a
   // read-only `bootstrapRead(['security_signals'])` with an audited reason. Written by the worker.
   security_signals: 'organization_id',
+  // ---- 52-01 ----
+  // 0265. Tenant-owned: one membership's running timer. Reached only by its own member through
+  // the TenantContext; the worker's auto-stop is cross-tenant as `tmanage_worker`.
+  time_timers: 'organization_id',
 });
 
 /**

@@ -99,6 +99,16 @@ class FakeTimeLogsRepository {
       spentOn: input.spentOn,
       note: input.note,
       createdAt: new Date(),
+      projectId: null,
+      startedAt: null,
+      endedAt: null,
+      billable: true,
+      source: 'manual',
+      needsReview: false,
+      updatedAt: null,
+      updatedBy: null,
+      lockedAt: null,
+      timesheetId: null,
     };
     this.rows.push(row);
     return row;

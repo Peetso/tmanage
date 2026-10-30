@@ -72,6 +72,10 @@ export const NEVER_REASONS = [
   // finance profile. Money configuration an AI must not change or read until reviewed
   // `finance.*` ops exist (the `finance.*` capabilities are still deferred).
   'finance_settings',
+  // 52-01. The member's own running timer (start/stop/read/heartbeat) and team presence (who is
+  // tracking right now). Presence and logging for another member are never AI-exposed; start/stop
+  // own may become reviewed `time.*` ops later (52-22).
+  'time_tracking',
   'public_upload_part',
   'role_definitions',
   'session',

@@ -3187,20 +3187,39 @@ export const workItemFiles = mysqlTable(
  * one membership (`logged_by`) on a calendar day (`spent_on`), with an optional `note`. Parent- and
  * tenant-owned — the composite foreign key `fk_work_item_time_logs_work_item` binds
  * `(organization_id, work_item_id)` to `work_items`, so a cross-tenant parent is a non-existent pair
- * rather than a leak. `organization_id` and `work_item_id` are pinned immutable by the migration's
- * `BEFORE UPDATE` trigger; there is no edit path this slice.
+ * rather than a leak. 52-01 (0265) adds the timed span, billable, source, needs_review, project_id
+ * and the later-slice lock/timesheet columns; the replaced trigger pins tenant, author and a named
+ * work item, and refuses every edit of a locked row.
  */
 export const workItemTimeLogs = mysqlTable(
   'work_item_time_logs',
   {
     id: char('id', { length: 36 }).primaryKey(),
     organizationId: char('organization_id', { length: 36 }).notNull(),
-    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    /** 52-01 (0265): NULL files the entry in the project's unsorted bucket. */
+    workItemId: char('work_item_id', { length: 36 }),
+    /** 52-01 (0265): the work item's project (backfilled), or the timer's project. */
+    projectId: char('project_id', { length: 36 }),
     loggedBy: char('logged_by', { length: 36 }).notNull(),
     minutes: int('minutes', { unsigned: true }).notNull(),
     spentOn: date('spent_on', { mode: 'string' }).notNull(),
+    startedAt: datetime('started_at', { mode: 'date', fsp: 3 }),
+    endedAt: datetime('ended_at', { mode: 'date', fsp: 3 }),
+    billable: boolean('billable').notNull().default(true),
+    /** `manual` | `timer`, checked in `modules/time/time-rules.ts`. */
+    source: varchar('source', { length: 16 })
+      .$type<'manual' | 'timer'>()
+      .notNull()
+      .default('manual'),
+    needsReview: boolean('needs_review').notNull().default(false),
     note: varchar('note', { length: 500 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }),
+    updatedBy: char('updated_by', { length: 36 }),
+    /** 52-03 fills it; a locked row refuses every edit (0265 trigger). */
+    lockedAt: datetime('locked_at', { mode: 'date', fsp: 3 }),
+    /** 52-02 fills it. */
+    timesheetId: char('timesheet_id', { length: 36 }),
   },
   (table) => [
     uniqueIndex('uq_work_item_time_logs_org_id').on(table.organizationId, table.id),
@@ -3210,6 +3229,8 @@ export const workItemTimeLogs = mysqlTable(
       table.spentOn,
       table.id,
     ),
+    index('ix_witl_member_day').on(table.organizationId, table.loggedBy, table.spentOn, table.id),
+    index('ix_witl_project_day').on(table.organizationId, table.projectId, table.spentOn, table.id),
   ],
 );
 
@@ -10888,4 +10909,41 @@ export type PlatformAlertRuleRow = typeof platformAlertRules.$inferSelect;
 Object.assign(TABLES, {
   security_signals: securitySignals,
   platform_alert_rules: platformAlertRules,
+});
+
+// ---- 52-01 · timer (backend half) ----
+
+/**
+ * 0265 (52-01). The one running timer of one membership (`uq_time_timers_org_member`). TENANT.
+ * Internal only. `started_at` is the server clock; the row is deleted when the timer stops (by
+ * the member, by `force` on the next start, or by the worker's auto-stop). No foreign keys (the
+ * 0257 convention): the service resolves the work item and project tenant-scoped first.
+ */
+export const timeTimers = mysqlTable(
+  'time_timers',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }),
+    projectId: char('project_id', { length: 36 }),
+    note: varchar('note', { length: 500 }),
+    billable: boolean('billable').notNull().default(true),
+    startedAt: datetime('started_at', { mode: 'date', fsp: 3 }).notNull(),
+    lastHeartbeatAt: datetime('last_heartbeat_at', { mode: 'date', fsp: 3 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_time_timers_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_time_timers_org_member').on(table.organizationId, table.membershipId),
+    index('ix_time_timers_org_project').on(table.organizationId, table.projectId),
+    index('ix_time_timers_started').on(table.startedAt),
+  ],
+);
+
+export type TimeTimerRow = typeof timeTimers.$inferSelect;
+
+Object.assign(TABLES, {
+  time_timers: timeTimers,
 });

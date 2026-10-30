@@ -1169,6 +1169,16 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/platform/alerts/', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/alerts/:ruleKey', reason: 'platform_admin' },
   { method: 'GET', path: '/v1/platform/security-signals/', reason: 'platform_admin' },
+  // 52-01. The running timer and presence.
+  { method: 'GET', path: '/v1/organizations/:orgSlug/time/timer', reason: 'time_tracking' },
+  { method: 'POST', path: '/v1/organizations/:orgSlug/time/timer/start', reason: 'time_tracking' },
+  { method: 'POST', path: '/v1/organizations/:orgSlug/time/timer/stop', reason: 'time_tracking' },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/time/timer/heartbeat',
+    reason: 'time_tracking',
+  },
+  { method: 'GET', path: '/v1/organizations/:orgSlug/time/active', reason: 'time_tracking' },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */
