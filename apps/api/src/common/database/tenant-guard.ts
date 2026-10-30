@@ -1117,6 +1117,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   public_links: 'organization_id',
   public_link_events: 'organization_id',
   public_link_codes: 'organization_id',
+  // ---- 52-08 ----
+  // 0259. Tenant-owned: one organization's quotes and their lines. Members reach them through
+  // their own context; an outsider reaches one sent quote only through its 56-07 `quote` link,
+  // under a service context bound to the link's organization.
+  quotes: 'organization_id',
+  quote_lines: 'organization_id',
 });
 
 /**

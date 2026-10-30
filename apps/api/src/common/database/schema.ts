@@ -10503,3 +10503,86 @@ Object.assign(TABLES, {
   public_link_events: publicLinkEvents,
   public_link_codes: publicLinkCodes,
 });
+
+// ---- 52-08 · quotes ----
+
+/** 0259 (52-08). A quote's state — closed list checked in `quotes/quote-content.ts`. */
+export const QUOTE_STATUSES = ['draft', 'sent', 'accepted', 'declined', 'expired'] as const;
+export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
+
+/**
+ * 0259 (52-08). One quote. TENANT: keyed `(organization_id, id)`. Amounts are integer minor units
+ * computed by the server from the lines; `content_hash` is written on send, after which the quote
+ * is immutable and its 56-07 `quote` link binds that hash. `notes_text` is internal only.
+ */
+export const quotes = mysqlTable(
+  'quotes',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    seq: int('seq').notNull(),
+    number: varchar('number', { length: 32 }).notNull(),
+    clientOrganizationId: char('client_organization_id', { length: 36 }),
+    leadName: varchar('lead_name', { length: 200 }),
+    leadEmail: varchar('lead_email', { length: 320 }),
+    title: varchar('title', { length: 200 }).notNull(),
+    language: varchar('language', { length: 5 }).notNull().default('en'),
+    currency: char('currency', { length: 3 }).notNull(),
+    status: varchar('status', { length: 16 }).$type<QuoteStatus>().notNull().default('draft'),
+    validUntil: datetime('valid_until', { mode: 'date', fsp: 3 }).notNull(),
+    subtotalMinor: bigint('subtotal_minor', { mode: 'number' }).notNull().default(0),
+    taxMinor: bigint('tax_minor', { mode: 'number' }).notNull().default(0),
+    totalMinor: bigint('total_minor', { mode: 'number' }).notNull().default(0),
+    termsText: text('terms_text'),
+    notesText: text('notes_text'),
+    contentHash: char('content_hash', { length: 64 }),
+    sentAt: datetime('sent_at', { mode: 'date', fsp: 3 }),
+    sentLinkId: char('sent_link_id', { length: 36 }),
+    decidedAt: datetime('decided_at', { mode: 'date', fsp: 3 }),
+    createdByUserId: char('created_by_user_id', { length: 36 }),
+    version: int('version').notNull().default(1),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_quotes_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_quotes_org_number').on(table.organizationId, table.number),
+    uniqueIndex('uq_quotes_org_seq').on(table.organizationId, table.seq),
+    index('ix_quotes_org_status').on(table.organizationId, table.status, table.createdAt),
+  ],
+);
+
+export type QuoteRow = typeof quotes.$inferSelect;
+
+/**
+ * 0259 (52-08). One line of a quote. TENANT. `quantity_centi` is hundredths (150 = 1.5);
+ * `line_net_minor` / `line_tax_minor` are computed by the server. Replaced as a set while draft.
+ */
+export const quoteLines = mysqlTable(
+  'quote_lines',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    quoteId: char('quote_id', { length: 36 }).notNull(),
+    position: int('position').notNull(),
+    description: varchar('description', { length: 500 }).notNull(),
+    unit: varchar('unit', { length: 12 }).notNull().default('item'),
+    quantityCenti: int('quantity_centi').notNull(),
+    unitPriceMinor: bigint('unit_price_minor', { mode: 'number' }).notNull(),
+    taxBp: int('tax_bp').notNull().default(0),
+    lineNetMinor: bigint('line_net_minor', { mode: 'number' }).notNull(),
+    lineTaxMinor: bigint('line_tax_minor', { mode: 'number' }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_quote_lines_org_id').on(table.organizationId, table.id),
+    index('ix_quote_lines_quote').on(table.organizationId, table.quoteId, table.position),
+  ],
+);
+
+export type QuoteLineRow = typeof quoteLines.$inferSelect;
+
+Object.assign(TABLES, {
+  quotes,
+  quote_lines: quoteLines,
+});

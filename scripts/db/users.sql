@@ -1876,3 +1876,11 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`public_links`       TO 'tmanage_app'@
 GRANT INSERT, DELETE ON `tmanage`.`public_link_events`         TO 'tmanage_app'@'%';
 -- 0257 `public_link_codes` (tenant): issued (replaced on resend), counted and deleted on success.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`public_link_codes`  TO 'tmanage_app'@'%';
+
+-- ---- 52-08 · quotes ----
+-- 0259 `quotes` (tenant): created, edited while draft, sent and decided (UPDATE); DELETE only for
+-- the company erasure. SELECT rides the database-wide read.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`quotes`             TO 'tmanage_app'@'%';
+-- 0259 `quote_lines` (tenant): replaced as a set (DELETE + INSERT) while the quote is a draft.
+-- No UPDATE: a line is never amended in place.
+GRANT INSERT, DELETE ON `tmanage`.`quote_lines`                TO 'tmanage_app'@'%';

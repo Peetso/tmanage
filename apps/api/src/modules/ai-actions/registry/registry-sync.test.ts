@@ -95,7 +95,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // 56-07 public links: +6 NEVER (3 public/links/:token, GET/POST/DELETE .../public-links), was 1001.
 // 52-20 public forms: +7 NEVER (2 public/forms/:slug, publish, unpublish, submissions list, spam,
 // convert), was 1007.
-const EXPECTED_ROUTE_COUNT = 1014;
+// 52-08 quotes: +5 NEVER (list, create, get, update draft, send), was 1014.
+const EXPECTED_ROUTE_COUNT = 1019;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

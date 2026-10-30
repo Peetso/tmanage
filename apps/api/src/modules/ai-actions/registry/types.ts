@@ -65,6 +65,9 @@ export const NEVER_REASONS = [
   // the triage of what anonymous visitors sent: untrusted outside content an AI must not be fed
   // or act on until a reviewed op exists.
   'public_intake',
+  // 52-08. Quotes: money a client is asked to accept, and `send` hands an outsider an accept link.
+  // Withheld until reviewed `quotes.*` ops exist (spec 52-08 marks send and convert as risky).
+  'client_quote',
   'public_upload_part',
   'role_definitions',
   'session',

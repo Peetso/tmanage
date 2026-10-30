@@ -21,12 +21,12 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 
 ## Totals
 
-- Tables: 270 (100 % of `TABLES`).
-- `delete`: 222
+- Tables: 272 (100 % of `TABLES`).
+- `delete`: 224
 - `pseudonymise`: 3
 - `keep-fiscal-redacted`: 5
 - `none-no-personal-data`: 40
-- Today `enforced`: 195, `gap`: 35, `n/a`: 40.
+- Today `enforced`: 197, `gap`: 35, `n/a`: 40.
 
 ## Inventory
 
@@ -246,6 +246,8 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 | `public_link_codes`               | -                                                                                                      | `none-no-personal-data` | n/a      | H3    | No personal field. Deleted with the company anyway (H3).                                                                                                                            |
 | `public_link_events`              | `ip_hash`, `user_agent`                                                                                | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
 | `public_links`                    | `audience_email`, `created_by_user_id`, `revoked_by_user_id`                                           | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
+| `quote_lines`                     | `description`                                                                                          | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
+| `quotes`                          | `lead_name`, `lead_email`, `notes_text`, `terms_text`, `created_by_user_id`                            | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
 | `rate_limit_buckets`              | `bucket_key`                                                                                           | `delete`                | gap      | 56-18 | Global platform/operator or public-intake table, outside the company erasure. No automated erasure path yet.                                                                        |
 | `request_comments`                | `body`, `author_membership_id`, `deleted_by_user_id`                                                   | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
 | `request_message_files`           | `attached_by_membership_id`                                                                            | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |

@@ -944,6 +944,27 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'public_link',
     clause: '§12 56-07 — a public link was cancelled before it expired',
   },
+  // ---- 52-08 · quotes ----
+  'quote.created': {
+    objectType: 'quote',
+    clause: '§12 52-08 — a quote was drafted for a client or lead',
+  },
+  'quote.updated': {
+    objectType: 'quote',
+    clause: '§12 52-08 — a draft quote was changed (lines, totals, validity or terms)',
+  },
+  'quote.sent': {
+    objectType: 'quote',
+    clause: '§12 52-08 — a quote was frozen and an accept link issued to an outsider',
+  },
+  'quote.accepted': {
+    objectType: 'quote',
+    clause: '§12 52-08 — a client accepted a quote through its link (business acceptance)',
+  },
+  'quote.declined': {
+    objectType: 'quote',
+    clause: '§12 52-08 — a client declined a quote through its link',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1103,6 +1124,11 @@ const AUDIT_ACTION_LABELS = {
   'public_link.opened': 'A public link was opened',
   'public_link.decided': 'A decision was made through a public link',
   'public_link.revoked': 'Revoked a public link',
+  'quote.created': 'Created a quote',
+  'quote.updated': 'Edited a draft quote',
+  'quote.sent': 'Sent a quote',
+  'quote.accepted': 'A quote was accepted',
+  'quote.declined': 'A quote was declined',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

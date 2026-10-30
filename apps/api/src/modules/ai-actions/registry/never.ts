@@ -1096,6 +1096,16 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/public-links/:linkId',
     reason: 'org_security_manage',
   },
+  // 52-08. Quotes: client money and the route that issues an outsider's accept link.
+  { method: 'GET', path: '/v1/organizations/:orgSlug/quotes/', reason: 'client_quote' },
+  { method: 'POST', path: '/v1/organizations/:orgSlug/quotes/', reason: 'client_quote' },
+  { method: 'GET', path: '/v1/organizations/:orgSlug/quotes/:quoteId', reason: 'client_quote' },
+  { method: 'PUT', path: '/v1/organizations/:orgSlug/quotes/:quoteId', reason: 'client_quote' },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/quotes/:quoteId/send',
+    reason: 'client_quote',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */
