@@ -92,9 +92,10 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // 56-32 host capacity: +1 NEVER (GET /v1/platform/health/capacity), was 994.
 // 52-21 abuse engine: +4 NEVER (GET public/form-proof, GET/POST/DELETE admin/block-rules), was 995.
 // 56-31 mail lanes: +2 NEVER (GET /v1/platform/mail/health, POST .../mail/lanes/:lane/pause), was 999.
+// 56-07 public links: +6 NEVER (3 public/links/:token, GET/POST/DELETE .../public-links), was 1001.
 // 52-20 public forms: +7 NEVER (2 public/forms/:slug, publish, unpublish, submissions list, spam,
-// convert), was 1001.
-const EXPECTED_ROUTE_COUNT = 1008;
+// convert), was 1007.
+const EXPECTED_ROUTE_COUNT = 1014;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

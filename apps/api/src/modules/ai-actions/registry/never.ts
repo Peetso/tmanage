@@ -1076,6 +1076,26 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/work-forms/:formId/submissions/:submissionId/convert',
     reason: 'public_intake',
   },
+  // 56-07. Public links: the outsider's routes (anonymous, nothing an AI acts on) and the member
+  // routes that hand an outsider access to one object — an AI never issues or revokes that.
+  { method: 'GET', path: '/v1/public/links/:token/', reason: 'public_site' },
+  { method: 'POST', path: '/v1/public/links/:token/code', reason: 'public_site' },
+  { method: 'POST', path: '/v1/public/links/:token/decision', reason: 'public_site' },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/public-links/',
+    reason: 'org_security_manage',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/public-links/',
+    reason: 'org_security_manage',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/public-links/:linkId',
+    reason: 'org_security_manage',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

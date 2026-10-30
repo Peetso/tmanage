@@ -1109,6 +1109,14 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `(organization_id, id)`, unique per `(organization_id, kind, value)`. Managed behind
   // `org.security.manage`; the public guard reads one organization's rules via `bootstrapRead`.
   org_block_rules: 'organization_id',
+  // ---- 56-07 ----
+  // 0257. Tenant-owned: one organization's public links, their append-only events and the live
+  // e-mail code of a link. Members reach them through their own context; an outsider's request
+  // finds the link by token hash on `bootstrapRead(['public_links'])`, then every write runs
+  // under a service context bound to the link's organization.
+  public_links: 'organization_id',
+  public_link_events: 'organization_id',
+  public_link_codes: 'organization_id',
 });
 
 /**

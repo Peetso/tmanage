@@ -284,6 +284,20 @@ describe('the runtime user is actually least-privilege', () => {
     }
   });
 
+  it('56-07: public link events are append-only; links and codes are managed', () => {
+    expect([...privilegesOn('tmanage_app', 'public_link_events')].sort()).toEqual([
+      'DELETE',
+      'INSERT',
+    ]);
+    for (const table of ['public_links', 'public_link_codes']) {
+      expect([...privilegesOn('tmanage_app', table)].sort(), table).toEqual([
+        'DELETE',
+        'INSERT',
+        'UPDATE',
+      ]);
+    }
+  });
+
   it('cannot forge a migration ledger row', () => {
     const effective = effectivePrivilegesOn('tmanage_app', 'schema_migrations');
     expect(effective).toEqual(['SELECT']);

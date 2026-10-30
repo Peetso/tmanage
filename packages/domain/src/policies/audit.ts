@@ -927,6 +927,23 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'request_message',
     clause: '§12 moderation — a request message taken down, possibly one the client saw',
   },
+  // ---- 56-07 · public links ----
+  'public_link.created': {
+    objectType: 'public_link',
+    clause: '§12 56-07 — a link an outsider can open was issued for one object',
+  },
+  'public_link.opened': {
+    objectType: 'public_link',
+    clause: '§12 56-07 — an outsider opened a public link (100 % of outsider actions are audited)',
+  },
+  'public_link.decided': {
+    objectType: 'public_link',
+    clause: '§12 56-07 — the one terminal decision an outsider made through a link',
+  },
+  'public_link.revoked': {
+    objectType: 'public_link',
+    clause: '§12 56-07 — a public link was cancelled before it expired',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1082,6 +1099,10 @@ const AUDIT_ACTION_LABELS = {
   'file_asset.deleted': 'Deleted a file',
   'attachment.deleted': 'Removed an attachment',
   'request_message.deleted': 'Deleted a request message',
+  'public_link.created': 'Created a public link',
+  'public_link.opened': 'A public link was opened',
+  'public_link.decided': 'A decision was made through a public link',
+  'public_link.revoked': 'Revoked a public link',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

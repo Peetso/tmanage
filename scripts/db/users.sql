@@ -1866,3 +1866,13 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`org_block_rules`    TO 'tmanage_app'@
 GRANT INSERT, DELETE ON `tmanage`.`public_abuse_events`        TO 'tmanage_app'@'%';
 -- 0255 `public_challenges` (global): issued, counted (attempts), solved and purged once expired.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`public_challenges`  TO 'tmanage_app'@'%';
+
+-- ---- 56-07 · public link system ----
+-- 0257 `public_links` (tenant): created, opened (uses, last_opened_at), decided and revoked
+-- (UPDATE); DELETE only for the company erasure. SELECT rides the database-wide read.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`public_links`       TO 'tmanage_app'@'%';
+-- 0257 `public_link_events` (tenant): append-only evidence. No UPDATE: an event is never amended;
+-- DELETE only for the company erasure.
+GRANT INSERT, DELETE ON `tmanage`.`public_link_events`         TO 'tmanage_app'@'%';
+-- 0257 `public_link_codes` (tenant): issued (replaced on resend), counted and deleted on success.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`public_link_codes`  TO 'tmanage_app'@'%';

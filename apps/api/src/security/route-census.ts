@@ -86,6 +86,9 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'POST /v1/public/email/unsubscribe': 'pending named budget: RFC 8058 one-click, signed token',
   'GET /v1/public/email/unsubscribe': 'read: redirects to the unsubscribe page',
   'GET /v1/public/form-proof/': 'named',
+  'GET /v1/public/links/:token/': 'named',
+  'POST /v1/public/links/:token/code': 'named',
+  'POST /v1/public/links/:token/decision': 'named',
   'GET /v1/public/forms/:slug': 'named',
   'POST /v1/public/forms/:slug/submissions': 'named',
 };

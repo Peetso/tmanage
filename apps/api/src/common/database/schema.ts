@@ -10411,3 +10411,95 @@ Object.assign(TABLES, {
   public_abuse_events: publicAbuseEvents,
   public_challenges: publicChallenges,
 });
+
+// ---- 56-07 · public link system ----
+
+/**
+ * 0257. One link a person without an account opens (56-07): approval, intake, quote, share or
+ * magic sign-in. TENANT: keyed `(organization_id, id)`. Only `token_hash` (HMAC-SHA-256 of the
+ * token under the public-link pepper) is stored; `token_hint` is the token's last 6 characters.
+ * `kind`, `decision` are closed lists checked in `public-links/public-link-targets.ts`.
+ */
+export const publicLinks = mysqlTable(
+  'public_links',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    kind: varchar('kind', { length: 16 }).notNull(),
+    tokenHash: char('token_hash', { length: 64 }).notNull(),
+    tokenHint: varchar('token_hint', { length: 8 }).notNull(),
+    targetType: varchar('target_type', { length: 32 }).notNull(),
+    targetId: char('target_id', { length: 36 }).notNull(),
+    versionHash: char('version_hash', { length: 64 }),
+    audienceEmail: varchar('audience_email', { length: 320 }),
+    requireCode: boolean('require_code').notNull().default(false),
+    language: varchar('language', { length: 5 }).notNull().default('en'),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+    maxUses: int('max_uses'),
+    uses: int('uses').notNull().default(0),
+    decision: varchar('decision', { length: 16 }),
+    decidedAt: datetime('decided_at', { mode: 'date', fsp: 3 }),
+    createdByUserId: char('created_by_user_id', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    revokedAt: datetime('revoked_at', { mode: 'date', fsp: 3 }),
+    revokedByUserId: char('revoked_by_user_id', { length: 36 }),
+    lastOpenedAt: datetime('last_opened_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_public_links_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_public_links_token_hash').on(table.tokenHash),
+    index('ix_public_links_target').on(table.organizationId, table.targetType, table.targetId),
+    index('ix_public_links_expires').on(table.expiresAt),
+  ],
+);
+
+export type PublicLinkRow = typeof publicLinks.$inferSelect;
+
+/**
+ * 0257. Append-only evidence of what happened on a public link (56-07): opened, code_sent,
+ * code_ok, decided, submitted, refused. TENANT. The IP is stored only as a peppered hash.
+ */
+export const publicLinkEvents = mysqlTable(
+  'public_link_events',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    linkId: char('link_id', { length: 36 }).notNull(),
+    kind: varchar('kind', { length: 16 }).notNull(),
+    detail: varchar('detail', { length: 1000 }),
+    ipHash: char('ip_hash', { length: 64 }),
+    userAgent: varchar('user_agent', { length: 255 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_public_link_events_org_id').on(table.organizationId, table.id),
+    index('ix_public_link_events_link').on(table.organizationId, table.linkId, table.createdAt),
+  ],
+);
+
+export type PublicLinkEventRow = typeof publicLinkEvents.$inferSelect;
+
+/**
+ * 0257. The live e-mail code of one public link (56-07): hash only, 10 minutes, 5 attempts.
+ * TENANT with no `id`: the primary key `(organization_id, link_id)` leads with the tenant column.
+ */
+export const publicLinkCodes = mysqlTable(
+  'public_link_codes',
+  {
+    linkId: char('link_id', { length: 36 }).notNull(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    codeHash: char('code_hash', { length: 64 }).notNull(),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+    attempts: tinyint('attempts').notNull().default(0),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.organizationId, table.linkId] })],
+);
+
+export type PublicLinkCodeRow = typeof publicLinkCodes.$inferSelect;
+
+Object.assign(TABLES, {
+  public_links: publicLinks,
+  public_link_events: publicLinkEvents,
+  public_link_codes: publicLinkCodes,
+});
