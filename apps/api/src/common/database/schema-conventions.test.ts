@@ -32,6 +32,10 @@ export const CONVENTION_EXCEPTIONS: Readonly<Record<string, string>> = {
     '0251 metadata-only event sink (55-21): append-only, no child table references it and it has ' +
     'no foreign key by design (it must never block an organization purge), so no composite key ' +
     'is needed for a child to point at; follow-up: add uq (organization_id, id) when the purge lands',
+  security_signals:
+    '0263 detector signals (56-23): `organization_id` is NULLABLE by design — NULL is a platform ' +
+    'signal no owner may read (org reads name their own id, NULL never matches); it keeps ' +
+    'uq (organization_id, id), and no child table references it',
 };
 
 /** What the rule reads of a table, so a test can mutate it as plain data. */

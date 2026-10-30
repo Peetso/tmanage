@@ -18,7 +18,8 @@
  *
  * **What is *not* here:** any template. A message's words belong to the producer that knows
  * what happened — `invitation-email.ts` in the API, `client-request-email.ts` in the worker
- * — and a shared template file would make one product decision on behalf of two features.
+ * — and a shared template file would make one product decision on behalf of two features —
+ * except 56-23's `templates/security_alert_digest.ts`, shared because the brief put it here.
  */
 
 export type {
@@ -77,3 +78,12 @@ export {
   withTemplateKey,
 } from './queue-mailer.js';
 export type { MailQueueEntry, MailQueueWriter, QueueMailerOptions } from './queue-mailer.js';
+// 56-23 — the batched security alert's words (sent by the worker's security detector).
+export {
+  composeSecurityAlertDigest,
+  securityDigestLabel,
+} from './templates/security_alert_digest.js';
+export type {
+  SecurityDigestInput,
+  SecurityDigestSignal,
+} from './templates/security_alert_digest.js';

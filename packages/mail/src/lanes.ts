@@ -64,6 +64,7 @@ const TRANSACTIONAL_TEMPLATES = new Set([
   'client_request',
   'receipt',
   'ops_alert',
+  'security_alert_digest',
 ]);
 
 const DIGEST_TEMPLATES = new Set([

@@ -171,7 +171,10 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // `mail_hour_windows` where it writes them, and `platform_settings` for lane pauses/ceilings.
     // ---- 56-11 ---- +3: the audit anchor job reads audit_heads, audit_anchors and platform_audit_anchors.
     // ---- 56-17 follow-up ---- +1: the purge and the reporter-email rotation read `security_reports`.
-    expect(reads).toHaveLength(26 + 15 + 1 + 4 + 3 + 1 + 3 + 3 + 1);
+    // ---- 56-23 ---- +6: the security detector reads `security_signals` and `platform_alert_rules`
+    // where it writes them, and its sources `public_link_events`, `rate_limit_buckets`,
+    // `webhook_deliveries` and `platform_backup_runs`.
+    expect(reads).toHaveLength(26 + 15 + 1 + 4 + 3 + 1 + 3 + 3 + 1 + 6);
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });
 

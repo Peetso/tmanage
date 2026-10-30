@@ -18,6 +18,8 @@ import { EmailDeliverabilityModule } from '../email-deliverability/email-deliver
 import { PlatformCapacityModule } from './health/capacity.module.js';
 // ---- 56-17 · vulnerability disclosure ----
 import { PlatformSecurityReportsModule } from '../security-reports/security-reports.module.js';
+// ---- 56-23 · security signals ----
+import { PlatformSecuritySignalsModule } from '../security-signals/security-signals.module.js';
 
 /**
  * Every Platform admin area, one Nest module each (platform-admin v2, PA-02 split). Each area
@@ -47,4 +49,6 @@ export const PLATFORM_AREA_MODULES: DynamicModule[] = [
   PlatformCapacityModule.register(),
   // ---- 56-17 · vulnerability disclosure ----
   PlatformSecurityReportsModule.register(),
+  // ---- 56-23 · security signals: alert rules + platform signal list ----
+  PlatformSecuritySignalsModule.register(),
 ];

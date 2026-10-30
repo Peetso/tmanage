@@ -1160,6 +1160,15 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/finance/readiness',
     reason: 'finance_settings',
   },
+  // 56-23. Security signals and alert rules: no AI action reads or edits them (security_signals.*).
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/admin/security/events',
+    reason: 'org_security_manage',
+  },
+  { method: 'GET', path: '/v1/platform/alerts/', reason: 'platform_admin' },
+  { method: 'PUT', path: '/v1/platform/alerts/:ruleKey', reason: 'platform_admin' },
+  { method: 'GET', path: '/v1/platform/security-signals/', reason: 'platform_admin' },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

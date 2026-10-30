@@ -10829,3 +10829,63 @@ Object.assign(TABLES, {
   audit_anchors: auditAnchors,
   platform_audit_anchors: platformAuditAnchors,
 });
+
+// ---- 56-23 · security signals ----
+
+/**
+ * 0263 (56-23). One deduplicated security signal per (scope, rule, subject, rule window). TENANT
+ * with a NULLABLE `organization_id`: NULL = a platform signal (owners never see it — every org
+ * read names its own id). `scope_key` (org id or `platform`) stands in for the org in the dedupe
+ * key. Ids, counts and SHA-256 source hashes only; written by the worker detector, read by the API.
+ */
+export const securitySignals = mysqlTable(
+  'security_signals',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }),
+    scopeKey: varchar('scope_key', { length: 40 }).notNull(),
+    ruleKey: varchar('rule_key', { length: 48 }).notNull(),
+    severity: varchar('severity', { length: 16 }).notNull(),
+    subjectType: varchar('subject_type', { length: 32 }).notNull(),
+    subjectId: char('subject_id', { length: 36 }),
+    subjectKey: varchar('subject_key', { length: 64 }).notNull(),
+    sourceHash: char('source_hash', { length: 64 }),
+    count: int('count').notNull().default(0),
+    windowStart: datetime('window_start', { mode: 'date', fsp: 3 }).notNull(),
+    firstSeen: datetime('first_seen', { mode: 'date', fsp: 3 }).notNull(),
+    lastSeen: datetime('last_seen', { mode: 'date', fsp: 3 }).notNull(),
+    notifyStatus: varchar('notify_status', { length: 16 }).notNull().default('pending'),
+    notifiedAt: datetime('notified_at', { mode: 'date', fsp: 3 }),
+    detailsJson: text('details_json'),
+  },
+  (table) => [
+    uniqueIndex('uq_security_signals_dedupe').on(
+      table.scopeKey,
+      table.ruleKey,
+      table.subjectKey,
+      table.windowStart,
+    ),
+    uniqueIndex('uq_security_signals_org_id').on(table.organizationId, table.id),
+    index('ix_security_signals_org_seen').on(table.organizationId, table.lastSeen),
+    index('ix_security_signals_notify').on(table.notifyStatus, table.firstSeen),
+    index('ix_security_signals_seen').on(table.lastSeen),
+  ],
+);
+export type SecuritySignalRow = typeof securitySignals.$inferSelect;
+
+/** 0263 (56-23). One row per detector rule: on/off, threshold JSON, cooldown. GLOBAL. */
+export const platformAlertRules = mysqlTable('platform_alert_rules', {
+  ruleKey: varchar('rule_key', { length: 48 }).primaryKey(),
+  enabled: boolean('enabled').notNull().default(true),
+  thresholdJson: text('threshold_json').notNull(),
+  cooldownMinutes: int('cooldown_minutes').notNull().default(60),
+  lastFiredAt: datetime('last_fired_at', { mode: 'date', fsp: 3 }),
+  updatedBy: char('updated_by', { length: 36 }),
+  updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+});
+export type PlatformAlertRuleRow = typeof platformAlertRules.$inferSelect;
+
+Object.assign(TABLES, {
+  security_signals: securitySignals,
+  platform_alert_rules: platformAlertRules,
+});

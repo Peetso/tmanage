@@ -1136,6 +1136,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   org_tax_rates: 'organization_id',
   org_document_sequences: 'organization_id',
   org_exchange_rates: 'organization_id',
+  // ---- 56-23 ----
+  // 0263. Tenant-owned with a NULLABLE organization_id (NULL = platform signal), like the audit
+  // platform rows: org reads name their own id (NULL never matches); the platform list is a
+  // read-only `bootstrapRead(['security_signals'])` with an audited reason. Written by the worker.
+  security_signals: 'organization_id',
 });
 
 /**
@@ -1284,6 +1289,10 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // FieldCipher envelope. Reached only through `identityTransaction(['security_reports'])` /
   // `identityRead`, written by the anonymous door, read and triaged by platform admins only.
   'security_reports',
+  // ---- 56-23 ----
+  // 0263. One row per detector rule (on/off, threshold, cooldown). GLOBAL: no tenant data.
+  // Platform admins read/update it through `identityTransaction` with the platform audit table.
+  'platform_alert_rules',
 ]);
 
 export function isTenantTable(name: string): boolean {

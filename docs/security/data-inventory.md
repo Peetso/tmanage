@@ -21,12 +21,12 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 
 ## Totals
 
-- Tables: 280 (100 % of `TABLES`).
-- `delete`: 227
+- Tables: 282 (100 % of `TABLES`).
+- `delete`: 229
 - `pseudonymise`: 3
 - `keep-fiscal-redacted`: 5
 - `none-no-personal-data`: 45
-- Today `enforced`: 199, `gap`: 36, `n/a`: 45.
+- Today `enforced`: 200, `gap`: 37, `n/a`: 45.
 
 ## Inventory
 
@@ -209,6 +209,7 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 | `platform_admin_audit_events`     | `actor_user_id`, `actor_email`, `ip`, `user_agent`                                                     | `delete`                | gap      | 56-18 | Global platform/operator or public-intake table, outside the company erasure. No automated erasure path yet.                                                                                 |
 | `platform_admin_step_ups`         | `user_id`                                                                                              | `delete`                | gap      | 56-18 | Global platform/operator or public-intake table, outside the company erasure. No automated erasure path yet.                                                                                 |
 | `platform_admins`                 | `user_id`, `created_by`                                                                                | `delete`                | gap      | 56-18 | Global platform/operator or public-intake table, outside the company erasure. No automated erasure path yet.                                                                                 |
+| `platform_alert_rules`            | `updated_by`                                                                                           | `delete`                | gap      | 56-18 | Global platform/operator or public-intake table, outside the company erasure. No automated erasure path yet.                                                                                 |
 | `platform_announcements`          | `created_by`                                                                                           | `delete`                | gap      | 56-18 | Global platform/operator or public-intake table, outside the company erasure. No automated erasure path yet.                                                                                 |
 | `platform_audit_anchors`          | -                                                                                                      | `none-no-personal-data` | n/a      | 56-11 | Global platform table with no personal field.                                                                                                                                                |
 | `platform_backup_runs`            | -                                                                                                      | `none-no-personal-data` | n/a      | 53-20 | Global platform table with no personal field.                                                                                                                                                |
@@ -270,6 +271,7 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 | `search_pins`                     | `membership_id`                                                                                        | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                            |
 | `search_scopes`                   | `member_user_id`                                                                                       | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                            |
 | `security_reports`                | `reporter_email_enc`, `reporter_name`, `body`, `credit_name`                                           | `delete`                | enforced | 56-17 | Global public-intake table, outside the company erasure. Purged 24 months after created_at by the worker's daily job (security-report-purge.ts, 500-row batches, count-only platform audit). |
+| `security_signals`                | `subject_id`, `source_hash`                                                                            | `delete`                | enforced | 56-23 | Org rows emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts). Platform (NULL-org) rows: hashes only; retention purge not built (gap).                           |
 | `security_settings`               | `ip_allowlist_json`, `updated_by`                                                                      | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                            |
 | `session_refresh_tokens`          | `token_hash`                                                                                           | `delete`                | gap      | 56-18 | Global identity. An account deletion today only offboards the membership; these rows stay until they expire.                                                                                 |
 | `sessions`                        | `user_id`, `refresh_token_hash`, `user_agent`, `ip_first`, `ip_last`                                   | `delete`                | gap      | 56-18 | Global identity. An account deletion today only offboards the membership; these rows stay until they expire.                                                                                 |

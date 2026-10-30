@@ -1921,3 +1921,19 @@ GRANT SELECT, INSERT ON `tmanage`.`audit_heads`                TO 'tmanage_worke
 -- worker (INSERT IGNORE), never updated or deleted. The app only reads them (database-wide SELECT).
 GRANT SELECT, INSERT ON `tmanage`.`audit_anchors`              TO 'tmanage_worker'@'%';
 GRANT SELECT, INSERT ON `tmanage`.`platform_audit_anchors`     TO 'tmanage_worker'@'%';
+
+-- ---- 56-23 · security signals ----
+-- 0263 `security_signals` (tenant, nullable org): the worker detector upserts and marks them
+-- notified; the app only reads (database-wide SELECT) and DELETEs them in the company erasure.
+-- `platform_alert_rules` (global): the app updates on/off/threshold; the worker stamps
+-- `last_fired_at`. Detector sources are SELECT only. NOT `authentication_events`: the relay never
+-- reads the security log (least-privilege.db.test.ts) — `credential_stuffing` is skipped until
+-- that is decided otherwise (see lane-56-23.md).
+GRANT DELETE ON `tmanage`.`security_signals`                    TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`platform_alert_rules`                TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`security_signals`    TO 'tmanage_worker'@'%';
+GRANT SELECT, UPDATE ON `tmanage`.`platform_alert_rules`        TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`public_link_events`                  TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`rate_limit_buckets`                  TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`webhook_deliveries`                  TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`platform_backup_runs`                TO 'tmanage_worker'@'%';

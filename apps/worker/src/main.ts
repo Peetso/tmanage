@@ -6,6 +6,7 @@ import {
   QueueMailer,
   SendCeilingMailer,
   SmtpMailer,
+  composeSecurityAlertDigest,
   deriveUnsubscribeKey,
   withTemplateKey,
 } from '@tmanage/mail';
@@ -74,6 +75,9 @@ import { createSecurityReportPurgeStore } from './common/database/security-repor
 import { runSecurityReportPurgeLoop } from './jobs/security-report-purge.js';
 import { createAuditAnchorStore } from './common/database/audit-anchor-store.js';
 import { anchorSignerFromEnv, runAuditAnchorLoop } from './jobs/audit-anchor.js';
+// ---- 56-23 ---- the security detector and its signal store.
+import { createSecuritySignalStore } from './common/database/security-signal-store.js';
+import { runSecurityDetectorLoop } from './jobs/security-detector.js';
 
 /**
  * The worker process entry point.
@@ -607,6 +611,21 @@ async function main(): Promise<void> {
     { store: createAuditAnchorStore(database), signer: anchorSignerFromEnv(process.env) },
     controller.signal,
   );
+  // ---- 56-23 ---- security detector every 5 minutes; at most one digest per 15 minutes to
+  // ALERT_EMAILS (and own-org high signals to owners), through the same transport (mail_queue
+  // when MAIL_QUEUE=on). No transport → signals are still recorded, nothing is mailed.
+  const securityDetector = runSecurityDetectorLoop(
+    {
+      store: createSecuritySignalStore(database),
+      mailer: transport,
+      alertEmails: (env.ALERT_EMAILS ?? '')
+        .split(',')
+        .map((address) => address.trim())
+        .filter((address) => address.includes('@')),
+      composeDigest: composeSecurityAlertDigest,
+    },
+    controller.signal,
+  );
   // ---- platform-admin v2 · PA-09 ---- the export job, every 30 seconds beside the relay.
   const exportJobs = runExportJobsLoop(database, exportWriterFor(env), controller.signal);
   // ---- 56-02 FieldCipher ---- queued key rotations, every minute beside the relay. Keyless,
@@ -720,6 +739,8 @@ async function main(): Promise<void> {
     await securityReportPurge;
     // ---- 56-11 ----
     await auditAnchors;
+    // ---- 56-23 ----
+    await securityDetector;
     // ---- 56-31 ----
     await mailDrain;
     await database.end();

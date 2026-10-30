@@ -103,6 +103,8 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.security_report_updated',
   // ---- 56-17 follow-up ---- the worker's 24-month purge (count only, system actor).
   'platform.security_reports_purged',
+  // ---- 56-23 security signals ----
+  'platform.alert_rule_updated',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];
