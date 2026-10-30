@@ -1900,9 +1900,15 @@ GRANT INSERT, DELETE ON `tmanage`.`org_exchange_rates`             TO 'tmanage_a
 
 -- ---- 56-17 · vulnerability disclosure ----
 -- 0262 `security_reports` (global): inserted by the anonymous report door, acknowledged_at and
--- the platform triage (status, credit) are UPDATEs. No DELETE yet: the 24-month retention purge
--- is not built (data-inventory gap). SELECT rides the database-wide read.
+-- the platform triage (status, credit) are UPDATEs. SELECT rides the database-wide read. The app
+-- gets no DELETE: retention is the worker's (below).
 GRANT INSERT, UPDATE ON `tmanage`.`security_reports`           TO 'tmanage_app'@'%';
+-- 56-17 follow-up: the worker's 24-month purge (apps/worker/src/jobs/security-report-purge.ts)
+-- reads and DELETEs rows past created_at + 24 months in 500-row batches, and the 56-02 key
+-- rotation re-encrypts `reporter_email_enc` in place (compare-and-swap on that column only, the
+-- same table-level UPDATE shape as the connection tables). Its count-only audit row uses the
+-- existing INSERT on `platform_admin_audit_events`.
+GRANT SELECT, UPDATE, DELETE ON `tmanage`.`security_reports`   TO 'tmanage_worker'@'%';
 
 -- ---- 56-11 · audit hash chain ----
 -- 0261 `audit_heads` (tenant): created on an organization's first chained write (INSERT … ON

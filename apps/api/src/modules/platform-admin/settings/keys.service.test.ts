@@ -52,6 +52,11 @@ describe('keysView', () => {
     expect(view.nextRotationDueAt).toBe('2027-01-12T00:00:00.000Z');
     expect(JSON.stringify(view)).not.toContain('BwcH');
   });
+
+  it('lists the reporter e-mail as rotatable (56-17 follow-up)', () => {
+    const view = keysView({ keyring: ring('1'), mfaFallback: null, sessionOverlap: false }, []);
+    expect(view.purposes.find((p) => p.purpose === 'reporter_email')?.rotatable).toBe(true);
+  });
 });
 
 describe('PlatformKeysService.rotate', () => {

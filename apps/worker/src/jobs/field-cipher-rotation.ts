@@ -29,6 +29,12 @@ export const ROTATION_TARGETS = {
     column: 'refresh_token_enc',
     ownerColumn: 'id',
   },
+  /** 56-17 follow-up: the writer is `security-reports.service.ts` (purpose `reporter_email`, owner = row id). */
+  reporter_email: {
+    table: 'security_reports',
+    column: 'reporter_email_enc',
+    ownerColumn: 'id',
+  },
 } as const;
 export type RotationPurpose = keyof typeof ROTATION_TARGETS;
 export type RotationTarget = (typeof ROTATION_TARGETS)[RotationPurpose];

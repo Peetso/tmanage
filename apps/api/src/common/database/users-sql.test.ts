@@ -338,6 +338,8 @@ describe('the runtime user is actually least-privilege', () => {
     // ---- 56-31 ---- 0256: the mail drainer purges `mail_queue` rows 7 days after sent/failed.
     // The queue is transient delivery state, never work a person made.
     purgeTables.add('mail_queue');
+    // ---- 56-17 follow-up ---- the 24-month retention purge of public security reports.
+    purgeTables.add('security_reports');
     for (const grant of grantsFor('tmanage_worker')) {
       if (purgeTables.has(grant.table)) continue;
       expect(grant.privileges, `worker grant on ${grant.table}`).not.toContain('DELETE');

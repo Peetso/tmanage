@@ -101,6 +101,8 @@ export const PLATFORM_AUDIT_ACTIONS = [
   // ---- 56-17 vulnerability disclosure ----
   'platform.security_report_viewed',
   'platform.security_report_updated',
+  // ---- 56-17 follow-up ---- the worker's 24-month purge (count only, system actor).
+  'platform.security_reports_purged',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];

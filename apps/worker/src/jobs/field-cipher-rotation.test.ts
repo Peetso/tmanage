@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { runKeyRotation, type RotationStore, type SecretRow } from './field-cipher-rotation.js';
+import {
+  isRotationPurpose,
+  runKeyRotation,
+  ROTATION_TARGETS,
+  type RotationStore,
+  type SecretRow,
+} from './field-cipher-rotation.js';
 
 const rows: SecretRow[] = Array.from({ length: 501 }, (_, i) => ({
   id: String(i).padStart(4, '0'),
@@ -11,12 +17,12 @@ const cipher = {
   isEnvelope: (v: string) => v.startsWith('fc1.'),
   rotate: (v: string) => (v === 'fc1.old' ? 'fc1.new' : null),
 };
-function store(lastRowId: string | null, toKeyId = '2') {
+function store(lastRowId: string | null, toKeyId = '2', purpose = 'storage_token') {
   const calls: string[] = [];
   const s: RotationStore = {
     claimNext: async () => ({
       id: 'r',
-      purpose: 'storage_token',
+      purpose,
       toKeyId,
       lastRowId,
       counts: { done: 0, skipped: 0, failed: 0 },
@@ -51,5 +57,22 @@ describe('key rotation job (56-02)', () => {
     const { s, calls } = store(null, '3');
     expect((await runKeyRotation({ store: s, cipher })).status).toBe('failed');
     expect(calls.some((c) => c.startsWith('w'))).toBe(false);
+  });
+
+  it('walks security_reports.reporter_email_enc with the writer AAD (56-17 follow-up)', async () => {
+    expect(isRotationPurpose('reporter_email')).toBe(true);
+    const { s } = store('0497', '2', 'reporter_email');
+    const tables: string[] = [];
+    const read = s.readBatch;
+    s.readBatch = async (t, after, limit) => (
+      tables.push(`${t.table}.${t.column}`),
+      read(t, after, limit)
+    );
+    const aads: unknown[] = [];
+    const rotate = (v: string, aad: unknown) => (aads.push(aad), cipher.rotate(v));
+    await runKeyRotation({ store: s, cipher: { ...cipher, rotate } });
+    expect(tables[0]).toBe('security_reports.reporter_email_enc');
+    expect(ROTATION_TARGETS.reporter_email.ownerColumn).toBe('id');
+    expect(aads[0]).toEqual({ purpose: 'reporter_email', ownerId: '498' });
   });
 });

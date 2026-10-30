@@ -69,6 +69,9 @@ import { exportWriterFor, runExportJobsLoop, runExportJobsOnce } from './jobs/ex
 import { createFieldCipher, loadFieldCipherKeyring } from '@tmanage/domain/field-cipher';
 import { createRotationStore } from './common/database/field-cipher-rotation-store.js';
 import { runKeyRotation, runKeyRotationLoop } from './jobs/field-cipher-rotation.js';
+// ---- 56-17 follow-up ---- the 24-month security_reports purge, daily in loop mode.
+import { createSecurityReportPurgeStore } from './common/database/security-report-purge-store.js';
+import { runSecurityReportPurgeLoop } from './jobs/security-report-purge.js';
 import { createAuditAnchorStore } from './common/database/audit-anchor-store.js';
 import { anchorSignerFromEnv, runAuditAnchorLoop } from './jobs/audit-anchor.js';
 
@@ -618,6 +621,11 @@ async function main(): Promise<void> {
     },
     controller.signal,
   );
+  // ---- 56-17 follow-up ---- security reports older than 24 months, once a day beside the relay.
+  const securityReportPurge = runSecurityReportPurgeLoop(
+    createSecurityReportPurgeStore(database),
+    controller.signal,
+  );
 
   // RT-001. Sockets exist only in loop mode — a controlled batch has no process to keep a
   // socket open — and only when a port is configured; 0 is the honest default on a host
@@ -708,6 +716,8 @@ async function main(): Promise<void> {
     // ---- platform-admin v2 · PA-09 ----
     await exportJobs;
     await keyRotations;
+    // ---- 56-17 follow-up ----
+    await securityReportPurge;
     // ---- 56-11 ----
     await auditAnchors;
     // ---- 56-31 ----
