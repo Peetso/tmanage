@@ -182,6 +182,7 @@ import { PublicChangelogModule } from './modules/public-site/changelog.module.js
 import { ContactModule } from './modules/public-site/contact.module.js';
 import { PublicFormsModule } from './modules/public-forms/public-forms.module.js';
 import { QuotesModule } from './modules/quotes/quotes.module.js';
+import { SecurityReportsModule } from './modules/security-reports/security-reports.module.js';
 import { FinanceModule } from './modules/finance/finance.module.js';
 import { FirstOwnerModule } from './modules/setup/first-owner.module.js';
 import { publicSignupModules } from './modules/signup/public-signup.module.js';
@@ -946,6 +947,9 @@ export class AppModule {
         // 52-08. Quotes (create/list/get/update draft/send) under `/quotes`; send issues a 56-07
         // `quote` link and the module registers the `quote` target adapter on its registry.
         QuotesModule.register(),
+        // 56-17. The anonymous vulnerability report door `POST /v1/public/security-reports`
+        // (after `RateLimitsModule`: 52-21's global assess). security.txt is apps/server's.
+        SecurityReportsModule.register(),
         // 52-23. Settings → Finance: profile, tax rates, manual FX, readiness under `/finance`;
         // global DOCUMENT_SEQUENCES (gapless numbers) for the issuing modules that follow.
         FinanceModule.register(),

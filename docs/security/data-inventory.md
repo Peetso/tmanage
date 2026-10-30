@@ -21,12 +21,12 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 
 ## Totals
 
-- Tables: 276 (100 % of `TABLES`).
-- `delete`: 226
+- Tables: 277 (100 % of `TABLES`).
+- `delete`: 227
 - `pseudonymise`: 3
 - `keep-fiscal-redacted`: 5
 - `none-no-personal-data`: 42
-- Today `enforced`: 199, `gap`: 35, `n/a`: 42.
+- Today `enforced`: 199, `gap`: 36, `n/a`: 42.
 
 ## Inventory
 
@@ -266,6 +266,7 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 | `search_index`                    | `body_text`                                                                                            | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
 | `search_pins`                     | `membership_id`                                                                                        | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
 | `search_scopes`                   | `member_user_id`                                                                                       | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
+| `security_reports`                | `reporter_email_enc`, `reporter_name`, `body`, `credit_name`                                           | `delete`                | gap      | 56-18 | Global platform/operator or public-intake table, outside the company erasure. 24-month retention purge not built yet.                                                               |
 | `security_settings`               | `ip_allowlist_json`, `updated_by`                                                                      | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                   |
 | `session_refresh_tokens`          | `token_hash`                                                                                           | `delete`                | gap      | 56-18 | Global identity. An account deletion today only offboards the membership; these rows stay until they expire.                                                                        |
 | `sessions`                        | `user_id`, `refresh_token_hash`, `user_agent`, `ip_first`, `ip_last`                                   | `delete`                | gap      | 56-18 | Global identity. An account deletion today only offboards the membership; these rows stay until they expire.                                                                        |

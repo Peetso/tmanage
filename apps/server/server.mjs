@@ -69,6 +69,7 @@ import {
 import { DOWNLOADS_DIR, webSecurityHeaders } from './boot-guards.mjs';
 import { webCacheHeaders } from './cache-headers.mjs';
 import { createCspReportHandler, isCspReportPath } from './csp-report.mjs';
+import { createSecurityTxtHandler, isSecurityTxtPath } from './security-txt.mjs';
 import { resolveDatabaseEnv } from './database-env.mjs';
 import {
   applyRealtimePublicUrl,
@@ -532,8 +533,11 @@ async function main() {
     trustedProxies: process.env['TRUSTED_PROXY_ADDRESSES'],
     log,
   });
+  // 56-17. RFC 9116 security.txt, served whatever the boot state (no dependency).
+  const securityTxt = createSecurityTxtHandler(process.env);
   const server = createHttpServer((req, res) => {
     if (state.ready && isCspReportPath(req.url)) cspReport(req, res);
+    else if (isSecurityTxtPath(req.url)) securityTxt(req, res);
     else publicHandler(req, res);
   });
   // H2: WebSocket upgrades go to the attached realtime socket once the app is ready; any other

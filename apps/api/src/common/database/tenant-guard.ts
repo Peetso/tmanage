@@ -1268,6 +1268,12 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // Reached only through `identityTransaction(['public_abuse_events' | 'public_challenges'])`.
   'public_abuse_events',
   'public_challenges',
+  // ---- 56-17 ----
+  // 0262. Vulnerability reports from the public disclosure form. GLOBAL: a report is about the
+  // platform, never one organization's data (no organization_id); the reporter e-mail is a
+  // FieldCipher envelope. Reached only through `identityTransaction(['security_reports'])` /
+  // `identityRead`, written by the anonymous door, read and triaged by platform admins only.
+  'security_reports',
 ]);
 
 export function isTenantTable(name: string): boolean {

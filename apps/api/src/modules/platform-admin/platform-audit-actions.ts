@@ -98,6 +98,9 @@ export const PLATFORM_AUDIT_ACTIONS = [
   // ---- 56-31 mail lanes ----
   'platform.mail_lane_paused',
   'platform.mail_lane_resumed',
+  // ---- 56-17 vulnerability disclosure ----
+  'platform.security_report_viewed',
+  'platform.security_report_updated',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];

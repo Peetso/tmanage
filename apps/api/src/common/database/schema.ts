@@ -10714,3 +10714,46 @@ Object.assign(TABLES, {
   org_document_sequences: orgDocumentSequences,
   org_exchange_rates: orgExchangeRates,
 });
+
+// ---- 56-17 · vulnerability disclosure ----
+
+/**
+ * 0262 (56-17). One vulnerability report from the public disclosure form. GLOBAL
+ * (NON_TENANT_TABLES): a report is about the platform, never one organization — no
+ * `organization_id`. `reporter_email_enc` is a FieldCipher envelope (`reporter_email`, owner = id)
+ * or NULL (none given / keyless host). `status` new | triaged | fixed | duplicate | invalid and
+ * `severity_claimed` none | low | medium | high | critical are checked in
+ * `security-reports/security-report-content.ts`. Retention 24 months.
+ */
+export const securityReports = mysqlTable(
+  'security_reports',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    reference: varchar('reference', { length: 16 }).notNull(),
+    reporterEmailEnc: varchar('reporter_email_enc', { length: 600 }),
+    reporterName: varchar('reporter_name', { length: 200 }),
+    title: varchar('title', { length: 200 }).notNull(),
+    body: text('body').notNull(),
+    severityClaimed: varchar('severity_claimed', { length: 16 }).notNull().default('none'),
+    status: varchar('status', { length: 16 }).notNull().default('new'),
+    riskDecision: varchar('risk_decision', { length: 16 }).notNull().default('allow'),
+    language: varchar('language', { length: 5 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    acknowledgedAt: datetime('acknowledged_at', { mode: 'date', fsp: 3 }),
+    resolvedAt: datetime('resolved_at', { mode: 'date', fsp: 3 }),
+    creditName: varchar('credit_name', { length: 200 }),
+    creditPublic: boolean('credit_public').notNull().default(false),
+  },
+  (table) => [
+    uniqueIndex('uq_security_reports_reference').on(table.reference),
+    index('ix_security_reports_status').on(table.status, table.createdAt),
+    index('ix_security_reports_created').on(table.createdAt),
+  ],
+);
+
+export type SecurityReportRow = typeof securityReports.$inferSelect;
+
+Object.assign(TABLES, {
+  security_reports: securityReports,
+});

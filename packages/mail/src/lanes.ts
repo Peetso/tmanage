@@ -54,6 +54,7 @@ const AUTH_TEMPLATES: Readonly<Record<string, number | null>> = Object.freeze({
   credential_change: null,
   erasure_confirmation: null,
   privacy_notice: null,
+  security_report_ack: null,
 });
 
 const TRANSACTIONAL_TEMPLATES = new Set([

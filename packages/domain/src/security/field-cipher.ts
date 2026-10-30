@@ -43,6 +43,7 @@ export const FIELD_CIPHER_PURPOSES = [
   'push_key',
   'integration_token',
   'zatca_key',
+  'reporter_email',
 ] as const;
 export type FieldCipherPurpose = (typeof FIELD_CIPHER_PURPOSES)[number];
 

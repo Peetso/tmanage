@@ -14,7 +14,8 @@ export type KeyPurpose =
   | 'scim_token'
   | 'push_key'
   | 'integration_token'
-  | 'zatca_key';
+  | 'zatca_key'
+  | 'reporter_email';
 
 export type KeyRotationStatus = 'queued' | 'running' | 'done' | 'failed';
 

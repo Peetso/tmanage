@@ -1897,3 +1897,9 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`org_tax_rates`          TO 'tmanage_a
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`org_document_sequences` TO 'tmanage_app'@'%';
 -- 0260 `org_exchange_rates` (tenant): append-only manual rates. No UPDATE: a rate is never amended.
 GRANT INSERT, DELETE ON `tmanage`.`org_exchange_rates`             TO 'tmanage_app'@'%';
+
+-- ---- 56-17 · vulnerability disclosure ----
+-- 0262 `security_reports` (global): inserted by the anonymous report door, acknowledged_at and
+-- the platform triage (status, credit) are UPDATEs. No DELETE yet: the 24-month retention purge
+-- is not built (data-inventory gap). SELECT rides the database-wide read.
+GRANT INSERT, UPDATE ON `tmanage`.`security_reports`           TO 'tmanage_app'@'%';

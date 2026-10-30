@@ -91,6 +91,7 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'POST /v1/public/links/:token/decision': 'named',
   'GET /v1/public/forms/:slug': 'named',
   'POST /v1/public/forms/:slug/submissions': 'named',
+  'POST /v1/public/security-reports/': 'named',
 };
 
 /** Signed-in routes with no capability because they act only on the caller's own account. */
