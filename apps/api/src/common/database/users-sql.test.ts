@@ -213,6 +213,13 @@ describe('the grants and the schema agree', () => {
       workflow_due_soon_fires:
         'C1 worker-written only: the due-soon sweep claims one (rule, item, day) on the worker ' +
         'credential (INSERT); no API route writes it, so tmanage_app holds only the database-wide read',
+      // ---- 56-11 ----
+      audit_anchors:
+        '56-11 worker-written only: the daily anchor job inserts each signed anchor on the worker ' +
+        'credential (INSERT IGNORE); the API only reads it for the integrity check (database-wide read)',
+      platform_audit_anchors:
+        '56-11 worker-written only: the daily platform anchor is inserted on the worker credential; ' +
+        'the API only reads it (database-wide read)',
     };
     for (const table of schemaTables) {
       const writable = privilegesOn('tmanage_app', table);

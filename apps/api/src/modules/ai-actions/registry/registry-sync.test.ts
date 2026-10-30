@@ -98,7 +98,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // 52-08 quotes: +5 NEVER (list, create, get, update draft, send), was 1014.
 // 56-17 security reports: +4 NEVER (POST public/security-reports, GET/GET :id/PUT :id platform), was 1019.
 // 56-11 audit chain: +3 NEVER (GET .../admin/audit/{integrity,catalog,export.sig}), was 1023.
-const EXPECTED_ROUTE_COUNT = 1026;
+// 52-23 finance: +8 NEVER (profile GET/PUT, tax-rates GET/POST/PUT :id, exchange-rates GET/POST,
+// readiness), was 1026.
+const EXPECTED_ROUTE_COUNT = 1034;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

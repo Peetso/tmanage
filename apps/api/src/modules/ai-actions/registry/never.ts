@@ -1127,6 +1127,39 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/admin/audit/export.sig',
     reason: 'audit_retention',
   },
+  // 52-23. Finance settings: profile, tax rates, manual exchange rates and the readiness check.
+  { method: 'GET', path: '/v1/organizations/:orgSlug/finance/profile', reason: 'finance_settings' },
+  { method: 'PUT', path: '/v1/organizations/:orgSlug/finance/profile', reason: 'finance_settings' },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/finance/tax-rates',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/finance/tax-rates',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/finance/tax-rates/:taxRateId',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/finance/exchange-rates',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/finance/exchange-rates',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/finance/readiness',
+    reason: 'finance_settings',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */
