@@ -4,7 +4,7 @@ import type { Capability, MatrixAction, MatrixArea, MatrixRow } from '@tmanage/d
 /**
  * Plain names for the fixed capability list (ADM-09).
  *
- * The Roles and Policy simulation screens listed the capability codes (56 since platform-admin v2 · PA-01) as they are written in
+ * The Roles and Policy simulation screens listed the capability codes (58 since 52-23 §10) as they are written in
  * `packages/domain` (`org.manage`, `client_projection.read`, `member.offboard`). A person choosing
  * what a role may do reads a sentence, not a code. The code is still what is sent to the API.
  *
@@ -97,6 +97,12 @@ const LABELS: Readonly<Record<Capability, CapabilityLabel>> = {
   'ai.manage': { area: 'AI and reports', label: 'Manage AI connections and access' },
   'report.view': { area: 'AI and reports', label: 'See reports and insights' },
   'report.export': { area: 'AI and reports', label: 'Export reports' },
+  // ---- 52-23 §10 ----
+  'finance.view': { area: 'Billing and settings', label: 'See finance settings and rates' },
+  'finance.manage': {
+    area: 'Billing and settings',
+    label: 'Manage finance settings, tax and exchange rates',
+  },
 };
 
 const AREA_ORDER: readonly CapabilityArea[] = [

@@ -338,6 +338,22 @@ export const GUARDED_OPERATIONS: readonly GuardedOperation[] = [
     collection: true,
     declaredAt: 'insights/insights.controller.ts @Get(portfolio) report.view (PA-01)',
   },
+  {
+    capability: 'finance.view',
+    method: 'GET',
+    path: '/finance/tax-rates',
+    surface: 'internal',
+    collection: true,
+    declaredAt: 'finance/finance.controller.ts @Get(tax-rates) finance.view (52-23 §10)',
+  },
+  {
+    capability: 'finance.manage',
+    method: 'POST',
+    path: '/finance/tax-rates',
+    surface: 'internal',
+    collection: true,
+    declaredAt: 'finance/finance.controller.ts @Post(tax-rates) finance.manage (52-23 §10)',
+  },
 ];
 
 /**

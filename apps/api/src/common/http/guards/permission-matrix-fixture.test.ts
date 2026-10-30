@@ -93,8 +93,8 @@ describe('the hand-written permission matrix agrees with the shipped ceiling', (
 });
 
 describe('PA-01: the matrix capabilities are transcribed for every role', () => {
-  it('has 56 capabilities: the 32 of §2 and the 24 of the platform-admin SPEC §3.3', () => {
-    expect(CAPABILITIES).toHaveLength(56);
+  it('has 58 capabilities: the 32 of §2, the 24 of the platform-admin SPEC §3.3 and the 2 finance keys of 52-23 §10', () => {
+    expect(CAPABILITIES).toHaveLength(58);
   });
 
   it('gives no client role any of the new capabilities, in the transcription or the ceiling', () => {

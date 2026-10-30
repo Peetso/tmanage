@@ -16,8 +16,8 @@ import {
 
 /** platform-admin v2 · PA-01 — the matrix layout the editor and the preview draw (SPEC §3.3). */
 describe('permission matrix layout', () => {
-  it('has 17 areas and 7 actions', () => {
-    expect(MATRIX_AREAS).toHaveLength(17);
+  it('has 18 areas and 7 actions', () => {
+    expect(MATRIX_AREAS).toHaveLength(18);
     expect(MATRIX_ACTIONS).toEqual([
       'view',
       'create',
@@ -38,8 +38,8 @@ describe('permission matrix layout', () => {
     }
   });
 
-  it('every one of the 56 capabilities has exactly one primary cell', () => {
-    expect(CAPABILITIES).toHaveLength(56);
+  it('every one of the 58 capabilities has exactly one primary cell', () => {
+    expect(CAPABILITIES).toHaveLength(58);
     expect(capabilitiesWithoutCell()).toEqual([]);
     for (const capability of CAPABILITIES) {
       const cell = capabilityCell(capability);
@@ -86,6 +86,11 @@ describe('permission matrix layout', () => {
     expect(capabilityCell('work.read')).toEqual({ area: 'work_items', action: 'view' });
     expect(cellsOfCapability('work.read')).toHaveLength(2);
     expect(capabilityCell('doc.write')).toEqual({ area: 'docs', action: 'create' });
+  });
+
+  it('52-23 §10: the finance row draws finance.view and finance.manage', () => {
+    expect(areaCapabilities('finance')).toEqual(['finance.view', 'finance.manage']);
+    expect(capabilityCell('finance.manage')).toEqual({ area: 'finance', action: 'manage' });
   });
 
   it('row and column toggles list each capability once', () => {

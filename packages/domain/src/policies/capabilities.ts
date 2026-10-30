@@ -83,7 +83,7 @@ export const CAPABILITIES = [
   // capability per meaningful cell. Appended, never inserted: a custom role key's mask is rebuilt
   // from `custom_roles.capabilities_json` on every request, and appending keeps every existing
   // nibble where it was. SPEC §3.3 calls them "22"; its bold list names 24 and every one is kept,
-  // so the list is 56 long.
+  // so the list was 56 long (58 with the finance pair at the end).
   'project.delete',
   'work.delete',
   'work.export',
@@ -108,9 +108,21 @@ export const CAPABILITIES = [
   'ai.manage',
   'report.view',
   'report.export',
+  // ---- 52-23 §10 · Settings → Finance (pass 6, P6-B) ----
+  // The finance profile, tax rates and manual exchange rates. Appended at the end for the same
+  // reason as PA-01 above: every existing nibble of a custom role mask stays where it was. Before
+  // these keys the finance routes rode `project.manage` (read) and `workspace.manage` (write);
+  // the ceilings below give each key to exactly the roles that held its stand-in, and migration
+  // 0264 does the same for stored custom roles and live member overrides, so nobody gains or
+  // loses a finance route. Internal-only: no client role holds either.
+  'finance.view',
+  'finance.manage',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
+
+/** 52-23 §10: the finance capabilities, in `CAPABILITIES` order. */
+export const FINANCE_CAPABILITIES: readonly Capability[] = ['finance.view', 'finance.manage'];
 
 /** PA-01: the capabilities SPEC §3.3 added (its bold cells), in `CAPABILITIES` order. */
 export const MATRIX_NEW_CAPABILITIES: readonly Capability[] = [
@@ -328,6 +340,9 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     'ai.use',
     'report.view',
     'report.export',
+    // 52-23 §10: finance settings, as `workspace.manage` (write) and `project.manage` (read) gave.
+    'finance.view',
+    'finance.manage',
   ],
 
   manager: [
@@ -381,6 +396,9 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     'ai.use',
     'report.view',
     'report.export',
+    // 52-23 §10: reads the finance settings (who drafts quotes needs the rates), as
+    // `project.manage` gave; writes stay with `workspace.manage` holders, which a manager is not.
+    'finance.view',
   ],
 
   moderator: [
@@ -578,7 +596,16 @@ export type PrincipalRole = Role | CustomRoleKey;
 const CUSTOM_ROLE_PREFIX = 'custom:';
 const CUSTOM_ROLE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const MASK_LENGTH = Math.ceil(CAPABILITIES.length / 4);
-const CUSTOM_ROLE_KEY = new RegExp(`^custom:([0-9a-f-]{36}):([0-9a-f]{${MASK_LENGTH}})$`);
+/**
+ * 52-23 §10: the mask was 14 nibbles while the list was 56 long. A key built before the finance
+ * keys were appended still decodes: its missing trailing nibble reads as zero, so it holds exactly
+ * the set it was built with and never a finance key. Only {@link customRoleKey} mints keys, always
+ * at the full length.
+ */
+const LEGACY_MASK_LENGTH = 14;
+const CUSTOM_ROLE_KEY = new RegExp(
+  `^custom:([0-9a-f-]{36}):([0-9a-f]{${LEGACY_MASK_LENGTH},${MASK_LENGTH}})$`,
+);
 
 /** Is this a well-formed custom role id (a lowercase UUID, as `custom_roles.id` stores it)? */
 export function isCustomRoleId(value: string): boolean {
@@ -724,6 +751,8 @@ export const INTERNAL_ONLY_CAPABILITIES: readonly Capability[] = [
   // PA-01 (SPEC §3.3): every new matrix capability is internal-only. Client roles gain nothing,
   // and no per-member override can widen a client principal past this guard.
   ...MATRIX_NEW_CAPABILITIES,
+  // 52-23 §10: finance settings are internal; no client projection of them exists.
+  ...FINANCE_CAPABILITIES,
 ];
 
 const INTERNAL_ONLY_SET: ReadonlySet<Capability> = new Set(INTERNAL_ONLY_CAPABILITIES);

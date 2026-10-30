@@ -12736,6 +12736,7 @@
   "PermissionMatrix.area.files": "الملفات والتخزين",
   "PermissionMatrix.area.people": "الأشخاص",
   "PermissionMatrix.area.billing": "الفوترة",
+  "PermissionMatrix.area.finance": "المالية",
   "PermissionMatrix.area.settings": "الإعدادات",
   "PermissionMatrix.area.workspaces": "مساحات العمل",
   "PermissionMatrix.area.ai": "موصل الذكاء الاصطناعي",

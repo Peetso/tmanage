@@ -12736,6 +12736,7 @@
   "PermissionMatrix.area.files": "Files & storage",
   "PermissionMatrix.area.people": "People",
   "PermissionMatrix.area.billing": "Billing",
+  "PermissionMatrix.area.finance": "Finance",
   "PermissionMatrix.area.settings": "Settings",
   "PermissionMatrix.area.workspaces": "Workspaces",
   "PermissionMatrix.area.ai": "AI connector",

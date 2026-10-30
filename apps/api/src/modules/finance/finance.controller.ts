@@ -15,15 +15,15 @@ export const FINANCE_SERVICE = Symbol.for('tmanage.FinanceService');
 /**
  * 52-23 — `/v1/organizations/:orgSlug/finance`: profile, tax rates, manual exchange rates and the
  * readiness check. The route guard asks the capability the service asks again at organization
- * scope (`workspace.manage` to write, `project.manage` to read, standing in for `finance.manage`
- * / `finance.view` — see `finance.service.ts`). No public route.
+ * scope (`finance.manage` to write, `finance.view` to read — see `finance.service.ts`). No public
+ * route.
  */
 @Controller('v1/organizations/:orgSlug/finance')
 export class FinanceController {
   constructor(@Inject(FINANCE_SERVICE) private readonly service: FinanceService) {}
 
   @Get('profile')
-  @RequireCapability('project.manage')
+  @RequireCapability('finance.view')
   getProfile(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -32,7 +32,7 @@ export class FinanceController {
   }
 
   @Put('profile')
-  @RequireCapability('workspace.manage')
+  @RequireCapability('finance.manage')
   updateProfile(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -42,7 +42,7 @@ export class FinanceController {
   }
 
   @Get('tax-rates')
-  @RequireCapability('project.manage')
+  @RequireCapability('finance.view')
   async listTaxRates(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -51,7 +51,7 @@ export class FinanceController {
   }
 
   @Post('tax-rates')
-  @RequireCapability('workspace.manage')
+  @RequireCapability('finance.manage')
   createTaxRate(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -61,7 +61,7 @@ export class FinanceController {
   }
 
   @Put('tax-rates/:taxRateId')
-  @RequireCapability('workspace.manage')
+  @RequireCapability('finance.manage')
   updateTaxRate(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -72,7 +72,7 @@ export class FinanceController {
   }
 
   @Get('exchange-rates')
-  @RequireCapability('project.manage')
+  @RequireCapability('finance.view')
   async listExchangeRates(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -86,7 +86,7 @@ export class FinanceController {
   }
 
   @Post('exchange-rates')
-  @RequireCapability('workspace.manage')
+  @RequireCapability('finance.manage')
   createExchangeRate(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -96,7 +96,7 @@ export class FinanceController {
   }
 
   @Get('readiness')
-  @RequireCapability('project.manage')
+  @RequireCapability('finance.view')
   readiness(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

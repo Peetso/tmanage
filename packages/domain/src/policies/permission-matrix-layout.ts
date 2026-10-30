@@ -17,6 +17,8 @@ import { CAPABILITIES, type Capability } from './capabilities.js';
  * 3. Create and edit share one capability for docs, decisions and meetings; the edit cell is
  *    drawn merged ("= create") — see {@link MATRIX_MERGED_CELLS}.
  * 4. People · manage is `roles.assign`, which replaced the hard-coded owner/org-admin list.
+ * 5. Finance (52-23 §10) is not a SPEC §3.3 row; it was added with `finance.view` / `finance.manage`
+ *    so every capability keeps exactly one primary cell.
  */
 
 export const MATRIX_ACTIONS = [
@@ -43,6 +45,8 @@ export const MATRIX_AREAS = [
   'files',
   'people',
   'billing',
+  // 52-23 §10: Settings → Finance (profile, tax rates, exchange rates).
+  'finance',
   'settings',
   'workspaces',
   'ai',
@@ -137,6 +141,7 @@ export const MATRIX: Readonly<Record<MatrixArea, MatrixRow>> = Object.freeze({
     manage: 'roles.assign',
   }),
   billing: row({ view: 'billing.view', manage: 'billing.manage' }),
+  finance: row({ view: 'finance.view', manage: 'finance.manage' }),
   settings: row({ view: 'settings.view', edit: 'org.manage', manage: 'org.security.manage' }),
   workspaces: row({ manage: 'workspace.manage' }),
   ai: row({ view: 'ai.use', manage: 'ai.manage' }),

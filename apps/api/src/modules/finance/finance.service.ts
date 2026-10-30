@@ -30,13 +30,14 @@ import type { FinanceRepository } from './finance.repository.js';
  * 52-23 — Settings → Finance, member side: profile, tax rates, manual exchange rates, readiness.
  *
  * Authorized at organization scope on every call. Writes need {@link FINANCE_MANAGE}, reads
- * {@link FINANCE_VIEW}. Until 52-23 §5's `finance.manage` / `finance.view` keys are appended to
- * the capability list (registry-52-23.md, step 9), they map to existing keys with the same holders:
- * `workspace.manage` (Owner / Org Admin / Workspace Admin) and `project.manage` (who drafts quotes
- * and so needs the rates). The profile is internal and never part of a client projection.
+ * {@link FINANCE_VIEW}: the real `finance.manage` / `finance.view` keys (52-23 §10), held by
+ * exactly the roles that held their former stand-ins — `finance.manage` by Owner / Org Admin /
+ * Workspace Admin (was `workspace.manage`), `finance.view` by those and Manager, who drafts quotes
+ * and so needs the rates (was `project.manage`). Migration 0264 carried stored custom roles and
+ * member overrides across. Both are internal-only; the profile is never part of a client projection.
  */
-export const FINANCE_MANAGE: Capability = 'workspace.manage';
-export const FINANCE_VIEW: Capability = 'project.manage';
+export const FINANCE_MANAGE: Capability = 'finance.manage';
+export const FINANCE_VIEW: Capability = 'finance.view';
 
 const MAX_LIST = 200;
 
