@@ -60,7 +60,7 @@ const signal = (id: string, org: string | null, severity: 'high' | 'low'): Pendi
 });
 
 describe('security detector rules', () => {
-  it.each(DETECTOR_RULES.map((r) => r.key))(
+  it.each(DETECTOR_RULES.filter((r) => r.deferred === undefined).map((r) => r.key))(
     '%s fires at its threshold and is silent below',
     async (key) => {
       const fired = fakeStore(T);
@@ -73,13 +73,24 @@ describe('security detector rules', () => {
   );
 
   it('stores a hash, never the raw source IP, and never fires a disabled rule', async () => {
-    const off = () => Promise.resolve([setting('credential_stuffing', false)]);
+    const off = () => Promise.resolve([setting('rate_limit_saturation', false)]);
     const { store, upserts } = fakeStore(T, { rules: off });
     await runSecurityDetector(deps(store, []));
     expect(upserts).toHaveLength(0);
     const all = fakeStore(T);
     await runSecurityDetector(deps(all.store, []));
-    expect(JSON.stringify(all.upserts)).not.toContain('203.0.113.9');
+    expect(JSON.stringify(all.upserts)).not.toContain('sign_in:ip:m:x');
+  });
+
+  it('skips a deferred rule without an error even when its row is enabled', async () => {
+    const read = vi.fn(() => Promise.reject(new Error('SELECT command denied')));
+    const onRuleError = vi.fn();
+    const on = () => Promise.resolve([setting('credential_stuffing', true)]);
+    const { store, upserts } = fakeStore(T, { rules: on, failedSignInsBySource: read });
+    await runSecurityDetector({ ...deps(store, []), onRuleError });
+    expect(read).not.toHaveBeenCalled();
+    expect(onRuleError).not.toHaveBeenCalled();
+    expect(upserts).toHaveLength(0);
   });
 });
 

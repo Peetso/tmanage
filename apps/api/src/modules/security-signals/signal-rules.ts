@@ -28,13 +28,18 @@ const rule = (
 ): SignalRule => ({ key, severity, scope, label: { en, ar }, status: 'active' });
 
 export const SIGNAL_RULES: readonly SignalRule[] = Object.freeze([
-  rule(
-    'credential_stuffing',
-    'high',
-    'platform',
-    'Many failed sign-ins from one source',
-    'محاولات دخول فاشلة كثيرة من مصدر واحد',
-  ),
+  {
+    ...rule(
+      'credential_stuffing',
+      'high',
+      'platform',
+      'Many failed sign-ins from one source',
+      'محاولات دخول فاشلة كثيرة من مصدر واحد',
+    ),
+    status: 'deferred',
+    deferredReason:
+      'The worker has no read on the security log by design; this rule needs an API-side or narrow-view detector.',
+  },
   rule(
     'public_link_guessing',
     'medium',

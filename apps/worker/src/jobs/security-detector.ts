@@ -15,7 +15,9 @@ import type { Mailer } from '@tmanage/mail';
  * `subject_key` the subject id, the source hash or `-`. A second pass in the same window only
  * raises `count` and `last_seen`, so a storm is one row, not hundreds. Sources are read-only
  * here; a raw IP is hashed (SHA-256) before it is stored and never leaves this process.
- * Impossible travel is deferred (no GeoIP database is bundled) and has no evaluator.
+ * Impossible travel is deferred (no GeoIP database is bundled) and has no evaluator. Credential
+ * stuffing is deferred too (the worker has no read on `authentication_events`, by design): a
+ * deferred rule is never attempted, even when its row says enabled, so it logs nothing.
  *
  * ## Notify
  *
@@ -180,6 +182,8 @@ export function chainBroken(
 interface Rule {
   readonly key: string;
   readonly severity: SignalSeverity;
+  /** Set = the rule cannot run in this process; it is never attempted, even when enabled. */
+  readonly deferred?: string;
   detect(
     store: SecuritySignalStore,
     setting: RuleSetting,
@@ -206,6 +210,10 @@ export const DETECTOR_RULES: readonly Rule[] = [
   {
     key: 'credential_stuffing',
     severity: 'high',
+    // The worker keeps no read on `authentication_events` (least privilege, 56-23); 0266 turns
+    // the seeded row off. The evaluator stays for an API-side or narrow-view detector.
+    deferred:
+      'worker has no read on the security log by design; needs an API-side or narrow-view detector',
     detect: async (store, setting, now) =>
       (await store.failedSignInsBySource(since(now, setting), setting.count)).map((row) => ({
         organizationId: null,
@@ -344,7 +352,7 @@ export async function detectSignals(deps: DetectorDeps, now: Date): Promise<numb
   let detected = 0;
   for (const rule of DETECTOR_RULES) {
     const setting = settings.get(rule.key);
-    if (setting === undefined || !setting.enabled) continue;
+    if (rule.deferred !== undefined || setting === undefined || !setting.enabled) continue;
     let candidates: readonly SignalCandidate[];
     try {
       candidates = await rule.detect(deps.store, setting, now);
