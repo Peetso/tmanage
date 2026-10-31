@@ -388,6 +388,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     key: 'RouteTitle.orgMemberPermissions',
   },
   '/platform/activity': { en: 'Action log', key: 'RouteTitle.platformActivity' },
+  '/platform/content': { en: 'Content', key: 'RouteTitle.platformContent' },
   '/platform/activity/access': { en: 'Access log', key: 'RouteTitle.platformActivityAccess' },
   '/platform/activity/ease-scoreboard': { en: 'Ease scoreboard', key: 'EaseScoreboard.title' },
   '/platform/activity/exports': { en: 'Exports', key: 'RouteTitle.platformActivityExports' },

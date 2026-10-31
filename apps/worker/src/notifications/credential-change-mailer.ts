@@ -1,5 +1,6 @@
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import type { CredentialNoticeRecipient } from '../common/database/notice-store.js';
+import { renderSecurityNoticeHtml } from './security-notice-html.js';
 
 /**
  * `D05d`'s security-event receipt, as an email — the relay's third producer on the
@@ -97,18 +98,31 @@ export function composeCredentialChangeEmail(
   if (changed === undefined || subject === undefined) return null;
 
   const name = oneLine(facts.recipient.displayName);
+  const when = utcMinute(facts.occurredAt);
+  const why =
+    'You are receiving this because the change was made to the TManage account that uses ' +
+    'this address.';
+  const advice =
+    'If it was you, nothing further is needed. If it was not, your account may be ' +
+    'compromised, and you may no longer be able to sign in to put it right yourself: ask ' +
+    'whoever administers your TManage workspace to reset your password for you, as soon as ' +
+    'you can.';
   return {
     to: facts.recipient.email,
     subject,
-    text: [
-      `Hello ${name},`,
-      `${changed} This happened at ${utcMinute(facts.occurredAt)}.`,
-      `You are receiving this because the change was made to the TManage account that uses ` +
-        `this address. If it was you, nothing further is needed. If it was not, your account ` +
-        `may be compromised, and you may no longer be able to sign in to put it right ` +
-        `yourself: ask whoever administers your TManage workspace to reset your password for ` +
-        `you, as soon as you can.`,
-    ].join('\n\n'),
+    text: [`Hello ${name},`, `${changed} This happened at ${when}.`, `${why} ${advice}`].join(
+      '\n\n',
+    ),
+    html: renderSecurityNoticeHtml({
+      subject,
+      intro: `Hello ${name}. ${changed}`,
+      rows: [
+        { label: 'What changed', value: changed },
+        { label: 'When', value: when },
+      ],
+      note: advice,
+      footer: why,
+    }),
   };
 }
 

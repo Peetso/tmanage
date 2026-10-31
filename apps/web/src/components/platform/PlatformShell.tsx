@@ -36,8 +36,8 @@ const SECTIONS: readonly { id: PlatformSection; labelKey: MessageKey; href: stri
   { id: 'overview', labelKey: 'PlatformShell.overview', href: '/platform' },
   { id: 'organizations', labelKey: 'PlatformShell.organizations', href: '/platform/organizations' },
   { id: 'people', labelKey: 'PlatformShell.people', href: '/platform/people' },
-  // Content lives under an organization (B5); the entry opens the organizations list.
-  { id: 'content', labelKey: 'PlatformShell.content', href: '/platform/organizations' },
+  // Content lives under an organization (B5); the entry opens a picker of organizations.
+  { id: 'content', labelKey: 'PlatformShell.content', href: '/platform/content' },
   { id: 'activity', labelKey: 'PlatformShell.activity', href: '/platform/activity' },
   { id: 'settings', labelKey: 'PlatformShell.settings', href: '/platform/settings' },
   { id: 'team', labelKey: 'PlatformShell.team', href: '/platform/team' },

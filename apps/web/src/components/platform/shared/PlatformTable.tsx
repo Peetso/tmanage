@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Button, Checkbox } from '@tmanage/ui';
+import { Button, Checkbox, VisuallyHidden } from '@tmanage/ui';
 import { useT } from '../../../lib/i18n/use-t';
 
 export interface PlatformColumn<Row> {
@@ -97,7 +97,7 @@ export function PlatformTable<Row>({
               {selecting ? (
                 <th scope="col">
                   <Checkbox
-                    label={t('PlatformShared.selectAll')}
+                    label={<VisuallyHidden>{t('PlatformShared.selectAll')}</VisuallyHidden>}
                     checked={allSelected}
                     indeterminate={selected.size > 0 && !allSelected}
                     onChange={(event) =>
@@ -131,7 +131,7 @@ export function PlatformTable<Row>({
                     <td>
                       {canSelect ? (
                         <Checkbox
-                          label={t('PlatformShared.selectRow')}
+                          label={<VisuallyHidden>{t('PlatformShared.selectRow')}</VisuallyHidden>}
                           checked={selected.has(key)}
                           onChange={(event) => toggle(key, event.target.checked)}
                         />
