@@ -34,6 +34,8 @@ export interface PlatformPeopleRowView {
   readonly disabledReason: string | null;
   readonly disabledByEmail: string | null;
   readonly liveSessions: number;
+  /** Newest session refresh; within a few minutes means the person is using TManage now. */
+  readonly lastActiveAt: string | null;
   readonly companies: readonly PlatformPeopleOrgChipView[];
 }
 
@@ -91,6 +93,8 @@ export interface PlatformPersonDetailView {
   readonly disabledByEmail: string | null;
   readonly twoStepRequired: boolean;
   readonly liveSessions: number;
+  /** Newest session refresh; within a few minutes means the person is using TManage now. */
+  readonly lastActiveAt: string | null;
   readonly facts: PlatformPersonFactsView;
   readonly companies: readonly PlatformPeopleOrgChipView[];
   readonly recentActions: readonly PlatformPersonActionView[];

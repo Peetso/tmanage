@@ -8,6 +8,7 @@ import {
   localeFromCookieHeader,
 } from './locale-cookie';
 import { ARABIC_PREFIX, ARABIC_ROUTE_LOCALE, isArabicPublicPath } from './public-locale-routes';
+import { THEME_STORAGE_KEY } from '../theme';
 
 /**
  * i18n (NFR-02, I18N-01) — the locale a tab boots in, decided before the first paint.
@@ -149,9 +150,14 @@ export function localeBootScript(): string {
     t: bootTitleTable(),
     p: ARABIC_PREFIX,
     pl: ARABIC_ROUTE_LOCALE,
+    th: THEME_STORAGE_KEY,
   }).replace(/</g, '\\u003c');
   return (
     '(function(c){try{' +
+    // PREF-02: the cached theme (`lib/theme.ts`) before first paint, so dark mode never flashes.
+    'try{var th=window.localStorage.getItem(c.th);if(th==="system")th=window.matchMedia&&' +
+    'window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";' +
+    'if(th==="dark"||th==="light")document.documentElement.setAttribute("data-theme",th);}catch(e){}' +
     'var h=document.documentElement,l=null,q=null,s=null,k=null,w=false;' +
     'function ok(v){return typeof v==="string"&&c.a.indexOf(v)>-1;}' +
     'try{var p=document.cookie.split(";");for(var i=0;i<p.length;i++){var e=p[i].indexOf("=");' +

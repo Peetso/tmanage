@@ -51,9 +51,11 @@ export interface ScoreboardTimerRow {
 }
 
 const WEEK = `date_format(occurred_at, '%x-W%v')`;
+// `organization_count`, not `organizations`: the tenant guard reads a bare `organizations`
+// token as the tenant table and refuses the statement (live 500, 2026-10-31).
 const COUNTS_SQL = `select ${WEEK} as week, event_name, locale, principal_kind,
     count(*) as events, count(distinct actor_hash) as actors,
-    count(distinct organization_id) as organizations
+    count(distinct organization_id) as organization_count
   from product_events
   where occurred_at >= ?
   group by week, event_name, locale, principal_kind
@@ -129,7 +131,7 @@ export class ProductEventsRepository {
             principalKind: String(row['principal_kind']),
             events: Number(row['events']),
             actors: Number(row['actors']),
-            organizations: Number(row['organizations']),
+            organizations: Number(row['organization_count']),
           })),
           timers: timers.map((row) => ({
             week: String(row['week']),

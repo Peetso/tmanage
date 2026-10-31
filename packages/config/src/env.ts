@@ -305,11 +305,11 @@ export const envSchema = z
     STORAGE_LOCAL_SIGNING_SECRET: secret('STORAGE_LOCAL_SIGNING_SECRET').optional(),
     /**
      * FILE-001. The pooled storage quota one organization may reserve against, in bytes.
-     * 50-BOOTSTRAP §5's private-alpha value (500 MB) is the default; `49-PRICING` §3's plan
+     * 1 GB by owner decision 2026-10-31 (was 50-BOOTSTRAP §5's private-alpha 500 MB); `49-PRICING` §3's plan
      * entitlements replace this variable when `organization_entitlements` exists (ENT-001).
      * One seam reads it: `storageLimitsFor` in the API's files module.
      */
-    STORAGE_ORG_BYTES_LIMIT_BYTES: positiveInt.default(524_288_000),
+    STORAGE_ORG_BYTES_LIMIT_BYTES: positiveInt.default(1_073_741_824),
     /**
      * FILE-003. How long a rejected / quarantined object's bytes are kept before the
      * retention-lifecycle job deletes the provider bytes and gives the counted bytes back —

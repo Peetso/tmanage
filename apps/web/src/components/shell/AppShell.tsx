@@ -27,6 +27,7 @@ import { SupportSessionEndedGate } from '../platform/support/SupportSessionEnded
 import { AccountMenu } from './AccountMenu';
 import { AiPanelLauncher } from '../ai-panel/AiPanelLauncher';
 import { BetaTag } from './BetaTag';
+import { ThemeSync } from './ThemeSync';
 
 export interface AppShellProps {
   /**
@@ -225,6 +226,8 @@ export function AppShell({
         {/* Platform states (SYS-04): the maintenance / degraded-mode banner across the whole
             window. Renders nothing unless a window is active. */}
         <MaintenanceBanner />
+        {/* PREF-02: the member's saved light / dark / system theme on <html data-theme>. */}
+        {queryClient ? <ThemeSync organizationSlug={organizationSlug} /> : null}
         {/* SR-01 command surface: keyboard-driven (Ctrl/Cmd-K) navigation and quick actions. */}
         <CommandPalette organizationSlug={organizationSlug} />
         {/* Desktop companion: mirrors new inbox notices as local notifications once opted in. */}

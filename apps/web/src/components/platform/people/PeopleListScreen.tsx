@@ -25,6 +25,7 @@ import { PlatformTable } from '../shared/PlatformTable';
 import { ReasonDialog } from '../shared/ReasonDialog';
 import { missingPlatformPermission } from '../shared/usePlatformPermissions';
 import { relativeMoment } from '../team/PlatformTeamScreen';
+import { isOnlineNow } from './presence';
 import { BUILT_IN_ROLES, CLIENT_ROLES, daysAgoIso, shortDay } from './people-format';
 import { roleName } from './PersonFrame';
 
@@ -368,7 +369,15 @@ function PeopleBody({
             header: t('PlatformPeople.colStatus'),
             cell: (row) =>
               row.status === 'active' ? (
-                <span className="tm-cc-pill">✓ {t('PlatformPeople.statusActive')}</span>
+                isOnlineNow(row.lastActiveAt) ? (
+                  <StatusDot tone="success">{t('PlatformPeople.onlineNow')}</StatusDot>
+                ) : (
+                  <StatusDot tone="neutral">
+                    {row.lastActiveAt
+                      ? `${t('PlatformPeople.lastSeen')} ${relativeMoment(row.lastActiveAt, locale)}`
+                      : t('PlatformPeople.offline')}
+                  </StatusDot>
+                )
               ) : (
                 <Tooltip content={disabledTooltip(t, row, locale)}>
                   <button type="button" className="tm-cc-pill tm-cc-pill--muted">

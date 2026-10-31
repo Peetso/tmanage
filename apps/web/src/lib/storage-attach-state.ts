@@ -13,6 +13,12 @@ import type { OneDriveStatusView } from './api/onedrive';
  * - `connect`: no storage yet, and this person may choose it (Connect storage).
  * - `ask`: no storage yet, and only an owner or admin may choose it (Ask your admin).
  */
+/**
+ * Owner decision 2026-10-31: TManage storage (1 GB per company) is offered again and is the
+ * default, so no company is ever without storage and the first-time choice is not forced.
+ */
+export const TMANAGE_STORAGE_OFFERED = true;
+
 export type AttachStorageState = 'unknown' | 'ready' | 'connect' | 'ask';
 
 export function attachStorageState(
@@ -20,6 +26,8 @@ export function attachStorageState(
   canManage: boolean,
 ): AttachStorageState {
   if (storage === undefined) return 'unknown';
+  // 2026-10-31: TManage storage is a real choice again, so every mode can take attachments.
+  if (TMANAGE_STORAGE_OFFERED) return 'ready';
   if (storage.storageMode === 'google_drive' || storage.storageMode === 'onedrive') return 'ready';
   return canManage ? 'connect' : 'ask';
 }
@@ -33,6 +41,7 @@ export function isFirstTimeStorage(
   storage: StorageStatusView | undefined,
   oneDrive: OneDriveStatusView | undefined,
 ): boolean {
+  if (TMANAGE_STORAGE_OFFERED) return false;
   if (storage === undefined || oneDrive === undefined) return false;
   if (storage.storageMode === 'google_drive' || storage.storageMode === 'onedrive') return false;
   return (

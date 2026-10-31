@@ -14,6 +14,7 @@ import {
   getDisplayPreferences,
   updateDisplayPreferences,
 } from '../../lib/api/display-preferences';
+import { applyTheme } from '../../lib/theme';
 import type {
   DisplayDateFormat,
   DisplayDensity,
@@ -122,6 +123,7 @@ export function DisplayPreferencesView({
       // direction and re-binds the formatters, so Arabic reads right-to-left immediately without a
       // reload rather than only taking effect on the marketing site.
       activeLocale.set(result.locale);
+      applyTheme(result.theme);
       setSaved(true);
     },
   });

@@ -312,7 +312,7 @@ describe('loadEnv', () => {
     });
 
     it("defaults the organization storage quota to 50-BOOTSTRAP §5's 500 MB", () => {
-      expect(loadEnv(devEnv()).STORAGE_ORG_BYTES_LIMIT_BYTES).toBe(524_288_000);
+      expect(loadEnv(devEnv()).STORAGE_ORG_BYTES_LIMIT_BYTES).toBe(1_073_741_824);
       expect(
         issuePaths(() => loadEnv({ ...devEnv(), STORAGE_ORG_BYTES_LIMIT_BYTES: '0' })),
       ).toContain('STORAGE_ORG_BYTES_LIMIT_BYTES');

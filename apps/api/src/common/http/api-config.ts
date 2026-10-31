@@ -272,7 +272,7 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
     clientMembershipDefaultExpiryDays: env.CLIENT_MEMBERSHIP_DEFAULT_EXPIRY_DAYS,
     realtimeTicketTtlSeconds: env.REALTIME_TICKET_TTL_SECONDS ?? 60,
     realtimeSocketUrl: env.REALTIME_PUBLIC_URL ?? null,
-    storageOrgBytesLimit: env.STORAGE_ORG_BYTES_LIMIT_BYTES ?? 524_288_000,
+    storageOrgBytesLimit: env.STORAGE_ORG_BYTES_LIMIT_BYTES ?? 1_073_741_824,
     uploadMaxBytes: env.UPLOAD_MAX_BYTES ?? 104_857_600,
     uploadUrlTtlSeconds: env.STORAGE_UPLOAD_URL_TTL_SECONDS ?? 900,
     fileRetentionRejectedDays: env.FILE_RETENTION_REJECTED_DAYS ?? 30,

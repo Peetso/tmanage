@@ -107,6 +107,8 @@ export interface PersonRow {
   readonly lastSignInUserAgent: string | null;
   readonly mfaEnabled: boolean;
   readonly liveSessions: number;
+  /** The newest refresh among live sessions — a refresh lands every few minutes while in use. */
+  readonly lastActiveAt: Date | null;
   readonly disabledAt: Date | null;
   readonly disabledReason: string | null;
   readonly disabledByEmail: string | null;
@@ -218,6 +220,8 @@ const PERSON_COLUMNS = `u.id as id, u.email as email, u.display_name as display_
      where f.user_id = u.id and f.confirmed_at is not null and f.disabled_at is null) as factors,
   (select count(*) from sessions se
      where se.user_id = u.id and se.revoked_at is null and se.expires_at > now(3)) as live_sessions,
+  (select max(coalesce(se.rotated_at, se.created_at)) from sessions se
+     where se.user_id = u.id and se.revoked_at is null and se.expires_at > now(3)) as last_active,
   (select pa.actor_email from platform_admin_audit_events pa
      where pa.target_type = 'user' and pa.target_id = u.id and pa.action = 'platform.user_disabled'
      order by pa.created_at desc limit 1) as disabled_by_email`;
@@ -410,6 +414,7 @@ function toPerson(row: Row): PersonRow {
     lastSignInUserAgent: text(row['last_sign_in_user_agent']),
     mfaEnabled: num(row['factors']) > 0,
     liveSessions: num(row['live_sessions']),
+    lastActiveAt: date(row['last_active']),
     disabledAt: date(row['disabled_at']),
     disabledReason: text(row['disabled_reason']),
     disabledByEmail: text(row['disabled_by_email']),

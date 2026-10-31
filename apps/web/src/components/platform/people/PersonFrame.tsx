@@ -15,6 +15,7 @@ import {
 } from '../../../lib/api/platform-people';
 import type { PlatformPersonDetailView } from '../../../lib/api/platform-people';
 import type { MessageKey } from '../../../lib/i18n/t';
+import { isOnlineNow } from './presence';
 import { useActiveLocale } from '../../../lib/i18n/use-active-locale';
 import { useT } from '../../../lib/i18n/use-t';
 import { PlatformGate } from '../shared/platform-kit';
@@ -169,7 +170,11 @@ function PersonBody({
               {disabled ? (
                 <StatusDot tone="danger">{t('PlatformPeople.statusDisabled')}</StatusDot>
               ) : (
-                <StatusDot tone="success">{t('PlatformPeople.statusActive')}</StatusDot>
+                <StatusDot tone={isOnlineNow(person.lastActiveAt) ? 'success' : 'neutral'}>
+                  {isOnlineNow(person.lastActiveAt)
+                    ? t('PlatformPeople.onlineNow')
+                    : t('PlatformPeople.offline')}
+                </StatusDot>
               )}
               <span className="tm-cc-pill tm-cc-cell-mono">
                 {person.companies.length} {t('PlatformPeople.organizationsWord')}

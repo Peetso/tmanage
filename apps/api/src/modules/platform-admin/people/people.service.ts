@@ -58,6 +58,7 @@ export interface PlatformPeopleRowView {
   readonly disabledReason: string | null;
   readonly disabledByEmail: string | null;
   readonly liveSessions: number;
+  readonly lastActiveAt: string | null;
   readonly companies: readonly PlatformPeopleOrgChipView[];
 }
 
@@ -115,6 +116,7 @@ export interface PlatformPersonDetailView {
   readonly disabledByEmail: string | null;
   readonly twoStepRequired: boolean;
   readonly liveSessions: number;
+  readonly lastActiveAt: string | null;
   readonly facts: PlatformPersonFactsView;
   readonly companies: readonly PlatformPeopleOrgChipView[];
   readonly recentActions: readonly PlatformPersonActionView[];
@@ -778,6 +780,7 @@ export class PlatformPeopleService {
       disabledReason: person.disabledReason,
       disabledByEmail: person.disabledByEmail,
       liveSessions: person.liveSessions,
+      lastActiveAt: iso(person.lastActiveAt),
     };
   }
 
@@ -830,6 +833,7 @@ export class PlatformPeopleService {
       disabledByEmail: row.disabledByEmail,
       twoStepRequired: person.twoStepRequiredAt !== null,
       liveSessions: person.liveSessions,
+      lastActiveAt: iso(person.lastActiveAt),
       facts: {
         createdAt: person.createdAt.toISOString(),
         emailVerifiedAt: iso(person.emailVerifiedAt),

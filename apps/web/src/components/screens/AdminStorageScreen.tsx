@@ -45,11 +45,11 @@ import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/storage.css';
 
 /**
- * Owner decision 2026-10-26: company storage is Google Drive or OneDrive only, so the TManage
- * storage choice is not offered. The API still supports it; flip this to bring the card back.
+ * Owner decision 2026-10-31 (reverses 2026-10-26): TManage storage (1 GB per company) is
+ * offered again next to Google Drive and OneDrive, and is the default until one is chosen.
  * Avatars, logos and system exports keep using TManage storage whatever is chosen here.
  */
-export const SHOW_TMANAGE_STORAGE = false;
+export const SHOW_TMANAGE_STORAGE = true;
 
 export interface AdminStorageScreenProps {
   organizationSlug: string;

@@ -9,7 +9,7 @@ import { attachStorageState, isFirstTimeStorage } from '../src/lib/storage-attac
 import { NoStorageAttach } from '../src/components/storage/NoStorageAttach';
 
 /**
- * Owner decision 2026-10-26: files live in Google Drive or OneDrive only. Control › Storage opens
+ * Owner decision 2026-10-26 (TManage storage restored 2026-10-31): Control › Storage opens
  * on the first-time choice (Figma 419:23593 / 419:23699) and, with no storage chosen, the attach
  * area shows Connect storage to an owner (419:23811) and Ask your admin to anyone else (419:23844).
  */
@@ -30,28 +30,20 @@ describe('storage states', () => {
     expect(attachStorageState(drive('onedrive', 'not_connected'), false)).toBe('ready');
   });
 
-  it('offers an owner or admin Connect storage when no storage is chosen', () => {
-    expect(attachStorageState(drive('tmanage', 'not_connected'), true)).toBe('connect');
+  // Owner decision 2026-10-31: TManage storage (1 GB) is offered again and is the default, so a
+  // company on TManage storage can attach, and Control › Storage never forces the first-time choice.
+  it('allows attaching on TManage storage, for owners and members alike', () => {
+    expect(attachStorageState(drive('tmanage', 'not_connected'), true)).toBe('ready');
+    expect(attachStorageState(drive('tmanage', 'connected'), false)).toBe('ready');
   });
 
-  it('offers everyone else Ask your admin when no storage is chosen', () => {
-    expect(attachStorageState(drive('tmanage', 'connected'), false)).toBe('ask');
-  });
-
-  it('opens Control › Storage on the first-time choice only before any connection', () => {
+  it('never opens Control › Storage on the forced first-time choice', () => {
     expect(
       isFirstTimeStorage(drive('tmanage', 'not_connected'), oneDrive('tmanage', 'not_connected')),
-    ).toBe(true);
-    expect(
-      isFirstTimeStorage(drive('tmanage', 'error'), oneDrive('tmanage', 'not_connected')),
-    ).toBe(false);
-    expect(
-      isFirstTimeStorage(drive('tmanage', 'not_connected'), oneDrive('tmanage', 'connected')),
     ).toBe(false);
     expect(
       isFirstTimeStorage(drive('onedrive', 'not_connected'), oneDrive('onedrive', 'connected')),
     ).toBe(false);
-    expect(isFirstTimeStorage(drive('tmanage', 'not_connected'), undefined)).toBe(false);
   });
 });
 
