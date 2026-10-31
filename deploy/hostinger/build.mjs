@@ -706,6 +706,8 @@ export const SERVER_FILES = Object.freeze([
   'migration-shutdown.mjs',
   // server.mjs imports the CSP violation report receiver (56-01) from here; missing it, boot fails.
   'csp-report.mjs',
+  // server.mjs imports the security.txt handler (56-17) from here; missing it, boot fails.
+  'security-txt.mjs',
 ]);
 
 function assemble() {
