@@ -22,6 +22,7 @@ import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/admin.css';
 import './control-center.css';
+import { ThemeSync } from '../shell/ThemeSync';
 
 /** The Control Center destinations a screen can say it is. */
 export type ControlCenterSection =
@@ -459,6 +460,8 @@ export function ControlCenterShell({
         <SkipLink targetId="tm-main">{t('Shell.skipLink')}</SkipLink>
         <MaintenanceBanner />
         {queryClient ? <CommandPalette organizationSlug={organizationSlug} /> : null}
+        {/* PREF-02: the member's saved theme here too (the app shell has its own). */}
+        {queryClient ? <ThemeSync organizationSlug={organizationSlug} /> : null}
 
         <header className="tm-cc-topbar">
           <Link href={`/${organizationSlug}/home`} className="tm-cc-topbar__brand">
