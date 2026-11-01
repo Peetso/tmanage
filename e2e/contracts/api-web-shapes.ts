@@ -361,6 +361,12 @@ import type {
   PreviewDerivativeView as ApiPreviewDerivativeView,
   PreviewFileView as ApiPreviewFileView,
   PreviewMediaView as ApiPreviewMediaView,
+  PreviewOfficeSheetView as ApiPreviewOfficeSheetView,
+  PreviewOfficeView as ApiPreviewOfficeView,
+  PreviewPsdLayerView as ApiPreviewPsdLayerView,
+  PreviewPsdView as ApiPreviewPsdView,
+  PreviewZipEntryView as ApiPreviewZipEntryView,
+  PreviewZipView as ApiPreviewZipView,
   PreviewRetryView as ApiPreviewRetryView,
   PreviewVersionInfoView as ApiPreviewVersionInfoView,
 } from '../../apps/api/src/modules/files/file-preview.service.js';
@@ -888,6 +894,12 @@ import type {
   PreviewDerivative as WebPreviewDerivative,
   PreviewFile as WebPreviewFile,
   PreviewMedia as WebPreviewMedia,
+  PreviewOffice as WebPreviewOffice,
+  PreviewOfficeSheet as WebPreviewOfficeSheet,
+  PreviewPsd as WebPreviewPsd,
+  PreviewPsdLayer as WebPreviewPsdLayer,
+  PreviewZip as WebPreviewZip,
+  PreviewZipEntry as WebPreviewZipEntry,
   PreviewRetryResult as WebPreviewRetryResult,
   PreviewVersionInfo as WebPreviewVersionInfo,
 } from '../../apps/web/src/lib/api/file-preview';
@@ -2042,6 +2054,13 @@ type _previewDecisionContext = Assert<
 >;
 // R4 slice 9 — video / audio facts in the manifest.
 type _previewMedia = Assert<Exact<ApiPreviewMediaView, WebPreviewMedia>>;
+// R4 slice 10 — PSD layers, ZIP list, Office facts.
+type _previewPsdLayer = Assert<Exact<ApiPreviewPsdLayerView, WebPreviewPsdLayer>>;
+type _previewPsd = Assert<Exact<ApiPreviewPsdView, WebPreviewPsd>>;
+type _previewZipEntry = Assert<Exact<ApiPreviewZipEntryView, WebPreviewZipEntry>>;
+type _previewZip = Assert<Exact<ApiPreviewZipView, WebPreviewZip>>;
+type _previewOfficeSheet = Assert<Exact<ApiPreviewOfficeSheetView, WebPreviewOfficeSheet>>;
+type _previewOffice = Assert<Exact<ApiPreviewOfficeView, WebPreviewOffice>>;
 type _filePreviewManifest = Assert<Exact<ApiFilePreviewManifestView, WebFilePreviewManifest>>;
 // R4 slice 5 — proofing threads.
 type _reviewPerson = Assert<Exact<ApiReviewPersonView, WebReviewPerson>>;

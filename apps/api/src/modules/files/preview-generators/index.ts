@@ -1,8 +1,12 @@
+import { epsGenerator } from './eps.js';
 import { heicGenerator } from './heic.js';
 import { imageGenerator } from './image.js';
 import { mediaMetaGenerator } from './media-meta.js';
+import { officeMetaGenerator } from './office-meta.js';
+import { psdGenerator } from './psd.js';
 import { svgGenerator } from './svg.js';
 import { tiffGenerator } from './tiff.js';
+import { zipGenerator } from './zip.js';
 import type { PendingPreviewSpec } from '../file-previews.repository.js';
 import type { PreviewGenerator } from './types.js';
 
@@ -11,6 +15,8 @@ import type { PreviewGenerator } from './types.js';
  * newly ready version of that type starts with. Slices 9 and 10 add media, PSD, ZIP, EPS and
  * Office generators here; a type with no generator gets no rows and the viewer shows the
  * original (or "download to view"). Video and audio (slice 9) get one facts-only `media_meta` row.
+ * Slice 10: PSD (`preview`, `thumb`, `psd_layers`), ZIP (`zip_manifest`), EPS (`preview` + `thumb`
+ * from an embedded TIFF, else unsupported) and Word / PowerPoint / Excel (`office_meta`).
  */
 
 export const PREVIEW_GENERATORS: readonly PreviewGenerator[] = [
@@ -19,6 +25,10 @@ export const PREVIEW_GENERATORS: readonly PreviewGenerator[] = [
   heicGenerator,
   tiffGenerator,
   mediaMetaGenerator,
+  psdGenerator,
+  epsGenerator,
+  zipGenerator,
+  officeMetaGenerator,
 ];
 
 export function generatorFor(

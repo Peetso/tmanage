@@ -39,6 +39,7 @@
     "@tmanage/mail": "workspace:*",
     "@tmanage/mcp-server": "workspace:*",
     "@tmanage/storage": "workspace:*",
+    "ag-psd": "31.0.3",
     "dompurify": "^3.4.17",
     "drizzle-orm": "^0.45.2",
     "image-size": "^2.0.4",

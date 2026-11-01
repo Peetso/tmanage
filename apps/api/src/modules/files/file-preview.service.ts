@@ -158,6 +158,68 @@ export interface PreviewMediaView {
   readonly codecNotice: 'video_codec' | 'audio_codec' | null;
 }
 
+/** R4 slice 10 — one Photoshop layer, top first; `children` is empty unless `kind` is `group`. */
+export interface PreviewPsdLayerView {
+  readonly name: string;
+  readonly kind: 'group' | 'pixel' | 'text' | 'smart_object' | 'adjustment';
+  readonly visible: boolean;
+  /** 0 … 100. */
+  readonly opacity: number;
+  readonly blendMode: string;
+  readonly children: readonly PreviewPsdLayerView[];
+}
+
+/**
+ * R4 slice 10 — the PSD's layer list (read-only) and whether its preview is the composite
+ * Photoshop saved (`approximate: false`) or a stack of the visible layers (`approximate: true`).
+ */
+export interface PreviewPsdView {
+  readonly width: number | null;
+  readonly height: number | null;
+  readonly layerCount: number;
+  readonly groupCount: number;
+  readonly approximate: boolean;
+  readonly layers: readonly PreviewPsdLayerView[];
+}
+
+/** R4 slice 10 — one line of a ZIP's table of contents (files and the folders they imply). */
+export interface PreviewZipEntryView {
+  readonly path: string;
+  readonly folder: boolean;
+  readonly sizeBytes: number;
+  /** As the zipping tool wrote it, local time without a zone. */
+  readonly modifiedAt: string | null;
+}
+
+/** R4 slice 10 — what is inside a ZIP. Nothing is extracted or served. */
+export interface PreviewZipView {
+  readonly fileCount: number;
+  readonly folderCount: number;
+  readonly totalBytes: number;
+  readonly compressedBytes: number;
+  readonly encrypted: boolean;
+  readonly entries: readonly PreviewZipEntryView[];
+}
+
+/** R4 slice 10 — one Excel sheet, in workbook order. */
+export interface PreviewOfficeSheetView {
+  readonly name: string;
+  readonly hidden: boolean;
+}
+
+/**
+ * R4 slice 10 — Word / PowerPoint / Excel facts read from the file. PowerPoint: slide size in EMU
+ * (pins are stored relative to it) and the slide count; Word: page size in twips and the page
+ * count Word saved; Excel: the sheet names in order.
+ */
+export interface PreviewOfficeView {
+  readonly format: 'docx' | 'pptx' | 'xlsx';
+  readonly pages: number | null;
+  readonly pageWidth: number | null;
+  readonly pageHeight: number | null;
+  readonly sheets: readonly PreviewOfficeSheetView[];
+}
+
 export interface FilePreviewManifestView {
   readonly file: PreviewFileView;
   readonly version: PreviewVersionInfoView | null;
@@ -177,6 +239,14 @@ export interface FilePreviewManifestView {
   readonly approximate: boolean;
   /** The sanitised SVG dropped outside references (linked images, remote styles). */
   readonly linkedImagesRemoved: boolean;
+  /** The preview is the small picture saved inside the file (an EPS), not the artwork itself. */
+  readonly embeddedPreview: boolean;
+  /** Photoshop layers; `null` before the job read them, and for other kinds. */
+  readonly psd: PreviewPsdView | null;
+  /** A ZIP's contents; `null` before the job read them, and for other kinds. */
+  readonly zip: PreviewZipView | null;
+  /** Office facts; `null` before the job read them, and for other kinds. */
+  readonly office: PreviewOfficeView | null;
   readonly versions: PreviewChainView;
   readonly decisionContext: PreviewDecisionContextView;
   readonly capabilities: PreviewCapabilitiesView;
@@ -226,6 +296,9 @@ function rendersOriginal(kind: ViewerKind, mimeType: string | null): boolean {
     kind === 'video' ||
     kind === 'audio' ||
     kind === 'text' ||
+    kind === 'office_docx' ||
+    kind === 'office_pptx' ||
+    kind === 'office_xlsx' ||
     mimeType === 'image/gif'
   );
 }
@@ -248,7 +321,9 @@ export function manifestStatusFor(input: {
   if (!input.planned) return 'unsupported';
   if (input.rows.length === 0) return 'pending';
   const shown = input.rows.some(
-    (row) => row.status === 'ready' && (row.kind === 'preview' || row.kind === 'svg_safe'),
+    (row) =>
+      row.status === 'ready' &&
+      (row.kind === 'preview' || row.kind === 'svg_safe' || row.kind === 'zip_manifest'),
   );
   if (shown) return 'ready';
   if (input.rows.some((row) => row.status === 'pending')) return 'pending';
@@ -361,6 +436,10 @@ export class FilePreviewService {
       media: servable ? mediaViewFrom(rows) : null,
       approximate: booleanMeta(rows, 'approximate'),
       linkedImagesRemoved: booleanMeta(rows, 'linkedImagesRemoved'),
+      embeddedPreview: servable && booleanMeta(rows, 'embeddedPreview'),
+      psd: servable ? psdViewFrom(rows) : null,
+      zip: servable ? zipViewFrom(rows) : null,
+      office: servable ? officeViewFrom(rows) : null,
       versions: chain,
       decisionContext,
       capabilities: this.capabilitiesFor(principal, resolved, rows),
@@ -687,4 +766,120 @@ export function mediaViewFrom(rows: readonly FilePreview[]): PreviewMediaView | 
 
 function booleanMeta(rows: readonly FilePreview[], key: string): boolean {
   return rows.some((row) => row.status === 'ready' && row.meta?.[key] === true);
+}
+
+function readyMeta(
+  rows: readonly FilePreview[],
+  kind: PreviewKind,
+): Readonly<Record<string, unknown>> | null {
+  const row = rows.find((candidate) => candidate.kind === kind && candidate.status === 'ready');
+  return row?.meta ?? null;
+}
+
+function count(meta: Readonly<Record<string, unknown>>, key: string): number {
+  const value = meta[key];
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
+const PSD_LAYER_KINDS: ReadonlySet<string> = new Set([
+  'group',
+  'pixel',
+  'text',
+  'smart_object',
+  'adjustment',
+]);
+
+function psdLayersFrom(raw: unknown, depth: number): PreviewPsdLayerView[] {
+  if (!Array.isArray(raw) || depth > 12) return [];
+  const layers: PreviewPsdLayerView[] = [];
+  for (const item of raw as unknown[]) {
+    if (typeof item !== 'object' || item === null) continue;
+    const layer = item as Record<string, unknown>;
+    const kind = typeof layer['kind'] === 'string' ? layer['kind'] : '';
+    if (!PSD_LAYER_KINDS.has(kind)) continue;
+    const opacity = finiteMeta(layer, 'opacity');
+    const name = layer['name'];
+    layers.push({
+      name: typeof name === 'string' ? name.slice(0, 200) : '',
+      kind: kind as PreviewPsdLayerView['kind'],
+      visible: layer['visible'] !== false,
+      opacity: opacity === null ? 100 : Math.round(Math.min(100, Math.max(0, opacity))),
+      blendMode: stringMeta(layer, 'blendMode') ?? 'normal',
+      children: kind === 'group' ? psdLayersFrom(layer['children'], depth + 1) : [],
+    });
+  }
+  return layers;
+}
+
+/** The ready `psd_layers` row as the manifest's `psd` block (`null` until the job has run). */
+export function psdViewFrom(rows: readonly FilePreview[]): PreviewPsdView | null {
+  const row = rows.find(
+    (candidate) => candidate.kind === 'psd_layers' && candidate.status === 'ready',
+  );
+  if (!row?.meta) return null;
+  return {
+    width: row.width,
+    height: row.height,
+    layerCount: count(row.meta, 'layerCount'),
+    groupCount: count(row.meta, 'groupCount'),
+    approximate: row.meta['approximate'] === true,
+    layers: psdLayersFrom(row.meta['layers'], 0),
+  };
+}
+
+/** The ready `zip_manifest` row as the manifest's `zip` block (`null` until the job has run). */
+export function zipViewFrom(rows: readonly FilePreview[]): PreviewZipView | null {
+  const meta = readyMeta(rows, 'zip_manifest');
+  if (!meta) return null;
+  const raw = Array.isArray(meta['entries']) ? (meta['entries'] as unknown[]) : [];
+  const entries: PreviewZipEntryView[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const entry = item as Record<string, unknown>;
+    const path = entry['path'];
+    if (typeof path !== 'string' || path === '') continue;
+    const modified = entry['modifiedAt'];
+    entries.push({
+      path: path.slice(0, 500),
+      folder: entry['folder'] === true,
+      sizeBytes: count(entry, 'sizeBytes'),
+      modifiedAt: typeof modified === 'string' ? modified.slice(0, 19) : null,
+    });
+  }
+  return {
+    fileCount: count(meta, 'fileCount'),
+    folderCount: count(meta, 'folderCount'),
+    totalBytes: count(meta, 'totalBytes'),
+    compressedBytes: count(meta, 'compressedBytes'),
+    encrypted: meta['encrypted'] === true,
+    entries,
+  };
+}
+
+/** The ready `office_meta` row as the manifest's `office` block (`null` until the job has run). */
+export function officeViewFrom(rows: readonly FilePreview[]): PreviewOfficeView | null {
+  const meta = readyMeta(rows, 'office_meta');
+  if (!meta) return null;
+  const format = meta['format'];
+  if (format !== 'docx' && format !== 'pptx' && format !== 'xlsx') return null;
+  const positiveOrNull = (key: string): number | null => {
+    const value = finiteMeta(meta, key);
+    return value !== null && value > 0 ? Math.round(value) : null;
+  };
+  const rawSheets = Array.isArray(meta['sheets']) ? (meta['sheets'] as unknown[]) : [];
+  const sheets = rawSheets.flatMap((item): PreviewOfficeSheetView[] => {
+    if (typeof item !== 'object' || item === null) return [];
+    const sheet = item as Record<string, unknown>;
+    const name = sheet['name'];
+    return typeof name === 'string' && name !== ''
+      ? [{ name: name.slice(0, 100), hidden: sheet['hidden'] === true }]
+      : [];
+  });
+  return {
+    format,
+    pages: positiveOrNull('pages'),
+    pageWidth: positiveOrNull('pageWidth'),
+    pageHeight: positiveOrNull('pageHeight'),
+    sheets,
+  };
 }

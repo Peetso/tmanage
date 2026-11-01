@@ -105,6 +105,65 @@ export interface PreviewMedia {
   readonly codecNotice: CodecNotice | null;
 }
 
+/** R4 slice 10 — one Photoshop layer, top first; `children` is empty unless `kind` is `group`. */
+export type PsdLayerKind = 'group' | 'pixel' | 'text' | 'smart_object' | 'adjustment';
+
+export interface PreviewPsdLayer {
+  readonly name: string;
+  readonly kind: PsdLayerKind;
+  readonly visible: boolean;
+  /** 0 … 100. */
+  readonly opacity: number;
+  readonly blendMode: string;
+  readonly children: readonly PreviewPsdLayer[];
+}
+
+/** The PSD's layer list (read-only) and whether the preview is a stack of layers (`approximate`). */
+export interface PreviewPsd {
+  readonly width: number | null;
+  readonly height: number | null;
+  readonly layerCount: number;
+  readonly groupCount: number;
+  readonly approximate: boolean;
+  readonly layers: readonly PreviewPsdLayer[];
+}
+
+/** One line of a ZIP's table of contents (files and the folders they imply). */
+export interface PreviewZipEntry {
+  readonly path: string;
+  readonly folder: boolean;
+  readonly sizeBytes: number;
+  /** As the zipping tool wrote it, local time without a zone. */
+  readonly modifiedAt: string | null;
+}
+
+/** What is inside a ZIP. Nothing is extracted or served. */
+export interface PreviewZip {
+  readonly fileCount: number;
+  readonly folderCount: number;
+  readonly totalBytes: number;
+  readonly compressedBytes: number;
+  readonly encrypted: boolean;
+  readonly entries: readonly PreviewZipEntry[];
+}
+
+export interface PreviewOfficeSheet {
+  readonly name: string;
+  readonly hidden: boolean;
+}
+
+/**
+ * Word / PowerPoint / Excel facts. PowerPoint: slide size in EMU (pins are stored relative to the
+ * slide box) and the slide count; Word: page size in twips and Word's own page count; Excel: sheets.
+ */
+export interface PreviewOffice {
+  readonly format: 'docx' | 'pptx' | 'xlsx';
+  readonly pages: number | null;
+  readonly pageWidth: number | null;
+  readonly pageHeight: number | null;
+  readonly sheets: readonly PreviewOfficeSheet[];
+}
+
 export interface FilePreviewManifest {
   readonly file: PreviewFile;
   readonly version: PreviewVersionInfo | null;
@@ -119,6 +178,14 @@ export interface FilePreviewManifest {
   readonly media: PreviewMedia | null;
   readonly approximate: boolean;
   readonly linkedImagesRemoved: boolean;
+  /** The preview is the small picture saved inside the file (an EPS), not the artwork itself. */
+  readonly embeddedPreview: boolean;
+  /** Photoshop layers; `null` before read, and for other kinds. */
+  readonly psd: PreviewPsd | null;
+  /** A ZIP's contents; `null` before read, and for other kinds. */
+  readonly zip: PreviewZip | null;
+  /** Office facts; `null` before read, and for other kinds. */
+  readonly office: PreviewOffice | null;
   readonly versions: PreviewChain;
   readonly decisionContext: PreviewDecisionContext;
   readonly capabilities: PreviewCapabilities;

@@ -206,6 +206,10 @@ function manifest(overrides: Partial<FilePreviewManifest>): FilePreviewManifest 
     durationMs: null,
     approximate: false,
     linkedImagesRemoved: false,
+    embeddedPreview: false,
+    psd: null,
+    zip: null,
+    office: null,
     versions: { rootFileAssetId: 'f1', versions: [] },
     decisionContext: { kind: 'file', deliverableId: null, deliverableVersionId: null },
     capabilities: {

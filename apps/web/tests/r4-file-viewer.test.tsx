@@ -49,6 +49,10 @@ function manifest(overrides: Record<string, unknown> = {}) {
     durationMs: null,
     approximate: false,
     linkedImagesRemoved: false,
+    embeddedPreview: false,
+    psd: null,
+    zip: null,
+    office: null,
     versions: {
       rootFileAssetId: 'f0',
       versions: [

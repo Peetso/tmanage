@@ -598,6 +598,206 @@ describe('the manifest', () => {
     expect((await waiting.service.manifest(context, staff, 'internal', input)).media).toBeNull();
   });
 
+  it('carries PSD layers, the ZIP list and Office facts from their rows (R4 slice 10)', async () => {
+    const facts = (kind: FilePreview['kind'], meta: Record<string, unknown>, size?: number) =>
+      preview({
+        id: `p-${kind}`,
+        kind,
+        objectKey: null,
+        mimeType: null,
+        sizeBytes: 0,
+        width: size ?? null,
+        height: size ?? null,
+        meta,
+      });
+
+    const photoshop = build({
+      version: version({ detectedMimeType: 'image/vnd.adobe.photoshop' }),
+      previews: [
+        preview({ meta: { approximate: true } }),
+        facts(
+          'psd_layers',
+          {
+            layerCount: 2,
+            groupCount: 1,
+            approximate: true,
+            layers: [
+              {
+                name: 'Headline',
+                kind: 'group',
+                visible: true,
+                opacity: 100,
+                blendMode: 'pass through',
+                children: [
+                  {
+                    name: 'Logo',
+                    kind: 'smart_object',
+                    visible: true,
+                    opacity: 100,
+                    blendMode: 'normal',
+                  },
+                ],
+              },
+              {
+                name: 'Grade',
+                kind: 'adjustment',
+                visible: false,
+                opacity: 250,
+                blendMode: 'normal',
+              },
+              { name: 'Odd', kind: 'script', visible: true },
+            ],
+          },
+          4200,
+        ),
+      ],
+    });
+    const psd = await photoshop.service.manifest(context, staff, 'internal', input);
+    expect(psd.kind).toBe('psd');
+    expect(psd.status).toBe('ready');
+    expect(psd.approximate).toBe(true);
+    expect(psd.psd).toEqual({
+      width: 4200,
+      height: 4200,
+      layerCount: 2,
+      groupCount: 1,
+      approximate: true,
+      layers: [
+        {
+          name: 'Headline',
+          kind: 'group',
+          visible: true,
+          opacity: 100,
+          blendMode: 'pass through',
+          children: [
+            {
+              name: 'Logo',
+              kind: 'smart_object',
+              visible: true,
+              opacity: 100,
+              blendMode: 'normal',
+              children: [],
+            },
+          ],
+        },
+        {
+          name: 'Grade',
+          kind: 'adjustment',
+          visible: false,
+          opacity: 100,
+          blendMode: 'normal',
+          children: [],
+        },
+      ],
+    });
+    expect(psd.zip).toBeNull();
+    expect(psd.office).toBeNull();
+
+    const archive = build({
+      version: version({ detectedMimeType: 'application/zip' }),
+      previews: [
+        facts('zip_manifest', {
+          fileCount: 1,
+          folderCount: 1,
+          totalBytes: 84,
+          compressedBytes: 60,
+          encrypted: false,
+          entries: [
+            { path: 'Logos/', folder: true, sizeBytes: 0, modifiedAt: null },
+            {
+              path: 'Logos/a.svg',
+              folder: false,
+              sizeBytes: 84,
+              modifiedAt: '2026-10-28T14:05:00',
+            },
+            { folder: false },
+          ],
+        }),
+      ],
+    });
+    const zip = await archive.service.manifest(context, staff, 'internal', input);
+    expect(zip.kind).toBe('zip');
+    expect(zip.status).toBe('ready');
+    expect(zip.derivatives).toEqual([]);
+    expect(zip.zip?.entries).toEqual([
+      { path: 'Logos/', folder: true, sizeBytes: 0, modifiedAt: null },
+      { path: 'Logos/a.svg', folder: false, sizeBytes: 84, modifiedAt: '2026-10-28T14:05:00' },
+    ]);
+    expect(zip.zip).toMatchObject({ fileCount: 1, folderCount: 1, totalBytes: 84 });
+
+    const bomb = build({
+      version: version({ detectedMimeType: 'application/zip' }),
+      previews: [facts('zip_manifest', {})].map((row) => ({
+        ...row,
+        status: 'unsupported' as const,
+        meta: null,
+      })),
+    });
+    const refused = await bomb.service.manifest(context, staff, 'internal', input);
+    expect(refused.status).toBe('unsupported');
+    expect(refused.zip).toBeNull();
+
+    const deck = build({
+      version: version({
+        detectedMimeType:
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      }),
+      previews: [
+        facts('office_meta', {
+          format: 'pptx',
+          pages: 12,
+          pageWidth: 12_192_000,
+          pageHeight: 6_858_000,
+          sheets: [],
+          approximate: true,
+        }),
+      ],
+    });
+    const pptx = await deck.service.manifest(context, staff, 'internal', input);
+    expect(pptx.kind).toBe('office_pptx');
+    expect(pptx.status).toBe('ready');
+    expect(pptx.pages).toBe(12);
+    expect(pptx.approximate).toBe(true);
+    expect(pptx.originalUrl).toBe(`/v1/organizations/atlas/files/${ASSET}/content`);
+    expect(pptx.office).toEqual({
+      format: 'pptx',
+      pages: 12,
+      pageWidth: 12_192_000,
+      pageHeight: 6_858_000,
+      sheets: [],
+    });
+
+    // Office files render from the original even before the facts row is read.
+    const early = build({
+      version: version({
+        detectedMimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      }),
+    });
+    const xlsx = await early.service.manifest(context, staff, 'internal', input);
+    expect(xlsx.status).toBe('ready');
+    expect(xlsx.office).toBeNull();
+  });
+
+  it('marks an EPS preview as the one embedded in the file (R4 slice 10)', async () => {
+    const t = build({
+      version: version({ detectedMimeType: 'application/postscript' }),
+      previews: [preview({ meta: { embeddedPreview: true } })],
+    });
+    const manifest = await t.service.manifest(context, staff, 'internal', input);
+    expect(manifest.kind).toBe('unsupported');
+    expect(manifest.status).toBe('ready');
+    expect(manifest.embeddedPreview).toBe(true);
+    expect(manifest.derivatives).toHaveLength(1);
+
+    const none = build({
+      version: version({ detectedMimeType: 'application/postscript' }),
+      previews: [preview({ status: 'unsupported', objectKey: null, mimeType: null })],
+    });
+    const bare = await none.service.manifest(context, staff, 'internal', input);
+    expect(bare.status).toBe('unsupported');
+    expect(bare.embeddedPreview).toBe(false);
+  });
+
   it('builds portal paths for the client door', async () => {
     const t = build({ previews: [preview()], published: { projectId: PROJECT } });
     const manifest = await t.service.manifest(context, client(), 'client', input);
