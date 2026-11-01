@@ -26,6 +26,7 @@ import { MessageReactionsController } from './message-reactions.controller.js';
 import { MessageDraftsRepository } from './message-drafts.repository.js';
 import { MessageDraftsService } from './message-drafts.service.js';
 import { MessageDraftsController } from './message-drafts.controller.js';
+import { ConversationGroupModule } from './conversation-group.module.js';
 import { LinkPreviewsController } from './link-previews.controller.js';
 
 /**
@@ -110,6 +111,8 @@ export class ConversationsModule {
 
     return {
       module: ConversationsModule,
+      // R7 slice 3: group settings, invite links and the portal chat list (new files only).
+      imports: [ConversationGroupModule.register()],
       providers: [
         repository,
         service,

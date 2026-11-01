@@ -88,6 +88,15 @@ export const PORTAL_MENU_ENTRIES: readonly PortalMenuEntry[] = [
     glyph: '✉',
     current: ['inbox', 'updates'],
   },
+  {
+    // R7 slice 3: the client's group chats.
+    id: 'chat',
+    key: 'PortalMenu.chat',
+    english: 'Chat',
+    href: '/portal/chat',
+    glyph: '◌',
+    current: ['chat'],
+  },
 ];
 
 export interface PortalMenuProps {

@@ -82,6 +82,9 @@ export const NEVER_REASONS = [
   // R4 slice 13. Figma links: a member's own Figma token, attached Figma files and their frame
   // snapshots. A stored credential and client-facing design content; no AI op until reviewed.
   'figma_links',
+  // R7 slice 3. Group chat administration: members, admin roles, settings, leave and invite
+  // links (a bearer token that admits a member) — permission changes no AI op may drive yet.
+  'chat_groups',
   'public_upload_part',
   'role_definitions',
   'session',

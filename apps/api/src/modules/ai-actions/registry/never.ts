@@ -1388,6 +1388,62 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/portal/figma/frames/:frameId/review/threads',
     reason: 'file_review',
   },
+  // R7 slice 3: group settings, members, roles, leave, invite links, and the portal chat list.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/chat/invites/:token',
+    reason: 'chat_groups',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/chat/invites/:token/join',
+    reason: 'chat_groups',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/conversations/:conversationId/group/',
+    reason: 'chat_groups',
+  },
+  {
+    method: 'PATCH',
+    path: '/v1/organizations/:orgSlug/conversations/:conversationId/group/',
+    reason: 'chat_groups',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/conversations/:conversationId/group/members',
+    reason: 'chat_groups',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/conversations/:conversationId/group/members/:userId',
+    reason: 'chat_groups',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/conversations/:conversationId/group/members/:userId/role',
+    reason: 'chat_groups',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/conversations/:conversationId/group/leave',
+    reason: 'chat_groups',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/conversations/:conversationId/group/invite',
+    reason: 'chat_groups',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/conversations/:conversationId/group/invite',
+    reason: 'chat_groups',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/chat/list',
+    reason: 'chat_groups',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

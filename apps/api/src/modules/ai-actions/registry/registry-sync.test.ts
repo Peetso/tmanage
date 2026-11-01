@@ -111,7 +111,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // R5 docs rich editor: +6 ops (comments resolve POST/DELETE, export.html, export.docx, presence
 // GET/PUT), was 1089.
 // R7 slice 5: +1 op, GET .../conversations/:conversationId/link-previews, was 1095.
-const EXPECTED_ROUTE_COUNT = 1096;
+// R7 slice 3: +11 NEVER (`chat_groups`: group info/settings/members/role/leave/invite, invite
+// preview/join, portal chat list).
+const EXPECTED_ROUTE_COUNT = 1107;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).
