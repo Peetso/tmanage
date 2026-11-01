@@ -14723,7 +14723,7 @@
   "MentionPicker.hintClose": "Esc للإغلاق",
   "RouteTitle.clientCompany": "شركة العميل",
   "RouteTitle.publicForm": "نموذج طلب",
-  "TimeZoneSelect.hint": "اكتب مدينة أو دولة أو فرق التوقيت مثل GMT+3.",
+  "TimeZoneSelect.hint": "اكتب مدينة أو دولة أو منطقة أو فرق التوقيت مثل GMT+3.",
   "TimeZoneSelect.noMatch": "لا توجد منطقة زمنية مطابقة.",
   "TimeZoneSelect.utc": "التوقيت العالمي المنسق",
   "DisplayPreferencesView.eyebrow": "التفضيلات · المظهر",
@@ -15420,5 +15420,15 @@
   "StorageUsageScreen.planEyebrowFree": "خطة مجانية",
   "StorageUsageScreen.planEyebrowStarter": "خطة المبتدئة",
   "StorageUsageScreen.planEyebrowPro": "خطة الاحترافية",
-  "StorageUsageScreen.planEyebrowBusiness": "خطة الأعمال"
+  "StorageUsageScreen.planEyebrowBusiness": "خطة الأعمال",
+  "TimeZoneSelect.region.africa": "أفريقيا",
+  "TimeZoneSelect.region.america": "الأمريكتان",
+  "TimeZoneSelect.region.antarctica": "القارة القطبية الجنوبية",
+  "TimeZoneSelect.region.arctic": "القطب الشمالي",
+  "TimeZoneSelect.region.asia": "آسيا",
+  "TimeZoneSelect.region.atlantic": "المحيط الأطلسي",
+  "TimeZoneSelect.region.australia": "أستراليا",
+  "TimeZoneSelect.region.europe": "أوروبا",
+  "TimeZoneSelect.region.indian": "المحيط الهندي",
+  "TimeZoneSelect.region.pacific": "المحيط الهادئ"
 }

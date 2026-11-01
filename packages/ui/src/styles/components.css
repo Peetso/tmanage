@@ -589,6 +589,17 @@
   font-weight: 600;
 }
 
+/* A group heading (R9: a time zone's region). Quiet, not selectable, sticks while its rows scroll. */
+.tm-combobox__group {
+  position: sticky;
+  inset-block-start: 0;
+  padding: var(--s2) var(--s3) var(--s1);
+  background: var(--paper-0);
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
 .tm-combobox__empty {
   padding: var(--s2) var(--s3);
   color: var(--ink-650);

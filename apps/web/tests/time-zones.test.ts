@@ -79,6 +79,15 @@ describe('time zones (R9)', () => {
     expect(find('gmt+5:30')).toEqual(expect.arrayContaining(['Asia/Kolkata', 'Asia/Colombo']));
   });
 
+  it('groups every zone by region when asked, UTC first, and finds a region by name', () => {
+    const options = timeZoneOptions('UTC', { locale: 'en', at: winter, regionName: (r) => r });
+    expect(options.length).toBeGreaterThan(300);
+    expect(options[0]).toEqual({ value: 'UTC', label: '(GMT+0) UTC' });
+    const groups = options.map((o) => o.group).filter(Boolean);
+    expect(groups.filter((g, i) => g !== groups[i - 1])).toEqual([...new Set(groups)]);
+    expect(options.find((o) => o.value === 'Africa/Cairo')?.group).toBe('africa');
+  });
+
   it('accepts real zones only', () => {
     expect(isTimeZone('Africa/Cairo')).toBe(true);
     expect(isTimeZone('UTC')).toBe(true);

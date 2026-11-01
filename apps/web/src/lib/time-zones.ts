@@ -122,6 +122,34 @@ export interface TimeZoneLabelOptions {
   readonly at?: Date;
   /** The name shown for `UTC`, which has no city or country. */
   readonly utcName?: string;
+  /**
+   * The heading a region is listed under, in the reader's language (`africa` → "Africa").
+   * Without it the option has no `group` and the list is one flat west-to-east run.
+   */
+  readonly regionName?: (region: TimeZoneRegion) => string;
+}
+
+/** The regions the picker groups by — tzdata's own areas, in tzdata's order. */
+export const TIME_ZONE_REGIONS = [
+  'africa',
+  'america',
+  'antarctica',
+  'arctic',
+  'asia',
+  'atlantic',
+  'australia',
+  'europe',
+  'indian',
+  'pacific',
+] as const;
+export type TimeZoneRegion = (typeof TIME_ZONE_REGIONS)[number];
+
+/** The zone's region (`Africa/Cairo` → `africa`), or `null` for `UTC` and anything area-less. */
+export function timeZoneRegion(zone: string): TimeZoneRegion | null {
+  const area = canonicalTimeZone(zone).split('/')[0]?.toLowerCase() ?? '';
+  return (TIME_ZONE_REGIONS as readonly string[]).includes(area) && zone.includes('/')
+    ? (area as TimeZoneRegion)
+    : null;
 }
 
 /** "(GMT+2) Cairo, Egypt" — offset, city, country; "(GMT+0) UTC" for UTC. */
@@ -138,11 +166,15 @@ export function timeZoneLabel(zone: string, options: TimeZoneLabelOptions): stri
 export interface TimeZoneOption {
   readonly value: string;
   readonly label: string;
+  /** The region heading, when `regionName` was given. */
+  readonly group?: string;
 }
 
 /**
- * The picker's options: every zone, labelled, ordered west to east by its offset at `at` and then
- * by label, with `current` always present (kept under its stored spelling, retired name or not).
+ * The picker's options: every zone, labelled, with `current` always present (kept under its
+ * stored spelling, retired name or not). With `regionName` the zones are grouped by region —
+ * area-less zones (`UTC`) first, then tzdata's order — and within a group, as without one,
+ * ordered west to east by offset at `at` and then by label.
  */
 export function timeZoneOptions(
   current: string,
@@ -156,14 +188,25 @@ export function timeZoneOptions(
     if (index >= 0) zones[index] = stored;
     else zones.push(stored);
   }
+  const regionName = options.regionName;
   return zones
-    .map((zone) => ({
-      value: zone,
-      label: timeZoneLabel(zone, options),
-      minutes: timeZoneOffsetMinutes(zone, options.at),
-    }))
-    .sort((a, b) => a.minutes - b.minutes || a.label.localeCompare(b.label, options.locale))
-    .map(({ value, label }) => ({ value, label }));
+    .map((zone) => {
+      const region = regionName ? timeZoneRegion(zone) : null;
+      return {
+        value: zone,
+        label: timeZoneLabel(zone, options),
+        minutes: timeZoneOffsetMinutes(zone, options.at),
+        rank: region === null ? -1 : TIME_ZONE_REGIONS.indexOf(region),
+        group: region === null || !regionName ? undefined : regionName(region),
+      };
+    })
+    .sort(
+      (a, b) =>
+        a.rank - b.rank || a.minutes - b.minutes || a.label.localeCompare(b.label, options.locale),
+    )
+    .map(({ value, label, group }) =>
+      group === undefined ? { value, label } : { value, label, group },
+    );
 }
 
 /** The browser's zone under its current name, `UTC` where it is not known. */

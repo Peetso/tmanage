@@ -14723,7 +14723,7 @@
   "MentionPicker.hintClose": "Esc to close",
   "RouteTitle.clientCompany": "Client company",
   "RouteTitle.publicForm": "Request form",
-  "TimeZoneSelect.hint": "Type a city, country or GMT offset.",
+  "TimeZoneSelect.hint": "Type a city, country, region or GMT offset.",
   "TimeZoneSelect.noMatch": "No time zone matches that.",
   "TimeZoneSelect.utc": "Coordinated Universal Time",
   "DisplayPreferencesView.eyebrow": "Preferences · Appearance",
@@ -15420,5 +15420,15 @@
   "StorageUsageScreen.planEyebrowFree": "Free plan",
   "StorageUsageScreen.planEyebrowStarter": "Starter plan",
   "StorageUsageScreen.planEyebrowPro": "Pro plan",
-  "StorageUsageScreen.planEyebrowBusiness": "Business plan"
+  "StorageUsageScreen.planEyebrowBusiness": "Business plan",
+  "TimeZoneSelect.region.africa": "Africa",
+  "TimeZoneSelect.region.america": "Americas",
+  "TimeZoneSelect.region.antarctica": "Antarctica",
+  "TimeZoneSelect.region.arctic": "Arctic",
+  "TimeZoneSelect.region.asia": "Asia",
+  "TimeZoneSelect.region.atlantic": "Atlantic",
+  "TimeZoneSelect.region.australia": "Australia",
+  "TimeZoneSelect.region.europe": "Europe",
+  "TimeZoneSelect.region.indian": "Indian Ocean",
+  "TimeZoneSelect.region.pacific": "Pacific"
 }

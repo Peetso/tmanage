@@ -13,6 +13,12 @@ export interface ComboboxOption {
   readonly value: string;
   /** The text a person reads, types against and hears. */
   readonly label: string;
+  /**
+   * The heading the option is listed under (a time zone's region, say). Consecutive options
+   * with the same group share one heading; typing the group's name also finds its options.
+   * Options must already be ordered by group — the component does not re-sort.
+   */
+  readonly group?: string;
 }
 
 export interface ComboboxProps extends Omit<
@@ -144,7 +150,11 @@ export function Combobox({
   const query = text.trim().toLowerCase();
   const filtered =
     open && query !== '' && text !== committed
-      ? options.filter((option) => option.label.toLowerCase().includes(query))
+      ? options.filter(
+          (option) =>
+            option.label.toLowerCase().includes(query) ||
+            (option.group?.toLowerCase().includes(query) ?? false),
+        )
       : [...options];
 
   const activeOption = open ? filtered[activeIndex] : undefined;
@@ -291,23 +301,39 @@ export function Combobox({
             </li>
           ) : null}
           {open
-            ? filtered.map((option, index) => (
-                // The keyboard path is the input's own (arrows + Enter over
-                // aria-activedescendant) — a key listener here could never fire, since
-                // DOM focus never enters the listbox by design.
-                // eslint-disable-next-line jsx-a11y/click-events-have-key-events
-                <li
-                  key={option.value}
-                  id={`${id}-option-${index}`}
-                  role="option"
-                  aria-selected={option.value === value || undefined}
-                  data-active={index === activeIndex || undefined}
-                  className="tm-combobox__option"
-                  onClick={() => choose(option)}
-                >
-                  {option.label}
-                </li>
-              ))
+            ? filtered.flatMap((option, index) => {
+                const heading =
+                  option.group && option.group !== filtered[index - 1]?.group ? (
+                    // A presentational heading, not an option: the arrows skip it and the
+                    // option's own label already names the place it is in.
+                    <li
+                      key={`group-${option.group}-${index}`}
+                      role="presentation"
+                      aria-hidden="true"
+                      className="tm-combobox__group"
+                    >
+                      {option.group}
+                    </li>
+                  ) : null;
+                const row = (
+                  // The keyboard path is the input's own (arrows + Enter over
+                  // aria-activedescendant) — a key listener here could never fire, since
+                  // DOM focus never enters the listbox by design.
+                  // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+                  <li
+                    key={option.value}
+                    id={`${id}-option-${index}`}
+                    role="option"
+                    aria-selected={option.value === value || undefined}
+                    data-active={index === activeIndex || undefined}
+                    className="tm-combobox__option"
+                    onClick={() => choose(option)}
+                  >
+                    {option.label}
+                  </li>
+                );
+                return heading ? [heading, row] : [row];
+              })
             : null}
         </ul>
 

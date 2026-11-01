@@ -4,7 +4,21 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Combobox } from '@tmanage/ui';
 import { useActiveLocale } from '../lib/i18n/use-active-locale';
 import { useTOr } from '../lib/i18n/use-t-or';
-import { timeZoneOptions } from '../lib/time-zones';
+import { timeZoneOptions, type TimeZoneRegion } from '../lib/time-zones';
+
+/** The English region headings; the message catalogue carries the translations. */
+const REGION_NAMES: Readonly<Record<TimeZoneRegion, string>> = {
+  africa: 'Africa',
+  america: 'Americas',
+  antarctica: 'Antarctica',
+  arctic: 'Arctic',
+  asia: 'Asia',
+  atlantic: 'Atlantic',
+  australia: 'Australia',
+  europe: 'Europe',
+  indian: 'Indian Ocean',
+  pacific: 'Pacific',
+};
 
 export interface TimeZoneSelectProps {
   label: ReactNode;
@@ -27,8 +41,9 @@ export interface TimeZoneSelectProps {
 
 /**
  * The time zone picker — R9 (Figma "Settings · Time zone picker — every country, searchable",
- * node 456:21423). Every IANA zone, each read as "(GMT+2) Cairo, Egypt", filtered as the person
- * types a city, a country or an offset. It is the design system's `Combobox`, so it looks and
+ * node 456:21423; grouped by region in 479:28684). Every IANA zone, each read as
+ * "(GMT+2) Cairo, Egypt", listed under its region and filtered as the person types a city, a
+ * country, a region or an offset. It is the design system's `Combobox`, so it looks and
  * behaves like every other field; this only supplies the list and keeps the field from being
  * emptied.
  *
@@ -56,8 +71,14 @@ export function TimeZoneSelect({
   const day =
     at === undefined || Number.isNaN(at.getTime()) ? new Date().toDateString() : at.toDateString();
   const options = useMemo(
-    () => timeZoneOptions(value, { locale, utcName, at: new Date(day) }),
-    [value, locale, utcName, day],
+    () =>
+      timeZoneOptions(value, {
+        locale,
+        utcName,
+        at: new Date(day),
+        regionName: (region) => tOr(`TimeZoneSelect.region.${region}`, REGION_NAMES[region]),
+      }),
+    [value, locale, utcName, day, tOr],
   );
   const [generation, setGeneration] = useState(0);
   const [cleared, setCleared] = useState(false);
@@ -65,7 +86,7 @@ export function TimeZoneSelect({
   const shownHint =
     hint === null
       ? undefined
-      : (hint ?? tOr('TimeZoneSelect.hint', 'Type a city, country or GMT offset.'));
+      : (hint ?? tOr('TimeZoneSelect.hint', 'Type a city, country, region or GMT offset.'));
 
   return (
     <Combobox
