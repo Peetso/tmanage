@@ -1467,12 +1467,14 @@ button.tm-wk-chip[aria-expanded='true'] {
   gap: var(--s4);
 }
 
-.tm-wk-file[data-backed='true'] {
+/* Live test 2026-11-01: a plain file's "Upload new version" stretched across the list and read
+   as a divider; every file now gets the backed file's separator and a hugging button. */
+.tm-wk-file {
   padding-block-end: var(--s4);
   border-block-end: var(--b-quiet) solid var(--line-300);
 }
 
-.tm-wk-file[data-backed='true'] > .tm-wk-pill-button {
+.tm-wk-file > .tm-wk-pill-button {
   align-self: flex-start;
 }
 

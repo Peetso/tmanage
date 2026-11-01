@@ -399,13 +399,17 @@ export class PreviewJob implements PreviewRequester, OnApplicationBootstrap, OnM
       version: await this.assets.findVersionById(db, context, first.fileVersionId),
     }));
     const { asset, version } = loaded;
+    // Clean and promoted, or `unscanned` under the `none` driver — the two kinds of version the
+    // download door serves (the second labelled "not scanned", still in quarantine).
     const servable =
       asset !== null &&
       version !== null &&
-      asset.status === 'ready' &&
       asset.deletedAt === null &&
-      version.trustZone === 'private' &&
-      version.scanVerdict === 'clean';
+      ((asset.status === 'ready' &&
+        version.trustZone === 'private' &&
+        version.scanVerdict === 'clean') ||
+        (version.scanVerdict === 'unscanned' &&
+          (asset.status === 'ready' || asset.status === 'scanning')));
     if (!servable) {
       await this.concludeAll(
         context,
@@ -437,7 +441,11 @@ export class PreviewJob implements PreviewRequester, OnApplicationBootstrap, OnM
 
     let outcomes: readonly PreviewOutcome[];
     try {
-      const bytes = await this.readPrivate(version.objectKey, version.sizeBytes);
+      const bytes = await this.readObject(
+        version.trustZone === 'private' ? 'private' : 'quarantine',
+        version.objectKey,
+        version.sizeBytes,
+      );
       outcomes = await generator.generate(
         { bytes, mimeType: version.detectedMimeType },
         claimed.map((row) => ({ kind: row.kind, pageNo: row.pageNo })),
@@ -468,10 +476,14 @@ export class PreviewJob implements PreviewRequester, OnApplicationBootstrap, OnM
     }
   }
 
-  private async readPrivate(objectKey: string, sizeBytes: number): Promise<Uint8Array> {
+  private async readObject(
+    zone: 'private' | 'quarantine',
+    objectKey: string,
+    sizeBytes: number,
+  ): Promise<Uint8Array> {
     let opened;
     try {
-      opened = await this.store.openObject({ zone: 'private', objectKey });
+      opened = await this.store.openObject({ zone, objectKey });
     } catch (error) {
       if (error instanceof ObjectStoreUnavailableError) throw error;
       if (error instanceof ObjectNotFoundError) throw new PreviewReadError('object_not_found');

@@ -11301,6 +11301,7 @@
   "WorkDetail.filesError": "The files could not be loaded.",
   "WorkDetail.noFiles": "No files yet.",
   "WorkDetail.download": "Download",
+  "WorkDetail.review": "Review",
   "WorkDetail.scanning": "Being checked for viruses",
   "WorkDetail.unavailable": "Not available",
   "WorkDetail.versionUpdated": "Version {n} · updated {day} by {name}",

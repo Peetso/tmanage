@@ -1275,6 +1275,16 @@ function FilesCard({
                             })}
                     </span>
                   </span>
+                  {availability !== 'unavailable' ? (
+                    // V-54: the work item's Files tab opens the viewer with "Review".
+                    <Link
+                      className="tm-wk-text-button"
+                      href={`/${organizationSlug}/files/${encodeURIComponent(servedAsset)}`}
+                      aria-label={`${file.fileName} · ${ta('WorkDetail.review')}`}
+                    >
+                      {ta('WorkDetail.review')}
+                    </Link>
+                  ) : null}
                   {availability === 'ready' ? (
                     <a
                       className="tm-wk-text-button"

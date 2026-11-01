@@ -136,22 +136,38 @@ function affected(result: unknown): number {
 }
 
 /**
- * R4 slice 3. A version the preview job should start rows for: promoted and clean (what the
- * download door would serve), of a type a generator reads, its asset `ready` and not deleted, and
+ * R4 slice 3. A version the preview job should start rows for: promoted and clean, or `unscanned`
+ * under the `none` driver (what the download door would serve), of a type a generator reads, its asset `ready` and not deleted, and
  * no `file_previews` row of any kind yet — so a version is planned exactly once, and a version
  * whose rows were all made (or refused) is never looked at again.
  */
 function needsPreviews(mimeTypes: readonly string[]) {
   return and(
-    eq(fileVersions.trustZone, 'private'),
-    eq(fileVersions.scanVerdict, 'clean'),
-    inArray(fileVersions.detectedMimeType, [...mimeTypes]),
-    exists(
-      sql`(select 1 from ${fileAssets} where ${fileAssets.organizationId} = ${fileVersions.organizationId}
-        and ${fileAssets.id} = ${fileVersions.fileAssetId}
-        and ${fileAssets.status} = ${'ready'}
-        and ${fileAssets.deletedAt} is null)`,
+    or(
+      and(
+        eq(fileVersions.trustZone, 'private'),
+        eq(fileVersions.scanVerdict, 'clean'),
+        exists(
+          sql`(select 1 from ${fileAssets} where ${fileAssets.organizationId} = ${fileVersions.organizationId}
+            and ${fileAssets.id} = ${fileVersions.fileAssetId}
+            and ${fileAssets.status} = ${'ready'}
+            and ${fileAssets.deletedAt} is null)`,
+        ),
+      ),
+      // Live test 2026-11-01: with no scanner (the `none` driver) every version is `unscanned`
+      // and the download door serves it labelled; without this its viewer said "Preparing"
+      // forever. Planned only where the door would serve it: asset `ready` or `scanning`.
+      and(
+        eq(fileVersions.scanVerdict, 'unscanned'),
+        exists(
+          sql`(select 1 from ${fileAssets} where ${fileAssets.organizationId} = ${fileVersions.organizationId}
+            and ${fileAssets.id} = ${fileVersions.fileAssetId}
+            and ${fileAssets.status} in (${'ready'}, ${'scanning'})
+            and ${fileAssets.deletedAt} is null)`,
+        ),
+      ),
     ),
+    inArray(fileVersions.detectedMimeType, [...mimeTypes]),
     notExists(
       sql`(select 1 from ${filePreviews} where ${filePreviews.organizationId} = ${fileVersions.organizationId}
         and ${filePreviews.fileVersionId} = ${fileVersions.id})`,

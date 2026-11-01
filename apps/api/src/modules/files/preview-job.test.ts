@@ -112,10 +112,12 @@ class MemoryPreviews {
   private needing(mimeTypes: readonly string[]): FileFixture[] {
     return this.files().filter(
       (f) =>
-        f.version.trustZone === 'private' &&
-        f.version.scanVerdict === 'clean' &&
+        ((f.version.trustZone === 'private' &&
+          f.version.scanVerdict === 'clean' &&
+          f.asset.status === 'ready') ||
+          (f.version.scanVerdict === 'unscanned' &&
+            (f.asset.status === 'ready' || f.asset.status === 'scanning'))) &&
         mimeTypes.includes(f.version.detectedMimeType ?? '') &&
-        f.asset.status === 'ready' &&
         !this.rows.some((row) => row.fileVersionId === f.version.id),
     );
   }
@@ -258,10 +260,11 @@ function harness(
   const opened: string[] = [];
   const store = {
     openObject: async ({ zone, objectKey }: { zone: string; objectKey: string }) => {
-      expect(zone).toBe('private');
       opened.push(objectKey);
       const found = files.find((f) => f.version.objectKey === objectKey);
       if (!found) throw new ObjectNotFoundError();
+      // Read from the zone the version sits in: quarantine for one never scanned.
+      expect(zone).toBe(found.version.trustZone === 'private' ? 'private' : 'quarantine');
       return {
         sizeBytes: found.bytes.byteLength,
         stream: Readable.from([Buffer.from(found.bytes)]),
@@ -323,6 +326,19 @@ describe('PreviewJob — plan and draw', () => {
     const t = harness([unscanned, pdf]);
     expect(await t.job.pass()).toMatchObject({ planned: 0, ready: 0 });
     expect(t.previews.rows).toEqual([]);
+  });
+
+  it('previews an unscanned file (the none driver) from quarantine, as the download door serves it', async () => {
+    const png = file('image/png', pngBytes(600, 300), {
+      scanVerdict: 'unscanned',
+      trustZone: 'quarantine',
+    });
+    png.asset = { ...png.asset, status: 'scanning' };
+    const t = harness([png]);
+    const report = await t.job.pass();
+    expect(report.ready).toBeGreaterThan(0);
+    expect(t.opened).toEqual([png.version.objectKey]);
+    expect(t.previews.rows.every((row) => row.status === 'ready')).toBe(true);
   });
 
   it('inserts a multi-page TIFF follow-up rows and draws them in the same pass', async () => {

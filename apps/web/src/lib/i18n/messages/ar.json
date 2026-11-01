@@ -11301,6 +11301,7 @@
   "WorkDetail.filesError": "تعذر تحميل الملفات.",
   "WorkDetail.noFiles": "لا توجد ملفات بعد.",
   "WorkDetail.download": "تنزيل",
+  "WorkDetail.review": "مراجعة",
   "WorkDetail.scanning": "قيد الفحص من الفيروسات",
   "WorkDetail.unavailable": "غير متاح",
   "WorkDetail.versionUpdated": "‏الإصدار {n} · حدّثه {name} في {day}",

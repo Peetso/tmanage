@@ -122,7 +122,7 @@ export class FileScanJob implements ScanRequester, OnApplicationBootstrap, OnMod
       this.options.log(`[verifier] pass: ${describeVerification(verified)}`);
       const scanned = await this.scanner.scan();
       this.options.log(`[scanner] pass: ${describeScan(scanned)}`);
-      if (scanned.ready > 0) this.followUp?.request();
+      if (scanned.ready > 0 || scanned.unscanned > 0) this.followUp?.request();
     } catch (error) {
       // An unreachable store or scanner stops this pass; the next request or tick retries.
       this.options.log(`[scanner] pass failed: ${JSON.stringify(describeFailure(error))}`);

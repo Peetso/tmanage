@@ -123,6 +123,9 @@ export const THREAD_POLL_MS = 10_000;
 /** How often a file still being checked or prepared asks again. */
 export const PENDING_POLL_MS = 5_000;
 
+/** Image types every browser draws from the original, so the viewer need not wait for a preview. */
+const BROWSER_IMAGES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+
 export type StageKind =
   | 'image'
   | 'pdf'
@@ -152,6 +155,16 @@ export function stageFor(manifest: FilePreviewManifest): {
 } {
   const scan = manifest.version?.scanStatus;
   if (scan === 'blocked') return { stage: 'none', state: 'blocked', src: null };
+  // Peter, 2026-11-01: "the preview taking too much time". A photo the browser draws itself is
+  // shown from the original at once; the lighter preview takes over when the job has made it.
+  if (
+    manifest.status === 'pending' &&
+    manifest.kind === 'image' &&
+    manifest.originalUrl?.includes('inline=1') &&
+    BROWSER_IMAGES.has(manifest.version?.mimeType ?? '')
+  ) {
+    return { stage: 'image', state: null, src: manifest.originalUrl };
+  }
   if (manifest.status === 'pending') {
     return {
       stage: 'none',
