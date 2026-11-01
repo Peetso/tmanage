@@ -88,7 +88,8 @@ export interface PlannedNotice {
     readonly objectId: string;
     readonly dedupeKey: string;
   } | null;
-  readonly mailKind: CollaborationMailKind;
+  /** The email, or null for an in-app-only notice (R4: a resolved review thread). */
+  readonly mailKind: CollaborationMailKind | null;
   readonly mail: () => Promise<MailSubject | null>;
 }
 
@@ -734,6 +735,8 @@ async function stageMail(input: {
   readonly deferForQuietHours: boolean;
 }): Promise<void> {
   const { event, tx, effects, mailer, notice } = input;
+  const kind = notice.mailKind;
+  if (kind === null) return; // In-app only: no email, and nothing to defer past quiet hours.
   const recipient = await findUsageMailRecipient(tx, event.organizationId, notice.recipientUserId);
   if (recipient === null || !recipient.emailEnabled) return; // Gone, or mail turned off.
 
@@ -750,7 +753,6 @@ async function stageMail(input: {
 
   const subject = await notice.mail();
   if (subject === null) return;
-  const kind = notice.mailKind;
   effects.afterCommit(async () => {
     await mailer.deliver(kind, {
       ...subject,
@@ -807,15 +809,19 @@ export function createCollaborationNotices(
 /**
  * The quiet-hours resume for the collaboration emails. Acts only on a resume row whose original
  * type has a planner here and which names its one recipient; no-ops otherwise, so it composes with
- * the other resume handlers on the one type. Re-plans the original event (re-checking access) and
+ * the other resume handlers on the one type (`planners` defaults to this file's set; the registry adds
+ * the R4 review planners). Re-plans the original event (re-checking access) and
  * mails that recipient alone, honouring a mail toggle or opt-out changed during the deferral.
  */
-export function createCollaborationMailResume(mailer: CollaborationMailer): OutboxHandler {
+export function createCollaborationMailResume(
+  mailer: CollaborationMailer,
+  planners: Readonly<Record<string, NoticePlanner>> = COLLABORATION_PLANNERS,
+): OutboxHandler {
   return async (event, tx, effects) => {
     if (!mailer.enabled) return;
     const envelope = decodeQuietHoursMailResume(event);
     if (envelope === null) return;
-    const planner = COLLABORATION_PLANNERS[envelope.originalType];
+    const planner = planners[envelope.originalType];
     const recipientUserId = envelope.recipientUserId;
     if (planner === undefined || recipientUserId === undefined) return;
 

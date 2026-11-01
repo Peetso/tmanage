@@ -17,6 +17,7 @@ import {
 import { QUIET_HOURS_MAIL_RESUME_TYPE } from '../common/database/notifications-store.js';
 import { createCredentialChangeMail } from './credential-change-mail.js';
 import {
+  COLLABORATION_PLANNERS,
   createCollaborationMailResume,
   createCollaborationNotices,
   planApprovalDecidedNotices,
@@ -30,6 +31,12 @@ import {
   planRequestMessageNotices,
 } from './collaboration-notices.js';
 import { automationRunsConsumer } from './automation-runs.js';
+import {
+  planReviewCommentNotices,
+  planReviewDecisionNotices,
+  planReviewResolvedNotices,
+  REVIEW_PLANNERS,
+} from './review-notices.js';
 import { directMessageNoticesConsumer } from './direct-message-notices.js';
 import type { CollaborationMailer } from '../notifications/collaboration-mailer.js';
 import type { ClientRequestMailer } from '../notifications/client-request-mailer.js';
@@ -122,7 +129,13 @@ export function createWorkerOutboxHandlers(
   if (mails !== null) resumeHandlers.push(createQuietHoursMailResume(mails));
   if (usageMails !== null) resumeHandlers.push(createUsageThresholdMailResume(usageMails));
   if (collaborationMails !== null) {
-    resumeHandlers.push(createCollaborationMailResume(collaborationMails));
+    // R4 slice 12: a deferred review email re-plans through the review planners too.
+    resumeHandlers.push(
+      createCollaborationMailResume(collaborationMails, {
+        ...COLLABORATION_PLANNERS,
+        ...REVIEW_PLANNERS,
+      }),
+    );
   }
   const resumeHandler = resumeHandlers.reduce<OutboxHandler | null>(
     (acc, handler) => (acc === null ? handler : both(acc, handler)),
@@ -183,6 +196,24 @@ export function createWorkerOutboxHandlers(
     // 0212 (BG3), NT1: a message on a client request tells the other side — see the planner.
     'client_request.message_posted.v1': createCollaborationNotices(
       planRequestMessageNotices,
+      collaborationMails,
+    ),
+    // R4 slice 12 — the proofing viewer: comments, mentions, resolved threads and decisions on a
+    // file under review. See `review-notices.ts` for who is told; same delivery path as above.
+    'review.thread_created.v1': createCollaborationNotices(
+      planReviewCommentNotices,
+      collaborationMails,
+    ),
+    'review.comment_added.v1': createCollaborationNotices(
+      planReviewCommentNotices,
+      collaborationMails,
+    ),
+    'review.thread_resolved.v1': createCollaborationNotices(
+      planReviewResolvedNotices,
+      collaborationMails,
+    ),
+    'review.decision_recorded.v1': createCollaborationNotices(
+      planReviewDecisionNotices,
       collaborationMails,
     ),
     'client_request.transitioned.v1':

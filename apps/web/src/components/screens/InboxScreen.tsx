@@ -693,6 +693,13 @@ const WHY_KEYS: Record<string, MessageKey> = {
   'project.member_added.v1': 'InboxScreen.whyAdded',
   'automation.notified.v1': 'InboxScreen.whyAutomation',
   'automation.test_run.v1': 'InboxScreen.whyTestRun',
+  // R4 slice 12 — a file under review.
+  'review.comment_added.v1': 'InboxScreen.whyReviewComment',
+  'review.mentioned.v1': 'InboxScreen.whyReviewMentioned',
+  'review.thread_resolved.v1': 'InboxScreen.whyReviewResolved',
+  'review.thread_reopened.v1': 'InboxScreen.whyReviewReopened',
+  'review.approved.v1': 'InboxScreen.whyReviewApproved',
+  'review.changes_requested.v1': 'InboxScreen.whyReviewChangesRequested',
 };
 
 /** An event type said in words, falling back to the raw type for one this build does not know. */
@@ -710,6 +717,7 @@ const KIND_KEYS: Record<InboxBundle['objectType'], MessageKey> = {
   meeting: 'InboxScreen.kindMeeting',
   project: 'InboxScreen.kindProject',
   workflow_template: 'InboxScreen.kindWorkflowTemplate',
+  file_asset: 'InboxScreen.kindFile',
 };
 
 function kindText(objectType: InboxBundle['objectType'], t: Translate): string {
@@ -725,6 +733,7 @@ const OPEN_NOUN_KEYS: Record<InboxBundle['objectType'], MessageKey> = {
   meeting: 'InboxScreen.openMeeting',
   project: 'InboxScreen.openProject',
   workflow_template: 'InboxScreen.openWorkflowTemplate',
+  file_asset: 'InboxScreen.openFile',
 };
 
 function openNounText(objectType: InboxBundle['objectType'], t: Translate): string {
@@ -816,6 +825,8 @@ function hrefOf(organizationSlug: string, bundle: InboxBundle): string {
       return `/${organizationSlug}/projects/${bundle.objectId}`;
     case 'workflow_template':
       return `/${organizationSlug}/automations/templates/${bundle.objectId}`;
+    case 'file_asset':
+      return `/${organizationSlug}/files/${bundle.objectId}`;
   }
 }
 
@@ -853,6 +864,7 @@ const STATE_WORD_KEYS: Record<string, MessageKey> = {
   meeting: 'InboxScreen.stateMeeting',
   live: 'InboxScreen.stateLive',
   off: 'InboxScreen.stateOff',
+  file: 'InboxScreen.stateFile',
 };
 
 function isWorkItemState(value: string): value is WorkItemState {
@@ -922,6 +934,7 @@ function glyphOf(item: InboxItem): string {
   if (item.objectType === 'meeting') return '◷';
   if (item.objectType === 'project') return '▦';
   if (item.objectType === 'workflow_template') return '⟳';
+  if (item.objectType === 'file_asset') return '◫';
   return '◔';
 }
 
@@ -968,6 +981,22 @@ function reasonOf(bundle: InboxBundle, t: Translate): string {
   }
   if (bundle.types.includes('automation.test_run.v1')) {
     reasons.push(t('InboxScreen.reasonTestRun'));
+  }
+  if (bundle.types.includes('review.mentioned.v1')) {
+    reasons.push(t('InboxScreen.reasonReviewMentioned'));
+  }
+  if (
+    bundle.types.includes('review.comment_added.v1') ||
+    bundle.types.includes('review.thread_resolved.v1') ||
+    bundle.types.includes('review.thread_reopened.v1')
+  ) {
+    reasons.push(t('InboxScreen.reasonReviewComment'));
+  }
+  if (
+    bundle.types.includes('review.approved.v1') ||
+    bundle.types.includes('review.changes_requested.v1')
+  ) {
+    reasons.push(t('InboxScreen.reasonReviewDecision'));
   }
   if (reasons.length === 0) reasons.push(t('InboxScreen.reasonDefault'));
   return reasons.join(' ');

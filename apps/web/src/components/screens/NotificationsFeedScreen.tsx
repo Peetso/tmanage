@@ -10,6 +10,7 @@ import type { NotificationView } from '../../lib/api/notifications-feed';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { translateOr } from '../../lib/i18n/compact-time';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/home.css';
@@ -295,6 +296,12 @@ const TYPE_LABEL_KEYS: Record<string, MessageKey> = {
   'project.member_added.v1': 'NotificationsFeedScreen.typeProjectMemberAdded',
   'automation.notified.v1': 'NotificationsFeedScreen.typeAutomationNotified',
   'automation.test_run.v1': 'NotificationsFeedScreen.typeAutomationTestRun',
+  'review.comment_added.v1': 'NotificationsFeedScreen.typeReviewComment',
+  'review.mentioned.v1': 'NotificationsFeedScreen.typeReviewMentioned',
+  'review.thread_resolved.v1': 'NotificationsFeedScreen.typeReviewResolved',
+  'review.thread_reopened.v1': 'NotificationsFeedScreen.typeReviewReopened',
+  'review.approved.v1': 'NotificationsFeedScreen.typeReviewApproved',
+  'review.changes_requested.v1': 'NotificationsFeedScreen.typeReviewChangesRequested',
 };
 
 function describeType(type: string, t: (key: MessageKey) => string): string {
@@ -308,6 +315,8 @@ function describeType(type: string, t: (key: MessageKey) => string): string {
 
 /** What the notification is about, in words — the object kind, humanised, never the tenant id. */
 function describeObject(item: NotificationView): string {
+  // R4 slice 12: a file under review is a "File" to the reader, never its table name.
+  if (item.objectType === 'file_asset') return translateOr('InboxScreen.kindFile', 'File');
   const kind = item.objectType.replace(/[._]/g, ' ');
   return kind.length > 0 ? kind.charAt(0).toUpperCase() + kind.slice(1) : 'Update';
 }

@@ -1,4 +1,5 @@
 import type { Mailer, MailMessage } from '@tmanage/mail';
+import { composeReviewEmail } from './review-email.js';
 
 /**
  * CQ-12 — the collaboration emails (COL-05) and the client-action email (APR-03), on the same
@@ -19,7 +20,11 @@ export type CollaborationMailKind =
   | 'client_action'
   | 'approval_requested'
   | 'request_message'
-  | 'approval_decided';
+  | 'approval_decided'
+  // R4 slice 12 — the proofing viewer: a comment, a mention, a decision on a file under review.
+  | 'review_comment'
+  | 'review_mention'
+  | 'review_decided';
 
 export interface CollaborationEmailFacts {
   readonly recipientEmail: string;
@@ -47,8 +52,12 @@ export interface CollaborationEmailFacts {
   readonly dueDate?: string;
   /** t8-b — `approval_requested` only: what the reviewer should check, as the sender wrote it. */
   readonly checkNote?: string;
-  /** Q3 — `approval_decided` only: what the client decided. */
+  /** Q3 — `approval_decided` only: what the client decided. R4: also `review_decided`. */
   readonly decision?: 'approved' | 'changes_requested';
+  /** R4 — `review_comment` / `review_mention`: the comment's number on the file. */
+  readonly pinNumber?: number;
+  /** R4 — the recipient is a client person: the link is the portal's, the footer the studio's. */
+  readonly portal?: boolean;
 }
 
 /** Whether a BCP-47 locale asks for Arabic copy. */
@@ -333,6 +342,9 @@ export function composeCollaborationEmail(
   facts: CollaborationEmailFacts,
 ): MailMessage {
   if (kind === 'approval_requested') return composeApprovalRequestedEmail(facts);
+  if (kind === 'review_comment' || kind === 'review_mention' || kind === 'review_decided') {
+    return composeReviewEmail(kind, facts);
+  }
   if ((kind === 'meeting_invite' || kind === 'meeting_changed') && isArabicLocale(facts.locale)) {
     return composeArabicMeetingEmail(kind, facts);
   }

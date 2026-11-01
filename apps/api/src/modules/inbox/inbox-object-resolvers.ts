@@ -7,6 +7,9 @@ import type { DocumentsService } from '../docs/documents.service.js';
 import type { MeetingsService } from '../calendar/meetings.service.js';
 import type { ProjectsService } from '../projects/projects.service.js';
 import { WorkflowTemplatesRepository } from '../automations/templates.repository.js';
+import { FileAssetsRepository } from '../files/file-assets.repository.js';
+import { mayDownloadFor } from '../files/purpose-policy.js';
+import { ProjectsRepository } from '../projects/projects.repository.js';
 
 /**
  * CQ-12 (COL-05, AUT-02) — the inbox's readers for the collaboration notices the relay now
@@ -19,6 +22,13 @@ import { WorkflowTemplatesRepository } from '../automations/templates.repository
  * to see — is `null`, and the bundle is dropped silently (§1's second check). The one object with
  * no service read is a workflow template; it is read tenant-scoped and shown only to a holder of
  * `org.manage`, the capability that runs a rule.
+ *
+ * R4 slice 12 adds a file under review (`file_asset`, the root of a version chain): a comment, a
+ * mention, a resolved thread or a decision. It is read tenant-scoped and shown only when the file
+ * download gate's own rule passes — purpose, then `file.download` on the file's project, audience
+ * and lifecycle — so a file deleted, moved out of reach or never this person's is dropped. The
+ * full gate (`FileDownloadService.resolve`) is not called: it writes a denied audit row for every
+ * refusal, and an inbox read is not an attempt to download.
  */
 
 export const COLLABORATION_OBJECT_TYPES = [
@@ -27,6 +37,7 @@ export const COLLABORATION_OBJECT_TYPES = [
   'meeting',
   'project',
   'workflow_template',
+  'file_asset',
 ] as const;
 export type CollaborationObjectType = (typeof COLLABORATION_OBJECT_TYPES)[number];
 
@@ -66,11 +77,40 @@ export interface InboxObjectServices {
   readonly meetings: Pick<MeetingsService, 'get'>;
   readonly projects: Pick<ProjectsService, 'get'>;
   readonly templates?: Pick<WorkflowTemplatesRepository, 'findById'>;
+  readonly files?: Pick<FileAssetsRepository, 'findById'>;
+  readonly projectRows?: Pick<ProjectsRepository, 'findById'>;
 }
 
 export function createInboxObjectResolvers(services: InboxObjectServices): InboxObjectResolvers {
   const templates = services.templates ?? new WorkflowTemplatesRepository();
+  const files = services.files ?? new FileAssetsRepository();
+  const projectRows = services.projectRows ?? new ProjectsRepository();
   return {
+    file_asset: async (context, principal, id) => {
+      if (principal.kind !== 'internal') return null; // The studio inbox; a client has the portal.
+      const found = await services.database.read(context, async (runner) => {
+        const asset = await files.findById(runner, context, id);
+        if (asset === null || asset.deletedAt !== null) return null;
+        const project = await projectRows.findById(runner, context, asset.projectId);
+        return project === null ? null : { asset, project };
+      });
+      if (found === null) return null;
+      const { asset, project } = found;
+      if (!mayDownloadFor(principal.kind, asset.purpose)) return null;
+      const allowed = authorize({
+        principal,
+        capability: 'file.download',
+        resource: {
+          organizationId: asset.organizationId,
+          projectId: asset.projectId,
+          audience: asset.audience,
+          clientOrganizationId: asset.clientOrganizationId,
+          lifecycle: project.archivedAt === null ? 'active' : 'archived',
+        },
+      }).allowed;
+      if (!allowed) return null;
+      return { title: asset.name, state: 'file', projectId: asset.projectId };
+    },
     conversation: async (context, principal, id) => {
       const view = await orNull(() => services.conversations.get(context, principal, id));
       if (view === null) return null;

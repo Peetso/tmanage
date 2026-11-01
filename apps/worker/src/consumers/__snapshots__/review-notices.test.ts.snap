@@ -1,0 +1,105 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`review emails (EN + AR, studio + portal) > comment · portal · ar 1`] = `
+{
+  "subject": "‏علّق Atlas Studio على Homepage Concept",
+  "text": "مرحبًا Lina،
+
+‏ترك Atlas Studio التعليق 4 على Homepage Concept في Atlas Rebrand.
+
+فتح التعليق: https://app.example/atlas/files/file-root?thread=thread-1
+
+‏أُرسلت من TManage نيابةً عن Atlas Studio",
+}
+`;
+
+exports[`review emails (EN + AR, studio + portal) > comment · portal · en 1`] = `
+{
+  "subject": "Atlas Studio commented on Homepage Concept",
+  "text": "Hello Lina,
+
+Atlas Studio left comment 4 on Homepage Concept in Atlas Rebrand.
+
+Open the comment: https://app.example/atlas/portal/files/file-root?thread=thread-1
+
+Sent by TManage on behalf of Atlas Studio",
+}
+`;
+
+exports[`review emails (EN + AR, studio + portal) > comment · studio · ar 1`] = `
+{
+  "subject": "‏علّق Maya على Homepage Concept",
+  "text": "مرحبًا Lina،
+
+‏ترك Maya التعليق 4 على Homepage Concept في Atlas Rebrand.
+
+فتح التعليق: https://app.example/atlas/files/file-root?thread=thread-1
+
+‏تصلك هذه الرسالة بسبب إعدادات الإشعارات لديك في Atlas Studio على TManage.",
+}
+`;
+
+exports[`review emails (EN + AR, studio + portal) > comment · studio · en 1`] = `
+{
+  "subject": "Maya commented on Homepage Concept",
+  "text": "Hello Lina,
+
+Maya left comment 4 on Homepage Concept in Atlas Rebrand.
+
+Open the comment: https://app.example/atlas/files/file-root?thread=thread-1
+
+You are receiving this because of your notification settings in Atlas Studio on TManage.",
+}
+`;
+
+exports[`review emails (EN + AR, studio + portal) > decided approved · en 1`] = `
+{
+  "subject": "Youssef approved Homepage Concept",
+  "text": "Hello Lina,
+
+Youssef approved Homepage Concept in Atlas Rebrand.
+
+Open the file: https://app.example/atlas/files/file-root?thread=thread-1
+
+You are receiving this because of your notification settings in Atlas Studio on TManage.",
+}
+`;
+
+exports[`review emails (EN + AR, studio + portal) > decided changes · ar 1`] = `
+{
+  "subject": "‏طلب Youssef تعديلات على Homepage Concept",
+  "text": "مرحبًا Lina،
+
+‏طلب Youssef تعديلات على Homepage Concept في Atlas Rebrand.
+
+فتح الملف: https://app.example/atlas/files/file-root?thread=thread-1
+
+‏تصلك هذه الرسالة بسبب إعدادات الإشعارات لديك في Atlas Studio على TManage.",
+}
+`;
+
+exports[`review emails (EN + AR, studio + portal) > mention · studio · ar 1`] = `
+{
+  "subject": "‏أشار إليك Maya في Homepage Concept",
+  "text": "مرحبًا Lina،
+
+‏أشار إليك Maya في التعليق 4 على Homepage Concept في Atlas Rebrand.
+
+فتح التعليق: https://app.example/atlas/files/file-root?thread=thread-1
+
+‏تصلك هذه الرسالة بسبب إعدادات الإشعارات لديك في Atlas Studio على TManage.",
+}
+`;
+
+exports[`review emails (EN + AR, studio + portal) > mention · studio · en 1`] = `
+{
+  "subject": "Maya mentioned you on Homepage Concept",
+  "text": "Hello Lina,
+
+Maya mentioned you in comment 4 on Homepage Concept in Atlas Rebrand.
+
+Open the comment: https://app.example/atlas/files/file-root?thread=thread-1
+
+You are receiving this because of your notification settings in Atlas Studio on TManage.",
+}
+`;

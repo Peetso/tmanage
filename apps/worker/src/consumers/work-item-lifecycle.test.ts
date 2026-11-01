@@ -56,6 +56,11 @@ describe('the handler registry', () => {
       'meeting.scheduled.v1',
       'message.created.v1',
       'project.member_added.v1',
+      // R4 slice 12 — the proofing viewer's notices.
+      'review.comment_added.v1',
+      'review.decision_recorded.v1',
+      'review.thread_created.v1',
+      'review.thread_resolved.v1',
       'usage.threshold_reached.v1',
       'work_item.blocked.v1',
       'work_item.client_action_requested.v1',

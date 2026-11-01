@@ -11,7 +11,10 @@ import type { ApiClient } from './client';
 
 export type InboxMode = 'important' | 'all' | 'waiting_on_me' | 'client_actions';
 
-/** What a bundle can be about. CQ-12 added channels, documents, meetings, projects and rules. */
+/**
+ * What a bundle can be about. CQ-12 added channels, documents, meetings, projects and rules; R4
+ * slice 12 a file under review (comments, mentions, resolved threads and decisions on it).
+ */
 export type InboxObjectType =
   | 'work_item'
   | 'client_request'
@@ -19,7 +22,8 @@ export type InboxObjectType =
   | 'document'
   | 'meeting'
   | 'project'
-  | 'workflow_template';
+  | 'workflow_template'
+  | 'file_asset';
 
 export interface InboxBundle {
   readonly bundleId: string;

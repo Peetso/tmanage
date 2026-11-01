@@ -1973,6 +1973,12 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`review_comments`        TO 'tmanage_a
 GRANT SELECT, DELETE ON `tmanage`.`review_comments`                TO 'tmanage_worker'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`review_threads`                 TO 'tmanage_worker'@'%';
 
+-- ---- R4 slice 12 · review notices ----
+-- The relay's review consumers name the file a comment or a decision is about ("Maya commented on
+-- Homepage Concept") and tell the person who uploaded it: SELECT on `file_assets` (name, owner,
+-- project). Read only — the worker never writes or removes a file row (see the purge note above).
+GRANT SELECT ON `tmanage`.`file_assets`                            TO 'tmanage_worker'@'%';
+
 -- ---- R4 slice 11 · decisions on plain files ----
 -- 0269 `file_review_decisions` (tenant): the app records Approve / Request changes (INSERT). The
 -- rows are append-only (a BEFORE UPDATE trigger refuses every change), so no UPDATE; DELETE is held
