@@ -1,116 +1,48 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { DocumentViewScreen } from '../src/components/screens/DocumentViewScreen';
 import { DocumentExportButton } from '../src/components/screens/DocumentExportButton';
-import { ApiClient } from '../src/lib/api/client';
 import { expectNoAxeViolations } from './axe';
 
 /**
- * DOC export (x131) web control. The API's tenant scoping, the 404-not-403 refusal and the
- * `doc.read` gate are proved server-side (`document-export.test.ts`, `capability.guard`); nothing
- * here re-proves them. What only this file can prove is what the *control* does: it renders an
- * accessible download link pointing at the export endpoint, and it does so without breaking the
- * document page's accessibility.
+ * DOC export (x131 + R5 frame 10) web control. The API's tenant scoping, the 404-not-403 refusal,
+ * the `doc.read` gate and the bytes of each format are proved server-side
+ * (`document-export.test.ts`); what only this file can prove is what the *menu* offers and where
+ * each entry points.
  */
 
-interface Call {
-  readonly url: string;
-}
-
-function clientOver(handler: (call: Call) => Response): ApiClient {
-  const client = new ApiClient({
-    baseUrl: 'https://api.example.test',
-    csrfCookieName: 'tm_session_csrf',
-    fetch: ((input: RequestInfo | URL) =>
-      Promise.resolve(handler({ url: String(input) }))) as typeof globalThis.fetch,
-    readCsrfToken: () => 'csrf-token',
-    newCorrelationId: () => 'correlation-fixed',
-  });
-  return client;
-}
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
-}
-
-function withQuery(children: ReactNode) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
-}
-
-const NOW = '2026-09-01T12:00:00.000Z';
-
-function documentView() {
-  return {
-    id: 'document-1',
-    projectId: 'project-1',
-    title: 'Kickoff brief',
-    body: 'The plan for the quarter.',
-    createdByUserId: 'user-1',
-    createdAt: NOW,
-    updatedAt: NOW,
-  };
+function openMenu() {
+  const view = render(
+    <DocumentExportButton
+      organizationSlug="acme"
+      documentId="document-1"
+      apiOrigin="https://api.example.test"
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+  return view;
 }
 
 describe('DocumentExportButton', () => {
-  it('links to the export.md endpoint for the document', () => {
-    render(
-      <DocumentExportButton
-        organizationSlug="acme"
-        documentId="document-1"
-        apiOrigin="https://api.example.test"
-      />,
-    );
-
-    const link = screen.getByRole('link', { name: 'Export Markdown' });
-    expect(link.getAttribute('href')).toBe(
-      'https://api.example.test/v1/organizations/acme/documents/document-1/export.md',
-    );
-  });
-});
-
-describe('DocumentViewScreen export control', () => {
-  it('shows the export link once the document loads and stays axe-clean', async () => {
-    const { container } = render(
-      withQuery(
-        <DocumentViewScreen
-          organizationSlug="acme"
-          organizationName="Acme"
-          documentId="document-1"
-          client={clientOver(() => json(documentView()))}
-        />,
-      ),
-    );
-
-    // The control appears only with the loaded document (never linking to an unreadable id).
-    const link = await screen.findByRole('link', { name: 'Export Markdown' });
-    expect(link.getAttribute('href')).toContain('/documents/document-1/export.md');
-
+  it('lists Markdown, HTML, Word and PDF and stays axe-clean', async () => {
+    const { container } = openMenu();
+    const labels = screen
+      .getAllByRole('menuitem')
+      .map((item) => item.querySelector('.tm-doc-export__label')?.textContent);
+    expect(labels).toEqual(['Markdown', 'HTML', 'Word', 'PDF']);
     await expectNoAxeViolations(container);
   });
 
-  it('does not show the export link on a 404 (nothing to export)', async () => {
-    render(
-      withQuery(
-        <DocumentViewScreen
-          organizationSlug="acme"
-          organizationName="Acme"
-          documentId="document-missing"
-          client={clientOver(() =>
-            json({ error: { code: 'not_found', message: 'Not found.', correlationId: 'c' } }, 404),
-          )}
-        />,
-      ),
+  it('downloads Word from the export.docx route', () => {
+    openMenu();
+    expect(screen.getByRole('menuitem', { name: /Word/u }).getAttribute('href')).toBe(
+      'https://api.example.test/v1/organizations/acme/documents/document-1/export.docx',
     );
+  });
 
-    expect(await screen.findByText('Document not found')).toBeTruthy();
-    expect(screen.queryByRole('link', { name: 'Export Markdown' })).toBeNull();
+  it('opens the print route in a new tab for PDF', () => {
+    openMenu();
+    const pdf = screen.getByRole('menuitem', { name: /PDF/u });
+    expect(pdf.getAttribute('href')).toBe('/acme/docs/document-1/print');
+    expect(pdf.getAttribute('target')).toBe('_blank');
   });
 });

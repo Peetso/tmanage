@@ -26,10 +26,16 @@
  * is emitted verbatim after the closing fence.
  */
 
-/** The narrow input the renderer needs — a document's title and current-version body. */
+import { htmlToMarkdown, type DocumentBodyFormat } from './document-export-html.js';
+
+/**
+ * The narrow input the renderer needs — a document's title and current-version body. An `html`
+ * body (R5 editor) is converted to GFM Markdown first; absent `bodyFormat` means Markdown.
+ */
 export interface ExportableDocument {
   readonly title: string;
   readonly body: string;
+  readonly bodyFormat?: DocumentBodyFormat;
 }
 
 /** The YAML front-matter fence. */
@@ -53,6 +59,7 @@ function escapeYamlDoubleQuoted(title: string): string {
  */
 export function renderDocumentMarkdown(document: ExportableDocument): string {
   const frontMatter = `${FENCE}\ntitle: "${escapeYamlDoubleQuoted(document.title)}"\n${FENCE}\n`;
-  const body = document.body.endsWith('\n') ? document.body : `${document.body}\n`;
+  const source = document.bodyFormat === 'html' ? htmlToMarkdown(document.body) : document.body;
+  const body = source.endsWith('\n') ? source : `${source}\n`;
   return `${frontMatter}\n${body}`;
 }

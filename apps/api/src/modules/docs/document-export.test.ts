@@ -1,5 +1,6 @@
 import { type Readable } from 'node:stream';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { Packer } from 'docx';
 import { Reflector } from '@nestjs/core';
 import { isInternalOnlyCapability } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
@@ -9,6 +10,8 @@ import { DocumentsService } from './documents.service.js';
 import type { DocumentsRepository } from './documents.repository.js';
 import { DocumentExportController } from './document-export.controller.js';
 import { renderDocumentMarkdown } from './document-export.js';
+import { renderDocumentDocx } from './document-export-docx.js';
+import { renderDocumentHtml } from './document-export-html.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { DocumentRow } from '../../common/database/schema.js';
 
@@ -154,5 +157,46 @@ describe('DocumentExportController', () => {
     );
     expect(capability).toBe('doc.read');
     expect(isInternalOnlyCapability('doc.read')).toBe(true);
+  });
+});
+
+describe('R5 export formats', () => {
+  it('converts an html body to GFM Markdown with a pipe table and task items', () => {
+    const body =
+      '<ul data-type="taskList"><li data-type="taskItem" data-checked="true"><p>Brief</p></li>' +
+      '<li data-type="taskItem" data-checked="false"><p>Copy</p></li></ul>' +
+      '<table><tbody><tr><th><p>A</p></th><th><p>B</p></th></tr><tr><td><p>1</p></td><td><p>2</p></td></tr></tbody></table>';
+    expect(renderDocumentMarkdown({ title: 'T', body, bodyFormat: 'html' })).toBe(
+      '---\ntitle: "T"\n---\n\n- [x] Brief\n- [ ] Copy\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n',
+    );
+  });
+
+  it('keeps the markdown export unchanged for a markdown body', () => {
+    const doc = { title: 'T', body: '# Hi\n- [x] a' };
+    expect(renderDocumentMarkdown({ ...doc, bodyFormat: 'markdown' })).toBe(
+      renderDocumentMarkdown(doc),
+    );
+  });
+
+  it('gives an Arabic-titled html page dir="rtl"', () => {
+    const page = renderDocumentHtml({
+      title: 'خطة الإطلاق',
+      body: '<p>نص</p>',
+      bodyFormat: 'html',
+    });
+    expect(page).toContain('<html lang="ar" dir="rtl">');
+    expect(page).toContain('<h1>خطة الإطلاق</h1>');
+  });
+
+  it('builds a .docx zip (PK) and hands Packer the titled document', async () => {
+    const spy = vi.spyOn(Packer, 'toBuffer');
+    const bytes = await renderDocumentDocx({ title: 'Atlas plan', body: '- [ ] one' });
+    expect(bytes.subarray(0, 2).toString('latin1')).toBe('PK');
+    expect(
+      JSON.stringify(
+        (spy.mock.calls[0]?.[0] as unknown as { coreProperties: unknown }).coreProperties,
+      ),
+    ).toContain('Atlas plan');
+    spy.mockRestore();
   });
 });

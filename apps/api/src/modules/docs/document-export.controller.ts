@@ -6,6 +6,8 @@ import { DOCUMENTS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import type { DocumentsService } from './documents.service.js';
 import { renderDocumentMarkdown } from './document-export.js';
+import { renderDocumentDocx } from './document-export-docx.js';
+import { renderDocumentHtml, type DocumentBodyFormat } from './document-export-html.js';
 
 /** The one method the export needs of the framework reply: set a header before the first byte. */
 interface HeaderWriter {
@@ -55,35 +57,121 @@ export class DocumentExportController {
     @Param('documentId') documentId: string,
     @Res({ passthrough: true }) reply: HeaderWriter,
   ): Promise<StreamableFile> {
+    const document = await this.load(context, principal, documentId);
+    const markdown = renderDocumentMarkdown(document);
+    return download(
+      reply,
+      Buffer.from(markdown, 'utf-8'),
+      MARKDOWN,
+      contentDisposition(document, documentId, 'md'),
+    );
+  }
+
+  /** R5 export: a standalone HTML page (inline CSS, `dir` by the first strong character). */
+  @Get(':documentId/export.html')
+  @RequireCapability('doc.read')
+  async exportHtml(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('documentId') documentId: string,
+    @Res({ passthrough: true }) reply: HeaderWriter,
+  ): Promise<StreamableFile> {
+    const document = await this.load(context, principal, documentId);
+    const html = renderDocumentHtml(document);
+    return download(
+      reply,
+      Buffer.from(html, 'utf-8'),
+      HTML,
+      contentDisposition(document, documentId, 'html'),
+    );
+  }
+
+  /** R5 export: a Word file built in-process with the MIT `docx` package. */
+  @Get(':documentId/export.docx')
+  @RequireCapability('doc.read')
+  async exportDocx(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('documentId') documentId: string,
+    @Res({ passthrough: true }) reply: HeaderWriter,
+  ): Promise<StreamableFile> {
+    const document = await this.load(context, principal, documentId);
+    const bytes = await renderDocumentDocx(document);
+    return download(reply, bytes, DOCX, contentDisposition(document, documentId, 'docx'));
+  }
+
+  /** The one authorized read every export shares: tenant-scoped `DocumentsService.get`. */
+  private async load(
+    context: TenantContext,
+    principal: Principal,
+    documentId: string,
+  ): Promise<{ title: string; body: string; bodyFormat: DocumentBodyFormat }> {
     if (typeof documentId !== 'string' || documentId === '') {
       throw new ApiError(400, 'validation_failed', 'documentId is required', [
         { field: 'documentId', message: 'must be a non-empty string' },
       ]);
     }
-
     const document = await this.documents.get(context, principal, documentId);
-    const markdown = renderDocumentMarkdown({ title: document.title, body: document.body });
-
-    reply.header('content-type', 'text/markdown; charset=utf-8');
-    reply.header('content-disposition', `attachment; filename="${downloadFilename(documentId)}"`);
-    reply.header('x-content-type-options', 'nosniff');
-    reply.header('cache-control', 'private, no-store');
-    return new StreamableFile(Buffer.from(markdown, 'utf-8'), {
-      type: 'text/markdown; charset=utf-8',
-    });
+    // `bodyFormat` arrives with R5 slice 2; until then every body is Markdown.
+    const format = (document as { bodyFormat?: DocumentBodyFormat }).bodyFormat;
+    return {
+      title: document.title,
+      body: document.body,
+      bodyFormat: format === 'html' ? 'html' : 'markdown',
+    };
   }
 }
 
+const MARKDOWN = 'text/markdown; charset=utf-8';
+const HTML = 'text/html; charset=utf-8';
+const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+/** Set the safe-download headers and hand Nest the bytes. */
+function download(
+  reply: HeaderWriter,
+  bytes: Buffer,
+  type: string,
+  disposition: string,
+): StreamableFile {
+  reply.header('content-type', type);
+  reply.header('content-disposition', disposition);
+  reply.header('x-content-type-options', 'nosniff');
+  reply.header('cache-control', 'private, no-store');
+  return new StreamableFile(bytes, { type });
+}
+
 /**
- * A safe `filename` for the download, built from the document id.
+ * The `Content-Disposition` for a download, shared by every export format.
  *
- * The value goes into a `Content-Disposition` header, so it must not carry a quote, a CR/LF or any
- * byte that could break the header or inject a second one. Rather than escaping, every character
- * outside a conservative filename alphabet is dropped; the id is opaque and machine-generated, so
- * what remains identifies the file without risk. An id that reduced to nothing falls back to a fixed
- * name.
+ * The value goes into a header, so the plain `filename` keeps only a conservative ASCII alphabet
+ * (no quote, CR/LF or byte that could break the header or inject a second one): the title's ASCII
+ * letters, digits, `.`, `_` and `-`, spaces folded to `-`, falling back to the opaque document id.
+ * The real title — Arabic included — rides in RFC 5987 `filename*=UTF-8''…`, percent-encoded
+ * (every byte outside the RFC's attr-char set, `'()*` too), which modern browsers prefer.
  */
-function downloadFilename(documentId: string): string {
-  const safe = documentId.replace(/[^A-Za-z0-9._-]/g, '');
-  return `${safe === '' ? 'document' : safe}.md`;
+export function contentDisposition(
+  document: { title: string },
+  documentId: string,
+  extension: string,
+): string {
+  // Control characters (C0 + DEL) and path separators become spaces.
+  const title = Array.from(document.title, (char) =>
+    char.charCodeAt(0) < 0x20 || char.charCodeAt(0) === 0x7f || char === '/' || char === '\\'
+      ? ' '
+      : char,
+  )
+    .join('')
+    .trim()
+    .slice(0, 120);
+  const ascii = title
+    .replace(/\s+/gu, '-')
+    .replace(/[^A-Za-z0-9._-]/g, '')
+    .replace(/^[.-]+/u, '');
+  const id = documentId.replace(/[^A-Za-z0-9._-]/g, '');
+  const fallback = ascii !== '' ? ascii : id !== '' ? id : 'document';
+  const encoded = encodeURIComponent(title === '' ? fallback : title).replace(
+    /['()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return `attachment; filename="${fallback}.${extension}"; filename*=UTF-8''${encoded}.${extension}`;
 }

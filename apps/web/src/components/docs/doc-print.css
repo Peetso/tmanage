@@ -1,0 +1,148 @@
+/*
+ * R5 export (slice 5) — the Export menu (Figma frame 10, 487:29138) and the A4 print view
+ * (frame 10b, 487:29340). Logical properties only, so the menu and the page mirror in Arabic.
+ */
+
+.tm-doc-export {
+  position: relative;
+}
+
+.tm-doc-export__menu {
+  position: absolute;
+  inset-block-start: calc(100% + var(--s2));
+  inset-inline-end: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 300px;
+  padding: var(--s2);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 12%);
+}
+
+.tm-doc-export__item {
+  display: flex;
+  gap: var(--s3);
+  align-items: flex-start;
+  padding: var(--s3);
+  border-radius: var(--r-control);
+  color: var(--ink-950);
+  text-decoration: none;
+}
+
+.tm-doc-export__item:hover,
+.tm-doc-export__item:focus-visible {
+  background: var(--tm-hover-surface);
+}
+
+.tm-doc-export__text {
+  display: flex;
+  flex-direction: column;
+}
+
+.tm-doc-export__label {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+.tm-doc-export__hint {
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+/* ---- Print view ------------------------------------------------------------------------- */
+
+@page {
+  size: A4;
+  margin: 18mm 16mm 20mm;
+
+  @bottom-right {
+    content: counter(page) ' / ' counter(pages);
+    color: var(--ink-650);
+    font-size: 9pt;
+  }
+}
+
+.tm-doc-print {
+  max-inline-size: 178mm;
+  margin: 0 auto;
+  padding: var(--s6) var(--s4);
+  background: var(--paper-0);
+  color: var(--ink-950);
+}
+
+.tm-doc-print__title {
+  margin: 0 0 var(--s2);
+  font-size: 32pt;
+  line-height: 1.15;
+}
+
+.tm-doc-print__meta {
+  margin: 0 0 var(--s4);
+  padding-block-end: var(--s4);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  color: var(--ink-650);
+  font-size: 10pt;
+}
+
+.tm-doc-print__body {
+  font-size: 12pt;
+  line-height: 1.55;
+}
+
+.tm-doc-print__body table {
+  inline-size: 100%;
+  border-collapse: collapse;
+}
+
+.tm-doc-print__body th,
+.tm-doc-print__body td {
+  padding: 4px 8px;
+  border: 1px solid var(--line-300);
+  text-align: start;
+}
+
+.tm-doc-print__body img {
+  max-inline-size: 100%;
+}
+
+.tm-doc-print__body h1,
+.tm-doc-print__body h2,
+.tm-doc-print__body h3,
+.tm-doc-print__body tr,
+.tm-doc-print__body img {
+  break-inside: avoid;
+}
+
+.tm-doc-print__footer {
+  margin-block-start: var(--s6);
+  color: var(--ink-650);
+  font-size: 9pt;
+}
+
+.tm-doc-print__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-end: var(--s4);
+}
+
+@media print {
+  .tm-doc-print {
+    max-inline-size: none;
+    padding: 0;
+  }
+
+  .tm-doc-print__actions {
+    display: none;
+  }
+
+  .tm-doc-print__footer {
+    position: fixed;
+    inset-block-end: 0;
+    inset-inline-start: 0;
+    margin: 0;
+  }
+}
