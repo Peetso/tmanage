@@ -242,7 +242,7 @@ describe('L2 ProjectChannelScreen attachments', () => {
     );
     const card = (await screen.findByText('brief.pdf')).closest('li');
     expect(card).not.toBeNull();
-    expect(within(card!).getByText(en('DownloadScan.notScanned'))).toBeInTheDocument();
+    expect(within(card!).getByText(new RegExp(en('DownloadScan.notScanned')))).toBeInTheDocument();
     expect(within(card!).queryByRole('link')).toBeNull();
     expect(await screen.findByText('logo.pdf')).toBeInTheDocument();
 

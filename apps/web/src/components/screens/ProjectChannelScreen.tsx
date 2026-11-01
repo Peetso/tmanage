@@ -7,12 +7,10 @@ import {
   useRef,
   useState,
   type FormEvent,
-  type KeyboardEvent,
   type ReactNode,
 } from 'react';
 import Link from 'next/link';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { InadmissibleRichTextError, sanitizeRichText } from '@tmanage/domain';
 import {
   Button,
   InlineAlert,
@@ -23,20 +21,12 @@ import {
 } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { ChatSidebar } from '../chat/ChatSidebar';
-import {
-  MentionButton,
-  MentionPicker,
-  decodeMentions,
-  memberRoleLabel,
-  useMentionComposer,
-  type MentionGroup,
-} from '../chat/MentionPicker';
+import { decodeMentions, memberRoleLabel, type MentionGroup } from '../chat/MentionPicker';
 import { RichTextBody } from '../RichTextBody';
 import { PhoneIcon } from '../icons/phone';
 import { directKeys, fetchDirectConversations } from '../../lib/api/direct-conversations';
 import '../../styles/phone/chat.css';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
-import { newCorrelationId } from '../../lib/api/client';
 import { getProject } from '../../lib/api/projects';
 import { listProjectMembers } from '../../lib/api/project-members';
 import { useTOr } from '../../lib/i18n/use-t-or';
@@ -45,24 +35,42 @@ import { fill } from '../../lib/privacy-presentation';
 import { useMembers } from '../../lib/use-members';
 import {
   MAX_MESSAGE_PAGE,
-  clearDraft,
   convertMessageToWork,
   getConversation,
-  getDraft,
   listChannelDirectory,
   listMessages,
   listRevisions,
   moderateMessage,
-  postMessage,
-  saveDraft,
 } from '../../lib/api/conversations';
 import type {
   ChannelDirectoryEntry,
   ConvertMessageResult,
   MessageSummary,
-  PostMessageInput,
 } from '../../lib/api/conversations';
-import { composeMessage } from '../../lib/rich-composer';
+import {
+  listMyMessageBookmarks,
+  removeMessageBookmark,
+  saveMessageBookmark,
+} from '../../lib/api/message-bookmarks';
+import { Composer, type ComposerReplyTarget } from '../chat/pane/Composer';
+import { MessageBubble } from '../chat/pane/MessageBubble';
+import { bubbleRuns, type BubbleRun } from '../chat/pane/BubbleGroup';
+import { DateSeparator } from '../chat/pane/DateSeparator';
+import { EmojiPicker } from '../chat/pane/EmojiPicker';
+import { ForwardSheet } from '../chat/pane/ForwardSheet';
+import { MessageInfoSheet } from '../chat/pane/MessageInfoSheet';
+import { jumpToMessage } from '../chat/pane/ReplyQuote';
+import '../chat/pane/pane.css';
+// R7 slices 3, 5 and 6: system rows, media, link previews, ticks, typing, presence, receipts.
+import { SystemMessageRow } from '../chat/SystemMessageRow';
+import { VoiceNoteBubble } from '../chat/media/VoiceNoteBubble';
+import { VoiceNoteRecorder } from '../chat/media/VoiceNoteRecorder';
+import { AttachmentBubbles, attachmentContentUrl } from '../chat/media/AttachmentBubbles';
+import { LinkPreviewCard } from '../chat/media/LinkPreviewCard';
+import { MessageTicks } from '../chat/status/MessageTicks';
+import { TypingIndicator } from '../chat/status/TypingIndicator';
+import { PresenceLabel } from '../chat/status/PresenceLabel';
+import { MessageInfoReceipts } from '../chat/status/MessageInfoReceipts';
 import { useChannelLiveFeed } from '../../lib/use-channel-live-feed';
 import type { LiveSocketFactory } from '../../lib/use-channel-live-feed';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -70,9 +78,6 @@ import { audienceLabel } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { workItemKeys } from '../../lib/query-keys';
 import { useT } from '../../lib/i18n/use-t';
-import type { MessageKey } from '../../lib/i18n/t';
-import { useDictation } from '../voice/useDictation';
-import { MicButton, MicNotice } from '../voice/VoiceControls';
 import {
   addChannelMember,
   editChannelMessage,
@@ -105,6 +110,11 @@ export interface ProjectChannelScreenProps {
   /** RT-001's test seam: jsdom has no WebSocket, so a suite injects a fake. */
   socketFactory?: LiveSocketFactory;
   reconnectBaseMs?: number;
+  /**
+   * R7 slice 4: which door the pane is opened from. The portal has no work-item links and no
+   * threads; the studio has both.
+   */
+  door?: 'studio' | 'portal';
 }
 
 type WorkAudience = 'internal' | 'client_visible' | 'client_action_required';
@@ -158,7 +168,9 @@ export function ProjectChannelScreen({
   client,
   socketFactory,
   reconnectBaseMs,
+  door = 'studio',
 }: ProjectChannelScreenProps) {
+  const portal = door === 'portal';
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
@@ -242,6 +254,7 @@ export function ProjectChannelScreen({
   }, [messages.isFetchingNextPage]);
 
   const rows = useMemo(() => messages.data?.pages.flat() ?? [], [messages.data]);
+  const runs = useMemo(() => bubbleRuns(rows), [rows]);
   const threadRoot = rows.find((message) => message.id === threadRootId);
   const archived = conversation.data?.archivedAt != null;
 
@@ -367,14 +380,38 @@ export function ProjectChannelScreen({
   const viewer = useQuery({
     queryKey: directKeys.overview(organizationSlug),
     queryFn: () => fetchDirectConversations(api, organizationSlug),
-    enabled: isMobile,
   });
   const viewerUserId = viewer.data?.viewerUserId ?? null;
+  const directPeer = memberIds.find((id) => id !== viewerUserId);
 
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
   const [pickerFor, setPickerFor] = useState<string | undefined>(undefined);
   const [moreFor, setMoreFor] = useState<string | undefined>(undefined);
   const [sheetFor, setSheetFor] = useState<string | undefined>(undefined);
+  // R7 slice 4: the quoted reply, the forward and info sheets, starred messages.
+  const [replyTo, setReplyTo] = useState<ComposerReplyTarget | undefined>(undefined);
+  const [forwardFor, setForwardFor] = useState<string | undefined>(undefined);
+  const [infoFor, setInfoFor] = useState<string | undefined>(undefined);
+  const [forwardNotice, setForwardNotice] = useState<string | undefined>(undefined);
+  const starred = useQuery({
+    queryKey: ['message-bookmarks', organizationSlug],
+    queryFn: () => listMyMessageBookmarks(api, organizationSlug),
+    enabled: !portal,
+  });
+  const starredIds = useMemo(
+    () =>
+      new Set((Array.isArray(starred.data) ? starred.data : []).map((saved) => saved.messageId)),
+    [starred.data],
+  );
+  const star = useMutation({
+    mutationFn: (messageId: string) =>
+      starredIds.has(messageId)
+        ? removeMessageBookmark(api, organizationSlug, conversationId, messageId)
+        : saveMessageBookmark(api, organizationSlug, conversationId, messageId),
+    onSuccess: () => {
+      void queries.invalidateQueries({ queryKey: ['message-bookmarks', organizationSlug] });
+    },
+  });
   const sheetReturnFocusRef = useRef<HTMLElement | null>(null);
   const closeSheet = () => {
     setSheetFor(undefined);
@@ -417,6 +454,16 @@ export function ProjectChannelScreen({
     },
     closeSheet,
     moderate,
+    portal,
+    organizationName,
+    starredIds,
+    quoteReply: (message) => {
+      setReplyTo({ message, authorName: nameOf(message.authorUserId) });
+      document.getElementById('tm-composer')?.focus();
+    },
+    forward: (messageId) => setForwardFor(messageId),
+    toggleStar: (messageId) => star.mutate(messageId),
+    showInfo: (messageId) => setInfoFor(messageId),
     recordDecision: (message) =>
       setRecordFrom({
         id: message.id,
@@ -443,6 +490,13 @@ export function ProjectChannelScreen({
       description={
         <>
           {t('ProjectChannelScreen.projectChannelDesc')} · {countsLine}
+          {/* R7 slice 6: a direct conversation shows the other person's presence. */}
+          {conversation.data?.kind === 'direct' && directPeer !== undefined ? (
+            <>
+              {' · '}
+              <PresenceLabel userId={directPeer} />
+            </>
+          ) : null}
           {archived ? <> · {t('ProjectChannelScreen.archived')}</> : null}
           {liveStatus === 'retrying' ? ' · ' : null}
           {/*
@@ -472,7 +526,7 @@ export function ProjectChannelScreen({
         />
       }
       lens={
-        convertTarget ? (
+        portal ? undefined : convertTarget ? (
           <ConvertDialog
             key={convertTarget.id}
             api={api}
@@ -620,24 +674,39 @@ export function ProjectChannelScreen({
             {...(sheetFor === undefined ? {} : { 'data-sheet-open': 'true' })}
           >
             {rows.map((message, index) => {
+              // Desktop stamps carry the day; the phone draws a separator (the list keeps only
+              // message items on desktop, which the transcript's tests and readers rely on).
               const day = isMobile ? dayKey(message.createdAt) : '';
               const showDay = isMobile && day !== '' && day !== dayKey(rows[index - 1]?.createdAt);
               return (
                 <Fragment key={message.id}>
                   {showDay ? (
-                    <li className="tm-phone-chat__day">
-                      <span>{phoneDayLabel(message.createdAt, locale, tOr)}</span>
-                    </li>
+                    <DateSeparator label={phoneDayLabel(message.createdAt, locale, tOr)} />
                   ) : null}
                   <ChannelMessage
                     message={message}
                     selected={selectedId === message.id}
                     context={rowContext}
+                    run={runs[index] ?? 'single'}
                   />
                 </Fragment>
               );
             })}
           </ol>
+        ) : null}
+
+        {rows.length > 15 && !channelRevoked ? (
+          <button
+            type="button"
+            className="tm-pane-jump"
+            onClick={() => {
+              const last = rows[rows.length - 1];
+              if (last !== undefined) jumpToMessage(last.id);
+            }}
+          >
+            <span aria-hidden="true">↓ </span>
+            {tOr('ChatMessages.jumpToLatest', 'Jump to latest')}
+          </button>
         ) : null}
 
         {messages.hasNextPage && !channelRevoked ? (
@@ -662,6 +731,7 @@ export function ProjectChannelScreen({
          */}
         {conversation.data !== undefined && !channelRevoked ? (
           <div className="tm-chat-foot">
+            <TypingIndicator conversationId={conversationId} />
             <Composer
               api={api}
               organizationSlug={organizationSlug}
@@ -670,8 +740,61 @@ export function ProjectChannelScreen({
               label={t('ProjectChannelScreen.messageChannelLabel')}
               placeholder={`${t('ProjectChannelScreen.messagePrefix')} #${conversation.data.name}`}
               mentions={{ projectMemberIds, subtitleOf }}
+              extras
+              voice={
+                <VoiceNoteRecorder
+                  client={api}
+                  organizationSlug={organizationSlug}
+                  conversationId={conversationId}
+                  projectId={conversation.data.projectId}
+                  onSent={() =>
+                    void queries.invalidateQueries({
+                      queryKey: ['messages', organizationSlug, conversationId],
+                    })
+                  }
+                />
+              }
+              {...(replyTo === undefined ? {} : { replyTo })}
+              onCancelReply={() => setReplyTo(undefined)}
             />
           </div>
+        ) : null}
+        {forwardNotice !== undefined ? (
+          <p role="status" className="tm-pane-bubble__meta">
+            {forwardNotice}
+          </p>
+        ) : null}
+        {forwardFor !== undefined ? (
+          <ForwardSheet
+            api={api}
+            organizationSlug={organizationSlug}
+            conversationId={conversationId}
+            messageId={forwardFor}
+            onClose={() => setForwardFor(undefined)}
+            onDone={(result) => {
+              setForwardFor(undefined);
+              setForwardNotice(
+                fill(
+                  tOr('ChatMessages.forwardedTo', 'Forwarded to {sent} · {refused} not allowed'),
+                  { sent: result.forwarded.length, refused: result.refused.length },
+                ),
+              );
+            }}
+          />
+        ) : null}
+        {infoFor !== undefined && rows.some((row) => row.id === infoFor) ? (
+          <MessageInfoSheet
+            message={rows.find((row) => row.id === infoFor) as MessageSummary}
+            receipts={
+              <MessageInfoReceipts
+                client={api}
+                organizationSlug={organizationSlug}
+                conversationId={conversationId}
+                messageId={infoFor}
+              />
+            }
+            onClose={() => setInfoFor(undefined)}
+          />
         ) : null}
         {recordFrom !== undefined ? (
           <RecordDecisionDialog
@@ -722,6 +845,14 @@ interface ChannelRowContext {
   moderate: { isPending: boolean; isError: boolean; error: unknown; mutate: (id: string) => void };
   /** F3. Opens "Record as decision" filled in from the message. */
   recordDecision: (message: MessageSummary) => void;
+  /** R7 slice 4. */
+  portal: boolean;
+  organizationName: string;
+  starredIds: ReadonlySet<string>;
+  quoteReply: (message: MessageSummary) => void;
+  forward: (messageId: string) => void;
+  toggleStar: (messageId: string) => void;
+  showInfo: (messageId: string) => void;
 }
 
 const LONG_PRESS_MS = 500;
@@ -874,10 +1005,12 @@ function ChannelMessage({
   message,
   selected,
   context,
+  run = 'single',
 }: {
   message: MessageSummary;
   selected: boolean;
   context: ChannelRowContext;
+  run?: BubbleRun;
 }) {
   const t = useT();
   const tOr = useTOr();
@@ -903,6 +1036,17 @@ function ChannelMessage({
     ? attachments.data
     : [];
   const reactions = useMessageReactionTally(api, organizationSlug, conversationId, message.id);
+  // R7 slice 5: a voice note's file is its first attachment; its meta carries the waveform.
+  const voiceMeta =
+    message.kind === 'voice' &&
+    typeof message.meta?.['durationMs'] === 'number' &&
+    Array.isArray(message.meta['peaks'])
+      ? {
+          durationMs: message.meta['durationMs'],
+          peaks: message.meta['peaks'] as readonly number[],
+        }
+      : undefined;
+  const voiceFile = voiceMeta === undefined ? undefined : files[0];
 
   const pressTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const rowRef = useRef<HTMLLIElement>(null);
@@ -937,7 +1081,8 @@ function ChannelMessage({
       ref={rowRef}
       id={`message-${message.id}`}
       className="tm-chat-message"
-      {...(isMobile && context.viewerUserId === message.authorUserId ? { 'data-own': 'true' } : {})}
+      {...(context.viewerUserId === message.authorUserId ? { 'data-own': 'true' } : {})}
+      data-run={run}
       {...(selected ? { 'data-selected': 'true' } : {})}
       {...(sheetOpen ? { 'data-sheet-target': 'true' } : {})}
       {...pressProps}
@@ -963,39 +1108,90 @@ function ChannelMessage({
         </div>
 
         <BubbleWrap phone={isMobile}>
-          {editing ? (
-            <InlineEditCard
-              api={api}
-              organizationSlug={organizationSlug}
-              conversationId={conversationId}
-              message={message}
-              onDone={() => {
-                context.setEditingId(undefined);
-                void queries.invalidateQueries({
-                  queryKey: ['messages', organizationSlug, conversationId],
-                });
-                void queries.invalidateQueries({
-                  queryKey: ['revisions', organizationSlug, conversationId, message.id],
-                });
-              }}
-              onCancel={() => context.setEditingId(undefined)}
-            />
-          ) : (
-            <MessageBody message={message} nameOf={nameOf} />
-          )}
-
-          {files.length > 0 ? (
-            <ul className="tm-chat-files">
-              {files.map((file) => (
-                <ChannelFileCard
-                  key={file.fileAssetId}
-                  file={file}
-                  href={fileContentHref(organizationSlug, file.fileAssetId)}
-                  isMobile={isMobile}
+          <MessageBubble
+            message={message}
+            own={context.viewerUserId === message.authorUserId}
+            run={run}
+            nameOf={nameOf}
+            headless
+            ticks={
+              <MessageTicks
+                message={{ id: message.id }}
+                viewerIsAuthor={context.viewerUserId === message.authorUserId}
+              />
+            }
+            system={
+              <SystemMessageRow
+                meta={message.meta}
+                body={message.body}
+                actorName={author}
+                nameOf={nameOf}
+              />
+            }
+            voice={
+              voiceMeta === undefined ? undefined : (
+                <VoiceNoteBubble
+                  src={
+                    voiceFile === undefined || !isDownloadable(voiceFile)
+                      ? null
+                      : attachmentContentUrl(
+                          organizationSlug,
+                          voiceFile.fileAssetId,
+                          context.portal ? 'portal' : 'studio',
+                        )
+                  }
+                  durationMs={voiceMeta.durationMs}
+                  peaks={voiceMeta.peaks}
                 />
-              ))}
-            </ul>
-          ) : null}
+              )
+            }
+            body={
+              editing ? (
+                <InlineEditCard
+                  api={api}
+                  organizationSlug={organizationSlug}
+                  conversationId={conversationId}
+                  message={message}
+                  onDone={() => {
+                    context.setEditingId(undefined);
+                    void queries.invalidateQueries({
+                      queryKey: ['messages', organizationSlug, conversationId],
+                    });
+                    void queries.invalidateQueries({
+                      queryKey: ['revisions', organizationSlug, conversationId, message.id],
+                    });
+                  }}
+                  onCancel={() => context.setEditingId(undefined)}
+                />
+              ) : (
+                <MessageBody message={message} nameOf={nameOf} />
+              )
+            }
+            attachments={
+              <>
+                {files.length > (voiceFile === undefined ? 0 : 1) ? (
+                  <AttachmentBubbles
+                    client={api}
+                    organizationSlug={organizationSlug}
+                    organizationName={context.organizationName}
+                    conversationId={conversationId}
+                    messageId={message.id}
+                    attachments={files}
+                    excludeFileIds={voiceFile === undefined ? [] : [voiceFile.fileAssetId]}
+                    door={context.portal ? 'portal' : 'studio'}
+                  />
+                ) : null}
+                {message.kind === 'text' && /https?:\/\//u.test(message.body ?? '') ? (
+                  <LinkPreviewCard
+                    client={api}
+                    organizationSlug={organizationSlug}
+                    conversationId={conversationId}
+                    messageId={message.id}
+                  />
+                ) : null}
+              </>
+            }
+          />
         </BubbleWrap>
 
         {removed ? null : (
@@ -1009,8 +1205,18 @@ function ChannelMessage({
             showAdd={!isMobile}
           />
         )}
+        {!removed && context.pickerFor === message.id ? (
+          <EmojiPicker
+            mode="reaction"
+            onPick={(emoji) => {
+              reactions.react(emoji);
+              context.setPickerFor(undefined);
+            }}
+            onClose={() => context.setPickerFor(undefined)}
+          />
+        ) : null}
 
-        {(message.replyCount ?? 0) > 0 ? (
+        {(message.replyCount ?? 0) > 0 && !context.portal ? (
           <div className="tm-chat-replies-row">
             <button
               type="button"
@@ -1035,16 +1241,29 @@ function ChannelMessage({
           </button>
         ) : (
           <div className="tm-chat-message__actions">
-            <button
-              type="button"
-              className="tm-chat-hover"
-              aria-label={t('ProjectChannelScreen.replyInThread')}
-              aria-expanded={context.threadRootId === message.id}
-              onClick={(event) => context.openThread(message.id, event.currentTarget)}
-            >
-              <span aria-hidden="true">↩</span>
-              {tOr('ProjectChannelScreen.replyShort', 'Reply')}
-            </button>
+            {context.portal ? null : (
+              <button
+                type="button"
+                className="tm-chat-hover"
+                aria-label={t('ProjectChannelScreen.replyInThread')}
+                aria-expanded={context.threadRootId === message.id}
+                onClick={(event) => context.openThread(message.id, event.currentTarget)}
+              >
+                <span aria-hidden="true">↩</span>
+                {tOr('ProjectChannelScreen.replyShort', 'Reply')}
+              </button>
+            )}
+            {removed || archived ? null : (
+              <button
+                type="button"
+                className="tm-chat-hover"
+                aria-label={tOr('ChatMessages.quoteReply', 'Reply with quote')}
+                onClick={() => context.quoteReply(message)}
+              >
+                <span aria-hidden="true">❝</span>
+                {tOr('ChatMessages.quoteShort', 'Quote')}
+              </button>
+            )}
             {removed ? null : (
               <button
                 type="button"
@@ -1069,7 +1288,7 @@ function ChannelMessage({
                 {tOr('ProjectChannelScreen.editShort', 'Edit')}
               </button>
             ) : null}
-            {removed && message.editedAt === null ? null : (
+            {
               <button
                 type="button"
                 className="tm-chat-hover"
@@ -1081,10 +1300,49 @@ function ChannelMessage({
               >
                 <span aria-hidden="true">⋯</span>
               </button>
-            )}
+            }
             {context.moreFor === message.id ? (
               <div className="tm-chat-more">
                 {removed ? null : (
+                  <button
+                    type="button"
+                    className="tm-chat-more__item"
+                    aria-haspopup="dialog"
+                    onClick={() => {
+                      context.setMoreFor(undefined);
+                      context.forward(message.id);
+                    }}
+                  >
+                    {tOr('ChatMessages.forward', 'Forward')}
+                  </button>
+                )}
+                {removed || context.portal ? null : (
+                  <button
+                    type="button"
+                    className="tm-chat-more__item"
+                    aria-pressed={context.starredIds.has(message.id)}
+                    onClick={() => {
+                      context.setMoreFor(undefined);
+                      context.toggleStar(message.id);
+                    }}
+                  >
+                    {context.starredIds.has(message.id)
+                      ? tOr('ChatMessages.unstar', 'Unstar message')
+                      : tOr('ChatMessages.star', 'Star message')}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="tm-chat-more__item"
+                  aria-haspopup="dialog"
+                  onClick={() => {
+                    context.setMoreFor(undefined);
+                    context.showInfo(message.id);
+                  }}
+                >
+                  {tOr('ChatMessages.info', 'Info')}
+                </button>
+                {removed || context.portal ? null : (
                   <button
                     type="button"
                     className="tm-chat-more__item"
@@ -1099,7 +1357,7 @@ function ChannelMessage({
                     {t('ProjectChannelScreen.createWorkFromThis')}
                   </button>
                 )}
-                {removed || message.body === null ? null : (
+                {removed || message.body === null || context.portal ? null : (
                   <button
                     type="button"
                     className="tm-chat-more__item"
@@ -1186,11 +1444,24 @@ function ChannelMessage({
           reacted={reactedSet}
           onReact={reactions.react}
           onMoreReactions={() => context.setPickerFor(message.id)}
-          onReply={() => {
-            if (rowRef.current !== null) context.openThread(message.id, rowRef.current);
-          }}
+          {...(context.portal
+            ? {}
+            : {
+                onReply: () => {
+                  if (rowRef.current !== null) context.openThread(message.id, rowRef.current);
+                },
+              })}
+          {...(removed || archived ? {} : { onQuoteReply: () => context.quoteReply(message) })}
+          {...(removed ? {} : { onForward: () => context.forward(message.id) })}
+          {...(removed || context.portal
+            ? {}
+            : {
+                onStar: () => context.toggleStar(message.id),
+                starred: context.starredIds.has(message.id),
+              })}
+          onInfo={() => context.showInfo(message.id)}
           {...(editable ? { onEdit: () => context.setEditingId(message.id) } : {})}
-          {...(!removed && message.body !== null
+          {...(!removed && message.body !== null && !context.portal
             ? { onRecordDecision: () => context.recordDecision(message) }
             : {})}
           {...(!removed && message.body !== null
@@ -1561,436 +1832,6 @@ function MessageBody({
           return name === shortAuthor(id) ? undefined : name;
         });
   return <p className="tm-chat-message__body tm-break">{body}</p>;
-}
-
-/**
- * The formatting a toolbar button applies: wrap the selection inline, prefix the selected
- * lines, or fence them. All three edit the *notation* in the textarea — the person always
- * sees exactly what will be converted, and the preview shows what it converts to.
- */
-type ToolbarEdit =
-  | { readonly kind: 'wrap'; readonly before: string; readonly after: string }
-  | { readonly kind: 'prefix'; readonly marker: string }
-  | { readonly kind: 'fence' };
-
-const TOOLBAR: readonly { labelKey: MessageKey; glyph: string; edit: ToolbarEdit }[] = [
-  {
-    labelKey: 'ProjectChannelScreen.toolbarBold',
-    glyph: 'B',
-    edit: { kind: 'wrap', before: '**', after: '**' },
-  },
-  {
-    labelKey: 'ProjectChannelScreen.toolbarItalic',
-    glyph: 'I',
-    edit: { kind: 'wrap', before: '_', after: '_' },
-  },
-  {
-    labelKey: 'ProjectChannelScreen.toolbarStrikethrough',
-    glyph: 'S',
-    edit: { kind: 'wrap', before: '~~', after: '~~' },
-  },
-  {
-    labelKey: 'ProjectChannelScreen.toolbarCode',
-    glyph: '`',
-    edit: { kind: 'wrap', before: '`', after: '`' },
-  },
-  {
-    labelKey: 'ProjectChannelScreen.toolbarLink',
-    glyph: '↗',
-    edit: { kind: 'wrap', before: '[', after: '](https://)' },
-  },
-  {
-    labelKey: 'ProjectChannelScreen.toolbarQuote',
-    glyph: '❝',
-    edit: { kind: 'prefix', marker: '> ' },
-  },
-  {
-    labelKey: 'ProjectChannelScreen.toolbarBulletedList',
-    glyph: '•',
-    edit: { kind: 'prefix', marker: '- ' },
-  },
-  {
-    labelKey: 'ProjectChannelScreen.toolbarNumberedList',
-    glyph: '1.',
-    edit: { kind: 'prefix', marker: '1. ' },
-  },
-  { labelKey: 'ProjectChannelScreen.toolbarCodeBlock', glyph: '{}', edit: { kind: 'fence' } },
-];
-
-/** Apply one toolbar edit to the draft at the current selection. Returns the new draft. */
-function applyToolbarEdit(
-  draft: string,
-  selectionStart: number,
-  selectionEnd: number,
-  edit: ToolbarEdit,
-): string {
-  const before = draft.slice(0, selectionStart);
-  const selected = draft.slice(selectionStart, selectionEnd);
-  const after = draft.slice(selectionEnd);
-
-  if (edit.kind === 'wrap') {
-    return `${before}${edit.before}${selected || 'text'}${edit.after}${after}`;
-  }
-  if (edit.kind === 'prefix') {
-    // Prefix every line the selection touches, from the start of its first line.
-    const lineStart = before.lastIndexOf('\n') + 1;
-    const head = draft.slice(0, lineStart);
-    const target = draft.slice(lineStart, selectionEnd) || 'text';
-    const prefixed = target
-      .split('\n')
-      .map((line) => `${edit.marker}${line}`)
-      .join('\n');
-    return `${head}${prefixed}${after}`;
-  }
-  const block = selected || 'code';
-  const openFence = before === '' || before.endsWith('\n') ? '```\n' : '\n```\n';
-  return `${before}${openFence}${block}\n\`\`\`\n${after}`;
-}
-
-/**
- * The composer, used by the channel and by the thread pane. One component so the dedupe
- * behaviour — mint the id when a send starts, keep it until that send succeeds — cannot
- * drift between the two.
- *
- * ## The rich half — WEB-003's second half
- *
- * The toolbar writes the composer's notation into the textarea; `composeMessage` converts
- * it to CHAT-002's closed grammar; the preview renders the converted document through the
- * same `RichTextBody` the transcript uses, so what is previewed is what a reader will see —
- * not a second renderer's opinion. A draft that uses no notation is sent as plain `body`,
- * exactly as before. Before a rich send, `sanitizeRichText` — the domain's own gate, the
- * same one the API applies — runs here so an inadmissible document is refused with its
- * path *before* the network, not after. No HTML exists at any point in this path.
- */
-function Composer({
-  api,
-  organizationSlug,
-  conversationId,
-  archived,
-  label,
-  placeholder,
-  parentMessageId,
-  mentions,
-}: {
-  api: ApiClient;
-  organizationSlug: string;
-  conversationId: string;
-  archived: boolean;
-  label: string;
-  placeholder?: string;
-  parentMessageId?: string;
-  /** A4 (m-mention): the channel composer's @ picker. Absent on a thread reply. */
-  mentions?: {
-    projectMemberIds: ReadonlySet<string>;
-    subtitleOf: (userId: string, group: MentionGroup) => string | undefined;
-  };
-}) {
-  const queries = useQueryClient();
-  const t = useT();
-  const [draft, setDraft] = useState('');
-  const dictation = useDictation({
-    value: draft,
-    onChange: (next) => setDraft(next.slice(0, 16000)),
-  });
-  const [attemptId, setAttemptId] = useState<string | undefined>(undefined);
-  const [inadmissible, setInadmissible] = useState<string | undefined>(undefined);
-  const [toolsOpen, setToolsOpen] = useState(false);
-  const controlRef = useRef<HTMLTextAreaElement | null>(null);
-  const tOr = useTOr();
-  const mention = useMentionComposer({
-    api,
-    organizationSlug,
-    conversationId,
-    draft,
-    setDraft,
-    controlRef,
-    ...(mentions === undefined
-      ? {}
-      : { projectMemberIds: mentions.projectMemberIds, subtitleOf: mentions.subtitleOf }),
-  });
-  const mentionsOn = mentions !== undefined;
-
-  // x251. Only the channel composer persists an unsent draft; a thread reply is transient and
-  // has no per-thread draft on the server (the draft is keyed to the conversation). The notation
-  // in the textarea is what is saved verbatim, so what is restored is exactly what was typed.
-  const persistDraft = parentMessageId === undefined;
-  const restoredRef = useRef(false);
-  // 2026-10-31 live-test fix: a send clears the stored draft itself, at once. The emptied box then
-  // must not fire a second, debounced DELETE for the same draft — two DELETEs back to back is what
-  // the live test saw answered 503 by the host under load.
-  const clearedOnSendRef = useRef(false);
-
-  // Restore the saved draft once, on open, and never over text the author has already started —
-  // the seed only ever fills an empty box.
-  useEffect(() => {
-    if (!persistDraft || restoredRef.current) return;
-    let cancelled = false;
-    void getDraft(api, organizationSlug, conversationId)
-      .then((saved) => {
-        if (cancelled) return;
-        restoredRef.current = true;
-        if (typeof saved.body === 'string' && saved.body !== '') {
-          setDraft((current) => (current === '' ? (saved.body as string) : current));
-        }
-      })
-      .catch(() => {
-        // A draft that cannot be loaded is not worth surfacing: the composer opens empty, which
-        // is the same state as "no draft", and the send path is unaffected.
-        restoredRef.current = true;
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [api, organizationSlug, conversationId, persistDraft]);
-
-  // Save what is typed, debounced, once the restore has settled so a save cannot race the seed.
-  // An emptied box clears the stored draft; a non-empty one upserts it. A failed save is silent —
-  // the draft is a convenience, not the message, and the next keystroke tries again.
-  useEffect(() => {
-    if (!persistDraft || !restoredRef.current) return;
-    if (draft !== '') clearedOnSendRef.current = false;
-    else if (clearedOnSendRef.current) {
-      clearedOnSendRef.current = false;
-      return;
-    }
-    const handle = setTimeout(() => {
-      const write =
-        draft === ''
-          ? clearDraft(api, organizationSlug, conversationId)
-          : saveDraft(api, organizationSlug, conversationId, draft);
-      void Promise.resolve(write).catch(() => {});
-    }, 800);
-    return () => clearTimeout(handle);
-  }, [draft, api, organizationSlug, conversationId, persistDraft]);
-
-  // Picked names go out as the API's mention tokens (`@<userId>`).
-  const encodeMentions = mention.encode;
-  const composed = useMemo(
-    () => (draft.trim() === '' ? undefined : composeMessage(encodeMentions(draft))),
-    [draft, encodeMentions],
-  );
-
-  const send = useMutation({
-    mutationFn: (input: PostMessageInput) =>
-      postMessage(api, organizationSlug, conversationId, {
-        ...input,
-        ...(parentMessageId === undefined ? {} : { parentMessageId }),
-      }),
-    onSuccess: () => {
-      if (persistDraft) clearedOnSendRef.current = true;
-      setDraft('');
-      setAttemptId(undefined);
-      // The message is sent, so its draft is spent — clear it so a reopen does not restore text
-      // that is already in the transcript.
-      if (persistDraft) void clearDraft(api, organizationSlug, conversationId).catch(() => {});
-      void queries.invalidateQueries({ queryKey: ['messages', organizationSlug, conversationId] });
-    },
-  });
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    performSend();
-  }
-
-  /**
-   * COL-13: Enter sends; Shift+Enter inserts a newline. The guard against `isComposing` keeps an
-   * IME mid-composition Enter (choosing a candidate) from sending, so composing Arabic, Japanese or
-   * any other input method is unaffected. Any modifier (Ctrl/Cmd/Alt) is left to the browser.
-   */
-  function onComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (mentionsOn && mention.onKeyDown(event)) return;
-    if (
-      event.key === 'Enter' &&
-      !event.shiftKey &&
-      !event.ctrlKey &&
-      !event.metaKey &&
-      !event.altKey &&
-      !event.nativeEvent.isComposing
-    ) {
-      event.preventDefault();
-      performSend();
-    }
-  }
-
-  function performSend() {
-    if (composed === undefined || send.isPending) return;
-    setInadmissible(undefined);
-
-    let content: Pick<PostMessageInput, 'body' | 'bodyRich'>;
-    if (composed.kind === 'plain') {
-      content = { body: composed.body.trim() };
-    } else {
-      try {
-        // The same refusal the API would give, raised before the network so the path to
-        // the offending node points at something the author can still edit.
-        content = { bodyRich: sanitizeRichText(composed.document) };
-      } catch (error) {
-        setInadmissible(
-          error instanceof InadmissibleRichTextError
-            ? error.message
-            : t('ProjectChannelScreen.cannotFormat'),
-        );
-        return;
-      }
-    }
-
-    // Reuse the attempt id when this is a retry of a failed send; mint one otherwise.
-    const clientGeneratedId = attemptId ?? newCorrelationId();
-    setAttemptId(clientGeneratedId);
-    send.mutate({ ...content, clientGeneratedId });
-  }
-
-  function applyEdit(edit: ToolbarEdit) {
-    const control = controlRef.current;
-    const start = control?.selectionStart ?? draft.length;
-    const end = control?.selectionEnd ?? draft.length;
-    setDraft(applyToolbarEdit(draft, start, end, edit));
-    control?.focus();
-  }
-
-  const controlId = parentMessageId === undefined ? 'tm-composer' : 'tm-thread-composer';
-  // A16: the channel composer is the Figma's "+ · @ · →" card — the formatting toolbar sits
-  // behind "+" — while the thread reply keeps its full toolbar, dictation and labelled Send.
-  const channelStyle = parentMessageId === undefined;
-  const toolbar = (
-    <div
-      className="tm-chat-composer__tools"
-      role="group"
-      aria-label={t('ProjectChannelScreen.formattingGroup')}
-    >
-      {TOOLBAR.map((tool) => (
-        <button
-          key={tool.labelKey}
-          type="button"
-          className="tm-chat-composer__tool"
-          aria-label={t(tool.labelKey)}
-          title={t(tool.labelKey)}
-          onClick={() => applyEdit(tool.edit)}
-        >
-          <span aria-hidden="true">{tool.glyph}</span>
-        </button>
-      ))}
-    </div>
-  );
-
-  if (archived) {
-    return <p className="tm-chat-archived">{t('ProjectChannelScreen.channelArchived')}</p>;
-  }
-
-  return (
-    <form className="tm-chat-composer" onSubmit={submit}>
-      <label className="tm-visually-hidden" htmlFor={controlId}>
-        {label}
-      </label>
-      <textarea
-        id={controlId}
-        ref={controlRef}
-        className="tm-chat-composer__input"
-        rows={parentMessageId === undefined ? 1 : 3}
-        maxLength={16000}
-        value={draft}
-        placeholder={placeholder ?? label}
-        onChange={(event) => {
-          setDraft(event.target.value);
-          if (mentionsOn) {
-            mention.sync(
-              event.target.value,
-              event.target.selectionStart ?? event.target.value.length,
-            );
-          }
-        }}
-        onKeyDown={onComposerKeyDown}
-        {...(mentionsOn ? mention.controlProps : {})}
-      />
-
-      {mentionsOn && mention.open ? (
-        <MentionPicker
-          id={mention.listboxId}
-          options={mention.options}
-          activeIndex={mention.activeIndex}
-          onPick={mention.pick}
-          onHover={mention.setActiveIndex}
-          query={mention.query}
-        />
-      ) : null}
-
-      {composed?.kind === 'rich' ? (
-        <section className="tm-chat-preview" aria-label={t('ProjectChannelScreen.previewAria')}>
-          <h3 className="tm-chat-eyebrow">{t('ProjectChannelScreen.previewHeading')}</h3>
-          <RichTextBody document={composed.document} />
-        </section>
-      ) : null}
-
-      {inadmissible !== undefined ? (
-        <InlineAlert tone="danger" title={t('ProjectChannelScreen.formattingCannotSend')} live>
-          {inadmissible}
-        </InlineAlert>
-      ) : null}
-
-      {send.isError ? (
-        <InlineAlert tone="danger" title={t('ProjectChannelScreen.notSent')} live>
-          {describeError(send.error, t)}{' '}
-          {send.error instanceof NetworkError ? t('ProjectChannelScreen.textStillHere') : ''}
-        </InlineAlert>
-      ) : null}
-
-      {channelStyle ? (
-        <div className="tm-chat-composer__bar tm-chat-composer__bar--channel">
-          <button
-            type="button"
-            className="tm-chat-side__round"
-            aria-label={tOr('ProjectChannelScreen.formattingToggle', 'Formatting')}
-            title={tOr('ProjectChannelScreen.formattingToggle', 'Formatting')}
-            aria-expanded={toolsOpen}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => setToolsOpen((open) => !open)}
-          >
-            <span aria-hidden="true">+</span>
-          </button>
-          {toolsOpen ? toolbar : null}
-          <span className="tm-chat-composer__spacer" aria-hidden="true" />
-          {mentionsOn ? (
-            <MentionButton
-              label={tOr('MentionPicker.button', 'Mention someone')}
-              onClick={mention.openAtCaret}
-            />
-          ) : null}
-          <button
-            type="submit"
-            className="tm-chat-side__send"
-            aria-label={
-              send.isPending ? t('ProjectChannelScreen.sending') : t('ProjectChannelScreen.send')
-            }
-            title={t('ProjectChannelScreen.send')}
-            disabled={composed === undefined || send.isPending}
-            aria-busy={send.isPending}
-          >
-            <span className="tm-chat-side__send-arrow" aria-hidden="true">
-              →
-            </span>
-            <PhoneIcon name="send" className="tm-phone-chat__send-icon" />
-          </button>
-        </div>
-      ) : (
-        <div className="tm-chat-composer__bar">
-          {toolbar}
-          <MicButton dictation={dictation} compact />
-          <button
-            type="submit"
-            className="tm-chat-send"
-            disabled={composed === undefined || send.isPending}
-            aria-busy={send.isPending}
-          >
-            <span className="tm-chat-send__orb" aria-hidden="true">
-              ↑
-            </span>
-            {send.isPending ? t('ProjectChannelScreen.sending') : t('ProjectChannelScreen.send')}
-          </button>
-        </div>
-      )}
-      {channelStyle ? null : <MicNotice dictation={dictation} />}
-    </form>
-  );
 }
 
 /**

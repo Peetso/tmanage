@@ -41,7 +41,7 @@ export interface MessageReactionTallyView {
 }
 
 /**
- * The fixed reaction allowlist — CH-07's "reactions". An emoji outside this set is a 400 rather
+ * The fixed reaction allowlist — CH-07's "reactions", widened in R7 to a curated ~60. An emoji outside this set is a 400 rather
  * than a stored row: the set is deliberately small and closed so the column holds only known
  * glyphs, and widening it is a code change (a new entry here) rather than a migration.
  */
@@ -58,6 +58,57 @@ export const ALLOWED_REACTIONS: readonly string[] = Object.freeze([
   '\u{2713}', // ✓ check mark
   '\u{263A}', // ☺ smiling face
   '\u{2605}', // ★ black star
+  // R7 slice 4: the curated set the emoji picker offers for reactions (one code point each,
+  // no variation selectors).
+  '\u{1F602}',
+  '\u{1F60D}',
+  '\u{1F622}',
+  '\u{1F62E}',
+  '\u{1F621}',
+  '\u{1F64F}',
+  '\u{1F44F}',
+  '\u{1F525}',
+  '\u{1F4AF}',
+  '\u{2705}',
+  '\u{274C}',
+  '\u{1F914}',
+  '\u{1F60A}',
+  '\u{1F60E}',
+  '\u{1F973}',
+  '\u{1F929}',
+  '\u{1F605}',
+  '\u{1F923}',
+  '\u{1F610}',
+  '\u{1F634}',
+  '\u{1F62C}',
+  '\u{1F917}',
+  '\u{1F64C}',
+  '\u{1F4AA}',
+  '\u{1F91D}',
+  '\u{1F44C}',
+  '\u{270C}',
+  '\u{1F44B}',
+  '\u{1F449}',
+  '\u{261D}',
+  '\u{2B50}',
+  '\u{2728}',
+  '\u{1F4A1}',
+  '\u{1F4CC}',
+  '\u{1F4CE}',
+  '\u{23F0}',
+  '\u{1F4C5}',
+  '\u{1F381}',
+  '\u{1F3C6}',
+  '\u{1F947}',
+  '\u{1F48E}',
+  '\u{1F4B0}',
+  '\u{1F4C8}',
+  '\u{1F6A9}',
+  '\u{26A0}',
+  '\u{2757}',
+  '\u{2753}',
+  '\u{1F4AC}',
+  '\u{1F49C}',
 ]);
 
 export function isAllowedReaction(emoji: string): boolean {

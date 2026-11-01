@@ -155,3 +155,24 @@ async function flushTallies(
     }
   }
 }
+
+/**
+ * R7 slice 4: the curated reaction set the API's `ALLOWED_REACTIONS` admits, in its order (the
+ * earlier quick reactions first). The reaction picker offers exactly these, so a pick never
+ * answers 400. One code point each except the heart, which keeps its variation selector.
+ */
+export const REACTION_SET: readonly string[] = Object.freeze(
+  [
+    0x1f44d, 0x1f44e, -1, 0x1f389, 0x1f604, 0x1f615, 0x1f680, 0x1f440, 0x2713, 0x263a, 0x2605,
+    0x1f602, 0x1f60d, 0x1f622, 0x1f62e, 0x1f621, 0x1f64f, 0x1f44f, 0x1f525, 0x1f4af, 0x2705, 0x274c,
+    0x1f914, 0x1f60a, 0x1f60e, 0x1f973, 0x1f929, 0x1f605, 0x1f923, 0x1f610, 0x1f634, 0x1f62c,
+    0x1f917, 0x1f64c, 0x1f4aa, 0x1f91d, 0x1f44c, 0x270c, 0x1f44b, 0x1f449, 0x261d, 0x2b50, 0x2728,
+    0x1f4a1, 0x1f4cc, 0x1f4ce, 0x23f0, 0x1f4c5, 0x1f381, 0x1f3c6, 0x1f947, 0x1f48e, 0x1f4b0,
+    0x1f4c8, 0x1f6a9, 0x26a0, 0x2757, 0x2753, 0x1f4ac, 0x1f49c,
+  ].map((code) => (code === -1 ? '❤️' : String.fromCodePoint(code))),
+);
+
+/** The six reactions the quick row offers before the full picker. */
+export const QUICK_ROW: readonly string[] = REACTION_SET.filter((_, index) =>
+  [0, 2, 11, 14, 16, 3].includes(index),
+);

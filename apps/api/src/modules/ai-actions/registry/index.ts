@@ -1187,6 +1187,14 @@ export const OPS: readonly AiActionOp[] = [
     scope: 'manage',
   },
   {
+    id: 'conversations.messages.forward.create',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/conversations/:conversationId/messages/:messageId/forward',
+    capability: 'conversation.write',
+    risk: 'write',
+    scope: 'write',
+  },
+  {
     id: 'conversations.messages.bookmark.delete',
     method: 'DELETE',
     path: '/v1/organizations/:orgSlug/conversations/:conversationId/messages/:messageId/bookmark',

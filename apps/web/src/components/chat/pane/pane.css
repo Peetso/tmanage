@@ -1,0 +1,249 @@
+/* R7 slice 4 — the conversation pane: bubbles, quotes, sheets, picker, composer extras.
+   Logical properties only, so the Arabic layout mirrors without a second rule set. */
+
+.tm-pane-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-inline-size: min(560px, 85%);
+  padding-block: 8px;
+  padding-inline: 12px;
+  border-radius: 14px;
+  background: var(--paper-0);
+  border: 1px solid var(--line-300);
+  color: var(--ink-950);
+  overflow-wrap: anywhere;
+}
+
+.tm-pane-bubble[data-own='true'] {
+  align-self: flex-end;
+  background: var(--ink-950);
+  border-color: transparent;
+  color: var(--paper-0);
+}
+
+.tm-pane-bubble[data-run='middle'],
+.tm-pane-bubble[data-run='last'] {
+  border-start-start-radius: 6px;
+}
+
+.tm-pane-bubble[data-own='true'][data-run='middle'],
+.tm-pane-bubble[data-own='true'][data-run='last'] {
+  border-start-start-radius: 14px;
+  border-start-end-radius: 6px;
+}
+
+.tm-pane-bubble__forwarded,
+.tm-pane-bubble__edited,
+.tm-pane-bubble__meta {
+  font-size: 12px;
+  color: var(--ink-650);
+}
+
+.tm-pane-bubble[data-own='true'] .tm-pane-bubble__forwarded,
+.tm-pane-bubble[data-own='true'] .tm-pane-bubble__edited,
+.tm-pane-bubble[data-own='true'] .tm-pane-bubble__meta {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.tm-pane-bubble__foot {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.tm-pane-tombstone {
+  font-style: italic;
+  color: var(--ink-650);
+}
+
+.tm-pane-quote {
+  display: block;
+  inline-size: 100%;
+  padding-block: 4px;
+  padding-inline: 8px;
+  border: 0;
+  border-inline-start: 3px solid var(--lime-500);
+  border-radius: 8px;
+  background: var(--paper-150);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-pane-quote__author {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tm-pane-quote__excerpt {
+  display: block;
+  font-size: 12px;
+  opacity: 0.8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-pane-location {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tm-pane-location__coords {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.tm-pane-day {
+  display: flex;
+  justify-content: center;
+  list-style: none;
+  margin-block: 8px;
+}
+
+.tm-pane-day > span {
+  padding-block: 2px;
+  padding-inline: 10px;
+  border-radius: 999px;
+  background: var(--paper-250);
+  font-size: 12px;
+}
+
+.tm-pane-jump {
+  position: sticky;
+  inset-block-end: 8px;
+  align-self: center;
+  padding-block: 6px;
+  padding-inline: 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink-950);
+  color: var(--paper-0);
+  cursor: pointer;
+}
+
+.tm-pane-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.tm-pane-sheet__card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  inline-size: min(420px, calc(100vw - 32px));
+  max-block-size: 80vh;
+  overflow: auto;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--paper-0);
+  color: var(--ink-950);
+}
+
+.tm-pane-sheet__title {
+  margin: 0;
+  font-size: 16px;
+}
+
+.tm-pane-sheet__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-pane-sheet__row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tm-pane-sheet__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.tm-pane-emoji {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--paper-0);
+  border: 1px solid var(--line-300);
+}
+
+.tm-pane-emoji__item {
+  padding: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.tm-pane-emoji__item:hover,
+.tm-pane-emoji__item:focus-visible {
+  background: var(--paper-150);
+}
+
+.tm-pane-emoji-mart {
+  position: absolute;
+  inset-block-end: calc(100% + 8px);
+  inset-inline-start: 0;
+  z-index: 40;
+}
+
+.tm-pane-reply-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tm-pane-reply-bar > .tm-pane-quote {
+  flex: 1;
+}
+
+.tm-pane-composer-extras {
+  position: relative;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+@media (max-width: 767px) {
+  .tm-chat-channel--phone .tm-chat-foot {
+    position: sticky;
+    inset-block-end: 0;
+    z-index: 5;
+    padding-block-end: env(keyboard-inset-height, 0px);
+    background: var(--paper-0);
+  }
+
+  .tm-pane-bubble {
+    max-inline-size: 85%;
+  }
+
+  .tm-pane-sheet {
+    place-items: end center;
+  }
+
+  .tm-pane-sheet__card {
+    inline-size: 100%;
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+  }
+}

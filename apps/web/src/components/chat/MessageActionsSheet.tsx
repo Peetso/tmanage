@@ -6,13 +6,47 @@ import { useT } from '../../lib/i18n/use-t';
 import { QUICK_REACTIONS, reactionLabel } from '../screens/MessageReactionsView';
 import './chat-shell.css';
 
+/** R7 slice 4: the quick row — the four drawn reactions, then 👍 and 🙏 (six in all). */
+const SHEET_REACTIONS: readonly string[] = [...QUICK_REACTIONS, '\u{1F44D}', '\u{1F64F}'];
+
+function SheetItem({
+  glyph,
+  label,
+  onClick,
+}: {
+  glyph: string;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <li>
+      <button type="button" className="tm-chat-actions-sheet__item" onClick={onClick}>
+        <span className="tm-chat-actions-sheet__glyph" aria-hidden="true">
+          {glyph}
+        </span>
+        {label}
+      </button>
+    </li>
+  );
+}
+
 export interface MessageActionsSheetProps {
   /** Which of the quick reactions the member already holds — drawn pressed. */
   reacted: ReadonlySet<string>;
   onReact: (emoji: string) => void;
   /** The "+" chip: the full reaction picker under the message. */
   onMoreReactions: () => void;
-  onReply: () => void;
+  /** Reply in a thread. Absent where there are no threads (the portal). */
+  onReply?: () => void;
+  /** R7 slice 4: reply with the message quoted in the composer. */
+  onQuoteReply?: () => void;
+  /** R7 slice 4: forward to other conversations. */
+  onForward?: () => void;
+  /** R7 slice 4: star (bookmark) the message; `starred` draws the current state. */
+  onStar?: () => void;
+  starred?: boolean;
+  /** R7 slice 4: the message info sheet. */
+  onInfo?: () => void;
   /** F3. Absent when the message has no text to record (a rich or removed message). */
   onRecordDecision?: () => void;
   /** Absent when the message cannot be edited here (a rich or removed message). */
@@ -43,6 +77,11 @@ export function MessageActionsSheet({
   onReact,
   onMoreReactions,
   onReply,
+  onQuoteReply,
+  onForward,
+  onStar,
+  starred = false,
+  onInfo,
   onRecordDecision,
   onEdit,
   onCopy,
@@ -97,7 +136,7 @@ export function MessageActionsSheet({
           role="group"
           aria-label={t('MessageReactionsView.reactionsGroup')}
         >
-          {QUICK_REACTIONS.map((emoji, index) => (
+          {SHEET_REACTIONS.map((emoji, index) => (
             <button
               key={emoji}
               ref={index === 0 ? firstRef : undefined}
@@ -120,14 +159,41 @@ export function MessageActionsSheet({
           </button>
         </div>
         <ul className="tm-chat-actions-sheet__list">
-          <li>
-            <button type="button" className="tm-chat-actions-sheet__item" onClick={act(onReply)}>
-              <span className="tm-chat-actions-sheet__glyph" aria-hidden="true">
-                ↩
-              </span>
-              {t('ProjectChannelScreen.replyInThread')}
-            </button>
-          </li>
+          {onQuoteReply ? (
+            <SheetItem
+              glyph="❝"
+              label={tOr('ChatMessages.quoteReply', 'Reply with quote')}
+              onClick={act(onQuoteReply)}
+            />
+          ) : null}
+          {onReply ? (
+            <SheetItem
+              glyph="↩"
+              label={t('ProjectChannelScreen.replyInThread')}
+              onClick={act(onReply)}
+            />
+          ) : null}
+          {onForward ? (
+            <SheetItem
+              glyph="↪"
+              label={tOr('ChatMessages.forward', 'Forward')}
+              onClick={act(onForward)}
+            />
+          ) : null}
+          {onStar ? (
+            <SheetItem
+              glyph={starred ? '☆' : '★'}
+              label={
+                starred
+                  ? tOr('ChatMessages.unstar', 'Unstar message')
+                  : tOr('ChatMessages.star', 'Star message')
+              }
+              onClick={act(onStar)}
+            />
+          ) : null}
+          {onInfo ? (
+            <SheetItem glyph="ⓘ" label={tOr('ChatMessages.info', 'Info')} onClick={act(onInfo)} />
+          ) : null}
           {onRecordDecision ? (
             <li>
               <button

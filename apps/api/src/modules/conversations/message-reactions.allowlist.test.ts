@@ -13,5 +13,9 @@ describe('message reaction allowlist', () => {
     }
     expect(isAllowedReaction('\u{1F4A9}')).toBe(false);
     expect(new Set(ALLOWED_REACTIONS).size).toBe(ALLOWED_REACTIONS.length);
+    // R7 slice 4: the curated picker set, the earlier glyphs kept first.
+    expect(ALLOWED_REACTIONS.length).toBe(60);
+    expect(ALLOWED_REACTIONS[0]).toBe('\u{1F44D}');
+    expect(isAllowedReaction('\u{1F64F}')).toBe(true);
   });
 });

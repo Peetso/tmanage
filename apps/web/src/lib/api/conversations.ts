@@ -338,3 +338,51 @@ export async function clearDraft(
     path: draftPath(organizationSlug, conversationId),
   });
 }
+
+/** R7 slice 4: what a forward answers — the copies made and the targets that refused one. */
+export interface ForwardMessageResult {
+  readonly forwarded: readonly { readonly conversationId: string; readonly messageId: string }[];
+  readonly refused: readonly string[];
+}
+
+/** The most conversations one forward may name (the API's `MAX_FORWARD_TARGETS`). */
+export const MAX_FORWARD_TARGETS = 5;
+
+/** R7 slice 4: forward a message to up to five conversations the caller can write to. */
+export async function forwardMessage(
+  client: ApiClient,
+  organizationSlug: string,
+  conversationId: string,
+  messageId: string,
+  targetConversationIds: readonly string[],
+): Promise<ForwardMessageResult> {
+  const { data } = await client.request<ForwardMessageResult>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/forward`,
+    body: { targetConversationIds },
+  });
+  return data;
+}
+
+/** R7: the reply facts a text message may carry in `meta` (validated by the API). */
+export interface ReplyMeta {
+  readonly replyToMessageId: string;
+  readonly authorUserId: string;
+  readonly excerpt: string;
+}
+
+/** The reply quote of a message, when its meta carries one. */
+export function replyMetaOf(message: Pick<MessageSummary, 'meta'>): ReplyMeta | undefined {
+  const meta = message.meta;
+  if (meta == null || typeof meta['replyToMessageId'] !== 'string') return undefined;
+  return {
+    replyToMessageId: meta['replyToMessageId'],
+    authorUserId: typeof meta['authorUserId'] === 'string' ? meta['authorUserId'] : '',
+    excerpt: typeof meta['excerpt'] === 'string' ? meta['excerpt'] : '',
+  };
+}
+
+/** Whether a message is a forwarded copy. */
+export function isForwarded(message: Pick<MessageSummary, 'meta'>): boolean {
+  return typeof message.meta?.['forwardedFromMessageId'] === 'string';
+}

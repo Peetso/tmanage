@@ -28,6 +28,10 @@ import { MessageDraftsService } from './message-drafts.service.js';
 import { MessageDraftsController } from './message-drafts.controller.js';
 import { ConversationGroupModule } from './conversation-group.module.js';
 import { LinkPreviewsController } from './link-previews.controller.js';
+import { MessageForwardController } from './message-forward.controller.js';
+import { MessageForwardService } from './message-forward.service.js';
+import { MessageAttachmentsService } from './message-attachments.service.js';
+import { FileAssetsRepository } from '../files/file-assets.repository.js';
 
 /**
  * CHAT-001's wiring.
@@ -109,6 +113,21 @@ export class ConversationsModule {
         new MessageDraftsService(database, drafts, new ConversationsRepository()),
     };
 
+    // R7 slice 4: forward. Posts through the aggregate's own service and re-links the source's
+    // files through a stateless attachments service (its scanner only shapes the scan label).
+    const forwardService: Provider = {
+      provide: MessageForwardService,
+      inject: [TENANT_DATABASE, CONVERSATIONS_SERVICE],
+      useFactory: (database: TenantDatabase, conversations: ConversationsService) =>
+        new MessageForwardService(
+          database,
+          conversations,
+          new MessageAttachmentsService(database),
+          new ConversationsRepository(),
+          new FileAssetsRepository(),
+        ),
+    };
+
     return {
       module: ConversationsModule,
       // R7 slice 3: group settings, invite links and the portal chat list (new files only).
@@ -120,11 +139,13 @@ export class ConversationsModule {
         reactionsService,
         draftsRepository,
         draftsService,
+        forwardService,
       ],
       controllers: [
         ConversationsController,
         MessageReactionsController,
         MessageDraftsController,
+        MessageForwardController,
         LinkPreviewsController,
       ],
     };

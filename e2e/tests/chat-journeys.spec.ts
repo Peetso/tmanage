@@ -121,6 +121,33 @@ test.describe.serial('the chat journeys', () => {
     await context.close();
   });
 
+  test('R7: reply with a quote, forward it, react to it', async ({ browser }) => {
+    const context = await browser.newContext();
+    await signIn(context, world().northstar.owner.id);
+    const page = await context.newPage();
+    await page.goto(channelUrl);
+    const list = page.getByRole('list', { name: 'Messages, oldest first' });
+    const source = list.getByRole('listitem').filter({ hasText: MESSAGE }).first();
+    await source.hover();
+    await source.getByRole('button', { name: 'Reply with quote' }).click();
+    await page.getByLabel('Message the channel').fill('Quoted reply');
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    const reply = list.getByRole('listitem').filter({ hasText: 'Quoted reply' }).first();
+    await expect(reply.getByRole('button', { name: /Go to the quoted message/ })).toBeVisible();
+    await reply.hover();
+    await reply.getByRole('button', { name: 'More actions' }).click();
+    await reply.getByRole('button', { name: 'Forward' }).click();
+    const sheet = page.getByRole('dialog', { name: 'Forward to…' });
+    await sheet.getByRole('checkbox', { name: '#e2e-room' }).check();
+    await sheet.getByRole('button', { name: 'Forward' }).click();
+    await expect(list.getByText('Forwarded')).toBeVisible();
+    await reply.hover();
+    await reply.getByRole('button', { name: 'React' }).click();
+    await reply.getByRole('button', { name: '\u{1F64F}' }).first().click();
+    await expect(reply.getByText('\u{1F64F}')).toBeVisible();
+    await context.close();
+  });
+
   test('AUTH-04: a member outside the room is denied, and nothing leaks', async ({ browser }) => {
     const designerId = world().northstar.designer.id;
     const conversationId = conversationIdOf(channelUrl);
