@@ -496,6 +496,26 @@ describe('ReviewService — threads', () => {
     expect(() =>
       parseAnchor('draw', { strokes: [{ tool: 'laser', color: '#000000', points: [] }] }, null),
     ).toThrow(ApiError);
+    // R4 slice 7: the draw toolbar's line width is kept; a bad one is refused.
+    expect(
+      parseAnchor(
+        'draw',
+        { strokes: [{ tool: 'pen', color: '#090a09', width: 6, points: [[0.5, 0.5]] }] },
+        3,
+      ).anchor,
+    ).toEqual({
+      strokes: [{ tool: 'pen', color: '#090a09', width: 6, points: [[0.5, 0.5]] }],
+      bbox: { x: 0.5, y: 0.5, w: 0, h: 0 },
+    });
+    for (const width of [0, 25, 4.5, '6']) {
+      expect(() =>
+        parseAnchor(
+          'draw',
+          { strokes: [{ tool: 'pen', color: '#090a09', width, points: [[0.5, 0.5]] }] },
+          null,
+        ),
+      ).toThrow(ApiError);
+    }
     expect(parseAnchor('time', { timeMs: 1500 }, null)).toEqual({
       anchor: { timeMs: 1500 },
       pageNo: null,

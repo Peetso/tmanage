@@ -83,6 +83,7 @@ const MAX_MENTIONS = 50;
 const MAX_STROKES = 50;
 const MAX_POINTS_PER_STROKE = 2000;
 const MAX_POINTS_TOTAL = 10_000;
+const MAX_STROKE_WIDTH = 24;
 const MAX_PAGE = 100_000;
 const MAX_TIME_MS = 2_147_483_647;
 
@@ -239,7 +240,7 @@ const COLOR = /^#[0-9a-f]{6}$/i;
 const CELL = /^[A-Z]{1,3}[1-9][0-9]{0,6}$/;
 
 function parseStrokes(raw: unknown): {
-  strokes: { tool: string; color: string; points: [number, number][] }[];
+  strokes: { tool: string; color: string; width?: number; points: [number, number][] }[];
   bbox: { x: number; y: number; w: number; h: number };
 } {
   if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_STROKES) {
@@ -282,7 +283,23 @@ function parseStrokes(raw: unknown): {
       maxY = Math.max(maxY, y);
       return [x, y] as [number, number];
     });
-    return { tool, color: color.toLowerCase(), points };
+    // Line width in screen pixels (the draw toolbar's 4 / 6 / 9); optional for older drawings.
+    const widthRaw = stroke['width'];
+    if (widthRaw === undefined || widthRaw === null) {
+      return { tool, color: color.toLowerCase(), points };
+    }
+    if (
+      typeof widthRaw !== 'number' ||
+      !Number.isInteger(widthRaw) ||
+      widthRaw < 1 ||
+      widthRaw > MAX_STROKE_WIDTH
+    ) {
+      throw invalid(
+        `anchor.strokes[${index}].width`,
+        `must be a whole number from 1 to ${MAX_STROKE_WIDTH}`,
+      );
+    }
+    return { tool, color: color.toLowerCase(), width: widthRaw, points };
   });
   const round = (n: number) => Math.round(n * 1e6) / 1e6;
   return {

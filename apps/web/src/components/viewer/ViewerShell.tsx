@@ -8,13 +8,13 @@ import { ViewerIcon, type ViewerIconName } from './viewer-icons';
 export interface ViewerToolsProps {
   readonly tool: ViewerTool;
   readonly onTool: (tool: ViewerTool) => void;
-  /** Pin and Box need comment rights; Select is always there. */
+  /** Pin, Box and Draw need comment rights; Select is always there. */
   readonly canComment: boolean;
 }
 
 /**
- * V-01 `Tools` pill: Select · Pin · Box. The active tool is an ink capsule with its word; the
- * others are icon buttons named for a screen reader. (Draw joins in slice 7.)
+ * V-01 `Tools` pill: Select · Pin · Box · Draw. The active tool is an ink capsule with its word;
+ * the others are icon buttons named for a screen reader.
  */
 export function ViewerTools({ tool, onTool, canComment }: ViewerToolsProps) {
   const t = useT();
@@ -24,6 +24,7 @@ export function ViewerTools({ tool, onTool, canComment }: ViewerToolsProps) {
       ? ([
           { id: 'pin', icon: 'pin', label: t('Viewer.tool.pin') },
           { id: 'box', icon: 'box', label: t('Viewer.tool.box') },
+          { id: 'draw', icon: 'pen', label: t('Viewer.tool.draw') },
         ] as const)
       : []),
   ];

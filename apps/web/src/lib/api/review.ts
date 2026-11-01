@@ -88,6 +88,8 @@ export type ReviewAnchorInput =
       readonly strokes: readonly {
         readonly tool: 'pen' | 'arrow' | 'rect';
         readonly color: string;
+        /** Line width in screen pixels (4 / 6 / 9 from the draw toolbar). */
+        readonly width?: number;
         readonly points: readonly (readonly [number, number])[];
       }[];
     }

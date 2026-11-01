@@ -194,6 +194,7 @@
 .tm-viewer-stage {
   position: relative;
   flex: 1 1 auto;
+  container: tm-viewer-stage / inline-size;
   display: flex;
   min-block-size: 420px;
   border: var(--b-quiet) solid var(--line-300);
@@ -1197,5 +1198,339 @@
     font-size: var(--t-heading-card);
     line-height: var(--t-heading-card-line);
     overflow-wrap: anywhere;
+  }
+}
+
+/* ── Draw (V-12): drawings over the artwork and the draw toolbar ───────── */
+
+.tm-viewer-draw {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.tm-viewer-draw[data-active='true'] {
+  cursor: crosshair;
+  pointer-events: auto;
+  /* One finger draws; two fingers still pinch the page. */
+  touch-action: pinch-zoom;
+}
+
+.tm-viewer-draw__thread[data-state='resolved'] {
+  opacity: 0.4;
+}
+
+.tm-viewer-draw__thread[data-state='selected'] {
+  filter: drop-shadow(0 0 2px var(--paper-0)) drop-shadow(0 0 1px var(--ink-950));
+}
+
+.tm-viewer-draw-ui {
+  position: absolute;
+  inset-block-start: var(--s3);
+  inset-inline: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s2);
+  pointer-events: none;
+}
+
+.tm-viewer-draw-hint {
+  display: none;
+  margin: 0;
+  padding: var(--s1) var(--s3);
+  border-radius: var(--r-capsule);
+  background: var(--ink-950);
+  color: var(--paper-0);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-viewer-draw-limit {
+  margin: 0;
+  padding: var(--s1) var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-viewer-draw-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s1);
+  max-inline-size: calc(100% - var(--s6));
+  padding: 6px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  box-shadow:
+    0 2px 6px rgb(9 10 9 / 6%),
+    0 8px 24px rgb(9 10 9 / 10%);
+  pointer-events: auto;
+}
+
+.tm-viewer-draw-bar__main {
+  display: contents;
+}
+
+.tm-viewer-draw-bar__tools {
+  order: 1;
+  display: flex;
+  gap: var(--s1);
+}
+
+.tm-viewer-draw-bar__divider {
+  order: 2;
+  flex: none;
+  inline-size: 1px;
+  block-size: 24px;
+  background: var(--line-300);
+}
+
+.tm-viewer-draw-bar__colours {
+  order: 3;
+  display: flex;
+  gap: var(--s1);
+}
+
+.tm-viewer-draw-bar__divider--second {
+  order: 4;
+}
+
+.tm-viewer-draw-bar__widths {
+  order: 5;
+  display: flex;
+  gap: 2px;
+}
+
+.tm-viewer-draw-bar__divider--third {
+  order: 6;
+}
+
+.tm-viewer-draw-bar__undo {
+  order: 7;
+}
+
+.tm-viewer-draw-bar__done {
+  order: 8;
+}
+
+.tm-viewer-draw-bar__current {
+  display: none;
+}
+
+.tm-viewer-draw-bar__tool,
+.tm-viewer-draw-bar__done {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tm-viewer-draw-bar__tool[aria-pressed='true'] {
+  background: var(--ink-950);
+  color: var(--paper-0);
+  font-weight: 600;
+}
+
+.tm-viewer-draw-bar__done {
+  padding: var(--s2) 14px;
+  background: var(--lime-500);
+  color: var(--ink-950);
+  font-weight: 600;
+}
+
+.tm-viewer-draw-bar__done:disabled,
+.tm-viewer-draw-bar__undo:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.tm-viewer-draw-bar__swatch,
+.tm-viewer-draw-bar__width,
+.tm-viewer-draw-bar__undo {
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: var(--ink-950);
+  cursor: pointer;
+}
+
+.tm-viewer-draw-bar__swatch {
+  inline-size: 26px;
+  block-size: 26px;
+}
+
+.tm-viewer-draw-bar__swatch > span {
+  inline-size: 18px;
+  block-size: 18px;
+  border-radius: var(--r-capsule);
+}
+
+.tm-viewer-draw-bar__swatch[aria-checked='true'] {
+  box-shadow: inset 0 0 0 2px var(--ink-950);
+}
+
+.tm-viewer-draw-bar__width {
+  inline-size: 28px;
+  block-size: 28px;
+}
+
+.tm-viewer-draw-bar__width > span {
+  border-radius: var(--r-capsule);
+  background: var(--ink-950);
+}
+
+.tm-viewer-draw-bar__width[aria-checked='true'] {
+  background: var(--paper-150);
+}
+
+.tm-viewer-draw-bar__undo {
+  inline-size: 36px;
+  block-size: 36px;
+}
+
+/* Undo points back in the reading direction: mirrored only when the bar itself is Arabic. */
+.tm-viewer-draw-ui[dir='rtl'] .tm-viewer-draw-bar__undo .tm-viewer-icon {
+  transform: scaleX(-1);
+}
+
+.tm-viewer-draw-ui[dir='ltr'] .tm-viewer-draw-bar__undo .tm-viewer-icon {
+  transform: none;
+}
+
+.tm-viewer-draw-bar__tool:focus-visible,
+.tm-viewer-draw-bar__done:focus-visible,
+.tm-viewer-draw-bar__swatch:focus-visible,
+.tm-viewer-draw-bar__width:focus-visible,
+.tm-viewer-draw-bar__undo:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* A narrow stage (rail beside it on a small laptop): icons only, and the bar may wrap. */
+@container tm-viewer-stage (max-width: 780px) {
+  .tm-viewer-draw-bar {
+    border-radius: var(--r-compact);
+  }
+
+  .tm-viewer-draw-bar__word,
+  .tm-viewer-draw-bar__divider--third {
+    display: none;
+  }
+
+  .tm-viewer-draw-bar__done {
+    padding-inline: var(--s3);
+  }
+}
+
+/* Phone (V-12 phone): two bottom pills, icons only, round lime Done, the hint over the stage. */
+@media (max-width: 899px) {
+  .tm-viewer-draw-hint {
+    display: block;
+  }
+
+  /* While drawing, the draw pills take the phone dock's place at the bottom (V-12 phone). */
+  body:has(.tm-viewer-draw-bar) .tm-phone-dock,
+  body:has(.tm-viewer-draw-bar) .tm-phone-dock__fab {
+    display: none;
+  }
+
+  .tm-viewer-draw-bar {
+    position: fixed;
+    inset-inline: var(--s4);
+    inset-block-end: calc(var(--s4) + env(safe-area-inset-bottom, 0px));
+    z-index: 40;
+    flex-direction: column;
+    gap: var(--s2);
+    max-inline-size: none;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    pointer-events: none;
+  }
+
+  .tm-viewer-draw-bar__colours,
+  .tm-viewer-draw-bar__main {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    padding: 6px;
+    border: var(--b-quiet) solid var(--line-300);
+    border-radius: var(--r-capsule);
+    background: var(--paper-0);
+    box-shadow:
+      0 2px 6px rgb(9 10 9 / 6%),
+      0 8px 24px rgb(9 10 9 / 10%);
+    pointer-events: auto;
+  }
+
+  .tm-viewer-draw-bar__colours {
+    order: 0;
+    gap: 6px;
+  }
+
+  .tm-viewer-draw-bar__main {
+    order: 1;
+  }
+
+  .tm-viewer-draw-bar__swatch {
+    inline-size: 32px;
+    block-size: 32px;
+  }
+
+  .tm-viewer-draw-bar__swatch > span {
+    inline-size: 22px;
+    block-size: 22px;
+  }
+
+  .tm-viewer-draw-bar__word,
+  .tm-viewer-draw-bar__widths,
+  .tm-viewer-draw-bar__divider--second,
+  .tm-viewer-draw-bar__divider--third {
+    display: none;
+  }
+
+  .tm-viewer-draw-bar__current {
+    order: 3;
+    display: block;
+    inline-size: 18px;
+    block-size: 18px;
+    margin-inline: var(--s3);
+    border-radius: var(--r-capsule);
+  }
+
+  .tm-viewer-draw-bar__tool {
+    inline-size: 40px;
+    block-size: 40px;
+    padding: 0;
+  }
+
+  .tm-viewer-draw-bar__done {
+    inline-size: 40px;
+    block-size: 40px;
+    padding: 0;
   }
 }

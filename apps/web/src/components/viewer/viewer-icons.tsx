@@ -2,7 +2,8 @@ import type { ReactElement } from 'react';
 
 /**
  * The 16 px viewer glyphs from the Icon/* set (Figma `459:22158` … `459:22339`): Cursor, Pin, Box,
- * Download, Back, Chevron, Minus, Plus, Refresh, Lock, Eye, At, Close, Comment, Check. Stroked in
+ * Download, Back, Chevron, Minus, Plus, Refresh, Lock, Eye, At, Close, Comment, Check, Pen, Arrow draw,
+ * Rectangle, Undo. Stroked in
  * `currentColor`, so a glyph takes the colour of the control it sits in; always decorative — the
  * control around it carries the words.
  */
@@ -21,7 +22,11 @@ export type ViewerIconName =
   | 'at'
   | 'close'
   | 'comment'
-  | 'check';
+  | 'check'
+  | 'pen'
+  | 'arrowDraw'
+  | 'rect'
+  | 'undo';
 
 const PATHS: Record<ViewerIconName, ReactElement> = {
   cursor: <path d="M3.5 2.5l9 4.2-3.9 1.1-1.1 3.9z" />,
@@ -59,6 +64,10 @@ const PATHS: Record<ViewerIconName, ReactElement> = {
   close: <path d="M4 4l8 8M12 4l-8 8" />,
   comment: <path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" />,
   check: <path d="M3 8.5l3 3 7-7" />,
+  pen: <path d="M2.67 13.33l2.66-.66 7.34-7.34-2-2-7.34 7.34-.66 2.66zM9.33 4.67l2 2" />,
+  arrowDraw: <path d="M3 13L13 3M13 9V3H7" />,
+  rect: <rect x="2.5" y="3.5" width="11" height="9" rx="1" />,
+  undo: <path d="M5 3.5L2.5 6 5 8.5M2.5 6h7a3.5 3.5 0 0 1 0 7H6" />,
 };
 
 export function ViewerIcon({

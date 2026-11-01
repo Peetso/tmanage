@@ -22,8 +22,17 @@ import {
   type ReviewThread,
 } from '../../lib/api/review';
 import { localeDirection } from '../../lib/i18n/direction';
+import {
+  DEFAULT_DRAW_COLOUR,
+  DEFAULT_DRAW_WIDTH,
+  strokesBBox,
+  toDrawAnchorInput,
+  type DrawStroke,
+} from '../../lib/review-anchors';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useT } from '../../lib/i18n/use-t';
+import type { DrawSettings } from './DrawLayer';
+import { DrawToolbar } from './DrawToolbar';
 import { ImageStage } from './ImageStage';
 import { PageStrip } from './PageStrip';
 import { PdfStage, PdfThumb, usePdfDocument } from './PdfStage';
@@ -85,7 +94,7 @@ export function stageFor(manifest: FilePreviewManifest): {
   return { stage: 'none', state: 'unsupported', src: null };
 }
 
-/** The threads anchored on what the stage shows: this version, this page, a pin or a box. */
+/** The threads anchored on what the stage shows: this version, this page, a pin, box or drawing. */
 export function threadsOnStage(
   threads: readonly ReviewThread[],
   fileVersionId: string | null,
@@ -93,7 +102,9 @@ export function threadsOnStage(
 ): readonly ReviewThread[] {
   return threads.filter(
     (thread) =>
-      (thread.anchorKind === 'pin' || thread.anchorKind === 'box') &&
+      (thread.anchorKind === 'pin' ||
+        thread.anchorKind === 'box' ||
+        thread.anchorKind === 'draw') &&
       (fileVersionId === null || thread.fileVersionId === fileVersionId) &&
       (pageNo === null || (thread.pageNo ?? 1) === pageNo),
   );
@@ -162,6 +173,13 @@ export function FileViewer({
   const [zoomChoice, setZoomChoice] = useState<number | 'fit'>('fit');
   const [pageNo, setPageNo] = useState(1);
   const [stageError, setStageError] = useState(false);
+  const [strokes, setStrokes] = useState<readonly DrawStroke[]>([]);
+  const [drawSettings, setDrawSettings] = useState<DrawSettings>({
+    tool: 'pen',
+    color: DEFAULT_DRAW_COLOUR,
+    width: DEFAULT_DRAW_WIDTH,
+  });
+  const [drawLimit, setDrawLimit] = useState(false);
 
   const plan = manifest ? stageFor(manifest) : null;
   const isPdf = plan?.stage === 'pdf';
@@ -189,22 +207,40 @@ export function FileViewer({
 
   useEffect(() => {
     if (tool === 'select') setDraft(null);
+    // Leaving the Draw tool drops the drawing that was not posted.
+    if (tool !== 'draw') {
+      setStrokes([]);
+      setDrawLimit(false);
+    }
   }, [tool]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && draft) setDraft(null);
+      // Ctrl / ⌘ + Z takes back the last stroke while drawing (not while typing the comment).
+      if (
+        tool === 'draw' &&
+        !draft &&
+        (event.ctrlKey || event.metaKey) &&
+        event.key.toLowerCase() === 'z'
+      ) {
+        event.preventDefault();
+        setStrokes((current) => current.slice(0, -1));
+        setDrawLimit(false);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [draft]);
+  }, [draft, tool]);
 
   const create = useMutation({
     mutationFn: (input: ComposerSubmit & { readonly draft: ViewerDraft | null }) => {
       const anchor = input.draft
         ? input.draft.kind === 'box'
           ? { anchorKind: 'box' as const, anchor: input.draft.box }
-          : { anchorKind: 'pin' as const, anchor: input.draft.point }
+          : input.draft.kind === 'draw'
+            ? { anchorKind: 'draw' as const, anchor: toDrawAnchorInput(input.draft.strokes) }
+            : { anchorKind: 'pin' as const, anchor: input.draft.point }
         : { anchorKind: 'none' as const, anchor: null };
       return createReviewThread(api, organizationSlug, fileId, {
         ...(manifest?.version ? { versionId: manifest.version.fileVersionId } : {}),
@@ -217,6 +253,7 @@ export function FileViewer({
     },
     onSuccess: async (thread) => {
       setDraft(null);
+      setStrokes([]);
       setTool('select');
       setSelectedThreadId(thread.id);
       await invalidateThreads();
@@ -402,6 +439,38 @@ export function FileViewer({
           onAvailableSize={setAvailable}
           onZoomStep={(direction) => setZoomChoice(stepZoom(zoom, direction))}
           popover={popover}
+          drawing={{
+            strokes,
+            settings: drawSettings,
+            onStroke: (stroke) => {
+              setDrawLimit(false);
+              setStrokes((current) => [...current, stroke]);
+            },
+            onLimit: () => setDrawLimit(true),
+            toolbar: (
+              <DrawToolbar
+                settings={drawSettings}
+                onSettings={setDrawSettings}
+                canUndo={strokes.length > 0}
+                onUndo={() => {
+                  setDrawLimit(false);
+                  setStrokes((current) => current.slice(0, -1));
+                }}
+                canFinish={strokes.length > 0}
+                onDone={() => {
+                  create.reset();
+                  setSelectedThreadId(null);
+                  setDraft({
+                    kind: 'draw',
+                    strokes,
+                    bbox: strokesBBox(strokes),
+                    pageNo: stagePage,
+                  });
+                }}
+                limitReached={drawLimit}
+              />
+            ),
+          }}
           overlay={
             isPdf ? (
               <span className="tm-viewer-stage__chip">
@@ -481,6 +550,7 @@ export function FileViewer({
               pageNo={pageNo}
               onPage={(next) => {
                 setDraft(null);
+                setStrokes([]);
                 setNatural(null);
                 setPageNo(Math.min(pageCount, Math.max(1, next)));
               }}
@@ -492,7 +562,11 @@ export function FileViewer({
         footnote={
           tool !== 'select' && caps.canComment && canvasState === null ? (
             <span aria-live="polite">
-              {tool === 'pin' ? t('Viewer.tool.pinHint') : t('Viewer.tool.boxHint')}
+              {tool === 'pin'
+                ? t('Viewer.tool.pinHint')
+                : tool === 'box'
+                  ? t('Viewer.tool.boxHint')
+                  : t('Viewer.tool.drawHint')}
             </span>
           ) : null
         }

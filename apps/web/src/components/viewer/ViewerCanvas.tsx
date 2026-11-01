@@ -9,6 +9,8 @@ import {
 } from 'react';
 import type { ReviewThread } from '../../lib/api/review';
 import { useT } from '../../lib/i18n/use-t';
+import type { DrawStroke } from '../../lib/review-anchors';
+import { DrawLayer, type DrawSettings } from './DrawLayer';
 import { PinLayer, type ViewerDraft } from './PinLayer';
 import {
   boxBetween,
@@ -18,7 +20,7 @@ import {
   type NormalizedPoint,
 } from './viewer-geometry';
 
-export type ViewerTool = 'select' | 'pin' | 'box';
+export type ViewerTool = 'select' | 'pin' | 'box' | 'draw';
 
 export interface ViewerCanvasProps {
   /** The artwork's size at 100 % (CSS pixels); `null` while it is still loading. */
@@ -44,6 +46,14 @@ export interface ViewerCanvasProps {
   readonly children: ReactNode;
   /** A chip over the stage (page number on a PDF). */
   readonly overlay?: ReactNode;
+  /** Draw tool (V-12): the strokes not posted yet, the pen settings, and the toolbar. */
+  readonly drawing?: {
+    readonly strokes: readonly DrawStroke[];
+    readonly settings: DrawSettings;
+    readonly onStroke: (stroke: DrawStroke) => void;
+    readonly onLimit: () => void;
+    readonly toolbar: ReactNode;
+  };
 }
 
 /** A pointer that travels further than this (CSS px) is a drag, not a click. */
@@ -73,6 +83,7 @@ export function ViewerCanvas({
   popover,
   children,
   overlay,
+  drawing,
 }: ViewerCanvasProps) {
   const t = useT();
   const stageRef = useRef<HTMLDivElement>(null);
@@ -131,8 +142,11 @@ export function ViewerCanvas({
   const draftPoint: NormalizedPoint | null = draft
     ? draft.kind === 'box'
       ? { x: draft.box.x + draft.box.w, y: draft.box.y }
-      : draft.point
+      : draft.kind === 'draw'
+        ? { x: draft.bbox.x + draft.bbox.w, y: draft.bbox.y }
+        : draft.point
     : null;
+  const activeDrawing = tool === 'draw' ? drawing : undefined;
   const placement = draftPoint ? popoverPlacement(draftPoint) : null;
 
   return (
@@ -145,6 +159,7 @@ export function ViewerCanvas({
       aria-label={t('Viewer.stage.label')}
     >
       {overlay}
+      {activeDrawing && !draft ? activeDrawing.toolbar : null}
       <div className="tm-viewer-stage__scroll">
         <div
           ref={artRef}
@@ -187,6 +202,18 @@ export function ViewerCanvas({
           }}
         >
           {children}
+          {natural ? (
+            <DrawLayer
+              size={{ width, height }}
+              threads={threads}
+              selectedThreadId={selectedThreadId}
+              strokes={activeDrawing?.strokes ?? []}
+              active={Boolean(activeDrawing) && !draft}
+              settings={drawing?.settings ?? { tool: 'pen', color: '#d9474f', width: 4 }}
+              onStroke={(stroke) => activeDrawing?.onStroke(stroke)}
+              onLimit={() => activeDrawing?.onLimit()}
+            />
+          ) : null}
           {natural ? (
             <PinLayer
               threads={threads}

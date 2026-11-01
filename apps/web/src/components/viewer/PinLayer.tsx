@@ -4,6 +4,12 @@ import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import type { ReviewThread } from '../../lib/api/review';
 import { useT } from '../../lib/i18n/use-t';
 import {
+  drawPinPoint,
+  readDrawAnchor,
+  type DrawBox,
+  type DrawStroke,
+} from '../../lib/review-anchors';
+import {
   readBox,
   readPoint,
   toNormalizedPoint,
@@ -14,7 +20,28 @@ import {
 /** A comment being placed: a pin or a box the person has drawn but not posted yet. */
 export type ViewerDraft =
   | { readonly kind: 'pin'; readonly point: NormalizedPoint; readonly pageNo: number | null }
-  | { readonly kind: 'box'; readonly box: NormalizedBox; readonly pageNo: number | null };
+  | { readonly kind: 'box'; readonly box: NormalizedBox; readonly pageNo: number | null }
+  | {
+      readonly kind: 'draw';
+      readonly strokes: readonly DrawStroke[];
+      readonly bbox: DrawBox;
+      readonly pageNo: number | null;
+    };
+
+/** Where a thread's numbered pin sits: its point, a box's corner, or a drawing's top-left. */
+function anchorPoint(thread: ReviewThread): NormalizedPoint | null {
+  if (thread.anchorKind === 'draw') {
+    const drawing = readDrawAnchor(thread.anchor);
+    return drawing ? drawPinPoint(drawing) : null;
+  }
+  return readPoint(thread.anchor);
+}
+
+function draftPinPoint(draft: ViewerDraft): NormalizedPoint {
+  if (draft.kind === 'box') return { x: draft.box.x, y: draft.box.y };
+  if (draft.kind === 'draw') return { x: draft.bbox.x, y: draft.bbox.y };
+  return draft.point;
+}
 
 export interface PinLayerProps {
   /** The threads anchored on what the stage shows now (this version, this page). */
@@ -36,7 +63,8 @@ function pct(value: number): string {
 }
 
 /**
- * The numbered pins and dashed boxes over the artwork (V-03, Viewer/Pin `460:22105`).
+ * The numbered pins and dashed boxes over the artwork (a drawing's pin sits at its top-left; its
+ * strokes are the DrawLayer's) (V-03, Viewer/Pin `460:22105`).
  *
  * Positioned with physical `left`/`top` percentages of the artwork box, never logical insets: the
  * artwork is not mirrored in Arabic, so neither are the pins. A pin's tip (its bottom-left corner)
@@ -79,7 +107,7 @@ export function PinLayer({
     <div ref={layerRef} className="tm-viewer-pins" data-testid="viewer-pin-layer">
       {ordered.map((thread) => {
         const box = thread.anchorKind === 'box' ? readBox(thread.anchor) : null;
-        const stored = readPoint(thread.anchor);
+        const stored = anchorPoint(thread);
         if (!stored) return null;
         const point =
           dragging && dragging.threadId === thread.id && dragging.moved ? dragging.point : stored;
@@ -176,8 +204,8 @@ export function PinLayer({
             className="tm-viewer-pin"
             data-state="draft"
             style={{
-              left: pct(draft.kind === 'box' ? draft.box.x : draft.point.x),
-              top: pct(draft.kind === 'box' ? draft.box.y : draft.point.y),
+              left: pct(draftPinPoint(draft).x),
+              top: pct(draftPinPoint(draft).y),
             }}
             aria-hidden="true"
           >
