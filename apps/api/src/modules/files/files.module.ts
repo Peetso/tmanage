@@ -64,6 +64,11 @@ import {
   PortalReviewThreadsController,
 } from './portal-review.controller.js';
 import { REVIEW_SERVICE, ReviewService } from './review.service.js';
+import { FigmaAccess } from '../figma/figma-access.js';
+import {
+  FigmaFrameReviewController,
+  PortalFigmaFrameReviewController,
+} from '../figma/figma-review.controller.js';
 import {
   FILE_REVIEW_DECISIONS_SERVICE,
   FileReviewDecisionsService,
@@ -410,7 +415,21 @@ export class FilesModule {
         downloadService: FileDownloadService,
         audit: AuditService,
         outbox: OutboxEventsRepository,
-      ) => new ReviewService(database, downloadService, new ProjectsRepository(), audit, outbox),
+      ) =>
+        new ReviewService(
+          database,
+          downloadService,
+          new ProjectsRepository(),
+          audit,
+          outbox,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          // R4 slice 13: threads on Figma frames ask the Figma module's read decision.
+          new FigmaAccess(database),
+        ),
     };
 
     // R4 slice 11. Approve / Request changes on plain files, behind the same download gate.
@@ -551,6 +570,9 @@ export class FilesModule {
         // R4 slice 11 — decisions on plain files (studio and portal).
         FileReviewDecisionsController,
         PortalFileReviewDecisionsController,
+        // R4 slice 13 — threads on Figma frames (studio and portal).
+        FigmaFrameReviewController,
+        PortalFigmaFrameReviewController,
         PortalFileListController,
         UsageController,
         FileTagsController,

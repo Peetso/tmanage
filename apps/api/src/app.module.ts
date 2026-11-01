@@ -124,6 +124,7 @@ import { MemberNotesModule } from './modules/admin/member-notes.controller.js';
 import { PersonalAccessTokensModule } from './modules/personal-access-tokens/personal-access-tokens.controller.js';
 import { GoogleDriveModule } from './modules/google-drive/google-drive.controller.js';
 import { OneDriveModule } from './modules/onedrive/onedrive.controller.js';
+import { FigmaModule } from './modules/figma/figma.module.js';
 import { GoogleCalendarModule } from './modules/google-calendar/google-calendar.controller.js';
 import { MicrosoftCalendarModule } from './modules/microsoft-calendar/microsoft-calendar.controller.js';
 import { McpEndpointModule } from './modules/mcp/mcp-endpoint.controller.js';
@@ -1105,6 +1106,9 @@ export class AppModule {
         // 0236. OneDrive as company storage, the second external option. Always registered:
         // without MICROSOFT_CLIENT_ID/SECRET the routes answer "not configured".
         OneDriveModule.register(),
+        // R4 slice 13. Figma links in the proofing viewer: each member's own personal access token,
+        // links and frame snapshots. Always registered; nothing in the environment is required.
+        FigmaModule.register(),
         // 0237. Each person's own Google Calendar + Meet for meetings. Global: it provides the
         // calendar port the meetings services push through. Without a Google client in the
         // environment the routes answer "not configured" and meetings stay TManage-only.

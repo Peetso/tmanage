@@ -411,9 +411,39 @@ export function mentionedIds(body: string, raw: unknown, selfUserId: string): re
 
 // ─── Service ───────────────────────────────────────────────────────────────
 
-interface Gate {
-  readonly resolved: ResolvedFile;
+/** What a write needs to know about the subject a thread hangs on. */
+interface WriteGate {
   readonly canWrite: boolean;
+  readonly archived: boolean;
+  /** The file the caller opened (outbox payloads), `null` for a Figma frame. */
+  readonly fileAssetId: string | null;
+}
+
+interface Gate extends WriteGate {
+  readonly resolved: ResolvedFile;
+}
+
+/**
+ * R4 slice 13. A Figma frame a thread may hang on (`subject_type = 'figma_frame'`), as the Figma
+ * module resolved it for this caller: its project, its link's audience and whether the project is
+ * archived.
+ */
+export interface ReviewFrameSubject {
+  readonly frameId: string;
+  readonly organizationId: string;
+  readonly projectId: string;
+  /** The link's audience: a client reaches only frames of client-visible links. */
+  readonly audience: ReviewAudience;
+  readonly archived: boolean;
+}
+
+/** R4 slice 13. The Figma module's read decision on a frame; `null` is the one 404. */
+export interface ReviewFrameGate {
+  resolveFrame(
+    context: TenantContext,
+    principal: Principal,
+    frameId: string,
+  ): Promise<ReviewFrameSubject | null>;
 }
 
 export class ReviewService {
@@ -428,6 +458,7 @@ export class ReviewService {
     private readonly people: ReviewMentionCandidatesRepository = new ReviewMentionCandidatesRepository(),
     private readonly versions: AttachmentVersionsRepository = new AttachmentVersionsRepository(),
     private readonly now: () => Date = () => new Date(),
+    private readonly frames: ReviewFrameGate | null = null,
   ) {}
 
   /** `GET files/:fileId/review/threads?versionId=&status=` */
@@ -632,7 +663,7 @@ export class ReviewService {
           threadId: thread.id,
           subjectType: thread.subjectType,
           subjectId: thread.subjectId,
-          fileAssetId: gate.resolved.asset.id,
+          fileAssetId: gate.fileAssetId,
           projectId: thread.projectId,
           audience: thread.audience,
           authorUserId: principal.userId,
@@ -855,6 +886,150 @@ export class ReviewService {
     return { candidates: candidates.slice(0, limit) };
   }
 
+  // ─── Figma frames (R4 slice 13) ──────────────────────────────────────────
+
+  /** `GET figma/frames/:frameId/review/threads?status=` — a frame's threads with comments. */
+  async listFrameThreads(
+    context: TenantContext,
+    principal: Principal,
+    door: ReviewDoor,
+    frameId: string,
+    query: Pick<ListThreadsQuery, 'status'> = {},
+  ): Promise<ReviewThreadListView> {
+    assertDoor(principal, door);
+    const status = statusFilter(query.status);
+    const gate = await this.frameGate(context, principal, frameId, VIEW_ACTION);
+    const client = principal.kind === 'client';
+    return this.database.read(context, async (runner) => {
+      const rows = await this.threads.listForSubject(runner, context, {
+        subjectType: 'figma_frame',
+        subjectId: frameId,
+        status,
+        audiences: client ? ['client_visible'] : ['internal', 'client_visible'],
+      });
+      return { threads: await this.views(runner, context, principal, gate.canWrite, rows) };
+    });
+  }
+
+  /**
+   * `POST figma/frames/:frameId/review/threads` — a pin, box or drawing on a frame's snapshot.
+   * A thread on an internal link stays internal: the client cannot open that link at all.
+   */
+  async createFrameThread(
+    context: TenantContext,
+    principal: Principal,
+    door: ReviewDoor,
+    frameId: string,
+    input: CreateThreadInput,
+  ): Promise<ReviewThreadView> {
+    assertDoor(principal, door);
+    const body = requiredBody(input.body);
+    const anchorKind = anchorKindOf(input.anchorKind);
+    if (anchorKind === 'time' || anchorKind === 'cell') {
+      throw invalid('anchorKind', 'must be pin, box, draw or none on a Figma frame');
+    }
+    const place = parseAnchor(anchorKind, input.anchor, null);
+    const requestedAudience = audienceOf(input.audience);
+    const mentions = mentionedIds(body, input.mentions, principal.userId);
+
+    const gate = await this.frameGate(context, principal, frameId, CREATE_ACTION);
+    this.requireWrite(gate);
+    const frame = gate.frame;
+    const client = principal.kind === 'client';
+    const named = await this.database.read(context, (runner) =>
+      this.checkMentions(runner, context, principal, frame.projectId, mentions),
+    );
+    const namesClient = named.some((row) => row.kind === 'client');
+    let audience: ReviewAudience;
+    if (client) {
+      if (requestedAudience === 'internal') throw invalid('audience', 'must be client_visible');
+      audience = 'client_visible';
+    } else if (requestedAudience === null) {
+      audience = namesClient && frame.audience === 'client_visible' ? 'client_visible' : 'internal';
+    } else {
+      audience = requestedAudience;
+    }
+    if (audience === 'client_visible' && frame.audience !== 'client_visible') {
+      throw invalid('audience', 'this Figma link is for the team only');
+    }
+    if (audience === 'internal' && namesClient) {
+      throw invalid('mentions', 'a client cannot be mentioned on an internal comment');
+    }
+
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        const created = await this.database.transaction(context, async (tx) => {
+          const number = await this.threads.lockNextNumber(tx, context, 'figma_frame', frameId);
+          const thread = await this.threads.insert(tx, context, {
+            projectId: frame.projectId,
+            subjectType: 'figma_frame',
+            subjectId: frameId,
+            fileVersionId: null,
+            anchorKind,
+            anchor: place.anchor,
+            pageNo: null,
+            timeMs: null,
+            number,
+            audience,
+            createdByMembershipId: context.membershipId,
+          });
+          const comment = await this.comments.insert(tx, context, {
+            threadId: thread.id,
+            body,
+            mentions,
+            createdByMembershipId: context.membershipId,
+          });
+          await this.audit.record(tx, context, {
+            action: CREATE_ACTION,
+            objectId: thread.id,
+            result: 'allowed',
+            actorUserId: principal.userId,
+            metadata: {
+              project_id: frame.projectId,
+              figma_frame_id: frameId,
+              audience,
+              anchor_kind: anchorKind,
+              mention_count: mentions.length,
+              principal_kind: principal.kind,
+            },
+          });
+          await this.outbox?.append(tx, context, {
+            type: 'review.thread_created.v1',
+            aggregateId: thread.id,
+            payload: {
+              threadId: thread.id,
+              commentId: comment.id,
+              subjectType: 'figma_frame',
+              subjectId: frameId,
+              fileAssetId: null,
+              projectId: frame.projectId,
+              audience,
+              authorUserId: principal.userId,
+              mentionedUserIds: mentions,
+            },
+          });
+          return thread;
+        });
+        return await this.database.read(context, async (runner) => {
+          const [view] = await this.views(runner, context, principal, true, [created]);
+          if (!view) throw new Error('review thread vanished after create');
+          return view;
+        });
+      } catch (error) {
+        if (isRetryableNumberRace(error) && attempt < NUMBER_ATTEMPTS) {
+          await new Promise((done) =>
+            setTimeout(done, 5 + Math.floor(Math.random() * 20 * attempt)),
+          );
+          continue;
+        }
+        if (isRetryableNumberRace(error)) {
+          throw new ApiError(409, 'conflict', 'Someone else just added a comment. Try again');
+        }
+        throw error;
+      }
+    }
+  }
+
   // ─── internals ───────────────────────────────────────────────────────────
 
   /** The download door's decision for this file, plus whether the caller may write on it. */
@@ -865,7 +1040,12 @@ export class ReviewService {
     action: AuditAction,
   ): Promise<Gate> {
     const resolved = await this.downloads.resolve(context, principal, fileId, action);
-    return { resolved, canWrite: this.mayWrite(principal, resolved) };
+    return {
+      resolved,
+      canWrite: this.mayWrite(principal, resolved),
+      archived: resolved.project.archivedAt !== null,
+      fileAssetId: resolved.asset.id,
+    };
   }
 
   /** A thread by id, through its file's gate. A thread the caller may not see is the one 404. */
@@ -874,7 +1054,20 @@ export class ReviewService {
     principal: Principal,
     threadId: string,
     action: AuditAction,
-  ): Promise<{ thread: ReviewThread; gate: Gate }> {
+  ): Promise<{ thread: ReviewThread; gate: WriteGate }> {
+    const frameThread = await this.database.read(context, async (runner) => {
+      const thread = await this.threads.findById(runner, context, threadId);
+      return thread && thread.deletedAt === null && thread.subjectType === 'figma_frame'
+        ? thread
+        : null;
+    });
+    if (frameThread) {
+      const gate = await this.frameGate(context, principal, frameThread.subjectId, action);
+      if (principal.kind === 'client' && frameThread.audience !== 'client_visible') {
+        throw await this.downloads.refuse(context, 'review_thread_internal', action);
+      }
+      return { thread: frameThread, gate };
+    }
     const found = await this.database.read(context, async (runner) => {
       const thread = await this.threads.findById(runner, context, threadId);
       if (!thread || thread.deletedAt !== null || thread.subjectType !== 'file_asset') return null;
@@ -890,6 +1083,32 @@ export class ReviewService {
     return { thread: found.thread, gate };
   }
 
+  /** A Figma frame through the Figma module's read decision; anything else is the one 404. */
+  private async frameGate(
+    context: TenantContext,
+    principal: Principal,
+    frameId: string,
+    action: AuditAction,
+  ): Promise<WriteGate & { readonly frame: ReviewFrameSubject }> {
+    const frame = this.frames ? await this.frames.resolveFrame(context, principal, frameId) : null;
+    if (!frame) throw await this.downloads.refuse(context, 'figma_frame_not_found', action);
+    const client = principal.kind === 'client';
+    const canWrite =
+      !frame.archived &&
+      authorize({
+        principal,
+        capability: 'file.upload',
+        resource: {
+          organizationId: frame.organizationId,
+          projectId: frame.projectId,
+          audience: client ? 'client_visible' : frame.audience,
+          clientOrganizationId: client ? principal.clientOrganizationId : null,
+          lifecycle: 'active',
+        },
+      }).allowed;
+    return { frame, canWrite, archived: frame.archived, fileAssetId: null };
+  }
+
   private async liveComment(context: TenantContext, commentId: string): Promise<ReviewComment> {
     const comment = await this.database.read(context, (runner) =>
       this.comments.findById(runner, context, commentId),
@@ -900,14 +1119,14 @@ export class ReviewService {
     return comment;
   }
 
-  private requireWrite(gate: Gate): void {
+  private requireWrite(gate: WriteGate): void {
     if (!gate.canWrite) {
       throw new ApiError(
         403,
         'forbidden',
         MESSAGES.forbidden,
         undefined,
-        gate.resolved.project.archivedAt === null ? 'review_write_denied' : 'project_archived',
+        gate.archived ? 'project_archived' : 'review_write_denied',
       );
     }
   }

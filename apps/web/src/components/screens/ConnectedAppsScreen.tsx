@@ -5,6 +5,7 @@ import { useId, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
+import { FigmaConnectCard } from './FigmaConnectCard';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   getConnectedApps,
@@ -123,6 +124,8 @@ export function ConnectedAppsScreen({
             )}
           </>
         )}
+        <h2 className="tm-connected__caption">{t('Figma.connect.section')}</h2>
+        <FigmaConnectCard api={api} organizationSlug={organizationSlug} />
       </div>
     </ControlCenterShell>
   );

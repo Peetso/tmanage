@@ -29,6 +29,20 @@ describe('the browser security policy', () => {
     expect(policy).not.toContain('unsafe-eval');
   });
 
+  it('lets the viewer embed Figma frames (R4 slice 13) and nothing else from Figma', () => {
+    const policy = buildContentSecurityPolicy({
+      nonce: 'abc123==',
+      host: 'tmanage.peetrix.com',
+      development: false,
+    });
+    const frames = directive(policy, 'frame-src');
+    expect(frames).toContain('https://embed.figma.com');
+    expect(frames).toContain('https://www.figma.com');
+    expect(directive(policy, 'script-src')).not.toContain('figma');
+    expect(directive(policy, 'connect-src')).not.toContain('figma');
+    expect(directive(policy, 'img-src')).not.toContain('figma');
+  });
+
   it('admits a cross-origin API (dev, e2e) and refuses a Host header that is not a host', () => {
     const policy = buildContentSecurityPolicy({
       nonce: 'n',

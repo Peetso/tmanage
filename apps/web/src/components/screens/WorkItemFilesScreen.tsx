@@ -6,9 +6,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { FigmaLinksPanel } from '../viewer/FigmaLinks';
 import {
   attachWorkItemFile,
   detachWorkItemFile,
+  getWorkItem,
   listWorkItemFiles,
   type ItemFile,
 } from '../../lib/api/work-items';
@@ -53,6 +55,13 @@ export function WorkItemFilesScreen({
   const files = useQuery({
     queryKey,
     queryFn: () => listWorkItemFiles(api, organizationSlug, workItemId),
+  });
+
+  // R4 slice 13 — the work item's project, for the Figma links attached to it.
+  const item = useQuery({
+    queryKey: ['work-item', organizationSlug, workItemId],
+    queryFn: () => getWorkItem(api, organizationSlug, workItemId),
+    retry: false,
   });
 
   const [fileAssetId, setFileAssetId] = useState('');
@@ -219,6 +228,15 @@ export function WorkItemFilesScreen({
           </div>
         ) : null}
       </section>
+      {item.data ? (
+        <FigmaLinksPanel
+          organizationSlug={organizationSlug}
+          projectId={item.data.projectId}
+          target={{ type: 'work_item', id: workItemId }}
+          canAttach
+          client={api}
+        />
+      ) : null}
     </AppShell>
   );
 }

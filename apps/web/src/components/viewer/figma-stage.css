@@ -1,0 +1,260 @@
+/* R4 slice 13 — V-23 Figma link in the viewer (Figma 466:29543 snapshot, 466:29836 live). */
+
+.tm-figma-subline {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-figma-mode {
+  display: inline-flex;
+  gap: var(--s1);
+  padding: var(--s1);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+}
+
+.tm-figma-mode__option {
+  min-block-size: 32px;
+  padding-inline: var(--s4);
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: var(--ink-650);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  cursor: pointer;
+}
+
+.tm-figma-mode__option[aria-pressed='true'] {
+  background: var(--ink-950);
+  color: var(--paper-0);
+}
+
+.tm-figma-mode__option:focus-visible,
+.tm-figma-strip__frame:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-figma-live {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  min-block-size: 420px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-150);
+  overflow: hidden;
+}
+
+.tm-figma-live__frame {
+  flex: 1 1 auto;
+  inline-size: 100%;
+  min-block-size: 420px;
+  border: 0;
+}
+
+.tm-figma-state {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-block-size: 420px;
+  padding: var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-150);
+  text-align: center;
+}
+
+.tm-figma-state__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+}
+
+.tm-figma-state__body {
+  margin: 0;
+  max-inline-size: 44ch;
+  color: var(--ink-650);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+}
+
+.tm-figma-strip {
+  display: flex;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  overflow-x: auto;
+}
+
+.tm-figma-strip__frame {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s1);
+  flex: none;
+  min-inline-size: 140px;
+  max-inline-size: 220px;
+  min-block-size: var(--control);
+  padding: var(--s2) var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-50);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-figma-strip__frame[aria-pressed='true'] {
+  border-color: var(--lime-600);
+  background: var(--lime-100);
+}
+
+.tm-figma-strip__name {
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-figma-strip__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-figma-strip__count {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: 20px;
+  block-size: 20px;
+  padding-inline: var(--s1);
+  border-radius: var(--r-capsule);
+  background: var(--lime-500);
+  color: var(--ink-950);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+}
+
+.tm-figma-card-extra {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin: var(--s1) 0 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-figma-card-extra__frame {
+  padding-inline: var(--s2);
+  border-radius: var(--r-micro);
+  background: var(--paper-150);
+  color: var(--ink-800);
+}
+
+.tm-figma-card-extra__changed {
+  color: var(--danger-600);
+}
+
+/* Attach dialog (V-53) and the links list. */
+.tm-figma-attach__frames {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  max-block-size: 280px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.tm-figma-attach__frame {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.tm-figma-attach__size {
+  color: var(--ink-650);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+}
+
+.tm-figma-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-figma-links__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.tm-figma-links__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+}
+
+.tm-figma-links__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-figma-links__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  min-block-size: var(--control);
+}
+
+.tm-figma-links__name {
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+}
+
+.tm-figma-links__meta {
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+}
+
+/* Connect card (V-52) in Connected apps. */
+.tm-figma-connect__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin-block-start: var(--s3);
+}
+
+.tm-figma-connect__steps {
+  margin: 0;
+  padding-inline-start: var(--s5);
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}

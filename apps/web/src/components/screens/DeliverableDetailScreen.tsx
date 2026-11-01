@@ -9,6 +9,7 @@ import { AppShell } from '../shell/AppShell';
 import { ProjectTabs } from '../projects/ProjectTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { addDeliverableVersion, getDeliverable } from '../../lib/api/deliverables';
+import { FigmaLinksPanel } from '../viewer/FigmaLinks';
 import type {
   DeliverableApprovalState,
   DeliverableDetailView,
@@ -226,6 +227,16 @@ export function DeliverableDetailScreen({
         )}
       </div>
 
+      {latestVersionId(detail.data) ? (
+        <FigmaLinksPanel
+          organizationSlug={organizationSlug}
+          projectId={projectId}
+          target={{ type: 'deliverable_version', id: latestVersionId(detail.data)! }}
+          canAttach
+          client={api}
+        />
+      ) : null}
+
       {sendingVersion && detail.data ? (
         <SendForApprovalDialog
           api={api}
@@ -321,5 +332,17 @@ function VersionList({
         );
       })}
     </ol>
+  );
+}
+
+/** R4 slice 13 — the newest version, which Figma links are attached to. */
+function latestVersionId(
+  detail:
+    | { readonly versions: readonly { readonly id: string; readonly versionNo?: number | null }[] }
+    | undefined,
+): string | null {
+  if (!detail || detail.versions.length === 0) return null;
+  return (
+    [...detail.versions].sort((a, b) => (b.versionNo ?? 0) - (a.versionNo ?? 0))[0]?.id ?? null
   );
 }

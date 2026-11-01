@@ -289,6 +289,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // R4 slice 11 (0269). Approve / Request changes on a studio's plain files, append-only. After
   // its parents (projects, file_assets), so the company erasure empties it before them.
   file_review_decisions: 'organization_id',
+  // R4 slice 13 (0270). Figma tokens (encrypted), links and frames. Links after projects, frames
+  // after links, so the company erasure (reverse order) empties frames, then links.
+  figma_connections: 'organization_id',
+  figma_links: 'organization_id',
+  figma_frames: 'organization_id',
   upload_sessions: 'organization_id',
   // USAGE-001 slice 2 (migration 0021). Tenant-owned like `usage_counters`, whose every
   // move it records: `organization_id` is NOT NULL and it carries the `(organization_id, id)`

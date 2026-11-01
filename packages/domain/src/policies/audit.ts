@@ -526,6 +526,29 @@ export const AUDIT_ACTION_CATALOG = {
       '§12 — a client or team decision on a file version; R4 SPEC §3.4 audit ' +
       'review.decision_recorded',
   },
+  /**
+   * R4 slice 13. A member connected or disconnected their own Figma token (`connected` in
+   * metadata). The token never appears; the hint does not either.
+   */
+  'figma.connection_changed': {
+    objectType: 'figma_connection',
+    clause: '§12 — a stored third-party credential changed; R4 SPEC §3.3 figma/connection',
+  },
+  /** R4 slice 13. A Figma file was attached to a project (ids, audience, frame count only). */
+  'figma.link_attached': {
+    objectType: 'figma_link',
+    clause: '§12 — design content attached to a project; R4 SPEC §3.4 audit figma.link_attached',
+  },
+  /** R4 slice 13. A Figma link was removed from a project. */
+  'figma.link_removed': {
+    objectType: 'figma_link',
+    clause: '§12 — design content removed from a project; R4 SPEC §3.3 DELETE figma/links',
+  },
+  /** R4 slice 13. A frame snapshot was stored (ids, size, whether the frame changed). */
+  'figma.snapshot_taken': {
+    objectType: 'figma_frame',
+    clause: '§12 — a copy of client design content stored; R4 SPEC §3.4 audit figma.snapshot_taken',
+  },
   'file_preview.viewed': {
     objectType: 'file_asset',
     clause:
@@ -1150,6 +1173,10 @@ const AUDIT_ACTION_LABELS = {
   'review.comment_added': 'Replied on a file comment',
   'review.thread_resolved': 'Resolved or reopened a file comment',
   'review.decision_recorded': 'Approved a file or asked for changes',
+  'figma.connection_changed': 'Connected or disconnected Figma',
+  'figma.link_attached': 'Attached a Figma file',
+  'figma.link_removed': 'Removed a Figma file',
+  'figma.snapshot_taken': 'Saved a Figma frame snapshot',
   'file_asset.scan_disputed': "A file's scan result changed",
   'file_asset.purged': 'Deleted stored file data',
   'upload_session.expired': 'Cleaned up an expired upload',

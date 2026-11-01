@@ -3802,3 +3802,37 @@ type _pa09ExportJobs = Assert<Exact<ApiPlatformExportJobsView, WebPlatformExport
 type _pa09ActivitySupportSessions = Assert<
   Exact<ApiPlatformActivitySupportSessionsView, WebPlatformActivitySupportSessionsView>
 >;
+
+// R4 slice 13 — Figma links in the viewer.
+import type {
+  FigmaConnectionView as ApiFigmaConnectionView,
+  FigmaDetectedFrameView as ApiFigmaDetectedFrameView,
+  FigmaFrameView as ApiFigmaFrameView,
+  FigmaInspectView as ApiFigmaInspectView,
+  FigmaLinkCapabilitiesView as ApiFigmaLinkCapabilitiesView,
+  FigmaLinkListView as ApiFigmaLinkListView,
+  FigmaLinkSummaryView as ApiFigmaLinkSummaryView,
+  FigmaLinkView as ApiFigmaLinkView,
+  FigmaRefreshView as ApiFigmaRefreshView,
+} from '../../apps/api/src/modules/figma/figma.service.js';
+import type {
+  FigmaConnection as WebFigmaConnection,
+  FigmaDetectedFrame as WebFigmaDetectedFrame,
+  FigmaFrame as WebFigmaFrame,
+  FigmaInspection as WebFigmaInspection,
+  FigmaLink as WebFigmaLink,
+  FigmaLinkCapabilities as WebFigmaLinkCapabilities,
+  FigmaLinkList as WebFigmaLinkList,
+  FigmaLinkSummary as WebFigmaLinkSummary,
+  FigmaRefresh as WebFigmaRefresh,
+} from '../../apps/web/src/lib/api/figma';
+
+type _figmaConnection = Assert<Exact<ApiFigmaConnectionView, WebFigmaConnection>>;
+type _figmaDetectedFrame = Assert<Exact<ApiFigmaDetectedFrameView, WebFigmaDetectedFrame>>;
+type _figmaInspect = Assert<Exact<ApiFigmaInspectView, WebFigmaInspection>>;
+type _figmaFrame = Assert<Exact<ApiFigmaFrameView, WebFigmaFrame>>;
+type _figmaCapabilities = Assert<Exact<ApiFigmaLinkCapabilitiesView, WebFigmaLinkCapabilities>>;
+type _figmaLink = Assert<Exact<ApiFigmaLinkView, WebFigmaLink>>;
+type _figmaLinkSummary = Assert<Exact<ApiFigmaLinkSummaryView, WebFigmaLinkSummary>>;
+type _figmaLinkList = Assert<Exact<ApiFigmaLinkListView, WebFigmaLinkList>>;
+type _figmaRefresh = Assert<Exact<ApiFigmaRefreshView, WebFigmaRefresh>>;

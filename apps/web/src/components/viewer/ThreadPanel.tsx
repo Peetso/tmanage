@@ -515,7 +515,7 @@ function DetailsList({
   );
 }
 
-interface ThreadDetailProps {
+export interface ThreadDetailProps {
   readonly api: ApiClient;
   readonly organizationSlug: string;
   readonly projectId: string;
@@ -526,7 +526,7 @@ interface ThreadDetailProps {
 }
 
 /** V-14 — one thread open in the rail. */
-function ThreadDetail({
+export function ThreadDetail({
   api,
   organizationSlug,
   projectId,

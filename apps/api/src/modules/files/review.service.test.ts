@@ -24,6 +24,7 @@ import {
   type ReviewThreadsRepository,
 } from './review-threads.repository.js';
 import { EDIT_WINDOW_MS, ReviewService, mentionedIds, parseAnchor } from './review.service.js';
+import type { ReviewFrameGate } from './review.service.js';
 
 /**
  * R4 slice 5 — proofing threads. In-memory fakes for the three repositories, the gate (the
@@ -44,6 +45,7 @@ const STRANGER = '00000000-0000-4000-8000-0000000000c9';
 const STAFF_M = '00000000-0000-4000-8000-0000000000e1';
 const OTHER_STAFF_M = '00000000-0000-4000-8000-0000000000e3';
 const CLIENT_M = '00000000-0000-4000-8000-0000000000e2';
+const FRAME = '00000000-0000-4000-8000-0000000000ff';
 
 function principal(kind: 'staff' | 'other' | 'client' | 'guest' | 'viewer'): Principal {
   if (kind === 'client' || kind === 'viewer') {
@@ -94,6 +96,8 @@ interface World {
   readonly unreachable?: boolean;
   /** Make the first N inserts lose the numbering race. */
   readonly lostRaces?: number;
+  /** R4 slice 13: the Figma frame the gate answers for FRAME (absent: not readable). */
+  readonly frame?: { readonly audience: 'internal' | 'client_visible' };
 }
 
 function build(world: World = {}) {
@@ -350,6 +354,18 @@ function build(world: World = {}) {
     people,
     versions,
     () => clock,
+    {
+      resolveFrame: async (_c: unknown, _p: unknown, id: string) =>
+        world.frame && id === FRAME
+          ? {
+              frameId: FRAME,
+              organizationId: ORG,
+              projectId: PROJECT,
+              audience: world.frame.audience,
+              archived: world.archived ?? false,
+            }
+          : null,
+    } as ReviewFrameGate,
   );
   return {
     service,
@@ -862,5 +878,97 @@ describe('ReviewService — mention candidates', () => {
         )
       ).status,
     ).toBe(400);
+  });
+});
+
+describe('ReviewService — threads on Figma frames (R4 slice 13)', () => {
+  const pin = { anchorKind: 'pin', anchor: { x: 0.4, y: 0.3 }, body: 'Bigger tap targets' };
+
+  it('numbers pins per frame, with no file version, and the event names the frame', async () => {
+    const world = build({ frame: { audience: 'client_visible' } });
+    const first = await world.service.createFrameThread(
+      contextOf(STAFF),
+      STAFF,
+      'internal',
+      FRAME,
+      pin,
+    );
+    const second = await world.service.createFrameThread(
+      contextOf(STAFF),
+      STAFF,
+      'internal',
+      FRAME,
+      pin,
+    );
+    expect([first.number, second.number]).toEqual([1, 2]);
+    expect(first).toMatchObject({
+      subjectType: 'figma_frame',
+      subjectId: FRAME,
+      fileVersionId: null,
+    });
+    expect(world.events[0]?.payload).toMatchObject({
+      subjectType: 'figma_frame',
+      fileAssetId: null,
+    });
+    const list = await world.service.listFrameThreads(contextOf(STAFF), STAFF, 'internal', FRAME);
+    expect(list.threads).toHaveLength(2);
+  });
+
+  it('a client writes client-visible threads and reads only those', async () => {
+    const world = build({ frame: { audience: 'client_visible' } });
+    await world.service.createFrameThread(contextOf(STAFF), STAFF, 'internal', FRAME, pin);
+    const mine = await world.service.createFrameThread(
+      contextOf(CLIENT),
+      CLIENT,
+      'client',
+      FRAME,
+      pin,
+    );
+    expect(mine.audience).toBe('client_visible');
+    const seen = await world.service.listFrameThreads(contextOf(CLIENT), CLIENT, 'client', FRAME);
+    expect(seen.threads.map((thread) => thread.id)).toEqual([mine.id]);
+    // Replies go through the existing thread routes, behind the same frame gate.
+    await world.service.addComment(contextOf(CLIENT), CLIENT, 'client', mine.id, {
+      body: 'Thanks',
+    });
+  });
+
+  it('keeps an internal link team-only, refuses time anchors, and 404s an unreadable frame', async () => {
+    const internal = build({ frame: { audience: 'internal' } });
+    expect(
+      (
+        await refusal(
+          internal.service.createFrameThread(contextOf(STAFF), STAFF, 'internal', FRAME, {
+            ...pin,
+            audience: 'client_visible',
+          }),
+        )
+      ).status,
+    ).toBe(422);
+    expect(
+      (
+        await refusal(
+          internal.service.createFrameThread(contextOf(STAFF), STAFF, 'internal', FRAME, {
+            anchorKind: 'time',
+            anchor: { timeMs: 10 },
+            body: 'x',
+          }),
+        )
+      ).status,
+    ).toBe(422);
+    const none = build();
+    const refused = await refusal(
+      none.service.listFrameThreads(contextOf(STAFF), STAFF, 'internal', FRAME),
+    );
+    expect(refused.status).toBe(404);
+    expect(none.refusals).toEqual(['figma_frame_not_found']);
+  });
+
+  it('is read-only on an archived project', async () => {
+    const world = build({ frame: { audience: 'internal' }, archived: true });
+    const refused = await refusal(
+      world.service.createFrameThread(contextOf(STAFF), STAFF, 'internal', FRAME, pin),
+    );
+    expect(refused.status).toBe(403);
   });
 });

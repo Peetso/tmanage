@@ -343,6 +343,40 @@ export class ReviewThreadsRepository {
   }
 
   /**
+   * R4 slice 13 — how many open threads each listed subject has, at the audiences given (a
+   * client: `client_visible` only). Live threads of this tenant; ids with none are absent.
+   */
+  async countOpenBySubjects(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    subjectType: ReviewSubjectType,
+    subjectIds: readonly string[],
+    audiences: readonly ReviewAudience[],
+  ): Promise<ReadonlyMap<string, number>> {
+    const counts = new Map<string, number>();
+    if (subjectIds.length === 0 || audiences.length === 0) return counts;
+    const rows = await tenantDrizzle(runner)
+      .select({ subjectId: reviewThreads.subjectId, open: sql<number>`count(*)` })
+      .from(reviewThreads)
+      .where(
+        and(
+          eq(reviewThreads.organizationId, context.organizationId),
+          eq(reviewThreads.subjectType, subjectType),
+          inArray(reviewThreads.subjectId, [...new Set(subjectIds)]),
+          inArray(reviewThreads.audience, [...audiences]),
+          eq(reviewThreads.status, 'open'),
+          isNull(reviewThreads.deletedAt),
+        ),
+      )
+      .groupBy(reviewThreads.subjectId);
+    for (const row of rows) {
+      const open = Number(row.open);
+      if (Number.isSafeInteger(open) && open > 0) counts.set(row.subjectId, open);
+    }
+    return counts;
+  }
+
+  /**
    * R4 slice 8 — how many open, client-visible threads each listed file has (the portal's
    * "comments waiting" count on its file and deliverable rows). Counts only live `file_asset`
    * threads of this tenant; ids with none are absent from the map. Bounded by the caller's list.

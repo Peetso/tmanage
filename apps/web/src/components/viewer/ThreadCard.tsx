@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { Avatar, Badge, StateCapsule } from '@tmanage/ui';
 import type { ReviewComment, ReviewPerson, ReviewThread } from '../../lib/api/review';
 import { useDisplayFormatters } from '../../lib/i18n/use-formatters';
@@ -83,6 +84,8 @@ export interface ThreadCardProps {
   readonly optionId: string;
   readonly active: boolean;
   readonly onOpen: (threadId: string) => void;
+  /** R4 slice 13 — a line under the card's meta (the Figma frame it is on, "Frame changed"). */
+  readonly extra?: ReactNode;
 }
 
 /**
@@ -90,7 +93,7 @@ export interface ThreadCardProps {
  * ("Team only" / "Visible to client") or "Resolved", the first comment and "Pin · 2 replies". It is
  * an option of the panel's listbox; opening it shows {@link ThreadDetail}.
  */
-export function ThreadCard({ thread, selected, optionId, active, onOpen }: ThreadCardProps) {
+export function ThreadCard({ thread, selected, optionId, active, onOpen, extra }: ThreadCardProps) {
   const t = useT();
   const { door } = useReviewDoor();
   const meta = useThreadMeta();
@@ -145,6 +148,7 @@ export function ThreadCard({ thread, selected, optionId, active, onOpen }: Threa
               )
             : meta(thread)}
         </p>
+        {extra}
       </div>
     </li>
   );

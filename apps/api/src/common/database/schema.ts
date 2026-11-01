@@ -5758,6 +5758,104 @@ export const fileReviewDecisions = mysqlTable(
 
 export type FileReviewDecisionRow = typeof fileReviewDecisions.$inferSelect;
 
+/**
+ * R4 slice 13 (0270). A member's Figma personal access token, as the SeedCipher envelope only
+ * (`tokenCiphertext`, never a response field); `tokenHint` is the last four characters.
+ * `0270_figma_links.sql`; `modules/figma/figma.repository.ts`.
+ */
+export const figmaConnections = mysqlTable(
+  'figma_connections',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    /** Internal. Never a response field. */
+    tokenCiphertext: varchar('token_ciphertext', { length: 1024 }).notNull(),
+    tokenHint: varchar('token_hint', { length: 8 }).notNull(),
+    figmaUserHandle: varchar('figma_user_handle', { length: 190 }),
+    status: varchar('status', { length: 16 }).notNull().default('connected'),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_figma_connections_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_figma_connections_member').on(table.organizationId, table.membershipId),
+  ],
+);
+
+export type FigmaConnectionRow = typeof figmaConnections.$inferSelect;
+
+/**
+ * R4 slice 13 (0270). A Figma file attached to a project (optionally to a work item, deliverable
+ * version or request). `audience` is immutable (trigger). Soft delete per PA-03.
+ */
+export const figmaLinks = mysqlTable(
+  'figma_links',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    fileKey: varchar('file_key', { length: 128 }).notNull(),
+    fileName: varchar('file_name', { length: 300 }),
+    url: varchar('url', { length: 1000 }).notNull(),
+    attachedToType: varchar('attached_to_type', { length: 24 }),
+    attachedToId: char('attached_to_id', { length: 36 }),
+    audience: varchar('audience', { length: 16 }).notNull().default('internal'),
+    createdByMembershipId: char('created_by_membership_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_figma_links_org_id').on(table.organizationId, table.id),
+    index('ix_figma_links_project').on(table.organizationId, table.projectId),
+    index('ix_figma_links_attached').on(
+      table.organizationId,
+      table.attachedToType,
+      table.attachedToId,
+    ),
+  ],
+);
+
+export type FigmaLinkRow = typeof figmaLinks.$inferSelect;
+
+/**
+ * R4 slice 13 (0270). One frame of a Figma link and its last PNG snapshot (`snapshotObjectKey`
+ * names the bytes in the `derived` zone and never leaves the API). `sizeChanged` is set when a
+ * later snapshot found the frame at another size.
+ */
+export const figmaFrames = mysqlTable(
+  'figma_frames',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    linkId: char('link_id', { length: 36 }).notNull(),
+    nodeId: varchar('node_id', { length: 64 }).notNull(),
+    name: varchar('name', { length: 300 }).notNull(),
+    width: int('width', { unsigned: true }).notNull().default(0),
+    height: int('height', { unsigned: true }).notNull().default(0),
+    /** Internal. Never a response field. */
+    snapshotObjectKey: varchar('snapshot_object_key', { length: 512 }),
+    snapshotHash: char('snapshot_hash', { length: 64 }),
+    snapshotStatus: varchar('snapshot_status', { length: 16 }).notNull().default('pending'),
+    snapshotAttempts: tinyint('snapshot_attempts', { unsigned: true }).notNull().default(0),
+    claimedAt: datetime('claimed_at', { mode: 'date', fsp: 3 }),
+    capturedAt: datetime('captured_at', { mode: 'date', fsp: 3 }),
+    sizeChanged: boolean('size_changed').notNull().default(false),
+    sortOrder: int('sort_order', { unsigned: true }).notNull().default(0),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_figma_frames_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_figma_frames_node').on(table.organizationId, table.linkId, table.nodeId),
+    index('ix_figma_frames_pending').on(table.snapshotStatus, table.claimedAt),
+  ],
+);
+
+export type FigmaFrameRow = typeof figmaFrames.$inferSelect;
+
 export const uploadSessions = mysqlTable(
   'upload_sessions',
   {
@@ -9604,6 +9702,9 @@ export const TABLES = {
   review_threads: reviewThreads,
   review_comments: reviewComments,
   file_review_decisions: fileReviewDecisions,
+  figma_connections: figmaConnections,
+  figma_links: figmaLinks,
+  figma_frames: figmaFrames,
   upload_sessions: uploadSessions,
   user_passwords: userPasswords,
   password_reset_tokens: passwordResetTokens,

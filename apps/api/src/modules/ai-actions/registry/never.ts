@@ -1317,6 +1317,77 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/projects/:projectId/review/mention-candidates',
     reason: 'file_review',
   },
+  // R4 slice 13. Figma links: a member's own Figma token (a stored third-party credential), links,
+  // frame snapshots and the threads on frames. Withheld until reviewed `figma.*` ops exist.
+  { method: 'GET', path: '/v1/organizations/:orgSlug/figma/connection', reason: 'figma_links' },
+  { method: 'POST', path: '/v1/organizations/:orgSlug/figma/connection', reason: 'figma_links' },
+  { method: 'DELETE', path: '/v1/organizations/:orgSlug/figma/connection', reason: 'figma_links' },
+  { method: 'GET', path: '/v1/organizations/:orgSlug/figma/links/:linkId', reason: 'figma_links' },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/figma/links/:linkId/snapshots',
+    reason: 'figma_links',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/figma/links/:linkId',
+    reason: 'figma_links',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/figma/frames/:frameId/snapshot',
+    reason: 'figma_links',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/figma/inspect',
+    reason: 'figma_links',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/figma/links',
+    reason: 'figma_links',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/figma/links',
+    reason: 'figma_links',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/figma/links/:linkId',
+    reason: 'figma_links',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/figma/frames/:frameId/snapshot',
+    reason: 'figma_links',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/projects/:projectId/figma/links',
+    reason: 'figma_links',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/figma/frames/:frameId/review/threads',
+    reason: 'file_review',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/figma/frames/:frameId/review/threads',
+    reason: 'file_review',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/figma/frames/:frameId/review/threads',
+    reason: 'file_review',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/portal/figma/frames/:frameId/review/threads',
+    reason: 'file_review',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

@@ -22,6 +22,8 @@
  *   Picker is an iframe from Google and talks to googleapis; the OneDrive picker is a popup this
  *   page opens on `about:blank` (which inherits this policy) and POSTs a form into, to
  *   `onedrive.live.com` or the tenant's `*.sharepoint.com`. Without these the pickers break.
+ *   `frame-src` also names Figma's embed host (R4 slice 13): the viewer's "Live" mode shows a
+ *   Figma frame in an iframe. Nothing else from Figma is allowed (snapshots come from our API).
  * - `worker-src 'self'`. With `strict-dynamic`, `'self'` in `script-src` is ignored, and the
  *   service worker (`/sw.js`) falls back to `script-src`; it needs its own directive.
  *
@@ -51,6 +53,8 @@ export const TRUSTED_TYPES_REPORT_ONLY = `require-trusted-types-for 'script'; re
 /** Avatars and file thumbnails from the two storage providers people connect (Drive, OneDrive). */
 const IMAGE_ORIGINS = ['https://*.googleusercontent.com', 'https://*.sharepoint.com'];
 const PICKER_FRAMES = ['https://docs.google.com', 'https://drive.google.com'];
+/** R4 slice 13. The proofing viewer's "Live" mode embeds a Figma frame from Figma's embed host. */
+const FIGMA_FRAMES = ['https://embed.figma.com', 'https://www.figma.com'];
 const PICKER_CONNECT = ['https://apis.google.com', 'https://*.googleapis.com'];
 const PICKER_FORMS = ['https://onedrive.live.com', 'https://*.sharepoint.com'];
 
@@ -119,7 +123,7 @@ export function buildContentSecurityPolicy(input: CspInput): string {
       ...PICKER_CONNECT,
     ],
     ['font-src', "'self'"],
-    ['frame-src', "'self'", ...PICKER_FRAMES],
+    ['frame-src', "'self'", ...PICKER_FRAMES, ...FIGMA_FRAMES],
     ['worker-src', "'self'"],
     ['object-src', "'none'"],
     ['base-uri', "'self'"],

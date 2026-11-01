@@ -1984,3 +1984,13 @@ GRANT SELECT ON `tmanage`.`file_assets`                            TO 'tmanage_w
 -- rows are append-only (a BEFORE UPDATE trigger refuses every change), so no UPDATE; DELETE is held
 -- for the company erasure only. SELECT rides the database-wide read. Nothing on the worker.
 GRANT INSERT, DELETE ON `tmanage`.`file_review_decisions`         TO 'tmanage_app'@'%';
+
+-- ---- R4 slice 13 · Figma links ----
+-- 0270 `figma_connections` / `figma_links` / `figma_frames` (tenant): the app stores a member's
+-- encrypted Figma token (INSERT, UPDATE on reconnect, DELETE on disconnect), attaches links
+-- (INSERT, UPDATE for the soft delete) and records frame snapshots (INSERT, UPDATE); the snapshot
+-- job runs in the API process. DELETE on links and frames is held for the company erasure. SELECT
+-- rides the database-wide read. Nothing on the worker.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`figma_connections`      TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`figma_links`            TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`figma_frames`           TO 'tmanage_app'@'%';
