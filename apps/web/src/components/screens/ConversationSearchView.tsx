@@ -13,6 +13,7 @@ import { getConversation } from '../../lib/api/conversations';
 import { useMembers } from '../../lib/use-members';
 import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/chat.css';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 /**
  * **CH-10 Search in conversation** (x253). A search field over one channel's messages, and the
@@ -67,7 +68,7 @@ function initialsOf(name: string): string {
 function formatStamp(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(appLocale(), {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',

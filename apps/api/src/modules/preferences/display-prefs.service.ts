@@ -6,7 +6,6 @@ import {
   DISPLAY_DENSITIES,
   DISPLAY_LOCALES,
   DISPLAY_THEMES,
-  DISPLAY_TIMEZONES,
 } from '../../common/database/schema.js';
 import type {
   DisplayDateFormat,
@@ -18,6 +17,7 @@ import type {
 } from '../../common/database/schema.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { DisplayPreferencesRepository } from './display-prefs.repository.js';
+import { isIanaTimeZone } from '../../common/time-zone.js';
 
 /**
  * PREF-DISPLAY display preferences (x285, module 20 Preferences & accessibility) — the caller's own
@@ -134,7 +134,13 @@ function parseInput(body: unknown): DisplayPreferences {
   const theme = oneOf('theme', DISPLAY_THEMES);
   const density = oneOf('density', DISPLAY_DENSITIES);
   const locale = oneOf('locale', DISPLAY_LOCALES);
-  const timezone = oneOf('timezone', DISPLAY_TIMEZONES);
+  const rawTimezone = value['timezone'];
+  let timezone: DisplayTimezone = 'UTC';
+  if (isIanaTimeZone(rawTimezone)) {
+    timezone = rawTimezone;
+  } else {
+    details.push({ field: 'timezone', message: 'must be an IANA time zone' });
+  }
   const dateFormat = oneOf('dateFormat', DISPLAY_DATE_FORMATS);
 
   if (details.length > 0) {

@@ -12,6 +12,8 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { DEFAULT_INBOX_PAGE, listInbox, markBundleRead } from '../../lib/api/inbox';
 import type { InboxBundle, InboxItem, InboxMode, InboxUsageNotice } from '../../lib/api/inbox';
 import type { ApiClient } from '../../lib/api/client';
+import { compactUnit, translateOr } from '../../lib/i18n/compact-time';
+import { activeLocale } from '../../lib/i18n/locale-store';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { snoozeBundle, unsnoozeBundle } from '../../lib/api/inbox-snooze';
@@ -902,13 +904,13 @@ function shortAgo(value: string, now: Date): string {
   const at = new Date(value);
   if (Number.isNaN(at.getTime())) return value;
   const minutes = Math.floor((now.getTime() - at.getTime()) / 60_000);
-  if (minutes < 1) return 'now';
-  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 1) return translateOr('CompactTime.now', 'now');
+  if (minutes < 60) return compactUnit(minutes, 'minute');
   const hours = Math.floor(minutes / 60);
-  if (hours < 48) return `${hours}h`;
+  if (hours < 48) return compactUnit(hours, 'hour');
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d`;
-  return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }).format(at);
+  if (days < 7) return compactUnit(days, 'day');
+  return new Intl.DateTimeFormat(activeLocale.get(), { day: 'numeric', month: 'short' }).format(at);
 }
 
 /** The rail's own glyph for what the bundle is about: work, client, storage, or (CQ-12) the rest. */

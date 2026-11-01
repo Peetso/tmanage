@@ -12,6 +12,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface ChangelogScreenProps {
   client?: ApiClient;
@@ -146,7 +147,7 @@ function loadedCountText(template: string, count: number): string {
 function formatMonth(month: string): string {
   const parsed = new Date(`${month}-01T00:00:00.000Z`);
   if (Number.isNaN(parsed.getTime())) return month;
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(appLocale(), {
     year: 'numeric',
     month: 'long',
     timeZone: 'UTC',

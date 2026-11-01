@@ -16,6 +16,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/billing.css';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface BillingSeatsScreenProps {
   organizationSlug: string;
@@ -196,7 +197,7 @@ export function BillingSeatsScreen({
                 {rows.map((seat) => (
                   <tr key={seat.id}>
                     <td>{seat.membershipId}</td>
-                    <td>{new Date(seat.assignedAt).toLocaleDateString()}</td>
+                    <td>{new Date(seat.assignedAt).toLocaleDateString(appLocale())}</td>
                     <td>
                       <Button
                         type="button"

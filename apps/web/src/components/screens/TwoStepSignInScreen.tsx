@@ -134,7 +134,8 @@ export function TwoStepSignInScreen({
     run.mutate({ kind: 'begin' });
   }, [factors.isSuccess, confirmed, recoveryCodes, run]);
 
-  const securityHref = `/${organizationSlug}/settings/security`;
+  // Back to Preferences, where the Two-step sign-in row that opened this page lives.
+  const securityHref = `/${organizationSlug}/preferences`;
 
   let body;
   if (factors.isPending) {

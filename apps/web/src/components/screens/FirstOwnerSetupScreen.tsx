@@ -22,6 +22,8 @@ import {
   workspaceLinkHint,
 } from '../../lib/slug';
 import { useHydrated } from '../../lib/use-hydrated';
+import { guessTimeZone } from '../../lib/time-zones';
+import { TimeZoneSelect } from '../TimeZoneSelect';
 import '../../styles/screens/identity.css';
 
 /** The password floor the API enforces; checked here too so the common mistake costs no attempt. */
@@ -109,7 +111,7 @@ export function FirstOwnerSetupScreen({
   const [organizationName, setOrganizationName] = useState('');
   const [slug, setSlug] = useState('');
   const [slugEdited, setSlugEdited] = useState(false);
-  const [timezone, setTimezone] = useState(() => guessTimezone());
+  const [timezone, setTimezone] = useState(() => guessTimeZone());
   const [locale, setLocale] = useState<string>(LOCALES[0].value);
 
   const [submitting, setSubmitting] = useState(false);
@@ -359,34 +361,16 @@ export function FirstOwnerSetupScreen({
               {...errorProp(slugError)}
             />
 
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-setup-timezone">
-                {t('FirstOwnerSetupScreen.timezoneLabel')}
-              </label>
-              <select
-                id="tm-setup-timezone"
-                name="timezone"
-                className="tm-field__control"
-                value={timezone}
-                onChange={(event) => {
-                  setTimezone(event.target.value);
-                  clearFieldError('timezone');
-                }}
-                aria-invalid={fieldErrors.timezone ? true : undefined}
-                aria-describedby={fieldErrors.timezone ? 'tm-setup-timezone-error' : undefined}
-              >
-                {timezoneOptions(timezone).map((zone) => (
-                  <option key={zone} value={zone}>
-                    {zone}
-                  </option>
-                ))}
-              </select>
-              {fieldErrors.timezone ? (
-                <span className="tm-field__error" id="tm-setup-timezone-error">
-                  {fieldErrors.timezone}
-                </span>
-              ) : null}
-            </div>
+            <TimeZoneSelect
+              label={t('FirstOwnerSetupScreen.timezoneLabel')}
+              name="timezone"
+              value={timezone}
+              onChange={(zone) => {
+                setTimezone(zone);
+                clearFieldError('timezone');
+              }}
+              {...errorProp(fieldErrors.timezone)}
+            />
 
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-setup-locale">
@@ -463,27 +447,4 @@ function describe(error: unknown, tOr: TranslateOr): string {
     }
   }
   return describeApiError(error, tOr, OFFLINE_LINES);
-}
-
-/** Every zone the runtime knows, always including the current choice. */
-function timezoneOptions(current: string): readonly string[] {
-  const intl = Intl as typeof Intl & { supportedValuesOf?: (key: string) => string[] };
-  let zones: string[] = ['UTC', 'Africa/Cairo', 'Europe/London', 'America/New_York', 'Asia/Dubai'];
-  if (typeof intl.supportedValuesOf === 'function') {
-    try {
-      zones = intl.supportedValuesOf('timeZone');
-    } catch {
-      // keep the fallback
-    }
-  }
-  return zones.includes(current) ? zones : [current, ...zones];
-}
-
-/** The browser's timezone where it is known, `UTC` where it is not. */
-function guessTimezone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  } catch {
-    return 'UTC';
-  }
 }

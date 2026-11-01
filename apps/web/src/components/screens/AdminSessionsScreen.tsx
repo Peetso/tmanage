@@ -11,6 +11,7 @@ import type { ActiveSessionView } from '../../lib/api/admin-sessions';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface AdminSessionsScreenProps {
   organizationSlug: string;
@@ -181,5 +182,7 @@ function SessionRow({
 function formatMoment(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(at);
+  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(
+    at,
+  );
 }

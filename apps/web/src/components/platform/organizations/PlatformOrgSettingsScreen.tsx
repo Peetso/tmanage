@@ -26,6 +26,7 @@ import { platformErrorText, ReasonDialog } from '../shared/ReasonDialog';
 import { usePlatformPermissions } from '../shared/usePlatformPermissions';
 import { ORGS_KEY, orgKey } from './org-kit';
 import { OrgPage } from './OrgPage';
+import { TimeZoneSelect } from '../../TimeZoneSelect';
 
 /** A4 `/platform/organizations/[id]/settings` — profile, settings, access policy and flags (frame A4). */
 export function PlatformOrgSettingsScreen({
@@ -184,10 +185,11 @@ function ProfileCard({
             onChange={(e) => set('defaultLocale')(e.target.value)}
             disabled={!canEdit}
           />
-          <Field
+          <TimeZoneSelect
             label={t('PlatformOrgs.fieldTimezone')}
             value={draft.timezone}
-            onChange={(e) => set('timezone')(e.target.value)}
+            onChange={set('timezone')}
+            hint={null}
             disabled={!canEdit}
           />
         </div>

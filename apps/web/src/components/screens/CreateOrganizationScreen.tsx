@@ -19,68 +19,8 @@ import { useHydrated } from '../../lib/use-hydrated';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
-
-/**
- * The timezone list.
- *
- * `Intl.supportedValuesOf('timeZone')` where the runtime has it, which is every browser this
- * application targets, falling back to a short list rather than to nothing. The fallback is
- * not a curated "popular timezones" list — that would quietly exclude someone — it is what
- * remains when the platform cannot enumerate them, and the field stays a free-text-backed
- * select so a value outside it can still be reached by a later ticket.
- */
-const CANONICAL_ZONES: Readonly<Record<string, string>> = {
-  'America/Buenos_Aires': 'America/Argentina/Buenos_Aires',
-  'America/Catamarca': 'America/Argentina/Catamarca',
-  'America/Cordoba': 'America/Argentina/Cordoba',
-  'America/Jujuy': 'America/Argentina/Jujuy',
-  'America/Mendoza': 'America/Argentina/Mendoza',
-  'America/Godthab': 'America/Nuuk',
-  'America/Indianapolis': 'America/Indiana/Indianapolis',
-  'America/Louisville': 'America/Kentucky/Louisville',
-  'Asia/Calcutta': 'Asia/Kolkata',
-  'Asia/Katmandu': 'Asia/Kathmandu',
-  'Asia/Rangoon': 'Asia/Yangon',
-  'Asia/Saigon': 'Asia/Ho_Chi_Minh',
-  'Atlantic/Faeroe': 'Atlantic/Faroe',
-  'Europe/Kiev': 'Europe/Kyiv',
-  'Pacific/Enderbury': 'Pacific/Kanton',
-  'Pacific/Ponape': 'Pacific/Pohnpei',
-  'Pacific/Truk': 'Pacific/Chuuk',
-};
-
-function timezones(current: string): readonly string[] {
-  const intl = Intl as typeof Intl & { supportedValuesOf?: (key: string) => string[] };
-  let zones: readonly string[] = [
-    'UTC',
-    'Africa/Cairo',
-    'Europe/London',
-    'America/New_York',
-    'Asia/Dubai',
-  ];
-  if (typeof intl.supportedValuesOf === 'function') {
-    try {
-      zones = intl.supportedValuesOf('timeZone');
-    } catch {
-      // keep the fallback
-    }
-  }
-  // Chrome's ICU still lists some zones under their retired names (Asia/Calcutta, Asia/Saigon …)
-  // and leaves UTC out; Control Center's list uses the current names and has UTC, so this one
-  // does too (live test 2026-10-31). The old names still resolve, so nothing stored breaks.
-  zones = [
-    'UTC',
-    ...[...new Set(zones.map((zone) => CANONICAL_ZONES[zone] ?? zone))]
-      .filter((zone) => zone !== 'UTC')
-      .sort(),
-  ];
-  const shown = CANONICAL_ZONES[current] ?? current;
-  // The select is controlled by `current` (the browser's guessed zone). If that value is not
-  // one of the options, the browser shows the first option instead — which, alphabetically, is
-  // Africa/Abidjan — making the field look like it defaulted there (ACC-09). Guarantee the
-  // current value is always present so the guessed zone is the one shown.
-  return shown !== '' && !zones.includes(shown) ? [shown, ...zones] : zones;
-}
+import { guessTimeZone } from '../../lib/time-zones';
+import { TimeZoneSelect } from '../TimeZoneSelect';
 
 /** `19-SEED-DATA-AND-COPY` ships English and Arabic. Nothing else is translated yet. */
 const LOCALES = [
@@ -203,11 +143,11 @@ export function CreateOrganizationScreen({
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [slugEdited, setSlugEdited] = useState(false);
-  const [timezone, setTimezone] = useState(() => guessTimezone());
+  const [timezone, setTimezone] = useState(() => guessTimeZone());
   const [locale, setLocale] = useState<string>(LOCALES[0].value);
   const [workType, setWorkType] = useState<string>(WORK_TYPES[0].value);
   const [workingWeek, setWorkingWeek] = useState<string>(() =>
-    SUNDAY_WEEK_ZONES.has(guessTimezone()) ? 'sun-thu' : 'mon-fri',
+    SUNDAY_WEEK_ZONES.has(guessTimeZone()) ? 'sun-thu' : 'mon-fri',
   );
   const [availability, setAvailability] = useState<Availability>({ state: 'idle' });
   const pendingCheck = useRef<
@@ -468,23 +408,11 @@ export function CreateOrganizationScreen({
             </div>
 
             <div className="tm-ob-grid-2">
-              <div className="tm-field">
-                <label className="tm-field__label" htmlFor="tm-timezone">
-                  {t('CreateOrganizationScreen.timezoneLabel')}
-                </label>
-                <select
-                  id="tm-timezone"
-                  className="tm-field__control"
-                  value={timezone}
-                  onChange={(event) => setTimezone(event.target.value)}
-                >
-                  {timezones(timezone).map((zone) => (
-                    <option key={zone} value={zone}>
-                      {zone}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <TimeZoneSelect
+                label={t('CreateOrganizationScreen.timezoneLabel')}
+                value={timezone}
+                onChange={setTimezone}
+              />
 
               <div className="tm-field">
                 <label className="tm-field__label" htmlFor="tm-working-week">
@@ -565,16 +493,6 @@ export function CreateOrganizationScreen({
       </form>
     </OnboardingShell>
   );
-}
-
-/** The browser's timezone where it is known, `UTC` where it is not. */
-function guessTimezone(): string {
-  try {
-    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-    return CANONICAL_ZONES[zone] ?? zone;
-  } catch {
-    return 'UTC';
-  }
 }
 
 /**

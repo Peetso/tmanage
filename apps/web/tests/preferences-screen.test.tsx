@@ -6,6 +6,10 @@ import { PreferencesScreen } from '../src/components/screens/PreferencesScreen';
 import { LocaleDirectionProvider } from '../src/components/providers/LocaleDirectionProvider';
 import { activeLocale } from '../src/lib/i18n/locale-store';
 
+// The shell's ThemeSync reads the same `['display-preferences', slug]` query through the browser
+// client; here the screen's own test client must be the one that answers it.
+vi.mock('../src/components/shell/ThemeSync', () => ({ ThemeSync: () => null }));
+
 // The Profile.* strings land in the catalogs from this slice's i18n fragment; until the merge, the
 // ones these tests read by name are supplied here (a no-op once the catalog has them).
 vi.mock('../src/lib/i18n/messages/en.json', async (importOriginal) => {
@@ -102,7 +106,10 @@ describe('PreferencesScreen (t2-b)', () => {
     expect(email.readOnly).toBe(true);
     expect((screen.getByLabelText('Job title') as HTMLInputElement).value).toBe('Project lead');
     expect((screen.getByLabelText('English') as HTMLInputElement).checked).toBe(true);
-    expect((screen.getByLabelText('Time zone') as HTMLSelectElement).value).toBe('Europe/London');
+    // R9: the searchable picker reads the stored zone as "(offset) City, Country".
+    expect((screen.getByLabelText('Time zone') as HTMLInputElement).value).toMatch(
+      /London, United Kingdom$/,
+    );
     await waitFor(() =>
       expect(screen.getByRole('link', { name: 'Turn on' }).getAttribute('href')).toBe(
         '/northstar/settings/two-step',
@@ -115,7 +122,10 @@ describe('PreferencesScreen (t2-b)', () => {
     fireEvent.change(await screen.findByLabelText('Full name'), {
       target: { value: 'Omar A. Adel' },
     });
-    fireEvent.change(screen.getByLabelText('Time zone'), { target: { value: 'Asia/Tokyo' } });
+    const zone = screen.getByLabelText('Time zone');
+    fireEvent.focus(zone);
+    fireEvent.change(zone, { target: { value: 'tokyo' } });
+    fireEvent.click(screen.getByRole('option', { name: /Tokyo, Japan/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => expect(calls.filter((call) => call.method === 'PUT')).toHaveLength(2));
@@ -143,5 +153,34 @@ describe('PreferencesScreen (t2-b)', () => {
     expect(screen.getByRole('link', { name: 'Manage' }).getAttribute('href')).toBe(
       '/northstar/settings/two-step',
     );
+  });
+  it('a name-only save writes the profile and leaves the display preferences alone', async () => {
+    const calls = mount();
+    fireEvent.change(await screen.findByLabelText('Full name'), {
+      target: { value: 'Omar A. Adel' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() =>
+      expect(calls.some((call) => call.method === 'PUT' && call.path.endsWith('/me/profile'))).toBe(
+        true,
+      ),
+    );
+    expect(
+      calls.filter(
+        (call) => call.method === 'PUT' && call.path.endsWith('/me/display-preferences'),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it('the language is a one-of choice: radios in a radio group', async () => {
+    mount();
+    const english = (await screen.findByLabelText('English')) as HTMLInputElement;
+    const arabic = screen.getByLabelText('العربية') as HTMLInputElement;
+    expect(english.type).toBe('radio');
+    expect(arabic.type).toBe('radio');
+    expect(english.closest('[role="radiogroup"]')).not.toBeNull();
+    fireEvent.click(arabic);
+    expect(arabic.checked).toBe(true);
+    expect(english.checked).toBe(false);
   });
 });

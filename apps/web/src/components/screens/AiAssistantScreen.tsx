@@ -18,6 +18,7 @@ import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/preferences.css';
 import '../../styles/screens/ai-assistant.css';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface AiAssistantScreenProps {
   organizationSlug: string;
@@ -435,12 +436,12 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 
 function formatDate(iso: string): string {
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString();
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString(appLocale());
 }
 
 function formatDateTime(iso: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? iso
-    : date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    : date.toLocaleString(appLocale(), { dateStyle: 'medium', timeStyle: 'short' });
 }

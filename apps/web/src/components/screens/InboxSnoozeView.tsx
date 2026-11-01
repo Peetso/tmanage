@@ -14,6 +14,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/inbox.css';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface InboxSnoozeViewProps {
   organizationSlug: string;
@@ -130,7 +131,8 @@ export function InboxSnoozeView({ organizationSlug, bundleId, client }: InboxSno
             <li key={row.bundleId} className="tm-row">
               <span>{row.bundleId}</span>
               <time dateTime={row.snoozedUntil}>
-                {t('InboxSnoozeView.until')} {new Date(row.snoozedUntil).toLocaleString()}
+                {t('InboxSnoozeView.until')}{' '}
+                {new Date(row.snoozedUntil).toLocaleString(appLocale())}
               </time>
               <Button
                 type="button"

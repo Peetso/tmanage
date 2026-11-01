@@ -27,6 +27,7 @@ import {
 } from '../../lib/api/project-client';
 import { listOrganizations } from '../../lib/api/organizations';
 import { useProjectClientT } from '../projects/ShareWithClientDialog';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 /** The picker's two rows that are not a client company. */
 const CLIENT_INTERNAL = '__internal';
@@ -556,5 +557,5 @@ function describeDateProblem(value: string): string | undefined {
 function formatDate(value: string): string {
   const parsed = new Date(`${value}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(parsed);
+  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'long' }).format(parsed);
 }

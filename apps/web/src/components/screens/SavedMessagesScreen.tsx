@@ -9,6 +9,7 @@ import { listMyMessageBookmarks } from '../../lib/api/message-bookmarks';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { MessageBookmarkView } from './MessageBookmarkView';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface SavedMessagesScreenProps {
   organizationSlug: string;
@@ -83,7 +84,7 @@ export function SavedMessagesScreen({
                 </p>
                 <p className="tm-muted tm-caption">
                   {t('SavedMessagesScreen.savedPrefix')}
-                  {new Date(message.bookmarkedAt).toLocaleString()}
+                  {new Date(message.bookmarkedAt).toLocaleString(appLocale())}
                 </p>
                 <MessageBookmarkView
                   organizationSlug={organizationSlug}

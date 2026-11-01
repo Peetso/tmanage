@@ -19,6 +19,7 @@ import { listManagedUpdates } from '../../lib/api/managed-updates';
 import { useA10T } from '../projects/UnpublishUpdateDialog';
 import { UpdateLifecycleControls } from './UpdateLifecycleControls';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface ProjectStatusUpdatesScreenProps {
   organizationSlug: string;
@@ -244,7 +245,7 @@ function StatusUpdateItem({ update }: { update: ProjectStatusUpdateSummary }) {
       <div className="tm-row">
         <span className="tm-eyebrow">{t(BAND_KEY[update.statusBand])}</span>
         <time className="tm-field__hint" dateTime={update.postedAt}>
-          {new Date(update.postedAt).toLocaleString()}
+          {new Date(update.postedAt).toLocaleString(appLocale())}
         </time>
       </div>
       <p className="tm-prose">{update.body}</p>

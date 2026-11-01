@@ -19,22 +19,10 @@ import { REASON_MAX, platformErrorText } from '../shared/ReasonDialog';
 import { relativeMoment } from '../team/PlatformTeamScreen';
 import { dayAndTime, deviceOf, firstNameOf, fullDay } from './people-format';
 import { PersonFrame, roleName } from './PersonFrame';
+import { TimeZoneSelect } from '../../TimeZoneSelect';
 import type { PersonScreenContext } from './PersonFrame';
 
 type T = ReturnType<typeof useT>;
-
-const TIME_ZONES = [
-  'UTC',
-  'Africa/Cairo',
-  'Asia/Riyadh',
-  'Asia/Dubai',
-  'Europe/London',
-  'Europe/Berlin',
-  'America/New_York',
-  'America/Los_Angeles',
-  'Asia/Kolkata',
-  'Asia/Singapore',
-] as const;
 
 /** B2 · Profile — `/platform/people/:userId` (frames 434:16180, 434:16415 disabled, 434:16652). */
 export function PersonProfileScreen({ client, userId }: ScreenProps & { userId: string }) {
@@ -136,18 +124,12 @@ function ProfileBody({ api, me, person, refresh }: PersonScreenContext) {
               <option value="en">English</option>
               <option value="ar">العربية</option>
             </Select>
-            <Select
+            <TimeZoneSelect
               label={t('PlatformPeople.timezone')}
               value={timezone}
-              onChange={(event) => setTimezone(event.target.value)}
+              onChange={setTimezone}
               disabled={!canEdit}
-            >
-              {[...new Set<string>([person.timezone, ...TIME_ZONES])].map((zone) => (
-                <option key={zone} value={zone}>
-                  {zone}
-                </option>
-              ))}
-            </Select>
+            />
           </div>
           <Field
             label={t('PlatformPeople.reasonOptional')}

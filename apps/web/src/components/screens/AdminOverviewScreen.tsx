@@ -9,6 +9,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchAdminOverview, invitationsWaiting, relativeWhen } from '../../lib/api/admin-overview';
 import { fetchPendingInvitations } from '../../lib/api/admin-invitations';
 import { listAuditEvents } from '../../lib/api/admin-audit';
+import { auditSentence } from '../../lib/audit-presentation';
 import { getConnectedApps } from '../../lib/api/connected-apps';
 import { listWorkflowTemplates } from '../../lib/api/automations';
 import { readSecuritySettings } from '../../lib/api/admin-security';
@@ -182,7 +183,7 @@ export function AdminOverviewScreen({
           <ul className="tm-cc-ov-activity" aria-label={t('AdminOverviewScreen.recentListLabel')}>
             {recent.data.map((event) => (
               <li key={event.id}>
-                <span className="tm-cc-ov-activity__what">{event.summary}</span>
+                <span className="tm-cc-ov-activity__what">{auditSentence(event)}</span>
                 <time className="tm-cc-ov-activity__when" dateTime={event.occurredAt}>
                   {relativeWhen(event.occurredAt, clock, locale)}
                 </time>

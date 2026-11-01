@@ -93,6 +93,7 @@ import {
 } from '../decisions/RecordDecisionDialog';
 import '../../styles/screens/chat.css';
 import '../chat/chat-shell.css';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 type Translate = ReturnType<typeof useT>;
 
@@ -1520,7 +1521,7 @@ function formatStamp(value: string): string {
 function formatWhen(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
+  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(
     parsed,
   );
 }

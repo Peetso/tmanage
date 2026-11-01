@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { MentionSummary } from '../../lib/api/my-mentions';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface MentionViewProps {
   organizationSlug: string;
@@ -33,7 +34,7 @@ export function MentionView({ organizationSlug, mention }: MentionViewProps) {
 function formatStamp(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(appLocale(), {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',

@@ -57,24 +57,3 @@ export function isValidReauthMinutes(value: string): boolean {
   const trimmed = value.trim();
   return /^\d+$/.test(trimmed) && Number(trimmed) <= 1440;
 }
-
-/** The timezones the select offers, always including the stored one. */
-export function timezoneOptions(current: string): readonly string[] {
-  const intl = Intl as typeof Intl & { supportedValuesOf?: (key: string) => string[] };
-  let zones: readonly string[] = [
-    'UTC',
-    'Africa/Cairo',
-    'Asia/Dubai',
-    'Asia/Riyadh',
-    'Europe/London',
-    'America/New_York',
-  ];
-  if (typeof intl.supportedValuesOf === 'function') {
-    try {
-      zones = ['UTC', ...intl.supportedValuesOf('timeZone').filter((zone) => zone !== 'UTC')];
-    } catch {
-      // keep the short list
-    }
-  }
-  return current !== '' && !zones.includes(current) ? [current, ...zones] : zones;
-}

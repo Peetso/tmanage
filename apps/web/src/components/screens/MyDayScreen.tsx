@@ -30,6 +30,7 @@ import type { ApiErrorLines } from '../../lib/api/describe-error';
 import { formatDay, stateCapsule, stateLabel } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { translateOr } from '../../lib/i18n/compact-time';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { fill } from '../../lib/privacy-presentation';
 import type { MessageKey } from '../../lib/i18n/t';
@@ -454,7 +455,7 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
                           )}
                         </span>
                         <span className="tm-home-saved__meta">
-                          {item.entityType} · {t('MyDayScreen.savedCountSuffix')}{' '}
+                          {savedKindWord(item.entityType)} · {t('MyDayScreen.savedCountSuffix')}{' '}
                           {shortDay(item.createdAt, locale)}
                         </span>
                       </span>
@@ -841,6 +842,20 @@ function savedGlyph(entityType: SavedContextEntityType): string {
 }
 
 /** The message key for the word each pinned reference shows. */
+/** The short kind word in the saved meta line ("Work", "عمل") — never the raw entity key. */
+function savedKindWord(entityType: SavedContextEntityType): string {
+  switch (entityType) {
+    case 'message':
+      return translateOr('MyDayScreen.kindMessage', 'Message');
+    case 'doc':
+      return translateOr('HomeRecentItemsView.kindDocument', 'Doc');
+    case 'work':
+      return translateOr('HomeRecentItemsView.kindWork', 'Work');
+    case 'file':
+      return translateOr('MyDayScreen.kindFile', 'File');
+  }
+}
+
 function savedTypeLabelKey(entityType: SavedContextEntityType): MessageKey {
   switch (entityType) {
     case 'message':

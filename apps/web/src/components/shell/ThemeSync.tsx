@@ -4,10 +4,10 @@ import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getDisplayPreferences } from '../../lib/api/display-preferences';
-import { applyTheme } from '../../lib/theme';
+import { applyDensity, applyTheme } from '../../lib/theme';
 
 /**
- * Applies the member's saved theme inside a workspace. Shares its query key with
+ * Applies the member's saved theme and density inside a workspace. Shares its query key with
  * `DisplayPreferencesView`, so a save there re-applies here at once. Renders nothing.
  */
 export function ThemeSync({ organizationSlug }: { organizationSlug: string }) {
@@ -20,5 +20,9 @@ export function ThemeSync({ organizationSlug }: { organizationSlug: string }) {
   useEffect(() => {
     if (theme) applyTheme(theme);
   }, [theme]);
+  const density = preferences.data?.density;
+  useEffect(() => {
+    if (density) applyDensity(density);
+  }, [density]);
   return null;
 }

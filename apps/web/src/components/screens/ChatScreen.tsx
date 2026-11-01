@@ -22,6 +22,7 @@ import {
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import '../../styles/screens/chat.css';
 
 export interface ChatScreenProps {
@@ -46,6 +47,7 @@ export interface ChatScreenProps {
 export function ChatScreen({ organizationSlug, organizationName, client }: ChatScreenProps) {
   const api = client ?? browserApiClient();
   const t = useT();
+  const tOr = useTOr();
   const queries = useQueryClient();
 
   const [filter, setFilter] = useState<ChannelFilter>('all');
@@ -155,7 +157,7 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
           role="group"
           aria-label={t('ChatScreen.filterChannels')}
         >
-          {CHANNEL_FILTERS.map(({ id, label }) => (
+          {CHANNEL_FILTERS.map(({ id, label, labelKey }) => (
             <button
               key={id}
               type="button"
@@ -163,7 +165,7 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
               aria-pressed={filter === id}
               onClick={() => setFilter(id)}
             >
-              {label}
+              {tOr(labelKey, label)}
               {directory.data ? ` · ${counts[id]}` : ''}
             </button>
           ))}
@@ -270,7 +272,7 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
                   value={newName}
                   onChange={(event) => setNewName(event.target.value)}
                   maxLength={120}
-                  placeholder="#general"
+                  placeholder={tOr('ChatScreen.channelNamePlaceholder', '#general')}
                   required
                 />
               </div>
@@ -311,6 +313,7 @@ interface ChannelRowProps {
 /** One CH-01 row: name and tags, member avatars, audience, last activity. */
 function ChannelRow({ organizationSlug, entry, projectName, unreadCount, now }: ChannelRowProps) {
   const t = useT();
+  const tOr = useTOr();
   const archived = entry.archivedAt !== null;
   const internalCount = entry.memberCount - entry.clientMemberCount;
   const clientShared = entry.clientMemberCount > 0;
@@ -326,7 +329,11 @@ function ChannelRow({ organizationSlug, entry, projectName, unreadCount, now }: 
           <span
             className="tm-chat-unread"
             role="img"
-            aria-label={`${unreadCount} unread ${unreadCount === 1 ? 'message' : 'messages'}`}
+            aria-label={`${unreadCount} ${
+              unreadCount === 1
+                ? tOr('ChatSidebar.unreadOne', 'unread message')
+                : tOr('ChatSidebar.unreadMany', 'unread messages')
+            }`}
           >
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
@@ -352,8 +359,14 @@ function ChannelRow({ organizationSlug, entry, projectName, unreadCount, now }: 
           role="img"
           aria-label={
             clientShared
-              ? `${internalCount} team and ${entry.clientMemberCount} client members`
-              : `${entry.memberCount} ${entry.memberCount === 1 ? 'member' : 'members'}`
+              ? tOr('ChatScreen.teamAndClientMembers', '{team} team and {client} client members')
+                  .replace('{team}', String(internalCount))
+                  .replace('{client}', String(entry.clientMemberCount))
+              : `${entry.memberCount} ${
+                  entry.memberCount === 1
+                    ? tOr('ChatScreen.memberOne', 'member')
+                    : tOr('ChatScreen.memberMany', 'members')
+                }`
           }
         >
           {clientShared ? `${internalCount} + ${entry.clientMemberCount}` : entry.memberCount}

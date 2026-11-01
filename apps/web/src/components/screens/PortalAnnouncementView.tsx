@@ -9,6 +9,7 @@ import type { ClientPortalAnnouncement } from '../../lib/api/portal-announcement
 import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface PortalAnnouncementViewProps {
   organizationSlug: string;
@@ -97,5 +98,5 @@ function describeWindow(announcement: ClientPortalAnnouncement): string {
 function formatDate(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(parsed);
+  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'medium' }).format(parsed);
 }

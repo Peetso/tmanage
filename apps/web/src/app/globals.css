@@ -160,6 +160,15 @@ body {
   -webkit-mask-image: url('/brand/tmanage-icon.svg');
 }
 
+/*
+ * R8 (Figma 453:776 · F9 Logo on dark): on black the mark is lime. Dark theme paints every
+ * mark — bare wordmarks and the marks inside brand orbs — in lime; the orbs keep their
+ * ink/absolute disc in both themes, so the mark is always lime on black.
+ */
+[data-theme='dark'] .tm-mark {
+  color: var(--lime-500);
+}
+
 /* ── Shared screen furniture ────────────────────────────────────────────── */
 
 .tm-stack {
@@ -703,11 +712,6 @@ body {
   block-size: 20px;
 }
 
-[data-theme='dark'] .tm-rail__brand {
-  background: var(--lime-500);
-  color: var(--tm-ink-absolute);
-}
-
 .tm-rail__rule {
   flex: none;
   inline-size: var(--s6);
@@ -1176,11 +1180,6 @@ body {
   border-radius: var(--r-capsule);
   background: var(--tm-ink-absolute);
   color: var(--lime-500);
-}
-
-[data-theme='dark'] .tm-portal__mark {
-  background: var(--lime-500);
-  color: var(--tm-ink-absolute);
 }
 
 .tm-portal__client {
@@ -1700,11 +1699,6 @@ body {
 .tm-state-screen__mark .tm-mark--icon {
   inline-size: 20px;
   block-size: 15px;
-}
-
-[data-theme='dark'] .tm-state-screen__mark {
-  background: var(--lime-500);
-  color: var(--tm-ink-absolute);
 }
 
 .tm-state-screen__label {

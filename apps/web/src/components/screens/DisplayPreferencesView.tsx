@@ -8,17 +8,15 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import {
   DISPLAY_DATE_FORMATS,
   DISPLAY_DENSITIES,
-  DISPLAY_LOCALES,
   DISPLAY_THEMES,
-  DISPLAY_TIMEZONES,
   getDisplayPreferences,
   updateDisplayPreferences,
 } from '../../lib/api/display-preferences';
-import { applyTheme } from '../../lib/theme';
+import { applyDensity, applyTheme } from '../../lib/theme';
+import { TimeZoneSelect } from '../TimeZoneSelect';
 import type {
   DisplayDateFormat,
   DisplayDensity,
-  DisplayLocale,
   DisplayPreferencesView as DisplayPreferences,
   DisplayTheme,
   DisplayTimezone,
@@ -27,6 +25,7 @@ import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error
 import type { ApiClient } from '../../lib/api/client';
 import { activeLocale } from '../../lib/i18n/locale-store';
 import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/preferences.css';
 
 export interface DisplayPreferencesViewProps {
@@ -44,22 +43,61 @@ const DEFAULTS: DisplayPreferences = {
   dateFormat: 'iso',
 };
 
-const THEME_LABELS: Record<DisplayTheme, string> = {
-  light: 'Light',
-  dark: 'Dark',
-  system: 'Match system',
+/**
+ * The page's own strings, English first. The keys reach the catalogs with lane 13's i18n fragment;
+ * until then (and in tests) a key the catalog lacks reads as its English line, never as the key.
+ */
+const EN = {
+  'DisplayPreferencesView.eyebrow': 'Preferences · Appearance',
+  'DisplayPreferencesView.title': 'Appearance',
+  'DisplayPreferencesView.headerNote': 'Applies to your account on every device',
+  'DisplayPreferencesView.loading': 'Loading your display preferences',
+  'DisplayPreferencesView.loadError': 'We could not load your display preferences',
+  'DisplayPreferencesView.themeLight': 'Light',
+  'DisplayPreferencesView.themeDark': 'Dark',
+  'DisplayPreferencesView.themeSystem': 'Match system',
+  'DisplayPreferencesView.densityComfortable': 'Comfortable',
+  'DisplayPreferencesView.densityCompact': 'Compact',
+  'DisplayPreferencesView.densityNote':
+    'Compact fits more rows on a work list. Comfortable is the default.',
+  'DisplayPreferencesView.dateIso': 'ISO',
+  'DisplayPreferencesView.dateUs': 'US',
+  'DisplayPreferencesView.dateEu': 'European',
+  'DisplayPreferencesView.dateLong': 'Long',
+  'DisplayPreferencesView.saveError': 'We could not save your preferences',
+  'DisplayPreferencesView.savedTitle': 'Saved',
+  'DisplayPreferencesView.savedBody': 'Your display preferences have been saved.',
+  'DisplayPreferencesView.sampleHeading': 'Live sample',
+  'DisplayPreferencesView.sampleHead': 'Sample list · Work',
+  'DisplayPreferencesView.sampleCurrent': 'The item you are on now',
+  'DisplayPreferencesView.sampleClient': 'Waiting on a client approval',
+  'DisplayPreferencesView.sampleRisk': 'At risk of slipping',
+  'DisplayPreferencesView.sampleUndated': 'Not dated yet',
+  'DisplayPreferencesView.sampleFinished': 'Finished last week',
+  'DisplayPreferencesView.sampleHours': '26h',
+  'DisplayPreferencesView.noDate': 'No date',
+  'DisplayPreferencesView.done': 'Done',
+} as const;
+
+type AppearanceKey = keyof typeof EN;
+
+const THEME_LABELS: Record<DisplayTheme, AppearanceKey> = {
+  light: 'DisplayPreferencesView.themeLight',
+  dark: 'DisplayPreferencesView.themeDark',
+  system: 'DisplayPreferencesView.themeSystem',
 };
 
-const DENSITY_LABELS: Record<DisplayDensity, string> = {
-  comfortable: 'Comfortable',
-  compact: 'Compact',
+const DENSITY_LABELS: Record<DisplayDensity, AppearanceKey> = {
+  comfortable: 'DisplayPreferencesView.densityComfortable',
+  compact: 'DisplayPreferencesView.densityCompact',
 };
 
-const DATE_FORMAT_LABELS: Record<DisplayDateFormat, string> = {
-  iso: 'ISO (2026-09-27)',
-  us: 'US (09/27/2026)',
-  eu: 'European (27/09/2026)',
-  long: 'Long (27 Sep 2026)',
+/** The format's name, then a fixed sample date written in it (digits are not translated). */
+const DATE_FORMAT_LABELS: Record<DisplayDateFormat, readonly [AppearanceKey, string]> = {
+  iso: ['DisplayPreferencesView.dateIso', '2026-09-27'],
+  us: ['DisplayPreferencesView.dateUs', '09/27/2026'],
+  eu: ['DisplayPreferencesView.dateEu', '27/09/2026'],
+  long: ['DisplayPreferencesView.dateLong', '27 Sep 2026'],
 };
 
 /**
@@ -80,32 +118,37 @@ export function DisplayPreferencesView({
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
+  const tr = (key: AppearanceKey): string => {
+    const line = t(key as string as MessageKey);
+    return line === key ? EN[key] : line;
+  };
 
   const preferences = useQuery({
     queryKey: ['display-preferences', organizationSlug],
     queryFn: () => getDisplayPreferences(api, organizationSlug),
   });
 
-  const [theme, setTheme] = useState<DisplayTheme>(DEFAULTS.theme);
-  const [density, setDensity] = useState<DisplayDensity>(DEFAULTS.density);
-  const [locale, setLocale] = useState<DisplayLocale>(DEFAULTS.locale);
-  const [timezone, setTimezone] = useState<DisplayTimezone>(DEFAULTS.timezone);
-  const [dateFormat, setDateFormat] = useState<DisplayDateFormat>(DEFAULTS.dateFormat);
+  // The form shows the member's unsaved choice when there is one, else the saved value, read
+  // straight from the loaded record: the first paint after a reload already shows the saved theme
+  // (seeding by effect painted "Match system" for a moment before the saved "Dark").
+  const stored = preferences.data ?? DEFAULTS;
+  const [themeDraft, setTheme] = useState<DisplayTheme | null>(null);
+  const [densityDraft, setDensity] = useState<DisplayDensity | null>(null);
+  const [timezoneDraft, setTimezone] = useState<DisplayTimezone | null>(null);
+  const [dateFormatDraft, setDateFormat] = useState<DisplayDateFormat | null>(null);
+  const theme = themeDraft ?? stored.theme;
+  const density = densityDraft ?? stored.density;
+  // The language is chosen once, on Profile (Figma 371:1836); this page sends the saved one back.
+  const locale = stored.locale;
+  const timezone = timezoneDraft ?? stored.timezone;
+  const dateFormat = dateFormatDraft ?? stored.dateFormat;
   const [saved, setSaved] = useState(false);
 
-  // When the server's settings load (or change), seed the form from them — and publish the saved
-  // locale to the active-locale store so the shell's `dir`/`lang` and every `Intl` formatter match
-  // the account the moment this screen is opened, not only after a save (ACT-03). The store is the
-  // one value `LocaleDirectionProvider` and the formatters read; it persists to `localStorage`, so
-  // the direction also survives a reload instead of snapping back to left-to-right.
+  // Publish the saved locale to the active-locale store so the shell's `dir`/`lang` and every
+  // `Intl` formatter match the account the moment this screen is opened, not only after a save
+  // (ACT-03). It persists to `localStorage`, so the direction also survives a reload.
   useEffect(() => {
-    if (!preferences.data) return;
-    setTheme(preferences.data.theme);
-    setDensity(preferences.data.density);
-    setLocale(preferences.data.locale);
-    setTimezone(preferences.data.timezone);
-    setDateFormat(preferences.data.dateFormat);
-    activeLocale.set(preferences.data.locale);
+    if (preferences.data) activeLocale.set(preferences.data.locale);
   }, [preferences.data]);
 
   const save = useMutation({
@@ -124,6 +167,7 @@ export function DisplayPreferencesView({
       // reload rather than only taking effect on the marketing site.
       activeLocale.set(result.locale);
       applyTheme(result.theme);
+      applyDensity(result.density);
       setSaved(true);
     },
   });
@@ -134,18 +178,18 @@ export function DisplayPreferencesView({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      eyebrow="Preferences · Appearance"
-      title="Appearance"
+      eyebrow={tr('DisplayPreferencesView.eyebrow')}
+      title={tr('DisplayPreferencesView.title')}
       actions={
-        <span className="tm-prefs-header-note">Applies to your account on every device</span>
+        <span className="tm-prefs-header-note">{tr('DisplayPreferencesView.headerNote')}</span>
       }
     >
       {preferences.isPending ? (
-        <LoadingRegion label="Loading your display preferences">
+        <LoadingRegion label={tr('DisplayPreferencesView.loading')}>
           <Skeleton />
         </LoadingRegion>
       ) : preferences.isError ? (
-        <InlineAlert tone="danger" title="We could not load your display preferences">
+        <InlineAlert tone="danger" title={tr('DisplayPreferencesView.loadError')}>
           {errorMessage(preferences.error)}
         </InlineAlert>
       ) : (
@@ -176,7 +220,7 @@ export function DisplayPreferencesView({
                         className={`tm-prefs-thumb tm-prefs-thumb--${value}`}
                         aria-hidden="true"
                       />
-                      {THEME_LABELS[value]}
+                      {tr(THEME_LABELS[value])}
                     </label>
                   ))}
                 </div>
@@ -196,53 +240,22 @@ export function DisplayPreferencesView({
                         checked={density === value}
                         onChange={() => setDensity(value)}
                       />
-                      {DENSITY_LABELS[value]}
+                      {tr(DENSITY_LABELS[value])}
                     </label>
                   ))}
                 </div>
-                <p className="tm-prefs-card__note">
-                  Compact fits more rows on a work list. Comfortable is the default.
-                </p>
+                <p className="tm-prefs-card__note">{tr('DisplayPreferencesView.densityNote')}</p>
               </fieldset>
 
               <hr className="tm-prefs-rule" />
 
               <div className="tm-prefs-fields">
-                <div className="tm-prefs-field">
-                  <label className="tm-prefs-field__label" htmlFor="tm-display-locale">
-                    {t('displayPreferences.languageRegion')}
-                  </label>
-                  <select
-                    id="tm-display-locale"
-                    className="tm-prefs-field__control"
-                    value={locale}
-                    onChange={(event) => setLocale(event.target.value as DisplayLocale)}
-                  >
-                    {DISPLAY_LOCALES.map((value) => (
-                      <option key={value} value={value}>
-                        {value}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="tm-prefs-field">
-                  <label className="tm-prefs-field__label" htmlFor="tm-display-timezone">
-                    {t('displayPreferences.timezone')}
-                  </label>
-                  <select
-                    id="tm-display-timezone"
-                    className="tm-prefs-field__control"
-                    value={timezone}
-                    onChange={(event) => setTimezone(event.target.value as DisplayTimezone)}
-                  >
-                    {DISPLAY_TIMEZONES.map((value) => (
-                      <option key={value} value={value}>
-                        {value}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <TimeZoneSelect
+                  className="tm-prefs-field"
+                  label={t('displayPreferences.timezone')}
+                  value={timezone}
+                  onChange={setTimezone}
+                />
 
                 <div className="tm-prefs-field">
                   <label className="tm-prefs-field__label" htmlFor="tm-display-date-format">
@@ -256,7 +269,7 @@ export function DisplayPreferencesView({
                   >
                     {DISPLAY_DATE_FORMATS.map((value) => (
                       <option key={value} value={value}>
-                        {DATE_FORMAT_LABELS[value]}
+                        {`${tr(DATE_FORMAT_LABELS[value][0])} (${DATE_FORMAT_LABELS[value][1]})`}
                       </option>
                     ))}
                   </select>
@@ -264,14 +277,14 @@ export function DisplayPreferencesView({
               </div>
 
               {save.isError ? (
-                <InlineAlert tone="danger" title="We could not save your preferences">
+                <InlineAlert tone="danger" title={tr('DisplayPreferencesView.saveError')}>
                   {errorMessage(save.error)}
                 </InlineAlert>
               ) : null}
 
               {saved && !save.isPending && !save.isError ? (
-                <InlineAlert tone="success" title="Saved">
-                  Your display preferences have been saved.
+                <InlineAlert tone="success" title={tr('DisplayPreferencesView.savedTitle')}>
+                  {tr('DisplayPreferencesView.savedBody')}
                 </InlineAlert>
               ) : null}
 
@@ -289,37 +302,51 @@ export function DisplayPreferencesView({
 
           <aside className="tm-prefs__side" aria-labelledby="tm-display-sample-heading">
             <h2 id="tm-display-sample-heading" className="tm-prefs-eyebrow">
-              Live sample · {DENSITY_LABELS[density]}, {THEME_LABELS[theme]}
+              {`${tr('DisplayPreferencesView.sampleHeading')} · ${tr(DENSITY_LABELS[density])}, ${tr(THEME_LABELS[theme])}`}
             </h2>
             <div className="tm-prefs-sample" data-density={density} aria-hidden="true">
-              <div className="tm-prefs-sample__head">Sample list · Work</div>
+              <div className="tm-prefs-sample__head">{tr('DisplayPreferencesView.sampleHead')}</div>
               <ul className="tm-prefs-sample__list">
                 <li className="tm-prefs-sample__row tm-prefs-sample__row--current">
                   <span className="tm-prefs-dot tm-prefs-dot--lime" />
-                  <span className="tm-prefs-sample__name">The item you are on now</span>
+                  <span className="tm-prefs-sample__name">
+                    {tr('DisplayPreferencesView.sampleCurrent')}
+                  </span>
                   <span className="tm-prefs-sample__date">{sampleDates[0]}</span>
                 </li>
                 <li className="tm-prefs-sample__row">
                   <span className="tm-prefs-dot tm-prefs-dot--client" />
-                  <span className="tm-prefs-sample__name">Waiting on a client approval</span>
-                  <span className="tm-prefs-sample__date">26h</span>
+                  <span className="tm-prefs-sample__name">
+                    {tr('DisplayPreferencesView.sampleClient')}
+                  </span>
+                  <span className="tm-prefs-sample__date">
+                    {tr('DisplayPreferencesView.sampleHours')}
+                  </span>
                 </li>
                 <li className="tm-prefs-sample__row">
                   <span className="tm-prefs-dot tm-prefs-dot--warn" />
-                  <span className="tm-prefs-sample__name">At risk of slipping</span>
+                  <span className="tm-prefs-sample__name">
+                    {tr('DisplayPreferencesView.sampleRisk')}
+                  </span>
                   <span className="tm-prefs-sample__date tm-prefs-sample__date--warn">
                     {sampleDates[1]}
                   </span>
                 </li>
                 <li className="tm-prefs-sample__row tm-prefs-sample__row--muted">
                   <span className="tm-prefs-dot tm-prefs-dot--empty" />
-                  <span className="tm-prefs-sample__name">Not dated yet</span>
-                  <span className="tm-prefs-sample__date">No date</span>
+                  <span className="tm-prefs-sample__name">
+                    {tr('DisplayPreferencesView.sampleUndated')}
+                  </span>
+                  <span className="tm-prefs-sample__date">
+                    {tr('DisplayPreferencesView.noDate')}
+                  </span>
                 </li>
                 <li className="tm-prefs-sample__row tm-prefs-sample__row--muted">
                   <span className="tm-prefs-dot" />
-                  <span className="tm-prefs-sample__name">Finished last week</span>
-                  <span className="tm-prefs-sample__date">Done</span>
+                  <span className="tm-prefs-sample__name">
+                    {tr('DisplayPreferencesView.sampleFinished')}
+                  </span>
+                  <span className="tm-prefs-sample__date">{tr('DisplayPreferencesView.done')}</span>
                 </li>
               </ul>
             </div>

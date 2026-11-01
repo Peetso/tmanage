@@ -13,6 +13,7 @@ import {
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface AdminExportRequestsScreenProps {
   organizationSlug: string;
@@ -115,7 +116,7 @@ export function AdminExportRequestsScreen({
               <li key={request.id} className="tm-row">
                 <strong>{scopeLabels[request.scope] ?? request.scope}</strong>
                 <span>{statusLabels[request.status] ?? request.status}</span>
-                <span>{new Date(request.requestedAt).toLocaleString()}</span>
+                <span>{new Date(request.requestedAt).toLocaleString(appLocale())}</span>
               </li>
             ))}
           </ul>

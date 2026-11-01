@@ -13,6 +13,7 @@ import { ApiRequestError, NetworkError } from '../../../lib/api/errors';
 import { fetchPlatformMe, stepUpPlatform } from '../../../lib/api/platform-admin';
 import type { PlatformMeView } from '../../../lib/api/platform-admin';
 import { PLATFORM_ME_QUERY_KEY } from './usePlatformPermissions';
+import { appLocale } from '../../../lib/i18n/app-locale';
 
 /**
  * The pieces every Platform admin screen shares, moved out of `PlatformAdminScreens.tsx`
@@ -41,7 +42,9 @@ export function formatMoment(iso: string | null): string {
   if (iso === null) return '—';
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(at);
+  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(
+    at,
+  );
 }
 
 const UNITS = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'] as const;

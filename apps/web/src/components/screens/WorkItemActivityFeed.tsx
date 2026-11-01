@@ -13,6 +13,7 @@ import { useMembers } from '../../lib/use-members';
 import { connectorSentence } from '../../lib/work-activity-presentation';
 import { useT } from '../../lib/i18n/use-t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface WorkItemActivityFeedProps {
   organizationSlug: string;
@@ -24,7 +25,7 @@ export interface WorkItemActivityFeedProps {
 function formatWhen(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return at.toLocaleString();
+  return at.toLocaleString(appLocale());
 }
 
 /** A small glyph per entry kind — a spoken label goes on the row, this is decoration only. */

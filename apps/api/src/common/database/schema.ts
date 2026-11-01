@@ -8753,19 +8753,8 @@ export const DISPLAY_LOCALES = [
   'ar-EG',
 ] as const;
 export type DisplayLocale = (typeof DISPLAY_LOCALES)[number];
-export const DISPLAY_TIMEZONES = [
-  'UTC',
-  'America/New_York',
-  'America/Chicago',
-  'America/Los_Angeles',
-  'Europe/London',
-  'Europe/Paris',
-  'Europe/Berlin',
-  'Asia/Tokyo',
-  'Asia/Shanghai',
-  'Australia/Sydney',
-] as const;
-export type DisplayTimezone = (typeof DISPLAY_TIMEZONES)[number];
+/** Any IANA time zone (R9: every country), checked with `isIanaTimeZone`; `UTC` is the default. */
+export type DisplayTimezone = string;
 export const DISPLAY_DATE_FORMATS = ['iso', 'us', 'eu', 'long'] as const;
 export type DisplayDateFormat = (typeof DISPLAY_DATE_FORMATS)[number];
 

@@ -1,6 +1,7 @@
 import type { ComboboxOption } from '@tmanage/ui';
 import type { MemberSummary } from './api/members';
 import { describeInternalRole } from './roles';
+import { translateOr } from './i18n/compact-time';
 
 /**
  * How a member reads — D16's "clear identity disambiguation" and "a stable display for
@@ -41,7 +42,7 @@ export function memberLabel(member: MemberSummary): string {
  * conflating them would quietly close a question somebody still has to answer.
  */
 export function unknownMemberLabel(userId: string): string {
-  return `Former or hidden member (${userId.slice(0, 8)})`;
+  return `${translateOr('MembersPresentation.formerOrHidden', 'Former or hidden member')} (${userId.slice(0, 8)})`;
 }
 
 /**
@@ -55,7 +56,7 @@ export function unknownMemberLabel(userId: string): string {
  * to say when it printed the bare id instead.
  */
 export function formerMemberLabel(displayName: string): string {
-  return `Former member: ${displayName}`;
+  return `${translateOr('MembersPresentation.formerMemberPrefix', 'Former member:')} ${displayName}`;
 }
 
 /** The membership status that reads as "has left"; the one status `formerMemberLabel` is for. */
@@ -69,6 +70,11 @@ const OFFBOARDED_STATUS = 'offboarded';
  * so that is what it says.
  */
 export const LOADING_MEMBER_LABEL = 'Loading this member’s name…';
+
+/** {@link LOADING_MEMBER_LABEL} in the active locale (Arabic read English, 2026-10-31). */
+function loadingMemberLabel(): string {
+  return translateOr('MembersPresentation.loadingName', LOADING_MEMBER_LABEL);
+}
 
 /**
  * The name to show for a stored user id, whatever the directory knows.
@@ -87,7 +93,7 @@ export function memberDisplayName(
   members: readonly MemberSummary[],
   loading = false,
 ): string {
-  if (userId === null) return 'Unassigned';
+  if (userId === null) return translateOr('MembersPresentation.unassigned', 'Unassigned');
   const found = members.find((member) => member.userId === userId);
   if (found) {
     // A member still in the list but offboarded reads as "Former member: Name", not a bare
@@ -96,7 +102,7 @@ export function memberDisplayName(
       ? formerMemberLabel(found.displayName)
       : found.displayName;
   }
-  return loading ? LOADING_MEMBER_LABEL : unknownMemberLabel(userId);
+  return loading ? loadingMemberLabel() : unknownMemberLabel(userId);
 }
 
 /**
@@ -127,7 +133,7 @@ export function memberOptions(
   if (selectedUserId !== null && !members.some((member) => member.userId === selectedUserId)) {
     options.push({
       value: selectedUserId,
-      label: loading ? LOADING_MEMBER_LABEL : unknownMemberLabel(selectedUserId),
+      label: loading ? loadingMemberLabel() : unknownMemberLabel(selectedUserId),
     });
   }
 

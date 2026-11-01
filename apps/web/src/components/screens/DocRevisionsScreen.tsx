@@ -14,6 +14,7 @@ import {
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface DocRevisionsScreenProps {
   organizationSlug: string;
@@ -208,7 +209,7 @@ export function DocRevisionsScreen({
                       #{revision.revNo}
                     </th>
                     <td>{revision.savedBy}</td>
-                    <td>{new Date(revision.savedAt).toLocaleString()}</td>
+                    <td>{new Date(revision.savedAt).toLocaleString(appLocale())}</td>
                     <td>
                       <Button
                         type="button"

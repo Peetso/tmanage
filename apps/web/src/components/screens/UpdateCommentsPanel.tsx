@@ -11,6 +11,7 @@ import {
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface UpdateCommentsPanelProps {
   organizationSlug: string;
@@ -24,7 +25,7 @@ const MAX_BODY_LENGTH = 5000;
 function formatWhen(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return at.toLocaleString();
+  return at.toLocaleString(appLocale());
 }
 
 /**

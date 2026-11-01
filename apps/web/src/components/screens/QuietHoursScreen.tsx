@@ -13,6 +13,7 @@ import type { QuietHoursView } from '../../lib/api/quiet-hours';
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { PreferenceToggle } from './PreferencesScreen';
+import { TimeZoneSelect } from '../TimeZoneSelect';
 import '../../styles/screens/preferences.css';
 
 export interface QuietHoursScreenProps {
@@ -182,19 +183,12 @@ export function QuietHoursScreen({
                   />
                 </div>
 
-                <div className="tm-prefs-field tm-prefs-field--wide">
-                  <label className="tm-prefs-field__label" htmlFor="tm-quiet-timezone">
-                    {t('QuietHoursScreen.timezone')}
-                  </label>
-                  <input
-                    id="tm-quiet-timezone"
-                    className="tm-prefs-field__control"
-                    type="text"
-                    value={timezone}
-                    placeholder={t('QuietHoursScreen.timezonePlaceholder')}
-                    onChange={(event) => setTimezone(event.target.value)}
-                  />
-                </div>
+                <TimeZoneSelect
+                  className="tm-prefs-field tm-prefs-field--wide"
+                  label={t('QuietHoursScreen.timezone')}
+                  value={timezone || browserTimezone()}
+                  onChange={setTimezone}
+                />
               </div>
 
               <fieldset className="tm-prefs-section">

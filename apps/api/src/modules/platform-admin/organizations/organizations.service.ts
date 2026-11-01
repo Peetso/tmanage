@@ -1,5 +1,6 @@
 import { ASSIGNABLE_INTERNAL_ROLES } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../../common/http/errors.js';
+import { isIanaTimeZone } from '../../../common/time-zone.js';
 import {
   BILLING_MODE_SETTING_KEY,
   effectiveBillingMode,
@@ -632,6 +633,11 @@ export class PlatformOrganizationsService {
       'defaultLocale',
     );
     const timezone = boundedText(input.timezone, row.timezone, MAX_TIMEZONE_LENGTH, 'timezone');
+    if (timezone !== row.timezone && !isIanaTimeZone(timezone)) {
+      throw new ApiError(400, 'validation_failed', 'That is not a time zone we recognise.', [
+        { field: 'timezone', message: 'must be an IANA time zone' },
+      ]);
+    }
     let operatorNotes = row.operatorNotes;
     if (input.operatorNotes !== undefined) {
       const notes = input.operatorNotes === null ? '' : String(input.operatorNotes).trim();

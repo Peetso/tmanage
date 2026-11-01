@@ -14,6 +14,7 @@ import { useT } from '../../lib/i18n/use-t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { useOrganizationRole } from '../../lib/use-organization-names';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface AdminSecurityScreenProps {
   organizationSlug: string;
@@ -291,5 +292,7 @@ export function AdminSecurityScreen({
 function formatMoment(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(at);
+  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(
+    at,
+  );
 }

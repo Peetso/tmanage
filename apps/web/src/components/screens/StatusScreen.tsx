@@ -14,6 +14,7 @@ import type {
 } from '../../lib/api/public-site';
 import { STATUS_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface StatusScreenProps {
   /** Injected in tests. Defaults to the browser client. */
@@ -322,12 +323,14 @@ function parseTime(iso: string): number | null {
 }
 
 function formatDay(at: number): string {
-  return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }).format(at);
+  return new Intl.DateTimeFormat(appLocale(), { day: 'numeric', month: 'short' }).format(at);
 }
 
 /** Format an ISO timestamp for display, following the browser's locale. */
 function formatMoment(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(at);
+  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(
+    at,
+  );
 }

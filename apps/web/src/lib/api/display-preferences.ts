@@ -40,20 +40,11 @@ export const DISPLAY_LOCALES = [
 ] as const;
 export type DisplayLocale = (typeof DISPLAY_LOCALES)[number];
 
-/** IANA timezone allowlist; `UTC` is the default. */
-export const DISPLAY_TIMEZONES = [
-  'UTC',
-  'America/New_York',
-  'America/Chicago',
-  'America/Los_Angeles',
-  'Europe/London',
-  'Europe/Paris',
-  'Europe/Berlin',
-  'Asia/Tokyo',
-  'Asia/Shanghai',
-  'Australia/Sydney',
-] as const;
-export type DisplayTimezone = (typeof DISPLAY_TIMEZONES)[number];
+/**
+ * Any IANA time zone (R9: every country); `UTC` is the default. The picker offers the full list
+ * (`lib/time-zones.ts`) and the API checks the name is a real zone.
+ */
+export type DisplayTimezone = string;
 
 /** Named date layouts; `iso` is the default. */
 export const DISPLAY_DATE_FORMATS = ['iso', 'us', 'eu', 'long'] as const;

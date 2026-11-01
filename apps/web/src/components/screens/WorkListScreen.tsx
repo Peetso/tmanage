@@ -25,6 +25,7 @@ import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
 import type { ApiClient } from '../../lib/api/client';
 import type { MessageKey } from '../../lib/i18n/t';
+import { activeIsEnglish, compactUnit, translateOr } from '../../lib/i18n/compact-time';
 import { useT } from '../../lib/i18n/use-t';
 import { OPEN_COMMAND_PALETTE_EVENT } from './CommandPalette';
 import { WorkBoardView } from './WorkBoardView';
@@ -843,7 +844,7 @@ export function WorkListScreen({
                                 />
                               </td>
                               <td className="tm-wk-cell--type">
-                                <abbr className="tm-wk-table__type" title={item.type}>
+                                <abbr className="tm-wk-table__type" title={typeName(item.type)}>
                                   {typeCode(item.type)}
                                 </abbr>
                               </td>
@@ -1017,6 +1018,12 @@ const TYPE_CODE: Record<string, string> = {
   milestone: 'MIL',
 };
 
+/** The tooltip word for a type code: the localized type name, never the raw key. */
+function typeName(type: string): string {
+  const key = type.toLowerCase();
+  return translateOr(`WorkItemType.${key}`, key.charAt(0).toUpperCase() + key.slice(1));
+}
+
 function typeCode(type: string): string {
   return TYPE_CODE[type.toLowerCase()] ?? type.slice(0, 3).toUpperCase();
 }
@@ -1033,7 +1040,9 @@ function shortDay(value: string): string {
   const bare = value.length === 10;
   const parsed = new Date(bare ? `${value}T00:00:00.000Z` : value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat('en-GB', {
+  // Arabic reads Arabic month names with Latin digits, as the Arabic frames write them.
+  const tag = activeIsEnglish() ? 'en-GB' : 'ar-u-nu-latn';
+  return new Intl.DateTimeFormat(tag, {
     day: 'numeric',
     month: 'short',
     ...(bare ? { timeZone: 'UTC' } : {}),
@@ -1048,12 +1057,12 @@ function freshness(updatedAt: string, now: Date): { label: string; stale: boolea
   const days = Math.floor(minutes / 1440);
   const label =
     minutes < 60
-      ? `${minutes}m`
+      ? compactUnit(minutes, 'minute')
       : minutes < 1440
-        ? `${Math.floor(minutes / 60)}h`
+        ? compactUnit(Math.floor(minutes / 60), 'hour')
         : days < 60
-          ? `${days}d`
-          : `${Math.floor(days / 30)}mo`;
+          ? compactUnit(days, 'day')
+          : compactUnit(Math.floor(days / 30), 'month');
   return { label, stale: days >= 14 };
 }
 

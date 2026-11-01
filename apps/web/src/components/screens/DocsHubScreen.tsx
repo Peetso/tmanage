@@ -14,6 +14,7 @@ import { listRecentDocuments } from '../../lib/api/documents';
 import type { DocumentListScope } from '../../lib/api/documents';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import { compactUnit } from '../../lib/i18n/compact-time';
 import { useT } from '../../lib/i18n/use-t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
@@ -273,12 +274,12 @@ function formatAge(iso: string): string {
   const at = new Date(iso).getTime();
   if (Number.isNaN(at)) return iso;
   const minutes = Math.max(0, Math.round((Date.now() - at) / 60_000));
-  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 60) return compactUnit(minutes, 'minute');
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h`;
+  if (hours < 24) return compactUnit(hours, 'hour');
   const days = Math.round(hours / 24);
-  if (days < 14) return `${days}d`;
+  if (days < 14) return compactUnit(days, 'day');
   const weeks = Math.round(days / 7);
-  if (weeks < 9) return `${weeks}w`;
+  if (weeks < 9) return compactUnit(weeks, 'week');
   return formatInstant(iso);
 }

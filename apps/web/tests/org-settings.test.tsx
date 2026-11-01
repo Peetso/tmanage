@@ -186,7 +186,10 @@ describe('OrgSettingsScreen — A11 Organization card', () => {
   it('shows the older organization settings and saves only the ones that changed', async () => {
     const { api, container } = renderScreen();
     const week = await screen.findByLabelText('Working week');
-    expect(screen.getByLabelText('Default timezone')).toHaveValue('UTC');
+    // R9: the searchable picker shows the stored UTC by its label, not its id.
+    expect((screen.getByLabelText('Default timezone') as HTMLInputElement).value).toMatch(
+      /^\(GMT\+0\) /,
+    );
     expect(screen.getByLabelText('How work moves')).toHaveValue('delivery-client-review');
     expect(
       screen.getByRole('switch', { name: 'New projects are visible to clients' }),

@@ -1,5 +1,7 @@
+import { compactUnit } from './i18n/compact-time';
 import type { CapsuleState } from '@tmanage/ui';
 import type { ClientRequestState } from './api/client-requests';
+import { appLocale } from './i18n/app-locale';
 
 /**
  * How the **internal** lifecycle of a client request is said, in one place.
@@ -86,10 +88,10 @@ export function describeAge(createdAt: string, now: Date): string {
   if (Number.isNaN(created.getTime())) return '—';
 
   const minutes = Math.max(0, Math.floor((now.getTime() - created.getTime()) / 60_000));
-  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 60) return compactUnit(minutes, 'minute');
   const hours = Math.floor(minutes / 60);
-  if (hours < 48) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
+  if (hours < 48) return compactUnit(hours, 'hour');
+  return compactUnit(Math.floor(hours / 24), 'day');
 }
 
 /**
@@ -153,5 +155,7 @@ export function formatDay(value: string): string {
   if (Number.isNaN(parsed.getTime())) return value;
   // UTC, because these are calendar dates pinned to midnight UTC (0012): formatting them in
   // the reader's own zone is what showed every date a day early west of Greenwich.
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'long', timeZone: 'UTC' }).format(parsed);
+  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'long', timeZone: 'UTC' }).format(
+    parsed,
+  );
 }

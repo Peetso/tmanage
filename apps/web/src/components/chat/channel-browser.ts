@@ -1,13 +1,25 @@
 import type { ChannelDirectoryEntry } from '../../lib/api/conversations';
+import {
+  activeIsEnglish,
+  relativeAgo,
+  translateOr,
+  type CompactUnit,
+} from '../../lib/i18n/compact-time';
+import { activeLocale } from '../../lib/i18n/locale-store';
 
 /** CH-01's four filter chips. */
 export type ChannelFilter = 'all' | 'mine' | 'client' | 'archived';
 
-export const CHANNEL_FILTERS: readonly { readonly id: ChannelFilter; readonly label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'mine', label: 'My channels' },
-  { id: 'client', label: 'Client shared' },
-  { id: 'archived', label: 'Archived' },
+export const CHANNEL_FILTERS: readonly {
+  readonly id: ChannelFilter;
+  readonly label: string;
+  /** The catalog key the chip reads in the active locale; `label` is its English text. */
+  readonly labelKey: string;
+}[] = [
+  { id: 'all', label: 'All', labelKey: 'ChannelBrowser.filterAll' },
+  { id: 'mine', label: 'My channels', labelKey: 'ChannelBrowser.filterMine' },
+  { id: 'client', label: 'Client shared', labelKey: 'ChannelBrowser.filterClient' },
+  { id: 'archived', label: 'Archived', labelKey: 'ChannelBrowser.filterArchived' },
 ];
 
 /**
@@ -43,23 +55,38 @@ export function initialsOf(displayName: string): string {
   return `${first[0] ?? ''}${last[0] ?? ''}`.toUpperCase();
 }
 
-const UNITS: readonly { readonly ms: number; readonly one: string; readonly many: string }[] = [
-  { ms: 365 * 24 * 3_600_000, one: 'year', many: 'years' },
-  { ms: 30 * 24 * 3_600_000, one: 'month', many: 'months' },
-  { ms: 7 * 24 * 3_600_000, one: 'week', many: 'weeks' },
-  { ms: 24 * 3_600_000, one: 'day', many: 'days' },
-  { ms: 3_600_000, one: 'hour', many: 'hours' },
-  { ms: 60_000, one: 'min', many: 'min' },
+const UNITS: readonly {
+  readonly ms: number;
+  readonly unit: CompactUnit;
+  readonly one: string;
+  readonly many: string;
+}[] = [
+  { ms: 365 * 24 * 3_600_000, unit: 'year', one: 'year', many: 'years' },
+  { ms: 30 * 24 * 3_600_000, unit: 'month', one: 'month', many: 'months' },
+  { ms: 7 * 24 * 3_600_000, unit: 'week', one: 'week', many: 'weeks' },
+  { ms: 24 * 3_600_000, unit: 'day', one: 'day', many: 'days' },
+  { ms: 3_600_000, unit: 'hour', one: 'hour', many: 'hours' },
+  { ms: 60_000, unit: 'minute', one: 'min', many: 'min' },
 ];
 
 /** "2 min ago", "1 hour ago", "4 months ago" — the CH-01 last-activity column. */
-export function formatLastActivity(iso: string, now: number = Date.now()): string {
+export function formatLastActivity(
+  iso: string,
+  now: number = Date.now(),
+  locale: string = activeLocale.get(),
+): string {
   const at = Date.parse(iso);
   if (Number.isNaN(at)) return iso;
   const elapsed = Math.max(0, now - at);
+  const english = activeIsEnglish(locale);
   for (const unit of UNITS) {
     const count = Math.floor(elapsed / unit.ms);
-    if (count >= 1) return `${count} ${count === 1 ? unit.one : unit.many} ago`;
+    if (count >= 1) {
+      // Arabic (2026-10-31 live test read "18 min ago"): the platform's own phrase and plurals.
+      return english
+        ? `${count} ${count === 1 ? unit.one : unit.many} ago`
+        : relativeAgo(count, unit.unit, locale);
+    }
   }
-  return 'just now';
+  return translateOr('ChannelBrowser.justNow', 'just now', locale);
 }

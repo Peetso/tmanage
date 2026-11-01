@@ -28,10 +28,10 @@ import {
   WORKING_WEEK_OPTIONS,
   defaultSettings,
   isValidReauthMinutes,
-  timezoneOptions,
   type DefaultSettingKey,
 } from '../../lib/api/org-defaults';
 import { ApiRequestError } from '../../lib/api/errors';
+import { TimeZoneSelect } from '../TimeZoneSelect';
 import type { ApiClient } from '../../lib/api/client';
 import { useOrganizationName, useOrganizationRole } from '../../lib/use-organization-names';
 import { roleMayUse } from '../../lib/role-capability';
@@ -383,7 +383,7 @@ export function OrgSettingsScreen({
               {tr('OrgSettingsScreen.a11.defaultsTitle', 'Time and defaults')}
             </h3>
             <div className="tm-orgset-fields">
-              <Select
+              <TimeZoneSelect
                 label={tr('OrgSettingsScreen.a11.default_timezone', 'Default timezone')}
                 hint={tr(
                   'OrgSettingsScreen.a11.default_timezoneHint',
@@ -391,14 +391,8 @@ export function OrgSettingsScreen({
                 )}
                 name="default_timezone"
                 value={defaultValue('default_timezone')}
-                onChange={(event) => setDefault('default_timezone', event.target.value)}
-              >
-                {timezoneOptions(defaultValue('default_timezone')).map((zone) => (
-                  <option key={zone} value={zone}>
-                    {zone}
-                  </option>
-                ))}
-              </Select>
+                onChange={(zone) => setDefault('default_timezone', zone)}
+              />
               <Select
                 label={tr('OrgSettingsScreen.a11.working_week', 'Working week')}
                 name="working_week"

@@ -16,6 +16,7 @@ import {
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface DocCollectionsScreenProps {
   organizationSlug: string;
@@ -215,7 +216,7 @@ export function DocCollectionsScreen({
                             </Link>
                           </th>
                           <td className="tm-dx-table__end tm-dx-table__mono">
-                            {new Date(document.createdAt).toLocaleString()}
+                            {new Date(document.createdAt).toLocaleString(appLocale())}
                           </td>
                         </tr>
                       ))}

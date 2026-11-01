@@ -15,6 +15,7 @@ import type { SubscriptionView } from '../../lib/api/subscription';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import '../../styles/screens/billing.css';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface StorageUsageScreenProps {
   organizationSlug: string;
@@ -266,7 +267,7 @@ function planLabel(planId: string, t: (key: MessageKey) => string): string {
 function formatDay(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(at);
+  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'medium' }).format(at);
 }
 
 /**
@@ -296,5 +297,7 @@ function formatBytes(bytes: number): string {
 function formatMoment(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(at);
+  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(
+    at,
+  );
 }

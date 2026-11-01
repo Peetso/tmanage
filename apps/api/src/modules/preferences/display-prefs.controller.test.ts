@@ -116,6 +116,14 @@ describe('DisplayPreferencesController (PREF-DISPLAY, x285)', () => {
     expect(readBack).toEqual(VALID);
   });
 
+  it('accepts any IANA time zone, not a short allow-list (R9: every country)', async () => {
+    const repo = new FakeDisplayPreferencesRepository();
+    for (const timezone of ['Africa/Cairo', 'Asia/Riyadh', 'Asia/Kolkata', 'Pacific/Chatham']) {
+      const saved = await controllerWith(repo).put(context, member(), { ...VALID, timezone });
+      expect(saved.timezone).toBe(timezone);
+    }
+  });
+
   it('400s a theme off the closed vocabulary and writes nothing', async () => {
     const repo = new FakeDisplayPreferencesRepository();
     await expectStatus(

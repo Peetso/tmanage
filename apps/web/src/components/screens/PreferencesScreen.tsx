@@ -11,16 +11,7 @@ import {
 } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Avatar,
-  Button,
-  Checkbox,
-  Field,
-  InlineAlert,
-  LoadingRegion,
-  Select,
-  Skeleton,
-} from '@tmanage/ui';
+import { Avatar, Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -30,7 +21,6 @@ import {
   type AppLanguage,
 } from '../../lib/api/preferences';
 import {
-  DISPLAY_TIMEZONES,
   type DisplayPreferencesView,
   type DisplayTimezone,
 } from '../../lib/api/display-preferences';
@@ -39,6 +29,7 @@ import { listFactors, setPassword } from '../../lib/api/auth';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { activeLocale } from '../../lib/i18n/locale-store';
+import { TimeZoneSelect } from '../TimeZoneSelect';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/preferences.css';
@@ -112,7 +103,9 @@ export function PreferencesNav({
       <ul className="tm-prefs-nav" aria-labelledby={headingId}>
         {SECTIONS.map((section) => (
           <li key={section.id}>
+            {/* No prefetch: seven sections fetched at once drew 503s from the shared host. */}
             <Link
+              prefetch={false}
               href={`/${organizationSlug}${section.href}`}
               className="tm-prefs-nav__link"
               {...(section.id === current ? { 'aria-current': 'page' as const } : {})}
@@ -241,8 +234,7 @@ type ProfileKey =
   | 'Profile.couldNotSave'
   | 'Profile.networkError'
   | 'Profile.genericError'
-  | 'Profile.freshSignInRequired'
-  | `Profile.tz.${DisplayTimezone}`;
+  | 'Profile.freshSignInRequired';
 
 type ProfileTranslate = (key: ProfileKey) => string;
 
@@ -251,19 +243,6 @@ const LANGUAGES: readonly { id: AppLanguage; label: string; lang: string }[] = [
   { id: 'en', label: 'English', lang: 'en' },
   { id: 'ar', label: 'العربية', lang: 'ar' },
 ];
-
-/** "GMT+3" for a zone right now, from the platform's own offset table. */
-function gmtOffset(timeZone: string): string {
-  try {
-    const part = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'shortOffset' })
-      .formatToParts(new Date())
-      .find((piece) => piece.type === 'timeZoneName');
-    const value = part?.value ?? 'GMT';
-    return value === 'GMT' ? 'GMT+0' : value;
-  } catch {
-    return 'GMT';
-  }
-}
 
 const S = {
   card: {
@@ -343,7 +322,9 @@ export function PreferencesScreen({
   const translate = useT();
   const t: ProfileTranslate = (key) => translate(key as MessageKey);
   const profileKey = ['me', 'profile', organizationSlug];
-  const prefsKey = ['me', 'display-preferences', organizationSlug];
+  // The same key the Appearance page and `ThemeSync` read, so the three never hold different copies
+  // of the one display-preferences record (a stale copy here would send an old theme back on save).
+  const prefsKey = ['display-preferences', organizationSlug];
 
   const profile = useQuery({
     queryKey: profileKey,
@@ -389,7 +370,9 @@ export function PreferencesScreen({
               jobTitle: trimmedTitle === '' ? null : trimmedTitle,
             })
           : Promise.resolve(null),
-        prefs.data
+        // Only when the language or time zone changed: a name-only save leaves the display record alone.
+        prefs.data &&
+        (language !== languageOfLocale(prefs.data.locale) || timezone !== prefs.data.timezone)
           ? saveLanguageAndTimezone(api, organizationSlug, prefs.data, { language, timezone })
           : Promise.resolve(null),
       ]);
@@ -491,31 +474,41 @@ export function PreferencesScreen({
                 <p style={S.lead} id="tm-profile-language-lead">
                   {t('Profile.languageLead')}
                 </p>
-                <fieldset style={S.fieldset} aria-describedby="tm-profile-language-lead">
+                {/* One of two, so radios; drawn as the frame's check boxes (Figma 371:1836). */}
+                <fieldset
+                  role="radiogroup"
+                  style={S.fieldset}
+                  aria-describedby="tm-profile-language-lead"
+                >
                   <legend style={S.legend}>{t('Profile.languageHeading')}</legend>
                   {LANGUAGES.map((option) => (
-                    <Checkbox
-                      key={option.id}
-                      name="language"
-                      value={option.id}
-                      checked={language === option.id}
-                      onChange={() => setLanguage(option.id)}
-                      label={<span lang={option.lang}>{option.label}</span>}
-                    />
+                    <div key={option.id} className="tm-choice">
+                      <span className="tm-choice__row">
+                        <input
+                          id={`tm-profile-language-${option.id}`}
+                          type="radio"
+                          name="language"
+                          className="tm-checkbox"
+                          value={option.id}
+                          checked={language === option.id}
+                          onChange={() => setLanguage(option.id)}
+                        />
+                        <label
+                          className="tm-choice__label"
+                          htmlFor={`tm-profile-language-${option.id}`}
+                        >
+                          <span lang={option.lang}>{option.label}</span>
+                        </label>
+                      </span>
+                    </div>
                   ))}
                 </fieldset>
-                <Select
+                <TimeZoneSelect
                   label={t('Profile.timeZone')}
                   name="timezone"
                   value={timezone}
-                  onChange={(event) => setTimezone(event.target.value as DisplayTimezone)}
-                >
-                  {DISPLAY_TIMEZONES.map((zone) => (
-                    <option key={zone} value={zone}>
-                      {`${t(`Profile.tz.${zone}`)} (${gmtOffset(zone)})`}
-                    </option>
-                  ))}
-                </Select>
+                  onChange={setTimezone}
+                />
               </>
             ) : null}
           </section>

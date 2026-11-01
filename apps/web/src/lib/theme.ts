@@ -1,4 +1,4 @@
-import type { DisplayTheme } from './api/display-preferences';
+import type { DisplayDensity, DisplayTheme } from './api/display-preferences';
 
 /**
  * PREF-02's theme, applied. The member's saved theme (`light` / `dark` / `system`) becomes
@@ -40,4 +40,18 @@ export function applyTheme(theme: DisplayTheme): void {
     };
     query.addEventListener('change', systemListener);
   }
+}
+
+/**
+ * The member's density, applied. `<html data-density>` drives the design system's row, control
+ * and radius tokens (`tokens.css`): Comfortable is the system's `balanced` step and Compact its
+ * `operational` step, the tighter one PREF-02 says fits more rows on a work list.
+ */
+export function densityAttribute(density: DisplayDensity): 'balanced' | 'operational' {
+  return density === 'compact' ? 'operational' : 'balanced';
+}
+
+export function applyDensity(density: DisplayDensity): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.dataset['density'] = densityAttribute(density);
 }

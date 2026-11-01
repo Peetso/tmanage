@@ -43,6 +43,8 @@ import {
 import { calendarName, initialsOf } from './MeetingBits';
 import { useCalendarAccounts } from './use-meetings-data';
 import { readMeetingDefaults } from './meeting-defaults';
+import { TimeZoneSelect } from '../TimeZoneSelect';
+import { guessTimeZone } from '../../lib/time-zones';
 import './meetings.css';
 
 export interface MeetingFormProps {
@@ -153,9 +155,7 @@ export function MeetingForm({
   const [endTime, setEndTime] = useState(
     localParts(new Date(start.getTime() + 3_600_000).toISOString()).time,
   );
-  const [timeZone, setTimeZone] = useState(
-    () => Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC',
-  );
+  const [timeZone, setTimeZone] = useState(() => guessTimeZone());
   const [allDay, setAllDay] = useState(false);
   const [repeat, setRepeat] = useState<RepeatRule | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
@@ -472,22 +472,14 @@ export function MeetingForm({
                   />
                 )}
               </Field>
-              <Field label={t('MeetingForm.timeZone')}>
-                {(id) => (
-                  <select
-                    id={id}
-                    className="tm-mtg-input"
-                    value={timeZone}
-                    onChange={(event) => setTimeZone(event.target.value)}
-                  >
-                    {zoneOptions(timeZone).map((zone) => (
-                      <option key={zone} value={zone}>
-                        {zoneLabel(zone, startDate)}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </Field>
+              <TimeZoneSelect
+                className="tm-mtg-field"
+                label={t('MeetingForm.timeZone')}
+                value={timeZone}
+                onChange={setTimeZone}
+                hint={null}
+                at={startDate}
+              />
             </div>
             <label className="tm-mtg-check">
               <input
@@ -943,35 +935,6 @@ export function repeatSummary(t: Translate, rule: RepeatRule, start: Date): stri
   if (count !== null)
     parts.push(fillTemplate(t('MeetingForm.meetingsCount'), { n: String(count) }));
   return parts.join(' · ');
-}
-
-function zoneOptions(current: string): readonly string[] {
-  const base = [
-    'Africa/Cairo',
-    'Asia/Dubai',
-    'Asia/Riyadh',
-    'Europe/London',
-    'Europe/Berlin',
-    'America/New_York',
-    'America/Los_Angeles',
-    'UTC',
-  ];
-  return base.includes(current) ? base : [current, ...base];
-}
-
-/** "(GMT+3) Cairo". */
-function zoneLabel(zone: string, at: Date): string {
-  let offset = '';
-  try {
-    offset =
-      new Intl.DateTimeFormat('en-GB', { timeZone: zone, timeZoneName: 'shortOffset' })
-        .formatToParts(at)
-        .find((part) => part.type === 'timeZoneName')?.value ?? '';
-  } catch {
-    offset = '';
-  }
-  const city = zone.split('/').pop()?.replace(/_/g, ' ') ?? zone;
-  return offset ? `(${offset}) ${city}` : city;
 }
 
 function Field({ label, children }: { label: string; children: (id: string) => ReactElement }) {

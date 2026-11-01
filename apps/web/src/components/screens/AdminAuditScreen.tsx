@@ -8,11 +8,13 @@ import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import { auditExportUrl, listAuditEvents, MAX_AUDIT_PAGE } from '../../lib/api/admin-audit';
 import type { AdminAuditEvent } from '../../lib/api/admin-audit';
+import { auditSentence } from '../../lib/audit-presentation';
 import { listMembers } from '../../lib/api/members';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface AdminAuditScreenProps {
   organizationSlug: string;
@@ -261,7 +263,7 @@ export function AdminAuditScreen({
           {selected ? (
             <>
               <p className="tm-cc-eyebrow">{outcomeWord(selected.result)}</p>
-              <h2 className="tm-cc-card__title">{selected.summary}</h2>
+              <h2 className="tm-cc-card__title">{auditSentence(selected)}</h2>
               <dl className="tm-cc-dl">
                 <dt>{t('AdminAuditScreen.detailWho')}</dt>
                 <dd>{actorLabel(selected.actorId)}</dd>
@@ -353,7 +355,7 @@ function AuditRow({
           aria-pressed={selected}
           onClick={onSelect}
         >
-          {event.summary}
+          {auditSentence(event)}
         </button>
       </td>
       <td>{actor}</td>
@@ -513,5 +515,7 @@ function formatWhen(iso: string): string {
 function formatMoment(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(at);
+  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(
+    at,
+  );
 }

@@ -92,7 +92,7 @@ export function HomePinnedSection({ organizationSlug, client }: HomePinnedSectio
                   )}
                 </span>
                 <span className="tm-home-saved__meta">
-                  {item.targetKind} · {t('HomePinnedSection.pinnedPrefix')}{' '}
+                  {t(pinKindKey(item.targetKind))} · {t('HomePinnedSection.pinnedPrefix')}{' '}
                   {shortDay(item.createdAt, locale)}
                 </span>
               </span>
@@ -123,6 +123,18 @@ function shortDay(value: string, locale: string): string {
   return Number.isNaN(parsed.getTime())
     ? value
     : parsed.toLocaleDateString(tag, { day: 'numeric', month: 'short' });
+}
+
+/** The short kind word in the meta line ("Work", "عمل") — never the raw kind key. */
+function pinKindKey(targetKind: HomePinTargetKind): MessageKey {
+  switch (targetKind) {
+    case 'work':
+      return 'HomeRecentItemsView.kindWork';
+    case 'project':
+      return 'HomeRecentItemsView.kindProject';
+    case 'document':
+      return 'HomeRecentItemsView.kindDocument';
+  }
 }
 
 /** The message key each pinned reference shows. The live title/preview is the deferred read fan-out. */

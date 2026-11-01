@@ -103,8 +103,10 @@
   flex: none;
 }
 
-.tm-web-brand--ink {
-  color: var(--web-on-ink);
+/* R8 (Figma 453:776): on ink, and anywhere in dark theme, the brand name is lime. */
+.tm-web-brand--ink,
+[data-theme='dark'] .tm-web-brand {
+  color: var(--lime-500);
 }
 
 .tm-web-eyebrow {

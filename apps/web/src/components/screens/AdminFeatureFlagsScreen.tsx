@@ -19,6 +19,7 @@ import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error
 import type { ApiClient } from '../../lib/api/client';
 import { useOrganizationName } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface AdminFeatureFlagsScreenProps {
   organizationSlug: string;
@@ -67,7 +68,7 @@ export function AdminFeatureFlagsScreen({
         ? t('AdminFeatureFlagsScreen.onByDefault')
         : t('AdminFeatureFlagsScreen.offByDefault');
     }
-    return `${t('AdminFeatureFlagsScreen.changedPrefix')} ${new Date(flag.updatedAt).toLocaleDateString()}`;
+    return `${t('AdminFeatureFlagsScreen.changedPrefix')} ${new Date(flag.updatedAt).toLocaleDateString(appLocale())}`;
   };
 
   const flags = useQuery({
