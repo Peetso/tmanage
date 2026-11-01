@@ -15089,6 +15089,8 @@
   "Viewer.openInViewer": "Open to review",
   "RouteTitle.fileReview": "File review",
   "RouteTitle.portalFileReview": "File review",
+  "RouteTitle.figmaReview": "Figma review",
+  "RouteTitle.portalFigmaReview": "Figma review",
   "Viewer.portal.placeholder": "Tell the team what to change",
   "Viewer.portal.composerHint": "Everyone on the {team} team will see this.",
   "Viewer.portal.teamFallback": "project",

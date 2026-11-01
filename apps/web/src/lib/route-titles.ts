@@ -191,6 +191,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/decisions/[decisionId]': { en: 'Decision', key: 'RouteTitle.decision' },
   '/[orgSlug]/docs': { en: 'Docs', key: 'RouteTitle.docs' },
   '/[orgSlug]/docs/[documentId]': { en: 'Document', key: 'RouteTitle.document' },
+  '/[orgSlug]/figma/[linkId]': { en: 'Figma review', key: 'RouteTitle.figmaReview' },
   '/[orgSlug]/files/[fileId]': { en: 'File review', key: 'RouteTitle.fileReview' },
   '/[orgSlug]/docs/[documentId]/edit': { en: 'Edit document', key: 'RouteTitle.documentEdit' },
   '/[orgSlug]/docs/collections': { en: 'Collections', key: 'RouteTitle.docCollections' },
@@ -266,6 +267,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     en: 'Deliverable',
     key: 'RouteTitle.portalDeliverable',
   },
+  '/[orgSlug]/portal/figma/[linkId]': { en: 'Figma review', key: 'RouteTitle.portalFigmaReview' },
   '/[orgSlug]/portal/files': { en: 'Files', key: 'RouteTitle.portalFiles' },
   '/[orgSlug]/portal/files/[fileId]': {
     en: 'File review',

@@ -123,6 +123,79 @@ const EXEMPT = new Map([
     'PortalMeetingDetailView',
     'No web consumer yet: BK5 portal meeting detail is API-only; the portal meetings screen is a follow-up.',
   ],
+  // R4 closing (2026-11-01): API views from earlier waves with no web screen yet.
+  [
+    'EmailDeliverabilityView',
+    'No web consumer yet: the platform email-deliverability read (`GET v1/platform/email-deliverability`) has no Control Center screen; it pairs when that screen lands.',
+  ],
+  [
+    'MailHealthView',
+    'No web consumer yet: the platform mail-health read and lane pause (`v1/platform/mail`) have no Control Center screen; it pairs when that screen lands.',
+  ],
+  [
+    'FinanceProfileView',
+    'No web consumer yet: the finance profile (`v1/organizations/:orgSlug/finance/profile`) is API-only; the finance settings screen is a follow-up.',
+  ],
+  [
+    'TaxRateView',
+    'No web consumer yet: finance tax rates are API-only; the finance settings screen is a follow-up.',
+  ],
+  [
+    'ExchangeRateView',
+    'No web consumer yet: finance exchange rates are API-only; the finance settings screen is a follow-up.',
+  ],
+  [
+    'CapacityReadingView',
+    'No web consumer yet: the platform capacity reading (`GET v1/platform/health/capacity`) has no Control Center tile yet; covered by CapacityView when it pairs.',
+  ],
+  [
+    'CapacityView',
+    'No web consumer yet: the platform capacity read (`GET v1/platform/health/capacity`) has no Control Center tile yet.',
+  ],
+  [
+    'ProductEventsIngestView',
+    'The web event queue (lib/api/product-events.ts) posts batches and ignores the acknowledgement body, so there is no web shape to pair.',
+  ],
+  [
+    'BlockRuleView',
+    'No web consumer yet: admin block rules (`admin/block-rules`) are API-only; the abuse-rules screen is a follow-up.',
+  ],
+  [
+    'SubmissionView',
+    'No web consumer yet: the work-form submissions list and spam mark are API-only; the submissions screen is a follow-up.',
+  ],
+  [
+    'PublicLinkView',
+    'No web consumer yet: public links for deliverables (`public-links`) are API-only; the share-link screen is a follow-up.',
+  ],
+  [
+    'QuoteView',
+    'No web consumer yet: quotes (`v1/organizations/:orgSlug/quotes`) are API-only; the quotes screen is a follow-up.',
+  ],
+  [
+    'SignalView',
+    'No web consumer yet: security signals (`admin/security/events`, `v1/platform/security-signals`) are API-only; the signals screen is a follow-up.',
+  ],
+  [
+    'AlertRuleView',
+    'No web consumer yet: platform alert rules (`v1/platform/alerts`) are API-only; the alert-rules screen is a follow-up.',
+  ],
+  [
+    'TimerView',
+    'No web consumer yet: the running timer (`time/timer`) is API-only; the timer control in the web is a follow-up.',
+  ],
+  [
+    'TimerStateView',
+    'No web consumer yet: the running timer state (`GET time/timer`) is API-only; the timer control in the web is a follow-up.',
+  ],
+  [
+    'TimeEntryView',
+    'No web consumer yet: timed time-log entries from the timer are API-only; the timer control in the web is a follow-up.',
+  ],
+  [
+    'ActiveTimerView',
+    'No web consumer yet: active timers for presence are API-only; the timer control in the web is a follow-up.',
+  ],
 ]);
 
 /**
@@ -273,6 +346,43 @@ const WEB_EXEMPT = new Map([
   // (members.controller `MemberView`, workspaces.controller `WorkspaceView`, authentication.controller
   // `EstablishedView`/`ChallengeResponseView`) and paired all four Exact in the pairing file, so the
   // entries were retired — the shapes are now paired, not exempt.
+  // R4 closing (2026-11-01): web shapes from earlier waves that are not response bodies, or whose API twin has no `…View` name.
+  [
+    'DisplayTimezone',
+    'A `string` alias (any IANA zone) used as a field of DisplayPreferencesView, which is paired Exact; not a response body of its own.',
+  ],
+  [
+    'WeekMeasures',
+    'Computed in the browser from the ease scoreboard rows (pure functions in ease-scoreboard.ts); not a response body, so no API pair.',
+  ],
+  [
+    'FunnelStep',
+    'Computed in the browser from the ease scoreboard rows (pure functions in ease-scoreboard.ts); not a response body, so no API pair.',
+  ],
+  [
+    'ProductEventQueue',
+    'The browser-side batching object (emit/flush) in product-events.ts; not a response body, so no API pair.',
+  ],
+  [
+    'ScoreboardCountRowView',
+    'The API names it `ScoreboardCountRow` (repository row, no `…View` suffix); compiled Exact in the pairing file and covered by the paired EaseScoreboardView.',
+  ],
+  [
+    'ScoreboardTimerRowView',
+    'The API names it `ScoreboardTimerRow` (repository row, no `…View` suffix); compiled Exact in the pairing file and covered by the paired EaseScoreboardView.',
+  ],
+  [
+    'PublicFormField',
+    'The API names it `PublicFormField` in public-forms.validate.ts (no `…View` suffix); compiled Exact in the pairing file through a named pair.',
+  ],
+  [
+    'PublicFormDefinition',
+    'The API names it `PublicFormDefinition` in public-forms.validate.ts (no `…View` suffix); compiled Exact in the pairing file through a named pair.',
+  ],
+  [
+    'PublicFormState',
+    'The API names it `PublicFormState` in public-forms.service.ts (no `…View` suffix); compiled Exact in the pairing file through a named pair.',
+  ],
 ]);
 
 // ── 1. Enumerate the API's response projections ─────────────────────────────

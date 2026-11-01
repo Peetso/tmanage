@@ -6,6 +6,24 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
+## R4 — in-browser proofing viewer (slices 1–14), 2026-11-01 — `implemented`, unit `tested`
+
+Files under review open in a viewer in the studio (`/[orgSlug]/files/[fileId]`) and in the client
+portal (`/[orgSlug]/portal/files/[fileId]`), with Figma links at `/[orgSlug]/figma/[linkId]` and
+`/[orgSlug]/portal/figma/[linkId]`. Stages: image, PDF (pdf.js), video and audio (timeline
+comments), PSD (flattened preview), ZIP list, EPS/AI (embedded preview or download), Word,
+PowerPoint and Excel (browser renderers with an "approximate layout" note), Figma frames
+(snapshot + live embed). Review threads with pins, boxes and drawings (stored in content
+coordinates), replies, mentions, resolve, client-visible vs team-only audience; versions with
+compare, carry-forward of open threads and Approve / Request changes decisions; in-app and email
+notices (worker consumer `review-notices`). Derivatives are made in-process by a pure JS/WASM
+preview job (`WORKER_INPROCESS=1`). Migrations 0267–0270 pass `pnpm check:mariadb`.
+Entry points: work item Files tab, deliverable versions, chat attachments, portal Files,
+portal Deliverables and the client approval screen. Per-slice detail and what is deferred:
+`D:/TManage/work/r4-viewer/slice-*.md` and `BUILD-DONE.md`. Not yet done: VR baselines for the
+new stories, a live side-by-side against Figma, the client e2e journey, and live checks of Range
+seeking and WASM memory on the Hostinger box.
+
 ## x186 — public FAQ page (module 1, public site) — branch `x186-public-faq`
 
 FEAT. Adds the FAQ sub-page to the already-BUILT public site. New `@Public()`/`@NoTenant()` read

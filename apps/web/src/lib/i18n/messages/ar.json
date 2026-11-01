@@ -15089,6 +15089,8 @@
   "Viewer.openInViewer": "افتح للمراجعة",
   "RouteTitle.fileReview": "مراجعة الملف",
   "RouteTitle.portalFileReview": "مراجعة الملف",
+  "RouteTitle.figmaReview": "مراجعة تصميم Figma",
+  "RouteTitle.portalFigmaReview": "مراجعة تصميم Figma",
   "Viewer.portal.placeholder": "أخبر الفريق بما يجب تغييره",
   "Viewer.portal.composerHint": "سيرى هذا كل أعضاء فريق {team}.",
   "Viewer.portal.teamFallback": "المشروع",

@@ -3836,3 +3836,62 @@ type _figmaLink = Assert<Exact<ApiFigmaLinkView, WebFigmaLink>>;
 type _figmaLinkSummary = Assert<Exact<ApiFigmaLinkSummaryView, WebFigmaLinkSummary>>;
 type _figmaLinkList = Assert<Exact<ApiFigmaLinkListView, WebFigmaLinkList>>;
 type _figmaRefresh = Assert<Exact<ApiFigmaRefreshView, WebFigmaRefresh>>;
+
+// R4 closing (2026-11-01) — pairs that landed with earlier waves but were never asserted.
+import type {
+  KeyPurposeView as ApiKeyPurposeView,
+  KeyRotationView as ApiKeyRotationView,
+  PlatformKeysView as ApiPlatformKeysView,
+} from '../../apps/api/src/modules/platform-admin/settings/keys.service.js';
+import type { BackgroundJobsView as ApiBackgroundJobsView } from '../../apps/api/src/modules/platform-admin/settings/integrations.service.js';
+import type { ProductEventsScoreboardView as ApiProductEventsScoreboardView } from '../../apps/api/src/modules/product-events/product-events.service.js';
+import type {
+  ScoreboardCountRow as ApiScoreboardCountRow,
+  ScoreboardTimerRow as ApiScoreboardTimerRow,
+} from '../../apps/api/src/modules/product-events/product-events.repository.js';
+import type { ChallengeView as ApiChallengeView } from '../../apps/api/src/modules/public-abuse/challenge.service.js';
+import type { FormProofView as ApiFormProofView } from '../../apps/api/src/modules/public-abuse/form-proof.controller.js';
+import type {
+  PublicFormDefinition as ApiPublicFormDefinition,
+  PublicFormField as ApiPublicFormField,
+} from '../../apps/api/src/modules/public-forms/public-forms.validate.js';
+import type { PublicFormState as ApiPublicFormState } from '../../apps/api/src/modules/public-forms/public-forms.service.js';
+import type {
+  KeyPurposeView as WebKeyPurposeView,
+  KeyRotationView as WebKeyRotationView,
+  PlatformKeysView as WebPlatformKeysView,
+} from '../../apps/web/src/lib/api/platform-keys.js';
+import type { BackgroundJobsView as WebBackgroundJobsView } from '../../apps/web/src/lib/api/platform-settings.js';
+import type {
+  EaseScoreboardView as WebEaseScoreboardView,
+  ScoreboardCountRowView as WebScoreboardCountRowView,
+  ScoreboardTimerRowView as WebScoreboardTimerRowView,
+} from '../../apps/web/src/lib/api/ease-scoreboard.js';
+import type {
+  PublicChallengeView as WebPublicChallengeView,
+  PublicFormDefinition as WebPublicFormDefinition,
+  PublicFormField as WebPublicFormField,
+} from '../../apps/web/src/lib/api/public-forms.js';
+import type { PublicFormState as WebPublicFormState } from '../../apps/web/src/lib/api/work-forms.js';
+import type { FormProofView as WebFormProofView } from '../../apps/web/src/lib/form-proof.js';
+
+type _keyRotation = Assert<Exact<ApiKeyRotationView, WebKeyRotationView>>;
+type _keyPurpose = Assert<Exact<ApiKeyPurposeView, WebKeyPurposeView>>;
+type _platformKeys = Assert<Exact<ApiPlatformKeysView, WebPlatformKeysView>>;
+type _backgroundJobs = Assert<Exact<ApiBackgroundJobsView, WebBackgroundJobsView>>;
+type _scoreboard = Assert<Exact<ApiProductEventsScoreboardView, WebEaseScoreboardView>>;
+type _publicChallenge = Assert<Exact<ApiChallengeView, WebPublicChallengeView>>;
+type _formProof = Assert<Exact<ApiFormProofView, WebFormProofView>>;
+// The API names these without a `…View` suffix, so they are not enumerated projections and are
+// WEB_EXEMPT in scripts/contracts-check.mjs. They are still compiled Exact here, through a named
+// pair, so a field drift on either side fails `tsc`.
+type ScoreboardCountRowPair = Exact<ApiScoreboardCountRow, WebScoreboardCountRowView>;
+type ScoreboardTimerRowPair = Exact<ApiScoreboardTimerRow, WebScoreboardTimerRowView>;
+type PublicFormFieldPair = Exact<ApiPublicFormField, WebPublicFormField>;
+type PublicFormDefinitionPair = Exact<ApiPublicFormDefinition, WebPublicFormDefinition>;
+type PublicFormStatePair = Exact<ApiPublicFormState, WebPublicFormState>;
+type _scoreboardCountRow = Assert<ScoreboardCountRowPair>;
+type _scoreboardTimerRow = Assert<ScoreboardTimerRowPair>;
+type _publicFormField = Assert<PublicFormFieldPair>;
+type _publicFormDefinition = Assert<PublicFormDefinitionPair>;
+type _publicFormState = Assert<PublicFormStatePair>;
