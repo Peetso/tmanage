@@ -27,6 +27,7 @@ export type {
   MultipartUpload,
   ObjectStore,
   OpenObjectInput,
+  ByteRange,
   OpenedObject,
   PromoteObjectInput,
   Promotion,

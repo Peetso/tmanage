@@ -489,6 +489,18 @@ export const AUDIT_ACTION_CATALOG = {
       '§12 — a download of file content is a disclosure; 25-AUTHORIZATION §115 restricted ' +
       'export/download is audited; 27-TEST-CATALOG SEC-10 mass-download evidence',
   },
+  /**
+   * R4 slice 4. A viewer opened a TManage-made preview of a file (a page image, a thumbnail, a
+   * sanitised SVG). One `allowed` row per principal and file per short window — not one per tile —
+   * and a `denied` row for every refused manifest or preview read, the cause on `audit_code`. Ids,
+   * the version, the preview kind and the principal's kind only.
+   */
+  'file_preview.viewed': {
+    objectType: 'file_asset',
+    clause:
+      '§12 — a rendered preview discloses file content the way a download does; R4 SPEC §3.3 ' +
+      'audit file_preview.viewed',
+  },
   'file_asset.scan_disputed': {
     objectType: 'file_asset',
     clause:
@@ -1102,6 +1114,7 @@ const AUDIT_ACTION_LABELS = {
   'file_asset.scan_failed': 'Could not scan a file',
   'file_asset.scanned': 'Scanned a file',
   'file_asset.downloaded': 'Downloaded a file',
+  'file_preview.viewed': 'Viewed a file preview',
   'file_asset.scan_disputed': "A file's scan result changed",
   'file_asset.purged': 'Deleted stored file data',
   'upload_session.expired': 'Cleaned up an expired upload',

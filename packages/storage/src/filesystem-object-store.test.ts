@@ -799,6 +799,19 @@ describe('FilesystemObjectStore — openObject (FILE-002)', () => {
     expect(await drain(opened.stream)).toEqual(expected);
   });
 
+  it('streams only the asked range (R4 slice 4), still reporting the whole size', async () => {
+    const expected = await seal();
+    const start = PART_SIZE - 3;
+    const end = PART_SIZE + 4;
+    const opened = await store.openObject({
+      zone: 'quarantine',
+      objectKey: KEY,
+      range: { start, end },
+    });
+    expect(opened.sizeBytes).toBe(2 * PART_SIZE);
+    expect(await drain(opened.stream)).toEqual(expected.subarray(start, end + 1));
+  });
+
   it('answers not-found for a key nothing was sealed under, and for the same key in another zone', async () => {
     await seal('quarantine');
     await expect(store.openObject({ zone: 'private', objectKey: KEY })).rejects.toBeInstanceOf(

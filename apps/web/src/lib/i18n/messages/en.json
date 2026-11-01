@@ -14800,6 +14800,7 @@
   "AuditActionLabel.file_asset.scan_failed": "Could not scan a file",
   "AuditActionLabel.file_asset.scanned": "Scanned a file",
   "AuditActionLabel.file_asset.downloaded": "Downloaded a file",
+  "AuditActionLabel.file_preview.viewed": "Viewed a file preview",
   "AuditActionLabel.file_asset.scan_disputed": "A file's scan result changed",
   "AuditActionLabel.file_asset.purged": "Deleted stored file data",
   "AuditActionLabel.upload_session.expired": "Cleaned up an expired upload",

@@ -30,10 +30,21 @@ export const CORS_ALLOWED_HEADERS = [
   'x-csrf-token',
   'x-correlation-id',
   'idempotency-key',
+  // R4 slice 4: a credentialed `fetch` of a large original (pdf.js range loading) sends `Range`.
+  'range',
 ] as const;
 
 // B3: `x-scan-status` labels a file downloaded before its virus scan (`not_scanned`).
-export const CORS_EXPOSED_HEADERS = ['x-correlation-id', 'etag', 'x-scan-status'] as const;
+// R4 slice 4: `content-range`, `accept-ranges` and `content-length` so a cross-origin reader of a
+// `206` (pdf.js, a media element) can see which bytes it got and that ranges are supported.
+export const CORS_EXPOSED_HEADERS = [
+  'x-correlation-id',
+  'etag',
+  'x-scan-status',
+  'content-range',
+  'accept-ranges',
+  'content-length',
+] as const;
 
 /**
  * The shape `@fastify/cors` accepts, spelled here rather than imported: the plugin is

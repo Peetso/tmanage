@@ -137,6 +137,18 @@ export interface StoredObject {
 export interface OpenObjectInput {
   readonly zone: TrustZone;
   readonly objectKey: string;
+  /**
+   * R4 slice 4. Read only the bytes `start..end` (both inclusive, zero-based) — an HTTP Range
+   * request for video/audio seeking. The caller validates the range against the size it holds;
+   * `sizeBytes` on the answer is still the whole object's size.
+   */
+  readonly range?: ByteRange;
+}
+
+/** An inclusive byte range, `start <= end`. */
+export interface ByteRange {
+  readonly start: number;
+  readonly end: number;
 }
 
 /**

@@ -353,6 +353,17 @@ import type {
   AttachmentHistoryView as ApiAttachmentHistoryView,
 } from '../../apps/api/src/modules/files/attachment-versions.service.js';
 import type {
+  FilePreviewManifestView as ApiFilePreviewManifestView,
+  PreviewCapabilitiesView as ApiPreviewCapabilitiesView,
+  PreviewChainVersionView as ApiPreviewChainVersionView,
+  PreviewChainView as ApiPreviewChainView,
+  PreviewDecisionContextView as ApiPreviewDecisionContextView,
+  PreviewDerivativeView as ApiPreviewDerivativeView,
+  PreviewFileView as ApiPreviewFileView,
+  PreviewRetryView as ApiPreviewRetryView,
+  PreviewVersionInfoView as ApiPreviewVersionInfoView,
+} from '../../apps/api/src/modules/files/file-preview.service.js';
+import type {
   ChecklistTemplateView as ApiChecklistTemplateView,
   ApplyTemplateResultView as ApiApplyTemplateResultView,
 } from '../../apps/api/src/modules/work/checklist-templates.service.js';
@@ -859,6 +870,17 @@ import type { FileTag as WebFileTag } from '../../apps/web/src/lib/api/file-tags
 import type { FileTagAssignment as WebFileTagAssignment } from '../../apps/web/src/lib/api/file-tags';
 import type { AttachmentVersion as WebAttachmentVersion } from '../../apps/web/src/lib/api/attachment-versions';
 import type { AttachmentHistory as WebAttachmentHistory } from '../../apps/web/src/lib/api/attachment-versions';
+import type {
+  FilePreviewManifest as WebFilePreviewManifest,
+  PreviewCapabilities as WebPreviewCapabilities,
+  PreviewChain as WebPreviewChain,
+  PreviewChainVersion as WebPreviewChainVersion,
+  PreviewDecisionContext as WebPreviewDecisionContext,
+  PreviewDerivative as WebPreviewDerivative,
+  PreviewFile as WebPreviewFile,
+  PreviewRetryResult as WebPreviewRetryResult,
+  PreviewVersionInfo as WebPreviewVersionInfo,
+} from '../../apps/web/src/lib/api/file-preview';
 import type { ChecklistTemplate as WebChecklistTemplate } from '../../apps/web/src/lib/api/work-checklist-templates';
 import type { ApplyTemplateResult as WebApplyTemplateResult } from '../../apps/web/src/lib/api/work-checklist-templates';
 import type { BoardColumn as WebBoardColumn } from '../../apps/web/src/lib/api/board-columns';
@@ -1985,6 +2007,23 @@ type _fileTagAssignment = Assert<Exact<ApiFileTagAssignmentView, WebFileTagAssig
  */
 type _attachmentVersion = Assert<Exact<ApiAttachmentVersionView, WebAttachmentVersion>>;
 type _attachmentHistory = Assert<Exact<ApiAttachmentHistoryView, WebAttachmentHistory>>;
+
+/**
+ * R4 slice 4. The proofing viewer's manifest (`GET …/files/:fileAssetId/preview` and the portal
+ * twin) and its parts, and the studio's "Try again" answer (`POST …/preview/retry`). One shape
+ * for both doors: the client's chain lists only the versions it may open.
+ */
+type _previewDerivative = Assert<Exact<ApiPreviewDerivativeView, WebPreviewDerivative>>;
+type _previewFile = Assert<Exact<ApiPreviewFileView, WebPreviewFile>>;
+type _previewVersionInfo = Assert<Exact<ApiPreviewVersionInfoView, WebPreviewVersionInfo>>;
+type _previewChainVersion = Assert<Exact<ApiPreviewChainVersionView, WebPreviewChainVersion>>;
+type _previewChain = Assert<Exact<ApiPreviewChainView, WebPreviewChain>>;
+type _previewCapabilities = Assert<Exact<ApiPreviewCapabilitiesView, WebPreviewCapabilities>>;
+type _previewDecisionContext = Assert<
+  Exact<ApiPreviewDecisionContextView, WebPreviewDecisionContext>
+>;
+type _filePreviewManifest = Assert<Exact<ApiFilePreviewManifestView, WebFilePreviewManifest>>;
+type _previewRetry = Assert<Exact<ApiPreviewRetryView, WebPreviewRetryResult>>;
 
 /**
  * x292. Reusable work-item checklist templates (Work module 7). `ChecklistTemplateView` ↔

@@ -106,7 +106,9 @@ export class FakeObjectStore implements ObjectStore {
     this.opened.push(input);
     const bytes = this.objects.get(`${input.zone}/${input.objectKey}`);
     if (!bytes) throw new ObjectNotFoundError();
-    return { sizeBytes: bytes.length, stream: Readable.from([bytes]) };
+    const range = input.range;
+    const served = range ? bytes.subarray(range.start, range.end + 1) : bytes;
+    return { sizeBytes: bytes.length, stream: Readable.from([served]) };
   }
 
   async promote(input: PromoteObjectInput): Promise<Promotion> {

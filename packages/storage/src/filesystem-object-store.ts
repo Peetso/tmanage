@@ -523,7 +523,13 @@ export class FilesystemObjectStore implements ObjectStore, PartSink {
     }
     // A link, a directory, a device: not an object this store wrote, whatever it points at.
     if (!info.isFile()) throw new ObjectNotFoundError();
-    return { sizeBytes: info.size, stream: createReadStream(path) };
+    const range = input.range;
+    return {
+      sizeBytes: info.size,
+      stream: range
+        ? createReadStream(path, { start: range.start, end: range.end })
+        : createReadStream(path),
+    };
   }
 
   /**

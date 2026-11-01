@@ -49,8 +49,13 @@ export function mayUploadFor(kind: PrincipalKind, purpose: UploadPurpose): boole
  * | `request_attachment` | yes      | yes — their own request's files, held to the request row  |
  * | `request_message`    | yes      | yes — reply files on their own request, held the same way |
  * | `message_attachment` | yes      | no — a client reads no messages yet (CHAT-001)            |
- * | `deliverable`        | yes      | no — until DEL-001 supplies the published fact (CL-05)    |
+ * | `deliverable`        | yes      | only when published — R4 slice 4 (see below)              |
  * | `document`           | no       | no — Docs is deferred                                     |
+ *
+ * R4 slice 4 supplies the published fact a client `deliverable` download waited for (CL-05): the
+ * purpose is admitted here, and {@link FileClientRelation} then holds it to a deliverable version
+ * with a `client_projections` row (or a client-audience file of a published deliverable). This
+ * table only says which purposes are worth asking about; it never grants reach on its own.
  *
  * A service principal downloads nothing through the API: a job opens the store directly.
  */
@@ -62,7 +67,7 @@ const DOWNLOADABLE: Readonly<Record<PrincipalKind, readonly UploadPurpose[]>> = 
     'org_logo',
     'request_message',
   ],
-  client: ['request_attachment', 'request_message'],
+  client: ['request_attachment', 'request_message', 'deliverable'],
   service: [],
 };
 

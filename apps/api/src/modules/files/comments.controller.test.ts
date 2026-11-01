@@ -7,6 +7,7 @@ import type { FileAssetsRepository } from './file-assets.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import { ApiError } from '../../common/http/errors.js';
 import { FileClientRelation } from './file-client-relation.js';
+import type { ClientFileReachRepository } from './client-file-reach.repository.js';
 import type { ClientRequestsRepository } from '../requests/client-requests.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { FileAssetRow, FileCommentRow, ProjectRow } from '../../common/database/schema.js';
@@ -235,7 +236,13 @@ function relationFor(): FileClientRelation {
     findById: async (_r: unknown, _c: unknown, id: string) =>
       id === REQUEST_X ? { id, projectId: PROJECT, clientOrganizationId: CLIENT_ORG_X } : null,
   } as unknown as ClientRequestsRepository;
-  return new FileClientRelation(requests);
+  // R4 slice 4: no deliverable here is published, and no file is in a version chain.
+  const reach = {
+    publishedVersionNaming: async () => null,
+    deliverableIsPublished: async () => false,
+    chainSiblings: async () => [],
+  } as unknown as ClientFileReachRepository;
+  return new FileClientRelation(requests, reach);
 }
 
 describe('FileCommentsController — F35 client relation', () => {

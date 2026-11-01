@@ -119,6 +119,26 @@ describe('the CORS policy (D20)', () => {
     );
   });
 
+  it('lets a cross-origin reader ask for a byte range and read the 206 headers (R4 slice 4)', async () => {
+    const response = await app.inject({
+      method: 'OPTIONS',
+      url: '/probe/content',
+      headers: {
+        origin: WEB_ORIGIN,
+        'access-control-request-method': 'GET',
+        'access-control-request-headers': 'range',
+      },
+    });
+
+    expect(response.headers['access-control-allow-origin']).toBe(WEB_ORIGIN);
+    expect(String(response.headers['access-control-allow-headers']).toLowerCase()).toContain(
+      'range',
+    );
+    expect(corsOptions([WEB_ORIGIN]).exposedHeaders).toEqual(
+      expect.arrayContaining(['content-range', 'accept-ranges', 'content-length']),
+    );
+  });
+
   it('still names no allowed origin to an origin that is not allowed', async () => {
     const response = await preflight(app, 'DELETE', '/probe/session', OTHER_ORIGIN);
 

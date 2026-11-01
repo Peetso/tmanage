@@ -1,18 +1,19 @@
 import { authorize, isServableVersion } from '@tmanage/domain';
-import type { AuditMetadata, Principal } from '@tmanage/domain';
+import type { AuditAction, AuditMetadata, Principal } from '@tmanage/domain';
 import { ObjectNotFoundError } from '@tmanage/storage';
-import type { ObjectStore, OpenedObject } from '@tmanage/storage';
+import type { ByteRange, ObjectStore, OpenedObject } from '@tmanage/storage';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { ClientRequestsRepository } from '../requests/client-requests.repository.js';
 import type { FileAssetsRepository } from './file-assets.repository.js';
-import { mayDownloadFor, objectTableFor } from './purpose-policy.js';
+import { FileClientRelation } from './file-client-relation.js';
+import { mayDownloadFor } from './purpose-policy.js';
 import { readDownloadScanPolicy } from '../tenancy/download-scan-policy.js';
 import type { ScannerPresence } from '../tenancy/download-scan-policy.js';
 import { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
-import type { FileVersionRow } from '../../common/database/schema.js';
+import type { FileAssetRow, FileVersionRow, ProjectRow } from '../../common/database/schema.js';
 
 /**
  * FILE-002 slice C — the download gate.
@@ -27,11 +28,11 @@ import type { FileVersionRow } from '../../common/database/schema.js';
  *
  * 1. The row and its **latest** version, in one query (a replacement version that is still
  *    in quarantine must not be served under an asset that went `ready` on its first).
- * 2. The purpose table ({@link mayDownloadFor}): a client downloads request attachments and
- *    nothing else until DEL-001 supplies the published fact a deliverable needs.
- * 3. For a client, the relation is the **request row** — its project and its client
- *    organization — never the asset alone: an internal upload carries no client
- *    organization, and `authorize()`'s rule 7 is then a no-op.
+ * 2. The purpose table ({@link mayDownloadFor}): which purposes a principal kind may ask for.
+ * 3. For a client, the relation ({@link FileClientRelation}) — the **request row** a request file
+ *    hangs off (its project and its client organization), never the asset alone: an internal
+ *    upload carries no client organization, and `authorize()`'s rule 7 is then a no-op. R4 slice
+ *    4 adds a published deliverable version's file and the other versions of a reachable chain.
  * 4. `authorize()` with the project's true lifecycle: an archived project is readable by
  *    internal principals and by no client (rule 6).
  * 5. {@link isServableVersion}: `ready`, `clean`, `private` — three facts, not one. The
@@ -51,8 +52,17 @@ import type { FileVersionRow } from '../../common/database/schema.js';
  *
  * No signed URL (`25` §96's wording): the bytes are proxied through the authenticated tenant
  * route, so membership is re-resolved on every request and a suspension holds at once
- * (`27` AUTH-12). An uploader gets no carve-out before `ready`. Previews, inline rendering
- * and a client's deliverable downloads are later tickets (CL-03, CL-05, DEL-001).
+ * (`27` AUTH-12). An uploader gets no carve-out before `ready`.
+ *
+ * ## R4 slice 4
+ *
+ * - {@link FileDownloadService.resolve} is steps 1–5 without opening anything, so the viewer
+ *   manifest and the preview-content route refuse by exactly this gate.
+ * - An HTTP `Range` (`bytes=a-b`, one range) is honoured: the store streams just those bytes and
+ *   the answer is `206`. A range that is malformed, multiple or past the end is ignored and the
+ *   whole file is sent (RFC 9110 §14.2 lets a server ignore Range).
+ * - `?inline=1` is honoured only for `video/*`, `audio/*` and `image/gif` — what a `<video>`,
+ *   `<audio>` or `<img>` plays from the original. Everything else stays `attachment`.
  */
 export interface FileDownload {
   readonly stream: OpenedObject['stream'];
@@ -64,42 +74,100 @@ export interface FileDownload {
    * result under the owner's `allow_labeled` policy — the screen labels it. Sent as `x-scan-status`.
    */
   readonly scanStatus: DownloadScanStatus;
+  /** R4 slice 4. The bytes sent when a `Range` was honoured (`206`); absent for the whole file. */
+  readonly range?: ByteRange;
+  /** R4 slice 4. `inline` only for a media type asked inline; `attachment` otherwise. */
+  readonly disposition: 'attachment' | 'inline';
 }
 
 /** B3. Whether the bytes handed out were cleared by a scan. */
 export type DownloadScanStatus = 'clean' | 'not_scanned';
 
+/** R4 slice 4. What a caller may ask of the original's bytes. */
+export interface DownloadOptions {
+  /** The raw `Range` request header, if any. */
+  readonly range?: string | undefined;
+  /** `?inline=1` — honoured for {@link mayServeOriginalInline} types only. */
+  readonly inline?: boolean;
+}
+
+/**
+ * R4 slice 4. A file the gate let through steps 1–4: its row, latest version and project, and
+ * whether its bytes may be served now (step 5). `servable` carries the zone and the scan label;
+ * the other states are the typed `409`s a download answers.
+ */
+export interface ResolvedFile {
+  readonly asset: FileAssetRow;
+  readonly version: FileVersionRow | null;
+  readonly project: ProjectRow;
+  readonly access: FileAccess;
+}
+
+export type FileAccess =
+  | {
+      readonly state: 'servable';
+      readonly zone: 'private' | 'quarantine';
+      readonly scanStatus: DownloadScanStatus;
+    }
+  | { readonly state: 'pending_scan' | 'blocked' | 'scan_required_by_policy' };
+
 export const DOWNLOAD_CAPABILITY = 'file.download';
 
+/** Originals a browser may render in place (a player or an animated image), never a document. */
+export function mayServeOriginalInline(mimeType: string): boolean {
+  return mimeType.startsWith('video/') || mimeType.startsWith('audio/') || mimeType === 'image/gif';
+}
+
+/**
+ * R4 slice 4. One `bytes=start-end` / `bytes=start-` / `bytes=-suffix` range inside `size`, or
+ * `null` (absent, malformed, several ranges, or unsatisfiable — the whole file is sent then).
+ */
+export function parseByteRange(header: string | undefined, size: number): ByteRange | null {
+  if (header === undefined || size <= 0) return null;
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!match) return null;
+  const first = match[1] ?? '';
+  const last = match[2] ?? '';
+  if (first === '' && last === '') return null;
+  if (first === '') {
+    const suffix = Number(last);
+    if (!Number.isSafeInteger(suffix) || suffix <= 0) return null;
+    return { start: Math.max(0, size - suffix), end: size - 1 };
+  }
+  const start = Number(first);
+  if (!Number.isSafeInteger(start) || start >= size) return null;
+  const end = last === '' ? size - 1 : Math.min(Number(last), size - 1);
+  if (!Number.isSafeInteger(end) || end < start) return null;
+  return { start, end };
+}
+
 export class FileDownloadService {
+  private readonly relation: FileClientRelation;
+
   constructor(
     private readonly database: TenantDatabase,
     private readonly assets: FileAssetsRepository,
     private readonly projects: ProjectsRepository,
-    private readonly requests: ClientRequestsRepository,
+    requests: ClientRequestsRepository,
     private readonly store: ObjectStore,
     private readonly audit: AuditService,
     /** B3. The configured scanner; absent or `none` means unscanned files are allowed, labelled. */
     private readonly scanner?: ScannerPresence,
     private readonly settings: OrgSettingsRepository = new OrgSettingsRepository(),
-  ) {}
+    relation?: FileClientRelation,
+  ) {
+    this.relation = relation ?? new FileClientRelation(requests);
+  }
 
   /** The studio's door. */
   async download(
     context: TenantContext,
     principal: Principal,
     fileAssetId: string,
+    options: DownloadOptions = {},
   ): Promise<FileDownload> {
-    if (principal.kind !== 'internal') {
-      throw new ApiError(
-        403,
-        'forbidden',
-        MESSAGES.forbidden,
-        undefined,
-        'not_an_internal_principal',
-      );
-    }
-    return this.gate(context, principal, fileAssetId);
+    assertDoor(principal, 'internal');
+    return this.gate(context, principal, fileAssetId, options);
   }
 
   /** The client's door, under `/portal`. */
@@ -107,125 +175,76 @@ export class FileDownloadService {
     context: TenantContext,
     principal: Principal,
     fileAssetId: string,
+    options: DownloadOptions = {},
   ): Promise<FileDownload> {
-    if (principal.kind !== 'client' || !principal.clientOrganizationId) {
-      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'not_a_client_principal');
-    }
-    return this.gate(context, principal, fileAssetId);
+    assertDoor(principal, 'client');
+    return this.gate(context, principal, fileAssetId, options);
   }
 
   private async gate(
     context: TenantContext,
     principal: Principal,
     fileAssetId: string,
+    options: DownloadOptions,
   ): Promise<FileDownload> {
-    const found = await this.database.read(context, (runner) =>
-      this.assets.findWithLatestVersion(runner, context, fileAssetId),
-    );
-    if (!found) throw await this.refuse(context, 'file_not_found');
-    const { asset, version } = found;
-
-    if (!mayDownloadFor(principal.kind, asset.purpose)) {
-      throw await this.refuse(context, 'purpose_not_downloadable');
+    const action: AuditAction = 'file_asset.downloaded';
+    const { asset, version, access } = await this.resolve(context, principal, fileAssetId, action);
+    if (version === null) throw await this.notReady(context, asset.status, action);
+    if (access.state === 'scan_required_by_policy') {
+      throw await this.blockedByPolicy(context, action);
     }
-
-    if (principal.kind === 'client') {
-      const request =
-        objectTableFor(asset.purpose) === 'client_requests' && asset.objectId !== null
-          ? await this.database.read(context, (runner) =>
-              this.requests.findById(runner, context, asset.objectId as string),
-            )
-          : null;
-      const related =
-        request !== null &&
-        request.projectId === asset.projectId &&
-        request.clientOrganizationId === principal.clientOrganizationId;
-      if (!related) throw await this.refuse(context, 'client_relation_mismatch');
-    }
-
-    const project = await this.database.read(context, (runner) =>
-      this.projects.findById(runner, context, asset.projectId),
-    );
-    if (!project) throw await this.refuse(context, 'project_not_found');
-
-    const decision = authorize({
-      principal,
-      capability: DOWNLOAD_CAPABILITY,
-      resource: {
-        organizationId: asset.organizationId,
-        projectId: asset.projectId,
-        audience: asset.audience,
-        clientOrganizationId: asset.clientOrganizationId,
-        lifecycle: project.archivedAt === null ? 'active' : 'archived',
-      },
-    });
-    if (!decision.allowed) throw await this.refuse(context, decision.code);
-
-    if (version === null) throw await this.notReady(context, asset.status);
-    let zone: 'private' | 'quarantine' = 'private';
-    let scanStatus: DownloadScanStatus = 'clean';
-    if (
-      !isServableVersion({
-        status: asset.status,
-        scanVerdict: version.scanVerdict,
-        trustZone: version.trustZone,
-      })
-    ) {
-      // B3. A verified file with no scan verdict yet (or `unscanned` under the `none` driver) is
-      // the owner's call: `block` keeps a 409, `allow_labeled` serves it labelled `not_scanned`.
-      // An infected, rejected, expired or cancelled file — or one not yet verified — never is.
-      if (!awaitingScan(asset.status, version)) throw await this.notReady(context, asset.status);
-      const policy = await readDownloadScanPolicy(
-        this.database,
-        context,
-        this.scanner,
-        this.settings,
-      );
-      if (policy.effective === 'block') throw await this.blockedByPolicy(context);
-      zone = version.trustZone === 'private' ? 'private' : 'quarantine';
-      scanStatus = 'not_scanned';
-    }
+    if (access.state !== 'servable') throw await this.notReady(context, asset.status, action);
+    const { zone, scanStatus } = access;
     const mimeType = version.detectedMimeType;
-    if (mimeType === null) throw await this.refuse(context, 'no_detected_type');
+    if (mimeType === null) throw await this.refuse(context, 'no_detected_type', action);
 
+    const range = parseByteRange(options.range, version.sizeBytes) ?? undefined;
     let opened: OpenedObject;
     try {
       // `private` for a cleared file. An unscanned one still sits in quarantine; the zone is one
-      // of the two literals chosen above, never a string read from the row.
-      opened = await this.store.openObject({ zone, objectKey: version.objectKey });
+      // of the two literals chosen in step 5, never a string read from the row.
+      opened = await this.store.openObject({
+        zone,
+        objectKey: version.objectKey,
+        ...(range ? { range } : {}),
+      });
     } catch (error) {
       if (error instanceof ObjectNotFoundError) {
-        throw await this.refuse(context, 'private_object_missing');
+        throw await this.refuse(context, 'private_object_missing', action);
       }
       throw error;
     }
     if (opened.sizeBytes !== version.sizeBytes) {
       destroy(opened.stream);
-      throw await this.refuse(context, 'size_mismatch');
+      throw await this.refuse(context, 'size_mismatch', action);
     }
 
-    const metadata: AuditMetadata = {
-      project_id: asset.projectId,
-      purpose: asset.purpose,
-      file_version_id: version.id,
-      size_bytes: version.sizeBytes,
-      principal_kind: principal.kind,
-      delivery: 'proxy',
-      scan_status: scanStatus,
-    };
-    try {
-      await this.database.transaction(context, (tx) =>
-        this.audit.record(tx, context, {
-          action: 'file_asset.downloaded',
-          objectId: asset.id,
-          result: 'allowed',
-          actorUserId: principal.userId,
-          metadata,
-        }),
-      );
-    } catch (error) {
-      destroy(opened.stream);
-      throw error;
+    // A media player asks for many ranges of one file; the first request (from byte 0, or the
+    // whole file) is the disclosure, the seeks that follow are not new ones.
+    if (range === undefined || range.start === 0) {
+      const metadata: AuditMetadata = {
+        project_id: asset.projectId,
+        purpose: asset.purpose,
+        file_version_id: version.id,
+        size_bytes: version.sizeBytes,
+        principal_kind: principal.kind,
+        delivery: 'proxy',
+        scan_status: scanStatus,
+      };
+      try {
+        await this.database.transaction(context, (tx) =>
+          this.audit.record(tx, context, {
+            action,
+            objectId: asset.id,
+            result: 'allowed',
+            actorUserId: principal.userId,
+            metadata,
+          }),
+        );
+      } catch (error) {
+        destroy(opened.stream);
+        throw error;
+      }
     }
 
     return {
@@ -234,6 +253,103 @@ export class FileDownloadService {
       sizeBytes: version.sizeBytes,
       fileName: asset.name,
       scanStatus,
+      disposition:
+        options.inline === true && mayServeOriginalInline(mimeType) ? 'inline' : 'attachment',
+      ...(range ? { range } : {}),
+    };
+  }
+
+  /**
+   * R4 slice 4. Steps 1–5 of the gate without opening the object: the file, its latest version
+   * and project for a caller authorized to read it, and whether its bytes may be served now.
+   * Every refusal is the one 404 (a denied row under `action`); the scan state is returned, not
+   * thrown, so the viewer can say "being checked" instead of failing.
+   */
+  async resolve(
+    context: TenantContext,
+    principal: Principal,
+    fileAssetId: string,
+    action: AuditAction,
+  ): Promise<ResolvedFile> {
+    const found = await this.database.read(context, (runner) =>
+      this.assets.findWithLatestVersion(runner, context, fileAssetId),
+    );
+    if (!found) throw await this.refuse(context, 'file_not_found', action);
+    const { asset, version } = found;
+
+    if (!mayDownloadFor(principal.kind, asset.purpose)) {
+      throw await this.refuse(context, 'purpose_not_downloadable', action);
+    }
+
+    let audience = asset.audience;
+    if (principal.kind === 'client') {
+      const reach = await this.database.read(context, (runner) =>
+        this.relation.reach(runner, context, principal, asset),
+      );
+      if (!reach) {
+        throw await this.refuse(
+          context,
+          asset.purpose === 'deliverable'
+            ? 'deliverable_not_published'
+            : 'client_relation_mismatch',
+          action,
+        );
+      }
+      audience = reach.audience;
+    }
+
+    const project = await this.database.read(context, (runner) =>
+      this.projects.findById(runner, context, asset.projectId),
+    );
+    if (!project) throw await this.refuse(context, 'project_not_found', action);
+
+    const decision = authorize({
+      principal,
+      capability: DOWNLOAD_CAPABILITY,
+      resource: {
+        organizationId: asset.organizationId,
+        projectId: asset.projectId,
+        audience,
+        clientOrganizationId: asset.clientOrganizationId,
+        lifecycle: project.archivedAt === null ? 'active' : 'archived',
+      },
+    });
+    if (!decision.allowed) throw await this.refuse(context, decision.code, action);
+
+    return { asset, version, project, access: await this.accessOf(context, asset, version) };
+  }
+
+  /** Step 5: the version's servable state under the owner's scan policy (B3). */
+  private async accessOf(
+    context: TenantContext,
+    asset: FileAssetRow,
+    version: FileVersionRow | null,
+  ): Promise<FileAccess> {
+    if (version === null) return { state: downloadStateFor(asset.status) };
+    if (
+      isServableVersion({
+        status: asset.status,
+        scanVerdict: version.scanVerdict,
+        trustZone: version.trustZone,
+      })
+    ) {
+      return { state: 'servable', zone: 'private', scanStatus: 'clean' };
+    }
+    // B3. A verified file with no scan verdict yet (or `unscanned` under the `none` driver) is
+    // the owner's call: `block` keeps a 409, `allow_labeled` serves it labelled `not_scanned`.
+    // An infected, rejected, expired or cancelled file — or one not yet verified — never is.
+    if (!awaitingScan(asset.status, version)) return { state: downloadStateFor(asset.status) };
+    const policy = await readDownloadScanPolicy(
+      this.database,
+      context,
+      this.scanner,
+      this.settings,
+    );
+    if (policy.effective === 'block') return { state: 'scan_required_by_policy' };
+    return {
+      state: 'servable',
+      zone: version.trustZone === 'private' ? 'private' : 'quarantine',
+      scanStatus: 'not_scanned',
     };
   }
 
@@ -241,8 +357,11 @@ export class FileDownloadService {
    * B3. The owner chose `block` and a scanner is configured: an authorized caller is told the file
    * waits for its scan — `409 conflict`, `status: scan_required_by_policy`. One denied audit row.
    */
-  private async blockedByPolicy(context: TenantContext): Promise<ApiError> {
-    await this.audit.recordDenial(context, 'file_asset.downloaded', {
+  async blockedByPolicy(
+    context: TenantContext,
+    action: AuditAction = 'file_asset.downloaded',
+  ): Promise<ApiError> {
+    await this.audit.recordDenial(context, action, {
       status: 409,
       capability: DOWNLOAD_CAPABILITY,
       auditCode: 'not_scanned_blocked_by_policy',
@@ -262,8 +381,12 @@ export class FileDownloadService {
    * `409 conflict` with `status: pending_scan` while it is still being checked, or
    * `status: blocked` once the scan rejected it. Still one denied audit row, `not_servable`.
    */
-  private async notReady(context: TenantContext, status: string): Promise<ApiError> {
-    await this.audit.recordDenial(context, 'file_asset.downloaded', {
+  async notReady(
+    context: TenantContext,
+    status: string,
+    action: AuditAction = 'file_asset.downloaded',
+  ): Promise<ApiError> {
+    await this.audit.recordDenial(context, action, {
       status: 409,
       capability: DOWNLOAD_CAPABILITY,
       auditCode: 'not_servable',
@@ -281,13 +404,33 @@ export class FileDownloadService {
   }
 
   /** One denied row, one indistinguishable 404. */
-  private async refuse(context: TenantContext, auditCode: string): Promise<ApiError> {
-    await this.audit.recordDenial(context, 'file_asset.downloaded', {
+  async refuse(
+    context: TenantContext,
+    auditCode: string,
+    action: AuditAction = 'file_asset.downloaded',
+  ): Promise<ApiError> {
+    await this.audit.recordDenial(context, action, {
       status: 404,
       capability: DOWNLOAD_CAPABILITY,
       auditCode,
     });
     return new ApiError(404, 'not_found', MESSAGES.notFound, undefined, auditCode);
+  }
+}
+
+/** R4 slice 4. The door's principal kind, refused with the existing 403 otherwise. */
+export function assertDoor(principal: Principal, door: 'internal' | 'client'): void {
+  if (door === 'internal' && principal.kind !== 'internal') {
+    throw new ApiError(
+      403,
+      'forbidden',
+      MESSAGES.forbidden,
+      undefined,
+      'not_an_internal_principal',
+    );
+  }
+  if (door === 'client' && (principal.kind !== 'client' || !principal.clientOrganizationId)) {
+    throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'not_a_client_principal');
   }
 }
 
@@ -311,7 +454,7 @@ export function awaitingScan(assetStatus: string, version: FileVersionRow): bool
   return version.scanVerdict === null || version.scanVerdict === 'unscanned';
 }
 
-function destroy(stream: unknown): void {
+export function destroy(stream: unknown): void {
   const candidate = stream as { destroy?: () => void; destroyed?: boolean };
   if (typeof candidate.destroy === 'function' && !candidate.destroyed) candidate.destroy();
 }

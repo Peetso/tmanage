@@ -14800,6 +14800,7 @@
   "AuditActionLabel.file_asset.scan_failed": "تعذّر فحص ملف",
   "AuditActionLabel.file_asset.scanned": "فحص ملفًا",
   "AuditActionLabel.file_asset.downloaded": "نزّل ملفًا",
+  "AuditActionLabel.file_preview.viewed": "عرض معاينة ملف",
   "AuditActionLabel.file_asset.scan_disputed": "تغيّرت نتيجة فحص ملف",
   "AuditActionLabel.file_asset.purged": "حذف بيانات ملف مخزّنة",
   "AuditActionLabel.upload_session.expired": "نظّف عملية رفع منتهية",

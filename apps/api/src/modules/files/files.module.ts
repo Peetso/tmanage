@@ -55,6 +55,9 @@ import {
 } from './preview-job.js';
 import { FileDownloadService } from './file-download.service.js';
 import { FileDownloadsController } from './file-downloads.controller.js';
+import { FILE_PREVIEW_SERVICE, FilePreviewService } from './file-preview.service.js';
+import { FilePreviewsController } from './file-previews.controller.js';
+import { PortalFilePreviewsController } from './portal-file-previews.controller.js';
 import {
   ATTACHMENT_VERSIONS_SERVICE,
   AttachmentVersionsService,
@@ -346,6 +349,38 @@ export class FilesModule {
         ),
     };
 
+    // R4 slice 4. The viewer: manifest, derivative bytes and "Try again", all behind the download
+    // gate's own decision (`FileDownloadService.resolve`). It reads `file_previews` and the
+    // `derived` zone; "Try again" asks the preview job for a pass.
+    const filePreviews: Provider = {
+      provide: FILE_PREVIEW_SERVICE,
+      inject: [
+        TENANT_DATABASE,
+        FILE_DOWNLOAD_SERVICE,
+        FILE_ASSETS_REPOSITORY,
+        OBJECT_STORE,
+        AUDIT_SERVICE,
+        PREVIEW_JOB,
+      ],
+      useFactory: (
+        database: TenantDatabase,
+        downloadService: FileDownloadService,
+        assets: FileAssetsRepository,
+        store: ObjectStore,
+        audit: AuditService,
+        previewJob: PreviewJob,
+      ) =>
+        new FilePreviewService(
+          database,
+          downloadService,
+          assets,
+          store,
+          audit,
+          new FilePreviewsRepository(),
+          previewJob,
+        ),
+    };
+
     // FILE-003 · WEB-006. The client's file list, over the same download surface: a read-only
     // service on the tenant database and the file-assets repository. No store, no audit — it
     // hands out no bytes; it names the files the download door would serve, which it audits.
@@ -429,6 +464,7 @@ export class FilesModule {
         previewJob,
         scanJob,
         downloads,
+        filePreviews,
         portalFileList,
         attachmentVersions,
       ],
@@ -446,6 +482,7 @@ export class FilesModule {
         previewJob,
         scanJob,
         downloads,
+        filePreviews,
         portalFileList,
         attachmentVersions,
       ],
@@ -455,6 +492,8 @@ export class FilesModule {
         UploadPartsController,
         FileDownloadsController,
         PortalFileDownloadsController,
+        FilePreviewsController,
+        PortalFilePreviewsController,
         PortalFileListController,
         UsageController,
         FileTagsController,

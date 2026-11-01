@@ -518,7 +518,7 @@ describe("the client's door", () => {
     const wrongDoor = await download({ session: atlas.session, prefix: '' }, fileAssetId);
     expect(wrongDoor.statusCode).toBe(403);
 
-    expect(await deniedCodes()).toEqual(['client_relation_mismatch', 'purpose_not_downloadable']);
+    expect(await deniedCodes()).toEqual(['client_relation_mismatch', 'deliverable_not_published']);
     const trail = await downloads(fileAssetId);
     expect(trail.map((row) => row.result)).toEqual(['allowed', 'allowed']);
     expect(trail[0]?.metadata).toMatchObject({
