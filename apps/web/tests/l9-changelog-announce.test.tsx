@@ -59,7 +59,8 @@ describe('ChangelogScreen live region (L9)', () => {
     await act(async () => release());
 
     await waitFor(() => expect(screen.getAllByText('Nothing here yet').length).toBeGreaterThan(0));
-    expect(liveText(container)).toEqual(['Nothing here yet']);
+    // Under a loaded full-suite run the live region can trail the visible text by a tick.
+    await waitFor(() => expect(liveText(container)).toEqual(['Nothing here yet']));
   });
 
   it('ends in Arabic when the locale changed while loading', async () => {

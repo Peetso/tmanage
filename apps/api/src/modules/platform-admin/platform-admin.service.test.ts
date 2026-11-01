@@ -71,6 +71,8 @@ function harness() {
   const organizations = new PlatformOrganizationsService(repository);
   // ---- platform-admin v2 · PA-06 ---- People reads the person through its own repository.
   const peopleRepository = {
+    // R12: the people service asks its repository for the session-intel reader by default.
+    intelReader: () => ({}),
     findPerson: async () => ({
       userId: PERSON,
       email: 'sara@x.test',
