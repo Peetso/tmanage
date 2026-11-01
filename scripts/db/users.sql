@@ -1953,3 +1953,11 @@ GRANT SELECT, DELETE ON `tmanage`.`time_timers`                     TO 'tmanage_
 GRANT SELECT ON `tmanage`.`org_policies`                            TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`org_finance_profiles`                    TO 'tmanage_worker'@'%';
 GRANT SELECT, INSERT ON `tmanage`.`work_item_time_logs`             TO 'tmanage_worker'@'%';
+
+-- ---- R4 slice 2 · proofing viewer derivatives ----
+-- 0267 `file_previews` (tenant): the preview job runs in the API process (in-process on Hostinger,
+-- `FILE_PREVIEW_INPROCESS`), so the app credential inserts the pending rows, claims and records
+-- them (UPDATE; the trigger pins identity and makes `object_key` write-once), and DELETEs them when
+-- a version's derivatives are swept or the company is erased. SELECT rides the database-wide read.
+-- Nothing on the worker credential: no worker code touches derivatives.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`file_previews`          TO 'tmanage_app'@'%';

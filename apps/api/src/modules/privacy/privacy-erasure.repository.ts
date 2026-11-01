@@ -104,10 +104,13 @@ type Drain =
 /** The stored objects a company's rows name, and the zones they may sit in. */
 const OBJECT_SOURCES: readonly {
   readonly table: string;
-  readonly zones: readonly ('quarantine' | 'private')[];
+  readonly zones: readonly ('quarantine' | 'private' | 'derived')[];
 }[] = [
   { table: 'file_versions', zones: ['quarantine', 'private'] },
   { table: 'upload_sessions', zones: ['quarantine'] },
+  // R4 slice 2 (0267): the derivatives TManage made of the company's files. A row whose
+  // derivative was never written has a NULL key and is skipped by the prefix check below.
+  { table: 'file_previews', zones: ['derived'] },
 ];
 
 const KEY_PAGE = 500;

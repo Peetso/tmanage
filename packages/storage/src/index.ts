@@ -23,20 +23,26 @@ export type {
   BeginMultipartInput,
   CompleteMultipartInput,
   CompletedPart,
+  DerivativeKeyInput,
   MultipartUpload,
   ObjectStore,
   OpenObjectInput,
   OpenedObject,
   PromoteObjectInput,
   Promotion,
+  PutDerivativeInput,
   RemoveObjectInput,
   StoredObject,
   TrustZone,
   UploadTarget,
   WithdrawObjectInput,
 } from './object-store.js';
-export { InvalidObjectKeyComponentError, uploadObjectKey } from './object-key.js';
-export type { UploadObjectKeyInput } from './object-key.js';
+export {
+  InvalidObjectKeyComponentError,
+  derivativeObjectKey,
+  uploadObjectKey,
+} from './object-key.js';
+export type { DerivativeObjectKeyInput, UploadObjectKeyInput } from './object-key.js';
 export { FakeObjectStore } from './fake-object-store.js';
 export { FilesystemObjectStore } from './filesystem-object-store.js';
 export type {

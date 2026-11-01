@@ -75,7 +75,8 @@
 
 /**
  * `49` §4's three trust zones. An upload lands in `quarantine` and is promoted to `private`
- * only by FILE-002's verification and scan; `derived` holds previews (FILE-004).
+ * only by FILE-002's verification and scan; `derived` holds previews (FILE-004; written since
+ * R4 slice 2 through `putDerivative`, the zone's only write).
  */
 export type TrustZone = 'quarantine' | 'private' | 'derived';
 
@@ -182,6 +183,21 @@ export interface RemoveObjectInput {
   readonly objectKey: string;
 }
 
+/**
+ * R4 slice 2 — a TManage-made derivative of a version (a safe copy, a thumbnail, a page image, a
+ * flattened PSD, a ZIP list) in the `derived` zone. Derivatives are small and produced whole in
+ * memory by a generator, so the write takes the bytes, not a stream. The key comes from
+ * `derivativeObjectKey` and must sit under `tenant/{uuid}/`.
+ */
+export interface PutDerivativeInput {
+  readonly objectKey: string;
+  readonly body: Uint8Array;
+}
+
+export interface DerivativeKeyInput {
+  readonly objectKey: string;
+}
+
 export interface ObjectStore {
   beginMultipart(input: BeginMultipartInput): Promise<MultipartUpload>;
   completeMultipart(input: CompleteMultipartInput): Promise<StoredObject>;
@@ -215,4 +231,15 @@ export interface ObjectStore {
    * bytes from `quarantine` without reaching the `private` zone `withdraw` owns.
    */
   remove(input: RemoveObjectInput): Promise<void>;
+  /**
+   * R4 slice 2. Write a derivative into the `derived` zone under the key, whole: a reader sees
+   * the previous bytes or the new ones, never half of either. Writing the same key again
+   * replaces it (a preview regenerated after a failure). Answers the stored size and the MD5.
+   * Never touches `quarantine` or `private`: an original is never written through this door.
+   */
+  putDerivative(input: PutDerivativeInput): Promise<StoredObject>;
+  /** The bytes of a derivative. Throws `ObjectNotFoundError` when nothing is stored under the key. */
+  openDerivative(input: DerivativeKeyInput): Promise<OpenedObject>;
+  /** Remove a derivative, if any. Idempotent, and confined to the `derived` zone. */
+  deleteDerivative(input: DerivativeKeyInput): Promise<void>;
 }

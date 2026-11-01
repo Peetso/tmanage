@@ -5571,6 +5571,50 @@ export const attachmentVersions = mysqlTable(
   ],
 );
 
+/**
+ * R4 slice 2 (0267). One derivative TManage made of an uploaded version — a sanitised SVG, a
+ * thumbnail, a page image, a flattened PSD, a ZIP listing, media/Office metadata. `page_no` is 0
+ * for a whole-file derivative. `objectKey` names the bytes in the `derived` zone and never leaves
+ * the API. Identity columns are immutable and `object_key` write-once (trigger).
+ * `0267_file_previews.sql`; `modules/files/file-previews.repository.ts`.
+ */
+export const filePreviews = mysqlTable(
+  'file_previews',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    fileAssetId: char('file_asset_id', { length: 36 }).notNull(),
+    fileVersionId: char('file_version_id', { length: 36 }).notNull(),
+    kind: varchar('kind', { length: 32 }).notNull(),
+    pageNo: int('page_no', { unsigned: true }).notNull().default(0),
+    status: varchar('status', { length: 16 }).notNull().default('pending'),
+    /** Internal. Never a response field — `FORBIDDEN_CLIENT_FIELDS` names `objectKey`. */
+    objectKey: varchar('object_key', { length: 512 }),
+    mimeType: varchar('mime_type', { length: 150 }),
+    sizeBytes: bigint('size_bytes', { mode: 'number', unsigned: true }),
+    width: int('width', { unsigned: true }),
+    height: int('height', { unsigned: true }),
+    /** MariaDB answers JSON as text; the repository parses it. */
+    meta: json('meta').$type<Record<string, unknown>>(),
+    errorCode: varchar('error_code', { length: 64 }),
+    attempts: tinyint('attempts', { unsigned: true }).notNull().default(0),
+    claimedAt: datetime('claimed_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_file_previews_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_file_previews_version_kind_page').on(
+      table.organizationId,
+      table.fileVersionId,
+      table.kind,
+      table.pageNo,
+    ),
+    index('ix_file_previews_pending').on(table.status, table.claimedAt, table.createdAt),
+    index('ix_file_previews_asset').on(table.organizationId, table.fileAssetId),
+  ],
+);
+
 export const uploadSessions = mysqlTable(
   'upload_sessions',
   {
@@ -9413,6 +9457,7 @@ export const TABLES = {
   file_assets: fileAssets,
   file_versions: fileVersions,
   attachment_versions: attachmentVersions,
+  file_previews: filePreviews,
   upload_sessions: uploadSessions,
   user_passwords: userPasswords,
   password_reset_tokens: passwordResetTokens,
@@ -9746,6 +9791,7 @@ export type UsageLedgerEntryRow = typeof usageLedgerEntries.$inferSelect;
 export type FileAssetRow = typeof fileAssets.$inferSelect;
 export type FileVersionRow = typeof fileVersions.$inferSelect;
 export type AttachmentVersionRow = typeof attachmentVersions.$inferSelect;
+export type FilePreviewRow = typeof filePreviews.$inferSelect;
 export type UploadSessionRow = typeof uploadSessions.$inferSelect;
 export type WorkItemDependencyRow = typeof workItemDependencies.$inferSelect;
 export type WorkBlockerRow = typeof workBlockers.$inferSelect;

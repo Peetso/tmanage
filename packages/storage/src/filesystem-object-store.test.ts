@@ -27,7 +27,7 @@ import {
   UnsafeObjectPathError,
 } from './errors.js';
 import { FilesystemObjectStore } from './filesystem-object-store.js';
-import { uploadObjectKey } from './object-key.js';
+import { derivativeObjectKey, uploadObjectKey } from './object-key.js';
 import { derivePartSigningKey, mintPartToken } from './part-token.js';
 
 const ORG = '019203a4-5b6c-7d8e-9f01-23456789abcd';
@@ -1002,5 +1002,113 @@ describe('FilesystemObjectStore — promote and withdraw (FILE-002 slice B)', ()
     await expect(store.withdraw({ objectKey: '../../etc/passwd' })).rejects.toBeInstanceOf(
       UnsafeObjectPathError,
     );
+  });
+});
+
+describe('FilesystemObjectStore — derivatives (R4 slice 2)', () => {
+  const VERSION = '019203a4-5b6c-7d8e-9f01-23456789abd1';
+  const PREVIEW = '019203a4-5b6c-7d8e-9f01-23456789abd2';
+  const DKEY = derivativeObjectKey({
+    organizationId: ORG,
+    fileVersionId: VERSION,
+    previewId: PREVIEW,
+  });
+
+  async function drain(stream: NodeJS.ReadableStream): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+    return Buffer.concat(chunks);
+  }
+
+  it('writes the bytes whole into the derived zone and reads them back', async () => {
+    const body = Buffer.from('a preview, small and whole');
+    const stored = await store.putDerivative({ objectKey: DKEY, body });
+    expect(stored).toEqual({ sizeBytes: body.length, etag: md5(body) });
+    expect(readFileSync(store.objectPath('derived', DKEY))).toEqual(body);
+    // Only the derived zone: no original was written or replaced.
+    expect(existsSync(store.objectPath('private', DKEY))).toBe(false);
+    expect(existsSync(store.objectPath('quarantine', DKEY))).toBe(false);
+    const opened = await store.openDerivative({ objectKey: DKEY });
+    expect(opened.sizeBytes).toBe(body.length);
+    expect(await drain(opened.stream)).toEqual(body);
+    // No staging file is left beside the derivative.
+    expect(readdirSync(dirname(store.objectPath('derived', DKEY)))).toEqual([PREVIEW]);
+  });
+
+  it('writes only the window of a Uint8Array view', async () => {
+    const backing = new Uint8Array([9, 9, 1, 2, 3, 9]);
+    const stored = await store.putDerivative({ objectKey: DKEY, body: backing.subarray(2, 5) });
+    expect(stored.sizeBytes).toBe(3);
+    expect([...readFileSync(store.objectPath('derived', DKEY))]).toEqual([1, 2, 3]);
+  });
+
+  it('replaces a derivative written twice under the same key', async () => {
+    await store.putDerivative({ objectKey: DKEY, body: Buffer.from('first') });
+    await store.putDerivative({ objectKey: DKEY, body: Buffer.from('second') });
+    expect(readFileSync(store.objectPath('derived', DKEY), 'utf8')).toBe('second');
+  });
+
+  it('cannot read or delete an original through the derivative door', async () => {
+    const upload = await begin(1, 'private');
+    const [one] = targets(upload) as [ReturnType<typeof targets>[number]];
+    const part = await store.putPart({ ...one, body: bytes('p') });
+    await store.completeMultipart({
+      zone: 'private',
+      objectKey: KEY,
+      providerUploadId: upload.providerUploadId,
+      parts: [{ partNumber: 1, etag: part?.etag ?? '' }],
+    });
+    await expect(store.openDerivative({ objectKey: KEY })).rejects.toBeInstanceOf(
+      ObjectNotFoundError,
+    );
+    await store.deleteDerivative({ objectKey: KEY });
+    expect(existsSync(store.objectPath('private', KEY))).toBe(true);
+  });
+
+  it('answers not-found for a derivative never written', async () => {
+    await expect(store.openDerivative({ objectKey: DKEY })).rejects.toBeInstanceOf(
+      ObjectNotFoundError,
+    );
+  });
+
+  it('delete removes the derivative and is idempotent', async () => {
+    await store.putDerivative({ objectKey: DKEY, body: Buffer.from('x') });
+    await store.deleteDerivative({ objectKey: DKEY });
+    expect(existsSync(store.objectPath('derived', DKEY))).toBe(false);
+    await expect(store.deleteDerivative({ objectKey: DKEY })).resolves.toBeUndefined();
+  });
+
+  it('refuses a key outside a tenant prefix, or one that would leave the zone, before writing', async () => {
+    for (const objectKey of ['derivative/x/y', '../../private/tenant/x', 'tenant/not-a-uuid/x']) {
+      await expect(
+        store.putDerivative({ objectKey, body: Buffer.from('x') }),
+      ).rejects.toBeInstanceOf(UnsafeObjectPathError);
+    }
+    expect(existsSync(join(root, 'objects', 'derived'))).toBe(false);
+  });
+
+  it('refuses to write over a directory left at the derivative path', async () => {
+    mkdirSync(store.objectPath('derived', DKEY), { recursive: true });
+    await expect(
+      store.putDerivative({ objectKey: DKEY, body: Buffer.from('x') }),
+    ).rejects.toBeInstanceOf(UnsafeObjectPathError);
+    expect(statSync(store.objectPath('derived', DKEY)).isDirectory()).toBe(true);
+  });
+
+  it('refuses to read or delete a symbolic link left at the derivative path', async (ctx) => {
+    requireSymlinkFixture(ctx, 'openDerivative / deleteDerivative (R4)');
+    const secret = join(root, 'secret.txt');
+    writeFileSync(secret, 'not a derivative');
+    const path = store.objectPath('derived', DKEY);
+    mkdirSync(dirname(path), { recursive: true });
+    symlinkSync(secret, path, 'file');
+    await expect(store.openDerivative({ objectKey: DKEY })).rejects.toBeInstanceOf(
+      ObjectNotFoundError,
+    );
+    await expect(store.deleteDerivative({ objectKey: DKEY })).rejects.toBeInstanceOf(
+      ObjectNotFoundError,
+    );
+    expect(lstatSync(path).isSymbolicLink()).toBe(true);
+    expect(readFileSync(secret, 'utf8')).toBe('not a derivative');
   });
 });

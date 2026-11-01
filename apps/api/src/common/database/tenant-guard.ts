@@ -277,6 +277,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   usage_counters: 'organization_id',
   file_assets: 'organization_id',
   file_versions: 'organization_id',
+  // R4 slice 2 (0267). The derivatives of one studio's uploaded versions; an unscoped read would
+  // name every studio's preview objects at once. Registered after its parents so the company
+  // erasure (reverse order) empties it first.
+  file_previews: 'organization_id',
   upload_sessions: 'organization_id',
   // USAGE-001 slice 2 (migration 0021). Tenant-owned like `usage_counters`, whose every
   // move it records: `organization_id` is NOT NULL and it carries the `(organization_id, id)`

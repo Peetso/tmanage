@@ -5,6 +5,7 @@ import type {
   AbortMultipartInput,
   BeginMultipartInput,
   CompleteMultipartInput,
+  DerivativeKeyInput,
   MultipartUpload,
   ObjectStore,
   OpenObjectInput,
@@ -12,6 +13,7 @@ import type {
   PartSink,
   PromoteObjectInput,
   Promotion,
+  PutDerivativeInput,
   RemoveObjectInput,
   StoredObject,
   WithdrawObjectInput,
@@ -96,6 +98,15 @@ class UnavailableObjectStore implements ObjectStore {
     return Promise.reject(new ObjectStoreUnavailableError());
   }
   remove(_input: RemoveObjectInput): Promise<void> {
+    return Promise.reject(new ObjectStoreUnavailableError());
+  }
+  putDerivative(_input: PutDerivativeInput): Promise<StoredObject> {
+    return Promise.reject(new ObjectStoreUnavailableError());
+  }
+  openDerivative(_input: DerivativeKeyInput): Promise<OpenedObject> {
+    return Promise.reject(new ObjectStoreUnavailableError());
+  }
+  deleteDerivative(_input: DerivativeKeyInput): Promise<void> {
     return Promise.reject(new ObjectStoreUnavailableError());
   }
 }

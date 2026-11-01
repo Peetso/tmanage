@@ -21,12 +21,14 @@ import type {
   AbortMultipartInput,
   BeginMultipartInput,
   CompleteMultipartInput,
+  DerivativeKeyInput,
   MultipartUpload,
   ObjectStore,
   OpenObjectInput,
   OpenedObject,
   PromoteObjectInput,
   Promotion,
+  PutDerivativeInput,
   RemoveObjectInput,
   StoredObject,
   TrustZone,
@@ -61,6 +63,7 @@ import {
  * ## On disk
  *
  *     <root>/objects/<zone>/<object key>              the completed objects, by trust zone
+ *     <root>/objects/derived/tenant/<org>/derivative/… previews made by TManage (R4)
  *     <root>/uploads/<providerUploadId>/manifest.json  one in-flight multipart upload
  *     <root>/uploads/<providerUploadId>/part-0001…     its parts, as they arrive
  *
@@ -120,6 +123,15 @@ import {
  * `abort` closes and removes the staging file and touches nothing sealed. `withdraw`
  * removes the private object under a key, and only that: the quarantine object is never
  * touched by this driver after it is sealed. The port's header says who may call it.
+ *
+ * ## Derivatives are written whole, under a tenant key, in `derived` alone
+ *
+ * `putDerivative` (R4 slice 2) is the `derived` zone's one write: the generator's bytes, written
+ * beside the path and renamed over it like every other write here, so a preview being served
+ * while it is regenerated is the old bytes or the new ones. It refuses a key that is not under
+ * `tenant/{uuid}/`, as `beginMultipart` does, and its zone is fixed — no caller can name
+ * `private` and overwrite an original through it. `openDerivative` and `deleteDerivative` are
+ * `openObject` and `remove` pinned to the same zone, with the same regular-file guard.
  *
  * ## Paths never escape the root
  *
@@ -469,6 +481,34 @@ export class FilesystemObjectStore implements ObjectStore, PartSink {
     }
     if (!info.isFile()) throw new ObjectNotFoundError();
     await rm(path, { force: true, maxRetries: 3 });
+  }
+
+  async putDerivative(input: PutDerivativeInput): Promise<StoredObject> {
+    // Checked before anything is written, so a bad key never leaves a directory behind.
+    const path = this.objectPath('derived', input.objectKey);
+    if (!tenantOfObjectKey(input.objectKey)) throw new UnsafeObjectPathError('objectKey');
+    await this.assertContained(path);
+    // Never over a link or a directory something left at the path: `rename` would replace a
+    // link with a file, which is harmless, but a directory there is not an object we wrote.
+    try {
+      const info = await lstat(path);
+      if (!info.isFile()) throw new UnsafeObjectPathError('objectKey');
+    } catch (error) {
+      if (!isNotFound(error)) throw error;
+    }
+    await mkdir(dirname(path), { recursive: true });
+    await this.assertContained(path);
+    const body = Buffer.from(input.body.buffer, input.body.byteOffset, input.body.byteLength);
+    await this.writeAtomically(path, body);
+    return { sizeBytes: body.length, etag: createHash('md5').update(body).digest('hex') };
+  }
+
+  async openDerivative(input: DerivativeKeyInput): Promise<OpenedObject> {
+    return this.openObject({ zone: 'derived', objectKey: input.objectKey });
+  }
+
+  async deleteDerivative(input: DerivativeKeyInput): Promise<void> {
+    return this.remove({ zone: 'derived', objectKey: input.objectKey });
   }
 
   async openObject(input: OpenObjectInput): Promise<OpenedObject> {

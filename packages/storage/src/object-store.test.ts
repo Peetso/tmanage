@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { FakeObjectStore } from './fake-object-store.js';
 import { ObjectNotFoundError, PromotionClosedError, SizeMismatchError } from './errors.js';
-import { InvalidObjectKeyComponentError, uploadObjectKey } from './object-key.js';
+import {
+  InvalidObjectKeyComponentError,
+  derivativeObjectKey,
+  uploadObjectKey,
+} from './object-key.js';
 
 const ORG = '019203a4-5b6c-7d8e-9f01-23456789abcd';
 const PROJECT = '019203a4-5b6c-7d8e-9f01-23456789abce';
@@ -155,5 +159,67 @@ describe('FakeObjectStore — promote and withdraw (FILE-002 slice B)', () => {
     await store.withdraw({ objectKey: key });
     expect(store.objects.has(`private/${key}`)).toBe(false);
     expect(store.withdrawn).toEqual([key]);
+  });
+});
+
+describe('derivativeObjectKey (R4 slice 2)', () => {
+  const VERSION = '019203a4-5b6c-7d8e-9f01-23456789abd1';
+  const PREVIEW = '019203a4-5b6c-7d8e-9f01-23456789abd2';
+
+  it('lays the key out under the tenant, then the version, then the preview row', () => {
+    expect(
+      derivativeObjectKey({ organizationId: ORG, fileVersionId: VERSION, previewId: PREVIEW }),
+    ).toBe(`tenant/${ORG}/derivative/${VERSION}/${PREVIEW}`);
+  });
+
+  it('refuses a component that is not a UUID, naming the component only', () => {
+    const input = { organizationId: ORG, fileVersionId: VERSION, previewId: PREVIEW };
+    for (const [field, value] of [
+      ['organizationId', '..'],
+      ['fileVersionId', 'a/../b'],
+      ['previewId', ''],
+    ] as const) {
+      let caught: unknown;
+      try {
+        derivativeObjectKey({ ...input, [field]: value });
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(InvalidObjectKeyComponentError);
+      expect((caught as InvalidObjectKeyComponentError).component).toBe(field);
+    }
+  });
+});
+
+describe('FakeObjectStore — derivatives (R4 slice 2)', () => {
+  const dkey = derivativeObjectKey({
+    organizationId: ORG,
+    fileVersionId: '019203a4-5b6c-7d8e-9f01-23456789abd1',
+    previewId: '019203a4-5b6c-7d8e-9f01-23456789abd2',
+  });
+
+  it('keeps a derivative under derived/, reads it back and deletes it', async () => {
+    const store = new FakeObjectStore(() => 1);
+    const stored = await store.putDerivative({ objectKey: dkey, body: Buffer.from('thumb') });
+    expect(stored.sizeBytes).toBe(5);
+    expect(store.objects.get(`derived/${dkey}`)?.toString()).toBe('thumb');
+    const opened = await store.openDerivative({ objectKey: dkey });
+    expect(opened.sizeBytes).toBe(5);
+    await store.deleteDerivative({ objectKey: dkey });
+    expect(store.objects.has(`derived/${dkey}`)).toBe(false);
+    expect(store.derivativesPut).toEqual([dkey]);
+    expect(store.derivativesDeleted).toEqual([dkey]);
+    await expect(store.openDerivative({ objectKey: dkey })).rejects.toBeInstanceOf(
+      ObjectNotFoundError,
+    );
+  });
+
+  it('models a provider that refused the write: nothing is stored', async () => {
+    const store = new FakeObjectStore(() => 1);
+    store.failNext = new Error('down');
+    await expect(store.putDerivative({ objectKey: dkey, body: Buffer.from('x') })).rejects.toThrow(
+      'down',
+    );
+    expect(store.objects.size).toBe(0);
   });
 });

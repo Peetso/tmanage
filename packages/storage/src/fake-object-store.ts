@@ -1,14 +1,17 @@
+import { createHash } from 'node:crypto';
 import { Readable, Writable } from 'node:stream';
 import type {
   AbortMultipartInput,
   BeginMultipartInput,
   CompleteMultipartInput,
+  DerivativeKeyInput,
   MultipartUpload,
   ObjectStore,
   OpenObjectInput,
   OpenedObject,
   PromoteObjectInput,
   Promotion,
+  PutDerivativeInput,
   RemoveObjectInput,
   StoredObject,
   WithdrawObjectInput,
@@ -53,6 +56,9 @@ export class FakeObjectStore implements ObjectStore {
   readonly withdrawn: string[] = [];
   /** Every `remove` call (FILE-003), in order — so a retention proof can assert the delete ran. */
   readonly removed: RemoveObjectInput[] = [];
+  /** R4 slice 2: every derivative written and every one deleted, by key, in order. */
+  readonly derivativesPut: string[] = [];
+  readonly derivativesDeleted: string[] = [];
   /** Thrown by the next call to any method, then cleared. The provider being down. */
   failNext: Error | null = null;
   /**
@@ -151,6 +157,25 @@ export class FakeObjectStore implements ObjectStore {
     this.consumeFailure();
     this.removed.push(input);
     this.objects.delete(`${input.zone}/${input.objectKey}`);
+  }
+
+  /** Stored under `derived/objectKey` in {@link objects}, so `openDerivative` reads it back. */
+  async putDerivative(input: PutDerivativeInput): Promise<StoredObject> {
+    this.consumeFailure();
+    const bytes = Buffer.from(input.body);
+    this.derivativesPut.push(input.objectKey);
+    this.objects.set(`derived/${input.objectKey}`, bytes);
+    return { sizeBytes: bytes.length, etag: createHash('md5').update(bytes).digest('hex') };
+  }
+
+  async openDerivative(input: DerivativeKeyInput): Promise<OpenedObject> {
+    return this.openObject({ zone: 'derived', objectKey: input.objectKey });
+  }
+
+  async deleteDerivative(input: DerivativeKeyInput): Promise<void> {
+    this.consumeFailure();
+    this.derivativesDeleted.push(input.objectKey);
+    this.objects.delete(`derived/${input.objectKey}`);
   }
 
   async abortMultipart(input: AbortMultipartInput): Promise<void> {

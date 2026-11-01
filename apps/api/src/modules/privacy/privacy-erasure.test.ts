@@ -29,6 +29,8 @@ interface FakeOptions {
   readonly refused?: readonly string[];
   readonly denied?: readonly string[];
   readonly fileKeys?: readonly string[];
+  /** R4 slice 2: `file_previews.object_key` values (NULL for a derivative never written). */
+  readonly previewKeys?: readonly (string | null)[];
 }
 
 function fakeDatabase(options: FakeOptions) {
@@ -60,6 +62,14 @@ function fakeDatabase(options: FakeOptions) {
     },
     query: (sql: string, params: readonly unknown[]) => {
       statements.push({ sql, params });
+      if (sql.includes('from `file_previews`') && params[1] === '') {
+        return Promise.resolve(
+          (options.previewKeys ?? []).map((key, index) => ({
+            id: `p${String(index)}`,
+            object_key: key,
+          })),
+        );
+      }
       if (!sql.includes('from `file_versions`') || params[1] !== '') return Promise.resolve([]);
       return Promise.resolve(
         (options.fileKeys ?? []).map((key, index) => ({
@@ -209,6 +219,16 @@ describe('Company erasure — running it', () => {
     const outcome = await new CompanyErasure(database, store, [], SMALL).run(context);
     expect(outcome.objectsRemoved).toBe(1);
     expect(removed).toEqual([`quarantine:${own}`, `private:${own}`]);
+  });
+
+  it('removes the derivatives TManage made of them from the derived zone (R4 slice 2)', async () => {
+    const own = `tenant/${ORG}/derivative/v/p`;
+    const foreign = `tenant/${OTHER}/derivative/v/p`;
+    const { database } = fakeDatabase({ rows: {}, previewKeys: [own, null, foreign] });
+    const { store, removed } = recordingStore();
+    const outcome = await new CompanyErasure(database, store, [], SMALL).run(context);
+    expect(outcome.objectsRemoved).toBe(1);
+    expect(removed).toEqual([`derived:${own}`]);
   });
 });
 
