@@ -57,7 +57,7 @@ const CONTENT_TABLES = [
 /** Repository file → the list methods that must exclude soft-deleted rows. */
 const LIST_READS: Readonly<Record<string, readonly string[]>> = {
   'conversations/conversations.repository.ts': ['listMessages', 'countRepliesByParent'],
-  'conversations/direct-conversations.repository.ts': ['listForUser', 'listMessages'],
+  'conversations/direct-conversations.repository.ts': ['listMessages'],
   'conversations/message-attachments.repository.ts': [
     'listForMessages',
     'messageIdsInConversation',
@@ -111,6 +111,8 @@ const SINGLE_ROW_OR_SYSTEM: Readonly<Record<string, string>> = {
   'conversations/direct-conversations.repository.ts#findById': 'by id',
   'conversations/direct-conversations.repository.ts#findByClientGeneratedId': 'dedupe probe',
   'conversations/direct-conversations.repository.ts#appendMessage': 'write path',
+  'conversations/direct-conversations.repository.ts#markRead': 'newest message by sequence',
+  'conversations/direct-conversations.repository.ts#readPositions': 'read markers by id',
   'conversations/message-attachments.repository.ts#findAttachment':
     'by key — the attach revives a detached pair',
   'work/work-items.repository.ts#findById': 'by id',

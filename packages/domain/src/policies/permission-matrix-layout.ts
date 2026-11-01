@@ -157,6 +157,16 @@ export const MATRIX_MERGED_CELLS: readonly `${MatrixArea}.${MatrixAction}`[] = [
   'meetings.edit',
 ];
 
+/**
+ * R7 footnote: chat cells that are member-gated rather than project-gated. A group or a direct
+ * conversation belongs to no project; its members reach it, and a client member of a GROUP may
+ * view it (and post, except client_viewer) although no client role holds the capability.
+ */
+export const MATRIX_MEMBER_GATED_CELLS: readonly `${MatrixArea}.${MatrixAction}`[] = [
+  'chat.view',
+  'chat.create',
+];
+
 /** Footnote 1: a cell that mirrors another area's capability (projects · view = work.read). */
 export const MATRIX_MIRRORED_CELLS: readonly `${MatrixArea}.${MatrixAction}`[] = ['projects.view'];
 

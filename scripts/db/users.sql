@@ -1994,3 +1994,16 @@ GRANT INSERT, DELETE ON `tmanage`.`file_review_decisions`         TO 'tmanage_ap
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`figma_connections`      TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`figma_links`            TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`figma_frames`           TO 'tmanage_app'@'%';
+
+-- ---- R7 slice 1 · one storage for every chat ----
+-- 0275 `user_presence` / `link_previews` (tenant): the app upserts a person's heartbeat (INSERT,
+-- UPDATE) and creates the pending preview row when a message with a link is posted (INSERT);
+-- DELETE on both is held for the company erasure. SELECT rides the database-wide read. The worker
+-- unfurls the link (SSRF-guarded) and records the result: INSERT for a message the app did not
+-- stage, UPDATE to mark ready / failed, and SELECT where it writes (claiming pending rows; the
+-- census requires the worker to read every table it writes). The new columns on
+-- `conversations`, `conversation_memberships`, `messages` and `conversation_read_state` ride the
+-- table-level grants those tables already have. 0276 copies direct messages as the migrator.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`user_presence`          TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`link_previews`          TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`link_previews`          TO 'tmanage_worker'@'%';

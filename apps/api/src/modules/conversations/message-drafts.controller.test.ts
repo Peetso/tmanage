@@ -6,6 +6,7 @@ import type { ConversationsRepository } from './conversations.repository.js';
 import type { MessageDraftsRepository } from './message-drafts.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { ConversationMessageDraftRow, ConversationRow } from '../../common/database/schema.js';
+import { CHANNEL_ROW_DEFAULTS } from '../../../test/support/conversation-fixtures.js';
 
 /**
  * x251 chat-message-draft proofs — database-free over fakes with the *real* `authorize`. The
@@ -41,6 +42,7 @@ function conversation(overrides: Partial<ConversationRow> = {}): ConversationRow
     id: 'conversation-0000-0000-00000001',
     organizationId: ORG,
     projectId: 'project-0000-0000-0000-00000001',
+    ...CHANNEL_ROW_DEFAULTS,
     name: 'atlas-relaunch',
     nextSequenceNo: 1,
     createdByUserId: USER,

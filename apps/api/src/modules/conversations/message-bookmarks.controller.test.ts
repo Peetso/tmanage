@@ -40,6 +40,7 @@ const MEMBER: Principal = {
 const conversation = {
   id: CONVERSATION,
   organizationId: ORG,
+  kind: 'project_channel',
   projectId: PROJECT,
   archivedAt: null,
 } as unknown as ConversationRow;

@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { DirectConversationRow } from '../../common/database/schema.js';
-import type {
+import type { DirectParty } from './direct-conversations.repository.js';
+import {
   DirectConversationsRepository,
-  DirectParty,
+  DuplicateDirectMessageError,
 } from './direct-conversations.repository.js';
+import { ConversationsRepository, DuplicateMessageError } from './conversations.repository.js';
 import { DirectConversationsController } from './direct-conversations.controller.js';
 import { DirectConversationsService, mayDirectMessage } from './direct-conversations.service.js';
 import { MentionCandidatesService } from './mention-candidates.controller.js';
@@ -187,5 +189,34 @@ describe('MentionCandidatesService', () => {
     ).rejects.toMatchObject({
       status: 404,
     });
+  });
+});
+
+describe('DirectConversationsRepository on conversations storage (R7)', () => {
+  it('opens a kind=direct conversation with both people, and appends through messages', async () => {
+    const created: unknown[] = [];
+    const members: string[] = [];
+    const conversations = Object.assign(new ConversationsRepository(), {
+      create: async (_r: unknown, _c: unknown, input: unknown) => created.push(input),
+      addMember: async (_r: unknown, _c: unknown, _id: string, userId: string) =>
+        members.push(userId),
+      appendMessage: async () => {
+        throw new DuplicateMessageError('k');
+      },
+    });
+    const repo = Object.assign(new DirectConversationsRepository(conversations), {
+      findById: async () => ({ id: 'dm-1' }),
+    });
+    const { created: isNew } = await repo.insertPair({} as never, context, ME, 'user-b');
+    expect(isNew).toBe(true);
+    expect(created[0]).toMatchObject({ kind: 'direct', projectId: null, directUserLowId: ME });
+    expect(members).toEqual([ME, 'user-b']);
+    await expect(
+      repo.appendMessage({} as never, context, {
+        directConversationId: 'dm-1',
+        body: 'x',
+        clientGeneratedId: 'k',
+      }),
+    ).rejects.toBeInstanceOf(DuplicateDirectMessageError);
   });
 });

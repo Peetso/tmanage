@@ -222,7 +222,11 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
                   key={conversation.id}
                   organizationSlug={organizationSlug}
                   entry={conversation}
-                  projectName={projectNames.get(conversation.projectId) ?? null}
+                  projectName={
+                    conversation.projectId === null
+                      ? null
+                      : (projectNames.get(conversation.projectId) ?? null)
+                  }
                   unreadCount={unreadById.get(conversation.id) ?? 0}
                   now={now}
                 />

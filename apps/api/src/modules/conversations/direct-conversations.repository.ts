@@ -1,13 +1,12 @@
-import { and, asc, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import type { DirectParty } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { unwrapQueryError } from '../../common/database/query-error.js';
 import {
   clientMemberships,
   clientOrganizations,
-  directConversations,
-  directMessages,
+  conversationReadState,
+  conversations,
   memberProfiles,
   memberships,
   messages,
@@ -15,15 +14,20 @@ import {
   projectMemberships,
   users,
 } from '../../common/database/schema.js';
-import type { DirectConversationRow, DirectMessageRow } from '../../common/database/schema.js';
-import type {
-  QueryRows,
-  TenantContext,
-  TenantQueryRunner,
-} from '../../common/database/tenant-context.js';
+import type { ConversationRow, MessageRow } from '../../common/database/schema.js';
+import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+import {
+  ConversationsRepository,
+  DirectPairTakenError,
+  DuplicateMessageError,
+} from './conversations.repository.js';
+import { ConversationReadStateRepository } from './read-state.repository.js';
 
 /**
- * BK3 (COL-03) — the storage half of direct messages (`0214_direct_conversations.sql`).
+ * BK3 (COL-03) — the storage half of direct messages. R7 slice 1 (0276): a direct conversation
+ * is a `conversations` row with `kind = 'direct'` and its sorted pair, its messages are ordinary
+ * `messages` rows, and each person's read marker is their `conversation_read_state` row. The old
+ * `direct_conversations` / `direct_messages` tables are read by nothing any more.
  *
  * Every query is anchored on `context.organizationId`. The relation rule (who may talk to whom)
  * is the service's; this file only answers the facts it needs: what kind of member a user is in
@@ -40,13 +44,30 @@ export class DuplicateDirectMessageError extends Error {
   }
 }
 
-const ER_DUP_ENTRY = 'ER_DUP_ENTRY';
+/**
+ * The pre-R7 `direct_conversations` row shape, kept so the service and DirectMessageScreen keep
+ * working until R7 slice 2 retires the DM endpoints. Each side's read position is derived.
+ */
+export interface DirectThreadRow {
+  readonly id: string;
+  readonly userLowId: string;
+  readonly userHighId: string;
+  readonly nextSequenceNo: number;
+  readonly userLowLastReadSequenceNo: number;
+  readonly userHighLastReadSequenceNo: number;
+  readonly lastMessageAt: Date | null;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+}
 
-function isDuplicate(error: unknown, index: string): boolean {
-  const unwrapped = unwrapQueryError(error) as { code?: unknown; sqlMessage?: unknown } | null;
-  if (typeof unwrapped !== 'object' || unwrapped === null) return false;
-  if (unwrapped.code !== ER_DUP_ENTRY) return false;
-  return typeof unwrapped.sqlMessage === 'string' && unwrapped.sqlMessage.includes(index);
+/** The pre-R7 `direct_messages` row shape, read from `messages`. */
+export interface DirectThreadMessageRow {
+  readonly id: string;
+  readonly directConversationId: string;
+  readonly authorUserId: string;
+  readonly sequenceNo: number;
+  readonly body: string;
+  readonly createdAt: Date;
 }
 
 /**
@@ -63,13 +84,18 @@ export interface DirectParticipantDetails {
 
 /**
  * "Online" means activity in this studio within this many minutes. There is no presence socket
- * state the API can read, so activity is a message the person posted here (a channel message or
- * a direct message) — tenant-scoped on purpose: the cross-tenant session rows would say the
+ * state the API can read, so activity is a message the person posted here (any conversation,
+ * direct ones included since R7) — tenant-scoped on purpose: the cross-tenant session rows would say the
  * person is active in some other studio, which is not this studio's business.
  */
 export const ONLINE_WINDOW_MINUTES = 5;
 
 export class DirectConversationsRepository {
+  constructor(
+    private readonly conversations: ConversationsRepository = new ConversationsRepository(),
+    private readonly readState: ConversationReadStateRepository = new ConversationReadStateRepository(),
+  ) {}
+
   /** What kind of active member `userId` is in this tenant, and which projects they reach. */
   async findParty(
     runner: TenantQueryRunner,
@@ -205,23 +231,13 @@ export class DirectConversationsRepository {
           gt(messages.createdAt, recent),
         ),
       );
-    const postedDirectly = await db
-      .selectDistinct({ userId: directMessages.authorUserId })
-      .from(directMessages)
-      .where(
-        and(
-          eq(directMessages.organizationId, context.organizationId),
-          inArray(directMessages.authorUserId, ids),
-          gt(directMessages.createdAt, recent),
-        ),
-      );
 
     const titleOf = new Map(titles.map((row) => [row.userId, row.jobTitle]));
     const companyOf = new Map<string, string>();
     for (const row of companies) {
       if (!companyOf.has(row.userId)) companyOf.set(row.userId, row.name);
     }
-    const active = new Set([...postedInChannels, ...postedDirectly].map((row) => row.userId));
+    const active = new Set(postedInChannels.map((row) => row.userId));
     return new Map(
       ids.map((id) => [
         id,
@@ -235,97 +251,107 @@ export class DirectConversationsRepository {
     );
   }
 
+  /** R7: the direct conversation for a sorted pair (`uq_conversations_direct_pair`). */
   async findPair(
     runner: TenantQueryRunner,
     context: TenantContext,
     userLowId: string,
     userHighId: string,
-  ): Promise<DirectConversationRow | null> {
-    const [row] = await tenantDrizzle(runner)
+  ): Promise<DirectThreadRow | null> {
+    const rows = await tenantDrizzle(runner)
       .select()
-      .from(directConversations)
+      .from(conversations)
       .where(
         and(
-          eq(directConversations.organizationId, context.organizationId),
-          eq(directConversations.userLowId, userLowId),
-          eq(directConversations.userHighId, userHighId),
+          eq(conversations.organizationId, context.organizationId),
+          eq(conversations.kind, 'direct'),
+          eq(conversations.directUserLowId, userLowId),
+          eq(conversations.directUserHighId, userHighId),
         ),
       )
       .limit(1);
-    return row ?? null;
+    return (await this.toThreads(runner, context, rows))[0] ?? null;
   }
 
   async findById(
     runner: TenantQueryRunner,
     context: TenantContext,
     id: string,
-  ): Promise<DirectConversationRow | null> {
-    const [row] = await tenantDrizzle(runner)
+  ): Promise<DirectThreadRow | null> {
+    const rows = await tenantDrizzle(runner)
       .select()
-      .from(directConversations)
+      .from(conversations)
       .where(
         and(
-          eq(directConversations.organizationId, context.organizationId),
-          eq(directConversations.id, id),
+          eq(conversations.organizationId, context.organizationId),
+          eq(conversations.kind, 'direct'),
+          eq(conversations.id, id),
         ),
       )
       .limit(1);
-    return row ?? null;
+    return (await this.toThreads(runner, context, rows))[0] ?? null;
   }
 
   /**
-   * Insert the pair, or return the row a concurrent opener just inserted. `created` says which.
+   * Insert the pair as a `kind = 'direct'` conversation with both people as members, or return
+   * the row a concurrent opener just inserted. `created` says which.
    */
   async insertPair(
     runner: TenantQueryRunner,
     context: TenantContext,
     userLowId: string,
     userHighId: string,
-  ): Promise<{ readonly row: DirectConversationRow; readonly created: boolean }> {
+  ): Promise<{ readonly row: DirectThreadRow; readonly created: boolean }> {
     const id = uuidv7();
     try {
-      await tenantDrizzle(runner)
-        .insert(directConversations)
-        .values({
-          id,
-          organizationId: context.organizationId,
-          userLowId,
-          userHighId,
-          createdByUserId: context.userId,
-          createdAt: sql`current_timestamp(3)`,
-          updatedAt: sql`current_timestamp(3)`,
-        });
+      await this.conversations.create(runner, context, {
+        id,
+        kind: 'direct',
+        projectId: null,
+        directUserLowId: userLowId,
+        directUserHighId: userHighId,
+        // Never shown; it keeps the column non-empty and unique (0276 uses the same form).
+        name: `dm:${id}`,
+        createdByUserId: context.userId,
+      });
     } catch (error) {
-      if (!isDuplicate(error, 'uq_direct_conversations_pair')) throw error;
+      if (!(error instanceof DirectPairTakenError)) throw error;
       const existing = await this.findPair(runner, context, userLowId, userHighId);
       if (!existing) throw error;
       return { row: existing, created: false };
     }
+    await this.conversations.addMember(runner, context, id, userLowId);
+    await this.conversations.addMember(runner, context, id, userHighId);
     const row = await this.findById(runner, context, id);
     if (!row) throw new Error('direct conversation vanished immediately after insert');
     return { row, created: true };
   }
 
-  /** The caller's direct conversations, most recent activity first. */
+  /** The caller's direct conversations, most recent activity first; archived ones leave. */
   async listForUser(
     runner: TenantQueryRunner,
     context: TenantContext,
     userId: string,
     limit: number,
-  ): Promise<readonly DirectConversationRow[]> {
-    return tenantDrizzle(runner)
+  ): Promise<readonly DirectThreadRow[]> {
+    const rows = await tenantDrizzle(runner)
       .select()
-      .from(directConversations)
+      .from(conversations)
       .where(
         and(
-          eq(directConversations.organizationId, context.organizationId),
-          or(eq(directConversations.userLowId, userId), eq(directConversations.userHighId, userId)),
-          // PA-03 (0245): a soft-deleted conversation leaves the list.
-          isNull(directConversations.deletedAt),
+          eq(conversations.organizationId, context.organizationId),
+          eq(conversations.kind, 'direct'),
+          or(eq(conversations.directUserLowId, userId), eq(conversations.directUserHighId, userId)),
+          isNull(conversations.archivedAt),
         ),
       )
-      .orderBy(desc(directConversations.updatedAt), desc(directConversations.id))
+      .orderBy(
+        desc(conversations.lastMessageAt),
+        desc(conversations.updatedAt),
+        desc(conversations.id),
+      )
       .limit(limit);
+    return this.toThreads(runner, context, rows);
   }
 
   async listMessages(
@@ -334,21 +360,22 @@ export class DirectConversationsRepository {
     directConversationId: string,
     afterSequenceNo: number,
     limit: number,
-  ): Promise<readonly DirectMessageRow[]> {
-    return tenantDrizzle(runner)
+  ): Promise<readonly DirectThreadMessageRow[]> {
+    const rows = await tenantDrizzle(runner)
       .select()
-      .from(directMessages)
+      .from(messages)
       .where(
         and(
-          eq(directMessages.organizationId, context.organizationId),
-          eq(directMessages.directConversationId, directConversationId),
-          gt(directMessages.sequenceNo, afterSequenceNo),
+          eq(messages.organizationId, context.organizationId),
+          eq(messages.conversationId, directConversationId),
+          gt(messages.sequenceNo, afterSequenceNo),
           // PA-03 (0245): a soft-deleted message leaves the list.
-          isNull(directMessages.deletedAt),
+          isNull(messages.deletedAt),
         ),
       )
-      .orderBy(asc(directMessages.sequenceNo))
+      .orderBy(asc(messages.sequenceNo))
       .limit(limit);
+    return rows.map(toThreadMessage);
   }
 
   /** The dedupe read, scoped to the destination conversation (see `ConversationsRepository`). */
@@ -358,47 +385,65 @@ export class DirectConversationsRepository {
     directConversationId: string,
     authorUserId: string,
     clientGeneratedId: string,
-  ): Promise<DirectMessageRow | null> {
-    const [row] = await tenantDrizzle(runner)
-      .select()
-      .from(directMessages)
-      .where(
-        and(
-          eq(directMessages.organizationId, context.organizationId),
-          eq(directMessages.directConversationId, directConversationId),
-          eq(directMessages.authorUserId, authorUserId),
-          eq(directMessages.clientGeneratedId, clientGeneratedId),
-        ),
-      )
-      .limit(1);
-    return row ?? null;
+  ): Promise<DirectThreadMessageRow | null> {
+    const row = await this.conversations.findByClientGeneratedId(
+      runner,
+      context,
+      directConversationId,
+      authorUserId,
+      clientGeneratedId,
+    );
+    return row ? toThreadMessage(row) : null;
   }
 
   /**
-   * 0216: move one participant's read marker forward to `upTo`, never backwards and never past
-   * the allocator's last handed-out number. `updated_at = updated_at` keeps the activity order
-   * of the list unchanged by a read. The side is the service's to name from the row it loaded.
+   * Move the caller's read marker forward to the newest message at or before `upTo`, never
+   * backwards. R7: the marker is the caller's `conversation_read_state` row, keyed by their
+   * internal membership; a client person has no such row, so nothing is stored for them (their
+   * position reads as fully read; R7 slice 6 gives client members a read marker).
    */
   async markRead(
     runner: TenantQueryRunner,
     context: TenantContext,
     directConversationId: string,
-    side: 'low' | 'high',
     upTo: number,
   ): Promise<void> {
-    const column =
-      side === 'low' ? 'user_low_last_read_sequence_no' : 'user_high_last_read_sequence_no';
-    const userColumn = side === 'low' ? 'user_low_id' : 'user_high_id';
-    await runner.execute(
-      `update direct_conversations
-          set ${column} = least(greatest(${column}, ?), next_sequence_no - 1),
-              updated_at = updated_at
-        where organization_id = ? and id = ? and ${userColumn} = ?`,
-      [upTo, context.organizationId, directConversationId, context.userId],
-    );
+    const db = tenantDrizzle(runner);
+    const [membership] = await db
+      .select({ id: memberships.id })
+      .from(memberships)
+      .where(
+        and(
+          eq(memberships.organizationId, context.organizationId),
+          eq(memberships.userId, context.userId),
+        ),
+      )
+      .limit(1);
+    if (!membership) return;
+    const [target] = await db
+      .select({ id: messages.id, sequenceNo: messages.sequenceNo })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.organizationId, context.organizationId),
+          eq(messages.conversationId, directConversationId),
+          lte(messages.sequenceNo, upTo),
+        ),
+      )
+      .orderBy(desc(messages.sequenceNo))
+      .limit(1);
+    if (!target) return;
+    const positions = await this.readPositions(runner, context, [directConversationId]);
+    const current = positions.get(`${directConversationId}:${context.userId}`) ?? 0;
+    if (Number(target.sequenceNo) <= current) return;
+    await this.readState.upsert(runner, context, directConversationId, membership.id, target.id);
   }
 
-  /** Append under the pair row's lock: read the allocator, bump it, insert. */
+  /**
+   * Append through the one message path (`ConversationsRepository.appendMessage`: the allocator
+   * lock, `last_message_id/at`), then mark the author read — posting is reading, so every message
+   * past a participant's marker is from the other person (the unread count).
+   */
   async appendMessage(
     runner: TenantQueryRunner,
     context: TenantContext,
@@ -407,67 +452,118 @@ export class DirectConversationsRepository {
       readonly body: string;
       readonly clientGeneratedId: string | null;
     },
-  ): Promise<DirectMessageRow> {
-    const locked = await runner.execute<QueryRows>(
-      `select next_sequence_no from direct_conversations
-        where organization_id = ? and id = ?
-        for update`,
-      [context.organizationId, input.directConversationId],
-    );
-    const sequenceNo = locked[0]?.['next_sequence_no'] as number | undefined;
-    if (sequenceNo === undefined) throw new Error('direct conversation not found');
-
-    // 0216: posting is reading — the author's own marker moves to the message they send, so
-    // every message past a participant's marker is from the other person (the unread count).
-    await runner.execute(
-      `update direct_conversations
-          set next_sequence_no = next_sequence_no + 1, last_message_at = current_timestamp(3),
-              user_low_last_read_sequence_no = case when user_low_id = ?
-                then greatest(user_low_last_read_sequence_no, ?)
-                else user_low_last_read_sequence_no end,
-              user_high_last_read_sequence_no = case when user_high_id = ?
-                then greatest(user_high_last_read_sequence_no, ?)
-                else user_high_last_read_sequence_no end
-        where organization_id = ? and id = ?`,
-      [
-        context.userId,
-        Number(sequenceNo),
-        context.userId,
-        Number(sequenceNo),
-        context.organizationId,
-        input.directConversationId,
-      ],
-    );
-
-    const id = uuidv7();
+  ): Promise<DirectThreadMessageRow> {
+    let row: MessageRow;
     try {
-      await tenantDrizzle(runner)
-        .insert(directMessages)
-        .values({
-          id,
-          organizationId: context.organizationId,
-          directConversationId: input.directConversationId,
-          authorUserId: context.userId,
-          sequenceNo: Number(sequenceNo),
-          body: input.body,
-          clientGeneratedId: input.clientGeneratedId,
-          createdAt: sql`current_timestamp(3)`,
-        });
+      row = await this.conversations.appendMessage(runner, context, {
+        conversationId: input.directConversationId,
+        authorUserId: context.userId,
+        body: input.body,
+        clientGeneratedId: input.clientGeneratedId,
+      });
     } catch (error) {
-      if (isDuplicate(error, 'uq_direct_messages_client_generated')) {
-        throw new DuplicateDirectMessageError();
-      }
+      if (error instanceof DuplicateMessageError) throw new DuplicateDirectMessageError();
       throw error;
     }
-
-    const [row] = await tenantDrizzle(runner)
-      .select()
-      .from(directMessages)
-      .where(
-        and(eq(directMessages.organizationId, context.organizationId), eq(directMessages.id, id)),
-      )
-      .limit(1);
-    if (!row) throw new Error('direct message vanished immediately after insert');
-    return row;
+    await this.markRead(runner, context, input.directConversationId, Number(row.sequenceNo));
+    return toThreadMessage(row);
   }
+
+  /**
+   * `conversationId:userId → last-read sequence number` for internal people with a read-state
+   * row in `conversationIds` (the marker joins its message for the number).
+   */
+  private async readPositions(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    conversationIds: readonly string[],
+  ): Promise<ReadonlyMap<string, number>> {
+    if (conversationIds.length === 0) return new Map();
+    const rows = await tenantDrizzle(runner)
+      .select({
+        conversationId: conversationReadState.conversationId,
+        userId: memberships.userId,
+        sequenceNo: messages.sequenceNo,
+      })
+      .from(conversationReadState)
+      .innerJoin(
+        memberships,
+        and(
+          eq(memberships.organizationId, conversationReadState.organizationId),
+          eq(memberships.id, conversationReadState.membershipId),
+        ),
+      )
+      .innerJoin(
+        messages,
+        and(
+          eq(messages.organizationId, conversationReadState.organizationId),
+          eq(messages.id, conversationReadState.lastReadMessageId),
+        ),
+      )
+      .where(
+        and(
+          eq(conversationReadState.organizationId, context.organizationId),
+          inArray(conversationReadState.conversationId, [...conversationIds]),
+        ),
+      );
+    return new Map(
+      rows.map((row) => [`${row.conversationId}:${row.userId}`, Number(row.sequenceNo)]),
+    );
+  }
+
+  /** The thread shape of `kind = 'direct'` rows: the pair and each side's read position. */
+  private async toThreads(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    rows: readonly ConversationRow[],
+  ): Promise<readonly DirectThreadRow[]> {
+    if (rows.length === 0) return [];
+    const positions = await this.readPositions(
+      runner,
+      context,
+      rows.map((row) => row.id),
+    );
+    const people = [
+      ...new Set(rows.flatMap((row) => [row.directUserLowId, row.directUserHighId])),
+    ].filter((id): id is string => id !== null);
+    const internal = await tenantDrizzle(runner)
+      .select({ userId: memberships.userId })
+      .from(memberships)
+      .where(
+        and(
+          eq(memberships.organizationId, context.organizationId),
+          inArray(memberships.userId, people),
+        ),
+      );
+    const hasMarker = new Set(internal.map((row) => row.userId));
+    return rows.map((row) => {
+      const low = row.directUserLowId ?? '';
+      const high = row.directUserHighId ?? '';
+      const last = Math.max(0, Number(row.nextSequenceNo) - 1);
+      const marker = (userId: string) =>
+        hasMarker.has(userId) ? (positions.get(`${row.id}:${userId}`) ?? 0) : last;
+      return {
+        id: row.id,
+        userLowId: low,
+        userHighId: high,
+        nextSequenceNo: Number(row.nextSequenceNo),
+        userLowLastReadSequenceNo: marker(low),
+        userHighLastReadSequenceNo: marker(high),
+        lastMessageAt: row.lastMessageAt,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      };
+    });
+  }
+}
+
+function toThreadMessage(row: MessageRow): DirectThreadMessageRow {
+  return {
+    id: row.id,
+    directConversationId: row.conversationId,
+    authorUserId: row.authorUserId,
+    sequenceNo: Number(row.sequenceNo),
+    body: row.body,
+    createdAt: row.createdAt,
+  };
 }

@@ -30,11 +30,15 @@ import type {
   ListMessagesOptions,
 } from './conversations.repository.js';
 import type {
+  ConversationKind,
+  ConversationMemberRole,
   ConversationMembershipRow,
   ConversationRow,
+  MessageKind,
   MessageRevisionRow,
   MessageRow,
 } from '../../common/database/schema.js';
+import { parseMessageMeta } from './message-meta.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { ChannelDirectoryRepository } from './channel-directory.repository.js';
 import { buildChannelDirectory } from './channel-directory.js';
@@ -93,8 +97,17 @@ import type { OutboxEventsRepository } from '../platform/outbox-events.repositor
 /** What a caller is allowed to see of a conversation. */
 export interface ConversationView {
   readonly id: string;
-  readonly projectId: string;
+  /** R7: a project channel, a group, or a direct conversation. */
+  readonly kind: ConversationKind;
+  /** Null for a group or a direct conversation. */
+  readonly projectId: string | null;
   readonly name: string;
+  readonly photoFileAssetId: string | null;
+  readonly description: string | null;
+  readonly settings: { readonly onlyAdminsCanSend: boolean };
+  readonly lastMessageAt: string | null;
+  /** The caller's role in this conversation; absent where the caller has no membership row. */
+  readonly viewerRole?: ConversationMemberRole;
   readonly createdByUserId: string;
   /** The concurrency token. A caller must present it to rename or archive. */
   readonly version: number;
@@ -115,6 +128,9 @@ export interface MessageView {
   readonly authorUserId: string;
   readonly sequenceNo: number;
   readonly parentMessageId: string | null;
+  /** R7: what the message is, and that kind's facts (null once moderated, as the body is). */
+  readonly kind: MessageKind;
+  readonly meta: Record<string, unknown> | null;
   /**
    * `null` once the message has been moderated. The row survives and `deletedAt` records that
    * it was taken down, but the body does not come back out: the point of a removal is that
@@ -146,11 +162,20 @@ export interface MessageView {
  * already knows which organization they asked about, and the rest because they are how the
  * storage holds an invariant rather than facts about the channel.
  */
-function toConversationView(row: ConversationRow): ConversationView {
+function toConversationView(
+  row: ConversationRow,
+  viewerRole?: ConversationMemberRole,
+): ConversationView {
   return {
     id: row.id,
+    kind: row.kind,
     projectId: row.projectId,
     name: row.name,
+    photoFileAssetId: row.photoFileAssetId,
+    description: row.description,
+    settings: { onlyAdminsCanSend: row.onlyAdminsCanSend === 1 },
+    lastMessageAt: row.lastMessageAt ? row.lastMessageAt.toISOString() : null,
+    ...(viewerRole === undefined ? {} : { viewerRole }),
     createdByUserId: row.createdByUserId,
     version: Number(row.version),
     createdAt: row.createdAt.toISOString(),
@@ -198,6 +223,9 @@ function toMessageView(row: MessageRow): MessageView {
     authorUserId: row.authorUserId,
     sequenceNo: Number(row.sequenceNo),
     parentMessageId: row.parentMessageId,
+    kind: row.kind,
+    meta:
+      row.deletedAt === null ? ((row.metaJson as Record<string, unknown> | null) ?? null) : null,
     body: row.deletedAt === null ? row.body : null,
     bodyRich: row.deletedAt === null ? (row.bodyRich as RichTextDocument | null) : null,
     editedAt: row.editedAt ? row.editedAt.toISOString() : null,
@@ -209,8 +237,11 @@ function toMessageView(row: MessageRow): MessageView {
 }
 
 export interface CreateConversationCommand {
-  readonly projectId: string;
+  /** R7: `group` has no project and its creator is its first admin. Absent means a channel. */
+  readonly kind?: Extract<ConversationKind, 'project_channel' | 'group'>;
+  readonly projectId?: string | null;
   readonly name: string;
+  readonly description?: string | null;
 }
 
 /**
@@ -230,6 +261,9 @@ export interface MessageContentCommand {
 export interface PostMessageCommand extends MessageContentCommand {
   readonly parentMessageId?: string | null;
   readonly clientGeneratedId?: string | null;
+  /** R7: `text` when absent. `meta` is validated per kind (`message-meta.ts`). */
+  readonly kind?: MessageKind;
+  readonly meta?: unknown;
 }
 
 export interface PostMessageResult {
@@ -330,7 +364,7 @@ export class ConversationsService {
     for (const row of rows) {
       if (await this.mayReach(context, principal, row, 'conversation.read')) visible.push(row);
     }
-    return visible.map(toConversationView);
+    return visible.map((row) => toConversationView(row));
   }
 
   /**
@@ -364,7 +398,10 @@ export class ConversationsService {
     conversationId: string,
   ): Promise<ConversationView> {
     const row = await this.loadReadable(context, principal, conversationId);
-    return toConversationView(row);
+    const membership = await this.database.read(context, (runner) =>
+      this.conversations.findMembership(runner, context, row.id, principal.userId),
+    );
+    return toConversationView(row, membership?.role);
   }
 
   /**
@@ -379,18 +416,32 @@ export class ConversationsService {
     principal: Principal,
     command: CreateConversationCommand,
   ): Promise<ConversationView> {
-    const project = await this.database.read(context, (runner) =>
-      this.projects.findById(runner, context, command.projectId),
-    );
-    if (!project || project.archivedAt !== null) {
-      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    const isGroup = command.kind === 'group';
+    const projectId = isGroup ? null : (command.projectId ?? null);
+    if (projectId === null) {
+      if (!isGroup) {
+        throw new ApiError(422, 'validation_failed', 'A channel needs a project', [
+          { field: 'projectId', message: 'is required for a project channel' },
+        ]);
+      }
+      // R7: a group belongs to no project. Creating one is an internal act: the evaluator with no
+      // project and no conversation kind refuses a client principal on the internal-only guard.
+      this.requireProjectRelation(context, principal, null, 'conversation.write');
+    } else {
+      const project = await this.database.read(context, (runner) =>
+        this.projects.findById(runner, context, projectId),
+      );
+      if (!project || project.archivedAt !== null) {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound);
+      }
+      this.requireProjectRelation(context, principal, projectId, 'conversation.write');
     }
 
-    this.requireProjectRelation(context, principal, command.projectId, 'conversation.write');
-
     const input: CreateConversationInput = {
-      projectId: command.projectId,
+      kind: isGroup ? 'group' : 'project_channel',
+      projectId,
       name: command.name,
+      description: command.description ?? null,
       createdByUserId: context.userId,
     };
 
@@ -405,16 +456,23 @@ export class ConversationsService {
         throw error;
       }
 
-      await this.conversations.addMember(tx, context, created.id, context.userId);
+      // R7: a group's creator is its first admin; nobody else joins until they are added.
+      await this.conversations.addMember(
+        tx,
+        context,
+        created.id,
+        context.userId,
+        created.projectId === null ? 'admin' : 'member',
+      );
 
       // CQ-12 (COL-01): a project channel is the room the project team talks in, so everyone
       // on the project is in it from the start — not only its creator. Each still passes
       // `authorize()` on every read; a membership here can only narrow, never widen (§4).
-      const team = await this.projectMemberships.listUserIdsByProject(
-        tx,
-        context,
-        created.projectId,
-      );
+      // No team auto-join for a group: it has no project team.
+      const team =
+        created.projectId === null
+          ? []
+          : await this.projectMemberships.listUserIdsByProject(tx, context, created.projectId);
       for (const userId of team) {
         if (userId !== context.userId) {
           await this.conversations.addMember(tx, context, created.id, userId);
@@ -425,13 +483,13 @@ export class ConversationsService {
         action: 'conversation.created',
         objectId: created.id,
         result: 'allowed',
-        metadata: { project_id: created.projectId },
+        metadata: { project_id: created.projectId, kind: created.kind },
       });
 
       return created;
     });
 
-    return toConversationView(row);
+    return toConversationView(row, row.projectId === null ? 'admin' : 'member');
   }
 
   async rename(
@@ -504,9 +562,10 @@ export class ConversationsService {
     userId: string,
   ): Promise<ConversationMemberView> {
     const conversation = await this.loadWritable(context, principal, conversationId);
+    const projectId = this.requireChannelProject(conversation);
 
     const related = await this.database.read(context, (runner) =>
-      this.projectMemberships.findByProjectAndUser(runner, context, conversation.projectId, userId),
+      this.projectMemberships.findByProjectAndUser(runner, context, projectId, userId),
     );
     if (!related) {
       throw new ApiError(
@@ -607,12 +666,23 @@ export class ConversationsService {
     // 422 without the cost of a conversation load, and nothing below this line ever holds an
     // unsanitised body.
     const content = this.resolveContent(command);
+    const kind: MessageKind = command.kind ?? 'text';
+    const meta = parseMessageMeta(kind, command.meta);
 
     const conversation = await this.loadWritable(context, principal, conversationId);
     if (conversation.archivedAt !== null) {
       // `authorize()` already refuses a write against an archived resource; this repeats it
       // with a message a person can act on rather than a bare 404.
       throw new ApiError(409, 'conflict', 'This channel is archived, so nothing can be posted');
+    }
+    if (conversation.onlyAdminsCanSend === 1) {
+      // R7: the group setting. A 403, because the caller can already read the conversation.
+      const membership = await this.database.read(context, (runner) =>
+        this.conversations.findMembership(runner, context, conversationId, principal.userId),
+      );
+      if (membership?.role !== 'admin') {
+        throw new ApiError(403, 'forbidden', 'Only admins can send messages here');
+      }
     }
 
     if (command.clientGeneratedId) {
@@ -640,6 +710,8 @@ export class ConversationsService {
       bodyRich: content.bodyRich,
       parentMessageId: command.parentMessageId ?? null,
       clientGeneratedId: command.clientGeneratedId ?? null,
+      kind,
+      meta,
     };
 
     const row = await this.database.transaction(context, async (tx) => {
@@ -662,9 +734,12 @@ export class ConversationsService {
             sequenceNo: Number(appended.sequenceNo),
             // CQ-12 (COL-05): who the body mentions, as ids. The author is never told about
             // their own mention; the consumer re-checks each person's access at delivery.
-            mentionedUserIds: extractMentionedUserIds(content.body).filter(
-              (id) => id !== context.userId,
-            ),
+            // R7: none for a group or a direct conversation until slice 6 — the worker's mention
+            // planner reads the project relation, and these conversations have no project.
+            mentionedUserIds:
+              conversation.projectId === null
+                ? []
+                : extractMentionedUserIds(content.body).filter((id) => id !== context.userId),
             authorUserId: context.userId,
           },
         });
@@ -780,6 +855,7 @@ export class ConversationsService {
     command: ConvertMessageCommand = {},
   ): Promise<ConvertMessageResultView> {
     const conversation = await this.loadReadable(context, principal, conversationId);
+    const projectId = this.requireChannelProject(conversation);
 
     const message = await this.database.read(context, (runner) =>
       this.conversations.findMessageById(runner, context, messageId),
@@ -811,11 +887,11 @@ export class ConversationsService {
     // portal, so it needs what `WorkItemsService.create` asks for that — `deliverable.publish`
     // on the conversation's project — and is refused before anything is written.
     if (command.audience !== undefined && command.audience !== 'internal') {
-      this.requirePublish(context, principal, conversation.projectId);
+      this.requirePublish(context, principal, projectId);
     }
 
     const project = await this.database.read(context, (runner) =>
-      this.projects.findById(runner, context, conversation.projectId),
+      this.projects.findById(runner, context, projectId),
     );
     if (!project || project.archivedAt !== null) {
       // The channel outlived its project's active life. Nothing new is filed into an
@@ -835,7 +911,7 @@ export class ConversationsService {
     try {
       const { row, link } = await this.database.transaction(context, async (tx) => {
         const created = await this.workItems.create(tx, context, {
-          projectId: conversation.projectId,
+          projectId,
           title,
           ...(command.type === undefined ? {} : { type: command.type }),
           ...(command.ownerUserId === undefined ? {} : { ownerUserId: command.ownerUserId }),
@@ -1124,6 +1200,14 @@ export class ConversationsService {
     row: ConversationRow,
     capability: Extract<Capability, 'conversation.read' | 'conversation.write'>,
   ): Promise<boolean> {
+    // R7: a group or a direct conversation is member-gated for everyone, org-wide scope included,
+    // so the membership is read first and handed to the evaluator as the relation.
+    const memberGated = row.kind !== 'project_channel';
+    const membership = memberGated
+      ? await this.database.read(context, (runner) =>
+          this.conversations.findMembership(runner, context, row.id, principal.userId),
+        )
+      : undefined;
     const verdict = authorize({
       principal,
       capability,
@@ -1132,16 +1216,31 @@ export class ConversationsService {
         projectId: row.projectId,
         audience: 'internal',
         lifecycle: row.archivedAt === null ? 'active' : 'archived',
+        conversationKind: row.kind,
+        ...(memberGated ? { conversationMember: membership != null } : {}),
       },
     });
     if (!verdict.allowed) return false;
+    if (memberGated) return true;
 
     if (principal.hasOrgWideScope) return true;
 
-    const membership = await this.database.read(context, (runner) =>
+    const channelMembership = await this.database.read(context, (runner) =>
       this.conversations.findMembership(runner, context, row.id, principal.userId),
     );
-    return membership !== null;
+    return channelMembership !== null;
+  }
+
+  /** R7: the project of a project channel; a 422 for a group or a direct conversation. */
+  private requireChannelProject(row: ConversationRow): string {
+    if (row.projectId === null) {
+      throw new ApiError(
+        422,
+        'validation_failed',
+        'This conversation belongs to no project, so it cannot do that',
+      );
+    }
+    return row.projectId;
   }
 
   /**
@@ -1174,7 +1273,7 @@ export class ConversationsService {
   private requireProjectRelation(
     context: TenantContext,
     principal: Principal,
-    projectId: string,
+    projectId: string | null,
     capability: Extract<Capability, 'conversation.write'>,
   ): void {
     const verdict = authorize({

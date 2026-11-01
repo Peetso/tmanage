@@ -678,7 +678,7 @@ export function ProjectChannelScreen({
             api={api}
             organizationSlug={organizationSlug}
             message={recordFrom}
-            {...(projectId === undefined ? {} : { defaultProjectId: projectId })}
+            {...(projectId == null ? {} : { defaultProjectId: projectId })}
             onClose={() => setRecordFrom(undefined)}
             onRecorded={(decision) => {
               setRecordFrom(undefined);

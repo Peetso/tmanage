@@ -9,6 +9,10 @@ import { ProjectsRepository } from '../projects/projects.repository.js';
 import { ProjectMembershipsRepository } from '../projects/project-memberships.repository.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
+import {
+  CHANNEL_ROW_DEFAULTS,
+  MESSAGE_ROW_DEFAULTS,
+} from '../../../test/support/conversation-fixtures.js';
 
 /**
  * CQ-12 — COL-01 (a new channel is the project team's room, not only its creator's) and COL-05
@@ -49,6 +53,7 @@ function channel(): ConversationRow {
     id: CHANNEL,
     organizationId: ORG,
     projectId: PROJECT,
+    ...CHANNEL_ROW_DEFAULTS,
     name: 'design',
     nextSequenceNo: 1,
     createdByUserId: SARA,
@@ -94,6 +99,7 @@ class FakeConversations extends ConversationsRepository {
       parentMessageId: null,
       depth: 0,
       parentDepth: null,
+      ...MESSAGE_ROW_DEFAULTS,
       body: input.body,
       bodyRich: null,
       clientGeneratedId: null,
@@ -140,6 +146,17 @@ function build() {
 }
 
 describe('CQ-12 project channels', () => {
+  it('R7: refuses a non-admin post when only admins can send', async () => {
+    const { service, conversations } = build();
+    Object.assign(conversations, {
+      findById: async () => ({ ...channel(), onlyAdminsCanSend: 1 }),
+      findMembership: async () => ({ role: 'member' }),
+    });
+    await expect(
+      service.postMessage(CONTEXT, PRINCIPAL, CHANNEL, { body: 'hi' }),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+
   it('COL-01: a new channel holds the whole project team, not only its creator', async () => {
     const { service, conversations } = build();
     await service.create(CONTEXT, PRINCIPAL, { projectId: PROJECT, name: 'design' });

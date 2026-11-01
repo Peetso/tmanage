@@ -5929,16 +5929,38 @@ export const uploadSessions = mysqlTable(
  * `nextSequenceNo` is the allocator behind `messages.sequenceNo`. A message insert takes this
  * row's lock, writes the value it read, and increments it, inside one transaction.
  */
+export const CONVERSATION_KINDS = ['project_channel', 'group', 'direct'] as const;
+export type ConversationKind = (typeof CONVERSATION_KINDS)[number];
+export const CONVERSATION_MEMBER_ROLES = ['member', 'admin'] as const;
+export type ConversationMemberRole = (typeof CONVERSATION_MEMBER_ROLES)[number];
+export const MESSAGE_KINDS = ['text', 'voice', 'system', 'location'] as const;
+export type MessageKind = (typeof MESSAGE_KINDS)[number];
+
 export const conversations = mysqlTable(
   'conversations',
   {
     id: char('id', { length: 36 }).primaryKey(),
     organizationId: char('organization_id', { length: 36 }).notNull(),
-    projectId: char('project_id', { length: 36 }).notNull(),
+    // R7 (0275): a project channel, a group with no project, or a one-to-one direct chat.
+    kind: mysqlEnum('kind', CONVERSATION_KINDS).notNull().default('project_channel'),
+    /** NULL for a group or a direct conversation (0275); every project channel names one. */
+    projectId: char('project_id', { length: 36 }),
+    /** The two people of a direct conversation, sorted (low < high); NULL otherwise. */
+    directUserLowId: char('direct_user_low_id', { length: 36 }),
+    directUserHighId: char('direct_user_high_id', { length: 36 }),
     name: varchar('name', { length: 120 }).notNull(),
+    /** A group photo: a scanned `file_assets` row. */
+    photoFileAssetId: char('photo_file_asset_id', { length: 36 }),
+    description: varchar('description', { length: 500 }),
+    onlyAdminsCanSend: tinyint('only_admins_can_send').notNull().default(0),
+    /** A group invite link's token (43 url-safe characters); NULL when no link is live. */
+    inviteToken: char('invite_token', { length: 43 }),
     nextSequenceNo: bigint('next_sequence_no', { mode: 'number', unsigned: true })
       .notNull()
       .default(1),
+    /** Stamped by every post, for the chat list. */
+    lastMessageId: char('last_message_id', { length: 36 }),
+    lastMessageAt: datetime('last_message_at', { mode: 'date', fsp: 3 }),
     createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
     version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
@@ -5952,6 +5974,13 @@ export const conversations = mysqlTable(
       table.projectId,
       table.name,
     ),
+    uniqueIndex('uq_conversations_direct_pair').on(
+      table.organizationId,
+      table.directUserLowId,
+      table.directUserHighId,
+    ),
+    uniqueIndex('uq_conversations_invite').on(table.organizationId, table.inviteToken),
+    index('ix_conversations_last_message').on(table.organizationId, table.lastMessageAt),
   ],
 );
 
@@ -5968,6 +5997,10 @@ export const conversationMemberships = mysqlTable(
     organizationId: char('organization_id', { length: 36 }).notNull(),
     conversationId: char('conversation_id', { length: 36 }).notNull(),
     userId: char('user_id', { length: 36 }).notNull(),
+    // R7 (0275): a group's admins; per-person pin and archive for the chat list.
+    role: mysqlEnum('role', CONVERSATION_MEMBER_ROLES).notNull().default('member'),
+    pinnedAt: datetime('pinned_at', { mode: 'date', fsp: 3 }),
+    archivedAt: datetime('archived_at', { mode: 'date', fsp: 3 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
   },
   (table) => [
@@ -6039,6 +6072,8 @@ export const messages = mysqlTable(
     parentMessageId: char('parent_message_id', { length: 36 }),
     depth: tinyint('depth', { unsigned: true }).notNull().default(0),
     parentDepth: tinyint('parent_depth', { unsigned: true }),
+    /** R7 (0275): what the message is; `metaJson` carries that kind's facts. */
+    kind: mysqlEnum('kind', MESSAGE_KINDS).notNull().default('text'),
     body: text('body').notNull(),
     /**
      * The sanitised rich-text document, exactly as `sanitizeRichText` admitted it, or NULL
@@ -6047,6 +6082,8 @@ export const messages = mysqlTable(
      * said. See `0008_message_rich_text.sql`.
      */
     bodyRich: json('body_rich').$type<unknown>(),
+    /** R7 (0275): reply / forward / voice / location / system facts, validated per kind. */
+    metaJson: json('meta_json').$type<unknown>(),
     clientGeneratedId: char('client_generated_id', { length: 36 }),
     editedAt: datetime('edited_at', { mode: 'date', fsp: 3 }),
     deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
@@ -7845,6 +7882,8 @@ export const conversationReadState = mysqlTable(
     conversationId: char('conversation_id', { length: 36 }).notNull(),
     membershipId: char('membership_id', { length: 36 }).notNull(),
     lastReadMessageId: char('last_read_message_id', { length: 36 }).notNull(),
+    /** R7 (0275): the newest message delivered to this member, for receipts. */
+    lastDeliveredMessageId: char('last_delivered_message_id', { length: 36 }),
     readAt: datetime('read_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
   },
@@ -7860,6 +7899,44 @@ export const conversationReadState = mysqlTable(
 );
 
 export type ConversationReadStateRow = typeof conversationReadState.$inferSelect;
+
+/**
+ * R7 (0275). One heartbeat per person per studio ("online" / "last seen"). No `id`: the primary
+ * key `(organization_id, user_id)` leads with the tenant column, and the heartbeat is an upsert.
+ */
+export const userPresence = mysqlTable(
+  'user_presence',
+  {
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    lastSeenAt: datetime('last_seen_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.organizationId, table.userId] })],
+);
+
+export const LINK_PREVIEW_STATUSES = ['pending', 'ready', 'failed'] as const;
+
+/** R7 (0275). What the worker unfurled for one message's first link (SSRF-guarded, worker only). */
+export const linkPreviews = mysqlTable(
+  'link_previews',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    messageId: char('message_id', { length: 36 }).notNull(),
+    url: varchar('url', { length: 2048 }).notNull(),
+    title: varchar('title', { length: 300 }),
+    description: varchar('description', { length: 500 }),
+    imageUrl: varchar('image_url', { length: 2048 }),
+    siteName: varchar('site_name', { length: 120 }),
+    status: mysqlEnum('status', LINK_PREVIEW_STATUSES).notNull().default('pending'),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_link_previews_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_link_previews_message').on(table.organizationId, table.messageId),
+    index('ix_link_previews_status').on(table.status, table.createdAt),
+  ],
+);
 
 /**
  * x251 — a member's unsent composer draft for one conversation (CH-06 "Composer").
@@ -9639,6 +9716,8 @@ export const TABLES = {
   file_comments: fileComments,
   work_item_watchers: workItemWatchers,
   conversation_read_state: conversationReadState,
+  user_presence: userPresence,
+  link_previews: linkPreviews,
   users,
   sessions,
   session_refresh_tokens: sessionRefreshTokens,
@@ -9910,6 +9989,8 @@ export type NewClientProjectionRow = typeof clientProjections.$inferInsert;
 export type PortalFeedbackRow = typeof portalFeedback.$inferSelect;
 export type NewPortalFeedbackRow = typeof portalFeedback.$inferInsert;
 export type ConversationRow = typeof conversations.$inferSelect;
+export type UserPresenceRow = typeof userPresence.$inferSelect;
+export type LinkPreviewRow = typeof linkPreviews.$inferSelect;
 export type ConversationMembershipRow = typeof conversationMemberships.$inferSelect;
 export type ConversationPinnedMessageRow = typeof conversationPinnedMessages.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;

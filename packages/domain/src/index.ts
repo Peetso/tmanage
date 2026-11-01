@@ -72,6 +72,7 @@ export type { OffboardingState } from './state-machines/offboarding.js';
 // Policies — 12-PERMISSION-MATRIX.md, 25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md
 export {
   CAPABILITIES,
+  CLIENT_GROUP_CHAT_CAPABILITIES,
   CLIENT_ROLES,
   INTERNAL_ROLES,
   INTERNAL_ONLY_CAPABILITIES,

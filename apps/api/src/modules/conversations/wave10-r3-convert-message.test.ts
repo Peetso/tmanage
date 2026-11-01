@@ -4,6 +4,7 @@ import { ApiError } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ConversationsService } from './conversations.service.js';
 import type { ConversationRow, WorkItemRow } from '../../common/database/schema.js';
+import { CHANNEL_ROW_DEFAULTS } from '../../../test/support/conversation-fixtures.js';
 
 /**
  * Wave 10 R3, message-to-work conversion.
@@ -54,6 +55,7 @@ const conversation: ConversationRow = {
   id: CHANNEL,
   organizationId: ORG,
   projectId: PROJECT_A,
+  ...CHANNEL_ROW_DEFAULTS,
   name: 'atlas-relaunch',
   nextSequenceNo: 2,
   createdByUserId: USER,

@@ -58,8 +58,8 @@ function fixture(current: DirectConversationRow) {
       new Map([
         [OTHER, { displayName: 'Bea', jobTitle: null, clientCompanyName: null, online: false }],
       ]),
-    markRead: async (_r: unknown, _c: unknown, id: string, side: string, upTo: number) => {
-      calls.markRead.push([id, side, upTo]);
+    markRead: async (_r: unknown, _c: unknown, id: string, upTo: number) => {
+      calls.markRead.push([id, upTo]);
       state = { ...state, userLowLastReadSequenceNo: Math.min(upTo, state.nextSequenceNo - 1) };
     },
     appendMessage: async () => ({
@@ -90,7 +90,7 @@ describe('direct messages — unread counts and live delivery', () => {
   it('marks read on the caller’s side, to the latest when no number is given', async () => {
     const { svc, calls } = fixture(row());
     const result = await svc.markRead(context, member, 'dm-1');
-    expect(calls.markRead).toEqual([['dm-1', 'low', Number.MAX_SAFE_INTEGER]]);
+    expect(calls.markRead).toEqual([['dm-1', Number.MAX_SAFE_INTEGER]]);
     expect(result).toEqual({
       directConversationId: 'dm-1',
       lastSequenceNo: 7,
@@ -99,20 +99,22 @@ describe('direct messages — unread counts and live delivery', () => {
     });
   });
 
-  it('writes direct_message.created.v1 naming the other participant with the post', async () => {
+  it('writes message.created.v1 for the direct conversation with the post (R7)', async () => {
     const { svc, calls } = fixture(row());
     const result = await svc.post(context, member, 'dm-1', { body: 'hi' });
     expect(result.created).toBe(true);
     expect(calls.outbox).toEqual([
       {
-        type: 'direct_message.created.v1',
+        type: 'message.created.v1',
         aggregateId: 'dm-1',
         payload: {
-          directConversationId: 'dm-1',
           messageId: 'msg-8',
+          conversationId: 'dm-1',
+          projectId: null,
+          parentMessageId: null,
           sequenceNo: 8,
+          mentionedUserIds: [],
           authorUserId: ME,
-          recipientUserId: OTHER,
         },
       },
     ]);

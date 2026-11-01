@@ -143,7 +143,11 @@ export class MessageBookmarksService {
     runner: TenantQueryRunner,
   ): Promise<void> {
     const conversation = await this.conversations.findById(runner, context, conversationId);
-    if (!conversation) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    // R7: saved messages cover project channels only until a later R7 slice; a group or a direct
+    // conversation is member-gated for everyone, which the org-wide shortcut below would skip.
+    if (!conversation || conversation.kind !== 'project_channel') {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
 
     const message = await this.conversations.findMessageById(runner, context, messageId);
     if (!message || message.conversationId !== conversationId) {

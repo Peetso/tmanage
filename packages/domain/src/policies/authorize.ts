@@ -1,4 +1,6 @@
 import {
+  CLIENT_GROUP_CHAT_CAPABILITIES,
+  CLIENT_GROUP_READ_ONLY_ROLE,
   capabilitySetFor,
   customRoleIdOf,
   isPlatformSupportRole,
@@ -147,6 +149,14 @@ export interface ResourceContext {
    * Unpublished versions are invisible to clients regardless of audience.
    */
   readonly isPublished?: boolean;
+  /**
+   * R7. For a conversation: what it is. A `group` or `direct` conversation has no project, so the
+   * project relation cannot gate it — membership of the conversation does (`conversationMember`).
+   * Absent or `project_channel` keeps the project-channel rules unchanged.
+   */
+  readonly conversationKind?: 'project_channel' | 'group' | 'direct';
+  /** R7. Whether the principal has a `conversation_memberships` row on this conversation. */
+  readonly conversationMember?: boolean;
 }
 
 /**
@@ -176,6 +186,8 @@ export type DenialCode =
   | 'capability_is_internal_only'
   | 'client_organization_mismatch'
   | 'not_project_member'
+  /** R7. A group or direct conversation is reachable only by its members. */
+  | 'not_conversation_member'
   | 'audience_internal'
   | 'not_published'
   | 'not_assigned_reviewer'
@@ -254,6 +266,35 @@ export function authorize(request: AuthorizationRequest): AuthorizationDecision 
     return deny('tenant_mismatch', 'resource belongs to a different organization');
   }
 
+  // 2a. R7 member-gated chats. A group or a direct conversation belongs to no project: its
+  //     members are its relation, for everyone. A client principal may reach a GROUP it is in
+  //     (read; write unless client_viewer) — the only client path to `conversation.*`, decided
+  //     here because the ceiling and the internal-only guard below would refuse it. Policy, deny
+  //     overrides and lifecycle still apply; a direct conversation is never client-reachable here.
+  const memberGatedChat =
+    resource.conversationKind !== undefined &&
+    resource.conversationKind !== 'project_channel' &&
+    CLIENT_GROUP_CHAT_CAPABILITIES.includes(capability);
+  if (memberGatedChat && resource.conversationMember !== true) {
+    return deny('not_conversation_member', 'principal is not a member of this conversation');
+  }
+  const isClientPrincipal = principal.kind === 'client' || isClientRole(principal.role);
+  if (memberGatedChat && isClientPrincipal && resource.conversationKind === 'group') {
+    if (principal.overrides?.deny.includes(capability) === true) {
+      return deny('capability_denied_by_override', `${capability} is removed for this member`);
+    }
+    if (capability === 'conversation.write' && principal.role === CLIENT_GROUP_READ_ONLY_ROLE) {
+      return deny('capability_not_in_role_ceiling', `role ${principal.role} may not post`);
+    }
+    if (policy?.disabledCapabilities?.includes(capability)) {
+      return deny('capability_disabled_by_policy', `${capability} is disabled by policy`);
+    }
+    if ((resource.lifecycle ?? 'active') !== 'active') {
+      return deny('resource_not_active', `resource is ${resource.lifecycle}`);
+    }
+    return ALLOW;
+  }
+
   // 3. Role ceiling — a built-in role's ceiling, or a custom role's exact capability set —
   //    adjusted by the member's live overrides (PA-01, SPEC §3.3): allowed when the role holds
   //    it or an allow names it, and no deny names it. Org policy (4) and the internal-only
@@ -278,7 +319,7 @@ export function authorize(request: AuthorizationRequest): AuthorizationDecision 
   // 5. Independent internal-only guard. This intentionally duplicates the role table:
   //    if a future edit wrongly grants an internal capability to a client role, this
   //    still denies. The cost of a mistake here is a client reading internal content.
-  const isClient = principal.kind === 'client' || isClientRole(principal.role);
+  const isClient = isClientPrincipal;
   if (isClient && isInternalOnlyCapability(capability)) {
     return deny(
       'capability_is_internal_only',

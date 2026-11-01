@@ -337,7 +337,8 @@ export interface ClientRequestMessagePostedV1 {
 export interface MessageCreatedV1 {
   readonly messageId: string;
   readonly conversationId: string;
-  readonly projectId: string;
+  /** R7: null for a group or a direct conversation, which belong to no project. */
+  readonly projectId: string | null;
   readonly parentMessageId: string | null;
   readonly sequenceNo?: number;
   /**

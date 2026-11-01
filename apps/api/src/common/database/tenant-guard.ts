@@ -222,6 +222,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // channel's pinned context is a moderation act, and the pinned strip is scoped to one tenant.
   conversation_pinned_messages: 'organization_id',
   messages: 'organization_id',
+  // R7 slice 1 (0275). A person's "last seen" in one studio and the worker's unfurl of a message's
+  // first link: both tenant-owned, and an unscoped read would be who is online in every studio, or
+  // which links every studio's people sent. After `messages`, so the company erasure (reverse
+  // order) empties the previews before the messages they describe.
+  user_presence: 'organization_id',
+  link_previews: 'organization_id',
   // x251. A member's unsent composer draft, tenant-owned and keyed to the acting membership —
   // an unscoped read would be everybody's half-typed messages across every studio.
   conversation_message_drafts: 'organization_id',

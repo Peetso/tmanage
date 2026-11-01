@@ -41,7 +41,7 @@ export interface SavedMessageRow {
   readonly bodyRich: unknown;
   readonly bookmarkedAt: Date;
   /** The channel's project, for the service's per-row `authorize('conversation.read')` (F13). */
-  readonly projectId: string;
+  readonly projectId: string | null;
   /** The channel's archive instant, for the evaluator's lifecycle input. */
   readonly archivedAt: Date | null;
 }
@@ -178,6 +178,8 @@ export class MessageBookmarksRepository {
         and(
           eq(conversations.organizationId, messages.organizationId),
           eq(conversations.id, messages.conversationId),
+          // R7: project channels only (see `MessageBookmarksService.resolveReadable`).
+          eq(conversations.kind, 'project_channel'),
         ),
       );
 

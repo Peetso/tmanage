@@ -2,12 +2,13 @@ import { hasCapability, mayDirectMessage } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import type { DirectConversationRow, DirectMessageRow } from '../../common/database/schema.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { DuplicateDirectMessageError } from './direct-conversations.repository.js';
 import type {
   DirectConversationsRepository,
   DirectParticipantDetails,
+  DirectThreadMessageRow as DirectMessageRow,
+  DirectThreadRow as DirectConversationRow,
 } from './direct-conversations.repository.js';
 
 /** The relation rule now lives in `@tmanage/domain` so the worker applies the same one. */
@@ -120,7 +121,10 @@ export class DirectConversationsService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly repository: DirectConversationsRepository,
-    /** BK3-left: `direct_message.created.v1` for the socket fan-out and the recipient's notice. */
+    /**
+     * R7: `message.created.v1` — a direct conversation is a conversation now, so the one message
+     * fan-out carries it (`direct_message.created.v1` is no longer emitted).
+     */
     private readonly outbox?: OutboxEventsRepository,
   ) {}
 
@@ -207,7 +211,7 @@ export class DirectConversationsService {
     command: { readonly body: string; readonly clientGeneratedId?: string },
   ): Promise<{ readonly message: DirectMessageView; readonly created: boolean }> {
     this.requireInternalCapability(principal, 'write');
-    const conversation = await this.loadReachable(context, directConversationId);
+    await this.loadReachable(context, directConversationId);
 
     if (command.clientGeneratedId !== undefined) {
       const clientGeneratedId = command.clientGeneratedId;
@@ -223,7 +227,6 @@ export class DirectConversationsService {
       if (existing) return { message: toMessageView(existing), created: false };
     }
 
-    const recipientUserId = otherOf(conversation, context.userId) as string;
     try {
       const row = await this.database.transaction(context, async (tx) => {
         const appended = await this.repository.appendMessage(tx, context, {
@@ -231,17 +234,20 @@ export class DirectConversationsService {
           body: command.body,
           clientGeneratedId: command.clientGeneratedId ?? null,
         });
-        // Ids only, committed with the message (§2). The worker publishes the socket frame on
-        // this conversation and tells the recipient, after re-checking the relation (§6).
+        // Ids only, committed with the message (§2) — the channel event's exact shape, with no
+        // project and no mentions. The recipient's notice moves to the message fan-out in R7
+        // slice 6; until then a direct message raises no notification.
         await this.outbox?.append(tx, context, {
-          type: 'direct_message.created.v1',
+          type: 'message.created.v1',
           aggregateId: directConversationId,
           payload: {
-            directConversationId,
             messageId: appended.id,
+            conversationId: directConversationId,
+            projectId: null,
+            parentMessageId: null,
             sequenceNo: Number(appended.sequenceNo),
+            mentionedUserIds: [],
             authorUserId: context.userId,
-            recipientUserId,
           },
         });
         return appended;
@@ -267,10 +273,9 @@ export class DirectConversationsService {
   ): Promise<DirectReadStateView> {
     this.requireInternalCapability(principal, 'read');
     const row = await this.loadReachable(context, directConversationId);
-    const side = row.userLowId === context.userId ? 'low' : 'high';
     const upTo = upToSequenceNo ?? Number.MAX_SAFE_INTEGER;
     const updated = await this.database.transaction(context, async (tx) => {
-      await this.repository.markRead(tx, context, directConversationId, side, upTo);
+      await this.repository.markRead(tx, context, directConversationId, upTo);
       return this.repository.findById(tx, context, directConversationId);
     });
     return { directConversationId, ...readPositionOf(updated ?? row, context.userId) };

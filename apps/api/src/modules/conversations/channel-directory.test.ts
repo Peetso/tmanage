@@ -8,6 +8,10 @@ import type { ChannelDirectoryFacts } from './channel-directory.repository.js';
 import { ConversationsRepository } from './conversations.repository.js';
 import { ConversationsService } from './conversations.service.js';
 import type { ConversationView } from './conversations.service.js';
+import {
+  CHANNEL_ROW_DEFAULTS,
+  CHANNEL_VIEW_DEFAULTS,
+} from '../../../test/support/conversation-fixtures.js';
 
 const ORG = '0198f100-0000-7000-8000-000000000001';
 const ME = '0198f100-0000-7000-8000-0000000000a1';
@@ -19,6 +23,7 @@ function view(id: string, name: string, createdAt: string): ConversationView {
   return {
     id,
     projectId: 'p',
+    ...CHANNEL_VIEW_DEFAULTS,
     name,
     createdByUserId: ME,
     version: 1,
@@ -60,6 +65,7 @@ describe('ConversationsService.directory', () => {
       id,
       organizationId: ORG,
       projectId: 'p',
+      ...CHANNEL_ROW_DEFAULTS,
       name: id,
       nextSequenceNo: 1,
       createdByUserId: ME,

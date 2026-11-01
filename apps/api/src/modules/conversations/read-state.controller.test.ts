@@ -6,6 +6,10 @@ import { ConversationsRepository } from './conversations.repository.js';
 import { ConversationReadStateRepository } from './read-state.repository.js';
 import { ConversationReadStateService } from './read-state.service.js';
 import type { ConversationRow, MessageRow } from '../../common/database/schema.js';
+import {
+  CHANNEL_ROW_DEFAULTS,
+  MESSAGE_ROW_DEFAULTS,
+} from '../../../test/support/conversation-fixtures.js';
 
 /**
  * x250 refusal: a mark-read whose `lastReadMessageId` names a message in a *different* conversation
@@ -47,6 +51,7 @@ function conversationRow(id: string): ConversationRow {
     id,
     organizationId: ORG,
     projectId: PROJECT,
+    ...CHANNEL_ROW_DEFAULTS,
     name: id,
     nextSequenceNo: 1,
     createdByUserId: USER,
@@ -69,6 +74,7 @@ function messageInOther(): MessageRow {
     parentMessageId: null,
     depth: 0,
     parentDepth: null,
+    ...MESSAGE_ROW_DEFAULTS,
     body: 'elsewhere',
     bodyRich: null,
     clientGeneratedId: null,

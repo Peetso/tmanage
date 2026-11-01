@@ -179,7 +179,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // ---- R4-5 ---- +2: the `--sweep-purge` job reads `review_comments` and `review_threads`
     // where it purges them.
     // ---- R4-12 ---- +1: the review notices read `file_assets` for the file's name and uploader.
-    expect(reads).toHaveLength(26 + 15 + 1 + 4 + 3 + 1 + 3 + 3 + 1 + 6 + 4 + 2 + 1);
+    // ---- R7-1 ---- +1: the link unfurl reads `link_previews` where it records a preview.
+    expect(reads).toHaveLength(26 + 15 + 1 + 4 + 3 + 1 + 3 + 3 + 1 + 6 + 4 + 2 + 1 + 1);
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });
 

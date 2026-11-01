@@ -1,3 +1,4 @@
+import type { MessageKind } from '../../common/database/schema.js';
 import {
   Body,
   Controller,
@@ -52,9 +53,14 @@ import type { ChannelDirectoryEntry } from './channel-directory.js';
  */
 
 interface CreateConversationBody {
+  /** R7: 'group' (no project) or 'project_channel' (the default). */
+  readonly kind?: unknown;
   readonly projectId?: unknown;
   readonly name?: unknown;
+  readonly description?: unknown;
 }
+
+const MESSAGE_KIND_VALUES: readonly MessageKind[] = ['text', 'voice', 'system', 'location'];
 
 interface RenameConversationBody {
   readonly version?: unknown;
@@ -74,6 +80,9 @@ interface PostMessageBody {
   readonly bodyRich?: unknown;
   readonly parentMessageId?: unknown;
   readonly clientGeneratedId?: unknown;
+  /** R7: text / voice / location; `meta` is checked per kind by the service. */
+  readonly kind?: unknown;
+  readonly meta?: unknown;
 }
 
 interface EditMessageBody {
@@ -188,15 +197,26 @@ export class ConversationsController {
   ): Promise<ConversationView> {
     const details: { field: string; message: string }[] = [];
 
+    const isGroup = body?.kind === 'group';
+    if (body?.kind !== undefined && body.kind !== 'group' && body.kind !== 'project_channel') {
+      details.push({ field: 'kind', message: 'must be group or project_channel' });
+    }
     const projectId = typeof body?.projectId === 'string' ? body.projectId : undefined;
-    if (!projectId) details.push({ field: 'projectId', message: 'must be a string' });
+    if (!isGroup && !projectId) details.push({ field: 'projectId', message: 'must be a string' });
     const name = channelName(body?.name, details);
+    const description =
+      typeof body?.description === 'string' ? body.description.trim().slice(0, 500) : undefined;
 
-    if (details.length > 0 || !projectId || name === undefined) {
+    if (details.length > 0 || name === undefined) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
     }
 
-    return this.conversations.create(context, principal, { projectId, name });
+    return this.conversations.create(context, principal, {
+      kind: isGroup ? 'group' : 'project_channel',
+      projectId: isGroup ? null : (projectId ?? null),
+      name,
+      ...(description ? { description } : {}),
+    });
   }
 
   @Patch('conversations/:conversationId')
@@ -404,6 +424,11 @@ export class ConversationsController {
         ? body.clientGeneratedId
         : undefined;
 
+    const kind = body?.kind;
+    if (kind !== undefined && !MESSAGE_KIND_VALUES.includes(kind as MessageKind)) {
+      details.push({ field: 'kind', message: 'must be text, voice or location' });
+    }
+
     if (details.length > 0 || content === undefined) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
     }
@@ -412,6 +437,8 @@ export class ConversationsController {
       ...content,
       ...(parentMessageId === undefined ? {} : { parentMessageId }),
       ...(clientGeneratedId === undefined ? {} : { clientGeneratedId }),
+      ...(kind === undefined ? {} : { kind: kind as MessageKind }),
+      ...(body?.meta === undefined ? {} : { meta: body.meta }),
     });
 
     reply.status(result.created ? 201 : 200);

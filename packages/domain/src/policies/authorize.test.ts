@@ -581,3 +581,34 @@ describe('authorize — per-member overrides (SPEC §3.3)', () => {
     }
   });
 });
+
+describe('authorize — member-gated chats (R7)', () => {
+  const group = (member: boolean) =>
+    resource({ projectId: null, conversationKind: 'group', conversationMember: member });
+  const can = (principal: Principal, capability: Capability, r: ResourceContext) =>
+    authorize({ principal, capability, resource: r });
+
+  it('admits a client member of a group, read and write; client_viewer reads only', () => {
+    expect(can(client(), 'conversation.write', group(true)).allowed).toBe(true);
+    expect(can(client({ role: 'client_viewer' }), 'conversation.read', group(true)).allowed).toBe(
+      true,
+    );
+    expect(can(client({ role: 'client_viewer' }), 'conversation.write', group(true)).allowed).toBe(
+      false,
+    );
+  });
+
+  it('refuses a non-member, internal or client, and a client in a direct conversation', () => {
+    expect(
+      can(internal({ hasOrgWideScope: true }), 'conversation.read', group(false)),
+    ).toMatchObject({
+      code: 'not_conversation_member',
+    });
+    expect(can(client(), 'conversation.read', group(false)).allowed).toBe(false);
+    const dm = resource({ projectId: null, conversationKind: 'direct', conversationMember: true });
+    expect(can(internal(), 'conversation.write', dm).allowed).toBe(true);
+    expect(can(client(), 'conversation.read', dm)).toMatchObject({
+      code: 'capability_not_in_role_ceiling',
+    });
+  });
+});

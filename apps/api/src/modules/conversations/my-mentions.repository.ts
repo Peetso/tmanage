@@ -25,7 +25,7 @@ export interface MentionCandidateRow {
   readonly messageId: string;
   readonly conversationId: string;
   readonly conversationName: string;
-  readonly projectId: string;
+  readonly projectId: string | null;
   readonly authorUserId: string;
   readonly body: string;
   readonly createdAt: Date;
@@ -96,6 +96,8 @@ export class MyMentionsRepository {
         and(
           eq(conversations.organizationId, messages.organizationId),
           eq(conversations.id, messages.conversationId),
+          // R7: mentions in groups and direct conversations arrive with R7 slice 6.
+          eq(conversations.kind, 'project_channel'),
         ),
       )
       .where(

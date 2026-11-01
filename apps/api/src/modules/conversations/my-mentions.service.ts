@@ -106,7 +106,9 @@ export class MyMentionsService {
       messageId: row.messageId,
       conversationId: row.conversationId,
       conversationName: row.conversationName,
-      projectId: row.projectId,
+      // Mention candidates are project channels only (the repository filters on kind), so a
+      // project is always named.
+      projectId: row.projectId ?? '',
       authorUserId: row.authorUserId,
       body: row.body,
       createdAt: row.createdAt.toISOString(),

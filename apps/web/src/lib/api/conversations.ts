@@ -21,10 +21,23 @@ import type { WorkItemSummary } from './work-items';
  *   There is no way to ask for both, by the API's own design.
  */
 
+/** R7: what a conversation is. The channel list returns project channels only. */
+export type ConversationKind = 'project_channel' | 'group' | 'direct';
+export type ConversationMemberRole = 'member' | 'admin';
+export type MessageKind = 'text' | 'voice' | 'system' | 'location';
+
 export interface ConversationSummary {
   readonly id: string;
-  readonly projectId: string;
+  readonly kind: ConversationKind;
+  /** Null for a group or a direct conversation. */
+  readonly projectId: string | null;
   readonly name: string;
+  readonly photoFileAssetId: string | null;
+  readonly description: string | null;
+  readonly settings: { readonly onlyAdminsCanSend: boolean };
+  readonly lastMessageAt: string | null;
+  /** The caller's role here; present on a single-conversation read when they are a member. */
+  readonly viewerRole?: ConversationMemberRole;
   readonly createdByUserId: string;
   /** The concurrency token. Present it to rename or archive. */
   readonly version: number;
@@ -39,6 +52,9 @@ export interface MessageSummary {
   readonly authorUserId: string;
   readonly sequenceNo: number;
   readonly parentMessageId: string | null;
+  /** R7: the message's kind and that kind's facts (reply / forward / voice / location / system). */
+  readonly kind: MessageKind;
+  readonly meta: Record<string, unknown> | null;
   /** `null` once the message has been moderated — the tombstone is the screen's to draw. */
   readonly body: string | null;
   /** The sanitised rich-text document, or `null` for a plain-text or moderated message. */
@@ -130,7 +146,9 @@ export async function getConversation(
 export async function createConversation(
   client: ApiClient,
   organizationSlug: string,
-  input: { readonly projectId: string; readonly name: string },
+  input:
+    | { readonly projectId: string; readonly name: string }
+    | { readonly kind: 'group'; readonly name: string; readonly description?: string },
 ): Promise<ConversationSummary> {
   const { data } = await client.request<ConversationSummary>({
     method: 'POST',
@@ -182,6 +200,9 @@ export interface PostMessageInput {
    * retries of that attempt, so a network failure followed by a resend cannot post twice.
    */
   readonly clientGeneratedId?: string;
+  /** R7: `text` when absent; `meta` must match the kind (the API validates it). */
+  readonly kind?: Exclude<MessageKind, 'system'>;
+  readonly meta?: Record<string, unknown>;
 }
 
 export async function postMessage(

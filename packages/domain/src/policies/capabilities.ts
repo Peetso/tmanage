@@ -718,6 +718,21 @@ export function parseCustomRoleCapabilities(json: string): readonly Capability[]
  * mistakenly adds one of these to a client role, `authorize.ts` refuses it. Belt and
  * braces, because the cost of getting this wrong is a client seeing internal content.
  */
+/**
+ * R7 (R7-SPEC §3 G3). The one narrow exception to the internal-only rule for chat: a client
+ * principal who is a **member of a group conversation** (`kind = 'group'`) may read it, and post to
+ * it unless their role is `client_viewer`. No client role holds these in its ceiling; `authorize()`
+ * admits them only on that member relation, before the internal-only guard, and never for a
+ * project channel or a direct conversation.
+ */
+export const CLIENT_GROUP_CHAT_CAPABILITIES: readonly Capability[] = [
+  'conversation.read',
+  'conversation.write',
+];
+
+/** The client role that may read a group it is in, but never post. */
+export const CLIENT_GROUP_READ_ONLY_ROLE = 'client_viewer';
+
 export const INTERNAL_ONLY_CAPABILITIES: readonly Capability[] = [
   'org.manage',
   'org.security.manage',

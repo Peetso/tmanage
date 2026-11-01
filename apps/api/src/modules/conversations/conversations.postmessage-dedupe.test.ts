@@ -6,6 +6,10 @@ import { ConversationsService } from './conversations.service.js';
 import { ConversationsRepository, DuplicateMessageError } from './conversations.repository.js';
 import type { AppendMessageInput } from './conversations.repository.js';
 import type { ConversationRow, MessageRow } from '../../common/database/schema.js';
+import {
+  CHANNEL_ROW_DEFAULTS,
+  MESSAGE_ROW_DEFAULTS,
+} from '../../../test/support/conversation-fixtures.js';
 
 /**
  * R03 / F4: message idempotency must be bound to the destination conversation.
@@ -65,6 +69,7 @@ function conversationRow(id: string): ConversationRow {
     id,
     organizationId: ORG,
     projectId: PROJECT,
+    ...CHANNEL_ROW_DEFAULTS,
     name: id === CHANNEL_A ? 'atlas-relaunch' : 'atlas-launch',
     nextSequenceNo: 1,
     createdByUserId: USER,
@@ -89,6 +94,7 @@ function messageRow(input: AppendMessageInput): MessageRow {
     parentMessageId: input.parentMessageId ?? null,
     depth: 0,
     parentDepth: null,
+    ...MESSAGE_ROW_DEFAULTS,
     body: input.body,
     bodyRich: input.bodyRich ?? null,
     clientGeneratedId: input.clientGeneratedId ?? null,

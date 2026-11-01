@@ -12,8 +12,11 @@ import {
   messageWorkLinks,
 } from '../../common/database/schema.js';
 import type {
+  ConversationKind,
+  ConversationMemberRole,
   ConversationMembershipRow,
   ConversationRow,
+  MessageKind,
   MessageRevisionRow,
   MessageRow,
   MessageWorkLinkRow,
@@ -109,6 +112,14 @@ export class ConversationNameTakenError extends Error {
   }
 }
 
+/** R7: a direct conversation for this pair already exists (`uq_conversations_direct_pair`). */
+export class DirectPairTakenError extends Error {
+  constructor() {
+    super('A direct conversation between these two people already exists');
+    this.name = 'DirectPairTakenError';
+  }
+}
+
 /**
  * A reply whose parent is itself a reply, refused by `fk_messages_parent_is_root`.
  *
@@ -149,12 +160,23 @@ export class MessageAlreadyConvertedError extends Error {
 }
 
 export interface CreateConversationInput {
-  readonly projectId: string;
+  /** R7: absent means a project channel. */
+  readonly kind?: ConversationKind;
+  /** Null for a group or a direct conversation. */
+  readonly projectId: string | null;
   readonly name: string;
   readonly createdByUserId: string;
+  readonly description?: string | null;
+  /** A direct conversation's sorted pair. */
+  readonly directUserLowId?: string | null;
+  readonly directUserHighId?: string | null;
+  /** A caller-chosen id (a direct conversation keeps its id); a fresh uuidv7 otherwise. */
+  readonly id?: string;
 }
 
 export interface ListConversationsOptions {
+  /** R7: which kind to list; project channels only when absent, so the channel list is unchanged. */
+  readonly kind?: ConversationKind;
   readonly projectId?: string;
   /** Keyset pagination. Cursors are ids, and the sort is by id. */
   readonly after?: string;
@@ -178,6 +200,9 @@ export interface AppendMessageInput {
   readonly parentMessageId?: string | null;
   /** `23-ERD` §4's retry dedupe. Optional, and absent means no protection. */
   readonly clientGeneratedId?: string | null;
+  /** R7: `text` when absent; the service validated `meta` for this kind. */
+  readonly kind?: MessageKind;
+  readonly meta?: Record<string, unknown> | null;
 }
 
 export interface ListMessagesOptions {
@@ -257,7 +282,10 @@ export class ConversationsRepository {
   ): Promise<readonly ConversationRow[]> {
     const limit = Math.min(Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
 
-    const predicates = [eq(conversations.organizationId, context.organizationId)];
+    const predicates = [
+      eq(conversations.organizationId, context.organizationId),
+      eq(conversations.kind, options.kind ?? 'project_channel'),
+    ];
     if (options.projectId) predicates.push(eq(conversations.projectId, options.projectId));
     if (!options.includeArchived) predicates.push(isNull(conversations.archivedAt));
     if (options.after) predicates.push(gt(conversations.id, options.after));
@@ -340,7 +368,7 @@ export class ConversationsRepository {
     context: TenantContext,
     input: CreateConversationInput,
   ): Promise<ConversationRow> {
-    const id = uuidv7();
+    const id = input.id ?? uuidv7();
 
     try {
       await tenantDrizzle(runner)
@@ -349,8 +377,12 @@ export class ConversationsRepository {
           id,
           // From the context. Not from `input` — there is no such field.
           organizationId: context.organizationId,
+          kind: input.kind ?? 'project_channel',
           projectId: input.projectId,
+          directUserLowId: input.directUserLowId ?? null,
+          directUserHighId: input.directUserHighId ?? null,
           name: input.name,
+          description: input.description ?? null,
           createdByUserId: input.createdByUserId,
           version: 1,
           createdAt: sql`current_timestamp(3)`,
@@ -358,6 +390,8 @@ export class ConversationsRepository {
         });
     } catch (error) {
       if (driverErrorCode(error) === ER_DUP_ENTRY) {
+        if (violatedIndex(error) === 'uq_conversations_direct_pair')
+          throw new DirectPairTakenError();
         throw new ConversationNameTakenError(input.name);
       }
       throw error;
@@ -482,6 +516,7 @@ export class ConversationsRepository {
     context: TenantContext,
     conversationId: string,
     userId: string,
+    role: ConversationMemberRole = 'member',
   ): Promise<ConversationMembershipRow> {
     const existing = await this.findMembership(runner, context, conversationId, userId);
     if (existing) return existing;
@@ -495,6 +530,7 @@ export class ConversationsRepository {
           organizationId: context.organizationId,
           conversationId,
           userId,
+          role,
           createdAt: sql`current_timestamp(3)`,
         });
     } catch (error) {
@@ -677,13 +713,18 @@ export class ConversationsRepository {
     const sequenceNo = locked[0]?.['next_sequence_no'] as number | undefined;
     if (sequenceNo === undefined) throw new ConversationNotFoundError(input.conversationId);
 
+    const id = uuidv7();
+    // R7: the chat list's "last message" is stamped with the allocation, in the same statement;
+    // a failed insert below rolls both back with the transaction.
     await runner.execute(
-      `update conversations set next_sequence_no = next_sequence_no + 1
+      `update conversations
+          set next_sequence_no = next_sequence_no + 1,
+              last_message_id = ?,
+              last_message_at = current_timestamp(3)
         where organization_id = ? and id = ?`,
-      [context.organizationId, input.conversationId],
+      [id, context.organizationId, input.conversationId],
     );
 
-    const id = uuidv7();
     const parentMessageId = input.parentMessageId ?? null;
 
     try {
@@ -699,8 +740,10 @@ export class ConversationsRepository {
           // Written here, never by a caller. See the note at the top of this file.
           depth: parentMessageId === null ? 0 : 1,
           parentDepth: parentMessageId === null ? null : 0,
+          kind: input.kind ?? 'text',
           body: input.body,
           bodyRich: input.bodyRich ?? null,
+          metaJson: input.meta ?? null,
           clientGeneratedId: input.clientGeneratedId ?? null,
           createdAt: sql`current_timestamp(3)`,
           updatedAt: sql`current_timestamp(3)`,
