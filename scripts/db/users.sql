@@ -1704,6 +1704,8 @@ GRANT INSERT, UPDATE ON `tmanage`.`membership_permission_overrides` TO 'tmanage_
 -- only those four columns on the append-only tables; what was said stays immutable.
 GRANT UPDATE ON `tmanage`.`work_item_comments`      TO 'tmanage_app'@'%';
 GRANT UPDATE ON `tmanage`.`work_item_files`         TO 'tmanage_app'@'%';
+-- R5 slice 2 (0272): the same UPDATE resolves/reopens an anchored comment thread
+-- (`resolved_at`, `resolved_by_user_id`); the 0245 trigger does not pin those columns.
 GRANT UPDATE ON `tmanage`.`document_comments`       TO 'tmanage_app'@'%';
 GRANT UPDATE ON `tmanage`.`decision_comments`       TO 'tmanage_app'@'%';
 GRANT UPDATE ON `tmanage`.`request_comments`        TO 'tmanage_app'@'%';

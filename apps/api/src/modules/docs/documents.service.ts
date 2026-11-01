@@ -1,6 +1,7 @@
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import { sanitizeDocHtml } from './doc-html.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { DocumentsRepository } from './documents.repository.js';
 import type { CreateDocumentInput, ListDocumentsOptions } from './documents.repository.js';
@@ -11,10 +12,21 @@ import { ProjectsRepository } from '../projects/projects.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import type {
+  DocumentBodyFormat,
   DocumentRow,
   DocumentTemplateRow,
   DocumentVersionRow,
 } from '../../common/database/schema.js';
+
+/** R5 slice 2: how a version is saved — its format, and the version the editor started from. */
+export interface SaveVersionOptions {
+  /** `html` bodies are sanitised (R5-SPEC §3) before they are stored; default `markdown`. */
+  readonly format?: DocumentBodyFormat;
+  /** The newest `versionNo` the caller loaded; a newer save since is 409 `DOC_VERSION_CONFLICT`. */
+  readonly expectedVersionNo?: number;
+  /** The route's tenant slug: same-site image URLs in an `html` body name it. */
+  readonly orgSlug?: string;
+}
 
 /**
  * The application service for DOC-01 (x91) — the object-level decision the route guard cannot
@@ -47,6 +59,8 @@ export interface DocumentView {
   readonly projectId: string;
   readonly title: string;
   readonly body: string;
+  /** R5 (0272): `markdown` (legacy) or sanitised `html`. */
+  readonly bodyFormat: DocumentBodyFormat;
   readonly createdByUserId: string;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -68,6 +82,7 @@ function toView(row: DocumentRow): DocumentView {
     projectId: row.projectId,
     title: row.title,
     body: row.body,
+    bodyFormat: row.bodyFormat ?? 'markdown',
     createdByUserId: row.createdByUserId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -85,6 +100,8 @@ export interface DocumentVersionView {
   readonly documentId: string;
   readonly versionNo: number;
   readonly body: string;
+  /** R5 (0272): the format this snapshot was saved in. */
+  readonly bodyFormat: DocumentBodyFormat;
   readonly editedByUserId: string;
   readonly createdAt: string;
 }
@@ -96,6 +113,7 @@ function toVersionView(row: DocumentVersionRow): DocumentVersionView {
     documentId: row.documentId,
     versionNo: row.versionNo,
     body: row.body,
+    bodyFormat: row.bodyFormat ?? 'markdown',
     editedByUserId: row.editedByUserId,
     createdAt: row.createdAt.toISOString(),
   };
@@ -342,17 +360,43 @@ export class DocumentsService {
   /**
    * DOC-02. Save a new version: append an immutable snapshot of the body and bump the document's
    * current body, in one transaction. `doc.write`, relation-gated as `work.create`.
+   *
+   * R5 slice 2: an `html` body is sanitised first (422 `DOC_BODY_INVALID` when nothing survives),
+   * and `body_format` is written on both rows. With `expectedVersionNo`, a document whose newest
+   * version is any other number is 409 `DOC_VERSION_CONFLICT` and nothing is written; the current
+   * number travels as the `currentVersionNo` detail (the error body's only structured channel).
    */
   async saveVersion(
     context: TenantContext,
     principal: Principal,
     documentId: string,
     body: string,
+    options: SaveVersionOptions = {},
   ): Promise<DocumentVersionView> {
     await this.requireActionable(context, principal, documentId, 'work.create');
-    const row = await this.database.transaction(context, (tx) =>
-      this.versions.append(tx, context, { documentId, body, editedByUserId: context.userId }),
-    );
+    const bodyFormat = options.format ?? 'markdown';
+    const stored =
+      bodyFormat === 'html' ? sanitizeDocHtml(body, { orgSlug: options.orgSlug ?? '' }) : body;
+    const row = await this.database.transaction(context, async (tx) => {
+      if (options.expectedVersionNo !== undefined) {
+        const current = await this.versions.latestVersionNo(tx, context, documentId);
+        if (current !== options.expectedVersionNo) {
+          throw new ApiError(
+            409,
+            'conflict',
+            MESSAGES.conflict,
+            [{ field: 'currentVersionNo', message: String(current) }],
+            'DOC_VERSION_CONFLICT',
+          );
+        }
+      }
+      return this.versions.append(tx, context, {
+        documentId,
+        body: stored,
+        bodyFormat,
+        editedByUserId: context.userId,
+      });
+    });
     return toVersionView(row);
   }
 
@@ -380,6 +424,7 @@ export class DocumentsService {
       this.versions.append(tx, context, {
         documentId,
         body: source.body,
+        bodyFormat: source.bodyFormat,
         editedByUserId: context.userId,
       }),
     );

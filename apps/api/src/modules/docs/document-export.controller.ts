@@ -112,13 +112,7 @@ export class DocumentExportController {
       ]);
     }
     const document = await this.documents.get(context, principal, documentId);
-    // `bodyFormat` arrives with R5 slice 2; until then every body is Markdown.
-    const format = (document as { bodyFormat?: DocumentBodyFormat }).bodyFormat;
-    return {
-      title: document.title,
-      body: document.body,
-      bodyFormat: format === 'html' ? 'html' : 'markdown',
-    };
+    return { title: document.title, body: document.body, bodyFormat: document.bodyFormat };
   }
 }
 

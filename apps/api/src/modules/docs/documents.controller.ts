@@ -4,6 +4,9 @@ import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/deco
 import { ApiError } from '../../common/http/errors.js';
 import { DOCUMENTS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
+import { DOCUMENT_BODY_FORMATS } from '../../common/database/schema.js';
+import type { DocumentBodyFormat } from '../../common/database/schema.js';
+import { MAX_BODY_LENGTH } from './doc-html.js';
 import type {
   DocumentTemplateView,
   DocumentVersionView,
@@ -38,9 +41,11 @@ interface RenameDocumentRequest {
   readonly expectedUpdatedAt: string;
 }
 
-/** DOC-02 save-a-version request body. */
+/** DOC-02 save-a-version request body; R5 slice 2 adds `format` and `expectedVersionNo`. */
 interface SaveVersionBody {
   readonly body?: unknown;
+  readonly format?: unknown;
+  readonly expectedVersionNo?: unknown;
 }
 
 /** DOC-03 restore request body — the prior version number to forward-append. */
@@ -63,8 +68,11 @@ interface ApplyTemplateBody {
 
 /** `documents.title` is `VARCHAR(300)`. */
 const MAX_TITLE_LENGTH = 300;
-/** `documents.body` is `TEXT` (max 65_535 bytes). This slice keeps a comfortable ceiling below it. */
-const MAX_BODY_LENGTH = 60_000;
+/**
+ * `document_templates.body` is still `TEXT` (max 65_535 bytes), so templates keep the old ceiling;
+ * document bodies are MEDIUMTEXT since R5 (0272) and take `MAX_BODY_LENGTH` (1_000_000).
+ */
+const MAX_TEMPLATE_BODY_LENGTH = 60_000;
 
 @Controller('v1/organizations/:orgSlug/documents')
 export class DocumentsController {
@@ -125,8 +133,8 @@ export class DocumentsController {
       ...(templateBody === undefined || templateBody === ''
         ? [{ field: 'body', message: 'must be a non-empty string' }]
         : []),
-      ...(templateBody !== undefined && templateBody.length > MAX_BODY_LENGTH
-        ? [{ field: 'body', message: `must be ${MAX_BODY_LENGTH} characters or fewer` }]
+      ...(templateBody !== undefined && templateBody.length > MAX_TEMPLATE_BODY_LENGTH
+        ? [{ field: 'body', message: `must be ${MAX_TEMPLATE_BODY_LENGTH} characters or fewer` }]
         : []),
     ];
 
@@ -340,7 +348,8 @@ export class DocumentsController {
 
   /**
    * DOC-02. Save a new version of a document: append an immutable snapshot and bump the current
-   * body in one transaction. `doc.write`.
+   * body in one transaction. `doc.write`. R5: `format` (`markdown` default, `html` is sanitised)
+   * and `expectedVersionNo` (409 `DOC_VERSION_CONFLICT` when someone saved since).
    */
   @Post(':documentId/versions')
   @RequireCapability('doc.write')
@@ -348,6 +357,7 @@ export class DocumentsController {
   async saveVersion(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
+    @Param('orgSlug') orgSlug: string,
     @Param('documentId') documentId: string,
     @Body() body: SaveVersionBody,
   ): Promise<DocumentVersionView> {
@@ -363,7 +373,23 @@ export class DocumentsController {
         { field: 'body', message: `must be ${MAX_BODY_LENGTH} characters or fewer` },
       ]);
     }
-    return this.documents.saveVersion(context, principal, documentId, documentBody);
+    const format = body?.format ?? 'markdown';
+    if (!DOCUMENT_BODY_FORMATS.includes(format as DocumentBodyFormat)) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'format', message: `must be one of ${DOCUMENT_BODY_FORMATS.join(', ')}` },
+      ]);
+    }
+    const expected = body?.expectedVersionNo;
+    if (expected !== undefined && !(Number.isSafeInteger(expected) && (expected as number) >= 0)) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'expectedVersionNo', message: 'must be a non-negative integer' },
+      ]);
+    }
+    return this.documents.saveVersion(context, principal, documentId, documentBody, {
+      format: format as DocumentBodyFormat,
+      orgSlug,
+      ...(expected !== undefined ? { expectedVersionNo: expected as number } : {}),
+    });
   }
 
   /**

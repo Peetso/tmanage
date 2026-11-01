@@ -108,7 +108,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // search, decisions; studio and portal), was 1045.
 // R4 slice 13 Figma links: +17 NEVER (13 `figma_links`: connection, links, snapshots, inspect;
 // 4 `file_review`: threads on frames, studio and portal), was 1072.
-const EXPECTED_ROUTE_COUNT = 1089;
+// R5 docs rich editor: +6 ops (comments resolve POST/DELETE, export.html, export.docx, presence
+// GET/PUT), was 1089.
+const EXPECTED_ROUTE_COUNT = 1095;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

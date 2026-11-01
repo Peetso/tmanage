@@ -620,10 +620,12 @@ describe('0030: documents is a tenant-scoped, project-owned, forward-only table'
         'deleted_by_user_id',
         'deleted_reason',
         'purge_after',
+        // 0272 (R5 rich editor): how `body` reads.
+        'body_format',
       ].sort(),
     );
     // A document body is prose a person types â€” TEXT, and NOT NULL like conversations.body.
-    expect(String(byName.get('body')?.['type'])).toBe('text');
+    expect(String(byName.get('body')?.['type'])).toBe('mediumtext'); // 0272
     expect(String(byName.get('body')?.['nullable'])).toBe('NO');
     expect(String(byName.get('organization_id')?.['nullable'])).toBe('NO');
     expect(String(byName.get('project_id')?.['nullable'])).toBe('NO');
@@ -1147,9 +1149,10 @@ describe('0036: document_versions is tenant-scoped, append-only and forward-only
         'id',
         'organization_id',
         'version_no',
+        'body_format', // 0272
       ].sort(),
     );
-    expect(String(byName.get('body')?.['type'])).toBe('text');
+    expect(String(byName.get('body')?.['type'])).toBe('mediumtext'); // 0272
     expect(String(byName.get('body')?.['nullable'])).toBe('NO');
     expect(String(byName.get('version_no')?.['nullable'])).toBe('NO');
 

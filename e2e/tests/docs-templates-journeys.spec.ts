@@ -70,7 +70,9 @@ test('DOC-04: create a template, apply it, and edit the seeded document', async 
   const open = gallery.getByRole('link', { name: /open/i });
   await expect(open).toBeVisible();
   await open.click();
-  await expect(page.getByLabel('Document body')).toHaveValue(TEMPLATE_BODY);
+  // R5: the body is a rich editor (contenteditable), so its text is read, not a textarea value;
+  // the seeded Markdown lines arrive as blocks.
+  await expect(page.getByLabel('Document body')).toHaveText(/Goals[\s\S]*Risks[\s\S]*Owner:/);
 
   await context.close();
 });

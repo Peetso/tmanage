@@ -2,7 +2,7 @@ import { and, desc, eq, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { documentVersions, documents } from '../../common/database/schema.js';
-import type { DocumentVersionRow } from '../../common/database/schema.js';
+import type { DocumentBodyFormat, DocumentVersionRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -32,6 +32,8 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
 export interface AppendVersionInput {
   readonly documentId: string;
   readonly body: string;
+  /** R5 (0272): how `body` reads; written on the version and mirrored onto the document. */
+  readonly bodyFormat?: DocumentBodyFormat;
   /** The person saving this version — the service passes `context.userId`. */
   readonly editedByUserId: string;
 }
@@ -145,6 +147,7 @@ export class DocumentVersionsRepository {
       documentId: input.documentId,
       versionNo,
       body: input.body,
+      bodyFormat: input.bodyFormat ?? 'markdown',
       editedByUserId: input.editedByUserId,
       createdAt: sql`current_timestamp(3)`,
     });
@@ -153,7 +156,7 @@ export class DocumentVersionsRepository {
     // the tenant and the document; `updated_at` follows via the column's ON UPDATE clause.
     await db
       .update(documents)
-      .set({ body: input.body })
+      .set({ body: input.body, bodyFormat: input.bodyFormat ?? 'markdown' })
       .where(
         and(
           eq(documents.organizationId, context.organizationId),

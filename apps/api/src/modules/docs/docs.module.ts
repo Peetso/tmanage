@@ -23,6 +23,11 @@ import { DocumentsController } from './documents.controller.js';
 import { DocumentExportController } from './document-export.controller.js';
 import { DocumentCommentsService } from './document-comments.service.js';
 import { DocumentCommentsController } from './document-comments.controller.js';
+import { DocumentPresenceService } from './document-presence.service.js';
+import {
+  DOCUMENT_PRESENCE_SERVICE,
+  DocumentPresenceController,
+} from './document-presence.controller.js';
 import { DocLinksService } from './doc-links.service.js';
 import {
   DOC_LINKS_SERVICE,
@@ -141,6 +146,15 @@ export class DocsModule {
         ),
     };
 
+    // R5 slice 2: who is editing a document — in-memory, so the provider's singleton is the store.
+    // It reads each document through the documents service (tenant-scoped, relation-checked).
+    const presenceService: Provider = {
+      provide: DOCUMENT_PRESENCE_SERVICE,
+      inject: [TENANT_DATABASE, DOCUMENTS_SERVICE],
+      useFactory: (database: TenantDatabase, documents: DocumentsService) =>
+        new DocumentPresenceService(database, documents, new DocumentSharingRepository()),
+    };
+
     return {
       module: DocsModule,
       providers: [
@@ -151,6 +165,7 @@ export class DocsModule {
         readStateService,
         reviewsService,
         sharingService,
+        presenceService,
       ],
       exports: [service, commentsService, reviewsService],
       // DOC export (x131): a second controller on the same `documents` base path, serving the
@@ -170,6 +185,7 @@ export class DocsModule {
         DocReviewsController,
         RecentDocumentsController,
         DocumentSharingController,
+        DocumentPresenceController,
       ],
     };
   }

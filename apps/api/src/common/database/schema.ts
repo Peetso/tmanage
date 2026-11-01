@@ -516,6 +516,13 @@ export const meetings = mysqlTable(
 );
 
 /**
+ * R5 (0272). How a document or version `body` is to be read: `markdown` (every body before R5, the
+ * column default) or `html` (sanitised by the API on save, R5-SPEC §3). Mirrors the ENUM.
+ */
+export const DOCUMENT_BODY_FORMATS = ['markdown', 'html'] as const;
+export type DocumentBodyFormat = (typeof DOCUMENT_BODY_FORMATS)[number];
+
+/**
  * DOC-01 (x91). A project document — a title and a plain-text body.
  *
  * Tenant-scoped and project-owned like `conversations` and `meetings` (0029). `body` is `TEXT` and
@@ -531,7 +538,10 @@ export const documents = mysqlTable(
     organizationId: char('organization_id', { length: 36 }).notNull(),
     projectId: char('project_id', { length: 36 }).notNull(),
     title: varchar('title', { length: 300 }).notNull(),
-    body: text('body').notNull(),
+    /** R5 (0272): MEDIUMTEXT — a sanitised HTML body is heavier than Markdown. */
+    body: mediumtext('body').notNull(),
+    /** R5 (0272): how `body` reads — legacy Markdown or server-sanitised HTML. */
+    bodyFormat: mysqlEnum('body_format', DOCUMENT_BODY_FORMATS).notNull().default('markdown'),
     /** Docs audience (0203): internal-only, or published to the project's client people. */
     audience: mysqlEnum('audience', ['internal', 'client']).notNull().default('internal'),
     publishedAt: datetime('published_at', { mode: 'date', fsp: 3 }),
@@ -1656,7 +1666,9 @@ export const documentVersions = mysqlTable(
     organizationId: char('organization_id', { length: 36 }).notNull(),
     documentId: char('document_id', { length: 36 }).notNull(),
     versionNo: int('version_no', { unsigned: true }).notNull(),
-    body: text('body').notNull(),
+    /** R5 (0272): MEDIUMTEXT, and the format the snapshot was saved in (written once, on INSERT). */
+    body: mediumtext('body').notNull(),
+    bodyFormat: mysqlEnum('body_format', DOCUMENT_BODY_FORMATS).notNull().default('markdown'),
     editedByUserId: char('edited_by_user_id', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
   },
@@ -1720,10 +1732,23 @@ export const documentComments = mysqlTable(
     deletedByUserId: char('deleted_by_user_id', { length: 36 }),
     deletedReason: varchar('deleted_reason', { length: 500 }),
     purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
+    // ---- R5 (0272): comments anchored to selected text, and resolve/reopen. ----
+    /** The `mark[data-comment]` id in the body; NULL = a whole-document comment. */
+    anchorId: char('anchor_id', { length: 36 }),
+    /** The text that was selected when the comment was made (≤ 500). */
+    anchorQuote: varchar('anchor_quote', { length: 500 }),
+    /** When the thread was resolved; NULL while open. */
+    resolvedAt: datetime('resolved_at', { mode: 'date', fsp: 3 }),
+    resolvedByUserId: char('resolved_by_user_id', { length: 36 }),
   },
   (table) => [
     uniqueIndex('uq_document_comments_org_id').on(table.organizationId, table.id),
     index('ix_document_comments_org_document').on(table.organizationId, table.documentId, table.id),
+    index('ix_document_comments_org_doc_anchor').on(
+      table.organizationId,
+      table.documentId,
+      table.anchorId,
+    ),
   ],
 );
 

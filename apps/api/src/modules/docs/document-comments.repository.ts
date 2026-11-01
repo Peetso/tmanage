@@ -37,17 +37,8 @@ export interface ListDocumentCommentsOptions {
   readonly limit?: number;
 }
 
-/**
- * R5 (0272) comment columns. Slice 2 adds them to `documentComments` in schema.ts with the
- * migration; until that lands drizzle simply leaves them out of the SQL, and once it lands this
- * code writes and reads them unchanged (the intersection then matches the row exactly).
- */
-export type DocumentCommentRowWithAnchor = DocumentCommentRow & {
-  readonly anchorId?: string | null;
-  readonly anchorQuote?: string | null;
-  readonly resolvedAt?: Date | null;
-  readonly resolvedByUserId?: string | null;
-};
+/** R5 (0272): the comment row now carries its anchor and resolve columns (schema.ts). */
+export type DocumentCommentRowWithAnchor = DocumentCommentRow;
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
@@ -108,8 +99,6 @@ export class DocumentCommentsRepository {
     const db = tenantDrizzle(runner);
     const id = uuidv7();
 
-    // Spread from a variable: the R5 columns pass the type check before slice 2 declares them.
-    const anchor = { anchorId: input.anchorId ?? null, anchorQuote: input.anchorQuote ?? null };
     await db.insert(documentComments).values({
       id,
       organizationId: context.organizationId,
@@ -117,7 +106,8 @@ export class DocumentCommentsRepository {
       authorMembershipId: input.authorMembershipId,
       body: input.body,
       createdAt: sql`current_timestamp(3)`,
-      ...anchor,
+      anchorId: input.anchorId ?? null,
+      anchorQuote: input.anchorQuote ?? null,
     });
 
     const rows = await db
@@ -155,14 +145,12 @@ export class DocumentCommentsRepository {
       eq(documentComments.id, commentId),
       isNull(documentComments.deletedAt),
     );
-    const change = {
-      resolvedAt: resolvedByUserId === null ? null : sql`current_timestamp(3)`,
-      resolvedByUserId,
-    };
     await db
       .update(documentComments)
-      // The R5 columns are declared by slice 2's schema.ts change; until then the type is cast.
-      .set(change as unknown as Partial<typeof documentComments.$inferInsert>)
+      .set({
+        resolvedAt: resolvedByUserId === null ? null : sql`current_timestamp(3)`,
+        resolvedByUserId,
+      })
       .where(scope);
     const rows = await db.select().from(documentComments).where(scope).limit(1);
     return rows[0] ?? null;

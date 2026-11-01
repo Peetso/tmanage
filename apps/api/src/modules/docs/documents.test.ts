@@ -139,6 +139,7 @@ function serviceWith(
       input: {
         readonly documentId: string;
         readonly body: string;
+        readonly bodyFormat?: string;
         readonly editedByUserId: string;
       },
     ) => {
@@ -155,6 +156,7 @@ function serviceWith(
         documentId: input.documentId,
         versionNo,
         body: input.body,
+        bodyFormat: input.bodyFormat ?? 'markdown',
         editedByUserId: input.editedByUserId,
         createdAt: new Date(),
       } as DocumentVersionRow;
@@ -166,6 +168,8 @@ function serviceWith(
       if (doc) (doc as { body: string }).body = input.body;
       return row;
     },
+    latestVersionNo: async (_r: unknown, _c: unknown, id: string) =>
+      versionStore.filter((row) => row.documentId === id).length,
   } as unknown as DocumentVersionsRepository;
 
   // A templates store scoped by the acting tenant, mirroring the real repository's contract:
@@ -635,5 +639,18 @@ describe('DocumentsService templates (DOC-04/ADM-06)', () => {
       .listTemplates(context, suspended)
       .catch((caught: unknown) => caught);
     expect((listError as ApiError).status).toBe(403);
+  });
+});
+
+describe('DocumentsService.saveVersion R5 (format, conflict guard)', () => {
+  it('stores html sanitised, keeps markdown as is, and refuses a stale expectedVersionNo', async () => {
+    const { service } = serviceWith([seededDocument()]);
+    const save = (body: string, options: object) =>
+      service.saveVersion(context, member([PROJECT]), DOCUMENT, body, options);
+    const html = await save('<p>a</p><script>x</script>', { format: 'html', orgSlug: 'acme' });
+    expect([html.body, html.bodyFormat]).toEqual(['<p>a</p>', 'html']);
+    expect((await save('# md', {})).bodyFormat).toBe('markdown');
+    const stale = await save('late', { expectedVersionNo: 1 }).catch((caught: unknown) => caught);
+    expect(stale).toMatchObject({ status: 409, details: [{ message: '2' }] });
   });
 });
