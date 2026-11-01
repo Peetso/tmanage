@@ -58,6 +58,12 @@ import { FileDownloadsController } from './file-downloads.controller.js';
 import { FILE_PREVIEW_SERVICE, FilePreviewService } from './file-preview.service.js';
 import { FilePreviewsController } from './file-previews.controller.js';
 import { PortalFilePreviewsController } from './portal-file-previews.controller.js';
+import { REVIEW_SERVICE, ReviewService } from './review.service.js';
+import {
+  FileReviewController,
+  ReviewMentionCandidatesController,
+  ReviewThreadsController,
+} from './review.controller.js';
 import {
   ATTACHMENT_VERSIONS_SERVICE,
   AttachmentVersionsService,
@@ -381,6 +387,19 @@ export class FilesModule {
         ),
     };
 
+    // R4 slice 5. Proofing threads and comments, behind the download gate's own decision on the
+    // file each thread hangs on; audit and outbox rows commit with the write.
+    const review: Provider = {
+      provide: REVIEW_SERVICE,
+      inject: [TENANT_DATABASE, FILE_DOWNLOAD_SERVICE, AUDIT_SERVICE, OUTBOX_EVENTS_REPOSITORY],
+      useFactory: (
+        database: TenantDatabase,
+        downloadService: FileDownloadService,
+        audit: AuditService,
+        outbox: OutboxEventsRepository,
+      ) => new ReviewService(database, downloadService, new ProjectsRepository(), audit, outbox),
+    };
+
     // FILE-003 · WEB-006. The client's file list, over the same download surface: a read-only
     // service on the tenant database and the file-assets repository. No store, no audit — it
     // hands out no bytes; it names the files the download door would serve, which it audits.
@@ -465,6 +484,7 @@ export class FilesModule {
         scanJob,
         downloads,
         filePreviews,
+        review,
         portalFileList,
         attachmentVersions,
       ],
@@ -483,6 +503,7 @@ export class FilesModule {
         scanJob,
         downloads,
         filePreviews,
+        review,
         portalFileList,
         attachmentVersions,
       ],
@@ -494,6 +515,9 @@ export class FilesModule {
         PortalFileDownloadsController,
         FilePreviewsController,
         PortalFilePreviewsController,
+        FileReviewController,
+        ReviewThreadsController,
+        ReviewMentionCandidatesController,
         PortalFileListController,
         UsageController,
         FileTagsController,

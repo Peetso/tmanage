@@ -281,6 +281,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // name every studio's preview objects at once. Registered after its parents so the company
   // erasure (reverse order) empties it first.
   file_previews: 'organization_id',
+  // R4 slice 5 (0268). Proofing threads and their comments on a studio's files: what people said
+  // about a client's work. After their parents (projects, file_versions), comments after threads,
+  // so the company erasure (reverse order) empties comments, then threads.
+  review_threads: 'organization_id',
+  review_comments: 'organization_id',
   upload_sessions: 'organization_id',
   // USAGE-001 slice 2 (migration 0021). Tenant-owned like `usage_counters`, whose every
   // move it records: `organization_id` is NOT NULL and it carries the `(organization_id, id)`

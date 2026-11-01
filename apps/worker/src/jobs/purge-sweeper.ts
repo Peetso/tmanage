@@ -43,6 +43,9 @@ export const CONTENT_PURGE_TABLES: readonly string[] = Object.freeze([
   'request_comments',
   'request_messages',
   'file_comments',
+  // R4 slice 5 (0268): proofing comments before their threads.
+  'review_comments',
+  'review_threads',
   'project_update_comments',
   'google_drive_attachments',
   'onedrive_attachments',

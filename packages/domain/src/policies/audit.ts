@@ -495,6 +495,27 @@ export const AUDIT_ACTION_CATALOG = {
    * and a `denied` row for every refused manifest or preview read, the cause on `audit_code`. Ids,
    * the version, the preview kind and the principal's kind only.
    */
+  /**
+   * R4 slice 5. Somebody opened a proofing thread on a file (a pin, a box, a drawing, a moment, a
+   * cell, or no place) with its first comment. Ids, the audience, the anchor kind and the number of
+   * people mentioned only — never the text. `denied` rows carry the refusal on `audit_code`.
+   */
+  'review.thread_created': {
+    objectType: 'review_thread',
+    clause:
+      '§12 — client-visible collaboration on a file is a disclosure; R4 SPEC §3.4 audit ' +
+      'review.thread_created',
+  },
+  /** R4 slice 5. A reply on a proofing thread. Ids and the mention count only. */
+  'review.comment_added': {
+    objectType: 'review_thread',
+    clause: '§12 — collaboration on a file; R4 SPEC §3.4 audit review.comment_added',
+  },
+  /** R4 slice 5. A proofing thread was resolved or reopened (`resolved` in metadata). */
+  'review.thread_resolved': {
+    objectType: 'review_thread',
+    clause: '§12 — a review state change on a file; R4 SPEC §3.4 audit review.thread_resolved',
+  },
   'file_preview.viewed': {
     objectType: 'file_asset',
     clause:
@@ -1115,6 +1136,9 @@ const AUDIT_ACTION_LABELS = {
   'file_asset.scanned': 'Scanned a file',
   'file_asset.downloaded': 'Downloaded a file',
   'file_preview.viewed': 'Viewed a file preview',
+  'review.thread_created': 'Commented on a file',
+  'review.comment_added': 'Replied on a file comment',
+  'review.thread_resolved': 'Resolved or reopened a file comment',
   'file_asset.scan_disputed': "A file's scan result changed",
   'file_asset.purged': 'Deleted stored file data',
   'upload_session.expired': 'Cleaned up an expired upload',

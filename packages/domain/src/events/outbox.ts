@@ -216,6 +216,25 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'direct_conversation',
     catalog: '§4 message.created.v1 (direct) — realtime, recipient notification',
   },
+  /**
+   * R4 slice 5: a proofing thread was opened on a file with its first comment. The aggregate is the
+   * thread. Mentioned people, the file's team and (for a client-visible thread) the client people
+   * who can reach the file are told (consumer: R4 slice 12).
+   */
+  'review.thread_created.v1': {
+    aggregateType: 'review_thread',
+    catalog: '§4 comment created — notification, mentions (R4 proofing)',
+  },
+  /** R4 slice 5: a reply on a proofing thread. */
+  'review.comment_added.v1': {
+    aggregateType: 'review_thread',
+    catalog: '§4 comment created — notification, mentions (R4 proofing)',
+  },
+  /** R4 slice 5: a proofing thread was resolved or reopened. */
+  'review.thread_resolved.v1': {
+    aggregateType: 'review_thread',
+    catalog: '§4 comment resolved — notification (R4 proofing)',
+  },
   /** D5: a data export archive is ready — the person who asked is emailed (consumer: later slice). */
   'privacy_export.ready.v1': {
     aggregateType: 'privacy_export',
@@ -566,6 +585,46 @@ export interface PrivacyDeletionChangedV1 {
   readonly scheduledFor: string;
 }
 
+/**
+ * R4 slice 5. Ids and states only — the comment text stays on its row. `subjectId` is the root
+ * file asset of the version chain; `audience` decides whether client people may be told.
+ */
+export interface ReviewThreadCreatedV1 {
+  readonly threadId: string;
+  readonly commentId: string;
+  readonly subjectType: 'file_asset' | 'figma_frame';
+  readonly subjectId: string;
+  readonly fileAssetId: string | null;
+  readonly projectId: string;
+  readonly audience: 'internal' | 'client_visible';
+  readonly authorUserId: string;
+  readonly mentionedUserIds: readonly string[];
+}
+
+/** R4 slice 5. A reply: the thread's ids again, so a consumer needs no extra read to route it. */
+export interface ReviewCommentAddedV1 {
+  readonly commentId: string;
+  readonly threadId: string;
+  readonly subjectType: 'file_asset' | 'figma_frame';
+  readonly subjectId: string;
+  readonly fileAssetId: string | null;
+  readonly projectId: string;
+  readonly audience: 'internal' | 'client_visible';
+  readonly authorUserId: string;
+  readonly mentionedUserIds: readonly string[];
+}
+
+/** R4 slice 5. `resolved: false` is a reopen. */
+export interface ReviewThreadResolvedV1 {
+  readonly threadId: string;
+  readonly subjectType: 'file_asset' | 'figma_frame';
+  readonly subjectId: string;
+  readonly projectId: string;
+  readonly audience: 'internal' | 'client_visible';
+  readonly resolved: boolean;
+  readonly byUserId: string;
+}
+
 /** Type-indexed payload map, so a producer cannot pair a type with another type's payload. */
 export interface OutboxEventPayloads {
   readonly 'client_request.submitted.v1': ClientRequestSubmittedV1;
@@ -597,6 +656,9 @@ export interface OutboxEventPayloads {
   readonly 'direct_message.created.v1': DirectMessageCreatedV1;
   readonly 'privacy_export.ready.v1': PrivacyExportReadyV1;
   readonly 'privacy_deletion.changed.v1': PrivacyDeletionChangedV1;
+  readonly 'review.thread_created.v1': ReviewThreadCreatedV1;
+  readonly 'review.comment_added.v1': ReviewCommentAddedV1;
+  readonly 'review.thread_resolved.v1': ReviewThreadResolvedV1;
 }
 
 /**

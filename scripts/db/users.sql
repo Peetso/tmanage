@@ -1961,3 +1961,14 @@ GRANT SELECT, INSERT ON `tmanage`.`work_item_time_logs`             TO 'tmanage_
 -- a version's derivatives are swept or the company is erased. SELECT rides the database-wide read.
 -- Nothing on the worker credential: no worker code touches derivatives.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`file_previews`          TO 'tmanage_app'@'%';
+
+-- ---- R4 slice 5 · proofing threads ----
+-- 0268 `review_threads` / `review_comments` (tenant): the app writes threads and comments (INSERT),
+-- resolves, moves, edits and soft-deletes them (UPDATE; the triggers pin identity and make a
+-- thread's audience immutable). A delete from the product is a soft delete (PA-03); DELETE is held
+-- for the company erasure only, as for `file_previews`. SELECT rides the database-wide read. The
+-- worker's `--sweep-purge` hard-deletes rows past their restore window.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`review_threads`         TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`review_comments`        TO 'tmanage_app'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`review_comments`                TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`review_threads`                 TO 'tmanage_worker'@'%';

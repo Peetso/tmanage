@@ -18,6 +18,21 @@ export type {
 } from './usage.js';
 
 export {
+  REVIEW_SUBJECT_TYPES,
+  REVIEW_AUDIENCES,
+  REVIEW_THREAD_CREATED_V1_SCHEMA,
+  REVIEW_COMMENT_ADDED_V1_SCHEMA,
+  REVIEW_THREAD_RESOLVED_V1_SCHEMA,
+} from './review.js';
+export type {
+  ReviewSubjectType,
+  ReviewAudience,
+  ReviewThreadCreatedPayload,
+  ReviewCommentAddedPayload,
+  ReviewThreadResolvedPayload,
+} from './review.js';
+
+export {
   EVENT_SCHEMA_REGISTRY,
   REGISTERED_EVENT_TYPES,
   isRegisteredEventType,

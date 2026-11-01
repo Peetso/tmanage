@@ -18,6 +18,14 @@ import {
   type UsageStorageReleasedPayload,
   type UsageThresholdReachedPayload,
 } from './usage.js';
+import {
+  REVIEW_THREAD_CREATED_V1_SCHEMA,
+  REVIEW_COMMENT_ADDED_V1_SCHEMA,
+  REVIEW_THREAD_RESOLVED_V1_SCHEMA,
+  type ReviewThreadCreatedPayload,
+  type ReviewCommentAddedPayload,
+  type ReviewThreadResolvedPayload,
+} from './review.js';
 
 /** A registry entry: the pinned schema version and the JSON Schema that defines the payload. */
 export interface VersionedEventSchema {
@@ -34,6 +42,9 @@ export const EVENT_SCHEMA_REGISTRY = {
   'usage.storage_committed.v1': { version: 1, schema: USAGE_STORAGE_COMMITTED_V1_SCHEMA },
   'usage.storage_released.v1': { version: 1, schema: USAGE_STORAGE_RELEASED_V1_SCHEMA },
   'usage.threshold_reached.v1': { version: 1, schema: USAGE_THRESHOLD_REACHED_V1_SCHEMA },
+  'review.thread_created.v1': { version: 1, schema: REVIEW_THREAD_CREATED_V1_SCHEMA },
+  'review.comment_added.v1': { version: 1, schema: REVIEW_COMMENT_ADDED_V1_SCHEMA },
+  'review.thread_resolved.v1': { version: 1, schema: REVIEW_THREAD_RESOLVED_V1_SCHEMA },
 } as const satisfies Record<string, VersionedEventSchema>;
 
 /** Every registered event `type` string. */
@@ -45,6 +56,9 @@ export interface EventPayloadMap {
   'usage.storage_committed.v1': UsageStorageCommittedPayload;
   'usage.storage_released.v1': UsageStorageReleasedPayload;
   'usage.threshold_reached.v1': UsageThresholdReachedPayload;
+  'review.thread_created.v1': ReviewThreadCreatedPayload;
+  'review.comment_added.v1': ReviewCommentAddedPayload;
+  'review.thread_resolved.v1': ReviewThreadResolvedPayload;
 }
 
 /** The registered event names, as a value — the keys of {@link EVENT_SCHEMA_REGISTRY}. */

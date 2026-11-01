@@ -364,6 +364,14 @@ import type {
   PreviewVersionInfoView as ApiPreviewVersionInfoView,
 } from '../../apps/api/src/modules/files/file-preview.service.js';
 import type {
+  ReviewCommentView as ApiReviewCommentView,
+  ReviewMentionCandidateView as ApiReviewMentionCandidateView,
+  ReviewMentionCandidatesView as ApiReviewMentionCandidatesView,
+  ReviewPersonView as ApiReviewPersonView,
+  ReviewThreadListView as ApiReviewThreadListView,
+  ReviewThreadView as ApiReviewThreadView,
+} from '../../apps/api/src/modules/files/review.service.js';
+import type {
   ChecklistTemplateView as ApiChecklistTemplateView,
   ApplyTemplateResultView as ApiApplyTemplateResultView,
 } from '../../apps/api/src/modules/work/checklist-templates.service.js';
@@ -881,6 +889,14 @@ import type {
   PreviewRetryResult as WebPreviewRetryResult,
   PreviewVersionInfo as WebPreviewVersionInfo,
 } from '../../apps/web/src/lib/api/file-preview';
+import type {
+  ReviewComment as WebReviewComment,
+  ReviewMentionCandidate as WebReviewMentionCandidate,
+  ReviewMentionCandidates as WebReviewMentionCandidates,
+  ReviewPerson as WebReviewPerson,
+  ReviewThread as WebReviewThread,
+  ReviewThreadList as WebReviewThreadList,
+} from '../../apps/web/src/lib/api/review';
 import type { ChecklistTemplate as WebChecklistTemplate } from '../../apps/web/src/lib/api/work-checklist-templates';
 import type { ApplyTemplateResult as WebApplyTemplateResult } from '../../apps/web/src/lib/api/work-checklist-templates';
 import type { BoardColumn as WebBoardColumn } from '../../apps/web/src/lib/api/board-columns';
@@ -2023,6 +2039,17 @@ type _previewDecisionContext = Assert<
   Exact<ApiPreviewDecisionContextView, WebPreviewDecisionContext>
 >;
 type _filePreviewManifest = Assert<Exact<ApiFilePreviewManifestView, WebFilePreviewManifest>>;
+// R4 slice 5 — proofing threads.
+type _reviewPerson = Assert<Exact<ApiReviewPersonView, WebReviewPerson>>;
+type _reviewComment = Assert<Exact<ApiReviewCommentView, WebReviewComment>>;
+type _reviewThread = Assert<Exact<ApiReviewThreadView, WebReviewThread>>;
+type _reviewThreadList = Assert<Exact<ApiReviewThreadListView, WebReviewThreadList>>;
+type _reviewMentionCandidate = Assert<
+  Exact<ApiReviewMentionCandidateView, WebReviewMentionCandidate>
+>;
+type _reviewMentionCandidates = Assert<
+  Exact<ApiReviewMentionCandidatesView, WebReviewMentionCandidates>
+>;
 type _previewRetry = Assert<Exact<ApiPreviewRetryView, WebPreviewRetryResult>>;
 
 /**

@@ -5615,6 +5615,101 @@ export const filePreviews = mysqlTable(
   ],
 );
 
+/**
+ * R4 slice 5 (0268). A proofing thread: a numbered pin, box, drawing, moment or cell on a file
+ * (the ROOT asset of its version chain) — `subject_type = 'file_asset'` — and the version it was
+ * drawn on. `number` is monotonic per subject (unique key; the service retries a lost race).
+ * `audience` and the identity columns are immutable (trigger). Soft delete per PA-03.
+ * `0268_review_threads.sql`; `modules/files/review-threads.repository.ts`.
+ */
+export const reviewThreads = mysqlTable(
+  'review_threads',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    subjectType: varchar('subject_type', { length: 16 }).notNull(),
+    subjectId: char('subject_id', { length: 36 }).notNull(),
+    fileVersionId: char('file_version_id', { length: 36 }),
+    anchorKind: varchar('anchor_kind', { length: 8 }).notNull().default('none'),
+    /** MariaDB answers JSON as text; the repository parses it. */
+    anchor: json('anchor').$type<Record<string, unknown>>(),
+    pageNo: int('page_no', { unsigned: true }),
+    timeMs: int('time_ms', { unsigned: true }),
+    number: int('number', { unsigned: true }).notNull(),
+    audience: varchar('audience', { length: 16 }).notNull().default('internal'),
+    status: varchar('status', { length: 10 }).notNull().default('open'),
+    resolvedByMembershipId: char('resolved_by_membership_id', { length: 36 }),
+    resolvedAt: datetime('resolved_at', { mode: 'date', fsp: 3 }),
+    carriedFromThreadId: char('carried_from_thread_id', { length: 36 }),
+    createdByMembershipId: char('created_by_membership_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_review_threads_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_review_threads_number').on(
+      table.organizationId,
+      table.subjectType,
+      table.subjectId,
+      table.number,
+    ),
+    index('ix_review_threads_subject').on(
+      table.organizationId,
+      table.subjectType,
+      table.subjectId,
+      table.status,
+      table.createdAt,
+    ),
+    index('ix_review_threads_version').on(table.organizationId, table.fileVersionId),
+    index('ix_review_threads_project').on(table.organizationId, table.projectId),
+    index('ix_review_threads_org_deleted').on(table.organizationId, table.deletedAt),
+    index('ix_review_threads_purge').on(table.purgeAfter),
+  ],
+);
+
+export type ReviewThreadRow = typeof reviewThreads.$inferSelect;
+
+/**
+ * R4 slice 5 (0268). One comment on a proofing thread, oldest first. `mentions` holds the user ids
+ * it names. Edited by its author within a short window (`edited_at`); soft delete per PA-03.
+ */
+export const reviewComments = mysqlTable(
+  'review_comments',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    threadId: char('thread_id', { length: 36 }).notNull(),
+    body: text('body').notNull(),
+    /** MariaDB answers JSON as text; the repository parses it. */
+    mentions: json('mentions').$type<string[]>(),
+    createdByMembershipId: char('created_by_membership_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    editedAt: datetime('edited_at', { mode: 'date', fsp: 3 }),
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    deletedReason: varchar('deleted_reason', { length: 500 }),
+    purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_review_comments_org_id').on(table.organizationId, table.id),
+    index('ix_review_comments_thread').on(
+      table.organizationId,
+      table.threadId,
+      table.createdAt,
+      table.id,
+    ),
+    index('ix_review_comments_org_deleted').on(table.organizationId, table.deletedAt),
+    index('ix_review_comments_purge').on(table.purgeAfter),
+  ],
+);
+
+export type ReviewCommentRow = typeof reviewComments.$inferSelect;
+
 export const uploadSessions = mysqlTable(
   'upload_sessions',
   {
@@ -9458,6 +9553,8 @@ export const TABLES = {
   file_versions: fileVersions,
   attachment_versions: attachmentVersions,
   file_previews: filePreviews,
+  review_threads: reviewThreads,
+  review_comments: reviewComments,
   upload_sessions: uploadSessions,
   user_passwords: userPasswords,
   password_reset_tokens: passwordResetTokens,

@@ -147,7 +147,8 @@ describe('PA-03 content purge', () => {
     expect(order('document_comments')).toBeLessThan(order('documents'));
     expect(order('decision_comments')).toBeLessThan(order('decisions'));
     expect(order('meeting_attachments')).toBeLessThan(order('meetings'));
-    expect(CONTENT_PURGE_TABLES).toHaveLength(19);
+    expect(order('review_comments')).toBeLessThan(order('review_threads'));
+    expect(CONTENT_PURGE_TABLES).toHaveLength(21);
     expect(CONTENT_PURGE_TABLES).not.toContain('file_assets');
   });
 
