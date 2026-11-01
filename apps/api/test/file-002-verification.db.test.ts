@@ -42,8 +42,8 @@ import type { SeedWorld } from './seed-two-tenants.js';
  *    `hash_mismatch`: `rejected`, the code on the row, the digest still recorded, one
  *    `file_asset.rejected` row as `denied`, one `file.rejected.v1` naming no filename — and
  *    the bytes stay on disk and stay counted (decision F4).
- * 3. **The signature allowlist (SEC-06).** SVG declared as itself and HTML declared as PDF
- *    are `type_not_allowed`; PNG bytes declared PDF are `type_mismatch`; a real Office
+ * 3. **The signature allowlist (SEC-06).** SVG declared as an image it is not (R4 admits SVG
+ *    only as itself) and HTML declared as PDF are `type_not_allowed`; PNG bytes declared PDF are `type_mismatch`; a real Office
  *    container declared as `.docx` passes; text passes and text with a NUL does not.
  * 4. **Tenants do not mix.** Two organizations in one pass, each judged under its own
  *    context, each with its own audit trail.
@@ -515,7 +515,7 @@ describe('the declaration is held to', () => {
 describe('the signature allowlist (SEC-06)', () => {
   it('refuses active content and spoofed labels, admits an Office container and text', async () => {
     const tenant = northstar();
-    const svg = await uploaded(tenant, SVG, 'image/svg+xml');
+    const svg = await uploaded(tenant, SVG, 'image/png');
     const htmlAsPdf = await uploaded(tenant, HTML, 'application/pdf');
     const pngAsPdf = await uploaded(tenant, PNG, 'application/pdf');
     const docx = await uploaded(tenant, DOCX, `${OOXML}.wordprocessingml.document`);

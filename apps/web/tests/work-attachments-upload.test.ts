@@ -97,9 +97,40 @@ describe('attachment checks', () => {
     expect(attachmentMimeType({ name: 'notes.md', size: 1, type: '' })).toBe('text/markdown');
     expect(attachmentMimeType({ name: 'Photo.JPG', size: 1, type: '' })).toBe('image/jpeg');
     expect(
-      attachmentMimeType({ name: 'design.psd', size: 1, type: 'image/vnd.adobe.photoshop' }),
+      attachmentMimeType({ name: 'setup.exe', size: 1, type: 'application/x-msdownload' }),
     ).toBeNull();
     expect(attachmentMimeType({ name: 'noextension', size: 1, type: '' })).toBeNull();
+  });
+
+  it('declares the R4 proofing formats the verifier admits', () => {
+    const cases: readonly (readonly [string, string, string])[] = [
+      ['design.psd', 'image/vnd.adobe.photoshop', 'image/vnd.adobe.photoshop'],
+      ['logo.svg', 'image/svg+xml', 'image/svg+xml'],
+      ['IMG_0001.HEIC', '', 'image/heic'],
+      ['scan.tif', '', 'image/tiff'],
+      ['mark.eps', 'application/postscript', 'application/postscript'],
+      ['cut.mov', 'video/quicktime', 'video/quicktime'],
+      ['reel.mp4', 'video/mp4', 'video/mp4'],
+      ['voice.m4a', 'audio/x-m4a', 'audio/mp4'],
+      ['take.wav', 'audio/x-wav', 'audio/wav'],
+      ['song.mp3', 'audio/mpeg', 'audio/mpeg'],
+      ['loop.ogg', 'video/ogg', 'audio/ogg'],
+      ['master.flac', '', 'audio/flac'],
+    ];
+    for (const [name, type, declared] of cases) {
+      expect(attachmentMimeType({ name, size: 1, type }), name).toBe(declared);
+    }
+  });
+
+  it('declares an Illustrator file by its extension, whatever the browser reports', () => {
+    // Reversal: let the reported type win and `.ai` is declared PostScript, then refused by
+    // the verifier because its bytes are a PDF.
+    expect(attachmentMimeType({ name: 'logo.ai', size: 1, type: 'application/postscript' })).toBe(
+      'application/illustrator',
+    );
+    expect(attachmentMimeType({ name: 'logo.AI', size: 1, type: '' })).toBe(
+      'application/illustrator',
+    );
   });
 
   it('names the reason a file is refused before any byte moves', () => {
@@ -189,12 +220,12 @@ describe('uploadProjectFile', () => {
 
   it('refuses a file type the verifier does not admit without opening a session', async () => {
     const { client, calls, partFetch } = harness(() => new Response(null, { status: 200 }));
-    const psd = new File(['x'], 'layout.psd', { type: 'image/vnd.adobe.photoshop' });
+    const exe = new File(['x'], 'setup.exe', { type: 'application/x-msdownload' });
     await expect(
       uploadProjectFile(
         client,
         'northstar',
-        { projectId: 'proj-1', file: psd },
+        { projectId: 'proj-1', file: exe },
         { fetch: partFetch },
       ),
     ).rejects.toThrow(/not a file type/);

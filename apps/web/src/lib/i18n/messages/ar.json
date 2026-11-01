@@ -4169,6 +4169,7 @@
   "CaptureExtras.removeFilePrefix": "إزالة ",
   "CaptureExtras.attachFiles": "+ إرفاق ملفات",
   "CaptureExtras.someFilesError": "لم تُضَف بعض الملفات",
+  "CaptureExtras.attachHint": "‏ملفات PDF، والصور (PNG وJPEG وGIF وWebP وSVG وHEIC وTIFF)، وفوتوشوب، وإليستريتور، وEPS، والفيديو (MP4 وMOV)، والصوت (MP3 وWAV وM4A وOGG وFLAC)، ووورد، وإكسل، وباوربوينت، وZIP، والنصوص، وCSV أو Markdown. حتى {count} ملفات، بحد أقصى {size} لكل ملف. مرئية لفريقك فقط.",
   "ChangelogScreen.eyebrow": "المنتج · سجل التغييرات",
   "ChangelogScreen.title": "ما الجديد",
   "ChangelogScreen.lede": "تحديثات المنتج، الأحدث أولًا. مجمّعة حسب الشهر الذي صدر فيه كل تغيير.",

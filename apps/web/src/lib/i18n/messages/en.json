@@ -4169,6 +4169,7 @@
   "CaptureExtras.removeFilePrefix": "Remove ",
   "CaptureExtras.attachFiles": "+ Attach files",
   "CaptureExtras.someFilesError": "Some files were not added",
+  "CaptureExtras.attachHint": "PDF, images (PNG, JPEG, GIF, WebP, SVG, HEIC, TIFF), Photoshop, Illustrator, EPS, video (MP4, MOV), audio (MP3, WAV, M4A, OGG, FLAC), Word, Excel, PowerPoint, ZIP, text, CSV or Markdown. Up to {count} files, {size} each. Visible to your team only.",
   "ChangelogScreen.eyebrow": "Product · Changelog",
   "ChangelogScreen.title": "What’s new",
   "ChangelogScreen.lede": "Product updates, newest first. Grouped by the month each change went live.",

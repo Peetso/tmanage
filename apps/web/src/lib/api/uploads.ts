@@ -56,9 +56,35 @@ const TYPE_BY_EXTENSION: Readonly<Record<string, string>> = {
   txt: 'text/plain',
   csv: 'text/csv',
   md: 'text/markdown',
+  // R4 proofing formats (SPEC §2) — the same families the verifier gained.
+  svg: 'image/svg+xml',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  tif: 'image/tiff',
+  tiff: 'image/tiff',
+  psd: 'image/vnd.adobe.photoshop',
+  psb: 'image/vnd.adobe.photoshop',
+  ai: 'application/illustrator',
+  eps: 'application/postscript',
+  mp4: 'video/mp4',
+  m4v: 'video/mp4',
+  mov: 'video/quicktime',
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  m4a: 'audio/mp4',
+  ogg: 'audio/ogg',
+  oga: 'audio/ogg',
+  flac: 'audio/flac',
 };
 
 const ADMITTED_TYPES: ReadonlySet<string> = new Set(Object.values(TYPE_BY_EXTENSION));
+
+/**
+ * Extensions whose type the browser misreports, so the extension decides even when the
+ * reported type is admitted. Operating systems label `.ai` as `application/postscript`, which
+ * the verifier would hold to the EPS signature and refuse; a modern Illustrator file is a PDF.
+ */
+const EXTENSION_DECIDES: ReadonlySet<string> = new Set(['ai']);
 
 /** The `accept` attribute for the file input: every admitted extension and type. */
 export const ATTACHMENT_ACCEPT = [
@@ -66,9 +92,14 @@ export const ATTACHMENT_ACCEPT = [
   ...ADMITTED_TYPES,
 ].join(',');
 
-/** A human list of the admitted kinds, for the hint under the picker. */
+/**
+ * A human list of the admitted kinds, in English. The picker's hint reads the localised
+ * `CaptureExtras.attachHint` instead; keep the two lists the same.
+ */
 export const ATTACHMENT_KINDS_LABEL =
-  'PDF, images (PNG, JPEG, GIF, WebP), Word, Excel, PowerPoint, ZIP, text, CSV or Markdown';
+  'PDF, images (PNG, JPEG, GIF, WebP, SVG, HEIC, TIFF), Photoshop, Illustrator, EPS, ' +
+  'video (MP4, MOV), audio (MP3, WAV, M4A, OGG, FLAC), Word, Excel, PowerPoint, ZIP, text, ' +
+  'CSV or Markdown';
 
 /** The minimal file facts these checks read — `File` has them, and a test can fake them. */
 export interface AttachmentFileInput {
@@ -83,10 +114,12 @@ export interface AttachmentFileInput {
  */
 export function attachmentMimeType(file: AttachmentFileInput): string | null {
   const reported = file.type.trim().toLowerCase();
-  if (ADMITTED_TYPES.has(reported)) return reported;
   const dot = file.name.lastIndexOf('.');
-  if (dot === -1) return null;
-  return TYPE_BY_EXTENSION[file.name.slice(dot + 1).toLowerCase()] ?? null;
+  const extension = dot === -1 ? '' : file.name.slice(dot + 1).toLowerCase();
+  if (EXTENSION_DECIDES.has(extension)) return TYPE_BY_EXTENSION[extension] ?? null;
+  if (ADMITTED_TYPES.has(reported)) return reported;
+  if (extension === '') return null;
+  return TYPE_BY_EXTENSION[extension] ?? null;
 }
 
 /** Why a file cannot be attached, in a sentence — or `null` when it can. */

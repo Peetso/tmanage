@@ -5,7 +5,6 @@ import { Button, InlineAlert } from '@tmanage/ui';
 import type { WorkLabel } from '../../lib/api/work-labels';
 import {
   ATTACHMENT_ACCEPT,
-  ATTACHMENT_KINDS_LABEL,
   MAX_ATTACHMENTS,
   MAX_ATTACHMENT_BYTES,
   attachmentProblem,
@@ -221,8 +220,9 @@ export function CaptureAttachmentPicker({
         </button>
       </div>
       <p className="tm-capture-extra__hint" id={hintId}>
-        {ATTACHMENT_KINDS_LABEL}. Up to {MAX_ATTACHMENTS} files, {formatBytes(MAX_ATTACHMENT_BYTES)}{' '}
-        each. Visible to your team only.
+        {t('CaptureExtras.attachHint')
+          .replace('{count}', String(MAX_ATTACHMENTS))
+          .replace('{size}', formatBytes(MAX_ATTACHMENT_BYTES))}
       </p>
       {problems.length > 0 ? (
         <InlineAlert tone="danger" title={t('CaptureExtras.someFilesError')}>

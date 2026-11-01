@@ -38,6 +38,25 @@
  * reached quarantine — SEC-06), not for a disagreement with its label, and the audit row
  * says so.
  *
+ * ## R4: the proofing families, and the one markup exception
+ *
+ * The proofing viewer (R4, `D:/TManage/work/r4-viewer/SPEC.md` §2) widened the list with
+ * SVG, HEIC/HEIF, TIFF, PSD/PSB, Illustrator (PDF-compatible), EPS, MP4/MOV, M4A, MP3, WAV,
+ * OGG and FLAC. Every one keeps the offset-zero rule. The ISO media files (MP4, MOV, M4A,
+ * HEIC) all carry `ftyp` at byte 4, so they are told apart by the **major brand** at bytes
+ * 8–11, and the brand lists below do not overlap: an object still has at most one family.
+ * MP4, MOV and M4A share one container family (like the ZIP family, the sniff proves the
+ * container and the declared member stands); HEIC/HEIF is its own family.
+ *
+ * SVG is the one family that **is** markup. Its admission is the only relaxation of the
+ * markup refusal, and it is narrow: only a declared `image/svg+xml` skips that refusal, the
+ * whole object must still pass the textual rule, the head must open as an SVG document
+ * (`<svg`, or an XML declaration / comment / SVG doctype followed by `<svg` in the window),
+ * and a head that names `<html` or an HTML doctype is refused all the same. An SVG declared
+ * as anything else is still refused as `type_not_allowed`. Admission does **not** make the
+ * file safe to show: the original is only ever downloaded as an attachment, and the viewer
+ * shows a sanitised derivative (R4 slice 3) under a sandbox CSP (slice 4).
+ *
  * ## Textual is a whole-object property
  *
  * `text/plain`, `text/csv` and `text/markdown` have no signature. They are admitted when
@@ -64,10 +83,24 @@ export type RejectionCode = 'hash_mismatch' | 'type_not_allowed' | 'type_mismatc
  */
 export type DetectedTypeToken =
   | 'pdf'
+  | 'ai'
   | 'png'
   | 'jpeg'
   | 'gif'
   | 'webp'
+  | 'svg'
+  | 'heic'
+  | 'heif'
+  | 'tiff'
+  | 'psd'
+  | 'eps'
+  | 'mp4'
+  | 'mov'
+  | 'm4a'
+  | 'mp3'
+  | 'wav'
+  | 'ogg'
+  | 'flac'
   | 'zip'
   | 'docx'
   | 'xlsx'
@@ -76,15 +109,57 @@ export type DetectedTypeToken =
   | 'text_csv'
   | 'text_markdown';
 
+const OOXML = 'application/vnd.openxmlformats-officedocument';
+
+const UTF8_BOM = [0xef, 0xbb, 0xbf] as const;
+
+/**
+ * The type recorded on `detected_mime_type` for each token: one canonical spelling, so an
+ * alias (`image/jpg`, `audio/x-wav`, `audio/x-m4a`) is recorded as the type it stands for.
+ * Illustrator files are recorded as `application/pdf` — the bytes *are* a PDF, and the
+ * original name keeps the `.ai` (R4 SPEC §2).
+ */
+export const MIME_BY_TOKEN: Readonly<Record<DetectedTypeToken, string>> = {
+  pdf: 'application/pdf',
+  ai: 'application/pdf',
+  png: 'image/png',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  tiff: 'image/tiff',
+  psd: 'image/vnd.adobe.photoshop',
+  eps: 'application/postscript',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  m4a: 'audio/mp4',
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  ogg: 'audio/ogg',
+  flac: 'audio/flac',
+  zip: 'application/zip',
+  docx: `${OOXML}.wordprocessingml.document`,
+  xlsx: `${OOXML}.spreadsheetml.sheet`,
+  pptx: `${OOXML}.presentationml.presentation`,
+  text_plain: 'text/plain',
+  text_csv: 'text/csv',
+  text_markdown: 'text/markdown',
+};
+
 interface Family {
   /** The declared types this family admits, normalised (lowercase, no parameters). */
   readonly members: Readonly<Record<string, DetectedTypeToken>>;
-  /** The type recorded for a member the signature admits; `null` means "the declared member". */
-  readonly canonical: string | null;
   /** Whether the head carries this family's signature at offset zero. */
   readonly matches: (head: Buffer) => boolean;
-  /** `true` for the text family: the whole-object UTF-8 rule replaces a signature. */
+  /** `true` when the whole-object UTF-8 rule applies (the text family, and SVG). */
   readonly textual?: boolean;
+  /**
+   * `true` for SVG only: the family is markup, so the markup refusal is not applied to a
+   * type declared as one of its members. Its own `matches` is the narrower check.
+   */
+  readonly markup?: boolean;
 }
 
 const startsWith = (head: Buffer, bytes: readonly number[], offset = 0): boolean =>
@@ -93,38 +168,202 @@ const startsWith = (head: Buffer, bytes: readonly number[], offset = 0): boolean
 
 const ascii = (text: string): number[] => [...text].map((ch) => ch.charCodeAt(0));
 
-const OOXML = 'application/vnd.openxmlformats-officedocument';
+/**
+ * The ISO base media file header: a box of at least 16 bytes whose type, at bytes 4–7, is
+ * `ftyp`, and whose major brand (bytes 8–11) is one of `brands`. The brand is what tells an
+ * MP4 from a HEIC photo; the compatible-brand list after it is not read, on purpose — the
+ * major brand is the one claim at a fixed offset.
+ */
+function isoMajorBrand(head: Buffer, brands: ReadonlySet<string>): boolean {
+  if (head.length < 16 || !startsWith(head, ascii('ftyp'), 4)) return false;
+  if (head.readUInt32BE(0) < 16) return false;
+  return brands.has(head.toString('latin1', 8, 12));
+}
+
+/** HEIF still images (HEVC-coded or generic HEIF). Disjoint from {@link MEDIA_BRANDS}. */
+export const HEIF_BRANDS: ReadonlySet<string> = new Set([
+  'heic',
+  'heix',
+  'heim',
+  'heis',
+  'hevc',
+  'hevx',
+  'mif1',
+  'msf1',
+]);
+
+/** MP4 video, QuickTime MOV and M4A/M4B audio. Disjoint from {@link HEIF_BRANDS}. */
+export const MEDIA_BRANDS: ReadonlySet<string> = new Set([
+  'isom',
+  'iso2',
+  'iso3',
+  'iso4',
+  'iso5',
+  'iso6',
+  'mp41',
+  'mp42',
+  'avc1',
+  'dash',
+  'qt  ',
+  'M4V ',
+  'M4A ',
+  'M4B ',
+  'f4v ',
+]);
 
 /**
- * Decision F5: the allowlist. Seven families, SVG and HTML absent on purpose — both are
- * active content in a browser (`27` SEC-06), and a file that is one is refused whatever it
- * was declared as. Widening is one edit here.
+ * An MPEG audio frame header (MP3 without an ID3 tag): eleven set sync bits, a version that
+ * is not the reserved `01`, and a layer that is not the reserved `00` — which also keeps an
+ * AAC ADTS stream (layer `00`) out of the MP3 family. A JPEG's `FF D8` fails the sync bits.
+ */
+function isMpegAudioFrame(head: Buffer): boolean {
+  if (head.length < 2 || head[0] !== 0xff) return false;
+  const second = head[1] as number;
+  if ((second & 0xe0) !== 0xe0) return false;
+  const version = (second >> 3) & 0b11;
+  const layer = (second >> 1) & 0b11;
+  return version !== 0b01 && layer !== 0b00;
+}
+
+/** The first non-blank offset of a head, past a UTF-8 BOM and ASCII whitespace. */
+function contentStart(head: Buffer): number {
+  let start = startsWith(head, UTF8_BOM) ? UTF8_BOM.length : 0;
+  while (start < head.length) {
+    const byte = head[start] as number;
+    if (byte === 0x20 || byte === 0x09 || byte === 0x0a || byte === 0x0d || byte === 0x0c) {
+      start += 1;
+    } else {
+      break;
+    }
+  }
+  return start;
+}
+
+/** Whether a head names an HTML document anywhere in the window. */
+function namesHtml(head: Buffer): boolean {
+  const text = head.toString('latin1').toLowerCase();
+  return text.includes('<html') || text.includes('<!doctype html');
+}
+
+/**
+ * Whether a head opens as an SVG document. The first markup must be the `<svg` root, or one
+ * of the prologue forms an SVG editor writes before it (an XML declaration, a comment, an
+ * SVG doctype) with an `<svg` element later in the window. A head that names `<html` or an
+ * HTML doctype anywhere is never an SVG here: that is a web page with an SVG label.
+ */
+function opensAsSvg(head: Buffer): boolean {
+  if (namesHtml(head)) return false;
+  const text = head.toString('latin1', contentStart(head)).toLowerCase();
+  const root = /<svg[\s>/]/;
+  if (text.startsWith('<svg')) return /^<svg[\s>/]/.test(text);
+  const prologue =
+    text.startsWith('<?xml') || text.startsWith('<!--') || text.startsWith('<!doctype svg');
+  return prologue && root.test(text);
+}
+
+/**
+ * Decision F5, widened by R4: the allowlist. HTML stays absent on purpose — it is active
+ * content in a browser (`27` SEC-06) and is refused whatever it was declared as. SVG is
+ * admitted only as itself (see the header). Widening is one edit here.
  */
 export const FAMILIES: readonly Family[] = [
   {
-    members: { 'application/pdf': 'pdf' },
-    canonical: 'application/pdf',
+    // An Illustrator file saved PDF-compatible is a PDF; one saved without it is PostScript
+    // and is refused as a mismatch (rare, and it could not be shown anyway — SPEC §6.3).
+    members: {
+      'application/pdf': 'pdf',
+      'application/illustrator': 'ai',
+      'application/vnd.adobe.illustrator': 'ai',
+    },
     matches: (head) => startsWith(head, ascii('%PDF-')),
   },
   {
     members: { 'image/png': 'png' },
-    canonical: 'image/png',
     matches: (head) => startsWith(head, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
   },
   {
     members: { 'image/jpeg': 'jpeg', 'image/jpg': 'jpeg' },
-    canonical: 'image/jpeg',
     matches: (head) => startsWith(head, [0xff, 0xd8, 0xff]),
   },
   {
     members: { 'image/gif': 'gif' },
-    canonical: 'image/gif',
     matches: (head) => startsWith(head, ascii('GIF87a')) || startsWith(head, ascii('GIF89a')),
   },
   {
     members: { 'image/webp': 'webp' },
-    canonical: 'image/webp',
     matches: (head) => startsWith(head, ascii('RIFF')) && startsWith(head, ascii('WEBP'), 8),
+  },
+  {
+    members: { 'image/svg+xml': 'svg' },
+    matches: opensAsSvg,
+    textual: true,
+    markup: true,
+  },
+  {
+    members: { 'image/heic': 'heic', 'image/heif': 'heif' },
+    matches: (head) => isoMajorBrand(head, HEIF_BRANDS),
+  },
+  {
+    members: { 'image/tiff': 'tiff', 'image/tif': 'tiff' },
+    // Classic TIFF only, little- or big-endian. BigTIFF (`II+\0`) is not admitted.
+    matches: (head) =>
+      startsWith(head, [0x49, 0x49, 0x2a, 0x00]) || startsWith(head, [0x4d, 0x4d, 0x00, 0x2a]),
+  },
+  {
+    members: {
+      'image/vnd.adobe.photoshop': 'psd',
+      'image/x-photoshop': 'psd',
+      'application/x-photoshop': 'psd',
+      'application/photoshop': 'psd',
+    },
+    // `8BPS`, then version 1 (PSD) or 2 (PSB, the large-document format).
+    matches: (head) =>
+      startsWith(head, ascii('8BPS')) &&
+      (startsWith(head, [0x00, 0x01], 4) || startsWith(head, [0x00, 0x02], 4)),
+  },
+  {
+    members: {
+      'application/postscript': 'eps',
+      'application/eps': 'eps',
+      'application/x-eps': 'eps',
+      'image/eps': 'eps',
+      'image/x-eps': 'eps',
+    },
+    // A PostScript header, or the DOS-EPS binary header that wraps one with a preview.
+    matches: (head) =>
+      startsWith(head, ascii('%!PS-Adobe')) || startsWith(head, [0xc5, 0xd0, 0xd3, 0xc6]),
+  },
+  {
+    members: {
+      'video/mp4': 'mp4',
+      'video/quicktime': 'mov',
+      'audio/mp4': 'm4a',
+      'audio/x-m4a': 'm4a',
+      'audio/m4a': 'm4a',
+    },
+    // The container signature cannot tell video from audio; the declared member stands.
+    matches: (head) => isoMajorBrand(head, MEDIA_BRANDS),
+  },
+  {
+    members: { 'audio/mpeg': 'mp3', 'audio/mp3': 'mp3' },
+    matches: (head) => startsWith(head, ascii('ID3')) || isMpegAudioFrame(head),
+  },
+  {
+    members: {
+      'audio/wav': 'wav',
+      'audio/x-wav': 'wav',
+      'audio/wave': 'wav',
+      'audio/vnd.wave': 'wav',
+    },
+    matches: (head) => startsWith(head, ascii('RIFF')) && startsWith(head, ascii('WAVE'), 8),
+  },
+  {
+    members: { 'audio/ogg': 'ogg' },
+    matches: (head) => startsWith(head, ascii('OggS')),
+  },
+  {
+    members: { 'audio/flac': 'flac', 'audio/x-flac': 'flac' },
+    matches: (head) => startsWith(head, ascii('fLaC')),
   },
   {
     members: {
@@ -134,7 +373,6 @@ export const FAMILIES: readonly Family[] = [
       [`${OOXML}.presentationml.presentation`]: 'pptx',
     },
     // The container signature cannot tell the members apart; the declared member stands.
-    canonical: null,
     // `PK\x03\x04` only. An empty archive (`PK\x05\x06`) holds nothing worth storing and a
     // spanned one (`PK\x07\x08`) is not a document; both are refused as a mismatch.
     matches: (head) => startsWith(head, [0x50, 0x4b, 0x03, 0x04]),
@@ -145,7 +383,6 @@ export const FAMILIES: readonly Family[] = [
       'text/csv': 'text_csv',
       'text/markdown': 'text_markdown',
     },
-    canonical: null,
     matches: () => true,
     textual: true,
   },
@@ -166,7 +403,6 @@ export function isAllowedMediaType(declared: string): boolean {
   return familyFor(normalizeMediaType(declared)) !== null;
 }
 
-const UTF8_BOM = [0xef, 0xbb, 0xbf] as const;
 const MARKUP_MARKERS = ['<?xml', '<svg', '<html', '<!doctype', '<script'] as const;
 
 /**
@@ -176,15 +412,7 @@ const MARKUP_MARKERS = ['<?xml', '<svg', '<html', '<!doctype', '<script'] as con
  * anywhere in the window.
  */
 export function looksLikeMarkup(head: Buffer, deep: boolean): boolean {
-  let start = startsWith(head, UTF8_BOM) ? UTF8_BOM.length : 0;
-  while (start < head.length) {
-    const byte = head[start] as number;
-    if (byte === 0x20 || byte === 0x09 || byte === 0x0a || byte === 0x0d || byte === 0x0c) {
-      start += 1;
-    } else {
-      break;
-    }
-  }
+  const start = contentStart(head);
   if (start < head.length && head[start] === 0x3c) return true;
   if (!deep) return false;
   const text = head.toString('latin1').toLowerCase();
@@ -247,17 +475,19 @@ export function judgeContentType(
 ): Judgement | Refusal {
   const normalized = normalizeMediaType(declared);
   const family = familyFor(normalized);
-  if (looksLikeMarkup(head, family?.textual === true)) {
+  // SVG declared as SVG is the one markup family; its own `matches` is the narrower check.
+  if (family?.markup !== true && looksLikeMarkup(head, family?.textual === true)) {
     return { ok: false, rejectionCode: 'type_not_allowed' };
   }
   if (!family) return { ok: false, rejectionCode: 'type_not_allowed' };
   // A zero-byte object is nothing: no signature, and no text to admit.
   if (head.length === 0) return { ok: false, rejectionCode: 'type_mismatch' };
-  const consistent = family.textual ? textual.ok() : family.matches(head);
+  // An HTML page under an SVG label is refused for what it is, like any other markup.
+  if (family.markup === true && namesHtml(head)) {
+    return { ok: false, rejectionCode: 'type_not_allowed' };
+  }
+  const consistent = (family.textual !== true || textual.ok()) && family.matches(head);
   if (!consistent) return { ok: false, rejectionCode: 'type_mismatch' };
-  return {
-    ok: true,
-    detectedMimeType: family.canonical ?? normalized,
-    detectedType: family.members[normalized] as DetectedTypeToken,
-  };
+  const detectedType = family.members[normalized] as DetectedTypeToken;
+  return { ok: true, detectedMimeType: MIME_BY_TOKEN[detectedType], detectedType };
 }
