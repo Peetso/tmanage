@@ -237,16 +237,19 @@ describe('organization access policies — CRUD round trip and one row per org',
     session_max_hours: 72,
     invite_domain_allowlist: ['northstar.example'],
     guest_access_enabled: true,
+    idle_signout_minutes: 480,
   };
   const policyB: OrgPolicyValue = {
     session_max_hours: 12,
     invite_domain_allowlist: [],
     guest_access_enabled: false,
+    idle_signout_minutes: 30,
   };
   const twinPolicy: OrgPolicyValue = {
     session_max_hours: 240,
     invite_domain_allowlist: ['northstar-studios.example'],
     guest_access_enabled: true,
+    idle_signout_minutes: 0,
   };
 
   it('reads absent before any write, then round-trips the written document', async () => {

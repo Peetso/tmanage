@@ -48,6 +48,7 @@ export interface OrgPolicyView {
     readonly session_max_hours: number;
     readonly invite_domain_allowlist: readonly string[];
     readonly guest_access_enabled: boolean;
+    readonly idle_signout_minutes: number;
   };
 }
 
@@ -136,6 +137,7 @@ export class PoliciesController {
             session_max_hours: merged.session_max_hours,
             guest_access_enabled: merged.guest_access_enabled,
             invite_domain_count: merged.invite_domain_allowlist.length,
+            idle_signout_minutes: merged.idle_signout_minutes,
           },
         });
       }

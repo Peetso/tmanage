@@ -86,7 +86,26 @@ export interface SessionRecoveryOptions {
   readonly lock?: <T>(work: () => Promise<T>) => Promise<T>;
   /** Called once per terminal failure. The application decides what a person then sees. */
   readonly onSessionEnded: (reason: SessionEndReason) => void;
+  /**
+   * R3 (idle sign-out). Refresh only after real activity: an expired request is recovered only
+   * when the person used the page (`noteActivity`) since the last refresh. Without this, a
+   * background poll would refresh every few minutes and keep an idle session alive forever,
+   * because the API counts a refresh as activity.
+   */
+  readonly requireActivity?: boolean;
 }
+
+/** R3. What the API said about the idle limit: minutes (0 = Off) and when it runs out (epoch ms). */
+export interface IdleState {
+  readonly limitMinutes: number;
+  readonly deadline: number | null;
+}
+
+/** R3. Response headers the tenant guard writes (`tenant-context.guard.ts`). */
+export const IDLE_MINUTES_HEADER = 'x-idle-signout-minutes';
+export const IDLE_REMAINING_HEADER = 'x-idle-signout-remaining';
+/** R3. Activity refreshes the session at most this often, so the idle clock tracks real use. */
+export const ACTIVITY_REFRESH_MS = 5 * 60_000;
 
 export interface ApiClientOptions {
   /**
@@ -116,6 +135,8 @@ export interface ApiClientOptions {
    * application decides where the person goes (the enrolment screen).
    */
   readonly onTwoStepRequired?: (requestPath: string) => void;
+  /** R3. Injectable clock for the idle bookkeeping. */
+  readonly now?: () => number;
 }
 
 export interface ApiRequest {
@@ -184,8 +205,55 @@ function isAccessExpired(error: unknown): error is ApiRequestError {
 export class ApiClient {
   private csrfTokenInMemory: string | undefined;
   private recovering: Promise<boolean> | undefined;
+  private lastActivityAt: number;
+  private lastRefreshAt = Number.NEGATIVE_INFINITY;
+  private idle: IdleState = { limitMinutes: 0, deadline: null };
+  private readonly idleListeners = new Set<(state: IdleState) => void>();
 
-  constructor(private readonly options: ApiClientOptions) {}
+  constructor(private readonly options: ApiClientOptions) {
+    // Loading the page is the person's own act, so it counts as activity.
+    this.lastActivityAt = this.now();
+  }
+
+  private now(): number {
+    return (this.options.now ?? Date.now)();
+  }
+
+  /** R3. The idle limit and deadline the API last reported. */
+  idleState(): IdleState {
+    return this.idle;
+  }
+
+  /** R3. Be told when the idle limit or deadline changes. Returns the unsubscribe. */
+  subscribeIdle(listener: (state: IdleState) => void): () => void {
+    this.idleListeners.add(listener);
+    return () => this.idleListeners.delete(listener);
+  }
+
+  private setIdle(next: IdleState): void {
+    if (next.limitMinutes === this.idle.limitMinutes && next.deadline === this.idle.deadline)
+      return;
+    this.idle = next;
+    for (const listener of this.idleListeners) listener(next);
+  }
+
+  /**
+   * R3. The person used the page (a key, a click, a scroll, a touch). Refreshes the session when
+   * a limit is in force and the last refresh is older than {@link ACTIVITY_REFRESH_MS}; this is
+   * the only place, besides an expired request after activity, that a refresh starts.
+   */
+  noteActivity(): void {
+    this.lastActivityAt = this.now();
+    if (this.idle.limitMinutes <= 0) return;
+    if (this.lastActivityAt - this.lastRefreshAt < ACTIVITY_REFRESH_MS) return;
+    void this.recoverSession();
+  }
+
+  /** R3. "Stay signed in": refresh now. Resolves `true` when the session was kept. */
+  staySignedIn(): Promise<boolean> {
+    this.lastActivityAt = this.now();
+    return this.recoverSession();
+  }
 
   /**
    * Keep the CSRF token the API just returned. Called by the sign-in and refresh helpers, so
@@ -220,7 +288,10 @@ export class ApiClient {
         this.options.recovery !== undefined &&
         (request.authentication ?? 'session') === 'session' &&
         request.path !== REFRESH_PATH &&
-        isAccessExpired(error);
+        isAccessExpired(error) &&
+        // R3. No activity since the last refresh: a background request does not keep it alive.
+        (this.options.recovery?.requireActivity !== true ||
+          this.lastActivityAt > this.lastRefreshAt);
       if (!recoverable) throw error;
 
       const recovered = await this.recoverSession();
@@ -249,6 +320,14 @@ export class ApiClient {
           path: REFRESH_PATH,
         });
         if (typeof data?.csrfToken === 'string') this.rememberCsrfToken(data.csrfToken);
+        this.lastRefreshAt = this.now();
+        // The refresh restarts the idle clock on the server; restart it here too.
+        if (this.idle.limitMinutes > 0) {
+          this.setIdle({
+            limitMinutes: this.idle.limitMinutes,
+            deadline: this.lastRefreshAt + this.idle.limitMinutes * 60_000,
+          });
+        }
         return true;
       } catch (error) {
         if (error instanceof ApiRequestError && (error.status === 401 || error.status === 403)) {
@@ -306,6 +385,7 @@ export class ApiClient {
     }
 
     const responseCorrelationId = response.headers.get(CORRELATION_HEADER) ?? correlationId;
+    this.readIdleHeaders(response.headers);
 
     if (response.status === 204) {
       return { data: undefined as T, correlationId: responseCorrelationId };
@@ -318,6 +398,17 @@ export class ApiClient {
     }
 
     return { data: payload as T, correlationId: responseCorrelationId };
+  }
+
+  /** R3. Keep the idle limit and deadline a tenant response reported. */
+  private readIdleHeaders(headers: Headers | undefined): void {
+    const minutes = Number(headers?.get?.(IDLE_MINUTES_HEADER) ?? NaN);
+    if (!Number.isFinite(minutes) || minutes < 0) return;
+    const remaining = Number(headers?.get?.(IDLE_REMAINING_HEADER) ?? NaN);
+    this.setIdle({
+      limitMinutes: minutes,
+      deadline: minutes > 0 && Number.isFinite(remaining) ? this.now() + remaining * 1000 : null,
+    });
   }
 }
 

@@ -29,6 +29,7 @@ export const ORG_POLICY_KEYS = [
   'session_max_hours',
   'invite_domain_allowlist',
   'guest_access_enabled',
+  'idle_signout_minutes',
 ] as const;
 
 export type OrgPolicyKey = (typeof ORG_POLICY_KEYS)[number];
@@ -38,7 +39,14 @@ export const DEFAULT_POLICY: OrgPolicyValue = Object.freeze({
   session_max_hours: 24,
   invite_domain_allowlist: Object.freeze([]) as readonly string[],
   guest_access_enabled: false,
+  idle_signout_minutes: 480,
 });
+
+/**
+ * R3. "Sign out after inactivity": the choices the owner picks from, in minutes. `0` is Off. Enforced
+ * from the session's last refresh (`tenant-context.guard.ts`, `SessionService.refresh`).
+ */
+export const IDLE_SIGNOUT_CHOICES: readonly number[] = Object.freeze([0, 30, 60, 240, 480]);
 
 /** A validator's verdict: the canonical typed value to store, or a message naming what was wrong. */
 export type OrgPolicyFieldValidation =
@@ -102,6 +110,21 @@ const SPECS: Readonly<Record<OrgPolicyKey, OrgPolicySpec>> = Object.freeze({
         seen.add(domain);
       }
       return { ok: true, value: Object.freeze([...seen]) as readonly string[] };
+    },
+  },
+  // R3. One of the fixed choices (minutes, 0 = Off); a number or a numeric string.
+  idle_signout_minutes: {
+    validate: (raw) => {
+      const value =
+        typeof raw === 'number'
+          ? raw
+          : typeof raw === 'string' && raw.trim() !== ''
+            ? Number(raw)
+            : NaN;
+      if (!IDLE_SIGNOUT_CHOICES.includes(value)) {
+        return { ok: false, message: 'Choose Off, 30 minutes, 1 hour, 4 hours or 8 hours.' };
+      }
+      return { ok: true, value };
     },
   },
   // A boolean. Accepts a JSON boolean or the strings 'true'/'false'; canonicalises to a boolean.
@@ -168,6 +191,7 @@ export function mergePolicy(base: OrgPolicyValue, patch: Partial<OrgPolicyValue>
     session_max_hours: patch.session_max_hours ?? base.session_max_hours,
     invite_domain_allowlist: patch.invite_domain_allowlist ?? base.invite_domain_allowlist,
     guest_access_enabled: patch.guest_access_enabled ?? base.guest_access_enabled,
+    idle_signout_minutes: patch.idle_signout_minutes ?? base.idle_signout_minutes,
   };
 }
 
@@ -183,6 +207,7 @@ export function normalizePolicy(stored: unknown): OrgPolicyValue {
   const hours = base['session_max_hours'];
   const domains = base['invite_domain_allowlist'];
   const guest = base['guest_access_enabled'];
+  const idle = base['idle_signout_minutes'];
   return {
     session_max_hours:
       typeof hours === 'number' && Number.isInteger(hours)
@@ -193,5 +218,9 @@ export function normalizePolicy(stored: unknown): OrgPolicyValue {
         ? (domains as string[])
         : DEFAULT_POLICY.invite_domain_allowlist,
     guest_access_enabled: typeof guest === 'boolean' ? guest : DEFAULT_POLICY.guest_access_enabled,
+    idle_signout_minutes:
+      typeof idle === 'number' && IDLE_SIGNOUT_CHOICES.includes(idle)
+        ? idle
+        : DEFAULT_POLICY.idle_signout_minutes,
   };
 }

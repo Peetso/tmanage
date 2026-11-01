@@ -118,6 +118,7 @@ describe('PoliciesController (ADM access policies, x174)', () => {
       session_max_hours: 12,
       invite_domain_allowlist: ['example.com'], // lower-cased and de-duplicated
       guest_access_enabled: true,
+      idle_signout_minutes: 480, // R3 default
     });
     expect(repo.upsertCalls).toBe(1);
 

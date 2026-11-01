@@ -97,6 +97,12 @@ export const sessions = mysqlTable(
     // ---- platform-admin v2 · PA-06 ---- 0247: first and latest address the session was used from.
     ipFirst: varchar('ip_first', { length: 45 }),
     ipLast: varchar('ip_last', { length: 45 }),
+    /**
+     * R3 (0271). The strictest company "Sign out after inactivity" limit this session has acted
+     * under, in minutes; NULL until a company with the policy on has been used. The refresh path
+     * refuses a session idle (since `coalesce(rotated_at, created_at)`) longer than this.
+     */
+    idleLimitMinutes: smallint('idle_limit_minutes', { unsigned: true }),
   },
   (table) => [
     uniqueIndex('uq_sessions_refresh_token_hash').on(table.refreshTokenHash),
@@ -4822,6 +4828,8 @@ export interface OrgPolicyValue {
   readonly session_max_hours: number;
   readonly invite_domain_allowlist: readonly string[];
   readonly guest_access_enabled: boolean;
+  /** R3. Sign out after this many idle minutes (since the last refresh); 0 = Off. */
+  readonly idle_signout_minutes: number;
 }
 
 /**

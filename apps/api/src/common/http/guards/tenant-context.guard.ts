@@ -39,9 +39,46 @@ export interface TenantGuardChecks {
   sessionMaxHours(runner: TenantQueryRunner, context: TenantContext): Promise<number | null>;
   /** Was this session started more than `hours` ago, by the database clock? */
   sessionOlderThan(sessionId: string, hours: number, correlationId: string): Promise<boolean>;
-  /** End the session, so its refresh token stops working too. */
-  endSession(sessionId: string, correlationId: string): Promise<void>;
+  /** End the session, so its refresh token stops working too. `reason` defaults to the lifetime one. */
+  endSession(sessionId: string, correlationId: string, reason?: string): Promise<void>;
+  /**
+   * R3. Both company limits in one policy read: the lifetime (`session_max_hours`) and "Sign out
+   * after inactivity" (`idle_signout_minutes`, 0 = Off). Optional so an older test substitute
+   * that only knows the lifetime still works; production always provides it.
+   */
+  sessionLimits?(runner: TenantQueryRunner, context: TenantContext): Promise<SessionLimits>;
+  /**
+   * R3. Has the session outlived either limit? Also lowers the session's stamped idle limit to
+   * this company's (the refresh path enforces the stamp) and reports what the client should show.
+   */
+  sessionLapse?(
+    sessionId: string,
+    limits: SessionLimits,
+    correlationId: string,
+  ): Promise<SessionLapse>;
 }
+
+/** R3. The company's two session limits. */
+export interface SessionLimits {
+  readonly maxHours: number | null;
+  /** 0 = Off. */
+  readonly idleMinutes: number;
+}
+
+/** R3. The guard's verdict on one session, plus the idle facts sent back to the client. */
+export interface SessionLapse {
+  readonly lapsed: 'max' | 'idle' | null;
+  /** The idle limit in force for this session (the strictest stamped or this company's); 0 = Off. */
+  readonly idleLimitMinutes: number;
+  /** Seconds left before the idle limit, or `null` when there is none. */
+  readonly idleRemainingSeconds: number | null;
+}
+
+/** R3. Response headers the web app reads to warn one minute before an idle sign-out. */
+export const IDLE_SIGNOUT_MINUTES_HEADER = 'x-idle-signout-minutes';
+export const IDLE_SIGNOUT_REMAINING_HEADER = 'x-idle-signout-remaining';
+/** R3. Recorded on `sessions.revoked_reason` when the guard ends an idle session. */
+export const ORG_IDLE_SIGNOUT_REASON = 'org_idle_signout';
 import {
   MembershipNotResolvedError,
   SUSPENDED_MESSAGE,
@@ -236,31 +273,61 @@ export class TenantContextGuard implements CanActivate {
     const checks = state.authScheme === 'cookie' ? this.checks() : undefined;
     const loaded = await this.database.read(resolved.context, async (runner) => ({
       principal: await this.principals.load(runner, resolved),
-      // F52a. Read on the same scoped connection as the principal: no extra pool slot.
-      sessionMaxHours:
-        checks === undefined ? null : await checks.sessionMaxHours(runner, resolved.context),
+      // F52a / R3. Read on the same scoped connection as the principal: no extra pool slot.
+      limits:
+        checks === undefined
+          ? null
+          : checks.sessionLimits
+            ? await checks.sessionLimits(runner, resolved.context)
+            : { maxHours: await checks.sessionMaxHours(runner, resolved.context), idleMinutes: 0 },
     }));
+    const sessionMaxHours = loaded.limits?.maxHours ?? null;
 
-    // F52a. The company's "session lifetime" policy: a cookie session older than it is ended and
-    // the person signs in again. Sessions are user-level, so it is enforced where the company is
-    // known; a company that stored no policy gets the default lifetime (wave 10 R5).
-    if (checks !== undefined && loaded.sessionMaxHours !== null) {
-      const tooOld = await checks.sessionOlderThan(
+    // R3. The lifetime and the idle limit in one session read; an idle session is ended exactly
+    // as an over-age one is, and the client is told how long it has left.
+    if (checks?.sessionLapse !== undefined && loaded.limits !== null) {
+      const lapse = await checks.sessionLapse(
         session.sessionId,
-        loaded.sessionMaxHours,
+        loaded.limits,
         state.correlationId,
       );
-      if (tooOld) {
-        await checks.endSession(session.sessionId, state.correlationId);
+      if (lapse.lapsed !== null) {
+        const idle = lapse.lapsed === 'idle';
+        await checks.endSession(
+          session.sessionId,
+          state.correlationId,
+          idle ? ORG_IDLE_SIGNOUT_REASON : undefined,
+        );
         throw new ApiError(
           401,
           'unauthenticated',
           MESSAGES.unauthenticated,
           undefined,
-          'reauth_required:org_session_max_hours',
+          idle ? 'reauth_required:org_idle_signout' : 'reauth_required:org_session_max_hours',
         );
       }
-    }
+      writeIdleHeaders(context, lapse);
+    } else
+      // F52a. The company's "session lifetime" policy: a cookie session older than it is ended and
+      // the person signs in again. Sessions are user-level, so it is enforced where the company is
+      // known; a company that stored no policy gets the default lifetime (wave 10 R5).
+      if (checks !== undefined && sessionMaxHours !== null) {
+        const tooOld = await checks.sessionOlderThan(
+          session.sessionId,
+          sessionMaxHours,
+          state.correlationId,
+        );
+        if (tooOld) {
+          await checks.endSession(session.sessionId, state.correlationId);
+          throw new ApiError(
+            401,
+            'unauthenticated',
+            MESSAGES.unauthenticated,
+            undefined,
+            'reauth_required:org_session_max_hours',
+          );
+        }
+      }
     state.membership = resolved;
     // AUT-08. A personal access token, and the MCP connector's internal grant (S6), are the
     // AI-assistant / MCP channel, so tag the context the services will act under; the audit append
@@ -328,6 +395,18 @@ function supportSessionFromResolved(resolved: object): SupportSessionStamp | nul
   };
 }
 
+/** R3. Tell the client the idle limit and what is left of it; a reply without `header` is skipped. */
+function writeIdleHeaders(context: ExecutionContext, lapse: SessionLapse): void {
+  const http = context.switchToHttp() as { getResponse?: () => unknown };
+  const reply = http.getResponse?.() as
+    { header?: (name: string, value: string) => unknown } | undefined;
+  if (typeof reply?.header !== 'function') return;
+  reply.header(IDLE_SIGNOUT_MINUTES_HEADER, String(lapse.idleLimitMinutes));
+  if (lapse.idleRemainingSeconds !== null) {
+    reply.header(IDLE_SIGNOUT_REMAINING_HEADER, String(lapse.idleRemainingSeconds));
+  }
+}
+
 /** Recorded on `sessions.revoked_reason` when a company's session lifetime ends a session. */
 export const ORG_SESSION_MAX_HOURS_REASON = 'org_session_max_hours';
 
@@ -349,7 +428,8 @@ export function createTenantGuardChecks(
   aiSwitches: AiAccessSwitches,
   sessionService: Pick<SessionService, 'revoke'> | undefined,
   policies: PoliciesRepository = new PoliciesRepository(),
-  sessionRows: Pick<SessionsRepository, 'findById'> = new SessionsRepository(),
+  sessionRows: Pick<SessionsRepository, 'findById'> &
+    Partial<Pick<SessionsRepository, 'stampIdleLimit'>> = new SessionsRepository(),
   now: () => number = () => Date.now(),
 ): TenantGuardChecks {
   return {
@@ -361,6 +441,48 @@ export function createTenantGuardChecks(
       const row = await policies.find(runner, context);
       return normalizePolicy(row?.policyJson).session_max_hours;
     },
+    async sessionLimits(runner, context) {
+      const policy = normalizePolicy((await policies.find(runner, context))?.policyJson);
+      return { maxHours: policy.session_max_hours, idleMinutes: policy.idle_signout_minutes };
+    },
+    async sessionLapse(sessionId, limits, correlationId) {
+      const found = await database.identityRead({ correlationId, tables: ['sessions'] }, (runner) =>
+        sessionRows.findById(runner, sessionId),
+      );
+      if (found === null) return { lapsed: null, idleLimitMinutes: 0, idleRemainingSeconds: null };
+      const maxHours = limits.maxHours;
+      if (maxHours !== null && now() - found.session.createdAt.getTime() > maxHours * 3_600_000) {
+        return { lapsed: 'max', idleLimitMinutes: 0, idleRemainingSeconds: null };
+      }
+      // The strictest of the stamp (another company may have set a lower one) and this company's.
+      const stamped = found.session.idleLimitMinutes ?? 0;
+      const candidates = [stamped, limits.idleMinutes].filter((minutes) => minutes > 0);
+      const effective = candidates.length === 0 ? 0 : Math.min(...candidates);
+      const idleSeconds = found.idleSeconds;
+      if (effective > 0 && idleSeconds !== undefined && idleSeconds > effective * 60) {
+        return { lapsed: 'idle', idleLimitMinutes: effective, idleRemainingSeconds: 0 };
+      }
+      if (limits.idleMinutes > 0 && (stamped === 0 || stamped > limits.idleMinutes)) {
+        try {
+          await database.identityTransaction({ correlationId, tables: ['sessions'] }, (tx) =>
+            sessionRows.stampIdleLimit
+              ? sessionRows.stampIdleLimit(tx, sessionId, limits.idleMinutes)
+              : Promise.resolve(),
+          );
+        } catch {
+          // Best-effort: the guard re-checks on every request, so a missed stamp only delays the
+          // refresh path's own enforcement to the next request.
+        }
+      }
+      return {
+        lapsed: null,
+        idleLimitMinutes: effective,
+        idleRemainingSeconds:
+          effective > 0 && idleSeconds !== undefined
+            ? Math.max(0, effective * 60 - idleSeconds)
+            : null,
+      };
+    },
     async sessionOlderThan(sessionId, hours, correlationId) {
       const found = await database.identityRead({ correlationId, tables: ['sessions'] }, (runner) =>
         sessionRows.findById(runner, sessionId),
@@ -368,12 +490,12 @@ export function createTenantGuardChecks(
       if (found === null) return false;
       return now() - found.session.createdAt.getTime() > hours * 3_600_000;
     },
-    async endSession(sessionId, correlationId) {
+    async endSession(sessionId, correlationId, reason = ORG_SESSION_MAX_HOURS_REASON) {
       if (sessionService === undefined) return;
       try {
         await sessionService.revoke({
           sessionId,
-          reason: ORG_SESSION_MAX_HOURS_REASON,
+          reason,
           correlationId,
         });
       } catch {

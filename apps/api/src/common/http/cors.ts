@@ -44,6 +44,9 @@ export const CORS_EXPOSED_HEADERS = [
   'content-range',
   'accept-ranges',
   'content-length',
+  // R3. The idle sign-out limit and what is left of it (tenant-context.guard.ts).
+  'x-idle-signout-minutes',
+  'x-idle-signout-remaining',
 ] as const;
 
 /**

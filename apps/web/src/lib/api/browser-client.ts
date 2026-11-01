@@ -80,6 +80,8 @@ export function browserApiClient(): ApiClient {
       // The client knows the session is over; the boundary knows what follows — every tab
       // clears its caches and this one goes to sign-in (`AuthBoundaryProvider`).
       onSessionEnded: () => authBoundary.announce('session-ended'),
+      // R3. Only real use of the page keeps a session alive (IdleSignOutWarning notes it).
+      requireActivity: true,
     },
     onTwoStepRequired: (requestPath) => {
       if (typeof window === 'undefined') return;

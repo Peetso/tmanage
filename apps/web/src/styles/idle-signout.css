@@ -1,0 +1,38 @@
+/* R3 — "You will be signed out soon" (Figma 480:28783 EN, 480:28795 AR). */
+
+.tm-idle-backdrop {
+  z-index: 1100;
+}
+
+.tm-idle-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  inline-size: min(560px, 100%);
+  padding: var(--s10);
+  border-radius: var(--r-sheet);
+  border: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-0);
+}
+
+.tm-idle-dialog__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-idle-dialog__lead {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+}
+
+.tm-idle-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s3);
+}

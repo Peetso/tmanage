@@ -78,6 +78,11 @@ export interface SessionState {
   readonly session: SessionRow;
   /** `expires_at <= now(3)`, evaluated by the database. */
   readonly expired: boolean;
+  /**
+   * R3. Seconds since the session's last refresh (`coalesce(rotated_at, created_at)`), by the
+   * database clock. Optional so a hand-built test state need not carry it.
+   */
+  readonly idleSeconds?: number;
 }
 
 /** The device/session list projection. Deliberately carries no token hash of any kind. */
@@ -91,6 +96,9 @@ export interface SessionSummary {
 
 /** MySQL returns 1/0 rather than a boolean; it has no boolean type. */
 const expiredByServerClock = sql<number>`case when ${sessions.expiresAt} <= now(3) then 1 else 0 end`;
+
+/** R3. Seconds since the last refresh, by the database clock. */
+const idleSecondsByServerClock = sql<number>`timestampdiff(second, coalesce(${sessions.rotatedAt}, ${sessions.createdAt}), now(3))`;
 
 export class SessionsRepository {
   async create(runner: IdentityQueryRunner, input: CreateSessionInput): Promise<SessionRow> {
@@ -126,12 +134,18 @@ export class SessionsRepository {
    */
   async findById(runner: IdentityQueryRunner, sessionId: string): Promise<SessionState | null> {
     const rows = await tenantDrizzle(runner)
-      .select({ session: sessions, expired: expiredByServerClock })
+      .select({ session: sessions, expired: expiredByServerClock, idle: idleSecondsByServerClock })
       .from(sessions)
       .where(eq(sessions.id, sessionId))
       .limit(1);
     const row = rows[0];
-    return row ? { session: row.session, expired: Number(row.expired) === 1 } : null;
+    return row
+      ? {
+          session: row.session,
+          expired: Number(row.expired) === 1,
+          idleSeconds: Number(row.idle),
+        }
+      : null;
   }
 
   /** The session whose **live** refresh token hashes to this value, if any. */
@@ -140,12 +154,18 @@ export class SessionsRepository {
     tokenHash: string,
   ): Promise<SessionState | null> {
     const rows = await tenantDrizzle(runner)
-      .select({ session: sessions, expired: expiredByServerClock })
+      .select({ session: sessions, expired: expiredByServerClock, idle: idleSecondsByServerClock })
       .from(sessions)
       .where(eq(sessions.refreshTokenHash, tokenHash))
       .limit(1);
     const row = rows[0];
-    return row ? { session: row.session, expired: Number(row.expired) === 1 } : null;
+    return row
+      ? {
+          session: row.session,
+          expired: Number(row.expired) === 1,
+          idleSeconds: Number(row.idle),
+        }
+      : null;
   }
 
   /**
@@ -346,6 +366,26 @@ export class SessionsRepository {
       .update(sessions)
       .set({ ipFirst: sql`coalesce(${sessions.ipFirst}, ${address})`, ipLast: address })
       .where(eq(sessions.id, sessionId));
+  }
+
+  /**
+   * R3. Lower the session's idle limit to `minutes` (never raise it): the strictest company the
+   * session acts in wins, so switching to a laxer company cannot undo a stricter one's limit.
+   */
+  async stampIdleLimit(
+    runner: IdentityQueryRunner,
+    sessionId: string,
+    minutes: number,
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .update(sessions)
+      .set({ idleLimitMinutes: minutes })
+      .where(
+        and(
+          eq(sessions.id, sessionId),
+          sql`(${sessions.idleLimitMinutes} is null or ${sessions.idleLimitMinutes} > ${minutes})`,
+        ),
+      );
   }
 
   /** The account's standing (disabled, two-step required). `null` for an unknown user. */

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, type ReactNode } from 'react';
 import { authBoundary, type AuthBoundary, type AuthNotice } from '../../lib/auth-boundary';
 import { signInPathFor } from '../../lib/sign-in-return';
+import { IdleSignOutWarning } from './IdleSignOutWarning';
 
 /**
  * What a change of principal does to this tab — review finding D01.
@@ -61,5 +62,11 @@ export function AuthBoundaryProvider({ children }: { children: ReactNode }) {
   // `replace`, not `push`: a page whose session is gone is not a place to come back to.
   const navigate = useCallback((path: string) => router.replace(path), [router]);
   useAuthBoundaryEffects(queryClient, authBoundary, navigate);
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      {/* R3. Warns one minute before an idle sign-out; notes real activity. */}
+      <IdleSignOutWarning />
+    </>
+  );
 }

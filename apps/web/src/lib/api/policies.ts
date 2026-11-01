@@ -18,6 +18,8 @@ export interface OrgPolicyView {
     readonly session_max_hours: number;
     readonly invite_domain_allowlist: readonly string[];
     readonly guest_access_enabled: boolean;
+    /** R3. Sign out after this many idle minutes; 0 = Off. */
+    readonly idle_signout_minutes: number;
   };
 }
 
@@ -26,6 +28,7 @@ export interface OrgPolicyUpdateInput {
   readonly session_max_hours?: number;
   readonly invite_domain_allowlist?: readonly string[];
   readonly guest_access_enabled?: boolean;
+  readonly idle_signout_minutes?: number;
 }
 
 function base(organizationSlug: string): string {

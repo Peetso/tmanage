@@ -62,6 +62,23 @@ const AUTHENTICATE_TABLES = ['sessions', 'users'] as const;
 /** Recorded on `sessions.revoked_reason`. A security finding, not a lifecycle event. */
 export const REUSE_REVOCATION_REASON = 'refresh_reuse_detected';
 
+/** R3. Recorded on `sessions.revoked_reason` when a session is refused for inactivity. */
+export const IDLE_SIGNOUT_REASON = 'idle_signout';
+
+/**
+ * R3. Was this session idle (since its last refresh, by the database clock) longer than the
+ * idle limit stamped on it? No limit stamped, or no idle measurement, is never idle.
+ */
+export function idleBeyondLimit(state: {
+  readonly session: { readonly idleLimitMinutes?: number | null };
+  readonly idleSeconds?: number;
+}): boolean {
+  const limit = state.session.idleLimitMinutes;
+  if (limit === null || limit === undefined || limit <= 0) return false;
+  if (state.idleSeconds === undefined || !Number.isFinite(state.idleSeconds)) return false;
+  return state.idleSeconds > limit * 60;
+}
+
 export interface SessionServiceOptions {
   /** `SESSION_COOKIE_NAME`. The refresh cookie is this name with `_refresh` appended. */
   readonly cookieName: string;
@@ -110,7 +127,9 @@ export type RefreshRejection =
   | 'session_revoked'
   | 'session_expired'
   | 'rotation_lost'
-  | 'csrf_failed';
+  | 'csrf_failed'
+  // R3. Idle longer than the strictest company "Sign out after inactivity" limit it acted under.
+  | 'idle_timeout';
 
 const AUTHENTICATION_REFUSAL = 'The request carries no valid session';
 const REFRESH_REFUSAL = 'The refresh token was not accepted';
@@ -356,6 +375,14 @@ export class SessionService {
           // harmless but would diverge from the reuse path immediately below, where it is not.
           if (!verifyCsrfToken(input.csrfToken, live.session.id, this.options.csrfSecret)) {
             return { kind: 'rejected', code: 'csrf_failed' };
+          }
+
+          // R3. Activity is a refresh: a session idle since its last one for longer than the
+          // company's "Sign out after inactivity" limit is ended here, inside the transaction so
+          // the revocation commits with the refusal.
+          if (idleBeyondLimit(live)) {
+            await this.sessions.revoke(tx, live.session.id, IDLE_SIGNOUT_REASON);
+            return { kind: 'rejected', code: 'idle_timeout', sessionId: live.session.id };
           }
 
           const rotated = await this.sessions.rotate(tx, {

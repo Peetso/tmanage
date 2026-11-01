@@ -298,6 +298,7 @@ const ORG_POLICY: OrgPolicyView = {
     session_max_hours: 72,
     invite_domain_allowlist: ['northstar.example', 'contractors.northstar.example'],
     guest_access_enabled: false,
+    idle_signout_minutes: 480,
   },
 };
 

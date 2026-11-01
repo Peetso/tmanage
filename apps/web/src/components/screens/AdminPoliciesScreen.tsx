@@ -3,13 +3,24 @@
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Checkbox, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { Button, Checkbox, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { readOrgPolicy, updateOrgPolicy, type OrgPolicyUpdateInput } from '../../lib/api/policies';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+
+/** R3. The "Sign out after inactivity" choices, in minutes (0 = Off), as the API allows them. */
+const IDLE_CHOICES = [0, 30, 60, 240, 480] as const;
+const IDLE_LABEL_KEYS: Record<number, MessageKey> = {
+  0: 'AdminPoliciesScreen.idleOff',
+  30: 'AdminPoliciesScreen.idle30m',
+  60: 'AdminPoliciesScreen.idle1h',
+  240: 'AdminPoliciesScreen.idle4h',
+  480: 'AdminPoliciesScreen.idle8h',
+};
 
 export interface AdminPoliciesScreenProps {
   organizationSlug: string;
@@ -52,6 +63,7 @@ export function AdminPoliciesScreen({
   const [sessionHours, setSessionHours] = useState('');
   const [domains, setDomains] = useState('');
   const [guestAccess, setGuestAccess] = useState(false);
+  const [idleMinutes, setIdleMinutes] = useState('480');
   const [saved, setSaved] = useState(false);
 
   // Seed the editable fields from the loaded document once it arrives.
@@ -60,6 +72,7 @@ export function AdminPoliciesScreen({
     setSessionHours(String(policy.data.policy.session_max_hours));
     setDomains(policy.data.policy.invite_domain_allowlist.join(', '));
     setGuestAccess(policy.data.policy.guest_access_enabled);
+    setIdleMinutes(String(policy.data.policy.idle_signout_minutes));
   }, [policy.data]);
 
   const save = useMutation({
@@ -71,6 +84,7 @@ export function AdminPoliciesScreen({
           .map((entry) => entry.trim())
           .filter((entry) => entry.length > 0),
         guest_access_enabled: guestAccess,
+        idle_signout_minutes: Number(idleMinutes),
       };
       return updateOrgPolicy(api, organizationSlug, input);
     },
@@ -153,6 +167,23 @@ export function AdminPoliciesScreen({
                       onChange={(event) => setSessionHours(event.target.value)}
                       hint={t('AdminPoliciesScreen.sessionLifetimeHint')}
                     />
+                  </div>
+                </li>
+                <li>
+                  <div className="tm-cc-rows__grow">
+                    <Select
+                      label={t('AdminPoliciesScreen.idleLabel')}
+                      name="idle_signout_minutes"
+                      value={idleMinutes}
+                      onChange={(event) => setIdleMinutes(event.target.value)}
+                      hint={t('AdminPoliciesScreen.idleHint')}
+                    >
+                      {IDLE_CHOICES.map((minutes) => (
+                        <option key={minutes} value={String(minutes)}>
+                          {t(IDLE_LABEL_KEYS[minutes] ?? 'AdminPoliciesScreen.idleOff')}
+                        </option>
+                      ))}
+                    </Select>
                   </div>
                 </li>
                 <li>
@@ -243,6 +274,22 @@ export function AdminPoliciesScreen({
                 <td className="tm-cc-end">
                   <span className="tm-cc-cell-mono">
                     {current ? `${current.session_max_hours}h` : '—'}
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <span className="tm-cc-cell-title">{t('AdminPoliciesScreen.rowIdleTitle')}</span>
+                  <span className="tm-cc-cell-sub">{t('AdminPoliciesScreen.rowIdleSub')}</span>
+                </td>
+                <td className="tm-cc-end">
+                  <span className="tm-cc-cell-mono">
+                    {current
+                      ? t(
+                          IDLE_LABEL_KEYS[current.idle_signout_minutes] ??
+                            'AdminPoliciesScreen.idleOff',
+                        )
+                      : '—'}
                   </span>
                 </td>
               </tr>
