@@ -83,6 +83,14 @@ export function TimeZoneSelect({
         setCleared(false);
         onChange(zone);
       }}
+      // Live test 2026-11-01: clicking the field put the caret inside "(GMT+0) Coordinated
+      // Universal Time", so typing "Cairo" landed mid-label and matched nothing. Selecting the
+      // whole label on focus makes the first keystroke start a fresh search. The select runs after
+      // the click's mouseup, which would otherwise collapse the selection again.
+      onFocus={(event) => {
+        const input = event.currentTarget;
+        window.setTimeout(() => input.select(), 0);
+      }}
       onBlur={() => {
         if (cleared) {
           setCleared(false);
