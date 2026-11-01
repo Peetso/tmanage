@@ -1473,3 +1473,347 @@
   outline: 2px solid var(--focus-ring, var(--ink-950));
   outline-offset: 2px;
 }
+
+/* ── R7 slice 2: the one chat list and the two-pane shell (489:29020) ─────────── */
+
+.tm-context-rail:has(.tm-chatlist) {
+  inline-size: 320px;
+}
+
+.tm-chatlist {
+  gap: 12px;
+}
+
+.tm-chatlist__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tm-chatlist__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.tm-chatlist__new {
+  display: grid;
+  place-items: center;
+  inline-size: 36px;
+  block-size: 36px;
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: var(--lime-500);
+  color: var(--ink-950);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.tm-chatlist__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  block-size: 44px;
+  padding-inline: 14px 8px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: 12px;
+  background: var(--paper-0);
+  color: var(--ink-650);
+}
+
+.tm-chatlist__search:focus-within {
+  border-color: var(--ink-950);
+  box-shadow: 0 0 0 3px var(--lime-500);
+}
+
+.tm-chatlist__search input {
+  flex: 1;
+  min-inline-size: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: 14px;
+}
+
+.tm-chatlist__search input:focus {
+  outline: none;
+}
+
+.tm-chatlist__folder {
+  align-self: flex-start;
+  padding: 6px 12px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-50);
+  color: var(--ink-800);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tm-chatlist__folder[aria-pressed='true'] {
+  background: var(--ink-950);
+  color: var(--paper-0);
+}
+
+.tm-chatlist__note {
+  margin: 0;
+  padding-block: 16px;
+  color: var(--ink-650);
+  font-size: 14px;
+  text-align: center;
+}
+
+.tm-chatlist__rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-chatlist__newgroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-block: 0 12px;
+  color: var(--ink-950);
+  font-weight: 600;
+}
+
+.tm-chatrow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-chatrow__link {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-inline-size: 0;
+  padding: 10px 8px;
+  border-radius: 10px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.tm-chatrow__link:hover,
+.tm-chatrow__link[aria-current='page'] {
+  background: var(--paper-50);
+}
+
+.tm-chatrow__link:focus-visible {
+  outline: 3px solid var(--lime-500);
+  outline-offset: -3px;
+}
+
+.tm-chatrow__avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: 44px;
+  block-size: 44px;
+  border-radius: 50%;
+  background: var(--paper-150);
+  color: var(--ink-950);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.tm-chatrow__avatar--group {
+  border-radius: 14px;
+}
+
+.tm-chatrow__avatar--channel {
+  border-radius: 12px;
+  background: var(--ink-950);
+  color: var(--paper-0);
+}
+
+.tm-chatrow__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.tm-chatrow__top,
+.tm-chatrow__bottom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+.tm-chatrow__title {
+  flex: 1;
+  overflow: hidden;
+  color: var(--ink-950);
+  font-size: 15px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-chatrow--unread .tm-chatrow__title {
+  font-weight: 700;
+}
+
+.tm-chatrow__time {
+  flex: none;
+  color: var(--ink-650);
+  font-size: 12px;
+}
+
+.tm-chatrow--unread .tm-chatrow__time {
+  color: var(--ink-950);
+  font-weight: 600;
+}
+
+.tm-chatrow__excerpt {
+  flex: 1;
+  overflow: hidden;
+  color: var(--ink-650);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-chatrow__author {
+  color: var(--ink-800);
+}
+
+.tm-chatrow__mark {
+  flex: none;
+  font-size: 12px;
+}
+
+.tm-chatrow__badge {
+  display: grid;
+  flex: none;
+  place-items: center;
+  min-inline-size: 22px;
+  block-size: 22px;
+  padding-inline: 6px;
+  box-sizing: border-box;
+  border-radius: var(--r-capsule);
+  background: var(--lime-500);
+  color: var(--ink-950);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tm-chatrow__badge--muted {
+  background: var(--paper-150);
+}
+
+.tm-chatrow__actions {
+  position: absolute;
+  inset-inline-end: 8px;
+  inset-block-start: 4px;
+  display: none;
+  gap: 4px;
+}
+
+.tm-chatrow:hover .tm-chatrow__actions,
+.tm-chatrow:focus-within .tm-chatrow__actions {
+  display: flex;
+}
+
+.tm-chatrow__action {
+  inline-size: 28px;
+  block-size: 28px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: 8px;
+  background: var(--paper-0);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tm-chatshell {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 0;
+  min-block-size: 70vh;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: 16px;
+  background: var(--paper-0);
+  overflow: hidden;
+}
+
+.tm-chatshell__list {
+  padding: 16px;
+  border-inline-end: var(--b-quiet) solid var(--line-300);
+  overflow-y: auto;
+}
+
+.tm-chatshell__pane {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.tm-chatshell__back {
+  display: none;
+}
+
+.tm-chatshell__empty {
+  display: grid;
+  flex: 1;
+  place-content: center;
+  gap: 8px;
+  padding: 32px;
+  text-align: center;
+  background: var(--paper-50);
+}
+
+.tm-chatshell__empty-title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.tm-chatshell__empty-body {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: 14px;
+}
+
+[dir='rtl'] .tm-chatshell__back-arrow {
+  display: inline-block;
+  transform: scaleX(-1);
+}
+
+@media (max-width: 56.19rem) {
+  .tm-chatshell {
+    grid-template-columns: minmax(0, 1fr);
+    border: 0;
+    border-radius: 0;
+  }
+
+  .tm-chatshell[data-open='true'] .tm-chatshell__list,
+  .tm-chatshell[data-open='false'] .tm-chatshell__pane {
+    display: none;
+  }
+
+  .tm-chatshell__list {
+    padding: 0;
+    border: 0;
+  }
+
+  .tm-chatshell__back {
+    display: inline-flex;
+    gap: 6px;
+    padding: 12px 16px;
+    color: var(--ink-950);
+    font-weight: 600;
+  }
+}

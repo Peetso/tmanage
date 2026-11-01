@@ -218,6 +218,7 @@ import { InvoiceLineItemsModule } from './modules/billing/invoice-line-items.mod
 import { BillingCreditsModule } from './modules/billing/credits.controller.js';
 import { BillingDiscountsModule } from './modules/billing/discounts.controller.js';
 import { BillingUsageExportModule } from './modules/billing/usage-export.controller.js';
+import { ChatModule } from './modules/chat/chat.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -1141,6 +1142,8 @@ export class AppModule {
         // C10. `GET /healthz/deep` — database, migrations, worker heartbeat, scanner — for a free
         // external uptime monitor. Public; the body is ok/fail per check and nothing else.
         DeepHealthModule.register(options.config.deepHealth ?? { heartbeatMaxAgeSeconds: 900 }),
+        // R7 slice 2: the one chat list (channels, groups, direct conversations), pin and archive.
+        ChatModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

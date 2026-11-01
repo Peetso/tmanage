@@ -56,11 +56,18 @@ function fakeTx(world: World): { tx: WorkerTransaction; inserts: unknown[][] } {
       if (sql.includes('FROM notification_kind_prefs')) {
         return (world.optedOut ? [{ enabled: 0 }] : []) as T;
       }
-      if (sql.includes('FROM direct_conversations')) {
-        const caller = params[2] as string;
+      if (sql.includes('FROM conversations c')) {
+        const caller = params[0] as string;
         return (
           [AUTHOR, RECIPIENT].includes(caller)
-            ? [{ user_low_id: AUTHOR, user_high_id: RECIPIENT, next_sequence_no: 9 }]
+            ? [
+                {
+                  kind: 'direct',
+                  direct_user_low_id: AUTHOR,
+                  direct_user_high_id: RECIPIENT,
+                  next_sequence_no: 9,
+                },
+              ]
             : []
         ) as T;
       }

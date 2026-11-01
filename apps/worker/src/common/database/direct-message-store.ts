@@ -17,8 +17,8 @@ import type { SubscriptionVerdict } from './realtime-store.js';
  * from **current** rows (§6: receipt of an event authorizes nothing). An internal participant
  * also needs `conversation.read` in their role, as the API requires of an internal caller.
  *
- * No message body is read here — `direct_messages` is named nowhere; the frame and the notice
- * carry ids only.
+ * No message body is read here — `messages` is named nowhere; the frame and the notice carry
+ * ids only. Since R7 (0276) a direct conversation is a `conversations` row (`kind = 'direct'`).
  */
 
 /** A participant with the membership the per-kind opt-out is keyed by (internal only). */
@@ -92,8 +92,13 @@ export function mayReadDirect(
 }
 
 /**
- * The socket subscription check for a direct conversation: the subscriber is one of the two
- * participants and the relation still holds. The cursor is the pair's last handed-out number.
+ * The socket subscription check for a member-gated conversation (R7: a direct conversation or a
+ * group, both rows of `conversations` since 0276). The subscriber needs a
+ * `conversation_memberships` row, and then:
+ * - direct: the pair's relation still holds (`mayReadDirect`, as before the storage switch);
+ * - group: an internal member whose role holds `conversation.read`, or a client with a live
+ *   client membership (`authorize` rule 2a admits a client to a group they are in).
+ * The cursor is the conversation's last handed-out number.
  */
 export async function checkDirectConversationSubscription(
   tx: WorkerTransaction,
@@ -104,16 +109,35 @@ export async function checkDirectConversationSubscription(
   },
 ): Promise<SubscriptionVerdict> {
   const rows = await tx.query<
-    readonly { user_low_id: string; user_high_id: string; next_sequence_no: number }[]
+    readonly {
+      kind: string;
+      direct_user_low_id: string | null;
+      direct_user_high_id: string | null;
+      next_sequence_no: number;
+    }[]
   >(
-    `SELECT user_low_id, user_high_id, next_sequence_no FROM direct_conversations
-      WHERE organization_id = ? AND id = ? AND (user_low_id = ? OR user_high_id = ?)`,
-    [input.organizationId, input.conversationId, input.userId, input.userId],
+    `SELECT c.kind, c.direct_user_low_id, c.direct_user_high_id, c.next_sequence_no
+       FROM conversations c
+       JOIN conversation_memberships cm
+         ON cm.organization_id = c.organization_id
+        AND cm.conversation_id = c.id
+        AND cm.user_id = ?
+      WHERE c.organization_id = ? AND c.id = ? AND c.kind IN ('direct', 'group')`,
+    [input.userId, input.organizationId, input.conversationId],
   );
   const row = rows[0];
   if (row === undefined) return { allowed: false, cursor: 0 };
-  const otherUserId = row.user_low_id === input.userId ? row.user_high_id : row.user_low_id;
   const self = await findDirectParty(tx, input.organizationId, input.userId);
+  if (row.kind === 'group') {
+    if (self === null) return { allowed: false, cursor: 0 };
+    if (self.kind === 'internal' && !roleHolds(self.role, 'conversation.read')) {
+      return { allowed: false, cursor: 0 };
+    }
+    return { allowed: true, cursor: Number(row.next_sequence_no) - 1 };
+  }
+  const otherUserId =
+    row.direct_user_low_id === input.userId ? row.direct_user_high_id : row.direct_user_low_id;
+  if (otherUserId === null) return { allowed: false, cursor: 0 };
   const other = await findDirectParty(tx, input.organizationId, otherUserId);
   if (!mayReadDirect(self, other)) return { allowed: false, cursor: 0 };
   return { allowed: true, cursor: Number(row.next_sequence_no) - 1 };

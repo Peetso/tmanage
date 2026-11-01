@@ -9,7 +9,6 @@ import {
   titleFromMessage,
 } from '../src/components/decisions/RecordDecisionDialog';
 import { MessageActionsSheet } from '../src/components/chat/MessageActionsSheet';
-import { DirectMessageScreen } from '../src/components/screens/DirectMessageScreen';
 import { ApiClient } from '../src/lib/api/client';
 import { expectNoAxeViolations } from './axe';
 
@@ -257,33 +256,6 @@ describe('RecordDecisionDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Save decision' }));
     expect(await screen.findByText('Give the decision a title.')).toBeVisible();
     expect(calls.some((call) => call.method === 'POST')).toBe(false);
-  });
-});
-
-describe('a direct message’s actions', () => {
-  it('offer Record as decision, which opens the dialog with the signed-in person deciding', async () => {
-    const calls: Call[] = [];
-    render(
-      wrap(
-        <DirectMessageScreen
-          organizationSlug="acme"
-          organizationName="Acme"
-          directConversationId="dm-lina"
-          client={clientOver(calls)}
-          socketFactory={() => null}
-        />,
-      ),
-    );
-    const user = userEvent.setup();
-    const row = (await screen.findByText(BODY)).closest('li') as HTMLElement;
-    await user.click(within(row).getByRole('button', { name: 'More actions' }));
-    expect(within(row).getByRole('button', { name: 'Copy text' })).toBeVisible();
-    expect(within(row).getByRole('button', { name: 'Copy link' })).toBeVisible();
-    await user.click(within(row).getByRole('button', { name: 'Record as decision' }));
-    const dialog = screen.getByRole('dialog', { name: 'Record as decision' });
-    expect(within(dialog).getByLabelText('Decision')).toHaveValue(BODY);
-    expect(await within(dialog).findByRole('option', { name: 'Omar Adel' })).toBeInTheDocument();
-    expect(within(dialog).getByLabelText(/Decided by/)).toHaveValue('user-omar');
   });
 });
 

@@ -13,7 +13,7 @@ import { API_URL } from '../setup/stack.js';
  *   leak"** — a member of the organization who is not in the channel opens its URL and
  *   learns nothing: not the message, not the channel's existence beyond a load error.
  *
- * - **E2E-DM, "a member starts a direct message and the other member reads it"** (A4) — New
+ * - **E2E-DM, "a member starts a direct message and the other member reads it"** (A4; R7) — New
  *   message from the chat column, Open conversation, send; the other member sees the unread pill,
  *   opens the conversation and the pill is gone (the screen marked it read).
  *
@@ -181,13 +181,15 @@ test.describe.serial('the chat journeys', () => {
 
     const page = await owner.newPage();
     await page.goto('/northstar-studio/chat');
-    await page.getByRole('button', { name: 'New message' }).click();
+    // R7: one chat list; "New chat" opens the people picker (a direct conversation).
+    await page.getByRole('button', { name: 'New chat' }).click();
     const dialog = page.getByRole('dialog', { name: 'New message' });
     await dialog.getByLabel('To').fill(designerName.split(' ')[0] as string);
     await dialog.getByRole('button', { name: new RegExp(designerName) }).click();
     await dialog.getByRole('button', { name: 'Open conversation' }).click();
-    await expect(page).toHaveURL(/\/northstar-studio\/chat\/dm\//u);
-    const composer = page.getByLabel(`Message ${designerName}`);
+    // A direct conversation is a conversation now: the one route, no `/dm/`.
+    await expect(page).toHaveURL(/\/northstar-studio\/chat\/[0-9a-f-]{36}$/u);
+    const composer = page.getByRole('textbox', { name: /^Message/u });
     await composer.fill(text);
     await page.getByRole('button', { name: 'Send', exact: true }).click();
     await expect(page.getByText(text)).toBeVisible();
@@ -197,22 +199,36 @@ test.describe.serial('the chat journeys', () => {
     await signIn(designer, designerId);
     const other = await designer.newPage();
     await other.goto('/northstar-studio/chat');
-    const row = other
-      .getByRole('navigation')
-      .getByRole('link', { name: new RegExp(`${ownerName}.*unread`, 'u') });
-    await expect(row).toBeVisible();
+    // The row is named by the person; its description carries the unread count.
+    const row = other.getByRole('main').getByRole('link', { name: ownerName, exact: true });
+    await expect(row).toHaveAccessibleDescription(/unread/u);
     await row.click();
     await expect(other.getByText(text)).toBeVisible();
     // Opening it marked it read: the row carries no unread count any more.
     await other.goto('/northstar-studio/chat');
-    await expect(
-      other.getByRole('navigation').getByRole('link', { name: new RegExp(ownerName, 'u') }),
-    ).toBeVisible();
-    await expect(
-      other
-        .getByRole('navigation')
-        .getByRole('link', { name: new RegExp(`${ownerName}.*unread`, 'u') }),
-    ).toHaveCount(0);
+    const again = other.getByRole('main').getByRole('link', { name: ownerName, exact: true });
+    await expect(again).toBeVisible();
+    await expect(again).not.toHaveAccessibleDescription(/unread/u);
     await designer.close();
+  });
+
+  test('R7 F1: on a phone the list and the chat take turns, and back returns to the list', async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await signIn(context, world().northstar.designer.id);
+    const page = await context.newPage();
+    await page.goto('/northstar-studio/chat');
+    const list = page.getByRole('complementary', { name: 'Chats' });
+    await expect(list).toBeVisible();
+    // E2E-DM left a direct conversation with the owner on the designer's list.
+    const rows = list.getByRole('link');
+    await expect(rows.first()).toBeVisible();
+    await rows.first().click();
+    await expect(page).toHaveURL(/\/northstar-studio\/chat\/[0-9a-f-]{36}$/u);
+    await expect(page.getByRole('textbox', { name: /^Message/u })).toBeVisible();
+    await page.goBack();
+    await expect(page.getByRole('complementary', { name: 'Chats' })).toBeVisible();
+    await context.close();
   });
 });

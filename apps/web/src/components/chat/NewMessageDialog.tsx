@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
@@ -26,6 +26,8 @@ export interface NewMessageDialogProps {
   readonly organizationName: string;
   readonly onClose: () => void;
   readonly onOpened: (conversation: DirectConversationSummary) => void;
+  /** R7: an extra action under the lede (the chat list's "New group" link). */
+  readonly extraAction?: ReactNode;
 }
 
 interface Person {
@@ -47,6 +49,7 @@ export function NewMessageDialog({
   organizationName: passedOrganizationName,
   onClose,
   onOpened,
+  extraAction,
 }: NewMessageDialogProps) {
   // The live workspace name, not the design's sample company the route passes down.
   const organizationName = useOrganizationName(organizationSlug, passedOrganizationName);
@@ -213,6 +216,7 @@ export function NewMessageDialog({
         <p className="tm-newdm__lede">
           {tOr('NewMessageDialog.lede', 'Start a direct message with someone you work with.')}
         </p>
+        {extraAction ?? null}
         <form onSubmit={submit} className="tm-newdm__form">
           <label htmlFor={toId} className="tm-newdm__label">
             {tOr('NewMessageDialog.to', 'To')}

@@ -177,8 +177,13 @@ export class ConversationsController {
     return { channels: await this.conversations.directory(context, principal) };
   }
 
+  // R7 slice 2: a client principal who is a member of a GROUP reads and writes it here. These
+  // routes declare `client_projection.read` (every internal and client role holds it, as the
+  // direct-conversation routes do); the real gate is the service's `authorize()`, which still
+  // demands `conversation.read` / `conversation.write` of an internal caller and admits a
+  // client only for a group they are a member of (`authorize` rule 2a).
   @Get('conversations/:conversationId')
-  @RequireCapability('conversation.read')
+  @RequireCapability('client_projection.read')
   async get(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -263,7 +268,7 @@ export class ConversationsController {
   // ── Membership ─────────────────────────────────────────────────────────────
 
   @Get('conversations/:conversationId/members')
-  @RequireCapability('conversation.read')
+  @RequireCapability('client_projection.read')
   async listMembers(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -313,7 +318,7 @@ export class ConversationsController {
    * conversation nobody had.
    */
   @Get('conversations/:conversationId/messages')
-  @RequireCapability('conversation.read')
+  @RequireCapability('client_projection.read')
   async listMessages(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -404,7 +409,7 @@ export class ConversationsController {
    * depends on what happened.
    */
   @Post('conversations/:conversationId/messages')
-  @RequireCapability('conversation.write')
+  @RequireCapability('client_projection.read')
   async postMessage(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
@@ -446,7 +451,7 @@ export class ConversationsController {
   }
 
   @Patch('conversations/:conversationId/messages/:messageId')
-  @RequireCapability('conversation.write')
+  @RequireCapability('client_projection.read')
   async editMessage(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

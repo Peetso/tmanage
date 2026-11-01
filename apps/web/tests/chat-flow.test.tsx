@@ -3,14 +3,13 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
-import { ChatScreen } from '../src/components/screens/ChatScreen';
 import { ProjectChannelScreen } from '../src/components/screens/ProjectChannelScreen';
 import { ApiClient } from '../src/lib/api/client';
 import { MAX_MESSAGE_PAGE } from '../src/lib/api/conversations';
 import type { LiveSocket } from '../src/lib/use-channel-live-feed';
 import { authBoundary } from '../src/lib/auth-boundary';
 import { expectNoAxeViolations } from './axe';
-import { expectInertUntilAnswered, heldAnswer } from './hydration-gate';
+import { heldAnswer } from './hydration-gate';
 
 /**
  * `TM-06`, `TM-08` and `TM-09` against the endpoints CHAT-001 through CHAT-003 delivered —
@@ -243,163 +242,6 @@ function directoryEntry(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
-
-describe('the channel list', () => {
-  it('lists channels with their project, members and audience, and links into them', async () => {
-    const { client } = clientOver((call) => {
-      if (call.url.includes('/conversations/directory')) {
-        return json({
-          channels: [
-            directoryEntry({
-              memberCount: 3,
-              clientMemberCount: 1,
-              joined: true,
-              memberPreview: [
-                { userId: 'user-1111', displayName: 'Omar Aziz', isClient: false },
-                { userId: 'user-2222', displayName: 'Yuki Kato', isClient: true },
-              ],
-            }),
-          ],
-        });
-      }
-      if (call.url.includes('/projects')) return json({ projects: [PROJECT] });
-      return json({ conversations: [] });
-    });
-
-    render(
-      withQuery(
-        <ChatScreen
-          organizationSlug="northstar"
-          organizationName="Northstar Studio"
-          client={client}
-        />,
-      ),
-    );
-
-    const link = await screen.findByRole('link', { name: '#atlas-relaunch' });
-    expect(link).toHaveAttribute('href', '/northstar/chat/conv-1');
-    const row = link.closest('li') as HTMLElement;
-    expect(await within(row).findByText('Atlas Website Relaunch')).toBeInTheDocument();
-    expect(within(row).getByText('joined')).toBeInTheDocument();
-    expect(within(row).getByText('YK')).toBeInTheDocument();
-    expect(within(row).getByText('2 + 1')).toBeInTheDocument();
-    expect(within(row).getByText('Client visible')).toBeInTheDocument();
-  });
-
-  it('filters by my channels, client shared and archived, with counts', async () => {
-    const user = userEvent.setup();
-    const { client } = clientOver((call) => {
-      if (call.url.includes('/conversations/directory')) {
-        return json({
-          channels: [
-            directoryEntry({ id: 'c-mine', name: 'mine', joined: true }),
-            directoryEntry({ id: 'c-client', name: 'shared', clientMemberCount: 1 }),
-            directoryEntry({ id: 'c-old', name: 'old', archivedAt: '2026-08-27T00:00:00.000Z' }),
-          ],
-        });
-      }
-      if (call.url.includes('/projects')) return json({ projects: [PROJECT] });
-      return json({ conversations: [] });
-    });
-
-    render(
-      withQuery(
-        <ChatScreen
-          organizationSlug="northstar"
-          organizationName="Northstar Studio"
-          client={client}
-        />,
-      ),
-    );
-
-    await screen.findByRole('link', { name: '#mine' });
-    expect(screen.queryByRole('link', { name: '#old' })).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'My channels · 1' }));
-    expect(screen.getAllByRole('link').map((l) => l.textContent)).toContain('#mine');
-    expect(screen.queryByRole('link', { name: '#shared' })).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Client shared · 1' }));
-    expect(screen.getByRole('link', { name: '#shared' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: '#mine' })).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Archived · 1' }));
-    expect(screen.getByRole('link', { name: '#old' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'All · 2' })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    );
-  });
-
-  /**
-   * The x38 defect (CL-09) on TM-08. The channel form's controls are controlled inputs in the
-   * server-rendered HTML; a name typed before React hydrated was held by the DOM alone and
-   * undone by hydration, with nothing said. They sit behind `disabled={projects.isPending}`.
-   */
-  it('takes no channel name until the projects have arrived', async () => {
-    const user = userEvent.setup();
-    const held = heldAnswer();
-    const { client } = clientOver((call) => {
-      if (call.url.includes('/projects')) return held.after(() => json({ projects: [PROJECT] }));
-      if (call.url.includes('/conversations/directory')) return json({ channels: [] });
-      return json({ conversations: [] });
-    });
-
-    render(
-      withQuery(
-        <ChatScreen
-          organizationSlug="northstar"
-          organizationName="Northstar Studio"
-          client={client}
-        />,
-      ),
-    );
-
-    const name = within(
-      screen.getByRole('heading', { name: 'New channel' }).closest('section') as HTMLElement,
-    ).getByLabelText('Channel name');
-    await expectInertUntilAnswered([name, screen.getByLabelText('Project')], held.answer);
-
-    await user.type(name, 'general');
-    expect(name).toHaveValue('general');
-  });
-
-  it('creates a channel on the chosen project', async () => {
-    const { client, calls } = clientOver((call) => {
-      if (call.url.includes('/conversations') && call.method === 'POST') {
-        return json({ ...CONVERSATION, id: 'conv-2', name: 'general' }, 201);
-      }
-      if (call.url.includes('/conversations/directory')) return json({ channels: [] });
-      if (call.url.includes('/conversations')) return json({ conversations: [] });
-      if (call.url.includes('/projects')) return json({ projects: [PROJECT] });
-      return json({}, 404);
-    });
-
-    render(
-      withQuery(
-        <ChatScreen
-          organizationSlug="northstar"
-          organizationName="Northstar Studio"
-          client={client}
-        />,
-      ),
-    );
-
-    const heading = await screen.findByRole('heading', { name: 'New channel' });
-    // Scope to the form's section, and wait for the projects query to fill its options.
-    const section = heading.closest('section') as HTMLElement;
-    await within(section).findByRole('option', { name: 'Atlas Website Relaunch' });
-    await userEvent.selectOptions(within(section).getByLabelText('Project'), 'proj-1');
-    await userEvent.type(within(section).getByLabelText('Channel name'), 'general');
-    await userEvent.click(within(section).getByRole('button', { name: 'Create channel' }));
-
-    await waitFor(() => {
-      const create = calls.find((call) => call.method === 'POST');
-      expect(create).toBeDefined();
-      expect(create?.body).toEqual({ projectId: 'proj-1', name: 'general' });
-    });
-  });
-});
 
 describe('TM-06 the project channel', () => {
   it('renders the transcript oldest first, with the moderated tombstone and no axe violations', async () => {

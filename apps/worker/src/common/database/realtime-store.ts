@@ -52,13 +52,14 @@ export async function checkConversationSubscription(
 ): Promise<SubscriptionVerdict> {
   interface Row extends CustomRoleColumns {
     readonly role: string;
+    readonly kind: string | null;
     readonly next_sequence_no: number;
     readonly is_member: number;
     readonly may_reach_project: number;
     readonly has_org_wide_scope: number;
   }
   const rows = await tx.query<readonly Row[]>(
-    `SELECT m.role, ${CUSTOM_ROLE_COLUMNS}, c.next_sequence_no,
+    `SELECT m.role, ${CUSTOM_ROLE_COLUMNS}, c.kind, c.next_sequence_no,
             m.has_org_wide_scope AS has_org_wide_scope,
             EXISTS (
               SELECT 1 FROM conversation_memberships cm
@@ -87,6 +88,9 @@ export async function checkConversationSubscription(
 
   const row = rows[0];
   if (!row) return REFUSED;
+  // R7: a group or a direct conversation is member-gated for everyone, org-wide scope included;
+  // `checkMemberGatedSubscription` (direct-message-store.ts) answers for those.
+  if ((row.kind ?? 'project_channel') !== 'project_channel') return REFUSED;
   // H1: a custom-role member is checked against their role's own set, not skipped.
   if (!roleHolds(internalPrincipalRole(row.role, row), 'conversation.read')) return REFUSED;
   // The project gate `authorize()` applies over HTTP (rule 12): a channel membership row is

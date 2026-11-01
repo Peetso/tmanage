@@ -1,25 +1,14 @@
-'use client';
-
-import { use } from 'react';
-import { DirectMessageScreen } from '../../../../../components/screens/DirectMessageScreen';
-import { FIXTURE_ORGANIZATION_NAME } from '../../../../../lib/fixtures';
+import { redirect } from 'next/navigation';
 
 /**
- * **d-conversation** — one direct message thread. The id is not a credential: the API answers
- * 404 for a conversation the caller is not part of exactly as for one that does not exist.
+ * R7: a direct conversation is a `conversations` row with the same id (0276), so the old DM link
+ * goes to the one conversation route.
  */
-export default function DirectMessagePage({
+export default async function DirectMessagePage({
   params,
 }: {
   params: Promise<{ orgSlug: string; directConversationId: string }>;
 }) {
-  const { orgSlug, directConversationId } = use(params);
-
-  return (
-    <DirectMessageScreen
-      organizationSlug={orgSlug}
-      organizationName={FIXTURE_ORGANIZATION_NAME}
-      directConversationId={directConversationId}
-    />
-  );
+  const { orgSlug, directConversationId } = await params;
+  redirect(`/${encodeURIComponent(orgSlug)}/chat/${encodeURIComponent(directConversationId)}`);
 }
