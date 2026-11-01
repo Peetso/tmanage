@@ -36,3 +36,7 @@ export { describeSweep } from './modules/files/upload-session-sweeper.js';
 export type { SweepReport, UploadSessionSweeper } from './modules/files/upload-session-sweeper.js';
 export { describeReconciliation } from './modules/files/usage-reconciler.js';
 export type { ReconciliationReport, UsageReconciler } from './modules/files/usage-reconciler.js';
+// R4 slice 3. The preview job runs on its own in-process timer (`WORKER_INPROCESS=1`, beside the
+// scan job); its token and report line are here so the one process can drive or log a pass.
+export { PREVIEW_JOB, describePreviewPass } from './modules/files/preview-job.js';
+export type { PreviewJob, PreviewReport } from './modules/files/preview-job.js';

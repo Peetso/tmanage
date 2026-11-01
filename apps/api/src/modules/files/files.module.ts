@@ -40,7 +40,19 @@ import { UsageThresholdEvaluator } from './usage-thresholds.js';
 import { FilesService } from './files.service.js';
 import { FileVerifier } from './file-verifier.js';
 import { FileScanner } from './file-scanner.js';
-import { FILE_SCAN_JOB, FileScanJob, fileScanJobEnabled } from './file-scan-job.js';
+import {
+  DEFAULT_FILE_SCAN_JOB_OPTIONS,
+  FILE_SCAN_JOB,
+  FileScanJob,
+  fileScanJobEnabled,
+} from './file-scan-job.js';
+import { FilePreviewsRepository } from './file-previews.repository.js';
+import {
+  PREVIEW_JOB,
+  PreviewJob,
+  previewJobEnabled,
+  previewJobOptionsFromEnv,
+} from './preview-job.js';
 import { FileDownloadService } from './file-download.service.js';
 import { FileDownloadsController } from './file-downloads.controller.js';
 import {
@@ -272,11 +284,35 @@ export class FilesModule {
     // CQ-09. The verify-then-scan passes run in this process when it runs background work
     // (`WORKER_INPROCESS=1` on Hostinger): kicked by every committed upload, once after boot,
     // and on an interval. Off in suites and the `verify:once` CLI, which drive the passes.
+    // R4 slice 3. The preview job: TManage's own derivatives (thumbnails, safe SVG copies) of
+    // ready files, read from the private zone and written to the `derived` one. In this process
+    // under the same switch as the scan job; `preview:once` drives one pass from a CLI.
+    const previewJob: Provider = {
+      provide: PREVIEW_JOB,
+      inject: [TENANT_DATABASE, FILE_ASSETS_REPOSITORY, OBJECT_STORE],
+      useFactory: (database: TenantDatabase, assets: FileAssetsRepository, store: ObjectStore) =>
+        new PreviewJob(
+          database,
+          new FilePreviewsRepository(),
+          assets,
+          store,
+          previewJobEnabled(),
+          previewJobOptionsFromEnv(),
+        ),
+    };
+
     const scanJob: Provider = {
       provide: FILE_SCAN_JOB,
-      inject: [FILE_VERIFIER, FILE_SCANNER],
-      useFactory: (fileVerifier: FileVerifier, fileScanner: FileScanner) =>
-        new FileScanJob(fileVerifier, fileScanner, fileScanJobEnabled()),
+      // R4 slice 3: a pass that made files ready asks the preview job for one of its own.
+      inject: [FILE_VERIFIER, FILE_SCANNER, PREVIEW_JOB],
+      useFactory: (fileVerifier: FileVerifier, fileScanner: FileScanner, previews: PreviewJob) =>
+        new FileScanJob(
+          fileVerifier,
+          fileScanner,
+          fileScanJobEnabled(),
+          DEFAULT_FILE_SCAN_JOB_OPTIONS,
+          previews,
+        ),
     };
 
     // FILE-002 slice C. The download gate: its own service, so the read path that hands
@@ -390,6 +426,7 @@ export class FilesModule {
         cleanup,
         verifier,
         scanner,
+        previewJob,
         scanJob,
         downloads,
         portalFileList,
@@ -406,6 +443,7 @@ export class FilesModule {
         cleanup,
         verifier,
         scanner,
+        previewJob,
         scanJob,
         downloads,
         portalFileList,

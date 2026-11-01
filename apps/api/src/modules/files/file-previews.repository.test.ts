@@ -379,3 +379,48 @@ describe('parseMeta', () => {
     expect(parseMeta(7)).toBeNull();
   });
 });
+
+describe('FilePreviewsRepository — discovery (R4 slice 3)', () => {
+  const TYPES = ['image/png', 'image/svg+xml'];
+
+  it('lists ready, clean, promoted versions of a readable type that have no rows, tenant-scoped', async () => {
+    const { runner, statements } = fakeRunner(() => [
+      [ASSET, VERSION, 'image/png'],
+      [ASSET, uuidv7(), null],
+    ]);
+    const versions = await repository.listVersionsNeedingPreviews(runner, context, TYPES, 10_000);
+    expect(versions).toEqual([
+      { fileAssetId: ASSET, fileVersionId: VERSION, mimeType: 'image/png' },
+    ]);
+    const [select] = statements as [Statement];
+    expect(select.sql).toMatch(/from `file_versions`/);
+    expect(select.sql).toMatch(/`trust_zone` = \?/);
+    expect(select.sql).toMatch(/`scan_verdict` = \?/);
+    expect(select.sql).toMatch(/`detected_mime_type` in \(\?, \?\)/);
+    expect(select.sql).toMatch(/exists \(select 1 from `file_assets`/);
+    expect(select.sql).toMatch(/`deleted_at` is null/);
+    expect(select.sql).toMatch(/not exists \(select 1 from `file_previews`/);
+    expect(select.params).toEqual(expect.arrayContaining([ORG, 'private', 'clean', 'ready', 500]));
+  });
+
+  it('asks nothing for an empty type list', async () => {
+    const { runner, statements } = fakeRunner();
+    expect(await repository.listVersionsNeedingPreviews(runner, context, [], 10)).toEqual([]);
+    expect(
+      await repository.organizationsNeedingPreviews(runner as unknown as BootstrapQueryRunner, []),
+    ).toEqual([]);
+    expect(statements).toHaveLength(0);
+  });
+
+  it('reads the organizations to plan through the bootstrap runner', async () => {
+    const { runner, statements } = fakeRunner(() => [[ORG]], false);
+    const organizations = await repository.organizationsNeedingPreviews(
+      runner as unknown as BootstrapQueryRunner,
+      TYPES,
+    );
+    expect(organizations).toEqual([ORG]);
+    const [select] = statements as [Statement];
+    expect(select.sql).toMatch(/^select distinct `organization_id` from `file_versions`/);
+    expect(select.sql).not.toMatch(/`file_versions`.`organization_id` = \?/);
+  });
+});

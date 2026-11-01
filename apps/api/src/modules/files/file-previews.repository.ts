@@ -1,7 +1,7 @@
-import { and, asc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, asc, eq, exists, inArray, isNull, lt, notExists, or, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { filePreviews } from '../../common/database/schema.js';
+import { fileAssets, filePreviews, fileVersions } from '../../common/database/schema.js';
 import type { FilePreviewRow } from '../../common/database/schema.js';
 import type {
   BootstrapQueryRunner,
@@ -134,6 +134,37 @@ function affected(result: unknown): number {
   return typeof rows === 'number' ? rows : 0;
 }
 
+/**
+ * R4 slice 3. A version the preview job should start rows for: promoted and clean (what the
+ * download door would serve), of a type a generator reads, its asset `ready` and not deleted, and
+ * no `file_previews` row of any kind yet — so a version is planned exactly once, and a version
+ * whose rows were all made (or refused) is never looked at again.
+ */
+function needsPreviews(mimeTypes: readonly string[]) {
+  return and(
+    eq(fileVersions.trustZone, 'private'),
+    eq(fileVersions.scanVerdict, 'clean'),
+    inArray(fileVersions.detectedMimeType, [...mimeTypes]),
+    exists(
+      sql`(select 1 from ${fileAssets} where ${fileAssets.organizationId} = ${fileVersions.organizationId}
+        and ${fileAssets.id} = ${fileVersions.fileAssetId}
+        and ${fileAssets.status} = ${'ready'}
+        and ${fileAssets.deletedAt} is null)`,
+    ),
+    notExists(
+      sql`(select 1 from ${filePreviews} where ${filePreviews.organizationId} = ${fileVersions.organizationId}
+        and ${filePreviews.fileVersionId} = ${fileVersions.id})`,
+    ),
+  );
+}
+
+/** A version {@link FilePreviewsRepository.listVersionsNeedingPreviews} found. */
+export interface VersionNeedingPreviews {
+  readonly fileAssetId: string;
+  readonly fileVersionId: string;
+  readonly mimeType: string;
+}
+
 /** A pending row nobody holds now: never claimed, or claimed by a pass older than the bound. */
 function unclaimedOrStale(staleBefore: Date) {
   return or(isNull(filePreviews.claimedAt), lt(filePreviews.claimedAt, staleBefore));
@@ -260,6 +291,54 @@ export class FilePreviewsRepository {
       .from(filePreviews)
       .where(and(eq(filePreviews.status, 'pending'), unclaimedOrStale(staleBefore)))
       .orderBy(asc(filePreviews.organizationId));
+    return rows.map((row) => row.organizationId);
+  }
+
+  /**
+   * R4 slice 3. The ready versions in this organization that have no derivative rows yet, oldest
+   * first — what the preview job plans rows for.
+   */
+  async listVersionsNeedingPreviews(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    mimeTypes: readonly string[],
+    limit: number,
+  ): Promise<readonly VersionNeedingPreviews[]> {
+    if (mimeTypes.length === 0) return [];
+    const rows = await tenantDrizzle(runner)
+      .select({
+        fileAssetId: fileVersions.fileAssetId,
+        fileVersionId: fileVersions.id,
+        mimeType: fileVersions.detectedMimeType,
+      })
+      .from(fileVersions)
+      .where(and(eq(fileVersions.organizationId, context.organizationId), needsPreviews(mimeTypes)))
+      .orderBy(asc(fileVersions.createdAt), asc(fileVersions.id))
+      .limit(Math.min(Math.max(limit, 1), 500));
+    return rows.flatMap((row) =>
+      row.mimeType === null
+        ? []
+        : [
+            {
+              fileAssetId: row.fileAssetId,
+              fileVersionId: row.fileVersionId,
+              mimeType: row.mimeType,
+            },
+          ],
+    );
+  }
+
+  /** The discovery's cross-tenant half, through the bootstrap runner. */
+  async organizationsNeedingPreviews(
+    runner: BootstrapQueryRunner,
+    mimeTypes: readonly string[],
+  ): Promise<readonly string[]> {
+    if (mimeTypes.length === 0) return [];
+    const rows = await tenantDrizzle(runner)
+      .selectDistinct({ organizationId: fileVersions.organizationId })
+      .from(fileVersions)
+      .where(needsPreviews(mimeTypes))
+      .orderBy(asc(fileVersions.organizationId));
     return rows.map((row) => row.organizationId);
   }
 
