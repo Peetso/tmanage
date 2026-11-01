@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DestructiveButton, InlineAlert, StateCapsule, TextButton } from '@tmanage/ui';
@@ -108,7 +109,17 @@ export function MessageAttachmentsView({
         <ul className="tm-message-attachments__list">
           {rows.map((row) => (
             <li key={row.fileAssetId} className="tm-message-attachments__chip">
-              <span className="tm-message-attachments__name">{row.name}</span>
+              {row.scanStatus === 'unavailable' ? (
+                <span className="tm-message-attachments__name">{row.name}</span>
+              ) : (
+                <Link
+                  className="tm-message-attachments__name"
+                  href={`/${organizationSlug}/files/${encodeURIComponent(row.fileAssetId)}`}
+                  aria-label={`${row.name} · ${t('Viewer.openInViewer')}`}
+                >
+                  {row.name}
+                </Link>
+              )}
               <span className="tm-message-attachments__size">{formatBytes(row.sizeBytes)}</span>
               {/* L2: the virus scan's word, the labels the channel's file cards use. */}
               {row.scanStatus === 'not_scanned' ? (

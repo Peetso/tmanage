@@ -14,3 +14,5 @@ CODEX-REVIEW-2026-09-05/
 CODEX_REVIEW_FOR_CLAUDE_2026-09-05.md
 # Electron packager output (gitignored in apps/desktop).
 apps/desktop/release/
+# pdf.js's worker, copied verbatim from pdfjs-dist (R4 slice 6).
+apps/web/public/pdf.worker.min.mjs

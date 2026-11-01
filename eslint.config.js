@@ -33,6 +33,9 @@ export default tseslint.config(
       // runnable as written.
       'CODEX-REVIEW-2026-09-05/**',
       'CODEX_REVIEW_FOR_CLAUDE_2026-09-05.md',
+      // pdf.js's own worker, copied verbatim from pdfjs-dist so the viewer can load it from our
+      // origin under the CSP's worker-src 'self' (R4 slice 6). Third-party minified code.
+      'apps/web/public/pdf.worker.min.mjs',
     ],
   },
 

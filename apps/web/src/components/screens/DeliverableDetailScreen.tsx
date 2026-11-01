@@ -25,6 +25,7 @@ import {
   type DeliverablesKey,
 } from './DeliverablesScreen';
 import { SendForApprovalDialog } from './SendForApprovalDialog';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface DeliverableDetailScreenProps {
   organizationSlug: string;
@@ -253,6 +254,7 @@ function VersionList({
   onSend: (version: DeliverableVersionView) => void;
 }) {
   const t = useDeliverablesT();
+  const viewerT = useT();
   const versions = [...detail.versions].sort((a, b) => (b.versionNo ?? 0) - (a.versionNo ?? 0));
   if (versions.length === 0) return <p className="tm-prose">{t('Deliverables.noVersions')}</p>;
   const latestId = versions[0]?.id;
@@ -284,6 +286,16 @@ function VersionList({
             <p className="tm-field__hint">
               {version.fileAssetId ? t('Deliverables.fileAttached') : t('Deliverables.noFile')}
             </p>
+            {version.fileAssetId ? (
+              <div className="tm-row tm-row--wrap">
+                <Link
+                  className="tm-button tm-button--outline tm-button--compact"
+                  href={`/${organizationSlug}/files/${encodeURIComponent(version.fileAssetId)}?deliverableVersionId=${encodeURIComponent(version.id)}`}
+                >
+                  {viewerT('Viewer.openInViewer')}
+                </Link>
+              </div>
+            ) : null}
             {approval?.feedback ? (
               <blockquote className="tm-prose">
                 <span className="tm-field__label">{t('Deliverables.clientFeedback')}</span>{' '}

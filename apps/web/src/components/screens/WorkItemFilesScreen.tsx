@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
@@ -187,7 +188,16 @@ export function WorkItemFilesScreen({
                 {rows.map((file: ItemFile) => (
                   <tr key={file.id}>
                     <th scope="row" className="tm-table__title">
-                      {file.fileName}
+                      {file.availability === 'unavailable' ? (
+                        file.fileName
+                      ) : (
+                        <Link
+                          href={`/${organizationSlug}/files/${encodeURIComponent(file.fileAssetId)}`}
+                          aria-label={`${file.fileName} · ${t('Viewer.openInViewer')}`}
+                        >
+                          {file.fileName}
+                        </Link>
+                      )}
                     </th>
                     <td>{file.createdAt}</td>
                     <td>

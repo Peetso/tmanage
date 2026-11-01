@@ -191,6 +191,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/decisions/[decisionId]': { en: 'Decision', key: 'RouteTitle.decision' },
   '/[orgSlug]/docs': { en: 'Docs', key: 'RouteTitle.docs' },
   '/[orgSlug]/docs/[documentId]': { en: 'Document', key: 'RouteTitle.document' },
+  '/[orgSlug]/files/[fileId]': { en: 'File review', key: 'RouteTitle.fileReview' },
   '/[orgSlug]/docs/[documentId]/edit': { en: 'Edit document', key: 'RouteTitle.documentEdit' },
   '/[orgSlug]/docs/collections': { en: 'Collections', key: 'RouteTitle.docCollections' },
   '/[orgSlug]/docs/templates': { en: 'Document templates', key: 'RouteTitle.docTemplates' },
