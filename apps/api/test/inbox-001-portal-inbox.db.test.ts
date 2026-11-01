@@ -802,7 +802,8 @@ describe('one authorized read for the page, not one per bundle', () => {
     expect(counting.many).toBe(1);
     expect(counting.one).toBe(0);
 
-    for (const bundle of page.items.filter((candidate) => own.includes(candidate.requestId))) {
+    for (const bundle of page.items) {
+      if (bundle.requestId === undefined || !own.includes(bundle.requestId)) continue;
       const single = await requests.getForClient(atlasAdminCtx, atlasAdmin, bundle.requestId);
       expect(bundle.title).toBe(single.title);
       expect(bundle.status).toBe(single.status);
