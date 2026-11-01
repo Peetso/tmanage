@@ -5,9 +5,13 @@ import { ApiError } from '../../common/http/errors.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { ATTACHMENT_VERSIONS_SERVICE } from './attachment-versions.service.js';
 import type {
+  AddedAttachmentVersionView,
   AttachmentHistoryView,
   AttachmentVersionsService,
 } from './attachment-versions.service.js';
+
+const MAX_CARRY_IDS = 500;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * C7 (0228) — a plain attachment's version history: list it, and add a new version (an asset the
@@ -43,7 +47,7 @@ export class AttachmentVersionsController {
     @CurrentPrincipal() principal: Principal,
     @Param('fileId') fileAssetId: string,
     @Body() body: Record<string, unknown> | undefined,
-  ): Promise<AttachmentHistoryView> {
+  ): Promise<AddedAttachmentVersionView> {
     const raw = body?.['fileAssetId'];
     if (typeof raw !== 'string' || raw.trim() === '' || raw.length > 36) {
       throw invalid('fileAssetId', 'must be a file id');
@@ -53,9 +57,25 @@ export class AttachmentVersionsController {
       throw invalid('note', 'must be a string or null');
     }
     const cleanNote = typeof note === 'string' && note.trim() !== '' ? note.trim() : null;
+    // R4 slice 11: the open comments of the version before travel to the new one unless told not.
+    const carry = body?.['carryForward'];
+    if (carry !== undefined && carry !== 'open' && carry !== 'none') {
+      throw invalid('carryForward', 'must be open or none');
+    }
+    const ids = body?.['carryThreadIds'];
+    if (
+      ids !== undefined &&
+      (!Array.isArray(ids) ||
+        ids.length > MAX_CARRY_IDS ||
+        ids.some((id) => typeof id !== 'string' || !UUID.test(id)))
+    ) {
+      throw invalid('carryThreadIds', 'must be a list of thread ids');
+    }
     return this.versions.add(context, principal, fileAssetId, {
       fileAssetId: raw.trim(),
       note: cleanNote,
+      carryForward: carry === 'none' ? 'none' : 'open',
+      carryThreadIds: ids === undefined ? undefined : (ids as string[]),
     });
   }
 }

@@ -65,6 +65,14 @@ import {
 } from './portal-review.controller.js';
 import { REVIEW_SERVICE, ReviewService } from './review.service.js';
 import {
+  FILE_REVIEW_DECISIONS_SERVICE,
+  FileReviewDecisionsService,
+} from './file-review-decisions.service.js';
+import {
+  FileReviewDecisionsController,
+  PortalFileReviewDecisionsController,
+} from './file-review-decisions.controller.js';
+import {
   FileReviewController,
   ReviewMentionCandidatesController,
   ReviewThreadsController,
@@ -405,6 +413,18 @@ export class FilesModule {
       ) => new ReviewService(database, downloadService, new ProjectsRepository(), audit, outbox),
     };
 
+    // R4 slice 11. Approve / Request changes on plain files, behind the same download gate.
+    const reviewDecisions: Provider = {
+      provide: FILE_REVIEW_DECISIONS_SERVICE,
+      inject: [TENANT_DATABASE, FILE_DOWNLOAD_SERVICE, AUDIT_SERVICE, OUTBOX_EVENTS_REPOSITORY],
+      useFactory: (
+        database: TenantDatabase,
+        downloadService: FileDownloadService,
+        audit: AuditService,
+        outbox: OutboxEventsRepository,
+      ) => new FileReviewDecisionsService(database, downloadService, audit, outbox),
+    };
+
     // FILE-003 · WEB-006. The client's file list, over the same download surface: a read-only
     // service on the tenant database and the file-assets repository. No store, no audit — it
     // hands out no bytes; it names the files the download door would serve, which it audits.
@@ -490,6 +510,7 @@ export class FilesModule {
         downloads,
         filePreviews,
         review,
+        reviewDecisions,
         portalFileList,
         attachmentVersions,
       ],
@@ -527,6 +548,9 @@ export class FilesModule {
         PortalFileReviewController,
         PortalReviewThreadsController,
         PortalReviewMentionCandidatesController,
+        // R4 slice 11 — decisions on plain files (studio and portal).
+        FileReviewDecisionsController,
+        PortalFileReviewDecisionsController,
         PortalFileListController,
         UsageController,
         FileTagsController,

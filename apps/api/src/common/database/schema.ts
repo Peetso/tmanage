@@ -5642,6 +5642,11 @@ export const reviewThreads = mysqlTable(
     resolvedByMembershipId: char('resolved_by_membership_id', { length: 36 }),
     resolvedAt: datetime('resolved_at', { mode: 'date', fsp: 3 }),
     carriedFromThreadId: char('carried_from_thread_id', { length: 36 }),
+    /**
+     * R4 slice 11 (0269). '' for a thread somebody opened; the target `file_versions.id` for a
+     * copy carried to a new version, which keeps its number (the unique key holds this column).
+     */
+    carryScope: char('carry_scope', { length: 36 }).notNull().default(''),
     createdByMembershipId: char('created_by_membership_id', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
@@ -5657,6 +5662,7 @@ export const reviewThreads = mysqlTable(
       table.subjectType,
       table.subjectId,
       table.number,
+      table.carryScope,
     ),
     index('ix_review_threads_subject').on(
       table.organizationId,
@@ -5709,6 +5715,48 @@ export const reviewComments = mysqlTable(
 );
 
 export type ReviewCommentRow = typeof reviewComments.$inferSelect;
+
+/**
+ * R4 slice 11 (0269). Approve / Request changes on one version of a plain attachment (deliverables
+ * keep `approvals`). Append-only: the newest row of a version is its state. A request for changes
+ * carries a note (trigger). `decidedByMembershipId` names a `memberships` or `client_memberships`
+ * row, as `principalKind` says. `0269_file_review_decisions.sql`;
+ * `modules/files/file-review-decisions.repository.ts`.
+ */
+export const fileReviewDecisions = mysqlTable(
+  'file_review_decisions',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    rootFileAssetId: char('root_file_asset_id', { length: 36 }).notNull(),
+    fileAssetId: char('file_asset_id', { length: 36 }).notNull(),
+    fileVersionId: char('file_version_id', { length: 36 }),
+    decision: varchar('decision', { length: 20 }).notNull(),
+    note: text('note'),
+    decidedByMembershipId: char('decided_by_membership_id', { length: 36 }).notNull(),
+    decidedByUserId: char('decided_by_user_id', { length: 36 }).notNull(),
+    principalKind: varchar('principal_kind', { length: 8 }).notNull(),
+    clientOrganizationId: char('client_organization_id', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_file_review_decisions_org_id').on(table.organizationId, table.id),
+    index('ix_file_review_decisions_version').on(
+      table.organizationId,
+      table.fileAssetId,
+      table.createdAt,
+    ),
+    index('ix_file_review_decisions_root').on(
+      table.organizationId,
+      table.rootFileAssetId,
+      table.createdAt,
+    ),
+    index('ix_file_review_decisions_project').on(table.organizationId, table.projectId),
+  ],
+);
+
+export type FileReviewDecisionRow = typeof fileReviewDecisions.$inferSelect;
 
 export const uploadSessions = mysqlTable(
   'upload_sessions',
@@ -9555,6 +9603,7 @@ export const TABLES = {
   file_previews: filePreviews,
   review_threads: reviewThreads,
   review_comments: reviewComments,
+  file_review_decisions: fileReviewDecisions,
   upload_sessions: uploadSessions,
   user_passwords: userPasswords,
   password_reset_tokens: passwordResetTokens,

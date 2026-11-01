@@ -68,6 +68,21 @@ export interface InsertReviewThreadInput {
   readonly audience: ReviewAudience;
   readonly createdByMembershipId: string;
   readonly carriedFromThreadId?: string | null;
+  /**
+   * R4 slice 11. A copy carried to a new version: that version's id. The copy keeps the original's
+   * number, and the unique key then allows one copy of a number per version. Omitted for a thread
+   * somebody opened.
+   */
+  readonly carryScope?: string;
+}
+
+/** R4 slice 11 — one version's threads, counted for the Versions tab. */
+export interface VersionThreadCounts {
+  readonly fileVersionId: string;
+  readonly open: number;
+  readonly resolved: number;
+  /** Threads on this version that were carried here from the version before. */
+  readonly carried: number;
 }
 
 export interface ListReviewThreadsInput {
@@ -191,6 +206,7 @@ export class ReviewThreadsRepository {
           audience: input.audience,
           status: 'open',
           carriedFromThreadId: input.carriedFromThreadId ?? null,
+          carryScope: input.carryScope ?? '',
           createdByMembershipId: input.createdByMembershipId,
           createdAt: sql`current_timestamp(3)`,
           updatedAt: sql`current_timestamp(3)`,
@@ -357,6 +373,48 @@ export class ReviewThreadsRepository {
       if (Number.isSafeInteger(open) && open > 0) counts.set(row.subjectId, open);
     }
     return counts;
+  }
+
+  /**
+   * R4 slice 11 — every version's live threads of one subject, counted (open, resolved, carried),
+   * for the audiences the caller may see. One grouped statement under the organization predicate.
+   */
+  async countsByVersion(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    subjectId: string,
+    audiences: readonly ReviewAudience[],
+  ): Promise<readonly VersionThreadCounts[]> {
+    if (audiences.length === 0) return [];
+    const rows = await tenantDrizzle(runner)
+      .select({
+        fileVersionId: reviewThreads.fileVersionId,
+        status: reviewThreads.status,
+        carried: sql<number>`sum(case when ${reviewThreads.carriedFromThreadId} is null then 0 else 1 end)`,
+        total: sql<number>`count(*)`,
+      })
+      .from(reviewThreads)
+      .where(
+        and(
+          eq(reviewThreads.organizationId, context.organizationId),
+          eq(reviewThreads.subjectType, 'file_asset'),
+          eq(reviewThreads.subjectId, subjectId),
+          inArray(reviewThreads.audience, [...audiences]),
+          isNull(reviewThreads.deletedAt),
+        ),
+      )
+      .groupBy(reviewThreads.fileVersionId, reviewThreads.status);
+    const byVersion = new Map<string, { open: number; resolved: number; carried: number }>();
+    for (const row of rows) {
+      if (row.fileVersionId === null) continue;
+      const entry = byVersion.get(row.fileVersionId) ?? { open: 0, resolved: 0, carried: 0 };
+      const total = Number(row.total) || 0;
+      if (row.status === 'open') entry.open += total;
+      else entry.resolved += total;
+      entry.carried += Number(row.carried) || 0;
+      byVersion.set(row.fileVersionId, entry);
+    }
+    return [...byVersion].map(([fileVersionId, counts]) => ({ fileVersionId, ...counts }));
   }
 
   /** The file asset an uploaded version belongs to — the gate a thread-only route goes through. */

@@ -11,6 +11,8 @@ import type { AuditService } from '../audit/audit.service.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { FileAssetsRepository } from './file-assets.repository.js';
 import { AttachmentVersionsRepository } from './attachment-versions.repository.js';
+import { ReviewCommentsRepository } from './review-comments.repository.js';
+import { ReviewThreadsRepository } from './review-threads.repository.js';
 import { fileAvailabilityFor } from '../work/item-files.service.js';
 import type { FileAvailability } from '../work/item-files.service.js';
 
@@ -67,9 +69,24 @@ export interface AttachmentHistoryView {
   readonly versions: readonly AttachmentVersionView[];
 }
 
+/**
+ * R4 slice 11 — what `POST …/versions` answers: the history, and how many open comments travelled
+ * from the version before to the new one.
+ */
+export interface AddedAttachmentVersionView extends AttachmentHistoryView {
+  readonly carriedThreads: number;
+}
+
+/** `open`: copy the open comments of the version before (default); `none`: start clean. */
+export type CarryForward = 'open' | 'none';
+
 export interface AddAttachmentVersionInput {
   readonly fileAssetId: string;
   readonly note: string | null;
+  /** Omitted → `open`. */
+  readonly carryForward?: CarryForward;
+  /** Only these open threads (the dialog's ticked list); omitted → every open thread. */
+  readonly carryThreadIds?: readonly string[] | undefined;
 }
 
 export class AttachmentVersionsService {
@@ -79,6 +96,8 @@ export class AttachmentVersionsService {
     private readonly projects: ProjectsRepository,
     private readonly audit?: AuditService,
     private readonly versions: AttachmentVersionsRepository = new AttachmentVersionsRepository(),
+    private readonly threads: ReviewThreadsRepository = new ReviewThreadsRepository(),
+    private readonly comments: ReviewCommentsRepository = new ReviewCommentsRepository(),
   ) {}
 
   async list(
@@ -98,7 +117,7 @@ export class AttachmentVersionsService {
     principal: Principal,
     fileAssetId: string,
     input: AddAttachmentVersionInput,
-  ): Promise<AttachmentHistoryView> {
+  ): Promise<AddedAttachmentVersionView> {
     requireInternal(principal);
     if (input.note !== null && input.note.length > MAX_NOTE) {
       throw invalid('note', `must be at most ${MAX_NOTE} characters`);
@@ -124,6 +143,11 @@ export class AttachmentVersionsService {
 
         const existing = await this.versions.listForRoot(tx, context, root.id);
         const versionNo = Math.max(1, ...existing.map((row) => row.versionNo)) + 1;
+        const previousAssetId = existing.reduce<{ no: number; id: string }>(
+          (newest, row) =>
+            row.versionNo > newest.no ? { no: row.versionNo, id: row.fileAssetId } : newest,
+          { no: 1, id: root.id },
+        ).id;
         const created = await this.versions.create(tx, context, {
           projectId: root.projectId,
           rootFileAssetId: root.id,
@@ -142,9 +166,19 @@ export class AttachmentVersionsService {
             file_asset_id: candidate.id,
             attachment_version_id: created.id,
             version_no: versionNo,
+            carry_forward: input.carryForward ?? 'open',
           },
         });
-        return this.history(tx, context, root);
+        const carriedThreads =
+          input.carryForward === 'none'
+            ? 0
+            : await this.carryOpenThreads(tx, context, {
+                rootFileAssetId: root.id,
+                fromFileAssetId: previousAssetId,
+                toFileAssetId: candidate.id,
+                only: input.carryThreadIds,
+              });
+        return { ...(await this.history(tx, context, root)), carriedThreads };
       });
     } catch (error) {
       // Two uploads raced for the same number: the unique key refused the loser.
@@ -153,6 +187,69 @@ export class AttachmentVersionsService {
       }
       throw error;
     }
+  }
+
+  /**
+   * R4 slice 11 — copy the open comments drawn on the version before to the new version. Each copy
+   * keeps its number, place, audience, author and conversation (with the times it was written),
+   * and names the thread it came from; the originals stay on the older version as they were. A
+   * thread's audience never changes on the way. Returns how many travelled.
+   */
+  private async carryOpenThreads(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    input: {
+      readonly rootFileAssetId: string;
+      readonly fromFileAssetId: string;
+      readonly toFileAssetId: string;
+      readonly only: readonly string[] | undefined;
+    },
+  ): Promise<number> {
+    const from = await this.assets.findLatestVersion(tx, context, input.fromFileAssetId);
+    const to = await this.assets.findLatestVersion(tx, context, input.toFileAssetId);
+    if (!from || !to) return 0;
+    const open = await this.threads.listForSubject(tx, context, {
+      subjectType: 'file_asset',
+      subjectId: input.rootFileAssetId,
+      fileVersionId: from.id,
+      status: 'open',
+      audiences: ['internal', 'client_visible'],
+    });
+    const wanted = input.only ? new Set(input.only) : null;
+    const chosen = wanted ? open.filter((thread) => wanted.has(thread.id)) : open;
+    if (chosen.length === 0) return 0;
+    const conversation = await this.comments.listForThreads(
+      tx,
+      context,
+      chosen.map((thread) => thread.id),
+    );
+    for (const thread of chosen) {
+      const copy = await this.threads.insert(tx, context, {
+        projectId: thread.projectId,
+        subjectType: thread.subjectType,
+        subjectId: thread.subjectId,
+        fileVersionId: to.id,
+        anchorKind: thread.anchorKind,
+        anchor: thread.anchor,
+        pageNo: thread.pageNo,
+        timeMs: thread.timeMs,
+        number: thread.number,
+        audience: thread.audience,
+        createdByMembershipId: thread.createdByMembershipId,
+        carriedFromThreadId: thread.id,
+        carryScope: to.id,
+      });
+      for (const comment of conversation.filter((entry) => entry.threadId === thread.id)) {
+        await this.comments.insert(tx, context, {
+          threadId: copy.id,
+          body: comment.body,
+          mentions: comment.mentions,
+          createdByMembershipId: comment.createdByMembershipId,
+          createdAt: comment.createdAt,
+        });
+      }
+    }
+    return chosen.length;
   }
 
   /** The asset, resolved to its chain's root, tenant-scoped and readable — or the one 404. */

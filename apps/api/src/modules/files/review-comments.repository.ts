@@ -27,6 +27,8 @@ export interface InsertReviewCommentInput {
   readonly body: string;
   readonly mentions: readonly string[];
   readonly createdByMembershipId: string;
+  /** R4 slice 11. A comment copied with its thread to a new version keeps when it was written. */
+  readonly createdAt?: Date;
 }
 
 /** MariaDB answers a JSON column as its text; MySQL and the fakes answer the value. */
@@ -69,7 +71,7 @@ export class ReviewCommentsRepository {
         body: input.body,
         mentions: input.mentions.length === 0 ? null : [...input.mentions],
         createdByMembershipId: input.createdByMembershipId,
-        createdAt: sql`current_timestamp(3)`,
+        createdAt: input.createdAt ?? sql`current_timestamp(3)`,
       });
     const created = await this.findById(runner, context, id);
     if (!created) throw new Error('review comment vanished immediately after insert');

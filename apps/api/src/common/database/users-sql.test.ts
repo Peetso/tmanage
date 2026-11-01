@@ -334,6 +334,9 @@ describe('the runtime user is actually least-privilege', () => {
       'project_update_comments',
       'google_drive_attachments',
       'onedrive_attachments',
+      // 0268: review threads and comments are soft-deleted content the sweeper purges too.
+      'review_threads',
+      'review_comments',
     ]);
     // ---- 56-31 ---- 0256: the mail drainer purges `mail_queue` rows 7 days after sent/failed.
     // The queue is transient delivery state, never work a person made.

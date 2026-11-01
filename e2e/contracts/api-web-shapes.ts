@@ -351,7 +351,14 @@ import type {
 import type {
   AttachmentVersionView as ApiAttachmentVersionView,
   AttachmentHistoryView as ApiAttachmentHistoryView,
+  AddedAttachmentVersionView as ApiAddedAttachmentVersionView,
 } from '../../apps/api/src/modules/files/attachment-versions.service.js';
+import type {
+  FileReviewDecisionsView as ApiFileReviewDecisionsView,
+  FileReviewDecisionView as ApiFileReviewDecisionView,
+  FileReviewPersonView as ApiFileReviewPersonView,
+  FileVersionReviewView as ApiFileVersionReviewView,
+} from '../../apps/api/src/modules/files/file-review-decisions.service.js';
 import type {
   FilePreviewManifestView as ApiFilePreviewManifestView,
   PreviewCapabilitiesView as ApiPreviewCapabilitiesView,
@@ -885,6 +892,13 @@ import type { FileTag as WebFileTag } from '../../apps/web/src/lib/api/file-tags
 import type { FileTagAssignment as WebFileTagAssignment } from '../../apps/web/src/lib/api/file-tags';
 import type { AttachmentVersion as WebAttachmentVersion } from '../../apps/web/src/lib/api/attachment-versions';
 import type { AttachmentHistory as WebAttachmentHistory } from '../../apps/web/src/lib/api/attachment-versions';
+import type { AddedAttachmentVersion as WebAddedAttachmentVersion } from '../../apps/web/src/lib/api/attachment-versions';
+import type {
+  FileReviewDecisions as WebFileReviewDecisions,
+  FileReviewDecisionEntry as WebFileReviewDecisionEntry,
+  FileReviewPerson as WebFileReviewPerson,
+  FileVersionReview as WebFileVersionReview,
+} from '../../apps/web/src/lib/api/file-review-decisions';
 import type {
   FilePreviewManifest as WebFilePreviewManifest,
   PreviewCapabilities as WebPreviewCapabilities,
@@ -2037,6 +2051,15 @@ type _fileTagAssignment = Assert<Exact<ApiFileTagAssignmentView, WebFileTagAssig
  */
 type _attachmentVersion = Assert<Exact<ApiAttachmentVersionView, WebAttachmentVersion>>;
 type _attachmentHistory = Assert<Exact<ApiAttachmentHistoryView, WebAttachmentHistory>>;
+// R4 slice 11 — adding a version answers how many open comments travelled with it.
+type _addedAttachmentVersion = Assert<
+  Exact<ApiAddedAttachmentVersionView, WebAddedAttachmentVersion>
+>;
+// R4 slice 11 — decisions on plain files and each version's review state.
+type _fileReviewPerson = Assert<Exact<ApiFileReviewPersonView, WebFileReviewPerson>>;
+type _fileReviewDecision = Assert<Exact<ApiFileReviewDecisionView, WebFileReviewDecisionEntry>>;
+type _fileVersionReview = Assert<Exact<ApiFileVersionReviewView, WebFileVersionReview>>;
+type _fileReviewDecisions = Assert<Exact<ApiFileReviewDecisionsView, WebFileReviewDecisions>>;
 
 /**
  * R4 slice 4. The proofing viewer's manifest (`GET …/files/:fileAssetId/preview` and the portal

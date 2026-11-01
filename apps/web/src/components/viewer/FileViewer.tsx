@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { getAttachmentHistory } from '../../lib/api/attachment-versions';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
 import { useDescribeApiError } from '../../lib/api/describe-error';
@@ -15,6 +16,11 @@ import {
   retryFilePreview,
   type FilePreviewManifest,
 } from '../../lib/api/file-preview';
+import {
+  getFileReviewDecisions,
+  recordFileReviewDecision,
+  type FileReviewDecision,
+} from '../../lib/api/file-review-decisions';
 import {
   createReviewThread,
   listReviewThreads,
@@ -32,14 +38,32 @@ import {
 } from '../../lib/review-anchors';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useT } from '../../lib/i18n/use-t';
+import { AudioStage } from './AudioStage';
+import { CompareStage } from './CompareStage';
+import { DecisionRail } from './DecisionRail';
 import type { DrawSettings } from './DrawLayer';
 import { DrawToolbar } from './DrawToolbar';
 import { ImageStage } from './ImageStage';
+import { MediaCodecNotice } from './MediaCodecNotice';
+import { OfficeDocxStage } from './OfficeDocxStage';
+import { OfficePptxStage } from './OfficePptxStage';
+import { OfficeXlsxStage, type CellRef } from './OfficeXlsxStage';
 import { PageStrip } from './PageStrip';
 import { PdfStage, PdfThumb, usePdfDocument } from './PdfStage';
-import type { ViewerDraft } from './PinLayer';
+import { PinLayer, type ViewerDraft } from './PinLayer';
+import { PsdLayersPanel, PsdNotice } from './PsdLayersPanel';
 import { ThreadComposer, type ComposerSubmit } from './ThreadComposer';
-import { ThreadPanel } from './ThreadPanel';
+import { ThreadPanel, type PanelTab } from './ThreadPanel';
+import {
+  EmbeddedPreviewChip,
+  EmbeddedPreviewNotice,
+  UnsupportedStage,
+  unsupportedReasonFor,
+} from './UnsupportedStage';
+import { UploadVersionDialog } from './UploadVersionDialog';
+import { VersionsTab } from './VersionsTab';
+import { VideoStage } from './VideoStage';
+import { ZipList } from './ZipList';
 import { ReviewDoorProvider } from './review-door';
 import { ViewerCanvas, type ViewerTool } from './ViewerCanvas';
 import { ViewerShell, ViewerTools } from './ViewerShell';
@@ -48,6 +72,7 @@ import { ZoomControls } from './ZoomControls';
 import { clampZoom, fitZoom, stepZoom } from './viewer-geometry';
 import { ViewerIcon } from './viewer-icons';
 import './viewer.css';
+import './viewer-versions.css';
 
 export interface FileViewerProps {
   readonly organizationSlug: string;
@@ -80,6 +105,8 @@ export interface FileViewerProps {
   readonly renderBanner?: (hiddenTeamThreads: number) => ReactNode;
   /** Replaces the studio `AppShell` (the portal shell). */
   readonly renderShell?: (header: ViewerHeader, body: ReactNode) => ReactNode;
+  /** R4 slice 11. Opens another file of the chain (a new version); a full page load by default. */
+  readonly onOpenFile?: (href: string) => void;
 }
 
 /** The header parts the viewer hands to its shell. */
@@ -96,9 +123,28 @@ export const THREAD_POLL_MS = 10_000;
 /** How often a file still being checked or prepared asks again. */
 export const PENDING_POLL_MS = 5_000;
 
-export type StageKind = 'image' | 'pdf' | 'none';
+export type StageKind =
+  | 'image'
+  | 'pdf'
+  | 'video'
+  | 'audio'
+  | 'office_docx'
+  | 'office_pptx'
+  | 'office_xlsx'
+  | 'zip'
+  | 'unsupported'
+  | 'none';
 
-/** What the canvas shows for this manifest: an image, a PDF, or a state card. */
+/** The stages that draw on the zoomable canvas (pins, boxes, drawings). */
+export function isCanvasStage(stage: StageKind): stage is 'image' | 'pdf' {
+  return stage === 'image' || stage === 'pdf';
+}
+
+/**
+ * What the stage shows for this manifest: an image (PSD's flattened copy, an EPS's embedded
+ * preview), a PDF, a video or audio player, an Office file, a ZIP list, the "no preview" card for
+ * a file nothing in the browser can show, or a state card (checking, preparing, failed, blocked).
+ */
 export function stageFor(manifest: FilePreviewManifest): {
   readonly stage: StageKind;
   readonly state: ViewerCanvasState | null;
@@ -117,13 +163,55 @@ export function stageFor(manifest: FilePreviewManifest): {
   if (manifest.kind === 'pdf' && manifest.originalUrl) {
     return { stage: 'pdf', state: null, src: manifest.originalUrl };
   }
-  if (manifest.kind === 'image' || manifest.kind === 'svg') {
+  if (manifest.kind === 'image' || manifest.kind === 'svg' || manifest.kind === 'psd') {
     const page = previewPages(manifest)[0];
     const src = page?.url ?? (manifest.kind === 'image' ? manifest.originalUrl : null);
     if (src) return { stage: 'image', state: null, src };
   }
+  if (
+    (manifest.kind === 'video' || manifest.kind === 'audio') &&
+    manifest.originalUrl &&
+    manifest.status === 'ready'
+  ) {
+    return { stage: manifest.kind, state: null, src: manifest.originalUrl };
+  }
+  if (
+    (manifest.kind === 'office_docx' ||
+      manifest.kind === 'office_pptx' ||
+      manifest.kind === 'office_xlsx') &&
+    manifest.originalUrl
+  ) {
+    return { stage: manifest.kind, state: null, src: manifest.originalUrl };
+  }
+  if (manifest.kind === 'zip' && manifest.zip) return { stage: 'zip', state: null, src: null };
+  if (manifest.kind === 'unsupported') {
+    // An EPS with a small picture saved inside: that picture, labelled as such.
+    const page = manifest.embeddedPreview ? previewPages(manifest)[0] : undefined;
+    if (page) return { stage: 'image', state: null, src: page.url };
+    if (manifest.originalUrl) return { stage: 'unsupported', state: null, src: null };
+  }
   return { stage: 'none', state: 'unsupported', src: null };
 }
+
+/**
+ * R4 slice 11 — the threads of the version on screen. A comment carried to a newer version is a
+ * copy with the same number, so the rail lists this version's threads only (and the older
+ * version's when it is opened). Threads with no version (none today) stay listed.
+ */
+export function threadsForVersion(
+  threads: readonly ReviewThread[],
+  fileVersionId: string | null,
+): readonly ReviewThread[] {
+  if (fileVersionId === null) return threads;
+  return threads.filter(
+    (thread) => thread.fileVersionId === null || thread.fileVersionId === fileVersionId,
+  );
+}
+
+/** A comment placed on a moment of a video / audio file or on a spreadsheet cell. */
+type FormatDraft =
+  | { readonly kind: 'time'; readonly timeMs: number }
+  | { readonly kind: 'cell'; readonly cell: CellRef };
 
 /**
  * R4 slice 8 — what a client preview shows of the team's thread list: client-visible threads only,
@@ -193,6 +281,7 @@ export function FileViewer({
   railTop,
   renderBanner,
   renderShell,
+  onOpenFile,
 }: FileViewerProps) {
   const t = useT();
   const describeError = useDescribeApiError();
@@ -249,11 +338,43 @@ export function FileViewer({
     refetchInterval: THREAD_POLL_MS,
   });
   const allThreads = useMemo(() => threadsQuery.data?.threads ?? [], [threadsQuery.data]);
-  const threads = useMemo(
+  const chainThreads = useMemo(
     () => (previewAsClient ? threadsAsClientSees(allThreads) : allThreads),
     [allThreads, previewAsClient],
   );
-  const hiddenTeamThreads = allThreads.length - threads.length;
+  const onScreenVersionId = manifest?.version?.fileVersionId ?? null;
+  const threads = useMemo(
+    () => threadsForVersion(chainThreads, onScreenVersionId),
+    [chainThreads, onScreenVersionId],
+  );
+  const hiddenTeamThreads =
+    threadsForVersion(allThreads, onScreenVersionId).length - threads.length;
+
+  // R4 slice 11 — each version's review state and decisions; the team's version notes.
+  const decisionsKey = ['file-review-decisions', apiDoor, organizationSlug, fileId];
+  const decisionsQuery = useQuery({
+    queryKey: decisionsKey,
+    queryFn: () => getFileReviewDecisions(api, organizationSlug, fileId, apiDoor),
+    enabled: manifest !== undefined,
+    retry: false,
+  });
+  const notesQuery = useQuery({
+    queryKey: ['attachment-history', organizationSlug, fileId],
+    queryFn: () => getAttachmentHistory(api, organizationSlug, fileId),
+    enabled: manifest !== undefined && apiDoor === 'studio' && !previewAsClient,
+    retry: false,
+  });
+  const notes = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const version of notesQuery.data?.versions ?? []) {
+      if (version.note) map.set(version.fileAssetId, version.note);
+    }
+    return map;
+  }, [notesQuery.data]);
+  const [compareWith, setCompareWith] = useState<{ left: string; right: string } | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [railTab, setRailTab] = useState<PanelTab | null>(null);
+  const [formatDraft, setFormatDraft] = useState<FormatDraft | null>(null);
 
   const [tool, setTool] = useState<ViewerTool>('select');
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(initialThreadId ?? null);
@@ -324,14 +445,24 @@ export function FileViewer({
   }, [draft, tool]);
 
   const create = useMutation({
-    mutationFn: (input: ComposerSubmit & { readonly draft: ViewerDraft | null }) => {
-      const anchor = input.draft
-        ? input.draft.kind === 'box'
-          ? { anchorKind: 'box' as const, anchor: input.draft.box }
-          : input.draft.kind === 'draw'
-            ? { anchorKind: 'draw' as const, anchor: toDrawAnchorInput(input.draft.strokes) }
-            : { anchorKind: 'pin' as const, anchor: input.draft.point }
-        : { anchorKind: 'none' as const, anchor: null };
+    mutationFn: (
+      input: ComposerSubmit & {
+        readonly draft: ViewerDraft | null;
+        readonly format?: FormatDraft | null;
+      },
+    ) => {
+      const placed = input.format;
+      const anchor = placed
+        ? placed.kind === 'time'
+          ? { anchorKind: 'time' as const, anchor: { timeMs: placed.timeMs } }
+          : { anchorKind: 'cell' as const, anchor: placed.cell }
+        : input.draft
+          ? input.draft.kind === 'box'
+            ? { anchorKind: 'box' as const, anchor: input.draft.box }
+            : input.draft.kind === 'draw'
+              ? { anchorKind: 'draw' as const, anchor: toDrawAnchorInput(input.draft.strokes) }
+              : { anchorKind: 'pin' as const, anchor: input.draft.point }
+          : { anchorKind: 'none' as const, anchor: null };
       return createReviewThread(
         api,
         organizationSlug,
@@ -350,6 +481,7 @@ export function FileViewer({
     },
     onSuccess: async (thread) => {
       setDraft(null);
+      setFormatDraft(null);
       setStrokes([]);
       setTool('select');
       setSelectedThreadId(thread.id);
@@ -376,6 +508,18 @@ export function FileViewer({
   const retry = useMutation({
     mutationFn: () => retryFilePreview(api, organizationSlug, fileId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: manifestKey }),
+  });
+
+  const decide = useMutation({
+    mutationFn: (input: { decision: FileReviewDecision; note: string | null }) =>
+      recordFileReviewDecision(
+        api,
+        organizationSlug,
+        fileId,
+        { decision: input.decision, ...(input.note ? { note: input.note } : {}) },
+        apiDoor,
+      ),
+    onSuccess: (view) => queryClient.setQueryData(decisionsKey, view),
   });
 
   const downloadHref =
@@ -453,10 +597,180 @@ export function FileViewer({
     );
   } else {
     const caps = manifest.capabilities;
+    const onCanvas = isCanvasStage(plan.stage);
     const stageReady = plan.stage === 'image' || (plan.stage === 'pdf' && pdf.status !== 'error');
     const canvasState: ViewerCanvasState | null =
       plan.state ??
       (stageError || (plan.stage === 'pdf' && pdf.status === 'error') ? 'failed' : null);
+    const openOnScreen = threads.filter((thread) => thread.status === 'open');
+    const downloadOriginal = downloadHref
+      ? () => {
+          window.location.assign(downloadHref);
+        }
+      : undefined;
+    const startUpload = caps.canUploadVersion ? () => setUploadOpen(true) : undefined;
+    const formatComposer =
+      formatDraft && caps.canComment ? (
+        <div
+          className="tm-viewer-popover tm-viewer-popover--docked"
+          dir={direction}
+          role="dialog"
+          aria-label={t('Viewer.composer.newTitle')}
+        >
+          <div className="tm-viewer-popover__head">
+            <span className="tm-viewer-card-pin" data-state="draft" aria-hidden="true">
+              {threads.reduce((max, thread) => Math.max(max, thread.number), 0) + 1}
+            </span>
+            <span className="tm-viewer-popover__title">{t('Viewer.composer.newTitle')}</span>
+            <button
+              type="button"
+              className="tm-viewer-round tm-viewer-round--small"
+              aria-label={t('Viewer.composer.close')}
+              onClick={() => setFormatDraft(null)}
+            >
+              <ViewerIcon name="close" />
+            </button>
+          </div>
+          <ThreadComposer
+            api={api}
+            organizationSlug={organizationSlug}
+            projectId={manifest.file.projectId}
+            label={t('Viewer.composer.newLabel')}
+            submitLabel={t('Viewer.composer.post')}
+            pendingLabel={t('Viewer.composer.posting')}
+            audience={portalLook ? 'client_visible' : 'internal'}
+            canChooseAudience={!portalLook}
+            pending={create.isPending}
+            focusOnOpen
+            error={
+              create.isError ? (
+                <InlineAlert tone="danger" title={t('Viewer.composer.postError')} live>
+                  {describeError(create.error)}
+                </InlineAlert>
+              ) : null
+            }
+            onSubmit={(input) => create.mutate({ ...input, draft: null, format: formatDraft })}
+            onCancel={() => setFormatDraft(null)}
+          />
+        </div>
+      ) : null;
+    const commentAt = caps.canComment
+      ? (timeMs: number) => {
+          create.reset();
+          setSelectedThreadId(null);
+          setFormatDraft({ kind: 'time', timeMs });
+        }
+      : undefined;
+    const pagePins = (page: number) => (
+      <PinLayer
+        threads={threadsOnStage(threads, manifest.version?.fileVersionId ?? null, page)}
+        selectedThreadId={selectedThreadId}
+        draft={null}
+        draftNumber={0}
+        sketchBox={null}
+        allowMove={false}
+        onSelect={setSelectedThreadId}
+        onMove={() => undefined}
+      />
+    );
+    const formatStage =
+      plan.stage === 'video' && plan.src ? (
+        manifest.media?.codecNotice ? (
+          <MediaCodecNotice
+            kind="video"
+            media={manifest.media}
+            durationMs={manifest.durationMs}
+            sizeBytes={manifest.version?.sizeBytes ?? null}
+            {...(downloadOriginal ? { onDownload: downloadOriginal } : {})}
+            {...(startUpload ? { onUploadVersion: startUpload } : {})}
+          />
+        ) : (
+          <VideoStage
+            src={absolute(plan.src)}
+            media={manifest.media}
+            durationMs={manifest.durationMs}
+            sizeBytes={manifest.version?.sizeBytes ?? null}
+            threads={threads}
+            fileVersionId={manifest.version?.fileVersionId ?? null}
+            selectedThreadId={selectedThreadId}
+            onSelectThread={setSelectedThreadId}
+            {...(commentAt ? { onCommentAt: commentAt } : {})}
+            {...(downloadOriginal ? { onDownload: downloadOriginal } : {})}
+            {...(startUpload ? { onUploadVersion: startUpload } : {})}
+          />
+        )
+      ) : plan.stage === 'audio' && plan.src ? (
+        <AudioStage
+          src={absolute(plan.src)}
+          fileName={manifest.file.name}
+          mimeType={manifest.version?.mimeType ?? null}
+          media={manifest.media}
+          durationMs={manifest.durationMs}
+          sizeBytes={manifest.version?.sizeBytes ?? null}
+          threads={threads}
+          fileVersionId={manifest.version?.fileVersionId ?? null}
+          selectedThreadId={selectedThreadId}
+          onSelectThread={setSelectedThreadId}
+          {...(commentAt ? { onCommentAt: commentAt } : {})}
+          {...(downloadOriginal ? { onDownload: downloadOriginal } : {})}
+          {...(startUpload ? { onUploadVersion: startUpload } : {})}
+        />
+      ) : plan.stage === 'office_docx' ? (
+        <OfficeDocxStage
+          src={plan.src ? absolute(plan.src) : null}
+          office={manifest.office}
+          threads={threads}
+          selectedThreadId={selectedThreadId}
+          onPageChange={setPageNo}
+          renderPageOverlay={pagePins}
+          {...(downloadOriginal ? { onDownload: downloadOriginal } : {})}
+        />
+      ) : plan.stage === 'office_pptx' ? (
+        <OfficePptxStage
+          src={plan.src ? absolute(plan.src) : null}
+          office={manifest.office}
+          threads={threads}
+          selectedThreadId={selectedThreadId}
+          onSlideChange={setPageNo}
+          renderSlideOverlay={pagePins}
+          {...(downloadOriginal ? { onDownload: downloadOriginal } : {})}
+        />
+      ) : plan.stage === 'office_xlsx' ? (
+        <OfficeXlsxStage
+          src={plan.src ? absolute(plan.src) : null}
+          office={manifest.office}
+          threads={threads}
+          selectedThreadId={selectedThreadId}
+          onSelectThread={setSelectedThreadId}
+          draftCell={formatDraft?.kind === 'cell' ? formatDraft.cell : null}
+          {...(caps.canComment
+            ? {
+                onCommentCell: (cell: CellRef) => {
+                  create.reset();
+                  setSelectedThreadId(null);
+                  setFormatDraft({ kind: 'cell', cell });
+                },
+              }
+            : {})}
+          {...(downloadOriginal ? { onDownload: downloadOriginal } : {})}
+        />
+      ) : plan.stage === 'zip' && manifest.zip ? (
+        <ZipList zip={manifest.zip} sizeBytes={manifest.version?.sizeBytes ?? null} />
+      ) : plan.stage === 'unsupported' ? (
+        <UnsupportedStage
+          fileName={manifest.file.name}
+          mimeType={manifest.version?.mimeType ?? null}
+          sizeBytes={manifest.version?.sizeBytes ?? null}
+          reason={unsupportedReasonFor(manifest.version?.mimeType ?? null)}
+          {...(downloadOriginal ? { onDownload: downloadOriginal } : {})}
+        />
+      ) : null;
+    const comparing =
+      compareWith &&
+      manifest.versions.versions.some((v) => v.fileAssetId === compareWith.left) &&
+      manifest.versions.versions.some((v) => v.fileAssetId === compareWith.right)
+        ? compareWith
+        : null;
     const stagePage = isPdf ? pageNo : null;
     const onStage = threadsOnStage(threads, manifest.version?.fileVersionId ?? null, stagePage);
     const nextNumber = threads.reduce((max, thread) => Math.max(max, thread.number), 0) + 1;
@@ -514,105 +828,129 @@ export function FileViewer({
         </div>
       ) : null;
 
-    const stage =
-      canvasState !== null || !stageReady ? (
-        <ViewerStatePanel
-          state={canvasState ?? 'unsupported'}
-          downloadHref={downloadHref}
-          canComment={caps.canComment}
-          {...(caps.canRetry && canvasState === 'failed' && !stageError
-            ? { onRetry: () => retry.mutate(), retrying: retry.isPending }
-            : {})}
-        />
-      ) : (
-        <ViewerCanvas
-          natural={natural}
-          zoom={zoom}
-          tool={caps.canComment ? tool : 'select'}
-          threads={onStage}
-          selectedThreadId={selectedThreadId}
-          draft={draft}
-          draftNumber={nextNumber}
-          pageNo={stagePage}
-          onDraft={(next) => {
-            create.reset();
-            setSelectedThreadId(null);
-            setDraft(next);
-          }}
-          onSelect={(threadId) => {
-            setDraft(null);
-            setSelectedThreadId(threadId);
-          }}
-          onMove={(thread, point) => move.mutate({ thread, x: point.x, y: point.y })}
-          onAvailableSize={setAvailable}
-          onZoomStep={(direction) => setZoomChoice(stepZoom(zoom, direction))}
-          popover={popover}
-          drawing={{
-            strokes,
-            settings: drawSettings,
-            onStroke: (stroke) => {
-              setDrawLimit(false);
-              setStrokes((current) => [...current, stroke]);
-            },
-            onLimit: () => setDrawLimit(true),
-            toolbar: (
-              <DrawToolbar
-                settings={drawSettings}
-                onSettings={setDrawSettings}
-                canUndo={strokes.length > 0}
-                onUndo={() => {
-                  setDrawLimit(false);
-                  setStrokes((current) => current.slice(0, -1));
-                }}
-                canFinish={strokes.length > 0}
-                onDone={() => {
-                  create.reset();
-                  setSelectedThreadId(null);
-                  setDraft({
-                    kind: 'draw',
-                    strokes,
-                    bbox: strokesBBox(strokes),
-                    pageNo: stagePage,
-                  });
-                }}
-                limitReached={drawLimit}
-              />
-            ),
-          }}
-          overlay={
-            isPdf ? (
-              <span className="tm-viewer-stage__chip">
-                {t('Viewer.page.of')
-                  .replace('{page}', String(pageNo))
-                  .replace('{count}', String(pageCount))}
-              </span>
-            ) : null
-          }
-        >
-          {plan.stage === 'image' && plan.src ? (
-            <ImageStage
-              src={absolute(plan.src)}
-              alt={manifest.file.name}
-              onNaturalSize={setNatural}
-              onError={() => setStageError(true)}
+    const stage = comparing ? (
+      <CompareStage
+        api={api}
+        organizationSlug={organizationSlug}
+        door={apiDoor}
+        apiBase={base}
+        versions={manifest.versions.versions}
+        threads={chainThreads}
+        review={decisionsQuery.data}
+        leftId={comparing.left}
+        rightId={comparing.right}
+        selectedThreadId={selectedThreadId}
+        onSelectThread={setSelectedThreadId}
+        onPick={(side, picked) =>
+          setCompareWith((current) => (current ? { ...current, [side]: picked } : current))
+        }
+        onExit={() => setCompareWith(null)}
+      />
+    ) : canvasState === null && formatStage ? (
+      <div className="tm-viewer-format-stage">
+        {formatStage}
+        {formatComposer}
+      </div>
+    ) : canvasState !== null || !stageReady ? (
+      <ViewerStatePanel
+        state={canvasState ?? 'unsupported'}
+        downloadHref={downloadHref}
+        canComment={caps.canComment}
+        {...(caps.canRetry && canvasState === 'failed' && !stageError
+          ? { onRetry: () => retry.mutate(), retrying: retry.isPending }
+          : {})}
+      />
+    ) : (
+      <ViewerCanvas
+        natural={natural}
+        zoom={zoom}
+        tool={caps.canComment ? tool : 'select'}
+        threads={onStage}
+        selectedThreadId={selectedThreadId}
+        draft={draft}
+        draftNumber={nextNumber}
+        pageNo={stagePage}
+        onDraft={(next) => {
+          create.reset();
+          setSelectedThreadId(null);
+          setDraft(next);
+        }}
+        onSelect={(threadId) => {
+          setDraft(null);
+          setSelectedThreadId(threadId);
+        }}
+        onMove={(thread, point) => move.mutate({ thread, x: point.x, y: point.y })}
+        onAvailableSize={setAvailable}
+        onZoomStep={(direction) => setZoomChoice(stepZoom(zoom, direction))}
+        popover={popover}
+        drawing={{
+          strokes,
+          settings: drawSettings,
+          onStroke: (stroke) => {
+            setDrawLimit(false);
+            setStrokes((current) => [...current, stroke]);
+          },
+          onLimit: () => setDrawLimit(true),
+          toolbar: (
+            <DrawToolbar
+              settings={drawSettings}
+              onSettings={setDrawSettings}
+              canUndo={strokes.length > 0}
+              onUndo={() => {
+                setDrawLimit(false);
+                setStrokes((current) => current.slice(0, -1));
+              }}
+              canFinish={strokes.length > 0}
+              onDone={() => {
+                create.reset();
+                setSelectedThreadId(null);
+                setDraft({
+                  kind: 'draw',
+                  strokes,
+                  bbox: strokesBBox(strokes),
+                  pageNo: stagePage,
+                });
+              }}
+              limitReached={drawLimit}
             />
-          ) : null}
-          {plan.stage === 'pdf' && pdf.status === 'ready' ? (
-            <PdfStage
-              doc={pdf.doc}
-              pageNo={pageNo}
-              zoom={zoom}
-              label={t('Viewer.page.label')
+          ),
+        }}
+        overlay={
+          manifest.embeddedPreview && plan.stage === 'image' ? (
+            <EmbeddedPreviewChip />
+          ) : isPdf ? (
+            <span className="tm-viewer-stage__chip">
+              {t('Viewer.page.of')
                 .replace('{page}', String(pageNo))
-                .replace('{name}', manifest.file.name)}
-              onNaturalSize={setNatural}
-            />
-          ) : null}
-          {plan.stage === 'pdf' && pdf.status === 'loading' ? (
-            <span className="tm-viewer-art__loading">{t('Viewer.page.loading')}</span>
-          ) : null}
-        </ViewerCanvas>
-      );
+                .replace('{count}', String(pageCount))}
+            </span>
+          ) : null
+        }
+      >
+        {plan.stage === 'image' && plan.src ? (
+          <ImageStage
+            src={absolute(plan.src)}
+            alt={manifest.file.name}
+            onNaturalSize={setNatural}
+            onError={() => setStageError(true)}
+          />
+        ) : null}
+        {plan.stage === 'pdf' && pdf.status === 'ready' ? (
+          <PdfStage
+            doc={pdf.doc}
+            pageNo={pageNo}
+            zoom={zoom}
+            label={t('Viewer.page.label')
+              .replace('{page}', String(pageNo))
+              .replace('{name}', manifest.file.name)}
+            onNaturalSize={setNatural}
+          />
+        ) : null}
+        {plan.stage === 'pdf' && pdf.status === 'loading' ? (
+          <span className="tm-viewer-art__loading">{t('Viewer.page.loading')}</span>
+        ) : null}
+      </ViewerCanvas>
+    );
 
     const banner = renderBanner ? renderBanner(hiddenTeamThreads) : null;
     const stateNotice =
@@ -621,97 +959,177 @@ export function FileViewer({
       ) : canvasState === 'blocked' ? (
         <InlineAlert tone="danger">{t('Viewer.notice.blocked')}</InlineAlert>
       ) : null;
+    const formatNotice =
+      canvasState === null && manifest.kind === 'psd' && plan.stage === 'image' ? (
+        <PsdNotice approximate={manifest.psd?.approximate ?? false} />
+      ) : canvasState === null && manifest.embeddedPreview && plan.stage === 'image' ? (
+        <EmbeddedPreviewNotice />
+      ) : null;
     const notice =
-      banner || stateNotice ? (
+      banner || stateNotice || formatNotice ? (
         <>
           {banner}
           {stateNotice}
+          {formatNotice}
         </>
       ) : null;
 
-    body = (
-      <ViewerShell
-        toolbar={
-          <>
-            <ViewerTools
-              tool={tool}
-              onTool={(next) => {
-                setTool(next);
-                if (next !== 'select') setSelectedThreadId(null);
-              }}
-              canComment={caps.canComment && canvasState === null}
-            />
-            <span className="tm-viewer-counter tm-viewer-counter--toolbar">
-              {t('Viewer.counter')
-                .replace('{open}', String(open))
-                .replace('{resolved}', String(threads.length - open))}
-            </span>
-            {canvasState === null ? (
-              <ZoomControls
-                zoom={zoom}
-                fitted={zoomChoice === 'fit'}
-                fitMode={fitMode}
-                onStep={(direction) => setZoomChoice(stepZoom(zoom, direction))}
-                onFit={() => setZoomChoice('fit')}
-              />
-            ) : null}
-          </>
-        }
-        notice={notice}
-        stage={stage}
-        strip={
-          isPdf && pdf.status === 'ready' && canvasState === null ? (
-            <PageStrip
-              pageCount={pageCount}
-              pageNo={pageNo}
-              onPage={(next) => {
-                setDraft(null);
-                setStrokes([]);
-                setNatural(null);
-                setPageNo(Math.min(pageCount, Math.max(1, next)));
-              }}
-              openByPage={openByPage}
-              renderThumb={(page) => <PdfThumb doc={pdf.doc} pageNo={page} />}
-            />
-          ) : null
-        }
-        footnote={
-          tool !== 'select' && caps.canComment && canvasState === null ? (
-            <span aria-live="polite">
-              {tool === 'pin'
-                ? t('Viewer.tool.pinHint')
-                : tool === 'box'
-                  ? t('Viewer.tool.boxHint')
-                  : t('Viewer.tool.drawHint')}
-            </span>
-          ) : null
-        }
-        rail={
-          <RailStack top={railTop}>
-            <ThreadPanel
-              api={api}
-              organizationSlug={organizationSlug}
-              manifest={manifest}
-              threads={threads}
-              threadsLoading={threadsQuery.isPending}
-              threadsError={threadsQuery.isError ? threadsQuery.error : null}
-              selectedThreadId={selectedThreadId}
-              pageNo={stagePage}
-              stageAcceptsPins={canvasState === null}
-              naturalSize={isPdf ? null : natural}
-              onSelect={setSelectedThreadId}
-              onStartPin={() => {
-                setSelectedThreadId(null);
-                setTool('pin');
-              }}
-              onCreateGeneral={(input) => create.mutate({ ...input, draft: null })}
-              creatingGeneral={create.isPending}
-              createGeneralError={!draft && create.isError ? create.error : null}
-              onChanged={invalidateThreads}
-            />
-          </RailStack>
-        }
+    const uploadDialog = uploadOpen ? (
+      <UploadVersionDialog
+        api={api}
+        organizationSlug={organizationSlug}
+        manifest={manifest}
+        openThreads={openOnScreen}
+        onClose={() => setUploadOpen(false)}
+        onUploaded={(newFileId) => {
+          setUploadOpen(false);
+          setRailTab('versions');
+          void queryClient.invalidateQueries({ queryKey: ['file-preview'] });
+          void queryClient.invalidateQueries({ queryKey: ['file-review-decisions'] });
+          (onOpenFile ?? ((href: string) => window.location.assign(href)))(
+            portalLook
+              ? `/${organizationSlug}/portal/files/${encodeURIComponent(newFileId)}`
+              : `/${organizationSlug}/files/${encodeURIComponent(newFileId)}`,
+          );
+        }}
       />
+    ) : null;
+
+    body = (
+      <>
+        <ViewerShell
+          toolbar={
+            <>
+              <ViewerTools
+                tool={tool}
+                onTool={(next) => {
+                  setTool(next);
+                  if (next !== 'select') setSelectedThreadId(null);
+                }}
+                canComment={caps.canComment && canvasState === null && onCanvas && !comparing}
+              />
+              <span className="tm-viewer-counter tm-viewer-counter--toolbar">
+                {t('Viewer.counter')
+                  .replace('{open}', String(open))
+                  .replace('{resolved}', String(threads.length - open))}
+              </span>
+              {canvasState === null && onCanvas && !comparing ? (
+                <ZoomControls
+                  zoom={zoom}
+                  fitted={zoomChoice === 'fit'}
+                  fitMode={fitMode}
+                  onStep={(direction) => setZoomChoice(stepZoom(zoom, direction))}
+                  onFit={() => setZoomChoice('fit')}
+                />
+              ) : null}
+            </>
+          }
+          notice={notice}
+          stage={stage}
+          strip={
+            isPdf && pdf.status === 'ready' && canvasState === null && !comparing ? (
+              <PageStrip
+                pageCount={pageCount}
+                pageNo={pageNo}
+                onPage={(next) => {
+                  setDraft(null);
+                  setStrokes([]);
+                  setNatural(null);
+                  setPageNo(Math.min(pageCount, Math.max(1, next)));
+                }}
+                openByPage={openByPage}
+                renderThumb={(page) => <PdfThumb doc={pdf.doc} pageNo={page} />}
+              />
+            ) : null
+          }
+          footnote={
+            tool !== 'select' && caps.canComment && canvasState === null ? (
+              <span aria-live="polite">
+                {tool === 'pin'
+                  ? t('Viewer.tool.pinHint')
+                  : tool === 'box'
+                    ? t('Viewer.tool.boxHint')
+                    : t('Viewer.tool.drawHint')}
+              </span>
+            ) : null
+          }
+          rail={
+            <RailStack top={railTop}>
+              <ThreadPanel
+                api={api}
+                organizationSlug={organizationSlug}
+                manifest={manifest}
+                threads={threads}
+                threadsLoading={threadsQuery.isPending}
+                threadsError={threadsQuery.isError ? threadsQuery.error : null}
+                selectedThreadId={selectedThreadId}
+                pageNo={stagePage}
+                stageAcceptsPins={canvasState === null && onCanvas && !comparing}
+                naturalSize={isPdf ? null : natural}
+                onSelect={setSelectedThreadId}
+                onStartPin={() => {
+                  setSelectedThreadId(null);
+                  setTool('pin');
+                }}
+                onCreateGeneral={(input) => create.mutate({ ...input, draft: null })}
+                creatingGeneral={create.isPending}
+                createGeneralError={!draft && create.isError ? create.error : null}
+                onChanged={invalidateThreads}
+                requestedTab={railTab}
+                versionsContent={
+                  <VersionsTab
+                    organizationSlug={organizationSlug}
+                    manifest={manifest}
+                    review={decisionsQuery.data}
+                    reviewError={decisionsQuery.isError}
+                    notes={notes}
+                    {...(portalLook
+                      ? {
+                          hrefFor: (id: string) =>
+                            `/${organizationSlug}/portal/files/${encodeURIComponent(id)}`,
+                        }
+                      : {})}
+                    {...(startUpload ? { onUpload: startUpload } : {})}
+                    onCompare={(older) => {
+                      const here = manifest.versions.versions.find(
+                        (v) => v.fileAssetId === manifest.file.id,
+                      );
+                      const other = manifest.versions.versions.find((v) => v.fileAssetId === older);
+                      const olderFirst = !here || !other || other.versionNo < here.versionNo;
+                      setDraft(null);
+                      setFormatDraft(null);
+                      setCompareWith(
+                        olderFirst
+                          ? { left: older, right: manifest.file.id }
+                          : { left: manifest.file.id, right: older },
+                      );
+                    }}
+                  />
+                }
+                commentsFooter={
+                  railTop && manifest.decisionContext.kind === 'deliverable' ? null : (
+                    <DecisionRail
+                      organizationSlug={organizationSlug}
+                      manifest={manifest}
+                      review={decisionsQuery.data}
+                      pending={decide.isPending}
+                      error={decide.isError ? describeError(decide.error) : null}
+                      onDecide={(decision, note) => decide.mutate({ decision, note })}
+                      {...(startUpload ? { onUploadNext: startUpload } : {})}
+                    />
+                  )
+                }
+                detailsExtra={
+                  manifest.psd && manifest.psd.layers.length > 0 ? (
+                    <PsdLayersPanel psd={manifest.psd} />
+                  ) : null
+                }
+              />
+            </RailStack>
+          }
+        />
+        {uploadDialog}
+      </>
     );
   }
 

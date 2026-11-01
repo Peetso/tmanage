@@ -22,9 +22,11 @@ import {
   REVIEW_THREAD_CREATED_V1_SCHEMA,
   REVIEW_COMMENT_ADDED_V1_SCHEMA,
   REVIEW_THREAD_RESOLVED_V1_SCHEMA,
+  REVIEW_DECISION_RECORDED_V1_SCHEMA,
   type ReviewThreadCreatedPayload,
   type ReviewCommentAddedPayload,
   type ReviewThreadResolvedPayload,
+  type ReviewDecisionRecordedPayload,
 } from './review.js';
 
 /** A registry entry: the pinned schema version and the JSON Schema that defines the payload. */
@@ -45,6 +47,7 @@ export const EVENT_SCHEMA_REGISTRY = {
   'review.thread_created.v1': { version: 1, schema: REVIEW_THREAD_CREATED_V1_SCHEMA },
   'review.comment_added.v1': { version: 1, schema: REVIEW_COMMENT_ADDED_V1_SCHEMA },
   'review.thread_resolved.v1': { version: 1, schema: REVIEW_THREAD_RESOLVED_V1_SCHEMA },
+  'review.decision_recorded.v1': { version: 1, schema: REVIEW_DECISION_RECORDED_V1_SCHEMA },
 } as const satisfies Record<string, VersionedEventSchema>;
 
 /** Every registered event `type` string. */
@@ -59,6 +62,7 @@ export interface EventPayloadMap {
   'review.thread_created.v1': ReviewThreadCreatedPayload;
   'review.comment_added.v1': ReviewCommentAddedPayload;
   'review.thread_resolved.v1': ReviewThreadResolvedPayload;
+  'review.decision_recorded.v1': ReviewDecisionRecordedPayload;
 }
 
 /** The registered event names, as a value — the keys of {@link EVENT_SCHEMA_REGISTRY}. */

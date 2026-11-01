@@ -4,6 +4,13 @@ import { AttachmentVersionsController } from './attachment-versions.controller.j
 import { AttachmentVersionsService } from './attachment-versions.service.js';
 import type { AttachmentVersionsRepository } from './attachment-versions.repository.js';
 import type { FileAssetsRepository } from './file-assets.repository.js';
+import type { ReviewCommentsRepository } from './review-comments.repository.js';
+import type {
+  InsertReviewThreadInput,
+  ListReviewThreadsInput,
+  ReviewThread,
+  ReviewThreadsRepository,
+} from './review-threads.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -85,6 +92,91 @@ class FakeVersions {
   }
 }
 
+/** The version a file's bytes were uploaded as: one per asset in these tests. */
+const fv = (assetId: string) => `fv-${assetId}`;
+
+/** R4 slice 11 — threads and comments, in memory, with 0269's unique key on number + scope. */
+class FakeThreads {
+  readonly rows: ReviewThread[] = [];
+  seed(over: Partial<ReviewThread>): ReviewThread {
+    const row = {
+      id: `01890000-0000-7000-8000-${String(900 + this.rows.length + 1).padStart(12, '0')}`,
+      organizationId: ORG,
+      projectId: PROJECT,
+      subjectType: 'file_asset',
+      subjectId: ROOT,
+      fileVersionId: fv(ROOT),
+      anchorKind: 'pin',
+      anchor: { x: 0.25, y: 0.5 },
+      pageNo: null,
+      timeMs: null,
+      number: this.rows.length + 1,
+      audience: 'internal',
+      status: 'open',
+      carriedFromThreadId: null,
+      carryScope: '',
+      createdByMembershipId: 'm-author',
+      deletedAt: null,
+      ...over,
+    } as ReviewThread;
+    this.rows.push(row);
+    return row;
+  }
+  async listForSubject(_r: unknown, _c: TenantContext, input: ListReviewThreadsInput) {
+    return this.rows.filter(
+      (row) =>
+        row.subjectId === input.subjectId &&
+        (input.fileVersionId === undefined || row.fileVersionId === input.fileVersionId) &&
+        (input.status === undefined || row.status === input.status) &&
+        input.audiences.includes(row.audience) &&
+        row.deletedAt === null,
+    );
+  }
+  async insert(_r: unknown, _c: TenantContext, input: InsertReviewThreadInput) {
+    const scope = input.carryScope ?? '';
+    if (
+      this.rows.some(
+        (row) =>
+          row.subjectId === input.subjectId &&
+          row.number === input.number &&
+          row.carryScope === scope,
+      )
+    ) {
+      throw Object.assign(new Error('dup'), { errno: 1062 });
+    }
+    return this.seed({ ...input, carryScope: scope, status: 'open' } as Partial<ReviewThread>);
+  }
+}
+
+class FakeComments {
+  readonly rows: {
+    threadId: string;
+    body: string;
+    mentions: readonly string[];
+    createdByMembershipId: string;
+    createdAt: Date;
+    deletedAt: Date | null;
+  }[] = [];
+  async listForThreads(_r: unknown, _c: TenantContext, ids: readonly string[]) {
+    return this.rows.filter((row) => ids.includes(row.threadId) && row.deletedAt === null);
+  }
+  async insert(
+    _r: unknown,
+    _c: TenantContext,
+    input: {
+      threadId: string;
+      body: string;
+      mentions: readonly string[];
+      createdByMembershipId: string;
+      createdAt?: Date;
+    },
+  ) {
+    const row = { ...input, createdAt: input.createdAt ?? new Date(), deletedAt: null };
+    this.rows.push(row);
+    return row;
+  }
+}
+
 function harness(files: readonly FileAssetRow[]) {
   const byId = new Map(files.map((file) => [file.id, file]));
   const database = {
@@ -93,6 +185,8 @@ function harness(files: readonly FileAssetRow[]) {
   } as unknown as TenantDatabase;
   const assets = {
     findById: async (_r: unknown, _c: unknown, id: string) => byId.get(id) ?? null,
+    findLatestVersion: async (_r: unknown, _c: unknown, id: string) =>
+      byId.has(id) ? { id: fv(id), fileAssetId: id } : null,
   } as unknown as FileAssetsRepository;
   const projects = {
     findById: async () => ({ archivedAt: null }) as unknown as ProjectRow,
@@ -104,14 +198,24 @@ function harness(files: readonly FileAssetRow[]) {
     },
   } as unknown as AuditService;
   const versions = new FakeVersions();
+  const threads = new FakeThreads();
+  const comments = new FakeComments();
   const service = new AttachmentVersionsService(
     database,
     assets,
     projects,
     audit,
     versions as unknown as AttachmentVersionsRepository,
+    threads as unknown as ReviewThreadsRepository,
+    comments as unknown as ReviewCommentsRepository,
   );
-  return { controller: new AttachmentVersionsController(service), versions, audited };
+  return {
+    controller: new AttachmentVersionsController(service),
+    versions,
+    audited,
+    threads,
+    comments,
+  };
 }
 
 async function statusOf(work: () => Promise<unknown>): Promise<number> {
@@ -205,5 +309,111 @@ describe('AttachmentVersionsController', () => {
       ),
     ).toBe(403);
     expect(await statusOf(() => h.controller.add(context, principal(), ROOT, {}))).toBe(400);
+  });
+
+  describe('R4 slice 11 — carrying open comments to the new version', () => {
+    it('copies only the open threads of the version before, keeping numbers, places and audience', async () => {
+      const open1 = h.threads.seed({ number: 1, audience: 'client_visible' });
+      h.threads.seed({ number: 2, status: 'resolved' });
+      const open3 = h.threads.seed({
+        number: 3,
+        anchorKind: 'box',
+        anchor: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
+      });
+      h.comments.rows.push(
+        {
+          threadId: open1.id,
+          body: 'Use the brand lime',
+          mentions: [],
+          createdByMembershipId: 'm-client',
+          createdAt: new Date('2026-10-20T09:00:00.000Z'),
+          deletedAt: null,
+        },
+        {
+          threadId: open1.id,
+          body: 'Will do',
+          mentions: [],
+          createdByMembershipId: 'm-staff',
+          createdAt: new Date('2026-10-20T10:00:00.000Z'),
+          deletedAt: null,
+        },
+      );
+
+      const added = await h.controller.add(context, principal(), ROOT, { fileAssetId: V2 });
+
+      expect(added.carriedThreads).toBe(2);
+      const copies = h.threads.rows.filter((row) => row.fileVersionId === fv(V2));
+      expect(
+        copies.map((row) => [row.number, row.audience, row.carriedFromThreadId, row.carryScope]),
+      ).toEqual([
+        [1, 'client_visible', open1.id, fv(V2)],
+        [3, 'internal', open3.id, fv(V2)],
+      ]);
+      expect(copies[1]?.anchor).toEqual(open3.anchor);
+      expect(copies.every((row) => row.subjectId === ROOT && row.status === 'open')).toBe(true);
+      // The conversation travels with its times; the originals stay where they were.
+      const copied = h.comments.rows.filter((row) => row.threadId === copies[0]?.id);
+      expect(copied.map((row) => [row.body, row.createdByMembershipId])).toEqual([
+        ['Use the brand lime', 'm-client'],
+        ['Will do', 'm-staff'],
+      ]);
+      expect(copied[0]?.createdAt.toISOString()).toBe('2026-10-20T09:00:00.000Z');
+      expect(h.threads.rows.filter((row) => row.fileVersionId === fv(ROOT))).toHaveLength(3);
+    });
+
+    it('carries from the newest version, so a comment carried twice keeps its number', async () => {
+      const first = h.threads.seed({ number: 1 });
+      await h.controller.add(context, principal(), ROOT, { fileAssetId: V2 });
+      const added = await h.controller.add(context, principal(), V2, { fileAssetId: V3 });
+      expect(added.carriedThreads).toBe(1);
+      const onV3 = h.threads.rows.filter((row) => row.fileVersionId === fv(V3));
+      expect(onV3).toHaveLength(1);
+      expect(onV3[0]?.number).toBe(first.number);
+      const onV2 = h.threads.rows.find((row) => row.fileVersionId === fv(V2));
+      expect(onV3[0]?.carriedFromThreadId).toBe(onV2?.id);
+    });
+
+    it("carries nothing with carryForward 'none', and only the ticked threads when named", async () => {
+      const a = h.threads.seed({ number: 1 });
+      h.threads.seed({ number: 2 });
+      const none = await h.controller.add(context, principal(), ROOT, {
+        fileAssetId: V2,
+        carryForward: 'none',
+      });
+      expect(none.carriedThreads).toBe(0);
+      expect(h.threads.rows).toHaveLength(2);
+
+      const h2 = harness([asset(ROOT), asset(V2)]);
+      const kept = h2.threads.seed({ number: 1 });
+      h2.threads.seed({ number: 2 });
+      const some = await h2.controller.add(context, principal(), ROOT, {
+        fileAssetId: V2,
+        carryThreadIds: [kept.id],
+      });
+      expect(some.carriedThreads).toBe(1);
+      expect(
+        h2.threads.rows
+          .filter((row) => row.fileVersionId === fv(V2))
+          .map((row) => row.carriedFromThreadId),
+      ).toEqual([kept.id]);
+      expect(a.number).toBe(1);
+    });
+
+    it('refuses a bad carry choice (400)', async () => {
+      expect(
+        await statusOf(() =>
+          h.controller.add(context, principal(), ROOT, { fileAssetId: V2, carryForward: 'all' }),
+        ),
+      ).toBe(400);
+      expect(
+        await statusOf(() =>
+          h.controller.add(context, principal(), ROOT, {
+            fileAssetId: V2,
+            carryThreadIds: ['not-an-id'],
+          }),
+        ),
+      ).toBe(400);
+      expect(h.versions.rows).toHaveLength(0);
+    });
   });
 });

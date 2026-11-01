@@ -235,6 +235,11 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'review_thread',
     catalog: '§4 comment resolved — notification (R4 proofing)',
   },
+  /** R4 slice 11: a version of a plain file was approved, or changes were asked for. */
+  'review.decision_recorded.v1': {
+    aggregateType: 'file_asset',
+    catalog: '§4 approval decided — notification (R4 proofing, plain files)',
+  },
   /** D5: a data export archive is ready — the person who asked is emailed (consumer: later slice). */
   'privacy_export.ready.v1': {
     aggregateType: 'privacy_export',
@@ -625,6 +630,17 @@ export interface ReviewThreadResolvedV1 {
   readonly byUserId: string;
 }
 
+/** R4 slice 11. A decision on one version of a plain attachment; the note never travels. */
+export interface ReviewDecisionRecordedV1 {
+  readonly decisionId: string;
+  readonly rootFileAssetId: string;
+  readonly fileAssetId: string;
+  readonly projectId: string;
+  readonly decision: 'approved' | 'changes_requested';
+  readonly byUserId: string;
+  readonly principalKind: 'internal' | 'client';
+}
+
 /** Type-indexed payload map, so a producer cannot pair a type with another type's payload. */
 export interface OutboxEventPayloads {
   readonly 'client_request.submitted.v1': ClientRequestSubmittedV1;
@@ -659,6 +675,7 @@ export interface OutboxEventPayloads {
   readonly 'review.thread_created.v1': ReviewThreadCreatedV1;
   readonly 'review.comment_added.v1': ReviewCommentAddedV1;
   readonly 'review.thread_resolved.v1': ReviewThreadResolvedV1;
+  readonly 'review.decision_recorded.v1': ReviewDecisionRecordedV1;
 }
 
 /**

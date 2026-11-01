@@ -1179,6 +1179,144 @@ export const NEVER: readonly NeverEntry[] = [
     reason: 'time_tracking',
   },
   { method: 'GET', path: '/v1/organizations/:orgSlug/time/active', reason: 'time_tracking' },
+  // R4 slices 6–11. The file viewer: preview manifests and content, review threads and comments,
+  // mention search, and the Approve / Request changes decisions on a file version. Withheld until
+  // reviewed `review.*` ops exist (a decision is a client-facing sign-off).
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/files/:fileAssetId/preview/',
+    reason: 'file_review',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/files/:fileAssetId/preview/:previewId/content',
+    reason: 'file_review',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/files/:fileAssetId/preview/retry',
+    reason: 'file_review',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/files/:fileId/review/decisions/',
+    reason: 'file_review',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/files/:fileId/review/decisions/',
+    reason: 'file_review',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/files/:fileId/review/decisions/',
+    reason: 'file_review',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/portal/files/:fileId/review/decisions/',
+    reason: 'file_review',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/files/:fileAssetId/preview/',
+    reason: 'file_review',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/files/:fileAssetId/preview/:previewId/content',
+    reason: 'file_review',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/files/:fileId/review/threads',
+    reason: 'file_review',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/portal/files/:fileId/review/threads',
+    reason: 'file_review',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/portal/review/threads/:threadId/comments',
+    reason: 'file_review',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/portal/review/threads/:threadId/resolve',
+    reason: 'file_review',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/portal/review/threads/:threadId/unresolve',
+    reason: 'file_review',
+  },
+  {
+    method: 'PATCH',
+    path: '/v1/organizations/:orgSlug/portal/review/threads/:threadId',
+    reason: 'file_review',
+  },
+  {
+    method: 'PATCH',
+    path: '/v1/organizations/:orgSlug/portal/review/comments/:commentId',
+    reason: 'file_review',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/portal/review/comments/:commentId',
+    reason: 'file_review',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/projects/:projectId/review/mention-candidates',
+    reason: 'file_review',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/files/:fileId/review/threads',
+    reason: 'file_review',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/files/:fileId/review/threads',
+    reason: 'file_review',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/review/threads/:threadId/comments',
+    reason: 'file_review',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/review/threads/:threadId/resolve',
+    reason: 'file_review',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/review/threads/:threadId/unresolve',
+    reason: 'file_review',
+  },
+  {
+    method: 'PATCH',
+    path: '/v1/organizations/:orgSlug/review/threads/:threadId',
+    reason: 'file_review',
+  },
+  {
+    method: 'PATCH',
+    path: '/v1/organizations/:orgSlug/review/comments/:commentId',
+    reason: 'file_review',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/review/comments/:commentId',
+    reason: 'file_review',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/review/mention-candidates',
+    reason: 'file_review',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

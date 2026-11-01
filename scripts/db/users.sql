@@ -1972,3 +1972,9 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`review_threads`         TO 'tmanage_a
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`review_comments`        TO 'tmanage_app'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`review_comments`                TO 'tmanage_worker'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`review_threads`                 TO 'tmanage_worker'@'%';
+
+-- ---- R4 slice 11 · decisions on plain files ----
+-- 0269 `file_review_decisions` (tenant): the app records Approve / Request changes (INSERT). The
+-- rows are append-only (a BEFORE UPDATE trigger refuses every change), so no UPDATE; DELETE is held
+-- for the company erasure only. SELECT rides the database-wide read. Nothing on the worker.
+GRANT INSERT, DELETE ON `tmanage`.`file_review_decisions`         TO 'tmanage_app'@'%';

@@ -76,6 +76,9 @@ export const NEVER_REASONS = [
   // tracking right now). Presence and logging for another member are never AI-exposed; start/stop
   // own may become reviewed `time.*` ops later (52-22).
   'time_tracking',
+  // R4 slices 6–11. The file viewer's review surface (threads, comments, previews, decisions):
+  // client-facing proofing an AI must not post to or sign off until reviewed `review.*` ops exist.
+  'file_review',
   'public_upload_part',
   'role_definitions',
   'session',

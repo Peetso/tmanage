@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { use } from 'react';
 import { FileViewer } from '../../../../components/viewer/FileViewer';
 import { FIXTURE_ORGANIZATION_NAME } from '../../../../lib/fixtures';
@@ -18,12 +19,14 @@ export default function FileViewerPage({
 }) {
   const { orgSlug, fileId } = use(params);
   const query = use(searchParams);
+  const router = useRouter();
 
   return (
     <FileViewer
       organizationSlug={orgSlug}
       organizationName={FIXTURE_ORGANIZATION_NAME}
       fileId={fileId}
+      onOpenFile={(href) => router.push(href)}
       {...(typeof query.deliverableVersionId === 'string'
         ? { deliverableVersionId: query.deliverableVersionId }
         : {})}

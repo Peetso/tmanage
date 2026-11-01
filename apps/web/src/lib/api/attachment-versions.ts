@@ -24,6 +24,14 @@ export interface AttachmentHistory {
   readonly versions: readonly AttachmentVersion[];
 }
 
+/**
+ * R4 slice 11 — what adding a version answers: the history and how many open comments travelled
+ * from the version before (`AddedAttachmentVersionView`).
+ */
+export interface AddedAttachmentVersion extends AttachmentHistory {
+  readonly carriedThreads: number;
+}
+
 function versionsPath(organizationSlug: string, fileAssetId: string): string {
   return `/v1/organizations/${encodeURIComponent(organizationSlug)}/files/${encodeURIComponent(fileAssetId)}/versions`;
 }
@@ -44,9 +52,16 @@ export async function addAttachmentVersion(
   client: ApiClient,
   organizationSlug: string,
   fileAssetId: string,
-  input: { readonly fileAssetId: string; readonly note?: string | null },
-): Promise<AttachmentHistory> {
-  const { data } = await client.request<AttachmentHistory>({
+  input: {
+    readonly fileAssetId: string;
+    readonly note?: string | null;
+    /** R4 slice 11. `open` (default): the open comments of the version before travel with it. */
+    readonly carryForward?: 'open' | 'none';
+    /** Only these open threads (the ticked list); every open one when omitted. */
+    readonly carryThreadIds?: readonly string[];
+  },
+): Promise<AddedAttachmentVersion> {
+  const { data } = await client.request<AddedAttachmentVersion>({
     method: 'POST',
     path: versionsPath(organizationSlug, fileAssetId),
     body: input,

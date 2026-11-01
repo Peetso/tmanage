@@ -104,7 +104,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // platform/security-signals), was 1034.
 // 52-01 timer: +5 NEVER (GET time/timer, POST time/timer/{start,stop,heartbeat}, GET time/active),
 // was 1038.
-const EXPECTED_ROUTE_COUNT = 1045;
+// R4 slices 6–11 file viewer: +27 NEVER (`file_review`: previews, review threads/comments, mention
+// search, decisions; studio and portal), was 1045.
+const EXPECTED_ROUTE_COUNT = 1072;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

@@ -286,6 +286,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // so the company erasure (reverse order) empties comments, then threads.
   review_threads: 'organization_id',
   review_comments: 'organization_id',
+  // R4 slice 11 (0269). Approve / Request changes on a studio's plain files, append-only. After
+  // its parents (projects, file_assets), so the company erasure empties it before them.
+  file_review_decisions: 'organization_id',
   upload_sessions: 'organization_id',
   // USAGE-001 slice 2 (migration 0021). Tenant-owned like `usage_counters`, whose every
   // move it records: `organization_id` is NOT NULL and it carries the `(organization_id, id)`

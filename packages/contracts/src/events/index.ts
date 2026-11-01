@@ -23,6 +23,7 @@ export {
   REVIEW_THREAD_CREATED_V1_SCHEMA,
   REVIEW_COMMENT_ADDED_V1_SCHEMA,
   REVIEW_THREAD_RESOLVED_V1_SCHEMA,
+  REVIEW_DECISION_RECORDED_V1_SCHEMA,
 } from './review.js';
 export type {
   ReviewSubjectType,
@@ -30,6 +31,7 @@ export type {
   ReviewThreadCreatedPayload,
   ReviewCommentAddedPayload,
   ReviewThreadResolvedPayload,
+  ReviewDecisionRecordedPayload,
 } from './review.js';
 
 export {

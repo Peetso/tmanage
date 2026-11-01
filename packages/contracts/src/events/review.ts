@@ -53,6 +53,17 @@ export interface ReviewThreadResolvedPayload {
   readonly byUserId: string;
 }
 
+/** `review.decision_recorded.v1` — a version of a plain file was approved, or changes asked for. */
+export interface ReviewDecisionRecordedPayload {
+  readonly decisionId: string;
+  readonly rootFileAssetId: string;
+  readonly fileAssetId: string;
+  readonly projectId: string;
+  readonly decision: 'approved' | 'changes_requested';
+  readonly byUserId: string;
+  readonly principalKind: 'internal' | 'client';
+}
+
 // ── JSON representations ──────────────────────────────────────────────────────
 
 const CONTRACTS_BASE = 'https://contracts.tmanage.example/events';
@@ -145,6 +156,32 @@ export const REVIEW_THREAD_RESOLVED_V1_SCHEMA: JsonObjectSchema = {
     audience: AUDIENCE,
     resolved: { type: 'boolean' },
     byUserId: UUID,
+  },
+  additionalProperties: false,
+};
+
+export const REVIEW_DECISION_RECORDED_V1_SCHEMA: JsonObjectSchema = {
+  $schema: 'https://json-schema.org/draft/2020-12/schema',
+  $id: `${CONTRACTS_BASE}/review.decision_recorded.v1.schema.json`,
+  title: 'review.decision_recorded.v1 payload',
+  type: 'object',
+  required: [
+    'decisionId',
+    'rootFileAssetId',
+    'fileAssetId',
+    'projectId',
+    'decision',
+    'byUserId',
+    'principalKind',
+  ],
+  properties: {
+    decisionId: UUID,
+    rootFileAssetId: UUID,
+    fileAssetId: UUID,
+    projectId: UUID,
+    decision: { type: 'string', enum: ['approved', 'changes_requested'] },
+    byUserId: UUID,
+    principalKind: { type: 'string', enum: ['internal', 'client'] },
   },
   additionalProperties: false,
 };

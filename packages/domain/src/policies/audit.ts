@@ -516,6 +516,16 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'review_thread',
     clause: '§12 — a review state change on a file; R4 SPEC §3.4 audit review.thread_resolved',
   },
+  /**
+   * R4 slice 11. Somebody approved a version of a plain file or asked for changes on it. Ids, the
+   * decision and the principal's kind only — never the note.
+   */
+  'review.decision_recorded': {
+    objectType: 'file_asset',
+    clause:
+      '§12 — a client or team decision on a file version; R4 SPEC §3.4 audit ' +
+      'review.decision_recorded',
+  },
   'file_preview.viewed': {
     objectType: 'file_asset',
     clause:
@@ -1139,6 +1149,7 @@ const AUDIT_ACTION_LABELS = {
   'review.thread_created': 'Commented on a file',
   'review.comment_added': 'Replied on a file comment',
   'review.thread_resolved': 'Resolved or reopened a file comment',
+  'review.decision_recorded': 'Approved a file or asked for changes',
   'file_asset.scan_disputed': "A file's scan result changed",
   'file_asset.purged': 'Deleted stored file data',
   'upload_session.expired': 'Cleaned up an expired upload',

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useId, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Avatar, Badge, Button, InlineAlert } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
@@ -79,6 +79,14 @@ export interface ThreadPanelProps {
   readonly creatingGeneral: boolean;
   readonly createGeneralError: unknown;
   readonly onChanged: () => Promise<unknown>;
+  /** R4 slice 11: the Versions tab's content (V-30); the plain chain list when absent. */
+  readonly versionsContent?: ReactNode;
+  /** R4 slice 11: the decision card under the comments (V-33). */
+  readonly commentsFooter?: ReactNode;
+  /** R4 slice 11: more facts under Details (the Photoshop layers). */
+  readonly detailsExtra?: ReactNode;
+  /** R4 slice 11: open this tab (the Versions tab after an upload). */
+  readonly requestedTab?: PanelTab | null;
 }
 
 /**
@@ -106,6 +114,10 @@ export function ThreadPanel({
   creatingGeneral,
   createGeneralError,
   onChanged,
+  versionsContent,
+  commentsFooter,
+  detailsExtra,
+  requestedTab = null,
 }: ThreadPanelProps) {
   const t = useT();
   const { door, teamName } = useReviewDoor();
@@ -126,6 +138,10 @@ export function ThreadPanel({
   useEffect(() => {
     if (selectedThreadId) setTab('comments');
   }, [selectedThreadId]);
+
+  useEffect(() => {
+    if (requestedTab) setTab(requestedTab);
+  }, [requestedTab]);
 
   useEffect(() => {
     if (!creatingGeneral && !createGeneralError) setWritingGeneral(false);
@@ -373,12 +389,18 @@ export function ThreadPanel({
                   )}
                 </p>
               ) : null}
+              {commentsFooter}
             </>
           )
         ) : tab === 'versions' ? (
-          <VersionsList manifest={manifest} organizationSlug={organizationSlug} />
+          (versionsContent ?? (
+            <VersionsList manifest={manifest} organizationSlug={organizationSlug} />
+          ))
         ) : (
-          <DetailsList manifest={manifest} naturalSize={naturalSize} />
+          <>
+            <DetailsList manifest={manifest} naturalSize={naturalSize} />
+            {detailsExtra}
+          </>
         )}
       </div>
     </aside>
