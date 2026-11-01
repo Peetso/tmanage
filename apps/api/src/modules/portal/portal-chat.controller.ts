@@ -34,8 +34,8 @@ export interface PortalChatRow {
  * channel, never a direct conversation, never a group they are not in. The query is keyed on the
  * principal's own user id, so there is no parameter that could name somebody else's list.
  *
- * Unread counts are 0 until slice 6 stores a client's read marker (a client has no `memberships`
- * row for `conversation_read_state` to key on).
+ * Unread counts read the client's own marker (`conversation_read_state.client_membership_id`,
+ * 0278).
  */
 export class PortalChatService {
   constructor(
@@ -50,6 +50,13 @@ export class PortalChatService {
         runner,
         context,
         groups.flatMap((g) => (g.lastMessageId ? [g.lastMessageId] : [])),
+      );
+      const unread = await this.repository.unreadCounts(
+        runner,
+        context,
+        principal.membershipId,
+        principal.userId,
+        groups.map((g) => g.conversationId),
       );
       const rows = groups.map((group): PortalChatRow => {
         const message = group.lastMessageId ? last.get(group.lastMessageId) : undefined;
@@ -67,7 +74,7 @@ export class PortalChatService {
                   at: group.lastMessageAt.toISOString(),
                 }
               : null,
-          unreadCount: 0,
+          unreadCount: unread.get(group.conversationId) ?? 0,
           pinnedAt: group.pinnedAt ? group.pinnedAt.toISOString() : null,
           mutedUntil: null,
           archivedAt: null,

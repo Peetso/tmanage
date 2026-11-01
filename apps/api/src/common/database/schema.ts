@@ -7905,7 +7905,10 @@ export const conversationReadState = mysqlTable(
     id: char('id', { length: 36 }).primaryKey(),
     organizationId: char('organization_id', { length: 36 }).notNull(),
     conversationId: char('conversation_id', { length: 36 }).notNull(),
-    membershipId: char('membership_id', { length: 36 }).notNull(),
+    /** An internal reader's membership; NULL on a client reader's row (0278). */
+    membershipId: char('membership_id', { length: 36 }),
+    /** R7 (0278): a client reader's `client_memberships` id; NULL on an internal reader's row. */
+    clientMembershipId: char('client_membership_id', { length: 36 }),
     lastReadMessageId: char('last_read_message_id', { length: 36 }).notNull(),
     /** R7 (0275): the newest message delivered to this member, for receipts. */
     lastDeliveredMessageId: char('last_delivered_message_id', { length: 36 }),
@@ -7919,6 +7922,12 @@ export const conversationReadState = mysqlTable(
       table.organizationId,
       table.conversationId,
       table.membershipId,
+    ),
+    // R7 (0278): the client reader's upsert key.
+    uniqueIndex('uq_conversation_read_state_client').on(
+      table.organizationId,
+      table.conversationId,
+      table.clientMembershipId,
     ),
   ],
 );

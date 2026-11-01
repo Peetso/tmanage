@@ -1,7 +1,8 @@
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
   conversationMemberships,
+  conversationReadState,
   conversations,
   messages,
   users,
@@ -100,5 +101,56 @@ export class PortalChatRepository {
         },
       ]),
     );
+  }
+
+  /**
+   * Unread top-level messages per group for a client reader: messages by someone else past the
+   * client's own read marker (`client_membership_id`, 0278), the studio list's rule.
+   */
+  async unreadCounts(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    clientMembershipId: string,
+    userId: string,
+    conversationIds: readonly string[],
+  ): Promise<ReadonlyMap<string, number>> {
+    if (conversationIds.length === 0) return new Map();
+    const db = tenantDrizzle(runner);
+    const positions = await db
+      .select({ conversationId: conversationReadState.conversationId, seq: messages.sequenceNo })
+      .from(conversationReadState)
+      .innerJoin(
+        messages,
+        and(
+          eq(messages.organizationId, conversationReadState.organizationId),
+          eq(messages.id, conversationReadState.lastReadMessageId),
+        ),
+      )
+      .where(
+        and(
+          eq(conversationReadState.organizationId, context.organizationId),
+          eq(conversationReadState.clientMembershipId, clientMembershipId),
+          inArray(conversationReadState.conversationId, [...conversationIds]),
+        ),
+      );
+    const readUpTo = new Map(positions.map((p) => [p.conversationId, Number(p.seq)]));
+    const rows = await db
+      .select({ conversationId: messages.conversationId, unread: sql<number>`count(*)` })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.organizationId, context.organizationId),
+          isNull(messages.parentMessageId),
+          isNull(messages.deletedAt),
+          ne(messages.authorUserId, userId),
+          or(
+            ...conversationIds.map((id) =>
+              and(eq(messages.conversationId, id), gt(messages.sequenceNo, readUpTo.get(id) ?? 0)),
+            ),
+          ),
+        ),
+      )
+      .groupBy(messages.conversationId);
+    return new Map(rows.map((row) => [row.conversationId, Number(row.unread)]));
   }
 }

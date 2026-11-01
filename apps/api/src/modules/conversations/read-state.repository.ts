@@ -23,12 +23,41 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
  * timestamps. Validation that `lastReadMessageId` belongs to the conversation is the service's; this
  * store persists what it is given.
  */
+/**
+ * Whose position a row is (0278): an internal member's `memberships` id, or a client person's
+ * `client_memberships` id. Exactly one of the two columns is written; the other stays NULL.
+ */
+export interface ReadStateReader {
+  readonly kind: 'member' | 'client';
+  readonly id: string;
+}
+
+/** A member reader — the only kind before 0278, and still every internal caller. */
+export function memberReader(membershipId: string): ReadStateReader {
+  return { kind: 'member', id: membershipId };
+}
+
+function readerColumns(reader: ReadStateReader): {
+  membershipId: string | null;
+  clientMembershipId: string | null;
+} {
+  return reader.kind === 'client'
+    ? { membershipId: null, clientMembershipId: reader.id }
+    : { membershipId: reader.id, clientMembershipId: null };
+}
+
+function readerIs(reader: ReadStateReader) {
+  return reader.kind === 'client'
+    ? eq(conversationReadState.clientMembershipId, reader.id)
+    : eq(conversationReadState.membershipId, reader.id);
+}
+
 export class ConversationReadStateRepository {
   async findForMembership(
     runner: TenantQueryRunner,
     context: TenantContext,
     conversationId: string,
-    membershipId: string,
+    reader: ReadStateReader,
   ): Promise<ConversationReadStateRow | null> {
     const rows = await tenantDrizzle(runner)
       .select()
@@ -37,7 +66,7 @@ export class ConversationReadStateRepository {
         and(
           eq(conversationReadState.organizationId, context.organizationId),
           eq(conversationReadState.conversationId, conversationId),
-          eq(conversationReadState.membershipId, membershipId),
+          readerIs(reader),
         ),
       )
       .limit(1);
@@ -49,7 +78,7 @@ export class ConversationReadStateRepository {
     runner: TenantQueryRunner,
     context: TenantContext,
     conversationId: string,
-    membershipId: string,
+    reader: ReadStateReader,
     lastReadMessageId: string,
   ): Promise<void> {
     await tenantDrizzle(runner)
@@ -58,7 +87,7 @@ export class ConversationReadStateRepository {
         id: uuidv7(),
         organizationId: context.organizationId,
         conversationId,
-        membershipId,
+        ...readerColumns(reader),
         lastReadMessageId,
         readAt: sql`current_timestamp(3)`,
         updatedAt: sql`current_timestamp(3)`,
@@ -76,7 +105,7 @@ export class ConversationReadStateRepository {
     runner: TenantQueryRunner,
     context: TenantContext,
     conversationId: string,
-    membershipId: string,
+    reader: ReadStateReader,
     lastDeliveredMessageId: string,
   ): Promise<void> {
     await tenantDrizzle(runner)
@@ -86,7 +115,7 @@ export class ConversationReadStateRepository {
         and(
           eq(conversationReadState.organizationId, context.organizationId),
           eq(conversationReadState.conversationId, conversationId),
-          eq(conversationReadState.membershipId, membershipId),
+          readerIs(reader),
         ),
       );
   }

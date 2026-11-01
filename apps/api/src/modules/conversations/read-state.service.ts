@@ -8,7 +8,7 @@ import type {
 } from '../../common/database/tenant-context.js';
 import type { ConversationRow } from '../../common/database/schema.js';
 import type { ConversationsRepository } from './conversations.repository.js';
-import type { ConversationReadStateRepository } from './read-state.repository.js';
+import type { ConversationReadStateRepository, ReadStateReader } from './read-state.repository.js';
 import { deriveReceipts, MessageReceiptsRepository } from './message-receipts.repository.js';
 import type { MessageReceiptsView } from './message-receipts.repository.js';
 
@@ -102,7 +102,7 @@ export class ConversationReadStateService {
         runner,
         context,
         conversationId,
-        principal.membershipId,
+        readerOf(principal),
       );
       const threshold = await this.threshold(runner, context, conversationId, row);
       const unreadCount = await this.readState.countMessagesAfter(
@@ -151,12 +151,11 @@ export class ConversationReadStateService {
             { field: 'lastDeliveredMessageId', message: 'must be a message in this conversation' },
           ]);
         }
-        if (!storesReadState(principal)) return;
         const row = await this.readState.findForMembership(
           tx,
           context,
           conversationId,
-          principal.membershipId,
+          readerOf(principal),
         );
         if (!row) return;
         const current = await this.sequenceOf(tx, context, row.lastDeliveredMessageId);
@@ -165,7 +164,7 @@ export class ConversationReadStateService {
           tx,
           context,
           conversationId,
-          principal.membershipId,
+          readerOf(principal),
           delivered,
         );
       });
@@ -201,32 +200,30 @@ export class ConversationReadStateService {
         ]);
       }
 
-      // R7: monotonic — a position never moves backwards. A client person has no `memberships`
-      // row for the foreign key, so their position is not stored (a recorded, schema-owned gap).
-      if (storesReadState(principal)) {
-        const existing = await this.readState.findForMembership(
+      // R7: monotonic — a position never moves backwards. A client person's row names their
+      // `client_memberships` id (0278), an internal member's their `memberships` id.
+      const existing = await this.readState.findForMembership(
+        tx,
+        context,
+        conversationId,
+        readerOf(principal),
+      );
+      const current = await this.sequenceOf(tx, context, existing?.lastReadMessageId ?? null);
+      if (advances(current, Number(message.sequenceNo))) {
+        await this.readState.upsert(
           tx,
           context,
           conversationId,
-          principal.membershipId,
+          readerOf(principal),
+          lastReadMessageId,
         );
-        const current = await this.sequenceOf(tx, context, existing?.lastReadMessageId ?? null);
-        if (advances(current, Number(message.sequenceNo))) {
-          await this.readState.upsert(
-            tx,
-            context,
-            conversationId,
-            principal.membershipId,
-            lastReadMessageId,
-          );
-        }
       }
 
       const row = await this.readState.findForMembership(
         tx,
         context,
         conversationId,
-        principal.membershipId,
+        readerOf(principal),
       );
       const unreadCount = await this.readState.countMessagesAfter(
         tx,
@@ -264,7 +261,7 @@ export class ConversationReadStateService {
           runner,
           context,
           conversation.id,
-          principal.membershipId,
+          readerOf(principal),
         );
         const threshold = await this.threshold(runner, context, conversation.id, state);
         const unreadCount = await this.readState.countMessagesAfter(
@@ -363,9 +360,9 @@ export function advances(current: number | null, next: number): boolean {
 }
 
 /**
- * The read-state row's foreign key names a `memberships` row; a client person's membership lives
- * in `client_memberships`, so their position cannot be stored yet.
+ * Whose row the caller's position is: a client person's membership is a `client_memberships` row,
+ * every other principal's a `memberships` row (0278).
  */
-function storesReadState(principal: Principal): boolean {
-  return principal.kind !== 'client';
+export function readerOf(principal: Principal): ReadStateReader {
+  return { kind: principal.kind === 'client' ? 'client' : 'member', id: principal.membershipId };
 }

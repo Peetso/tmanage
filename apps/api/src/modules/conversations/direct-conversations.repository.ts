@@ -21,7 +21,7 @@ import {
   DirectPairTakenError,
   DuplicateMessageError,
 } from './conversations.repository.js';
-import { ConversationReadStateRepository } from './read-state.repository.js';
+import { ConversationReadStateRepository, memberReader } from './read-state.repository.js';
 
 /**
  * BK3 (COL-03) — the storage half of direct messages. R7 slice 1 (0276): a direct conversation
@@ -436,7 +436,13 @@ export class DirectConversationsRepository {
     const positions = await this.readPositions(runner, context, [directConversationId]);
     const current = positions.get(`${directConversationId}:${context.userId}`) ?? 0;
     if (Number(target.sequenceNo) <= current) return;
-    await this.readState.upsert(runner, context, directConversationId, membership.id, target.id);
+    await this.readState.upsert(
+      runner,
+      context,
+      directConversationId,
+      memberReader(membership.id),
+      target.id,
+    );
   }
 
   /**
