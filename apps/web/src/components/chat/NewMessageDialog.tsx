@@ -15,6 +15,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { listProjects } from '../../lib/api/projects';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useMembers } from '../../lib/use-members';
+import { useOrganizationName } from '../../lib/use-organization-names';
 import { initialsOf } from './channel-browser';
 import { memberRoleLabel } from './MentionPicker';
 import './chat-shell.css';
@@ -43,10 +44,12 @@ interface Person {
 export function NewMessageDialog({
   api,
   organizationSlug,
-  organizationName,
+  organizationName: passedOrganizationName,
   onClose,
   onOpened,
 }: NewMessageDialogProps) {
+  // The live workspace name, not the design's sample company the route passes down.
+  const organizationName = useOrganizationName(organizationSlug, passedOrganizationName);
   const tOr = useTOr();
   const queries = useQueryClient();
   const titleId = useId();
@@ -241,6 +244,30 @@ export function NewMessageDialog({
                   <ul className="tm-mention__items">{shownClients.map(renderPerson)}</ul>
                 </>
               ) : null}
+            </div>
+          ) : needle !== '' && !team.isPending && !directory.isPending ? (
+            // 2026-10-31 live-test fix — Figma "Chat · New message — no matches · EN/AR
+            // (2026-10-31 live-test fix)": say that nobody matched rather than show nothing.
+            <div className="tm-newdm__results" role="status">
+              <div className="tm-mention__empty">
+                <p className="tm-mention__empty-title">
+                  {tOr('NewMessageDialog.noMatchTitle', 'No one matches “{query}”').replace(
+                    '{query}',
+                    query.trim(),
+                  )}
+                </p>
+                <p className="tm-mention__empty-body">
+                  {organizationName === ''
+                    ? tOr(
+                        'NewMessageDialog.noMatchBodyWorkspace',
+                        'Check the spelling, or invite them to this workspace first.',
+                      )
+                    : tOr(
+                        'NewMessageDialog.noMatchBody',
+                        'Check the spelling, or invite them to {organization} first.',
+                      ).replace('{organization}', organizationName)}
+                </p>
+              </div>
             </div>
           ) : null}
           {open.isError ? (

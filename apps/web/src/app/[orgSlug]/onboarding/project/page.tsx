@@ -22,7 +22,9 @@ export default function FirstProjectPage({ params }: { params: Promise<{ orgSlug
     <FirstProjectScreen
       signedInAs=""
       organizationSlug={orgSlug}
-      onCreated={() => router.push(`/${orgSlug}/onboarding/team`)}
+      // ON-02 is always done by now: ON-01 stores the starting template and ON-02 only refines it.
+      completedSteps={['ON-02']}
+      onCreated={() => router.push(`/${orgSlug}/onboarding/team?project=created`)}
     />
   );
 }

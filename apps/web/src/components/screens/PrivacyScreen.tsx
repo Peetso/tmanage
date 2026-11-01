@@ -528,10 +528,15 @@ function DeleteCompanyCard({
         {deletion ? null : (
           <p className="prv-card__body">
             {fill(
-              tr(
-                'PrivacyScreen.deleteBody',
-                'Deletes {org} and everything in it for all {count} members. You get {days} days to change your mind before anything is removed.',
-              ),
+              data.memberCount === 1
+                ? tr(
+                    'PrivacyScreen.deleteBodyOne',
+                    'Deletes {org} and everything in it for its only member. You get {days} days to change your mind before anything is removed.',
+                  )
+                : tr(
+                    'PrivacyScreen.deleteBody',
+                    'Deletes {org} and everything in it for all {count} members. You get {days} days to change your mind before anything is removed.',
+                  ),
               { org: name, count: data.memberCount, days: data.gracePeriodDays },
             )}
           </p>
@@ -906,10 +911,15 @@ function DeleteCompanyDialog({
           {
             tone: 'danger',
             text: fill(
-              tr(
-                'PrivacyScreen.deletePointAll',
-                'All projects, tasks, chat, docs and files are deleted for all {count} members.',
-              ),
+              memberCount === 1
+                ? tr(
+                    'PrivacyScreen.deletePointAllOne',
+                    'All projects, tasks, chat, docs and files are deleted for its only member.',
+                  )
+                : tr(
+                    'PrivacyScreen.deletePointAll',
+                    'All projects, tasks, chat, docs and files are deleted for all {count} members.',
+                  ),
               { count: memberCount },
             ),
           },

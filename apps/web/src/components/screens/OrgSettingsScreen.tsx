@@ -63,12 +63,16 @@ const SWITCH_COPY: Readonly<Record<MemberSwitchKey, { label: string; hint?: stri
   },
 };
 
-/** "Northstar Studio" → "NS"; one word gives its first two letters. */
+/**
+ * "Northstar Studio" → "NS"; one word gives its first two letters. The first two words, the same
+ * rule the organization picker uses, so one organization never shows two different monograms
+ * ("QA test (delete me)" read "QM" here and "QT" in the picker, live test 2026-10-31).
+ */
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '';
   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
-  return `${parts[0]![0] ?? ''}${parts[parts.length - 1]![0] ?? ''}`.toUpperCase();
+  return `${parts[0]![0] ?? ''}${parts[1]![0] ?? ''}`.toUpperCase();
 }
 
 /**

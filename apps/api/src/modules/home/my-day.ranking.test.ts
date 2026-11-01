@@ -54,7 +54,7 @@ function member(projectIds: readonly string[]): Principal {
 
 // The fake repository returns the canned rows; the service still authorizes each through
 // `mayRead`, so a cross-tenant row placed in the set must be dropped there (belt-and-braces).
-const windows: { now: Date; dueSoonCutoff: Date }[] = [];
+const windows: { now: Date; overdueBefore: Date; dueSoonCutoff: Date }[] = [];
 
 function serviceWith(rows: readonly WorkItemRow[]): HomeService {
   const database = {
@@ -65,7 +65,7 @@ function serviceWith(rows: readonly WorkItemRow[]): HomeService {
       _runner: unknown,
       _context: unknown,
       _owner: string,
-      window: { now: Date; dueSoonCutoff: Date },
+      window: { now: Date; overdueBefore: Date; dueSoonCutoff: Date },
     ) => {
       windows.push(window);
       return rows;
@@ -80,6 +80,27 @@ const context = {
 } as unknown as TenantContext;
 
 describe('HomeService.myDayOf ranking', () => {
+  it('reads an item due earlier today as due soon, not overdue (2026-10-31 live test)', async () => {
+    // A picked day is stored at noon UTC; late that evening it is still "due today".
+    const dueThisMorning = item({
+      id: 'w-due-today-00000000000000000001',
+      dueAt: new Date(NOW.getTime() - 1 * HOUR),
+    });
+    const dueYesterday = item({
+      id: 'w-due-yesterday-000000000000002',
+      dueAt: new Date(NOW.getTime() - 24 * HOUR),
+    });
+    const view = await serviceWith([dueThisMorning, dueYesterday]).myDayOf(
+      context,
+      member([PROJECT]),
+      new Date('2026-09-20T21:30:00.000Z'),
+    );
+    expect(view.items.map((entry) => [entry.workItem.id, entry.reason])).toEqual([
+      [dueYesterday.id, 'overdue'],
+      [dueThisMorning.id, 'due_soon'],
+    ]);
+  });
+
   it('ranks overdue then due-soon by due_at then the rest by id, dropping a cross-tenant row', async () => {
     // Shuffled input; ids chosen so id-order and due-order disagree.
     const overdueEarlier = item({
@@ -88,7 +109,8 @@ describe('HomeService.myDayOf ranking', () => {
     });
     const overdueLater = item({
       id: 'w-overdue-later-000000000000001',
-      dueAt: new Date(NOW.getTime() - 1 * HOUR),
+      // Yesterday 23:00 UTC: the latest instant that is still overdue (before today began).
+      dueAt: new Date(NOW.getTime() - 13 * HOUR),
     });
     const dueSoon = item({
       id: 'w-duesoon-0000000000000000000003',
@@ -123,6 +145,7 @@ describe('HomeService.myDayOf ranking', () => {
     // carries no `description` (the read no longer selects it).
     expect(windows.at(-1)).toEqual({
       now: NOW,
+      overdueBefore: new Date('2026-09-20T00:00:00.000Z'),
       dueSoonCutoff: new Date(NOW.getTime() + DUE_SOON_WINDOW_MS),
     });
     expect(view.items.every((entry) => !('description' in entry.workItem))).toBe(true);

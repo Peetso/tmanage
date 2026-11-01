@@ -100,3 +100,19 @@
     inline-size: 140px;
   }
 }
+
+/* 2026-10-31 live test (Figma 446:36284): the capsule's Owner and Committed date chips open
+   the owner and date pickers, so they read and behave as buttons. */
+.tm-capture__chip-button {
+  cursor: pointer;
+  font: inherit;
+}
+
+.tm-capture__chip-button:hover:not(:disabled) {
+  border-color: var(--ink-800);
+}
+
+.tm-capture__chip-button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}

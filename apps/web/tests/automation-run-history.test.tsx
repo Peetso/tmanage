@@ -112,4 +112,51 @@ describe('AutomationRunHistoryScreen', () => {
     expect(screen.queryByText(/"outcome":/)).toBeNull();
     await expectNoAxeViolations(container);
   });
+
+  it('says what a filter with no match is hiding, and Show all runs clears it', async () => {
+    const client = new ApiClient({
+      baseUrl: 'https://api.example.test',
+      csrfCookieName: 'tm_session_csrf',
+      fetch: ((input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        const body = /\/automations\/runs\/[^/?]+$/.test(url)
+          ? detail
+          : url.includes('status=failed')
+            ? { runs: [] }
+            : { runs: [run, { ...run, id: 'workflow-run-02' }] };
+        return Promise.resolve(
+          new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+        );
+      }) as typeof globalThis.fetch,
+      readCsrfToken: () => 'csrf-token',
+      newCorrelationId: () => 'correlation-fixed',
+    });
+    const { container } = render(
+      withQuery(
+        <AutomationRunHistoryScreen
+          organizationSlug="acme"
+          organizationName="Acme"
+          client={client}
+        />,
+      ),
+    );
+    const failed = await screen.findByRole('button', { name: 'Failed' });
+    await waitFor(() => expect(failed).not.toBeDisabled());
+    fireEvent.click(failed);
+
+    await waitFor(() => expect(screen.getByText('No failed runs')).toBeInTheDocument());
+    expect(screen.queryByText('No runs yet')).toBeNull();
+    await waitFor(() =>
+      expect(screen.getByText(/2 runs in this list succeeded and none failed/)).toBeInTheDocument(),
+    );
+    await expectNoAxeViolations(container);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show all runs' }));
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: /View details/ })).toHaveLength(2),
+    );
+  });
 });

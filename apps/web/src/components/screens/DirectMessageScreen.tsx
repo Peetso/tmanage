@@ -509,6 +509,7 @@ function DirectComposer({
           activeIndex={mention.activeIndex}
           onPick={mention.pick}
           onHover={mention.setActiveIndex}
+          query={mention.query}
           othersHeading={tOr('DirectMessageScreen.inThisConversation', 'In this conversation')}
         />
       ) : null}

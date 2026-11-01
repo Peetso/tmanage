@@ -67,10 +67,12 @@ describe('AdminAuditScreen', () => {
     expect(screen.getByText('Removed a member (refused)')).toBeTruthy();
     // A system-initiated event shows "System" rather than a raw id or an empty actor cell.
     expect(screen.getByText('System')).toBeTruthy();
-    // The filters are real, labelled form controls.
-    expect(screen.getByLabelText('Actor ID')).toBeTruthy();
-    expect(screen.getByLabelText('Entity ID')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Apply filters' })).toBeTruthy();
+    // 2026-10-31 live test: the filter picks a person by name, never a raw actor/entity id.
+    expect(screen.getByLabelText('Person')).toBeTruthy();
+    expect(screen.queryByLabelText('Actor ID')).toBeNull();
+    expect(screen.queryByLabelText('Entity ID')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Show everyone' })).toBeTruthy();
     // Exactly one h1 (the shell title) and no axe violation jsdom can detect.
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     await expectNoAxeViolations(container);

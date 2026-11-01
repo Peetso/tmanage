@@ -15,6 +15,8 @@ import { formatDay } from '../../lib/client-request-presentation';
 import './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
+import { usePortalPreview } from '../../lib/portal-preview';
 
 export interface NewClientRequestScreenProps {
   organizationSlug: string;
@@ -92,6 +94,9 @@ export function NewClientRequestScreen({
   );
   const api = client ?? browserApiClient();
   const t = useT();
+  // 2026-10-31 live-test fix (Figma 446:37829): staff previewing the portal see the form as the
+  // client does, with a notice and Send disabled — only a client can send a request.
+  const preview = usePortalPreview(organizationSlug);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState(() =>
@@ -139,6 +144,7 @@ export function NewClientRequestScreen({
       setFailure(t('NewClientRequestScreen.tellWhyMatters'));
       return;
     }
+    if (preview) return;
     if (noProjectShared) {
       setFailure(t('NewClientRequestScreen.noProjectShared'));
       return;
@@ -182,7 +188,6 @@ export function NewClientRequestScreen({
       organizationSlug={organizationSlug}
       clientName={clientName}
       providerName={providerName}
-      activeNavigationId="overview"
       title={sent ? t('NewClientRequestScreen.titleSent') : t('NewClientRequestScreen.titleAsk')}
       eyebrow={`${t('NewClientRequestScreen.askPrefix')} ${providerName} ${t('NewClientRequestScreen.askSuffix')}`}
     >
@@ -244,6 +249,14 @@ export function NewClientRequestScreen({
                 className="tm-fieldset tm-pt-col"
                 disabled={projects.isPending || noProjectShared}
               >
+                {preview ? (
+                  <InlineAlert
+                    tone="client"
+                    title={t('NewClientRequestScreen.previewTitle' as MessageKey)}
+                  >
+                    {t('NewClientRequestScreen.previewBody' as MessageKey)}
+                  </InlineAlert>
+                ) : null}
                 <div className="tm-pt-form">
                   <div className="tm-pt-form__title">
                     <Field
@@ -384,7 +397,7 @@ export function NewClientRequestScreen({
                     size="accessible"
                     loading={sending}
                     loadingLabel={t('NewClientRequestScreen.sending')}
-                    disabled={projects.isPending || noProjectShared}
+                    disabled={projects.isPending || noProjectShared || preview}
                   >
                     {t('NewClientRequestScreen.sendRequest')}
                   </Button>

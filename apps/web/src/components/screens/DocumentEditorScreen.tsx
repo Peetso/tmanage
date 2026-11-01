@@ -1,20 +1,33 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type KeyboardEvent,
+} from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { DocsSidebar } from '../docs/DocsSidebar';
 import { DocTitleEditor, type RenameStatus } from '../docs/DocTitleEditor';
+import { DocShareDialog } from '../docs/DocShareDialog';
+import { caretPoint } from '../docs/doc-caret';
 import '../docs/docs-shell.css';
 import {
   DOC_TOOL_EDITS,
   applyDocEdit,
+  diffLines,
+  filterSlashCommands,
   isBlankBody,
   rtlLine,
+  slashTriggerAt,
   tagFor,
   type DocToolId,
+  type SlashCommand,
 } from '../docs/doc-markdown';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -114,8 +127,21 @@ export function DocumentEditorScreen({
   const [draft, setDraft] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [copied, setCopied] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+  // The selection to put back on the body after a toolbar or "/" edit has rendered.
+  const [pendingSelection, setPendingSelection] = useState<{
+    readonly start: number;
+    readonly end: number;
+  } | null>(null);
+  // The "/" menu (Figma 446:35321): where the slash is, what follows it, which row is active.
+  const [slash, setSlash] = useState<{
+    readonly at: number;
+    readonly query: string;
+    readonly active: number;
+    readonly top: number;
+    readonly left: number;
+  } | null>(null);
   // F2: the title rename's own save state, shown in the same place as the body's.
   const [renameStatus, setRenameStatus] = useState<RenameStatus>('idle');
   // Keep the newest `now` when the document (re)loads, so a fresh document reads "just now".
@@ -190,37 +216,114 @@ export function DocumentEditorScreen({
     )?.name ?? '';
   const published = sharing.data?.audience === 'client';
   const rows = versions.data ?? [];
+  // Newest first; the newest is "Current" and is what every other version is compared with.
+  const ordered = [...rows].sort((a, b) => b.versionNo - a.versionNo);
+  const currentNo = ordered[0]?.versionNo ?? null;
+  const people = sharing.data?.collaborators ?? [];
+  const authorOf = (userId: string) =>
+    people.find((person) => person.userId === userId)?.displayName ?? '';
+  const pickedRow = rows.find((version) => version.versionNo === selectedVersion);
+  const compared =
+    selectedVersion !== null && selectedVersion !== currentNo
+      ? (comparison.data ?? pickedRow ?? null)
+      : null;
+  const changes = compared ? diffLines(compared.body, body) : [];
+  const changeCount = changes.reduce((sum, block) => sum + block.lines.length, 0);
 
-  function applyTool(id: DocToolId) {
+  /**
+   * Apply a toolbar edit to `text` at `[start, end)`. Live test 2026-10-31: words typed right after a
+   * toolbar click were lost (focus stayed on the button, so Space pressed it again) and Bold left the
+   * "text" placeholder unselected. The buttons no longer take focus (mousedown is cancelled), the
+   * caret and selection go back in a layout effect right after the new text renders, and an inserted
+   * placeholder is selected so the next word replaces it.
+   */
+  function applyTool(id: DocToolId, text = body, start?: number, end?: number) {
     const control = bodyRef.current;
-    const start = control?.selectionStart ?? body.length;
-    const end = control?.selectionEnd ?? body.length;
+    const from = start ?? control?.selectionStart ?? text.length;
+    const to = end ?? control?.selectionEnd ?? text.length;
     const result = applyDocEdit(
-      body,
-      start,
-      end,
+      text,
+      from,
+      to,
       DOC_TOOL_EDITS[id],
       tOr('DocumentEditorScreen.toolPlaceholder', 'text'),
     );
     setDraft(result.text);
-    requestAnimationFrame(() => {
-      control?.focus();
-      control?.setSelectionRange(result.caret, result.caret);
-    });
+    setPendingSelection({ start: result.selectionStart, end: result.caret });
   }
 
-  async function share() {
-    const href =
-      typeof window === 'undefined'
-        ? ''
-        : `${window.location.origin}/${organizationSlug}/docs/${documentId}`;
-    try {
-      await navigator.clipboard?.writeText(href);
-    } catch {
-      // Clipboard refused (an insecure context); the link is still the page's own address.
+  useLayoutEffect(() => {
+    if (!pendingSelection) return;
+    const control = bodyRef.current;
+    control?.focus();
+    control?.setSelectionRange(pendingSelection.start, pendingSelection.end);
+    setPendingSelection(null);
+  }, [pendingSelection]);
+
+  const slashLabel = (command: SlashCommand) => tOr(command.key, command.english);
+  const slashMatches = slash ? filterSlashCommands(slash.query, slashLabel) : [];
+
+  function onBodyChange(event: ChangeEvent<HTMLTextAreaElement>) {
+    const text = event.target.value;
+    const caret = event.target.selectionStart ?? text.length;
+    setDraft(text);
+    const opened = slashTriggerAt(text, caret);
+    if (opened >= 0) {
+      const point = caretPoint(event.target, opened);
+      const control = event.target;
+      setSlash({
+        at: opened,
+        query: '',
+        active: 0,
+        top: (point ? point.top + point.lineHeight : 24) + control.offsetTop + 4,
+        left: (point ? point.left : 0) + control.offsetLeft,
+      });
+      return;
     }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (!slash) return;
+    // Still typing the filter right after the slash: "/head".
+    if (text[slash.at] !== '/' || caret <= slash.at) {
+      setSlash(null);
+      return;
+    }
+    const query = text.slice(slash.at + 1, caret);
+    if (/\s/u.test(query) || query.length > 20) {
+      setSlash(null);
+      return;
+    }
+    setSlash({ ...slash, query, active: 0 });
+  }
+
+  function chooseSlash(command: SlashCommand) {
+    if (!slash) return;
+    const control = bodyRef.current;
+    const caret = control?.selectionStart ?? slash.at + 1 + slash.query.length;
+    // Take out "/query", then apply the command where the slash was.
+    const text = body.slice(0, slash.at) + body.slice(Math.max(caret, slash.at + 1));
+    setSlash(null);
+    applyTool(command.id, text, slash.at, slash.at);
+  }
+
+  function onBodyKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (!slash) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setSlash(null);
+      return;
+    }
+    if (slashMatches.length === 0) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      setSlash({
+        ...slash,
+        active: (slash.active + step + slashMatches.length) % slashMatches.length,
+      });
+    } else if (event.key === 'Enter' || event.key === 'Tab') {
+      event.preventDefault();
+      const command = slashMatches[Math.min(slash.active, slashMatches.length - 1)];
+      if (command) chooseSlash(command);
+    }
   }
 
   const savedInstant = savedAt ?? (data ? Date.parse(data.updatedAt) : Number.NaN);
@@ -276,10 +379,15 @@ export function DocumentEditorScreen({
               {renaming ? <span className="tm-doctitle__spinner" aria-hidden="true" /> : null}
               {savedLabel}
             </span>
-            <button type="button" className="tm-docpage__btn" onClick={() => void share()}>
-              {copied
-                ? tOr('DocumentEditorScreen.linkCopied', 'Link copied')
-                : tOr('DocumentEditorScreen.share', 'Share')}
+            {/* Live test 2026-10-31: Share only copied the link, with no word on who can see the
+                doc. It opens the share dialog (Figma 446:35464), which also copies the link. */}
+            <button
+              type="button"
+              className="tm-docpage__btn"
+              aria-haspopup="dialog"
+              onClick={() => setShareOpen(true)}
+            >
+              {tOr('DocumentEditorScreen.share', 'Share')}
             </button>
             {sharing.data?.canPublish && !published ? (
               <button
@@ -306,6 +414,8 @@ export function DocumentEditorScreen({
               type="button"
               className="tm-docpage__tool"
               data-words={tool.words ? 'true' : 'false'}
+              // Keep the focus (and the selection) in the body: the click edits it in place.
+              onMouseDown={(event) => event.preventDefault()}
               onClick={() => applyTool(tool.id)}
             >
               {tool.glyph ? <span aria-hidden="true">{tool.glyph}</span> : null}
@@ -358,9 +468,11 @@ export function DocumentEditorScreen({
                           'DocumentEditorScreen.publishedNote',
                           "The project's client people can read this document",
                         )
-                      : tOr(
-                          'DocumentEditorScreen.draftNote',
-                          'Only you can see this draft until you share it',
+                      : // Live test 2026-10-31: "Only you can see this draft" was not true — the
+                        // project's team can open it. Figma 446:35321 / 446:35464 say who can.
+                        tOr(
+                          'DocumentEditorScreen.draftNoteTeam',
+                          'Your team can see this draft · clients only after you publish',
                         )
                   }`,
                   locale,
@@ -370,18 +482,80 @@ export function DocumentEditorScreen({
             <label className="tm-visually-hidden" htmlFor="tm-doc-body">
               {tOr('DocumentEditorScreen.documentBody', 'Document body')}
             </label>
-            <textarea
-              id="tm-doc-body"
-              ref={bodyRef}
-              name="body"
-              className="tm-docpage__body"
-              value={body}
-              placeholder={tOr(
-                'DocumentEditorScreen.placeholder',
-                'Start writing, or type / for headings, lists and checklists.',
-              )}
-              onChange={(event) => setDraft(event.target.value)}
-            />
+            <div className="tm-docpage__bodywrap">
+              <textarea
+                id="tm-doc-body"
+                ref={bodyRef}
+                name="body"
+                className="tm-docpage__body"
+                value={body}
+                placeholder={tOr(
+                  'DocumentEditorScreen.placeholder',
+                  'Start writing, or type / for headings, lists and checklists.',
+                )}
+                role={slash ? 'combobox' : undefined}
+                aria-expanded={slash ? true : undefined}
+                aria-controls={slash ? 'tm-doc-slash' : undefined}
+                aria-autocomplete={slash ? 'list' : undefined}
+                aria-activedescendant={
+                  slash && slashMatches.length > 0
+                    ? `tm-doc-slash-${Math.min(slash.active, slashMatches.length - 1)}`
+                    : undefined
+                }
+                onChange={onBodyChange}
+                onKeyDown={onBodyKeyDown}
+                onBlur={() => setSlash(null)}
+                onClick={() => setSlash(null)}
+              />
+              {slash ? (
+                <div
+                  className="tm-docpage__slash"
+                  style={{ top: slash.top, left: slash.left }}
+                  data-empty={slashMatches.length === 0 ? 'true' : 'false'}
+                >
+                  {slashMatches.length > 0 ? (
+                    <ul
+                      id="tm-doc-slash"
+                      role="listbox"
+                      aria-label={tOr('DocumentEditorScreen.slashAria', 'Insert a block')}
+                    >
+                      {slashMatches.map((command, index) => (
+                        <li
+                          key={command.id}
+                          id={`tm-doc-slash-${index}`}
+                          role="option"
+                          aria-selected={index === slash.active}
+                          className="tm-docpage__slash-item"
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            chooseSlash(command);
+                          }}
+                          onMouseEnter={() => setSlash({ ...slash, active: index })}
+                        >
+                          <span className="tm-docpage__slash-glyph" aria-hidden="true">
+                            {command.glyph}
+                          </span>
+                          {slashLabel(command)}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="tm-docpage__slash-none">
+                      {tOr('DocumentEditorScreen.slashNone', 'No matching blocks')}
+                    </p>
+                  )}
+                  <p className="tm-docpage__slash-hint" aria-hidden="true">
+                    {rtlLine(
+                      tOr(
+                        'DocumentEditorScreen.slashHint',
+                        '↑ ↓ to move · Enter to insert · Esc to close',
+                      ),
+                      locale,
+                    )}
+                  </p>
+                </div>
+              ) : null}
+            </div>
             {body.trim() === '' ? (
               <Link className="tm-docpage__template" href={`/${organizationSlug}/docs/templates`}>
                 {tOr('DocumentEditorScreen.fromTemplate', 'Or start from a template')}
@@ -412,36 +586,122 @@ export function DocumentEditorScreen({
                 <summary>
                   {tOr('DocumentEditorScreen.versionHistory', 'Version history')} · {rows.length}
                 </summary>
-                <ol aria-label={tOr('DocumentEditorScreen.savedVersionsAria', 'Saved versions')}>
-                  {rows.map((version) => (
-                    <li key={version.id}>
-                      <span>
-                        {tOr('DocumentEditorScreen.versionPrefix', 'v')}
-                        {version.versionNo} · {formatClock(version.createdAt, locale)}
-                      </span>
-                      <button
-                        type="button"
-                        className="tm-docpage__tool"
-                        aria-pressed={selectedVersion === version.versionNo}
-                        onClick={() => setSelectedVersion(version.versionNo)}
-                      >
-                        {tOr('DocumentEditorScreen.compare', 'Compare')}
-                      </button>
-                      <button
-                        type="button"
-                        className="tm-docpage__tool"
-                        disabled={restore.isPending}
-                        onClick={() => restore.mutate(version.versionNo)}
-                      >
-                        {tOr('DocumentEditorScreen.restore', 'Restore')}
-                      </button>
-                    </li>
-                  ))}
-                </ol>
-                {comparison.data ? <pre>{comparison.data.body}</pre> : null}
+                {/* DOC-03 Document history (Figma 145:224): the versions as cards, then Compare —
+                    "13 Aug 17:32 → Current", the added and removed lines, and Restore with its
+                    note. Live test 2026-10-31: Compare showed the old text with no diff or label,
+                    and Restore sat on every row with no look first. */}
+                <div className="tm-docpage__versions">
+                  <ol aria-label={tOr('DocumentEditorScreen.savedVersionsAria', 'Saved versions')}>
+                    {ordered.map((version) => {
+                      const isCurrent = version.versionNo === currentNo;
+                      const who = authorOf(version.editedByUserId);
+                      return (
+                        <li key={version.id}>
+                          <button
+                            type="button"
+                            className="tm-docpage__version"
+                            aria-pressed={
+                              isCurrent ? undefined : selectedVersion === version.versionNo
+                            }
+                            aria-current={isCurrent ? 'true' : undefined}
+                            disabled={isCurrent}
+                            onClick={() => setSelectedVersion(version.versionNo)}
+                          >
+                            <span className="tm-docpage__version-when">
+                              {isCurrent
+                                ? `${tOr('DocumentEditorScreen.current', 'Current')} · ${formatClock(version.createdAt, locale)}`
+                                : formatClock(version.createdAt, locale)}
+                            </span>
+                            <span className="tm-docpage__version-who">
+                              {who !== ''
+                                ? who
+                                : `${tOr('DocumentEditorScreen.versionPrefix', 'v')}${version.versionNo}`}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                  {compared ? (
+                    <section
+                      className="tm-docpage__compare"
+                      aria-label={tOr('DocumentEditorScreen.compareAria', 'Compare versions')}
+                    >
+                      <p className="tm-docpage__compare-head">
+                        <span>
+                          {tOr('DocumentEditorScreen.compare', 'Compare')} ·{' '}
+                          {formatClock(compared.createdAt, locale)} →{' '}
+                          {tOr('DocumentEditorScreen.current', 'Current')}
+                        </span>
+                        <span>
+                          {changeCount === 1
+                            ? tOr('DocumentEditorScreen.oneChange', '1 change')
+                            : tOr('DocumentEditorScreen.changes', '{count} changes').replace(
+                                '{count}',
+                                String(changeCount),
+                              )}
+                        </span>
+                      </p>
+                      {changes.length === 0 ? (
+                        <p className="tm-docpage__compare-same">
+                          {tOr(
+                            'DocumentEditorScreen.noChanges',
+                            'This version reads the same as the current one.',
+                          )}
+                        </p>
+                      ) : (
+                        changes.map((block, index) => (
+                          <div key={index} className="tm-docpage__change" data-kind={block.kind}>
+                            <p className="tm-docpage__change-kind">
+                              {block.kind === 'added'
+                                ? tOr('DocumentEditorScreen.added', 'Added')
+                                : tOr('DocumentEditorScreen.removed', 'Removed')}
+                            </p>
+                            {block.lines.map((line, at) =>
+                              block.kind === 'removed' ? (
+                                <del key={at}>{line}</del>
+                              ) : (
+                                <ins key={at}>{line}</ins>
+                              ),
+                            )}
+                          </div>
+                        ))
+                      )}
+                      <div className="tm-docpage__restore">
+                        <button
+                          type="button"
+                          className="tm-docpage__btn"
+                          disabled={restore.isPending}
+                          onClick={() => restore.mutate(compared.versionNo)}
+                        >
+                          {tOr(
+                            'DocumentEditorScreen.restoreVersion',
+                            'Restore {when} version',
+                          ).replace('{when}', formatClock(compared.createdAt, locale))}
+                        </button>
+                        <p>
+                          {tOr(
+                            'DocumentEditorScreen.restoreNote',
+                            'Restoring creates a new version. Nothing is overwritten.',
+                          )}
+                        </p>
+                      </div>
+                    </section>
+                  ) : null}
+                </div>
               </details>
             ) : null}
           </section>
+        ) : null}
+        {shareOpen && data ? (
+          <DocShareDialog
+            organizationSlug={organizationSlug}
+            documentId={documentId}
+            documentTitle={data.title}
+            projectName={projectName}
+            sharing={sharing.data}
+            onClose={() => setShareOpen(false)}
+          />
         ) : null}
       </div>
     </AppShell>

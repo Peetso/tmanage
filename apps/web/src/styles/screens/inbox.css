@@ -850,3 +850,78 @@
     font-size: var(--t-ui-sm);
   }
 }
+
+/* 2026-10-31 live-test fix — Inbox · Card actions, Snooze menu (Figma 446:36641). */
+.tm-inbox-snooze {
+  position: relative;
+  display: inline-flex;
+}
+
+.tm-inbox-snooze__menu {
+  position: absolute;
+  inset-block-start: calc(100% + var(--s2));
+  inset-inline-start: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-inline-size: 240px;
+  padding: var(--s2);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 12%);
+}
+
+.tm-inbox-snooze__label {
+  margin: 0;
+  padding: var(--s1) var(--s3);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+  text-transform: uppercase;
+}
+
+.tm-inbox-snooze__item {
+  display: block;
+  inline-size: 100%;
+  padding: var(--s2) var(--s3);
+  border: 0;
+  border-radius: var(--r-compact);
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-inbox-snooze__item:hover,
+.tm-inbox-snooze__item:focus-visible {
+  background: var(--paper-50);
+}
+
+.tm-inbox-confirm {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s4);
+  border-radius: var(--r-compact);
+  background: var(--ink-950);
+  color: var(--paper-0);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-inbox-confirm__text {
+  flex: 1;
+}
+
+.tm-inbox-confirm__undo {
+  border: 0;
+  background: transparent;
+  color: var(--lime-500);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}

@@ -26,7 +26,9 @@ const definition: StateMachineDefinition<WorkItemState> = {
   name: 'work_item',
   initial: 'backlog',
   states: WORK_ITEM_STATES,
-  terminal: ['archived'],
+  // 2026-10-31 live test: archive is no longer one-way. An archived item can be restored to the
+  // backlog (see the last transition), so the machine has no terminal state.
+  terminal: [],
   transitions: [
     { from: 'backlog', to: 'ready' },
     { from: 'backlog', to: 'archived', note: 'Alternate transition, §5.' },
@@ -61,6 +63,11 @@ const definition: StateMachineDefinition<WorkItemState> = {
       note: '§5: reopening a done item requires a recorded reason.',
     },
     { from: 'done', to: 'archived' },
+    {
+      from: 'archived',
+      to: 'backlog',
+      note: 'Restore from archive (2026-10-31 live test). The item starts over, not completed.',
+    },
   ],
 };
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { WORK_ITEM_STATES } from '@tmanage/domain';
@@ -42,6 +42,36 @@ export interface WorkListScreenProps {
   now?: Date;
   /** A6: open on the board rather than the list. */
   initialView?: 'list' | 'board';
+  /** The state filter to open on (`?state=` in the URL), so a reload keeps it. */
+  initialStates?: readonly WorkItemState[];
+}
+
+/**
+ * The list's view, project and state filter as a query string (2026-10-31 live test: a reload
+ * dropped the filter and always came back to the list). Defaults are left out, so the plain
+ * `/work` address stays plain.
+ */
+export function workListQuery(input: {
+  readonly view: 'list' | 'board';
+  readonly projectId: string;
+  readonly states: readonly WorkItemState[];
+}): string {
+  const params = new URLSearchParams();
+  if (input.projectId !== '') params.set('project', input.projectId);
+  if (input.states.length > 0) params.set('state', [...input.states].join(','));
+  if (input.view === 'board') params.set('view', 'board');
+  const text = params.toString();
+  return text === '' ? '' : `?${text}`;
+}
+
+/** The `?state=` value, kept to states the lifecycle defines. */
+export function parseStateParam(value: string | null): readonly WorkItemState[] {
+  if (value === null) return [];
+  return value
+    .split(',')
+    .filter((entry): entry is WorkItemState =>
+      (WORK_ITEM_STATES as readonly string[]).includes(entry),
+    );
 }
 
 type SortKey = 'loaded' | 'title' | 'state' | 'due';
@@ -101,6 +131,7 @@ export function WorkListScreen({
   client,
   now = new Date(),
   initialView = 'list',
+  initialStates = [],
 }: WorkListScreenProps) {
   const describeError = useDescribeApiError();
   const t = useT();
@@ -111,7 +142,7 @@ export function WorkListScreen({
   const queries = useQueryClient();
 
   const [projectId, setProjectId] = useState<string>(initialProjectId ?? '');
-  const [states, setStates] = useState<readonly WorkItemState[]>([]);
+  const [states, setStates] = useState<readonly WorkItemState[]>(initialStates);
   const [sortKey, setSortKey] = useState<SortKey>('loaded');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -119,6 +150,15 @@ export function WorkListScreen({
   const [bulkReport, setBulkReport] = useState<
     { updated: number; failed: readonly { title: string; reason: string }[] } | undefined
   >(undefined);
+
+  // The address follows the view and the filters, so a reload or a shared link reopens them.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const next = `${window.location.pathname}${workListQuery({ view, projectId, states })}`;
+    if (next !== `${window.location.pathname}${window.location.search}`) {
+      window.history.replaceState(window.history.state, '', next);
+    }
+  }, [view, projectId, states]);
 
   const projects = useQuery({
     queryKey: ['projects', organizationSlug],
@@ -286,6 +326,26 @@ export function WorkListScreen({
     setSelected(new Set());
   }
 
+  // The board's search field (Figma 376:17319) and WK-02's search glyph: both views open the
+  // command palette's search. The list had only the phone overview's trigger, which is hidden
+  // (0×0) on a desktop screen (2026-10-31 live test).
+  const searchTrigger = (
+    <button
+      type="button"
+      className="tm-wk-search"
+      data-kind="trigger"
+      onClick={() => window.dispatchEvent(new Event(OPEN_COMMAND_PALETTE_EVENT))}
+    >
+      <span className="tm-wk-search__icon" aria-hidden="true">
+        ⌕
+      </span>
+      <span className="tm-wk-search__placeholder">{ta('WorkBoard.search')}</span>
+      <kbd className="tm-wk-search__key" aria-hidden="true">
+        ⌘K
+      </kbd>
+    </button>
+  );
+
   return (
     <AppShell
       organizationSlug={organizationSlug}
@@ -306,20 +366,7 @@ export function WorkListScreen({
       actions={
         view === 'board' ? (
           <>
-            <button
-              type="button"
-              className="tm-wk-search"
-              data-kind="trigger"
-              onClick={() => window.dispatchEvent(new Event(OPEN_COMMAND_PALETTE_EVENT))}
-            >
-              <span className="tm-wk-search__icon" aria-hidden="true">
-                ⌕
-              </span>
-              <span className="tm-wk-search__placeholder">{ta('WorkBoard.search')}</span>
-              <kbd className="tm-wk-search__key" aria-hidden="true">
-                ⌘K
-              </kbd>
-            </button>
+            {searchTrigger}
             <Link
               href={`/${organizationSlug}/capture${projectId === '' ? '' : `?project=${encodeURIComponent(projectId)}`}`}
               className="tm-wk-pill-button"
@@ -329,15 +376,18 @@ export function WorkListScreen({
             </Link>
           </>
         ) : (
-          <Link
-            href={`/${organizationSlug}/capture${projectId === '' ? '' : `?project=${encodeURIComponent(projectId)}`}`}
-            className="tm-wk-new"
-          >
-            <span className="tm-wk-new__orb" aria-hidden="true">
-              +
-            </span>
-            {t('WorkListScreen.newWork')}
-          </Link>
+          <>
+            {searchTrigger}
+            <Link
+              href={`/${organizationSlug}/capture${projectId === '' ? '' : `?project=${encodeURIComponent(projectId)}`}`}
+              className="tm-wk-new"
+            >
+              <span className="tm-wk-new__orb" aria-hidden="true">
+                +
+              </span>
+              {t('WorkListScreen.newWork')}
+            </Link>
+          </>
         )
       }
       contextRail={
@@ -455,6 +505,10 @@ export function WorkListScreen({
               members={directory.members}
               membersPending={directory.isPending}
               now={now}
+              api={api}
+              onMoved={() =>
+                void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) })
+              }
             />
           )}
         </>

@@ -13,6 +13,8 @@ import { DEFAULT_INBOX_PAGE, listInbox, markBundleRead } from '../../lib/api/inb
 import type { InboxBundle, InboxItem, InboxMode, InboxUsageNotice } from '../../lib/api/inbox';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { snoozeBundle, unsnoozeBundle } from '../../lib/api/inbox-snooze';
 import type { MessageKey } from '../../lib/i18n/t';
 import { formatInstant, stateCapsule, stateLabel } from '../../lib/work-item-presentation';
 import { triageStateCapsule, triageStateLabel } from '../../lib/triage-presentation';
@@ -59,11 +61,27 @@ export interface InboxScreenProps {
 export function InboxScreen({ organizationSlug, organizationName, client }: InboxScreenProps) {
   const describe = useDescribeApiError();
   const t = useT();
+  const tOr = useTOr();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<InboxMode>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [snoozeMenuFor, setSnoozeMenuFor] = useState<string | null>(null);
+  const [snoozedNotice, setSnoozedNotice] = useState<{ bundleId: string; text: string } | null>(
+    null,
+  );
   const now = useNow();
+
+  // 2026-10-31 live test: the chosen filter was lost on reload. The mode lives in `?mode=`,
+  // read once on mount and written with replaceState so Back is not filled with filter clicks.
+  useEffect(() => {
+    try {
+      const fromUrl = new URLSearchParams(window.location.search).get('mode');
+      if (fromUrl !== null && isInboxMode(fromUrl)) setMode(fromUrl);
+    } catch {
+      // No URL to read: the default mode stands.
+    }
+  }, []);
 
   const inbox = useInfiniteQuery({
     queryKey: ['inbox', organizationSlug, mode],
@@ -91,8 +109,42 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
   const selectMode = (next: InboxMode) => {
     markRead.reset();
     setSelectedId(null);
+    setSnoozeMenuFor(null);
     setMode(next);
+    try {
+      const url = new URL(window.location.href);
+      if (next === 'all') url.searchParams.delete('mode');
+      else url.searchParams.set('mode', next);
+      window.history.replaceState(window.history.state, '', url.toString());
+    } catch {
+      // Keeping the filter in the URL is a convenience; the list works without it.
+    }
   };
+
+  // Snooze takes a card out of the list until the chosen time (the API leaves snoozed bundles
+  // out). The confirmation offers Undo, which un-snoozes and brings the card straight back.
+  const snooze = useMutation({
+    mutationFn: ({ bundleId, hours }: { bundleId: string; hours: number }) =>
+      snoozeBundle(
+        api,
+        organizationSlug,
+        bundleId,
+        new Date(Date.now() + hours * 3600 * 1000).toISOString(),
+      ),
+    onSuccess: (_result, { bundleId, hours }) => {
+      setSnoozeMenuFor(null);
+      setSnoozedNotice({ bundleId, text: snoozedText(hours, tOr) });
+      if (selectedId === bundleId) setSelectedId(null);
+      return queryClient.invalidateQueries({ queryKey: ['inbox', organizationSlug] });
+    },
+  });
+  const undoSnooze = useMutation({
+    mutationFn: (bundleId: string) => unsnoozeBundle(api, organizationSlug, bundleId),
+    onSuccess: () => {
+      setSnoozedNotice(null);
+      return queryClient.invalidateQueries({ queryKey: ['inbox', organizationSlug] });
+    },
+  });
 
   const markReadProps = (item: InboxItem) => ({
     loading: markRead.isPending && markRead.variables === item.bundleId,
@@ -126,6 +178,30 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
             <InlineAlert tone="danger" title={t('InboxScreen.markErrorTitle')} live>
               {describe(markRead.error)}
             </InlineAlert>
+          ) : null}
+
+          {snooze.isError || undoSnooze.isError ? (
+            <InlineAlert
+              tone="danger"
+              title={tOr('InboxScreen.snoozeErrorTitle', 'Could not snooze that item')}
+              live
+            >
+              {describe(snooze.error ?? undoSnooze.error)}
+            </InlineAlert>
+          ) : null}
+
+          {snoozedNotice ? (
+            <div className="tm-inbox-confirm" role="status">
+              <span className="tm-inbox-confirm__text">{snoozedNotice.text}</span>
+              <button
+                type="button"
+                className="tm-inbox-confirm__undo"
+                disabled={undoSnooze.isPending}
+                onClick={() => undoSnooze.mutate(snoozedNotice.bundleId)}
+              >
+                {tOr('InboxScreen.undo', 'Undo')}
+              </button>
+            </div>
           ) : null}
         </div>
 
@@ -281,6 +357,52 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
                             {t('InboxScreen.markRead')}
                           </Button>
                         ) : null}
+                        {item.objectType === 'organization_usage' ? null : (
+                          <div className="tm-inbox-snooze">
+                            <Button
+                              tone="outline"
+                              size="compact"
+                              aria-haspopup="menu"
+                              aria-expanded={snoozeMenuFor === item.bundleId}
+                              aria-label={`${tOr('InboxScreen.snoozeAriaPrefix', 'Snooze:')} ${name}`}
+                              onClick={() =>
+                                setSnoozeMenuFor((open) =>
+                                  open === item.bundleId ? null : item.bundleId,
+                                )
+                              }
+                            >
+                              {`${tOr('InboxScreen.snooze', 'Snooze')} ▾`}
+                            </Button>
+                            {snoozeMenuFor === item.bundleId ? (
+                              <div
+                                className="tm-inbox-snooze__menu"
+                                role="menu"
+                                aria-label={tOr('InboxScreen.snoozeUntil', 'Snooze until')}
+                              >
+                                <p className="tm-inbox-snooze__label" aria-hidden="true">
+                                  {tOr('InboxScreen.snoozeUntil', 'Snooze until')}
+                                </p>
+                                {SNOOZE_HORIZONS.map((horizon) => (
+                                  <button
+                                    key={horizon.hours}
+                                    type="button"
+                                    role="menuitem"
+                                    className="tm-inbox-snooze__item"
+                                    disabled={snooze.isPending}
+                                    onClick={() =>
+                                      snooze.mutate({
+                                        bundleId: item.bundleId,
+                                        hours: horizon.hours,
+                                      })
+                                    }
+                                  >
+                                    {tOr(horizon.key, horizon.english)}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
                         <button
                           type="button"
                           className="tm-inbox-textlink"
@@ -847,4 +969,36 @@ function reasonOf(bundle: InboxBundle, t: Translate): string {
   }
   if (reasons.length === 0) reasons.push(t('InboxScreen.reasonDefault'));
   return reasons.join(' ');
+}
+
+const INBOX_MODES: readonly InboxMode[] = ['important', 'all', 'waiting_on_me', 'client_actions'];
+
+function isInboxMode(value: string): value is InboxMode {
+  return (INBOX_MODES as readonly string[]).includes(value);
+}
+
+/** The card's snooze horizons, as designed (Inbox · Card actions, 2026-10-31 live-test fix). */
+const SNOOZE_HORIZONS: readonly { key: string; english: string; hours: number }[] = [
+  { key: 'InboxScreen.snoozeLaterToday', english: 'Later today · in 3 hours', hours: 3 },
+  { key: 'InboxScreen.snoozeTomorrow', english: 'Tomorrow', hours: 24 },
+  { key: 'InboxScreen.snoozeNextWeek', english: 'Next week', hours: 24 * 7 },
+];
+
+function snoozedText(hours: number, tOr: (key: string, english: string) => string): string {
+  if (hours <= 3) {
+    return tOr(
+      'InboxScreen.snoozedLaterToday',
+      'Snoozed for 3 hours. It comes back to your inbox then.',
+    );
+  }
+  if (hours <= 24) {
+    return tOr(
+      'InboxScreen.snoozedTomorrow',
+      'Snoozed until tomorrow. It comes back to your inbox then.',
+    );
+  }
+  return tOr(
+    'InboxScreen.snoozedNextWeek',
+    'Snoozed for a week. It comes back to your inbox then.',
+  );
 }

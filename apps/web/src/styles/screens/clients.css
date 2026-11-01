@@ -140,7 +140,8 @@
   border-block-end: var(--b-quiet) solid var(--line-300);
 }
 
-.cl-card--organizations .cl-row:last-child {
+.cl-card--organizations .cl-row:last-child,
+.cl-card--organizations .cl-item:last-child .cl-row {
   border-block-end: none;
   padding-block-end: 0;
 }
@@ -316,6 +317,59 @@
 .cl-dialog__roles {
   display: flex;
   flex-direction: column;
+  gap: var(--s3);
+}
+
+/* ---------- 2026-10-31 live-test fixes ---------- */
+
+.cl-item {
+  display: block;
+}
+
+/* A company row opens the company's own page (Figma 446:37327). */
+.cl-row--link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.cl-row--link:hover .cl-row__name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.cl-row--link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--r-control);
+}
+
+/* The Invitations tab shows the invitations card alone (Figma 446:37206). */
+.cl-screen[data-view='invitations'] .cl-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.cl-screen[data-view='invitations'] .cl-card--organizations {
+  display: none;
+}
+
+/* ---------- Client company page (Figma 446:37327) ---------- */
+
+.cl-back {
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  text-decoration: none;
+}
+
+.cl-back:hover {
+  color: var(--ink-950);
+  text-decoration: underline;
+}
+
+.cl-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
   gap: var(--s3);
 }
 

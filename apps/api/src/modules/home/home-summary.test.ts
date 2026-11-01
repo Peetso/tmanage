@@ -118,7 +118,7 @@ function serviceWith(
       _runner: unknown,
       _context: unknown,
       _owner: string,
-      window: { now: Date; dueSoonCutoff: Date },
+      window: { now: Date; overdueBefore: Date; dueSoonCutoff: Date },
     ): Promise<MyDayCountRow[]> => {
       const groups = new Map<string, MyDayCountRow>();
       for (const row of workRows) {
@@ -134,11 +134,12 @@ function serviceWith(
         groups.set(key, {
           ...group,
           total: group.total + 1,
-          overdue: group.overdue + (due !== undefined && due < window.now.getTime() ? 1 : 0),
+          overdue:
+            group.overdue + (due !== undefined && due < window.overdueBefore.getTime() ? 1 : 0),
           dueSoon:
             group.dueSoon +
             (due !== undefined &&
-            due >= window.now.getTime() &&
+            due >= window.overdueBefore.getTime() &&
             due <= window.dueSoonCutoff.getTime()
               ? 1
               : 0),
@@ -199,7 +200,7 @@ describe('HomeService.summaryOf (HOME-01 hero)', () => {
       ...Array.from({ length: 150 }, (_, index) =>
         item({
           id: `w-many-${String(index).padStart(23, '0')}`,
-          dueAt: new Date(NOW.getTime() - (index + 1) * HOUR),
+          dueAt: new Date(NOW.getTime() - (index + 13) * HOUR),
         }),
       ),
       // In a project the manager is not on: never counted.

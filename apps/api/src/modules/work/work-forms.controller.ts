@@ -13,6 +13,7 @@ import type { WorkFormFieldDef, WorkFormRow } from '../../common/database/schema
 import type { WorkFormsRepository } from './work-forms.repository.js';
 import type { WorkItemsService, WorkItemView } from './work-items.service.js';
 import {
+  submissionAnswersDescription,
   validateFieldDefs,
   validateFormName,
   validateSubmissionValues,
@@ -49,6 +50,10 @@ export interface WorkFormView {
   readonly createdBy: string;
   /** An ISO-8601 instant. */
   readonly createdAt: string;
+  /** 2026-10-31 live-test fix: whether the form has a live public link (`/f/<publicSlug>`). */
+  readonly published: boolean;
+  /** The public link's slug while published; `null` when the form is not shared. */
+  readonly publicSlug: string | null;
 }
 
 /** An explicit projection, not a serialised row: a column added later is invisible until named. */
@@ -59,6 +64,8 @@ function toView(row: WorkFormRow): WorkFormView {
     fields: row.fieldsJson,
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
+    published: row.publicEnabled === true && row.publicSlug !== null,
+    publicSlug: row.publicEnabled === true ? row.publicSlug : null,
   };
 }
 
@@ -185,7 +192,9 @@ export class WorkFormsController {
 
     // No new work path: the existing service resolves the project tenant-scoped and relation-gates
     // `work.create` (a non-member is 404, never 403), then creates and audits the work item.
-    return this.workItems.create(context, principal, { projectId, title });
+    // 2026-10-31 live-test fix: the answers were validated and then dropped; keep them on the item.
+    const description = submissionAnswersDescription(form.fieldsJson, body?.values);
+    return this.workItems.create(context, principal, { projectId, title, description });
   }
 
   /** Org-scoped deny-by-default decision the route guard cannot make (membership status, etc.). */

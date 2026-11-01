@@ -880,6 +880,7 @@ function ChannelMessage({
 }) {
   const t = useT();
   const tOr = useTOr();
+  const locale = useActiveLocale();
   const queries = useQueryClient();
   const { api, organizationSlug, conversationId, isMobile, nameOf, isClient, archived, moderate } =
     context;
@@ -1007,6 +1008,19 @@ function ChannelMessage({
             showAdd={!isMobile}
           />
         )}
+
+        {(message.replyCount ?? 0) > 0 ? (
+          <div className="tm-chat-replies-row">
+            <button
+              type="button"
+              className="tm-chat-replies"
+              aria-expanded={context.threadRootId === message.id}
+              onClick={(event) => context.openThread(message.id, event.currentTarget)}
+            >
+              {replyCountLabel(message.replyCount ?? 0, locale, tOr)}
+            </button>
+          </div>
+        ) : null}
 
         {isMobile ? (
           <button
@@ -1700,6 +1714,10 @@ function Composer({
   // in the textarea is what is saved verbatim, so what is restored is exactly what was typed.
   const persistDraft = parentMessageId === undefined;
   const restoredRef = useRef(false);
+  // 2026-10-31 live-test fix: a send clears the stored draft itself, at once. The emptied box then
+  // must not fire a second, debounced DELETE for the same draft — two DELETEs back to back is what
+  // the live test saw answered 503 by the host under load.
+  const clearedOnSendRef = useRef(false);
 
   // Restore the saved draft once, on open, and never over text the author has already started —
   // the seed only ever fills an empty box.
@@ -1729,6 +1747,11 @@ function Composer({
   // the draft is a convenience, not the message, and the next keystroke tries again.
   useEffect(() => {
     if (!persistDraft || !restoredRef.current) return;
+    if (draft !== '') clearedOnSendRef.current = false;
+    else if (clearedOnSendRef.current) {
+      clearedOnSendRef.current = false;
+      return;
+    }
     const handle = setTimeout(() => {
       const write =
         draft === ''
@@ -1753,6 +1776,7 @@ function Composer({
         ...(parentMessageId === undefined ? {} : { parentMessageId }),
       }),
     onSuccess: () => {
+      if (persistDraft) clearedOnSendRef.current = true;
       setDraft('');
       setAttemptId(undefined);
       // The message is sent, so its draft is spent — clear it so a reopen does not restore text
@@ -1885,6 +1909,7 @@ function Composer({
           activeIndex={mention.activeIndex}
           onPick={mention.pick}
           onHover={mention.setActiveIndex}
+          query={mention.query}
         />
       ) : null}
 
@@ -1965,6 +1990,25 @@ function Composer({
       {channelStyle ? null : <MicNotice dictation={dictation} />}
     </form>
   );
+}
+
+/**
+ * CH-02's "2 replies" pill: the thread's size in the locale's own plural form (Arabic has six).
+ * Keys are `ProjectChannelScreen.replies.<plural category>` with `{count}` in the text.
+ */
+export function replyCountLabel(
+  count: number,
+  locale: string,
+  tOr: (key: string, english: string) => string,
+): string {
+  let category: Intl.LDMLPluralRule = 'other';
+  try {
+    category = new Intl.PluralRules(locale).select(count);
+  } catch {
+    category = count === 1 ? 'one' : 'other';
+  }
+  const english = count === 1 ? '1 reply' : '{count} replies';
+  return tOr(`ProjectChannelScreen.replies.${category}`, english).replace('{count}', String(count));
 }
 
 /**

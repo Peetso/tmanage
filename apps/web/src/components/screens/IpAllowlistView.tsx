@@ -13,6 +13,9 @@ import {
 } from '../../lib/api/admin-ip-allowlist';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { Dialog } from './SecurityScreen';
+import '../../styles/screens/access-security.css';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface IpAllowlistViewProps {
@@ -43,6 +46,10 @@ export function IpAllowlistView({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tr = useTOr();
+  // 2026-10-31 live test: Remove deleted a range at once. It now asks first (Figma "Admin ·
+  // Trusted network ranges · Remove range — confirm (2026-10-31 live-test fix)", 449:21407).
+  const [confirming, setConfirming] = useState<IpAllowlistEntryView | null>(null);
 
   const entries = useQuery({
     queryKey: ['admin-ip-allowlist', organizationSlug],
@@ -72,6 +79,7 @@ export function IpAllowlistView({
     mutationFn: (entry: IpAllowlistEntryView) =>
       removeIpAllowlistEntry(api, organizationSlug, entry.id),
     onSuccess: async () => {
+      setConfirming(null);
       await invalidate();
     },
   });
@@ -226,7 +234,10 @@ export function IpAllowlistView({
                         size="compact"
                         loading={remove.isPending && remove.variables?.id === entry.id}
                         loadingLabel={t('IpAllowlistView.removing')}
-                        onClick={() => remove.mutate(entry)}
+                        onClick={() => {
+                          remove.reset();
+                          setConfirming(entry);
+                        }}
                       >
                         {t('IpAllowlistView.remove')}
                       </Button>
@@ -238,6 +249,45 @@ export function IpAllowlistView({
           ) : null}
         </section>
       </div>
+      {confirming ? (
+        <Dialog
+          title={tr('IpAllowlistView.confirmTitle', 'Remove {cidr}?').replace(
+            '{cidr}',
+            confirming.cidr,
+          )}
+          onClose={() => setConfirming(null)}
+        >
+          <p className="tm-sec-card__body">
+            {confirming.label
+              ? tr(
+                  'IpAllowlistView.confirmBodyNamed',
+                  'People signing in from this range are no longer on the trusted list ({label}). You can add it again at any time.',
+                ).replace('{label}', confirming.label)
+              : tr(
+                  'IpAllowlistView.confirmBody',
+                  'People signing in from this range are no longer on the trusted list. You can add it again at any time.',
+                )}
+          </p>
+          {remove.isError ? (
+            <InlineAlert tone="danger" title={t('IpAllowlistView.removeErrorTitle')} live>
+              {describeError(remove.error)}
+            </InlineAlert>
+          ) : null}
+          <div className="tm-sec-actions">
+            <Button tone="outline" onClick={() => setConfirming(null)}>
+              {tr('IpAllowlistView.cancel', 'Cancel')}
+            </Button>
+            <Button
+              tone="destructive"
+              loading={remove.isPending}
+              loadingLabel={t('IpAllowlistView.removing')}
+              onClick={() => remove.mutate(confirming)}
+            >
+              {tr('IpAllowlistView.confirmRemove', 'Remove range')}
+            </Button>
+          </div>
+        </Dialog>
+      ) : null}
     </ControlCenterShell>
   );
 }

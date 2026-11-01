@@ -267,6 +267,7 @@ export function EditWorkItemDialog({
         </fieldset>
 
         <Checkbox
+          className="tm-wk-dialog__visible"
           label={t('EditWorkItem.visible')}
           hint={t('EditWorkItem.visibleHint', { client: clientName ?? t('WorkA6.theClient') })}
           checked={visible}

@@ -920,6 +920,85 @@
   line-height: 28px;
 }
 
+/* Live test 2026-10-31: the body's Markdown drawn as the read view of 77:345 shows it — section
+   headings ("The decision"), lists, checklists, bold and links. */
+.tm-dx-sheet__heading {
+  margin: 10px 0 -4px;
+  color: var(--ink-950);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.tm-dx-sheet__heading[data-level='1'] {
+  font-size: 22px;
+  line-height: 30px;
+}
+
+.tm-dx-sheet__heading[data-level='2'] {
+  font-size: 19px;
+  line-height: 27px;
+}
+
+.tm-dx-sheet__heading[data-level='3'] {
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.tm-dx-sheet__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding-inline-start: 22px;
+  font-size: 16px;
+  line-height: 27px;
+  color: var(--ink-800);
+}
+
+.tm-dx-sheet__list[data-checklist='true'] {
+  padding-inline-start: 0;
+  list-style: none;
+}
+
+.tm-dx-sheet__list[data-checklist='true'] li {
+  display: flex;
+  gap: 10px;
+}
+
+.tm-dx-sheet__list li[data-done='true'] > span:last-child {
+  color: var(--ink-500);
+  text-decoration: line-through;
+}
+
+.tm-dx-sheet__check {
+  font-family: var(--font-mono);
+  color: var(--ink-650);
+}
+
+.tm-dx-sheet__body strong {
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-dx-sheet__body a {
+  color: var(--ink-950);
+  text-decoration: underline;
+  text-decoration-color: var(--lime-600);
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+.tm-dx-sheet__body a:hover {
+  text-decoration-thickness: 2px;
+}
+
+.tm-dx-sheet__body a:focus-visible {
+  outline: 3px solid var(--lime-500);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 /* The editor's body field: the sheet itself is the control. */
 .tm-dx-sheet__editor {
   display: flex;
@@ -1346,6 +1425,20 @@
   font-weight: 500;
   color: var(--ink-800);
   white-space: nowrap;
+}
+
+.tm-dx-share__audience:is(button) {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.tm-dx-share__audience:is(button):hover {
+  background: var(--paper-150);
+}
+
+.tm-dx-share__audience:is(button):focus-visible {
+  outline: 3px solid var(--lime-500);
+  outline-offset: 2px;
 }
 
 .tm-dx-share__orb {

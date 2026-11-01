@@ -37,8 +37,14 @@ export function tagFor(locale: string): string {
 
 export interface DocEditResult {
   readonly text: string;
-  /** Where the caret goes after the edit. */
+  /** Where the caret goes after the edit (the end of the selection). */
   readonly caret: number;
+  /**
+   * Where the selection starts after the edit. Equal to `caret` except when a placeholder was
+   * inserted ("**text**", "[text](https://)"): then the placeholder is selected, so the next typed
+   * word replaces it instead of landing beside it (live test 2026-10-31).
+   */
+  readonly selectionStart: number;
 }
 
 /** Apply one toolbar edit to `text` at the selection `[start, end)`. */
@@ -56,12 +62,25 @@ export function applyDocEdit(
   if (edit.kind === 'wrap') {
     const inner = selected || placeholder;
     const next = `${before}${edit.before}${inner}${edit.after}${after}`;
-    return { text: next, caret: before.length + edit.before.length + inner.length };
+    const innerStart = before.length + edit.before.length;
+    const innerEnd = innerStart + inner.length;
+    return { text: next, caret: innerEnd, selectionStart: selected ? innerEnd : innerStart };
   }
   if (edit.kind === 'link') {
     const label = selected || placeholder;
     const inserted = `[${label}](https://)`;
-    return { text: `${before}${inserted}${after}`, caret: before.length + inserted.length - 1 };
+    if (selected) {
+      // The label is there: put the caret inside the empty address, after "https://".
+      const caret = before.length + inserted.length - 1;
+      return { text: `${before}${inserted}${after}`, caret, selectionStart: caret };
+    }
+    // No selection: select the label placeholder so typing names the link.
+    const labelStart = before.length + 1;
+    return {
+      text: `${before}${inserted}${after}`,
+      caret: labelStart + label.length,
+      selectionStart: labelStart,
+    };
   }
   // Prefix every line the selection touches, from the start of its first line.
   const lineStart = before.lastIndexOf('\n') + 1;
@@ -71,7 +90,132 @@ export function applyDocEdit(
     .split('\n')
     .map((line) => `${edit.marker}${line}`)
     .join('\n');
-  return { text: `${head}${prefixed}${after}`, caret: head.length + prefixed.length };
+  const caret = head.length + prefixed.length;
+  return { text: `${head}${prefixed}${after}`, caret, selectionStart: caret };
+}
+
+/** One entry of the "/" menu (Figma 446:35321): the toolbar edit it applies. */
+export interface SlashCommand {
+  readonly id: DocToolId;
+  readonly key: string;
+  readonly english: string;
+  readonly glyph: string;
+  /** Extra words a typed filter matches ("/head", "/todo"). */
+  readonly words: readonly string[];
+}
+
+export const SLASH_COMMANDS: readonly SlashCommand[] = [
+  {
+    id: 'h1',
+    key: 'DocumentEditorScreen.slashH1',
+    english: 'Heading 1',
+    glyph: 'H1',
+    words: ['heading', 'title', 'h1'],
+  },
+  {
+    id: 'h2',
+    key: 'DocumentEditorScreen.slashH2',
+    english: 'Heading 2',
+    glyph: 'H2',
+    words: ['heading', 'subtitle', 'h2'],
+  },
+  {
+    id: 'list',
+    key: 'DocumentEditorScreen.slashList',
+    english: 'Bulleted list',
+    glyph: '•',
+    words: ['list', 'bullet'],
+  },
+  {
+    id: 'checklist',
+    key: 'DocumentEditorScreen.slashChecklist',
+    english: 'Checklist',
+    glyph: '☐',
+    words: ['checklist', 'todo', 'task'],
+  },
+  {
+    id: 'link',
+    key: 'DocumentEditorScreen.slashLink',
+    english: 'Link',
+    glyph: '↗',
+    words: ['link', 'url'],
+  },
+];
+
+/** The commands a "/query" still matches, by label or extra word, in menu order. */
+export function filterSlashCommands(
+  query: string,
+  labelOf: (command: SlashCommand) => string,
+): readonly SlashCommand[] {
+  const q = query.trim().toLowerCase();
+  if (q === '') return SLASH_COMMANDS;
+  return SLASH_COMMANDS.filter(
+    (command) =>
+      labelOf(command).toLowerCase().includes(q) ||
+      command.english.toLowerCase().includes(q) ||
+      command.words.some((word) => word.startsWith(q)),
+  );
+}
+
+/**
+ * Where a "/" menu opens: the "/" just typed at `caret - 1` starts a line or follows a space, so a
+ * path such as "and/or" or "https://" never opens it. Returns the slash's index, or -1.
+ */
+export function slashTriggerAt(text: string, caret: number): number {
+  const at = caret - 1;
+  if (at < 0 || text[at] !== '/') return -1;
+  const previous = at === 0 ? '\n' : text[at - 1];
+  return previous === '\n' || previous === ' ' || previous === '\t' ? at : -1;
+}
+
+/** One block of a line diff: lines only in the old text, or only in the new one. */
+export interface DiffBlock {
+  readonly kind: 'added' | 'removed';
+  readonly lines: readonly string[];
+}
+
+/**
+ * A line diff from `before` to `after` (longest common subsequence), grouped into runs of added
+ * and removed lines — the Compare panel of DOC-03 (Figma 145:224). Blank lines are ignored.
+ */
+export function diffLines(before: string, after: string): readonly DiffBlock[] {
+  const a = before.split(/\r?\n/u).filter((line) => line.trim() !== '');
+  const b = after.split(/\r?\n/u).filter((line) => line.trim() !== '');
+  const rows = a.length + 1;
+  const cols = b.length + 1;
+  const table = new Uint32Array(rows * cols);
+  for (let i = a.length - 1; i >= 0; i -= 1) {
+    for (let j = b.length - 1; j >= 0; j -= 1) {
+      table[i * cols + j] =
+        a[i] === b[j]
+          ? (table[(i + 1) * cols + j + 1] ?? 0) + 1
+          : Math.max(table[(i + 1) * cols + j] ?? 0, table[i * cols + j + 1] ?? 0);
+    }
+  }
+  const blocks: DiffBlock[] = [];
+  const push = (kind: DiffBlock['kind'], line: string) => {
+    const last = blocks[blocks.length - 1];
+    if (last && last.kind === kind) (last.lines as string[]).push(line);
+    else blocks.push({ kind, lines: [line] });
+  };
+  let i = 0;
+  let j = 0;
+  while (i < a.length || j < b.length) {
+    if (i < a.length && j < b.length && a[i] === b[j]) {
+      i += 1;
+      j += 1;
+    } else if (
+      j < b.length &&
+      (i >= a.length || (table[i * cols + j + 1] ?? 0) >= (table[(i + 1) * cols + j] ?? 0))
+    ) {
+      push('added', b[j] as string);
+      j += 1;
+    } else {
+      push('removed', a[i] as string);
+      i += 1;
+    }
+  }
+  return blocks;
 }
 
 /** A blank document's body (a lone newline the API needed) reads as empty in the editor. */

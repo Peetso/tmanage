@@ -17,6 +17,8 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { useHydrated } from '../../lib/use-hydrated';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { actionLabel, triggerLabel } from './automation-labels';
 
 export interface AutomationTemplatesScreenProps {
   organizationSlug: string;
@@ -45,12 +47,6 @@ const STATE_FILTERS = [{ value: 'all' }, { value: 'live' }, { value: 'off' }] as
 
 type StateFilter = (typeof STATE_FILTERS)[number]['value'];
 
-/** Turn `work_item_created` into `Work item created` for the option labels. */
-function humanize(kind: string): string {
-  const spaced = kind.replace(/_/g, ' ');
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-}
-
 /**
  * **Automations & integrations (module 17, x162).**
  *
@@ -74,6 +70,7 @@ export function AutomationTemplatesScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tOr = useTOr();
 
   const stateFilterLabel = (value: StateFilter): string => {
     switch (value) {
@@ -249,13 +246,14 @@ export function AutomationTemplatesScreen({
                               {template.name}
                             </Link>
                             <span className="tm-aut-rowsub">
-                              {t('AutomationTemplatesScreen.rowWhen')}{' '}
-                              {humanize(template.triggerKind).toLowerCase()} →{' '}
-                              {humanize(template.actionKind).toLowerCase()}
+                              {triggerLabel(tOr, template.triggerKind)} →{' '}
+                              {actionLabel(tOr, template.actionKind)}
                             </span>
                           </th>
-                          <td>{humanize(template.triggerKind)}</td>
-                          <td className="tm-aut-hide-sm">{humanize(template.actionKind)}</td>
+                          <td>{triggerLabel(tOr, template.triggerKind)}</td>
+                          <td className="tm-aut-hide-sm">
+                            {actionLabel(tOr, template.actionKind)}
+                          </td>
                           <td className="tm-aut-end">
                             <span
                               className={`tm-aut-state ${template.enabled ? 'tm-aut-state--live' : 'tm-aut-state--off'}`}
@@ -330,7 +328,7 @@ export function AutomationTemplatesScreen({
                       >
                         {TRIGGER_KINDS.map((kind) => (
                           <option key={kind} value={kind}>
-                            {humanize(kind)}
+                            {triggerLabel(tOr, kind)}
                           </option>
                         ))}
                       </select>
@@ -350,7 +348,7 @@ export function AutomationTemplatesScreen({
                       >
                         {ACTION_KINDS.map((kind) => (
                           <option key={kind} value={kind}>
-                            {humanize(kind)}
+                            {actionLabel(tOr, kind)}
                           </option>
                         ))}
                       </select>

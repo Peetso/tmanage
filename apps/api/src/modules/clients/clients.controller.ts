@@ -252,6 +252,7 @@ export class ClientsController {
     @Query('clientOrganizationId') clientOrganizationId?: string,
     @Query('status') status?: string,
     @Query('includeExpired') includeExpired?: string,
+    @Query('withPeople') withPeople?: string,
   ): Promise<{ readonly clientMemberships: readonly ClientMembershipView[] }> {
     const details: { field: string; message: string }[] = [];
     const statuses =
@@ -272,6 +273,7 @@ export class ClientsController {
         ...(clientOrganizationId ? { clientOrganizationId } : {}),
         ...(statuses ? { statuses: statuses as ClientMembershipStatus[] } : {}),
         includeExpired: includeExpired === 'true',
+        ...(withPeople === 'true' ? { withPeople: true } : {}),
       }),
     };
   }

@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@tmanage/ui';
-import { OnboardingShell } from '../shell/OnboardingShell';
+import { OnboardingShell, type OnboardingStepId } from '../shell/OnboardingShell';
 import { OnboardingScreenStyles } from './CreateOrganizationScreen';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { issueInvitation } from '../../lib/api/invitations';
@@ -30,6 +30,8 @@ export interface InviteTeamScreenProps {
   /** Addresses that already hold a membership, so duplicates are caught before sending. */
   existingMembers: readonly string[];
   client?: ApiClient;
+  /** Onboarding steps already finished, for the stepper. */
+  completedSteps?: readonly OnboardingStepId[];
 }
 
 /** One address after the API has answered for it. */
@@ -83,6 +85,7 @@ export function InviteTeamScreen({
   organizationDomain,
   existingMembers,
   client,
+  completedSteps,
 }: InviteTeamScreenProps) {
   const api = client ?? browserApiClient();
   const t = useT();
@@ -166,7 +169,12 @@ export function InviteTeamScreen({
   }
 
   return (
-    <OnboardingShell current="ON-04" signedInAs={signedInAs} title={t('InviteTeamScreen.title')}>
+    <OnboardingShell
+      current="ON-04"
+      signedInAs={signedInAs}
+      title={t('InviteTeamScreen.title')}
+      {...(completedSteps === undefined ? {} : { completed: completedSteps })}
+    >
       <OnboardingScreenStyles />
       <style href="tm-onboarding-team" precedence="default">
         {TEAM_CSS}

@@ -109,6 +109,34 @@ function screenOver(handler: (call: Call) => Response, calls: Call[]) {
 }
 
 describe('DocumentEditorScreen — F2 rename in the editor', () => {
+  // Live test 2026-10-31: clicking away from the title neither saved nor cancelled.
+  it('clicking away saves a changed name, and an unchanged one just closes', async () => {
+    const calls: Call[] = [];
+    const state = { current: DOC };
+    screenOver(
+      server((call) => {
+        const body = call.body as { title: string };
+        state.current = { ...state.current, title: body.title, updatedAt: LATER };
+        return json(state.current);
+      }, state),
+      calls,
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Untitled doc' }));
+    const field = screen.getByRole('textbox', { name: 'Doc name' });
+    await user.clear(field);
+    await user.type(field, 'Atlas launch plan');
+    await user.click(screen.getByLabelText('Document body'));
+
+    expect(await screen.findByText('Doc renamed to “Atlas launch plan”')).toBeVisible();
+    expect(calls.filter((call) => call.method === 'PATCH')).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: 'Atlas launch plan' }));
+    await user.click(screen.getByLabelText('Document body'));
+    expect(screen.queryByRole('textbox', { name: 'Doc name' })).toBeNull();
+    expect(calls.filter((call) => call.method === 'PATCH')).toHaveLength(1);
+  });
+
   it('opens the field with its hint, and Esc puts the old name back without a request', async () => {
     const calls: Call[] = [];
     const state = { current: DOC };

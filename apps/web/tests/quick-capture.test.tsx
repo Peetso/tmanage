@@ -49,6 +49,25 @@ describe('buildCapturePayload', () => {
       title: 'Draft the brief',
     });
   });
+
+  it('adds the owner and committed day picked on the chips (2026-10-31 live test)', () => {
+    expect(
+      buildCapturePayload({
+        projectId: 'proj-1',
+        title: 'Draft',
+        ownerUserId: 'u-1',
+        committedDay: '2026-11-02',
+      }),
+    ).toEqual({
+      projectId: 'proj-1',
+      title: 'Draft',
+      ownerUserId: 'u-1',
+      dueAt: '2026-11-02T12:00:00.000Z',
+    });
+    expect(
+      buildCapturePayload({ projectId: 'p', title: 'x', ownerUserId: null, committedDay: '' }),
+    ).toEqual({ projectId: 'p', title: 'x' });
+  });
 });
 
 describe('initialCaptureProjectId (WRK-09)', () => {

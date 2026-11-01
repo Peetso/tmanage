@@ -104,7 +104,7 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // platform/security-signals), was 1034.
 // 52-01 timer: +5 NEVER (GET time/timer, POST time/timer/{start,stop,heartbeat}, GET time/active),
 // was 1038.
-const EXPECTED_ROUTE_COUNT = 1043;
+const EXPECTED_ROUTE_COUNT = 1045;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

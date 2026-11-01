@@ -791,6 +791,29 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'organization',
     clause: '§12 policy change — who must use two-step sign-in, and from where',
   },
+  /**
+   * 2026-10-31 live test (10-admin). The access policy (session length, invite domains, outside
+   * people) was changed. Metadata: the keys changed and the new session length.
+   */
+  'organization.access_policy_changed': {
+    objectType: 'organization',
+    clause: '§12 policy change — how long sign-ins last and who may be let in',
+  },
+  /** 2026-10-31 live test (10-admin). A trusted network range was added (the range, never a label). */
+  'ip_allowlist.entry_added': {
+    objectType: 'ip_allowlist_entry',
+    clause: '§12 policy change — a network the company trusts was added',
+  },
+  /** 2026-10-31 live test (10-admin). A trusted network range was removed. */
+  'ip_allowlist.entry_removed': {
+    objectType: 'ip_allowlist_entry',
+    clause: '§12 policy change — a network the company trusts was removed',
+  },
+  /** 2026-10-31 live test (10-admin). The billing tax details were saved (country only in metadata). */
+  'billing_tax_details.updated': {
+    objectType: 'organization',
+    clause: '§12 — the legal name and tax details invoices carry were changed',
+  },
   // ---- platform-admin v2 · PA-01 ----
   /**
    * PA-01. One member's per-person permission overrides were changed (0242). Metadata: the target
@@ -1123,6 +1146,10 @@ const AUDIT_ACTION_LABELS = {
   'member_admin_note.created': 'Added a private note about a member',
   'member_admin_note.deleted': 'Deleted a private note about a member',
   'organization.security_settings_changed': 'Changed how people sign in',
+  'organization.access_policy_changed': 'Changed the access policy',
+  'ip_allowlist.entry_added': 'Added a trusted network range',
+  'ip_allowlist.entry_removed': 'Removed a trusted network range',
+  'billing_tax_details.updated': 'Changed the billing tax details',
   // ---- platform-admin v2 · PA-01 ----
   'membership.permission_overrides_changed': "Changed one person's permissions",
   // ---- platform-admin v2 · PA-03 ----

@@ -78,9 +78,17 @@ export class BillingModule {
     };
     const taxDetailsService: Provider = {
       provide: BILLING_TAX_DETAILS_SERVICE,
-      inject: [TENANT_DATABASE, BILLING_TAX_DETAILS_REPOSITORY],
-      useFactory: (database: TenantDatabase, repository: BillingTaxDetailsRepository) =>
-        new BillingTaxDetailsService(database, repository),
+      // 2026-10-31 live test: the save is audited — the global audit service, injected optionally.
+      inject: [
+        TENANT_DATABASE,
+        BILLING_TAX_DETAILS_REPOSITORY,
+        { token: AUDIT_SERVICE, optional: true },
+      ],
+      useFactory: (
+        database: TenantDatabase,
+        repository: BillingTaxDetailsRepository,
+        audit?: AuditService,
+      ) => new BillingTaxDetailsService(database, repository, audit),
     };
     // Billing / module 19 (x284). Plan-change requests — a recorded intent to move plans. A stateless
     // repository folded into the service under a slice-private token (no `tokens.ts` edit), the same

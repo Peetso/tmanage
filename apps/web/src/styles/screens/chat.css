@@ -943,9 +943,13 @@
 }
 
 .tm-chat-composer__input {
-  inline-size: 100%;
+  /* 2026-10-31 live-test fix: with no inline padding the textarea clipped the first glyph's left
+     edge ("QA" read as "JA"). 2px of padding, cancelled by a -2px margin, gives the glyph room
+     and leaves the text exactly where the design puts it. */
+  inline-size: calc(100% + 4px);
   min-block-size: 44px;
-  padding: 0;
+  margin-inline: -2px;
+  padding: 0 2px;
   border: 0;
   background: transparent;
   color: var(--ink-950);

@@ -15,6 +15,7 @@ import {
   UsageCountersRepository,
 } from '../files/usage-counters.repository.js';
 import { isCollaborationObjectType } from './inbox-object-resolvers.js';
+import type { InboxSnoozeRepository } from './inbox-snooze.repository.js';
 import type {
   CollaborationObjectType,
   InboxObjectResolvers,
@@ -185,6 +186,13 @@ export class InboxService {
     private readonly usage?: InboxUsageConfig,
     /** CQ-12: readers for the collaboration objects. Absent, those bundles are dropped. */
     private readonly collaboration: InboxObjectResolvers = {},
+    /**
+     * The member's snoozes. Present, a bundle snoozed into the future is left out of the list until
+     * then — what the snooze route promises ("drops out of their active inbox until then"). The
+     * 2026-10-31 live test found no way to clear a card; the card's Snooze now does.
+     */
+    private readonly snoozes?: InboxSnoozeRepository,
+    private readonly clock: () => Date = () => new Date(),
   ) {
     this.usageCounters = usage?.counters ?? new UsageCountersRepository();
   }
@@ -222,13 +230,31 @@ export class InboxService {
       }),
     );
 
-    const items = await this.bundle(context, principal, rows);
+    const bundled = await this.bundle(context, principal, rows);
+    const items = await this.withoutSnoozed(context, bundled);
 
     const oldest = rows[rows.length - 1];
     return {
       items,
       nextCursor: rows.length === limit && oldest ? oldest.id : null,
     };
+  }
+
+  /** Drop the bundles the acting member has snoozed into the future (a short page, never a lie). */
+  private async withoutSnoozed<T extends { readonly bundleId: string }>(
+    context: TenantContext,
+    items: readonly T[],
+  ): Promise<readonly T[]> {
+    const repository = this.snoozes;
+    if (repository === undefined || items.length === 0) return items;
+    const snoozes = await this.database.read(context, (runner) =>
+      repository.listForMembership(runner, context, context.membershipId),
+    );
+    const now = this.clock().getTime();
+    const hidden = new Set(
+      snoozes.filter((row) => row.snoozedUntil.getTime() > now).map((row) => row.bundleId),
+    );
+    return hidden.size === 0 ? items : items.filter((item) => !hidden.has(item.bundleId));
   }
 
   /**

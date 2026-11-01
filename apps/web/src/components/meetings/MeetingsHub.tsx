@@ -17,6 +17,8 @@ import { setMeetingRsvp, type MeetingRsvpResponse } from '../../lib/api/meeting-
 import { startCalendarConnect } from '../../lib/api/calendar-connections';
 import { fillTemplate } from '../../lib/ai-approval-presentation';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { useHydrated } from '../../lib/use-hydrated';
 import {
   addDays,
   blockPosition,
@@ -77,6 +79,9 @@ export function MeetingsHub({
 }: MeetingsHubProps) {
   const t = useT();
   const queries = useQueryClient();
+  // The server renders in its own zone and clock; dates drawn before hydration would not match the
+  // reader's browser (React #418 on every load), so date text waits for the client.
+  const hydrated = useHydrated();
   const now = useMemo(() => fixedNow ?? new Date(), [fixedNow]);
   const [range, setRange] = useState<CalendarRange>(initialRange);
   const [anchor, setAnchor] = useState<Date>(() => startOfDay(now));
@@ -182,19 +187,16 @@ export function MeetingsHub({
     all.length === 0 &&
     (upcoming.data ?? []).length === 0;
 
-  if (showEmpty) {
-    return (
-      <div className="tm-mtg">
-        <EmptyConnect organizationSlug={organizationSlug} accounts={accounts} api={api} />
-      </div>
-    );
-  }
-
   const nextOverview = nextMeeting ? overviews.get(nextMeeting.id) : undefined;
   const nextId = nextMeeting?.id ?? null;
 
   return (
     <div className="tm-mtg">
+      {/* Empty with views (Figma 446:34834, 2026-10-31 live-test fix): the connect cards sit above
+          the calendar, so Day / Week / Month, Past and the dates stay usable with no meetings. */}
+      {showEmpty ? (
+        <EmptyConnect organizationSlug={organizationSlug} accounts={accounts} api={api} />
+      ) : null}
       {failing.slice(0, 2).map((overview) => (
         <div key={overview.meeting.id} className="tm-mtg-banner" data-tone="danger" role="status">
           <p>
@@ -251,7 +253,9 @@ export function MeetingsHub({
                 .toUpperCase()}
             </p>
             <h2 id="tm-mtg-next-title" className="tm-mtg-next__title">
-              <Link href={meetingHref(organizationSlug, nextMeeting.id)}>{nextMeeting.title}</Link>
+              <Link prefetch={false} href={meetingHref(organizationSlug, nextMeeting.id)}>
+                {nextMeeting.title}
+              </Link>
             </h2>
             <p className="tm-mtg-next__meta">
               <span>{projectNames.get(nextMeeting.projectId) ?? ''}</span>
@@ -328,7 +332,7 @@ export function MeetingsHub({
             <span aria-hidden="true">‹</span>
           </button>
           <p className="tm-mtg-range" aria-live="polite">
-            {rangeLabel(range, anchor)}
+            {hydrated || fixedNow ? rangeLabel(range, anchor) : ' '}
           </p>
           <button
             type="button"
@@ -515,6 +519,7 @@ function WeekGrid({
                 <Link
                   key={m.id}
                   className="tm-mtg-allday"
+                  prefetch={false}
                   href={meetingHref(organizationSlug, m.id)}
                 >
                   {m.title}
@@ -551,6 +556,7 @@ function WeekGrid({
                   return (
                     <Link
                       key={m.id}
+                      prefetch={false}
                       href={meetingHref(organizationSlug, m.id)}
                       className="tm-mtg-block"
                       data-tone={tone}
@@ -635,6 +641,7 @@ function MonthGrid({
                 return (
                   <Link
                     key={m.id}
+                    prefetch={false}
                     href={meetingHref(organizationSlug, m.id)}
                     className="tm-mtg-chiplink"
                     data-tone={tone}
@@ -687,7 +694,9 @@ function DayList({
         <article className="tm-mtg-daycard" data-state={state}>
           <div className="tm-mtg-daycard__main">
             <h3 className="tm-mtg-daycard__title">
-              <Link href={meetingHref(organizationSlug, m.id)}>{m.title}</Link>
+              <Link prefetch={false} href={meetingHref(organizationSlug, m.id)}>
+                {m.title}
+              </Link>
             </h3>
             <p className="tm-mtg-daycard__meta">
               {[
@@ -902,6 +911,7 @@ function EmptyConnect({
   api: ApiClient;
 }) {
   const t = useT();
+  const tOr = useTOr();
   const connect = useMutation({
     mutationFn: (provider: 'google' | 'microsoft') =>
       startCalendarConnect(api, organizationSlug, provider),
@@ -912,20 +922,36 @@ function EmptyConnect({
   return (
     <>
       <section className="tm-mtg-hero" aria-labelledby="tm-mtg-hero-title">
-        <p className="tm-mtg-mono tm-mtg-next__eyebrow">{t('MeetingsHub.noCalendarEyebrow')}</p>
+        <p className="tm-mtg-mono tm-mtg-next__eyebrow">
+          {tOr('MeetingsHub.emptyEyebrow', 'No calendar connected')}
+        </p>
         <h2 id="tm-mtg-hero-title" className="tm-mtg-hero__title">
-          {t('MeetingsHub.noCalendarTitle')}
+          {tOr(
+            'MeetingsHub.emptyTitle',
+            'Connect your calendar to send invitations and video links.',
+          )}
         </h2>
-        <p className="tm-mtg-hero__body">{t('MeetingsHub.noCalendarBody')}</p>
+        <p className="tm-mtg-hero__body">
+          {tOr(
+            'MeetingsHub.emptyBody',
+            'Your meetings, your guests’ answers and the Join button all come from your own Google or Microsoft calendar. It takes about a minute.',
+          )}
+        </p>
       </section>
       <div className="tm-mtg-connect-grid">
         {accounts.map((account) => (
           <section key={account.provider} className="tm-mtg-card">
             <h3 className="tm-mtg-card__title">{calendarName(account.provider)}</h3>
             <p className="tm-mtg-quiet">
-              {t(
-                account.provider === 'microsoft' ? 'MeetingsHub.msCreates' : 'MeetingsHub.gCreates',
-              )}
+              {account.provider === 'microsoft'
+                ? tOr(
+                    'MeetingsHub.msCreatesLong',
+                    'Creates Microsoft Teams links. Invitations come from your Outlook address.',
+                  )
+                : tOr(
+                    'MeetingsHub.gCreatesLong',
+                    'Creates Google Meet links. Invitations come from your Google address.',
+                  )}
             </p>
             <span className="tm-mtg-status" data-status="not_connected">
               {t('MeetingsHub.notConnected')}
@@ -945,8 +971,15 @@ function EmptyConnect({
       </div>
       <section className="tm-mtg-card tm-mtg-notready">
         <div>
-          <h3 className="tm-mtg-card__title">{t('MeetingsHub.notReadyTitle')}</h3>
-          <p className="tm-mtg-quiet">{t('MeetingsHub.notReadyBody')}</p>
+          <h3 className="tm-mtg-card__title">
+            {tOr('MeetingsHub.notReadyToConnectTitle', 'Not ready to connect?')}
+          </h3>
+          <p className="tm-mtg-quiet">
+            {tOr(
+              'MeetingsHub.notReadyToConnectBody',
+              'You can still plan a meeting in TManage. Guests will not get an invitation or a video link until you connect.',
+            )}
+          </p>
         </div>
         <Link className="tm-mtg-btn tm-mtg-btn--outline" href={`/${organizationSlug}/calendar/new`}>
           {t('MeetingsHub.planWithout')}

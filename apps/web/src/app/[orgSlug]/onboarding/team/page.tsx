@@ -1,6 +1,7 @@
 'use client';
 
 import { use } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { InviteTeamScreen } from '../../../../components/screens/InviteTeamScreen';
 
 /**
@@ -17,6 +18,8 @@ import { InviteTeamScreen } from '../../../../components/screens/InviteTeamScree
  */
 export default function InviteTeamPage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = use(params);
+  // ON-03 hands over `?project=created` when it made the project; a typed URL shows it as skipped.
+  const projectCreated = useSearchParams().get('project') === 'created';
 
   return (
     <InviteTeamScreen
@@ -24,6 +27,7 @@ export default function InviteTeamPage({ params }: { params: Promise<{ orgSlug: 
       organizationSlug={orgSlug}
       organizationDomain=""
       existingMembers={[]}
+      completedSteps={projectCreated ? ['ON-02', 'ON-03'] : ['ON-02']}
     />
   );
 }

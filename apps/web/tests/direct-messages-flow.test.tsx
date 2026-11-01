@@ -484,6 +484,35 @@ describe('New message', () => {
     );
   });
 
+  it('says that nobody matched instead of showing an empty list (2026-10-31 live-test fix)', async () => {
+    const user = userEvent.setup();
+    const { client } = clientOver((call) => {
+      if (call.url.includes('/members')) return json({ members: [], nextAfter: null });
+      if (call.url.includes('/conversations/directory')) return json(DIRECTORY);
+      if (call.url.includes('/projects')) return json(PROJECTS);
+      return json({}, 404);
+    });
+    render(
+      wrap(
+        <NewMessageDialog
+          api={client}
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          onClose={() => {}}
+          onOpened={() => {}}
+        />,
+      ),
+    );
+
+    const dialog = screen.getByRole('dialog', { name: 'New message' });
+    await user.type(within(dialog).getByLabelText('To'), 'Pe');
+    expect(await within(dialog).findByText('No one matches “Pe”')).toBeInTheDocument();
+    expect(
+      within(dialog).getByText('Check the spelling, or invite them to this workspace first.'),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Open conversation' })).toBeDisabled();
+  });
+
   it('lists your team and clients, and says the rule when a pair is refused', async () => {
     const user = userEvent.setup();
     const onOpened = vi.fn();
@@ -519,7 +548,9 @@ describe('New message', () => {
     await user.type(within(dialog).getByLabelText('To'), 'Y');
     expect(await within(dialog).findByText('Your team')).toBeInTheDocument();
     expect(within(dialog).getByText('Clients on projects you share')).toBeInTheDocument();
-    expect(within(dialog).getByText('Member · Northstar Studio')).toBeInTheDocument();
+    // 2026-10-31 live-test fix: the route's sample company name is never printed; until the
+    // session's organization list names the workspace, the subtitle is the role alone.
+    expect(within(dialog).getByText('Member')).toBeInTheDocument();
     await expectNoAxeViolations(dialog);
 
     const youssef = await within(dialog).findByRole('button', { name: /Youssef Kamal/ });

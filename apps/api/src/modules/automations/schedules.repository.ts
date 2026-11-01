@@ -125,4 +125,53 @@ export class AutomationSchedulesRepository {
     }
     return created;
   }
+
+  /**
+   * 2026-10-31 live-test fix: turn one schedule on or off, within the acting tenant. Turning it on
+   * also moves `next_run_at` forward (the caller computes it from now), so a schedule paused for a
+   * while never comes back with a due time in the past. Returns false when no tenant-owned row has
+   * that id.
+   */
+  async setEnabled(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    scheduleId: string,
+    enabled: boolean,
+    nextRunAt: Date | null,
+  ): Promise<boolean> {
+    const existing = await this.findById(runner, context, scheduleId);
+    if (!existing) return false;
+    await tenantDrizzle(runner)
+      .update(automationSchedules)
+      .set(nextRunAt ? { enabled, nextRunAt } : { enabled })
+      .where(
+        and(
+          eq(automationSchedules.organizationId, context.organizationId),
+          eq(automationSchedules.id, scheduleId),
+        ),
+      );
+    return true;
+  }
+
+  /**
+   * 2026-10-31 live-test fix: remove one schedule, within the acting tenant. The runs it already made
+   * live in `workflow_runs` and stay. Returns false when no tenant-owned row has that id.
+   */
+  async remove(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    scheduleId: string,
+  ): Promise<boolean> {
+    const existing = await this.findById(runner, context, scheduleId);
+    if (!existing) return false;
+    await tenantDrizzle(runner)
+      .delete(automationSchedules)
+      .where(
+        and(
+          eq(automationSchedules.organizationId, context.organizationId),
+          eq(automationSchedules.id, scheduleId),
+        ),
+      );
+    return true;
+  }
 }

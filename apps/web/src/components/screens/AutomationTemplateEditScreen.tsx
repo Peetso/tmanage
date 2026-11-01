@@ -14,11 +14,13 @@ import {
   listWorkflowConditions,
   listWorkflowRuns,
   listWorkflowTemplates,
+  runWorkflowTemplate,
   updateWorkflowTemplate,
   type CreateWorkflowConditionInput,
   type WorkflowActionKind,
   type WorkflowConditionSummary,
   type WorkflowRunHistoryItem,
+  type WorkflowRunSummary,
   type WorkflowTemplateSummary,
   type WorkflowTriggerKind,
 } from '../../lib/api/automations';
@@ -27,6 +29,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { ACTIONS, TRIGGERS, actionLabel, triggerLabel } from './automation-labels';
 
 export interface AutomationTemplateEditScreenProps {
   organizationSlug: string;
@@ -37,43 +40,6 @@ export interface AutomationTemplateEditScreenProps {
 
 type TOr = (key: string, english: string) => string;
 
-/** The trigger chip's wording and the clause the page title ends with, per trigger kind. */
-const TRIGGERS: Readonly<
-  Record<WorkflowTriggerKind, { readonly label: string; readonly clause: string }>
-> = {
-  work_item_created: {
-    label: 'A work item is created',
-    clause: 'when a work item is created',
-  },
-  work_item_transitioned: {
-    label: 'A work item changes status',
-    clause: 'when a work item changes status',
-  },
-  request_submitted: {
-    label: 'A client sends a request',
-    clause: 'when a client sends a request',
-  },
-  meeting_scheduled: {
-    label: 'A meeting is scheduled',
-    clause: 'when a meeting is scheduled',
-  },
-  document_published: {
-    label: 'A document is published',
-    clause: 'when a document is published',
-  },
-  work_item_due_soon: {
-    label: 'A work item is due in 2 days',
-    clause: 'when a work item is due in 2 days',
-  },
-};
-
-const ACTIONS: Readonly<Record<WorkflowActionKind, string>> = {
-  notify_owner: 'Remind the owner',
-  create_work_item: 'Create a work item',
-  post_message: 'Post a message',
-  send_email_digest: 'Send an email digest',
-};
-
 const TRIGGER_KINDS = Object.keys(TRIGGERS) as WorkflowTriggerKind[];
 const ACTION_KINDS = Object.keys(ACTIONS) as WorkflowActionKind[];
 
@@ -83,16 +49,6 @@ type StatusChoice = 'any' | 'not_done' | 'done';
 /** The condition fields the "Only if" chips write (x190 conditions, step 0 = the trigger). */
 const PROJECT_FIELD = 'project_id';
 const STATUS_FIELD = 'status';
-
-function triggerLabel(tOr: TOr, kind: string): string {
-  const entry = TRIGGERS[kind as WorkflowTriggerKind];
-  return entry ? tOr(`AutomationRule.trigger.${kind}`, entry.label) : kind;
-}
-
-function actionLabel(tOr: TOr, kind: string): string {
-  const english = ACTIONS[kind as WorkflowActionKind];
-  return english ? tOr(`AutomationRule.action.${kind}`, english) : kind;
-}
 
 /** The page title: the rule as one sentence, e.g. "Remind the owner when a work item is created". */
 export function ruleSentence(tOr: TOr, triggerKind: string, actionKind: string): string {
@@ -181,7 +137,7 @@ export function AutomationTemplateEditScreen({
       title={
         template
           ? ruleSentence(tOr, template.triggerKind, template.actionKind)
-          : tOr('AutomationTemplateEditScreen.editTemplate', 'Edit template')
+          : tOr('AutomationTemplateEditScreen.editAutomation', 'Edit automation')
       }
       actions={
         template && !deleted ? (
@@ -339,10 +295,20 @@ function RuleForm({
   });
 
   const remove = useMutation({
-    mutationFn: () => deleteWorkflowTemplate(api, organizationSlug, template.id),
+    mutationFn: () => deleteRuleSurely(api, organizationSlug, template.id),
     onSuccess: async () => {
       onDeleted();
       await queryClient.invalidateQueries({ queryKey: ['workflow-templates', organizationSlug] });
+    },
+  });
+
+  // 2026-10-31 live-test fix (Figma "Automations · Rule settings · Test run (2026-10-31 live-test
+  // fix)"): run the saved rule once now. A manual run has no triggering item, so its notice goes to
+  // the person who pressed it; the run lands in the run history like any other.
+  const testRun = useMutation<WorkflowRunSummary, unknown, void>({
+    mutationFn: () => runWorkflowTemplate(api, organizationSlug, template.id),
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['workflow-runs', organizationSlug] });
     },
   });
 
@@ -487,6 +453,42 @@ function RuleForm({
         </span>
       </p>
 
+      {testRun.isSuccess ? (
+        <InlineAlert
+          tone={testRun.data.status === 'succeeded' ? 'success' : 'warning'}
+          title={
+            testRun.data.status === 'succeeded'
+              ? tOr('AutomationRule.testRunDone', 'Test run done.')
+              : tOr('AutomationRule.testRunNotDone', 'The test run did not complete.')
+          }
+          live
+        >
+          {testRun.data.status === 'succeeded'
+            ? tOr(
+                'AutomationRule.testRunDoneBody',
+                'A test notice is in your inbox, and the run is in Run history.',
+              )
+            : tOr(
+                'AutomationRule.testRunNotDoneBody',
+                'This action is not available yet, so nothing was sent. The run is in Run history.',
+              )}
+        </InlineAlert>
+      ) : null}
+      {testRun.isError ? (
+        <InlineAlert
+          tone="danger"
+          title={tOr('AutomationRule.testRunFailedTitle', 'Could not run a test')}
+          live
+        >
+          {testRun.error instanceof ApiRequestError && testRun.error.status === 409
+            ? tOr(
+                'AutomationRule.testRunOff',
+                'This rule is off. Turn it on and save it, then run a test.',
+              )
+            : describeError(tOr, testRun.error)}
+        </InlineAlert>
+      ) : null}
+
       {save.isError ? (
         <InlineAlert
           tone="danger"
@@ -555,6 +557,16 @@ function RuleForm({
           {tOr('AutomationRule.deleteRule', 'Delete rule')}
         </button>
         <div className="tm-aur-footer__end">
+          <Button
+            type="button"
+            tone="outline"
+            size="feature"
+            loading={testRun.isPending}
+            loadingLabel={tOr('AutomationRule.testRunning', 'Running…')}
+            onClick={() => testRun.mutate()}
+          >
+            {tOr('AutomationRule.testRun', 'Test run')}
+          </Button>
           <Link href={backHref} className="tm-button tm-button--outline tm-button--feature">
             {tOr('AutomationRule.cancel', 'Cancel')}
           </Link>
@@ -671,6 +683,29 @@ function LastRunLine({
           String(sent),
         );
   return <>{`${when} · ${count}`}</>;
+}
+
+/**
+ * Delete a rule, and do not report a failure when the rule is in fact gone (2026-10-31 live test:
+ * the host answered one DELETE with a 503 although the delete had committed). A 404 means it is
+ * already deleted; a 5xx or a lost answer is checked against the list before it counts as a failure.
+ */
+async function deleteRuleSurely(
+  api: ApiClient,
+  organizationSlug: string,
+  templateId: string,
+): Promise<void> {
+  try {
+    await deleteWorkflowTemplate(api, organizationSlug, templateId);
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 404) return;
+    const uncertain =
+      error instanceof NetworkError || (error instanceof ApiRequestError && error.status >= 500);
+    if (!uncertain) throw error;
+    const still = await listWorkflowTemplates(api, organizationSlug).catch(() => null);
+    if (still && !still.some((t) => t.id === templateId)) return;
+    throw error;
+  }
 }
 
 function describeError(tOr: TOr, error: unknown): string {

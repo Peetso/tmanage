@@ -56,6 +56,7 @@ describe('ProvisioningService.provisionFounderWithin', () => {
       organizations,
       workspaces,
       memberships,
+      { upsert: vi.fn(async () => undefined) } as unknown as OrgSettingsRepository,
     );
     const result = await service.provisionFounderWithin(runnerFor, {
       userId,
@@ -85,7 +86,7 @@ describe('ProvisioningService.provisionFounderWithin', () => {
 });
 
 describe('ProvisioningService onboarding settings', () => {
-  it('stores the working week and template in the provisioning runner', async () => {
+  it('stores the timezone, working week and template in the provisioning runner', async () => {
     const runner = {} as TenantQueryRunner;
     const upsert = vi.fn(async () => undefined);
     const service = new ProvisioningService(
@@ -109,13 +110,14 @@ describe('ProvisioningService onboarding settings', () => {
       slug: 'acme',
       name: 'Acme',
       defaultLocale: 'en',
-      timezone: 'UTC',
+      timezone: 'Africa/Cairo',
       workingWeek: 'sun-thu',
       operatingTemplate: 'internal-delivery',
       correlationId: uuidv7(),
     });
     expect((upsert.mock.calls as unknown as unknown[][]).map((call) => [call[0], call[2]])).toEqual(
       [
+        [runner, { key: 'default_timezone', value: 'Africa/Cairo', updatedBy: userId }],
         [runner, { key: 'working_week', value: 'sun-thu', updatedBy: userId }],
         [runner, { key: 'operating_template', value: 'internal-delivery', updatedBy: userId }],
       ],

@@ -130,7 +130,6 @@ export function ClientRequestDetailScreen({
       organizationSlug={organizationSlug}
       clientName={clientName}
       providerName={providerName}
-      activeNavigationId="overview"
       title={found?.title ?? t('ClientRequestDetailScreen.yourRequest')}
       eyebrow={
         found ? (

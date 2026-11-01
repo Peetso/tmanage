@@ -75,3 +75,30 @@ export async function scheduleAutomationTemplate(
   });
   return data;
 }
+
+/** Turn one schedule on or off (2026-10-31 live-test fix). Turning it on moves its next run forward. */
+export async function setAutomationScheduleEnabled(
+  client: ApiClient,
+  organizationSlug: string,
+  scheduleId: string,
+  enabled: boolean,
+): Promise<AutomationScheduleSummary> {
+  const { data } = await client.request<AutomationScheduleSummary>({
+    method: 'PATCH',
+    path: `${automationsBase(organizationSlug)}/schedules/${encodeURIComponent(scheduleId)}`,
+    body: { enabled },
+  });
+  return data;
+}
+
+/** Remove one schedule (2026-10-31 live-test fix). The runs it already made stay in the history. */
+export async function deleteAutomationSchedule(
+  client: ApiClient,
+  organizationSlug: string,
+  scheduleId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'DELETE',
+    path: `${automationsBase(organizationSlug)}/schedules/${encodeURIComponent(scheduleId)}`,
+  });
+}

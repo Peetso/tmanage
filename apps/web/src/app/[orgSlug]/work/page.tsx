@@ -2,7 +2,7 @@
 
 import { use } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { WorkListScreen } from '../../../components/screens/WorkListScreen';
+import { parseStateParam, WorkListScreen } from '../../../components/screens/WorkListScreen';
 import { FIXTURE_ORGANIZATION_NAME } from '../../../lib/fixtures';
 
 /**
@@ -21,12 +21,18 @@ export default function WorkPage({ params }: { params: Promise<{ orgSlug: string
   const { orgSlug } = use(params);
   const search = useSearchParams();
   const project = search.get('project');
+  // 2026-10-31 live test: the view and the state filter live in the address too, so a reload
+  // reopens the board or the filtered list the person was looking at.
+  const view = search.get('view') === 'board' ? 'board' : 'list';
+  const states = parseStateParam(search.get('state'));
 
   return (
     <WorkListScreen
       organizationSlug={orgSlug}
       organizationName={FIXTURE_ORGANIZATION_NAME}
       {...(project === null ? {} : { initialProjectId: project })}
+      initialView={view}
+      initialStates={states}
     />
   );
 }

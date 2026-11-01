@@ -74,8 +74,10 @@ export interface MyDayCountRow {
 }
 
 export interface MyDayWindow {
-  /** The instant "overdue" is measured against. */
+  /** The request instant. */
   readonly now: Date;
+  /** An item due before this instant (the start of today, UTC) is overdue. */
+  readonly overdueBefore: Date;
   /** The last instant that still reads as due soon (`now` + the due-soon window). */
   readonly dueSoonCutoff: Date;
   /** The bound on rows returned; defaults to {@link MY_DAY_LIMIT}. */
@@ -129,7 +131,7 @@ export class MyDayRepository {
   /**
    * HOME-01's personal-work counts over EVERY open owned item (not the bounded list), grouped by
    * the two columns `work.read` decides on, so the service can authorize each group exactly as it
-   * authorizes a row. Overdue is `due_at < now`; due soon is `now <= due_at <= cutoff` — the same
+   * authorizes a row. Overdue is `due_at < start of today`; due soon is `start of today <= due_at <= cutoff` — the same
    * boundaries `reasonFor` applies.
    */
   async countOwnedOpen(
@@ -145,8 +147,8 @@ export class MyDayRepository {
         total: sql<string>`count(*)`,
         // The comparisons go through drizzle's operators so the instants are bound with the
         // column's own encoder (UTC `DATETIME(3)` text), exactly as every other predicate here.
-        overdue: sql<string>`sum(case when ${lt(workItems.dueAt, window.now)} then 1 else 0 end)`,
-        dueSoon: sql<string>`sum(case when ${and(gte(workItems.dueAt, window.now), lte(workItems.dueAt, window.dueSoonCutoff))} then 1 else 0 end)`,
+        overdue: sql<string>`sum(case when ${lt(workItems.dueAt, window.overdueBefore)} then 1 else 0 end)`,
+        dueSoon: sql<string>`sum(case when ${and(gte(workItems.dueAt, window.overdueBefore), lte(workItems.dueAt, window.dueSoonCutoff))} then 1 else 0 end)`,
       })
       .from(workItems)
       .where(

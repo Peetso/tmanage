@@ -68,6 +68,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     en: 'Create your workspace',
     key: 'RouteTitle.onboardingOrganization',
   },
+  '/f/[slug]': { en: 'Request form', key: 'RouteTitle.publicForm' },
   '/invitations/[token]': { en: 'Invitation', key: 'RouteTitle.invitation' },
   '/connect/authorize': { en: 'Authorize access', key: 'RouteTitle.connectAuthorize' },
   '/platform': { en: 'Platform', key: 'RouteTitle.platform' },
@@ -181,6 +182,10 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   },
   '/[orgSlug]/chat/mentions': { en: 'Mentions', key: 'RouteTitle.chatMentions' },
   '/[orgSlug]/clients': { en: 'Clients', key: 'RouteTitle.clients' },
+  '/[orgSlug]/clients/[clientOrganizationId]': {
+    en: 'Client company',
+    key: 'RouteTitle.clientCompany',
+  },
   '/[orgSlug]/copilot': { en: 'Copilot', key: 'RouteTitle.copilot' },
   '/[orgSlug]/decisions': { en: 'Decisions', key: 'RouteTitle.decisions' },
   '/[orgSlug]/decisions/[decisionId]': { en: 'Decision', key: 'RouteTitle.decision' },
@@ -193,6 +198,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     en: 'Template variables',
     key: 'RouteTitle.docTemplateVariables',
   },
+  '/[orgSlug]/forms': { en: 'Intake forms', key: 'RouteTitle.workForms' },
   '/[orgSlug]/help/connect-ai': { en: 'Connect your AI', key: 'RouteTitle.helpConnectAi' },
   '/[orgSlug]/inbox': { en: 'Inbox', key: 'RouteTitle.inbox' },
   '/[orgSlug]/inbox/notification-preferences': {
@@ -344,7 +350,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/work/[workItemId]/estimate': { en: 'Estimate', key: 'RouteTitle.workItemEstimate' },
   '/[orgSlug]/work/[workItemId]/time-logs': { en: 'Time logs', key: 'RouteTitle.workItemTimeLogs' },
   '/[orgSlug]/work/calendar': { en: 'Work calendar', key: 'RouteTitle.workCalendar' },
-  '/[orgSlug]/work/forms': { en: 'Request forms', key: 'RouteTitle.workForms' },
+  '/[orgSlug]/work/forms': { en: 'Intake forms', key: 'RouteTitle.workForms' },
   '/[orgSlug]/work/requests': { en: 'Requests', key: 'RouteTitle.workRequests' },
   '/[orgSlug]/work/requests/[requestId]': { en: 'Request', key: 'RouteTitle.workRequest' },
   '/[orgSlug]/work/requests/[requestId]/triage': {

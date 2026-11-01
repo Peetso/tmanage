@@ -412,3 +412,12 @@
   font-weight: 500;
   line-height: var(--t-ui-sm-line);
 }
+
+/*
+ * 2026-10-31 live test: the "Not connected" / "Not available" capsule showed a "■" shape the
+ * design does not have (Figma "ADM · Control › Storage · First time", 419:23593 — a plain pill).
+ * The neutral capsule's glyph is dropped here only; the connected (done) capsule keeps its tick.
+ */
+.tm-storage__capsule.tm-state-capsule--neutral .tm-state-capsule__glyph {
+  display: none;
+}

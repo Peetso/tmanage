@@ -775,7 +775,9 @@ GRANT INSERT                 ON `tmanage`.`document_templates` TO 'tmanage_app'@
 -- DELETE (a schedule's history is not erased by a runtime credential — the document_templates
 -- posture). The worker gets nothing here: the dispatcher that will read next_run_at is Needs-Peter
 -- infrastructure and gets its grant with the code that runs it.
-GRANT INSERT                 ON `tmanage`.`automation_schedules` TO 'tmanage_app'@'%';
+-- 2026-10-31 live-test fix: UPDATE (turn a schedule on/off, PATCH schedules/:id; the 0067 trigger still
+-- pins organization_id/template_id) and DELETE (remove a schedule; its runs stay in workflow_runs).
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`automation_schedules` TO 'tmanage_app'@'%';
 -- Billing usage alerts (0083, x200). **INSERT and UPDATE** — a usage-alert rule is created (INSERT),
 -- read (the database-wide SELECT above), and tuned (UPDATE of threshold_percent/active). This slice
 -- ships no removal path, so **no DELETE**, and the 0083 trigger pins organization_id/created_by/metric

@@ -1,7 +1,15 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
-import { columnOf, matchesDue, WorkBoardView } from '../src/components/screens/WorkBoardView';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  columnOf,
+  dragPath,
+  dropTarget,
+  matchesDue,
+  WorkBoardView,
+} from '../src/components/screens/WorkBoardView';
+import type { ApiClient } from '../src/lib/api/client';
+import { parseStateParam, workListQuery } from '../src/components/screens/WorkListScreen';
 import type { WorkItemSummary } from '../src/lib/api/work-items';
 import type { MemberSummary } from '../src/lib/api/members';
 import { translate, type MessageKey } from '../src/lib/i18n/t';
@@ -102,5 +110,64 @@ describe('A6 board view', () => {
     expect(matchesDue(due, 'week', '2026-10-23')).toBe(true);
     expect(matchesDue(due, 'overdue', '2026-10-23')).toBe(false);
     expect(matchesDue(item('y', {}), 'month', '2026-10-23')).toBe(false);
+  });
+});
+
+describe('board drag and drop (WK-03, 2026-10-31 live test)', () => {
+  it('finds the steps a drop makes, and refuses the ones that need a reason', () => {
+    expect(dragPath('backlog', 'in_progress', false)).toEqual(['ready', 'in_progress']);
+    expect(dragPath('in_progress', 'done', true)).toEqual(['internal_review', 'done']);
+    expect(dragPath('in_progress', 'done', false)).toBeNull();
+    expect(dragPath('blocked', 'internal_review', true)).toBeNull();
+    expect(dragPath('done', 'ready', true)).toBeNull();
+    expect(dropTarget('ready', 'todo')).toBeNull();
+    expect(dropTarget('backlog', 'in_review')).toBe('internal_review');
+  });
+
+  it('sends a card dropped on another column as its transitions, then re-reads', async () => {
+    const request = vi.fn(async ({ body }: { body: { version: number; to: string } }) => ({
+      data: item('Drag me', {
+        state: body.to as WorkItemSummary['state'],
+        version: body.version + 1,
+      }),
+    }));
+    const onMoved = vi.fn();
+    render(
+      <WorkBoardView
+        organizationSlug="northstar"
+        items={[item('Drag me', { state: 'backlog' })]}
+        members={MEMBERS}
+        membersPending={false}
+        api={{ request } as unknown as ApiClient}
+        onMoved={onMoved}
+      />,
+    );
+    const card = screen.getByRole('link', { name: 'Drag me' }).closest('li') as HTMLElement;
+    const target = screen
+      .getByRole('heading', { name: new RegExp(L('WorkBoard.inProgress')) })
+      .closest('section') as HTMLElement;
+    const data = new Map<string, string>();
+    const dataTransfer = {
+      setData: (k: string, v: string) => data.set(k, v),
+      getData: (k: string) => data.get(k) ?? '',
+      effectAllowed: 'move',
+      dropEffect: 'move',
+    };
+    fireEvent.dragStart(card, { dataTransfer });
+    fireEvent.dragOver(target, { dataTransfer });
+    fireEvent.drop(target, { dataTransfer });
+    await waitFor(() => expect(onMoved).toHaveBeenCalled());
+    expect(request.mock.calls.map(([call]) => call.body.to)).toEqual(['ready', 'in_progress']);
+  });
+});
+
+describe('work list address (2026-10-31 live test)', () => {
+  it('keeps the view and the filters in the query string', () => {
+    expect(workListQuery({ view: 'list', projectId: '', states: [] })).toBe('');
+    expect(workListQuery({ view: 'board', projectId: 'p1', states: ['ready'] })).toBe(
+      '?project=p1&state=ready&view=board',
+    );
+    expect(parseStateParam('ready,nonsense,done')).toEqual(['ready', 'done']);
+    expect(parseStateParam(null)).toEqual([]);
   });
 });

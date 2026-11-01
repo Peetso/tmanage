@@ -1,15 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import '../../styles/screens/home.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getRecentItems } from '../../lib/api/home';
+import { getWorkItem } from '../../lib/api/work-items';
+import { getProject } from '../../lib/api/projects';
+import { getDocument } from '../../lib/api/documents';
 import type { RecentItemObjectType } from '../../lib/api/home';
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import type { MessageKey } from '../../lib/i18n/t';
 
@@ -25,14 +29,15 @@ export interface HomeRecentItemsViewProps {
  * A faithful reader of the API's membership-scoped recents: it reads `GET .../home/recent-items`
  * (behind `work.read`, taking no membership id — the recents are the acting member's own) and lists
  * each one newest first, bounded to the API's fixed cap. A recent is a *reference* — its object kind
- * and id — not a copy or a resolved title, so each row shows the kind and links where a stable route
- * exists (work, project), the read fan-out that resolves a live title being the deferred follow-up.
+ * and id — so each row's live title is read through the object's own authorized GET (work, project,
+ * document), falling back to a generic label when it cannot be read, and links where a route exists.
  * The section is its own landmark (`aria-labelledby`) with a labelled list, so it is axe-clean the
  * way the sibling sections are.
  */
 export function HomeRecentItemsView({ organizationSlug, client }: HomeRecentItemsViewProps) {
   const describeRecentsError = useDescribeApiError(OFFLINE_LINES);
   const t = useT();
+  const tOr = useTOr();
   const locale = useActiveLocale();
   const api = client ?? browserApiClient();
 
@@ -42,6 +47,20 @@ export function HomeRecentItemsView({ organizationSlug, client }: HomeRecentItem
   });
 
   const items = recents.data?.items ?? [];
+
+  // 2026-10-31 live test: every row read "Recently viewed work item". A recent is a reference, so
+  // each title is read through the object's own authorized GET (the same read opening it does): a
+  // row the caller can no longer reach simply keeps the generic label. Shared query keys mean an
+  // item already open elsewhere costs nothing, and a long staleTime keeps the rail cheap.
+  const titles = useQueries({
+    queries: items.map((item) => ({
+      queryKey: ['home', 'recent-title', organizationSlug, item.objectType, item.objectId],
+      queryFn: () => recentTitle(api, organizationSlug, item.objectType, item.objectId),
+      enabled: item.objectType !== 'meeting',
+      staleTime: 5 * 60 * 1000,
+      retry: false,
+    })),
+  });
 
   return (
     <section className="tm-home-saved" aria-labelledby="tm-my-day-recents">
@@ -73,36 +92,86 @@ export function HomeRecentItemsView({ organizationSlug, client }: HomeRecentItem
 
       {items.length > 0 ? (
         <ul className="tm-home-saved__list" aria-label={t('HomeRecentItemsView.listLabel')}>
-          {items.map((item) => (
-            <li key={item.id} className="tm-home-saved__item" data-kind={item.objectType}>
-              <span className="tm-home-orb" aria-hidden="true">
-                {recentGlyph(item.objectType)}
-              </span>
-              <span className="tm-home-saved__text">
-                <span className="tm-home-saved__title">
-                  {item.objectType === 'work' ? (
-                    <Link href={`/${organizationSlug}/work/${item.objectId}`}>
-                      {t(recentTypeLabelKey(item.objectType))}
-                    </Link>
-                  ) : item.objectType === 'project' ? (
-                    <Link href={`/${organizationSlug}/projects/${item.objectId}`}>
-                      {t(recentTypeLabelKey(item.objectType))}
-                    </Link>
-                  ) : (
-                    <span>{t(recentTypeLabelKey(item.objectType))}</span>
-                  )}
+          {items.map((item, index) => {
+            const href = recentHref(organizationSlug, item.objectType, item.objectId);
+            const title = titles[index]?.data ?? t(recentTypeLabelKey(item.objectType));
+            return (
+              <li key={item.id} className="tm-home-saved__item" data-kind={item.objectType}>
+                <span className="tm-home-orb" aria-hidden="true">
+                  {recentGlyph(item.objectType)}
                 </span>
-                <span className="tm-home-saved__meta">
-                  {item.objectType} · {t('HomeRecentItemsView.viewedPrefix')}{' '}
-                  {shortDay(item.viewedAt, locale)}
+                <span className="tm-home-saved__text">
+                  <span className="tm-home-saved__title">
+                    {href ? <Link href={href}>{title}</Link> : <span>{title}</span>}
+                  </span>
+                  <span className="tm-home-saved__meta">
+                    {tOr(...recentKind(item.objectType))} · {t('HomeRecentItemsView.viewedPrefix')}{' '}
+                    {shortDay(item.viewedAt, locale)}
+                  </span>
                 </span>
-              </span>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       ) : null}
     </section>
   );
+}
+
+/** The route a recent opens, where the object has one. */
+function recentHref(
+  organizationSlug: string,
+  objectType: RecentItemObjectType,
+  objectId: string,
+): string | null {
+  const id = encodeURIComponent(objectId);
+  switch (objectType) {
+    case 'work':
+      return `/${organizationSlug}/work/${id}`;
+    case 'project':
+      return `/${organizationSlug}/projects/${id}`;
+    case 'document':
+      return `/${organizationSlug}/docs/${id}`;
+    case 'meeting':
+      return null;
+  }
+}
+
+/** The object's live title through its own authorized read; null when it cannot be read. */
+async function recentTitle(
+  api: ApiClient,
+  organizationSlug: string,
+  objectType: RecentItemObjectType,
+  objectId: string,
+): Promise<string | null> {
+  try {
+    switch (objectType) {
+      case 'work':
+        return (await getWorkItem(api, organizationSlug, objectId)).title;
+      case 'project':
+        return (await getProject(api, organizationSlug, objectId)).name;
+      case 'document':
+        return (await getDocument(api, organizationSlug, objectId)).title;
+      case 'meeting':
+        return null;
+    }
+  } catch {
+    return null;
+  }
+}
+
+/** The short kind word on a row's meta line ("Work · viewed 31 Oct"), never the raw enum. */
+function recentKind(objectType: RecentItemObjectType): [string, string] {
+  switch (objectType) {
+    case 'work':
+      return ['HomeRecentItemsView.kindWork', 'Work'];
+    case 'project':
+      return ['HomeRecentItemsView.kindProject', 'Project'];
+    case 'document':
+      return ['HomeRecentItemsView.kindDocument', 'Doc'];
+    case 'meeting':
+      return ['HomeRecentItemsView.kindMeeting', 'Meeting'];
+  }
 }
 
 /** "13 Aug" — the design's short day in the saved-context meta line. */
@@ -128,7 +197,7 @@ function recentGlyph(objectType: RecentItemObjectType): string {
   }
 }
 
-/** The message key each recent reference shows. The live title/preview is the deferred read fan-out. */
+/** The fallback label while a title loads, or when the object can no longer be read. */
 function recentTypeLabelKey(objectType: RecentItemObjectType): MessageKey {
   switch (objectType) {
     case 'work':

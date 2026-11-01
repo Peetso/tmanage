@@ -827,6 +827,23 @@
   color: var(--ink-650);
 }
 
+/* The "Create another organization" row (Figma 446:35916): the same row, but quiet — a dashed
+   line border and an outlined orb and arrow, so it never competes with a real organization. */
+.tm-id-org--create {
+  border: var(--b-quiet) dashed var(--line-300);
+}
+
+.tm-id-org--create .tm-id-org__orb,
+.tm-id-org--create .tm-id-org__go {
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--line-300);
+  color: var(--ink-950);
+}
+
+.tm-id-org--create .tm-id-org__go {
+  color: var(--ink-650);
+}
+
 [dir='rtl'] .tm-id-org__go,
 [dir='rtl'] .tm-id-orb-arrow {
   transform: scaleX(-1);

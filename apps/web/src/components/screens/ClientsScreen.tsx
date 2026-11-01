@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, SearchField, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -98,6 +99,11 @@ interface InvitationRow {
  * Resend / Send again), with the purple note that clients only see what is shared with them. The
  * tabs carry the two counts; the search narrows both lists in the browser. "Invite client" opens
  * {@link InviteClientDialog} (t5-b).
+ *
+ * 2026-10-31 live-test fixes (Figma "Clients · Invitations tab, invite re-sent" 446:37206): the
+ * Invitations tab shows the invitations card alone; Resend confirms with a success line and the
+ * row's button reads "Sent ✓"; each company row opens its own page (`/clients/:id`, Figma
+ * "Clients · Client company detail" 446:37327); the list is refreshed before the dialog closes.
  */
 export function ClientsScreen({
   organizationSlug,
@@ -113,6 +119,9 @@ export function ClientsScreen({
   const [view, setView] = useState<'organizations' | 'invitations'>('organizations');
   const [inviting, setInviting] = useState(false);
   const [issued, setIssued] = useState<IssuedInvitation | null>(null);
+  // The email of the invitation just re-sent. A resend revokes the old row and issues a new one,
+  // so the confirmation follows the address, not the row id.
+  const [resentEmail, setResentEmail] = useState<string | null>(null);
 
   const organizations = useQuery({
     queryKey: ['clients', organizationSlug, 'organizations'],
@@ -175,10 +184,12 @@ export function ClientsScreen({
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['clients', organizationSlug] });
 
   const resend = useMutation({
-    mutationFn: (invitationId: string) =>
-      reissueClientInvitation(api, organizationSlug, invitationId),
-    onSuccess: (result) => {
+    mutationFn: (invitation: InvitationSummary) =>
+      reissueClientInvitation(api, organizationSlug, invitation.id),
+    onMutate: () => setResentEmail(null),
+    onSuccess: (result, invitation) => {
       if (result.delivery !== 'sent') setIssued(result);
+      else setResentEmail(invitation.email);
       void refresh();
     },
   });
@@ -192,6 +203,9 @@ export function ClientsScreen({
 
   const sentLabel = (row: InvitationRow) => {
     if (row.expired) return t('Clients.expired');
+    if (resentEmail !== null && row.invitation.email === resentEmail) {
+      return t('Clients.sentAgainJustNow');
+    }
     const days = daysSince(row.invitation.createdAt, nowMs);
     if (days === 0) return t('Clients.sentToday');
     if (days === 1) return t('Clients.sentYesterday');
@@ -252,6 +266,11 @@ export function ClientsScreen({
         </div>
 
         {issued ? <IssuedLinkNotice issued={issued} onDone={() => setIssued(null)} /> : null}
+        {resentEmail !== null ? (
+          <InlineAlert tone="success" title={t('Clients.resentTitle')} live>
+            {t('Clients.resentBody', { email: resentEmail })}
+          </InlineAlert>
+        ) : null}
         {resend.isError ? (
           <InlineAlert tone="danger" title={t('Clients.resendFailed')} live>
             {describePeopleError(resend.error)}
@@ -287,22 +306,27 @@ export function ClientsScreen({
               ) : (
                 <ul className="cl-list" aria-label={t('Clients.organizationsTitle')}>
                   {shownRows.map((row) => (
-                    <li key={row.company.id} className="cl-row">
-                      <span className="cl-orb" aria-hidden="true">
-                        {initialsOf(row.company.name)}
-                      </span>
-                      <span className="cl-row__text">
-                        <span className="cl-row__name">{row.company.name}</span>
-                        <span className="cl-row__meta">
-                          {row.company.archivedAt !== null
-                            ? archivedLabel(row.company.archivedAt)
-                            : peopleLabel(row.memberships.length)}
+                    <li key={row.company.id} className="cl-item">
+                      <Link
+                        className="cl-row cl-row--link"
+                        href={`/${organizationSlug}/clients/${encodeURIComponent(row.company.id)}`}
+                      >
+                        <span className="cl-orb" aria-hidden="true">
+                          {initialsOf(row.company.name)}
                         </span>
-                      </span>
-                      <span className={`cl-status cl-status--${row.status}`}>
-                        <span aria-hidden="true">{STATUS_GLYPH[row.status]}</span>
-                        {t(STATUS_KEY[row.status])}
-                      </span>
+                        <span className="cl-row__text">
+                          <span className="cl-row__name">{row.company.name}</span>
+                          <span className="cl-row__meta">
+                            {row.company.archivedAt !== null
+                              ? archivedLabel(row.company.archivedAt)
+                              : peopleLabel(row.memberships.length)}
+                          </span>
+                        </span>
+                        <span className={`cl-status cl-status--${row.status}`}>
+                          <span aria-hidden="true">{STATUS_GLYPH[row.status]}</span>
+                          {t(STATUS_KEY[row.status])}
+                        </span>
+                      </Link>
                     </li>
                   ))}
                 </ul>
@@ -323,33 +347,40 @@ export function ClientsScreen({
                 </p>
               ) : (
                 <ul className="cl-list" aria-label={t('Clients.invitationsTitle')}>
-                  {shownInvitations.map((row) => (
-                    <li key={row.invitation.id} className="cl-row">
-                      <span className="cl-orb" aria-hidden="true">
-                        {row.invitation.email.slice(0, 2).toUpperCase()}
-                      </span>
-                      <span className="cl-row__text">
-                        <span className="cl-row__name cl-break">{row.invitation.email}</span>
-                        <span className="cl-row__meta">
-                          {row.organizationName} · {sentLabel(row)}
+                  {shownInvitations.map((row) => {
+                    const justResent = resentEmail !== null && row.invitation.email === resentEmail;
+                    return (
+                      <li key={row.invitation.id} className="cl-row">
+                        <span className="cl-orb" aria-hidden="true">
+                          {row.invitation.email.slice(0, 2).toUpperCase()}
                         </span>
-                      </span>
-                      <span className="cl-role">
-                        {ROLE_KEY[row.invitation.role]
-                          ? t(ROLE_KEY[row.invitation.role]!)
-                          : row.invitation.role}
-                      </span>
-                      <Button
-                        tone="text"
-                        size="compact"
-                        className="cl-resend"
-                        disabled={resend.isPending}
-                        onClick={() => resend.mutate(row.invitation.id)}
-                      >
-                        {row.expired ? t('Clients.sendAgain') : t('Clients.resend')}
-                      </Button>
-                    </li>
-                  ))}
+                        <span className="cl-row__text">
+                          <span className="cl-row__name cl-break">{row.invitation.email}</span>
+                          <span className="cl-row__meta">
+                            {row.organizationName} · {sentLabel(row)}
+                          </span>
+                        </span>
+                        <span className="cl-role">
+                          {ROLE_KEY[row.invitation.role]
+                            ? t(ROLE_KEY[row.invitation.role]!)
+                            : row.invitation.role}
+                        </span>
+                        <Button
+                          tone="text"
+                          size="compact"
+                          className="cl-resend"
+                          disabled={resend.isPending || justResent}
+                          onClick={() => resend.mutate(row.invitation)}
+                        >
+                          {justResent
+                            ? t('Clients.resentButton')
+                            : row.expired
+                              ? t('Clients.sendAgain')
+                              : t('Clients.resend')}
+                        </Button>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
               <p className="cl-note">
@@ -367,10 +398,11 @@ export function ClientsScreen({
           organizationSlug={organizationSlug}
           organizations={companies.filter((company) => company.archivedAt === null)}
           onClose={() => setInviting(false)}
-          onIssued={(result) => {
-            setInviting(false);
+          onIssued={async (result) => {
             if (result.delivery !== 'sent') setIssued(result);
-            void refresh();
+            // Refresh first, so the list already shows the new company when the dialog closes.
+            await refresh();
+            setInviting(false);
           }}
         />
       ) : null}

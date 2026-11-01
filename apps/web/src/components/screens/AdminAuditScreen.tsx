@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { Button, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import { auditExportUrl, listAuditEvents, MAX_AUDIT_PAGE } from '../../lib/api/admin-audit';
@@ -12,6 +12,7 @@ import { listMembers } from '../../lib/api/members';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 
 export interface AdminAuditScreenProps {
   organizationSlug: string;
@@ -53,8 +54,10 @@ export function AdminAuditScreen({
   const api = client ?? browserApiClient();
   const t = useT();
 
+  const tr = useTOr();
+  // 2026-10-31 live test: the filter asked for raw actor/entity UUIDs. It now picks a person by
+  // name (Figma "Admin · Audit log · Filter by person (2026-10-31 live-test fix)", 449:21426).
   const [actorInput, setActorInput] = useState('');
-  const [entityInput, setEntityInput] = useState('');
   const [applied, setApplied] = useState<AppliedFilters>({ actorId: '', entityId: '' });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expandedRuns, setExpandedRuns] = useState<ReadonlySet<string>>(new Set());
@@ -96,8 +99,22 @@ export function AdminAuditScreen({
   function onApply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSelectedId(null);
-    setApplied({ actorId: actorInput.trim(), entityId: entityInput.trim() });
+    setApplied({ actorId: actorInput, entityId: '' });
   }
+
+  function onShowEveryone() {
+    setSelectedId(null);
+    setActorInput('');
+    setApplied({ actorId: '', entityId: '' });
+  }
+
+  const people = useMemo(
+    () =>
+      [...actorNames.entries()]
+        .map(([userId, name]) => ({ userId, name }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [actorNames],
+  );
 
   function toggleRun(key: string) {
     setExpandedRuns((current) => {
@@ -265,26 +282,45 @@ export function AdminAuditScreen({
           )}
           <p className="tm-cc-card__body">{t('AdminAuditScreen.immutableNote')}</p>
 
+          <hr className="tm-cc-rule" />
           <form
-            className="tm-stack tm-stack--tight tm-cc-card__actions--end"
+            className="tm-stack tm-stack--tight"
             onSubmit={onApply}
-            aria-label={t('AdminAuditScreen.filterLabel')}
+            aria-labelledby="tm-audit-filter-title"
           >
-            <Field
-              label={t('AdminAuditScreen.actorIdLabel')}
+            <h3 id="tm-audit-filter-title" className="tm-cc-card__title">
+              {tr('AdminAuditScreen.filterTitle', 'Show changes by')}
+            </h3>
+            <p className="tm-cc-card__body">
+              {tr(
+                'AdminAuditScreen.filterBody',
+                'Pick a person to see only what they changed. Everyone is shown until you pick someone.',
+              )}
+            </p>
+            <Select
+              label={tr('AdminAuditScreen.personLabel', 'Person')}
               value={actorInput}
               onChange={(event) => setActorInput(event.currentTarget.value)}
-              placeholder={t('AdminAuditScreen.actorIdPlaceholder')}
-            />
-            <Field
-              label={t('AdminAuditScreen.entityIdLabel')}
-              value={entityInput}
-              onChange={(event) => setEntityInput(event.currentTarget.value)}
-              placeholder={t('AdminAuditScreen.entityIdPlaceholder')}
-            />
-            <div className="tm-row tm-row--wrap">
-              <Button type="submit" tone="outline" size="compact">
-                {t('AdminAuditScreen.applyFilters')}
+            >
+              <option value="">{tr('AdminAuditScreen.everyone', 'Everyone')}</option>
+              {people.map((person) => (
+                <option key={person.userId} value={person.userId}>
+                  {person.name}
+                </option>
+              ))}
+            </Select>
+            <div className="tm-row tm-row--wrap tm-cc-card__actions--end">
+              <Button
+                type="button"
+                tone="outline"
+                size="compact"
+                disabled={applied.actorId === '' && actorInput === ''}
+                onClick={onShowEveryone}
+              >
+                {tr('AdminAuditScreen.showEveryone', 'Show everyone')}
+              </Button>
+              <Button type="submit" tone="ink" size="compact">
+                {tr('AdminAuditScreen.apply', 'Apply')}
               </Button>
             </div>
           </form>

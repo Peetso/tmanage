@@ -34,6 +34,24 @@ export const automationsDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'All', args: {} }],
   }),
   det({
+    id: 'automations.schedules.update',
+    title: 'Turn an automation schedule on or off',
+    description:
+      'Switch one schedule on or off. Turning it on moves the next run forward. Confirm-class.',
+    input: bodyArgs(['scheduleId'], { enabled: f.bool() }),
+    redact: 'standard',
+    examples: [{ summary: 'Turn off', args: { scheduleId: 'sch_1', enabled: false } }],
+  }),
+  det({
+    id: 'automations.schedules.delete',
+    title: 'Remove an automation schedule',
+    description:
+      'Remove one schedule; runs it already made stay in the run history. Confirm-class.',
+    input: pathOnly('scheduleId'),
+    redact: 'standard',
+    examples: [{ summary: 'Remove', args: { scheduleId: 'sch_1' } }],
+  }),
+  det({
     id: 'automations.template_tags.list',
     title: 'List template tags',
     description: 'Tags used across automation templates.',

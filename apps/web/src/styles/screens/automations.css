@@ -1198,3 +1198,66 @@ a.tm-aut-rowtitle:hover {
     flex-wrap: wrap;
   }
 }
+
+/* ── 2026-10-31 live-test fixes (Figma "… (2026-10-31 live-test fix)" frames) ─────────────── */
+
+/* Schedules: the On switch (lime when on, as on the rule settings page) and the quiet Remove. */
+.tm-aut-switch:checked::before {
+  background: var(--lime-500);
+}
+
+.tm-aut-textbtn {
+  padding: var(--s2);
+  border: 0;
+  border-radius: var(--r-micro);
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tm-aut-textbtn:hover {
+  text-decoration: underline;
+}
+
+.tm-aut-textbtn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Schedules: "Remove this schedule?" — a sunken band under the row it removes. */
+.tm-aut-confirmrow > td {
+  padding: 0;
+}
+
+.tm-aut-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s4) var(--s5);
+  background: var(--paper-150);
+}
+
+.tm-aut-confirm__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  font-weight: 600;
+}
+
+.tm-aut-confirm__body {
+  margin: 0;
+  color: var(--ink-650);
+}
+
+.tm-aut-confirm__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+
+/* Run history: the empty state's "Show all runs" sits under its text. */
+.tm-aut-empty__action {
+  margin-block-start: var(--s2);
+  align-self: flex-start;
+}

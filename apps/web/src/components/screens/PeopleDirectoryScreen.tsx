@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import {
@@ -16,10 +16,19 @@ import {
 import type { ChangeRoleTarget } from '../people/ChangeRoleDialog';
 import { InviteMemberDialog } from '../people/InviteMemberDialog';
 import { MemberPasswordResetDialog } from '../people/MemberPasswordResetDialog';
+import {
+  ChangeInvitationRoleDialog,
+  InvitationLinkDialog,
+  PendingInvitationsSection,
+  RevokeInvitationDialog,
+} from '../people/PendingInvitations';
+import type { PendingInvitation } from '../people/PendingInvitations';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listPeople } from '../../lib/api/people';
 import type { PersonSummary } from '../../lib/api/people';
-import { fetchPendingInvitations } from '../../lib/api/admin-invitations';
+import { fetchPendingInvitations, reissueInvitation } from '../../lib/api/admin-invitations';
+import type { IssuedInvitation } from '../../lib/api/invitations';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useOrganizationName, useOrganizationRole } from '../../lib/use-organization-names';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
@@ -85,7 +94,10 @@ function useLastActive(): (iso: string | null | undefined) => string {
 type Dialog =
   | { readonly kind: 'role'; readonly target: ChangeRoleTarget }
   | { readonly kind: 'reset'; readonly person: MemberRow }
-  | { readonly kind: 'invite' };
+  | { readonly kind: 'invite' }
+  | { readonly kind: 'invite-role'; readonly invitation: PendingInvitation }
+  | { readonly kind: 'invite-revoke'; readonly invitation: PendingInvitation }
+  | { readonly kind: 'invite-link'; readonly issued: IssuedInvitation };
 
 /**
  * **Members and roles** — Control Center › People (Figma 374:1985, r-people; A1).
@@ -139,9 +151,31 @@ export function PeopleDirectoryScreen({
     retry: false,
   });
 
+  const describeError = useDescribeApiError();
+  // "Resend invitation" is the API's re-issue with the same role: a new link, mailed again.
+  const resend = useMutation({
+    mutationFn: (invitation: PendingInvitation) =>
+      reissueInvitation(api, organizationSlug, invitation.id),
+    onSuccess: (issued) => {
+      reload();
+      if (issued.delivery === 'sent') {
+        setAnnouncement(
+          fill(tr('PendingInvitations.resent', 'Invitation sent again to {email}.'), {
+            email: issued.invitation.email,
+          }),
+        );
+      } else {
+        setDialog({ kind: 'invite-link', issued });
+      }
+    },
+  });
+
   const roster: readonly MemberRow[] = people.isSuccess ? people.data.people : [];
   const complete = people.isSuccess && people.data.nextAfter === null;
   const activeOwners = roster.filter((person) => person.role === 'owner').length;
+  const pending: readonly PendingInvitation[] = Array.isArray(invitations.data?.invitations)
+    ? invitations.data.invitations
+    : [];
   const waiting = Array.isArray(invitations.data?.invitations)
     ? invitations.data.invitations.filter((invitation) => !invitation.isExpired).length
     : null;
@@ -276,6 +310,29 @@ export function PeopleDirectoryScreen({
           </div>
         ) : null}
 
+        {canManage && resend.isError ? (
+          <InlineAlert
+            tone="danger"
+            title={tr('PendingInvitations.resendError', 'The invitation was not sent again')}
+            live
+          >
+            {describeError(resend.error)}
+          </InlineAlert>
+        ) : null}
+
+        {canManage && people.isSuccess ? (
+          <PendingInvitationsSection
+            invitations={pending}
+            roleLabel={chip}
+            busyId={resend.isPending ? (resend.variables?.id ?? null) : null}
+            onChangeRole={(invitation) => setDialog({ kind: 'invite-role', invitation })}
+            onResend={(invitation) => {
+              if (!resend.isPending) resend.mutate(invitation);
+            }}
+            onRevoke={(invitation) => setDialog({ kind: 'invite-revoke', invitation })}
+          />
+        ) : null}
+
         {people.isSuccess && !complete ? (
           <p className="ppl-members-footnote">
             {tr(
@@ -325,6 +382,58 @@ export function PeopleDirectoryScreen({
           firstName={firstNameOf(dialog.person.displayName)}
           onClose={() => setDialog(null)}
         />
+      ) : null}
+
+      {dialog?.kind === 'invite-revoke' ? (
+        <RevokeInvitationDialog
+          api={api}
+          organizationSlug={organizationSlug}
+          invitation={dialog.invitation}
+          roleLabel={chip(dialog.invitation.role)}
+          onClose={(revoked) => {
+            setDialog(null);
+            if (revoked) {
+              setAnnouncement(
+                fill(tr('PendingInvitations.revoked', 'Invitation to {email} revoked.'), {
+                  email: dialog.invitation.email,
+                }),
+              );
+              reload();
+            }
+          }}
+        />
+      ) : null}
+
+      {dialog?.kind === 'invite-role' ? (
+        <ChangeInvitationRoleDialog
+          api={api}
+          organizationSlug={organizationSlug}
+          organizationName={workspace}
+          invitation={dialog.invitation}
+          roleLabel={chip(dialog.invitation.role)}
+          onClose={(issued) => {
+            if (!issued) {
+              setDialog(null);
+              return;
+            }
+            reload();
+            if (issued.delivery === 'sent') {
+              setDialog(null);
+              setAnnouncement(
+                fill(
+                  tr('PendingInvitations.roleChanged', 'New invitation sent to {email} as {role}.'),
+                  { email: issued.invitation.email, role: chip(issued.invitation.role) },
+                ),
+              );
+            } else {
+              setDialog({ kind: 'invite-link', issued });
+            }
+          }}
+        />
+      ) : null}
+
+      {dialog?.kind === 'invite-link' ? (
+        <InvitationLinkDialog issued={dialog.issued} onClose={() => setDialog(null)} />
       ) : null}
 
       {dialog?.kind === 'invite' ? (

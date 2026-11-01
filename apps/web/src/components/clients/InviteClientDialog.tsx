@@ -33,7 +33,10 @@ export interface InviteClientDialogProps {
   /** The active client companies, offered by name. */
   organizations: readonly ClientOrganization[];
   onClose: () => void;
-  onIssued: (issued: IssuedInvitation) => void;
+  /** May return a promise (the list refresh); the dialog keeps "Sending" until it settles. */
+  onIssued: (issued: IssuedInvitation) => void | Promise<unknown>;
+  /** Prefills the company — "Invite person" on a client company's own page. */
+  initialCompanyName?: string;
 }
 
 type ClientRole = 'client_reviewer' | 'client_admin';
@@ -44,8 +47,9 @@ type ClientRole = 'client_reviewer' | 'client_admin';
  * Email, the client company (an existing name, or a new one typed in — created first with
  * `POST client-organizations`), the role as two single-choice checkboxes, and the project to share.
  * Sending issues `POST /invitations {email, role, clientOrganizationId}` and then shares the chosen
- * project with that company (`POST projects/:id/clients`). The personal note is drawn but disabled:
- * the invitation API carries no note yet.
+ * project with that company (`POST projects/:id/clients`). The personal note (optional, at most 500
+ * characters) travels with the invitation as `note` — the 2026-10-31 live test found it drawn as a
+ * disabled "coming soon" field although the invitation API already carries it (A1).
  */
 export function InviteClientDialog({
   api,
@@ -53,13 +57,15 @@ export function InviteClientDialog({
   organizations,
   onClose,
   onIssued,
+  initialCompanyName = '',
 }: InviteClientDialogProps) {
   const t = useClientsT();
   const titleId = useId();
   const listId = useId();
 
   const [email, setEmail] = useState('');
-  const [companyName, setCompanyName] = useState('');
+  const [companyName, setCompanyName] = useState(initialCompanyName);
+  const [note, setNote] = useState('');
   const [role, setRole] = useState<ClientRole>('client_reviewer');
   const [projectId, setProjectId] = useState('');
 
@@ -84,13 +90,14 @@ export function InviteClientDialog({
         email: email.trim(),
         role,
         clientOrganizationId: companyId,
+        ...(note.trim() !== '' ? { note: note.trim() } : {}),
       });
       if (projectId !== '') {
         await addProjectShare(api, organizationSlug, projectId, companyId);
       }
       return issued;
     },
-    onSuccess: onIssued,
+    onSuccess: (issued) => onIssued(issued),
   });
 
   useEffect(() => {
@@ -172,9 +179,10 @@ export function InviteClientDialog({
 
           <Field
             label={t('Clients.noteLabel')}
-            hint={t('Clients.noteHint')}
             placeholder={t('Clients.notePlaceholder')}
-            disabled
+            value={note}
+            maxLength={500}
+            onChange={(event) => setNote(event.target.value)}
           />
 
           {send.isError ? (

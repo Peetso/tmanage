@@ -171,6 +171,7 @@ export function RoleChoiceCards({
               value={role}
               checked={value === role}
               disabled={disabled}
+              aria-label={tr(`ChangeRoleDialog.option.${role}`, OPTION[role])}
               aria-describedby={describedBy}
               onChange={() => onChange(role)}
             />
@@ -226,6 +227,7 @@ export function RoleChoiceCards({
                     name={name}
                     value={role.id}
                     checked={value === role.id}
+                    aria-label={role.name}
                     aria-describedby={describedBy}
                     onChange={() => onChange(role.id)}
                   />

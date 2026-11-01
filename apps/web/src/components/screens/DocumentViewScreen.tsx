@@ -9,6 +9,8 @@ import '../../styles/screens/docs.css';
 import { DocumentExportButton } from './DocumentExportButton';
 import { DocumentCommentsPanel } from './DocumentCommentsPanel';
 import { DocumentPublishBar } from '../docs/DocumentAudience';
+import { DocMarkdown } from '../docs/DocMarkdown';
+import { tagFor } from '../docs/doc-markdown';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getDocument, getDocumentSharing } from '../../lib/api/documents';
 import { listProjects } from '../../lib/api/projects';
@@ -17,6 +19,8 @@ import { formatInstant } from '../../lib/work-item-presentation';
 import { useRecordRecentItem } from '../../lib/use-record-recent-item';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface DocumentViewScreenProps {
@@ -52,6 +56,8 @@ export function DocumentViewScreen({
   const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
+  const tOr = useTOr();
+  const locale = useActiveLocale();
 
   const document = useQuery({
     queryKey: ['document', organizationSlug, documentId],
@@ -114,7 +120,7 @@ export function DocumentViewScreen({
           </Link>
           {data ? (
             <span className="tm-dx-stamp">
-              {t('DocumentViewScreen.saved')} {formatClock(data.updatedAt)}
+              {t('DocumentViewScreen.saved')} {formatClock(data.updatedAt, locale)}
             </span>
           ) : null}
           {data ? (
@@ -123,6 +129,8 @@ export function DocumentViewScreen({
                 organizationSlug={organizationSlug}
                 documentId={documentId}
                 client={api}
+                documentTitle={data.title}
+                projectName={projectName ?? ''}
               />
               <nav className="tm-segmented" aria-label={t('DocumentViewScreen.documentViewsAria')}>
                 <Link href={`/${organizationSlug}/docs/${documentId}`} aria-current="page">
@@ -198,11 +206,14 @@ export function DocumentViewScreen({
               </header>
               <hr className="tm-dx-sheet__rule" />
               <div className="tm-dx-sheet__body">
-                {toParagraphs(data.body).map((line, index) => (
-                  // Plain-text body from a TEXT column: React escapes it, and each author line is
-                  // its own paragraph so the reading preserves the breaks without interpreting markup.
-                  <p key={index}>{line}</p>
-                ))}
+                {/* The body's Markdown as headings, lists, bold and safe links (live test
+                    2026-10-31: it showed raw "#" and "**"). React escapes every string; no HTML
+                    is parsed. */}
+                <DocMarkdown
+                  body={data.body}
+                  doneLabel={tOr('DocumentViewScreen.checkDone', 'Done')}
+                  openLabel={tOr('DocumentViewScreen.checkOpen', 'Not done')}
+                />
               </div>
             </article>
           </div>
@@ -220,14 +231,19 @@ export function DocumentViewScreen({
   );
 }
 
-/** The top bar's "SAVED 11:26" stamp: the local time of day, or the date when not today. */
-function formatClock(iso: string): string {
+/**
+ * The top bar's "SAVED 11:26" stamp: the 24-hour time of day, or the date when not today — the
+ * same clock the editor's version list uses (live test 2026-10-31 saw "11:34 PM" beside "23:33").
+ */
+function formatClock(iso: string, locale: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
   const sameDay = at.toDateString() === new Date().toDateString();
   return new Intl.DateTimeFormat(
-    undefined,
-    sameDay ? { hour: '2-digit', minute: '2-digit' } : { day: 'numeric', month: 'short' },
+    tagFor(locale),
+    sameDay
+      ? { hour: '2-digit', minute: '2-digit', hour12: false }
+      : { day: 'numeric', month: 'short' },
   ).format(at);
 }
 
@@ -246,10 +262,4 @@ function formatRelative(iso: string): string {
     if (Math.abs(seconds) >= size) return format.format(Math.round(seconds / size), unit);
   }
   return format.format(0, 'minute');
-}
-
-/** Split a plain-text body into paragraphs on line breaks, dropping blank lines. */
-function toParagraphs(body: string): readonly string[] {
-  const lines = body.split(/\r?\n/).filter((line) => line.trim() !== '');
-  return lines.length > 0 ? lines : [body];
 }

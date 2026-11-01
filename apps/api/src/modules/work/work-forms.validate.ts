@@ -177,3 +177,27 @@ export function validateSubmissionValues(
     throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
   }
 }
+
+/**
+ * 2026-10-31 live-test fix: the answers of an in-app submission are kept on the work item it
+ * creates, as plain `label: value` lines in the form's field order (blank answers are left out,
+ * a checkbox reads Yes / No). Bounded like the public-form conversion. `null` when nothing was
+ * answered, so the item shows its ordinary "no description" state.
+ */
+export function submissionAnswersDescription(
+  fields: readonly WorkFormFieldDef[],
+  rawValues: unknown,
+): string | null {
+  if (typeof rawValues !== 'object' || rawValues === null || Array.isArray(rawValues)) return null;
+  const values = rawValues as Record<string, unknown>;
+  const lines: string[] = [];
+  for (const field of fields) {
+    if (!Object.hasOwn(values, field.label)) continue;
+    const value = values[field.label];
+    if (value === undefined || value === null) continue;
+    if (typeof value === 'string' && value.trim() === '') continue;
+    const shown = typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value).trim();
+    lines.push(`${field.label}: ${shown}`);
+  }
+  return lines.length === 0 ? null : lines.join('\n').slice(0, 5000);
+}

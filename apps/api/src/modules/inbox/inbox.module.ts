@@ -21,6 +21,7 @@ import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { WorkItemsService } from '../work/work-items.service.js';
 import { InboxController } from './inbox.controller.js';
 import { InboxService } from './inbox.service.js';
+import { InboxSnoozeRepository } from './inbox-snooze.repository.js';
 import { createInboxObjectResolvers } from './inbox-object-resolvers.js';
 import { ConversationsService } from '../conversations/conversations.service.js';
 import { DocumentsService } from '../docs/documents.service.js';
@@ -128,6 +129,8 @@ export class InboxModule {
             meetings: new MeetingsService(database),
             projects: new ProjectsService(database),
           }),
+          // 2026-10-31 live test: a snoozed bundle leaves the list until its time comes.
+          new InboxSnoozeRepository(),
         ),
     };
 

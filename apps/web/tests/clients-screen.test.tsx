@@ -267,5 +267,67 @@ describe('ClientsScreen', () => {
         ),
       ).toBe(true),
     );
+    // 2026-10-31 live test: a resend used to show nothing at all. It now confirms on screen and
+    // the row's button reads "Sent ✓" (Figma 446:37206).
+    expect(await screen.findByText(label('Clients.resentTitle'))).toBeTruthy();
+    const after = await screen.findByRole('list', { name: label('Clients.invitationsTitle') });
+    const nourAfter = within(after).getByText('nour@cedarfoods.com').closest('li')!;
+    expect(
+      (
+        within(nourAfter).getByRole('button', {
+          name: label('Clients.resentButton'),
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+  });
+
+  it('opens each client company on its own page', async () => {
+    mount();
+    const organizations = await screen.findByRole('list', {
+      name: label('Clients.organizationsTitle'),
+    });
+    const link = within(organizations).getByText('Atlas Hospitality').closest('a')!;
+    expect(link.getAttribute('href')).toBe('/northstar/clients/co-atlas');
+  });
+
+  it('shows the invitations card alone on the Invitations tab', async () => {
+    mount();
+    await screen.findByRole('list', { name: label('Clients.organizationsTitle') });
+    fireEvent.click(
+      screen.getByRole('button', { name: new RegExp(label('Clients.tabInvitations')) }),
+    );
+    expect(document.querySelector('.cl-screen')!.getAttribute('data-view')).toBe('invitations');
+  });
+
+  it('sends the personal note with the invitation', async () => {
+    const calls = mount();
+    await screen.findByRole('list', { name: label('Clients.organizationsTitle') });
+    fireEvent.click(screen.getByRole('button', { name: label('Clients.inviteClient') }));
+    const dialog = await screen.findByRole('dialog', { name: label('Clients.dialogTitle') });
+    fireEvent.change(within(dialog).getByLabelText(label('Clients.emailLabel'), { exact: false }), {
+      target: { value: 'sara@atlas.example' },
+    });
+    fireEvent.change(within(dialog).getByLabelText(label('Clients.orgLabel'), { exact: false }), {
+      target: { value: 'Atlas Hospitality' },
+    });
+    const note = within(dialog).getByLabelText(label('Clients.noteLabel'), {
+      exact: false,
+    }) as HTMLInputElement;
+    expect(note.disabled).toBe(false);
+    fireEvent.change(note, { target: { value: 'Welcome aboard' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: label('Clients.send') }));
+    await waitFor(() =>
+      expect(calls.some((call) => call.method === 'POST' && call.path === '/invitations')).toBe(
+        true,
+      ),
+    );
+    const post = calls.find((call) => call.method === 'POST' && call.path === '/invitations')!;
+    expect(post.body).toEqual({
+      email: 'sara@atlas.example',
+      role: 'client_reviewer',
+      clientOrganizationId: 'co-atlas',
+      note: 'Welcome aboard',
+    });
+    expect(screen.queryByText('Personal notes are coming soon.')).toBeNull();
   });
 });

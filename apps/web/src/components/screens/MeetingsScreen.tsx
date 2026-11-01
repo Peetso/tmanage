@@ -8,6 +8,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { useHydrated } from '../../lib/use-hydrated';
 import { MeetingsHub } from '../meetings/MeetingsHub';
 import { gmtOffset, type CalendarRange } from '../meetings/meeting-model';
 import '../../styles/screens/calendar.css';
@@ -44,14 +45,20 @@ export function MeetingsScreen({
   const t = useT();
   const [search, setSearch] = useState('');
   const [today] = useState(() => now ?? new Date());
-  const eyebrow = `${new Intl.DateTimeFormat('en-GB', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
-    .format(today)
-    .replace(',', '')} · ${zoneCity()}${gmtOffset(today)}`.toUpperCase();
+  // The server's zone and clock are not the reader's: the date line is drawn on the client only,
+  // or hydration fails with React #418 (2026-10-31 live test).
+  const hydrated = useHydrated();
+  const eyebrow =
+    !hydrated && !now
+      ? ''
+      : `${new Intl.DateTimeFormat('en-GB', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        })
+          .format(today)
+          .replace(',', '')} · ${zoneCity()}${gmtOffset(today)}`.toUpperCase();
 
   return (
     <AppShell
@@ -307,6 +314,8 @@ export function MeetingHeaderActions({
             <Link
               key={view.id}
               href={view.href}
+              // Six tabs prefetching at once drew 503s from the host (2026-10-31 live test).
+              prefetch={false}
               className="tm-cal-views__item"
               {...(view.id === current ? { 'aria-current': 'page' as const } : {})}
             >

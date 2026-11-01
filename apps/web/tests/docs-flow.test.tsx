@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { DocsHubScreen } from '../src/components/screens/DocsHubScreen';
 import { DocumentViewScreen } from '../src/components/screens/DocumentViewScreen';
@@ -182,6 +183,62 @@ describe('DocumentViewScreen', () => {
     // A caller the API says may not publish gets no Publish button.
     expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
 
+    await expectNoAxeViolations(container);
+  });
+
+  // Live test 2026-10-31: the read view showed raw "#", "**" and "- ", and links were plain text.
+  it('draws the body Markdown as headings, lists, bold and safe links', async () => {
+    const body = [
+      '# The decision',
+      'Some **bold words** here and a [work item](/acme/work/item-1).',
+      '- list item one',
+      '- [x] checked',
+      '[bad](javascript:alert(1)) and https://example.com/page.',
+    ].join('\n');
+    const { client } = clientOver((call) =>
+      call.url.endsWith('/sharing')
+        ? json({
+            audience: 'internal',
+            publishedAt: null,
+            clientAudienceCount: 2,
+            collaborators: [],
+            canPublish: false,
+          })
+        : json(documentView({ body })),
+    );
+    const { container } = render(
+      withQuery(
+        <DocumentViewScreen
+          organizationSlug="acme"
+          organizationName="Acme"
+          documentId="document-1"
+          client={client}
+        />,
+      ),
+    );
+
+    expect(await screen.findByRole('heading', { level: 2, name: 'The decision' })).toBeTruthy();
+    expect(screen.getByText('bold words').tagName).toBe('STRONG');
+    expect(screen.getByRole('link', { name: 'work item' })).toHaveAttribute(
+      'href',
+      '/acme/work/item-1',
+    );
+    expect(screen.getByRole('link', { name: 'https://example.com/page' })).toHaveAttribute(
+      'rel',
+      'noopener noreferrer',
+    );
+    expect(screen.queryByRole('link', { name: 'bad' })).toBeNull();
+    expect(screen.getByText('list item one').tagName).toBe('LI');
+    expect(screen.getByRole('img', { name: 'Done' })).toBeTruthy();
+    expect(container.textContent).not.toContain('**');
+
+    // The audience capsule opens the share dialog (Figma 446:35464).
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: /Your team only/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Share “Kickoff brief”' });
+    expect(dialog).toHaveTextContent('Client people · 2 — can read after you publish');
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
     await expectNoAxeViolations(container);
   });
 

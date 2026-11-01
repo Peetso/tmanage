@@ -105,6 +105,9 @@ export interface ClientMembership {
   readonly expiresAt: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
+  /** Only from {@link listClientPeople}: the member's name and email. */
+  readonly displayName?: string;
+  readonly email?: string;
 }
 
 /** `GET client-memberships?clientOrganizationId=` — the people of one client company. */
@@ -129,6 +132,61 @@ export async function reissueClientInvitation(
     method: 'POST',
     path: `${orgPath(organizationSlug)}/invitations/${encodeURIComponent(invitationId)}/reissues`,
     body: {},
+  });
+  return data;
+}
+
+/**
+ * 2026-10-31 live-test fix (Clients · company detail): the people of one client company with
+ * their names and emails — `GET client-memberships?clientOrganizationId=&withPeople=true`.
+ */
+export async function listClientPeople(
+  client: ApiClient,
+  organizationSlug: string,
+  clientOrganizationId: string,
+): Promise<readonly ClientMembership[]> {
+  const { data } = await client.request<{ clientMemberships: readonly ClientMembership[] }>({
+    path: `${orgPath(organizationSlug)}/client-memberships?clientOrganizationId=${encodeURIComponent(clientOrganizationId)}&withPeople=true`,
+  });
+  return data.clientMemberships;
+}
+
+/** `GET client-organizations/:id` — one client company. */
+export async function getClientOrganization(
+  client: ApiClient,
+  organizationSlug: string,
+  clientOrganizationId: string,
+): Promise<ClientOrganization> {
+  const { data } = await client.request<ClientOrganization>({
+    path: `${orgPath(organizationSlug)}/client-organizations/${encodeURIComponent(clientOrganizationId)}`,
+  });
+  return data;
+}
+
+/** `PATCH client-organizations/:id` — rename, guarded by the row's `updatedAt`. */
+export async function renameClientOrganization(
+  client: ApiClient,
+  organizationSlug: string,
+  organization: Pick<ClientOrganization, 'id' | 'updatedAt'>,
+  name: string,
+): Promise<ClientOrganization> {
+  const { data } = await client.request<ClientOrganization>({
+    method: 'PATCH',
+    path: `${orgPath(organizationSlug)}/client-organizations/${encodeURIComponent(organization.id)}`,
+    body: { name, updatedAt: organization.updatedAt },
+  });
+  return data;
+}
+
+/** `DELETE client-organizations/:id` — archive (the row stays, marked archived). */
+export async function archiveClientOrganization(
+  client: ApiClient,
+  organizationSlug: string,
+  clientOrganizationId: string,
+): Promise<ClientOrganization> {
+  const { data } = await client.request<ClientOrganization>({
+    method: 'DELETE',
+    path: `${orgPath(organizationSlug)}/client-organizations/${encodeURIComponent(clientOrganizationId)}`,
   });
   return data;
 }

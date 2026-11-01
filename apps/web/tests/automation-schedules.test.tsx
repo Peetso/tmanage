@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AutomationSchedulesScreen } from '../src/components/screens/AutomationSchedulesScreen';
 import { ApiClient } from '../src/lib/api/client';
 import { expectNoAxeViolations } from './axe';
@@ -90,7 +90,12 @@ describe('AutomationSchedulesScreen', () => {
     expect(bodyRows).toHaveLength(2);
     expect(within(bodyRows[0]!).getByRole('rowheader')).toHaveTextContent('tpl-1');
     expect(within(table).getByText(/Weekly on Wednesday at 12:00/)).toBeInTheDocument();
-    expect(within(table).getByText('Off')).toBeInTheDocument();
+    // 2026-10-31 live-test fix: the state is an On switch per row, not a read-only capsule.
+    expect(within(table).getByRole('switch', { name: 'Schedule for tpl-1 is on' })).toBeChecked();
+    expect(
+      within(table).getByRole('switch', { name: 'Schedule for tpl-2 is on' }),
+    ).not.toBeChecked();
+    expect(within(table).getByText(/Off, skipped until turned on/)).toBeInTheDocument();
 
     await expectNoAxeViolations(container);
   });
@@ -108,5 +113,88 @@ describe('AutomationSchedulesScreen', () => {
     await user.click(screen.getByRole('button', { name: /create schedule/i }));
     // The POST resolves 201 and the list is invalidated; the create control stays reachable.
     expect(await screen.findByRole('button', { name: /create schedule/i })).toBeInTheDocument();
+  });
+
+  it('turns a schedule off with its switch (PATCH enabled:false)', async () => {
+    const calls: { method: string; url: string; body: string }[] = [];
+    const client = new ApiClient({
+      baseUrl: 'https://api.example.test',
+      csrfCookieName: 'tm_session_csrf',
+      fetch: ((input: RequestInfo | URL, init?: RequestInit) => {
+        const method = (init?.method ?? 'GET').toUpperCase();
+        calls.push({ method, url: String(input), body: String(init?.body ?? '') });
+        if (method === 'PATCH') return Promise.resolve(json({ ...DAILY, enabled: false }));
+        if (String(input).includes('/schedules'))
+          return Promise.resolve(json({ schedules: [DAILY] }));
+        return Promise.resolve(json({}, 404));
+      }) as typeof globalThis.fetch,
+      readCsrfToken: () => 'csrf-token',
+      newCorrelationId: () => 'correlation-fixed',
+    });
+    render(
+      withQuery(
+        <AutomationSchedulesScreen
+          organizationSlug="acme"
+          organizationName="Acme"
+          client={client}
+        />,
+      ),
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('switch', { name: 'Schedule for tpl-1 is on' }));
+    const patch = await vi.waitFor(() => {
+      const found = calls.find((call) => call.method === 'PATCH');
+      if (!found) throw new Error('no PATCH yet');
+      return found;
+    });
+    expect(patch.url).toContain('/automations/schedules/sch-1');
+    expect(JSON.parse(patch.body)).toEqual({ enabled: false });
+  });
+
+  it('asks before removing a schedule, then sends DELETE', async () => {
+    const calls: { method: string; url: string }[] = [];
+    const client = new ApiClient({
+      baseUrl: 'https://api.example.test',
+      csrfCookieName: 'tm_session_csrf',
+      fetch: ((input: RequestInfo | URL, init?: RequestInit) => {
+        const method = (init?.method ?? 'GET').toUpperCase();
+        calls.push({ method, url: String(input) });
+        if (method === 'DELETE') return Promise.resolve(new Response(null, { status: 204 }));
+        if (String(input).includes('/schedules'))
+          return Promise.resolve(json({ schedules: [DAILY] }));
+        return Promise.resolve(json({}, 404));
+      }) as typeof globalThis.fetch,
+      readCsrfToken: () => 'csrf-token',
+      newCorrelationId: () => 'correlation-fixed',
+    });
+    const { container } = render(
+      withQuery(
+        <AutomationSchedulesScreen
+          organizationSlug="acme"
+          organizationName="Acme"
+          client={client}
+        />,
+      ),
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Remove the schedule for tpl-1' }));
+    const confirm = screen.getByRole('group', { name: 'Remove this schedule?' });
+    expect(calls.some((call) => call.method === 'DELETE')).toBe(false);
+    await expectNoAxeViolations(container);
+
+    await user.click(within(confirm).getByRole('button', { name: 'Keep it' }));
+    expect(screen.queryByRole('group', { name: 'Remove this schedule?' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Remove the schedule for tpl-1' }));
+    await user.click(
+      within(screen.getByRole('group', { name: 'Remove this schedule?' })).getByRole('button', {
+        name: 'Remove',
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(calls.find((call) => call.method === 'DELETE')?.url).toContain(
+        '/automations/schedules/sch-1',
+      ),
+    );
   });
 });

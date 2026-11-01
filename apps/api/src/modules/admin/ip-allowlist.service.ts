@@ -9,6 +9,7 @@ import type {
 } from '../../common/database/tenant-context.js';
 import { canonicaliseEntry } from './cidr.js';
 import { AdminIpAllowlistRepository } from './ip-allowlist.repository.js';
+import type { AuditService } from '../audit/audit.service.js';
 
 /**
  * Organization IP allowlist — Administration module 18 (x277). The service half: list the org's
@@ -76,6 +77,16 @@ export function toView(row: OrgIpAllowlistRow): IpAllowlistEntryView {
   };
 }
 
+/**
+ * The audit metadata for one range. A `/` is not a safe audit value, so the range is split into its
+ * network address and prefix length; the free-text label is never written.
+ */
+function rangeMetadata(cidr: string): { range_start: string; prefix_length: number | null } {
+  const [start = cidr, prefix] = cidr.split('/');
+  const length = prefix === undefined ? null : Number(prefix);
+  return { range_start: start, prefix_length: Number.isFinite(length) ? length : null };
+}
+
 /** The label column width (`org_ip_allowlist.label`). */
 const MAX_LABEL_LENGTH = 120;
 
@@ -112,6 +123,9 @@ export class AdminIpAllowlistService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly store: IpAllowlistStore = new AdminIpAllowlistRepository(),
+    // 2026-10-31 live test: adding or removing a range left no audit row. Optional so the unit
+    // tests can build the service without one; the module always wires the global audit service.
+    private readonly audit?: Pick<AuditService, 'record'>,
   ) {}
 
   /** The tenant's allowlist entries, oldest first. Behind `org.security.manage`. */
@@ -148,7 +162,15 @@ export class AdminIpAllowlistService {
           'ip_allowlist.duplicate_cidr',
         );
       }
-      return this.store.insert(tx, context, input);
+      const inserted = await this.store.insert(tx, context, input);
+      await this.audit?.record(tx, context, {
+        action: 'ip_allowlist.entry_added',
+        objectId: inserted.id,
+        result: 'allowed',
+        actorUserId: principal.userId,
+        metadata: rangeMetadata(inserted.cidr),
+      });
+      return inserted;
     });
     return toView(row);
   }
@@ -180,6 +202,13 @@ export class AdminIpAllowlistService {
       this.requireSecurityManage(principal, context, 'ip_allowlist.remove');
       // 3. Delete, tenant-scoped. Idempotent at the storage layer (a scoped DELETE).
       await this.store.remove(tx, context, entryId);
+      await this.audit?.record(tx, context, {
+        action: 'ip_allowlist.entry_removed',
+        objectId: entry.id,
+        result: 'allowed',
+        actorUserId: principal.userId,
+        metadata: rangeMetadata(entry.cidr),
+      });
     });
   }
 

@@ -1,4 +1,5 @@
 import type { ApiClient } from './client';
+import type { IssuedInvitation } from './invitations';
 
 /**
  * Admin pending-invitation management (Administration module 18, x328).
@@ -48,4 +49,24 @@ export async function revokeInvitation(
     method: 'POST',
     path: `${base(organizationSlug)}/${encodeURIComponent(invitationId)}/revoke`,
   });
+}
+
+/**
+ * Re-issue one pending invitation (`POST invitations/:id/reissues`): the API revokes the old one and
+ * issues a new one in a single transaction, with a new link and a fresh expiry, and mails it. With a
+ * `role` this is how a pending invitation's role is changed (2026-10-31 live test: there was no way
+ * to change it); without one it is "Resend invitation".
+ */
+export async function reissueInvitation(
+  client: ApiClient,
+  organizationSlug: string,
+  invitationId: string,
+  role?: string,
+): Promise<IssuedInvitation> {
+  const { data } = await client.request<IssuedInvitation>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/invitations/${encodeURIComponent(invitationId)}/reissues`,
+    body: role === undefined ? {} : { role },
+  });
+  return data;
 }

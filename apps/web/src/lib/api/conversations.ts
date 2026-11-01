@@ -48,6 +48,8 @@ export interface MessageSummary {
   readonly deletedByUserId: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
+  /** Live replies in this message's thread — channel reads only; absent on a thread read. */
+  readonly replyCount?: number;
 }
 
 export interface MessageRevisionSummary {

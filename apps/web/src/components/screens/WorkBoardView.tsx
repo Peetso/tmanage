@@ -1,9 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type DragEvent } from 'react';
 import Link from 'next/link';
-import type { WorkItemState } from '@tmanage/domain';
-import type { WorkItemSummary } from '../../lib/api/work-items';
+import { InlineAlert } from '@tmanage/ui';
+import { workItemStateMachine, type WorkItemState } from '@tmanage/domain';
+import { transitionWorkItem, type WorkItemSummary } from '../../lib/api/work-items';
+import type { ApiClient } from '../../lib/api/client';
+import { ApiRequestError } from '../../lib/api/errors';
 import type { MemberSummary } from '../../lib/api/members';
 import { memberDisplayName } from '../../lib/members-presentation';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
@@ -44,6 +47,52 @@ export function columnOf(state: WorkItemState): BoardColumn | null {
   return COLUMN_OF[state] ?? null;
 }
 
+/** The state a card dropped on a column lands in. */
+const DROP_STATE: Record<BoardColumn, WorkItemState> = {
+  todo: 'ready',
+  in_progress: 'in_progress',
+  in_review: 'internal_review',
+  done: 'done',
+};
+
+/**
+ * The legal steps from `from` to `to` that a drag can make on its own: moves that need nothing
+ * typed in, plus `done`, whose owner and completion time the board supplies. Anything that needs
+ * a reason (blocking, resolving a blocker, reopening) is `null` — the item page asks for it.
+ */
+export function dragPath(
+  from: WorkItemState,
+  to: WorkItemState,
+  hasOwner: boolean,
+): readonly WorkItemState[] | null {
+  if (from === to) return [];
+  const queue: (readonly WorkItemState[])[] = [[from]];
+  const seen = new Set<WorkItemState>([from]);
+  while (queue.length > 0) {
+    const path = queue.shift() as readonly WorkItemState[];
+    const at = path[path.length - 1] as WorkItemState;
+    for (const next of workItemStateMachine.allowedFrom(at)) {
+      if (seen.has(next) || next === 'archived' || next === 'blocked') continue;
+      const needs = workItemStateMachine.requirementsFor(at, next);
+      const supplied =
+        next === 'done'
+          ? hasOwner && needs.every((fact) => fact === 'ownerId' || fact === 'completedAt')
+          : needs.length === 0;
+      if (!supplied) continue;
+      if (next === to) return [...path.slice(1), next];
+      if (next === 'done') continue;
+      seen.add(next);
+      queue.push([...path, next]);
+    }
+  }
+  return null;
+}
+
+/** Where a card dropped on `column` would go, or `null` when the drop changes nothing. */
+export function dropTarget(state: WorkItemState, column: BoardColumn): WorkItemState | null {
+  return columnOf(state) === column ? null : DROP_STATE[column];
+}
+
 /** Whether an item's due day passes the board's Due filter, judged against `today`. */
 export function matchesDue(item: WorkItemSummary, filter: DueFilter, today: string): boolean {
   if (filter === 'any') return true;
@@ -61,6 +110,13 @@ export interface WorkBoardViewProps {
   readonly membersPending: boolean;
   /** Injected in tests so the Due filter can be exercised on a fixed day. */
   readonly now?: Date;
+  /**
+   * WK-03 (Figma 157:224): with a client the cards can be dragged between columns, each drop
+   * sent as the lifecycle's own transitions. Without one the board is read-only.
+   */
+  readonly api?: ApiClient;
+  /** Called after a drop has moved a card, so the list behind the board is re-read. */
+  readonly onMoved?: () => void;
 }
 
 /**
@@ -77,8 +133,66 @@ export function WorkBoardView({
   members,
   membersPending,
   now,
+  api,
+  onMoved,
 }: WorkBoardViewProps) {
   const t = useA6T();
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [over, setOver] = useState<BoardColumn | null>(null);
+  const [refused, setRefused] = useState<{ title: string; reason: string } | null>(null);
+
+  const [moving, setMoving] = useState(false);
+
+  /** Sends a drop as the lifecycle's own transitions, one step at a time. */
+  async function moveItem(item: WorkItemSummary, path: readonly WorkItemState[]) {
+    if (!api) return;
+    setMoving(true);
+    try {
+      let current = item;
+      for (const to of path) {
+        current = await transitionWorkItem(api, organizationSlug, item.id, {
+          version: current.version,
+          to,
+          facts:
+            to === 'done' && current.ownerUserId !== null
+              ? { ownerId: current.ownerUserId, completedAt: new Date().toISOString() }
+              : {},
+        });
+      }
+      setRefused(null);
+    } catch (error) {
+      setRefused({
+        title: item.title,
+        reason: error instanceof ApiRequestError ? error.message : t('WorkBoard.moveFailed'),
+      });
+    } finally {
+      setMoving(false);
+      onMoved?.();
+    }
+  }
+
+  function drop(event: DragEvent<HTMLElement>, column: BoardColumn) {
+    event.preventDefault();
+    setOver(null);
+    const id = event.dataTransfer.getData('text/plain') || dragging;
+    setDragging(null);
+    const item = items.find((candidate) => candidate.id === id);
+    if (!item) return;
+    const target = dropTarget(item.state, column);
+    if (target === null) return;
+    const path = dragPath(item.state, target, item.ownerUserId !== null);
+    if (path === null || path.length === 0) {
+      setRefused({
+        title: item.title,
+        reason:
+          target === 'done' && item.ownerUserId === null
+            ? t('WorkBoard.moveNeedsOwner')
+            : t('WorkBoard.moveNeedsDetail'),
+      });
+      return;
+    }
+    void moveItem(item, path);
+  }
   const locale = useActiveLocale();
   const today = todayOf(now ?? new Date());
   const [owner, setOwner] = useState('');
@@ -123,12 +237,39 @@ export function WorkBoardView({
         </label>
       </div>
 
-      <div className="tm-wk-board">
+      {refused ? (
+        <InlineAlert tone="danger" title={t('WorkBoard.moveNotAllowed')} live>
+          {t('WorkBoard.moveNotAllowedBody', { title: refused.title, reason: refused.reason })}
+        </InlineAlert>
+      ) : null}
+
+      <div className="tm-wk-board" aria-busy={moving || undefined}>
         {COLUMNS.map((column) => {
           const cards = shown.filter((item) => columnOf(item.state) === column.id);
           const headingId = `tm-wk-board-${column.id}`;
           return (
-            <section key={column.id} className="tm-wk-board__column" aria-labelledby={headingId}>
+            <section
+              key={column.id}
+              className="tm-wk-board__column"
+              aria-labelledby={headingId}
+              data-drop-over={over === column.id || undefined}
+              {...(api
+                ? {
+                    onDragOver: (event: DragEvent<HTMLElement>) => {
+                      if (dragging === null) return;
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = 'move';
+                      if (over !== column.id) setOver(column.id);
+                    },
+                    onDragLeave: (event: DragEvent<HTMLElement>) => {
+                      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                        setOver((current) => (current === column.id ? null : current));
+                      }
+                    },
+                    onDrop: (event: DragEvent<HTMLElement>) => drop(event, column.id),
+                  }
+                : {})}
+            >
               <h2 id={headingId} className="tm-wk-board__heading">
                 <span>{t(column.key)}</span>
                 <span className="tm-wk-count">{cards.length}</span>
@@ -142,7 +283,26 @@ export function WorkBoardView({
                   const finished = item.state === 'done' && item.completedAt !== null;
                   const day = finished ? dayOf(item.completedAt) : dayOf(item.dueAt);
                   return (
-                    <li key={item.id} className="tm-wk-card-tile">
+                    <li
+                      key={item.id}
+                      className="tm-wk-card-tile"
+                      data-dragging={dragging === item.id || undefined}
+                      {...(api
+                        ? {
+                            draggable: true,
+                            onDragStart: (event: DragEvent<HTMLLIElement>) => {
+                              event.dataTransfer.setData('text/plain', item.id);
+                              event.dataTransfer.effectAllowed = 'move';
+                              setDragging(item.id);
+                              setRefused(null);
+                            },
+                            onDragEnd: () => {
+                              setDragging(null);
+                              setOver(null);
+                            },
+                          }
+                        : {})}
+                    >
                       <Link
                         className="tm-wk-card-tile__title"
                         href={`/${organizationSlug}/work/${item.id}`}

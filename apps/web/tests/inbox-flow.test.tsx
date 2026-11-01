@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { InboxScreen } from '../src/components/screens/InboxScreen';
 import { ApiClient } from '../src/lib/api/client';
 import { expectNoAxeViolations } from './axe';
@@ -90,6 +90,12 @@ function modeOf(url: string): string | null {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('TM-04 the inbox', () => {
+  // The chosen mode is kept in `?mode=` (2026-10-31 live test), and jsdom keeps one URL for the
+  // whole file — reset it so a mode clicked in one test does not start the next.
+  afterEach(() => {
+    window.history.replaceState(null, '', '/');
+  });
+
   it('shows one row per bundle, linked to its object, and is accessible', async () => {
     const { client } = clientOver(() =>
       json({
@@ -391,5 +397,48 @@ describe('TM-04 the inbox', () => {
 
     expect(await screen.findByText('Nothing has happened yet')).toBeInTheDocument();
     expect(screen.queryByText('Not available yet')).not.toBeInTheDocument();
+  });
+});
+
+describe('TM-04 inbox live-test fixes (2026-10-31)', () => {
+  afterEach(() => {
+    window.history.replaceState(null, '', '/');
+  });
+
+  it('keeps the chosen mode in the URL and restores it on load', async () => {
+    window.history.replaceState(null, '', '/northstar/inbox?mode=waiting_on_me');
+    const { client, calls } = clientOver(() => json({ items: [], nextCursor: null }));
+    render(withQuery(<InboxScreen {...NAMES} client={client} />));
+    await waitFor(() => {
+      expect(calls.some((call) => modeOf(call.url) === 'waiting_on_me')).toBe(true);
+    });
+  });
+
+  it('snoozes a card until the chosen time, then offers Undo', async () => {
+    const user = userEvent.setup();
+    const { client, calls } = clientOver((call) => {
+      if (call.method === 'PUT' || call.method === 'DELETE') return json({ snoozes: [] });
+      return json({ items: [bundle()], nextCursor: null });
+    });
+    render(withQuery(<InboxScreen {...NAMES} client={client} />));
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Snooze: Prepare mobile booking flow concepts' }),
+    );
+    await user.click(screen.getByRole('menuitem', { name: 'Tomorrow' }));
+
+    const put = await waitFor(() => {
+      const found = calls.find((call) => call.method === 'PUT');
+      expect(found).toBeDefined();
+      return found;
+    });
+    expect(put?.url).toBe(
+      'https://api.example.test/v1/organizations/northstar/inbox/work_item%3Awi-1/snooze',
+    );
+    expect(await screen.findByText(/Snoozed until tomorrow/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => {
+      expect(calls.some((call) => call.method === 'DELETE')).toBe(true);
+    });
   });
 });

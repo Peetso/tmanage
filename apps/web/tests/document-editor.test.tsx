@@ -5,7 +5,12 @@ import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 import { DocumentEditorScreen } from '../src/components/screens/DocumentEditorScreen';
 import { DocsHubScreen } from '../src/components/screens/DocsHubScreen';
-import { applyDocEdit, DOC_TOOL_EDITS } from '../src/components/docs/doc-markdown';
+import {
+  applyDocEdit,
+  diffLines,
+  DOC_TOOL_EDITS,
+  slashTriggerAt,
+} from '../src/components/docs/doc-markdown';
 import { ApiClient } from '../src/lib/api/client';
 import { expectNoAxeViolations } from './axe';
 
@@ -148,7 +153,9 @@ describe('DocumentEditorScreen — the blank new doc', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Atlas launch plan' })).toBeVisible();
     expect(screen.getByText('Draft')).toBeVisible();
     expect(
-      await screen.findByText('Atlas relaunch · Only you can see this draft until you share it'),
+      await screen.findByText(
+        'Atlas relaunch · Your team can see this draft · clients only after you publish',
+      ),
     ).toBeVisible();
     expect(screen.getByRole('link', { name: 'Or start from a template' })).toHaveAttribute(
       'href',
@@ -185,6 +192,175 @@ describe('DocumentEditorScreen — the blank new doc', () => {
     expect(applyDocEdit('a b', 2, 3, DOC_TOOL_EDITS.bold).text).toBe('a **b**');
     expect(applyDocEdit('one\ntwo', 4, 7, DOC_TOOL_EDITS.list).text).toBe('one\n- two');
     expect(applyDocEdit('', 0, 0, DOC_TOOL_EDITS.link, 'site').text).toBe('[site](https://)');
+  });
+  // Live test 2026-10-31 — Bold left the caret after "text", so "boldword" landed beside it.
+  it('selects an inserted placeholder so the next word replaces it', () => {
+    const bold = applyDocEdit('', 0, 0, DOC_TOOL_EDITS.bold, 'text');
+    expect(bold).toEqual({ text: '**text**', selectionStart: 2, caret: 6 });
+    const link = applyDocEdit('', 0, 0, DOC_TOOL_EDITS.link, 'text');
+    expect(link.text.slice(link.selectionStart, link.caret)).toBe('text');
+    // With a selection the caret goes after it, nothing selected.
+    const wrapped = applyDocEdit('a b', 2, 3, DOC_TOOL_EDITS.bold);
+    expect(wrapped.selectionStart).toBe(wrapped.caret);
+  });
+
+  // Live test 2026-10-31 — words typed straight after a toolbar click were lost ("- - - - **text**").
+  it('keeps the focus in the body after a toolbar click, so typing goes into the doc', async () => {
+    render(editor());
+    const body = (await screen.findByLabelText('Document body')) as HTMLTextAreaElement;
+    const user = userEvent.setup();
+    await user.click(body);
+    await user.click(screen.getByRole('button', { name: 'B' }));
+    await waitFor(() => expect(document.activeElement).toBe(body));
+    await user.keyboard('bold words');
+    expect(body.value).toBe('**bold words**');
+    await user.click(screen.getByRole('button', { name: /List/ }));
+    await waitFor(() => expect(document.activeElement).toBe(body));
+    await user.keyboard(' more');
+    // The caret stays where it was (inside the bold), one marker further on.
+    expect(body.value).toBe('- **bold words more**');
+  });
+
+  // Live test 2026-10-31 — "/" only typed a slash although the placeholder promised a menu.
+  it('opens the "/" menu at the start of a line and inserts the chosen block', async () => {
+    render(editor());
+    const body = (await screen.findByLabelText('Document body')) as HTMLTextAreaElement;
+    const user = userEvent.setup();
+    await user.click(body);
+    await user.keyboard('/');
+    const menu = await screen.findByRole('listbox', { name: 'Insert a block' });
+    expect(menu).toBeVisible();
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'H1Heading 1',
+      'H2Heading 2',
+      '•Bulleted list',
+      '☐Checklist',
+      '↗Link',
+    ]);
+    await user.keyboard('chec');
+    expect(screen.getAllByRole('option')).toHaveLength(1);
+    await user.keyboard('{Enter}');
+    expect(body.value).toBe('- [ ] ');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    // A slash inside a word never opens it; Esc closes it and keeps the slash.
+    await user.keyboard('a/');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    await user.keyboard(' /');
+    expect(await screen.findByRole('listbox')).toBeVisible();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(body.value).toBe('- [ ] a/ /');
+  });
+
+  it('only a slash at a line start or after a space opens the menu', () => {
+    expect(slashTriggerAt('/', 1)).toBe(0);
+    expect(slashTriggerAt('one\n/', 5)).toBe(4);
+    expect(slashTriggerAt('see /', 5)).toBe(4);
+    expect(slashTriggerAt('and/', 4)).toBe(-1);
+    expect(slashTriggerAt('https:/', 7)).toBe(-1);
+  });
+
+  // Live test 2026-10-31 — Share only flipped to "Link copied"; nothing said who can see the doc.
+  it('Share opens the share dialog, which says who can see the doc and closes with Done', async () => {
+    const { container } = render(editor());
+    await screen.findByLabelText('Document body');
+    const user = userEvent.setup();
+    const share = screen.getByRole('button', { name: 'Share' });
+    await user.click(share);
+    const dialog = await screen.findByRole('dialog', { name: 'Share “Atlas launch plan”' });
+    expect(dialog).toHaveTextContent('Your team · Atlas relaunch members — can edit');
+    expect(dialog).toHaveTextContent('Client people · 0 — can read after you publish');
+    await user.click(screen.getByRole('button', { name: 'Copy link' }));
+    expect(await screen.findByRole('button', { name: 'Link copied' })).toBeVisible();
+    await expectNoAxeViolations(container);
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(share);
+  });
+
+  // Live test 2026-10-31 — Compare showed the old text with no diff or label; Restore had no look first.
+  it('compares a version with the current text and restores it from the compare card', async () => {
+    const calls: Call[] = [];
+    const earlier = new Date(Date.now() - 60_000).toISOString();
+    const now = new Date().toISOString();
+    const versions = [
+      {
+        id: 'v1',
+        documentId: DOCUMENT_ID,
+        versionNo: 1,
+        body: 'Alpha\nOld line',
+        editedByUserId: 'user-1',
+        createdAt: earlier,
+      },
+      {
+        id: 'v2',
+        documentId: DOCUMENT_ID,
+        versionNo: 2,
+        body: 'Alpha\nNew line',
+        editedByUserId: 'user-2',
+        createdAt: now,
+      },
+    ];
+    const withHistory = (call: Call): Response => {
+      if (call.url.endsWith(`/documents/${DOCUMENT_ID}/versions`) && call.method === 'GET') {
+        return json({ versions });
+      }
+      if (call.url.endsWith(`/documents/${DOCUMENT_ID}/versions/1`)) return json(versions[0]);
+      if (call.url.endsWith(`/documents/${DOCUMENT_ID}/restore`)) {
+        return json({ ...versions[0], id: 'v3', versionNo: 3 });
+      }
+      if (call.url.includes(`/documents/${DOCUMENT_ID}/sharing`)) {
+        return json({
+          audience: 'internal',
+          publishedAt: null,
+          clientAudienceCount: 0,
+          collaborators: [
+            { userId: 'user-1', displayName: 'Maya Hassan' },
+            { userId: 'user-2', displayName: 'Omar Adel' },
+          ],
+          canPublish: true,
+        });
+      }
+      if (call.url.endsWith(`/documents/${DOCUMENT_ID}`)) {
+        return json({ ...BLANK, body: 'Alpha\nNew line' });
+      }
+      return handler(call);
+    };
+    render(
+      withQuery(
+        <DocumentEditorScreen
+          organizationSlug="acme"
+          organizationName="Acme"
+          documentId={DOCUMENT_ID}
+          client={clientOver(withHistory, calls)}
+          autosaveDelayMs={20}
+        />,
+      ),
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByText('Version history · 2'));
+    const current = await screen.findByRole('button', { name: /Current/ });
+    expect(current).toBeDisabled();
+    expect(current).toHaveTextContent('Omar Adel');
+    expect(screen.queryByRole('button', { name: /^Restore/ })).toBeNull();
+    await user.click(screen.getByRole('button', { name: /Maya Hassan/ }));
+    const compare = await screen.findByRole('region', { name: 'Compare versions' });
+    expect(compare).toHaveTextContent('2 changes');
+    expect(compare).toHaveTextContent('AddedNew line');
+    expect(compare).toHaveTextContent('RemovedOld line');
+    expect(compare).toHaveTextContent('Restoring creates a new version. Nothing is overwritten.');
+    await user.click(screen.getByRole('button', { name: /^Restore .* version$/ }));
+    await waitFor(() =>
+      expect(calls.find((call) => call.url.endsWith('/restore'))?.body).toEqual({ versionNo: 1 }),
+    );
+  });
+
+  it('diffs lines into added and removed runs', () => {
+    expect(diffLines('a\nb\nc', 'a\nc\nd')).toEqual([
+      { kind: 'removed', lines: ['b'] },
+      { kind: 'added', lines: ['d'] },
+    ]);
+    expect(diffLines('same', 'same')).toEqual([]);
   });
 });
 

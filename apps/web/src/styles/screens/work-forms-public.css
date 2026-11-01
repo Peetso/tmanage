@@ -1,0 +1,178 @@
+/*
+ * 2026-10-31 live-test fix — forms public link and the public form page.
+ * Figma: "Forms · Public link (2026-10-31 live-test fix)" 446:36140,
+ * "Forms · Public form page" 446:36209, "… could not send" 446:36239, "… sent" 446:36268.
+ */
+
+/* ── Public link card (Work › Intake forms) ─────────────────────────────── */
+
+.wf-link {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--line-300);
+  border-radius: 24px;
+  background: var(--paper-0);
+}
+
+.wf-link__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wf-link__title {
+  margin: 0;
+  font-size: 15px;
+  line-height: 21px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.wf-link__body {
+  margin: 0;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-650);
+}
+
+.wf-link__url {
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--ink-800);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.wf-link__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Public form page (/f/:slug) ───────────────────────────────────────── */
+
+.wf-public {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 96px 16px 48px;
+  background: var(--paper-50);
+}
+
+.wf-public__card {
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 32px;
+  border: 1px solid var(--line-300);
+  border-radius: 24px;
+  background: var(--paper-0);
+}
+
+.wf-public__card--sent {
+  gap: 16px;
+}
+
+.wf-public__eyebrow {
+  margin: 0;
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+.wf-public__title {
+  margin: 0;
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.wf-public__intro {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-650);
+}
+
+.wf-public__form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.wf-public__form .tm-button {
+  width: 100%;
+}
+
+.wf-public__note,
+.wf-public__footer {
+  margin: 0;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--ink-500);
+}
+
+.wf-public__footer {
+  font-weight: 500;
+}
+
+.wf-public__reference {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--paper-50);
+}
+
+.wf-public__reference-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.wf-public__reference-code {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.wf-public__reference-hint {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-650);
+}
+
+.wf-public__check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (max-width: 600px) {
+  .wf-public {
+    padding-top: 32px;
+  }
+
+  .wf-public__card {
+    padding: 20px;
+  }
+}

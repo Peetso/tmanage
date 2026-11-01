@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { clientOnlyRead } from '../../lib/portal-preview';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -55,9 +56,14 @@ export function ClientRequestsScreen({
     queryFn: () => listPortalProjects(api, organizationSlug),
   });
 
+  const queryClient = useQueryClient();
+  // 2026-10-31 live-test fix: a staff preview reads the client's empty list, not the API's 403.
   const requests = useQuery({
     queryKey: ['portal-requests', organizationSlug],
-    queryFn: () => listClientRequests(api, organizationSlug),
+    queryFn: () =>
+      clientOnlyRead(queryClient, organizationSlug, [], () =>
+        listClientRequests(api, organizationSlug),
+      ),
   });
 
   const ordered = (requests.data ?? []).slice().sort(byAttentionThenAge);
@@ -78,7 +84,6 @@ export function ClientRequestsScreen({
       organizationSlug={organizationSlug}
       clientName={clientName}
       providerName={providerName}
-      activeNavigationId="overview"
       title={t('ClientRequestsScreen.title')}
       eyebrow={requestsEyebrow}
       headerAside={

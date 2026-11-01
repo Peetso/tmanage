@@ -1,0 +1,128 @@
+/* Docs · Share dialog — Figma 446:35464 (the Confirm dialog card of 370:2785 over a scrim). */
+
+.tm-docshare {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: start center;
+  padding: 120px 16px 16px;
+}
+
+.tm-docshare__scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--tm-scrim, rgb(18 18 15 / 32%));
+}
+
+.tm-docshare__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  inline-size: min(560px, 100%);
+  padding: 21px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  box-shadow: var(--tm-overlay-shadow);
+  color: var(--ink-950);
+}
+
+.tm-docshare__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 27px;
+  overflow-wrap: anywhere;
+}
+
+.tm-docshare__body {
+  margin: 0;
+  color: var(--ink-800);
+  font-size: 15px;
+  line-height: 25px;
+}
+
+.tm-docshare__label {
+  margin: 0;
+  color: var(--ink-650);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+[dir='rtl'] .tm-docshare__label {
+  font-family: inherit;
+  letter-spacing: 0;
+}
+
+.tm-docshare__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-docshare__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-block-size: 51px;
+  padding: 12px 16px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.tm-docshare__note {
+  margin: 0;
+  color: var(--ink-650);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 17px;
+}
+
+[dir='rtl'] .tm-docshare__note {
+  font-family: inherit;
+}
+
+.tm-docshare__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.tm-docshare__btn {
+  block-size: 46px;
+  padding-inline: 20px;
+  border: var(--b-quiet) solid var(--ink-950);
+  border-radius: 999px;
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.tm-docshare__btn[data-tone='ink'] {
+  background: var(--ink-950);
+  color: var(--paper-0);
+}
+
+.tm-docshare__btn:focus-visible {
+  outline: 3px solid var(--lime-500);
+  outline-offset: 2px;
+}
+
+@media (max-width: 600px) {
+  .tm-docshare {
+    padding-block-start: 64px;
+  }
+}

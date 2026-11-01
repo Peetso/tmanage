@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { Fragment, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Checkbox, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -8,14 +8,17 @@ import { AutomationSectionTabs } from './AutomationSectionTabs';
 import { listWorkflowTemplates } from '../../lib/api/automations';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
+  deleteAutomationSchedule,
   listAutomationSchedules,
   scheduleAutomationTemplate,
+  setAutomationScheduleEnabled,
   type ScheduleInterval,
   type ScheduleSpec,
 } from '../../lib/api/automation-schedules';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 
 export interface AutomationSchedulesScreenProps {
   organizationSlug: string;
@@ -39,8 +42,10 @@ const DAY_VALUES: readonly number[] = [0, 1, 2, 3, 4, 5, 6];
  * - **A schedule is recorded, not fired.** A background dispatcher that wakes on the next-run instant
  *   and enqueues the workflow is worker infrastructure (Needs-Peter); this screen only records and
  *   lists. The next-run instant it shows is computed by the API at write time.
- * - **A schedule is created, never edited.** The API ships no editor and no per-schedule toggle, so
- *   the enabled state is chosen once, at creation.
+ * - **On, off and remove** (2026-10-31 live-test fix, Figma "Automations · Schedules · Turn off and
+ *   remove (2026-10-31 live-test fix)"): each row has an On switch (`PATCH …/schedules/:id`) and a
+ *   Remove button that asks first ("Remove this schedule? Keep it / Remove", `DELETE`). The recurrence
+ *   itself is not editable: remove the schedule and add a new one.
  */
 export function AutomationSchedulesScreen({
   organizationSlug,
@@ -50,6 +55,7 @@ export function AutomationSchedulesScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tOr = useTOr();
   const queryKey = ['automation-schedules', organizationSlug];
 
   const intervalLabel = (value: ScheduleInterval): string => {
@@ -119,6 +125,24 @@ export function AutomationSchedulesScreen({
     },
   });
 
+  const [confirmingRemoveId, setConfirmingRemoveId] = useState<string | null>(null);
+
+  const toggle = useMutation({
+    mutationFn: (input: { id: string; enabled: boolean }) =>
+      setAutomationScheduleEnabled(api, organizationSlug, input.id, input.enabled),
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey });
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteAutomationSchedule(api, organizationSlug, id),
+    onSuccess: async () => {
+      setConfirmingRemoveId(null);
+      await queryClient.invalidateQueries({ queryKey });
+    },
+  });
+
   const rows = schedules.data ?? [];
   const canCreate = templateId.trim() !== '' && !create.isPending;
   const onCount = rows.filter((schedule) => schedule.enabled).length;
@@ -153,6 +177,19 @@ export function AutomationSchedulesScreen({
             {schedules.isError ? (
               <InlineAlert tone="danger" title={t('AutomationSchedulesScreen.errorLoadTitle')} live>
                 {describeError(t, schedules.error)}
+              </InlineAlert>
+            ) : null}
+
+            {toggle.isError ? (
+              <InlineAlert
+                tone="danger"
+                title={tOr(
+                  'AutomationSchedulesScreen.errorToggleTitle',
+                  'Could not change the schedule',
+                )}
+                live
+              >
+                {describeError(t, toggle.error)}
               </InlineAlert>
             ) : null}
 
@@ -197,33 +234,137 @@ export function AutomationSchedulesScreen({
                         <th scope="col" className="tm-aut-end">
                           {t('AutomationSchedulesScreen.colEnabled')}
                         </th>
+                        <th scope="col" className="tm-aut-end">
+                          <span className="tm-visually-hidden">
+                            {tOr('AutomationSchedulesScreen.colActions', 'Actions')}
+                          </span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map((schedule) => (
-                        <tr key={schedule.id}>
-                          <th scope="row">
-                            <span className="tm-aut-rowtitle">
-                              {templateName(schedule.templateId)}
-                            </span>
-                            <span className="tm-aut-rowsub">
-                              {describeRecurrence(t, dayLabel, schedule.spec)}
-                            </span>
-                          </th>
-                          <td className="tm-aut-mono tm-aut-hide-sm">
-                            {formatNextRun(schedule.nextRunAt)}
-                          </td>
-                          <td className="tm-aut-end">
-                            <span
-                              className={`tm-aut-state ${schedule.enabled ? 'tm-aut-state--live' : 'tm-aut-state--off'}`}
-                            >
-                              {schedule.enabled
-                                ? t('AutomationSchedulesScreen.stateOn')
-                                : t('AutomationSchedulesScreen.stateOff')}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {rows.map((schedule) => {
+                        const name = templateName(schedule.templateId);
+                        const pendingToggle =
+                          toggle.isPending && toggle.variables?.id === schedule.id;
+                        const shownEnabled = pendingToggle
+                          ? (toggle.variables?.enabled ?? schedule.enabled)
+                          : schedule.enabled;
+                        return (
+                          <Fragment key={schedule.id}>
+                            <tr>
+                              <th scope="row">
+                                <span className="tm-aut-rowtitle">{name}</span>
+                                <span className="tm-aut-rowsub">
+                                  {describeRecurrence(t, dayLabel, schedule.spec)}
+                                  {shownEnabled
+                                    ? ''
+                                    : ` · ${tOr('AutomationSchedulesScreen.offSkipped', 'Off, skipped until turned on')}`}
+                                </span>
+                              </th>
+                              <td className="tm-aut-mono tm-aut-hide-sm">
+                                {formatNextRun(schedule.nextRunAt)}
+                              </td>
+                              <td className="tm-aut-end">
+                                <input
+                                  type="checkbox"
+                                  role="switch"
+                                  className="tm-switch tm-aut-switch"
+                                  checked={shownEnabled}
+                                  disabled={pendingToggle}
+                                  aria-label={tOr(
+                                    'AutomationSchedulesScreen.switchLabel',
+                                    'Schedule for {name} is on',
+                                  ).replace('{name}', name)}
+                                  onChange={(event) =>
+                                    toggle.mutate({
+                                      id: schedule.id,
+                                      enabled: event.target.checked,
+                                    })
+                                  }
+                                />
+                              </td>
+                              <td className="tm-aut-end">
+                                <button
+                                  type="button"
+                                  className="tm-aut-textbtn"
+                                  aria-label={tOr(
+                                    'AutomationSchedulesScreen.removeLabel',
+                                    'Remove the schedule for {name}',
+                                  ).replace('{name}', name)}
+                                  onClick={() => {
+                                    remove.reset();
+                                    setConfirmingRemoveId(schedule.id);
+                                  }}
+                                >
+                                  {tOr('AutomationSchedulesScreen.remove', 'Remove')}
+                                </button>
+                              </td>
+                            </tr>
+                            {confirmingRemoveId === schedule.id ? (
+                              <tr className="tm-aut-confirmrow">
+                                <td colSpan={4}>
+                                  <div
+                                    className="tm-aut-confirm"
+                                    role="group"
+                                    aria-labelledby={`tm-schedule-remove-${schedule.id}`}
+                                  >
+                                    <p
+                                      id={`tm-schedule-remove-${schedule.id}`}
+                                      className="tm-aut-confirm__title"
+                                    >
+                                      {tOr(
+                                        'AutomationSchedulesScreen.removeConfirmTitle',
+                                        'Remove this schedule?',
+                                      )}
+                                    </p>
+                                    <p className="tm-aut-confirm__body">
+                                      {tOr(
+                                        'AutomationSchedulesScreen.removeConfirmBody',
+                                        'It stops running. Runs it already made stay in the run history.',
+                                      )}
+                                    </p>
+                                    {remove.isError ? (
+                                      <InlineAlert
+                                        tone="danger"
+                                        title={tOr(
+                                          'AutomationSchedulesScreen.errorRemoveTitle',
+                                          'Could not remove the schedule',
+                                        )}
+                                        live
+                                      >
+                                        {describeError(t, remove.error)}
+                                      </InlineAlert>
+                                    ) : null}
+                                    <div className="tm-aut-confirm__actions">
+                                      <Button
+                                        type="button"
+                                        tone="outline"
+                                        size="accessible"
+                                        onClick={() => setConfirmingRemoveId(null)}
+                                      >
+                                        {tOr('AutomationSchedulesScreen.keep', 'Keep it')}
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        tone="destructive"
+                                        size="accessible"
+                                        loading={remove.isPending}
+                                        loadingLabel={tOr(
+                                          'AutomationSchedulesScreen.removing',
+                                          'Removing…',
+                                        )}
+                                        onClick={() => remove.mutate(schedule.id)}
+                                      >
+                                        {tOr('AutomationSchedulesScreen.removeConfirm', 'Remove')}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            ) : null}
+                          </Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

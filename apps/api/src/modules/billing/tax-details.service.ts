@@ -4,6 +4,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { ISO_COUNTRY_CODE_SET } from '../../common/database/schema.js';
 import type { BillingTaxDetailsRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type { AuditService } from '../audit/audit.service.js';
 import type {
   BillingTaxDetailsInput,
   BillingTaxDetailsRepository,
@@ -70,6 +71,8 @@ export class BillingTaxDetailsService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly repository: BillingTaxDetailsRepository,
+    // 2026-10-31 live test: saving tax details left no audit row. Optional for the unit tests.
+    private readonly audit?: Pick<AuditService, 'record'>,
   ) {}
 
   /** Read the acting tenant's tax details, or the defaults when none has been saved. */
@@ -95,9 +98,17 @@ export class BillingTaxDetailsService {
   ): Promise<TaxDetailsView> {
     this.authorizeManage(context, principal, 'billing_tax_details.update');
     const input = validateBody(body);
-    const row = await this.database.transaction(context, (tx) =>
-      this.repository.upsert(tx, context, input),
-    );
+    const row = await this.database.transaction(context, async (tx) => {
+      const saved = await this.repository.upsert(tx, context, input);
+      await this.audit?.record(tx, context, {
+        action: 'billing_tax_details.updated',
+        objectId: context.organizationId,
+        result: 'allowed',
+        actorUserId: principal.userId,
+        metadata: { tax_country: saved.taxCountry },
+      });
+      return saved;
+    });
     return toView(row);
   }
 

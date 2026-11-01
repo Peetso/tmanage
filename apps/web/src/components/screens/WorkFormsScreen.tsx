@@ -20,6 +20,7 @@ import '../../styles/screens/work-planning.css';
 import { useOrganizationName } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { WorkFormPublicLink } from './WorkFormPublicLink';
 
 export interface WorkFormsScreenProps {
   organizationSlug: string;
@@ -199,7 +200,7 @@ export function WorkFormsScreen({
                     >
                       {FIELD_TYPES.map((type) => (
                         <option key={type} value={type}>
-                          {FIELD_TYPE_LABELS[type]}
+                          {t(FIELD_TYPE_LABELS[type])}
                         </option>
                       ))}
                     </select>
@@ -318,6 +319,10 @@ export function WorkFormsScreen({
           ) : null}
 
           {activeForm ? (
+            <WorkFormPublicLink api={api} organizationSlug={organizationSlug} form={activeForm} />
+          ) : null}
+
+          {activeForm ? (
             <form
               className="wp-stack wp-stack--fill"
               noValidate
@@ -421,10 +426,13 @@ export function WorkFormsScreen({
   );
 }
 
-/** How each answer type is said to a person. The stored value stays the API's key. */
-const FIELD_TYPE_LABELS: Record<WorkFormFieldType, string> = {
-  text: 'Short text',
-  number: 'Number',
-  date: 'Date',
-  checkbox: 'Yes or no',
-};
+/**
+ * How each answer type is said to a person (translated; 2026-10-31 live-test fix — these were
+ * English-only). The stored value stays the API's key.
+ */
+const FIELD_TYPE_LABELS = {
+  text: 'WorkFormsScreen.typeText',
+  number: 'WorkFormsScreen.typeNumber',
+  date: 'WorkFormsScreen.typeDate',
+  checkbox: 'WorkFormsScreen.typeCheckbox',
+} as const satisfies Record<WorkFormFieldType, string>;

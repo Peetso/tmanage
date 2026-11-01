@@ -5,6 +5,8 @@ import { QueryClientContext } from '@tanstack/react-query';
 import { Badge, LiveAnnouncer, SkipLink, StatusDot } from '@tmanage/ui';
 import { Wordmark } from '../brand/Wordmark';
 import { CLIENT_NAVIGATION } from './navigation';
+import { usePortalPreview } from '../../lib/portal-preview';
+import type { MessageKey } from '../../lib/i18n/t';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 import { WorkspaceSuspendedGate } from '../platform/WorkspaceSuspendedGate';
@@ -67,8 +69,8 @@ export interface ClientPortalShellProps {
   children: ReactNode;
   /**
    * Renders the internal-facing preview chrome around the portal — the `ClientPreviewBar`
-   * of the design inventory. Off by default, because the client's own view must never carry
-   * it.
+   * of the design inventory. When omitted it follows the session (2026-10-31 live-test fix,
+   * Figma 446:37676): on for staff of this organization, never for a client.
    */
   preview?: boolean;
   /** The signed-in client's initials, name and email for the account menu (Figma t2-a). */
@@ -103,7 +105,7 @@ export function ClientPortalShell({
   description,
   headerAside,
   children,
-  preview = false,
+  preview: previewProp,
   accountInitials,
   accountName,
   accountEmail,
@@ -114,6 +116,8 @@ export function ClientPortalShell({
     passedProviderName,
   );
   const queryClient = useContext(QueryClientContext);
+  const sessionPreview = usePortalPreview(organizationSlug);
+  const preview = previewProp ?? sessionPreview;
   const t = useT();
   const shell = (
     <LiveAnnouncer>
@@ -128,7 +132,9 @@ export function ClientPortalShell({
           <div className="tm-portal__preview-bar">
             <StatusDot tone="client">{t('ClientPortalShell.previewLabel')}</StatusDot>
             <p className="tm-portal__preview-note">
-              {t('ClientPortalShell.previewNote').replace('{client}', clientName)}
+              {sessionPreview && previewProp === undefined
+                ? t('ClientPortalShell.previewNoteGeneric' as MessageKey)
+                : t('ClientPortalShell.previewNote').replace('{client}', clientName)}
             </p>
           </div>
         ) : null}

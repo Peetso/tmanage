@@ -87,6 +87,15 @@ describe('MeetingsScreen', () => {
 
   it('offers to connect a calendar when nothing is planned or connected', async () => {
     mount([], false);
-    expect(await screen.findByText('Connect your calendar to start')).toBeTruthy();
+    expect(
+      await screen.findByText('Connect your calendar to send invitations and video links.'),
+    ).toBeTruthy();
+    // Figma 419:23431: no "owner hasn't switched on calendars" message for anyone.
+    expect(screen.getByText('Not ready to connect?')).toBeTruthy();
+    expect(screen.queryByText(/workspace owner/i)).toBeNull();
+    // Figma 446:34834 (2026-10-31 live-test fix): the views, Past and the dates stay usable.
+    expect(screen.getByRole('button', { name: 'Month' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Past' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Today' })).toBeTruthy();
   });
 });

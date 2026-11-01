@@ -64,6 +64,17 @@ export function DocTitleEditor({ api, organizationSlug, document, onStatus }: Do
     if (editing) inputRef.current?.focus();
   }, [editing]);
 
+  // Live test 2026-10-31: the "Doc renamed" toast stayed for over a minute. It leaves after six
+  // seconds, long enough to reach Undo.
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timer = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  // Enter and Esc already decided; the blur that follows them must not decide again.
+  const settledRef = useRef(false);
+
   const documentKey = ['document', organizationSlug, document.id];
 
   async function publish(next: DocumentView) {
@@ -120,6 +131,7 @@ export function DocTitleEditor({ api, organizationSlug, document, onStatus }: Do
   }
 
   function begin() {
+    settledRef.current = false;
     setValue(document.title);
     setBaseline(document.title);
     setConflict(null);
@@ -148,11 +160,24 @@ export function DocTitleEditor({ api, organizationSlug, document, onStatus }: Do
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === 'Enter') {
       event.preventDefault();
+      settledRef.current = true;
       submit();
     } else if (event.key === 'Escape') {
       event.preventDefault();
+      settledRef.current = true;
       cancel();
     }
+  }
+
+  /**
+   * Live test 2026-10-31: clicking away from the title neither saved nor cancelled. Leaving the
+   * field now saves a changed name (as Notion and Slack do) and quietly closes an unchanged one.
+   * A conflict waits for its two buttons instead, and a save already in flight is not repeated.
+   */
+  function onBlur() {
+    if (settledRef.current || conflict || pending !== null) return;
+    settledRef.current = true;
+    submit();
   }
 
   function keepMine() {
@@ -204,8 +229,12 @@ export function DocTitleEditor({ api, organizationSlug, document, onStatus }: Do
             value={value}
             maxLength={300}
             aria-describedby={conflict ? 'tm-doc-title-conflict' : 'tm-doc-title-hint'}
-            onChange={(event) => setValue(event.target.value)}
+            onChange={(event) => {
+              settledRef.current = false;
+              setValue(event.target.value);
+            }}
             onKeyDown={onKeyDown}
+            onBlur={onBlur}
           />
           {conflict ? (
             <>

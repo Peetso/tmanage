@@ -62,10 +62,33 @@ const REASON_RANK: Readonly<Record<MyDayReason, number>> = {
   assigned: 2,
 };
 
+/**
+ * The instant before which an item reads as overdue: the start of `now`'s calendar day (UTC, the
+ * same day the Home pulse's "due today" counts). Due dates are whole days (the web stores a picked
+ * day at noon UTC), so an item due today is "due today" until the day ends, never overdue — the
+ * 2026-10-31 live test saw a today-due item labelled overdue next to a "1 due today" chip.
+ */
+export function overdueBefore(now: Date): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+/** The My Day window for `now`: overdue before today, due soon up to the window's end. */
+export function myDayWindow(now: Date): {
+  readonly now: Date;
+  readonly overdueBefore: Date;
+  readonly dueSoonCutoff: Date;
+} {
+  return {
+    now,
+    overdueBefore: overdueBefore(now),
+    dueSoonCutoff: new Date(now.getTime() + DUE_SOON_WINDOW_MS),
+  };
+}
+
 function reasonFor(row: WorkItemRow, now: Date): MyDayReason {
   if (row.dueAt === null) return 'assigned';
   const due = row.dueAt.getTime();
-  if (due < now.getTime()) return 'overdue';
+  if (due < overdueBefore(now).getTime()) return 'overdue';
   if (due <= now.getTime() + DUE_SOON_WINDOW_MS) return 'due_soon';
   // Dated, but far enough off that it is not pressing today.
   return 'assigned';
@@ -411,7 +434,7 @@ export class HomeService {
     principal: Principal,
     now: Date = new Date(),
   ): Promise<MyDayView> {
-    const window = { now, dueSoonCutoff: new Date(now.getTime() + DUE_SOON_WINDOW_MS) };
+    const window = myDayWindow(now);
     const rows = await this.database.read(context, (runner) =>
       this.myDay.listOwnedOpen(runner, context, principal.userId, window),
     );
@@ -435,7 +458,7 @@ export class HomeService {
     principal: Principal,
     now: Date,
   ): Promise<HomeSummaryView['personalWork']> {
-    const window = { now, dueSoonCutoff: new Date(now.getTime() + DUE_SOON_WINDOW_MS) };
+    const window = myDayWindow(now);
     const groups = await this.database.read(context, (runner) =>
       this.myDay.countOwnedOpen(runner, context, principal.userId, window),
     );

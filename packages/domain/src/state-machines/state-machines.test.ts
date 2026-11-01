@@ -124,10 +124,11 @@ describe('work item lifecycle (23-ERD §5)', () => {
     });
   });
 
-  it('has no outbound transition from its terminal state', () => {
+  it('leaves the archive only by a restore to the backlog', () => {
     for (const target of WORK_ITEM_STATES) {
-      expect(workItemStateMachine.transition('archived', target).ok).toBe(false);
+      expect(workItemStateMachine.transition('archived', target).ok).toBe(target === 'backlog');
     }
+    expect(workItemStateMachine.isTerminal('archived')).toBe(false);
   });
 });
 

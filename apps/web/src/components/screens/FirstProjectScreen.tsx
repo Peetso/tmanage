@@ -12,7 +12,7 @@ import {
   LoadingRegion,
   Skeleton,
 } from '@tmanage/ui';
-import { OnboardingShell } from '../shell/OnboardingShell';
+import { OnboardingShell, type OnboardingStepId } from '../shell/OnboardingShell';
 import { AppShell } from '../shell/AppShell';
 import { useT } from '../../lib/i18n/use-t';
 import { OnboardingScreenStyles } from './CreateOrganizationScreen';
@@ -47,6 +47,8 @@ export interface FirstProjectScreenProps {
   mode?: 'onboarding' | 'new';
   /** The organization's display name for the app shell's eyebrow (`new` mode only). */
   organizationName?: string;
+  /** Onboarding steps already finished, for the stepper (`onboarding` mode only). */
+  completedSteps?: readonly OnboardingStepId[];
 }
 
 /**
@@ -91,6 +93,7 @@ export function FirstProjectScreen({
   onCreated,
   mode = 'onboarding',
   organizationName = '',
+  completedSteps,
 }: FirstProjectScreenProps) {
   const t = useT();
   const tc = useProjectClientT();
@@ -368,7 +371,10 @@ export function FirstProjectScreen({
               <span className="tm-field__label">{t('FirstProjectScreen.ownerLabel')}</span>
               <div className="tm-ob-project__owner">
                 <span className="tm-ob-avatar" aria-hidden="true">
-                  {initialsOf(signedInAs || t('FirstProjectScreen.you'))}
+                  {/* No identity yet: one letter of "You", not "YO" (live test 2026-10-31). */}
+                  {signedInAs && signedInAs !== 'You'
+                    ? initialsOf(signedInAs)
+                    : t('FirstProjectScreen.you').charAt(0).toUpperCase()}
                 </span>
                 <span className="tm-ob-project__owner-name">
                   {signedInAs || t('FirstProjectScreen.you')}
@@ -482,6 +488,7 @@ export function FirstProjectScreen({
     <OnboardingShell
       current="ON-03"
       signedInAs={signedInAs}
+      {...(completedSteps === undefined ? {} : { completed: completedSteps })}
       title={t('FirstProjectScreen.onboardingTitle')}
     >
       {body}

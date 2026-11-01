@@ -833,11 +833,14 @@ describe('TM-13 the work item detail', () => {
     });
   });
 
-  it('says there is nowhere to go from a terminal state', async () => {
+  it('offers a restore to the backlog from the archive (2026-10-31 live test)', async () => {
     renderDetail(() => json(workItem({ state: 'archived' })));
 
-    expect(await screen.findByText(/is the end of the lifecycle/)).toBeInTheDocument();
-    expect(screen.queryByLabelText('Move to')).not.toBeInTheDocument();
+    const select = await screen.findByLabelText('Move to');
+    expect(screen.queryByText(/is the end of the lifecycle/)).not.toBeInTheDocument();
+    expect(
+      [...(select as HTMLSelectElement).options].map((option) => option.value).filter(Boolean),
+    ).toEqual(['backlog']);
   });
 
   it('has no axe violations', async () => {

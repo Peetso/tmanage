@@ -9,6 +9,7 @@ import { AppShell } from '../shell/AppShell';
 import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { search } from '../../lib/api/search';
+import { listProjects } from '../../lib/api/projects';
 import type { SearchAudience, SearchResultKind, SearchTimeWindow } from '../../lib/api/search';
 import { getResolvedFeatureFlags } from '../../lib/api/admin-feature-flags';
 import type { ApiClient } from '../../lib/api/client';
@@ -149,6 +150,16 @@ export function SearchScreen({
     queryFn: () => getResolvedFeatureFlags(api, organizationSlug),
   });
   const copilotEnabled = flags.data?.flags.copilot === true;
+
+  // A hit carries its project's id; the card names the project, never a raw id fragment
+  // (2026-10-31 live test: "Project 01A1·93DB"). The list is the caller's own readable projects
+  // and shares the sidebar's cache key, so this is usually a cache hit.
+  const projects = useQuery({
+    queryKey: ['projects', organizationSlug],
+    queryFn: () => listProjects(api, organizationSlug),
+    enabled: query !== '',
+  });
+  const projectNames = new Map((projects.data ?? []).map((project) => [project.id, project.name]));
 
   const hits = results.data ?? [];
   const total = hits.length;
@@ -390,8 +401,16 @@ export function SearchScreen({
                     </div>
                     {hit.snippet ? <p className="tm-sa-hit__body">{hit.snippet}</p> : null}
                     <p className="tm-sa-hit__meta">
-                      {t('SearchScreen.projectMetaPrefix')} {shortRef(hit.projectId)}{' '}
-                      {t('SearchScreen.updatedMeta')} {shortDate(hit.updatedAt)}
+                      {projectNames.has(hit.projectId) ? (
+                        <>
+                          {t('SearchScreen.projectMetaPrefix')}{' '}
+                          {projectNames.get(hit.projectId)}{' '}
+                        </>
+                      ) : null}
+                      {projectNames.has(hit.projectId)
+                        ? t('SearchScreen.updatedMeta')
+                        : t('SearchScreen.updatedMeta').replace(/^·\s*/, '')}{' '}
+                      {shortDate(hit.updatedAt)}
                     </p>
                   </li>
                 ))}

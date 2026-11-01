@@ -687,8 +687,12 @@
   font-weight: 400;
 }
 
-.tm-mtg-month__date[data-today] {
+.tm-mtg-month__date[data-today],
+.tm-mtg-month__cell[data-outside] .tm-mtg-month__date[data-today] {
+  /* Figma 415:20283: today is ink on a lime pill, also when it falls outside the shown month. */
   background: var(--lime-500);
+  color: var(--ink-950);
+  font-weight: 600;
 }
 
 .tm-mtg-chiplink {

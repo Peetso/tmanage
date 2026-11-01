@@ -247,7 +247,11 @@ export class ProvisioningService {
 
     // The onboarding choices join the same transaction: an organization created without the
     // working week the person picked would silently schedule against Monday–Friday.
+    // `default_timezone` is the setting Control Center and every schedule read; the
+    // organization row's own `timezone` column alone left it at the UTC default, so the zone
+    // chosen on ON-01 silently vanished (live test 2026-10-31).
     const initialSettings = [
+      ['default_timezone', input.timezone],
       ['working_week', input.workingWeek],
       ['operating_template', input.operatingTemplate],
     ] as const;

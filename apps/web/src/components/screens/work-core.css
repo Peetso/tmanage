@@ -2052,3 +2052,28 @@ button.tm-wk-chip[aria-expanded='true'] {
   text-transform: none;
   color: var(--ink-950);
 }
+
+/* WK-03 (Figma 157:224), 2026-10-31 live test: board cards can be dragged between columns. The
+   card being moved gets the design's ink ring; the column under it is outlined as the target. */
+.tm-wk-card-tile[draggable='true'] {
+  cursor: grab;
+}
+
+.tm-wk-card-tile[data-dragging] {
+  border: var(--b-structural) solid var(--ink-950);
+  opacity: 0.7;
+}
+
+.tm-wk-board__column[data-drop-over] {
+  outline: var(--b-structural) dashed var(--ink-800);
+  outline-offset: -2px;
+}
+
+/* Edit work item (Figma 377:3597), 2026-10-31 live test: the app-wide `.tm-choice` card rule is
+   `display: block`, which ran "Visible to the client" straight into its helper line. The design
+   stacks the helper under the label. */
+.tm-wk-dialog__visible.tm-choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}

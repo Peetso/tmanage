@@ -69,6 +69,9 @@ export interface ClientMembershipView {
   readonly expiresAt: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
+  /** Present only when the caller asked for people (`withPeople`): the member's name and email. */
+  readonly displayName?: string;
+  readonly email?: string;
 }
 
 export interface ProjectClientView {
@@ -296,6 +299,8 @@ export class ClientsService {
       readonly clientOrganizationId?: string;
       readonly statuses?: readonly ClientMembershipStatus[];
       readonly includeExpired?: boolean;
+      /** 2026-10-31 live-test fix: also return each member's display name and email. */
+      readonly withPeople?: boolean;
     } = {},
   ): Promise<readonly ClientMembershipView[]> {
     const scope = this.membershipScope(principal, context, 'client_membership.list');
@@ -308,13 +313,32 @@ export class ClientsService {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
 
-    const rows = await this.database.read(context, (runner) =>
-      this.memberships.list(runner, context, {
-        ...options,
+    const { withPeople, ...listOptions } = options;
+    const { rows, people } = await this.database.read(context, async (runner) => {
+      const listed = await this.memberships.list(runner, context, {
+        ...listOptions,
         ...(scope === null ? {} : { clientOrganizationId: scope }),
-      }),
-    );
-    return rows.map(toMembershipView);
+      });
+      return {
+        rows: listed,
+        people: withPeople
+          ? await this.memberships.peopleFor(
+              runner,
+              context,
+              listed.map((row) => row.userId),
+            )
+          : [],
+      };
+    });
+    if (!withPeople) return rows.map(toMembershipView);
+    const byUser = new Map(people.map((person) => [person.userId, person]));
+    return rows.map((row) => {
+      const person = byUser.get(row.userId);
+      return {
+        ...toMembershipView(row),
+        ...(person ? { displayName: person.displayName, email: person.email } : {}),
+      };
+    });
   }
 
   /**

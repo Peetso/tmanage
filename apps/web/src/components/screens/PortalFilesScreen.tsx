@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { clientOnlyRead } from '../../lib/portal-preview';
 import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
@@ -76,10 +77,18 @@ export function PortalFilesScreen({
   // One query per project the client can see: files are a project's, never the tenant's, so the
   // list route names a project. `useQueries` keeps them independent — one project failing does not
   // blank the rest.
+  const queryClient = useQueryClient();
+  // 2026-10-31 live-test fix: a staff preview reads the client's empty list, not the API's 403.
   const fileQueries = useQueries({
     queries: projectList.map((project) => ({
       queryKey: ['portal-files', organizationSlug, project.id],
-      queryFn: () => listPortalFiles(api, organizationSlug, project.id),
+      queryFn: () =>
+        clientOnlyRead(
+          queryClient,
+          organizationSlug,
+          [] as Awaited<ReturnType<typeof listPortalFiles>>,
+          () => listPortalFiles(api, organizationSlug, project.id),
+        ),
     })),
   });
 

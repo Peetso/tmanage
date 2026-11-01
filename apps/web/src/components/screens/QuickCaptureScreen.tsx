@@ -28,6 +28,11 @@ import { OneDriveAttachPicker, oneDriveStatusKey } from '../storage/OneDriveAtta
 import { attachOneDriveFile, getOneDriveStatus } from '../../lib/api/onedrive';
 import type { PickedOneDriveItem } from '../../lib/onedrive-picker';
 import { NoStorageAttach, useAttachStorageState } from '../storage/NoStorageAttach';
+import { DueDatePicker, formatChipDay, useA6T } from '../work/DueDatePicker';
+import { OwnerPickerDialog, useOwnerCandidates } from '../work/OwnerPickerDialog';
+import { dayToInstant } from '../../lib/work-item-presentation';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/home.css';
 
 /**
@@ -99,8 +104,21 @@ export function buildCaptureDraft(query: {
 export function buildCapturePayload(input: {
   readonly projectId: string;
   readonly title: string;
+  /** The owner picked on the capsule's Owner chip (2026-10-31 live test), when one was. */
+  readonly ownerUserId?: string | null;
+  /** The committed day picked on the capsule's date chip, `YYYY-MM-DD`, when one was. */
+  readonly committedDay?: string;
 }): CreateWorkItemInput {
-  return { projectId: input.projectId, title: input.title.trim() };
+  const dueAt =
+    input.committedDay === undefined || input.committedDay === ''
+      ? null
+      : dayToInstant(input.committedDay);
+  return {
+    projectId: input.projectId,
+    title: input.title.trim(),
+    ...(input.ownerUserId ? { ownerUserId: input.ownerUserId } : {}),
+    ...(dueAt === null ? {} : { dueAt }),
+  };
 }
 
 /**
@@ -150,6 +168,8 @@ export function QuickCaptureScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const ta = useA6T();
+  const locale = useActiveLocale();
   const headingId = useId();
   const canCreateProjects = useCanCreateProjects(organizationSlug, client);
   // 419:23811 / 419:23844: with neither Google Drive nor OneDrive chosen, nothing can be attached.
@@ -181,6 +201,11 @@ export function QuickCaptureScreen({
   const [progress, setProgress] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [captured, setCaptured] = useState<CaptureResult | null>(null);
+  // Figma 446:36284 (WK-10, owner and committed date chosen): the capsule's Owner and Committed
+  // date chips open the same pickers the work item uses, so a capture can be a commitment.
+  const [ownerUserId, setOwnerUserId] = useState<string | null>(null);
+  const [committedDay, setCommittedDay] = useState('');
+  const [picker, setPicker] = useState<'owner' | 'date' | null>(null);
   // 409:6602. Each file is a progress row while it goes up; a stopped one keeps Retry, which
   // re-sends it to the item already filed.
   const uploads = useUploadQueue((error) =>
@@ -193,6 +218,12 @@ export function QuickCaptureScreen({
   const available = projects.data ?? [];
   const preferred = initialCaptureProjectId(available, initialProjectId);
   const effectiveProjectId = projectId !== '' ? projectId : preferred;
+  const owners = useOwnerCandidates(api, organizationSlug, effectiveProjectId);
+  const ownerName =
+    ownerUserId === null
+      ? undefined
+      : owners.candidates.find((candidate) => candidate.userId === ownerUserId)?.displayName;
+  const projectName = available.find((project) => project.id === effectiveProjectId)?.name ?? '';
 
   const toggleLabel = (labelId: string): void => {
     setSelectedLabels((current) => {
@@ -218,7 +249,7 @@ export function QuickCaptureScreen({
       const item = await createWorkItem(
         api,
         organizationSlug,
-        buildCapturePayload({ projectId: effectiveProjectId, title }),
+        buildCapturePayload({ projectId: effectiveProjectId, title, ownerUserId, committedDay }),
       );
       const failures: string[] = [];
       const body = note.trim();
@@ -295,10 +326,18 @@ export function QuickCaptureScreen({
       setFiles([]);
       setDriveFiles([]);
       setOneDriveFiles([]);
+      setOwnerUserId(null);
+      setCommittedDay('');
       setFormError(null);
     },
     onSettled: () => setProgress(null),
   });
+
+  // 2026-10-31 live test: a file that went up with the last capture belongs to that item (the
+  // success line links it); left under the reset form it read as attached to the next one. A
+  // failed row stays, because its Retry still sends it to the item already filed.
+  const visibleUploads =
+    captured === null ? uploads.rows : uploads.rows.filter((row) => row.state !== 'done');
 
   const submit = (): void => {
     if (title.trim() === '') {
@@ -360,12 +399,42 @@ export function QuickCaptureScreen({
               role="group"
               aria-label={t('QuickCaptureScreen.chipsLabel')}
             >
-              <span className="tm-chip tm-chip--compact tm-capture__chip-static">
-                {t('QuickCaptureScreen.ownerUnassigned')}
-              </span>
-              <span className="tm-chip tm-chip--compact tm-chip--dashed">
-                {t('QuickCaptureScreen.committedNotSet')}
-              </span>
+              <button
+                type="button"
+                className="tm-chip tm-chip--compact tm-capture__chip-static tm-capture__chip-button"
+                aria-haspopup="dialog"
+                disabled={capture.isPending}
+                onClick={() => {
+                  if (effectiveProjectId === '') {
+                    setFormError(t('QuickCaptureScreen.ownerNeedsProject' as MessageKey));
+                    return;
+                  }
+                  setPicker('owner');
+                }}
+              >
+                {ownerUserId === null
+                  ? t('QuickCaptureScreen.ownerUnassigned')
+                  : t('QuickCaptureScreen.ownerChosen' as MessageKey).replace(
+                      '{name}',
+                      ownerName ?? '…',
+                    )}
+              </button>
+              <button
+                type="button"
+                className={`tm-chip tm-chip--compact tm-capture__chip-button ${
+                  committedDay === '' ? 'tm-chip--dashed' : 'tm-capture__chip-static'
+                }`}
+                aria-haspopup="dialog"
+                disabled={capture.isPending}
+                onClick={() => setPicker('date')}
+              >
+                {committedDay === ''
+                  ? t('QuickCaptureScreen.committedNotSet')
+                  : t('QuickCaptureScreen.committedChosen' as MessageKey).replace(
+                      '{date}',
+                      formatChipDay(committedDay, locale),
+                    )}
+              </button>
             </div>
 
             {available.length === 0 ? (
@@ -389,7 +458,11 @@ export function QuickCaptureScreen({
                 required
                 hint={t('QuickCaptureScreen.projectHint')}
                 value={effectiveProjectId}
-                onChange={(event) => setProjectId(event.target.value)}
+                onChange={(event) => {
+                  setProjectId(event.target.value);
+                  // An owner is one of the project's people; another project needs another pick.
+                  setOwnerUserId(null);
+                }}
               >
                 {/* CQ-07 (WRK-09): no project is preselected, so the field opens on a prompt
                     rather than silently on the first project. */}
@@ -431,9 +504,9 @@ export function QuickCaptureScreen({
               />
             )}
 
-            {uploads.rows.length > 0 ? (
+            {visibleUploads.length > 0 ? (
               <ul className="tm-upload-list">
-                {uploads.rows.map((row) => (
+                {visibleUploads.map((row) => (
                   <UploadProgressItem
                     key={row.id}
                     row={row}
@@ -498,12 +571,40 @@ export function QuickCaptureScreen({
             </div>
           </div>
 
-          <p className="tm-capture__note-callout">
-            <span className="tm-capture__note-glyph" aria-hidden="true">
-              !
-            </span>
-            <span>{t('QuickCaptureScreen.calloutBody')}</span>
-          </p>
+          {ownerUserId !== null && committedDay !== '' ? null : (
+            <p className="tm-capture__note-callout">
+              <span className="tm-capture__note-glyph" aria-hidden="true">
+                !
+              </span>
+              <span>{t('QuickCaptureScreen.calloutBody')}</span>
+            </p>
+          )}
+
+          {picker === 'owner' ? (
+            <OwnerPickerDialog
+              projectName={projectName}
+              candidates={owners.candidates}
+              loading={owners.loading}
+              value={ownerUserId}
+              onAssign={(userId) => {
+                setOwnerUserId(userId);
+                setPicker(null);
+              }}
+              onClose={() => setPicker(null)}
+            />
+          ) : null}
+
+          {picker === 'date' ? (
+            <DueDatePicker
+              heading={ta('DueDatePicker.dueHeading')}
+              value={committedDay}
+              onSet={(day) => {
+                setCommittedDay(day ?? '');
+                setPicker(null);
+              }}
+              onClose={() => setPicker(null)}
+            />
+          ) : null}
 
           {noStorage ? null : (
             <div className="tm-cloud-attach">

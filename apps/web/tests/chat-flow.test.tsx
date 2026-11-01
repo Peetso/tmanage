@@ -548,6 +548,30 @@ describe('TM-08 the thread pane', () => {
     });
   });
 
+  it('shows the thread size under a message and opens the thread from it (2026-10-31 live-test fix)', async () => {
+    const { client, calls } = clientOver(
+      channelHandler({
+        messages: () =>
+          json({ messages: [message({ replyCount: 2 }), RICH_MESSAGE, MODERATED_MESSAGE] }),
+      }),
+    );
+    renderChannel(client);
+
+    const list = await screen.findByRole('list', { name: 'Messages, oldest first' });
+    const items = within(list).getAllByRole('listitem');
+    const pill = await within(items[0] as HTMLElement).findByRole('button', { name: '2 replies' });
+    // A message without replies carries no pill.
+    expect(
+      within(items[1] as HTMLElement).queryByRole('button', { name: /repl(y|ies)$/ }),
+    ).toBeNull();
+
+    await userEvent.click(pill);
+    await waitFor(() => {
+      expect(calls.some((call) => call.url.includes('parentMessageId=msg-1'))).toBe(true);
+    });
+    expect(await screen.findByRole('heading', { name: 'Thread' })).toBeInTheDocument();
+  });
+
   it('moves focus into the pane on every open, not only the first (WCAG 2.4.3)', async () => {
     const { client, calls } = clientOver(channelHandler());
     renderChannel(client);

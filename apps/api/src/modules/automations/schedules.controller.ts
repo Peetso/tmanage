@@ -1,4 +1,15 @@
-import { Body, Controller, Get, HttpCode, Inject, Module, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Module,
+  Param,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
@@ -137,12 +148,54 @@ export class AutomationSchedulesService {
         templateId,
         spec: parsed.spec,
         nextRunAt,
-        // Set at creation. There is no per-schedule toggle endpoint yet (INSERT-only grant), so the
-        // enabled state is chosen once, here, and defaults to enabled.
+        // Chosen at creation (defaults to enabled); PATCH schedules/:id turns it on or off later.
         enabled: options.enabled ?? true,
       }),
     );
     return toView(row);
+  }
+
+  /**
+   * 2026-10-31 live-test fix: turn one schedule on or off. Authorizes `org.manage` (403), then
+   * resolves the schedule tenant-scoped (404 for an unknown or another tenant's id). Turning it on
+   * recomputes `nextRunAt` from `now`, so it never resumes with a due time in the past.
+   */
+  async setEnabled(
+    context: TenantContext,
+    principal: Principal,
+    scheduleId: string,
+    enabled: boolean,
+    now: Date = new Date(),
+  ): Promise<AutomationScheduleView> {
+    this.requireOrgManage(principal, context, 'automation_schedule.update');
+    const row = await this.database.transaction(context, async (tx) => {
+      const existing = await this.schedules.findById(tx, context, scheduleId);
+      if (!existing) return null;
+      const stored: unknown =
+        typeof existing.specJson === 'string' ? JSON.parse(existing.specJson) : existing.specJson;
+      const spec = parseScheduleSpec(stored);
+      const nextRunAt = enabled && spec.ok ? computeNextRunAt(spec.spec, now) : null;
+      await this.schedules.setEnabled(tx, context, scheduleId, enabled, nextRunAt);
+      return this.schedules.findById(tx, context, scheduleId);
+    });
+    if (!row) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'schedule_not_visible');
+    }
+    return toView(row);
+  }
+
+  /**
+   * 2026-10-31 live-test fix: remove one schedule. `org.manage` (403), then tenant-scoped resolve
+   * (404). Runs it already made stay in the run history.
+   */
+  async remove(context: TenantContext, principal: Principal, scheduleId: string): Promise<void> {
+    this.requireOrgManage(principal, context, 'automation_schedule.delete');
+    const removed = await this.database.transaction(context, (tx) =>
+      this.schedules.remove(tx, context, scheduleId),
+    );
+    if (!removed) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'schedule_not_visible');
+    }
   }
 
   /** List the acting tenant's schedules, soonest-due first, for a caller who may manage the org. */
@@ -178,6 +231,11 @@ function requireTemplateId(templateId: unknown): asserts templateId is string {
   }
 }
 
+/** PATCH body for one schedule. Untrusted. */
+interface ScheduleUpdateBody {
+  readonly enabled?: unknown;
+}
+
 @Controller('v1/organizations/:orgSlug/automations')
 export class AutomationSchedulesController {
   constructor(
@@ -210,6 +268,35 @@ export class AutomationSchedulesController {
     return this.schedules.schedule(context, principal, templateId, body, {
       ...(enabled === undefined ? {} : { enabled }),
     });
+  }
+
+  /** Turn one schedule on or off (`{ enabled: boolean }`). `org.manage`. */
+  @Patch('schedules/:scheduleId')
+  @RequireCapability('org.manage')
+  async update(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('scheduleId') scheduleId: string,
+    @Body() body: ScheduleUpdateBody,
+  ): Promise<AutomationScheduleView> {
+    if (typeof body?.enabled !== 'boolean') {
+      throw new ApiError(400, 'validation_failed', 'enabled must be true or false', [
+        { field: 'enabled', message: 'must be a boolean' },
+      ]);
+    }
+    return this.schedules.setEnabled(context, principal, scheduleId, body.enabled);
+  }
+
+  /** Remove one schedule. `org.manage`. */
+  @Delete('schedules/:scheduleId')
+  @RequireCapability('org.manage')
+  @HttpCode(204)
+  async remove(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('scheduleId') scheduleId: string,
+  ): Promise<void> {
+    await this.schedules.remove(context, principal, scheduleId);
   }
 }
 

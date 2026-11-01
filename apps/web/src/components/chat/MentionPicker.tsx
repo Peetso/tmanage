@@ -127,6 +127,12 @@ export interface MentionPickerProps {
   readonly onHover: (index: number) => void;
   /** C5: the heading over the "others" group — a direct message says "In this conversation". */
   readonly othersHeading?: string;
+  /**
+   * 2026-10-31 live-test fix: the letters typed after the `@`. With no options the picker shows
+   * its empty state — "No one to mention yet" for a bare `@`, "No one matches “…”" otherwise —
+   * instead of silently not opening (Figma: "Chat · Mention picker — no one to mention, no match").
+   */
+  readonly query?: string;
 }
 
 /** The floating list itself. Focus stays in the composer; the active option is its active descendant. */
@@ -137,6 +143,7 @@ export function MentionPicker({
   onPick,
   onHover,
   othersHeading,
+  query = '',
 }: MentionPickerProps) {
   const tOr = useTOr();
   const headingProject = useId();
@@ -169,6 +176,33 @@ export function MentionPicker({
           {option.subtitle ? <span className="tm-mention__sub">{option.subtitle}</span> : null}
         </span>
       </li>
+    );
+  }
+
+  if (options.length === 0) {
+    const needle = query.trim();
+    return (
+      <div className="tm-mention" data-testid="mention-picker">
+        <div id={id} role="status" className="tm-mention__empty">
+          <p className="tm-mention__empty-title">
+            {needle === ''
+              ? tOr('MentionPicker.emptyTitle', 'No one to mention yet')
+              : tOr('MentionPicker.noMatchTitle', 'No one matches “{query}”').replace(
+                  '{query}',
+                  needle,
+                )}
+          </p>
+          <p className="tm-mention__empty-body">
+            {needle === ''
+              ? tOr(
+                  'MentionPicker.emptyBody',
+                  'You are the only person in this channel. Invite teammates from People to mention them.',
+                )
+              : tOr('MentionPicker.noMatchBody', 'Check the spelling, or invite them from People.')}
+          </p>
+        </div>
+        <p className="tm-mention__hint">{tOr('MentionPicker.hintClose', 'Esc to close')}</p>
+      </div>
     );
   }
 
@@ -276,7 +310,10 @@ export function useMentionComposer(options: MentionComposerOptions) {
     ];
   }, [candidates.data, trigger, projectMemberIds, subtitleOf, localCandidates]);
 
-  const open = trigger !== null && list.length > 0;
+  // 2026-10-31 live-test fix: once the answer is in and it is empty, the picker still opens — on
+  // its empty state — so a typed `@` never looks like it did nothing.
+  const settled = localCandidates !== undefined || (candidates.isSuccess && !candidates.isFetching);
+  const open = trigger !== null && (list.length > 0 || settled);
 
   const sync = useCallback((text: string, caret: number) => {
     const found = findMentionQuery(text, caret);
@@ -338,7 +375,7 @@ export function useMentionComposer(options: MentionComposerOptions) {
         close();
         return true;
       }
-      if (!open) return false;
+      if (!open || list.length === 0) return false;
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
         const step = event.key === 'ArrowDown' ? 1 : -1;
@@ -370,11 +407,15 @@ export function useMentionComposer(options: MentionComposerOptions) {
     openAtCaret,
     onKeyDown,
     encode,
+    /** The letters typed after the `@` — the empty state words its "no match" with them. */
+    query: trigger?.query ?? '',
     /** Props for the textarea: the list it drives and the option it points at. */
     controlProps: open
       ? {
           'aria-controls': listboxId,
-          'aria-activedescendant': `${listboxId}-${Math.min(activeIndex, list.length - 1)}`,
+          ...(list.length > 0
+            ? { 'aria-activedescendant': `${listboxId}-${Math.min(activeIndex, list.length - 1)}` }
+            : {}),
         }
       : {},
   };

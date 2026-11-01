@@ -282,6 +282,9 @@ function SectionItem({
       <Link
         href={`/${organizationSlug}${item.href}`}
         className="tm-cc-sections__item"
+        // 2026-10-31 live test: viewport prefetch of all ~20 Control center links at once drew
+        // HTTP 503s from the shared host (13 of 19 RSC prefetches). Fetch a section on click.
+        prefetch={false}
         {...(current ? { 'aria-current': 'page' as const } : {})}
       >
         {t(item.labelKey)}

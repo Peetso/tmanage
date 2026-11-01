@@ -29,6 +29,26 @@ import { useDescribeApiError } from '../../lib/api/describe-error';
  * remains when the platform cannot enumerate them, and the field stays a free-text-backed
  * select so a value outside it can still be reached by a later ticket.
  */
+const CANONICAL_ZONES: Readonly<Record<string, string>> = {
+  'America/Buenos_Aires': 'America/Argentina/Buenos_Aires',
+  'America/Catamarca': 'America/Argentina/Catamarca',
+  'America/Cordoba': 'America/Argentina/Cordoba',
+  'America/Jujuy': 'America/Argentina/Jujuy',
+  'America/Mendoza': 'America/Argentina/Mendoza',
+  'America/Godthab': 'America/Nuuk',
+  'America/Indianapolis': 'America/Indiana/Indianapolis',
+  'America/Louisville': 'America/Kentucky/Louisville',
+  'Asia/Calcutta': 'Asia/Kolkata',
+  'Asia/Katmandu': 'Asia/Kathmandu',
+  'Asia/Rangoon': 'Asia/Yangon',
+  'Asia/Saigon': 'Asia/Ho_Chi_Minh',
+  'Atlantic/Faeroe': 'Atlantic/Faroe',
+  'Europe/Kiev': 'Europe/Kyiv',
+  'Pacific/Enderbury': 'Pacific/Kanton',
+  'Pacific/Ponape': 'Pacific/Pohnpei',
+  'Pacific/Truk': 'Pacific/Chuuk',
+};
+
 function timezones(current: string): readonly string[] {
   const intl = Intl as typeof Intl & { supportedValuesOf?: (key: string) => string[] };
   let zones: readonly string[] = [
@@ -45,11 +65,21 @@ function timezones(current: string): readonly string[] {
       // keep the fallback
     }
   }
+  // Chrome's ICU still lists some zones under their retired names (Asia/Calcutta, Asia/Saigon …)
+  // and leaves UTC out; Control Center's list uses the current names and has UTC, so this one
+  // does too (live test 2026-10-31). The old names still resolve, so nothing stored breaks.
+  zones = [
+    'UTC',
+    ...[...new Set(zones.map((zone) => CANONICAL_ZONES[zone] ?? zone))]
+      .filter((zone) => zone !== 'UTC')
+      .sort(),
+  ];
+  const shown = CANONICAL_ZONES[current] ?? current;
   // The select is controlled by `current` (the browser's guessed zone). If that value is not
   // one of the options, the browser shows the first option instead — which, alphabetically, is
   // Africa/Abidjan — making the field look like it defaulted there (ACC-09). Guarantee the
   // current value is always present so the guessed zone is the one shown.
-  return current !== '' && !zones.includes(current) ? [current, ...zones] : zones;
+  return shown !== '' && !zones.includes(shown) ? [shown, ...zones] : zones;
 }
 
 /** `19-SEED-DATA-AND-COPY` ships English and Arabic. Nothing else is translated yet. */
@@ -540,7 +570,8 @@ export function CreateOrganizationScreen({
 /** The browser's timezone where it is known, `UTC` where it is not. */
 function guessTimezone(): string {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    return CANONICAL_ZONES[zone] ?? zone;
   } catch {
     return 'UTC';
   }

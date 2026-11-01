@@ -11,6 +11,7 @@ import type { WorkItemsService } from '../work/work-items.service.js';
 import type { UsageCountersRepository } from '../files/usage-counters.repository.js';
 import { InboxService, type InboxUsageNoticeView } from './inbox.service.js';
 import type { NotificationsRepository } from './notifications.repository.js';
+import type { InboxSnoozeRepository } from './inbox-snooze.repository.js';
 
 /**
  * USAGE-001 slice 4b read side — the `organization_usage` resolver, the one behaviour the DB
@@ -173,5 +174,38 @@ describe('CQ-12 collaboration bundles', () => {
         types: ['message.mentioned.v1'],
       }),
     ]);
+  });
+});
+
+describe('InboxService.list hides snoozed bundles (2026-10-31 live test)', () => {
+  const NOW = new Date('2026-10-31T21:30:00.000Z');
+  function snoozing(until: Date) {
+    return {
+      async listForMembership() {
+        return [{ bundleId: 'organization_usage:org-1', snoozedUntil: until }];
+      },
+    } as unknown as InboxSnoozeRepository;
+  }
+  function serviceWithSnooze(until: Date): InboxService {
+    return new InboxService(
+      database,
+      {} as unknown as WorkItemsService,
+      {} as unknown as ClientRequestsService,
+      notificationsReturning([usageRow('org-1')]),
+      { quotaBytes: 10_000_000_000, counters: countersReturning(COUNTER) },
+      {},
+      snoozing(until),
+      () => NOW,
+    );
+  }
+
+  it('leaves out a bundle snoozed into the future', async () => {
+    const page = await serviceWithSnooze(new Date(NOW.getTime() + 3_600_000)).list(CONTEXT, OWNER);
+    expect(page.items).toHaveLength(0);
+  });
+
+  it('shows the bundle again once its snooze has passed', async () => {
+    const page = await serviceWithSnooze(new Date(NOW.getTime() - 1)).list(CONTEXT, OWNER);
+    expect(page.items.map((item) => item.bundleId)).toEqual(['organization_usage:org-1']);
   });
 });

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -8,6 +9,8 @@ import { getDocumentSharing, setDocumentAudience } from '../../lib/api/documents
 import type { DocumentAudience, DocumentPerson } from '../../lib/api/documents';
 import { ApiRequestError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { DocShareDialog } from './DocShareDialog';
 
 /**
  * Docs audience pieces from `TManage Screens - Docs and Decisions.dc.html`: the hub's AUDIENCE cell
@@ -84,6 +87,9 @@ export interface DocumentPublishBarProps {
   organizationSlug: string;
   documentId: string;
   client?: ApiClient;
+  /** For the share dialog the audience capsule opens. */
+  documentTitle?: string;
+  projectName?: string;
 }
 
 /**
@@ -95,9 +101,13 @@ export function DocumentPublishBar({
   organizationSlug,
   documentId,
   client,
+  documentTitle = '',
+  projectName = '',
 }: DocumentPublishBarProps) {
   const api = client ?? browserApiClient();
   const t = useT();
+  const tOr = useTOr();
+  const [sharingOpen, setSharingOpen] = useState(false);
   const queryClient = useQueryClient();
   const key = ['document-sharing', organizationSlug, documentId];
 
@@ -128,12 +138,31 @@ export function DocumentPublishBar({
 
   return (
     <div className="tm-dx-share">
-      <span className="tm-dx-share__audience" data-audience={data.audience}>
+      {/* Live test 2026-10-31: the capsule looked clickable and did nothing. It opens the share
+          dialog (Figma 446:35464) that says who can see the document. */}
+      <button
+        type="button"
+        className="tm-dx-share__audience"
+        data-audience={data.audience}
+        aria-haspopup="dialog"
+        title={tOr('DocShareDialog.openTip', 'See who can see this doc')}
+        onClick={() => setSharingOpen(true)}
+      >
         <span className="tm-dx-share__orb" aria-hidden="true">
           {published ? '◎' : '■'}
         </span>
         {capsule}
-      </span>
+      </button>
+      {sharingOpen ? (
+        <DocShareDialog
+          organizationSlug={organizationSlug}
+          documentId={documentId}
+          documentTitle={documentTitle}
+          projectName={projectName}
+          sharing={data}
+          onClose={() => setSharingOpen(false)}
+        />
+      ) : null}
       <CollaboratorFaces people={data.collaborators} />
       {data.canPublish ? (
         <button

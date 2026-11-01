@@ -6,6 +6,7 @@ import {
   type MEMBERSHIP_STATUS,
   clientMemberships,
   memberships,
+  users,
 } from '../../common/database/schema.js';
 import type { ClientMembershipRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
@@ -135,6 +136,33 @@ const MAX_PAGE_SIZE = 200;
 const ACTIVE_NOW = sql`(${clientMemberships.expiresAt} is null or ${clientMemberships.expiresAt} > current_timestamp(3))`;
 
 export class ClientMembershipsRepository {
+  /**
+   * 2026-10-31 live-test fix (Clients · company detail): the display name and email of the given
+   * client members, for the staff-side People card. Only rows that hold a client membership in
+   * the acting tenant are joined, so an arbitrary user id names nobody.
+   */
+  async peopleFor(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userIds: readonly string[],
+  ): Promise<readonly { userId: string; displayName: string; email: string }[]> {
+    if (userIds.length === 0) return [];
+    return tenantDrizzle(runner)
+      .selectDistinct({
+        userId: clientMemberships.userId,
+        displayName: users.displayName,
+        email: users.email,
+      })
+      .from(clientMemberships)
+      .innerJoin(users, eq(users.id, clientMemberships.userId))
+      .where(
+        and(
+          eq(clientMemberships.organizationId, context.organizationId),
+          inArray(clientMemberships.userId, [...userIds]),
+        ),
+      );
+  }
+
   async list(
     runner: TenantQueryRunner,
     context: TenantContext,

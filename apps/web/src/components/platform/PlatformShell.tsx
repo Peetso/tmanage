@@ -214,10 +214,7 @@ export function PlatformShell({
                       <bdi dir="ltr" className="tm-cc-cell-title">
                         {me.email}
                       </bdi>
-                      <span className="tm-cc-cell-sub">
-                        {t(PRESET_KEYS[me.preset])}
-                        {me.source === 'env' ? ` · ${t('PlatformShell.bootstrapEnv')}` : ''}
-                      </span>
+                      <span className="tm-cc-cell-sub">{t(PRESET_KEYS[me.preset])}</span>
                     </div>
                   ) : null}
                 </div>

@@ -163,6 +163,12 @@ export function MeetingForm({
   const [location, setLocation] = useState('');
   const [agenda, setAgenda] = useState('');
   const [projectId, setProjectId] = useState(initialProjectId ?? '');
+  // Figma 417:9827 opens a new meeting with its project already chosen. Without it the required
+  // select sat empty at the foot of the form and Save only raised the browser's own tooltip.
+  const firstProjectId = projects.data?.[0]?.id;
+  useEffect(() => {
+    if (!editing && projectId === '' && firstProjectId) setProjectId(firstProjectId);
+  }, [editing, projectId, firstProjectId]);
   const [guests, setGuests] = useState<readonly GuestRow[]>([]);
   const [removed, setRemoved] = useState<readonly GuestRow[]>([]);
   const [canModify, setCanModify] = useState(false);

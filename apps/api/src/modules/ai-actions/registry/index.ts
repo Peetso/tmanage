@@ -375,6 +375,22 @@ export const OPS: readonly AiActionOp[] = [
     scope: 'read',
   },
   {
+    id: 'automations.schedules.update',
+    method: 'PATCH',
+    path: '/v1/organizations/:orgSlug/automations/schedules/:scheduleId',
+    capability: 'org.manage',
+    risk: 'confirm',
+    scope: 'manage',
+  },
+  {
+    id: 'automations.schedules.delete',
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/automations/schedules/:scheduleId',
+    capability: 'org.manage',
+    risk: 'confirm',
+    scope: 'manage',
+  },
+  {
     id: 'automations.template_tags.list',
     method: 'GET',
     path: '/v1/organizations/:orgSlug/automations/template-tags',

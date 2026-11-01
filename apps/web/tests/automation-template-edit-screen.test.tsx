@@ -236,6 +236,85 @@ describe('AutomationTemplateEditScreen (A14 rule settings)', () => {
   it('shows a not-found state for an id the list does not contain', async () => {
     const { client } = clientOver();
     renderScreen(client, 'workflow-template-missing');
-    expect(await screen.findByText('Template not found')).toBeInTheDocument();
+    expect(await screen.findByText(/(Template|Rule) not found/)).toBeInTheDocument();
+  });
+
+  it('runs a test of the saved rule and says where the result went (2026-10-31 live-test fix)', async () => {
+    const { client, calls } = clientOver((call) =>
+      call.url.endsWith('/run')
+        ? json(
+            {
+              id: 'run-9',
+              templateId: TEMPLATE.id,
+              status: 'succeeded',
+              detail: {},
+              startedAt: todayAt(10),
+              finishedAt: todayAt(10),
+            },
+            201,
+          )
+        : json({}),
+    );
+    const { container } = renderScreen(client);
+    const user = userEvent.setup();
+
+    await screen.findByRole('textbox', { name: 'Rule name' });
+    await user.click(screen.getByRole('button', { name: 'Test run' }));
+
+    expect(await screen.findByText('Test run done.')).toBeInTheDocument();
+    expect(
+      screen.getByText('A test notice is in your inbox, and the run is in Run history.'),
+    ).toBeInTheDocument();
+    const post = calls.find((c) => c.method === 'POST');
+    expect(post?.url).toContain('/automations/templates/workflow-template-1/run');
+    await expectNoAxeViolations(container);
+  });
+
+  it('explains a test run refused because the rule is off', async () => {
+    const { client } = clientOver(() =>
+      json({ error: { code: 'conflict', message: 'disabled', correlationId: 'x' } }, 409),
+    );
+    renderScreen(client);
+    const user = userEvent.setup();
+
+    await screen.findByRole('textbox', { name: 'Rule name' });
+    await user.click(screen.getByRole('button', { name: 'Test run' }));
+    expect(
+      await screen.findByText('This rule is off. Turn it on and save it, then run a test.'),
+    ).toBeInTheDocument();
+  });
+
+  it('treats a delete answered 503 as done when the rule is in fact gone', async () => {
+    let deleted = false;
+    const calls: Call[] = [];
+    const client = new ApiClient({
+      baseUrl: 'https://api.example.test',
+      csrfCookieName: 'tm_session_csrf',
+      fetch: ((input: RequestInfo | URL, init?: RequestInit) => {
+        const call: Call = { url: String(input), method: init?.method ?? 'GET', body: undefined };
+        calls.push(call);
+        if (call.method === 'DELETE') {
+          deleted = true;
+          return Promise.resolve(
+            json({ error: { code: 'unavailable', message: 'busy', correlationId: 'x' } }, 503),
+          );
+        }
+        if (call.url.includes('/conditions'))
+          return Promise.resolve(json({ conditions: CONDITIONS }));
+        if (call.url.includes('/automations/runs')) return Promise.resolve(json({ runs: RUNS }));
+        if (call.url.includes('/projects')) return Promise.resolve(json({ projects: [PROJECT] }));
+        return Promise.resolve(json({ templates: deleted ? [] : [TEMPLATE] }));
+      }) as typeof globalThis.fetch,
+      readCsrfToken: () => 'csrf-token',
+      newCorrelationId: () => 'correlation-fixed',
+    });
+    renderScreen(client);
+    const user = userEvent.setup();
+
+    await screen.findByRole('textbox', { name: 'Rule name' });
+    await user.click(screen.getByRole('button', { name: 'Delete rule' }));
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(await screen.findByText('Rule deleted')).toBeInTheDocument();
+    expect(screen.queryByText('Could not delete the rule')).toBeNull();
   });
 });

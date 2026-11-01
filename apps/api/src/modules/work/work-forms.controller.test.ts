@@ -64,7 +64,11 @@ function workItemView(id: string, title: string): WorkItemView {
  */
 function controllerWith(seed: readonly WorkFormRow[] = []) {
   const store: WorkFormRow[] = [...seed];
-  const createCalls: { projectId: string; title: string }[] = [];
+  const createCalls: {
+    projectId: string;
+    title: string;
+    description?: string | null | undefined;
+  }[] = [];
   let seq = store.length;
 
   const database = {
@@ -100,9 +104,13 @@ function controllerWith(seed: readonly WorkFormRow[] = []) {
     create: async (
       _ctx: TenantContext,
       _principal: Principal,
-      input: { projectId: string; title: string },
+      input: { projectId: string; title: string; description?: string | null },
     ) => {
-      createCalls.push({ projectId: input.projectId, title: input.title });
+      createCalls.push({
+        projectId: input.projectId,
+        title: input.title,
+        description: input.description,
+      });
       return workItemView(`work-item-${createCalls.length}`, input.title);
     },
   } as unknown as WorkItemsService;
@@ -129,6 +137,8 @@ describe('WorkFormsController', () => {
     expect(created.name).toBe('New client request');
     expect(created.fields).toHaveLength(2);
     expect(created).not.toHaveProperty('organizationId');
+    // 2026-10-31 live-test fix: the screen needs the public-link state to show Share / Copy.
+    expect(created).toMatchObject({ published: false, publicSlug: null });
 
     const listed = await controller.list(context, actor);
     expect(listed.forms.map((form) => form.id)).toContain(created.id);
@@ -139,7 +149,38 @@ describe('WorkFormsController', () => {
       values: { Summary: 'A new brief', Budget: 1000 },
     });
     expect(workItem.id).toBe('work-item-1');
-    expect(createCalls).toEqual([{ projectId: PROJECT, title: 'Handle the request' }]);
+    // 2026-10-31 live-test fix: the answers are kept on the created work item.
+    expect(createCalls).toEqual([
+      {
+        projectId: PROJECT,
+        title: 'Handle the request',
+        description: 'Summary: A new brief\nBudget: 1000',
+      },
+    ]);
+  });
+
+  it('leaves blank optional answers out and stores no description when nothing was answered', async () => {
+    const { controller, createCalls } = controllerWith();
+    const actor = principal('owner');
+    const form = await controller.create(context, actor, {
+      name: 'Optional only',
+      fields: [
+        { label: 'Notes', type: 'text', required: false },
+        { label: 'Urgent', type: 'checkbox', required: false },
+      ],
+    });
+
+    await controller.submit(context, actor, form.id, {
+      projectId: PROJECT,
+      title: 'Nothing answered',
+      values: { Notes: '  ' },
+    });
+    await controller.submit(context, actor, form.id, {
+      projectId: PROJECT,
+      title: 'Urgent one',
+      values: { Notes: '', Urgent: true },
+    });
+    expect(createCalls.map((call) => call.description)).toEqual([null, 'Urgent: Yes']);
   });
 
   it('rejects an invalid payload with 400 and creates no work item', async () => {

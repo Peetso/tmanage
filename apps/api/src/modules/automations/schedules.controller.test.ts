@@ -82,6 +82,24 @@ function serviceWith(knownTemplateIds: readonly string[] = [TEMPLATE]): {
       store.push(row);
       return row;
     },
+    setEnabled: async (
+      _runner: unknown,
+      ctx: TenantContext,
+      id: string,
+      enabled: boolean,
+      nextRunAt: Date | null,
+    ) => {
+      const row = store.find((r) => r.id === id && r.organizationId === ctx.organizationId);
+      if (!row) return false;
+      Object.assign(row, { enabled, ...(nextRunAt ? { nextRunAt } : {}) });
+      return true;
+    },
+    remove: async (_runner: unknown, ctx: TenantContext, id: string) => {
+      const index = store.findIndex((r) => r.id === id && r.organizationId === ctx.organizationId);
+      if (index < 0) return false;
+      store.splice(index, 1);
+      return true;
+    },
   } as unknown as AutomationSchedulesRepository;
   return { service: new AutomationSchedulesService(database, repository), store };
 }
@@ -201,6 +219,66 @@ describe('parseScheduleSpec', () => {
     expect(parseScheduleSpec({ interval: 'daily', hour: -1 }).ok).toBe(false);
     expect(parseScheduleSpec({ interval: 'weekly', hour: 8 }).ok).toBe(false);
     expect(parseScheduleSpec({ interval: 'weekly', hour: 8, dayOfWeek: 9 }).ok).toBe(false);
+  });
+});
+
+describe('AutomationSchedulesService — turn off and remove (2026-10-31 live-test fix)', () => {
+  it('turns a schedule off, then on again with a next run moved forward from now', async () => {
+    const { service, store } = serviceWith();
+    const created = await service.schedule(
+      context,
+      OWNER,
+      TEMPLATE,
+      { interval: 'daily', hour: 8 },
+      { now: NOW },
+    );
+    const off = await service.setEnabled(context, OWNER, created.id, false, NOW);
+    expect(off.enabled).toBe(false);
+    expect(store[0]?.enabled).toBe(false);
+
+    const later = new Date('2026-10-05T12:00:00.000Z');
+    const on = await service.setEnabled(context, OWNER, created.id, true, later);
+    expect(on.enabled).toBe(true);
+    expect(on.nextRunAt).toBe('2026-10-06T08:00:00.000Z');
+  });
+
+  it('removes a schedule; a second remove is a 404', async () => {
+    const { service, store } = serviceWith();
+    const created = await service.schedule(
+      context,
+      OWNER,
+      TEMPLATE,
+      { interval: 'hourly' },
+      {
+        now: NOW,
+      },
+    );
+    await service.remove(context, OWNER, created.id);
+    expect(store).toHaveLength(0);
+    await expect(service.remove(context, OWNER, created.id)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('refuses a caller without org.manage (403) and an unknown id (404), changing nothing', async () => {
+    const { service, store } = serviceWith();
+    const created = await service.schedule(
+      context,
+      OWNER,
+      TEMPLATE,
+      { interval: 'hourly' },
+      {
+        now: NOW,
+      },
+    );
+    await expect(service.setEnabled(context, NO_MANAGE, created.id, false)).rejects.toBeInstanceOf(
+      ApiError,
+    );
+    await expect(service.remove(context, NO_MANAGE, created.id)).rejects.toMatchObject({
+      status: 403,
+    });
+    await expect(
+      service.setEnabled(context, OWNER, 'schedule-unknown', false),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(store[0]?.enabled).toBe(true);
   });
 });
 

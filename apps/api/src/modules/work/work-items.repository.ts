@@ -490,6 +490,8 @@ export class WorkItemsRepository {
           ? { ownerUserId: completion.ownerUserId, completedAt: completion.completedAt }
           : {}),
         ...(from === 'done' && to === 'in_progress' ? { completedAt: null } : {}),
+        // A restored item starts over in the backlog; it is no longer completed.
+        ...(from === 'archived' && to === 'backlog' ? { completedAt: null } : {}),
       })
       .where(
         and(

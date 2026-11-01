@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { clientOnlyRead } from '../../lib/portal-preview';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -90,9 +91,14 @@ export function ClientOverviewScreen({
    * The client's own requests — `REQ-001`. On the overview rather than in the bar, because `22`
    * §1 fixes the client navigation and "Requests" is not one of its destinations.
    */
+  const queryClient = useQueryClient();
+  // 2026-10-31 live-test fix: a staff preview reads the client's empty list, not the API's 403.
   const requests = useQuery({
     queryKey: ['portal-requests', organizationSlug],
-    queryFn: () => listClientRequests(api, organizationSlug),
+    queryFn: () =>
+      clientOnlyRead(queryClient, organizationSlug, [], () =>
+        listClientRequests(api, organizationSlug),
+      ),
   });
 
   const project = projects.data?.[0];
@@ -269,14 +275,14 @@ function HeaderMetrics({ project, waiting, questions, now }: HeaderMetricsProps)
               : t('ClientOverviewScreen.daysToLaunch')}
         </p>
         <dl className="tm-pt-metric__source">
-          <div>
-            <dt>{t('ClientOverviewScreen.agreedDate')}</dt>{' '}
-            <dd>
-              {project.committedAt
-                ? shortDay(project.committedAt)
-                : t('ClientOverviewScreen.notAgreedYet')}
-            </dd>
-          </div>
+          {/* 2026-10-31 live-test fix (Figma 446:37676): with no agreed date the label above
+              already says so; "Agreed date · not agreed yet" under it said it twice. */}
+          {project.committedAt ? (
+            <div>
+              <dt>{t('ClientOverviewScreen.agreedDate')}</dt>{' '}
+              <dd>{shortDay(project.committedAt)}</dd>
+            </div>
+          ) : null}
           <div>
             <dt>{t('ClientOverviewScreen.currentEstimate')}</dt>{' '}
             <dd>
@@ -759,7 +765,7 @@ function TeamCard({
     <section className="tm-pt-card" aria-labelledby="tm-portal-team">
       <h2 id="tm-portal-team" className="tm-pt-card__title">
         {t('ClientOverviewScreen.yourTeamAtPrefix')}
-        {providerName.split(' ')[0]}
+        {providerName}
       </h2>
       <ul className="tm-chip-row">
         {people.slice(0, 4).map((person) => (

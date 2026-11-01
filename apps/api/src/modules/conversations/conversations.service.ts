@@ -132,6 +132,11 @@ export interface MessageView {
   readonly deletedByUserId: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
+  /**
+   * Live replies in this message's thread — present on a channel (top-level) read only, so the
+   * screen can draw the "2 replies" pill without opening every thread. Absent on a thread read.
+   */
+  readonly replyCount?: number;
 }
 
 /**
@@ -563,10 +568,25 @@ export class ConversationsService {
     options: ListMessagesOptions = {},
   ): Promise<readonly MessageView[]> {
     await this.loadReadable(context, principal, conversationId);
-    const rows = await this.database.read(context, (runner) =>
-      this.conversations.listMessages(runner, context, conversationId, options),
+    const { rows, replies } = await this.database.read(context, async (runner) => {
+      const rows = await this.conversations.listMessages(runner, context, conversationId, options);
+      // Only the channel view carries thread counts; a thread read has no threads inside it.
+      const replies =
+        options.parentMessageId === null && rows.length > 0
+          ? await this.conversations.countRepliesByParent(
+              runner,
+              context,
+              conversationId,
+              rows.map((row) => row.id),
+            )
+          : undefined;
+      return { rows, replies };
+    });
+    return rows.map((row) =>
+      replies === undefined
+        ? toMessageView(row)
+        : { ...toMessageView(row), replyCount: replies.get(row.id) ?? 0 },
     );
-    return rows.map(toMessageView);
   }
 
   /**

@@ -17,6 +17,7 @@ import { useHydrated } from '../../lib/use-hydrated';
 import type { ApiClient } from '../../lib/api/client';
 import { describeRunDetail } from './run-detail-view';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 
 export interface AutomationRunHistoryScreenProps {
   organizationSlug: string;
@@ -35,10 +36,31 @@ function humanize(kind: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
-/** A short, locale-stable rendering of an ISO instant. */
+const pad = (value: number): string => String(value).padStart(2, '0');
+
+/** `YYYY-MM-DD` of an instant in the viewer's own time zone. */
+function localDay(date: Date): string {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/**
+ * A short, locale-stable rendering of an ISO instant in the viewer's own time zone (2026-10-31 live
+ * test: this page said 21:32 UTC while the rule page said 23:32 for the same run). AUT-04 names the
+ * zone beside it, e.g. `15 AUG 09:12:04 AFRICA/CAIRO` — see {@link viewerZone}.
+ */
 function formatInstant(iso: string): string {
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toISOString().replace('T', ' ').slice(0, 19);
+  if (Number.isNaN(date.getTime())) return iso;
+  return `${localDay(date)} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+/** The viewer's time zone as AUT-04 prints it (`AFRICA/CAIRO`); `UTC` when the browser has none. */
+function viewerZone(): string {
+  try {
+    return (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC').toUpperCase();
+  } catch {
+    return 'UTC';
+  }
 }
 
 /**
@@ -63,6 +85,8 @@ export function AutomationRunHistoryScreen({
 }: AutomationRunHistoryScreenProps) {
   const api = client ?? browserApiClient();
   const t = useT();
+  const tOr = useTOr();
+  const zone = viewerZone();
 
   const statusLabel = (value: StatusFilter): string => {
     switch (value) {
@@ -91,6 +115,14 @@ export function AutomationRunHistoryScreen({
         organizationSlug,
         status === 'all' ? {} : { status: status as WorkflowRunStatus },
       ),
+  });
+
+  // Every run, read only while a filter is on, so a filter with no match can say what the list
+  // does hold (2026-10-31 live-test fix: "Failed" showed "No runs yet" beside 4 succeeded runs).
+  const allRuns = useQuery({
+    queryKey: ['workflow-runs', organizationSlug, 'all'],
+    queryFn: () => listWorkflowRuns(api, organizationSlug, {}),
+    enabled: status !== 'all',
   });
 
   // The library, read only to put a template's name beside its id (AUT-04 "Rule · what it did").
@@ -182,7 +214,29 @@ export function AutomationRunHistoryScreen({
                 </div>
               ) : null}
 
-              {loaded && rows.length === 0 ? (
+              {loaded && rows.length === 0 && status !== 'all' ? (
+                <div className="tm-aut-empty">
+                  <p className="tm-aut-empty__title">
+                    {status === 'failed'
+                      ? tOr('AutomationRunHistoryScreen.noFailedTitle', 'No failed runs')
+                      : tOr('AutomationRunHistoryScreen.noSucceededTitle', 'No succeeded runs')}
+                  </p>
+                  <p className="tm-aut-empty__body">
+                    {describeNoMatch(tOr, status, allRuns.data?.length ?? 0)}
+                  </p>
+                  <Button
+                    type="button"
+                    tone="outline"
+                    size="accessible"
+                    className="tm-aut-empty__action"
+                    onClick={() => setStatus('all')}
+                  >
+                    {tOr('AutomationRunHistoryScreen.showAllRuns', 'Show all runs')}
+                  </Button>
+                </div>
+              ) : null}
+
+              {loaded && rows.length === 0 && status === 'all' ? (
                 <div className="tm-aut-empty">
                   <p className="tm-aut-empty__title">
                     {t('AutomationRunHistoryScreen.emptyTitle')}
@@ -319,7 +373,7 @@ export function AutomationRunHistoryScreen({
             {selectedRunId !== null && detail.data ? (
               <>
                 <p className="tm-aut-mono">
-                  {shortRunId(detail.data.id)} · {formatInstant(detail.data.startedAt)} UTC
+                  {shortRunId(detail.data.id)} · {formatInstant(detail.data.startedAt)} {zone}
                 </p>
                 <p className="tm-aut-card__title">
                   {detail.data.status === 'succeeded'
@@ -333,14 +387,14 @@ export function AutomationRunHistoryScreen({
                     </p>
                     <p className="tm-aut-steps__body">
                       {templateName(detail.data.templateId)} ·{' '}
-                      {formatInstant(detail.data.startedAt)} UTC
+                      {formatInstant(detail.data.startedAt)} {zone}
                     </p>
                   </li>
                   <li className={detail.data.status === 'failed' ? 'is-danger' : undefined}>
                     <p className="tm-aut-steps__title">{humanize(detail.data.status)}</p>
                     <p className="tm-aut-steps__body">
                       {t('AutomationRunHistoryScreen.stepFinishedPrefix')}{' '}
-                      {formatInstant(detail.data.finishedAt)} UTC
+                      {formatInstant(detail.data.finishedAt)} {zone}
                     </p>
                   </li>
                   <li>
@@ -375,22 +429,57 @@ function shortRunId(id: string): string {
     .toUpperCase()}`;
 }
 
-/** AUT-04's mono time column: `TODAY 09:12`, `YEST 17:44`, or `13 AUG 16:00` (UTC). */
+/**
+ * AUT-04's mono time column: `TODAY 09:12`, `YEST 17:44`, or `13 AUG 16:00`, in the viewer's own
+ * time zone, the same clock the rule page's "Last ran today at …" line uses.
+ */
 function formatWhen(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  const time = date.toISOString().slice(11, 16);
-  const day = date.toISOString().slice(0, 10);
-  const today = new Date().toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const time = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  const day = localDay(date);
+  const today = localDay(new Date());
+  const yesterday = localDay(new Date(Date.now() - 86_400_000));
   if (day === today) return `TODAY ${time}`;
   if (day === yesterday) return `YEST ${time}`;
-  const label = date.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    timeZone: 'UTC',
-  });
+  const label = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   return `${label.toUpperCase()} ${time}`;
+}
+
+/** The filtered empty state's line: what the unfiltered list holds, then how to see it. */
+function describeNoMatch(
+  tOr: (key: string, english: string) => string,
+  status: StatusFilter,
+  total: number,
+): string {
+  if (total === 0) {
+    return tOr(
+      'AutomationRunHistoryScreen.noMatchBody',
+      'Nothing in this list matches. Choose All to see every run.',
+    );
+  }
+  if (total === 1) {
+    return status === 'failed'
+      ? tOr(
+          'AutomationRunHistoryScreen.noFailedBodyOne',
+          'The one run in this list succeeded. Choose All to see it.',
+        )
+      : tOr(
+          'AutomationRunHistoryScreen.noSucceededBodyOne',
+          'The one run in this list failed. Choose All to see it.',
+        );
+  }
+  return (
+    status === 'failed'
+      ? tOr(
+          'AutomationRunHistoryScreen.noFailedBody',
+          '{count} runs in this list succeeded and none failed. Choose All to see every run.',
+        )
+      : tOr(
+          'AutomationRunHistoryScreen.noSucceededBody',
+          '{count} runs in this list failed and none succeeded. Choose All to see every run.',
+        )
+  ).replace('{count}', String(total));
 }
 
 function describeError(t: ReturnType<typeof useT>, error: unknown): string {

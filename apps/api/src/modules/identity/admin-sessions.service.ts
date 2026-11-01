@@ -106,7 +106,7 @@ export class AdminSessionsService {
     if (!member) return null;
     // F42: a person who also acts in another organization is not this organization's to sign out.
     const elsewhere = await this.usersWithAccessElsewhere(context, [member.userId]);
-    if (elsewhere.has(member.userId)) return null;
+    if (elsewhere.has(member.userId) && member.userId !== context.userId) return null;
     return { membershipId: member.membershipId, role: member.role };
   }
 
@@ -126,8 +126,13 @@ export class AdminSessionsService {
       context,
       members.map((m) => m.userId),
     );
+    // 2026-10-31 live test: the caller always sees their OWN sessions here, even when they also
+    // belong to another organization — showing a person their own devices leaks nothing, and an
+    // empty list while the admin is plainly signed in read as broken.
     return members.filter(
-      (m) => !elsewhere.has(m.userId) && (m.role !== 'owner' || callerRole === 'owner'),
+      (m) =>
+        m.userId === context.userId ||
+        (!elsewhere.has(m.userId) && (m.role !== 'owner' || callerRole === 'owner')),
     );
   }
 

@@ -12,7 +12,8 @@ import {
 import type { DynamicModule, Provider } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
-import { TENANT_DATABASE } from '../../common/http/tokens.js';
+import { AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
+import type { AuditService } from '../audit/audit.service.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { AdminIpAllowlistService } from './ip-allowlist.service.js';
 import type { IpAllowlistEntryView } from './ip-allowlist.service.js';
@@ -98,8 +99,9 @@ export class AdminIpAllowlistModule {
   static register(): DynamicModule {
     const service: Provider = {
       provide: ADMIN_IP_ALLOWLIST_SERVICE,
-      inject: [TENANT_DATABASE],
-      useFactory: (database: TenantDatabase) => new AdminIpAllowlistService(database),
+      inject: [TENANT_DATABASE, { token: AUDIT_SERVICE, optional: true }],
+      useFactory: (database: TenantDatabase, audit?: AuditService) =>
+        new AdminIpAllowlistService(database, undefined, audit),
     };
 
     return {

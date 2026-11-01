@@ -7,6 +7,7 @@ import { ControlCenterShell, ccKey } from '../admin/ControlCenterShell';
 import type { ControlCenterKey } from '../admin/ControlCenterShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchAdminOverview, invitationsWaiting, relativeWhen } from '../../lib/api/admin-overview';
+import { fetchPendingInvitations } from '../../lib/api/admin-invitations';
 import { listAuditEvents } from '../../lib/api/admin-audit';
 import { getConnectedApps } from '../../lib/api/connected-apps';
 import { listWorkflowTemplates } from '../../lib/api/automations';
@@ -74,7 +75,19 @@ export function AdminOverviewScreen({
     queryFn: () => listAuditEvents(api, organizationSlug, { limit: 3 }),
   });
 
-  const waiting = overview.data ? invitationsWaiting(overview.data) : 0;
+  // The invitations live in their own table, not in the seat counters, so the counter formula said
+  // "No invitations waiting" while People listed three (2026-10-31 live test). Count the pending,
+  // unexpired invitations the People page counts; the counter formula is only the fallback.
+  const pendingInvitations = useQuery({
+    queryKey: ['admin-invitations', organizationSlug],
+    queryFn: () => fetchPendingInvitations(api, organizationSlug),
+    retry: false,
+  });
+  const waiting = Array.isArray(pendingInvitations.data?.invitations)
+    ? pendingInvitations.data.invitations.filter((invitation) => !invitation.isExpired).length
+    : overview.data
+      ? invitationsWaiting(overview.data)
+      : 0;
   const unverified = apps.data ? apps.data.apps.filter((app) => !app.verified).length : 0;
   const clock = now ?? new Date();
 
@@ -85,7 +98,11 @@ export function AdminOverviewScreen({
       section="overview"
       crumbs={[t('ControlCenterShell.overview')]}
       title={cc('ControlCenter.overviewTitle')}
-      description={fill(cc('ControlCenter.overviewDescription'), { org: workspace })}
+      // Held back until the name has loaded: the sentence read "trust for  in one place" for a
+      // moment on the live site (2026-10-31).
+      {...(workspace.trim() === ''
+        ? {}
+        : { description: fill(cc('ControlCenter.overviewDescription'), { org: workspace }) })}
       rail="sections"
       {...(client ? { client } : {})}
     >

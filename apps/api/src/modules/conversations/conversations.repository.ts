@@ -598,6 +598,37 @@ export class ConversationsRepository {
       .limit(limit);
   }
 
+  /**
+   * How many live replies each of these top-level messages has — the "2 replies" pill under a
+   * message in the channel (CH-02). One grouped read for the whole page, not one per message.
+   * A moderated reply is not counted: the thread pane does not show it either.
+   */
+  async countRepliesByParent(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    conversationId: string,
+    parentMessageIds: readonly string[],
+  ): Promise<ReadonlyMap<string, number>> {
+    const counts = new Map<string, number>();
+    if (parentMessageIds.length === 0) return counts;
+    const rows = await tenantDrizzle(runner)
+      .select({ parentMessageId: messages.parentMessageId, replies: sql<number>`count(*)` })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.organizationId, context.organizationId),
+          eq(messages.conversationId, conversationId),
+          isNull(messages.deletedAt),
+          inArray(messages.parentMessageId, [...parentMessageIds]),
+        ),
+      )
+      .groupBy(messages.parentMessageId);
+    for (const row of rows) {
+      if (row.parentMessageId !== null) counts.set(row.parentMessageId, Number(row.replies));
+    }
+    return counts;
+  }
+
   async findMessageById(
     runner: TenantQueryRunner,
     context: TenantContext,

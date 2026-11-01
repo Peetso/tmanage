@@ -4,9 +4,10 @@ import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
-import { TENANT_DATABASE } from '../../common/http/tokens.js';
+import { AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { OrgPolicyValue } from '../../common/database/schema.js';
+import type { AuditService } from '../audit/audit.service.js';
 import {
   DEFAULT_POLICY,
   mergePolicy,
@@ -57,6 +58,12 @@ export class PoliciesController {
     @Optional()
     @Inject(PoliciesRepository)
     private readonly policies: PoliciesRepository = new PoliciesRepository(),
+    // 2026-10-31 live test: an access-policy save left no audit row. The global audit service is
+    // injected optionally (the unit tests build the controller without it) and records in the
+    // same transaction as the write.
+    @Optional()
+    @Inject(AUDIT_SERVICE)
+    private readonly audit?: Pick<AuditService, 'record'>,
   ) {}
 
   /** Read the organization's access policy — its stored document, or the defaults if none (200). */
@@ -113,6 +120,25 @@ export class PoliciesController {
       const base = current ? normalizePolicy(current.policyJson) : DEFAULT_POLICY;
       merged = mergePolicy(base, validated.patch);
       await this.policies.upsert(tx, context, { policy: merged, updatedBy: principal.userId });
+
+      // 5. The audit row commits with the change, or neither does.
+      const changed = (Object.keys(merged) as (keyof OrgPolicyValue)[]).filter(
+        (key) => JSON.stringify(merged[key]) !== JSON.stringify(base[key]),
+      );
+      if (changed.length > 0) {
+        await this.audit?.record(tx, context, {
+          action: 'organization.access_policy_changed',
+          objectId: context.organizationId,
+          result: 'allowed',
+          actorUserId: principal.userId,
+          metadata: {
+            changed_keys: changed.map(String),
+            session_max_hours: merged.session_max_hours,
+            guest_access_enabled: merged.guest_access_enabled,
+            invite_domain_count: merged.invite_domain_allowlist.length,
+          },
+        });
+      }
     });
 
     return { policy: merged };

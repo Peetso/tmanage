@@ -78,7 +78,7 @@ describe('AutomationTemplatesScreen', () => {
       ),
     );
 
-    await waitFor(() => expect(screen.getByText('No templates yet')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('No automations yet')).toBeInTheDocument());
     await expectNoAxeViolations(container);
   });
 });

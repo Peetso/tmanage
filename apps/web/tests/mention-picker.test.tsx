@@ -48,7 +48,7 @@ const CANDIDATES = [
   { userId: 'user-lian', displayName: 'Lian Fawzy', mention: '@user-lian' },
 ];
 
-function setup() {
+function setup(candidates: readonly unknown[] = CANDIDATES) {
   const calls: Call[] = [];
   const client = new ApiClient({
     baseUrl: 'https://api.example.test',
@@ -61,8 +61,7 @@ function setup() {
       };
       calls.push(call);
       const url = call.url;
-      if (url.includes('/mention-candidates'))
-        return Promise.resolve(json({ candidates: CANDIDATES }));
+      if (url.includes('/mention-candidates')) return Promise.resolve(json({ candidates }));
       if (url.includes('/projects/proj-1/members')) {
         return Promise.resolve(
           json({
@@ -185,6 +184,46 @@ describe('the @ picker', () => {
     await user.click(screen.getByRole('button', { name: 'Mention someone' }));
     expect(await screen.findByRole('listbox', { name: 'People to mention' })).toBeInTheDocument();
     expect(box).toHaveValue('@Li @');
+  });
+});
+
+describe('the @ picker when nobody matches (2026-10-31 live-test fix)', () => {
+  it('a bare @ with nobody to mention says so instead of not opening', async () => {
+    const user = userEvent.setup();
+    setup([]);
+    await screen.findByLabelText('Message the channel');
+    await user.click(screen.getByRole('button', { name: 'Mention someone' }));
+    const status = (await screen.findByTestId('mention-picker')).querySelector('[role="status"]');
+    expect(status).toHaveTextContent('No one to mention yet');
+    expect(status).toHaveTextContent('Invite teammates from People to mention them.');
+    expect(screen.getByText('Esc to close')).toBeInTheDocument();
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
+  it('@ with letters that match nobody names the letters, and Esc closes it', async () => {
+    const user = userEvent.setup();
+    setup([]);
+    const box = await screen.findByLabelText('Message the channel');
+    await user.type(box, 'QA @Pe');
+    expect(await screen.findByText('No one matches “Pe”')).toBeInTheDocument();
+    expect(box).not.toHaveAttribute('aria-activedescendant');
+    await user.keyboard('{Escape}');
+    expect(screen.queryByText('No one matches “Pe”')).not.toBeInTheDocument();
+    expect(box).toHaveValue('QA @Pe');
+  });
+});
+
+describe('the channel draft after a send (2026-10-31 live-test fix)', () => {
+  it('clears the stored draft once, not twice', async () => {
+    const user = userEvent.setup();
+    const { calls } = setup();
+    const box = await screen.findByLabelText('Message the channel');
+    await user.type(box, 'Hello team');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(box).toHaveValue(''));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const deletes = calls.filter((c) => c.method === 'DELETE' && c.url.endsWith('/draft'));
+    expect(deletes).toHaveLength(1);
   });
 });
 

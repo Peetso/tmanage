@@ -34,6 +34,16 @@ export interface WorkFormSummary {
   readonly fields: readonly WorkFormFieldDef[];
   readonly createdBy: string;
   readonly createdAt: string;
+  /** Whether the form has a live public link (`/f/<publicSlug>`). */
+  readonly published: boolean;
+  /** The public link's slug while published; `null` when the form is not shared. */
+  readonly publicSlug: string | null;
+}
+
+/** `POST …/work-forms/:id/publish|unpublish`. Mirrors the API's `PublicFormState`. */
+export interface PublicFormState {
+  readonly published: boolean;
+  readonly slug: string | null;
 }
 
 /** The fields a define sends. Request-side (suffix `Input`), so the contracts gate ignores it. */
@@ -89,6 +99,32 @@ export async function submitWorkForm(
     method: 'POST',
     path: `${base(organizationSlug)}/${encodeURIComponent(formId)}/submissions`,
     body: input,
+  });
+  return data;
+}
+
+/** Share a form on a public link (`/f/<slug>`). Idempotent: an already-public form keeps its slug. */
+export async function publishWorkForm(
+  client: ApiClient,
+  organizationSlug: string,
+  formId: string,
+): Promise<PublicFormState> {
+  const { data } = await client.request<PublicFormState>({
+    method: 'POST',
+    path: `${base(organizationSlug)}/${encodeURIComponent(formId)}/publish`,
+  });
+  return data;
+}
+
+/** Stop sharing a form: its public link answers "not found" straight away. */
+export async function unpublishWorkForm(
+  client: ApiClient,
+  organizationSlug: string,
+  formId: string,
+): Promise<PublicFormState> {
+  const { data } = await client.request<PublicFormState>({
+    method: 'POST',
+    path: `${base(organizationSlug)}/${encodeURIComponent(formId)}/unpublish`,
   });
   return data;
 }

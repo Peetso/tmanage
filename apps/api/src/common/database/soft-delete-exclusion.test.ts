@@ -56,7 +56,7 @@ const CONTENT_TABLES = [
 
 /** Repository file → the list methods that must exclude soft-deleted rows. */
 const LIST_READS: Readonly<Record<string, readonly string[]>> = {
-  'conversations/conversations.repository.ts': ['listMessages'],
+  'conversations/conversations.repository.ts': ['listMessages', 'countRepliesByParent'],
   'conversations/direct-conversations.repository.ts': ['listForUser', 'listMessages'],
   'conversations/message-attachments.repository.ts': [
     'listForMessages',

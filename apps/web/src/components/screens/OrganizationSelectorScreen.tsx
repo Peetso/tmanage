@@ -10,6 +10,7 @@ import { listOrganizations, type OrganizationSummary } from '../../lib/api/organ
 import type { ApiClient } from '../../lib/api/client';
 import { describeInternalRole } from '../../lib/roles';
 import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/identity.css';
 
@@ -246,6 +247,29 @@ export function OrganizationSelectorScreen({
                 })}
               </ul>
             )}
+
+            {/* Live test 2026-10-31: an owner with organizations had no way back to ON-01 short of
+                typing its URL. Figma: "Workspace · Organization list with create (2026-10-31
+                live-test fix)" 446:35916. Clients cannot create an organization, so the row is
+                offered only to someone who is an internal member somewhere. */}
+            {organizations.data.some((organization) => organization.audience !== 'client') ? (
+              <Link className="tm-id-org tm-id-org--create" href="/onboarding/organization">
+                <span className="tm-id-org__orb" aria-hidden="true">
+                  +
+                </span>
+                <span className="tm-id-org__text">
+                  <span className="tm-id-org__name">
+                    {t('OrganizationSelectorScreen.createAnother' as MessageKey)}
+                  </span>
+                  <span className="tm-id-org__meta">
+                    {t('OrganizationSelectorScreen.createAnotherMeta' as MessageKey)}
+                  </span>
+                </span>
+                <span className="tm-id-org__go" aria-hidden="true">
+                  →
+                </span>
+              </Link>
+            ) : null}
           </>
         ) : null}
 
