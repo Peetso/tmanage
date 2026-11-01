@@ -1,6 +1,7 @@
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import { serializeForLog } from '../observability/logger.js';
 import { renderActionEmail } from './action-email.js';
+import { emailIsRtl, emailT } from '../i18n/email-messages.js';
 
 /**
  * The welcome email a public sign-up sends (in the shared action-email layout).
@@ -25,30 +26,18 @@ export interface WelcomeEmailFacts {
 }
 
 export function composeWelcomeEmail(facts: WelcomeEmailFacts): MailMessage {
-  const arabic = (facts.locale ?? 'en').toLowerCase().startsWith('ar');
-
-  const copy = arabic
-    ? {
-        subject: 'مرحبًا بك في TManage',
-        eyebrow: 'حساب جديد',
-        heading: 'مرحبًا، مساحة عملك جاهزة',
-        intro: 'أنشأت مساحة عمل جديدة وأنت مالكها. افتحها لتبدأ.',
-        button: 'فتح مساحة العمل',
-        fallback: 'إذا لم يعمل الزر، انسخ هذا الرابط والصقه في المتصفح:',
-        note: 'لا يحتوي هذا الرابط على كلمة مرور ولا يمنح أي وصول بمفرده.',
-        footer: 'إن لم تنشئ هذا الحساب فتجاهل هذه الرسالة أو اكتب إلى الدعم ليُحذف الحساب.',
-      }
-    : {
-        subject: 'Welcome to TManage',
-        eyebrow: 'New account',
-        heading: 'Welcome, your workspace is ready',
-        intro: 'You created a new workspace and you are its owner. Open it to get started.',
-        button: 'Open your workspace',
-        fallback: 'Button not working? Copy this link into your browser:',
-        note: 'This link carries no password and grants no access on its own.',
-        footer:
-          'If you did not create this account, ignore this email or write to support and we will remove it.',
-      };
+  const locale = facts.locale;
+  const arabic = emailIsRtl(locale);
+  const copy = {
+    subject: emailT(locale, 'welcome.subject'),
+    eyebrow: emailT(locale, 'welcome.eyebrow'),
+    heading: emailT(locale, 'welcome.heading'),
+    intro: emailT(locale, 'welcome.intro'),
+    button: emailT(locale, 'welcome.button'),
+    fallback: emailT(locale, 'common.fallback'),
+    note: emailT(locale, 'welcome.note'),
+    footer: emailT(locale, 'welcome.footer'),
+  };
 
   return {
     to: facts.to,

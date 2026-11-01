@@ -1,5 +1,6 @@
 import type { MailMessage } from '@tmanage/mail';
 import { EMAIL_TOKENS, escapeHtml } from './action-email.js';
+import { emailIsRtl, emailT, type EmailKey } from '../i18n/email-messages.js';
 
 /**
  * The invitation templates from `35-NOTIFICATION-AND-EMAIL-COPY` §3, rendered — as plain text
@@ -48,23 +49,23 @@ export interface InvitationEmailFacts {
   readonly expiresAt: Date;
   /** The accept URL, token included — built by `InvitationMailer`, which owns the base. */
   readonly link: string;
-  /** The organization's `default_locale`. Anything starting `ar` renders the Arabic copy. */
+  /** The organization's `default_locale`; `emailT` picks the catalog (English when it has none). */
   readonly locale?: string;
 }
 
 /** The role names people read — the same labels `apps/web/src/lib/roles.ts` shows. */
-const ROLE_LABELS: Readonly<Record<string, { readonly en: string; readonly ar: string }>> = {
-  owner: { en: 'Owner', ar: 'المالك' },
-  org_admin: { en: 'Organization admin', ar: 'مسؤول المؤسسة' },
-  workspace_admin: { en: 'Workspace admin', ar: 'مسؤول مساحة العمل' },
-  manager: { en: 'Manager', ar: 'مدير' },
-  moderator: { en: 'Moderator', ar: 'مشرف' },
-  member: { en: 'Team member', ar: 'عضو في الفريق' },
-  guest: { en: 'Freelancer or partner', ar: 'مستقل أو شريك' },
-  client_admin: { en: 'Client admin', ar: 'مسؤول العميل' },
-  client_reviewer: { en: 'Client reviewer', ar: 'مراجع لدى العميل' },
-  client_member: { en: 'Client member', ar: 'عضو لدى العميل' },
-  client_viewer: { en: 'Client viewer', ar: 'مشاهد لدى العميل' },
+const ROLE_KEYS: Readonly<Record<string, EmailKey>> = {
+  owner: 'role.owner',
+  org_admin: 'role.org_admin',
+  workspace_admin: 'role.workspace_admin',
+  manager: 'role.manager',
+  moderator: 'role.moderator',
+  member: 'role.member',
+  guest: 'role.guest',
+  client_admin: 'role.client_admin',
+  client_reviewer: 'role.client_reviewer',
+  client_member: 'role.client_member',
+  client_viewer: 'role.client_viewer',
 };
 
 /**
@@ -110,7 +111,7 @@ const DOT_LOOKALIKES = /[\u3002\uFF0E\uFF61]/gu;
  *
  * Decision for U+200F (RLM) and its kin inside an Arabic name: stripped silently, and the name
  * passes. The templates already put one RLM at the head of every mixed Arabic/Latin line
- * (`RLM` below), so a mark inside a typed name adds nothing the design needs, and a bidi
+ * (the Arabic catalog lines), so a mark inside a typed name adds nothing the design needs, and a bidi
  * override inside a name is exactly how text is made to read differently from what it is.
  */
 const INVISIBLE = /\p{Cf}|\p{Default_Ignorable_Code_Point}/gu;
@@ -152,22 +153,21 @@ export function mailSafeName(value: string): string {
   return capped === '' || capped === '…' ? '—' : capped;
 }
 
-/** A date a person reads — "13 September 2026" — fixed to UTC, which the copy then names. */
-function expiryDate(expiresAt: Date, arabic: boolean): string {
-  return new Intl.DateTimeFormat(arabic ? 'ar-EG-u-nu-latn' : 'en-GB', {
+/**
+ * A date a person reads — "13 September 2026" — fixed to UTC, which the copy then names. The
+ * language's catalog names its date locale (`meta.dateLocale`).
+ */
+function expiryDate(expiresAt: Date, locale: string | undefined): string {
+  return new Intl.DateTimeFormat(emailT(locale, 'meta.dateLocale'), {
     dateStyle: 'long',
     timeZone: 'UTC',
   }).format(expiresAt);
 }
 
-function roleLabel(role: string, arabic: boolean): string {
-  const known = ROLE_LABELS[role];
-  if (!known) return role;
-  return arabic ? known.ar : known.en;
+function roleLabel(role: string, locale: string | undefined): string {
+  const key = Object.prototype.hasOwnProperty.call(ROLE_KEYS, role) ? ROLE_KEYS[role] : undefined;
+  return key ? emailT(locale, key) : role;
 }
-
-/** U+200F, the right-to-left mark: keeps a mixed Arabic/Latin line anchored right. */
-const RLM = '‏';
 
 /** Two initials for a Latin name, the first letter alone for an Arabic one (the design's "ع"). */
 export function initialsOf(name: string): string {
@@ -193,52 +193,36 @@ interface Copy {
 }
 
 function copyFor(facts: InvitationEmailFacts): { readonly copy: Copy; readonly arabic: boolean } {
-  const arabic = (facts.locale ?? 'en').toLowerCase().startsWith('ar');
+  // R12 R2: the catalogs (`common/i18n/email`) hold the copy; Arabic lines carry U+200F (RLM) at
+  // the head of every line that mixes Arabic with a Latin brand name.
+  const locale = facts.locale;
+  const arabic = emailIsRtl(locale);
   const organization = mailSafeName(facts.organizationName);
   const inviter = mailSafeName(facts.inviterName);
-  const role = roleLabel(oneLine(facts.role), arabic);
-  const expiry = `${expiryDate(facts.expiresAt, arabic)} (UTC)`;
+  const role = roleLabel(oneLine(facts.role), locale);
+  const expiry = `${expiryDate(facts.expiresAt, locale)} (UTC)`;
   const client =
     facts.clientOrganizationName === null ? null : mailSafeName(facts.clientOrganizationName);
-
-  if (arabic) {
-    return {
-      arabic,
-      copy: {
-        subject: `${RLM}${inviter} دعاك إلى ${organization} بدور ${role}`,
-        heading:
-          client === null
-            ? `${RLM}أنت مدعو للانضمام إلى ${organization} على TManage`
-            : `${RLM}أنت مدعو إلى بوابة عملاء ${organization} على TManage`,
-        intro:
-          client === null
-            ? `${RLM}ستعمل مع فريق ${organization}. دورك: ${role}.`
-            : `${RLM}تابع التقدم والملفات والإجراءات المشتركة مع ${client}. دورك: ${role}. لن ترى مساحة العمل الداخلية للفريق.`,
-        button: 'قبول الدعوة',
-        fallback: 'إذا لم يعمل الزر، انسخ هذا الرابط والصقه في المتصفح:',
-        expiry: `تنتهي صلاحية هذه الدعوة في ${expiry}. إذا لم تكن تتوقعها، يمكنك تجاهل هذه الرسالة.`,
-        footer: `${RLM}أُرسلت من TManage نيابةً عن ${organization}`,
-      },
-    };
-  }
+  const vars = { organization, inviter, role, client: client ?? '', date: expiry };
 
   return {
     arabic,
     copy: {
-      subject: `${inviter} invited you to ${organization} as ${role}`,
-      heading:
-        client === null
-          ? `You are invited to join ${organization} on TManage`
-          : `You are invited to the ${organization} client portal on TManage`,
-      intro:
-        client === null
-          ? `You will work with the team at ${organization}. Your role: ${role}.`
-          : `Follow progress, files and actions shared with ${client}. Your role: ${role}. ` +
-            `You will not see the team’s internal workspace.`,
-      button: 'Accept invitation',
-      fallback: 'Button not working? Copy this link into your browser:',
-      expiry: `This invitation expires on ${expiry}. If you were not expecting it, you can ignore this email.`,
-      footer: `Sent by TManage on behalf of ${organization}`,
+      subject: emailT(locale, 'invitation.subject', vars),
+      heading: emailT(
+        locale,
+        client === null ? 'invitation.headingInternal' : 'invitation.headingClient',
+        vars,
+      ),
+      intro: emailT(
+        locale,
+        client === null ? 'invitation.introInternal' : 'invitation.introClient',
+        vars,
+      ),
+      button: emailT(locale, 'invitation.button'),
+      fallback: emailT(locale, 'common.fallback'),
+      expiry: emailT(locale, 'invitation.expiry', vars),
+      footer: emailT(locale, 'invitation.footer', vars),
     },
   };
 }

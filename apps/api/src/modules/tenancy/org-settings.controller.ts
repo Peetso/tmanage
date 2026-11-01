@@ -7,10 +7,12 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import {
+  DEFAULT_LOCALE_SETTING_KEY,
   ORG_SETTING_KEYS,
   defaultFor,
   isOrgSettingKey,
   isOwnerOnlySettingKey,
+  validateDefaultLocale,
   validateValue,
 } from './org-settings.allowlist.js';
 import { OrgSettingsRepository } from './org-settings.repository.js';
@@ -92,6 +94,21 @@ export class OrgSettingsController {
       //    is the tenant-checked decision the test exercises).
       this.requireOrgManage(principal, context);
 
+      // R12 R2: the workspace's default language lives on `organizations.default_locale`.
+      if (key === DEFAULT_LOCALE_SETTING_KEY) {
+        const locale = validateDefaultLocale(coerceValue(body?.value) ?? '');
+        if (!locale.ok) {
+          throw new ApiError(
+            400,
+            'validation_failed',
+            'That value is not allowed for this setting.',
+            [{ field: 'value', message: locale.message }],
+          );
+        }
+        await this.settings.updateDefaultLocale(tx, context, locale.value);
+        return;
+      }
+
       // 3. The allowlist is the boundary: an off-list key or a value the validator rejects is a 400
       //    with no write. No arbitrary key is ever stored.
       if (!isOrgSettingKey(key)) {
@@ -141,15 +158,24 @@ export class OrgSettingsController {
 
   /** Every allowlisted key with its stored value or its default, in the allowlist's fixed order. */
   private async readAll(context: TenantContext): Promise<OrgSettingsView> {
-    const rows = await this.database.read(context, (runner) =>
-      this.settings.listAll(runner, context),
+    const [rows, defaultLocale] = await this.database.read(
+      context,
+      async (runner) =>
+        [
+          await this.settings.listAll(runner, context),
+          await this.settings.readDefaultLocale(runner, context),
+        ] as const,
     );
     const stored = new Map(rows.map((row) => [row.settingKey, row.settingValue]));
     return {
-      settings: ORG_SETTING_KEYS.map((key) => ({
-        key,
-        value: stored.get(key) ?? defaultFor(key),
-      })),
+      settings: [
+        ...ORG_SETTING_KEYS.map((key) => ({
+          key,
+          value: stored.get(key) ?? defaultFor(key),
+        })),
+        // R12 R2: the organization column, after the allowlisted rows.
+        { key: DEFAULT_LOCALE_SETTING_KEY, value: defaultLocale ?? 'en' },
+      ],
     };
   }
 

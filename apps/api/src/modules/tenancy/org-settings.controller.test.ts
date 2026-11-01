@@ -94,6 +94,17 @@ class FakeOrgSettingsRepository {
   findByKey(): Promise<OrgSettingRow | undefined> {
     return Promise.resolve(undefined);
   }
+
+  defaultLocale = 'en';
+
+  readDefaultLocale(): Promise<string> {
+    return Promise.resolve(this.defaultLocale);
+  }
+
+  updateDefaultLocale(_r: unknown, _c: unknown, locale: string): Promise<void> {
+    this.defaultLocale = locale;
+    return Promise.resolve();
+  }
 }
 
 function controllerWith(repo: FakeOrgSettingsRepository): OrgSettingsController {
@@ -208,5 +219,15 @@ describe('OrgSettingsController (ADM settings, x153)', () => {
       );
       expect(capability).toBe('org.manage');
     }
+  });
+
+  it('R12: default_locale writes the organization column, allowlisted only', async () => {
+    const repo = new FakeOrgSettingsRepository();
+    const controller = controllerWith(repo);
+    const after = await controller.set(context, owner(), 'default_locale', { value: 'es-ES' });
+    expect(after.settings).toContainEqual({ key: 'default_locale', value: 'es-ES' });
+    await expectStatus(controller.set(context, owner(), 'default_locale', { value: 'xx' }), 400);
+    expect(repo.defaultLocale).toBe('es-ES');
+    expect(repo.upsertCalls).toBe(0);
   });
 });

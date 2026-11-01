@@ -15730,5 +15730,17 @@
   "RouteTitle.chatInvite": "دعوة إلى مجموعة",
   "RouteTitle.documentPrint": "طباعة المستند",
   "RouteTitle.portalChat": "المحادثات",
-  "RouteTitle.portalChatConversation": "المحادثة"
+  "RouteTitle.portalChatConversation": "المحادثة",
+  "LanguagePicker.label": "اللغة",
+  "LanguagePicker.beta": "تجريبية",
+  "LanguagePicker.betaNote": "اللغات التجريبية مترجمة بمساعدة الآلة ولم يراجعها متحدث أصلي بعد.",
+  "LanguagePicker.menuLabel": "اختر لغة",
+  "LocaleHint.region": "تنبيه اللغة",
+  "LocaleHint.fromLocation": "ضُبطت اللغة على {language} حسب موقعك",
+  "LocaleHint.fromBrowser": "ضُبطت اللغة على {language} حسب إعدادات متصفحك",
+  "LocaleHint.change": "تغيير",
+  "LocaleHint.keep": "إبقاء",
+  "LocaleHint.dismiss": "إغلاق",
+  "OrgSettings.defaultLanguage": "اللغة الافتراضية",
+  "OrgSettings.defaultLanguageHint": "تُستخدم في الدعوات والرسائل للأشخاص الذين لم يختاروا لغة."
 }

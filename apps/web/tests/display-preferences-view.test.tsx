@@ -77,11 +77,13 @@ describe('DisplayPreferencesView (PREF-02)', () => {
     expect((screen.getByLabelText('Match system') as HTMLInputElement).checked).toBe(false);
   });
 
-  it('has no second language picker: the language is set on Profile', async () => {
+  it('R12: offers the eight languages by their own names, betas marked, ja-JP hidden', async () => {
     mount();
-    await screen.findByLabelText('Dark');
-    expect(screen.queryByLabelText(/Language/)).toBeNull();
-    expect(screen.queryByRole('option', { name: 'en-US' })).toBeNull();
+    const select = await screen.findByLabelText('Language');
+    const options = Array.from((select as HTMLSelectElement).options).map((o) => o.textContent);
+    expect(options).toHaveLength(8);
+    expect(options).toContain('Español · Beta');
+    expect(screen.queryByRole('option', { name: 'ja-JP' })).toBeNull();
   });
 
   it('saving Compact sends the saved locale back and tightens the app density', async () => {

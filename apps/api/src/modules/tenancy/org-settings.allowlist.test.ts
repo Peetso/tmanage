@@ -4,6 +4,7 @@ import {
   ORG_SETTING_KEYS,
   defaultFor,
   isSettingOn,
+  validateDefaultLocale,
   validateValue,
 } from './org-settings.allowlist.js';
 import { requireOrgPermission } from './org-policy.js';
@@ -127,5 +128,13 @@ describe('requireOrgPermission — the routes honour the switches', () => {
         repoWith(undefined),
       ),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe('R12 default_locale', () => {
+  it('accepts the display allowlist and the legacy column values, nothing else', () => {
+    expect(validateDefaultLocale(' zh-CN ')).toEqual({ ok: true, value: 'zh-CN' });
+    expect(validateDefaultLocale('en').ok).toBe(true);
+    expect(validateDefaultLocale('es').ok).toBe(false);
   });
 });

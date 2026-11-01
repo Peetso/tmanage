@@ -2,6 +2,7 @@ export {
   colorLight,
   colorDark,
   typeFamily,
+  typeFamilyCjk,
   typeScale,
   typeArabic,
   space,

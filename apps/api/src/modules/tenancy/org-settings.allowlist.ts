@@ -18,6 +18,8 @@
  * later reader will parse.
  */
 
+import { DISPLAY_LOCALES } from '../../common/database/schema.js';
+
 /** The fixed set of settings this slice ships. A key outside this set is never writable. */
 export const ORG_SETTING_KEYS = [
   'default_timezone',
@@ -216,4 +218,22 @@ export function defaultFor(key: OrgSettingKey): string {
 /** Validate a candidate value for an allowlisted key, returning the canonical form to store. */
 export function validateValue(key: OrgSettingKey, raw: string): OrgSettingValidation {
   return SPECS[key].validate(raw);
+}
+
+/**
+ * R12 R2 — the workspace's default language, for invitations and emails to people without a
+ * language of their own. Not an `org_settings` row: it is the existing `organizations.default_locale`
+ * column (no migration), read and written through the same routes so the settings card saves it
+ * beside the others. Only the display allowlist is accepted (plus the legacy `en`/`ar` the column
+ * was created with), so nothing else can reach an email's language.
+ */
+export const DEFAULT_LOCALE_SETTING_KEY = 'default_locale';
+
+const ORGANIZATION_LOCALES: readonly string[] = [...DISPLAY_LOCALES, 'en', 'ar'];
+
+export function validateDefaultLocale(raw: string): OrgSettingValidation {
+  const value = raw.trim();
+  return ORGANIZATION_LOCALES.includes(value)
+    ? { ok: true, value }
+    : { ok: false, message: 'Choose one of the offered languages.' };
 }

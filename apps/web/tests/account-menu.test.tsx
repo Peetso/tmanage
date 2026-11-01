@@ -66,10 +66,15 @@ describe('AccountMenu (t2-a)', () => {
     expect(signOut).toHaveBeenCalledTimes(1);
   });
 
-  it('flips the document to Arabic, right-to-left, from the language item', () => {
+  it('flips the document to Arabic, right-to-left, from the language submenu', () => {
     renderShell();
     openMenu();
-    fireEvent.click(screen.getByRole('menuitem', { name: en('language') }));
+    fireEvent.click(screen.getByRole('menuitem', { name: new RegExp(en('language')) }));
+    expect(screen.getByRole('menuitemradio', { name: /English \(US\)/ })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'العربية' }));
     expect(document.documentElement.dir).toBe('rtl');
     expect(activeLocale.get()).toBe('ar-EG');
   });

@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { emailT } from '../../common/i18n/email-messages.js';
 import { ApiError } from '../../common/http/errors.js';
 
 /**
@@ -168,24 +169,11 @@ export function composeAcknowledgement(
   reference: string,
   language: 'en' | 'ar' | null,
 ): { to: string; subject: string; text: string; templateKey: string } {
-  if (language === 'ar') {
-    return {
-      to,
-      subject: `‏استلمنا بلاغك الأمني ${reference}`,
-      text:
-        `‏شكرًا لك. استلمنا بلاغك الأمني ورقمه المرجعي ${reference}.\n` +
-        '‏سيراجعه فريق الأمان ويتواصل معك إن احتاج إلى معلومات إضافية.\n' +
-        '‏إن لم تُرسل هذا البلاغ فتجاهل هذه الرسالة.',
-      templateKey: 'security_report_ack',
-    };
-  }
+  const locale = language ?? 'en';
   return {
     to,
-    subject: `We received your security report ${reference}`,
-    text:
-      `Thank you. We received your security report, reference ${reference}.\n` +
-      'The security team will review it and contact you if more information is needed.\n' +
-      'If you did not send this report, you can ignore this message.',
+    subject: emailT(locale, 'securityAck.subject', { reference }),
+    text: emailT(locale, 'securityAck.text', { reference }),
     templateKey: 'security_report_ack',
   };
 }

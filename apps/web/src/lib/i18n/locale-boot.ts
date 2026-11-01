@@ -27,7 +27,7 @@ import { THEME_STORAGE_KEY } from '../theme';
  *    is constructed, so the store's client value equals what the script already painted.
  *
  * The order is: an Arabic public page's path (`/ar`, `/ar/...` — `public-locale-routes.ts`) names
- * `ar-EG` and wins, then `?lang=` (`en`, `ar`, or an exact allowlisted tag); either is persisted. Then the
+ * `ar-EG` and wins, then `?lang=` (`en`, `ar`, `es`, `fr`, `pt`, `de`, `zh`, or an exact allowlisted tag); either is persisted. Then the
  * saved-locale cookie the language switch writes, then the locale cached under
  * {@link LOCALE_STORAGE_KEY} (copied into the cookie), then nothing (the caller's default). Every
  * value is checked against {@link DISPLAY_LOCALES}, so a crafted query or cookie can never reach
@@ -41,6 +41,12 @@ export const LOCALE_STORAGE_KEY = 'tmanage:locale';
 export const LANG_QUERY_ALIASES: Readonly<Record<string, DisplayLocale>> = {
   en: 'en-US',
   ar: 'ar-EG',
+  // R12 R2: the beta languages, so a shared `?lang=es` link opens in that language.
+  es: 'es-ES',
+  fr: 'fr-FR',
+  pt: 'pt-BR',
+  de: 'de-DE',
+  zh: 'zh-CN',
 };
 
 /** The allowlisted locale a `?lang=` value names, or `undefined` for anything else. */

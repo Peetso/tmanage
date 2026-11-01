@@ -1,6 +1,7 @@
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import { serializeForLog } from '../observability/logger.js';
 import { renderActionEmail } from './action-email.js';
+import { emailIsRtl, emailT } from '../i18n/email-messages.js';
 
 /**
  * The password-reset email (ACC-02) and its sender.
@@ -19,7 +20,7 @@ export interface PasswordResetEmailFacts {
   readonly link: string;
   /** How long the link works, in minutes. */
   readonly ttlMinutes: number;
-  /** The account's `locale`; anything starting `ar` gets the Arabic copy. */
+  /** The account's `locale` (`emailT` picks the catalog; English when it has none). */
   readonly locale?: string;
 }
 
@@ -28,35 +29,20 @@ function oneLine(value: string): string {
 }
 
 export function composePasswordResetEmail(facts: PasswordResetEmailFacts): MailMessage {
-  const arabic = (facts.locale ?? 'en').toLowerCase().startsWith('ar');
+  const locale = facts.locale;
+  const arabic = emailIsRtl(locale);
   const name = oneLine(facts.displayName);
   const minutes = String(facts.ttlMinutes);
-
-  const copy = arabic
-    ? {
-        subject: 'إعادة تعيين كلمة مرور TManage',
-        eyebrow: 'استعادة الوصول',
-        heading: `مرحبًا ${name}، اختر كلمة مرور جديدة`,
-        intro:
-          'طلب أحدهم رابطًا لإعادة تعيين كلمة مرور حسابك في TManage. اضغط الزر لاختيار كلمة مرور جديدة.',
-        button: 'اختيار كلمة مرور جديدة',
-        fallback: 'إذا لم يعمل الزر، انسخ هذا الرابط والصقه في المتصفح:',
-        note: `يعمل الرابط مرة واحدة وتنتهي صلاحيته بعد ${minutes} دقيقة. ستُسجَّل خارج جميع الأجهزة بعد التغيير.`,
-        footer:
-          'إن لم تطلب ذلك فتجاهل هذه الرسالة؛ تبقى كلمة مرورك كما هي ولا يستطيع أحد استخدام الرابط دون الوصول إلى بريدك.',
-      }
-    : {
-        subject: 'Reset your TManage password',
-        eyebrow: 'Recover access',
-        heading: `Hi ${name}, choose a new password`,
-        intro:
-          'Someone asked for a link to reset the password of your TManage account. Use the button to choose a new one.',
-        button: 'Choose a new password',
-        fallback: 'Button not working? Copy this link into your browser:',
-        note: `The link works once and expires in ${minutes} minutes. Changing your password signs you out everywhere.`,
-        footer:
-          'If you did not ask for this, ignore this email: your password stays as it is, and nobody can use the link without access to your inbox.',
-      };
+  const copy = {
+    subject: emailT(locale, 'passwordReset.subject'),
+    eyebrow: emailT(locale, 'passwordReset.eyebrow'),
+    heading: emailT(locale, 'passwordReset.heading', { name }),
+    intro: emailT(locale, 'passwordReset.intro'),
+    button: emailT(locale, 'passwordReset.button'),
+    fallback: emailT(locale, 'common.fallback'),
+    note: emailT(locale, 'passwordReset.note', { minutes }),
+    footer: emailT(locale, 'passwordReset.footer'),
+  };
 
   return {
     to: facts.to,

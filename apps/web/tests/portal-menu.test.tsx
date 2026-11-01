@@ -108,7 +108,7 @@ describe('PortalMenu (ph-portal)', () => {
       'Files',
       'Messages',
       'Chat',
-      'العربية',
+      'Language',
       'Sign out',
     ]);
     // The chosen project travels with every destination.
@@ -119,7 +119,9 @@ describe('PortalMenu (ph-portal)', () => {
     const approvals = screen.getByRole('link', { name: /Approvals/ });
     expect(approvals).toHaveAttribute('aria-current', 'page');
     expect(await within(approvals).findByText('1')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Language' }));
     expect(screen.getByRole('button', { name: 'العربية' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Español/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
 
     fireEvent.keyDown(approvals, { key: 'Escape' });
@@ -145,12 +147,12 @@ describe('PortalMenu (ph-portal)', () => {
     );
   });
 
-  it('reads right to left in Arabic and offers English as the language switch', async () => {
+  it('reads right to left in Arabic and offers English in the language list', async () => {
     act(() => activeLocale.set('ar-EG'));
     renderMenu();
     expect(document.documentElement).toHaveAttribute('dir', 'rtl');
-    expect(screen.getByRole('button', { name: 'English' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'English' }));
+    fireEvent.click(screen.getByRole('button', { name: 'اللغة' }));
+    fireEvent.click(screen.getByRole('button', { name: 'English (US)' }));
     expect(activeLocale.get()).toBe('en-US');
   });
 });

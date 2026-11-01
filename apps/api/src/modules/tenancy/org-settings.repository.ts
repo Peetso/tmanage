@@ -79,6 +79,31 @@ export class OrgSettingsRepository {
       });
   }
 
+  /** R12 R2: the organization's `default_locale` column (the settings card's Default language). */
+  async readDefaultLocale(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+  ): Promise<string | undefined> {
+    const rows = await tenantDrizzle(runner)
+      .select({ defaultLocale: organizations.defaultLocale })
+      .from(organizations)
+      .where(eq(organizations.id, context.organizationId))
+      .limit(1);
+    return rows[0]?.defaultLocale;
+  }
+
+  /** R12 R2: set `organizations.default_locale` for the acting tenant (an allowlisted value). */
+  async updateDefaultLocale(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    locale: string,
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .update(organizations)
+      .set({ defaultLocale: locale })
+      .where(eq(organizations.id, context.organizationId));
+  }
+
   /** One stored key for the acting tenant, if written — the read-back after an upsert. */
   async findByKey(
     runner: TenantQueryRunner,

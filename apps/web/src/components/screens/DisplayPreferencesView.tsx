@@ -17,6 +17,7 @@ import { TimeZoneSelect } from '../TimeZoneSelect';
 import type {
   DisplayDateFormat,
   DisplayDensity,
+  DisplayLocale,
   DisplayPreferencesView as DisplayPreferences,
   DisplayTheme,
   DisplayTimezone,
@@ -24,6 +25,12 @@ import type {
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { activeLocale } from '../../lib/i18n/locale-store';
+import {
+  OFFERED_LOCALES,
+  isBetaLocale,
+  localeLangAttribute,
+  localeNativeName,
+} from '../../lib/i18n/catalog-status';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/preferences.css';
@@ -136,10 +143,15 @@ export function DisplayPreferencesView({
   const [densityDraft, setDensity] = useState<DisplayDensity | null>(null);
   const [timezoneDraft, setTimezone] = useState<DisplayTimezone | null>(null);
   const [dateFormatDraft, setDateFormat] = useState<DisplayDateFormat | null>(null);
+  const [localeDraft, setLocale] = useState<DisplayLocale | null>(null);
   const theme = themeDraft ?? stored.theme;
   const density = densityDraft ?? stored.density;
-  // The language is chosen once, on Profile (Figma 371:1836); this page sends the saved one back.
-  const locale = stored.locale;
+  // R12 R2 (Figma "Languages (R2)" 501:29247): the language is picked here too, from the offered
+  // list; a saved hidden locale (ja-JP) stays selectable so a save never changes it by accident.
+  const locale = localeDraft ?? stored.locale;
+  const localeChoices: readonly DisplayLocale[] = (
+    OFFERED_LOCALES as readonly DisplayLocale[]
+  ).concat(OFFERED_LOCALES.some((value) => value === stored.locale) ? [] : [stored.locale]);
   const timezone = timezoneDraft ?? stored.timezone;
   const dateFormat = dateFormatDraft ?? stored.dateFormat;
   const [saved, setSaved] = useState(false);
@@ -162,6 +174,7 @@ export function DisplayPreferencesView({
       }),
     onSuccess: (result) => {
       queries.setQueryData(['display-preferences', organizationSlug], result);
+      setLocale(null);
       // Apply the saved language to the whole app at once (ACT-03): the store flips the document's
       // direction and re-binds the formatters, so Arabic reads right-to-left immediately without a
       // reload rather than only taking effect on the marketing site.
@@ -256,6 +269,32 @@ export function DisplayPreferencesView({
                   value={timezone}
                   onChange={setTimezone}
                 />
+
+                <div className="tm-prefs-field">
+                  <label className="tm-prefs-field__label" htmlFor="tm-display-locale">
+                    {t('LanguagePicker.label')}
+                  </label>
+                  <select
+                    id="tm-display-locale"
+                    className="tm-prefs-field__control"
+                    value={locale}
+                    onChange={(event) => {
+                      setSaved(false);
+                      setLocale(event.target.value as DisplayLocale);
+                    }}
+                  >
+                    {localeChoices.map((value) => (
+                      <option key={value} value={value} lang={localeLangAttribute(value)}>
+                        {isBetaLocale(value)
+                          ? `${localeNativeName(value)} · ${t('LanguagePicker.beta')}`
+                          : localeNativeName(value)}
+                      </option>
+                    ))}
+                  </select>
+                  {isBetaLocale(locale) ? (
+                    <p className="tm-prefs-card__note">{t('LanguagePicker.betaNote')}</p>
+                  ) : null}
+                </div>
 
                 <div className="tm-prefs-field">
                   <label className="tm-prefs-field__label" htmlFor="tm-display-date-format">

@@ -3,6 +3,14 @@
 import { usePathname } from 'next/navigation';
 import Link from './WebLink';
 import { activeLocale } from '../../lib/i18n/locale-store';
+import {
+  OFFERED_LOCALES,
+  catalogNameOf,
+  isBetaLocale,
+  localeLangAttribute,
+  localeNativeName,
+} from '../../lib/i18n/catalog-status';
+import type { DisplayLocale } from '../../lib/api/display-preferences';
 import { languageSwitchTarget, localizeHref } from '../../lib/i18n/public-locale-routes';
 import { useRouteLocale } from '../../lib/i18n/route-locale';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
@@ -38,7 +46,10 @@ export function LanguageSwitch() {
   const locale = useActiveLocale();
   const pathname = usePathname();
   const arabic = isArabicLocale(locale);
-  const choose = (next: 'en-US' | 'ar-EG') => {
+  const catalog = catalogNameOf(locale);
+  // R12 R2: the beta languages switch in place — they have no public `/xx` routes of their own,
+  // so on an Arabic page they load the English twin (the page's words then follow the tab).
+  const choose = (next: DisplayLocale) => {
     activeLocale.set(next);
     const target = languageSwitchTarget(
       pathname,
@@ -54,7 +65,7 @@ export function LanguageSwitch() {
         type="button"
         className="tm-web-lang__option"
         lang="en"
-        aria-pressed={!arabic}
+        aria-pressed={catalog === 'en'}
         onClick={() => choose('en-US')}
       >
         English
@@ -70,6 +81,20 @@ export function LanguageSwitch() {
       >
         العربية
       </button>
+      {OFFERED_LOCALES.filter(isBetaLocale).map((value) => (
+        <span key={value} className="tm-web-lang__more">
+          <span aria-hidden="true">·</span>
+          <button
+            type="button"
+            className="tm-web-lang__option"
+            lang={localeLangAttribute(value)}
+            aria-pressed={catalog === catalogNameOf(value)}
+            onClick={() => choose(value)}
+          >
+            {localeNativeName(value)}
+          </button>
+        </span>
+      ))}
     </div>
   );
 }

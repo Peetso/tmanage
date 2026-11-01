@@ -10,6 +10,7 @@ import { QueryProvider } from '../components/providers/QueryProvider';
 import { RouteDocumentTitle } from '../components/providers/RouteDocumentTitle';
 import { ServiceWorkerRegister } from '../components/pwa/ServiceWorkerRegister';
 import { UpdateToast } from '../components/pwa/UpdateToast';
+import { LocaleHintToast } from '../components/shell/LocaleHintToast';
 import { localeBootScript } from '../lib/i18n/locale-boot';
 import { SITE_DESCRIPTION_EN } from '../lib/i18n/locale-html';
 
@@ -153,6 +154,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         {/* The service worker's "update available" affordance (slice 08): an always-mounted toast
             region that offers a reload when a new build is waiting to take over. */}
         <UpdateToast />
+        {/* R12 R2: the first-visit language guess, applied once and announced (Change · Keep). */}
+        <LocaleHintToast />
       </body>
     </html>
   );

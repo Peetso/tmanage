@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Badge } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { signOut } from '../../lib/api/session';
 import { authBoundary } from '../../lib/auth-boundary';
@@ -13,7 +14,12 @@ import {
   offerDesktopDownload,
 } from '../../lib/desktop-download';
 import { activeLocale } from '../../lib/i18n/locale-store';
-import { localeDirection } from '../../lib/i18n/direction';
+import {
+  OFFERED_LOCALES,
+  isBetaLocale,
+  localeLangAttribute,
+  localeNativeName,
+} from '../../lib/i18n/catalog-status';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
@@ -135,7 +141,7 @@ function AccountMenuPanel({
   const base = `/${encodeURIComponent(organizationSlug)}`;
 
   const items = () =>
-    Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+    Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? []);
 
   useEffect(() => {
     items()[0]?.focus();
@@ -158,8 +164,12 @@ function AccountMenuPanel({
     } else if (event.key === 'Tab') onClose(false);
   };
 
-  const toggleLanguage = () => {
-    activeLocale.set(localeDirection(locale) === 'rtl' ? 'en-US' : 'ar-EG');
+  // R12 R2 (Figma "Languages (R2)" 501:29283): "Language" opens the offered list in place; the
+  // current language carries the check, and a pick is a choice the first-visit guess never undoes.
+  const [languagesOpen, setLanguagesOpen] = useState(false);
+  const chooseLanguage = (next: (typeof OFFERED_LOCALES)[number]) => {
+    activeLocale.set(next);
+    onClose(true);
   };
 
   const endSession = async () => {
@@ -218,10 +228,37 @@ function AccountMenuPanel({
         role="menuitem"
         tabIndex={-1}
         className="tm-account__item"
-        onClick={toggleLanguage}
+        aria-haspopup="true"
+        aria-expanded={languagesOpen}
+        onClick={() => setLanguagesOpen((value) => !value)}
       >
         {t(key('language'))}
+        <span aria-hidden="true">{languagesOpen ? ' ▾' : ' ›'}</span>
       </button>
+      {languagesOpen ? (
+        <div role="group" aria-label={t('LanguagePicker.menuLabel')}>
+          {OFFERED_LOCALES.map((value) => (
+            <button
+              key={value}
+              type="button"
+              role="menuitemradio"
+              aria-checked={value === locale}
+              tabIndex={-1}
+              lang={localeLangAttribute(value)}
+              className="tm-account__item tm-account__item--language"
+              onClick={() => chooseLanguage(value)}
+            >
+              <span aria-hidden="true" className="tm-account__check">
+                {value === locale ? '✓' : ''}
+              </span>
+              {localeNativeName(value)}
+              {isBetaLocale(value) ? (
+                <Badge className="tm-account__beta">{t('LanguagePicker.beta')}</Badge>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {linkItem(`${base}/settings/ai-assistant`, key('aiAssistant'))}
       {linkItem(`${base}/settings/security`, key('accessTokens'))}
       {offerDesktopDownload(window) ? (

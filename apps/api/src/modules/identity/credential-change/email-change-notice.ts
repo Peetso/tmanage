@@ -1,6 +1,7 @@
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import { renderActionEmail } from '../../../common/email/action-email.js';
 import { serializeForLog } from '../../../common/observability/logger.js';
+import { emailIsRtl, emailT } from '../../../common/i18n/email-messages.js';
 
 /**
  * Platform admin v2 (PA-06, SPEC §4 B2) — "your sign-in email changed", to the OLD and the NEW
@@ -36,43 +37,26 @@ function oneLine(value: string): string {
 }
 
 export function composeEmailChangeNotice(facts: EmailChangeNoticeFacts): MailMessage {
-  const arabic = (facts.locale ?? 'en').toLowerCase().startsWith('ar');
+  const locale = facts.locale;
+  const arabic = emailIsRtl(locale);
   const name = oneLine(facts.displayName);
-  const copy = arabic
-    ? {
-        subject: 'تغيّر بريد تسجيل الدخول إلى TManage',
-        eyebrow: 'أمان الحساب',
-        heading: `مرحبًا ${name}، تغيّر بريد حسابك`,
-        intro:
-          facts.recipient === 'old'
-            ? 'غيّر دعم TManage بريد تسجيل الدخول لحسابك. لم يعد هذا العنوان يسجّل الدخول.'
-            : 'أصبح هذا العنوان بريد تسجيل الدخول لحسابك في TManage. أكِّده قبل تسجيل الدخول مرة أخرى.',
-        button: 'فتح TManage',
-        fallback: 'إذا لم يعمل الزر، انسخ هذا الرابط والصقه في المتصفح:',
-        note: 'انتهت كل جلساتك. إن لم تتوقع هذا التغيير فتواصل مع مالك مؤسستك أو مع دعم TManage.',
-        footer: 'لا تحتوي هذه الرسالة على رابط لتسجيل الدخول.',
-        rows: [
-          { label: 'البريد السابق', value: facts.oldEmail },
-          { label: 'البريد الجديد', value: facts.newEmail },
-        ],
-      }
-    : {
-        subject: 'Your TManage sign-in email changed',
-        eyebrow: 'Account security',
-        heading: `Hi ${name}, your account email changed`,
-        intro:
-          facts.recipient === 'old'
-            ? 'TManage support changed the sign-in email of your account. This address no longer signs in.'
-            : 'This address is now the sign-in email of your TManage account. Verify it before you sign in again.',
-        button: 'Open TManage',
-        fallback: 'Button not working? Copy this link into your browser:',
-        note: 'All your sessions have ended. If you did not expect this change, contact your organization owner or TManage support.',
-        footer: 'This email carries no sign-in link.',
-        rows: [
-          { label: 'Previous email', value: facts.oldEmail },
-          { label: 'New email', value: facts.newEmail },
-        ],
-      };
+  const copy = {
+    subject: emailT(locale, 'emailChange.subject'),
+    eyebrow: emailT(locale, 'emailChange.eyebrow'),
+    heading: emailT(locale, 'emailChange.heading', { name }),
+    intro: emailT(
+      locale,
+      facts.recipient === 'old' ? 'emailChange.introOld' : 'emailChange.introNew',
+    ),
+    button: emailT(locale, 'emailChange.button'),
+    fallback: emailT(locale, 'common.fallback'),
+    note: emailT(locale, 'emailChange.note'),
+    footer: emailT(locale, 'emailChange.footer'),
+    rows: [
+      { label: emailT(locale, 'emailChange.previousEmail'), value: facts.oldEmail },
+      { label: emailT(locale, 'emailChange.newEmail'), value: facts.newEmail },
+    ],
+  };
   const { rows, ...content } = copy;
   return {
     to: facts.to,

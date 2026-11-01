@@ -1,6 +1,7 @@
 import { DISPLAY_LOCALES, type DisplayLocale } from '../api/display-preferences';
 import { LOCALE_STORAGE_KEY, resolveBootLocale } from './locale-boot';
 import { writeLocaleCookie } from './locale-cookie';
+import { readLocaleSource, writeLocaleSource } from './locale-source';
 
 /**
  * i18n (NFR-02, I18N-01) — the one place the tab's *active* locale lives.
@@ -39,8 +40,38 @@ export class LocaleStore {
   private current: DisplayLocale;
   private readonly listeners = new Set<LocaleListener>();
 
+  /**
+   * R12 R2: true when the tab booted with nothing saved (no `?lang=`, cookie or cache) and no one
+   * has picked a language since — the only state in which {@link applyHint} may act.
+   */
+  private open: boolean;
+
   constructor(initial?: DisplayLocale) {
-    this.current = initial ?? readBoot() ?? DEFAULT_LOCALE;
+    const boot = initial ?? readBoot();
+    this.open = boot === undefined;
+    this.current = boot ?? DEFAULT_LOCALE;
+  }
+
+  /** Whether the first-visit guess may still apply (nothing saved, nothing chosen). */
+  get bootedWithoutChoice(): boolean {
+    return this.open && readLocaleSource() !== 'chosen';
+  }
+
+  /**
+   * R12 R2: apply the first-visit guess (`locale-hint.ts`) — saved with source `auto`. Refused
+   * (`false`) once anything was chosen: a picker, the saved display preference or a `?lang=` link
+   * always wins over a guess.
+   */
+  applyHint(locale: DisplayLocale): boolean {
+    if (!this.bootedWithoutChoice || !isDisplayLocale(locale)) return false;
+    this.open = false;
+    writeLocaleSource('auto');
+    if (locale === this.current) {
+      persist(locale);
+      return true;
+    }
+    this.publish(locale);
+    return true;
   }
 
   /** The active locale right now. */
@@ -54,7 +85,15 @@ export class LocaleStore {
    * formatter. A no-op change does not wake subscribers.
    */
   set(locale: DisplayLocale): void {
-    if (!isDisplayLocale(locale) || locale === this.current) return;
+    if (!isDisplayLocale(locale)) return;
+    // Any explicit set is a choice (R12 R2): the first-visit guess never overrides it.
+    this.open = false;
+    writeLocaleSource('chosen');
+    if (locale === this.current) return;
+    this.publish(locale);
+  }
+
+  private publish(locale: DisplayLocale): void {
     this.current = locale;
     persist(locale);
     for (const listener of [...this.listeners]) {

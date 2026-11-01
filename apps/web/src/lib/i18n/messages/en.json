@@ -15730,5 +15730,17 @@
   "RouteTitle.chatInvite": "Group invite",
   "RouteTitle.documentPrint": "Print document",
   "RouteTitle.portalChat": "Chat",
-  "RouteTitle.portalChatConversation": "Conversation"
+  "RouteTitle.portalChatConversation": "Conversation",
+  "LanguagePicker.label": "Language",
+  "LanguagePicker.beta": "Beta",
+  "LanguagePicker.betaNote": "Beta languages are machine-assisted; a native speaker has not reviewed them yet.",
+  "LanguagePicker.menuLabel": "Choose a language",
+  "LocaleHint.region": "Language notice",
+  "LocaleHint.fromLocation": "Language set to {language} from your location",
+  "LocaleHint.fromBrowser": "Language set to {language} from your browser settings",
+  "LocaleHint.change": "Change",
+  "LocaleHint.keep": "Keep",
+  "LocaleHint.dismiss": "Dismiss",
+  "OrgSettings.defaultLanguage": "Default language",
+  "OrgSettings.defaultLanguageHint": "Used for invitations and emails to people who have not chosen a language."
 }

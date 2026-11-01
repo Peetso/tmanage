@@ -70,6 +70,13 @@ export const typeFamily = {
 } as const;
 
 /**
+ * R12 R2 — the Simplified Chinese fallback stack (`--font-cjk` in `apps/web/src/app/globals.css`).
+ * Not part of the design export (`typeFamily` mirrors it exactly), and no face is downloaded: the
+ * platform's own CJK faces draw the glyphs Manrope lacks.
+ */
+export const typeFamilyCjk = "'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif";
+
+/**
  * Desktop values. The mobile column of `40-DESIGN-SYSTEM` §3 is not in the export and is
  * therefore not asserted here; it belongs to the responsive work in WEB-001.
  */

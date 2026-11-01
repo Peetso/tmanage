@@ -36,6 +36,12 @@ import type { ApiClient } from '../../lib/api/client';
 import { useOrganizationName, useOrganizationRole } from '../../lib/use-organization-names';
 import { roleMayUse } from '../../lib/role-capability';
 import { useT } from '../../lib/i18n/use-t';
+import {
+  OFFERED_LOCALES,
+  isBetaLocale,
+  localeLangAttribute,
+  localeNativeName,
+} from '../../lib/i18n/catalog-status';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { DownloadScanPolicyCard } from './DownloadScanPolicyCard';
 import { DataLocationCard } from './DataLocationCard';
@@ -131,6 +137,19 @@ export function OrgSettingsScreen({
   const [defaultDrafts, setDefaultDrafts] = useState<Partial<Record<DefaultSettingKey, string>>>(
     {},
   );
+  // R12 R2 (Figma "Languages (R2)" 501:29345): the workspace's default language, stored on
+  // `organizations.default_locale` (legacy `en`/`ar` read as their offered locale).
+  const storedLocale = settings.data?.settings.find(
+    (entry) => entry.key === 'default_locale',
+  )?.value;
+  const loadedLocale =
+    storedLocale === 'ar'
+      ? 'ar-EG'
+      : storedLocale === 'en' || !storedLocale
+        ? 'en-US'
+        : storedLocale;
+  const [localeDraft, setLocaleDraft] = useState<string | null>(null);
+  const localeChanged = localeDraft !== null && localeDraft !== loadedLocale;
   const [saved, setSaved] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -145,7 +164,8 @@ export function OrgSettingsScreen({
   );
   const reauthValid = isValidReauthMinutes(defaultValue('require_reauth_minutes'));
   const nameChanged = nameDraft !== null && nameDraft.trim() !== loadedName;
-  const dirty = nameChanged || changedSwitches.length > 0 || changedDefaults.length > 0;
+  const dirty =
+    nameChanged || changedSwitches.length > 0 || changedDefaults.length > 0 || localeChanged;
   const setDefault = (key: DefaultSettingKey, value: string) => {
     setSaved(false);
     setDefaultDrafts((current) => ({ ...current, [key]: value }));
@@ -174,8 +194,12 @@ export function OrgSettingsScreen({
       for (const key of changedDefaults) {
         await setOrgSetting(api, organizationSlug, key, (defaultDrafts[key] ?? '').trim());
       }
+      if (localeChanged) {
+        await setOrgSetting(api, organizationSlug, 'default_locale', localeDraft ?? loadedLocale);
+      }
     },
     onSuccess: async () => {
+      setLocaleDraft(null);
       setNameDraft(null);
       setSwitchDrafts({});
       setDefaultDrafts({});
@@ -393,6 +417,24 @@ export function OrgSettingsScreen({
                 value={defaultValue('default_timezone')}
                 onChange={(zone) => setDefault('default_timezone', zone)}
               />
+              <Select
+                label={t('OrgSettings.defaultLanguage')}
+                hint={t('OrgSettings.defaultLanguageHint')}
+                name="default_locale"
+                value={localeDraft ?? loadedLocale}
+                onChange={(event) => {
+                  setSaved(false);
+                  setLocaleDraft(event.target.value);
+                }}
+              >
+                {OFFERED_LOCALES.map((value) => (
+                  <option key={value} value={value} lang={localeLangAttribute(value)}>
+                    {isBetaLocale(value)
+                      ? `${localeNativeName(value)} · ${t('LanguagePicker.beta')}`
+                      : localeNativeName(value)}
+                  </option>
+                ))}
+              </Select>
               <Select
                 label={tr('OrgSettingsScreen.a11.working_week', 'Working week')}
                 name="working_week"

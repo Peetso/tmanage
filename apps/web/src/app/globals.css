@@ -79,6 +79,11 @@
   --font-glyph:
     'Geist Mono', 'Segoe UI Symbol', 'Apple Symbols', 'Noto Sans Symbols 2', 'DejaVu Sans',
     var(--font-mono);
+  /*
+   * R12 R2 — Simplified Chinese. Manrope has no CJK glyphs, so a zh page names the platform's own
+   * CJK faces after it (Latin stays Manrope). Mirrored as `typeFamilyCjk` in packages/ui tokens.
+   */
+  --font-cjk: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
 }
 
 [data-theme='dark'] {
@@ -94,6 +99,10 @@ body {
   font-family: var(--font-manrope, var(--font-latin));
   color: var(--ink-800);
   -webkit-font-smoothing: antialiased;
+}
+
+html[lang^='zh'] body {
+  font-family: var(--font-manrope), var(--font-cjk);
 }
 
 /*

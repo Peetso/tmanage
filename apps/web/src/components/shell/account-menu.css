@@ -147,3 +147,20 @@
 [dir='rtl'] .tm-account__hint {
   font-family: inherit;
 }
+
+/* R12 R2: the Language submenu (Figma "Languages (R2)" 501:29283). */
+.tm-account__item--language {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding-inline-start: var(--s5);
+}
+
+.tm-account__check {
+  inline-size: 1em;
+  flex: none;
+}
+
+.tm-account__beta {
+  margin-inline-start: auto;
+}

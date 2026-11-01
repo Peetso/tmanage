@@ -4,13 +4,19 @@ import { useCallback, useContext, useEffect, useId, useRef, useState } from 'rea
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { QueryClientContext, useQuery } from '@tanstack/react-query';
+import { Badge } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
 import { listPortalProjects, listPortalWorkItems, type PortalProject } from '../../lib/api/portal';
 import { signOut } from '../../lib/api/session';
 import { authBoundary } from '../../lib/auth-boundary';
 import { activeLocale } from '../../lib/i18n/locale-store';
-import { localeDirection } from '../../lib/i18n/direction';
+import {
+  OFFERED_LOCALES,
+  isBetaLocale,
+  localeLangAttribute,
+  localeNativeName,
+} from '../../lib/i18n/catalog-status';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import {
@@ -235,7 +241,8 @@ function PortalMenuCard({
   const [failed, setFailed] = useState(false);
   const projectId = search?.get(PORTAL_PROJECT_PARAM) ?? null;
   const base = `/${organizationSlug}`;
-  const rtl = localeDirection(locale) === 'rtl';
+  // R12 R2: "Language" opens the offered list in place (Figma "Languages (R2)" 501:29283).
+  const [languagesOpen, setLanguagesOpen] = useState(false);
 
   const endSession = async () => {
     setSigningOut(true);
@@ -294,17 +301,38 @@ function PortalMenuCard({
           <button
             type="button"
             className="tm-portal-menu__item"
-            onClick={() => activeLocale.set(rtl ? 'en-US' : 'ar-EG')}
+            aria-expanded={languagesOpen}
+            onClick={() => setLanguagesOpen((value) => !value)}
           >
             <span className="tm-portal-menu__glyph" aria-hidden="true">
               ◑
             </span>
-            {/* The language is named in itself, as the frame draws it: "العربية" / "English". */}
-            <span className="tm-portal-menu__label" lang={rtl ? 'en' : 'ar'}>
-              {rtl ? 'English' : 'العربية'}
-            </span>
+            <span className="tm-portal-menu__label">{tOr('LanguagePicker.label', 'Language')}</span>
           </button>
         </li>
+        {languagesOpen
+          ? OFFERED_LOCALES.map((value) => (
+              <li key={value}>
+                {/* Each language is named in itself, as the frame draws it. */}
+                <button
+                  type="button"
+                  className="tm-portal-menu__item"
+                  aria-pressed={value === locale}
+                  lang={localeLangAttribute(value)}
+                  onClick={() => {
+                    activeLocale.set(value);
+                    onClose(false);
+                  }}
+                >
+                  <span className="tm-portal-menu__glyph" aria-hidden="true">
+                    {value === locale ? '✓' : ''}
+                  </span>
+                  <span className="tm-portal-menu__label">{localeNativeName(value)}</span>
+                  {isBetaLocale(value) ? <Badge>{tOr('LanguagePicker.beta', 'Beta')}</Badge> : null}
+                </button>
+              </li>
+            ))
+          : null}
         <li>
           <button
             type="button"
