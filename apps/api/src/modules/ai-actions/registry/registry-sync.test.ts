@@ -113,7 +113,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // R7 slice 5: +1 op, GET .../conversations/:conversationId/link-previews, was 1095.
 // R7 slice 3: +11 NEVER (`chat_groups`: group info/settings/members/role/leave/invite, invite
 // preview/join, portal chat list).
-const EXPECTED_ROUTE_COUNT = 1107;
+// R7 slice 6: +5 NEVER (presence heartbeat/list, privacy preferences GET/PUT, receipts).
+const EXPECTED_ROUTE_COUNT = 1112;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

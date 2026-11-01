@@ -1179,6 +1179,18 @@ export const NEVER: readonly NeverEntry[] = [
     reason: 'time_tracking',
   },
   { method: 'GET', path: '/v1/organizations/:orgSlug/time/active', reason: 'time_tracking' },
+  // R7 slice 6. Chat presence (the tab's own heartbeat, who is online), the "show last seen"
+  // privacy toggle and per-message receipts: session-bound live state of the person at the
+  // keyboard, not an action an AI performs.
+  { method: 'POST', path: '/v1/organizations/:orgSlug/presence/heartbeat', reason: 'session' },
+  { method: 'GET', path: '/v1/organizations/:orgSlug/presence/', reason: 'session' },
+  { method: 'GET', path: '/v1/organizations/:orgSlug/me/privacy-preferences/', reason: 'session' },
+  { method: 'PUT', path: '/v1/organizations/:orgSlug/me/privacy-preferences/', reason: 'session' },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/conversations/:conversationId/messages/:messageId/receipts',
+    reason: 'session',
+  },
   // R4 slices 6–11. The file viewer: preview manifests and content, review threads and comments,
   // mention search, and the Approve / Request changes decisions on a file version. Withheld until
   // reviewed `review.*` ops exist (a decision is a client-facing sign-off).

@@ -1,0 +1,116 @@
+/* R7 slice 6 — receipts, typing, presence (Figma "Chat (R7)" status frames). Logical properties only. */
+
+.tm-ticks {
+  display: inline-flex;
+  align-items: center;
+  margin-inline-start: 4px;
+  color: var(--ink-500);
+  vertical-align: middle;
+}
+
+.tm-ticks[data-state='read'] {
+  color: var(--success-600);
+}
+
+.tm-typing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 20px;
+  padding-inline: 16px;
+  color: var(--ink-650);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.tm-typing__dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.tm-typing__dots span {
+  inline-size: 5px;
+  block-size: 5px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-500);
+  animation: tm-typing-pulse 1.2s infinite ease-in-out;
+}
+
+.tm-typing__dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.tm-typing__dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes tm-typing-pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-typing__dots span {
+    animation: none;
+  }
+}
+
+.tm-presence {
+  color: var(--ink-650);
+  font-size: 12px;
+}
+
+.tm-presence[data-online] {
+  color: var(--success-600);
+}
+
+.tm-receipts {
+  display: grid;
+  gap: 16px;
+}
+
+.tm-receipts__title {
+  margin: 0 0 8px;
+  color: var(--ink-650);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tm-receipts__list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-receipts__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 6px;
+  border-block-end: 1px solid var(--line-300);
+}
+
+.tm-receipts__name {
+  color: var(--ink-950);
+}
+
+.tm-receipts__at,
+.tm-receipts__empty {
+  color: var(--ink-650);
+  font-size: 13px;
+}
+
+.tm-chat-privacy__heading {
+  margin: 0 0 12px;
+  font-size: 16px;
+}

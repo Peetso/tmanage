@@ -71,6 +71,26 @@ export class ConversationReadStateRepository {
       });
   }
 
+  /** R7: move this member's delivered position. The service checks it only moves forward. */
+  async setDelivered(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    conversationId: string,
+    membershipId: string,
+    lastDeliveredMessageId: string,
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .update(conversationReadState)
+      .set({ lastDeliveredMessageId })
+      .where(
+        and(
+          eq(conversationReadState.organizationId, context.organizationId),
+          eq(conversationReadState.conversationId, conversationId),
+          eq(conversationReadState.membershipId, membershipId),
+        ),
+      );
+  }
+
   /**
    * Count the messages in a channel created after `after`, or every message when `after` is null (no
    * read position yet, so everything is unread). Self-scoped by the caller resolving the threshold

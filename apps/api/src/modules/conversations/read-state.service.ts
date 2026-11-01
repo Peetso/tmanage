@@ -9,6 +9,8 @@ import type {
 import type { ConversationRow } from '../../common/database/schema.js';
 import type { ConversationsRepository } from './conversations.repository.js';
 import type { ConversationReadStateRepository } from './read-state.repository.js';
+import { deriveReceipts, MessageReceiptsRepository } from './message-receipts.repository.js';
+import type { MessageReceiptsView } from './message-receipts.repository.js';
 
 /**
  * Conversation read-state — the caller's own last-read position per channel and the unread count
@@ -40,6 +42,8 @@ export interface ConversationReadStateView {
   readonly lastReadMessageId: string | null;
   /** When the caller last advanced their position, ISO-8601, or null when unread. */
   readonly readAt: string | null;
+  /** R7: the newest message delivered to the caller here (receipts), or null. */
+  readonly lastDeliveredMessageId?: string | null;
   /** Messages in the channel created after the last-read message; the whole channel when unread. */
   readonly unreadCount: number;
 }
@@ -56,7 +60,31 @@ export class ConversationReadStateService {
     private readonly database: TenantDatabase,
     private readonly conversations: ConversationsRepository,
     private readonly readState: ConversationReadStateRepository,
+    private readonly receiptsStore: MessageReceiptsRepository = new MessageReceiptsRepository(),
   ) {}
+
+  /** R7: who one message was delivered to and read by. 404 when unreachable or elsewhere. */
+  async receipts(
+    context: TenantContext,
+    principal: Principal,
+    conversationId: string,
+    messageId: string,
+  ): Promise<MessageReceiptsView> {
+    return this.database.read(context, async (runner) => {
+      const conversation = await this.conversations.findById(runner, context, conversationId);
+      const message = await this.conversations.findMessageById(runner, context, messageId);
+      if (
+        !conversation ||
+        !message ||
+        message.conversationId !== conversationId ||
+        !(await this.mayReach(runner, context, principal, conversation))
+      ) {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound);
+      }
+      const rows = await this.receiptsStore.listPositions(runner, context, conversationId);
+      return deriveReceipts(rows, Number(message.sequenceNo), message.authorUserId);
+    });
+  }
 
   /** The caller's read position and unread count in one channel. 404 if unreachable. */
   async get(
@@ -88,9 +116,61 @@ export class ConversationReadStateService {
         conversationId,
         lastReadMessageId: row?.lastReadMessageId ?? null,
         readAt: row ? row.readAt.toISOString() : null,
+        lastDeliveredMessageId: row?.lastDeliveredMessageId ?? null,
         unreadCount,
       };
     });
+  }
+
+  /**
+   * R7 receipts: advance the caller's delivered and/or read position. Each position only ever moves
+   * forward (by the channel's sequence), so a late, out-of-order PUT from a second tab is a no-op
+   * rather than a step backwards. A delivered position needs an existing row: `last_read_message_id`
+   * is NOT NULL, and inventing one would mark messages read.
+   */
+  async advance(
+    context: TenantContext,
+    principal: Principal,
+    conversationId: string,
+    positions: { readonly lastReadMessageId?: string; readonly lastDeliveredMessageId?: string },
+  ): Promise<ConversationReadStateView> {
+    if (positions.lastReadMessageId !== undefined) {
+      await this.markRead(context, principal, conversationId, positions.lastReadMessageId);
+    }
+    const delivered = positions.lastDeliveredMessageId;
+    if (delivered !== undefined) {
+      await this.database.transaction(context, async (tx) => {
+        const conversation = await this.conversations.findById(tx, context, conversationId);
+        const message = await this.conversations.findMessageById(tx, context, delivered);
+        if (!conversation || !message) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+        if (!(await this.mayReach(tx, context, principal, conversation))) {
+          throw new ApiError(404, 'not_found', MESSAGES.notFound);
+        }
+        if (message.conversationId !== conversationId) {
+          throw new ApiError(400, 'validation_failed', 'The message is not in this conversation', [
+            { field: 'lastDeliveredMessageId', message: 'must be a message in this conversation' },
+          ]);
+        }
+        if (!storesReadState(principal)) return;
+        const row = await this.readState.findForMembership(
+          tx,
+          context,
+          conversationId,
+          principal.membershipId,
+        );
+        if (!row) return;
+        const current = await this.sequenceOf(tx, context, row.lastDeliveredMessageId);
+        if (!advances(current, Number(message.sequenceNo))) return;
+        await this.readState.setDelivered(
+          tx,
+          context,
+          conversationId,
+          principal.membershipId,
+          delivered,
+        );
+      });
+    }
+    return this.get(context, principal, conversationId);
   }
 
   /** Advance the caller's read position. Resolves conversation + message before authorizing. */
@@ -121,13 +201,26 @@ export class ConversationReadStateService {
         ]);
       }
 
-      await this.readState.upsert(
-        tx,
-        context,
-        conversationId,
-        principal.membershipId,
-        lastReadMessageId,
-      );
+      // R7: monotonic — a position never moves backwards. A client person has no `memberships`
+      // row for the foreign key, so their position is not stored (a recorded, schema-owned gap).
+      if (storesReadState(principal)) {
+        const existing = await this.readState.findForMembership(
+          tx,
+          context,
+          conversationId,
+          principal.membershipId,
+        );
+        const current = await this.sequenceOf(tx, context, existing?.lastReadMessageId ?? null);
+        if (advances(current, Number(message.sequenceNo))) {
+          await this.readState.upsert(
+            tx,
+            context,
+            conversationId,
+            principal.membershipId,
+            lastReadMessageId,
+          );
+        }
+      }
 
       const row = await this.readState.findForMembership(
         tx,
@@ -144,8 +237,9 @@ export class ConversationReadStateService {
 
       return {
         conversationId,
-        lastReadMessageId,
+        lastReadMessageId: row?.lastReadMessageId ?? lastReadMessageId,
         readAt: row ? row.readAt.toISOString() : null,
+        lastDeliveredMessageId: row?.lastDeliveredMessageId ?? null,
         unreadCount,
       };
     });
@@ -157,7 +251,12 @@ export class ConversationReadStateService {
     principal: Principal,
   ): Promise<readonly ConversationUnreadView[]> {
     return this.database.read(context, async (runner) => {
-      const rows = await this.conversations.list(runner, context, {});
+      // R7: every kind — channels, groups and direct conversations.
+      const rows = [
+        ...(await this.conversations.list(runner, context, {})),
+        ...(await this.conversations.list(runner, context, { kind: 'group' })),
+        ...(await this.conversations.list(runner, context, { kind: 'direct' })),
+      ];
       const out: ConversationUnreadView[] = [];
       for (const conversation of rows) {
         if (!(await this.mayReach(runner, context, principal, conversation))) continue;
@@ -205,6 +304,17 @@ export class ConversationReadStateService {
     return row.readAt;
   }
 
+  /** The channel sequence of a stored position's message; null when unset or gone. */
+  private async sequenceOf(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    messageId: string | null,
+  ): Promise<number | null> {
+    if (messageId === null) return null;
+    const message = await this.conversations.findMessageById(runner, context, messageId);
+    return message ? Number(message.sequenceNo) : null;
+  }
+
   /**
    * The evaluator, then conversation membership. Both must pass; organization-wide scope skips the
    * membership row. `ConversationsService.mayReach` for `conversation.read`, inlined here so this
@@ -216,6 +326,12 @@ export class ConversationReadStateService {
     principal: Principal,
     row: ConversationRow,
   ): Promise<boolean> {
+    // R7: a group or a direct conversation is member-gated for everyone (ConversationsService).
+    const memberGated = row.kind !== 'project_channel';
+    const member = memberGated
+      ? (await this.conversations.findMembership(runner, context, row.id, principal.userId)) !==
+        null
+      : false;
     const verdict = authorize({
       principal,
       capability: 'conversation.read',
@@ -224,9 +340,12 @@ export class ConversationReadStateService {
         projectId: row.projectId,
         audience: 'internal',
         lifecycle: row.archivedAt === null ? 'active' : 'archived',
+        conversationKind: row.kind,
+        ...(memberGated ? { conversationMember: member } : {}),
       },
     });
     if (!verdict.allowed) return false;
+    if (memberGated) return true;
     if (principal.hasOrgWideScope) return true;
     const membership = await this.conversations.findMembership(
       runner,
@@ -236,4 +355,17 @@ export class ConversationReadStateService {
     );
     return membership !== null;
   }
+}
+
+/** Pure: whether a position at `next` moves forward from `current` (null = no position yet). */
+export function advances(current: number | null, next: number): boolean {
+  return current === null || next > current;
+}
+
+/**
+ * The read-state row's foreign key names a `memberships` row; a client person's membership lives
+ * in `client_memberships`, so their position cannot be stored yet.
+ */
+function storesReadState(principal: Principal): boolean {
+  return principal.kind !== 'client';
 }

@@ -734,12 +734,11 @@ export class ConversationsService {
             sequenceNo: Number(appended.sequenceNo),
             // CQ-12 (COL-05): who the body mentions, as ids. The author is never told about
             // their own mention; the consumer re-checks each person's access at delivery.
-            // R7: none for a group or a direct conversation until slice 6 — the worker's mention
-            // planner reads the project relation, and these conversations have no project.
-            mentionedUserIds:
-              conversation.projectId === null
-                ? []
-                : extractMentionedUserIds(content.body).filter((id) => id !== context.userId),
+            // R7 slice 6: every kind — the worker's mention planner gates a group or a direct
+            // conversation by its membership (no project relation to read).
+            mentionedUserIds: extractMentionedUserIds(content.body).filter(
+              (id) => id !== context.userId,
+            ),
             authorUserId: context.userId,
           },
         });

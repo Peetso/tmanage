@@ -160,19 +160,27 @@ export const planMentionNotices: NoticePlanner = async (event, tx, mailer) => {
   if (mentioned.length === 0) return [];
   const messageId = stringField(raw, 'messageId', event.id);
   const conversationId = stringField(raw, 'conversationId', event.id);
-  const projectId = stringField(raw, 'projectId', event.id);
+  // R7 slice 6: a group or a direct conversation carries no project (`projectId: null`).
+  const projectId = raw['projectId'] === null ? null : stringField(raw, 'projectId', event.id);
   const authorUserId = typeof raw['authorUserId'] === 'string' ? raw['authorUserId'] : null;
 
   const notices: PlannedNotice[] = [];
   for (const userId of mentioned) {
     if (userId === authorUserId) continue;
-    const reach = await findInternalReach(tx, event.organizationId, userId, projectId);
-    if (!mayBeTold(reach, 'conversation.read') || reach === null) continue;
-    if (
-      !reach.hasOrgWideScope &&
-      !(await isConversationMember(tx, event.organizationId, conversationId, userId))
-    ) {
-      continue; // Not in the room: a mention there is not theirs to read.
+    const reach = await findInternalReach(tx, event.organizationId, userId, projectId ?? '');
+    if (projectId === null) {
+      // Member-gated for everyone, org-wide scope included: the role must read conversations
+      // and the person must be in the room.
+      if (reach === null || !roleHolds(reach.role, 'conversation.read')) continue;
+      if (!(await isConversationMember(tx, event.organizationId, conversationId, userId))) continue;
+    } else {
+      if (!mayBeTold(reach, 'conversation.read') || reach === null) continue;
+      if (
+        !reach.hasOrgWideScope &&
+        !(await isConversationMember(tx, event.organizationId, conversationId, userId))
+      ) {
+        continue; // Not in the room: a mention there is not theirs to read.
+      }
     }
     notices.push({
       recipientUserId: userId,
@@ -191,11 +199,12 @@ export const planMentionNotices: NoticePlanner = async (event, tx, mailer) => {
         const conversation = await findConversationFacts(tx, event.organizationId, conversationId);
         if (org === null || conversation === null) return null;
         const actor = authorUserId === null ? null : await findDisplayName(tx, authorUserId);
-        const project = await findProjectName(tx, event.organizationId, projectId);
+        const project =
+          projectId === null ? null : await findProjectName(tx, event.organizationId, projectId);
         return {
           organizationName: org.name,
           ...(actor === null ? {} : { actorName: actor }),
-          subjectTitle: `#${conversation.name}`,
+          subjectTitle: projectId === null ? conversation.name : `#${conversation.name}`,
           ...(project === null ? {} : { projectName: project }),
           link: mailer.linkTo(`/${org.slug}/chat/${conversationId}`),
         };

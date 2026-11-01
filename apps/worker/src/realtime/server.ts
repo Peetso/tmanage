@@ -9,7 +9,7 @@ import type { WorkerTransaction } from '../common/database/worker-database.js';
 import { checkConversationSubscription } from '../common/database/realtime-store.js';
 import type { SubscriptionVerdict } from '../common/database/realtime-store.js';
 import { checkDirectConversationSubscription } from '../common/database/direct-message-store.js';
-import { RealtimeHub } from './hub.js';
+import { acceptTyping, RealtimeHub, TYPING_TTL_MS } from './hub.js';
 
 /**
  * The socket server — RT-001's first half, `13-ENGINEERING` §6 made runnable.
@@ -23,8 +23,10 @@ import { RealtimeHub } from './hub.js';
  * `{type:'refused'}` with the id echoed and nothing about why, for the same reason the
  * handshake says nothing.
  *
- * Frames out are the hub's: ids and sequence, never content. Presence, typing, and every
- * resource family beyond conversations are the named second half.
+ * Frames out are the hub's: ids and sequence, never content. R7 adds one inbound frame,
+ * `{type:'typing', conversationId}`, fanned out (never stored) to the conversation's other
+ * subscribers as `{type:'typing', conversationId, userId, until}`. Presence is a database
+ * heartbeat in the API, not socket state.
  */
 
 /**
@@ -50,7 +52,13 @@ interface SubscribeFrame {
   readonly conversationId: string;
 }
 
-function parseFrame(raw: unknown): SubscribeFrame | null {
+/** R7 (F4): "I am typing here". Accepted only on a subscribed conversation, rate-limited. */
+interface TypingFrame {
+  readonly type: 'typing';
+  readonly conversationId: string;
+}
+
+function parseFrame(raw: unknown): SubscribeFrame | TypingFrame | null {
   let parsed: unknown;
   try {
     parsed = JSON.parse(String(raw));
@@ -59,10 +67,11 @@ function parseFrame(raw: unknown): SubscribeFrame | null {
   }
   if (parsed === null || typeof parsed !== 'object') return null;
   const record = parsed as Record<string, unknown>;
-  if (record['type'] !== 'subscribe') return null;
+  const type = record['type'];
+  if (type !== 'subscribe' && type !== 'typing') return null;
   const conversationId = record['conversationId'];
   if (typeof conversationId !== 'string' || conversationId === '') return null;
-  return { type: 'subscribe', conversationId };
+  return { type, conversationId };
 }
 
 export interface RealtimeServerOptions {
@@ -298,6 +307,8 @@ export async function createRealtimeServer(
     // is an idempotent ack rather than a second listener (R05's dedup half). The value is
     // the hub's own unsubscribe.
     const subscriptions = new Map<string, () => void>();
+    // R7 typing: the last accepted inbound typing frame on this socket (rate limit).
+    let lastTypingAt: number | undefined;
     // Set the instant the socket closes. Two async paths outlive a close — a subscription
     // check still resolving (R05) and a revalidation tick already in flight — and both
     // consult this before touching the hub, so a closed socket never gains or keeps a
@@ -368,6 +379,19 @@ export async function createRealtimeServer(
         socket.send(JSON.stringify({ type: 'error' }));
         return;
       }
+      if (frame.type === 'typing') {
+        // Never persisted, never answered: a refused or throttled frame is simply dropped.
+        const at = now().getTime();
+        if (!acceptTyping(subscriptions, frame.conversationId, lastTypingAt, at)) return;
+        lastTypingAt = at;
+        hub.publishTyping(claims.organizationId, {
+          type: 'typing',
+          conversationId: frame.conversationId,
+          userId: claims.userId,
+          until: at + TYPING_TTL_MS,
+        });
+        return;
+      }
 
       void options.database
         .read((tx) =>
@@ -387,12 +411,25 @@ export async function createRealtimeServer(
             return;
           }
           if (!subscriptions.has(frame.conversationId)) {
-            subscriptions.set(
+            const offEvents = hub.subscribe(
+              claims.organizationId,
               frame.conversationId,
-              hub.subscribe(claims.organizationId, frame.conversationId, (event) => {
+              (event) => {
                 socket.send(JSON.stringify(event));
-              }),
+              },
             );
+            const offTyping = hub.subscribeTyping(
+              claims.organizationId,
+              frame.conversationId,
+              claims.userId,
+              (typing) => {
+                socket.send(JSON.stringify(typing));
+              },
+            );
+            subscriptions.set(frame.conversationId, () => {
+              offEvents();
+              offTyping();
+            });
           }
           socket.send(
             JSON.stringify({

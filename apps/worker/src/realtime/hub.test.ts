@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RealtimeHub } from './hub.js';
+import { acceptTyping, RealtimeHub } from './hub.js';
 import type { RealtimeEventFrame } from './hub.js';
 
 const frame = (conversationId: string): RealtimeEventFrame => ({
@@ -44,5 +44,23 @@ describe('the realtime hub', () => {
 
     expect(hub.publish('org-a', 'conv-1', frame('conv-1'))).toBe(2);
     expect(heard).toEqual(['alive']);
+  });
+
+  it('typing: fans out to the others in the room, never to the sender', () => {
+    const hub = new RealtimeHub();
+    const heard: string[] = [];
+    hub.subscribeTyping('org-a', 'conv-1', 'sara', () => heard.push('sara'));
+    hub.subscribeTyping('org-a', 'conv-1', 'omar', () => heard.push('omar'));
+    const frame = { type: 'typing', conversationId: 'conv-1', userId: 'sara', until: 1 } as const;
+    expect(hub.publishTyping('org-a', frame)).toBe(1);
+    expect(heard).toEqual(['omar']);
+  });
+
+  it('typing: refused when unsubscribed, and one per 2 s per socket', () => {
+    const subscribed = new Set(['conv-1']);
+    expect(acceptTyping(subscribed, 'conv-2', undefined, 0)).toBe(false);
+    expect(acceptTyping(subscribed, 'conv-1', undefined, 0)).toBe(true);
+    expect(acceptTyping(subscribed, 'conv-1', 0, 1_999)).toBe(false);
+    expect(acceptTyping(subscribed, 'conv-1', 0, 2_000)).toBe(true);
   });
 });

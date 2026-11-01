@@ -37,7 +37,10 @@ import {
   planReviewResolvedNotices,
   REVIEW_PLANNERS,
 } from './review-notices.js';
-import { directMessageNoticesConsumer } from './direct-message-notices.js';
+import {
+  directConversationMessageNoticesConsumer,
+  directMessageNoticesConsumer,
+} from './direct-message-notices.js';
 import type { CollaborationMailer } from '../notifications/collaboration-mailer.js';
 import type { ClientRequestMailer } from '../notifications/client-request-mailer.js';
 import type { CredentialChangeMailer } from '../notifications/credential-change-mailer.js';
@@ -159,7 +162,11 @@ export function createWorkerOutboxHandlers(
     'client_request.submitted.v1': both(submitted, automationRunsConsumer),
     // CQ-12 (COL-05, APR-03) — see `collaboration-notices.ts`. `message.created.v1` is composed
     // with the realtime fan-out in `main.ts` when the socket server runs.
-    'message.created.v1': createCollaborationNotices(planMentionNotices, collaborationMails),
+    // R7 slice 6: a message in a direct conversation also tells the other participant (in-app).
+    'message.created.v1': both(
+      createCollaborationNotices(planMentionNotices, collaborationMails),
+      directConversationMessageNoticesConsumer,
+    ),
     // BK3-left: a direct message tells the other participant (in-app). Composed with the DM
     // realtime fan-out in `main.ts` when the socket server runs.
     'direct_message.created.v1': directMessageNoticesConsumer,

@@ -4,6 +4,8 @@ import { isNotificationKindEnabled } from '../common/database/collaboration-stor
 import { findDirectParty, mayReadDirect } from '../common/database/direct-message-store.js';
 import type { WorkerDirectParty } from '../common/database/direct-message-store.js';
 import type { OutboxHandler } from '../outbox/dispatcher.js';
+import type { WorkerTransaction } from '../common/database/worker-database.js';
+import { findDirectPair } from '../common/database/direct-chat-store.js';
 
 /**
  * BK3-left — `direct_message.created.v1` → an in-app notice for the one other participant.
@@ -55,7 +57,43 @@ export function shouldNotifyRecipient(
 }
 
 export const directMessageNoticesConsumer: OutboxHandler = async (event, tx) => {
-  const facts = factsOf(event);
+  await notifyDirect(event, tx, factsOf(event));
+};
+
+/**
+ * R7 slice 6: since 0276 a direct message is a `message.created.v1` on a `kind = 'direct'`
+ * conversation (`direct_message.created.v1` is no longer written). Same rule and same notice as
+ * above; any other conversation (a channel, a group) is left to the mention planner.
+ */
+export const directConversationMessageNoticesConsumer: OutboxHandler = async (event, tx) => {
+  const payload = event.payload as Record<string, unknown> | null;
+  if (payload === null || typeof payload !== 'object' || payload['projectId'] != null) return;
+  const conversationId = payload['conversationId'];
+  const messageId = payload['messageId'];
+  const authorUserId = payload['authorUserId'];
+  if (
+    typeof conversationId !== 'string' ||
+    typeof messageId !== 'string' ||
+    typeof authorUserId !== 'string'
+  ) {
+    return;
+  }
+  const pair = await findDirectPair(tx, event.organizationId, conversationId);
+  if (pair === null) return;
+  const recipientUserId = pair.lowUserId === authorUserId ? pair.highUserId : pair.lowUserId;
+  await notifyDirect(event, tx, {
+    directConversationId: conversationId,
+    messageId,
+    authorUserId,
+    recipientUserId,
+  });
+};
+
+async function notifyDirect(
+  event: ClaimedOutboxEvent,
+  tx: WorkerTransaction,
+  facts: DirectMessageNoticeFacts,
+): Promise<void> {
   const recipient = await findDirectParty(tx, event.organizationId, facts.recipientUserId);
   const author = await findDirectParty(tx, event.organizationId, facts.authorUserId);
   if (!shouldNotifyRecipient(facts, recipient, author) || recipient === null) return;
@@ -73,4 +111,4 @@ export const directMessageNoticesConsumer: OutboxHandler = async (event, tx) => 
     objectId: facts.directConversationId,
     dedupeKey: `direct_message:${facts.messageId}`,
   });
-};
+}

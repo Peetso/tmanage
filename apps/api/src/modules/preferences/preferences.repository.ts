@@ -58,6 +58,13 @@ export class PreferencesRepository {
         createdAt: sql`current_timestamp(3)`,
         updatedAt: sql`current_timestamp(3)`,
       })
-      .onDuplicateKeyUpdate({ set: { prefsJson: prefs } });
+      // R7: merge rather than replace, so a key another surface keeps in the same blob (the
+      // privacy toggle's `showLastSeen`) survives an appearance save. The three appearance keys
+      // are always present in `prefs`, so for them a merge is a replacement.
+      .onDuplicateKeyUpdate({
+        set: {
+          prefsJson: sql`json_merge_patch(prefs_json, values(prefs_json))`,
+        },
+      });
   }
 }

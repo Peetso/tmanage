@@ -30,6 +30,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { activeLocale } from '../../lib/i18n/locale-store';
 import { TimeZoneSelect } from '../TimeZoneSelect';
+import { PrivacyPrefs } from '../preferences/PrivacyPrefs';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/preferences.css';
@@ -542,6 +543,7 @@ export function PreferencesScreen({
             </div>
             <PasswordRow api={api} t={t} />
           </section>
+          <PrivacyPrefs organizationSlug={organizationSlug} client={api} />
 
           {save.isError ? (
             <InlineAlert tone="danger" title={t('Profile.couldNotSave')} live>

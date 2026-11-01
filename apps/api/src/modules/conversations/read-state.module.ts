@@ -6,6 +6,7 @@ import { ConversationsRepository } from './conversations.repository.js';
 import { ConversationReadStateRepository } from './read-state.repository.js';
 import { ConversationReadStateService } from './read-state.service.js';
 import { ConversationReadStateController } from './read-state.controller.js';
+import { MessageReceiptsController } from './message-receipts.controller.js';
 
 /**
  * Conversation read-state wiring (module CHAT, x250).
@@ -35,7 +36,8 @@ export class ConversationReadStateModule {
     return {
       module: ConversationReadStateModule,
       providers: [service],
-      controllers: [ConversationReadStateController],
+      // R7: receipts derive from the same read-state rows, behind the same service.
+      controllers: [ConversationReadStateController, MessageReceiptsController],
     };
   }
 }

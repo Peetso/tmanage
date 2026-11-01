@@ -66,6 +66,8 @@ import { MessagePinsModule } from './modules/conversations/message-pins.module.j
 import { MessageBookmarksModule } from './modules/conversations/message-bookmarks.controller.js';
 import { ThreadRepliesModule } from './modules/conversations/thread-replies.module.js';
 import { ConversationReadStateModule } from './modules/conversations/read-state.module.js';
+import { PresenceModule } from './modules/presence/presence.module.js';
+import { PrivacyPreferencesModule } from './modules/preferences/privacy-prefs.module.js';
 import { ConversationMuteModule } from './modules/conversations/conversation-mute.module.js';
 import { ConversationSearchModule } from './modules/conversations/conversation-search.module.js';
 import { MyMentionsModule } from './modules/conversations/my-mentions.controller.js';
@@ -553,6 +555,9 @@ export class AppModule {
         // BK3 (COL-02 / COL-03). The @ picker's search, and one-to-one direct messages (0214).
         MentionCandidatesModule.register(),
         DirectConversationsModule.register(),
+        // R7 slice 6: presence heartbeat / online-last-seen, and its privacy toggle.
+        PresenceModule.register(),
+        PrivacyPreferencesModule.register(),
         // CH-06 composer attachments (x275). Its own module beside `ConversationsModule` so the
         // sibling chat slices stay file-disjoint (each registers here rather than all editing
         // `conversations.module.ts`). Its `MessageAttachmentsModule` is exported from the controller

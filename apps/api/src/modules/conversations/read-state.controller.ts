@@ -23,6 +23,7 @@ import type {
 
 interface MarkReadBody {
   readonly lastReadMessageId?: unknown;
+  readonly lastDeliveredMessageId?: unknown;
 }
 
 @Controller('v1/organizations/:orgSlug')
@@ -60,13 +61,22 @@ export class ConversationReadStateController {
     @Param('conversationId') conversationId: string,
     @Body() body: MarkReadBody,
   ): Promise<ConversationReadStateView> {
-    const lastReadMessageId =
-      typeof body?.lastReadMessageId === 'string' ? body.lastReadMessageId.trim() : undefined;
-    if (!lastReadMessageId) {
+    const text = (value: unknown): string | undefined =>
+      typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
+    const lastReadMessageId = text(body?.lastReadMessageId);
+    // R7 receipts: a frame fetched while the pane is hidden is delivered, not read.
+    const lastDeliveredMessageId = text(body?.lastDeliveredMessageId);
+    if (!lastReadMessageId && !lastDeliveredMessageId) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
         { field: 'lastReadMessageId', message: 'must be a string' },
       ]);
     }
-    return this.readState.markRead(context, principal, conversationId, lastReadMessageId);
+    if (lastReadMessageId && !lastDeliveredMessageId) {
+      return this.readState.markRead(context, principal, conversationId, lastReadMessageId);
+    }
+    return this.readState.advance(context, principal, conversationId, {
+      ...(lastReadMessageId ? { lastReadMessageId } : {}),
+      ...(lastDeliveredMessageId ? { lastDeliveredMessageId } : {}),
+    });
   }
 }

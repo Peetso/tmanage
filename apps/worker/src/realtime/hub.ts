@@ -27,12 +27,46 @@ export interface RealtimeEventFrame {
 
 type Listener = (frame: RealtimeEventFrame) => void;
 
+/**
+ * R7 typing (F4): an ephemeral frame, never persisted. `until` is when the indicator lapses
+ * on its own if no further frame arrives (epoch milliseconds).
+ */
+export interface RealtimeTypingFrame {
+  readonly type: 'typing';
+  readonly conversationId: string;
+  readonly userId: string;
+  readonly until: number;
+}
+
+type TypingListener = (frame: RealtimeTypingFrame) => void;
+
+/** How long one typing frame keeps the indicator up. */
+export const TYPING_TTL_MS = 5_000;
+/** One inbound typing frame per socket per this window; the rest are dropped silently. */
+export const TYPING_MIN_INTERVAL_MS = 2_000;
+
+/**
+ * Pure gate for an inbound typing frame: only for a conversation this socket already holds a
+ * verified subscription to (so membership was checked), and at most one per
+ * {@link TYPING_MIN_INTERVAL_MS}. `lastAt` is the socket's own last accepted time, if any.
+ */
+export function acceptTyping(
+  subscribed: { has(conversationId: string): boolean },
+  conversationId: string,
+  lastAt: number | undefined,
+  at: number,
+): boolean {
+  if (!subscribed.has(conversationId)) return false;
+  return lastAt === undefined || at - lastAt >= TYPING_MIN_INTERVAL_MS;
+}
+
 function keyOf(organizationId: string, conversationId: string): string {
   return `${organizationId}:${conversationId}`;
 }
 
 export class RealtimeHub {
   readonly #listeners = new Map<string, Set<Listener>>();
+  readonly #typing = new Map<string, Map<TypingListener, string>>();
 
   subscribe(organizationId: string, conversationId: string, listener: Listener): () => void {
     const key = keyOf(organizationId, conversationId);
@@ -57,6 +91,40 @@ export class RealtimeHub {
       }
     }
     return set.size;
+  }
+
+  /** R7: hear typing frames in a conversation, as `userId` (whose own frames are skipped). */
+  subscribeTyping(
+    organizationId: string,
+    conversationId: string,
+    userId: string,
+    listener: TypingListener,
+  ): () => void {
+    const key = keyOf(organizationId, conversationId);
+    const room = this.#typing.get(key) ?? new Map<TypingListener, string>();
+    room.set(listener, userId);
+    this.#typing.set(key, room);
+    return () => {
+      room.delete(listener);
+      if (room.size === 0) this.#typing.delete(key);
+    };
+  }
+
+  /** Fan a typing frame out to the room, except the sender's own sockets. Returns the count. */
+  publishTyping(organizationId: string, frame: RealtimeTypingFrame): number {
+    const room = this.#typing.get(keyOf(organizationId, frame.conversationId));
+    if (!room) return 0;
+    let told = 0;
+    for (const [listener, userId] of room) {
+      if (userId === frame.userId) continue;
+      told += 1;
+      try {
+        listener(frame);
+      } catch {
+        // As for events: one dead socket costs nobody else their frame.
+      }
+    }
+    return told;
   }
 
   /** For tests and the server's shutdown report. */
