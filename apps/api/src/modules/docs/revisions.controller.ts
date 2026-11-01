@@ -19,8 +19,11 @@ import type { DocRevisionView } from './revisions.service.js';
  * touches no file another docs slice appends to.
  */
 
-/** `documents.body` is `TEXT` (max 65_535 bytes). This slice keeps a comfortable ceiling below it. */
-const MAX_BODY_LENGTH = 60_000;
+/**
+ * `doc_revisions.body_snapshot` is MEDIUMTEXT since 0277, like `documents.body` (0272), so a
+ * snapshot takes the document body's own ceiling.
+ */
+const MAX_BODY_LENGTH = 1_000_000;
 
 /** Capture-revision request body — the snapshot to append. */
 interface CaptureRevisionBody {
