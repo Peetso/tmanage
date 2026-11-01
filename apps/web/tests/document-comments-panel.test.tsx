@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { DocumentCommentsPanel } from '../src/components/screens/DocumentCommentsPanel';
 import { ApiClient } from '../src/lib/api/client';
 import { expectNoAxeViolations } from './axe';
@@ -51,8 +51,11 @@ function withQuery(children: ReactNode) {
 const DOCUMENT_ID = 'doc-1';
 const MEMBERSHIP = 'membership-1';
 
-function comment(id: string, body: string) {
+function comment(id: string, body: string, anchorId: string | null = null) {
   return {
+    anchorId,
+    anchorQuote: anchorId ? 'hero banner' : null,
+    resolvedAt: null as string | null,
     id,
     documentId: DOCUMENT_ID,
     authorMembershipId: MEMBERSHIP,
@@ -113,5 +116,27 @@ describe('DocumentCommentsPanel', () => {
 
     // The draft is cleared on a successful add.
     expect(await screen.findByLabelText(/add a comment/i)).toHaveValue('');
+  });
+
+  it('R5: groups by anchor with its quote, raises onCommentClick, resolves and hides', async () => {
+    let resolved = false;
+    const calls: Call[] = [];
+    const client = clientOver((call) => {
+      calls.push(call);
+      if (call.url.endsWith('/resolve')) resolved = true;
+      const root = { ...comment('c1', 'sign-off?', 'a1'), resolvedAt: resolved ? 'x' : null };
+      return json({ comments: [root, comment('c2', 'yes', 'a1')] });
+    });
+    const onCommentClick = vi.fn();
+    const props = { organizationSlug: 'acme', documentId: DOCUMENT_ID, client, onCommentClick };
+    render(withQuery(<DocumentCommentsPanel {...props} />));
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: '“hero banner”' }));
+    expect(onCommentClick).toHaveBeenCalledWith('a1');
+    expect(screen.getAllByRole('listitem')).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: /^resolve$/i }));
+    expect(calls.some((c) => c.method === 'POST' && c.url.endsWith('/c1/resolve'))).toBe(true);
+    await waitFor(() => expect(screen.queryByText('sign-off?')).not.toBeInTheDocument());
   });
 });

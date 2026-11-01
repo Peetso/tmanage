@@ -90,6 +90,8 @@ function serviceWith(documents: readonly DocumentRow[] = []): {
         readonly documentId: string;
         readonly body: string;
         readonly authorMembershipId: string;
+        readonly anchorId?: string | null;
+        readonly anchorQuote?: string | null;
       },
     ) => {
       const row = {
@@ -98,10 +100,17 @@ function serviceWith(documents: readonly DocumentRow[] = []): {
         documentId: input.documentId,
         authorMembershipId: input.authorMembershipId,
         body: input.body,
+        anchorId: input.anchorId ?? null,
+        anchorQuote: input.anchorQuote ?? null,
         createdAt: new Date(),
-      } as DocumentCommentRow;
+      } as unknown as DocumentCommentRow;
       commentStore.push(row);
       return row;
+    },
+    setResolved: async (_r: unknown, _c: unknown, _d: string, id: string, by: string | null) => {
+      const row = commentStore.find((c) => c.id === id);
+      if (row) Object.assign(row, { resolvedAt: by ? new Date() : null, resolvedByUserId: by });
+      return row ?? null;
     },
   } as unknown as DocumentCommentsRepository;
 
@@ -167,5 +176,19 @@ describe('DocumentCommentsService', () => {
     expect((listError as ApiError).status).toBe(404);
 
     expect(commentStore).toHaveLength(0);
+  });
+
+  it('R5: echoes the anchor, resolves and reopens a thread', async () => {
+    const { service } = serviceWith([seededDocument()]);
+    const caller = member([PROJECT]);
+    const anchor = { anchorId: '0192f1e2-0000-7000-8000-000000000001', anchorQuote: 'hero banner' };
+    const made = await service.add(context, caller, DOCUMENT, 'sign-off?', anchor);
+    expect(made).toMatchObject({ ...anchor, resolvedAt: null });
+
+    await service.setResolved(context, caller, DOCUMENT, made.id, true);
+    expect((await service.list(context, caller, DOCUMENT))[0]!.resolvedAt).not.toBeNull();
+
+    const reopened = await service.setResolved(context, caller, DOCUMENT, made.id, false);
+    expect(reopened.resolvedAt).toBeNull();
   });
 });

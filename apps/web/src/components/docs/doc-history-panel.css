@@ -1,0 +1,205 @@
+/* R5 slice 4 — read view, comments rail (Figma 486:29212 / 486:29424), version history panel
+   (487:28939). Tokens only, logical properties, so the rail mirrors under [dir=rtl]. */
+
+/* ── Read view: per-block direction and the comment anchors ─────────────────────────────── */
+
+.tm-doc-view .ProseMirror > * {
+  /* The CSS form of dir="auto" on every block: each paragraph takes its own direction. */
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+
+.tm-doc-view .ProseMirror pre {
+  unicode-bidi: isolate;
+  direction: ltr;
+}
+
+.tm-doc-view mark[data-comment] {
+  padding-inline: 2px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--warning-600) 22%, transparent);
+  color: inherit;
+  cursor: pointer;
+}
+
+.tm-doc-view mark[data-comment].is-active {
+  background: color-mix(in srgb, var(--warning-600) 42%, transparent);
+  box-shadow: 0 0 0 var(--b-quiet) var(--warning-600);
+}
+
+/* ── Rail head shared by comments and history ───────────────────────────────────────────── */
+
+.tm-doc-rail__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+
+.tm-doc-rail__title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-doc-rail__empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--s4);
+  border: var(--b-quiet) dashed var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+}
+
+.tm-doc-rail__empty-title {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  font-weight: 500;
+  color: var(--ink-800);
+}
+
+.tm-doc-rail__general {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── Threads ────────────────────────────────────────────────────────────────────────────── */
+
+.tm-doc-threads {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-doc-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+}
+
+.tm-doc-thread.is-active {
+  border: var(--b-structural) solid var(--ink-950);
+}
+
+.tm-doc-thread.is-resolved .tm-dx-comment__body {
+  color: var(--ink-500);
+}
+
+.tm-doc-thread__quote {
+  align-self: stretch;
+  margin: 0;
+  padding-block: 0;
+  padding-inline: 8px 0;
+  border: 0;
+  border-inline-start: var(--b-structural) solid var(--warning-600);
+  background: none;
+  color: var(--ink-650);
+  font: inherit;
+  font-size: 11px;
+  line-height: 15px;
+  text-align: start;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.tm-doc-thread__quote:focus-visible {
+  outline: var(--b-structural) solid var(--ink-950);
+  outline-offset: 2px;
+}
+
+.tm-doc-thread__reply {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-doc-thread__reply .tm-field__control {
+  font-size: var(--t-ui-sm);
+}
+
+.tm-doc-thread__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+/* ── Version history ────────────────────────────────────────────────────────────────────── */
+
+.tm-doc-history__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-doc-history__row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  inline-size: 100%;
+  padding: 10px var(--s2);
+  border: 0;
+  border-radius: var(--r-compact);
+  background: none;
+  color: var(--ink-950);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-doc-history__row:hover {
+  background: var(--paper-150);
+}
+
+.tm-doc-history__row.is-selected {
+  background: var(--lime-100);
+}
+
+.tm-doc-history__row:focus-visible {
+  outline: var(--b-structural) solid var(--ink-950);
+  outline-offset: 2px;
+}
+
+.tm-doc-history__name {
+  font-size: var(--t-ui-sm);
+  font-weight: 500;
+}
+
+.tm-doc-history__meta {
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--ink-500);
+}
+
+.tm-doc-history__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.tm-doc-history__strip {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0 0 var(--s4);
+  padding: 6px 14px;
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  color: var(--ink-800);
+  font-size: 11px;
+  line-height: 15px;
+}

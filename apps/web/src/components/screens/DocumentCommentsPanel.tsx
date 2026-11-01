@@ -1,86 +1,164 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { Badge, Button, InlineAlert, LoadingRegion, Skeleton, Switch } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { addDocumentComment, listDocumentComments } from '../../lib/api/document-comments';
+import {
+  addDocumentComment,
+  listDocumentComments,
+  resolveDocumentComment,
+  unresolveDocumentComment,
+} from '../../lib/api/document-comments';
+import type { DocumentCommentView } from '../../lib/api/document-comments';
 import { ApiRequestError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { initialsOf } from '../docs/DocumentAudience';
 import { useT } from '../../lib/i18n/use-t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import '../docs/doc-history-panel.css';
 
 export interface DocumentCommentsPanelProps {
   organizationSlug: string;
   documentId: string;
   client?: ApiClient;
+  /** R5: the anchor the body has selected; its thread is highlighted and scrolled into view. */
+  activeAnchorId?: string | null;
+  /** R5: a thread was picked in the rail — the body highlights and scrolls to its mark. */
+  onCommentClick?: (anchorId: string) => void;
+}
+
+/** One anchored thread: the first comment carries the quote and the resolved state. */
+interface Thread {
+  readonly anchorId: string;
+  readonly quote: string | null;
+  readonly root: DocumentCommentView;
+  readonly comments: readonly DocumentCommentView[];
+}
+
+function threadsOf(rows: readonly DocumentCommentView[]): {
+  readonly threads: readonly Thread[];
+  readonly general: readonly DocumentCommentView[];
+} {
+  const byAnchor = new Map<string, DocumentCommentView[]>();
+  const general: DocumentCommentView[] = [];
+  for (const row of rows) {
+    if (!row.anchorId) general.push(row);
+    else byAnchor.set(row.anchorId, [...(byAnchor.get(row.anchorId) ?? []), row]);
+  }
+  const threads = [...byAnchor.entries()].map(([anchorId, comments]) => ({
+    anchorId,
+    quote: comments.find((c) => c.anchorQuote)?.anchorQuote ?? null,
+    root: comments[0]!,
+    comments,
+  }));
+  return { threads, general };
 }
 
 /**
- * **Docs "collaboration later" (x132) — document comments.**
+ * **Docs comments rail — R5 frame 7 (Figma 486:29212) and its empty state 7b (486:29424).**
  *
- * The collaboration surface `38-MODULE-MAP` §Docs defers ("collaboration later"): a document's
- * comments, read oldest-first, with an add form. It renders as DOC-02's edge column beside the
- * paper sheet of `DocumentViewScreen`, so it is a plain labelled region rather than its own
- * `AppShell` screen.
+ * Comments hang on selected text: each `anchorId` (a `mark[data-comment]` in the body) is one
+ * thread showing its quote, its comments oldest-first, a reply field and Resolve / Reopen. Comments
+ * without an anchor sit under "General" with the add form. "Show resolved" brings resolved threads
+ * back. A thread click raises `onCommentClick` so the body scrolls to and highlights its mark; a mark
+ * click comes back as `activeAnchorId` and scrolls the thread into view.
  *
- * ## Not-found is the read's quiet case
- *
- * The comments list is keyed by the document id. The API resolves that id **tenant-scoped before the
- * relation check**, so an id in another tenant, a document the caller is not a member of, and an id
- * that does not exist all answer the same 404. This panel shows that 404 as a plain "not available"
- * note (the parent screen already renders the document's own not-found state), and every other
- * refusal as an error, so a transient outage is not misread as "no comments".
- *
- * ## People are shown by name
- *
- * The API resolves each author's membership to a display name inside the tenant (`authorName`); an
- * author it could not name (a membership since removed) reads "A former member", never an id.
- *
- * Comments are internal: DOC-02's footnote says so, because publishing shares the body only.
+ * The 404 "not available" posture of x132 is unchanged: unknown, cross-tenant and non-member ids
+ * answer the same 404 and read as a quiet note, never an error. Comments are internal.
  */
 export function DocumentCommentsPanel({
   organizationSlug,
   documentId,
   client,
+  activeAnchorId = null,
+  onCommentClick,
 }: DocumentCommentsPanelProps) {
   const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const queryKey = ['document-comments', organizationSlug, documentId];
 
   const comments = useQuery({
-    queryKey: ['document-comments', organizationSlug, documentId],
+    queryKey,
     queryFn: () => listDocumentComments(api, organizationSlug, documentId),
   });
 
   const [draft, setDraft] = useState('');
+  const [replies, setReplies] = useState<Record<string, string>>({});
+  const [showResolved, setShowResolved] = useState(false);
+  const refresh = () => queryClient.invalidateQueries({ queryKey });
 
   const add = useMutation({
     mutationFn: () => addDocumentComment(api, organizationSlug, documentId, draft.trim()),
     onSuccess: async () => {
       setDraft('');
-      await queryClient.invalidateQueries({
-        queryKey: ['document-comments', organizationSlug, documentId],
-      });
+      await refresh();
     },
+  });
+
+  const reply = useMutation({
+    mutationFn: (thread: Thread) =>
+      addDocumentComment(
+        api,
+        organizationSlug,
+        documentId,
+        (replies[thread.anchorId] ?? '').trim(),
+        { anchorId: thread.anchorId, anchorQuote: thread.quote ?? '' },
+      ),
+    onSuccess: async (_made, thread) => {
+      setReplies((current) => ({ ...current, [thread.anchorId]: '' }));
+      await refresh();
+    },
+  });
+
+  const toggle = useMutation({
+    mutationFn: ({ commentId, resolve }: { commentId: string; resolve: boolean }) =>
+      (resolve ? resolveDocumentComment : unresolveDocumentComment)(
+        api,
+        organizationSlug,
+        documentId,
+        commentId,
+      ),
+    onSuccess: refresh,
   });
 
   const notAvailable =
     comments.isError && comments.error instanceof ApiRequestError && comments.error.status === 404;
 
-  const rows = comments.data ?? [];
+  const rows = useMemo(() => comments.data ?? [], [comments.data]);
+  const { threads, general } = useMemo(() => threadsOf(rows), [rows]);
+  const visible = threads.filter((thread) => showResolved || !thread.root.resolvedAt);
   const canAdd = draft.trim() !== '';
 
+  // Mark → thread: bring the active thread into view in the rail.
+  const listRef = useRef<HTMLOListElement | null>(null);
+  useEffect(() => {
+    if (!activeAnchorId) return;
+    const card = Array.from(
+      listRef.current?.querySelectorAll<HTMLElement>('[data-anchor]') ?? [],
+    ).find((element) => element.getAttribute('data-anchor') === activeAnchorId);
+    card?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+  }, [activeAnchorId]);
+
+  const loaded = !comments.isPending && !comments.isError;
+
   return (
-    <section className="tm-dx-edge" aria-labelledby="tm-document-comments">
-      <h2 id="tm-document-comments" className="tm-dx-edge__caption">
-        {t('DocumentCommentsPanel.comments')}
-        {!comments.isPending && !comments.isError ? ` · ${rows.length}` : ''} ·{' '}
-        {t('DocumentCommentsPanel.internalOnly')}
-      </h2>
+    <section className="tm-dx-edge tm-doc-rail" aria-labelledby="tm-document-comments">
+      <div className="tm-doc-rail__head">
+        <h2 id="tm-document-comments" className="tm-doc-rail__title">
+          {t('DocumentCommentsPanel.comments')}
+          {loaded ? ` · ${rows.length}` : ''}
+        </h2>
+        <Switch
+          label={t('DocComments.showResolved')}
+          checked={showResolved}
+          onChange={(event) => setShowResolved(event.target.checked)}
+        />
+      </div>
+      <p className="tm-dx-edge__caption">{t('DocumentCommentsPanel.internalOnly')}</p>
 
       {comments.isPending ? (
         <LoadingRegion label={t('DocumentCommentsPanel.loading')}>
@@ -101,33 +179,115 @@ export function DocumentCommentsPanel({
         </InlineAlert>
       ) : null}
 
-      {!comments.isPending && !comments.isError ? (
-        rows.length > 0 ? (
-          <ol className="tm-dx-comments" aria-label={t('DocumentCommentsPanel.listAria')}>
-            {rows.map((comment) => (
-              <li key={comment.id} className="tm-dx-comment">
-                <div className="tm-dx-comment__head">
-                  <span className="tm-dx-comment__orb" aria-hidden="true">
-                    {comment.authorName ? initialsOf(comment.authorName) : '◌'}
-                  </span>
-                  <span className="tm-dx-comment__who">
-                    {comment.authorName ?? t('DocumentCommentsPanel.formerMember')}
-                  </span>
-                  <time
-                    className="tm-dx-comment__when"
-                    dateTime={comment.createdAt}
-                    title={formatInstant(comment.createdAt)}
+      {toggle.isError || reply.isError ? (
+        <InlineAlert tone="danger" title={t('DocComments.actionError')} live>
+          {describeError(toggle.error ?? reply.error)}
+        </InlineAlert>
+      ) : null}
+
+      {loaded && rows.length === 0 ? (
+        <div className="tm-doc-rail__empty">
+          <p className="tm-doc-rail__empty-title">{t('DocumentCommentsPanel.empty')}</p>
+          <p className="tm-dx-quiet">{t('DocComments.emptyHint')}</p>
+        </div>
+      ) : null}
+
+      {loaded && visible.length > 0 ? (
+        <ol ref={listRef} className="tm-doc-threads" aria-label={t('DocComments.threadsAria')}>
+          {visible.map((thread) => {
+            const resolved = Boolean(thread.root.resolvedAt);
+            const active = thread.anchorId === activeAnchorId;
+            return (
+              <li
+                key={thread.anchorId}
+                data-anchor={thread.anchorId}
+                className={`tm-doc-thread${active ? ' is-active' : ''}${resolved ? ' is-resolved' : ''}`}
+              >
+                <button
+                  type="button"
+                  className="tm-doc-thread__quote"
+                  dir="auto"
+                  aria-pressed={active}
+                  onClick={() => onCommentClick?.(thread.anchorId)}
+                >
+                  {thread.quote ? `“${thread.quote}”` : t('DocComments.selectedText')}
+                </button>
+                {thread.comments.map((comment) => (
+                  <CommentRow key={comment.id} comment={comment} />
+                ))}
+                {resolved ? (
+                  <div className="tm-doc-thread__actions">
+                    <Badge mono>{t('DocComments.resolved')}</Badge>
+                    <Button
+                      tone="outline"
+                      size="compact"
+                      loading={toggle.isPending && toggle.variables?.commentId === thread.root.id}
+                      onClick={() => toggle.mutate({ commentId: thread.root.id, resolve: false })}
+                    >
+                      {t('DocComments.reopen')}
+                    </Button>
+                  </div>
+                ) : (
+                  <form
+                    className="tm-doc-thread__reply"
+                    noValidate
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      if ((replies[thread.anchorId] ?? '').trim() !== '') reply.mutate(thread);
+                    }}
                   >
-                    {formatClock(comment.createdAt)}
-                  </time>
-                </div>
-                <p className="tm-dx-comment__body">{comment.body}</p>
+                    <input
+                      className="tm-field__control"
+                      dir="auto"
+                      aria-label={t('DocComments.replyLabel')}
+                      placeholder={t('DocComments.replyPlaceholder')}
+                      value={replies[thread.anchorId] ?? ''}
+                      onChange={(event) =>
+                        setReplies((current) => ({
+                          ...current,
+                          [thread.anchorId]: event.target.value,
+                        }))
+                      }
+                    />
+                    <div className="tm-doc-thread__actions">
+                      <Button
+                        type="submit"
+                        tone="outline"
+                        size="compact"
+                        disabled={(replies[thread.anchorId] ?? '').trim() === ''}
+                      >
+                        {t('DocComments.reply')}
+                      </Button>
+                      <Button
+                        tone="ink"
+                        size="compact"
+                        loading={toggle.isPending && toggle.variables?.commentId === thread.root.id}
+                        onClick={() => toggle.mutate({ commentId: thread.root.id, resolve: true })}
+                      >
+                        {t('DocComments.resolve')}
+                      </Button>
+                    </div>
+                  </form>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      ) : null}
+
+      {loaded && general.length > 0 ? (
+        <section className="tm-doc-rail__general" aria-labelledby="tm-document-comments-general">
+          <h3 id="tm-document-comments-general" className="tm-dx-edge__caption">
+            {t('DocComments.general')}
+          </h3>
+          <ol className="tm-dx-comments" aria-label={t('DocumentCommentsPanel.listAria')}>
+            {general.map((comment) => (
+              <li key={comment.id} className="tm-dx-comment">
+                <CommentRow comment={comment} />
               </li>
             ))}
           </ol>
-        ) : (
-          <p className="tm-dx-quiet">{t('DocumentCommentsPanel.empty')}</p>
-        )
+        </section>
       ) : null}
 
       <p className="tm-dx-edge__note tm-dx-edge__foot">
@@ -152,6 +312,7 @@ export function DocumentCommentsPanel({
           <textarea
             id="tm-document-comment-body"
             name="body"
+            dir="auto"
             className="tm-field__control tm-field__control--multiline"
             rows={3}
             value={draft}
@@ -177,6 +338,33 @@ export function DocumentCommentsPanel({
         </Button>
       </form>
     </section>
+  );
+}
+
+/** Author orb, name, time and body of one comment. */
+function CommentRow({ comment }: { comment: DocumentCommentView }) {
+  const t = useT();
+  return (
+    <>
+      <div className="tm-dx-comment__head">
+        <span className="tm-dx-comment__orb" aria-hidden="true">
+          {comment.authorName ? initialsOf(comment.authorName) : '◌'}
+        </span>
+        <span className="tm-dx-comment__who">
+          {comment.authorName ?? t('DocumentCommentsPanel.formerMember')}
+        </span>
+        <time
+          className="tm-dx-comment__when"
+          dateTime={comment.createdAt}
+          title={formatInstant(comment.createdAt)}
+        >
+          {formatClock(comment.createdAt)}
+        </time>
+      </div>
+      <p className="tm-dx-comment__body" dir="auto">
+        {comment.body}
+      </p>
+    </>
   );
 }
 

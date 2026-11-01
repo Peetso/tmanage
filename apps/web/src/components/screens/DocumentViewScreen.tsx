@@ -1,15 +1,17 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import '../../styles/screens/docs.css';
 import { DocumentExportButton } from './DocumentExportButton';
 import { DocumentCommentsPanel } from './DocumentCommentsPanel';
 import { DocumentPublishBar } from '../docs/DocumentAudience';
 import { DocMarkdown } from '../docs/DocMarkdown';
+import { DocBodyView } from '../docs/editor/DocBodyView';
+import { DocHistoryPanel, DocVersionPreview } from '../docs/DocHistoryPanel';
 import { tagFor } from '../docs/doc-markdown';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getDocument, getDocumentSharing } from '../../lib/api/documents';
@@ -88,6 +90,11 @@ export function DocumentViewScreen({
   });
   const people = sharing.data?.collaborators ?? [];
 
+  // R5: the anchor shared by the body marks and the comments rail, and the history panel state.
+  const [activeAnchorId, setActiveAnchorId] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [previewVersionNo, setPreviewVersionNo] = useState<number | null>(null);
+
   // A 404 is the not-found state; every other refusal is an error. The API answers unknown,
   // cross-tenant and non-member ids all with 404, so this one branch covers the whole trap.
   const notFound = useMemo(
@@ -143,6 +150,16 @@ export function DocumentViewScreen({
               {/* DOC export (x131): a Markdown download of the current version, shown once the
                   document has loaded so the control never links to an id the caller cannot read. */}
               <DocumentExportButton organizationSlug={organizationSlug} documentId={documentId} />
+              <Button
+                tone="outline"
+                aria-pressed={historyOpen}
+                onClick={() => {
+                  setHistoryOpen((open) => !open);
+                  setPreviewVersionNo(null);
+                }}
+              >
+                {t('DocHistory.open')}
+              </Button>
               <Link
                 className="tm-button tm-button--ink tm-button--default"
                 href={`/${organizationSlug}/docs/${documentId}/edit`}
@@ -205,26 +222,62 @@ export function DocumentViewScreen({
                 </p>
               </header>
               <hr className="tm-dx-sheet__rule" />
-              <div className="tm-dx-sheet__body">
-                {/* The body's Markdown as headings, lists, bold and safe links (live test
-                    2026-10-31: it showed raw "#" and "**"). React escapes every string; no HTML
-                    is parsed. */}
-                <DocMarkdown
-                  body={data.body}
-                  doneLabel={tOr('DocumentViewScreen.checkDone', 'Done')}
-                  openLabel={tOr('DocumentViewScreen.checkOpen', 'Not done')}
+              {historyOpen && previewVersionNo !== null ? (
+                <DocVersionPreview
+                  organizationSlug={organizationSlug}
+                  documentId={documentId}
+                  client={api}
+                  versionNo={previewVersionNo}
+                  people={people}
                 />
+              ) : null}
+              <div className="tm-dx-sheet__body" hidden={historyOpen && previewVersionNo !== null}>
+                {/* R5: an `html` body renders through the read-only Tiptap schema (unknown nodes
+                    drop, never injected HTML); comment anchors talk to the rail both ways. */}
+                {(data as { bodyFormat?: 'markdown' | 'html' }).bodyFormat === 'html' ? (
+                  <DocBodyView
+                    html={data.body}
+                    activeAnchorId={activeAnchorId}
+                    onCommentClick={setActiveAnchorId}
+                  />
+                ) : (
+                  /* The body's Markdown as headings, lists, bold and safe links (live test
+                    2026-10-31: it showed raw "#" and "**"). React escapes every string; no HTML
+                    is parsed. */
+                  <DocMarkdown
+                    body={data.body}
+                    doneLabel={tOr('DocumentViewScreen.checkDone', 'Done')}
+                    openLabel={tOr('DocumentViewScreen.checkOpen', 'Not done')}
+                  />
+                )}
               </div>
             </article>
           </div>
 
           {/* Docs "collaboration later" (x132) — the document's comments, read/add, in the
               edge column DOC-02 draws beside the sheet. */}
-          <DocumentCommentsPanel
-            organizationSlug={organizationSlug}
-            documentId={documentId}
-            client={api}
-          />
+          {historyOpen ? (
+            <DocHistoryPanel
+              organizationSlug={organizationSlug}
+              documentId={documentId}
+              client={api}
+              people={people}
+              selectedVersionNo={previewVersionNo}
+              onSelect={setPreviewVersionNo}
+              onClose={() => {
+                setHistoryOpen(false);
+                setPreviewVersionNo(null);
+              }}
+            />
+          ) : (
+            <DocumentCommentsPanel
+              organizationSlug={organizationSlug}
+              documentId={documentId}
+              client={api}
+              activeAnchorId={activeAnchorId}
+              onCommentClick={setActiveAnchorId}
+            />
+          )}
         </div>
       ) : null}
     </AppShell>

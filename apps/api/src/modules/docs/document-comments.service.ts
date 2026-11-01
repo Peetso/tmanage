@@ -5,8 +5,11 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import { DocumentsRepository } from './documents.repository.js';
 import { DocumentCommentsRepository } from './document-comments.repository.js';
 import { DocumentSharingRepository } from './document-sharing.repository.js';
-import type { ListDocumentCommentsOptions } from './document-comments.repository.js';
-import type { DocumentCommentRow, DocumentRow } from '../../common/database/schema.js';
+import type {
+  DocumentCommentRowWithAnchor,
+  ListDocumentCommentsOptions,
+} from './document-comments.repository.js';
+import type { DocumentRow } from '../../common/database/schema.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 
 /**
@@ -39,6 +42,12 @@ export interface DocumentCommentView {
   readonly authorName: string | null;
   readonly body: string;
   readonly createdAt: string;
+  /** R5: the body anchor (`mark[data-comment]`) this comment hangs on; null = general. */
+  readonly anchorId: string | null;
+  /** R5: the selected text when the comment was made. */
+  readonly anchorQuote: string | null;
+  /** R5: ISO-8601 instant the thread was resolved; null while open. */
+  readonly resolvedAt: string | null;
 }
 
 /**
@@ -46,7 +55,10 @@ export interface DocumentCommentView {
  * fields means a column added to `document_comments` in a future migration is invisible to every
  * caller until someone decides otherwise. `organization_id` is never echoed into a response body.
  */
-function toView(row: DocumentCommentRow, names: ReadonlyMap<string, string>): DocumentCommentView {
+function toView(
+  row: DocumentCommentRowWithAnchor,
+  names: ReadonlyMap<string, string>,
+): DocumentCommentView {
   return {
     id: row.id,
     documentId: row.documentId,
@@ -54,6 +66,9 @@ function toView(row: DocumentCommentRow, names: ReadonlyMap<string, string>): Do
     authorName: names.get(row.authorMembershipId) ?? null,
     body: row.body,
     createdAt: row.createdAt.toISOString(),
+    anchorId: row.anchorId ?? null,
+    anchorQuote: row.anchorQuote ?? null,
+    resolvedAt: row.resolvedAt ? row.resolvedAt.toISOString() : null,
   };
 }
 
@@ -158,6 +173,10 @@ export class DocumentCommentsService {
     principal: Principal,
     documentId: string,
     body: string,
+    anchor: { readonly anchorId: string | null; readonly anchorQuote: string | null } = {
+      anchorId: null,
+      anchorQuote: null,
+    },
   ): Promise<DocumentCommentView> {
     const document = await this.requireActionable(context, principal, documentId, 'work.create');
     const row = await this.database.transaction(context, async (tx) => {
@@ -165,6 +184,8 @@ export class DocumentCommentsService {
         documentId,
         body,
         authorMembershipId: context.membershipId,
+        anchorId: anchor.anchorId,
+        anchorQuote: anchor.anchorQuote,
       });
       // CQ-12 (COL-05): the document's author and the people the comment mentions are told by
       // the worker, which re-checks each one's access at delivery. Ids only — never the text.
@@ -181,6 +202,32 @@ export class DocumentCommentsService {
       });
       return appended;
     });
+    return toView(row, await this.authorNames(context, [row.authorMembershipId]));
+  }
+
+  /**
+   * R5: resolve (`resolved = true`) or reopen a comment thread. `doc.write`, relation-gated as
+   * `work.create`; the document is resolved tenant-scoped first, and a comment that is not this
+   * document's, or was soft-deleted, is the same 404.
+   */
+  async setResolved(
+    context: TenantContext,
+    principal: Principal,
+    documentId: string,
+    commentId: string,
+    resolved: boolean,
+  ): Promise<DocumentCommentView> {
+    await this.requireActionable(context, principal, documentId, 'work.create');
+    const row = await this.database.transaction(context, (tx) =>
+      this.comments.setResolved(
+        tx,
+        context,
+        documentId,
+        commentId,
+        resolved ? context.userId : null,
+      ),
+    );
+    if (!row) throw new ApiError(404, 'not_found', MESSAGES.notFound);
     return toView(row, await this.authorNames(context, [row.authorMembershipId]));
   }
 

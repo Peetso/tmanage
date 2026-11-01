@@ -23,6 +23,18 @@ export interface DocumentCommentView {
   readonly body: string;
   /** ISO-8601 instant. */
   readonly createdAt: string;
+  /** R5: the body anchor (`mark[data-comment]`) the comment hangs on; null = a general comment. */
+  readonly anchorId: string | null;
+  /** R5: the selected text when the comment was made. */
+  readonly anchorQuote: string | null;
+  /** R5: ISO-8601 instant the thread was resolved; null while open. */
+  readonly resolvedAt: string | null;
+}
+
+/** R5: an optional anchor on selected text for {@link addDocumentComment}. */
+export interface DocumentCommentAnchor {
+  readonly anchorId: string;
+  readonly anchorQuote: string;
 }
 
 function base(organizationSlug: string, documentId: string): string {
@@ -47,11 +59,44 @@ export async function addDocumentComment(
   organizationSlug: string,
   documentId: string,
   body: string,
+  anchor?: DocumentCommentAnchor,
 ): Promise<DocumentCommentView> {
   const { data } = await client.request<DocumentCommentView>({
     method: 'POST',
     path: base(organizationSlug, documentId),
-    body: { body },
+    body: anchor ? { body, ...anchor } : { body },
+  });
+  return data;
+}
+
+function resolvePath(organizationSlug: string, documentId: string, commentId: string): string {
+  return `${base(organizationSlug, documentId)}/${encodeURIComponent(commentId)}/resolve`;
+}
+
+/** R5: mark a comment thread resolved. */
+export async function resolveDocumentComment(
+  client: ApiClient,
+  organizationSlug: string,
+  documentId: string,
+  commentId: string,
+): Promise<DocumentCommentView> {
+  const { data } = await client.request<DocumentCommentView>({
+    method: 'POST',
+    path: resolvePath(organizationSlug, documentId, commentId),
+  });
+  return data;
+}
+
+/** R5: reopen a resolved comment thread. */
+export async function unresolveDocumentComment(
+  client: ApiClient,
+  organizationSlug: string,
+  documentId: string,
+  commentId: string,
+): Promise<DocumentCommentView> {
+  const { data } = await client.request<DocumentCommentView>({
+    method: 'DELETE',
+    path: resolvePath(organizationSlug, documentId, commentId),
   });
   return data;
 }

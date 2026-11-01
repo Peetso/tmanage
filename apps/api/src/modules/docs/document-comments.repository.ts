@@ -25,6 +25,10 @@ export interface AppendDocumentCommentInput {
   readonly body: string;
   /** The membership the comment is written under — the service passes `context.membershipId`. */
   readonly authorMembershipId: string;
+  /** R5 (0272): the `mark[data-comment]` id the comment hangs on; null for a general comment. */
+  readonly anchorId?: string | null;
+  /** R5 (0272): the selected text when the comment was made (≤ 500). */
+  readonly anchorQuote?: string | null;
 }
 
 export interface ListDocumentCommentsOptions {
@@ -32,6 +36,18 @@ export interface ListDocumentCommentsOptions {
   readonly after?: string;
   readonly limit?: number;
 }
+
+/**
+ * R5 (0272) comment columns. Slice 2 adds them to `documentComments` in schema.ts with the
+ * migration; until that lands drizzle simply leaves them out of the SQL, and once it lands this
+ * code writes and reads them unchanged (the intersection then matches the row exactly).
+ */
+export type DocumentCommentRowWithAnchor = DocumentCommentRow & {
+  readonly anchorId?: string | null;
+  readonly anchorQuote?: string | null;
+  readonly resolvedAt?: Date | null;
+  readonly resolvedByUserId?: string | null;
+};
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
@@ -92,6 +108,8 @@ export class DocumentCommentsRepository {
     const db = tenantDrizzle(runner);
     const id = uuidv7();
 
+    // Spread from a variable: the R5 columns pass the type check before slice 2 declares them.
+    const anchor = { anchorId: input.anchorId ?? null, anchorQuote: input.anchorQuote ?? null };
     await db.insert(documentComments).values({
       id,
       organizationId: context.organizationId,
@@ -99,6 +117,7 @@ export class DocumentCommentsRepository {
       authorMembershipId: input.authorMembershipId,
       body: input.body,
       createdAt: sql`current_timestamp(3)`,
+      ...anchor,
     });
 
     const rows = await db
@@ -113,5 +132,39 @@ export class DocumentCommentsRepository {
       .limit(1);
     // The row now carries the server-generated timestamp; reading it back keeps the two in step.
     return rows[0] as DocumentCommentRow;
+  }
+
+  /**
+   * R5: resolve (`resolvedByUserId` set) or reopen (null) one live comment of one document.
+   *
+   * Tenant, document and soft-delete predicates are all on the UPDATE, so a comment of another
+   * document, another tenant or a deleted one changes nothing and reads back as null (→ 404). The
+   * 0245 trigger pins only id/org/document/author/body/created_at, so these columns may change.
+   */
+  async setResolved(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    documentId: string,
+    commentId: string,
+    resolvedByUserId: string | null,
+  ): Promise<DocumentCommentRowWithAnchor | null> {
+    const db = tenantDrizzle(runner);
+    const scope = and(
+      eq(documentComments.organizationId, context.organizationId),
+      eq(documentComments.documentId, documentId),
+      eq(documentComments.id, commentId),
+      isNull(documentComments.deletedAt),
+    );
+    const change = {
+      resolvedAt: resolvedByUserId === null ? null : sql`current_timestamp(3)`,
+      resolvedByUserId,
+    };
+    await db
+      .update(documentComments)
+      // The R5 columns are declared by slice 2's schema.ts change; until then the type is cast.
+      .set(change as unknown as Partial<typeof documentComments.$inferInsert>)
+      .where(scope);
+    const rows = await db.select().from(documentComments).where(scope).limit(1);
+    return rows[0] ?? null;
   }
 }
