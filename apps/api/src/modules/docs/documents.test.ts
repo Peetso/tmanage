@@ -653,4 +653,20 @@ describe('DocumentsService.saveVersion R5 (format, conflict guard)', () => {
     const stale = await save('late', { expectedVersionNo: 1 }).catch((caught: unknown) => caught);
     expect(stale).toMatchObject({ status: 409, details: [{ message: '2' }] });
   });
+
+  it('answers a racing save that loses on the version unique key with 409, not 500', async () => {
+    const { service } = serviceWith([seededDocument()]);
+    const versions = (service as unknown as { versions: { append: () => Promise<never> } })
+      .versions;
+    versions.append = () =>
+      Promise.reject(
+        Object.assign(new Error("Duplicate entry for key 'uq_document_versions_org_doc_version'"), {
+          code: 'ER_DUP_ENTRY',
+        }),
+      );
+    const raced = await service
+      .saveVersion(context, member([PROJECT]), DOCUMENT, 'b', { expectedVersionNo: 0 })
+      .catch((caught: unknown) => caught);
+    expect(raced).toMatchObject({ status: 409, auditCode: 'DOC_VERSION_CONFLICT' });
+  });
 });

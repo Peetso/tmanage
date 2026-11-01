@@ -2,6 +2,7 @@ import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { sanitizeDocHtml } from './doc-html.js';
+import { isDuplicateKey } from '../tenancy/invitee-accounts.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { DocumentsRepository } from './documents.repository.js';
 import type { CreateDocumentInput, ListDocumentsOptions } from './documents.repository.js';
@@ -377,26 +378,30 @@ export class DocumentsService {
     const bodyFormat = options.format ?? 'markdown';
     const stored =
       bodyFormat === 'html' ? sanitizeDocHtml(body, { orgSlug: options.orgSlug ?? '' }) : body;
-    const row = await this.database.transaction(context, async (tx) => {
-      if (options.expectedVersionNo !== undefined) {
-        const current = await this.versions.latestVersionNo(tx, context, documentId);
-        if (current !== options.expectedVersionNo) {
-          throw new ApiError(
-            409,
-            'conflict',
-            MESSAGES.conflict,
-            [{ field: 'currentVersionNo', message: String(current) }],
-            'DOC_VERSION_CONFLICT',
-          );
+    let row: DocumentVersionRow;
+    try {
+      row = await this.database.transaction(context, async (tx) => {
+        if (options.expectedVersionNo !== undefined) {
+          const current = await this.versions.latestVersionNo(tx, context, documentId);
+          if (current !== options.expectedVersionNo) throw versionConflict(current);
         }
-      }
-      return this.versions.append(tx, context, {
-        documentId,
-        body: stored,
-        bodyFormat,
-        editedByUserId: context.userId,
+        return this.versions.append(tx, context, {
+          documentId,
+          body: stored,
+          bodyFormat,
+          editedByUserId: context.userId,
+        });
       });
-    });
+    } catch (error) {
+      // Two saves racing past the read above both compute the same next `version_no`; the
+      // unique key refuses the second. That is the same conflict, so it answers 409 with the
+      // number that won, not a 500.
+      if (!isDuplicateKey(error, 'uq_document_versions_org_doc_version')) throw error;
+      const current = await this.database.read(context, (runner) =>
+        this.versions.latestVersionNo(runner, context, documentId),
+      );
+      throw versionConflict(current);
+    }
     return toVersionView(row);
   }
 
@@ -586,4 +591,15 @@ export class DocumentsService {
       body: template.body,
     });
   }
+}
+
+/** 409 `DOC_VERSION_CONFLICT`; the newest number travels as the `currentVersionNo` detail. */
+function versionConflict(current: number): ApiError {
+  return new ApiError(
+    409,
+    'conflict',
+    MESSAGES.conflict,
+    [{ field: 'currentVersionNo', message: String(current) }],
+    'DOC_VERSION_CONFLICT',
+  );
 }
