@@ -1,0 +1,400 @@
+/*
+ * R12 / R1 — session intelligence cells, cards, drawer and the A4 trail print view
+ * (Figma section 503:29264). Logical properties only, so every piece mirrors in Arabic.
+ */
+
+.tm-intel-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.tm-intel-cell__title {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  align-items: center;
+  color: var(--ink-950);
+  font-weight: 500;
+}
+
+.tm-intel-cell__sub,
+.tm-intel-attribution {
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-intel-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.tm-intel-dash {
+  color: var(--ink-650);
+}
+
+.tm-intel-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  margin-block-start: 2px;
+}
+
+.tm-intel-chip {
+  padding: 1px 6px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-micro);
+  background: var(--paper-50);
+  color: var(--ink-650);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* ---- Signal pill ----------------------------------------------------------------------- */
+
+.tm-intel-signal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  align-items: flex-start;
+}
+
+.tm-intel-pill {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--r-capsule);
+  color: var(--ink-950);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tm-intel-pill__dot {
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+.tm-intel-pill--likely_person {
+  background: color-mix(in srgb, var(--success-600) 16%, transparent);
+}
+
+.tm-intel-pill--likely_person .tm-intel-pill__dot {
+  background: var(--success-600);
+}
+
+.tm-intel-pill--unclear {
+  background: color-mix(in srgb, var(--warning-600) 16%, transparent);
+}
+
+.tm-intel-pill--unclear .tm-intel-pill__dot {
+  background: var(--warning-600);
+}
+
+.tm-intel-pill--likely_automated {
+  background: color-mix(in srgb, var(--danger-600) 16%, transparent);
+}
+
+.tm-intel-pill--likely_automated .tm-intel-pill__dot {
+  background: var(--danger-600);
+}
+
+.tm-intel-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  margin: 0;
+  padding-inline-start: var(--s4);
+  color: var(--ink-950);
+  font-size: 12px;
+}
+
+.tm-intel-reasons__points {
+  margin-inline-start: var(--s2);
+  color: var(--ink-650);
+}
+
+/* ---- Cards ----------------------------------------------------------------------------- */
+
+.tm-intel-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-intel-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+}
+
+.tm-intel-card__title {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tm-intel-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+}
+
+.tm-intel-row {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: var(--s3);
+  align-items: baseline;
+}
+
+.tm-intel-row dt {
+  color: var(--ink-650);
+  font-size: 12px;
+}
+
+.tm-intel-row dd {
+  margin: 0;
+  color: var(--ink-950);
+  font-weight: 500;
+}
+
+.tm-intel-raw {
+  margin: 0;
+  color: var(--ink-650);
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+.tm-intel-note {
+  padding: var(--s4);
+  border: var(--b-quiet) solid color-mix(in srgb, var(--warning-600) 50%, transparent);
+  border-radius: var(--r-compact);
+  background: color-mix(in srgb, var(--warning-600) 8%, transparent);
+}
+
+.tm-intel-note__title {
+  margin: 0 0 var(--s2);
+  color: var(--ink-950);
+  font-weight: 600;
+}
+
+.tm-intel-note__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding-inline-start: var(--s4);
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-intel-note--compact {
+  padding: var(--s3);
+}
+
+/* ---- Drawer (side panel; bottom sheet on a phone) -------------------------------------- */
+
+.tm-intel-drawer-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+.tm-intel-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 35%);
+}
+
+.tm-intel-drawer {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  inline-size: min(480px, 100%);
+  padding: var(--s6);
+  overflow-y: auto;
+  background: var(--paper-50);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
+}
+
+.tm-intel-drawer__head {
+  display: flex;
+  gap: var(--s3);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.tm-intel-drawer__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.tm-intel-drawer__sub {
+  margin: var(--s1) 0 0;
+  color: var(--ink-650);
+  font-size: 12px;
+}
+
+.tm-intel-drawer__close {
+  min-inline-size: 44px;
+  min-block-size: 44px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--ink-650);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.tm-intel-drawer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+@media (width <= 640px) {
+  .tm-intel-drawer {
+    inset-block: auto 0;
+    inset-inline: 0;
+    inline-size: 100%;
+    max-block-size: 90vh;
+    padding: var(--s3) var(--s4) var(--s6);
+    border-start-start-radius: var(--r-sheet);
+    border-start-end-radius: var(--r-sheet);
+  }
+
+  .tm-intel-drawer__actions {
+    flex-direction: column;
+  }
+
+  .tm-intel-drawer__actions > * {
+    justify-content: center;
+    inline-size: 100%;
+  }
+}
+
+/* ---- A4 trail print view --------------------------------------------------------------- */
+
+.tm-trail-print {
+  max-inline-size: 178mm;
+  margin: 0 auto;
+  padding: var(--s6) var(--s4);
+  background: var(--paper-0);
+  color: var(--ink-950);
+}
+
+.tm-trail-print__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-end: var(--s4);
+}
+
+.tm-trail-print__eyebrow {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: 10pt;
+}
+
+.tm-trail-print__title {
+  margin: var(--s1) 0 var(--s2);
+  font-size: 20pt;
+  line-height: 1.2;
+}
+
+.tm-trail-print__meta {
+  margin: 0 0 var(--s1);
+  color: var(--ink-650);
+  font-size: 10pt;
+}
+
+.tm-trail-print__table {
+  inline-size: 100%;
+  margin-block-start: var(--s4);
+  border-collapse: collapse;
+  font-size: 9pt;
+}
+
+.tm-trail-print__table th,
+.tm-trail-print__table td {
+  padding: 4px 6px;
+  border: 1px solid var(--line-300);
+  text-align: start;
+  vertical-align: top;
+}
+
+.tm-trail-print__table th {
+  background: var(--paper-50);
+  color: var(--ink-650);
+}
+
+.tm-trail-print__table tr {
+  break-inside: avoid;
+}
+
+.tm-trail-print__footer {
+  margin-block-start: var(--s6);
+  padding-block-start: var(--s3);
+  border-block-start: 1px solid var(--line-300);
+  color: var(--ink-650);
+  font-size: 8.5pt;
+}
+
+.tm-trail-print__footer p {
+  margin: 0 0 var(--s1);
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 16mm 14mm 18mm;
+  }
+
+  .tm-trail-print {
+    max-inline-size: none;
+    padding: 0;
+  }
+
+  .tm-trail-print__actions {
+    display: none;
+  }
+}
+
+.tm-intel-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-intel-open:hover .tm-cc-cell-title,
+.tm-intel-open:focus-visible .tm-cc-cell-title {
+  text-decoration: underline;
+}
+
+.tm-intel-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  align-items: center;
+}

@@ -1,11 +1,14 @@
 'use client';
 
+import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { useT } from '../../lib/i18n/use-t';
-import { browserApiClient } from '../../lib/api/browser-client';
-import { listDevices, signOut } from '../../lib/api/session';
+import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
+import { listDevices, mySessionTrailCsvUrl, signOut } from '../../lib/api/session';
+import { placeOf, SessionIntelDrawer } from '../security/SessionIntelCards';
+import { SignalPill } from '../security/SignalPill';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
@@ -54,6 +57,7 @@ export function SessionsScreen({
   const describe = useDescribeApiError();
   const t = useT();
   const api = client ?? browserApiClient();
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const devices = useQuery({
     queryKey: ['sessions', 'devices'],
@@ -129,7 +133,17 @@ export function SessionsScreen({
                         ? ''
                         : ` ${t('SessionsScreen.lastRefreshedWord')} ${formatMoment(session.rotatedAt)}`}
                     </p>
+                    <p className="tm-id-session__meta tm-intel-inline">
+                      <span>
+                        {placeOf(session.intel) ?? '—'}
+                        {session.intel?.network?.owner ? ` · ${session.intel.network.owner}` : ''}
+                      </span>
+                      <SignalPill automation={session.intel?.automation} />
+                    </p>
                   </div>
+                  <Button tone="outline" size="compact" onClick={() => setOpenId(session.id)}>
+                    {t('SessionIntel.details')}
+                  </Button>
                   {/* There is no per-session revoke route yet, so the control is shown disabled. */}
                   <Button
                     tone="outline"
@@ -144,6 +158,24 @@ export function SessionsScreen({
             </ul>
           )
         ) : null}
+
+        {devices.isSuccess && openId
+          ? devices.data
+              .filter((session) => session.id === openId)
+              .map((session) => (
+                <SessionIntelDrawer
+                  key={session.id}
+                  title={t('SessionIntel.yourSession')}
+                  subtitle={`${t('SessionsScreen.started')} ${formatMoment(session.createdAt)}`}
+                  intel={session.intel}
+                  rawUserAgent={session.userAgent}
+                  csvUrl={mySessionTrailCsvUrl(apiBaseUrl(), session.id)}
+                  csvFileName={`session-trail-${session.id}.csv`}
+                  printHref={`/sessions/${encodeURIComponent(session.id)}/trail`}
+                  onClose={() => setOpenId(null)}
+                />
+              ))
+          : null}
 
         <div className="tm-id-cards">
           <section className="tm-id-card" aria-labelledby="tm-sessions-passkeys">

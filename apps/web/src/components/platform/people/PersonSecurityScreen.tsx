@@ -3,19 +3,28 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Button, Checkbox, InlineAlert, StatusDot, Switch } from '@tmanage/ui';
-import { browserApiClient } from '../../../lib/api/browser-client';
+import { apiBaseUrl, browserApiClient } from '../../../lib/api/browser-client';
 import {
   disablePlatformPerson,
   endPlatformPersonSession,
   fetchPlatformPersonAccess,
   fetchPlatformPersonSessions,
+  personSignInTrailCsvUrl,
   resetPlatformPersonTwoStep,
   sendPlatformPersonPasswordReset,
   setPlatformPersonTwoStepRequired,
   signOutPlatformPersonEverywhere,
 } from '../../../lib/api/platform-people';
 import type { PlatformPersonSessionView } from '../../../lib/api/platform-people';
+import { downloadTrailCsv } from '../../../lib/api/session-intel';
 import { useActiveLocale } from '../../../lib/i18n/use-active-locale';
+import {
+  IntelDeviceCell,
+  IntelLocationCell,
+  IntelNetworkCell,
+  SessionIntelDrawer,
+} from '../../security/SessionIntelCards';
+import { SignalPill } from '../../security/SignalPill';
 import { useT } from '../../../lib/i18n/use-t';
 import type { ScreenProps } from '../shared/platform-kit';
 import { PlatformPageState } from '../shared/PlatformPageState';
@@ -51,6 +60,12 @@ function SecurityBody({ api, me, person, refresh }: PersonScreenContext) {
   const locale = useActiveLocale();
   const [pending, setPending] = useState<Pending>(null);
   const [signOutToo, setSignOutToo] = useState(false);
+  const [openSessionId, setOpenSessionId] = useState<string | null>(null);
+  const [csvFailed, setCsvFailed] = useState(false);
+  const trailCsvUrl = personSignInTrailCsvUrl(apiBaseUrl(), person.id);
+  const printHref = `/platform/people/${encodeURIComponent(person.id)}/sign-in-trail`;
+  const downloadTrail = async () =>
+    setCsvFailed(!(await downloadTrailCsv(trailCsvUrl, `sign-in-trail-${person.id}.csv`)));
   const canSecure = me.permissions.includes('platform.people.security');
   const first = firstNameOf(person.displayName);
   const sessions = useQuery({
@@ -120,13 +135,32 @@ function SecurityBody({ api, me, person, refresh }: PersonScreenContext) {
                   id: 'device',
                   header: t('PlatformPeople.colDevice'),
                   cell: (session) => (
-                    <>
-                      <span className="tm-cc-cell-title">{deviceOf(session.userAgent)}</span>
-                      <bdi dir="ltr" className="tm-cc-cell-sub">
-                        {session.ipLast ?? session.ipFirst ?? '—'}
-                      </bdi>
-                    </>
+                    <button
+                      type="button"
+                      className="tm-intel-open"
+                      onClick={() => setOpenSessionId(session.id)}
+                    >
+                      <IntelDeviceCell
+                        intel={session.intel}
+                        fallback={deviceOf(session.userAgent)}
+                      />
+                    </button>
                   ),
+                },
+                {
+                  id: 'location',
+                  header: t('SessionIntel.colLocation'),
+                  cell: (session) => (
+                    <IntelLocationCell
+                      intel={session.intel}
+                      ip={session.ipLast ?? session.ipFirst ?? null}
+                    />
+                  ),
+                },
+                {
+                  id: 'signal',
+                  header: t('SessionIntel.colSignal'),
+                  cell: (session) => <SignalPill automation={session.intel?.automation} />,
                 },
                 {
                   id: 'created',
@@ -137,11 +171,6 @@ function SecurityBody({ api, me, person, refresh }: PersonScreenContext) {
                   id: 'lastActive',
                   header: t('PlatformPeople.colLastActive'),
                   cell: (session) => relativeMoment(session.lastActiveAt, locale),
-                },
-                {
-                  id: 'expires',
-                  header: t('PlatformPeople.colExpires'),
-                  cell: (session) => shortDay(session.expiresAt, locale),
                 },
                 {
                   id: 'state',
@@ -170,10 +199,33 @@ function SecurityBody({ api, me, person, refresh }: PersonScreenContext) {
 
         <section className="tm-stack tm-stack--tight" aria-labelledby="pa06-failed-title">
           <div className="tm-cc-card__head">
-            <h3 id="pa06-failed-title" className="tm-cc-card__title">
-              {t('PlatformPeople.failedSignIns')}
-            </h3>
+            <div>
+              <h3 id="pa06-failed-title" className="tm-cc-card__title">
+                {t('PlatformPeople.failedSignIns')}
+              </h3>
+              <p className="tm-cc-note">{t('SessionIntel.trailNote')}</p>
+            </div>
+            {canSecure ? (
+              <div className="tm-intel-drawer__actions">
+                <Button type="button" tone="outline" onClick={() => void downloadTrail()}>
+                  {t('SessionIntel.downloadCsv')}
+                </Button>
+                <a
+                  className="tm-button tm-button--outline"
+                  href={printHref}
+                  target="_blank"
+                  rel="noopener"
+                >
+                  {t('SessionIntel.saveAsPdf')}
+                </a>
+              </div>
+            ) : null}
           </div>
+          {csvFailed ? (
+            <InlineAlert tone="danger" live>
+              {t('SessionIntel.csvFailed')}
+            </InlineAlert>
+          ) : null}
           {access.isPending ? (
             <PlatformPageState state="loading" loadingLabel={t('PlatformPeople.loadingAccess')} />
           ) : access.isError ? (
@@ -201,15 +253,28 @@ function SecurityBody({ api, me, person, refresh }: PersonScreenContext) {
                   cell: (event) => accessReason(t, event.reason),
                 },
                 {
-                  id: 'ip',
-                  header: t('PlatformPeople.colIp'),
-                  kind: 'mono',
-                  cell: (event) => <bdi dir="ltr">{event.ip ?? '—'}</bdi>,
-                },
-                {
                   id: 'device',
                   header: t('PlatformPeople.colDevice'),
-                  cell: (event) => deviceOf(event.userAgent),
+                  cell: (event) => (
+                    <IntelDeviceCell intel={event.intel} fallback={deviceOf(event.userAgent)} />
+                  ),
+                },
+                {
+                  id: 'location',
+                  header: t('SessionIntel.colLocation'),
+                  cell: (event) => <IntelLocationCell intel={event.intel} ip={event.ip} />,
+                },
+                {
+                  id: 'network',
+                  header: t('SessionIntel.colNetwork'),
+                  cell: (event) => <IntelNetworkCell intel={event.intel} />,
+                },
+                {
+                  id: 'signal',
+                  header: t('SessionIntel.colSignal'),
+                  cell: (event) => (
+                    <SignalPill automation={event.intel?.automation} withScore withReasons />
+                  ),
                 },
               ]}
             />
@@ -324,6 +389,30 @@ function SecurityBody({ api, me, person, refresh }: PersonScreenContext) {
         ) : null}
       </div>
 
+      {(sessions.data?.sessions ?? [])
+        .filter((session) => session.id === openSessionId)
+        .map((session) => (
+          <SessionIntelDrawer
+            key={session.id}
+            title={`${t('SessionIntel.sessionWord')} · ${person.displayName}`}
+            subtitle={`${deviceOf(session.userAgent)} · ${t('SessionIntel.started')} ${dayAndTime(session.createdAt, locale)}`}
+            intel={
+              session.intel ?? {
+                ipFirst: session.ipFirst,
+                ipLast: session.ipLast,
+                location: null,
+                network: null,
+                device: { browser: null, os: null, deviceType: 'unknown', raw: session.userAgent },
+                automation: null,
+              }
+            }
+            rawUserAgent={session.userAgent}
+            csvUrl={trailCsvUrl}
+            csvFileName={`sign-in-trail-${person.id}.csv`}
+            printHref={printHref}
+            onClose={() => setOpenSessionId(null)}
+          />
+        ))}
       {pending?.kind === 'end' ? (
         <ReasonDialog
           title={`${t('PlatformPeople.endTitle')} ${deviceOf(pending.session.userAgent)}?`}

@@ -1,4 +1,5 @@
 import type { ApiClient } from './client';
+import type { SessionIntelView } from './session-intel';
 
 /**
  * Admin active sessions + revocation (Administration module 18, x223).
@@ -23,6 +24,8 @@ export interface ActiveSessionView {
   readonly lastSeenAt: string;
   /** The device label (user-agent) captured at sign-in, or `null` if none was sent. */
   readonly deviceLabel: string | null;
+  /** R12: where the session came from. Cells show "—" for what the API could not tell. */
+  readonly intel: SessionIntelView;
 }
 
 /**
@@ -55,4 +58,13 @@ export async function revokeOrgSession(
     method: 'POST',
     path: `${base(organizationSlug)}/${encodeURIComponent(sessionId)}/revoke`,
   });
+}
+
+/** R12: the absolute URL of one session's sign-in trail CSV (behind `org.manage`). */
+export function adminSessionTrailCsvUrl(
+  baseUrl: string,
+  organizationSlug: string,
+  sessionId: string,
+): string {
+  return `${baseUrl}${base(organizationSlug)}/${encodeURIComponent(sessionId)}/trail.csv`;
 }

@@ -63,6 +63,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/recover/[token]': { en: 'Choose a new password', key: 'RouteTitle.recoverToken' },
   '/setup': { en: 'Set up TManage', key: 'RouteTitle.setup' },
   '/sessions': { en: 'Your sessions', key: 'RouteTitle.sessions' },
+  '/sessions/[sessionId]/trail': { en: 'Session sign-in trail', key: 'RouteTitle.sessionTrail' },
   '/organizations': { en: 'Choose a workspace', key: 'RouteTitle.organizations' },
   '/onboarding/organization': {
     en: 'Create your workspace',
@@ -95,6 +96,10 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/admin/roles/edit': { en: 'Edit role', key: 'RouteTitle.adminRoleEdit' },
   '/[orgSlug]/admin/security': { en: 'Security', key: 'RouteTitle.adminSecurity' },
   '/[orgSlug]/admin/sessions': { en: 'Sessions', key: 'RouteTitle.adminSessions' },
+  '/[orgSlug]/admin/sessions/[sessionId]/trail': {
+    en: 'Session sign-in trail',
+    key: 'RouteTitle.adminSessionTrail',
+  },
   '/[orgSlug]/admin/storage': { en: 'Storage', key: 'RouteTitle.adminStorage' },
   '/[orgSlug]/ai/approve/[id]': { en: 'AI approval', key: 'RouteTitle.aiApprove' },
   '/[orgSlug]/automations': { en: 'Automations', key: 'RouteTitle.automations' },
@@ -452,6 +457,10 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/platform/people/[userId]/security': {
     en: 'Person security',
     key: 'RouteTitle.platformPersonSecurity',
+  },
+  '/platform/people/[userId]/sign-in-trail': {
+    en: 'Sign-in trail',
+    key: 'RouteTitle.platformPersonSignInTrail',
   },
   '/platform/settings/announcements': {
     en: 'Announcements',

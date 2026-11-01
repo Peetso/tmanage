@@ -1,4 +1,5 @@
 import type { ApiClient } from './client';
+import type { SessionIntelView, SignInIntelView } from './session-intel';
 
 /**
  * platform-admin v2 · PA-06 — People (`/v1/platform/people…`, SPEC §5.3, screens B1–B4).
@@ -77,6 +78,8 @@ export interface PlatformPersonAccessView {
   readonly ip: string | null;
   readonly userAgent: string | null;
   readonly occurredAt: string;
+  /** R12: where the attempt came from and how automated it looked. */
+  readonly intel: SignInIntelView;
 }
 
 export interface PlatformPersonDetailView {
@@ -112,6 +115,8 @@ export interface PlatformPersonSessionView {
   readonly ipFirst: string | null;
   readonly ipLast: string | null;
   readonly state: 'live' | 'ended' | 'expired';
+  /** R12: where the session came from. */
+  readonly intel: SessionIntelView;
 }
 
 export interface PlatformPersonSessionsView {
@@ -442,4 +447,9 @@ export async function offboardPlatformMember(
     body: { reason },
   });
   return data;
+}
+
+/** R12: the absolute URL of one person's sign-in trail CSV (behind `platform.people.security`). */
+export function personSignInTrailCsvUrl(baseUrl: string, userId: string): string {
+  return `${baseUrl}/v1/platform/people/${encodeURIComponent(userId)}/sign-in-trail.csv`;
 }

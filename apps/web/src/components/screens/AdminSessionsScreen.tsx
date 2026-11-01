@@ -5,8 +5,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { shortDevice, sinceLabel } from '../admin/format';
-import { browserApiClient } from '../../lib/api/browser-client';
-import { listOrgSessions, revokeOrgSession } from '../../lib/api/admin-sessions';
+import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
+import {
+  adminSessionTrailCsvUrl,
+  listOrgSessions,
+  revokeOrgSession,
+} from '../../lib/api/admin-sessions';
+import {
+  IntelDeviceCell,
+  IntelLocationCell,
+  IntelNetworkCell,
+  SessionIntelDrawer,
+} from '../security/SessionIntelCards';
+import { SignalPill } from '../security/SignalPill';
 import type { ActiveSessionView } from '../../lib/api/admin-sessions';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
@@ -48,6 +59,7 @@ export function AdminSessionsScreen({
   const queryClient = useQueryClient();
   const t = useT();
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const sessions = useQuery({
     queryKey: ['admin-sessions', organizationSlug],
@@ -64,6 +76,7 @@ export function AdminSessionsScreen({
   });
 
   const rows = sessions.data ?? [];
+  const opened = rows.find((row) => row.sessionId === openId) ?? null;
 
   return (
     <ControlCenterShell
@@ -116,6 +129,10 @@ export function AdminSessionsScreen({
                 <th scope="col">
                   {t('AdminSessionsScreen.colActiveSessionsPrefix')} {rows.length}
                 </th>
+                <th scope="col">{t('SessionIntel.colDevice')}</th>
+                <th scope="col">{t('SessionIntel.colLocation')}</th>
+                <th scope="col">{t('SessionIntel.colNetwork')}</th>
+                <th scope="col">{t('SessionIntel.colSignal')}</th>
                 <th scope="col">{t('AdminSessionsScreen.colSignedIn')}</th>
                 <th scope="col">{t('AdminSessionsScreen.colLastSeen')}</th>
                 <th scope="col">
@@ -130,11 +147,37 @@ export function AdminSessionsScreen({
                   session={session}
                   busy={revoke.isPending && revokingId === session.sessionId}
                   onRevoke={() => revoke.mutate(session.sessionId)}
+                  onOpen={() => setOpenId(session.sessionId)}
                 />
               ))}
             </tbody>
           </table>
         </section>
+      ) : null}
+
+      {opened ? (
+        <SessionIntelDrawer
+          title={`${t('SessionIntel.sessionWord')} · ${opened.memberName}`}
+          subtitle={`${shortDevice(opened.deviceLabel)} · ${t('SessionIntel.started')} ${formatMoment(opened.createdAt)}`}
+          intel={opened.intel}
+          rawUserAgent={opened.deviceLabel}
+          csvUrl={adminSessionTrailCsvUrl(apiBaseUrl(), organizationSlug, opened.sessionId)}
+          csvFileName={`session-trail-${opened.sessionId}.csv`}
+          printHref={`/${encodeURIComponent(organizationSlug)}/admin/sessions/${encodeURIComponent(opened.sessionId)}/trail`}
+          onClose={() => setOpenId(null)}
+        >
+          <Button
+            type="button"
+            tone="destructive"
+            disabled={revoke.isPending}
+            onClick={() => {
+              revoke.mutate(opened.sessionId);
+              setOpenId(null);
+            }}
+          >
+            {t('AdminSessionsScreen.endSession')}
+          </Button>
+        </SessionIntelDrawer>
       ) : null}
     </ControlCenterShell>
   );
@@ -144,19 +187,32 @@ function SessionRow({
   session,
   busy,
   onRevoke,
+  onOpen,
 }: {
   session: ActiveSessionView;
   busy: boolean;
   onRevoke: () => void;
+  onOpen: () => void;
 }) {
   const t = useT();
   return (
     <tr>
       <td>
-        <span className="tm-cc-cell-title">{session.memberName}</span>
-        <span className="tm-cc-cell-sub" title={session.deviceLabel ?? undefined}>
-          {shortDevice(session.deviceLabel)}
-        </span>
+        <button type="button" className="tm-intel-open" onClick={onOpen}>
+          <span className="tm-cc-cell-title">{session.memberName}</span>
+        </button>
+      </td>
+      <td>
+        <IntelDeviceCell intel={session.intel} fallback={shortDevice(session.deviceLabel)} />
+      </td>
+      <td>
+        <IntelLocationCell intel={session.intel} ip={session.intel?.ipLast ?? null} />
+      </td>
+      <td>
+        <IntelNetworkCell intel={session.intel} />
+      </td>
+      <td>
+        <SignalPill automation={session.intel?.automation} />
       </td>
       <td>
         <span className="tm-cc-cell-sub">{formatMoment(session.createdAt)}</span>

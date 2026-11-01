@@ -1,4 +1,5 @@
 import { REFRESH_PATH, type ApiClient } from './client';
+import type { SessionIntelView } from './session-intel';
 
 /**
  * The session endpoints, as the screens use them.
@@ -36,6 +37,13 @@ export interface SessionSummary {
   readonly createdAt: string;
   readonly rotatedAt: string | null;
   readonly expiresAt: string;
+  /** R12: where the session came from. */
+  readonly intel: SessionIntelView;
+}
+
+/** R12: the absolute URL of one of the caller's own sessions' sign-in trail CSV. */
+export function mySessionTrailCsvUrl(baseUrl: string, sessionId: string): string {
+  return `${baseUrl}/v1/me/sessions/${encodeURIComponent(sessionId)}/trail.csv`;
 }
 
 /**
