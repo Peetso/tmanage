@@ -1,7 +1,12 @@
 import { and, asc, eq, exists, inArray, isNull, lt, notExists, or, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { fileAssets, filePreviews, fileVersions } from '../../common/database/schema.js';
+import {
+  fileAssets,
+  filePreviews,
+  fileVersions,
+  usageLedgerEntries,
+} from '../../common/database/schema.js';
 import type { FilePreviewRow } from '../../common/database/schema.js';
 import type {
   BootstrapQueryRunner,
@@ -185,6 +190,60 @@ export interface VersionNeedingPreviews {
 /** A pending row nobody holds now: never claimed, or claimed by a pass older than the bound. */
 function unclaimedOrStale(staleBefore: Date) {
   return or(isNull(filePreviews.claimedAt), lt(filePreviews.claimedAt, staleBefore));
+}
+
+/**
+ * R4 follow-up. A derivative whose source is gone: its asset row is missing, deleted, purged or
+ * rejected, or its version row is missing. Never a row a live pass holds — a pending row claimed
+ * after `staleBefore` is left to the pass that took it.
+ */
+function orphaned(staleBefore: Date) {
+  return and(
+    or(isNull(filePreviews.claimedAt), lt(filePreviews.claimedAt, staleBefore)),
+    or(
+      notExists(
+        sql`(select 1 from ${fileAssets} where ${fileAssets.organizationId} = ${filePreviews.organizationId}
+          and ${fileAssets.id} = ${filePreviews.fileAssetId}
+          and ${fileAssets.deletedAt} is null
+          and ${fileAssets.purgedAt} is null
+          and ${fileAssets.status} <> ${'rejected'})`,
+      ),
+      notExists(
+        sql`(select 1 from ${fileVersions} where ${fileVersions.organizationId} = ${filePreviews.organizationId}
+          and ${fileVersions.id} = ${filePreviews.fileVersionId})`,
+      ),
+    ),
+  );
+}
+
+/** A row the orphan sweep removes: what it needs to delete the bytes and give them back. */
+export type OrphanPreview = Pick<
+  FilePreview,
+  'id' | 'fileAssetId' | 'fileVersionId' | 'kind' | 'objectKey' | 'sizeBytes'
+>;
+
+const ORPHAN_COLUMNS = {
+  id: filePreviews.id,
+  fileAssetId: filePreviews.fileAssetId,
+  fileVersionId: filePreviews.fileVersionId,
+  kind: filePreviews.kind,
+  objectKey: filePreviews.objectKey,
+  sizeBytes: filePreviews.sizeBytes,
+};
+
+function toOrphan(row: {
+  id: string;
+  fileAssetId: string;
+  fileVersionId: string;
+  kind: string;
+  objectKey: string | null;
+  sizeBytes: number | null;
+}): OrphanPreview {
+  return {
+    ...row,
+    kind: row.kind as PreviewKind,
+    sizeBytes: row.sizeBytes === null ? null : Number(row.sizeBytes),
+  };
 }
 
 export class FilePreviewsRepository {
@@ -511,6 +570,69 @@ export class FilePreviewsRepository {
         ),
       );
     return affected(result);
+  }
+
+  /**
+   * R4 follow-up. This organization's derivatives whose source file is gone (see
+   * {@link orphaned}), oldest first — what the orphan sweep removes.
+   */
+  async listOrphans(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    staleBefore: Date,
+    limit: number,
+  ): Promise<readonly OrphanPreview[]> {
+    const rows = await tenantDrizzle(runner)
+      .select(ORPHAN_COLUMNS)
+      .from(filePreviews)
+      .where(and(eq(filePreviews.organizationId, context.organizationId), orphaned(staleBefore)))
+      .orderBy(asc(filePreviews.createdAt), asc(filePreviews.id))
+      .limit(Math.min(Math.max(limit, 1), 500));
+    return rows.map(toOrphan);
+  }
+
+  /** The sweep's cross-tenant half, through the bootstrap runner as the passes' are. */
+  async organizationsWithOrphans(
+    runner: BootstrapQueryRunner,
+    staleBefore: Date,
+  ): Promise<readonly string[]> {
+    const rows = await tenantDrizzle(runner)
+      .selectDistinct({ organizationId: filePreviews.organizationId })
+      .from(filePreviews)
+      .where(orphaned(staleBefore))
+      .orderBy(asc(filePreviews.organizationId));
+    return rows.map((row) => row.organizationId);
+  }
+
+  /**
+   * R4 follow-up. `ready` derivatives with stored bytes that the usage ledger has no
+   * `preview_derivative` move for — made before counting existed, or by a pass that lost its
+   * count. The reconciler counts them, so preview bytes always reach the quota.
+   */
+  async listUncounted(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    countReason: string,
+    limit: number,
+  ): Promise<readonly OrphanPreview[]> {
+    const rows = await tenantDrizzle(runner)
+      .select(ORPHAN_COLUMNS)
+      .from(filePreviews)
+      .where(
+        and(
+          eq(filePreviews.organizationId, context.organizationId),
+          eq(filePreviews.status, 'ready'),
+          sql`${filePreviews.objectKey} is not null`,
+          sql`${filePreviews.sizeBytes} > 0`,
+          notExists(
+            sql`(select 1 from ${usageLedgerEntries} where ${usageLedgerEntries.organizationId} = ${filePreviews.organizationId}
+              and ${usageLedgerEntries.idempotencyKey} = concat(${filePreviews.id}, ${`:${countReason}`}))`,
+          ),
+        ),
+      )
+      .orderBy(asc(filePreviews.createdAt), asc(filePreviews.id))
+      .limit(Math.min(Math.max(limit, 1), 500));
+    return rows.map(toOrphan);
   }
 
   /**

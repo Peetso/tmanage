@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { usageLedgerEntries } from '../../common/database/schema.js';
@@ -15,7 +15,7 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
  * `TenantQueryRunner` and never opens a transaction of its own, so a ledger row can only ever
  * commit with the counter move it explains — migration 0021's header states the property.
  *
- * There is no read, no update, no delete: the reconciliation slice reads the ledger, the
+ * There is no update and no delete: the reconciliation slice and the preview meter read it, the
  * runtime credential may only append (`scripts/db/users.sql`), and a ledger row is history.
  */
 
@@ -32,12 +32,16 @@ export type UsageLedgerCounter = (typeof USAGE_LEDGER_COUNTERS)[number];
  *   the cause so a completion and a release of one session never share an idempotency key.
  * - `purged` — FILE-003's retention deletion of a rejected object's committed bytes
  *   (`-used`), keyed on the file version so it never shares a key with the session's moves.
+ * - `preview_derivative` / `preview_removed` — an R4 preview derivative's stored bytes counted
+ *   (`+used`) and given back by the orphan sweep (`-used`), keyed on the `file_previews` row.
  */
 export const USAGE_LEDGER_REASON = {
   reserve: 'reserve',
   commit: 'commit',
   commitRelease: 'commit_release',
   purged: 'purged',
+  previewDerivative: 'preview_derivative',
+  previewRemoved: 'preview_removed',
 } as const;
 
 /**
@@ -87,6 +91,30 @@ export class UsageLedgerRepository {
         createdAt: sql`current_timestamp(3)`,
       })
       .onDuplicateKeyUpdate({ set: { id: sql`id` } });
+  }
+
+  /**
+   * Whether this tenant's ledger already holds the move `(id, reason)` — the preview meter's
+   * "counted once" check, read inside the move's own transaction. SELECT rides the runtime
+   * credential's database-wide read; the ledger itself stays append-only.
+   */
+  async hasEntry(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    id: string,
+    reason: string,
+  ): Promise<boolean> {
+    const rows = await tenantDrizzle(runner)
+      .select({ id: usageLedgerEntries.id })
+      .from(usageLedgerEntries)
+      .where(
+        and(
+          eq(usageLedgerEntries.organizationId, context.organizationId),
+          eq(usageLedgerEntries.idempotencyKey, usageLedgerIdempotencyKey(id, reason)),
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
   }
 
   /**

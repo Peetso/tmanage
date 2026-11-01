@@ -424,3 +424,28 @@ describe('FilePreviewsRepository — discovery (R4 slice 3)', () => {
     expect(select.sql).not.toMatch(/`file_versions`.`organization_id` = \?/);
   });
 });
+
+describe('FilePreviewsRepository — orphans and uncounted bytes (R4 follow-up)', () => {
+  it('lists orphans of a gone, deleted, purged or rejected source, tenant-scoped and guarded', async () => {
+    const { runner, statements } = fakeRunner(() => [
+      [uuidv7(), ASSET, VERSION, 'thumb', 'k', '12'],
+    ]);
+    const rows = await repository.listOrphans(runner, context, STALE, 1000);
+    expect(rows[0]).toMatchObject({ kind: 'thumb', objectKey: 'k', sizeBytes: 12 });
+    const [select] = statements as [Statement];
+    expect(select.sql).toMatch(/not exists \(select 1 from `file_assets`/);
+    expect(select.sql).toMatch(/`file_assets`.`purged_at` is null/);
+    expect(select.sql).toMatch(/not exists \(select 1 from `file_versions`/);
+    expect(select.params).toContain('rejected');
+    expect(select.params.at(-1)).toBe(500);
+  });
+
+  it('lists ready derivatives with no preview_derivative ledger move, guarded', async () => {
+    const { runner, statements } = fakeRunner(() => []);
+    await repository.listUncounted(runner, context, 'preview_derivative', 10);
+    const [select] = statements as [Statement];
+    expect(select.sql).toMatch(/not exists \(select 1 from `usage_ledger_entries`/);
+    expect(select.params).toContain(':preview_derivative');
+    expect(select.params).toContain('ready');
+  });
+});

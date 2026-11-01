@@ -28,6 +28,7 @@ import {
   previewJobOptionsFromEnv,
 } from './preview-job.js';
 import type { PreviewJobOptions } from './preview-job.js';
+import type { PreviewUsageMeter } from './preview-usage.js';
 
 /**
  * R4 slice 3 — the preview job against in-memory fakes of its two repositories and the store,
@@ -241,6 +242,7 @@ function harness(
   generators: readonly PreviewGenerator[] = [imageGenerator, tiffGenerator],
   storeOverrides: Partial<ObjectStore> = {},
   rss = () => 100,
+  usage: PreviewUsageMeter | null = null,
 ) {
   const clock = { now: NOW };
   const previews = new MemoryPreviews(() => files);
@@ -287,6 +289,7 @@ function harness(
     generators,
     () => clock.now,
     rss,
+    usage,
   );
   return { job, previews, derived, opened, log, clock };
 }
@@ -318,6 +321,19 @@ describe('PreviewJob — plan and draw', () => {
     }
     // A second pass finds nothing to plan and nothing pending.
     expect(await t.job.pass()).toMatchObject({ organizations: 0, planned: 0, ready: 0 });
+  });
+
+  it('counts each stored derivative against the quota in its ready transaction', async () => {
+    const count = vi.fn(async () => true);
+    const t = harness([file('image/png', pngBytes(40, 20))], {}, undefined, {}, undefined, {
+      count,
+    } as unknown as PreviewUsageMeter);
+    await t.job.pass();
+    expect(count).toHaveBeenCalledTimes(2);
+    const sizes = count.mock.calls.map((call) => (call as unknown[])[2] as { sizeBytes: number });
+    expect(sizes.map((p) => p.sizeBytes).sort()).toEqual(
+      t.previews.rows.map((row) => row.sizeBytes).sort(),
+    );
   });
 
   it('skips files that are not promoted and clean, and types no generator reads', async () => {

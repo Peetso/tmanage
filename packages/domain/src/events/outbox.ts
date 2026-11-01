@@ -235,6 +235,24 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'review_thread',
     catalog: '§4 comment resolved — notification (R4 proofing)',
   },
+  /**
+   * R4 follow-up. A preview derivative's stored bytes were counted against the organization's
+   * storage quota (`used`): sourced by the ledger row (reason `preview_derivative`) that keeps the
+   * append-only sum equal to the counter. Raised by the preview job when it writes the bytes, and
+   * by the reconciler for a derivative made before counting existed.
+   */
+  'file.preview_ready.v1': {
+    aggregateType: 'file_asset',
+    catalog: '§4 file lifecycle — R4 preview derivative counted; usage reconciliation',
+  },
+  /**
+   * R4 follow-up. The orphan-preview sweep removed a derivative whose source file is gone, and
+   * gave its counted bytes back (ledger reason `preview_removed`).
+   */
+  'file.preview_removed.v1': {
+    aggregateType: 'file_asset',
+    catalog: '§4 file lifecycle — R4 orphan preview removed; usage reconciliation',
+  },
   /** R4 slice 11: a version of a plain file was approved, or changes were asked for. */
   'review.decision_recorded.v1': {
     aggregateType: 'file_asset',
@@ -641,6 +659,16 @@ export interface ReviewDecisionRecordedV1 {
   readonly principalKind: 'internal' | 'client';
 }
 
+/** R4 follow-up: ids and the byte delta the ledger row records; never the derivative's bytes. */
+export interface FilePreviewUsageV1 {
+  readonly fileAssetId: string;
+  readonly fileVersionId: string;
+  readonly previewId: string;
+  readonly kind: string;
+  readonly metricKey: string;
+  readonly deltaBytes: number;
+}
+
 /** Type-indexed payload map, so a producer cannot pair a type with another type's payload. */
 export interface OutboxEventPayloads {
   readonly 'client_request.submitted.v1': ClientRequestSubmittedV1;
@@ -676,6 +704,8 @@ export interface OutboxEventPayloads {
   readonly 'review.comment_added.v1': ReviewCommentAddedV1;
   readonly 'review.thread_resolved.v1': ReviewThreadResolvedV1;
   readonly 'review.decision_recorded.v1': ReviewDecisionRecordedV1;
+  readonly 'file.preview_ready.v1': FilePreviewUsageV1;
+  readonly 'file.preview_removed.v1': FilePreviewUsageV1;
 }
 
 /**

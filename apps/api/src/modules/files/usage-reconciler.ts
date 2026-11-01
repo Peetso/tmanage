@@ -2,6 +2,8 @@ import { uuidv7 } from '@tmanage/domain';
 import { createServiceContext } from '../../common/database/tenant-context.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
+import type { FilePreviewsRepository } from './file-previews.repository.js';
+import type { PreviewUsageMeter } from './preview-usage.js';
 import { STORAGE_BYTES_METRIC } from './usage-counters.repository.js';
 import type { UsageCountersRepository } from './usage-counters.repository.js';
 import type { UsageLedgerRepository } from './usage-ledger.repository.js';
@@ -44,6 +46,13 @@ import { describeFailure } from './upload-session-sweeper.js';
  * external tick runs it after `sweep:once`). It is built on the same repositories the routes
  * use. The cross-tenant half — which organizations even have a counter row — is the audited
  * escape hatch the sweeper uses, read-only, allowlisted to `usage_counters`.
+ *
+ * ## Preview derivatives (R4 follow-up)
+ *
+ * Before the lock, the pass counts every `ready` preview derivative the ledger has no
+ * `preview_derivative` move for (`PreviewUsageMeter.backfill`) — the derivatives made before
+ * counting existed. Each is an ordinary counter move with its own event and ledger row, never a
+ * ledger correction, so the check below still compares two numbers that moved together.
  *
  * ## What it does not do
  *
@@ -143,6 +152,14 @@ export class UsageReconciler {
     /** Where a failed reconciliation is reported. The organization is named, never its payload. */
     private readonly onFailure: (organizationId: string, error: unknown) => void = (id, error) =>
       console.error(`[reconciler] reconciling organization ${id} failed`, describeFailure(error)),
+    /**
+     * R4 follow-up. Counts the `ready` preview derivatives the ledger has no move for, as a
+     * counter move with its ledger row (never a correction), before the counter is locked.
+     */
+    private readonly previewUsage: {
+      readonly meter: PreviewUsageMeter;
+      readonly previews: FilePreviewsRepository;
+    } | null = null,
   ) {}
 
   /** One pass over every organization that holds a storage counter. Safe to run again at once. */
@@ -182,6 +199,8 @@ export class UsageReconciler {
     context: TenantContext,
   ): Promise<'absent' | 'clean' | 'corrected'> {
     return this.database.transaction(context, async (tx) => {
+      // Preview bytes first: their moves bump the counter's version, which the lock reads next.
+      await this.previewUsage?.meter.backfill(tx, context, this.previewUsage.previews);
       const locked = await this.counters.lockForReconcile(tx, context, STORAGE_BYTES_METRIC);
       if (!locked) return 'absent';
 

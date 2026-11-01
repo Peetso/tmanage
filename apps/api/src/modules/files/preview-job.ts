@@ -20,6 +20,7 @@ import type {
   PreviewLimits,
   PreviewOutcome,
 } from './preview-generators/index.js';
+import type { PreviewUsageMeter } from './preview-usage.js';
 import { describeFailure } from './upload-session-sweeper.js';
 
 /**
@@ -54,8 +55,10 @@ import { describeFailure } from './upload-session-sweeper.js';
  * pass stops after `passBudgetMs`. A store that is not reachable stops the pass at once, as the
  * scan pass's does.
  *
- * Deferred (slice 4 / later): counting derivative bytes against the organization's storage
- * quota through the usage ledger, `file.preview_ready.v1`, and the orphan-derivative sweep.
+ * Quota (R4 follow-up): a ready derivative's stored bytes are counted as `used` through the
+ * usage ledger in the transaction that marks it ready ({@link PreviewUsageMeter}, counting only —
+ * a full quota never stops a preview of a file already uploaded). The orphan sweep is
+ * `preview-orphan-sweeper.ts`.
  */
 export const PREVIEW_JOB = Symbol.for('tmanage.PreviewJob');
 
@@ -206,6 +209,8 @@ export class PreviewJob implements PreviewRequester, OnApplicationBootstrap, OnM
     private readonly generators: readonly PreviewGenerator[] = PREVIEW_GENERATORS,
     private readonly now: () => Date = () => new Date(),
     private readonly rss: () => number = () => process.memoryUsage().rss,
+    /** Counts each derivative's stored bytes against the quota; null leaves them uncounted. */
+    private readonly usage: PreviewUsageMeter | null = null,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -570,6 +575,15 @@ export class PreviewJob implements PreviewRequester, OnApplicationBootstrap, OnM
         },
         this.now(),
       );
+      if (marked && body !== null && this.usage) {
+        await this.usage.count(tx, context, {
+          id: row.id,
+          fileAssetId: row.fileAssetId,
+          fileVersionId: row.fileVersionId,
+          kind: row.kind,
+          sizeBytes: body.byteLength,
+        });
+      }
       if (marked && outcome.followUps && outcome.followUps.length > 0) {
         await this.previews.ensurePending(
           tx,

@@ -167,6 +167,19 @@ export function apiReconcileJobs(api, app) {
       describe: (result) => api.describeReconciliation(result),
       changed: (result) => result.drifted > 0 || result.failed > 0,
     },
+    // R4 follow-up: preview derivatives whose source file is gone, hourly. Idempotent across
+    // instances: a row is removed by a delete that must take it, and only that delete gives its
+    // counted bytes back. Present only when the API bundle exports it.
+    ...(api.PREVIEW_ORPHAN_SWEEPER
+      ? [
+          {
+            name: 'preview-orphans',
+            run: () => app.get(api.PREVIEW_ORPHAN_SWEEPER).sweep(),
+            describe: (result) => api.describeOrphanSweep(result),
+            changed: (result) => result.removed > 0 || result.failed > 0,
+          },
+        ]
+      : []),
   ];
 }
 

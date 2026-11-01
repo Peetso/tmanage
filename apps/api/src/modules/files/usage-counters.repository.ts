@@ -203,6 +203,35 @@ export class UsageCountersRepository {
     return result[0].affectedRows === 1;
   }
 
+  /**
+   * R4 follow-up: count bytes TManage itself stored for the organization (a preview derivative)
+   * as `used`, with no limit in the predicate. The upload that brought the file in already
+   * passed the quota; refusing its derivative afterwards would only leave the viewer without a
+   * preview while the bytes of the original still count. A full quota still refuses the *next*
+   * upload's reservation, which reads the raised `used_value`. Call {@link ensure} first.
+   */
+  async addUsed(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    metricKey: string,
+    usedBytes: number,
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(usageCounters)
+      .set({
+        usedValue: sql`used_value + ${usedBytes}`,
+        version: sql`version + 1`,
+        updatedAt: sql`current_timestamp(3)`,
+      })
+      .where(
+        and(
+          eq(usageCounters.organizationId, context.organizationId),
+          eq(usageCounters.metricKey, metricKey),
+        ),
+      );
+    return result[0].affectedRows === 1;
+  }
+
   /** §6 step 7: cancel, failure or expiry gives the bytes back. Same guard as {@link commit}. */
   async release(
     runner: TenantQueryRunner,

@@ -40,3 +40,12 @@ export type { ReconciliationReport, UsageReconciler } from './modules/files/usag
 // scan job); its token and report line are here so the one process can drive or log a pass.
 export { PREVIEW_JOB, describePreviewPass } from './modules/files/preview-job.js';
 export type { PreviewJob, PreviewReport } from './modules/files/preview-job.js';
+// R4 follow-up. The orphan-preview sweep, hourly beside the reconciler in the one process.
+export {
+  PREVIEW_ORPHAN_SWEEPER,
+  describeOrphanSweep,
+} from './modules/files/preview-orphan-sweeper.js';
+export type {
+  OrphanSweepReport,
+  PreviewOrphanSweeper,
+} from './modules/files/preview-orphan-sweeper.js';

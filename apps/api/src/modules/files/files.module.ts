@@ -53,6 +53,8 @@ import {
   previewJobEnabled,
   previewJobOptionsFromEnv,
 } from './preview-job.js';
+import { PreviewUsageMeter } from './preview-usage.js';
+import { PREVIEW_ORPHAN_SWEEPER, PreviewOrphanSweeper } from './preview-orphan-sweeper.js';
 import { FileDownloadService } from './file-download.service.js';
 import { FileDownloadsController } from './file-downloads.controller.js';
 import { FILE_PREVIEW_SERVICE, FilePreviewService } from './file-preview.service.js';
@@ -229,6 +231,12 @@ export class FilesModule {
           audit,
           new UsageThresholdEvaluator(counters, outbox, audit),
           config.storageOrgBytesLimit,
+          undefined,
+          // R4 follow-up: preview derivatives made before counting existed are counted here.
+          {
+            meter: new PreviewUsageMeter(counters, ledger, outbox),
+            previews: new FilePreviewsRepository(),
+          },
         ),
     };
 
@@ -314,10 +322,26 @@ export class FilesModule {
     // R4 slice 3. The preview job: TManage's own derivatives (thumbnails, safe SVG copies) of
     // ready files, read from the private zone and written to the `derived` one. In this process
     // under the same switch as the scan job; `preview:once` drives one pass from a CLI.
+    // R4 follow-up: a derivative's stored bytes count against the quota (counting only), through
+    // the same counters, ledger and outbox the upload path moves.
     const previewJob: Provider = {
       provide: PREVIEW_JOB,
-      inject: [TENANT_DATABASE, FILE_ASSETS_REPOSITORY, OBJECT_STORE],
-      useFactory: (database: TenantDatabase, assets: FileAssetsRepository, store: ObjectStore) =>
+      inject: [
+        TENANT_DATABASE,
+        FILE_ASSETS_REPOSITORY,
+        OBJECT_STORE,
+        USAGE_COUNTERS_REPOSITORY,
+        USAGE_LEDGER_REPOSITORY,
+        OUTBOX_EVENTS_REPOSITORY,
+      ],
+      useFactory: (
+        database: TenantDatabase,
+        assets: FileAssetsRepository,
+        store: ObjectStore,
+        counters: UsageCountersRepository,
+        ledger: UsageLedgerRepository,
+        outbox: OutboxEventsRepository,
+      ) =>
         new PreviewJob(
           database,
           new FilePreviewsRepository(),
@@ -325,6 +349,36 @@ export class FilesModule {
           store,
           previewJobEnabled(),
           previewJobOptionsFromEnv(),
+          undefined,
+          undefined,
+          undefined,
+          new PreviewUsageMeter(counters, ledger, outbox),
+        ),
+    };
+
+    // R4 follow-up. The orphan-preview sweep: derivatives whose source file is gone lose their
+    // bytes and their row, and give their counted bytes back. Hourly in the one process.
+    const previewOrphanSweeper: Provider = {
+      provide: PREVIEW_ORPHAN_SWEEPER,
+      inject: [
+        TENANT_DATABASE,
+        OBJECT_STORE,
+        USAGE_COUNTERS_REPOSITORY,
+        USAGE_LEDGER_REPOSITORY,
+        OUTBOX_EVENTS_REPOSITORY,
+      ],
+      useFactory: (
+        database: TenantDatabase,
+        store: ObjectStore,
+        counters: UsageCountersRepository,
+        ledger: UsageLedgerRepository,
+        outbox: OutboxEventsRepository,
+      ) =>
+        new PreviewOrphanSweeper(
+          database,
+          new FilePreviewsRepository(),
+          store,
+          new PreviewUsageMeter(counters, ledger, outbox),
         ),
     };
 
@@ -525,6 +579,7 @@ export class FilesModule {
         verifier,
         scanner,
         previewJob,
+        previewOrphanSweeper,
         scanJob,
         downloads,
         filePreviews,
@@ -545,6 +600,7 @@ export class FilesModule {
         verifier,
         scanner,
         previewJob,
+        previewOrphanSweeper,
         scanJob,
         downloads,
         filePreviews,
