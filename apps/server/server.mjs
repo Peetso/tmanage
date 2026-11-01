@@ -400,9 +400,12 @@ async function startInProcessWorker(env, attachRealtime) {
       })
     : undefined;
   if (realtime) attachRealtime(realtime);
-  const handlers = realtime
-    ? withRealtimeFanOut(worker, relayHandlers, realtime.hub)
-    : relayHandlers;
+  // R7 slice 5: link previews ride `message.created.v1`, with the frame when sockets run.
+  const handlers = worker.withLinkPreviews(
+    realtime ? withRealtimeFanOut(worker, relayHandlers, realtime.hub) : relayHandlers,
+    database,
+    realtime?.hub,
+  );
   const noticeHandlers = createWorkerNoticeHandlers({
     credentialChangeMailer: new CredentialChangeMailer(transport),
   });

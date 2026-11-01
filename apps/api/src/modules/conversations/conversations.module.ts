@@ -26,6 +26,7 @@ import { MessageReactionsController } from './message-reactions.controller.js';
 import { MessageDraftsRepository } from './message-drafts.repository.js';
 import { MessageDraftsService } from './message-drafts.service.js';
 import { MessageDraftsController } from './message-drafts.controller.js';
+import { LinkPreviewsController } from './link-previews.controller.js';
 
 /**
  * CHAT-001's wiring.
@@ -117,7 +118,12 @@ export class ConversationsModule {
         draftsRepository,
         draftsService,
       ],
-      controllers: [ConversationsController, MessageReactionsController, MessageDraftsController],
+      controllers: [
+        ConversationsController,
+        MessageReactionsController,
+        MessageDraftsController,
+        LinkPreviewsController,
+      ],
     };
   }
 }

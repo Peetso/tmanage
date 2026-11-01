@@ -1258,6 +1258,15 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'read',
     scope: 'read',
   },
+  // R7 slice 5: the worker-unfurled link previews of up to 50 messages.
+  {
+    id: 'conversations.link_previews.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/conversations/:conversationId/link-previews',
+    capability: 'conversation.read',
+    risk: 'read',
+    scope: 'read',
+  },
   {
     id: 'conversations.messages.revisions.list',
     method: 'GET',

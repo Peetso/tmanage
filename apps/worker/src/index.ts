@@ -171,6 +171,16 @@ export { createRealtimeServer } from './realtime/server.js';
 export type { RealtimeServer, RealtimeServerOptions } from './realtime/server.js';
 export { createMessageFanOut } from './realtime/fan-out.js';
 export { createDirectMessageFanOut } from './realtime/fan-out.js';
+// R7 slice 5 — link previews on `message.created.v1` (SSRF-guarded unfurl, after commit).
+export {
+  createLinkPreviewConsumer,
+  firstLinkOf,
+  isRefusedAddress,
+  parseOpenGraph,
+  unfurl,
+  withLinkPreviews,
+} from './consumers/link-previews.js';
+export type { UnfurledPage } from './consumers/link-previews.js';
 export { checkConversationSubscription } from './common/database/realtime-store.js';
 export type { SubscriptionVerdict } from './common/database/realtime-store.js';
 export type { InternalRecipientCandidate } from './common/database/notifications-store.js';

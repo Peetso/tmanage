@@ -49,6 +49,7 @@ import { CollaborationMailer } from './notifications/collaboration-mailer.js';
 import { PrivacyMailer } from './notifications/privacy-mailer.js';
 import { createRealtimeServer } from './realtime/server.js';
 import { createDirectMessageFanOut, createMessageFanOut } from './realtime/fan-out.js';
+import { withLinkPreviews } from './consumers/link-previews.js';
 import { createInvitationSweepStore } from './common/database/invitations-sweep-store.js';
 import { sweepOverdueInvitations } from './invitations/invitation-sweep.js';
 import { createRequestDeferSweepStore } from './common/database/request-defer-store.js';
@@ -557,7 +558,8 @@ async function main(): Promise<void> {
 
   if (command.kind === 'once') {
     try {
-      const report = await runOutboxBatch(database, handlers, options);
+      // R7 slice 5: link previews ride `message.created.v1`; no hub in a batch, so no frame.
+      const report = await runOutboxBatch(database, withLinkPreviews(handlers, database), options);
       // x31: the second queue, drained in the same invocation. Sequential, not parallel —
       // the pool is capped at two connections and a controlled batch has no reason to race
       // itself for them. The heartbeat is written once both have run, so a beat still means
@@ -688,7 +690,7 @@ async function main(): Promise<void> {
   // loop leaves only by abort or by throwing, and a throw from either ends the process.
   try {
     await Promise.all([
-      runOutboxLoop(database, loopHandlers, {
+      runOutboxLoop(database, withLinkPreviews(loopHandlers, database, realtime?.hub), {
         ...options,
         pollIntervalMs: env.OUTBOX_POLL_INTERVAL_MS,
         signal: controller.signal,
