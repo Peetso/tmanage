@@ -267,6 +267,10 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     key: 'RouteTitle.portalDeliverable',
   },
   '/[orgSlug]/portal/files': { en: 'Files', key: 'RouteTitle.portalFiles' },
+  '/[orgSlug]/portal/files/[fileId]': {
+    en: 'File review',
+    key: 'RouteTitle.portalFileReview',
+  },
   '/[orgSlug]/portal/inbox': { en: 'Portal inbox', key: 'RouteTitle.portalInbox' },
   '/[orgSlug]/portal/people': { en: 'People', key: 'RouteTitle.portalPeople' },
   '/[orgSlug]/portal/requests': { en: 'Requests', key: 'RouteTitle.portalRequests' },

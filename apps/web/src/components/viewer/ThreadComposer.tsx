@@ -6,6 +6,7 @@ import type { ApiClient } from '../../lib/api/client';
 import type { ReviewAudience, ReviewMentionCandidate } from '../../lib/api/review';
 import { useT } from '../../lib/i18n/use-t';
 import { MentionPicker, mentionOptionId } from './MentionPicker';
+import { useReviewDoor } from './review-door';
 import { ViewerIcon } from './viewer-icons';
 
 export interface ComposerSubmit {
@@ -83,6 +84,8 @@ export function ThreadComposer({
   onCancel,
 }: ThreadComposerProps) {
   const t = useT();
+  const { door, teamName } = useReviewDoor();
+  const portal = door === 'portal';
   const id = useId();
   const textRef = useRef<HTMLTextAreaElement>(null);
   const [body, setBody] = useState(initialBody);
@@ -193,7 +196,7 @@ export function ThreadComposer({
           className="tm-viewer-composer__text"
           rows={3}
           value={body}
-          placeholder={label}
+          placeholder={portal && initialBody === '' ? t('Viewer.portal.placeholder') : label}
           aria-describedby={hintId}
           role={pickerOpen ? 'combobox' : undefined}
           aria-expanded={pickerOpen ? true : undefined}
@@ -252,7 +255,7 @@ export function ThreadComposer({
           <ViewerIcon name="at" />
         </button>
 
-        {canChooseAudience ? (
+        {canChooseAudience && !portal ? (
           <div
             className="tm-viewer-audience"
             role="radiogroup"
@@ -290,13 +293,18 @@ export function ThreadComposer({
         data-audience={audience}
         aria-live="polite"
       >
-        {canChooseAudience
-          ? audience === 'internal'
-            ? t('Viewer.audience.internalHint')
-            : t('Viewer.audience.clientHint')
-          : audience === 'client_visible'
-            ? t('Viewer.audience.replyClientHint')
-            : t('Viewer.audience.replyInternalHint')}
+        {portal
+          ? t('Viewer.portal.composerHint').replace(
+              '{team}',
+              teamName || t('Viewer.portal.teamFallback'),
+            )
+          : canChooseAudience
+            ? audience === 'internal'
+              ? t('Viewer.audience.internalHint')
+              : t('Viewer.audience.clientHint')
+            : audience === 'client_visible'
+              ? t('Viewer.audience.replyClientHint')
+              : t('Viewer.audience.replyInternalHint')}
       </p>
 
       {error}

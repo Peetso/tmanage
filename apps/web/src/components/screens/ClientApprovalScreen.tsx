@@ -14,6 +14,8 @@ import {
 import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { longDay } from './PortalParts';
+import { listPortalDeliverableFiles } from '../../lib/api/portal';
+import { PortalReviewLink } from './PortalReviewLink';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 
@@ -144,6 +146,12 @@ export function ClientApprovalScreen({
                 {t('ClientApprovalScreen.nothingToShow')}
               </div>
               <ProjectionBody view={view} />
+              <ReviewFiles
+                api={api}
+                organizationSlug={organizationSlug}
+                deliverableId={view.deliverableId}
+                deliverableVersionId={deliverableVersionId}
+              />
             </article>
 
             <div className="tm-pt-col">
@@ -234,6 +242,52 @@ export function ClientApprovalScreen({
         ) : null}
       </div>
     </ClientPortalShell>
+  );
+}
+
+/**
+ * R4 slice 8 (V-44, CL-08) — the deliverable's files the client can open in the viewer, each with
+ * a Review button and its open-comment count. Absent when there is nothing to review.
+ */
+function ReviewFiles({
+  api,
+  organizationSlug,
+  deliverableId,
+  deliverableVersionId,
+}: {
+  api: ApiClient;
+  organizationSlug: string;
+  deliverableId: string;
+  deliverableVersionId: string;
+}) {
+  const t = useT();
+  const files = useQuery({
+    queryKey: ['portal-deliverable-files', organizationSlug, deliverableId],
+    queryFn: () => listPortalDeliverableFiles(api, organizationSlug, deliverableId),
+  });
+  const rows = (files.data ?? []).filter((file) => file.reviewable);
+  if (rows.length === 0) return null;
+  return (
+    <section className="tm-pt-card" aria-label={t('Viewer.portal.reviewFiles')}>
+      <p className="tm-pt-eyebrow">{t('Viewer.portal.reviewFiles')}</p>
+      <ul className="tm-pt-files">
+        {rows.map((file) => (
+          <li key={file.id} className="tm-pt-item">
+            <span className="tm-pt-file__icon" aria-hidden="true" />
+            <div className="tm-pt-item__main">
+              <p className="tm-pt-item__title">{file.name}</p>
+            </div>
+            <PortalReviewLink
+              organizationSlug={organizationSlug}
+              fileId={file.id}
+              fileName={file.name}
+              openComments={file.openComments}
+              deliverableVersionId={deliverableVersionId}
+            />
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

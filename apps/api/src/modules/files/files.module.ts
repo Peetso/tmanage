@@ -58,6 +58,11 @@ import { FileDownloadsController } from './file-downloads.controller.js';
 import { FILE_PREVIEW_SERVICE, FilePreviewService } from './file-preview.service.js';
 import { FilePreviewsController } from './file-previews.controller.js';
 import { PortalFilePreviewsController } from './portal-file-previews.controller.js';
+import {
+  PortalFileReviewController,
+  PortalReviewMentionCandidatesController,
+  PortalReviewThreadsController,
+} from './portal-review.controller.js';
 import { REVIEW_SERVICE, ReviewService } from './review.service.js';
 import {
   FileReviewController,
@@ -518,6 +523,10 @@ export class FilesModule {
         FileReviewController,
         ReviewThreadsController,
         ReviewMentionCandidatesController,
+        // R4 slice 8 — the client's thread routes under /portal.
+        PortalFileReviewController,
+        PortalReviewThreadsController,
+        PortalReviewMentionCandidatesController,
         PortalFileListController,
         UsageController,
         FileTagsController,

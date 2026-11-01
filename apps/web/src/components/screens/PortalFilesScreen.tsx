@@ -11,6 +11,7 @@ import type { PortalFile } from '../../lib/api/portal';
 import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { shortDay } from './PortalParts';
+import { PortalOpenComments, PortalReviewLink } from './PortalReviewLink';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 import './download-scan-policy.css';
@@ -169,6 +170,7 @@ export function PortalFilesScreen({
                   <th scope="col">{t('PortalFilesScreen.thFile')}</th>
                   <th scope="col">{t('PortalFilesScreen.thBelongsTo')}</th>
                   <th scope="col">{t('PortalFilesScreen.thShared')}</th>
+                  <th scope="col">{t('Viewer.portal.commentsColumn')}</th>
                   <th scope="col">
                     <span className="tm-pt-visually-hidden">
                       {t('PortalFilesScreen.downloadLabel')}
@@ -195,6 +197,9 @@ export function PortalFilesScreen({
                     </td>
                     <td>{project.name}</td>
                     <td>{shortDay(file.uploadedAt)}</td>
+                    <td>
+                      <PortalOpenComments openComments={file.openComments} />
+                    </td>
                     <td>
                       <span className="tm-scan-row__actions">
                         {file.scanStatus === 'not_scanned' ? (
@@ -225,13 +230,22 @@ export function PortalFilesScreen({
                             {t('PortalFilesScreen.download')}
                           </a>
                         )}
+                        {file.reviewable && file.scanStatus !== 'being_checked' ? (
+                          <PortalReviewLink
+                            organizationSlug={organizationSlug}
+                            fileId={file.id}
+                            fileName={file.name}
+                            openComments={file.openComments}
+                            showCount={false}
+                          />
+                        ) : null}
                       </span>
                     </td>
                   </tr>
                 ))}
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={4}>
+                    <td colSpan={5}>
                       {t('PortalFilesScreen.noMatch')} “{search}”.
                     </td>
                   </tr>

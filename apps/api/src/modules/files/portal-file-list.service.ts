@@ -10,6 +10,8 @@ import { readDownloadScanPolicy } from '../tenancy/download-scan-policy.js';
 import type { ScannerPresence } from '../tenancy/download-scan-policy.js';
 import { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
+import { viewerKindFor } from './file-preview.service.js';
+import { ReviewThreadsRepository } from './review-threads.repository.js';
 
 /**
  * FILE-003 · WEB-006 — the client portal's file list, over the FILE-002 download surface.
@@ -65,6 +67,10 @@ export interface PortalFileView {
   readonly uploadedAt: string;
   /** C4. `clean` once scanned; otherwise what the owner's policy makes of an unscanned file. */
   readonly scanStatus: PortalFileScanStatus;
+  /** R4 slice 8. The proofing viewer can show this type (the row's "Review" button). */
+  readonly reviewable: boolean;
+  /** R4 slice 8. Open comments the client can see on this file (team-only ones never count). */
+  readonly openComments: number;
 }
 
 export class PortalFileListService {
@@ -76,6 +82,8 @@ export class PortalFileListService {
     private readonly settings: OrgSettingsRepository = new OrgSettingsRepository(),
     /** F48. The project's lifecycle, for the download door's own `authorize()` per row. */
     private readonly projects: ProjectsRepository = new ProjectsRepository(),
+    /** R4 slice 8. The open client-visible comment count per listed file. */
+    private readonly threads: ReviewThreadsRepository = new ReviewThreadsRepository(),
   ) {}
 
   /**
@@ -137,7 +145,15 @@ export class PortalFileListService {
       unscannedStatus ??= await this.unscannedStatus(context);
       files.push(toView(row.asset, row.version, unscannedStatus));
     }
-    return files;
+    if (files.length === 0) return files;
+    const open = await this.database.read(context, (runner) =>
+      this.threads.countOpenClientVisible(
+        runner,
+        context,
+        files.map((file) => file.id),
+      ),
+    );
+    return files.map((file) => ({ ...file, openComments: open.get(file.id) ?? 0 }));
   }
 
   /** C4. `allow_labeled` → `not_scanned` (downloadable, labelled); `block` → `being_checked`. */
@@ -192,13 +208,16 @@ function toView(
   version: FileVersionRow,
   scanStatus: PortalFileScanStatus,
 ): PortalFileView {
+  const contentType = version.detectedMimeType ?? version.declaredMimeType;
   return {
     id: asset.id,
     projectId: asset.projectId,
     name: asset.name,
     sizeBytes: version.sizeBytes,
-    contentType: version.detectedMimeType ?? version.declaredMimeType,
+    contentType,
     uploadedAt: asset.createdAt.toISOString(),
     scanStatus,
+    reviewable: viewerKindFor(contentType) !== 'unsupported',
+    openComments: 0,
   };
 }

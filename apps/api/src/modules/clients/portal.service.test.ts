@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { findForbiddenClientFields } from '@tmanage/domain';
+import type { ReviewThreadsRepository } from '../files/review-threads.repository.js';
 import { PortalService, progressOf } from './portal.service.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { WorkItemsRepository } from '../work/work-items.repository.js';
@@ -437,6 +438,11 @@ describe('PortalService.filesForDeliverable (x114)', () => {
         [{ asset: fileAsset('file-1'), version: fileVersion('file-1') }],
         (input) => (seen = input),
       ),
+      undefined,
+      undefined,
+      {
+        countOpenClientVisible: () => Promise.resolve(new Map([['file-1', 3]])),
+      } as unknown as ReviewThreadsRepository,
     );
 
     const result = await service.filesForDeliverable(
@@ -454,6 +460,8 @@ describe('PortalService.filesForDeliverable (x114)', () => {
         sizeBytes: 2048,
         mimeType: 'application/pdf',
         updatedAt: '2026-09-15T00:00:00.000Z',
+        reviewable: true,
+        openComments: 3,
       },
     ]);
     // Never the internal object key, nor any other forbidden field.

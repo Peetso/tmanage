@@ -326,6 +326,39 @@ export class ReviewThreadsRepository {
     return affected(result) > 0;
   }
 
+  /**
+   * R4 slice 8 — how many open, client-visible threads each listed file has (the portal's
+   * "comments waiting" count on its file and deliverable rows). Counts only live `file_asset`
+   * threads of this tenant; ids with none are absent from the map. Bounded by the caller's list.
+   */
+  async countOpenClientVisible(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    subjectIds: readonly string[],
+  ): Promise<ReadonlyMap<string, number>> {
+    const counts = new Map<string, number>();
+    if (subjectIds.length === 0) return counts;
+    const rows = await tenantDrizzle(runner)
+      .select({ subjectId: reviewThreads.subjectId, open: sql<number>`count(*)` })
+      .from(reviewThreads)
+      .where(
+        and(
+          eq(reviewThreads.organizationId, context.organizationId),
+          eq(reviewThreads.subjectType, 'file_asset'),
+          inArray(reviewThreads.subjectId, [...new Set(subjectIds)]),
+          eq(reviewThreads.audience, 'client_visible'),
+          eq(reviewThreads.status, 'open'),
+          isNull(reviewThreads.deletedAt),
+        ),
+      )
+      .groupBy(reviewThreads.subjectId);
+    for (const row of rows) {
+      const open = Number(row.open);
+      if (Number.isSafeInteger(open) && open > 0) counts.set(row.subjectId, open);
+    }
+    return counts;
+  }
+
   /** The file asset an uploaded version belongs to — the gate a thread-only route goes through. */
   async assetOfVersion(
     runner: TenantQueryRunner,

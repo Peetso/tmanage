@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { useT } from '../../lib/i18n/use-t';
 import type { ViewerTool } from './ViewerCanvas';
+import { useReviewDoor } from './review-door';
 import { ViewerIcon, type ViewerIconName } from './viewer-icons';
 
 export interface ViewerToolsProps {
@@ -18,11 +19,17 @@ export interface ViewerToolsProps {
  */
 export function ViewerTools({ tool, onTool, canComment }: ViewerToolsProps) {
   const t = useT();
+  // The client's viewer calls the pin "Comment" (V-40).
+  const { door } = useReviewDoor();
   const tools: readonly { id: ViewerTool; icon: ViewerIconName; label: string }[] = [
     { id: 'select', icon: 'cursor', label: t('Viewer.tool.select') },
     ...(canComment
       ? ([
-          { id: 'pin', icon: 'pin', label: t('Viewer.tool.pin') },
+          {
+            id: 'pin',
+            icon: 'pin',
+            label: door === 'portal' ? t('Viewer.portal.toolComment') : t('Viewer.tool.pin'),
+          },
           { id: 'box', icon: 'box', label: t('Viewer.tool.box') },
           { id: 'draw', icon: 'pen', label: t('Viewer.tool.draw') },
         ] as const)

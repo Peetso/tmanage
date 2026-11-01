@@ -1534,3 +1534,137 @@
     padding: 0;
   }
 }
+
+/* ── R4 slice 8 · portal viewer (V-40 – V-45) ───────────────────────────── */
+
+.tm-viewer-portal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-viewer-crumbs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-viewer-crumbs__link {
+  color: var(--ink-950);
+  text-decoration: none;
+}
+
+.tm-viewer-crumbs__link:hover,
+.tm-viewer-crumbs__link:focus-visible {
+  text-decoration: underline;
+}
+
+[dir='rtl'] .tm-viewer-crumbs > span[aria-hidden='true'] {
+  transform: scaleX(-1);
+}
+
+/* Decision card on top, client-visible comments below — both always in view (V-40). */
+.tm-viewer-rail-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  min-inline-size: 0;
+}
+
+.tm-viewer-rail-stack > .tm-viewer-rail {
+  flex: 1 1 auto;
+}
+
+.tm-viewer-rail__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s5) var(--s6) 0;
+}
+
+.tm-viewer-rail__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-heading-card);
+  font-weight: 500;
+}
+
+/* The portal rail keeps its counter visible beside the title on every screen. */
+.tm-viewer-portal .tm-viewer-rail__summary {
+  display: flex;
+}
+
+.tm-viewer-rail__note--team {
+  padding-block-start: var(--s2);
+}
+
+.tm-viewer-decision {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-viewer-decision__eyebrow {
+  margin: 0;
+  color: var(--ink-650);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tm-viewer-decision__hash {
+  margin: 0;
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-control);
+  background: var(--paper-150);
+  color: var(--ink-950);
+  font-family: var(--font-mono);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-viewer-decision__note {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-viewer-decision__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-viewer-decision__text {
+  resize: vertical;
+}
+
+.tm-viewer-decision__button {
+  inline-size: 100%;
+  min-block-size: 48px;
+}
+
+@media (max-width: 899px) {
+  /* V-41: the comments sheet first, the decision buttons sticky at the bottom. */
+  .tm-viewer-rail-stack {
+    gap: 0;
+  }
+
+  .tm-viewer-rail-stack > .tm-viewer-decision {
+    position: sticky;
+    inset-block-end: 0;
+    z-index: 2;
+    order: 2;
+    border-radius: 0;
+    border-inline: 0;
+    box-shadow: 0 -8px 24px rgb(9 10 9 / 8%);
+  }
+}

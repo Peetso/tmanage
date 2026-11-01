@@ -119,8 +119,14 @@ export interface MoveReviewThreadInput {
   readonly pageNo?: number | null;
 }
 
-function orgPath(organizationSlug: string): string {
-  return `/v1/organizations/${encodeURIComponent(organizationSlug)}`;
+/**
+ * Which door the viewer talks through: the studio's routes, or the client's twins under
+ * `/portal` (R4 slice 8). The API keeps the rules per door; the paths are the only difference.
+ */
+export type ReviewDoor = 'studio' | 'portal';
+
+function orgPath(organizationSlug: string, door: ReviewDoor = 'studio'): string {
+  return `/v1/organizations/${encodeURIComponent(organizationSlug)}${door === 'portal' ? '/portal' : ''}`;
 }
 
 export async function listReviewThreads(
@@ -128,13 +134,14 @@ export async function listReviewThreads(
   organizationSlug: string,
   fileId: string,
   options: { readonly versionId?: string; readonly status?: ReviewThreadStatus | 'all' } = {},
+  door: ReviewDoor = 'studio',
 ): Promise<ReviewThreadList> {
   const params = new URLSearchParams();
   if (options.versionId) params.set('versionId', options.versionId);
   if (options.status) params.set('status', options.status);
   const query = params.toString() === '' ? '' : `?${params.toString()}`;
   const { data } = await client.request<ReviewThreadList>({
-    path: `${orgPath(organizationSlug)}/files/${encodeURIComponent(fileId)}/review/threads${query}`,
+    path: `${orgPath(organizationSlug, door)}/files/${encodeURIComponent(fileId)}/review/threads${query}`,
   });
   return data;
 }
@@ -144,10 +151,11 @@ export async function createReviewThread(
   organizationSlug: string,
   fileId: string,
   input: CreateReviewThreadInput,
+  door: ReviewDoor = 'studio',
 ): Promise<ReviewThread> {
   const { data } = await client.request<ReviewThread>({
     method: 'POST',
-    path: `${orgPath(organizationSlug)}/files/${encodeURIComponent(fileId)}/review/threads`,
+    path: `${orgPath(organizationSlug, door)}/files/${encodeURIComponent(fileId)}/review/threads`,
     body: input,
   });
   return data;
@@ -158,10 +166,11 @@ export async function replyToReviewThread(
   organizationSlug: string,
   threadId: string,
   input: ReviewCommentInput,
+  door: ReviewDoor = 'studio',
 ): Promise<ReviewComment> {
   const { data } = await client.request<ReviewComment>({
     method: 'POST',
-    path: `${orgPath(organizationSlug)}/review/threads/${encodeURIComponent(threadId)}/comments`,
+    path: `${orgPath(organizationSlug, door)}/review/threads/${encodeURIComponent(threadId)}/comments`,
     body: input,
   });
   return data;
@@ -172,10 +181,11 @@ export async function setReviewThreadResolved(
   organizationSlug: string,
   threadId: string,
   resolved: boolean,
+  door: ReviewDoor = 'studio',
 ): Promise<ReviewThread> {
   const { data } = await client.request<ReviewThread>({
     method: 'POST',
-    path: `${orgPath(organizationSlug)}/review/threads/${encodeURIComponent(threadId)}/${resolved ? 'resolve' : 'unresolve'}`,
+    path: `${orgPath(organizationSlug, door)}/review/threads/${encodeURIComponent(threadId)}/${resolved ? 'resolve' : 'unresolve'}`,
   });
   return data;
 }
@@ -185,10 +195,11 @@ export async function moveReviewThread(
   organizationSlug: string,
   threadId: string,
   input: MoveReviewThreadInput,
+  door: ReviewDoor = 'studio',
 ): Promise<ReviewThread> {
   const { data } = await client.request<ReviewThread>({
     method: 'PATCH',
-    path: `${orgPath(organizationSlug)}/review/threads/${encodeURIComponent(threadId)}`,
+    path: `${orgPath(organizationSlug, door)}/review/threads/${encodeURIComponent(threadId)}`,
     body: input,
   });
   return data;
@@ -199,10 +210,11 @@ export async function editReviewComment(
   organizationSlug: string,
   commentId: string,
   input: ReviewCommentInput,
+  door: ReviewDoor = 'studio',
 ): Promise<ReviewComment> {
   const { data } = await client.request<ReviewComment>({
     method: 'PATCH',
-    path: `${orgPath(organizationSlug)}/review/comments/${encodeURIComponent(commentId)}`,
+    path: `${orgPath(organizationSlug, door)}/review/comments/${encodeURIComponent(commentId)}`,
     body: input,
   });
   return data;
@@ -212,10 +224,11 @@ export async function deleteReviewComment(
   client: ApiClient,
   organizationSlug: string,
   commentId: string,
+  door: ReviewDoor = 'studio',
 ): Promise<void> {
   await client.request<unknown>({
     method: 'DELETE',
-    path: `${orgPath(organizationSlug)}/review/comments/${encodeURIComponent(commentId)}`,
+    path: `${orgPath(organizationSlug, door)}/review/comments/${encodeURIComponent(commentId)}`,
   });
 }
 
@@ -228,6 +241,7 @@ export async function searchReviewMentionCandidates(
     readonly audience?: ReviewAudience;
     readonly limit?: number;
   } = {},
+  door: ReviewDoor = 'studio',
 ): Promise<ReviewMentionCandidates> {
   const params = new URLSearchParams();
   if (options.q) params.set('q', options.q);
@@ -235,7 +249,7 @@ export async function searchReviewMentionCandidates(
   if (options.limit) params.set('limit', String(options.limit));
   const query = params.toString() === '' ? '' : `?${params.toString()}`;
   const { data } = await client.request<ReviewMentionCandidates>({
-    path: `${orgPath(organizationSlug)}/projects/${encodeURIComponent(projectId)}/review/mention-candidates${query}`,
+    path: `${orgPath(organizationSlug, door)}/projects/${encodeURIComponent(projectId)}/review/mention-candidates${query}`,
   });
   return data;
 }

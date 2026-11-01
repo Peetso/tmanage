@@ -1,0 +1,19 @@
+/* R4 slice 8 (V-44) — the "Review" button and open-comment count on portal file rows. */
+
+.tm-pt-review {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-inline-start: auto;
+}
+
+.tm-pt-review__count {
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  white-space: nowrap;
+}
+
+.tm-pt-review__count[data-open='true'] {
+  color: var(--ink-950);
+  font-weight: 500;
+}

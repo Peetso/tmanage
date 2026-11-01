@@ -135,6 +135,32 @@ describe('ReviewThreadsRepository', () => {
     expect(none.statements).toHaveLength(0);
   });
 
+  it('counts open client-visible threads per file, tenant-scoped, one statement', async () => {
+    const a = uuidv7();
+    const b = uuidv7();
+    const { runner, statements } = fakeRunner([
+      [
+        [a, '3'],
+        [b, 0],
+      ],
+    ]);
+    const counts = await threads.countOpenClientVisible(runner, context, [a, b, a]);
+    expect(counts.get(a)).toBe(3);
+    expect(counts.has(b)).toBe(false);
+    const sql = statements[0]?.sql ?? '';
+    expect(sql).toContain('`review_threads`.`organization_id` = ?');
+    expect(sql).toContain('`review_threads`.`audience` = ?');
+    expect(sql).toContain('`review_threads`.`status` = ?');
+    expect(sql).toContain('`review_threads`.`deleted_at` is null');
+    expect(sql).toMatch(/group by `review_threads`.`subject_id`/);
+    expect(statements[0]?.params).toEqual(
+      expect.arrayContaining([ORG, 'file_asset', 'client_visible', 'open']),
+    );
+    const none = fakeRunner([]);
+    expect((await threads.countOpenClientVisible(none.runner, context, [])).size).toBe(0);
+    expect(none.statements).toHaveLength(0);
+  });
+
   it('parses an anchor answered as text (MariaDB JSON)', async () => {
     const id = uuidv7();
     const now = new Date();

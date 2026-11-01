@@ -10,6 +10,7 @@ import {
   type ReviewMentionCandidate,
 } from '../../lib/api/review';
 import { useT } from '../../lib/i18n/use-t';
+import { useReviewDoor } from './review-door';
 
 export interface MentionPickerProps {
   readonly api: ApiClient;
@@ -50,20 +51,24 @@ export function MentionPicker({
   onPick,
 }: MentionPickerProps) {
   const t = useT();
+  const { door } = useReviewDoor();
   const candidates = useQuery({
-    queryKey: ['review-mention-candidates', organizationSlug, projectId, audience, query],
+    queryKey: ['review-mention-candidates', door, organizationSlug, projectId, audience, query],
     queryFn: () =>
-      searchReviewMentionCandidates(api, organizationSlug, projectId, {
-        q: query,
-        audience,
-        limit: 8,
-      }),
+      searchReviewMentionCandidates(
+        api,
+        organizationSlug,
+        projectId,
+        { q: query, audience, limit: 8 },
+        door,
+      ),
     staleTime: 30_000,
   });
 
   const rows = candidates.data?.candidates ?? [];
   const team = rows.filter((row) => row.kind === 'internal');
-  const client = rows.filter((row) => row.kind === 'client');
+  // A client names the team it is talking to (V-42); its own colleagues are not listed.
+  const client = door === 'portal' ? [] : rows.filter((row) => row.kind === 'client');
   const ordered = [...team, ...client];
 
   useEffect(() => {

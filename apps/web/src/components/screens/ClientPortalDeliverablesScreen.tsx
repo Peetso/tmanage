@@ -15,6 +15,7 @@ import type { PortalDeliverable, PortalDeliverableFile, PortalProject } from '..
 import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { Segmented, shortDay, Tag } from './PortalParts';
+import { PortalReviewLink } from './PortalReviewLink';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 
@@ -338,6 +339,7 @@ function DeliverablePanel({ api, organizationSlug, deliverable, lead }: Delivera
             api={api}
             organizationSlug={organizationSlug}
             deliverableId={deliverable.deliverableId}
+            deliverableVersionId={deliverable.id}
           />
         ) : null}
       </div>
@@ -349,12 +351,19 @@ interface DeliverableFilesProps {
   api: ApiClient;
   organizationSlug: string;
   deliverableId: string;
+  /** R4 slice 8. The published version the Review button opens the viewer for. */
+  deliverableVersionId: string;
 }
 
 /**
  * The files attached to one deliverable, fetched the first time the disclosure opens.
  */
-function DeliverableFiles({ api, organizationSlug, deliverableId }: DeliverableFilesProps) {
+function DeliverableFiles({
+  api,
+  organizationSlug,
+  deliverableId,
+  deliverableVersionId,
+}: DeliverableFilesProps) {
   const describe = useDescribeApiError(PORTAL_LINES);
   const t = useT();
   const files = useQuery({
@@ -392,6 +401,15 @@ function DeliverableFiles({ api, organizationSlug, deliverableId }: DeliverableF
             <p className="tm-pt-item__title">{file.name}</p>
             <p className="tm-pt-mono">{describeFile(file)}</p>
           </div>
+          {file.reviewable ? (
+            <PortalReviewLink
+              organizationSlug={organizationSlug}
+              fileId={file.id}
+              fileName={file.name}
+              openComments={file.openComments}
+              deliverableVersionId={deliverableVersionId}
+            />
+          ) : null}
         </li>
       ))}
     </ul>

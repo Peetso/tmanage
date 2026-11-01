@@ -669,6 +669,10 @@ export interface PortalDeliverableFile {
   readonly sizeBytes: number;
   readonly mimeType: string | null;
   readonly updatedAt: string;
+  /** R4 slice 8. The proofing viewer can show this type (the row's "Review" button). */
+  readonly reviewable: boolean;
+  /** R4 slice 8. Open comments the client can see on this file. */
+  readonly openComments: number;
 }
 
 export async function listPortalDeliverables(
@@ -713,6 +717,10 @@ export interface PortalFile {
    * `not_scanned` downloads, labelled; `being_checked` cannot be downloaded until the scan is done.
    */
   readonly scanStatus: PortalFileScanStatus;
+  /** R4 slice 8. The proofing viewer can show this type (the row's "Review" button). */
+  readonly reviewable: boolean;
+  /** R4 slice 8. Open comments the client can see on this file. */
+  readonly openComments: number;
 }
 
 /** C4. Mirrors the API's `PortalFileScanStatus`. */

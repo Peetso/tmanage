@@ -12,6 +12,8 @@ import {
 } from '../work/work-items.repository.js';
 import { ClientProjectionsRepository } from '../approvals/client-projections.repository.js';
 import { FileAssetsRepository } from '../files/file-assets.repository.js';
+import { viewerKindFor } from '../files/file-preview.service.js';
+import { ReviewThreadsRepository } from '../files/review-threads.repository.js';
 import {
   ProjectUpdatesRepository,
   effectivePageSize as projectUpdatePageSize,
@@ -160,6 +162,10 @@ export interface PortalDeliverableFileView {
   /** The detected content type of the latest version, or null when none was detected. */
   readonly mimeType: string | null;
   readonly updatedAt: string;
+  /** R4 slice 8. The proofing viewer can show this type (the row's "Review" button). */
+  readonly reviewable: boolean;
+  /** R4 slice 8. Open comments the client can see on this file (team-only ones never count). */
+  readonly openComments: number;
 }
 
 /**
@@ -343,6 +349,8 @@ function toDeliverableFileView(
     sizeBytes: version.sizeBytes,
     mimeType: version.detectedMimeType,
     updatedAt: asset.updatedAt.toISOString(),
+    reviewable: viewerKindFor(version.detectedMimeType) !== 'unsupported',
+    openComments: 0,
   };
 }
 
@@ -410,6 +418,8 @@ export class PortalService {
      * recording is best-effort and never breaks or delays the client's read.
      */
     private readonly accessRecorder?: PortalAccessRecorder,
+    /** R4 slice 8. The open client-visible comment count on each deliverable file. */
+    private readonly reviewThreads: ReviewThreadsRepository = new ReviewThreadsRepository(),
   ) {}
 
   /** A10 — the linked-milestone check and the unpublish dialog's "already opened" read. */
@@ -656,11 +666,20 @@ export class PortalService {
         clientOrganizationId,
       }),
     );
-    return rows
+    const files = rows
       .filter(
         (row): row is { asset: FileAssetRow; version: FileVersionRow } => row.version !== null,
       )
       .map((row) => toDeliverableFileView(row.asset, row.version));
+    if (files.length === 0) return files;
+    const open = await this.database.read(context, (runner) =>
+      this.reviewThreads.countOpenClientVisible(
+        runner,
+        context,
+        files.map((file) => file.id),
+      ),
+    );
+    return files.map((file) => ({ ...file, openComments: open.get(file.id) ?? 0 }));
   }
 
   /**

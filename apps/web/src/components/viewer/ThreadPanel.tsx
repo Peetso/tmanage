@@ -26,6 +26,7 @@ import {
   useShortTime,
   useThreadMeta,
 } from './ThreadCard';
+import { useReviewDoor } from './review-door';
 import { ThreadComposer, type ComposerSubmit } from './ThreadComposer';
 import { ViewerIcon } from './viewer-icons';
 
@@ -107,6 +108,8 @@ export function ThreadPanel({
   onChanged,
 }: ThreadPanelProps) {
   const t = useT();
+  const { door, teamName } = useReviewDoor();
+  const portal = door === 'portal';
   const describeError = useDescribeApiError();
   const id = useId();
   const [tab, setTab] = useState<PanelTab>('comments');
@@ -180,42 +183,51 @@ export function ThreadPanel({
   return (
     <aside className="tm-viewer-rail" aria-label={t('Viewer.rail.label')}>
       <div className="tm-viewer-rail__handle" aria-hidden="true" />
-      <div className="tm-viewer-tabs" role="tablist" aria-label={t('Viewer.rail.tabs')}>
-        {tabs.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="tab"
-            id={`${id}-tab-${item.id}`}
-            aria-selected={tab === item.id}
-            aria-controls={`${id}-panel-${item.id}`}
-            tabIndex={tab === item.id ? 0 : -1}
-            className="tm-viewer-tabs__tab"
-            onClick={() => setTab(item.id)}
-            onKeyDown={(event) => {
-              const order = tabs.map((entry) => entry.id);
-              const index = order.indexOf(item.id);
-              const rtl = document.documentElement.dir === 'rtl';
-              const forward = rtl ? 'ArrowLeft' : 'ArrowRight';
-              const back = rtl ? 'ArrowRight' : 'ArrowLeft';
-              if (event.key !== forward && event.key !== back) return;
-              event.preventDefault();
-              const next =
-                order[(index + (event.key === forward ? 1 : order.length - 1)) % order.length]!;
-              setTab(next);
-              document.getElementById(`${id}-tab-${next}`)?.focus();
-            }}
-          >
-            {item.label}
-            {item.count !== undefined ? (
-              <span className="tm-viewer-tabs__count">{item.count}</span>
-            ) : null}
-          </button>
-        ))}
-      </div>
+      {portal ? (
+        <div className="tm-viewer-rail__title-row">
+          <h2 id={`${id}-tab-comments`} className="tm-viewer-rail__title">
+            {t('Viewer.tab.comments')}
+          </h2>
+        </div>
+      ) : null}
+      {portal ? null : (
+        <div className="tm-viewer-tabs" role="tablist" aria-label={t('Viewer.rail.tabs')}>
+          {tabs.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              id={`${id}-tab-${item.id}`}
+              aria-selected={tab === item.id}
+              aria-controls={`${id}-panel-${item.id}`}
+              tabIndex={tab === item.id ? 0 : -1}
+              className="tm-viewer-tabs__tab"
+              onClick={() => setTab(item.id)}
+              onKeyDown={(event) => {
+                const order = tabs.map((entry) => entry.id);
+                const index = order.indexOf(item.id);
+                const rtl = document.documentElement.dir === 'rtl';
+                const forward = rtl ? 'ArrowLeft' : 'ArrowRight';
+                const back = rtl ? 'ArrowRight' : 'ArrowLeft';
+                if (event.key !== forward && event.key !== back) return;
+                event.preventDefault();
+                const next =
+                  order[(index + (event.key === forward ? 1 : order.length - 1)) % order.length]!;
+                setTab(next);
+                document.getElementById(`${id}-tab-${next}`)?.focus();
+              }}
+            >
+              {item.label}
+              {item.count !== undefined ? (
+                <span className="tm-viewer-tabs__count">{item.count}</span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div
-        role="tabpanel"
+        role={portal ? 'region' : 'tabpanel'}
         id={`${id}-panel-${tab}`}
         aria-labelledby={`${id}-tab-${tab}`}
         className="tm-viewer-rail__body"
@@ -318,8 +330,8 @@ export function ThreadPanel({
                       label={t('Viewer.composer.newLabel')}
                       submitLabel={t('Viewer.composer.post')}
                       pendingLabel={t('Viewer.composer.posting')}
-                      audience="internal"
-                      canChooseAudience
+                      audience={portal ? 'client_visible' : 'internal'}
+                      canChooseAudience={!portal}
                       pending={creatingGeneral}
                       focusOnOpen
                       error={
@@ -352,6 +364,14 @@ export function ThreadPanel({
                     </>
                   )}
                 </div>
+              ) : null}
+              {portal ? (
+                <p className="tm-viewer-rail__note tm-viewer-rail__note--team">
+                  {t('Viewer.portal.railNote').replace(
+                    '{team}',
+                    teamName || t('Viewer.portal.teamFallback'),
+                  )}
+                </p>
               ) : null}
             </>
           )
@@ -494,6 +514,7 @@ function ThreadDetail({
   onChanged,
 }: ThreadDetailProps) {
   const t = useT();
+  const { door } = useReviewDoor();
   const describeError = useDescribeApiError();
   const meta = useThreadMeta();
   const [editing, setEditing] = useState<string | null>(null);
@@ -501,10 +522,13 @@ function ThreadDetail({
 
   const reply = useMutation({
     mutationFn: (input: ComposerSubmit) =>
-      replyToReviewThread(api, organizationSlug, thread.id, {
-        body: input.body,
-        mentions: input.mentions,
-      }),
+      replyToReviewThread(
+        api,
+        organizationSlug,
+        thread.id,
+        { body: input.body, mentions: input.mentions },
+        door,
+      ),
     onSuccess: async () => {
       setReplyKey((key) => key + 1);
       await onChanged();
@@ -512,22 +536,25 @@ function ThreadDetail({
   });
   const resolve = useMutation({
     mutationFn: (resolved: boolean) =>
-      setReviewThreadResolved(api, organizationSlug, thread.id, resolved),
+      setReviewThreadResolved(api, organizationSlug, thread.id, resolved, door),
     onSuccess: () => onChanged(),
   });
   const edit = useMutation({
     mutationFn: (input: { commentId: string } & ComposerSubmit) =>
-      editReviewComment(api, organizationSlug, input.commentId, {
-        body: input.body,
-        mentions: input.mentions,
-      }),
+      editReviewComment(
+        api,
+        organizationSlug,
+        input.commentId,
+        { body: input.body, mentions: input.mentions },
+        door,
+      ),
     onSuccess: async () => {
       setEditing(null);
       await onChanged();
     },
   });
   const remove = useMutation({
-    mutationFn: (commentId: string) => deleteReviewComment(api, organizationSlug, commentId),
+    mutationFn: (commentId: string) => deleteReviewComment(api, organizationSlug, commentId, door),
     onSuccess: () => onChanged(),
   });
 
@@ -546,7 +573,7 @@ function ThreadDetail({
         <h2 id={`tm-viewer-thread-${thread.id}`} className="tm-viewer-detail__title">
           {t('Viewer.thread.title').replace('{number}', String(thread.number))}
         </h2>
-        {thread.audience === 'internal' ? (
+        {door === 'portal' ? null : thread.audience === 'internal' ? (
           <Badge>{t('Viewer.audience.internal')}</Badge>
         ) : (
           <Badge tone="client">{t('Viewer.audience.client')}</Badge>

@@ -4,6 +4,7 @@ import { Avatar, Badge, StateCapsule } from '@tmanage/ui';
 import type { ReviewComment, ReviewPerson, ReviewThread } from '../../lib/api/review';
 import { useDisplayFormatters } from '../../lib/i18n/use-formatters';
 import { useT } from '../../lib/i18n/use-t';
+import { useReviewDoor } from './review-door';
 
 /** A person's name, or the "former member" word when they have left. */
 export function personName(person: ReviewPerson, formerMember: string): string {
@@ -91,6 +92,7 @@ export interface ThreadCardProps {
  */
 export function ThreadCard({ thread, selected, optionId, active, onOpen }: ThreadCardProps) {
   const t = useT();
+  const { door } = useReviewDoor();
   const meta = useThreadMeta();
   const shortTime = useShortTime();
   const first: ReviewComment | undefined = thread.comments[0];
@@ -123,7 +125,7 @@ export function ThreadCard({ thread, selected, optionId, active, onOpen }: Threa
           <span className="tm-viewer-card__tag">
             {thread.status === 'resolved' ? (
               <StateCapsule state="done">{t('Viewer.thread.resolved')}</StateCapsule>
-            ) : thread.audience === 'internal' ? (
+            ) : door === 'portal' ? null : thread.audience === 'internal' ? (
               <Badge>{t('Viewer.audience.internal')}</Badge>
             ) : (
               <Badge tone="client">{t('Viewer.audience.client')}</Badge>

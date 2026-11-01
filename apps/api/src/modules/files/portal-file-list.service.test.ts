@@ -4,6 +4,7 @@ import { PortalFileListService } from './portal-file-list.service.js';
 import type { FileAssetsRepository } from './file-assets.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { FileAssetRow, FileVersionRow } from '../../common/database/schema.js';
+import type { ReviewThreadsRepository } from './review-threads.repository.js';
 import { ApiError } from '../../common/http/errors.js';
 import type { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import type { ScannerPresence } from '../tenancy/download-scan-policy.js';
@@ -118,6 +119,7 @@ function serviceWith(
     readonly scanner?: ScannerPresence;
     readonly stored?: string;
     readonly archivedAt?: Date;
+    readonly openComments?: ReadonlyMap<string, number>;
   } = {},
 ): PortalFileListService {
   const assets = {
@@ -131,7 +133,17 @@ function serviceWith(
     findById: () =>
       Promise.resolve({ id: READABLE_PROJECT, archivedAt: policy.archivedAt ?? null }),
   } as unknown as ProjectsRepository;
-  return new PortalFileListService(fakeDatabase(), assets, policy.scanner, settings, projects);
+  const threads = {
+    countOpenClientVisible: () => Promise.resolve(policy.openComments ?? new Map()),
+  } as unknown as ReviewThreadsRepository;
+  return new PortalFileListService(
+    fakeDatabase(),
+    assets,
+    policy.scanner,
+    settings,
+    projects,
+    threads,
+  );
 }
 
 /** C4. A verified file the scan has not judged yet, still in quarantine. */
@@ -146,6 +158,25 @@ function awaiting(id: string): Candidate {
 }
 
 describe('PortalFileListService.listForClient', () => {
+  it('R4 slice 8: says which files the viewer can open and how many comments wait on each', async () => {
+    const service = serviceWith(
+      [
+        candidate({ id: 'proof', requestClientOrganizationId: CLIENT_ORG }),
+        candidate({ id: 'quiet', requestClientOrganizationId: CLIENT_ORG }),
+      ],
+      { openComments: new Map([['proof', 2]]) },
+    );
+    const files = await service.listForClient(
+      context,
+      clientPrincipal(READABLE_PROJECT),
+      READABLE_PROJECT,
+    );
+    expect(files.map((f) => [f.id, f.reviewable, f.openComments])).toEqual([
+      ['proof', true, 2],
+      ['quiet', true, 0],
+    ]);
+  });
+
   it('lists a client-org servable file and hides a sibling client and an unpublished one', async () => {
     const service = serviceWith([
       candidate({ id: 'own-clean', requestClientOrganizationId: CLIENT_ORG }),
