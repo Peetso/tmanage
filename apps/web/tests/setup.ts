@@ -24,3 +24,17 @@ afterEach(() => {
     document.cookie = 'tmanage_locale=; Path=/; Max-Age=0';
   }
 });
+
+// R5: jsdom has no layout. The rich document editor (ProseMirror, Tiptap's floating menus) asks
+// for range rectangles, the element under a point and resize observers; answer with empty ones.
+if (typeof window !== 'undefined') {
+  Range.prototype.getBoundingClientRect ??= () => new DOMRect(0, 0, 0, 0);
+  Range.prototype.getClientRects ??= () =>
+    Object.assign([], { item: () => null }) as unknown as DOMRectList;
+  document.elementFromPoint ??= () => null;
+  globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+}

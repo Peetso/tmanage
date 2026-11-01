@@ -30,6 +30,8 @@ export interface DocumentView {
   readonly projectId: string;
   readonly title: string;
   readonly body: string;
+  /** R5 (0272). `markdown` = the textarea era; `html` = the rich editor's sanitised body. */
+  readonly bodyFormat: DocumentBodyFormat;
   readonly createdByUserId: string;
   /** ISO-8601 instant. */
   readonly createdAt: string;
@@ -43,11 +45,15 @@ export interface DocumentView {
  * One version of a document — paired Exact with the API's `DocumentVersionView` in the contracts
  * gate. `organizationId` is absent on both sides: the wire projection never echoes the tenant id.
  */
+/** How a body is stored (R5-SPEC §3). */
+export type DocumentBodyFormat = 'markdown' | 'html';
+
 export interface DocumentVersionSummary {
   readonly id: string;
   readonly documentId: string;
   readonly versionNo: number;
   readonly body: string;
+  readonly bodyFormat: DocumentBodyFormat;
   readonly editedByUserId: string;
   readonly createdAt: string;
 }
@@ -160,19 +166,67 @@ export async function getDocumentVersion(
   return data;
 }
 
+export interface SaveDocumentVersionOptions {
+  readonly format?: DocumentBodyFormat;
+  /**
+   * The newest version number the editor loaded. A save made after someone else's answers 409
+   * `DOC_VERSION_CONFLICT` (with `currentVersionNo`) instead of overwriting it.
+   */
+  readonly expectedVersionNo?: number;
+}
+
 /** Save a new version: append an immutable snapshot and bump the current body. */
 export async function saveDocumentVersion(
   client: ApiClient,
   organizationSlug: string,
   documentId: string,
   body: string,
+  options: SaveDocumentVersionOptions = {},
 ): Promise<DocumentVersionSummary> {
   const { data } = await client.request<DocumentVersionSummary>({
     method: 'POST',
     path: `${base(organizationSlug, documentId)}/versions`,
-    body: { body },
+    body: {
+      body,
+      ...(options.format ? { format: options.format } : {}),
+      ...(options.expectedVersionNo !== undefined
+        ? { expectedVersionNo: options.expectedVersionNo }
+        : {}),
+    },
   });
   return data;
+}
+
+/** One person with the document open in the editor (seen within the last 30 s). */
+export interface DocumentEditor {
+  readonly userId: string;
+  readonly name: string;
+  readonly lastSeenAt: string;
+}
+
+/** Who else is editing (`GET …/presence`, in-memory on the server, 30 s TTL). */
+export async function getDocumentPresence(
+  client: ApiClient,
+  organizationSlug: string,
+  documentId: string,
+): Promise<readonly DocumentEditor[]> {
+  const { data } = await client.request<{ editors: readonly DocumentEditor[] }>({
+    path: `${base(organizationSlug, documentId)}/presence`,
+  });
+  return data.editors;
+}
+
+/** "I am editing this document" — sent every 15 s while the editor has focus. */
+export async function touchDocumentPresence(
+  client: ApiClient,
+  organizationSlug: string,
+  documentId: string,
+): Promise<void> {
+  await client.request<unknown>({
+    method: 'PUT',
+    path: `${base(organizationSlug, documentId)}/presence`,
+    body: {},
+  });
 }
 
 /** Restore a prior version: write a NEW version equal to it (forward-append, history is intact). */

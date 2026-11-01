@@ -1,16 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import type { Editor } from '@tiptap/core';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { DocumentEditorScreen } from '../src/components/screens/DocumentEditorScreen';
 import { DocsHubScreen } from '../src/components/screens/DocsHubScreen';
-import {
-  applyDocEdit,
-  diffLines,
-  DOC_TOOL_EDITS,
-  slashTriggerAt,
-} from '../src/components/docs/doc-markdown';
+import { diffLines } from '../src/components/docs/doc-markdown';
 import { ApiClient } from '../src/lib/api/client';
 import { expectNoAxeViolations } from './axe';
 
@@ -19,9 +15,24 @@ import { expectNoAxeViolations } from './axe';
  *
  * The API's version append, publish and relation checks are proved in `apps/api`. What only this
  * file can prove is what the screen does: a blank body shows the placeholder and "Or start from a
- * template"; the toolbar writes markdown at the selection; a pause in typing saves a version;
- * the docs column lists recent documents; and the hub's "New doc" creates a blank document.
+ * template"; a pause in typing saves an HTML version; a 409 shows the "Newer version" banner;
+ * "/" inserts blocks; presence shows who else is editing; the docs column lists recent documents;
+ * and the hub's "New doc" creates a blank document.
  */
+
+vi.mock('../src/lib/api/uploads', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  uploadProjectFile: vi.fn(() => Promise.resolve('file-1')),
+}));
+
+/** The Tiptap editor behind the body (Tiptap keeps it on its DOM node). */
+async function bodyEditor(): Promise<Editor> {
+  const body = (await screen.findByRole('textbox', { name: 'Document body' })) as HTMLElement & {
+    editor?: Editor;
+  };
+  await waitFor(() => expect(body.editor).toBeDefined());
+  return body.editor as Editor;
+}
 
 interface Call {
   readonly url: string;
@@ -67,6 +78,7 @@ const BLANK = {
   projectId: 'proj-1',
   title: 'Atlas launch plan',
   body: '\n',
+  bodyFormat: 'markdown',
   createdByUserId: 'user-1',
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
@@ -114,14 +126,16 @@ function handler(call: Call): Response {
       return json({
         id: 'v1',
         documentId: DOCUMENT_ID,
-        versionNo: 1,
+        versionNo: 2,
         body: 'x',
+        bodyFormat: 'html',
         editedByUserId: 'user-1',
         createdAt: new Date().toISOString(),
       });
     }
     return json({ versions: [] });
   }
+  if (call.url.endsWith('/presence')) return json({ editors: [] });
   if (call.url.includes(`/documents/${DOCUMENT_ID}`)) return json(BLANK);
   if (call.url.endsWith('/documents') && call.method === 'POST') {
     return json({ ...BLANK, id: 'doc-new', title: 'Untitled doc' }, 201);
@@ -129,26 +143,27 @@ function handler(call: Call): Response {
   return json({}, 404);
 }
 
-function editor(calls: Call[] = []) {
+function screenOver(over: (call: Call) => Response, calls: Call[] = []) {
   return withQuery(
     <DocumentEditorScreen
       organizationSlug="acme"
       organizationName="Acme"
       documentId={DOCUMENT_ID}
-      client={clientOver(handler, calls)}
+      client={clientOver(over, calls)}
       autosaveDelayMs={20}
     />,
   );
 }
 
+const editor = (calls: Call[] = []) => screenOver(handler, calls);
+
 describe('DocumentEditorScreen — the blank new doc', () => {
   it('shows the blank sheet as designed: placeholder, Draft, template link, recent docs', async () => {
     const { container } = render(editor());
-    const body = await screen.findByLabelText('Document body');
-    expect(body).toHaveValue('');
-    expect(body).toHaveAttribute(
-      'placeholder',
-      'Start writing, or type / for headings, lists and checklists.',
+    expect((await bodyEditor()).isEmpty).toBe(true);
+    expect(container.querySelector('[data-placeholder]')).toHaveAttribute(
+      'data-placeholder',
+      'Start writing, or type / for headings, tables, images and more.',
     );
     expect(screen.getByRole('heading', { level: 2, name: 'Atlas launch plan' })).toBeVisible();
     expect(screen.getByText('Draft')).toBeVisible();
@@ -171,99 +186,67 @@ describe('DocumentEditorScreen — the blank new doc', () => {
     await expectNoAxeViolations(container);
   });
 
-  it('writes markdown from the toolbar and autosaves the pause as a version', async () => {
+  it('autosaves the pause as an HTML version', async () => {
     const calls: Call[] = [];
     render(editor(calls));
-    const body = await screen.findByLabelText('Document body');
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'H1' }));
-    expect(body).toHaveValue('# ');
-    await user.type(body, 'Goals');
-    await user.click(screen.getByRole('button', { name: /Checklist/ }));
-    expect((body as HTMLTextAreaElement).value).toContain('- [ ] ');
+    const ed = await bodyEditor();
+    act(() => {
+      ed.commands.insertContent('Goals');
+    });
     await waitFor(() =>
-      expect(calls.some((call) => call.method === 'POST' && call.url.endsWith('/versions'))).toBe(
-        true,
-      ),
+      expect(calls.find((c) => c.method === 'POST' && c.url.endsWith('/versions'))?.body).toEqual({
+        body: '<p dir="auto">Goals</p>',
+        format: 'html',
+      }),
     );
   });
 
-  it('the toolbar edits wrap, prefix and link at the selection', () => {
-    expect(applyDocEdit('a b', 2, 3, DOC_TOOL_EDITS.bold).text).toBe('a **b**');
-    expect(applyDocEdit('one\ntwo', 4, 7, DOC_TOOL_EDITS.list).text).toBe('one\n- two');
-    expect(applyDocEdit('', 0, 0, DOC_TOOL_EDITS.link, 'site').text).toBe('[site](https://)');
-  });
-  // Live test 2026-10-31 — Bold left the caret after "text", so "boldword" landed beside it.
-  it('selects an inserted placeholder so the next word replaces it', () => {
-    const bold = applyDocEdit('', 0, 0, DOC_TOOL_EDITS.bold, 'text');
-    expect(bold).toEqual({ text: '**text**', selectionStart: 2, caret: 6 });
-    const link = applyDocEdit('', 0, 0, DOC_TOOL_EDITS.link, 'text');
-    expect(link.text.slice(link.selectionStart, link.caret)).toBe('text');
-    // With a selection the caret goes after it, nothing selected.
-    const wrapped = applyDocEdit('a b', 2, 3, DOC_TOOL_EDITS.bold);
-    expect(wrapped.selectionStart).toBe(wrapped.caret);
+  it('a 409 shows the "Newer version" banner and Reload refetches the document', async () => {
+    const calls: Call[] = [];
+    const stale = (call: Call): Response =>
+      call.method === 'POST' && call.url.endsWith('/versions')
+        ? json({ error: { code: 'conflict', message: 'Newer version' } }, 409)
+        : handler(call);
+    render(screenOver(stale, calls));
+    const ed = await bodyEditor();
+    act(() => {
+      ed.commands.insertContent('Mine');
+    });
+    expect(await screen.findByRole('alert')).toHaveTextContent('Newer version');
+    expect(screen.getByText('Not saved · newer version')).toBeVisible();
+    const reads = () => calls.filter((c) => c.url.endsWith(`/documents/${DOCUMENT_ID}`)).length;
+    const before = reads();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Reload' }));
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    expect(reads()).toBe(before + 1);
   });
 
-  // Live test 2026-10-31 — words typed straight after a toolbar click were lost ("- - - - **text**").
-  it('keeps the focus in the body after a toolbar click, so typing goes into the doc', async () => {
+  it('"/tab" then Enter inserts a table', async () => {
     render(editor());
-    const body = (await screen.findByLabelText('Document body')) as HTMLTextAreaElement;
-    const user = userEvent.setup();
-    await user.click(body);
-    await user.click(screen.getByRole('button', { name: 'B' }));
-    await waitFor(() => expect(document.activeElement).toBe(body));
-    await user.keyboard('bold words');
-    expect(body.value).toBe('**bold words**');
-    await user.click(screen.getByRole('button', { name: /List/ }));
-    await waitFor(() => expect(document.activeElement).toBe(body));
-    await user.keyboard(' more');
-    // The caret stays where it was (inside the bold), one marker further on.
-    expect(body.value).toBe('- **bold words more**');
+    const ed = await bodyEditor();
+    act(() => {
+      ed.commands.insertContent('/tab');
+    });
+    const row = await screen.findByRole('option', { name: /Table/ });
+    expect(row).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(ed.view.dom, { key: 'Enter' });
+    await waitFor(() => expect(ed.getHTML()).toContain('<table'));
   });
 
-  // Live test 2026-10-31 — "/" only typed a slash although the placeholder promised a menu.
-  it('opens the "/" menu at the start of a line and inserts the chosen block', async () => {
-    render(editor());
-    const body = (await screen.findByLabelText('Document body')) as HTMLTextAreaElement;
-    const user = userEvent.setup();
-    await user.click(body);
-    await user.keyboard('/');
-    const menu = await screen.findByRole('listbox', { name: 'Insert a block' });
-    expect(menu).toBeVisible();
-    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
-      'H1Heading 1',
-      'H2Heading 2',
-      '•Bulleted list',
-      '☐Checklist',
-      '↗Link',
-    ]);
-    await user.keyboard('chec');
-    expect(screen.getAllByRole('option')).toHaveLength(1);
-    await user.keyboard('{Enter}');
-    expect(body.value).toBe('- [ ] ');
-    expect(screen.queryByRole('listbox')).toBeNull();
-    // A slash inside a word never opens it; Esc closes it and keeps the slash.
-    await user.keyboard('a/');
-    expect(screen.queryByRole('listbox')).toBeNull();
-    await user.keyboard(' /');
-    expect(await screen.findByRole('listbox')).toBeVisible();
-    await user.keyboard('{Escape}');
-    expect(screen.queryByRole('listbox')).toBeNull();
-    expect(body.value).toBe('- [ ] a/ /');
-  });
-
-  it('only a slash at a line start or after a space opens the menu', () => {
-    expect(slashTriggerAt('/', 1)).toBe(0);
-    expect(slashTriggerAt('one\n/', 5)).toBe(4);
-    expect(slashTriggerAt('see /', 5)).toBe(4);
-    expect(slashTriggerAt('and/', 4)).toBe(-1);
-    expect(slashTriggerAt('https:/', 7)).toBe(-1);
+  it('shows who else is editing from the presence read', async () => {
+    const sara = { userId: 'user-9', name: 'Sara Haddad', lastSeenAt: BLANK.updatedAt };
+    render(
+      screenOver((call) =>
+        call.url.endsWith('/presence') ? json({ editors: [sara] }) : handler(call),
+      ),
+    );
+    expect(await screen.findByText('Sara Haddad is editing')).toBeVisible();
   });
 
   // Live test 2026-10-31 — Share only flipped to "Link copied"; nothing said who can see the doc.
   it('Share opens the share dialog, which says who can see the doc and closes with Done', async () => {
     const { container } = render(editor());
-    await screen.findByLabelText('Document body');
+    await bodyEditor();
     const user = userEvent.setup();
     const share = screen.getByRole('button', { name: 'Share' });
     await user.click(share);

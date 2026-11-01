@@ -1,4 +1,4 @@
-import { mergeAttributes, Mark, Node, type Extensions } from '@tiptap/core';
+import { Extension, mergeAttributes, Mark, Node, type Extensions } from '@tiptap/core';
 import Image from '@tiptap/extension-image';
 import Mention from '@tiptap/extension-mention';
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
@@ -7,7 +7,8 @@ import TaskList from '@tiptap/extension-task-list';
 import TextAlign from '@tiptap/extension-text-align';
 import { Placeholder } from '@tiptap/extensions';
 import StarterKit from '@tiptap/starter-kit';
-import type { SuggestionOptions } from '@tiptap/suggestion';
+import { PluginKey } from '@tiptap/pm/state';
+import Suggestion, { type SuggestionOptions } from '@tiptap/suggestion';
 
 /**
  * The one document schema (R5-SPEC §3). The editor, the read view and every later slice build
@@ -38,6 +39,29 @@ export function isEmbeddableUrl(raw: string | null | undefined): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * The iframe address for an embeddable link (Figma / YouTube / Vimeo), or null. The stored body
+ * keeps only `data-url`; the iframe exists in the browser's node view, never in the saved HTML.
+ */
+export function embedSrc(raw: string | null | undefined): string | null {
+  if (!isEmbeddableUrl(raw)) return null;
+  const url = new URL(raw as string);
+  const host = url.hostname;
+  if (host.endsWith('figma.com')) {
+    return `https://www.figma.com/embed?embed_host=tmanage&url=${encodeURIComponent(url.href)}`;
+  }
+  if (host === 'youtu.be') {
+    const id = url.pathname.slice(1).split('/')[0] ?? '';
+    return /^[\w-]{6,20}$/u.test(id) ? `https://www.youtube.com/embed/${id}` : null;
+  }
+  if (host.endsWith('youtube.com')) {
+    const id = url.searchParams.get('v') ?? url.pathname.split('/embed/')[1] ?? '';
+    return /^[\w-]{6,20}$/u.test(id) ? `https://www.youtube.com/embed/${id}` : null;
+  }
+  const vimeo = /(\d{5,12})/u.exec(url.pathname)?.[1];
+  return vimeo ? `https://player.vimeo.com/video/${vimeo}` : null;
 }
 
 function calloutKind(raw: string | null): CalloutKind {
@@ -96,6 +120,69 @@ export const Embed = Node.create({
   renderHTML({ HTMLAttributes }) {
     return ['div', mergeAttributes({ 'data-type': 'embed' }, HTMLAttributes)];
   },
+  addNodeView() {
+    return ({ node }) => {
+      const url = String(node.attrs['url'] ?? '');
+      const dom = document.createElement('div');
+      dom.setAttribute('data-type', 'embed');
+      dom.setAttribute('data-url', url);
+      dom.setAttribute('contenteditable', 'false');
+      const src = embedSrc(url);
+      if (src) {
+        const frame = document.createElement('iframe');
+        frame.src = src;
+        frame.title = new URL(url).hostname;
+        frame.loading = 'lazy';
+        frame.allowFullscreen = true;
+        frame.referrerPolicy = 'strict-origin-when-cross-origin';
+        frame.setAttribute(
+          'sandbox',
+          'allow-scripts allow-same-origin allow-popups allow-presentation',
+        );
+        dom.append(frame);
+      }
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = url;
+      dom.append(link);
+      return { dom };
+    };
+  },
+});
+
+/** The image node with the uploaded file's id kept as `data-file-id` (same name, `image`). */
+const DocImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      fileId: {
+        default: null,
+        parseHTML: (el: HTMLElement) => el.getAttribute('data-file-id'),
+        renderHTML: (attrs: { fileId?: string | null }) =>
+          attrs.fileId ? { 'data-file-id': attrs.fileId } : {},
+      },
+    };
+  },
+});
+
+/** The "/" menu: a Suggestion on "/" whose items and popup the editor supplies. */
+export const SlashCommand = Extension.create<{ suggestion: Partial<SuggestionOptions> }>({
+  name: 'slashCommand',
+  addOptions() {
+    return { suggestion: {} };
+  },
+  addProseMirrorPlugins() {
+    return [
+      Suggestion({
+        char: '/',
+        pluginKey: new PluginKey('slashCommand'),
+        ...this.options.suggestion,
+        editor: this.editor,
+      }),
+    ];
+  },
 });
 
 /** `mark[data-comment]` — the anchor of one comment thread on the selected text. */
@@ -123,6 +210,8 @@ export const CommentMark = Mark.create({
 export interface DocExtensionOptions {
   placeholder?: string;
   mentionSuggestion?: Partial<SuggestionOptions>;
+  /** The "/" menu's items, command and popup (the editor only; the read view has none). */
+  slashSuggestion?: Partial<SuggestionOptions>;
 }
 
 export function docExtensions(opts: DocExtensionOptions = {}): Extensions {
@@ -142,7 +231,7 @@ export function docExtensions(opts: DocExtensionOptions = {}): Extensions {
     TableRow,
     TableHeader,
     TableCell,
-    Image.configure({ allowBase64: false }),
+    DocImage.configure({ allowBase64: false }),
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
     Mention.configure({
       HTMLAttributes: { 'data-type': 'mention' },
@@ -151,6 +240,7 @@ export function docExtensions(opts: DocExtensionOptions = {}): Extensions {
     Callout,
     Embed,
     CommentMark,
+    ...(opts.slashSuggestion ? [SlashCommand.configure({ suggestion: opts.slashSuggestion })] : []),
     ...(opts.placeholder ? [Placeholder.configure({ placeholder: opts.placeholder })] : []),
   ];
 }

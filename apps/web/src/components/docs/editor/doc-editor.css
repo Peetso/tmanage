@@ -1,0 +1,487 @@
+/* R5 — the rich document editor (Figma 483:28731 · 484:28763 · 484:28943 · 484:29129 ·
+   486:28834 · 486:29019 · 486:29604). Tokens only, logical properties; `[dir=rtl]` mirrors the
+   rows because they are flex rows in the inline direction. */
+
+.tm-doced {
+  display: flex;
+  flex-direction: column;
+}
+
+.tm-doced__tools {
+  gap: 2px;
+}
+
+.tm-doced__tools .tm-docpage__tool[aria-pressed='true'],
+.tm-doced__bubble .tm-docpage__tool[aria-pressed='true'] {
+  background: var(--paper-150);
+  color: var(--ink-950);
+}
+
+.tm-doced .tm-docpage__tool:disabled {
+  color: var(--ink-500);
+  cursor: default;
+}
+
+.tm-doced__sep {
+  inline-size: var(--b-quiet);
+  block-size: 18px;
+  margin-inline: 6px;
+  background: var(--line-300);
+}
+
+.tm-doced__more {
+  position: relative;
+}
+
+.tm-doced__menu {
+  position: absolute;
+  z-index: 30;
+  inset-block-start: calc(100% + 4px);
+  inset-inline-end: 0;
+  min-inline-size: 180px;
+  margin: 0;
+  padding: 6px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  box-shadow: var(--tm-overlay-shadow);
+  list-style: none;
+}
+
+.tm-doced__menu-item {
+  display: block;
+  inline-size: 100%;
+  min-block-size: 40px;
+  padding-inline: 12px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-doced__menu-item:hover,
+.tm-doced__menu-item:focus-visible {
+  background: var(--paper-150);
+}
+
+.tm-doced__linkrow,
+.tm-doced__tablebar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding-block: 6px;
+  padding-inline: 24px;
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-doced__tablebar .tm-docpage__tool[data-danger='true'] {
+  color: var(--danger-600);
+}
+
+.tm-doced__linkform {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tm-doced__input {
+  inline-size: min(320px, 100%);
+  block-size: 36px;
+  padding-inline: 10px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+}
+
+.tm-doced__input:focus-visible {
+  outline: 3px solid var(--lime-500);
+}
+
+.tm-doced__input[aria-invalid='true'] {
+  border-color: var(--danger-600);
+}
+
+.tm-doced__bubble {
+  display: flex;
+  padding: 4px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  box-shadow: var(--tm-overlay-shadow);
+}
+
+.tm-doced__bubble [role='toolbar'] {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* ── The sheet ───────────────────────────────────────────────────────────── */
+
+.tm-doced__content {
+  inline-size: 100%;
+}
+
+.tm-doced__body {
+  min-block-size: 280px;
+  margin-block-start: 16px;
+  color: var(--ink-950);
+  font-size: 16px;
+  line-height: 1.6;
+  outline: none;
+}
+
+.tm-doced__body > * + * {
+  margin-block-start: 0.6em;
+}
+
+.tm-doced__body h1,
+.tm-doced__body h2,
+.tm-doced__body h3 {
+  margin-block: 1.2em 0.3em;
+  line-height: 1.25;
+}
+
+.tm-doced__body h1 {
+  font-size: 28px;
+}
+
+.tm-doced__body h2 {
+  font-size: 22px;
+}
+
+.tm-doced__body h3 {
+  font-size: 18px;
+}
+
+.tm-doced__body p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: inline-start;
+  block-size: 0;
+  color: var(--ink-650);
+  pointer-events: none;
+}
+
+.tm-doced__body ul,
+.tm-doced__body ol {
+  padding-inline-start: 24px;
+}
+
+.tm-doced__body ul[data-type='taskList'] {
+  padding-inline-start: 0;
+  list-style: none;
+}
+
+.tm-doced__body li[data-type='taskItem'] {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.tm-doced__body li[data-type='taskItem'] > label {
+  margin-block-start: 0.25em;
+}
+
+.tm-doced__body li[data-type='taskItem'][data-checked='true'] > div {
+  color: var(--ink-650);
+  text-decoration: line-through;
+}
+
+.tm-doced__body a {
+  color: var(--ink-950);
+  text-decoration: underline;
+}
+
+.tm-doced__body blockquote {
+  margin-inline: 0;
+  padding-inline-start: 14px;
+  border-inline-start: 3px solid var(--line-300);
+  color: var(--ink-800);
+}
+
+.tm-doced__body hr {
+  border: 0;
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+/* Code stays left-to-right in an Arabic document (frame 11). */
+.tm-doced__body pre {
+  padding: 12px 14px;
+  border-radius: var(--r-card);
+  background: var(--ink-950);
+  color: var(--paper-0);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  direction: ltr;
+  text-align: start;
+  overflow-x: auto;
+}
+
+.tm-doced__body code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.tm-doced__body :not(pre) > code {
+  padding-inline: 4px;
+  border-radius: var(--r-compact);
+  background: var(--paper-150);
+}
+
+.tm-doced__body span[data-type='mention'] {
+  padding-inline: 4px;
+  border-radius: var(--r-compact);
+  background: var(--lime-100);
+  color: var(--ink-950);
+}
+
+.tm-doced__body mark[data-comment] {
+  background: color-mix(in srgb, var(--warning-600) 22%, var(--paper-0));
+  color: inherit;
+}
+
+.tm-doced__body img {
+  display: block;
+  max-inline-size: 100%;
+  border-radius: var(--r-card);
+}
+
+.tm-doced__body img.ProseMirror-selectednode,
+.tm-doced__body div[data-type='embed'].ProseMirror-selectednode {
+  outline: 3px solid var(--lime-500);
+}
+
+.tm-doced__body table {
+  inline-size: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  overflow: hidden;
+  table-layout: fixed;
+}
+
+.tm-doced__body th,
+.tm-doced__body td {
+  position: relative;
+  padding: 8px 12px;
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  border-inline-end: var(--b-quiet) solid var(--line-300);
+  text-align: start;
+  vertical-align: top;
+}
+
+.tm-doced__body th {
+  background: var(--paper-150);
+  color: var(--ink-800);
+  font-weight: 500;
+}
+
+.tm-doced__body .selectedCell::after {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--lime-500) 18%, transparent);
+  content: '';
+  pointer-events: none;
+}
+
+.tm-doced__body .column-resize-handle {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: -2px;
+  inline-size: 4px;
+  background: var(--lime-500);
+  pointer-events: none;
+}
+
+.tm-doced__body div[data-type='callout'] {
+  padding: 12px 16px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-inline-start-width: 4px;
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-doced__body div[data-type='callout'][data-kind='info'] {
+  border-inline-start-color: var(--ink-650);
+}
+
+.tm-doced__body div[data-type='callout'][data-kind='warn'] {
+  border-inline-start-color: var(--warning-600);
+  background: color-mix(in srgb, var(--warning-600) 8%, var(--paper-0));
+}
+
+.tm-doced__body div[data-type='callout'][data-kind='success'] {
+  border-inline-start-color: var(--success-600);
+  background: color-mix(in srgb, var(--success-600) 8%, var(--paper-0));
+}
+
+.tm-doced__body div[data-type='callout'][data-kind='danger'] {
+  border-inline-start-color: var(--danger-600);
+  background: color-mix(in srgb, var(--danger-600) 8%, var(--paper-0));
+}
+
+.tm-doced__body div[data-type='embed'] {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-50);
+}
+
+.tm-doced__body div[data-type='embed'] iframe {
+  inline-size: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: var(--r-control);
+}
+
+.tm-doced__body div[data-type='embed'] a {
+  overflow: hidden;
+  color: var(--ink-650);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: ltr;
+}
+
+/* ── Popups and dialogs ──────────────────────────────────────────────────── */
+
+.tm-doced__popup {
+  z-index: 40;
+  max-block-size: 360px;
+  overflow-y: auto;
+}
+
+.tm-doced__popup-label {
+  flex: 1;
+}
+
+.tm-doced__popup-hint {
+  color: var(--ink-650);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.tm-doced__orb {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 24px;
+  block-size: 24px;
+  border-radius: 50%;
+  background: var(--paper-250);
+  color: var(--ink-950);
+  font-size: 11px;
+}
+
+.tm-doced__drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px 16px;
+  border: 2px dashed var(--line-300);
+  border-radius: var(--r-card);
+  color: var(--ink-650);
+  text-align: center;
+}
+
+.tm-doced__drop[data-over='true'] {
+  border-color: var(--lime-500);
+  background: var(--paper-50);
+}
+
+.tm-doced__drop p {
+  margin: 0;
+}
+
+.tm-doced__embedform {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tm-doced__embedform .tm-doced__input {
+  inline-size: 100%;
+}
+
+.tm-doced__problem {
+  margin: 8px 0 0;
+  color: var(--danger-600);
+  font-size: 13px;
+}
+
+/* ── Conflict banner and presence chips (frame 8) ───────────────────────── */
+
+.tm-docconflict {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-block-end: 20px;
+}
+
+.tm-docconflict__note {
+  display: flex;
+  gap: 12px;
+  margin: 0;
+  padding: 12px 14px;
+  border: var(--b-quiet) solid var(--warning-600);
+  border-radius: var(--r-card);
+  color: var(--ink-950);
+  font-size: 13px;
+}
+
+.tm-docconflict__tag {
+  flex: none;
+  color: var(--warning-600);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.tm-docconflict__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.tm-docpresence {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-docpresence__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  block-size: 32px;
+  padding-inline: 4px 12px;
+  border-radius: 999px;
+  background: var(--paper-150);
+  color: var(--ink-950);
+  font-size: 12px;
+}
+
+.tm-docpresence__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-650);
+}
+
+.tm-docpresence__live::before {
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 50%;
+  background: var(--success-600);
+  content: '';
+}
