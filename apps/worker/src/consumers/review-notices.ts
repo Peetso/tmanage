@@ -53,6 +53,7 @@ type MailSubject = Omit<CollaborationEmailFacts, 'recipientEmail' | 'recipientNa
 /** The in-app types the inbox renders for a file under review. */
 export const REVIEW_NOTIFICATION_TYPES = [
   'review.comment_added.v1',
+  'review.replied.v1',
   'review.mentioned.v1',
   'review.thread_resolved.v1',
   'review.thread_reopened.v1',
@@ -194,6 +195,9 @@ export const planReviewCommentNotices: NoticePlanner = async (event, tx, mailer)
     };
   };
 
+  // A new thread is a comment; `review.comment_added.v1` is a reply on an existing thread, and
+  // the inbox card and email say so (R4 Batch F, V-50 / V-51).
+  const reply = event.type === 'review.comment_added.v1';
   const notices: PlannedNotice[] = [];
   for (const candidate of candidates) {
     const recipient = await resolve(candidate.userId);
@@ -204,12 +208,16 @@ export const planReviewCommentNotices: NoticePlanner = async (event, tx, mailer)
       optOutKind: portal ? null : candidate.mentioned ? 'mention' : 'file',
       membershipId: recipient.kind === 'internal' ? recipient.membershipId : null,
       inApp: {
-        type: candidate.mentioned ? 'review.mentioned.v1' : 'review.comment_added.v1',
+        type: candidate.mentioned
+          ? 'review.mentioned.v1'
+          : reply
+            ? 'review.replied.v1'
+            : 'review.comment_added.v1',
         objectType: REVIEW_OBJECT_TYPE,
         objectId: thread.subjectId,
         dedupeKey: `review:${threadId}:${commentId}`,
       },
-      mailKind: candidate.mentioned ? 'review_mention' : 'review_comment',
+      mailKind: candidate.mentioned ? 'review_mention' : reply ? 'review_reply' : 'review_comment',
       mail: mail(portal),
     });
   }

@@ -260,12 +260,13 @@ export class FilesModule {
     // no store, no outbox, no audit — because it moves no counter and appends no event.
     const usage: Provider = {
       provide: USAGE_SERVICE,
-      inject: [TENANT_DATABASE, USAGE_COUNTERS_REPOSITORY, API_CONFIG],
+      inject: [TENANT_DATABASE, USAGE_COUNTERS_REPOSITORY, USAGE_LEDGER_REPOSITORY, API_CONFIG],
       useFactory: (
         database: TenantDatabase,
         counters: UsageCountersRepository,
+        ledger: UsageLedgerRepository,
         config: ApiConfig,
-      ) => new UsageService(database, counters, config),
+      ) => new UsageService(database, counters, ledger, config),
     };
 
     // FILE-002. The verification pass is a job too: exported so `verify.ts` can resolve

@@ -5,6 +5,7 @@ import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { STORAGE_BYTES_METRIC } from './usage-counters.repository.js';
 import type { UsageCountersRepository } from './usage-counters.repository.js';
+import type { UsageLedgerRepository } from './usage-ledger.repository.js';
 
 /**
  * USAGE-001 slice 5 — the read side of the storage quota counter.
@@ -36,6 +37,8 @@ import type { UsageCountersRepository } from './usage-counters.repository.js';
  */
 export interface UsageView {
   readonly used: number;
+  /** Of `used`, the bytes of preview images the viewer made (R4: they count against the quota). */
+  readonly previews: number;
   readonly reserved: number;
   readonly quota: number;
   readonly unit: 'bytes';
@@ -46,6 +49,7 @@ export class UsageService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly counters: UsageCountersRepository,
+    private readonly ledger: UsageLedgerRepository,
     private readonly config: ApiConfig,
   ) {}
 
@@ -82,12 +86,16 @@ export class UsageService {
       );
     }
 
-    const counter = await this.database.read(context, (runner) =>
-      this.counters.find(runner, context, STORAGE_BYTES_METRIC),
+    const [counter, previews] = await this.database.read(context, (runner) =>
+      Promise.all([
+        this.counters.find(runner, context, STORAGE_BYTES_METRIC),
+        this.ledger.sumPreviewBytes(runner, context),
+      ]),
     );
 
     return {
       used: Number(counter?.usedValue ?? 0),
+      previews,
       reserved: Number(counter?.reservedValue ?? 0),
       quota: this.config.storageOrgBytesLimit,
       unit: 'bytes',

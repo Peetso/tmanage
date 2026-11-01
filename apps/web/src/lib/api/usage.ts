@@ -15,6 +15,8 @@ import type { ApiClient } from './client';
 /** No screen consumes this yet: the billing/usage screen is a follow-up (see x64-report). */
 export interface OrganizationUsage {
   readonly used: number;
+  /** Of `used`, the bytes of preview images the viewer made — they count against the quota. */
+  readonly previews: number;
   readonly reserved: number;
   readonly quota: number;
   readonly unit: 'bytes';

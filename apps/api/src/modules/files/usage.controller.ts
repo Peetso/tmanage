@@ -14,7 +14,7 @@ import type { UsageService, UsageView } from './usage.service.js';
  * matched against that membership by `TenantContextGuard`, never trusted as the tenant. There is
  * no body and no organization-id parameter, so the caller cannot name another tenant's usage.
  *
- * The response is exactly {@link UsageView} — `{ used, reserved, quota, unit, reconciledAt }` — so
+ * The response is exactly {@link UsageView} — `{ used, previews, reserved, quota, unit, reconciledAt }` — so
  * the screen renders it directly; it is not wrapped in an envelope.
  */
 @Controller('v1/organizations/:orgSlug/usage')

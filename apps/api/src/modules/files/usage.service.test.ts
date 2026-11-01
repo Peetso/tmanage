@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { UsageService } from './usage.service.js';
 import { STORAGE_BYTES_METRIC, type UsageCountersRepository } from './usage-counters.repository.js';
+import type { UsageLedgerRepository } from './usage-ledger.repository.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { UsageCounterRow } from '../../common/database/schema.js';
@@ -45,11 +46,15 @@ const countersReturning = (
     },
   }) as unknown as UsageCountersRepository;
 
+/** The preview meter's ledger sum (R4 Batch F, the "Previews" line). */
+const ledgerSumming = (previews: number) =>
+  ({ sumPreviewBytes: () => Promise.resolve(previews) }) as unknown as UsageLedgerRepository;
+
 const config = (limit: number) => ({ storageOrgBytesLimit: limit }) as unknown as ApiConfig;
 const context = { organizationId: ORG } as TenantContext;
 
 describe('UsageService.read', () => {
-  it('projects used, reserved, the config quota, the unit and reconciledAt', async () => {
+  it('projects used, its preview bytes, reserved, the config quota, the unit and reconciledAt', async () => {
     const reconciledAt = new Date('2026-09-19T12:00:00.000Z');
     const counters = countersReturning({
       usedValue: 120,
@@ -58,9 +63,13 @@ describe('UsageService.read', () => {
     } as unknown as UsageCounterRow);
 
     await expect(
-      new UsageService(fakeDatabase(), counters, config(500)).read(context, ownerPrincipal()),
+      new UsageService(fakeDatabase(), counters, ledgerSumming(40), config(500)).read(
+        context,
+        ownerPrincipal(),
+      ),
     ).resolves.toEqual({
       used: 120,
+      previews: 40,
       reserved: 30,
       quota: 500,
       unit: 'bytes',
@@ -76,7 +85,10 @@ describe('UsageService.read', () => {
     const notManager: Principal = { ...ownerPrincipal(), role: 'workspace_admin' };
 
     await expect(
-      new UsageService(fakeDatabase(), counters, config(500)).read(context, notManager),
+      new UsageService(fakeDatabase(), counters, ledgerSumming(0), config(500)).read(
+        context,
+        notManager,
+      ),
     ).rejects.toBeInstanceOf(ApiError);
     expect(read).toBe(false);
   });
@@ -89,7 +101,10 @@ describe('UsageService.read', () => {
       seenMetric = metric;
     });
 
-    await new UsageService(fakeDatabase(), counters, config(500)).read(context, ownerPrincipal());
+    await new UsageService(fakeDatabase(), counters, ledgerSumming(0), config(500)).read(
+      context,
+      ownerPrincipal(),
+    );
 
     expect(seenOrg).toBe(ORG);
     expect(seenMetric).toBe(STORAGE_BYTES_METRIC);

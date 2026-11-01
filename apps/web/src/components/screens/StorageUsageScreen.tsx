@@ -130,7 +130,7 @@ function UsagePanel({ usage, plan }: { usage: OrganizationUsage; plan: Subscript
   )} ${t('StorageUsageScreen.usedOpenParen')}${formatBytes(usage.reserved)}${t('StorageUsageScreen.reservedCloseParen')}`;
   const eyebrow = plan
     ? [
-        `${planLabel(plan.planId, t)} ${t('StorageUsageScreen.planWord')}`,
+        planEyebrow(plan.planId, t),
         plan.status === 'pending_change' ? t('StorageUsageScreen.changePending') : null,
         plan.currentPeriodEnd
           ? `${t('StorageUsageScreen.renews')} ${formatDay(plan.currentPeriodEnd)}`
@@ -179,6 +179,12 @@ function UsagePanel({ usage, plan }: { usage: OrganizationUsage; plan: Subscript
             <dt>{t('StorageUsageScreen.usedLabel')}</dt>
             <dd className="tm-mono">{formatBytes(usage.used)}</dd>
           </div>
+          {/* R4 Batch F: preview images count against the quota; this line says how much of
+              "Used" they are. */}
+          <div className="tm-detail-list__pair">
+            <dt>{t('StorageUsageScreen.previewsLabel')}</dt>
+            <dd className="tm-mono">{formatBytes(usage.previews)}</dd>
+          </div>
           <div className="tm-detail-list__pair">
             <dt>{t('StorageUsageScreen.reservedLabel')}</dt>
             <dd className="tm-mono">{formatBytes(usage.reserved)}</dd>
@@ -188,6 +194,8 @@ function UsagePanel({ usage, plan }: { usage: OrganizationUsage; plan: Subscript
             <dd className="tm-mono">{formatBytes(usage.quota)}</dd>
           </div>
         </dl>
+
+        <p className="tm-bil-card__foot">{t('StorageUsageScreen.previewsHint')}</p>
 
         <hr className="tm-bil-rule" />
 
@@ -251,6 +259,20 @@ function PlanCard({
       </div>
     </section>
   );
+}
+
+/**
+ * "Free plan" over the figure. One key per plan, not label + "plan": Arabic puts the noun first
+ * ("خطة مجانية"), so the two words cannot be joined in one fixed order.
+ */
+function planEyebrow(planId: string, t: (key: MessageKey) => string): string {
+  const eyebrows: Record<string, string> = {
+    free: t('StorageUsageScreen.planEyebrowFree'),
+    starter: t('StorageUsageScreen.planEyebrowStarter'),
+    pro: t('StorageUsageScreen.planEyebrowPro'),
+    business: t('StorageUsageScreen.planEyebrowBusiness'),
+  };
+  return eyebrows[planId] ?? `${planLabel(planId, t)} ${t('StorageUsageScreen.planWord')}`;
 }
 
 /** Plan ids as the subscription endpoint names them, with the label a person reads. */

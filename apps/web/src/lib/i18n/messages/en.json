@@ -15412,5 +15412,13 @@
   "Figma.viewer.takenAt": "Snapshot taken {when} · pins stay where they were placed",
   "Figma.viewer.unavailableBody": "It may have been removed, or you may not have access to it.",
   "Figma.viewer.unavailableTitle": "This Figma link is not available",
-  "Figma.viewer.untitled": "Figma file"
+  "Figma.viewer.untitled": "Figma file",
+  "InboxScreen.whyReviewReplied": "New reply on a file",
+  "NotificationsFeedScreen.typeReviewReplied": "Someone replied on a file",
+  "StorageUsageScreen.previewsLabel": "Previews",
+  "StorageUsageScreen.previewsHint": "Previews are the images the viewer makes so files open in the browser. They are already counted in Used.",
+  "StorageUsageScreen.planEyebrowFree": "Free plan",
+  "StorageUsageScreen.planEyebrowStarter": "Starter plan",
+  "StorageUsageScreen.planEyebrowPro": "Pro plan",
+  "StorageUsageScreen.planEyebrowBusiness": "Business plan"
 }

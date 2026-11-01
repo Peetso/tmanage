@@ -103,3 +103,16 @@ Open the comment: https://app.example/atlas/files/file-root?thread=thread-1
 You are receiving this because of your notification settings in Atlas Studio on TManage.",
 }
 `;
+
+exports[`review emails (EN + AR, studio + portal) > reply · portal · ar 1`] = `
+{
+  "subject": "‏ردّ Atlas Studio على Homepage Concept",
+  "text": "مرحبًا Lina،
+
+‏ردّ Atlas Studio على التعليق 4 على Homepage Concept في Atlas Rebrand.
+
+فتح التعليق: https://app.example/atlas/files/file-root?thread=thread-1
+
+‏أُرسلت من TManage نيابةً عن Atlas Studio",
+}
+`;

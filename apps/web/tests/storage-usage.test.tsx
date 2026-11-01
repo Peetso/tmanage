@@ -50,10 +50,20 @@ const G = 1024 ** 3;
 
 describe('StorageUsageScreen', () => {
   it('renders the three figures, the (used + reserved) / quota bar, and the "not checked yet" line', async () => {
-    mount({ used: 3 * G, reserved: G, quota: 8 * G, unit: 'bytes', reconciledAt: null });
+    mount({
+      used: 3 * G,
+      previews: G / 2,
+      reserved: G,
+      quota: 8 * G,
+      unit: 'bytes',
+      reconciledAt: null,
+    });
     expect(await screen.findByText('3 GB')).toBeTruthy();
     expect(screen.getByText('1 GB')).toBeTruthy();
     expect(screen.getByText('8 GB')).toBeTruthy();
+    // R4 Batch F: the preview images' share of Used.
+    expect(screen.getByText('Previews')).toBeTruthy();
+    expect(screen.getByText('512 MB')).toBeTruthy();
     expect(screen.getByText(/haven't checked this total against your files/i)).toBeTruthy();
     const bar = screen.getByRole('progressbar');
     expect(bar.getAttribute('aria-valuenow')).toBe(String(4 * G));

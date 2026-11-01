@@ -297,6 +297,7 @@ const TYPE_LABEL_KEYS: Record<string, MessageKey> = {
   'automation.notified.v1': 'NotificationsFeedScreen.typeAutomationNotified',
   'automation.test_run.v1': 'NotificationsFeedScreen.typeAutomationTestRun',
   'review.comment_added.v1': 'NotificationsFeedScreen.typeReviewComment',
+  'review.replied.v1': 'NotificationsFeedScreen.typeReviewReplied',
   'review.mentioned.v1': 'NotificationsFeedScreen.typeReviewMentioned',
   'review.thread_resolved.v1': 'NotificationsFeedScreen.typeReviewResolved',
   'review.thread_reopened.v1': 'NotificationsFeedScreen.typeReviewReopened',

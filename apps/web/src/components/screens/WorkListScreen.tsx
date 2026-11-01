@@ -149,7 +149,10 @@ export function WorkListScreen({
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [pendingBulk, setPendingBulk] = useState<WorkItemAudience | undefined>(undefined);
   const [bulkReport, setBulkReport] = useState<
-    { updated: number; failed: readonly { title: string; reason: string }[] } | undefined
+    // Keyed by id when listed: two work items may share a title (live 2026-11-01: two "QA09 …"
+    // rows), and a title key collides as soon as both are refused.
+    | { updated: number; failed: readonly { id: string; title: string; reason: string }[] }
+    | undefined
   >(undefined);
 
   // The address follows the view and the filters, so a reload or a shared link reopens them.
@@ -199,7 +202,7 @@ export function WorkListScreen({
       targets: readonly WorkItemSummary[];
     }) => {
       let updated = 0;
-      const failed: { title: string; reason: string }[] = [];
+      const failed: { id: string; title: string; reason: string }[] = [];
       for (const item of input.targets) {
         try {
           await updateWorkItem(api, organizationSlug, item.id, {
@@ -208,7 +211,7 @@ export function WorkListScreen({
           });
           updated += 1;
         } catch (error) {
-          failed.push({ title: item.title, reason: describeError(error) });
+          failed.push({ id: item.id, title: item.title, reason: describeError(error) });
         }
       }
       return { updated, failed };
@@ -619,7 +622,7 @@ export function WorkListScreen({
                   </p>
                   <ul className="tm-list">
                     {bulkReport.failed.map((failure) => (
-                      <li key={failure.title}>
+                      <li key={failure.id}>
                         “{failure.title}” — {failure.reason}
                       </li>
                     ))}

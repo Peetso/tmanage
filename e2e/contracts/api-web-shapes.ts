@@ -1667,7 +1667,7 @@ type _documentTemplateVariable = Assert<
  */
 type _automationSchedule = Assert<Exact<ApiAutomationScheduleView, WebAutomationScheduleSummary>>;
 
-/** USAGE-001 slice 5 — `{ used, reserved, quota, unit: 'bytes', reconciledAt }` (§8, no web screen yet). */
+/** USAGE-001 slice 5 — `{ used, previews, reserved, quota, unit: 'bytes', reconciledAt }` (§8, no web screen yet). */
 type _usage = Assert<Exact<ApiUsageView, WebOrganizationUsage>>;
 
 /**

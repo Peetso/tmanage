@@ -21,8 +21,10 @@ export type CollaborationMailKind =
   | 'approval_requested'
   | 'request_message'
   | 'approval_decided'
-  // R4 slice 12 — the proofing viewer: a comment, a mention, a decision on a file under review.
+  // R4 slice 12 — the proofing viewer: a comment, a reply, a mention, a decision on a file under
+  // review.
   | 'review_comment'
+  | 'review_reply'
   | 'review_mention'
   | 'review_decided';
 
@@ -342,7 +344,12 @@ export function composeCollaborationEmail(
   facts: CollaborationEmailFacts,
 ): MailMessage {
   if (kind === 'approval_requested') return composeApprovalRequestedEmail(facts);
-  if (kind === 'review_comment' || kind === 'review_mention' || kind === 'review_decided') {
+  if (
+    kind === 'review_comment' ||
+    kind === 'review_reply' ||
+    kind === 'review_mention' ||
+    kind === 'review_decided'
+  ) {
     return composeReviewEmail(kind, facts);
   }
   if ((kind === 'meeting_invite' || kind === 'meeting_changed') && isArabicLocale(facts.locale)) {

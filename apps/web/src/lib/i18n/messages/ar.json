@@ -15412,5 +15412,13 @@
   "Figma.viewer.takenAt": "التُقطت اللقطة {when} · تبقى الدبابيس حيث وُضعت",
   "Figma.viewer.unavailableBody": "ربما أُزيل، أو ليس لديك صلاحية الوصول إليه.",
   "Figma.viewer.unavailableTitle": "رابط Figma هذا غير متاح",
-  "Figma.viewer.untitled": "ملف Figma"
+  "Figma.viewer.untitled": "ملف Figma",
+  "InboxScreen.whyReviewReplied": "ردّ جديد على ملف",
+  "NotificationsFeedScreen.typeReviewReplied": "ردّ أحدهم على ملف",
+  "StorageUsageScreen.previewsLabel": "المعاينات",
+  "StorageUsageScreen.previewsHint": "المعاينات هي الصور التي يصنعها العارض لتُفتح الملفات في المتصفح، وهي محسوبة ضمن المستخدَم.",
+  "StorageUsageScreen.planEyebrowFree": "خطة مجانية",
+  "StorageUsageScreen.planEyebrowStarter": "خطة المبتدئة",
+  "StorageUsageScreen.planEyebrowPro": "خطة الاحترافية",
+  "StorageUsageScreen.planEyebrowBusiness": "خطة الأعمال"
 }

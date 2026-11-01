@@ -189,7 +189,7 @@ describe('planReviewCommentNotices', () => {
     expect(notices.map((n) => [n.recipientUserId, n.mailKind, n.optOutKind])).toEqual([
       ['sam', 'review_mention', 'mention'],
       ['omar', 'review_mention', 'mention'],
-      ['lina', 'review_comment', 'file'],
+      ['lina', 'review_reply', 'file'],
     ]);
     expect(notices[0]?.inApp).toEqual({
       type: 'review.mentioned.v1',
@@ -197,7 +197,8 @@ describe('planReviewCommentNotices', () => {
       objectId: ROOT,
       dedupeKey: 'review:thread-1:comment-9',
     });
-    expect(notices[2]?.inApp?.type).toBe('review.comment_added.v1');
+    // A reply on an existing thread is said as a reply (R4 Batch F).
+    expect(notices[2]?.inApp?.type).toBe('review.replied.v1');
   });
 
   it('tells no client on an internal thread, even a participant', async () => {
@@ -432,6 +433,7 @@ describe('review emails (EN + AR, studio + portal)', () => {
       } as CollaborationEmailFacts,
     ],
     ['comment · portal · ar', 'review_comment', { ...studioless, portal: true, locale: 'ar' }],
+    ['reply · portal · ar', 'review_reply', { ...studioless, portal: true, locale: 'ar' }],
     ['mention · studio · en', 'review_mention', base],
     ['mention · studio · ar', 'review_mention', { ...base, locale: 'ar' }],
     [

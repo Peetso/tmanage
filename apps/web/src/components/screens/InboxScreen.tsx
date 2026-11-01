@@ -695,6 +695,7 @@ const WHY_KEYS: Record<string, MessageKey> = {
   'automation.test_run.v1': 'InboxScreen.whyTestRun',
   // R4 slice 12 — a file under review.
   'review.comment_added.v1': 'InboxScreen.whyReviewComment',
+  'review.replied.v1': 'InboxScreen.whyReviewReplied',
   'review.mentioned.v1': 'InboxScreen.whyReviewMentioned',
   'review.thread_resolved.v1': 'InboxScreen.whyReviewResolved',
   'review.thread_reopened.v1': 'InboxScreen.whyReviewReopened',
@@ -987,6 +988,7 @@ function reasonOf(bundle: InboxBundle, t: Translate): string {
   }
   if (
     bundle.types.includes('review.comment_added.v1') ||
+    bundle.types.includes('review.replied.v1') ||
     bundle.types.includes('review.thread_resolved.v1') ||
     bundle.types.includes('review.thread_reopened.v1')
   ) {

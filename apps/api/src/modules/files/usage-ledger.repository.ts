@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { usageLedgerEntries } from '../../common/database/schema.js';
@@ -149,5 +149,27 @@ export class UsageLedgerRepository {
       else if (row.counter === 'reserved') reserved = total;
     }
     return { used, reserved };
+  }
+
+  /**
+   * The bytes of preview images this tenant holds against its quota: the signed sum of the
+   * preview meter's `used` moves (`preview_derivative` in, `preview_removed` out). Read for the
+   * usage screen's "Previews" line (R4 Batch F); they are already part of `used`.
+   */
+  async sumPreviewBytes(runner: TenantQueryRunner, context: TenantContext): Promise<number> {
+    const rows = await tenantDrizzle(runner)
+      .select({ total: sql<string | null>`sum(${usageLedgerEntries.delta})` })
+      .from(usageLedgerEntries)
+      .where(
+        and(
+          eq(usageLedgerEntries.organizationId, context.organizationId),
+          eq(usageLedgerEntries.counter, 'used'),
+          inArray(usageLedgerEntries.reason, [
+            USAGE_LEDGER_REASON.previewDerivative,
+            USAGE_LEDGER_REASON.previewRemoved,
+          ]),
+        ),
+      );
+    return Math.max(0, Number(rows[0]?.total ?? 0));
   }
 }
