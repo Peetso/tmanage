@@ -119,6 +119,7 @@ async function readyImage(outcome: PreviewOutcome | undefined): Promise<RgbaImag
   expect(outcome?.status).toBe('ready');
   if (outcome?.status !== 'ready') throw new Error('not ready');
   expect(outcome.mimeType).toBe('image/webp');
+  if (outcome.body === null) throw new Error('no bytes');
   const decoded = await decodeWebp(outcome.body);
   expect([decoded.width, decoded.height]).toEqual([outcome.width, outcome.height]);
   return decoded;

@@ -137,6 +137,27 @@ export interface PreviewDecisionContextView {
   readonly deliverableVersionId: string | null;
 }
 
+/**
+ * R4 slice 9 — what the video / audio stage needs before it loads a byte: the picture size (to
+ * reserve the frame), and whether a browser can play the codec at all. `codecNotice` names the
+ * track a browser cannot decode (an HEVC or ProRes `.mov`); the screen then offers the download
+ * and an "upload an MP4" hint instead of a player that never starts. Codec names are MediaInfo's
+ * format names ("AVC", "HEVC", "AAC"), shown only as facts in the Details tab.
+ */
+export interface PreviewMediaView {
+  readonly hasVideo: boolean;
+  readonly hasAudio: boolean;
+  readonly width: number | null;
+  readonly height: number | null;
+  readonly rotation: number;
+  readonly frameRate: number | null;
+  readonly videoCodec: string | null;
+  readonly audioCodec: string | null;
+  readonly sampleRate: number | null;
+  readonly channels: number | null;
+  readonly codecNotice: 'video_codec' | 'audio_codec' | null;
+}
+
 export interface FilePreviewManifestView {
   readonly file: PreviewFileView;
   readonly version: PreviewVersionInfoView | null;
@@ -150,6 +171,8 @@ export interface FilePreviewManifestView {
   readonly originalUrl: string | null;
   readonly pages: number | null;
   readonly durationMs: number | null;
+  /** Video and audio facts once the preview job has read them; `null` before, and for other kinds. */
+  readonly media: PreviewMediaView | null;
   /** A browser-side rendering is approximate (Office files): the screen says so. */
   readonly approximate: boolean;
   /** The sanitised SVG dropped outside references (linked images, remote styles). */
@@ -335,6 +358,7 @@ export class FilePreviewService {
       originalUrl: original,
       pages: numberMeta(rows, 'pages'),
       durationMs: numberMeta(rows, 'durationMs'),
+      media: servable ? mediaViewFrom(rows) : null,
       approximate: booleanMeta(rows, 'approximate'),
       linkedImagesRemoved: booleanMeta(rows, 'linkedImagesRemoved'),
       versions: chain,
@@ -625,6 +649,40 @@ function numberMeta(rows: readonly FilePreview[], key: string): number | null {
     if (typeof value === 'number' && Number.isFinite(value)) return value;
   }
   return null;
+}
+
+function stringMeta(meta: Readonly<Record<string, unknown>>, key: string): string | null {
+  const value = meta[key];
+  return typeof value === 'string' && value.length > 0 ? value.slice(0, 64) : null;
+}
+
+function finiteMeta(meta: Readonly<Record<string, unknown>>, key: string): number | null {
+  const value = meta[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/** The ready `media_meta` row as the manifest's `media` block (`null` until the job has run). */
+export function mediaViewFrom(rows: readonly FilePreview[]): PreviewMediaView | null {
+  const row = rows.find(
+    (candidate) => candidate.kind === 'media_meta' && candidate.status === 'ready',
+  );
+  const meta = row?.meta;
+  if (!meta) return null;
+  const notice = meta['codecNotice'];
+  const rotation = finiteMeta(meta, 'rotation');
+  return {
+    hasVideo: meta['hasVideo'] === true,
+    hasAudio: meta['hasAudio'] === true,
+    width: finiteMeta(meta, 'width'),
+    height: finiteMeta(meta, 'height'),
+    rotation: rotation === 90 || rotation === 180 || rotation === 270 ? rotation : 0,
+    frameRate: finiteMeta(meta, 'frameRate'),
+    videoCodec: stringMeta(meta, 'videoCodec'),
+    audioCodec: stringMeta(meta, 'audioCodec'),
+    sampleRate: finiteMeta(meta, 'sampleRate'),
+    channels: finiteMeta(meta, 'channels'),
+    codecNotice: notice === 'video_codec' || notice === 'audio_codec' ? notice : null,
+  };
 }
 
 function booleanMeta(rows: readonly FilePreview[], key: string): boolean {

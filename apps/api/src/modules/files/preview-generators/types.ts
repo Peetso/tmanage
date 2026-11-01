@@ -40,8 +40,9 @@ export const THUMB_LONG_SIDE = 320;
 export type PreviewOutcome =
   | {
       readonly status: 'ready';
-      readonly body: Uint8Array;
-      readonly mimeType: string;
+      /** `null` for a facts-only answer (video and audio `media_meta`): nothing is stored. */
+      readonly body: Uint8Array | null;
+      readonly mimeType: string | null;
       readonly width: number | null;
       readonly height: number | null;
       readonly meta: Readonly<Record<string, unknown>> | null;

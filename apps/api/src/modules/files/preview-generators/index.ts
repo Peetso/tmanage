@@ -1,5 +1,6 @@
 import { heicGenerator } from './heic.js';
 import { imageGenerator } from './image.js';
+import { mediaMetaGenerator } from './media-meta.js';
 import { svgGenerator } from './svg.js';
 import { tiffGenerator } from './tiff.js';
 import type { PendingPreviewSpec } from '../file-previews.repository.js';
@@ -9,7 +10,7 @@ import type { PreviewGenerator } from './types.js';
  * R4 slice 3 — the kind map: which generator reads a detected type, and which derivative rows a
  * newly ready version of that type starts with. Slices 9 and 10 add media, PSD, ZIP, EPS and
  * Office generators here; a type with no generator gets no rows and the viewer shows the
- * original (or "download to view").
+ * original (or "download to view"). Video and audio (slice 9) get one facts-only `media_meta` row.
  */
 
 export const PREVIEW_GENERATORS: readonly PreviewGenerator[] = [
@@ -17,6 +18,7 @@ export const PREVIEW_GENERATORS: readonly PreviewGenerator[] = [
   svgGenerator,
   heicGenerator,
   tiffGenerator,
+  mediaMetaGenerator,
 ];
 
 export function generatorFor(

@@ -532,6 +532,72 @@ describe('the manifest', () => {
     expect(staffMedia.originalUrl).toBe(`/v1/organizations/atlas/files/${ASSET}/content?inline=1`);
   });
 
+  it('carries the video facts and the codec notice from the media_meta row (R4 slice 9)', async () => {
+    const meta = (values: Record<string, unknown>) =>
+      preview({
+        id: 'p-media',
+        kind: 'media_meta',
+        objectKey: null,
+        mimeType: null,
+        sizeBytes: 0,
+        width: 1920,
+        height: 1080,
+        meta: values,
+      });
+    const hevc = build({
+      version: version({ detectedMimeType: 'video/quicktime' }),
+      previews: [
+        meta({
+          durationMs: 90_000,
+          hasVideo: true,
+          hasAudio: true,
+          width: 1920,
+          height: 1080,
+          rotation: 90,
+          frameRate: 25,
+          videoCodec: 'HEVC',
+          audioCodec: 'AAC',
+          sampleRate: 48000,
+          channels: 2,
+          codecNotice: 'video_codec',
+          container: 'MPEG-4',
+        }),
+      ],
+    });
+    const manifest = await hevc.service.manifest(context, staff, 'internal', input);
+    expect(manifest.status).toBe('ready');
+    expect(manifest.durationMs).toBe(90_000);
+    expect(manifest.media).toEqual({
+      hasVideo: true,
+      hasAudio: true,
+      width: 1920,
+      height: 1080,
+      rotation: 90,
+      frameRate: 25,
+      videoCodec: 'HEVC',
+      audioCodec: 'AAC',
+      sampleRate: 48000,
+      channels: 2,
+      codecNotice: 'video_codec',
+    });
+    // A facts-only row is never a derivative a browser could fetch.
+    expect(manifest.derivatives).toEqual([]);
+
+    const odd = build({
+      version: version({ detectedMimeType: 'audio/mpeg' }),
+      previews: [meta({ hasAudio: true, rotation: 33, codecNotice: 'nope', audioCodec: 7 })],
+    });
+    expect((await odd.service.manifest(context, staff, 'internal', input)).media).toMatchObject({
+      hasVideo: false,
+      rotation: 0,
+      audioCodec: null,
+      codecNotice: null,
+    });
+
+    const waiting = build({ version: version({ detectedMimeType: 'video/mp4' }) });
+    expect((await waiting.service.manifest(context, staff, 'internal', input)).media).toBeNull();
+  });
+
   it('builds portal paths for the client door', async () => {
     const t = build({ previews: [preview()], published: { projectId: PROJECT } });
     const manifest = await t.service.manifest(context, client(), 'client', input);

@@ -82,6 +82,29 @@ export interface PreviewDecisionContext {
   readonly deliverableVersionId: string | null;
 }
 
+/**
+ * R4 slice 9 — video / audio facts read by the preview job (`media_meta`). `codecNotice` says the
+ * browser cannot decode a track (HEVC / ProRes picture, AC-3 sound …): the stage shows the notice
+ * and the download instead of a player that never starts.
+ */
+export type CodecNotice = 'video_codec' | 'audio_codec';
+
+export interface PreviewMedia {
+  readonly hasVideo: boolean;
+  readonly hasAudio: boolean;
+  readonly width: number | null;
+  readonly height: number | null;
+  /** Degrees the picture is turned (0, 90, 180, 270). */
+  readonly rotation: number;
+  readonly frameRate: number | null;
+  readonly videoCodec: string | null;
+  readonly audioCodec: string | null;
+  /** Sound samples a second and channel count of the sound track. */
+  readonly sampleRate: number | null;
+  readonly channels: number | null;
+  readonly codecNotice: CodecNotice | null;
+}
+
 export interface FilePreviewManifest {
   readonly file: PreviewFile;
   readonly version: PreviewVersionInfo | null;
@@ -92,6 +115,8 @@ export interface FilePreviewManifest {
   readonly originalUrl: string | null;
   readonly pages: number | null;
   readonly durationMs: number | null;
+  /** Video / audio facts; `null` until read, and for other kinds. */
+  readonly media: PreviewMedia | null;
   readonly approximate: boolean;
   readonly linkedImagesRemoved: boolean;
   readonly versions: PreviewChain;

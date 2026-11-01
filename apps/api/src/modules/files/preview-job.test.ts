@@ -16,6 +16,7 @@ import type {
 import { FileScanJob } from './file-scan-job.js';
 import { pngCodec } from './preview-generators/codecs.js';
 import { imageGenerator } from './preview-generators/image.js';
+import { mediaMetaGenerator } from './preview-generators/media-meta.js';
 import { tiffGenerator } from './preview-generators/tiff.js';
 import { utifCodec } from './preview-generators/codecs.js';
 import type { PreviewGenerator } from './preview-generators/types.js';
@@ -337,6 +338,35 @@ describe('PreviewJob — plan and draw', () => {
       'thumb:0:ready',
     ]);
     expect(report.ready).toBe(5);
+  });
+
+  it('a video gets one facts-only media_meta row: ready, no bytes stored, no key (R4 slice 9)', async () => {
+    const facts: PreviewGenerator = {
+      ...mediaMetaGenerator,
+      generate: async (_source, requests) =>
+        requests.map(() => ({
+          status: 'ready' as const,
+          body: null,
+          mimeType: null,
+          width: 1920,
+          height: 1080,
+          meta: { durationMs: 90_000, codecNotice: null },
+        })),
+    };
+    const mp4 = file('video/mp4', new Uint8Array([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70]));
+    const t = harness([mp4], {}, [facts]);
+    expect(await t.job.pass()).toMatchObject({ planned: 1, ready: 1, failed: 0 });
+    expect(t.previews.rows).toHaveLength(1);
+    expect(t.previews.rows[0]).toMatchObject({
+      kind: 'media_meta',
+      status: 'ready',
+      objectKey: null,
+      mimeType: null,
+      sizeBytes: 0,
+      width: 1920,
+      meta: { durationMs: 90_000, codecNotice: null },
+    });
+    expect(t.derived.size).toBe(0);
   });
 });
 

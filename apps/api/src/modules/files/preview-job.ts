@@ -531,13 +531,18 @@ export class PreviewJob implements PreviewRequester, OnApplicationBootstrap, OnM
       else tally.failed += 1;
       return;
     }
-    // The key is the row's own: a re-take of a stale claim rewrites the same object.
-    const objectKey = derivativeObjectKey({
-      organizationId: context.organizationId,
-      fileVersionId: row.fileVersionId,
-      previewId: row.id,
-    });
-    await this.store.putDerivative({ objectKey, body: outcome.body });
+    // The key is the row's own: a re-take of a stale claim rewrites the same object. A
+    // facts-only answer (media_meta) stores nothing and keeps no key.
+    const body = outcome.body;
+    const objectKey =
+      body === null
+        ? null
+        : derivativeObjectKey({
+            organizationId: context.organizationId,
+            fileVersionId: row.fileVersionId,
+            previewId: row.id,
+          });
+    if (body !== null && objectKey !== null) await this.store.putDerivative({ objectKey, body });
     const written = await this.database.transaction(context, async (tx) => {
       const marked = await this.previews.markReady(
         tx,
@@ -546,7 +551,7 @@ export class PreviewJob implements PreviewRequester, OnApplicationBootstrap, OnM
         {
           objectKey,
           mimeType: outcome.mimeType,
-          sizeBytes: outcome.body.byteLength,
+          sizeBytes: body === null ? 0 : body.byteLength,
           width: outcome.width,
           height: outcome.height,
           meta: outcome.meta,

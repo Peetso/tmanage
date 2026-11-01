@@ -360,6 +360,7 @@ import type {
   PreviewDecisionContextView as ApiPreviewDecisionContextView,
   PreviewDerivativeView as ApiPreviewDerivativeView,
   PreviewFileView as ApiPreviewFileView,
+  PreviewMediaView as ApiPreviewMediaView,
   PreviewRetryView as ApiPreviewRetryView,
   PreviewVersionInfoView as ApiPreviewVersionInfoView,
 } from '../../apps/api/src/modules/files/file-preview.service.js';
@@ -886,6 +887,7 @@ import type {
   PreviewDecisionContext as WebPreviewDecisionContext,
   PreviewDerivative as WebPreviewDerivative,
   PreviewFile as WebPreviewFile,
+  PreviewMedia as WebPreviewMedia,
   PreviewRetryResult as WebPreviewRetryResult,
   PreviewVersionInfo as WebPreviewVersionInfo,
 } from '../../apps/web/src/lib/api/file-preview';
@@ -2038,6 +2040,8 @@ type _previewCapabilities = Assert<Exact<ApiPreviewCapabilitiesView, WebPreviewC
 type _previewDecisionContext = Assert<
   Exact<ApiPreviewDecisionContextView, WebPreviewDecisionContext>
 >;
+// R4 slice 9 — video / audio facts in the manifest.
+type _previewMedia = Assert<Exact<ApiPreviewMediaView, WebPreviewMedia>>;
 type _filePreviewManifest = Assert<Exact<ApiFilePreviewManifestView, WebFilePreviewManifest>>;
 // R4 slice 5 — proofing threads.
 type _reviewPerson = Assert<Exact<ApiReviewPersonView, WebReviewPerson>>;

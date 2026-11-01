@@ -87,8 +87,9 @@ export interface EnsurePendingInput {
 }
 
 export interface ReadyPreviewInput {
-  readonly objectKey: string;
-  readonly mimeType: string;
+  /** `null` for a facts-only row (`media_meta`): the answer is all in `meta`, no bytes stored. */
+  readonly objectKey: string | null;
+  readonly mimeType: string | null;
   readonly sizeBytes: number;
   readonly width: number | null;
   readonly height: number | null;

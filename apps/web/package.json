@@ -22,7 +22,8 @@
     "next": "16.4.2",
     "pdfjs-dist": "5.4.296",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "wavesurfer.js": "7.12.12"
   },
   "devDependencies": {
     "@storybook/react-vite": "^10.5.10",
