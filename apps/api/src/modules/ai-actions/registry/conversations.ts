@@ -280,6 +280,34 @@ export const conversationsDetails: readonly AiActionDetail[] = [
     ],
   }),
   det({
+    id: 'conversations.link_previews.list',
+    title: 'List link previews',
+    description:
+      'The link previews (title, site, description) of up to 50 messages of a conversation.',
+    input: bodyArgs(['conversationId'], { messageIds: f.shortText(1_900) }),
+    redact: 'standard',
+    examples: [
+      { summary: 'Two messages', args: { conversationId: 'conv_123', messageIds: 'msg_5,msg_6' } },
+    ],
+  }),
+  det({
+    id: 'conversations.messages.forward.create',
+    title: 'Forward a message',
+    description:
+      'Copy a message into up to five other conversations you can post in. Their members are notified.',
+    input: bodyArgs(['conversationId', 'messageId'], {
+      targetConversationIds: z.array(f.id()).min(1).max(5),
+    }),
+    redact: 'standard',
+    notifies: true,
+    examples: [
+      {
+        summary: 'Forward to one chat',
+        args: { conversationId: 'conv_123', messageId: 'msg_5', targetConversationIds: ['conv_9'] },
+      },
+    ],
+  }),
+  det({
     id: 'conversations.messages.revisions.list',
     title: 'List message edit history',
     description: 'The edit history of a message.',

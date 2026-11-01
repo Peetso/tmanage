@@ -180,6 +180,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     en: 'Direct message',
     key: 'RouteTitle.chatDirect',
   },
+  '/[orgSlug]/chat/invite/[token]': { en: 'Group invite', key: 'RouteTitle.chatInvite' },
   '/[orgSlug]/chat/mentions': { en: 'Mentions', key: 'RouteTitle.chatMentions' },
   '/[orgSlug]/clients': { en: 'Clients', key: 'RouteTitle.clients' },
   '/[orgSlug]/clients/[clientOrganizationId]': {
@@ -193,6 +194,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/docs/[documentId]': { en: 'Document', key: 'RouteTitle.document' },
   '/[orgSlug]/figma/[linkId]': { en: 'Figma review', key: 'RouteTitle.figmaReview' },
   '/[orgSlug]/files/[fileId]': { en: 'File review', key: 'RouteTitle.fileReview' },
+  '/[orgSlug]/docs/[documentId]/print': { en: 'Print document', key: 'RouteTitle.documentPrint' },
   '/[orgSlug]/docs/[documentId]/edit': { en: 'Edit document', key: 'RouteTitle.documentEdit' },
   '/[orgSlug]/docs/collections': { en: 'Collections', key: 'RouteTitle.docCollections' },
   '/[orgSlug]/docs/templates': { en: 'Document templates', key: 'RouteTitle.docTemplates' },
@@ -266,6 +268,11 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/portal/deliverables/[deliverableVersionId]': {
     en: 'Deliverable',
     key: 'RouteTitle.portalDeliverable',
+  },
+  '/[orgSlug]/portal/chat': { en: 'Chat', key: 'RouteTitle.portalChat' },
+  '/[orgSlug]/portal/chat/[conversationId]': {
+    en: 'Conversation',
+    key: 'RouteTitle.portalChatConversation',
   },
   '/[orgSlug]/portal/figma/[linkId]': { en: 'Figma review', key: 'RouteTitle.portalFigmaReview' },
   '/[orgSlug]/portal/files': { en: 'Files', key: 'RouteTitle.portalFiles' },

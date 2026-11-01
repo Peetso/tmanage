@@ -15726,5 +15726,9 @@
   "ChatMessages.shareLocation": "مشاركة الموقع",
   "ChatMessages.star": "تمييز الرسالة بنجمة",
   "ChatMessages.tryAgain": "يرجى المحاولة مرة أخرى.",
-  "ChatMessages.unstar": "إزالة النجمة"
+  "ChatMessages.unstar": "إزالة النجمة",
+  "RouteTitle.chatInvite": "دعوة إلى مجموعة",
+  "RouteTitle.documentPrint": "طباعة المستند",
+  "RouteTitle.portalChat": "المحادثات",
+  "RouteTitle.portalChatConversation": "المحادثة"
 }

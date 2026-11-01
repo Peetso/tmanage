@@ -14,18 +14,19 @@ import {
 import { missingSecurityLines } from '../../../../scripts/security/pr-security-block.mjs';
 import { type CensusRoute, censusViolations, classifyRoute } from './route-census.js';
 
-declare global {
-  interface ImportMeta {
-    glob(pattern: string, options: { eager: true }): Record<string, Record<string, unknown>>;
-  }
-}
+// `import.meta.glob` is typed by a global `ImportMeta` augmentation that ships with docx's
+// declarations (R5), so this file no longer declares its own (that was a duplicate identifier);
+// the eager result is cast to its shape.
+type EagerModules = Record<string, Record<string, unknown>>;
 
 /** 56-15 census gates. Nest's own metadata keys; `RequestMethod` enum order. */
 const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS', 'HEAD', 'SEARCH'];
 
 function liveRoutes(): CensusRoute[] {
   const out: CensusRoute[] = [];
-  for (const mod of Object.values(import.meta.glob('../**/*.controller.ts', { eager: true }))) {
+  for (const mod of Object.values(
+    import.meta.glob('../**/*.controller.ts', { eager: true }) as EagerModules,
+  )) {
     for (const ctor of Object.values(mod)) {
       if (typeof ctor !== 'function') continue;
       const base = Reflect.getMetadata('path', ctor) as string | undefined;

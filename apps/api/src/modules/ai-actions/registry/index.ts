@@ -1062,7 +1062,8 @@ export const OPS: readonly AiActionOp[] = [
     id: 'conversations.get',
     method: 'GET',
     path: '/v1/organizations/:orgSlug/conversations/:conversationId',
-    capability: 'conversation.read',
+    // R7 slice 2: the route admits client group members; `authorize()` still gates internal callers.
+    capability: 'client_projection.read',
     risk: 'read',
     scope: 'read',
   },
@@ -1110,7 +1111,8 @@ export const OPS: readonly AiActionOp[] = [
     id: 'conversations.members.list',
     method: 'GET',
     path: '/v1/organizations/:orgSlug/conversations/:conversationId/members',
-    capability: 'conversation.read',
+    // R7 slice 2: the route admits client group members; `authorize()` still gates internal callers.
+    capability: 'client_projection.read',
     risk: 'read',
     scope: 'read',
   },
@@ -1134,7 +1136,8 @@ export const OPS: readonly AiActionOp[] = [
     id: 'conversations.messages.list',
     method: 'GET',
     path: '/v1/organizations/:orgSlug/conversations/:conversationId/messages',
-    capability: 'conversation.read',
+    // R7 slice 2: the route admits client group members; `authorize()` still gates internal callers.
+    capability: 'client_projection.read',
     risk: 'read',
     scope: 'read',
   },
@@ -1142,7 +1145,8 @@ export const OPS: readonly AiActionOp[] = [
     id: 'conversations.messages.create',
     method: 'POST',
     path: '/v1/organizations/:orgSlug/conversations/:conversationId/messages',
-    capability: 'conversation.write',
+    // R7 slice 2: the route admits client group members; `authorize()` still gates internal callers.
+    capability: 'client_projection.read',
     risk: 'write',
     scope: 'write',
   },
@@ -1158,7 +1162,8 @@ export const OPS: readonly AiActionOp[] = [
     id: 'conversations.messages.update',
     method: 'PATCH',
     path: '/v1/organizations/:orgSlug/conversations/:conversationId/messages/:messageId',
-    capability: 'conversation.write',
+    // R7 slice 2: the route admits client group members; `authorize()` still gates internal callers.
+    capability: 'client_projection.read',
     risk: 'write',
     scope: 'write',
   },

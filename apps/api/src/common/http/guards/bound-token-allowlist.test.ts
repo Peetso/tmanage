@@ -9,12 +9,10 @@ import {
   routeKeyOf,
 } from './bound-token-allowlist.js';
 
-declare global {
-  // Vite provides `import.meta.glob` at transform time; declare its (eager) shape for `tsc`.
-  interface ImportMeta {
-    glob(pattern: string, options: { eager: true }): Record<string, Record<string, unknown>>;
-  }
-}
+// `import.meta.glob` is typed by a global `ImportMeta` augmentation that ships with docx's
+// declarations (R5), so this file no longer declares its own (that was a duplicate identifier);
+// the eager result is cast to its shape.
+type EagerModules = Record<string, Record<string, unknown>>;
 
 /**
  * F01 part b — the bound-token allowlist for `@NoTenant()` routes stays exact.
@@ -33,7 +31,7 @@ interface LiveRoute {
 const reflector = new Reflector();
 
 function enumerateLiveRoutes(): LiveRoute[] {
-  const modules = import.meta.glob('../../../**/*.controller.ts', { eager: true });
+  const modules = import.meta.glob('../../../**/*.controller.ts', { eager: true }) as EagerModules;
   const routes: LiveRoute[] = [];
   for (const mod of Object.values(modules)) {
     for (const exported of Object.values(mod)) {

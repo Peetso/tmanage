@@ -7,11 +7,10 @@ import {
 } from '../../src/modules/rate-limits/throttle-policies.js';
 import type { CensusRoute } from '../../src/security/route-census.js';
 
-declare global {
-  interface ImportMeta {
-    glob(pattern: string, options: { eager: true }): Record<string, Record<string, unknown>>;
-  }
-}
+// `import.meta.glob` is typed by a global `ImportMeta` augmentation that ships with docx's
+// declarations (R5), so this file no longer declares its own (that was a duplicate identifier);
+// the eager result is cast to its shape.
+type EagerModules = Record<string, Record<string, unknown>>;
 
 /**
  * Every live HTTP route, read from Nest's own controller metadata — the same reflection
@@ -24,7 +23,7 @@ const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS', 'HEA
 export function liveRoutes(): CensusRoute[] {
   const out: CensusRoute[] = [];
   for (const mod of Object.values(
-    import.meta.glob('../../src/**/*.controller.ts', { eager: true }),
+    import.meta.glob('../../src/**/*.controller.ts', { eager: true }) as EagerModules,
   )) {
     for (const ctor of Object.values(mod)) {
       if (typeof ctor !== 'function') continue;

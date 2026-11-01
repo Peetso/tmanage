@@ -15726,5 +15726,9 @@
   "ChatMessages.shareLocation": "Share location",
   "ChatMessages.star": "Star message",
   "ChatMessages.tryAgain": "Please try again.",
-  "ChatMessages.unstar": "Unstar message"
+  "ChatMessages.unstar": "Unstar message",
+  "RouteTitle.chatInvite": "Group invite",
+  "RouteTitle.documentPrint": "Print document",
+  "RouteTitle.portalChat": "Chat",
+  "RouteTitle.portalChatConversation": "Conversation"
 }

@@ -123,6 +123,7 @@ const SINGLE_ROW_OR_SYSTEM: Readonly<Record<string, string>> = {
   'work/item-files.repository.ts#detachOutsideProject': 'system un-link on a move',
   'docs/documents.repository.ts#findById': 'by id',
   'docs/document-comments.repository.ts#append': 'write path read-back',
+  'docs/document-comments.repository.ts#setResolved': 'write path (open comments only)',
   'docs/document-sharing.repository.ts#audiences': 'by ids',
   'decisions/decisions.repository.ts#findById': 'by id',
   'decisions/decisions.repository.ts#create': 'write path read-back',

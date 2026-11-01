@@ -1456,6 +1456,25 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/portal/chat/list',
     reason: 'chat_groups',
   },
+  // R7 slice 2. The person's own chat list and its arrangement (pin, archive): the view state of
+  // the person at the keyboard; an AI reads conversations through `conversations.*`.
+  { method: 'GET', path: '/v1/organizations/:orgSlug/chat/list', reason: 'session' },
+  { method: 'PUT', path: '/v1/organizations/:orgSlug/chat/:conversationId/pin', reason: 'session' },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/chat/:conversationId/pin',
+    reason: 'session',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/chat/:conversationId/archive',
+    reason: 'session',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/chat/:conversationId/archive',
+    reason: 'session',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

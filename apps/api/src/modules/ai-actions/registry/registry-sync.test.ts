@@ -13,12 +13,10 @@ import {
 } from './index.js';
 import { IS_PUBLIC, REQUIRED_CAPABILITY, SKIPS_TENANT } from '../../../common/http/decorators.js';
 
-declare global {
-  // Vite provides `import.meta.glob` at transform time; declare its (eager) shape for `tsc`.
-  interface ImportMeta {
-    glob(pattern: string, options: { eager: true }): Record<string, Record<string, unknown>>;
-  }
-}
+// `import.meta.glob` is typed by a global `ImportMeta` augmentation that ships with docx's
+// declarations (R5), so this file no longer declares its own (that was a duplicate identifier);
+// the eager result is cast to its shape.
+type EagerModules = Record<string, Record<string, unknown>>;
 
 /**
  * T-REG-01 — `registry-sync.every-route-classified` (plan §6, architecture B3).
@@ -110,12 +108,13 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // 4 `file_review`: threads on frames, studio and portal), was 1072.
 // R5 docs rich editor: +6 ops (comments resolve POST/DELETE, export.html, export.docx, presence
 // GET/PUT), was 1089.
-// R7 slice 5: +1 op, GET .../conversations/:conversationId/link-previews, was 1095.
+// R7 slice 5: +1 op, GET .../conversations/:conversationId/link-previews.
 // R7 slice 3: +11 NEVER (`chat_groups`: group info/settings/members/role/leave/invite, invite
 // preview/join, portal chat list).
 // R7 slice 6: +5 NEVER (presence heartbeat/list, privacy preferences GET/PUT, receipts).
-// R7 slice 4: +1 op, POST .../messages/:messageId/forward.
-const EXPECTED_ROUTE_COUNT = 1113;
+// R7 slice 4: +1 op, POST .../messages/:messageId/forward, was 1112.
+// R7 slice 2: +5 NEVER (`session`: chat list, pin/unpin, archive/unarchive), was 1113.
+const EXPECTED_ROUTE_COUNT = 1118;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).
@@ -141,9 +140,8 @@ function enumerateLiveRoutes(): LiveRoute[] {
   // Eagerly import every controller. Importing only defines the classes (no providers are
   // instantiated and nothing connects to a database), so reading their metadata is cheap.
   // `import.meta.glob` is a Vite transform: it must be referenced by that exact literal name
-  // (Vite replaces it statically), so the call stays verbatim and `ImportMeta` is augmented
-  // below to give `tsc` its type without pulling in all of `vite/client`'s globals.
-  const modules = import.meta.glob('../../**/*.controller.ts', { eager: true });
+  // (Vite replaces it statically), so the call stays verbatim; only its result is cast.
+  const modules = import.meta.glob('../../**/*.controller.ts', { eager: true }) as EagerModules;
   const routes: LiveRoute[] = [];
   for (const [modulePath, mod] of Object.entries(modules)) {
     for (const exported of Object.values(mod)) {

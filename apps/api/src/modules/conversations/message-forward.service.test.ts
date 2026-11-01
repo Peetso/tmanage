@@ -40,7 +40,7 @@ function build() {
     if (id === 'stranger') throw new ApiError(404, 'not_found', 'Not found');
     return { id, projectId: id === 'group' ? null : P };
   });
-  const postMessage = vi.fn(async (_c: unknown, _p: unknown, id: string) => ({
+  const postMessage = vi.fn(async (_c: unknown, _p: unknown, id: string, _input?: unknown) => ({
     message: { id: `new-${id}` },
   }));
   const attach = vi.fn(async () => ({}));
