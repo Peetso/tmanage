@@ -297,6 +297,7 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'POST', path: '/v1/public/sign-up/', reason: 'signup' },
   { method: 'GET', path: '/v1/public/site/changelog', reason: 'public_site' },
   { method: 'GET', path: '/v1/public/site/faq', reason: 'public_site' },
+  { method: 'GET', path: '/v1/public/locale-hint', reason: 'public_site' },
   { method: 'GET', path: '/v1/public/site/home', reason: 'public_site' },
   { method: 'GET', path: '/v1/public/site/legal/:doc', reason: 'public_site' },
   { method: 'GET', path: '/v1/public/site/plans', reason: 'public_site' },

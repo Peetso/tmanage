@@ -734,6 +734,10 @@ export class CredentialsRepository {
       ip?: string | null;
       userAgent?: string | null;
       correlationId?: string | null;
+      /** R12 (0280). The sign-in's automation signal; absent on every other event. */
+      automationScore?: number | null;
+      automationReasons?: readonly string[] | null;
+      clientHints?: string | null;
     },
   ): Promise<void> {
     if (input.outcome === 'succeeded' && CREDENTIAL_CHANGE_ACTIONS.includes(input.action)) {
@@ -761,6 +765,10 @@ export class CredentialsRepository {
       ip?: string | null;
       userAgent?: string | null;
       correlationId?: string | null;
+      /** R12 (0280). The sign-in's automation signal; absent on every other event. */
+      automationScore?: number | null;
+      automationReasons?: readonly string[] | null;
+      clientHints?: string | null;
     },
   ): Promise<void> {
     await tenantDrizzle(runner)
@@ -777,6 +785,12 @@ export class CredentialsRepository {
         userAgent: clampToColumnCharacters(input.userAgent, MAX_EVENT_USER_AGENT_CHARACTERS),
         correlationId: input.correlationId ?? null,
         occurredAt: sql`current_timestamp(3)`,
+        automationScore:
+          typeof input.automationScore === 'number'
+            ? Math.max(0, Math.min(100, Math.round(input.automationScore)))
+            : null,
+        automationReasonsJson: input.automationReasons ? [...input.automationReasons] : null,
+        clientHints: clampToColumnCharacters(input.clientHints, MAX_EVENT_USER_AGENT_CHARACTERS),
       });
   }
 
@@ -1131,4 +1145,29 @@ export class CredentialsRepository {
       .orderBy(desc(authenticationEvents.occurredAt), desc(authenticationEvents.id))
       .limit(limit);
   }
+}
+
+/**
+ * R12 (D3 `rate_high`). Authentication events from one address in the last `windowSeconds`, by
+ * the database clock. One read on `ix_authentication_events_ip_occurred`. A function rather than a
+ * method: it needs no seed cipher, and the sign-in controller calls it before any service runs.
+ */
+export async function countRecentAttemptsByIp(
+  runner: IdentityQueryRunner,
+  ip: string,
+  windowSeconds: number,
+): Promise<number> {
+  const rows = await tenantDrizzle(runner)
+    .select({ n: sql<number>`count(*)` })
+    .from(authenticationEvents)
+    .where(
+      and(
+        eq(authenticationEvents.ip, ip),
+        gte(
+          authenticationEvents.occurredAt,
+          sql`date_sub(current_timestamp(3), interval ${windowSeconds} second)`,
+        ),
+      ),
+    );
+  return Number(rows[0]?.n ?? 0);
 }

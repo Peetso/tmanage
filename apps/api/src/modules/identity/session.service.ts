@@ -12,6 +12,7 @@ import { mintCsrfToken, verifyCsrfToken } from '../../common/http/csrf.js';
 import type { CookieAttributes } from './session-token.js';
 import { SessionsRepository, storableIp } from './sessions.repository.js';
 import type { SessionSummary } from './sessions.repository.js';
+import type { IpRecorder } from './geo/ip-intelligence.service.js';
 
 /**
  * ID-001 — session authentication, refresh rotation, and reuse detection.
@@ -197,6 +198,11 @@ export interface StartSessionInput {
   readonly correlationId: string;
   /** Platform admin v2 (0247): stamped as `ip_first` and `ip_last`. */
   readonly ip?: string | null;
+  /**
+   * R12 (0280). Link the session to the succeeded sign-in event this request (`correlationId`)
+   * wrote, as `sessions.sign_in_event_id`.
+   */
+  readonly linkSignInEvent?: boolean;
 }
 
 /**
@@ -237,8 +243,17 @@ export class SessionService {
     private readonly database: TenantDatabase,
     private readonly options: SessionServiceOptions,
     sessions: SessionsRepository = new SessionsRepository(),
+    /** R12. Records the address's place/network in `ip_lookups` where `ip_last` moves. */
+    private readonly ipRecorder: IpRecorder | null = null,
   ) {
     this.sessions = sessions;
+  }
+
+  /** R12. Best effort, after the commit: `record` itself never throws. */
+  private recordIp(ip: string | null | undefined, correlationId: string): void {
+    if (this.ipRecorder && storableIp(ip) !== null) {
+      void this.ipRecorder.record(ip, correlationId);
+    }
   }
 
   /** The name the refresh cookie is set under. Derived, so the two can never disagree. */
@@ -258,15 +273,29 @@ export class SessionService {
     const refresh = issueRefreshToken();
 
     const session = await this.database.identityTransaction(
-      { correlationId: input.correlationId, tables: [...IDENTITY_TABLES] },
-      (tx) =>
-        this.sessions.create(tx, {
+      {
+        correlationId: input.correlationId,
+        tables: input.linkSignInEvent
+          ? [...IDENTITY_TABLES, 'authentication_events']
+          : [...IDENTITY_TABLES],
+      },
+      async (tx) => {
+        const created = await this.sessions.create(tx, {
           userId: input.userId,
           refreshTokenHash: refresh.hash,
           userAgent: input.userAgent ?? null,
           ttlSeconds: this.options.refreshTtlSeconds,
           ip: input.ip ?? null,
-        }),
+        });
+        if (input.linkSignInEvent) {
+          await this.sessions.linkSignInEvent(tx, {
+            sessionId: created.id,
+            userId: input.userId,
+            correlationId: input.correlationId,
+          });
+        }
+        return created;
+      },
     );
 
     return this.established(session.id, session.userId, session.expiresAt, refresh.token);
@@ -319,6 +348,7 @@ export class SessionService {
           this.sessions.stampAddress(tx, state.session.id, address),
         )
         .catch(() => undefined);
+      this.recordIp(address, input.correlationId);
     }
 
     return {
@@ -418,6 +448,7 @@ export class SessionService {
     if (outcome.kind === 'rejected') {
       throw new RefreshRejectedError(outcome.code, outcome.sessionId);
     }
+    this.recordIp(input.ip, input.correlationId);
 
     return this.established(outcome.sessionId, outcome.userId, outcome.expiresAt, next.token);
   }

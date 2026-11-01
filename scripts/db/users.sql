@@ -2009,3 +2009,12 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`figma_frames`           TO 'tmanage_a
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`user_presence`          TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`link_previews`          TO 'tmanage_app'@'%';
 GRANT SELECT, INSERT, UPDATE ON `tmanage`.`link_previews`          TO 'tmanage_worker'@'%';
+
+-- ---- R12 slice 1 · IP intelligence ----
+-- 0280 `ip_lookups` (global, no tenant): the app writes the IP cache on every sign-in and session
+-- refresh (INSERT a new address, UPDATE to refresh it after 30 days and bump `last_seen_at`); SELECT
+-- is stated with the writes it pairs with. The worker's retention sweep reads and deletes rows unseen
+-- for GEOIP_RETENTION_DAYS (SELECT, DELETE) — the cache is derived data, never work a person made.
+-- The new `authentication_events` and `sessions` columns ride the existing table-level grants.
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`ip_lookups`             TO 'tmanage_app'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`ip_lookups`                     TO 'tmanage_worker'@'%';

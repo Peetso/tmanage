@@ -103,6 +103,8 @@ export const sessions = mysqlTable(
      * refuses a session idle (since `coalesce(rotated_at, created_at)`) longer than this.
      */
     idleLimitMinutes: smallint('idle_limit_minutes', { unsigned: true }),
+    /** R12 (0280). The `authentication_events` row of the sign-in that began this session. */
+    signInEventId: char('sign_in_event_id', { length: 36 }),
   },
   (table) => [
     uniqueIndex('uq_sessions_refresh_token_hash').on(table.refreshTokenHash),
@@ -7096,10 +7098,17 @@ export const authenticationEvents = mysqlTable(
     userAgent: varchar('user_agent', { length: 255 }),
     correlationId: char('correlation_id', { length: 36 }),
     occurredAt: datetime('occurred_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** R12 (0280). 0–100: how much the sign-in looked like a script (`automation-signal.ts`). */
+    automationScore: tinyint('automation_score', { unsigned: true }),
+    /** R12 (0280). The reasons behind the score, e.g. `["webdriver","form_too_fast"]`. */
+    automationReasonsJson: json('automation_reasons_json').$type<readonly string[]>(),
+    /** R12 (0280). `Sec-CH-UA` / the page's reported brands, clamped to 255. */
+    clientHints: varchar('client_hints', { length: 255 }),
   },
   (table) => [
     index('ix_authentication_events_user').on(table.userId, table.occurredAt),
     index('ix_authentication_events_occurred').on(table.occurredAt),
+    index('ix_authentication_events_ip_occurred').on(table.ip, table.occurredAt),
   ],
 );
 
@@ -11351,4 +11360,42 @@ export type TimeTimerRow = typeof timeTimers.$inferSelect;
 
 Object.assign(TABLES, {
   time_timers: timeTimers,
+});
+
+// ---- R12 · IP intelligence ----
+
+export const IP_NETWORK_KINDS = ['residential', 'hosting', 'local', 'unknown'] as const;
+export type IpNetworkKind = (typeof IP_NETWORK_KINDS)[number];
+
+/**
+ * 0280 (R12). One row per IP address seen on a sign-in or a session: its approximate place and
+ * network (DB-IP Lite, CC BY 4.0), cached and refreshed after 30 days. GLOBAL (NON_TENANT_TABLES):
+ * an address belongs to no organization; sessions and events join on `ip`. The worker deletes rows
+ * unseen for `GEOIP_RETENTION_DAYS`.
+ */
+export const ipLookups = mysqlTable(
+  'ip_lookups',
+  {
+    ip: varchar('ip', { length: 45 }).primaryKey(),
+    countryCode: char('country_code', { length: 2 }),
+    country: varchar('country', { length: 80 }),
+    region: varchar('region', { length: 120 }),
+    city: varchar('city', { length: 120 }),
+    postalCode: varchar('postal_code', { length: 16 }),
+    asn: int('asn', { unsigned: true }),
+    networkOwner: varchar('network_owner', { length: 190 }),
+    networkKind: mysqlEnum('network_kind', IP_NETWORK_KINDS).notNull().default('unknown'),
+    isTor: boolean('is_tor').notNull().default(false),
+    vpnOrProxy: mysqlEnum('vpn_or_proxy', ['likely', 'unknown']).notNull().default('unknown'),
+    source: varchar('source', { length: 16 }),
+    lookedUpAt: datetime('looked_up_at', { mode: 'date', fsp: 3 }).notNull(),
+    lastSeenAt: datetime('last_seen_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [index('ix_ip_lookups_last_seen').on(table.lastSeenAt)],
+);
+
+export type IpLookupRow = typeof ipLookups.$inferSelect;
+
+Object.assign(TABLES, {
+  ip_lookups: ipLookups,
 });

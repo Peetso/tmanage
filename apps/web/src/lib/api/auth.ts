@@ -35,9 +35,21 @@ export interface MfaRequiredResponse {
 
 export type SignInResponse = AuthenticatedResponse | MfaRequiredResponse;
 
+/**
+ * R12 (R1). What the sign-in page reports about itself, so the API can tell a person from a
+ * script: ms from render to submit, keys pressed, `navigator.webdriver`, the UA-data brands.
+ * Advisory only — the API ignores any odd value rather than refusing the sign-in.
+ */
+export interface SignInClientSignals {
+  readonly webdriver?: boolean;
+  readonly formMs?: number;
+  readonly keystrokes?: number;
+  readonly hints?: string;
+}
+
 export async function signInWithPassword(
   client: ApiClient,
-  input: { email: string; password: string },
+  input: { email: string; password: string; client?: SignInClientSignals },
 ): Promise<SignInResponse> {
   const { data } = await client.request<SignInResponse>({
     method: 'POST',

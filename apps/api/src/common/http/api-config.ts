@@ -152,6 +152,18 @@ export interface ApiConfig extends SessionServiceOptions {
   readonly statusPageUrl?: string | undefined;
   /** C10. What `GET /healthz/deep` checks. */
   readonly deepHealth?: DeepHealthConfig;
+  /**
+   * R12 (R1). The local DB-IP Lite files (city, ASN) and the optional Tor exit list URL; all
+   * absent = the `none` provider and every location cell shows "—". Optional so hand-built bags
+   * keep compiling.
+   */
+  readonly geoip?: {
+    readonly dbPath?: string | undefined;
+    readonly asnDbPath?: string | undefined;
+    readonly torExitListUrl?: string | undefined;
+    /** Days an `ip_lookups` row is kept after it was last seen (worker sweep). Default 400. */
+    readonly retentionDays: number;
+  };
 }
 
 export interface ApiConfigSource {
@@ -217,6 +229,11 @@ export interface ApiConfigSource {
   readonly CLAMAV_HOST?: string | undefined;
   /** 56-30. `<origin ip>:443` the deep check reads the origin certificate from; absent = not_configured. */
   readonly ORIGIN_TLS_PROBE_ADDRESS?: string | undefined;
+  /** R12. Optional; `| undefined` for EOPT. */
+  readonly GEOIP_DB_PATH?: string | undefined;
+  readonly GEOIP_ASN_DB_PATH?: string | undefined;
+  readonly GEOIP_TOR_EXIT_LIST_URL?: string | undefined;
+  readonly GEOIP_RETENTION_DAYS?: number | undefined;
 }
 
 /**
@@ -298,6 +315,12 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
       originTlsAddress: env.ORIGIN_TLS_PROBE_ADDRESS,
       originTlsServername: hostOf(env.WEB_PUBLIC_URL),
       realtimeSocketUrl: env.REALTIME_PUBLIC_URL ?? null,
+    },
+    geoip: {
+      dbPath: env.GEOIP_DB_PATH,
+      asnDbPath: env.GEOIP_ASN_DB_PATH,
+      torExitListUrl: env.GEOIP_TOR_EXIT_LIST_URL,
+      retentionDays: env.GEOIP_RETENTION_DAYS ?? 400,
     },
   };
 }

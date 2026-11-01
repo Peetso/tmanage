@@ -346,6 +346,8 @@ describe('the runtime user is actually least-privilege', () => {
     // ---- 52-01 ---- the forgotten-timer auto-stop deletes the running timer it files as an entry.
     // A timer is transient state, never work a person made (the entry is kept).
     purgeTables.add('time_timers');
+    // ---- R12 ---- the IP cache's retention sweep; derived data, never work a person made.
+    purgeTables.add('ip_lookups');
     for (const grant of grantsFor('tmanage_worker')) {
       if (purgeTables.has(grant.table)) continue;
       expect(grant.privileges, `worker grant on ${grant.table}`).not.toContain('DELETE');

@@ -373,6 +373,12 @@ export interface SignInContext {
   readonly ip?: string | null;
   readonly userAgent?: string | null;
   readonly correlationId: string;
+  /** R12 (0280). The password sign-in's automation signal, stamped on the events it writes. */
+  readonly automation?: {
+    readonly score: number;
+    readonly reasons: readonly string[];
+    readonly clientHints: string | null;
+  };
 }
 
 /** The person is authenticated. The caller starts a session with this `userId`. */
@@ -1802,6 +1808,9 @@ export class AuthenticationService {
           ip: context.ip ?? null,
           userAgent: context.userAgent ?? null,
           correlationId: context.correlationId,
+          automationScore: context.automation?.score ?? null,
+          automationReasons: context.automation?.reasons ?? null,
+          clientHints: context.automation?.clientHints ?? null,
         }),
     );
   }

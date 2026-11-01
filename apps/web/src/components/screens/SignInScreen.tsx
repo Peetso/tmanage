@@ -7,7 +7,11 @@ import { IdentityShell } from '../shell/IdentityShell';
 import { MfaChallengeScreen } from './MfaChallengeScreen';
 import { browserApiClient, csrfCookieName } from '../../lib/api/browser-client';
 import { readCookie } from '../../lib/api/client';
-import { signInWithPassword, type MfaRequiredResponse } from '../../lib/api/auth';
+import {
+  signInWithPassword,
+  type MfaRequiredResponse,
+  type SignInClientSignals,
+} from '../../lib/api/auth';
 import { developmentSignIn } from '../../lib/api/session';
 import type { ApiClient } from '../../lib/api/client';
 import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
@@ -103,6 +107,25 @@ function browserMayHaveSession(): boolean {
  * It emits no `sign_in_started` / `succeeded` / `failed` events. `34-ANALYTICS` defines them
  * and there is no telemetry transport; firing them into a console is not instrumentation.
  */
+/** R12 (R1). The advisory signals the sign-in sends; any of them may be absent. */
+function clientSignals(renderedAt: number | undefined, keys: number): SignInClientSignals {
+  const nav = navigator as Navigator & {
+    userAgentData?: { brands?: readonly { brand: string; version: string }[] };
+  };
+  const brands = nav.userAgentData?.brands
+    ?.map((entry) => `${entry.brand};v=${entry.version}`)
+    .join(', ')
+    .slice(0, 255);
+  return {
+    webdriver: nav.webdriver === true,
+    keystrokes: Math.min(keys, 10_000),
+    ...(renderedAt === undefined
+      ? {}
+      : { formMs: Math.min(3_600_000, Math.max(0, Math.round(performance.now() - renderedAt))) }),
+    ...(brands ? { hints: brands } : {}),
+  };
+}
+
 export function SignInScreen({
   client,
   onSignedIn,
@@ -159,6 +182,15 @@ export function SignInScreen({
    * and race the sign-in's own navigation.
    */
   const attempted = useRef(false);
+  /** R12 (R1): render time and key count, sent with the sign-in as advisory signals. */
+  const renderedAt = useRef<number | undefined>(undefined);
+  const keystrokes = useRef(0);
+  useEffect(() => {
+    renderedAt.current = performance.now();
+  }, []);
+  const countKey = () => {
+    keystrokes.current += 1;
+  };
 
   // Already signed in (live check f30af1d0): go into the app instead of showing the form. A
   // signed-out visitor's check answers "no" and nothing changes. Skipped while a Google
@@ -217,7 +249,11 @@ export function SignInScreen({
     setFailure(undefined);
 
     try {
-      const outcome = await signInWithPassword(api, { email: email.trim(), password });
+      const outcome = await signInWithPassword(api, {
+        email: email.trim(),
+        password,
+        client: clientSignals(renderedAt.current, keystrokes.current),
+      });
       if (outcome.status === 'mfa_required') {
         setChallenge(outcome);
         // The password is dropped the moment it is no longer needed. It has already been
@@ -341,6 +377,7 @@ export function SignInScreen({
             // 22 §3: "Mobile/RTL: single column; email direction remains LTR."
             dir="ltr"
             value={email}
+            onKeyDown={countKey}
             onChange={(event) => {
               setEmail(event.target.value);
               setFailure(undefined);
@@ -353,6 +390,7 @@ export function SignInScreen({
             name="password"
             autoComplete="current-password"
             value={password}
+            onKeyDown={countKey}
             onChange={(event) => {
               setPassword(event.target.value);
               setFailure(undefined);

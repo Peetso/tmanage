@@ -9,6 +9,8 @@ import { PUBLIC_SITE_STATUS_REPOSITORY } from '../../common/http/tokens.js';
 import { StatusRepository } from './status.repository.js';
 import { PublicSiteStatusController } from './status.controller.js';
 import { PUBLIC_STATUS_LINK, PublicStatusSummaryController } from './status-summary.controller.js';
+import { LocaleHintController } from './locale-hint.controller.js';
+import { GeoModule } from '../identity/geo/geo.module.js';
 
 /**
  * Public & trust site (module 1) wiring.
@@ -47,6 +49,8 @@ export class PublicSiteModule {
 
     return {
       module: PublicSiteModule,
+      // R12: `GET /v1/public/locale-hint` reads the GeoIP provider.
+      imports: [GeoModule],
       providers: [service, planCatalog, repository, statusLink],
       exports: [service],
       controllers: [
@@ -55,6 +59,7 @@ export class PublicSiteModule {
         PlanCatalogController,
         PublicSiteStatusController,
         PublicStatusSummaryController,
+        LocaleHintController,
       ],
     };
   }

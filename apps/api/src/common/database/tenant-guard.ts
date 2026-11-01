@@ -1320,6 +1320,10 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // 0263. One row per detector rule (on/off, threshold, cooldown). GLOBAL: no tenant data.
   // Platform admins read/update it through `identityTransaction` with the platform audit table.
   'platform_alert_rules',
+  // ---- R12 ----
+  // 0280. The IP cache (approximate place and network of an address). GLOBAL: an address belongs to
+  // no organization; sign-ins and sessions join on `ip`. Reached only through `identityTransaction`.
+  'ip_lookups',
 ]);
 
 export function isTenantTable(name: string): boolean {

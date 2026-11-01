@@ -29,6 +29,9 @@ import type { PasswordResetMailer } from '../../common/email/password-reset-emai
 import { PASSWORD_RESET_MAILER } from '../../common/http/tokens.js';
 import { createFixedWindowLimiter } from '../../common/http/rate-limiter.js';
 import { CONTACT_MAX_PER_WINDOW, CONTACT_WINDOW_MS } from '../public-site/contact.module.js';
+import { GeoModule, IP_INTELLIGENCE } from './geo/geo.module.js';
+import type { IpIntelligenceService } from './geo/ip-intelligence.service.js';
+import { SessionsRepository } from './sessions.repository.js';
 
 /**
  * ID-001's HTTP surface.
@@ -49,9 +52,10 @@ export class IdentityModule {
   static register(): DynamicModule {
     const sessionService: Provider = {
       provide: SESSION_SERVICE,
-      inject: [TENANT_DATABASE, API_CONFIG],
-      useFactory: (database: TenantDatabase, config: ApiConfig) =>
-        new SessionService(database, config),
+      inject: [TENANT_DATABASE, API_CONFIG, IP_INTELLIGENCE],
+      // R12: the refresh path records the address in the IP cache where `ip_last` moves.
+      useFactory: (database: TenantDatabase, config: ApiConfig, ip: IpIntelligenceService) =>
+        new SessionService(database, config, new SessionsRepository(), ip),
     };
 
     const authenticationService: Provider = {
@@ -141,6 +145,7 @@ export class IdentityModule {
 
     return {
       module: IdentityModule,
+      imports: [GeoModule],
       providers: [
         passwordResetService,
         passwordResetAdmission,

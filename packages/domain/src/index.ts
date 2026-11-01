@@ -350,3 +350,11 @@ export {
   sumLines,
 } from './money/money.js';
 export type { DocumentTotals, LineAmounts, Money, MoneyDigits } from './money/money.js';
+
+// Interface language suggestion — R12 (R2, SPEC D6)
+export {
+  DEFAULT_SUGGESTED_LOCALE,
+  localeForAcceptLanguage,
+  localeForCountry,
+} from './i18n/country-locale.js';
+export type { SuggestedLocale } from './i18n/country-locale.js';

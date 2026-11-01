@@ -32,6 +32,10 @@ import {
 import { describePasswordRejection } from './password.js';
 import { RESET_SIGN_IN_GRANT_COOKIE, RESET_SIGN_IN_GRANT_PATH } from './reset-sign-in-grant.js';
 import { expireCookie, readCookie } from './session-token.js';
+import { countRecentAttemptsByIp } from './credentials.repository.js';
+import { IP_INTELLIGENCE } from './geo/geo.module.js';
+import type { IpIntelligenceService } from './geo/ip-intelligence.service.js';
+import { parseClientSignals, scoreAutomation } from './geo/automation-signal.js';
 
 /**
  * `D05`. The header a credential-changing request carries its re-authentication token in.
@@ -90,7 +94,15 @@ function cookieHeaderOf(request: RequestLike): string | undefined {
 interface PasswordSignInBody {
   readonly email?: unknown;
   readonly password?: unknown;
+  /**
+   * R12 (D3). What the sign-in page reports about itself — `{webdriver, formMs, keystrokes,
+   * hints}`. Validated field by field; a bad value is ignored, never a 400.
+   */
+  readonly client?: unknown;
 }
+
+/** R12 (D3 `rate_high`): attempts from one address counted over the last ten minutes. */
+const RATE_WINDOW_SECONDS = 600;
 
 interface ChallengeBody {
   readonly challengeToken?: unknown;
@@ -142,6 +154,9 @@ export class AuthenticationController {
     // ---- platform-admin v2 · PA-10 ---- optional so the controller still builds without them
     @Optional() @Inject(TENANT_DATABASE) private readonly database?: TenantDatabase,
     @Optional() @Inject(API_CONFIG) private readonly config?: ApiConfig,
+    // R12. Optional like the two above: a suite that builds the controller without `GeoModule`
+    // signs in with no automation signal and no IP cache row.
+    @Optional() @Inject(IP_INTELLIGENCE) private readonly ipIntelligence?: IpIntelligenceService,
   ) {}
 
   /**
@@ -189,25 +204,66 @@ export class AuthenticationController {
       );
     }
 
-    const outcome = await this.run(() =>
-      this.authentication.signInWithPassword({
-        email,
-        password,
-        context: this.contextOf(request, state.correlationId),
-        resetGrant,
-      }),
-    );
-
-    if (outcome.status === 'authenticated') {
-      return this.establish(outcome.userId, request, reply, state.correlationId);
-    }
-
-    return {
-      status: 'mfa_required',
-      challengeToken: outcome.challengeToken,
-      expiresAt: outcome.expiresAt.toISOString(),
-      factors: outcome.factors,
+    const context = {
+      ...this.contextOf(request, state.correlationId),
+      automation: await this.automationOf(body?.client, request, state.correlationId),
     };
+    try {
+      const outcome = await this.run(() =>
+        this.authentication.signInWithPassword({ email, password, context, resetGrant }),
+      );
+
+      if (outcome.status === 'authenticated') {
+        return await this.establish(outcome.userId, request, reply, state.correlationId);
+      }
+
+      return {
+        status: 'mfa_required',
+        challengeToken: outcome.challengeToken,
+        expiresAt: outcome.expiresAt.toISOString(),
+        factors: outcome.factors,
+      };
+    } finally {
+      // R12. After the attempt's own transactions, whatever the outcome; `record` never throws.
+      void this.ipIntelligence?.record(request.ip, state.correlationId);
+    }
+  }
+
+  /**
+   * R12 (D3). The automation signal stamped on this attempt's events. Best effort: a failing
+   * count is treated as zero attempts, and nothing here can refuse the sign-in.
+   */
+  private async automationOf(
+    rawClient: unknown,
+    request: RequestLike,
+    correlationId: string,
+  ): Promise<{ score: number; reasons: readonly string[]; clientHints: string | null }> {
+    const client = parseClientSignals(rawClient);
+    const header = (name: string) => {
+      const value = request.headers[name];
+      return typeof value === 'string' ? value : Array.isArray(value) ? value.join(', ') : null;
+    };
+    const chUa = header('sec-ch-ua');
+    const clientHints = [chUa, client?.hints].filter((v): v is string => !!v).join(' | ') || null;
+    const network = this.ipIntelligence?.classify(request.ip) ?? null;
+    let recent = 0;
+    if (this.database && network && network.networkKind !== 'local') {
+      recent = await this.database
+        .identityRead({ correlationId, tables: ['authentication_events'] }, (db) =>
+          countRecentAttemptsByIp(db, network.ip, RATE_WINDOW_SECONDS),
+        )
+        .catch(() => 0);
+    }
+    const signal = scoreAutomation({
+      userAgent: header('user-agent'),
+      clientHints,
+      acceptLanguage: header('accept-language'),
+      client,
+      hostingIp: network?.networkKind === 'hosting',
+      torIp: network?.isTor ?? false,
+      recentAttemptsFromIp: recent,
+    });
+    return { score: signal.score, reasons: signal.reasons, clientHints };
   }
 
   /** `ID-02`. A code from an authenticator. */
@@ -273,6 +329,8 @@ export class AuthenticationController {
       userId,
       userAgent: typeof userAgent === 'string' ? userAgent : null,
       correlationId,
+      // R12 (0280): `sessions.sign_in_event_id` = this request's succeeded sign-in row.
+      linkSignInEvent: true,
     });
     reply.header('set-cookie', established.cookies);
     return {

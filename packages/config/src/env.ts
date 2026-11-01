@@ -24,6 +24,12 @@ const nonEmpty = (label: string) => z.string().trim().min(1, `${label} must not 
 
 const port = z.coerce.number().int().min(1).max(65_535);
 const positiveInt = z.coerce.number().int().positive();
+/** An optional string; blank means unset. */
+const optionalTrimmed = () =>
+  z
+    .string()
+    .optional()
+    .transform((value) => (value === undefined || value.trim() === '' ? undefined : value.trim()));
 
 /**
  * FILE-001b. One multipart part, 8 MiB by default: above S3's 5 MiB minimum, small enough
@@ -559,6 +565,15 @@ export const envSchema = z
       .transform((value) =>
         value === undefined || value.trim() === '' ? undefined : value.trim(),
       ),
+    /**
+     * R12 (R1). The local DB-IP Lite `.mmdb` files (city; optional ASN) and the optional Tor exit
+     * list URL (https://check.torproject.org/torbulkexitlist). Unset = locations unknown.
+     */
+    GEOIP_DB_PATH: optionalTrimmed(),
+    GEOIP_ASN_DB_PATH: optionalTrimmed(),
+    GEOIP_TOR_EXIT_LIST_URL: optionalTrimmed(),
+    /** R12. Days an IP-cache row is kept after it was last seen; default 400. */
+    GEOIP_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(400),
     PUBLIC_SIGNUP: z
       .string()
       .optional()

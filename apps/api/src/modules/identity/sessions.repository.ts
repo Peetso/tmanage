@@ -1,7 +1,12 @@
-import { and, asc, eq, gt, gte, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, isNull, ne, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { sessionRefreshTokens, sessions, users } from '../../common/database/schema.js';
+import {
+  authenticationEvents,
+  sessionRefreshTokens,
+  sessions,
+  users,
+} from '../../common/database/schema.js';
 import type { SessionRefreshTokenRow, SessionRow } from '../../common/database/schema.js';
 import type { IdentityQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -366,6 +371,35 @@ export class SessionsRepository {
       .update(sessions)
       .set({ ipFirst: sql`coalesce(${sessions.ipFirst}, ${address})`, ipLast: address })
       .where(eq(sessions.id, sessionId));
+  }
+
+  /**
+   * R12 (0280). Point the session at the succeeded sign-in event this request wrote (same user,
+   * same correlation id — one request, one sign-in). No such event leaves the column NULL.
+   */
+  async linkSignInEvent(
+    runner: IdentityQueryRunner,
+    input: { sessionId: string; userId: string; correlationId: string },
+  ): Promise<void> {
+    const db = tenantDrizzle(runner);
+    const found = await db
+      .select({ id: authenticationEvents.id })
+      .from(authenticationEvents)
+      .where(
+        and(
+          eq(authenticationEvents.userId, input.userId),
+          eq(authenticationEvents.correlationId, input.correlationId),
+          eq(authenticationEvents.outcome, 'succeeded'),
+        ),
+      )
+      .orderBy(desc(authenticationEvents.occurredAt), desc(authenticationEvents.id))
+      .limit(1);
+    const eventId = found[0]?.id;
+    if (eventId === undefined) return;
+    await db
+      .update(sessions)
+      .set({ signInEventId: eventId })
+      .where(eq(sessions.id, input.sessionId));
   }
 
   /**

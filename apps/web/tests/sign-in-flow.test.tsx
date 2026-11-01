@@ -99,9 +99,11 @@ describe('signing in with a password', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]?.url).toBe('https://api.example.test/v1/auth/password');
     expect(calls[0]?.method).toBe('POST');
-    expect(calls[0]?.body).toEqual({
+    // R12: plus the advisory `client` signals (keys typed, ms on the form, webdriver flag).
+    expect(calls[0]?.body).toMatchObject({
       email: 'omar@northstar.studio',
       password: 'a quiet line on paper',
+      client: { webdriver: false, keystrokes: expect.any(Number), formMs: expect.any(Number) },
     });
   });
 
@@ -115,7 +117,7 @@ describe('signing in with a password', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => expect(calls).toHaveLength(1));
-    expect(calls[0]?.body).toEqual({
+    expect(calls[0]?.body).toMatchObject({
       email: 'omar@northstar.studio',
       password: ' spaced password ',
     });
