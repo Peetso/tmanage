@@ -48,7 +48,10 @@ export interface CollaborationEmailFacts {
    * in Arabic for an `ar*` locale and in English otherwise; the older kinds are English-only yet.
    */
   readonly locale?: string;
-  /** t8-b — `approval_requested` only: the version number sent for approval. */
+  /**
+   * t8-b — `approval_requested`: the version number sent for approval. R4 Batch F follow-up: also
+   * the review emails, which name the file as drawn in V-51 ("Homepage Concept v2.png").
+   */
   readonly versionNumber?: number;
   /** t8-b — `approval_requested` only: the decide-by date, already a readable string. */
   readonly dueDate?: string;

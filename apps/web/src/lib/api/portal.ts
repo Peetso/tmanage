@@ -900,10 +900,10 @@ export type PortalInboxMode = 'all' | 'unread';
  * One request and every notification the client has about it.
  *
  * `status` is the client-safe word `CL-06` uses, never an internal state; `requestId` is the
- * link target. There is no `objectType` because the portal has one bundle kind, and no
- * person because the projection has none.
+ * link target. There is no `objectType`: a file bundle is told apart by its `fileAssetId`, and
+ * there is no person because the projection has none.
  */
-export interface PortalInboxBundle {
+export interface PortalInboxRequestBundle {
   readonly bundleId: string;
   readonly requestId: string;
   readonly projectId: string;
@@ -915,6 +915,26 @@ export interface PortalInboxBundle {
   readonly latestAt: string;
   readonly action: { readonly kind: 'open' };
 }
+
+/**
+ * R4 Batch F follow-up (V-50) — a file under review: comments, replies, mentions and resolved
+ * comments the client was told about. `fileAssetId` opens the portal viewer; `title` is the file.
+ */
+export interface PortalInboxFileBundle {
+  readonly bundleId: string;
+  readonly fileAssetId: string;
+  readonly requestId?: undefined;
+  readonly status?: undefined;
+  readonly projectId: string;
+  readonly title: string;
+  readonly count: number;
+  readonly unreadCount: number;
+  readonly types: readonly string[];
+  readonly latestAt: string;
+  readonly action: { readonly kind: 'open' };
+}
+
+export type PortalInboxBundle = PortalInboxRequestBundle | PortalInboxFileBundle;
 
 export interface PortalInboxPage {
   readonly items: readonly PortalInboxBundle[];

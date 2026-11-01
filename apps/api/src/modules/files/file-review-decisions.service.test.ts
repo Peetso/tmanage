@@ -257,6 +257,7 @@ describe('FileReviewDecisionsService (R4 slice 11)', () => {
           decision: 'approved',
           byUserId: USER,
           principalKind: 'internal',
+          versionNo: 2,
         },
       },
     ]);

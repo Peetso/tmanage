@@ -622,6 +622,8 @@ export interface ReviewThreadCreatedV1 {
   readonly audience: 'internal' | 'client_visible';
   readonly authorUserId: string;
   readonly mentionedUserIds: readonly string[];
+  /** R4 Batch F follow-up: the version number in its chain; absent on older events and frames. */
+  readonly versionNo?: number;
 }
 
 /** R4 slice 5. A reply: the thread's ids again, so a consumer needs no extra read to route it. */
@@ -635,6 +637,8 @@ export interface ReviewCommentAddedV1 {
   readonly audience: 'internal' | 'client_visible';
   readonly authorUserId: string;
   readonly mentionedUserIds: readonly string[];
+  /** R4 Batch F follow-up: the version number in its chain; absent on older events and frames. */
+  readonly versionNo?: number;
 }
 
 /** R4 slice 5. `resolved: false` is a reopen. */
@@ -657,6 +661,8 @@ export interface ReviewDecisionRecordedV1 {
   readonly decision: 'approved' | 'changes_requested';
   readonly byUserId: string;
   readonly principalKind: 'internal' | 'client';
+  /** R4 Batch F follow-up: the version number in its chain; absent on older events and frames. */
+  readonly versionNo?: number;
 }
 
 /** R4 follow-up: ids and the byte delta the ledger row records; never the derivative's bytes. */

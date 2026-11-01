@@ -4,12 +4,18 @@ import {
   API_CONFIG,
   AUDIT_SERVICE,
   INBOX_SERVICE,
+  MALWARE_SCANNER,
   NOTIFICATIONS_REPOSITORY,
+  OBJECT_STORE,
   OUTBOX_EVENTS_REPOSITORY,
   PORTAL_INBOX_SERVICE,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
+import type { ObjectStore } from '@tmanage/storage';
+import type { MalwareScanner } from '../../common/scan/malware-scanner.js';
+import { FileAssetsRepository } from '../files/file-assets.repository.js';
+import { FileDownloadService } from '../files/file-download.service.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
@@ -35,7 +41,7 @@ import { InboxSourceMutesService, INBOX_SOURCE_MUTES_SERVICE } from './source-mu
 /** Module-local: the shared `ClientRequestsService` both inbox services read through. */
 const INBOX_CLIENT_REQUESTS = Symbol('tmanage.InboxModule.ClientRequestsService');
 import { PortalInboxController } from './portal-inbox.controller.js';
-import { PortalInboxService } from './portal-inbox.service.js';
+import { PortalInboxService, portalInboxFileReader } from './portal-inbox.service.js';
 import { InboxRulesController, INBOX_RULES_SERVICE } from './rules.controller.js';
 import { InboxRulesService } from './rules.service.js';
 import { InboxRulesRepository } from './rules.repository.js';
@@ -136,12 +142,42 @@ export class InboxModule {
 
     const portal: Provider = {
       provide: PORTAL_INBOX_SERVICE,
-      inject: [TENANT_DATABASE, NOTIFICATIONS_REPOSITORY, INBOX_CLIENT_REQUESTS],
+      inject: [
+        TENANT_DATABASE,
+        NOTIFICATIONS_REPOSITORY,
+        INBOX_CLIENT_REQUESTS,
+        OBJECT_STORE,
+        AUDIT_SERVICE,
+        MALWARE_SCANNER,
+      ],
       useFactory: (
         database: TenantDatabase,
         notifications: NotificationsRepository,
         requests: ClientRequestsService,
-      ) => new PortalInboxService(database, requests, notifications),
+        store: ObjectStore,
+        audit: AuditService,
+        malwareScanner: MalwareScanner,
+      ) =>
+        new PortalInboxService(
+          database,
+          requests,
+          notifications,
+          // R4 Batch F follow-up: file review notices (V-50), each re-read through the download
+          // door the portal viewer opens a file by. Constructed here for this module's reason
+          // above: FilesModule is registered through .register(). Read-only; a refusal is the
+          // door's own audited 404.
+          portalInboxFileReader(
+            new FileDownloadService(
+              database,
+              new FileAssetsRepository(),
+              new ProjectsRepository(),
+              new ClientRequestsRepository(),
+              store,
+              audit,
+              malwareScanner,
+            ),
+          ),
+        ),
     };
 
     // INBOX-001 per-user routing rules (x301). Self-scoped GET/POST/DELETE plus a read-side resolve

@@ -22,6 +22,14 @@ export interface CreateAttachmentVersionInput {
   readonly createdByUserId: string;
 }
 
+/**
+ * R4 Batch F follow-up — a file's number in its chain from the row `findInvolving` returned: its
+ * own row's `versionNo`, or 1 for the root (which has no row) and for a file with no chain.
+ */
+export function chainVersionNo(link: AttachmentVersionRow | null, fileAssetId: string): number {
+  return link !== null && link.fileAssetId === fileAssetId ? link.versionNo : 1;
+}
+
 export class AttachmentVersionsRepository {
   async create(
     runner: TenantQueryRunner,

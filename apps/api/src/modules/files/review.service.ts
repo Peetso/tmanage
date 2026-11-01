@@ -10,7 +10,7 @@ import type { FileAssetRow } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
-import { AttachmentVersionsRepository } from './attachment-versions.repository.js';
+import { AttachmentVersionsRepository, chainVersionNo } from './attachment-versions.repository.js';
 import { assertDoor } from './file-download.service.js';
 import type { FileDownloadService, ResolvedFile } from './file-download.service.js';
 import { ReviewCommentsRepository } from './review-comments.repository.js';
@@ -542,7 +542,8 @@ export class ReviewService {
     for (let attempt = 1; ; attempt += 1) {
       try {
         const created = await this.database.transaction(context, async (tx) => {
-          const subjectId = await this.subjectOf(tx, context, asset);
+          const link = await this.versions.findInvolving(tx, context, asset.id);
+          const subjectId = link ? link.rootFileAssetId : asset.id;
           const number = await this.threads.lockNextNumber(tx, context, 'file_asset', subjectId);
           const thread = await this.threads.insert(tx, context, {
             projectId: asset.projectId,
@@ -591,6 +592,8 @@ export class ReviewService {
               audience,
               authorUserId: principal.userId,
               mentionedUserIds: mentions,
+              // R4 Batch F follow-up: the emails say "v<N>"; the worker has no version table.
+              versionNo: chainVersionNo(link, asset.id),
             },
           });
           return thread;
@@ -636,6 +639,14 @@ export class ReviewService {
       throw invalid('mentions', 'a client cannot be mentioned on an internal comment');
     }
     const comment = await this.database.transaction(context, async (tx) => {
+      // R4 Batch F follow-up: the version the thread is drawn on, for the notice's "v<N>".
+      const versionNo =
+        gate.fileAssetId === null
+          ? undefined
+          : chainVersionNo(
+              await this.versions.findInvolving(tx, context, gate.fileAssetId),
+              gate.fileAssetId,
+            );
       const row = await this.comments.insert(tx, context, {
         threadId: thread.id,
         body,
@@ -668,6 +679,7 @@ export class ReviewService {
           audience: thread.audience,
           authorUserId: principal.userId,
           mentionedUserIds: mentions,
+          ...(versionNo === undefined ? {} : { versionNo }),
         },
       });
       return row;

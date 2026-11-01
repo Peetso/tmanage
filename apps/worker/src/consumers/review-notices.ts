@@ -77,6 +77,15 @@ function stringField(payload: Record<string, unknown>, key: string, eventId: str
   return value;
 }
 
+/**
+ * R4 Batch F follow-up — the version number the api now puts on a review event, so the email can
+ * say "v<N>". Optional: an event written before it (or a malformed value) renders without one.
+ */
+export function versionNoOf(payload: Record<string, unknown>): number | undefined {
+  const value = payload['versionNo'];
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 ? value : undefined;
+}
+
 function idList(payload: Record<string, unknown>, key: string): readonly string[] {
   const value = payload[key];
   if (!Array.isArray(value)) return [];
@@ -151,6 +160,7 @@ export const planReviewCommentNotices: NoticePlanner = async (event, tx, mailer)
   const threadId = stringField(raw, 'threadId', event.id);
   const commentId = stringField(raw, 'commentId', event.id);
   const authorUserId = stringField(raw, 'authorUserId', event.id);
+  const versionNo = versionNoOf(raw);
 
   const thread = await findReviewThreadFacts(tx, event.organizationId, threadId);
   if (thread === null || thread.subjectType !== 'file_asset') return []; // Gone.
@@ -190,6 +200,7 @@ export const planReviewCommentNotices: NoticePlanner = async (event, tx, mailer)
       subjectTitle: file.name,
       ...(project === null ? {} : { projectName: project }),
       pinNumber: thread.number,
+      ...(versionNo === undefined ? {} : { versionNumber: versionNo }),
       portal,
       link: mailer.linkTo(reviewViewerPath(org.slug, thread.subjectId, portal, threadId)),
     };
@@ -283,6 +294,7 @@ export const planReviewDecisionNotices: NoticePlanner = async (event, tx, mailer
   const projectId = stringField(raw, 'projectId', event.id);
   const byUserId = stringField(raw, 'byUserId', event.id);
   const decision = raw['decision'] === 'approved' ? 'approved' : 'changes_requested';
+  const versionNo = versionNoOf(raw);
 
   const root = await findReviewFileFacts(tx, event.organizationId, rootFileAssetId);
   if (root === null) return [];
@@ -311,6 +323,7 @@ export const planReviewDecisionNotices: NoticePlanner = async (event, tx, mailer
       subjectTitle: (version ?? root).name,
       ...(project === null ? {} : { projectName: project }),
       decision,
+      ...(versionNo === undefined ? {} : { versionNumber: versionNo }),
       link: mailer.linkTo(reviewViewerPath(org.slug, fileAssetId, false)),
     };
   };

@@ -9,7 +9,7 @@ import type {
 } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
-import { AttachmentVersionsRepository } from './attachment-versions.repository.js';
+import { AttachmentVersionsRepository, chainVersionNo } from './attachment-versions.repository.js';
 import { FileAssetsRepository } from './file-assets.repository.js';
 import { FileClientRelation } from './file-client-relation.js';
 import { assertDoor } from './file-download.service.js';
@@ -154,13 +154,18 @@ export class FileReviewDecisionsService {
         ? named
         : await this.downloads.resolve(context, principal, targetId, DECIDE_ACTION);
 
-    const { rootId, deliverable } = await this.database.read(context, async (runner) => ({
-      rootId: {
-        named: await this.rootOf(runner, context, named.asset),
-        target: await this.rootOf(runner, context, target.asset),
-      },
-      deliverable: await this.decisions.deliverableVersionFor(runner, context, target.asset.id),
-    }));
+    const { rootId, versionNo, deliverable } = await this.database.read(context, async (runner) => {
+      const targetLink = await this.versions.findInvolving(runner, context, target.asset.id);
+      return {
+        rootId: {
+          named: await this.rootOf(runner, context, named.asset),
+          target: targetLink ? targetLink.rootFileAssetId : target.asset.id,
+        },
+        // R4 Batch F follow-up: the decided version's number, for the email's "v<N>".
+        versionNo: chainVersionNo(targetLink, target.asset.id),
+        deliverable: await this.decisions.deliverableVersionFor(runner, context, target.asset.id),
+      };
+    });
     if (rootId.named !== rootId.target) {
       throw invalid('fileAssetId', 'must be a version of this file');
     }
@@ -220,6 +225,7 @@ export class FileReviewDecisionsService {
           decision,
           byUserId: principal.userId,
           principalKind: principal.kind === 'client' ? 'client' : 'internal',
+          versionNo,
         },
       });
       return this.view(tx, context, principal, target.asset);

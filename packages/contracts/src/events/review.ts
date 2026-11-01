@@ -27,6 +27,12 @@ export interface ReviewThreadCreatedPayload {
   readonly audience: ReviewAudience;
   readonly authorUserId: string;
   readonly mentionedUserIds: readonly string[];
+  /**
+   * R4 Batch F follow-up: the number of the file version the comment is on (1 for the root of the
+   * chain), so a notice can say "v<N>" without reading the version table. Absent on events
+   * written before it and on Figma frame threads.
+   */
+  readonly versionNo?: number;
 }
 
 /** `review.comment_added.v1` — a reply on a thread. */
@@ -40,6 +46,12 @@ export interface ReviewCommentAddedPayload {
   readonly audience: ReviewAudience;
   readonly authorUserId: string;
   readonly mentionedUserIds: readonly string[];
+  /**
+   * R4 Batch F follow-up: the number of the file version the comment is on (1 for the root of the
+   * chain), so a notice can say "v<N>" without reading the version table. Absent on events
+   * written before it and on Figma frame threads.
+   */
+  readonly versionNo?: number;
 }
 
 /** `review.thread_resolved.v1` — a thread was resolved (`resolved: true`) or reopened. */
@@ -62,6 +74,8 @@ export interface ReviewDecisionRecordedPayload {
   readonly decision: 'approved' | 'changes_requested';
   readonly byUserId: string;
   readonly principalKind: 'internal' | 'client';
+  /** R4 Batch F follow-up: the decided version's number in its chain. Absent on older events. */
+  readonly versionNo?: number;
 }
 
 // ── JSON representations ──────────────────────────────────────────────────────
@@ -73,6 +87,8 @@ const NULLABLE_UUID: JsonSchemaProperty = { type: ['string', 'null'], format: 'u
 const SUBJECT_TYPE: JsonSchemaProperty = { type: 'string', enum: REVIEW_SUBJECT_TYPES };
 const AUDIENCE: JsonSchemaProperty = { type: 'string', enum: REVIEW_AUDIENCES };
 const MENTIONS: JsonSchemaProperty = { type: 'array', items: UUID };
+/** Optional: absent on events written before R4 Batch F's follow-up. */
+const VERSION_NO: JsonSchemaProperty = { type: 'integer', minimum: 1 };
 
 export const REVIEW_THREAD_CREATED_V1_SCHEMA: JsonObjectSchema = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
@@ -100,6 +116,7 @@ export const REVIEW_THREAD_CREATED_V1_SCHEMA: JsonObjectSchema = {
     audience: AUDIENCE,
     authorUserId: UUID,
     mentionedUserIds: MENTIONS,
+    versionNo: VERSION_NO,
   },
   additionalProperties: false,
 };
@@ -130,6 +147,7 @@ export const REVIEW_COMMENT_ADDED_V1_SCHEMA: JsonObjectSchema = {
     audience: AUDIENCE,
     authorUserId: UUID,
     mentionedUserIds: MENTIONS,
+    versionNo: VERSION_NO,
   },
   additionalProperties: false,
 };
@@ -182,6 +200,7 @@ export const REVIEW_DECISION_RECORDED_V1_SCHEMA: JsonObjectSchema = {
     decision: { type: 'string', enum: ['approved', 'changes_requested'] },
     byUserId: UUID,
     principalKind: { type: 'string', enum: ['internal', 'client'] },
+    versionNo: VERSION_NO,
   },
   additionalProperties: false,
 };

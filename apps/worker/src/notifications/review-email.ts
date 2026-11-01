@@ -54,6 +54,22 @@ function arabic(locale: string | undefined): boolean {
   return locale !== undefined && /^ar(?:-|$)/iu.test(locale);
 }
 
+/**
+ * R4 Batch F follow-up — the file as V-51 draws it, the version before the extension:
+ * "Homepage Concept.png" at version 2 is "Homepage Concept v2.png". No version (an event written
+ * before the api sent one) leaves the name alone, and so does a name that already says it.
+ */
+export function fileWithVersion(name: string, versionNo: number | undefined): string {
+  if (versionNo === undefined) return name;
+  const tag = `v${versionNo}`;
+  const dot = name.lastIndexOf('.');
+  const hasExtension = dot > 0 && dot >= name.length - 6 && dot < name.length - 1;
+  const stem = hasExtension ? name.slice(0, dot) : name;
+  const extension = hasExtension ? name.slice(dot) : '';
+  if (stem.toLowerCase().endsWith(` ${tag}`)) return name;
+  return `${stem} ${tag}${extension}`;
+}
+
 export interface ReviewEmailFact {
   readonly label: string;
   readonly value: string;
@@ -79,7 +95,7 @@ export function reviewEmailCopy(
   const ar = arabic(facts.locale);
   const studio = oneLine(facts.organizationName);
   const actor = oneLine(facts.actorName ?? facts.organizationName);
-  const file = oneLine(facts.subjectTitle);
+  const file = fileWithVersion(oneLine(facts.subjectTitle), facts.versionNumber);
   const name = oneLine(facts.recipientName);
   const pin = facts.pinNumber;
   const portal = facts.portal === true;

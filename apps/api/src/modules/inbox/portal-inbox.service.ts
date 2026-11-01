@@ -68,7 +68,7 @@ export function isPortalInboxMode(value: string): value is PortalInboxMode {
 }
 
 /** One request, however many notifications the client has about it. */
-export interface PortalInboxBundleView {
+export interface PortalInboxRequestBundleView {
   /** `client_request:{id}`. What "mark read" takes. */
   readonly bundleId: string;
   readonly requestId: string;
@@ -85,6 +85,43 @@ export interface PortalInboxBundleView {
   readonly action: { readonly kind: 'open' };
 }
 
+/**
+ * R4 Batch F follow-up (V-50) — one file under review, however many notices the client has about
+ * it: a comment, a reply, a mention, a resolved or reopened comment on a client-visible thread.
+ * `fileAssetId` is the root of the version chain, the portal viewer's link target; `title` is the
+ * file's name, read through the portal viewer's own gate at request time. `requestId` and
+ * `status` are absent, so a reader of the union tells the kinds apart without a new field (and the
+ * request bundle's key allowlist is unchanged).
+ */
+export interface PortalInboxFileBundleView {
+  /** `file_asset:{id}`. What "mark read" takes. */
+  readonly bundleId: string;
+  readonly fileAssetId: string;
+  readonly requestId?: undefined;
+  readonly status?: undefined;
+  readonly projectId: string;
+  readonly title: string;
+  readonly count: number;
+  readonly unreadCount: number;
+  readonly types: readonly string[];
+  readonly latestAt: string;
+  readonly action: { readonly kind: 'open' };
+}
+
+export type PortalInboxBundleView = PortalInboxRequestBundleView | PortalInboxFileBundleView;
+
+/**
+ * The portal viewer's gate for one file: its name and project, or `null` when the client may not
+ * open it (gone, another client's, project no longer shared).
+ */
+export interface PortalInboxFileReader {
+  readForClient(
+    context: TenantContext,
+    principal: Principal,
+    fileAssetId: string,
+  ): Promise<{ readonly name: string; readonly projectId: string } | null>;
+}
+
 export interface PortalInboxPageView {
   readonly items: readonly PortalInboxBundleView[];
   /** The id of the oldest notification row this page bundled, or `null` at the end. */
@@ -97,17 +134,34 @@ export interface ListPortalInboxOptions {
   readonly limit?: number;
 }
 
-/** The one object type a client can read through the portal. A query predicate, not a skip. */
+/** The object types a client can read through the portal. A query predicate, not a skip. */
 const PORTAL_OBJECT_TYPES: readonly string[] = ['client_request'];
+
+/** R4 Batch F follow-up: with a file reader wired, a file under review is one too. */
+const PORTAL_OBJECT_TYPES_WITH_FILES: readonly string[] = ['client_request', 'file_asset'];
 
 /** The event types a client is written to about. Anything else is dropped from `types`. */
 export const PORTAL_NOTIFICATION_TYPES: readonly string[] = ['client_request.transitioned.v1'];
+
+/**
+ * The review notices the worker writes to a client person (`review-notices.ts`) — never a
+ * decision, which is the team's news. Anything else on a file bundle is dropped from `types`.
+ */
+export const PORTAL_REVIEW_NOTIFICATION_TYPES: readonly string[] = [
+  'review.comment_added.v1',
+  'review.replied.v1',
+  'review.mentioned.v1',
+  'review.thread_resolved.v1',
+  'review.thread_reopened.v1',
+];
 
 export class PortalInboxService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly requests: ClientRequestsService,
     private readonly notifications: NotificationsRepository = new NotificationsRepository(),
+    /** R4 Batch F follow-up. Absent: file notices are not selected, as before. */
+    private readonly files?: PortalInboxFileReader,
   ) {}
 
   /**
@@ -139,7 +193,7 @@ export class PortalInboxService {
     const rows = await this.database.read(context, (runner) =>
       this.notifications.listForRecipient(runner, context, principal.userId, {
         limit,
-        objectTypes: PORTAL_OBJECT_TYPES,
+        objectTypes: this.files ? PORTAL_OBJECT_TYPES_WITH_FILES : PORTAL_OBJECT_TYPES,
         ...(options.before === undefined ? {} : { before: options.before }),
         ...(mode === 'unread' ? { unreadOnly: true } : {}),
       }),
@@ -168,17 +222,17 @@ export class PortalInboxService {
   ): Promise<{ readonly bundleId: string; readonly marked: number }> {
     assertClient(principal);
 
-    const requestId = parseBundleId(bundleId);
-    if (!requestId) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    const parsed = parseBundleId(bundleId);
+    if (!parsed) throw new ApiError(404, 'not_found', MESSAGES.notFound);
 
-    const resolved = await this.resolve(context, principal, requestId);
+    const resolved =
+      parsed.objectType === 'file_asset'
+        ? ((await this.files?.readForClient(context, principal, parsed.objectId)) ?? null)
+        : await this.resolve(context, principal, parsed.objectId);
     if (!resolved) throw new ApiError(404, 'not_found', MESSAGES.notFound);
 
     const marked = await this.database.transaction(context, (tx) =>
-      this.notifications.markRead(tx, context, principal.userId, {
-        objectType: 'client_request',
-        objectId: requestId,
-      }),
+      this.notifications.markRead(tx, context, principal.userId, parsed),
     );
     return { bundleId, marked };
   }
@@ -191,13 +245,25 @@ export class PortalInboxService {
     // Newest first is the row order; a Map keeps insertion order, so the first row seen for a
     // request is its latest and the bundle order is "most recently touched first".
     const byRequest = new Map<string, NotificationRow[]>();
+    const byFile = new Map<string, NotificationRow[]>();
+    // A bundle sits where its newest row does, across both kinds.
+    const order: string[] = [];
     for (const row of rows) {
       // The query already restricted the object type; this is the bundler refusing to resolve
       // anything else through an internal service, should the query ever stop doing so.
-      if (row.objectType !== 'client_request') continue;
-      const group = byRequest.get(row.objectId);
+      const into =
+        row.objectType === 'client_request'
+          ? byRequest
+          : row.objectType === 'file_asset' && this.files
+            ? byFile
+            : null;
+      if (!into) continue;
+      const group = into.get(row.objectId);
       if (group) group.push(row);
-      else byRequest.set(row.objectId, [row]);
+      else {
+        into.set(row.objectId, [row]);
+        order.push(`${row.objectType}:${row.objectId}`);
+      }
     }
 
     // One authorized read for the page's requests, not one per bundle. Until 2026-09-03 each
@@ -208,7 +274,7 @@ export class PortalInboxService {
       ...byRequest.keys(),
     ]);
 
-    const bundles: PortalInboxBundleView[] = [];
+    const bundles = new Map<string, PortalInboxBundleView>();
     for (const [requestId, group] of byRequest) {
       const first = group[0];
       if (!first) continue;
@@ -224,7 +290,7 @@ export class PortalInboxService {
         }
       }
 
-      bundles.push({
+      bundles.set(`client_request:${requestId}`, {
         bundleId: `client_request:${requestId}`,
         requestId,
         projectId: resolved.projectId,
@@ -237,7 +303,34 @@ export class PortalInboxService {
         action: { kind: 'open' },
       });
     }
-    return bundles;
+
+    // R4 Batch F follow-up: each file through the portal viewer's own gate; refused is silent.
+    for (const [fileAssetId, group] of byFile) {
+      const first = group[0];
+      const file = first ? await this.files?.readForClient(context, principal, fileAssetId) : null;
+      if (!first || !file) continue;
+      const types: string[] = [];
+      for (const row of group) {
+        if (PORTAL_REVIEW_NOTIFICATION_TYPES.includes(row.type) && !types.includes(row.type)) {
+          types.push(row.type);
+        }
+      }
+      bundles.set(`file_asset:${fileAssetId}`, {
+        bundleId: `file_asset:${fileAssetId}`,
+        fileAssetId,
+        projectId: file.projectId,
+        title: file.name,
+        count: group.length,
+        unreadCount: group.filter((row) => row.readAt === null).length,
+        types,
+        latestAt: first.createdAt.toISOString(),
+        action: { kind: 'open' },
+      });
+    }
+    return order.flatMap((id) => {
+      const bundle = bundles.get(id);
+      return bundle ? [bundle] : [];
+    });
   }
 
   /**
@@ -272,10 +365,46 @@ function assertClient(principal: Principal): void {
   }
 }
 
-/** `client_request:{id}` and nothing else. The portal has no other bundle kind. */
-function parseBundleId(bundleId: string): string | null {
-  const prefix = 'client_request:';
-  if (!bundleId.startsWith(prefix)) return null;
-  const requestId = bundleId.slice(prefix.length);
-  return requestId === '' ? null : requestId;
+/** `client_request:{id}` or (R4 Batch F follow-up) `file_asset:{id}`; nothing else. */
+function parseBundleId(
+  bundleId: string,
+): { readonly objectType: 'client_request' | 'file_asset'; readonly objectId: string } | null {
+  for (const objectType of ['client_request', 'file_asset'] as const) {
+    const prefix = `${objectType}:`;
+    if (!bundleId.startsWith(prefix)) continue;
+    const objectId = bundleId.slice(prefix.length);
+    return objectId === '' ? null : { objectType, objectId };
+  }
+  return null;
+}
+
+/**
+ * R4 Batch F follow-up — the file reader over the download door's `resolve`, the gate the portal
+ * viewer opens a file through. The door's one refusal (404) is `null`; any other failure
+ * propagates, because a database fault must not read as "nothing for you".
+ */
+export function portalInboxFileReader(downloads: {
+  resolve(
+    context: TenantContext,
+    principal: Principal,
+    fileAssetId: string,
+    action: 'file_preview.viewed',
+  ): Promise<{ readonly asset: { readonly name: string; readonly projectId: string } }>;
+}): PortalInboxFileReader {
+  return {
+    async readForClient(context, principal, fileAssetId) {
+      try {
+        const { asset } = await downloads.resolve(
+          context,
+          principal,
+          fileAssetId,
+          'file_preview.viewed',
+        );
+        return { name: asset.name, projectId: asset.projectId };
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) return null;
+        throw error;
+      }
+    },
+  };
 }

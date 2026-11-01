@@ -8,7 +8,9 @@ import {
   planReviewResolvedNotices,
   reviewRecipientOf,
   reviewViewerPath,
+  versionNoOf,
 } from './review-notices.js';
+import { fileWithVersion } from '../notifications/review-email.js';
 import { createWorkerOutboxHandlers } from './registry.js';
 import {
   CollaborationMailer,
@@ -458,6 +460,18 @@ describe('review emails (EN + AR, studio + portal)', () => {
       );
     });
   }
+
+  it('names the version as V-51 draws it; an event without one renders as before', () => {
+    expect(fileWithVersion('Homepage Concept.png', 2)).toBe('Homepage Concept v2.png');
+    expect(fileWithVersion('Homepage Concept v2.png', 2)).toBe('Homepage Concept v2.png');
+    expect(fileWithVersion('Brief', 3)).toBe('Brief v3');
+    expect(fileWithVersion('Brief.pdf', undefined)).toBe('Brief.pdf');
+    expect([versionNoOf({ versionNo: 2 }), versionNoOf({}), versionNoOf({ versionNo: 0 })]).toEqual(
+      [2, undefined, undefined],
+    );
+    const message = composeCollaborationEmail('review_comment', { ...base, versionNumber: 2 });
+    expect(message.subject).toBe('Maya commented on Homepage Concept v2');
+  });
 
   it('never quotes what anybody wrote and escapes what people typed', () => {
     const message = composeCollaborationEmail('review_comment', {
