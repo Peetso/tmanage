@@ -90,17 +90,23 @@ export interface HeifImage {
   free?: () => void;
 }
 
+/**
+ * An opaque compiled WebAssembly module. The API's build `lib` has no WebAssembly types (the
+ * typecheck config only passes because test files pull them in), so the handle is typed here.
+ */
+type WasmModule = object;
+
 interface HeifModule {
   HeifDecoder: new () => { decode(data: Uint8Array): HeifImage[] };
 }
 
 interface WebpCodec {
-  init(module: WebAssembly.Module): Promise<void>;
+  init(module: WasmModule): Promise<void>;
   default(...args: unknown[]): Promise<unknown>;
 }
 
 interface ResvgModule {
-  initWasm(module: Uint8Array | WebAssembly.Module): Promise<void>;
+  initWasm(module: Uint8Array | WasmModule): Promise<void>;
   Resvg: new (
     svg: string,
     options?: {
@@ -161,7 +167,7 @@ function packageDir(name: string): string {
 /** The runtime's WebAssembly (the API's `lib` has no DOM, so the value is reached by name). */
 const wasm = (
   globalThis as unknown as {
-    WebAssembly: { Module: new (bytes: Uint8Array) => WebAssembly.Module };
+    WebAssembly: { Module: new (bytes: Uint8Array) => WasmModule };
   }
 ).WebAssembly;
 
