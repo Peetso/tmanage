@@ -9,6 +9,8 @@ import { unwrapQueryError } from '../../../common/database/query-error.js';
 import { revokeAllBearerCredentialsForUser } from '../../identity/bearer-credentials.js';
 import type { CredentialsRepository } from '../../identity/credentials.repository.js';
 import { EMAIL_CHANGED_ACTION } from '../../identity/credential-change/email-change-notice.js';
+import { SessionIntelReader } from '../../identity/geo/session-intel.service.js';
+import { reasonsOf } from '../../identity/geo/session-intel.repository.js';
 import { likeContains } from '../platform-admin.access.js';
 import {
   PLATFORM_METADATA_REASON,
@@ -156,6 +158,8 @@ export interface PersonSessionRow {
   readonly ipFirst: string | null;
   readonly ipLast: string | null;
   readonly expired: boolean;
+  /** R12 (0280). The sign-in event that began the session. */
+  readonly signInEventId: string | null;
 }
 
 export interface AccessRow {
@@ -166,6 +170,9 @@ export interface AccessRow {
   readonly ip: string | null;
   readonly userAgent: string | null;
   readonly occurredAt: Date;
+  /** R12 (0280). The sign-in's automation score and reasons. */
+  readonly score: number | null;
+  readonly reasons: readonly string[] | null;
 }
 
 export interface StepUpRow {
@@ -338,7 +345,8 @@ export const PEOPLE_SQL = {
   sessions: `select s.id as id, s.user_agent as user_agent, s.created_at as created_at,
       coalesce(s.rotated_at, s.created_at) as last_active_at, s.expires_at as expires_at,
       s.revoked_at as revoked_at, s.revoked_reason as revoked_reason, s.ip_first as ip_first,
-      s.ip_last as ip_last, case when s.expires_at <= now(3) then 1 else 0 end as expired
+      s.ip_last as ip_last, case when s.expires_at <= now(3) then 1 else 0 end as expired,
+      s.sign_in_event_id as sign_in_event_id
     from sessions s
     where s.user_id = ?
       and ((s.revoked_at is null and s.expires_at > now(3))
@@ -346,7 +354,8 @@ export const PEOPLE_SQL = {
     order by (s.revoked_at is null and s.expires_at > now(3)) desc, s.created_at desc
     limit 100`,
   access: (outcome: boolean) => `select e.id as id, e.action as action, e.outcome as outcome,
-      e.reason as reason, e.ip as ip, e.user_agent as user_agent, e.occurred_at as occurred_at
+      e.reason as reason, e.ip as ip, e.user_agent as user_agent, e.occurred_at as occurred_at,
+      e.automation_score as automation_score, e.automation_reasons_json as automation_reasons_json
     from authentication_events e
     where e.user_id = ? and e.occurred_at >= ? and e.occurred_at <= ?
       ${outcome ? 'and e.outcome = ?' : ''}
@@ -458,6 +467,11 @@ export class PlatformPeopleRepository {
     private readonly credentials: Pick<CredentialsRepository, 'recordCredentialChange'>,
   ) {}
 
+  /** R12. The session/sign-in intel reader over this repository's database. */
+  intelReader(): SessionIntelReader {
+    return new SessionIntelReader(this.database);
+  }
+
   // ── Reads ────────────────────────────────────────────────────────────────
 
   async listPeople(
@@ -547,6 +561,7 @@ export class PlatformPeopleRepository {
         ipFirst: text(row['ip_first']),
         ipLast: text(row['ip_last']),
         expired: num(row['expired']) === 1,
+        signInEventId: text(row['sign_in_event_id']),
       }));
     });
   }
@@ -576,6 +591,8 @@ export class PlatformPeopleRepository {
             ip: text(row['ip']),
             userAgent: text(row['user_agent']),
             occurredAt: date(row['occurred_at']) ?? new Date(0),
+            score: row['automation_score'] == null ? null : num(row['automation_score']),
+            reasons: reasonsOf(row['automation_reasons_json']),
           })),
           stepUps: steps.map((row) => ({
             id: String(row['id']),

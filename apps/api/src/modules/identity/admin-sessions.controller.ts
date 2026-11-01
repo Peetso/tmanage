@@ -1,4 +1,5 @@
-import { Controller, Get, HttpCode, Inject, Module, Param, Post } from '@nestjs/common';
+import { Controller, Get, HttpCode, Inject, Module, Param, Post, Res } from '@nestjs/common';
+import type { StreamableFile } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
@@ -8,6 +9,9 @@ import { TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { AdminSessionsRepository } from './admin-sessions.repository.js';
 import { AdminSessionsService } from './admin-sessions.service.js';
+import type { SessionIntelView } from './geo/session-intel.js';
+import { csvDownload, type HeaderWriter } from './geo/trail-csv.js';
+import { MeSessionTrailController } from './session.controller.js';
 
 /**
  * Admin active sessions + revocation (x223, Administration module 18) — the admin surface the
@@ -50,6 +54,8 @@ export interface ActiveSessionView {
   readonly lastSeenAt: string;
   /** The device label (user-agent) captured at sign-in, or `null` if none was sent. */
   readonly deviceLabel: string | null;
+  /** R12. Approximate place, network, device and sign-in automation verdict (SPEC §5). */
+  readonly intel: SessionIntelView;
 }
 
 /** The caller's role here, or `''` for a non-internal principal (never an owner). */
@@ -90,6 +96,24 @@ export class AdminSessionsController {
     // F42: single-organization members only; an owner's sessions only for an owner.
     const sessions = await this.sessions.listOrgSessions(context, callerRole(principal));
     return { sessions };
+  }
+
+  /**
+   * R12. One session's sign-in trail as a UTC CSV. Same gate as the list (`org.manage`, then
+   * F42's visibility); a session the list would not show is a 404, never a 403.
+   */
+  @Get(':sessionId/trail.csv')
+  @RequireCapability('org.manage')
+  async trail(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('sessionId') sessionId: string,
+    @Res({ passthrough: true }) reply: HeaderWriter,
+  ): Promise<StreamableFile> {
+    this.requireOrgManage(principal, context);
+    const csv = await this.sessions.sessionTrail(context, callerRole(principal), sessionId);
+    if (csv === null) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    return csvDownload(reply, csv, 'session-trail.csv');
   }
 
   /**
@@ -167,7 +191,9 @@ export class AdminSessionsModule {
             new AdminSessionsService(database, new AdminSessionsRepository()),
         },
       ],
-      controllers: [AdminSessionsController],
+      // R12: the self trail export (`v1/me/sessions/:id/trail.csv`) rides this module, which
+      // already builds over the global database, so the identity module stays untouched.
+      controllers: [AdminSessionsController, MeSessionTrailController],
     };
   }
 }

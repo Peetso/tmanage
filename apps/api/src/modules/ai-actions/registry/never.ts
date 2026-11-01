@@ -315,6 +315,13 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'DELETE', path: '/v1/sessions/:sessionId', reason: 'session' },
   { method: 'DELETE', path: '/v1/sessions/current', reason: 'session' },
   { method: 'GET', path: '/v1/sessions/current/devices', reason: 'session' },
+  // R12: the caller's own session trail CSV, and an admin's export of a member's.
+  { method: 'GET', path: '/v1/me/sessions/:sessionId/trail.csv', reason: 'session' },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/admin/sessions/:sessionId/trail.csv',
+    reason: 'org_security_manage',
+  },
   { method: 'POST', path: '/v1/sessions/refresh', reason: 'session' },
   { method: 'PUT', path: '/v1/uploads/:providerUploadId/parts/:n', reason: 'public_upload_part' },
   // 0210. Google Drive storage: the connection and its credentials (see `storage_connection`).
@@ -918,6 +925,12 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/platform/people/:userId', reason: 'platform_admin' },
   { method: 'PATCH', path: '/v1/platform/people/:userId', reason: 'platform_admin' },
   { method: 'GET', path: '/v1/platform/people/:userId/sessions', reason: 'platform_admin' },
+  // R12: a person's sign-in trail (addresses, places, devices) — a security export, never AI.
+  {
+    method: 'GET',
+    path: '/v1/platform/people/:userId/sign-in-trail.csv',
+    reason: 'platform_admin',
+  },
   {
     method: 'DELETE',
     path: '/v1/platform/people/:userId/sessions/:sessionId',

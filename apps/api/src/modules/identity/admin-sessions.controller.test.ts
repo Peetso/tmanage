@@ -10,6 +10,7 @@ import type {
 } from './admin-sessions.repository.js';
 import { ApiError } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type { SessionIntelReader } from './geo/session-intel.service.js';
 
 /**
  * Admin session visibility + revocation (x223) over fakes, with the **real** `authorize`.
@@ -67,6 +68,7 @@ function sessionRow(id: string, userId: string): AdminSessionRow {
     createdAt: new Date('2026-09-27T00:00:00.000Z'),
     rotatedAt: null,
     expiresAt: new Date('2026-12-31T00:00:00.000Z'),
+    ...{ ipFirst: null, ipLast: null, signInEventId: null },
   };
 }
 
@@ -116,14 +118,15 @@ class FakeRepository {
   }
 }
 
-function controllerWith(repo: FakeRepository): AdminSessionsController {
+function controllerWith(repo: FakeRepository, intel?: unknown): AdminSessionsController {
   const database = {
     read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
     identityRead: async (_o: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
     identityTransaction: async (_o: unknown, work: (tx: unknown) => Promise<unknown>) => work({}),
     bootstrapRead: async (_o: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
   } as unknown as TenantDatabase;
-  const service = new AdminSessionsService(database, repo as unknown as AdminSessionsRepository);
+  const typed = repo as unknown as AdminSessionsRepository;
+  const service = new AdminSessionsService(database, typed, intel as SessionIntelReader);
   return new AdminSessionsController(service);
 }
 
@@ -237,5 +240,26 @@ describe('wave9-S8 F42 regression: org admins act only on single-organization me
     // The owner still sees and manages their own and everyone's sessions.
     expect((await controller.list(context, owner())).sessions).toHaveLength(2);
     expect(await controller.revoke(context, owner(), 's-o')).toEqual({ revoked: true });
+  });
+});
+
+describe('R12 session trail CSV (admin)', () => {
+  const repo = () =>
+    new FakeRepository([member('user-a', 'm-a', 'Ada')], [sessionRow('s-a', 'user-a')]);
+  const owners = new Map([
+    ['s-a', 'user-a'],
+    ['s-x', 'stranger'],
+  ]);
+  const intel = {
+    sessionTrail: async (_c: string, id: string, mayRead: (owner: string) => boolean) =>
+      owners.has(id) && mayRead(owners.get(id) as string) ? 'occurredAtUtc' : null,
+  };
+  it('downloads a member session as text/csv; another org or a non-admin is 404 / 403', async () => {
+    const headers = new Map<string, string>();
+    const reply = { header: (name: string, value: string) => headers.set(name, value) };
+    await controllerWith(repo(), intel).trail(context, owner(), 's-a', reply);
+    expect(headers.get('content-type')).toBe('text/csv; charset=utf-8');
+    await expectStatus(controllerWith(repo(), intel).trail(context, owner(), 's-x', reply), 404);
+    await expectStatus(controllerWith(repo(), intel).trail(context, orgAdmin(), 's-a', reply), 403);
   });
 });

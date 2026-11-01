@@ -5,17 +5,27 @@ import {
   Get,
   HttpCode,
   Inject,
+  Optional,
   Param,
   Post,
   Req,
   Res,
 } from '@nestjs/common';
+import type { StreamableFile } from '@nestjs/common';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { CurrentSession, NoTenant, Public } from '../../common/http/decorators.js';
 import { CSRF_HEADER } from '../../common/http/csrf.js';
 import { requireRequestState } from '../../common/http/request-state.js';
-import { API_CONFIG, AUTHENTICATION_SERVICE, SESSION_SERVICE } from '../../common/http/tokens.js';
+import {
+  API_CONFIG,
+  AUTHENTICATION_SERVICE,
+  SESSION_SERVICE,
+  TENANT_DATABASE,
+} from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
+import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import { SessionIntelReader } from './geo/session-intel.service.js';
+import { csvDownload } from './geo/trail-csv.js';
 import { RefreshRejectedError } from './session.service.js';
 import type {
   AuthenticatedSession,
@@ -30,6 +40,7 @@ import {
 import { REAUTH_HEADER } from './authentication.controller.js';
 import { notifyBrowserSessionEnded } from '../platform-admin/support/support-session.service.js';
 import { readCookie } from './session-token.js';
+import { summarizeUserAgent } from './geo/user-agent-summary.js';
 
 /**
  * The session routes — `04-SECURITY-PRIVACY` §3's "device/session list", sign-out, and refresh.
@@ -74,7 +85,14 @@ export class SessionController {
     // service alongside the security-log path they record through; the controller reads the
     // `x-reauth-token` header and hands it across.
     @Inject(AUTHENTICATION_SERVICE) private readonly authentication: AuthenticationService,
-  ) {}
+    // R12: the place/network/device beside each device. Optional so hand-built suites compile;
+    // without it the views carry the device only.
+    @Optional() @Inject(TENANT_DATABASE) database: TenantDatabase | null = null,
+  ) {
+    this.intel = new SessionIntelReader(database ?? null);
+  }
+
+  private readonly intel: SessionIntelReader;
 
   /**
    * Rotate the refresh token.
@@ -153,6 +171,10 @@ export class SessionController {
       userId: session.userId,
       correlationId: state.correlationId,
     });
+    const intel = await this.intel.forSessions(
+      state.correlationId,
+      rows.map((row) => ({ ...row, lastSeenAt: row.rotatedAt ?? row.createdAt })),
+    );
     // Project the repository's `Date` columns to the ISO strings the wire carries. This is the
     // same text `JSON.stringify` produces for a `Date` (it calls `toISOString`), so the response
     // bytes are unchanged; naming the projection is what lets `SessionSummaryView` — and the web
@@ -164,6 +186,7 @@ export class SessionController {
         createdAt: row.createdAt.toISOString(),
         rotatedAt: row.rotatedAt ? row.rotatedAt.toISOString() : null,
         expiresAt: row.expiresAt.toISOString(),
+        intel: intel.get(row.id) ?? deviceOnlyIntel(row),
       })),
     };
   }
@@ -271,6 +294,56 @@ export class SessionController {
       ip: request.ip ?? null,
       userAgent: typeof userAgent === 'string' ? userAgent : null,
     };
+  }
+}
+
+/** Unreachable in practice (every row gets a view); keeps the wire shape total. */
+function deviceOnlyIntel(row: {
+  userAgent: string | null;
+  createdAt: Date;
+  rotatedAt: Date | null;
+}) {
+  return {
+    ipFirst: null,
+    ipLast: null,
+    location: null,
+    network: null,
+    device: summarizeUserAgent(row.userAgent),
+    automation: null,
+    firstSeenAt: row.createdAt.toISOString(),
+    lastSeenAt: (row.rotatedAt ?? row.createdAt).toISOString(),
+  };
+}
+
+/**
+ * R12 (R1). `GET /v1/me/sessions/:sessionId/trail.csv` — the caller's OWN session's sign-in trail
+ * as a UTC CSV. Another person's session id is the same 404 as an unknown one. Registered from
+ * `AdminSessionsModule` (it needs only the global database).
+ */
+@Controller('v1/me/sessions')
+export class MeSessionTrailController {
+  private readonly intel: SessionIntelReader;
+
+  constructor(@Inject(TENANT_DATABASE) database: TenantDatabase) {
+    this.intel = new SessionIntelReader(database);
+  }
+
+  @Get(':sessionId/trail.csv')
+  @NoTenant()
+  async trail(
+    @CurrentSession() session: AuthenticatedSession,
+    @Param('sessionId') sessionId: string,
+    @Req() request: RequestLike,
+    @Res({ passthrough: true }) reply: ReplyLike,
+  ): Promise<StreamableFile> {
+    const state = requireRequestState(request);
+    const csv = await this.intel.sessionTrail(
+      state.correlationId,
+      sessionId,
+      (owner) => owner === session.userId,
+    );
+    if (csv === null) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    return csvDownload(reply, csv, 'my-session-trail.csv');
   }
 }
 

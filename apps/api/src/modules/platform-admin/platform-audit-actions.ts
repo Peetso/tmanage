@@ -61,6 +61,8 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.user_two_step_required',
   'platform.user_two_step_not_required',
   'platform.user_session_ended',
+  // R12: a person's sign-in trail exported as CSV (the window only, in after_json).
+  'platform.user_sign_in_trail_exported',
   // ---- platform-admin v2 · PA-07 ----
   'platform.organization_created',
   'platform.organization_updated',

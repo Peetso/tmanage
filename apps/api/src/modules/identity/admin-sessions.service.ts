@@ -5,6 +5,8 @@ import {
   AdminSessionsRepository,
 } from './admin-sessions.repository.js';
 import type { AdminSessionRow, OrgMemberRow } from './admin-sessions.repository.js';
+import { SessionIntelReader } from './geo/session-intel.service.js';
+import type { SessionIntelView } from './geo/session-intel.js';
 
 /**
  * Admin session visibility + revocation (x223, Administration module 18) — the orchestration
@@ -48,12 +50,15 @@ export interface AdminSessionListEntry {
   readonly lastSeenAt: string;
   /** The user-agent string captured at sign-in, or `null` if none was sent. */
   readonly deviceLabel: string | null;
+  /** R12. Approximate place, network, device and sign-in automation verdict. */
+  readonly intel: SessionIntelView;
 }
 
 export class AdminSessionsService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly repository: AdminSessionsRepository = new AdminSessionsRepository(),
+    private readonly intel: SessionIntelReader = new SessionIntelReader(database),
   ) {}
 
   /**
@@ -74,13 +79,40 @@ export class AdminSessionsService {
       (runner) => this.repository.listActiveForUsers(runner, [...byUserId.keys()]),
     );
 
+    const intel = await this.intel.forSessions(
+      context.correlationId,
+      rows.map((row) => ({
+        id: row.id,
+        userAgent: row.userAgent,
+        createdAt: row.createdAt,
+        lastSeenAt: row.rotatedAt ?? row.createdAt,
+        link: { ipFirst: row.ipFirst, ipLast: row.ipLast, signInEventId: row.signInEventId },
+      })),
+    );
     const entries: AdminSessionListEntry[] = [];
     for (const row of rows) {
       const member = byUserId.get(row.userId);
-      if (!member) continue; // Defensive: a member offboarded between the two reads.
-      entries.push(toEntry(row, member));
+      const view = intel.get(row.id);
+      if (!member || !view) continue; // Defensive: a member offboarded between the two reads.
+      entries.push({ ...toEntry(row, member), intel: view });
     }
     return entries;
+  }
+
+  /**
+   * R12. The UTC trail CSV of one session, under exactly the list's visibility (F42 included):
+   * a session whose owner the list would not show — another organization's, a multi-organization
+   * member's, an owner's for a lower role, or an unknown id — is `null`, the controller's 404.
+   */
+  async sessionTrail(
+    context: TenantContext,
+    callerRole: string,
+    sessionId: string,
+  ): Promise<string | null> {
+    const members = await this.manageableMembers(context, callerRole);
+    const visible = new Set(members.map((member) => member.userId));
+    if (visible.size === 0) return null;
+    return this.intel.sessionTrail(context.correlationId, sessionId, (owner) => visible.has(owner));
   }
 
   /**
@@ -165,7 +197,7 @@ export class AdminSessionsService {
 }
 
 /** Project one live session row plus its member to the wire entry — `Date`s as ISO strings. */
-function toEntry(row: AdminSessionRow, member: OrgMemberRow): AdminSessionListEntry {
+function toEntry(row: AdminSessionRow, member: OrgMemberRow): Omit<AdminSessionListEntry, 'intel'> {
   return {
     sessionId: row.id,
     membershipId: member.membershipId,

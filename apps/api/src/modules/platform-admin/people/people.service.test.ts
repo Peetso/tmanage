@@ -256,3 +256,28 @@ describe('B3 security (PA-06)', () => {
     expect(writes().map((s) => s.sql)).toContain(PEOPLE_SQL.revokeSessions);
   });
 });
+
+describe('R12 sign-in trail export', () => {
+  it('returns the CSV and writes one platform audit row with the window; >366 days is a 400', async () => {
+    const { service: base } = world();
+    const recordAudit = vi.fn(async () => undefined);
+    const userTrail = vi.fn(async () => 'csv');
+    const people = (base as unknown as { people: PlatformPeopleRepository }).people;
+    const now = () => new Date('2026-10-29T10:00:00Z');
+    const intel = { userTrail } as never;
+    const service = new PlatformPeopleService(
+      { recordAudit } as never,
+      people,
+      {} as never,
+      {} as never,
+      now,
+      intel,
+    );
+    expect(await service.signInTrail(actor, PERSON, {}, ctx)).toBe('csv');
+    expect(recordAudit.mock.calls[0]).toMatchObject([
+      { action: 'platform.user_sign_in_trail_exported', targetId: PERSON },
+    ]);
+    const wide = service.signInTrail(actor, PERSON, { from: '2025-01-01', to: '2026-10-01' }, ctx);
+    await expect(wide).rejects.toMatchObject({ status: 400 });
+  });
+});

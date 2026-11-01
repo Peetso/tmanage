@@ -74,6 +74,8 @@ import { runKeyRotation, runKeyRotationLoop } from './jobs/field-cipher-rotation
 // ---- 56-17 follow-up ---- the 24-month security_reports purge, daily in loop mode.
 import { createSecurityReportPurgeStore } from './common/database/security-report-purge-store.js';
 import { runSecurityReportPurgeLoop } from './jobs/security-report-purge.js';
+import { createIpLookupSweepStore } from './common/database/ip-lookup-sweeper-store.js';
+import { runIpLookupSweepLoop } from './jobs/ip-lookup-sweeper.js';
 import { createAuditAnchorStore } from './common/database/audit-anchor-store.js';
 import { anchorSignerFromEnv, runAuditAnchorLoop } from './jobs/audit-anchor.js';
 // ---- 52-01 ---- forgotten-timer auto-stop.
@@ -652,6 +654,12 @@ async function main(): Promise<void> {
     createSecurityReportPurgeStore(database),
     controller.signal,
   );
+  // ---- R12 ---- IP-cache rows unseen for GEOIP_RETENTION_DAYS (default 400), once a day.
+  const ipLookupSweep = runIpLookupSweepLoop(
+    createIpLookupSweepStore(database),
+    env.GEOIP_RETENTION_DAYS,
+    controller.signal,
+  );
 
   // RT-001. Sockets exist only in loop mode — a controlled batch has no process to keep a
   // socket open — and only when a port is configured; 0 is the honest default on a host
@@ -746,6 +754,8 @@ async function main(): Promise<void> {
     await keyRotations;
     // ---- 56-17 follow-up ----
     await securityReportPurge;
+    // ---- R12 ----
+    await ipLookupSweep;
     // ---- 56-11 ----
     await auditAnchors;
     // ---- 56-23 ----

@@ -107,6 +107,7 @@ export const SESSION_ONLY_ROUTES: Readonly<Record<string, string>> = {
   'POST /v1/auth/recovery-codes': 'own recovery codes',
   'DELETE /v1/sessions/current': 'own session',
   'GET /v1/sessions/current/devices': 'own devices',
+  'GET /v1/me/sessions/:sessionId/trail.csv': 'own session trail (owner-checked, else 404)',
   'DELETE /v1/sessions/': 'own sessions',
   'DELETE /v1/sessions/:sessionId': 'own session',
   'POST /mcp/': 'AI connector: OAuth bearer, each op re-checked against the registry',

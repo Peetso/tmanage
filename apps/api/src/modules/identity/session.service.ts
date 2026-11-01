@@ -13,6 +13,7 @@ import type { CookieAttributes } from './session-token.js';
 import { SessionsRepository, storableIp } from './sessions.repository.js';
 import type { SessionSummary } from './sessions.repository.js';
 import type { IpRecorder } from './geo/ip-intelligence.service.js';
+import type { SessionIntelView } from './geo/session-intel.js';
 
 /**
  * ID-001 — session authentication, refresh rotation, and reuse detection.
@@ -234,6 +235,8 @@ export interface SessionSummaryView {
   readonly createdAt: string;
   readonly rotatedAt: string | null;
   readonly expiresAt: string;
+  /** R12. Approximate place, network, device and sign-in automation verdict (SPEC §5). */
+  readonly intel: SessionIntelView;
 }
 
 export class SessionService {

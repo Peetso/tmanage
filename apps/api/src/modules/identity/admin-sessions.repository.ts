@@ -68,6 +68,10 @@ export interface AdminSessionRow {
   readonly createdAt: Date;
   readonly rotatedAt: Date | null;
   readonly expiresAt: Date;
+  /** R12. The addresses and the sign-in event, for the session's `intel`. */
+  readonly ipFirst: string | null;
+  readonly ipLast: string | null;
+  readonly signInEventId: string | null;
 }
 
 export class AdminSessionsRepository {
@@ -113,6 +117,9 @@ export class AdminSessionsRepository {
         createdAt: sessions.createdAt,
         rotatedAt: sessions.rotatedAt,
         expiresAt: sessions.expiresAt,
+        ipFirst: sessions.ipFirst,
+        ipLast: sessions.ipLast,
+        signInEventId: sessions.signInEventId,
       })
       .from(sessions)
       .where(

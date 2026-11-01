@@ -11,14 +11,17 @@ import {
   Put,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { StreamableFile } from '@nestjs/common';
 import { NoTenant } from '../../../common/http/decorators.js';
 import { platformRequestContext } from '../platform-admin.access.js';
 import { CurrentPlatformAdmin, PlatformAdminGuard } from '../platform-admin.guard.js';
 import type { PlatformAdminActor } from '../platform-admin.guard.js';
 import { RequirePlatformPermission } from '../require-platform-permission.decorator.js';
 import type { PeopleQuery, PlatformPeopleService } from './people.service.js';
+import { csvDownload, type HeaderWriter } from '../../identity/geo/trail-csv.js';
 
 export const PLATFORM_PEOPLE_SERVICE = Symbol.for('tmanage.PlatformPeopleService');
 
@@ -64,6 +67,21 @@ export class PlatformPeopleController {
   @RequirePlatformPermission('platform.people.view')
   sessions(@Param('userId') id: string, @Req() request: object) {
     return this.service.sessions(id, platformRequestContext(request));
+  }
+
+  /** R12. The person's sign-in trail as a UTC CSV (`?from&to`, default 30 days); audited. */
+  @Get('people/:userId/sign-in-trail.csv')
+  @RequirePlatformPermission('platform.people.security')
+  async signInTrail(
+    @CurrentPlatformAdmin() actor: PlatformAdminActor,
+    @Param('userId') id: string,
+    @Query() query: PeopleQuery,
+    @Req() request: object,
+    @Res({ passthrough: true }) reply: HeaderWriter,
+  ): Promise<StreamableFile> {
+    const context = platformRequestContext(request);
+    const csv = await this.service.signInTrail(actor, id, query ?? {}, context);
+    return csvDownload(reply, csv, 'sign-in-trail.csv');
   }
 
   @Delete('people/:userId/sessions/:sessionId')

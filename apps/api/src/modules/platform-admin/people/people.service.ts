@@ -4,12 +4,15 @@ import type { PlatformAdminActor } from '../platform-admin.guard.js';
 import type { PlatformAdminRepository } from '../platform-admin.repository.js';
 import type { RequestContext, ResetMailer } from '../platform-admin.service.js';
 import { platformAuditFor } from '../platform-audit.service.js';
+import type { SessionIntelReader } from '../../identity/geo/session-intel.service.js';
+import type { SessionIntelView, SignInEventIntelView } from '../../identity/geo/session-intel.js';
 import {
   EmailTakenError,
   PEOPLE_ACTIONS_PAGE_SIZE,
   PEOPLE_PAGE_SIZE,
 } from './people.repository.js';
 import type {
+  AccessRow,
   MembershipRow,
   PeopleFilter,
   PersonRow,
@@ -100,6 +103,8 @@ export interface PlatformPersonAccessView {
   readonly ip: string | null;
   readonly userAgent: string | null;
   readonly occurredAt: string;
+  /** R12. Approximate place, network, device and automation verdict of this event. */
+  readonly intel: SignInEventIntelView;
 }
 
 export interface PlatformPersonDetailView {
@@ -134,6 +139,8 @@ export interface PlatformPersonSessionView {
   readonly ipFirst: string | null;
   readonly ipLast: string | null;
   readonly state: 'live' | 'ended' | 'expired';
+  /** R12. Approximate place, network, device and sign-in automation verdict (SPEC §5). */
+  readonly intel: SessionIntelView;
 }
 
 export interface PlatformPersonSessionsView {
@@ -192,6 +199,8 @@ export interface PlatformPersonSecurityResultView {
 const LOCALE_SHAPE = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/u;
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 const ROLE_SHAPE = /^[a-z0-9_:-]{2,64}$/u;
+/** R12. The widest sign-in trail one export may name. */
+const TRAIL_MAX_DAYS = 366;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
 function invalid(field: string, message: string): ApiError {
@@ -353,6 +362,8 @@ export class PlatformPeopleService {
     private readonly resets: ResetMailer,
     private readonly notices: EmailChangeNotices,
     private readonly now: () => Date = () => new Date(),
+    /** R12. Session and sign-in intel; the repository's database by default. */
+    private readonly intel: SessionIntelReader = people.intelReader(),
   ) {}
 
   // ── Reads ────────────────────────────────────────────────────────────────
@@ -384,21 +395,36 @@ export class PlatformPeopleService {
     const id = requireId(rawId);
     await this.requirePerson(id, context);
     const rows = await this.people.sessions(id, context.correlationId);
-    const sessions = rows.map((row): PlatformPersonSessionView => {
-      const state: PlatformPersonSessionView['state'] =
-        row.revokedAt !== null ? 'ended' : row.expired ? 'expired' : 'live';
-      return {
+    const intel = await this.intel.forSessions(
+      context.correlationId,
+      rows.map((row) => ({
         id: row.id,
         userAgent: row.userAgent,
-        createdAt: row.createdAt.toISOString(),
-        lastActiveAt: row.lastActiveAt.toISOString(),
-        expiresAt: row.expiresAt.toISOString(),
-        revokedAt: iso(row.revokedAt),
-        revokedReason: row.revokedReason,
-        ipFirst: row.ipFirst,
-        ipLast: row.ipLast,
-        state,
-      };
+        createdAt: row.createdAt,
+        lastSeenAt: row.lastActiveAt,
+        link: { ipFirst: row.ipFirst, ipLast: row.ipLast, signInEventId: row.signInEventId },
+      })),
+    );
+    const sessions = rows.flatMap((row): PlatformPersonSessionView[] => {
+      const view = intel.get(row.id);
+      if (!view) return [];
+      const state: PlatformPersonSessionView['state'] =
+        row.revokedAt !== null ? 'ended' : row.expired ? 'expired' : 'live';
+      return [
+        {
+          id: row.id,
+          userAgent: row.userAgent,
+          createdAt: row.createdAt.toISOString(),
+          lastActiveAt: row.lastActiveAt.toISOString(),
+          expiresAt: row.expiresAt.toISOString(),
+          revokedAt: iso(row.revokedAt),
+          revokedReason: row.revokedReason,
+          ipFirst: row.ipFirst,
+          ipLast: row.ipLast,
+          state,
+          intel: view,
+        },
+      ];
     });
     return {
       sessions,
@@ -424,15 +450,7 @@ export class PlatformPeopleService {
       context.correlationId,
     );
     return {
-      events: found.events.map((event) => ({
-        id: event.id,
-        action: event.action,
-        outcome: event.outcome,
-        reason: event.reason,
-        ip: event.ip,
-        userAgent: event.userAgent,
-        occurredAt: event.occurredAt.toISOString(),
-      })),
+      events: await this.accessViews(found.events, context),
       stepUps: found.stepUps.map((step) => ({
         id: step.id,
         createdAt: step.createdAt.toISOString(),
@@ -757,7 +775,57 @@ export class PlatformPeopleService {
     return this.detail(id, context);
   }
 
+  /**
+   * R12. The person's sign-in trail (default the last 30 days, at most 366) as a UTC CSV, with
+   * place, network, device and automation per event — never the refusal `reason`. Writes one
+   * platform audit row (the window only) before the bytes are handed out.
+   */
+  async signInTrail(
+    actor: PlatformAdminActor,
+    rawId: unknown,
+    query: PeopleQuery,
+    context: RequestContext,
+  ): Promise<string> {
+    const id = requireId(rawId);
+    const person = await this.requirePerson(id, context);
+    const to = day(query['to'], 'to') ?? this.now();
+    const from = day(query['from'], 'from') ?? new Date(to.getTime() - 30 * 86_400_000);
+    if (from.getTime() > to.getTime()) throw invalid('to', 'not earlier than from');
+    if (to.getTime() - from.getTime() > TRAIL_MAX_DAYS * 86_400_000) {
+      throw invalid('to', `at most ${String(TRAIL_MAX_DAYS)} days after from`);
+    }
+    const csv = await this.intel.userTrail(context.correlationId, id, from, to);
+    await this.platform.recordAudit(
+      platformAuditFor(actor, context, {
+        action: 'platform.user_sign_in_trail_exported',
+        targetType: 'user',
+        targetId: id,
+        targetLabel: person.email,
+        reason: optionalReason(query['reason']),
+        afterJson: JSON.stringify({ from: from.toISOString(), to: to.toISOString() }),
+      }),
+    );
+    return csv;
+  }
+
   // ── Internals ─────────────────────────────────────────────────────────────
+
+  private async accessViews(
+    events: readonly AccessRow[],
+    context: RequestContext,
+  ): Promise<readonly PlatformPersonAccessView[]> {
+    const intel = await this.intel.forEvents(context.correlationId, events);
+    return events.map((event, index) => ({
+      id: event.id,
+      action: event.action,
+      outcome: event.outcome,
+      reason: event.reason,
+      ip: event.ip,
+      userAgent: event.userAgent,
+      occurredAt: event.occurredAt.toISOString(),
+      intel: intel[index] as SignInEventIntelView,
+    }));
+  }
 
   private async requirePerson(id: string, context: RequestContext): Promise<PersonRow> {
     const person = await this.people.findPerson(id, context.correlationId);
@@ -848,15 +916,7 @@ export class PlatformPeopleService {
       },
       companies: memberships.map(chip),
       recentActions: actions.actions.map((action) => this.actionOf(action)),
-      recentAccess: access.events.slice(0, 3).map((event) => ({
-        id: event.id,
-        action: event.action,
-        outcome: event.outcome,
-        reason: event.reason,
-        ip: event.ip,
-        userAgent: event.userAgent,
-        occurredAt: event.occurredAt.toISOString(),
-      })),
+      recentAccess: await this.accessViews(access.events.slice(0, 3), context),
     };
   }
 }
