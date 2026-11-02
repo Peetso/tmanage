@@ -2234,7 +2234,8 @@ GRANT UPDATE ON `tmanage`.`retainer_periods`                                TO '
 -- 0304 `finance_exports` (tenant): each export run is recorded once (SELECT, INSERT); the history
 -- is append-only, so UPDATE and DELETE are withheld. The same transaction marks the exported
 -- invoices (`client_invoices.exported_at` / `export_target`); that UPDATE grant exists (0301 block)
--- and is stated again so the block reads whole. `client_credit_notes` carries no exported mark.
+-- and is stated again so the block reads whole. R23-d (0315): `client_credit_notes` now carries
+-- the same mark (`exported_at` / `export_target`); UPDATE on it exists (0301 block).
 -- The worker reads and writes nothing here.
 GRANT SELECT, INSERT ON `tmanage`.`finance_exports`                         TO 'tmanage_app'@'%';
 GRANT UPDATE ON `tmanage`.`client_invoices`                                 TO 'tmanage_app'@'%';
@@ -2312,5 +2313,8 @@ GRANT SELECT ON `tmanage`.`client_credit_notes`                             TO '
 -- under the newest key for the 56-02 key-rotation job only (SELECT, UPDATE). 0313 also adds
 -- `zatca_signature` / `zatca_cert_fingerprint` to `client_invoices` and `client_credit_notes`,
 -- written by the send / credit-note UPDATE and INSERT the app already holds.
-GRANT SELECT, INSERT, UPDATE ON `tmanage`.`org_secrets`                     TO 'tmanage_app'@'%';
+-- R23-c: DELETE only for the company erasure — a certificate is never deleted by a route:
+-- replaced -> `rotated`, removed -> `revoked`. The worker's UPDATE also covers `key_version`, which the
+-- rotation job stamps with the new key id.
+GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`org_secrets`             TO 'tmanage_app'@'%';
 GRANT SELECT, UPDATE ON `tmanage`.`org_secrets`                             TO 'tmanage_worker'@'%';

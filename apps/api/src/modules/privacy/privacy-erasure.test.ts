@@ -106,6 +106,9 @@ describe('Company erasure — which tables', () => {
     expect(tables).toContain('messages');
     expect(tables).toContain('file_versions');
     expect(tables).toContain('portal_access_log');
+    // R23-c: a closed company's certificate ciphertext and e-invoice chain checks go too.
+    expect(tables).toContain('org_secrets');
+    expect(tables).toContain('einvoice_chain_checks');
     for (const kept of RETAINED_TABLES) expect(tables).not.toContain(kept);
     const tenantWide = Object.entries(TENANT_TABLES).filter(([, c]) => c === 'organization_id');
     expect(tables.length).toBe(tenantWide.length - (RETAINED_TABLES.size - 1));

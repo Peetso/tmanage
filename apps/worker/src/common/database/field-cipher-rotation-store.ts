@@ -10,7 +10,8 @@ import type {
 /**
  * 56-02: the rotation job's statements, over the worker's pool. `tmanage_worker` holds SELECT,
  * INSERT, UPDATE on `key_rotations` and SELECT, UPDATE on the target tables (scripts/db/users.sql).
- * Table and column names come only from the closed `ROTATION_TARGETS` map, never from a row.
+ * Table and column names (including `versionColumn`) come only from the closed `ROTATION_TARGETS`
+ * map, never from a row.
  */
 
 interface WriteResult {
@@ -88,12 +89,19 @@ export function createRotationStore(database: WorkerDatabase): RotationStore {
         return rows.map((r): SecretRow => ({ id: r.id, ownerId: r.owner_id, value: r.value }));
       }),
 
-    writeValue: (target, id, from, to) =>
+    writeValue: (target, id, from, to, toKeyId) =>
       database.transaction(async (tx) => {
-        const result = await tx.query<WriteResult>(
-          `UPDATE ${target.table} SET ${target.column} = ? WHERE id = ? AND ${target.column} = ?`,
-          [to, id, from],
-        );
+        // R23-c: a versioned target (org_secrets.key_version) records the key in the same CAS.
+        const result =
+          target.versionColumn === undefined
+            ? await tx.query<WriteResult>(
+                `UPDATE ${target.table} SET ${target.column} = ? WHERE id = ? AND ${target.column} = ?`,
+                [to, id, from],
+              )
+            : await tx.query<WriteResult>(
+                `UPDATE ${target.table} SET ${target.column} = ?, ${target.versionColumn} = ? WHERE id = ? AND ${target.column} = ?`,
+                [to, toKeyId, id, from],
+              );
         return result.affectedRows === 1;
       }),
 

@@ -75,4 +75,24 @@ describe('key rotation job (56-02)', () => {
     expect(ROTATION_TARGETS.reporter_email.ownerColumn).toBe('id');
     expect(aads[0]).toEqual({ purpose: 'reporter_email', ownerId: '498' });
   });
+
+  it('passes the new key id and the versioned target for org_secret only (R23-c)', async () => {
+    const writes: [string | undefined, string][] = [];
+    for (const [purpose, after] of [
+      ['org_secret', '0498'],
+      ['storage_token', '0499'],
+    ] as const) {
+      const { s } = store(after, '2', purpose);
+      s.writeValue = async (t, _id, _from, to, keyId) => (
+        writes.push([t.versionColumn, `${to}@${keyId}`]),
+        true
+      );
+      await runKeyRotation({ store: s, cipher });
+    }
+    expect(writes).toEqual([
+      ['key_version', 'fc1.new@2'],
+      ['key_version', 'fc1.new@2'],
+      [undefined, 'fc1.new@2'],
+    ]);
+  });
 });

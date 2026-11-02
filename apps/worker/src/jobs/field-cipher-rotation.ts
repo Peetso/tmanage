@@ -21,7 +21,18 @@ export const ROTATION_INTERVAL_MS = 60_000;
 /** A `running` rotation with no heartbeat for this long is resumed by the next worker. */
 export const ROTATION_STALE_MS = 5 * 60 * 1000;
 
-/** Where each rotatable purpose lives. `ownerColumn` feeds the AAD and must match the writer. */
+/**
+ * Where a rotatable purpose lives. `ownerColumn` feeds the AAD and must match the writer;
+ * `versionColumn`, when set, is stamped with the key id the value was re-encrypted under (R23-c).
+ */
+export interface RotationTarget {
+  readonly table: string;
+  readonly column: string;
+  readonly ownerColumn: string;
+  readonly versionColumn?: string;
+}
+
+/** Where each rotatable purpose lives. */
 export const ROTATION_TARGETS = {
   storage_token: { table: 'storage_connections', column: 'refresh_token_enc', ownerColumn: 'id' },
   calendar_token: {
@@ -36,10 +47,15 @@ export const ROTATION_TARGETS = {
     ownerColumn: 'id',
   },
   /** 52-12 (R22-a): the writer is `einvoicing-certificate.controller.ts` (purpose `org_secret`, owner = row id). */
-  org_secret: { table: 'org_secrets', column: 'ciphertext', ownerColumn: 'id' },
-} as const;
+  /** R23-c: `key_version` is stamped with the new key id, so the platform keys page stays true. */
+  org_secret: {
+    table: 'org_secrets',
+    column: 'ciphertext',
+    ownerColumn: 'id',
+    versionColumn: 'key_version',
+  },
+} as const satisfies Record<string, RotationTarget>;
 export type RotationPurpose = keyof typeof ROTATION_TARGETS;
-export type RotationTarget = (typeof ROTATION_TARGETS)[RotationPurpose];
 
 export function isRotationPurpose(value: string): value is RotationPurpose {
   return Object.hasOwn(ROTATION_TARGETS, value);
@@ -79,8 +95,17 @@ export interface RotationStore {
   /** Count the purpose's non-null values and stamp `rows_total` when the job is fresh. */
   countTotal(rotationId: string, target: RotationTarget): Promise<void>;
   readBatch(target: RotationTarget, afterId: string | null, limit: number): Promise<SecretRow[]>;
-  /** Compare-and-swap; false when the row changed since it was read. */
-  writeValue(target: RotationTarget, id: string, from: string, to: string): Promise<boolean>;
+  /**
+   * Compare-and-swap; false when the row changed since it was read. A target with a
+   * `versionColumn` also gets `toKeyId` written there in the same statement.
+   */
+  writeValue(
+    target: RotationTarget,
+    id: string,
+    from: string,
+    to: string,
+    toKeyId: string,
+  ): Promise<boolean>;
   saveProgress(rotationId: string, lastRowId: string, counts: RotationCounts): Promise<void>;
   finish(rotationId: string, status: 'done' | 'failed', error: string | null): Promise<void>;
   /** Back to `queued`, keeping `last_row_id` and the counts, so the next run resumes at once. */
@@ -121,7 +146,7 @@ export async function runKeyRotation(deps: {
   if (cipher.activeKeyId(purpose) !== job.toKeyId) {
     return fail(`key ${job.toKeyId} is not the newest key in FIELD_CIPHER_KEYS; add it and deploy`);
   }
-  const target = ROTATION_TARGETS[purpose];
+  const target: RotationTarget = ROTATION_TARGETS[purpose];
   if (job.lastRowId === null) await store.countTotal(job.id, target);
 
   let { done, skipped, failed } = job.counts;
@@ -142,7 +167,7 @@ export async function runKeyRotation(deps: {
       }
       try {
         const next = cipher.rotate(row.value, { purpose, ownerId: row.ownerId });
-        if (next !== null) await store.writeValue(target, row.id, row.value, next);
+        if (next !== null) await store.writeValue(target, row.id, row.value, next, job.toKeyId);
         done += 1;
       } catch {
         failed += 1;
