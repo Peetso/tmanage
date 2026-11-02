@@ -21,14 +21,14 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 
 ## Totals
 
-Counted by hand on 2026-11-02 (56-28, R19-f).
+Counted by hand on 2026-11-02 (56-28, R19-f; R21-f adds the three inbound e-mail tables).
 
-- Tables: 326 (100 % of `TABLES` once R19-b's `finance_exports` lands; `data-inventory.doc.test.ts` checks it without a database).
-- `delete`: 251
+- Tables: 329 (100 % of `TABLES` once R19-b's `finance_exports` lands; `data-inventory.doc.test.ts` checks it without a database).
+- `delete`: 253
 - `pseudonymise`: 4
 - `keep-fiscal-redacted`: 11
-- `none-no-personal-data`: 60
-- Today `enforced`: 223, `gap`: 43, `n/a`: 60.
+- `none-no-personal-data`: 61
+- Today `enforced`: 223, `gap`: 45, `n/a`: 61.
 
 ## Planned tables
 
@@ -143,6 +143,9 @@ Not a table today — row reserved. Each gets a full inventory row in the slice 
 | `idempotency_records`             | `actor_user_id`                                                                                        | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
 | `import_jobs`                     | `created_by_user_id`                                                                                   | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
 | `import_rows`                     | -                                                                                                      | `none-no-personal-data` | n/a      | H3    | No personal field. Deleted with the company anyway (H3).                                                                                                                                                                                                                    |
+| `inbound_email_addresses`         | -                                                                                                      | `none-no-personal-data` | n/a      | 54-12 | No personal field: the organization's own request address and policy.                                                                                                                                                                                                       |
+| `inbound_email_attachments`       | `name`                                                                                                 | `delete`                | gap      | 54-12 | Tenant table (0312, R21-f) with no DELETE grant for the app; that the company erasure empties it is not yet proven by priv-053.                                                                                                                                             |
+| `inbound_emails`                  | `from_email`, `subject`, `body_text`, `trusted_by`                                                     | `delete`                | gap      | 54-12 | Tenant table (0312, R21-f) with no DELETE grant for the app; that the company erasure empties it is not yet proven by priv-053.                                                                                                                                             |
 | `inbox_flags`                     | `membership_id`                                                                                        | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
 | `inbox_rules`                     | `membership_id`                                                                                        | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
 | `inbox_saved_filters`             | `membership_id`                                                                                        | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
