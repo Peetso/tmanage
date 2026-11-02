@@ -5757,6 +5757,15 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'read',
     scope: 'read',
   },
+  // ---- R20-a · 54-09 Phase 0 unfurl proxy (read: a preview card for an allow-listed link) ----
+  {
+    id: 'unfurl.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/unfurl/',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
 ];
 
 /** Index of ops by their stable id. */

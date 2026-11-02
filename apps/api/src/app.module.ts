@@ -221,6 +221,7 @@ import { BillingCreditsModule } from './modules/billing/credits.controller.js';
 import { BillingDiscountsModule } from './modules/billing/discounts.controller.js';
 import { BillingUsageExportModule } from './modules/billing/usage-export.controller.js';
 import { ChatModule } from './modules/chat/chat.module.js';
+import { UnfurlModule } from './modules/unfurl/unfurl.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -1152,6 +1153,8 @@ export class AppModule {
         DeepHealthModule.register(options.config.deepHealth ?? { heartbeatMaxAgeSeconds: 900 }),
         // R7 slice 2: the one chat list (channels, groups, direct conversations), pin and archive.
         ChatModule.register(),
+        // R20-a (54-09 Phase 0): GET .../unfurl?url= preview cards for allow-listed links.
+        UnfurlModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a
