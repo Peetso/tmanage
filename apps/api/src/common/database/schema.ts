@@ -12206,6 +12206,58 @@ Object.assign(TABLES, {
   project_baseline_items: projectBaselineItems,
 });
 
+// ---- R17-a · 52-14 profitability and utilisation reports ----
+
+/**
+ * 0296 (52-14). One derived row per organization × day × project × member: the minutes and money
+ * the profitability and utilisation reports read. TENANT. `projectId` / `membershipId` are '' when
+ * absent (the unique grain cannot hold NULL). Rebuilt by DELETE + INSERT of a window — by the
+ * worker's nightly loop and the on-demand rebuild route — never updated in place.
+ */
+export const financeDailyFacts = mysqlTable(
+  'finance_daily_facts',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    day: date('day', { mode: 'string' }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull().default(''),
+    clientOrganizationId: char('client_organization_id', { length: 36 }),
+    membershipId: char('membership_id', { length: 36 }).notNull().default(''),
+    billableMinutes: int('billable_minutes').notNull().default(0),
+    nonbillableMinutes: int('nonbillable_minutes').notNull().default(0),
+    writeoffMinutes: int('writeoff_minutes').notNull().default(0),
+    unpricedMinutes: int('unpriced_minutes').notNull().default(0),
+    billedMinor: bigint('billed_minor', { mode: 'number' }).notNull().default(0),
+    costMinor: bigint('cost_minor', { mode: 'number' }).notNull().default(0),
+    expenseMinor: bigint('expense_minor', { mode: 'number' }).notNull().default(0),
+    invoicedMinor: bigint('invoiced_minor', { mode: 'number' }).notNull().default(0),
+    currency: char('currency', { length: 3 }),
+    computedAt: datetime('computed_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_finance_daily_facts_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_finance_daily_facts_grain').on(
+      table.organizationId,
+      table.day,
+      table.projectId,
+      table.membershipId,
+    ),
+    index('ix_finance_daily_facts_client').on(
+      table.organizationId,
+      table.day,
+      table.clientOrganizationId,
+    ),
+    index('ix_finance_daily_facts_project').on(table.organizationId, table.projectId, table.day),
+    index('ix_finance_daily_facts_computed').on(table.organizationId, table.computedAt),
+  ],
+);
+
+export type FinanceDailyFactRow = typeof financeDailyFacts.$inferSelect;
+
+Object.assign(TABLES, {
+  finance_daily_facts: financeDailyFacts,
+});
+
 // ---- R17-d · 52-06 retainers ----
 
 /**

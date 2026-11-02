@@ -1321,6 +1321,17 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'work_item',
     clause: '§12 53-04 — a schedule cascade moved this item’s start and due dates',
   },
+  // ---- R17-a · 52-14 profitability and utilisation reports ----
+  /** A finance report was exported as CSV. Metadata: report, group-by, range; never a figure. */
+  'finance.report_exported': {
+    objectType: 'organization',
+    clause: '§12 52-14 export — a profitability / unbilled / utilisation report left as CSV',
+  },
+  /** The finance facts were rebuilt on demand. Metadata: the window (from, to) and rows written. */
+  'finance.facts_rebuilt': {
+    objectType: 'organization',
+    clause: '§12 52-14 — the nightly finance facts were recomputed on demand',
+  },
   // ---- R17-c · 53-05 baselines on the timeline ----
   /** A baseline was saved. Metadata: kind, item and milestone counts; never the label or note. */
   'baseline.created': {
@@ -1597,6 +1608,8 @@ const AUDIT_ACTION_LABELS = {
   'work_item.dependency_added': 'Added a work item dependency',
   'work_item.dependency_changed': 'Changed a work item dependency',
   'work_item.rescheduled': 'Rescheduled a work item through its dependencies',
+  'finance.report_exported': 'Exported a profitability report',
+  'finance.facts_rebuilt': 'Rebuilt the finance report figures',
   'baseline.created': 'Saved a schedule baseline',
   'baseline.activated': 'Made a baseline the current one',
   'baseline.deleted': 'Deleted a schedule baseline',

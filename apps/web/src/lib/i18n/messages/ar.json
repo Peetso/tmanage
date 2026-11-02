@@ -15859,5 +15859,7 @@
   "AuditActionLabel.retainer.paused": "أوقف عقد خدمة مؤقتًا",
   "AuditActionLabel.retainer.resumed": "استأنف عقد خدمة",
   "AuditActionLabel.retainer.ended": "أنهى عقد خدمة",
-  "AuditActionLabel.retainer.period_closed": "أغلق فترة عقد خدمة"
+  "AuditActionLabel.retainer.period_closed": "أغلق فترة عقد خدمة",
+  "AuditActionLabel.finance.report_exported": "صدّر تقرير الربحية",
+  "AuditActionLabel.finance.facts_rebuilt": "أعاد حساب أرقام التقارير المالية"
 }

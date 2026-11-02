@@ -237,6 +237,20 @@ export {
 } from './jobs/budget-burn-sweeper.js';
 export type { BudgetBurnSweepResult } from './jobs/budget-burn-sweeper.js';
 export { createBudgetBurnStore } from './common/database/budget-burn-store.js';
+// R17-a (52-14) — the nightly finance facts rebuild loop, exported for an in-process host.
+export {
+  FINANCE_FACTS_TICK_MS,
+  financeFactsDue,
+  financeFactsWindow,
+  runFinanceFactsLoop,
+  runFinanceFactsRebuild,
+} from './jobs/finance-facts-rebuild.js';
+export type {
+  FinanceFactsDeps,
+  FinanceFactsResult,
+  FinanceFactsStore,
+} from './jobs/finance-facts-rebuild.js';
+export { createFinanceFactsStore } from './common/database/finance-facts-store.js';
 // R17-d (52-06) — the hourly retainer period roll, exported so the single Hostinger app
 // (`apps/server`) runs it in-process.
 export {

@@ -2140,6 +2140,22 @@ GRANT SELECT, UPDATE ON `tmanage`.`project_budgets`                 TO 'tmanage_
 GRANT SELECT ON `tmanage`.`work_item_time_logs`                     TO 'tmanage_worker'@'%';
 GRANT SELECT, INSERT ON `tmanage`.`budget_alert_events`             TO 'tmanage_worker'@'%';
 
+-- ---- R17-a · 52-14 profitability and utilisation reports ----
+-- 0296 `finance_daily_facts` (tenant): one row per organization × day × project × member, derived
+-- from the time logs and approved expenses. A rebuild is DELETE of the window then INSERT … SELECT,
+-- never an UPDATE, so neither principal holds UPDATE. The app reads the facts for the three report
+-- routes and rebuilds the caller's own organization on demand (SELECT, INSERT, DELETE). The nightly
+-- loop rebuilds every organization's last 90 days (SELECT, INSERT, DELETE) from
+-- `work_item_time_logs`, `expenses`, `project_clients`, `projects` and `org_finance_profiles`; of those only `expenses` is new for the worker (the others are stated
+-- again here so the block reads whole).
+GRANT SELECT, INSERT, DELETE ON `tmanage`.`finance_daily_facts`     TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT, DELETE ON `tmanage`.`finance_daily_facts`     TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`expenses`                                TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`work_item_time_logs`                     TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`project_clients`                         TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`projects`                                TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`org_finance_profiles`                    TO 'tmanage_worker'@'%';
+
 -- ---- R17-c · 53-05 baselines on the timeline ----
 -- 0298 `project_baseline_items` (tenant): a manager freezes every live item of a project into a
 -- 'full' baseline (INSERT), members read the variance and the Gantt overlay (SELECT), and the rows

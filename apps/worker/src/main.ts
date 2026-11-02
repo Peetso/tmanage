@@ -94,6 +94,9 @@ import { runSecurityDetectorLoop } from './jobs/security-detector.js';
 import { composeMonthlyGtmReport } from '@tmanage/mail';
 import { createGrowthRollupStore } from './common/database/growth-rollup-store.js';
 import { runGrowthRollupLoop } from './jobs/growth-rollup.js';
+// ---- R17-a · 52-14 ---- the nightly finance facts rebuild behind the profitability reports.
+import { createFinanceFactsStore } from './common/database/finance-facts-store.js';
+import { runFinanceFactsLoop } from './jobs/finance-facts-rebuild.js';
 
 /**
  * The worker process entry point.
@@ -703,6 +706,12 @@ async function main(): Promise<void> {
     },
     controller.signal,
   );
+  // ---- R17-a · 52-14 ---- finance facts nightly (02:30 UTC) and on boot when the newest
+  // `computed_at` is over 26 h old: every organization's last 90 days, one transaction each.
+  const financeFacts = runFinanceFactsLoop(
+    { store: createFinanceFactsStore(database) },
+    controller.signal,
+  );
 
   // RT-001. Sockets exist only in loop mode — a controlled batch has no process to keep a
   // socket open — and only when a port is configured; 0 is the honest default on a host
@@ -803,6 +812,8 @@ async function main(): Promise<void> {
     await webhookDeliveries;
     // ---- R13 slice 5 ----
     await growthRollups;
+    // ---- R17-a ----
+    await financeFacts;
     // ---- 56-11 ----
     await auditAnchors;
     // ---- 56-23 ----

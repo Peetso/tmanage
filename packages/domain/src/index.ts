@@ -411,3 +411,6 @@ export * from './import/contacts.js';
 
 // Typed dependencies + cascade — 53-04 (R16-d)
 export * from './schedule/dependencies.js';
+
+// Profitability and utilisation — 52-14 (R17-a)
+export * from './money/profitability.js';

@@ -354,6 +354,9 @@ describe('the runtime user is actually least-privilege', () => {
     purgeTables.add('ip_lookups');
     // ---- R13-5 ---- growth rollups older than 13 months; derived numbers, never work a person made.
     purgeTables.add('platform_growth_rollups');
+    // ---- R17-a ---- the nightly finance facts rebuild deletes and re-inserts its window; derived
+    // numbers, never work a person made.
+    purgeTables.add('finance_daily_facts');
     for (const grant of grantsFor('tmanage_worker')) {
       if (purgeTables.has(grant.table)) continue;
       expect(grant.privileges, `worker grant on ${grant.table}`).not.toContain('DELETE');

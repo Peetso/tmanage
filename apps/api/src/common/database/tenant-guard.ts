@@ -1217,6 +1217,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0295. Tenant-owned and per user: one person's imported invite suggestions. Every statement
   // also predicates on the caller's `user_id`; the worker never reads it.
   contact_suggestions: 'organization_id',
+  // ---- R17-a · 52-14 ----
+  // 0296. Tenant-owned: the nightly profitability facts, one row per day × project × member. Read by
+  // members through their own context (finance.view); rebuilt per organization by the app (on
+  // demand) and by the worker loop as `tmanage_worker`, always naming the organization.
+  finance_daily_facts: 'organization_id',
   // ---- R17-c · 53-05 ----
   // 0298. Tenant-owned: the work items frozen into a project baseline. Reached by members through
   // their own context (work.read reads, project.manage writes); the worker never reads it.

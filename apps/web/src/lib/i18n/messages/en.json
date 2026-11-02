@@ -15859,5 +15859,7 @@
   "AuditActionLabel.retainer.paused": "Paused a retainer",
   "AuditActionLabel.retainer.resumed": "Resumed a retainer",
   "AuditActionLabel.retainer.ended": "Ended a retainer",
-  "AuditActionLabel.retainer.period_closed": "Closed a retainer period"
+  "AuditActionLabel.retainer.period_closed": "Closed a retainer period",
+  "AuditActionLabel.finance.report_exported": "Exported a profitability report",
+  "AuditActionLabel.finance.facts_rebuilt": "Rebuilt the finance report figures"
 }

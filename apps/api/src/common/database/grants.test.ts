@@ -190,10 +190,12 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // `integration_channel_posts` where they write them.
     // ---- R16-b ---- +2: the burn sweep reads `project_budgets` and `budget_alert_events` where it
     // writes them (`work_item_time_logs` was already read for 52-01).
+    // ---- R17-a ---- +2: the finance facts loop reads `finance_daily_facts` where it rebuilds it,
+    // and its new source `expenses` (time logs, clients, projects, finance profiles already read).
     // ---- R17-d ---- +3: the retainer period roll reads `retainers`, `retainer_projects` and
     // `retainer_periods` (time logs and work items already read).
     expect(reads).toHaveLength(
-      26 + 15 + 1 + 4 + 3 + 1 + 3 + 3 + 1 + 6 + 4 + 2 + 1 + 1 + 1 + 4 + 2 + 1 + 2 + 2 + 2 + 3,
+      26 + 15 + 1 + 4 + 3 + 1 + 3 + 3 + 1 + 6 + 4 + 2 + 1 + 1 + 1 + 4 + 2 + 1 + 2 + 2 + 2 + 2 + 3,
     );
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });

@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
-import { INSIGHTS_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
+import { AUDIT_SERVICE, INSIGHTS_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { WorkloadRepository } from '../work-views/workload.repository.js';
@@ -15,6 +15,11 @@ import {
   InsightMetricFavoritesController,
 } from './metric-favorites.controller.js';
 import { InsightMetricFavoritesService } from './metric-favorites.service.js';
+import type { AuditService } from '../audit/audit.service.js';
+import { BudgetBurnRepository } from '../projects/budget-burn.repository.js';
+import { FINANCE_REPORTS_SERVICE, FinanceReportsController } from './finance-reports.controller.js';
+import { FinanceReportsRepository } from './finance-reports.repository.js';
+import { FinanceReportsService } from './finance-reports.service.js';
 
 /**
  * INS-01's wiring — the insights module's first slice.
@@ -53,13 +58,32 @@ export class InsightsModule {
       useFactory: (database: TenantDatabase) => new InsightMetricFavoritesService(database),
     };
 
+    // 52-14 (R17-a) profitability / unbilled / utilisation reports and the facts rebuild. Reads the
+    // 52-05 budget caches through a read-only `BudgetBurnRepository` handle (stateless, as above).
+    const financeReports: Provider = {
+      provide: FINANCE_REPORTS_SERVICE,
+      inject: [TENANT_DATABASE, AUDIT_SERVICE],
+      useFactory: (database: TenantDatabase, audit: AuditService) =>
+        new FinanceReportsService({
+          database,
+          repository: new FinanceReportsRepository(),
+          budgets: new BudgetBurnRepository(),
+          audit,
+        }),
+    };
+
     return {
       module: InsightsModule,
-      providers: [service, metricFavorites],
+      providers: [service, metricFavorites, financeReports],
       exports: [service],
       // INS-05 export shares the JSON reads' service and capability; a separate controller only
       // because its response mode (a CSV download) differs from the JSON reads'.
-      controllers: [InsightsController, InsightsExportController, InsightMetricFavoritesController],
+      controllers: [
+        InsightsController,
+        InsightsExportController,
+        InsightMetricFavoritesController,
+        FinanceReportsController,
+      ],
     };
   }
 }

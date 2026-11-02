@@ -1855,6 +1855,32 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/work-items/:workItemId/code-links/:linkId',
     reason: 'automation_secrets',
   },
+  // ---- R17-a · 52-14 profitability and utilisation reports (org-internal money) ----
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/insights/finance/profitability',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/insights/finance/unbilled',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/insights/finance/utilisation',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/insights/finance/export.csv',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/insights/finance/facts/rebuild',
+    reason: 'finance_settings',
+  },
   // ---- R17-c · 53-05 baselines ---- choosing the current baseline re-points every member's Gantt
   // overlay and variance at another plan; withheld (as the schedule cascade is) until reviewed
   // `schedule.*` ops exist.
