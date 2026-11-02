@@ -1,10 +1,9 @@
 import { Controller, Get, Inject, Res, StreamableFile } from '@nestjs/common';
-import type { Principal } from '@tmanage/domain';
+import { toCsv, type Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { INSIGHTS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import type { InsightsService, InsightsWorkloadView } from './insights.service.js';
-import { toCsv } from './csv.js';
 
 /** The header writer the download response needs — the narrow slice of the reply file-downloads uses. */
 export interface CsvHeaderWriter {

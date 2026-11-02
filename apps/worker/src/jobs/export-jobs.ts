@@ -2,6 +2,7 @@ import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import type { WorkerDatabase } from '../common/database/worker-database.js';
+import { escapeCsvCell, toCsv as domainToCsv } from '@tmanage/domain';
 import { createExportJobStore } from '../common/database/export-jobs-store.js';
 
 /**
@@ -18,10 +19,9 @@ import { createExportJobStore } from '../common/database/export-jobs-store.js';
  *    private zone under the job's own key, and stamps `row_count`, `object_key`, `finished_at`
  *    and `expires_at` (24 h), or `error`.
  *
- * The CSV escaping is the action log export's (`apps/api/src/modules/audit/audit-export-csv.ts`):
- * a cell starting `=`, `+`, `-`, `@`, tab or CR gets a leading quote (no formula runs in a
- * spreadsheet), then RFC 4180 quoting; CRLF between records. Restated here because the worker
- * does not import the API.
+ * The CSV escaping is the domain's one rule (`packages/domain/src/export/csv.ts`, 52-29): a cell
+ * starting `=`, `+`, `-`, `@`, tab or CR gets a leading quote (no formula runs in a spreadsheet),
+ * then RFC 4180 quoting; CRLF between records.
  *
  * `sign-ins` jobs are not claimed: the relay credential never reads `authentication_events`
  * (least-privilege.db.test.ts), so the API writes that file itself.
@@ -73,22 +73,13 @@ export interface ExportObjectWriter {
   remove(objectKey: string): Promise<void>;
 }
 
-// ── CSV (the action log export's escaping) ───────────────────────────────────
+// ── CSV (the domain's one escaping rule, 52-29) ─────────────────────────────
 
-const RECORD_SEPARATOR = '\r\n';
-const FORMULA_TRIGGER = /^[=+\-@\t\r]/;
-const NEEDS_QUOTING = /[",\r\n]/;
+export { escapeCsvCell };
 
-export function escapeCsvCell(value: string): string {
-  const guarded = FORMULA_TRIGGER.test(value) ? `'${value}` : value;
-  if (NEEDS_QUOTING.test(guarded)) return `"${guarded.replace(/"/g, '""')}"`;
-  return guarded;
-}
-
+/** The table as CSV, header first, through `@tmanage/domain`'s `toCsv`. */
 export function toCsv(table: ExportTable): string {
-  const lines = [table.header.map(escapeCsvCell).join(',')];
-  for (const row of table.rows) lines.push(row.map((cell) => escapeCsvCell(cell ?? '')).join(','));
-  return `${lines.join(RECORD_SEPARATOR)}${RECORD_SEPARATOR}`;
+  return domainToCsv(table.rows, table.header);
 }
 
 /** `platform/exports/<jobId>/<random>.csv` — the API's `exportObjectKey`, restated. */

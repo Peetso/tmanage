@@ -1,3 +1,4 @@
+import { toCsv, type CsvValue } from '@tmanage/domain';
 import type { ApiClient } from './client';
 
 /**
@@ -263,30 +264,46 @@ export function isoWeekRange(week: string): { start: string; end: string; number
   return { start: monday.toISOString(), end: sunday.toISOString(), number };
 }
 
-function csvCell(value: string | number | null): string {
-  const text = value === null ? '' : String(value);
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
+const SCOREBOARD_CSV_HEADER = [
+  'kind',
+  'week',
+  'event',
+  'locale',
+  'audience',
+  'bucket',
+  'events',
+  'people',
+  'workspaces',
+] as const;
 
-/** The scoreboard's rows as CSV: the counts, then the timer buckets. Aggregates only. */
+/**
+ * The scoreboard's rows as CSV: the counts, then the timer buckets. Aggregates only. Cells go
+ * through the domain's one escaping rule (52-29): formula guard, RFC 4180 quoting, CRLF records.
+ */
 export function scoreboardCsv(view: EaseScoreboardView): string {
-  const lines = [
-    ['kind', 'week', 'event', 'locale', 'audience', 'bucket', 'events', 'people', 'workspaces'],
-  ].map((row) => row.join(','));
-  for (const row of view.counts) {
-    lines.push(
-      ['count', row.week, row.eventName, row.locale, row.principalKind, '', row.events]
-        .concat([row.actors, row.organizations])
-        .map(csvCell)
-        .join(','),
-    );
-  }
-  for (const row of view.timers) {
-    lines.push(
-      ['timer', row.week, row.eventName, row.locale, '', row.bucket, row.events, '', '']
-        .map(csvCell)
-        .join(','),
-    );
-  }
-  return `${lines.join('\n')}\n`;
+  const rows: CsvValue[][] = [
+    ...view.counts.map((row) => [
+      'count',
+      row.week,
+      row.eventName,
+      row.locale,
+      row.principalKind,
+      '',
+      row.events,
+      row.actors,
+      row.organizations,
+    ]),
+    ...view.timers.map((row) => [
+      'timer',
+      row.week,
+      row.eventName,
+      row.locale,
+      '',
+      row.bucket,
+      row.events,
+      '',
+      '',
+    ]),
+  ];
+  return toCsv(rows, SCOREBOARD_CSV_HEADER);
 }

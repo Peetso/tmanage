@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { ApiError } from '../../../common/http/errors.js';
-import { escapeCsvCell } from '../../audit/audit-export-csv.js';
+import { toCsv } from '@tmanage/domain';
 import type {
   PlatformExportJobView,
   PlatformExportScope,
@@ -145,8 +145,6 @@ export function parseFilterJson(raw: string | null): Readonly<Record<string, str
   }
 }
 
-const RECORD_SEPARATOR = '\r\n';
-
 export const SIGN_IN_CSV_HEADER = [
   'occurredAt',
   'email',
@@ -160,22 +158,17 @@ export const SIGN_IN_CSV_HEADER = [
 
 /** The sign-ins file, with the action log export's escaping (formula guard, RFC 4180 quoting). */
 export function signInsToCsv(rows: readonly PlatformSignInView[]): string {
-  const lines = [SIGN_IN_CSV_HEADER.join(',')];
-  for (const row of rows) {
-    lines.push(
-      [
-        row.occurredAt,
-        row.email ?? '',
-        row.action,
-        row.outcome,
-        row.reason ?? '',
-        row.ip ?? '',
-        row.userAgent ?? '',
-        row.correlationId ?? '',
-      ]
-        .map(escapeCsvCell)
-        .join(','),
-    );
-  }
-  return `${lines.join(RECORD_SEPARATOR)}${RECORD_SEPARATOR}`;
+  return toCsv(
+    rows.map((row) => [
+      row.occurredAt,
+      row.email,
+      row.action,
+      row.outcome,
+      row.reason,
+      row.ip,
+      row.userAgent,
+      row.correlationId,
+    ]),
+    SIGN_IN_CSV_HEADER,
+  );
 }

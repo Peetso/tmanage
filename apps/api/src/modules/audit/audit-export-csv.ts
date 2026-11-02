@@ -1,4 +1,7 @@
+import { escapeCsvCell, toCsv } from '@tmanage/domain';
 import type { AdminAuditEventView } from './audit.service.js';
+
+export { escapeCsvCell };
 
 /**
  * CSV serialization for the Administration audit export — ADM-09 (x118).
@@ -35,44 +38,18 @@ export const AUDIT_CSV_HEADER = [
   'summary',
 ] as const;
 
-/** RFC 4180 record separator. A spreadsheet reads CRLF on every platform; a bare LF it may not. */
-const RECORD_SEPARATOR = '\r\n';
-
-/** The leading bytes a spreadsheet treats as the start of a formula or command. */
-const FORMULA_TRIGGER = /^[=+\-@\t\r]/;
-
-/** True when the cell needs RFC 4180 quoting — a comma, a quote or a line break. */
-const NEEDS_QUOTING = /[",\r\n]/;
-
-/**
- * One cell, made safe two ways. The injection guard first (so a triggering value is neutralized
- * even when it also needs quoting), then the ordinary CSV quoting.
- */
-export function escapeCsvCell(value: string): string {
-  const guarded = FORMULA_TRIGGER.test(value) ? `'${value}` : value;
-  if (NEEDS_QUOTING.test(guarded)) {
-    return `"${guarded.replace(/"/g, '""')}"`;
-  }
-  return guarded;
-}
-
 /** Serialize the narrow audit view to a CSV document, header first, newest-first order preserved. */
 export function auditEventsToCsv(events: readonly AdminAuditEventView[]): string {
-  const lines = [AUDIT_CSV_HEADER.join(',')];
-  for (const event of events) {
-    lines.push(
-      [
-        event.id,
-        event.occurredAt,
-        event.actorId ?? '',
-        event.action,
-        event.entityType,
-        event.entityId ?? '',
-        event.summary,
-      ]
-        .map(escapeCsvCell)
-        .join(','),
-    );
-  }
-  return `${lines.join(RECORD_SEPARATOR)}${RECORD_SEPARATOR}`;
+  return toCsv(
+    events.map((event) => [
+      event.id,
+      event.occurredAt,
+      event.actorId,
+      event.action,
+      event.entityType,
+      event.entityId,
+      event.summary,
+    ]),
+    AUDIT_CSV_HEADER,
+  );
 }

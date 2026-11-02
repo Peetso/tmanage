@@ -358,3 +358,7 @@ export {
   localeForCountry,
 } from './i18n/country-locale.js';
 export type { SuggestedLocale } from './i18n/country-locale.js';
+
+// One CSV cell-escaping rule for every export — 52-29 (R13-s1)
+export { CSV_BOM, CSV_RECORD_SEPARATOR, escapeCsvCell, toCsv } from './export/csv.js';
+export type { CsvValue, ToCsvOptions } from './export/csv.js';

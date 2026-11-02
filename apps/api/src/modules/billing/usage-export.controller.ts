@@ -1,12 +1,11 @@
 import { Controller, Get, Inject, Module, Query, Res, StreamableFile } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
-import type { Principal } from '@tmanage/domain';
+import { toCsv, type Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
 import { AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
-import { toCsv } from '../insights/csv.js';
 import { UsageExportService, type UsageExportView } from './usage-export.service.js';
 
 /** The one method the download needs of the framework reply: set a header before the first byte. */
@@ -76,7 +75,7 @@ function usageExportToCsv(rows: readonly UsageExportView[]): string {
  *     makes the authoritative org-scoped `authorize()` decision again and scopes every read to the
  *     caller's `TenantContext`, so a usage counter can never cross tenants.
  *   - **Row cap.** The service refuses past `USAGE_EXPORT_MAX_ROWS` with a 413.
- *   - **Formula-injection guard.** The CSV goes through the shared, guarded `toCsv` (insights/csv), so a
+ *   - **Formula-injection guard.** The CSV goes through the shared, guarded `toCsv` (`@tmanage/domain`, 52-29), so a
  *     cell that begins `= + - @` (or the tab/CR that lead into a formula) is neutralised, never
  *     hand-rolled here.
  *

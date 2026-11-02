@@ -1,5 +1,5 @@
 import { StreamableFile } from '@nestjs/common';
-import { escapeCsvCell } from '../../audit/audit-export-csv.js';
+import { toCsv } from '@tmanage/domain';
 import type { IntelCoreView } from './session-intel.js';
 
 /**
@@ -40,13 +40,12 @@ export interface TrailCsvRow {
 }
 
 export const TRAIL_CSV_CONTENT_TYPE = 'text/csv; charset=utf-8';
-const BOM = '﻿';
 
+/** Every trail file carries a UTF-8 BOM so Excel opens Arabic place names correctly. */
 export function trailToCsv(rows: readonly TrailCsvRow[]): string {
-  const lines = [TRAIL_CSV_HEADER.join(',')];
-  for (const row of rows) {
+  const records = rows.map((row) => {
     const { location, network, device, automation } = row.intel;
-    const cells = [
+    return [
       row.occurredAt.toISOString(),
       row.action,
       row.outcome,
@@ -68,9 +67,8 @@ export function trailToCsv(rows: readonly TrailCsvRow[]): string {
       automation?.reasons.join(';'),
       device.raw,
     ];
-    lines.push(cells.map((cell) => escapeCsvCell(cell == null ? '' : String(cell))).join(','));
-  }
-  return `${BOM}${lines.join('\r\n')}\r\n`;
+  });
+  return toCsv(records, TRAIL_CSV_HEADER, { bom: true });
 }
 
 /** The one method a download needs of the framework reply. */
