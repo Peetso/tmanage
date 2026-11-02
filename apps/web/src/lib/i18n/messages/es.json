@@ -15826,5 +15826,13 @@
   "files.uploadRefused.too_large": "Este archivo supera lo que permite tu plan.",
   "files.uploadRefused.channel_forbids": "Aquí solo se pueden enviar imágenes y archivos PDF.",
   "files.uploadRefused.daily_upload_limit": "Has alcanzado el límite de subidas de hoy. Inténtalo mañana.",
-  "security.fileSafety.scannerMissing": "Solo se puede exigir a los clientes archivos analizados cuando haya un antivirus configurado."
+  "security.fileSafety.scannerMissing": "Solo se puede exigir a los clientes archivos analizados cuando haya un antivirus configurado.",
+  "displayPrefs.uiMode.label": "Modo",
+  "displayPrefs.uiMode.simple": "Modo simple",
+  "displayPrefs.uiMode.power": "Modo avanzado",
+  "displayPrefs.uiMode.inherited": "Usando el modo predeterminado de tu organización",
+  "displayPrefs.uiMode.locked": "Tu rol usa el modo predeterminado de la organización; un administrador lo ha bloqueado.",
+  "orgSettings.defaultUiMode.label": "Modo predeterminado para los miembros",
+  "orgSettings.uiModeLockedRoles.label": "Roles bloqueados en el modo predeterminado",
+  "orgSettings.uiModeLockedRoles.clientRole": "Los roles de cliente siempre usan el modo simple."
 }

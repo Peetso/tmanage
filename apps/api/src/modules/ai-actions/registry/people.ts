@@ -84,6 +84,20 @@ export const peopleDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'By person', args: { membershipId: 'm_1' } }],
   }),
   det({
+    id: 'people.load.get',
+    title: "A person's workload in hours",
+    description:
+      'Planned hours per week against capacity for one person; work the caller cannot read is one bucket.',
+    input: listArgs(['membershipId'], { from: f.iso(), to: f.iso() }),
+    redact: 'people',
+    examples: [
+      {
+        summary: 'Next four weeks',
+        args: { membershipId: 'm_1', from: '2026-11-02', to: '2026-11-29' },
+      },
+    ],
+  }),
+  det({
     id: 'people.capacity.list',
     title: "A person's capacity",
     description: 'Weekly working-hours capacity for one person.',

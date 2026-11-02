@@ -15931,5 +15931,13 @@
   "files.uploadRefused.too_large": "This file is larger than your plan allows.",
   "files.uploadRefused.channel_forbids": "Only images and PDF files can be sent here.",
   "files.uploadRefused.daily_upload_limit": "You've reached today's upload limit. Try again tomorrow.",
-  "security.fileSafety.scannerMissing": "Clients can only be held to scanned files once a virus scanner is set up."
+  "security.fileSafety.scannerMissing": "Clients can only be held to scanned files once a virus scanner is set up.",
+  "displayPrefs.uiMode.label": "Mode",
+  "displayPrefs.uiMode.simple": "Simple mode",
+  "displayPrefs.uiMode.power": "Power mode",
+  "displayPrefs.uiMode.inherited": "Using your organization's default",
+  "displayPrefs.uiMode.locked": "Your role uses the organization's default mode; an admin has locked it.",
+  "orgSettings.defaultUiMode.label": "Default mode for members",
+  "orgSettings.uiModeLockedRoles.label": "Roles locked to the default mode",
+  "orgSettings.uiModeLockedRoles.clientRole": "Client roles are always simple."
 }

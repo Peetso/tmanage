@@ -15802,5 +15802,13 @@
   "files.uploadRefused.too_large": "此文件超出了你的套餐允许的大小。",
   "files.uploadRefused.channel_forbids": "此处只能发送图片和 PDF 文件。",
   "files.uploadRefused.daily_upload_limit": "你已达到今天的上传上限。请明天再试。",
-  "security.fileSafety.scannerMissing": "只有设置了病毒扫描程序后，才能要求客户只使用已扫描的文件。"
+  "security.fileSafety.scannerMissing": "只有设置了病毒扫描程序后，才能要求客户只使用已扫描的文件。",
+  "displayPrefs.uiMode.label": "模式",
+  "displayPrefs.uiMode.simple": "简洁模式",
+  "displayPrefs.uiMode.power": "高级模式",
+  "displayPrefs.uiMode.inherited": "正在使用组织的默认模式",
+  "displayPrefs.uiMode.locked": "你的角色使用组织的默认模式；管理员已将其锁定。",
+  "orgSettings.defaultUiMode.label": "成员的默认模式",
+  "orgSettings.uiModeLockedRoles.label": "锁定为默认模式的角色",
+  "orgSettings.uiModeLockedRoles.clientRole": "客户角色始终使用简洁模式。"
 }

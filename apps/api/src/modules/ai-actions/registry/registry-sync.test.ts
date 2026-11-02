@@ -136,7 +136,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // platform incidents +6): +25, was 1221.
 // R19 (tax document labels +3, finance exports +2, milestone timeline +4, iterations +8, file
 // safety +2): +19, was 1246.
-const EXPECTED_ROUTE_COUNT = 1265;
+// R20 (link unfurl +1, person load +1, allocation confirm +1): +3, was 1265.
+const EXPECTED_ROUTE_COUNT = 1268;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

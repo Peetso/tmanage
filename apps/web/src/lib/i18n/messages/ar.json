@@ -15931,5 +15931,13 @@
   "files.uploadRefused.too_large": "هذا الملف أكبر مما تسمح به خطتك.",
   "files.uploadRefused.channel_forbids": "يمكن إرسال الصور وملفات PDF فقط هنا.",
   "files.uploadRefused.daily_upload_limit": "وصلت إلى حد الرفع لهذا اليوم. حاول مجددًا غدًا.",
-  "security.fileSafety.scannerMissing": "لا يمكن إلزام العملاء بالملفات المفحوصة إلا بعد إعداد فاحص الفيروسات."
+  "security.fileSafety.scannerMissing": "لا يمكن إلزام العملاء بالملفات المفحوصة إلا بعد إعداد فاحص الفيروسات.",
+  "displayPrefs.uiMode.label": "الوضع",
+  "displayPrefs.uiMode.simple": "الوضع البسيط",
+  "displayPrefs.uiMode.power": "الوضع المتقدم",
+  "displayPrefs.uiMode.inherited": "يُستخدم الوضع الافتراضي لمؤسستك",
+  "displayPrefs.uiMode.locked": "دورك يستخدم الوضع الافتراضي للمؤسسة؛ قام المسؤول بقفله.",
+  "orgSettings.defaultUiMode.label": "الوضع الافتراضي للأعضاء",
+  "orgSettings.uiModeLockedRoles.label": "الأدوار المقفلة على الوضع الافتراضي",
+  "orgSettings.uiModeLockedRoles.clientRole": "أدوار العملاء دائمًا في الوضع البسيط."
 }

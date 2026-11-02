@@ -15802,5 +15802,13 @@
   "files.uploadRefused.too_large": "Este arquivo é maior do que o seu plano permite.",
   "files.uploadRefused.channel_forbids": "Aqui só é possível enviar imagens e arquivos PDF.",
   "files.uploadRefused.daily_upload_limit": "Você atingiu o limite de envios de hoje. Tente amanhã.",
-  "security.fileSafety.scannerMissing": "Só é possível exigir arquivos verificados dos clientes depois que um antivírus estiver configurado."
+  "security.fileSafety.scannerMissing": "Só é possível exigir arquivos verificados dos clientes depois que um antivírus estiver configurado.",
+  "displayPrefs.uiMode.label": "Modo",
+  "displayPrefs.uiMode.simple": "Modo simples",
+  "displayPrefs.uiMode.power": "Modo avançado",
+  "displayPrefs.uiMode.inherited": "Usando o modo padrão da sua organização",
+  "displayPrefs.uiMode.locked": "Sua função usa o modo padrão da organização; um administrador o bloqueou.",
+  "orgSettings.defaultUiMode.label": "Modo padrão para membros",
+  "orgSettings.uiModeLockedRoles.label": "Funções bloqueadas no modo padrão",
+  "orgSettings.uiModeLockedRoles.clientRole": "Funções de cliente sempre usam o modo simples."
 }

@@ -30,6 +30,14 @@ export const projectsDetails: readonly AiActionDetail[] = [
     ],
   }),
   det({
+    id: 'projects.allocations.confirm.create',
+    title: 'Confirm a tentative allocation',
+    description: 'Mark one tentative project allocation as confirmed.',
+    input: pathOnly('projectId', 'id'),
+    redact: 'billing',
+    examples: [{ summary: 'Confirm', args: { projectId: 'proj_1', id: 'alloc_1' } }],
+  }),
+  det({
     id: 'projects.allocations.list',
     title: 'List project allocations',
     description: 'List project allocations.',
