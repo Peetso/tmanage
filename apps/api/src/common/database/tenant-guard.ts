@@ -1195,6 +1195,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0292. Tenant-owned: members' expenses. Reached through the member's own context only; the
   // worker holds no grant on it.
   expenses: 'organization_id',
+  // ---- R16-f · 54-11 Phase 0 ----
+  // 0295. Tenant-owned and per user: one person's imported invite suggestions. Every statement
+  // also predicates on the caller's `user_id`; the worker never reads it.
+  contact_suggestions: 'organization_id',
 });
 
 /**

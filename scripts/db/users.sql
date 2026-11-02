@@ -2094,3 +2094,10 @@ GRANT SELECT ON `tmanage`.`rate_card_entries`                      TO 'tmanage_w
 -- approvers approve or reject (UPDATE); finance exports (SELECT). The 0292 triggers keep a locked
 -- row's data columns fixed and refuse its DELETE. The worker holds nothing on it.
 GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`expenses`          TO 'tmanage_app'@'%';
+
+-- ---- R16-f · 54-11 contact suggestions (Phase 0) ----
+-- 0295 `contact_suggestions` (tenant, per user): the app imports a caller's contacts file (INSERT,
+-- or UPDATE of the same address to refresh `expires_at`), lists the caller's own unexpired rows
+-- (SELECT), deletes the caller's expired rows on each import and clears the caller's list
+-- (DELETE). Expiry is lazy, so the worker reads and writes nothing here.
+GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`contact_suggestions` TO 'tmanage_app'@'%';

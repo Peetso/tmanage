@@ -4,13 +4,18 @@ import {
   MEMBERSHIPS_REPOSITORY,
   PERSON_ALLOCATIONS_REPOSITORY,
   PROJECTS_REPOSITORY,
+  TENANT_DATABASE,
 } from '../../common/http/tokens.js';
+import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { PersonAllocationsRepository } from './allocations.repository.js';
 import { PersonAllocationsController } from './allocations.controller.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { MembershipsRepository } from '../tenancy/memberships.repository.js';
 import { PeopleDirectoryRepository } from './directory.repository.js';
 import { PeopleDirectoryController } from './directory.controller.js';
+import { ContactSuggestionsController } from './contact-suggestions.controller.js';
+import { ContactSuggestionsRepository } from './contact-suggestions.repository.js';
+import { ContactSuggestionsService } from './contact-suggestions.service.js';
 
 /**
  * PEOPLE / module 14.
@@ -25,6 +30,9 @@ import { PeopleDirectoryController } from './directory.controller.js';
  * behind the reused `work.read`. Read-only over `memberships` + `users` + `project_memberships`; its
  * own stateless `PeopleDirectoryRepository`, resolving `TENANT_DATABASE` for the read. No new table.
  * Both surfaces share this one module so the People slices stay file-disjoint in `app.module.ts`.
+ *
+ * (R16-f, 54-11 Phase 0) The caller's own invite suggestions imported from a contacts file: a
+ * stateless repository and a service over the `@Global` `TENANT_DATABASE` (0295).
  */
 @Module({})
 export class PeopleModule {
@@ -46,6 +54,13 @@ export class PeopleModule {
       useValue: new PeopleDirectoryRepository(),
     };
 
+    const contactSuggestionsService: Provider = {
+      provide: ContactSuggestionsService,
+      useFactory: (database: TenantDatabase) =>
+        new ContactSuggestionsService(database, new ContactSuggestionsRepository()),
+      inject: [TENANT_DATABASE],
+    };
+
     return {
       module: PeopleModule,
       providers: [
@@ -53,8 +68,13 @@ export class PeopleModule {
         projectsRepository,
         membershipsRepository,
         directoryRepository,
+        contactSuggestionsService,
       ],
-      controllers: [PersonAllocationsController, PeopleDirectoryController],
+      controllers: [
+        PersonAllocationsController,
+        PeopleDirectoryController,
+        ContactSuggestionsController,
+      ],
     };
   }
 }

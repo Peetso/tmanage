@@ -1233,6 +1233,17 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'organization',
     clause: '§12 export — expenses were exported as CSV',
   },
+  // ---- R16-f · 54-11 Phase 0 — contact suggestions ----
+  /** A person imported a contacts file into their own suggestions. Metadata: counts and source only. */
+  'contacts.imported': {
+    objectType: 'contact_suggestion',
+    clause:
+      '§12 54-11 — a contacts file was imported into invite suggestions (counts, never emails)',
+  },
+  'contacts.cleared': {
+    objectType: 'contact_suggestion',
+    clause: '§12 54-11 — a person cleared their own invite suggestions',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1448,6 +1459,8 @@ const AUDIT_ACTION_LABELS = {
   'expense.rejected': 'Rejected an expense',
   'expense.deleted': 'Deleted an expense',
   'expense.exported': 'Exported expenses',
+  'contacts.imported': 'Imported contacts for invite suggestions',
+  'contacts.cleared': 'Cleared their invite suggestions',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

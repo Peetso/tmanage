@@ -15848,5 +15848,7 @@
   "AuditActionLabel.rate_card.entry_removed": "أزال سعرًا",
   "AuditActionLabel.cost_rate.changed": "عدّل معدل تكلفة شخص",
   "AuditActionLabel.rates.repriced": "أعاد تسعير الوقت غير المفوتر",
-  "AuditActionLabel.work_item.billable_changed": "غيّر ما إذا كان بند العمل قابلًا للفوترة"
+  "AuditActionLabel.work_item.billable_changed": "غيّر ما إذا كان بند العمل قابلًا للفوترة",
+  "AuditActionLabel.contacts.imported": "استورد جهات اتصال لاقتراحات الدعوة",
+  "AuditActionLabel.contacts.cleared": "مسح اقتراحات الدعوة الخاصة به"
 }

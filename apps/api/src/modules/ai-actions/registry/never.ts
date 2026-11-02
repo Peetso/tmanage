@@ -1723,6 +1723,20 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/expenses/:expenseId/reject',
     reason: 'finance_settings',
   },
+  // ---- R16-f · 54-11 Phase 0 ---- a person's imported address book (third parties' personal
+  // data, per user): importing, searching and clearing it feeds the invite flow, and an AI must not
+  // harvest or bulk-load addresses. The same reason as the invitation routes.
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/contacts/import-file',
+    reason: 'invitation',
+  },
+  { method: 'GET', path: '/v1/organizations/:orgSlug/contacts/suggest', reason: 'invitation' },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/contacts/suggestions',
+    reason: 'invitation',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

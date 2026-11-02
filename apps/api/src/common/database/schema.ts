@@ -11870,3 +11870,40 @@ export type ExpenseRow = typeof expenses.$inferSelect;
 Object.assign(TABLES, {
   expenses,
 });
+
+// ---- R16-f · 54-11 contact suggestions (Phase 0) ----
+
+export const CONTACT_SUGGESTION_SOURCES = ['csv', 'vcard'] as const;
+export type ContactSuggestionSource = (typeof CONTACT_SUGGESTION_SOURCES)[number];
+
+/**
+ * 0295 (54-11 Phase 0). One address in one person's invite-suggestion list. TENANT and per user:
+ * every read and write also predicates on `userId`, and no route lists another user's rows.
+ * `expiresAt` = import time + 90 days, refreshed on re-import; expiry is lazy (read-side filter,
+ * plus the caller's expired rows deleted on each import).
+ */
+export const contactSuggestions = mysqlTable(
+  'contact_suggestions',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    source: varchar('source', { length: 16 }).notNull(),
+    displayName: varchar('display_name', { length: 300 }),
+    email: varchar('email', { length: 320 }).notNull(),
+    company: varchar('company', { length: 300 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_cs_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_cs_user_email').on(table.organizationId, table.userId, table.email),
+    index('ix_cs_user_expiry').on(table.organizationId, table.userId, table.expiresAt),
+  ],
+);
+
+export type ContactSuggestionRow = typeof contactSuggestions.$inferSelect;
+
+Object.assign(TABLES, {
+  contact_suggestions: contactSuggestions,
+});
