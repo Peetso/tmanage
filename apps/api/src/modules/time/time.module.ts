@@ -14,12 +14,16 @@ import { TimeLocksService } from './locks.service.js';
 import { TIME_SERVICE, TimeController } from './time.controller.js';
 import { TimeRepository } from './time.repository.js';
 import { TimeService } from './time.service.js';
+import { TIMESHEETS_SERVICE, TimesheetsController } from './timesheets.controller.js';
+import { TimesheetsRepository } from './timesheets.repository.js';
+import { TimesheetsService } from './timesheets.service.js';
 
 /**
  * 52-01 wiring. The work-items repository is injected when the work module exports it and built
  * here otherwise (it holds no state); the 56-05 limiter is optional, so a composition without the
  * rate-limits module still runs (heartbeats then go unthrottled). 52-03 period locks ride along
- * (`locks.*`): their repositories hold no state and are built here.
+ * (`locks.*`): their repositories hold no state and are built here. 52-02 timesheets
+ * (`timesheets.*`) write new entries through the work module's time-log repository (rate snapshots).
  */
 @Module({})
 export class TimeModule {
@@ -58,10 +62,28 @@ export class TimeModule {
           notifications: new NotificationsRepository(),
         }),
     };
+    const sheets: Provider = {
+      provide: TIMESHEETS_SERVICE,
+      inject: [TENANT_DATABASE, AUDIT_SERVICE, { token: WORK_ITEMS_REPOSITORY, optional: true }],
+      useFactory: (
+        database: TenantDatabase,
+        audit: AuditService,
+        workItems: WorkItemsRepository | null | undefined,
+      ) =>
+        new TimesheetsService({
+          database,
+          audit,
+          repository: new TimesheetsRepository(),
+          timeLogs: new WorkTimeLogsRepository(),
+          workItems: workItems ?? new WorkItemsRepository(),
+          holders: new TimeLocksRepository(),
+          notifications: new NotificationsRepository(),
+        }),
+    };
     return {
       module: TimeModule,
-      providers: [service, locks],
-      controllers: [TimeController, TimeLocksController],
+      providers: [service, locks, sheets],
+      controllers: [TimeController, TimeLocksController, TimesheetsController],
     };
   }
 }

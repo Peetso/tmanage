@@ -1200,6 +1200,34 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'integration_channel_link',
     clause: '§12 54-05 — a paused Slack or Teams channel link was resumed',
   },
+  // ---- R16-a · 52-02 timesheets / 52-03 approvals ----
+  /**
+   * Entries of a week were edited (batch edit, unsorted move or copy from another week). Metadata:
+   * `before_minutes`, `after_minutes`, `entries_changed`, and `edited_for_membership_id` when a
+   * manager edited somebody else's week. Never a note.
+   */
+  'timesheet.entries_edited': {
+    objectType: 'timesheet',
+    clause: '§12 52-02 — time entries of a week were edited (minutes before and after)',
+  },
+  'timesheet.submitted': {
+    objectType: 'timesheet',
+    clause: '§12 52-02 — a member submitted a week of time',
+  },
+  'timesheet.approved': {
+    objectType: 'timesheet',
+    clause: '§12 52-03 — a manager approved a week of time',
+  },
+  /** The typed note lives on the timesheet row, never in the metadata. */
+  'timesheet.changes_requested': {
+    objectType: 'timesheet',
+    clause: '§12 52-03 — a manager asked for changes to a week of time',
+  },
+  /** A week was downloaded as CSV (an export; no notes leave). */
+  'timesheet.exported': {
+    objectType: 'timesheet',
+    clause: '§12 52-02 — a week of time was exported as CSV',
+  },
   // ---- R16-c · 52-07 expenses ----
   /**
    * An expense was recorded, changed, submitted, decided, deleted or exported. Amounts and receipt
@@ -1468,6 +1496,11 @@ const AUDIT_ACTION_LABELS = {
   'channel_link.removed': 'Removed a Slack or Teams channel',
   'channel_link.paused': 'Paused a Slack or Teams channel',
   'channel_link.resumed': 'Resumed a Slack or Teams channel',
+  'timesheet.entries_edited': 'Edited time on a timesheet',
+  'timesheet.submitted': 'Submitted a timesheet',
+  'timesheet.approved': 'Approved a timesheet',
+  'timesheet.changes_requested': 'Asked for changes to a timesheet',
+  'timesheet.exported': 'Exported a timesheet',
   'expense.created': 'Recorded an expense',
   'expense.updated': 'Changed an expense',
   'expense.submitted': 'Submitted an expense',

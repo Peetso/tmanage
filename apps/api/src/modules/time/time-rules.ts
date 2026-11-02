@@ -1,3 +1,4 @@
+import { dayNumberOf, weekdayOf } from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
 
 /**
@@ -156,4 +157,81 @@ export function isWithinLockedPeriod(spentOn: string, locks: readonly LockedPeri
       spentOn >= lock.periodStart &&
       spentOn <= lock.periodEnd,
   );
+}
+
+// ---- R16-a · 52-02 timesheets: week math ----
+
+/** A timesheet week: the first and the last day (inclusive), ISO dates, seven days apart. */
+export interface WeekBounds {
+  readonly periodStart: string;
+  readonly periodEnd: string;
+}
+
+const ISO_WEEK = /^(\d{4})-W(\d{2})$/;
+
+/**
+ * The seven days that start on `weekStart` (0 = Sunday … 6 = Saturday, `org_finance_profiles`)
+ * and contain `day`. ISO date strings and whole day numbers only: no time zone, so no DST maths
+ * (the working-calendar convention of `@tmanage/domain`).
+ */
+export function periodContaining(day: string, weekStart: number): WeekBounds {
+  const start = dayNumberOf(day) - ((weekdayOf(day) - normaliseWeekStart(weekStart) + 7) % 7);
+  return { periodStart: isoDateOfDayNumber(start), periodEnd: isoDateOfDayNumber(start + 6) };
+}
+
+/**
+ * The week `YYYY-Www` (ISO 8601 week numbering) as the organization counts it: the seven days that
+ * start on `weekStart` and contain that ISO week's Monday. With 1 that is the ISO week itself; with
+ * 0 (Sunday) it starts the day before; with 6 (Saturday) two days before. `null` when the label is
+ * malformed or names a week the year does not have.
+ */
+export function weekBounds(isoWeek: string, weekStart: number): WeekBounds | null {
+  const match = ISO_WEEK.exec(isoWeek);
+  if (match === null) return null;
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  if (week < 1 || week > 53) return null;
+  const jan4 = dayNumberOf(`${match[1]}-01-04`);
+  const monday = jan4 - ((weekdayOf(`${match[1]}-01-04`) + 6) % 7) + (week - 1) * 7;
+  // The ISO year of a week is the year of its Thursday; week 53 exists only in long years.
+  if (Number(isoDateOfDayNumber(monday + 3).slice(0, 4)) !== year) return null;
+  return periodContaining(isoDateOfDayNumber(monday), weekStart);
+}
+
+/** The ISO dates of a week, first to last. */
+export function daysOf(bounds: WeekBounds): readonly string[] {
+  const first = dayNumberOf(bounds.periodStart);
+  return Array.from({ length: 7 }, (_, offset) => isoDateOfDayNumber(first + offset));
+}
+
+/** Move an ISO date by whole days. */
+export function shiftDay(day: string, days: number): string {
+  return isoDateOfDayNumber(dayNumberOf(day) + days);
+}
+
+/** The ISO date of a day number (days since 1970-01-01, UTC). */
+function isoDateOfDayNumber(day: number): string {
+  return new Date(day * 86_400_000).toISOString().slice(0, 10);
+}
+
+function normaliseWeekStart(weekStart: number): number {
+  return Number.isInteger(weekStart) && weekStart >= 0 && weekStart <= 6 ? weekStart : 0;
+}
+
+/** The figures a timesheet stores: every minute, and the billable ones. */
+export interface TimesheetTotals {
+  readonly totalMinutes: number;
+  readonly billableMinutes: number;
+}
+
+export function timesheetTotals(
+  entries: readonly { readonly minutes: number; readonly billable: boolean }[],
+): TimesheetTotals {
+  let totalMinutes = 0;
+  let billableMinutes = 0;
+  for (const entry of entries) {
+    totalMinutes += entry.minutes;
+    if (entry.billable) billableMinutes += entry.minutes;
+  }
+  return { totalMinutes, billableMinutes };
 }

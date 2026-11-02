@@ -1593,6 +1593,53 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/time/locks/:lockId/unlock-request',
     reason: 'finance_settings',
   },
+  // R16-a (52-02 / 52-03). Timesheets: payroll-grade time records, their submit / approve and the CSV
+  // export. Finance settings until the `time.timesheet.*` MCP tools land; never an AI tool now.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/time/timesheets/',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/time/timesheets/mine',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/time/timesheets/:timesheetId/entries',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/time/timesheets/:timesheetId/entries/move',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/time/timesheets/:timesheetId/submit',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/time/timesheets/:timesheetId/approve',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/time/timesheets/:timesheetId/request-changes',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/time/timesheets/:timesheetId/copy-from',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/time/timesheets/:timesheetId/export.csv',
+    reason: 'finance_settings',
+  },
   // ---- R15-c · 54-05 / 54-06 Phase 0 ---- a pasted channel webhook URL is a bearer credential and
   // a link steers outbound egress: never an AI tool, the same reason as the webhook routes.
   {

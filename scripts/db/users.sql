@@ -2089,6 +2089,14 @@ GRANT UPDATE ON `tmanage`.`work_item_time_logs`                   TO 'tmanage_ap
 GRANT SELECT ON `tmanage`.`rate_cards`                             TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`rate_card_entries`                      TO 'tmanage_worker'@'%';
 
+-- ---- R16-a · 52-02 timesheets ----
+-- 0290 `timesheets` (tenant): a member's week is inserted lazily on first read (INSERT), edited,
+-- submitted and decided (UPDATE: totals, version, state, decision stamps); a week is history and no
+-- statement deletes one, so **no DELETE**. Its entries are `work_item_time_logs` rows (UPDATE
+-- already granted above for the 52-03 lock stamp; the batch edit and the unsorted move use it too).
+-- The worker reads nothing here.
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`timesheets`           TO 'tmanage_app'@'%';
+
 -- ---- R16-c · 52-07 expenses ----
 -- 0292 `expenses` (tenant): a member records, edits, submits and deletes an own draft (DELETE);
 -- approvers approve or reject (UPDATE); finance exports (SELECT). The 0292 triggers keep a locked

@@ -11823,6 +11823,60 @@ Object.assign(TABLES, {
   member_cost_rates: memberCostRates,
 });
 
+// ---- R16-a · 52-02 timesheets ----
+
+/**
+ * 0290 (52-02 / 52-03 approval half). One week of one membership: seven days from the org's
+ * `week_start`. TENANT. `state` is `open` | `submitted` | `approved` | `changes_requested` (checked
+ * in `modules/time/timesheets-rules.ts`); totals are recomputed by SUM with every entry change;
+ * `version` is the optimistic lock of the batch edit. Entries point here through
+ * `work_item_time_logs.timesheet_id` (no foreign key, app-checked).
+ */
+export const timesheets = mysqlTable(
+  'timesheets',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    periodStart: date('period_start', { mode: 'string' }).notNull(),
+    periodEnd: date('period_end', { mode: 'string' }).notNull(),
+    state: varchar('state', { length: 16 })
+      .$type<'open' | 'submitted' | 'approved' | 'changes_requested'>()
+      .notNull()
+      .default('open'),
+    submittedAt: datetime('submitted_at', { mode: 'date', fsp: 3 }),
+    approvalId: char('approval_id', { length: 36 }),
+    decidedBy: char('decided_by', { length: 36 }),
+    decidedAt: datetime('decided_at', { mode: 'date', fsp: 3 }),
+    decisionNote: varchar('decision_note', { length: 500 }),
+    editedByManager: boolean('edited_by_manager').notNull().default(false),
+    totalMinutes: int('total_minutes').notNull().default(0),
+    billableMinutes: int('billable_minutes').notNull().default(0),
+    version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_timesheets_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_timesheets_member_period').on(
+      table.organizationId,
+      table.membershipId,
+      table.periodStart,
+    ),
+    index('ix_timesheets_org_period_state').on(
+      table.organizationId,
+      table.periodStart,
+      table.state,
+    ),
+  ],
+);
+
+export type TimesheetRow = typeof timesheets.$inferSelect;
+
+Object.assign(TABLES, {
+  timesheets,
+});
+
 // ---- R16-c · 52-07 expenses ----
 
 /**
