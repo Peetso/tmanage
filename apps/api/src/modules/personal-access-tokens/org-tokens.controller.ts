@@ -12,6 +12,7 @@ import { Ctx, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { requestState } from '../../common/http/request-state.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import { AuditEventsRepository } from '../audit/audit-events.repository.js';
 import { GrantsRepository } from '../oauth/grants.repository.js';
 import { OauthTokensRepository } from '../oauth/oauth-tokens.repository.js';
 import { isUnusedFor90Days, parseStoredScopes } from './personal-access-token.js';
@@ -61,6 +62,8 @@ export class OrgTokensService {
     private readonly tokens: PersonalAccessTokensRepository = new PersonalAccessTokensRepository(),
     private readonly grants: GrantsRepository = new GrantsRepository(),
     private readonly oauthTokens: OauthTokensRepository = new OauthTokensRepository(),
+    /** R14 b: an admin revoke is recorded in the organization's audit trail. */
+    private readonly audit: Pick<AuditEventsRepository, 'append'> = new AuditEventsRepository(),
   ) {}
 
   /** Every live token and connected app in the acting organization, newest first. */
@@ -120,10 +123,24 @@ export class OrgTokensService {
   async revoke(context: TenantContext, id: string): Promise<OrgCredentialKind> {
     return this.database.transaction(context, async (tx) => {
       const token = await this.tokens.revokeInOrganization(tx, context, id, new Date());
-      if (token !== undefined) return 'personal_access_token';
+      if (token !== undefined) {
+        await this.audit.append(tx, context, {
+          action: 'personal_access_token.revoked',
+          result: 'allowed',
+          objectId: id,
+          metadata: { by: 'admin', target_membership_id: token.membershipId },
+        });
+        return 'personal_access_token';
+      }
       const changed = await this.grants.revokeGrant(tx, context, id, null);
       if (changed === 1) {
         await this.oauthTokens.revokeTokensByGrant(tx, id);
+        await this.audit.append(tx, context, {
+          action: 'oauth_grant.revoked',
+          result: 'allowed',
+          objectId: id,
+          metadata: { by: 'admin' },
+        });
         return 'oauth_grant';
       }
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'credential_not_visible');

@@ -15838,5 +15838,8 @@
   "AuditActionLabel.webhook.secret_rotated": "غيّر مفتاح توقيع الويب هوك",
   "AuditActionLabel.webhook.paused": "أوقف الويب هوك مؤقتًا",
   "AuditActionLabel.webhook.resumed": "استأنف الويب هوك",
-  "AuditActionLabel.webhook.replayed": "أعاد إرسال الأحداث إلى الويب هوك"
+  "AuditActionLabel.webhook.replayed": "أعاد إرسال الأحداث إلى الويب هوك",
+  "AuditActionLabel.personal_access_token.created": "أنشأ رمز وصول للواجهة البرمجية",
+  "AuditActionLabel.personal_access_token.revoked": "ألغى رمز وصول للواجهة البرمجية",
+  "AuditActionLabel.oauth_grant.revoked": "فصل تطبيق ذكاء اصطناعي"
 }

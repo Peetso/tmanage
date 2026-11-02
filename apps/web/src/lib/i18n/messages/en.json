@@ -15838,5 +15838,8 @@
   "AuditActionLabel.webhook.secret_rotated": "Rotated a webhook signing secret",
   "AuditActionLabel.webhook.paused": "Paused a webhook",
   "AuditActionLabel.webhook.resumed": "Resumed a webhook",
-  "AuditActionLabel.webhook.replayed": "Replayed events to a webhook"
+  "AuditActionLabel.webhook.replayed": "Replayed events to a webhook",
+  "AuditActionLabel.personal_access_token.created": "Created an API token",
+  "AuditActionLabel.personal_access_token.revoked": "Revoked an API token",
+  "AuditActionLabel.oauth_grant.revoked": "Disconnected an AI app"
 }

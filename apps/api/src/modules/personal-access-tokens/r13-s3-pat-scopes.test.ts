@@ -167,4 +167,25 @@ describe('org token overview', () => {
       status: 404,
     });
   });
+
+  it('R14 b: an admin revoke records the target member in the audit trail', async () => {
+    const append = vi.fn(async () => undefined);
+    const service = new OrgTokensService(
+      { transaction: async (_c: unknown, work: (tx: unknown) => unknown) => work({}) } as never,
+      { revokeInOrganization: vi.fn(async () => ({ membershipId: 'm2', userId: 'u2' })) } as never,
+      undefined,
+      undefined,
+      { append } as never,
+    );
+    await expect(service.revoke({} as TenantContext, 't1')).resolves.toBe('personal_access_token');
+    expect(append).toHaveBeenCalledWith(
+      {},
+      {},
+      expect.objectContaining({
+        action: 'personal_access_token.revoked',
+        objectId: 't1',
+        metadata: { by: 'admin', target_membership_id: 'm2' },
+      }),
+    );
+  });
 });

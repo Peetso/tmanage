@@ -79,6 +79,9 @@ function harness(session: SessionState | null) {
     sessions as unknown as SessionsRepository,
     // R13 s3: no stored policy — the defaults apply.
     { find: vi.fn(async () => undefined) },
+    undefined,
+    // R14 b: the audit rows land in the same order log.
+    { append: vi.fn(async (_tx, _c, row: { action: string }) => order.push(row.action)) } as never,
   );
   return { service, tokens, sessions, order };
 }
@@ -103,7 +106,14 @@ describe('N04 — a token minted while a recovery ends the session does not surv
     expect(error.status).toBe(401);
     expect(error.auditCode).toBe('session_revoked');
     // The re-read happens after the insert, and the row it revokes is the one just inserted.
-    expect(order).toEqual(['insert', 'findById', 'revoke']);
+    // R14 b: the create and the revoke each leave an audit row in their own transaction.
+    expect(order).toEqual([
+      'insert',
+      'personal_access_token.created',
+      'findById',
+      'revoke',
+      'personal_access_token.revoked',
+    ]);
     expect(sessions.findById).toHaveBeenCalledWith({}, SESSION);
     expect(tokens.revoke).toHaveBeenCalledWith({}, CONTEXT, MEMBERSHIP, TOKEN_ID, expect.any(Date));
   });

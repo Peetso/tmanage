@@ -1114,6 +1114,28 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'webhook_endpoint',
     clause: '§12 54-03 — past events were queued again for a webhook endpoint',
   },
+  // ---- R14-b · API tokens (56-09 follow-up) ----
+  /**
+   * A personal access token was created. Metadata: the scopes, `never_expires`, and `network_limited`
+   * (limited to a network allowlist). Never the token, its hash or its prefix.
+   */
+  'personal_access_token.created': {
+    objectType: 'personal_access_token',
+    clause: '§12 API credentials — a personal access token was issued',
+  },
+  /**
+   * A personal access token was revoked: `by` is `owner` (its member), `admin` (the org overview,
+   * with `target_membership_id`) or `session_ended` (N04: the creating session ended mid-create).
+   */
+  'personal_access_token.revoked': {
+    objectType: 'personal_access_token',
+    clause: '§12 API credentials — a personal access token was withdrawn',
+  },
+  /** A connected AI app (MCP OAuth grant) was disconnected from the org token overview by an admin. */
+  'oauth_grant.revoked': {
+    objectType: 'oauth_grant',
+    clause: '§12 API credentials — a connected app and its tokens were withdrawn by an admin',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1305,6 +1327,9 @@ const AUDIT_ACTION_LABELS = {
   'webhook.paused': 'Paused a webhook',
   'webhook.resumed': 'Resumed a webhook',
   'webhook.replayed': 'Replayed events to a webhook',
+  'personal_access_token.created': 'Created an API token',
+  'personal_access_token.revoked': 'Revoked an API token',
+  'oauth_grant.revoked': 'Disconnected an AI app',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

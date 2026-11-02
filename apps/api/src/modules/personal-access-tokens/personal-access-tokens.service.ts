@@ -19,6 +19,7 @@ import type { PatPolicy } from '../admin/policies.allowlist.js';
 import { PoliciesRepository } from '../admin/policies.repository.js';
 import { verifyReauthToken } from '../identity/reauth-token.js';
 import { SessionsRepository } from '../identity/sessions.repository.js';
+import { AuditEventsRepository } from '../audit/audit-events.repository.js';
 import { PersonalAccessTokensRepository } from './personal-access-tokens.repository.js';
 import type { PersonalAccessTokenAuthRow } from './personal-access-tokens.repository.js';
 
@@ -229,6 +230,8 @@ export class PersonalAccessTokensService {
     private readonly policies: Pick<PoliciesRepository, 'find'> = new PoliciesRepository(),
     /** R13 s3: verifies the `x-reauth-token` step-up; absent, no create counts as step-up fresh. */
     private readonly sessionSecret?: string,
+    /** R14 b: token create/revoke rows in the organization's audit trail. */
+    private readonly audit: Pick<AuditEventsRepository, 'append'> = new AuditEventsRepository(),
   ) {}
 
   /** List the acting member's own tokens, newest first. No hash, no plaintext. */
@@ -286,7 +289,7 @@ export class PersonalAccessTokensService {
       const stored = await this.policies.find(tx, context);
       const policy = resolvePatPolicy(normalizePolicy(stored?.policyJson));
       const resolved = resolvePatCreate(input, policy, stepUpFresh, new Date());
-      return this.tokens.insert(tx, context, {
+      const inserted = await this.tokens.insert(tx, context, {
         membershipId: principal.membershipId,
         userId: context.userId,
         name,
@@ -296,12 +299,30 @@ export class PersonalAccessTokensService {
         scopes: resolved.scopes,
         ipAllowlistJson: resolved.ipAllowlistJson,
       });
+      // R14 b: identifiers and classifications only — never the token, its hash or its prefix.
+      await this.audit.append(tx, context, {
+        action: 'personal_access_token.created',
+        result: 'allowed',
+        objectId: inserted.id,
+        metadata: {
+          scopes: parseStoredScopes(resolved.scopes),
+          never_expires: resolved.expiresAt === null,
+          network_limited: resolved.ipAllowlistJson !== null,
+        },
+      });
+      return inserted;
     });
 
     if (!(await this.sessionStillLive(context, sessionId))) {
-      await this.database.transaction(context, (tx) =>
-        this.tokens.revoke(tx, context, principal.membershipId, row.id, new Date()),
-      );
+      await this.database.transaction(context, async (tx) => {
+        await this.tokens.revoke(tx, context, principal.membershipId, row.id, new Date());
+        await this.audit.append(tx, context, {
+          action: 'personal_access_token.revoked',
+          result: 'allowed',
+          objectId: row.id,
+          metadata: { by: 'session_ended' },
+        });
+      });
       throw sessionRevoked();
     }
     return { ...toView(row), token: minted.token };
@@ -332,9 +353,24 @@ export class PersonalAccessTokensService {
 
   /** Revoke one of the acting member's own tokens. Unknown, foreign, or already-revoked is a 404. */
   async revoke(context: TenantContext, principal: Principal, tokenId: string): Promise<void> {
-    const changed = await this.database.transaction(context, (tx) =>
-      this.tokens.revoke(tx, context, principal.membershipId, tokenId, new Date()),
-    );
+    const changed = await this.database.transaction(context, async (tx) => {
+      const count = await this.tokens.revoke(
+        tx,
+        context,
+        principal.membershipId,
+        tokenId,
+        new Date(),
+      );
+      if (count > 0) {
+        await this.audit.append(tx, context, {
+          action: 'personal_access_token.revoked',
+          result: 'allowed',
+          objectId: tokenId,
+          metadata: { by: 'owner' },
+        });
+      }
+      return count;
+    });
     if (changed === 0) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'token_not_visible');
     }
