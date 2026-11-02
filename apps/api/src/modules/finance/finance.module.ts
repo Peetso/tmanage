@@ -24,6 +24,9 @@ import { PortalInvoicesController } from '../portal/portal-invoices.controller.j
 import { CLIENT_INVOICES_SERVICE, ClientInvoicesController } from './client-invoices.controller.js';
 import { ClientInvoicesRepository } from './client-invoices.repository.js';
 import { ClientInvoicesService } from './client-invoices.service.js';
+import { FINANCE_EXPORTS_SERVICE, FinanceExportsController } from './finance-exports.controller.js';
+import { FinanceExportsRepository } from './finance-exports.repository.js';
+import { FinanceExportsService } from './finance-exports.service.js';
 
 /** The gapless numbering service, for the money items that issue documents (52-09, credit notes). */
 export const DOCUMENT_SEQUENCES = Symbol.for('tmanage.DocumentSequenceService');
@@ -107,9 +110,21 @@ export class FinanceModule {
           ...(config?.sessionSecret === undefined ? {} : { sessionSecret: config.sessionSecret }),
         }),
     };
+    // 52-11 accounting export by file (R19-b); step-up uses the session secret like invoice.send.
+    const financeExports: Provider = {
+      provide: FINANCE_EXPORTS_SERVICE,
+      inject: [TENANT_DATABASE, AUDIT_SERVICE, { token: API_CONFIG, optional: true }],
+      useFactory: (database: TenantDatabase, audit: AuditService, config: ApiConfig | undefined) =>
+        new FinanceExportsService({
+          database,
+          repository: new FinanceExportsRepository(),
+          audit,
+          ...(config?.sessionSecret === undefined ? {} : { sessionSecret: config.sessionSecret }),
+        }),
+    };
     return {
       module: FinanceModule,
-      providers: [service, sequences, rates, expenses, retainers, clientInvoices],
+      providers: [service, sequences, rates, expenses, retainers, clientInvoices, financeExports],
       controllers: [
         FinanceController,
         RatesController,
@@ -118,6 +133,7 @@ export class FinanceModule {
         PortalRetainersController,
         ClientInvoicesController,
         PortalInvoicesController,
+        FinanceExportsController,
       ],
       exports: [DOCUMENT_SEQUENCES],
     };

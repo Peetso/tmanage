@@ -1253,6 +1253,19 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   client_credit_notes: 'organization_id',
   client_credit_note_lines: 'organization_id',
   client_invoice_events: 'organization_id',
+  // ---- R19-b · 52-11 ----
+  // 0304. Tenant-owned: the accounting-export history (target, period, counts, manifest hash).
+  // Reached by members through their own context (finance.view lists, finance.manage exports);
+  // clients and the worker never read it.
+  finance_exports: 'organization_id',
+  // ---- R19-d · 53-21 ----
+  // 0306. Tenant-owned: a project's iterations (light sprints). Reached by members through their
+  // own context (work.read reads, project.manage writes); clients and the worker never read it.
+  iterations: 'organization_id',
+  // ---- R19-c · 53-07 ----
+  // 0305. Tenant-owned: the published client copy of a milestone. Written by managers
+  // (project.manage), read by the portal timeline through the client's own context.
+  milestone_client_projections: 'organization_id',
 });
 
 /**
