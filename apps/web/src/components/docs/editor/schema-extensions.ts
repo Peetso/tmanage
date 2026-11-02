@@ -185,6 +185,24 @@ export const SlashCommand = Extension.create<{ suggestion: Partial<SuggestionOpt
   },
 });
 
+/** The "#" work-item picker (A20): a Suggestion on "#" whose items, command and popup the editor supplies. */
+export const WorkItemLink = Extension.create<{ suggestion: Partial<SuggestionOptions> }>({
+  name: 'workItemLink',
+  addOptions() {
+    return { suggestion: {} };
+  },
+  addProseMirrorPlugins() {
+    return [
+      Suggestion({
+        char: '#',
+        pluginKey: new PluginKey('workItemLink'),
+        ...this.options.suggestion,
+        editor: this.editor,
+      }),
+    ];
+  },
+});
+
 /** `mark[data-comment]` — the anchor of one comment thread on the selected text. */
 export const CommentMark = Mark.create({
   name: 'comment',
@@ -212,6 +230,8 @@ export interface DocExtensionOptions {
   mentionSuggestion?: Partial<SuggestionOptions>;
   /** The "/" menu's items, command and popup (the editor only; the read view has none). */
   slashSuggestion?: Partial<SuggestionOptions>;
+  /** The "#" work-item picker; it inserts a plain link, so the read view needs nothing. */
+  workItemSuggestion?: Partial<SuggestionOptions>;
 }
 
 export function docExtensions(opts: DocExtensionOptions = {}): Extensions {
@@ -241,6 +261,9 @@ export function docExtensions(opts: DocExtensionOptions = {}): Extensions {
     Embed,
     CommentMark,
     ...(opts.slashSuggestion ? [SlashCommand.configure({ suggestion: opts.slashSuggestion })] : []),
+    ...(opts.workItemSuggestion
+      ? [WorkItemLink.configure({ suggestion: opts.workItemSuggestion })]
+      : []),
     ...(opts.placeholder ? [Placeholder.configure({ placeholder: opts.placeholder })] : []),
   ];
 }

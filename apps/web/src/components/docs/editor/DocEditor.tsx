@@ -10,7 +10,12 @@ import './doc-editor.css';
 import { EditorToolbar } from './EditorToolbar';
 import { InsertEmbedDialog } from './InsertEmbedDialog';
 import { InsertImageDialog, type UploadedDocFile } from './InsertImageDialog';
-import { MentionList, mentionSuggestion, type MentionItem } from './MentionList';
+import {
+  MentionList,
+  mentionSuggestion,
+  workItemSuggestion,
+  type MentionItem,
+} from './MentionList';
 import { docExtensions } from './schema-extensions';
 import { LinkForm, SelectionToolbar } from './SelectionToolbar';
 import {
@@ -61,6 +66,7 @@ export function DocEditor({
   const tOr = useTOr();
   const [slash, setSlash] = useState<PopupState<SlashItem> | null>(null);
   const [mention, setMention] = useState<PopupState<MentionItem> | null>(null);
+  const [workItem, setWorkItem] = useState<PopupState<MentionItem> | null>(null);
   const [dialog, setDialog] = useState<'image' | 'file' | 'embed' | null>(null);
   const [linking, setLinking] = useState(false);
   const change = useRef(onChange);
@@ -85,6 +91,7 @@ export function DocEditor({
         'Start writing, or type / for headings, tables, images and more.',
       ),
       mentionSuggestion: mentionSuggestion(api, organizationSlug, setMention),
+      workItemSuggestion: workItemSuggestion(api, organizationSlug, setWorkItem),
       slashSuggestion: {
         items: ({ query }: { query: string }) => [
           ...filterSlashItems(query, (item) => label.current(item.key, item.english)),
@@ -146,6 +153,14 @@ export function DocEditor({
           state={mention}
           ariaLabel={tOr('DocEditor.mentionAria', 'Mention someone')}
           noneLabel={tOr('DocEditor.mentionNone', 'No one by that name')}
+        />
+      ) : null}
+      {workItem ? (
+        <MentionList
+          state={workItem}
+          glyph={() => '#'}
+          ariaLabel={tOr('DocEditor.workItemAria', 'Link a work item')}
+          noneLabel={tOr('DocEditor.workItemNone', 'Type a work item title')}
         />
       ) : null}
       {editor && (dialog === 'image' || dialog === 'file') ? (

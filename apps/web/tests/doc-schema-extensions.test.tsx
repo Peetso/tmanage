@@ -1,6 +1,7 @@
 import { generateHTML, generateJSON } from '@tiptap/core';
 import { describe, expect, it } from 'vitest';
 
+import { workItemHref } from '@/components/docs/editor/MentionList';
 import { docExtensions } from '@/components/docs/editor/schema-extensions';
 
 const ext = docExtensions();
@@ -26,5 +27,16 @@ describe('doc schema extensions', () => {
     expect(out).not.toContain('data:');
     expect(out).not.toContain('<script');
     expect(out).not.toContain('alert');
+  });
+
+  it('keeps a "#" work-item link to the in-app work item (A20)', () => {
+    const href = workItemHref('acme', 'w-1');
+    expect(href).toBe('/acme/work/w-1');
+    const out = roundTrip(`<p>See <a href="${href}">Fix login</a></p>`);
+    expect(out).toContain(`href="${href}"`);
+    expect(out).toContain('Fix login</a>');
+    expect(docExtensions({ workItemSuggestion: {} }).some((e) => e.name === 'workItemLink')).toBe(
+      true,
+    );
   });
 });
