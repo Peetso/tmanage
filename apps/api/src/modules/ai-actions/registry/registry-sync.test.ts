@@ -118,7 +118,11 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // R12 slice 2: +3 NEVER (session / admin / platform sign-in trail CSVs), was 1119.
 // R13 slice 5 (57-14): +2 NEVER (GET platform/activity/growth, .../growth/export.csv), was 1122.
 // R13 slice 6 (56-21b): +2 NEVER (GET platform/team/access-review, POST .../record), was 1124.
-const EXPECTED_ROUTE_COUNT = 1126;
+// R13 slice 2 (webhooks v2): +6 NEVER (rotate-secret, pause, resume, replay, delivery retry, GET
+// public/webhook-events), was 1126.
+// R13 slice 3 (56-09): +2 NEVER (GET/DELETE security/tokens), was 1132.
+// R13 slice 4 (53-02): +8 NEVER (org and project working-calendar, holidays, import-pack), was 1134.
+const EXPECTED_ROUTE_COUNT = 1142;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).
