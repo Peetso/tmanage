@@ -5784,6 +5784,15 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'write',
     scope: 'write',
   },
+  // ---- R21-a · 53-08 org-wide workload grid (read: people × weeks; unreadable work as one bucket) ----
+  {
+    id: 'work_views.workload_org.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/work-views/workload',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
 ];
 
 /** Index of ops by their stable id. */

@@ -41,6 +41,7 @@ import { HomePulseModule } from './modules/home/home-pulse.module.js';
 import { HomeWidgetPrefsModule } from './modules/home/widget-prefs.module.js';
 import { HomeQuickLinksModule } from './modules/home/quick-links.module.js';
 import { WorkViewsModule } from './modules/work-views/work-views.module.js';
+import { OrgWorkloadModule } from './modules/work-views/org-workload.module.js';
 import { RequestsModule } from './modules/requests/requests.module.js';
 import { RequestAgingModule } from './modules/requests/request-aging.controller.js';
 import { RequestTriageModule } from './modules/requests/request-triage.controller.js';
@@ -407,6 +408,8 @@ export class AppModule {
         // reads (timeline). After `WorkModule` by subject, though it depends only on the
         // database and never on the work service, so it does not couple to that module's wiring.
         WorkViewsModule.register(),
+        // R21-a · 53-08: the org-wide workload grid (people × weeks), its own module.
+        OrgWorkloadModule.register(),
         // After `WorkModule`: REQ-001 reads a work item to answer 422 rather than 500 when an
         // acceptance links to one that is not in this tenant.
         RequestsModule.register(),
