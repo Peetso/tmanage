@@ -1737,6 +1737,24 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/contacts/suggestions',
     reason: 'invitation',
   },
+  // R16-d (53-04). Editing a typed dependency in place and the schedule cascade: a cascade
+  // re-dates many items (possibly across projects) in one call, so it is withheld — under the
+  // closest existing reason, as the working calendar is — until reviewed `schedule.*` ops exist.
+  {
+    method: 'PATCH',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/dependencies/:dependencyId',
+    reason: 'policy_definitions',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/schedule/cascade-preview',
+    reason: 'policy_definitions',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/schedule/cascade-apply',
+    reason: 'policy_definitions',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

@@ -34,6 +34,8 @@ import {
   WorkItemAlreadyBlockedError,
 } from './work-graph.repository.js';
 import type { PredecessorHealthRow } from './work-graph.repository.js';
+import type { TypedDependencyInput } from './work-graph.repository.js';
+import { findCycle } from '@tmanage/domain';
 
 /**
  * WORK-001's application service — spec §3 steps 5 to 7 for the work aggregate.
@@ -817,16 +819,31 @@ export class WorkItemsService {
   /**
    * Add an edge: this item depends on another. Both ends must be readable by this
    * principal — a dependency on a row someone may not see would leak its existence through
-   * every health answer — and the edge must be acyclic, which the repository proves
-   * against the rows before inserting.
+   * every health answer — and the edge must be acyclic.
+   *
+   * 53-04: the edge is typed (`kind`, `lag`, `source`, defaults FS / 0 / ui) and audited. Inside
+   * the transaction the project rows of both ends are locked first (ascending id), then the
+   * active edges downstream of this item are read and `findCycle` runs — two concurrent inserts
+   * on the same projects serialise, so no loop can form between them. A cycle is a 409 naming
+   * the loop by the titles the caller can read; any other item in it is "hidden". Rate limit:
+   * the durable limiter keys by ip/link/token, not by user, so the 60/min/user budget is left to
+   * the global throttle until a user-keyed helper exists.
    */
   async addDependency(
     context: TenantContext,
     principal: Principal,
     workItemId: string,
     dependsOnWorkItemId: string,
-  ): Promise<WorkItemDependencyView> {
-    await this.readForWrite(context, principal, workItemId, 'work.update');
+    typed: TypedDependencyInput = { kind: 'FS', lag: 0, source: 'ui' },
+  ): Promise<
+    WorkItemDependencyView & {
+      readonly kind: string;
+      readonly lagWorkingDays: number;
+      readonly createdSource: string;
+      readonly status: string;
+    }
+  > {
+    const dependent = await this.readForWrite(context, principal, workItemId, 'work.update');
     // The predecessor needs only readability: depending on work is not editing it.
     const predecessor = await this.database.read(context, (runner) =>
       this.workItems.findById(runner, context, dependsOnWorkItemId),
@@ -836,13 +853,42 @@ export class WorkItemsService {
     }
 
     try {
-      const row = await this.database.transaction(context, (tx) =>
-        this.graph.addDependency(tx, context, workItemId, dependsOnWorkItemId),
-      );
+      const row = await this.database.transaction(context, async (tx) => {
+        await this.graph.lockProjects(tx, context, [dependent.projectId, predecessor.projectId]);
+        const edges = await this.graph.listActiveEdgesFrom(tx, context, workItemId);
+        const loop = findCycle(edges, { workItemId, dependsOnWorkItemId });
+        if (loop !== null && workItemId !== dependsOnWorkItemId) {
+          throw new DependencyCycleError(workItemId, dependsOnWorkItemId, loop);
+        }
+        const added = await this.graph.addDependency(
+          tx,
+          context,
+          workItemId,
+          dependsOnWorkItemId,
+          typed,
+        );
+        await this.audit?.record(tx, context, {
+          action: 'work_item.dependency_added',
+          objectId: workItemId,
+          result: 'allowed',
+          metadata: {
+            depended_on_id: dependsOnWorkItemId,
+            dependency_id: added.id,
+            kind: typed.kind,
+            lag_working_days: typed.lag,
+            source: typed.source,
+          },
+        });
+        return added;
+      });
       return {
         id: row.id,
         workItemId: row.workItemId,
         dependsOnWorkItemId: row.dependsOnWorkItemId,
+        kind: row.kind,
+        lagWorkingDays: Number(row.lagWorkingDays),
+        createdSource: row.createdSource,
+        status: row.status,
         createdByUserId: row.createdByUserId,
         createdAt: row.createdAt.toISOString(),
       };
@@ -853,9 +899,22 @@ export class WorkItemsService {
         ]);
       }
       if (error instanceof DependencyCycleError) {
-        throw new ApiError(422, 'validation_failed', 'That dependency would create a cycle', [
-          { field: 'dependsOnWorkItemId', message: 'already depends on this work item' },
-        ]);
+        const rows = await this.database.read(context, (runner) =>
+          this.workItems.findManyByIds(runner, context, error.path),
+        );
+        const titles = error.path.map((id) => {
+          const found = rows.find((r) => r.id === id);
+          return found && found.deletedAt === null && this.mayRead(principal, found)
+            ? found.title
+            : 'hidden';
+        });
+        throw new ApiError(
+          409,
+          'conflict',
+          'That dependency would create a cycle',
+          [{ field: 'dependsOnWorkItemId', message: `dependency_cycle: ${titles.join(' → ')}` }],
+          'dependency_cycle',
+        );
       }
       if (error instanceof DuplicateDependencyError) {
         throw new ApiError(409, 'conflict', error.message);

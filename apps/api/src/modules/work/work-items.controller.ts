@@ -16,6 +16,11 @@ import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/deco
 import { ApiError } from '../../common/http/errors.js';
 import { WORK_ITEMS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
+import {
+  AuthScheme,
+  dependencySourceOf,
+  parseTypedDependency,
+} from './schedule-cascade.controller.js';
 import type {
   ProjectHealthView,
   WorkBlockerView,
@@ -318,18 +323,27 @@ export class WorkItemsController {
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
     @Param('workItemId') workItemId: string,
-    @Body() body: { readonly dependsOnWorkItemId?: unknown },
+    @Body()
+    body: {
+      readonly dependsOnWorkItemId?: unknown;
+      readonly kind?: unknown;
+      readonly lagWorkingDays?: unknown;
+    },
+    @AuthScheme() authScheme?: string,
   ): Promise<WorkItemDependencyView> {
     if (typeof body?.dependsOnWorkItemId !== 'string' || body.dependsOnWorkItemId.trim() === '') {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
         { field: 'dependsOnWorkItemId', message: 'must be a work item id' },
       ]);
     }
+    // 53-04: typed edge — kind (default FS), lag in working days (default 0), and who made it.
+    const typed = parseTypedDependency(body, { kind: 'FS', lag: 0 });
     return this.workItems.addDependency(
       context,
       principal,
       workItemId,
       body.dependsOnWorkItemId.trim(),
+      { kind: typed.kind ?? 'FS', lag: typed.lag ?? 0, source: dependencySourceOf(authScheme) },
     );
   }
 

@@ -402,3 +402,6 @@ export * from './integrations/channel-messages.js';
 
 // Contact import — 54-11 Phase 0 (R16-f)
 export * from './import/contacts.js';
+
+// Typed dependencies + cascade — 53-04 (R16-d)
+export * from './schedule/dependencies.js';

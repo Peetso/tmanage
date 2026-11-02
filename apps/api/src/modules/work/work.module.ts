@@ -86,6 +86,11 @@ import { WorkCustomFieldsController } from './custom-fields.controller.js';
 import { WorkBoardColumnsRepository } from './board-columns.repository.js';
 import { WorkBoardColumnsService } from './board-columns.service.js';
 import { WorkBoardColumnsController } from './board-columns.controller.js';
+import { ScheduleCascadeService } from './schedule-cascade.service.js';
+import {
+  ScheduleCascadeController,
+  WORK_SCHEDULE_CASCADE_SERVICE,
+} from './schedule-cascade.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -287,6 +292,15 @@ export class WorkModule {
         new WorkBoardColumnsService(database, new WorkBoardColumnsRepository()),
     };
 
+    // R16-d (53-04). Typed-edge PATCH and the schedule cascade (preview / apply) — the work-items
+    // repository writes the dates, the graph repository reads the edges, the calendar is the org's.
+    const scheduleCascadeService: Provider = {
+      provide: WORK_SCHEDULE_CASCADE_SERVICE,
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY, AUDIT_SERVICE],
+      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository, audit: AuditService) =>
+        new ScheduleCascadeService(database, workItems, audit),
+    };
+
     return {
       module: WorkModule,
       providers: [
@@ -310,6 +324,7 @@ export class WorkModule {
         checklistTemplatesService,
         customFieldsService,
         boardColumnsService,
+        scheduleCascadeService,
       ],
       exports: [service],
       controllers: [
@@ -332,6 +347,7 @@ export class WorkModule {
         WorkChecklistTemplatesController,
         WorkCustomFieldsController,
         WorkBoardColumnsController,
+        ScheduleCascadeController,
       ],
     };
   }

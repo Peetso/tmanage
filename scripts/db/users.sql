@@ -2101,3 +2101,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`expenses`          TO 'tmanag
 -- (SELECT), deletes the caller's expired rows on each import and clears the caller's list
 -- (DELETE). Expiry is lazy, so the worker reads and writes nothing here.
 GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`contact_suggestions` TO 'tmanage_app'@'%';
+
+-- ---- R16-d · 53-04 typed dependencies ----
+-- 0293 adds `kind`, `lag_working_days`, `created_source` and `status` to `work_item_dependencies`
+-- and narrows 0011's immutability trigger so only those four columns may change. The new
+-- `PATCH …/dependencies/:id` edits kind and lag in place — the first UPDATE statement on the table,
+-- so UPDATE is granted beside the existing INSERT, DELETE. The worker reads and writes nothing here.
+GRANT UPDATE ON `tmanage`.`work_item_dependencies`                TO 'tmanage_app'@'%';

@@ -62,6 +62,7 @@ function harness() {
 
   const workItems = {
     findById: async (_r: unknown, ctx: TenantContext, id: string) => find(ctx, id),
+    findManyByIds: async () => rows,
     create: async (_r: unknown, ctx: TenantContext, input: Record<string, unknown>) => {
       const now = new Date('2026-10-23T09:00:00.000Z');
       const row = {
@@ -104,8 +105,12 @@ function harness() {
       projects.find((p) => p.id === id && p.organizationId === ctx.organizationId) ?? null,
   } as unknown as ProjectsRepository;
 
+  // 53-04: the edges the cycle guard walks (seeded by the dependency test).
+  const edges: { workItemId: string; dependsOnWorkItemId: string }[] = [];
   const graph = {
     isActiveInternalMember: async () => true,
+    lockProjects: async () => undefined,
+    listActiveEdgesFrom: async () => edges,
   } as unknown as WorkGraphRepository;
 
   const memberships = {
@@ -145,7 +150,14 @@ function harness() {
     objectiveLinks,
     itemFiles,
   );
-  return { controller: new WorkItemsController(service), updates, onProject, edgeCleanups, rows };
+  return {
+    controller: new WorkItemsController(service),
+    updates,
+    onProject,
+    edgeCleanups,
+    rows,
+    edges,
+  };
 }
 
 describe('A6 work item description and move', () => {
@@ -330,5 +342,21 @@ describe('F26: widening to a client audience needs deliverable.publish', () => {
       audience: 'client_visible',
     });
     expect(widened.audience).toBe('client_visible');
+  });
+});
+
+describe('53-04 typed dependencies', () => {
+  it('refuses a bad kind with 400 and a loop with 409 naming it', async () => {
+    const { controller, edges } = harness();
+    const a = await controller.create(context, principal, { projectId: PROJECT, title: 'Alpha' });
+    const b = await controller.create(context, principal, { projectId: TARGET, title: 'Beta' });
+    const add = (kind: string) =>
+      controller.addDependency(context, principal, a.id, { dependsOnWorkItemId: b.id, kind });
+    await expect(add('XX')).rejects.toMatchObject({ status: 400 });
+    edges.push({ workItemId: b.id, dependsOnWorkItemId: a.id });
+    await expect(add('SS')).rejects.toMatchObject({
+      status: 409,
+      details: [{ message: 'dependency_cycle: Alpha → Beta' }],
+    });
   });
 });

@@ -2992,6 +2992,12 @@ export const workItemDependencies = mysqlTable(
     organizationId: char('organization_id', { length: 36 }).notNull(),
     workItemId: char('work_item_id', { length: 36 }).notNull(),
     dependsOnWorkItemId: char('depends_on_work_item_id', { length: 36 }).notNull(),
+    // 53-04 (0293): FS | SS | FF | SF, signed working-day lag, who made it, active | suspended —
+    // closed lists checked in the application. Only these four may change after insert (trigger).
+    kind: varchar('kind', { length: 2 }).notNull().default('FS'),
+    lagWorkingDays: smallint('lag_working_days').notNull().default(0),
+    createdSource: varchar('created_source', { length: 12 }).notNull().default('ui'),
+    status: varchar('status', { length: 10 }).notNull().default('active'),
     createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
   },

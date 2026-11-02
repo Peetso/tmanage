@@ -1244,6 +1244,22 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'contact_suggestion',
     clause: '§12 54-11 — a person cleared their own invite suggestions',
   },
+  // ---- R16-d · 53-04 typed dependencies and cascade ----
+  /** An edge was added. Metadata: depended-on id, kind, lag, source. */
+  'work_item.dependency_added': {
+    objectType: 'work_item',
+    clause: '§12 53-04 — a typed dependency (kind and lag) now constrains this item’s dates',
+  },
+  /** An edge's kind or lag changed. Metadata: dependency id, kind and lag before and after. */
+  'work_item.dependency_changed': {
+    objectType: 'work_item',
+    clause: '§12 53-04 — a dependency’s kind or lag changed, so the schedule it drives changed',
+  },
+  /** A cascade moved this item's dates. Metadata: start/due before and after, the root item. */
+  'work_item.rescheduled': {
+    objectType: 'work_item',
+    clause: '§12 53-04 — a schedule cascade moved this item’s start and due dates',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1461,6 +1477,9 @@ const AUDIT_ACTION_LABELS = {
   'expense.exported': 'Exported expenses',
   'contacts.imported': 'Imported contacts for invite suggestions',
   'contacts.cleared': 'Cleared their invite suggestions',
+  'work_item.dependency_added': 'Added a work item dependency',
+  'work_item.dependency_changed': 'Changed a work item dependency',
+  'work_item.rescheduled': 'Rescheduled a work item through its dependencies',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

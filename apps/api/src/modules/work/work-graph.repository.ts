@@ -1,9 +1,10 @@
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { uuidv7 } from '@tmanage/domain';
-import type { Audience } from '@tmanage/domain';
+import { isDependencyKind, uuidv7 } from '@tmanage/domain';
+import type { Audience, DependencyKind, DependencySource } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
   memberships,
+  projects,
   workBlockers,
   workItemDependencies,
   workItems,
@@ -18,14 +19,14 @@ import { unwrapQueryError } from '../../common/database/query-error.js';
  * Same shape as every repository here — `TenantContext` scopes, no input carries an
  * `organizationId` — with two rules of its own:
  *
- * ## The cycle rule runs here, against the rows, before the insert
+ * ## The cycle rule runs before the insert, under a project-row lock (53-04)
  *
- * A self-edge is refused by 0011's trigger; a longer cycle cannot be seen from one row, so
- * {@link DependencyCycleError} is raised from a walk over the *predecessors of the
- * proposed predecessor*: if the item being depended-on can already reach the item being
- * edited, the new edge would close a loop and "on track" would mean nothing for either.
- * The walk is level-by-level scoped SELECTs rather than one recursive CTE, deliberately —
- * see the note at the call site.
+ * A self-edge is refused by 0011's trigger; a longer cycle cannot be seen from one row, so the
+ * service locks both ends' project rows ({@link WorkGraphRepository.lockProjects}), reads the
+ * active edges downstream of the edited item ({@link WorkGraphRepository.listActiveEdgesFrom})
+ * and runs the domain's `findCycle` before the insert: if the edited item can already reach the
+ * proposed predecessor, the new edge would close a loop and "on track" would mean nothing for
+ * either. The walk is level-by-level scoped SELECTs rather than one recursive CTE, deliberately.
  *
  * ## Blockers are raised and resolved, never edited
  *
@@ -39,6 +40,8 @@ export class DependencyCycleError extends Error {
   constructor(
     readonly workItemId: string,
     readonly dependsOnWorkItemId: string,
+    /** 53-04: the loop, successor first, as `findCycle` names it. */
+    readonly path: readonly string[] = [],
   ) {
     super(`Depending on ${dependsOnWorkItemId} would create a cycle`);
     this.name = 'DependencyCycleError';
@@ -100,50 +103,120 @@ export interface PredecessorHealthRow {
   readonly deletedAt: Date | null;
 }
 
+/** 53-04. An active typed edge, as the cycle guard and the cascade read it. */
+export interface TypedEdgeRow {
+  readonly id: string;
+  readonly workItemId: string;
+  readonly dependsOnWorkItemId: string;
+  readonly kind: DependencyKind;
+  readonly lag: number;
+}
+
+export interface TypedDependencyInput {
+  readonly kind: DependencyKind;
+  readonly lag: number;
+  readonly source: DependencySource;
+}
+
+/** The most items one graph walk visits; a plan larger than this is cut, never looped over. */
+export const MAX_GRAPH_NODES = 2000;
+
+function toTypedEdge(row: {
+  id: string;
+  workItemId: string;
+  dependsOnWorkItemId: string;
+  kind: string;
+  lag: number;
+}): TypedEdgeRow {
+  // An unrecognised kind (none can be written: the service checks) reads as the old meaning, FS.
+  return { ...row, kind: isDependencyKind(row.kind) ? row.kind : 'FS', lag: Number(row.lag) };
+}
+
 export class WorkGraphRepository {
   // ── Dependencies ───────────────────────────────────────────────────────────
 
   /**
-   * Add one edge: `workItemId` depends on `dependsOnWorkItemId`. The caller has already
-   * proved both rows exist in this tenant; this method proves the edge is acyclic and new.
+   * 53-04. Lock the project rows of both ends of a proposed edge, ascending id order, before any
+   * read of the graph. Two concurrent inserts touching the same project therefore serialise, and
+   * the second one's cycle walk sees the first one's committed edge — the row lock replaces the
+   * plan's after-the-fact integrity sweep. It must be the transaction's first statement, so the
+   * walk's consistent reads are taken after the lock is held.
+   */
+  async lockProjects(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectIds: readonly string[],
+  ): Promise<void> {
+    const ids = [...new Set(projectIds)].sort();
+    if (ids.length === 0) return;
+    await tenantDrizzle(runner)
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.organizationId, context.organizationId), inArray(projects.id, ids)))
+      .orderBy(asc(projects.id))
+      .for('update');
+  }
+
+  /**
+   * The active edges downstream of `rootId` (every edge out of a reached item), plus every active
+   * edge into a reached item — exactly what a cycle check from the root and a cascade from it
+   * read. Walked a level at a time with scoped SELECTs (the tenant guard's analyser is
+   * conservative about recursive CTEs); the visited set makes it terminate over any data, and
+   * {@link MAX_GRAPH_NODES} bounds it.
+   */
+  async listActiveEdgesFrom(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    rootId: string,
+  ): Promise<readonly TypedEdgeRow[]> {
+    const columns = {
+      id: workItemDependencies.id,
+      workItemId: workItemDependencies.workItemId,
+      dependsOnWorkItemId: workItemDependencies.dependsOnWorkItemId,
+      kind: workItemDependencies.kind,
+      lag: workItemDependencies.lagWorkingDays,
+    };
+    const active = and(
+      eq(workItemDependencies.organizationId, context.organizationId),
+      eq(workItemDependencies.status, 'active'),
+    );
+    const byId = new Map<string, TypedEdgeRow>();
+    const visited = new Set<string>([rootId]);
+    let frontier = [rootId];
+    while (frontier.length > 0 && visited.size <= MAX_GRAPH_NODES) {
+      const rows = await tenantDrizzle(runner)
+        .select(columns)
+        .from(workItemDependencies)
+        .where(and(active, inArray(workItemDependencies.dependsOnWorkItemId, frontier)));
+      frontier = [];
+      for (const row of rows) {
+        byId.set(row.id, toTypedEdge(row));
+        if (!visited.has(row.workItemId)) {
+          visited.add(row.workItemId);
+          frontier.push(row.workItemId);
+        }
+      }
+    }
+    const incoming = await tenantDrizzle(runner)
+      .select(columns)
+      .from(workItemDependencies)
+      .where(and(active, inArray(workItemDependencies.workItemId, [...visited])));
+    for (const row of incoming) byId.set(row.id, toTypedEdge(row));
+    return [...byId.values()];
+  }
+
+  /**
+   * Add one edge: `workItemId` depends on `dependsOnWorkItemId`. The caller has already proved
+   * both rows exist in this tenant, locked their projects and run the cycle check.
    */
   async addDependency(
     runner: TenantQueryRunner,
     context: TenantContext,
     workItemId: string,
     dependsOnWorkItemId: string,
+    typed: TypedDependencyInput = { kind: 'FS', lag: 0, source: 'ui' },
   ): Promise<WorkItemDependencyRow> {
     if (workItemId === dependsOnWorkItemId) throw new SelfDependencyError();
-
-    // Everything upstream of the proposed predecessor, walked a level at a time. If the
-    // edited item is among it, the new edge closes a loop. A recursive CTE would say this
-    // in one statement, but the tenant guard's analyser is deliberately conservative about
-    // what it cannot fully parse, and a walk of small scoped SELECTs is refused by nothing
-    // and readable by everyone. The visited set makes it terminate even over data that
-    // somehow already cycles.
-    const visited = new Set<string>([dependsOnWorkItemId]);
-    let frontier: string[] = [dependsOnWorkItemId];
-    while (frontier.length > 0) {
-      const rows = await tenantDrizzle(runner)
-        .select({ next: workItemDependencies.dependsOnWorkItemId })
-        .from(workItemDependencies)
-        .where(
-          and(
-            eq(workItemDependencies.organizationId, context.organizationId),
-            inArray(workItemDependencies.workItemId, frontier),
-          ),
-        );
-      frontier = [];
-      for (const row of rows) {
-        if (row.next === workItemId) {
-          throw new DependencyCycleError(workItemId, dependsOnWorkItemId);
-        }
-        if (!visited.has(row.next)) {
-          visited.add(row.next);
-          frontier.push(row.next);
-        }
-      }
-    }
 
     const id = uuidv7();
     try {
@@ -154,6 +227,9 @@ export class WorkGraphRepository {
           organizationId: context.organizationId,
           workItemId,
           dependsOnWorkItemId,
+          kind: typed.kind,
+          lagWorkingDays: typed.lag,
+          createdSource: typed.source,
           createdByUserId: context.userId,
           createdAt: sql`current_timestamp(3)`,
         });
@@ -162,18 +238,67 @@ export class WorkGraphRepository {
       if (isSignalled(error, 'cannot depend on itself')) throw new SelfDependencyError();
       throw error;
     }
+    return this.requireDependency(runner, context, id);
+  }
 
+  /** One edge of `workItemId`, or null. */
+  async findDependency(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    workItemId: string,
+    dependencyId: string,
+  ): Promise<WorkItemDependencyRow | null> {
     const rows = await tenantDrizzle(runner)
       .select()
       .from(workItemDependencies)
       .where(
         and(
           eq(workItemDependencies.organizationId, context.organizationId),
-          eq(workItemDependencies.id, id),
+          eq(workItemDependencies.id, dependencyId),
+          eq(workItemDependencies.workItemId, workItemId),
         ),
       )
       .limit(1);
-    return rows[0] as WorkItemDependencyRow;
+    return rows[0] ?? null;
+  }
+
+  /** 53-04. Change an edge's kind and lag in place (0293's trigger keeps its ends fixed). */
+  async updateDependency(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    dependencyId: string,
+    typed: { readonly kind: DependencyKind; readonly lag: number },
+  ): Promise<WorkItemDependencyRow> {
+    await tenantDrizzle(runner)
+      .update(workItemDependencies)
+      .set({ kind: typed.kind, lagWorkingDays: typed.lag })
+      .where(
+        and(
+          eq(workItemDependencies.organizationId, context.organizationId),
+          eq(workItemDependencies.id, dependencyId),
+        ),
+      );
+    return this.requireDependency(runner, context, dependencyId);
+  }
+
+  private async requireDependency(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    dependencyId: string,
+  ): Promise<WorkItemDependencyRow> {
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(workItemDependencies)
+      .where(
+        and(
+          eq(workItemDependencies.organizationId, context.organizationId),
+          eq(workItemDependencies.id, dependencyId),
+        ),
+      )
+      .limit(1);
+    const row = rows[0];
+    if (!row) throw new Error(`Dependency ${dependencyId} was not found`);
+    return row;
   }
 
   /** Remove one edge. Idempotent: an edge already gone stays gone. Returns what happened. */
