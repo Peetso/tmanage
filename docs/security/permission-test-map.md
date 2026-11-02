@@ -1405,3 +1405,4 @@ route without a row here, and on a row whose route no longer exists. Public rout
 | `GET /v1/organizations/:orgSlug/inbound-email/attachments/:id/download`                                   | org          | other tenant's ids in every param                   | AUTH-56-04-1, AUTH-56-04-2, AUTH-56-04-4 |
 | `POST /v1/organizations/:orgSlug/inbound-email/:id/ask-resend`                                            | org          | other tenant's ids in every param                   | AUTH-56-04-1                             |
 | `POST /v1/organizations/:orgSlug/imports/sources/jira`                                                    | org          | no object id: slug swap only                        | AUTH-01                                  |
+| `POST /v1/organizations/:orgSlug/imports/:jobId/undo`                                                     | org          | other tenant's ids in every param                   | AUTH-56-04-1                             |

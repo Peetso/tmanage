@@ -1883,6 +1883,13 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/imports/sources/jira',
     reason: 'automation_secrets',
   },
+  // R23-e (54-24): the one-click import undo is a bulk delete of everything one import created;
+  // never an AI tool. Import sits under Admin (41 §ADM-10), hence the admin class.
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/imports/:jobId/undo',
+    reason: 'admin_security',
+  },
   // R22-a (52-12): the ZATCA certificate + private key are pasted behind org.security.manage and a
   // fresh step-up, and revoking it stops signing; key material must never pass through an AI tool.
   {
