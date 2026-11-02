@@ -20,6 +20,8 @@ import { ProjectMembershipsService } from './project-memberships.service.js';
 import { MembershipsRepository } from '../tenancy/memberships.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
+import { SuggestDueController } from './suggest-due.controller.js';
+import { SuggestDueService } from './suggest-due.service.js';
 
 @Module({})
 export class ProjectsModule {
@@ -65,6 +67,13 @@ export class ProjectsModule {
       ) => new ProjectMembershipsService(database, audit, memberships, outbox),
     };
 
+    // 55-07 (R18-d): the due-date suggestion — stateless repositories, the tenant database.
+    const suggestDueService: Provider = {
+      provide: SuggestDueService,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) => new SuggestDueService(database),
+    };
+
     return {
       module: ProjectsModule,
       providers: [
@@ -73,9 +82,10 @@ export class ProjectsModule {
         membershipsRepository,
         directoryRepository,
         membershipsService,
+        suggestDueService,
       ],
       exports: [service, membershipsService],
-      controllers: [ProjectsController, ProjectMembersController],
+      controllers: [ProjectsController, ProjectMembersController, SuggestDueController],
     };
   }
 }

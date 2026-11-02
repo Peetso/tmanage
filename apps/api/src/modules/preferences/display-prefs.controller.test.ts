@@ -106,14 +106,14 @@ describe('DisplayPreferencesController (PREF-DISPLAY, x285)', () => {
     const controller = controllerWith(repo);
 
     const saved = await controller.put(context, member(), { ...VALID });
-    expect(saved).toEqual(VALID);
+    expect(saved).toEqual({ ...VALID, numerals: 'latin', calendarDisplay: 'gregorian' });
 
     // The subject is the authenticated principal's membership, never a value the request named.
     expect(repo.upsertCalls).toHaveLength(1);
     expect(repo.upsertCalls[0]!.membershipId).toBe(MY_MEMBERSHIP);
 
     const readBack = await controller.get(context, member());
-    expect(readBack).toEqual(VALID);
+    expect(readBack).toEqual({ ...VALID, numerals: 'latin', calendarDisplay: 'gregorian' });
   });
 
   it('accepts any IANA time zone, not a short allow-list (R9: every country)', async () => {
@@ -169,5 +169,39 @@ describe('DisplayPreferencesController (PREF-DISPLAY, x285)', () => {
       );
       expect(capability).toBe('work.read');
     }
+  });
+
+  it('55-07: numerals/calendarDisplay are validated, saved, and default on an old row', async () => {
+    const repo = new FakeDisplayPreferencesRepository();
+    // An old row without the keys reads the defaults.
+    repo.rows.set(MY_MEMBERSHIP, { ...VALID });
+    const old = await controllerWith(repo).get(context, member());
+    expect(old.numerals).toBe('latin');
+    expect(old.calendarDisplay).toBe('gregorian');
+
+    const saved = await controllerWith(repo).put(context, member(), {
+      ...VALID,
+      numerals: 'arabic_indic',
+      calendarDisplay: 'gregorian_hijri',
+    });
+    expect(saved.numerals).toBe('arabic_indic');
+    expect(saved.calendarDisplay).toBe('gregorian_hijri');
+
+    const before = repo.upsertCalls.length;
+    await expectStatus(
+      controllerWith(repo).put(context, member(), { ...VALID, numerals: 'roman' }),
+      400,
+    );
+    await expectStatus(
+      controllerWith(repo).put(context, member(), { ...VALID, calendarDisplay: 'hijri_only' }),
+      400,
+    );
+    expect(repo.upsertCalls).toHaveLength(before);
+  });
+
+  it('55-07: Hijri is display-only — the service has no product-event emitter to send it to', () => {
+    // The service is built from the database and the repository alone; nothing it holds can write
+    // product_events, so the calendar choice never reaches an analytics stream (PDPL).
+    expect(DisplayPreferencesService.length).toBe(2);
   });
 });

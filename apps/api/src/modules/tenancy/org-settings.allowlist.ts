@@ -18,6 +18,7 @@
  * later reader will parse.
  */
 
+import { NOTIFICATION_PROFILES } from '@tmanage/domain';
 import { DISPLAY_LOCALES } from '../../common/database/schema.js';
 
 /** The fixed set of settings this slice ships. A key outside this set is never writable. */
@@ -37,6 +38,8 @@ export const ORG_SETTING_KEYS = [
   // B3 — downloads before a virus scan. The company OWNER's choice alone (`OWNER_ONLY_SETTING_KEYS`):
   // written through `PATCH …/file-download-policy`, never through the generic PUT.
   'downloads_before_scan',
+  // 55-18 (R18-d): the org notification profile a member with no saved settings starts from.
+  'notification_profile',
 ] as const;
 
 export type OrgSettingKey = (typeof ORG_SETTING_KEYS)[number];
@@ -183,6 +186,13 @@ const SPECS: Readonly<Record<OrgSettingKey, OrgSettingSpec>> = Object.freeze({
   downloads_before_scan: {
     default: 'allow_labeled',
     validate: oneOf(DOWNLOADS_BEFORE_SCAN_VALUES, 'Choose allow_labeled or block.'),
+  },
+  // 55-18. `calm` (daily digest, quiet evenings, required-action kinds immediate) is the default
+  // for every company; `standard` is the pre-55-18 everything-immediate behaviour. Read only when
+  // a member has no saved notification settings — a saved row is never rewritten.
+  notification_profile: {
+    default: 'calm',
+    validate: oneOf(NOTIFICATION_PROFILES, 'Choose calm or standard.'),
   },
 });
 

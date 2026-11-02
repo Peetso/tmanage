@@ -40,14 +40,29 @@ import { isIanaTimeZone } from '../../common/time-zone.js';
  * timezone, a named date format): a malformed body is a 400 and nothing is written.
  */
 
-/** What the GET/PUT route exchanges: the five display settings, without row identity. */
+/** What the GET/PUT route exchanges: the display settings (55-07 adds numerals and calendarDisplay), without row identity. */
 export interface DisplayPreferencesView {
   readonly theme: DisplayTheme;
   readonly density: DisplayDensity;
   readonly locale: DisplayLocale;
   readonly timezone: DisplayTimezone;
   readonly dateFormat: DisplayDateFormat;
+  readonly numerals: DisplayNumerals;
+  readonly calendarDisplay: DisplayCalendar;
 }
+
+/**
+ * 55-07 (R18-d) — digit shapes and the calendar shown beside dates. Both are optional in a PUT body
+ * and in a stored row: a row saved before 55-07 has neither and reads as `latin` / `gregorian`.
+ *
+ * Hijri is **display-only**: it changes how a date is rendered on the person's own screen, is never
+ * stored on a record, and is never emitted to `product_events` (PDPL data minimisation — a calendar
+ * choice can hint at religion, so no analytics stream receives it). This service writes no event.
+ */
+export const DISPLAY_NUMERALS = ['latin', 'arabic_indic'] as const;
+export type DisplayNumerals = (typeof DISPLAY_NUMERALS)[number];
+export const DISPLAY_CALENDARS = ['gregorian', 'gregorian_hijri'] as const;
+export type DisplayCalendar = (typeof DISPLAY_CALENDARS)[number];
 
 /** The shipped defaults an unsaved member is reached by: follow the OS theme, comfortable, en-US, UTC, ISO. */
 export const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferencesView = {
@@ -56,6 +71,8 @@ export const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferencesView = {
   locale: 'en-US',
   timezone: 'UTC',
   dateFormat: 'iso',
+  numerals: 'latin',
+  calendarDisplay: 'gregorian',
 };
 
 /** The only keys a PUT body may carry — anything else is a 400 (fixed-key allowlist). */
@@ -65,6 +82,8 @@ const ALLOWED_KEYS: ReadonlySet<string> = new Set([
   'locale',
   'timezone',
   'dateFormat',
+  'numerals',
+  'calendarDisplay',
 ]);
 
 @Injectable()
@@ -108,6 +127,8 @@ function viewOf(settings: DisplayPreferences): DisplayPreferencesView {
     locale: settings.locale,
     timezone: settings.timezone,
     dateFormat: settings.dateFormat,
+    numerals: settings.numerals ?? DEFAULT_DISPLAY_PREFERENCES.numerals,
+    calendarDisplay: settings.calendarDisplay ?? DEFAULT_DISPLAY_PREFERENCES.calendarDisplay,
   };
 }
 
@@ -142,10 +163,19 @@ function parseInput(body: unknown): DisplayPreferences {
     details.push({ field: 'timezone', message: 'must be an IANA time zone' });
   }
   const dateFormat = oneOf('dateFormat', DISPLAY_DATE_FORMATS);
+  // 55-07: optional keys — absent means the default, present must be on the vocabulary.
+  const numerals =
+    value['numerals'] === undefined
+      ? DEFAULT_DISPLAY_PREFERENCES.numerals
+      : oneOf('numerals', DISPLAY_NUMERALS);
+  const calendarDisplay =
+    value['calendarDisplay'] === undefined
+      ? DEFAULT_DISPLAY_PREFERENCES.calendarDisplay
+      : oneOf('calendarDisplay', DISPLAY_CALENDARS);
 
   if (details.length > 0) {
     throw new ApiError(400, 'validation_failed', 'The display preferences are invalid', details);
   }
 
-  return { theme, density, locale, timezone, dateFormat };
+  return { theme, density, locale, timezone, dateFormat, numerals, calendarDisplay };
 }

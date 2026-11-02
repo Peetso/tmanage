@@ -1,4 +1,4 @@
-import { capabilitiesFor, isInternalRole, uuidv7 } from '@tmanage/domain';
+import { capabilitiesFor, isInternalRole, uuidv7, workWeekForTimezone } from '@tmanage/domain';
 import type { Capability } from '@tmanage/domain';
 import { createTenantContext } from '../../common/database/tenant-context.js';
 import type {
@@ -252,7 +252,8 @@ export class ProvisioningService {
     // chosen on ON-01 silently vanished (live test 2026-10-31).
     const initialSettings = [
       ['default_timezone', input.timezone],
-      ['working_week', input.workingWeek],
+      // 55-07: no week chosen -> the one the time zone implies (Sun–Thu in the Gulf/Egypt).
+      ['working_week', input.workingWeek ?? workWeekForTimezone(input.timezone)],
       ['operating_template', input.operatingTemplate],
     ] as const;
     for (const [key, value] of initialSettings) {

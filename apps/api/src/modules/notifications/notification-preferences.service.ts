@@ -1,6 +1,16 @@
-import type { Principal } from '@tmanage/domain';
-import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import {
+  DEFAULT_NOTIFICATION_PROFILE,
+  isNotificationProfile,
+  notificationDefaultsFor,
+} from '@tmanage/domain';
+import type { NotificationProfile, Principal } from '@tmanage/domain';
+import type {
+  TenantContext,
+  TenantDatabase,
+  TenantQueryRunner,
+} from '../../common/database/tenant-context.js';
 import type { NotificationPreferenceRow } from '../../common/database/schema.js';
+import { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import {
   NotificationPreferencesRepository,
   type NotificationPreferencesInput,
@@ -17,9 +27,9 @@ import {
  * ## Absence is the default, not an error
  *
  * A person who has never opened the settings screen has no row. {@link getPreferences}
- * returns {@link DEFAULT_NOTIFICATION_PREFERENCES} for that case — every channel on, the
- * digest off, no quiet hours — so "never saved" and "saved the defaults" answer identically.
- * The same defaults are the column defaults in `0022_notification_preferences.sql`.
+ * returns {@link defaultsFor} the org's notification profile for that case (55-18: `calm` unless
+ * the org chose `standard`, whose defaults — every channel on, digest off, no quiet hours — are
+ * {@link DEFAULT_NOTIFICATION_PREFERENCES} and the column defaults in `0022_notification_preferences.sql`).
  *
  * ## This slice stores; it does not honour
  *
@@ -38,7 +48,10 @@ export interface NotificationPreferencesView {
   readonly quietHoursTimezone: string | null;
 }
 
-/** Every channel on, digest off, no quiet hours — what an unsaved account is reached by. */
+/**
+ * Every channel on, digest off, no quiet hours — the `standard` profile's defaults. Kept exported
+ * (other tests import it); since 55-18 an unsaved account is reached by {@link defaultsFor} instead.
+ */
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferencesView = {
   inAppEnabled: true,
   emailEnabled: true,
@@ -47,6 +60,39 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferencesView = {
   quietHoursEnd: null,
   quietHoursTimezone: null,
 };
+
+/**
+ * 55-18 (R18-d) — what a member with **no saved row** is reached by: the org's notification profile
+ * (`org_settings.notification_profile`, absent = `calm`) with its quiet hours read in the org's
+ * `default_timezone`. A saved row is never rewritten (no backfill): existing members keep what they
+ * have. Honouring the digest / quiet hours at send time is the deferred NS-13 delivery slice, not here.
+ */
+export function defaultsFor(
+  profile: NotificationProfile,
+  orgTimezone: string | null,
+): NotificationPreferencesView {
+  if (profile === 'standard') return DEFAULT_NOTIFICATION_PREFERENCES;
+  const defaults = notificationDefaultsFor(profile);
+  return {
+    inAppEnabled: true,
+    emailEnabled: true,
+    digestFrequency: defaults.digestFrequency,
+    quietHoursStart: defaults.quietHoursStart,
+    quietHoursEnd: defaults.quietHoursEnd,
+    quietHoursTimezone: defaults.quietHoursStart === null ? null : (orgTimezone ?? 'UTC'),
+  };
+}
+
+/** The org's notification profile, `calm` when unset or unreadable. */
+export async function notificationProfileOf(
+  runner: TenantQueryRunner,
+  context: TenantContext,
+  settings: Pick<OrgSettingsRepository, 'findByKey'>,
+): Promise<NotificationProfile> {
+  const row = await settings.findByKey(runner, context, 'notification_profile');
+  const value = row?.settingValue;
+  return isNotificationProfile(value) ? value : DEFAULT_NOTIFICATION_PROFILE;
+}
 
 function viewOf(row: NotificationPreferenceRow): NotificationPreferencesView {
   return {
@@ -63,16 +109,23 @@ export class NotificationPreferencesService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly preferences: NotificationPreferencesRepository = new NotificationPreferencesRepository(),
+    private readonly settings: Pick<
+      OrgSettingsRepository,
+      'findByKey'
+    > = new OrgSettingsRepository(),
   ) {}
 
   async getPreferences(
     context: TenantContext,
     principal: Principal,
   ): Promise<NotificationPreferencesView> {
-    const row = await this.database.read(context, (runner) =>
-      this.preferences.findForUser(runner, context, principal.userId),
-    );
-    return row ? viewOf(row) : DEFAULT_NOTIFICATION_PREFERENCES;
+    return this.database.read(context, async (runner) => {
+      const row = await this.preferences.findForUser(runner, context, principal.userId);
+      if (row) return viewOf(row);
+      const profile = await notificationProfileOf(runner, context, this.settings);
+      const zone = await this.settings.findByKey(runner, context, 'default_timezone');
+      return defaultsFor(profile, zone?.settingValue ?? null);
+    });
   }
 
   /**

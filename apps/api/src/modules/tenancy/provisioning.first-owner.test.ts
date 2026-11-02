@@ -123,4 +123,40 @@ describe('ProvisioningService onboarding settings', () => {
       ],
     );
   });
+
+  it('55-07: stores the week the time zone implies when none was chosen', async () => {
+    const upsert = vi.fn(async () => undefined);
+    const service = new ProvisioningService(
+      { transaction: vi.fn() } as unknown as TenantDatabase,
+      { record: vi.fn() } as unknown as AuditService,
+      {
+        create: vi.fn(async (_t: unknown, _c: unknown, i: { id: string; slug: string }) => ({
+          ...i,
+          name: 'Acme',
+        })),
+      } as unknown as OrganizationsRepository,
+      { create: vi.fn(async () => ({ id: 'workspace-1' })) } as unknown as WorkspacesRepository,
+      {
+        createFounder: vi.fn(async () => ({ id: 'm-1', role: 'owner' })),
+      } as unknown as MembershipsRepository,
+      { upsert } as unknown as OrgSettingsRepository,
+    );
+    const stored = async (timezone: string) => {
+      upsert.mockClear();
+      await service.provisionFounderWithin(() => ({}) as TenantQueryRunner, {
+        userId: uuidv7(),
+        slug: 'acme',
+        name: 'Acme',
+        defaultLocale: 'en',
+        timezone,
+        correlationId: uuidv7(),
+      });
+      const call = (upsert.mock.calls as unknown as unknown[][]).find(
+        (c) => (c[2] as { key: string }).key === 'working_week',
+      );
+      return (call?.[2] as { value: string } | undefined)?.value;
+    };
+    expect(await stored('Asia/Riyadh')).toBe('sun-thu');
+    expect(await stored('Europe/Berlin')).toBe('mon-fri');
+  });
 });

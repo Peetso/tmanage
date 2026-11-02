@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, Inject, Optional, Param, Put } from '@nestjs/common';
-import type { Principal } from '@tmanage/domain';
+import { isRequiredActionKind, kindDeliveryFor, notificationDefaultsFor } from '@tmanage/domain';
+import type { NotificationProfile, Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
 import { TENANT_DATABASE } from '../../common/http/tokens.js';
@@ -40,7 +41,23 @@ export interface NotificationKindPrefView {
   readonly kinds: readonly {
     readonly kind: NotificationKind;
     readonly enabled: boolean;
+    /** 55-18: how this kind reaches the member under the org profile — now, or in the digest. */
+    readonly delivery: 'immediate' | 'digest';
   }[];
+}
+
+/**
+ * 55-18 (R18-d) — an unset kind's default under the org profile. Every kind the profile names
+ * (immediately or through the digest) is on, and a required-action kind (client request, mention,
+ * work item) is on whatever the profile; a digested kind is still delivered, only batched.
+ */
+export function kindEnabledByDefault(
+  profile: NotificationProfile,
+  kind: NotificationKind,
+): boolean {
+  if (isRequiredActionKind(kind)) return true;
+  const defaults = notificationDefaultsFor(profile);
+  return [...defaults.immediateKinds, ...defaults.digestKinds].some((k) => k === kind);
 }
 
 /** The set-a-kind body — `enabled` arrives as `unknown` and is validated in the route. */
@@ -110,14 +127,16 @@ export class NotificationKindPrefsController {
 
   /** The acting membership's per-kind view: every kind, its stored `enabled` or the default (true). */
   private async listOwn(context: TenantContext): Promise<NotificationKindPrefView> {
-    const rows = await this.database.read(context, (runner) =>
-      this.prefs.listForMembership(runner, context, context.membershipId),
-    );
+    const { rows, profile } = await this.database.read(context, async (runner) => ({
+      rows: await this.prefs.listForMembership(runner, context, context.membershipId),
+      profile: await this.prefs.findNotificationProfile(runner, context),
+    }));
     const byKind = new Map(rows.map((row) => [row.kind, row.enabled]));
     return {
       kinds: NOTIFICATION_KINDS.map((kind) => ({
         kind,
-        enabled: byKind.get(kind) ?? true,
+        enabled: byKind.get(kind) ?? kindEnabledByDefault(profile, kind),
+        delivery: kindDeliveryFor(profile, kind),
       })),
     };
   }

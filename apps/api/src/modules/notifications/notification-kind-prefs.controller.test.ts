@@ -47,7 +47,12 @@ const context = {
 class FakeRepo {
   readonly rows: NotificationKindPrefRow[] = [];
   upsertCalls: { membershipId: string; kind: NotificationKind; enabled: boolean }[] = [];
+  profile: 'calm' | 'standard' = 'calm';
   private nextId = 1;
+
+  findNotificationProfile(): Promise<'calm' | 'standard'> {
+    return Promise.resolve(this.profile);
+  }
 
   listForMembership(
     _r: unknown,
@@ -109,7 +114,11 @@ describe('NotificationKindPrefsController (per-kind opt-out, x152)', () => {
     const afterSet = await controller.set(context, member(), 'file', { enabled: false });
     // Every kind is present; the one just set is off, the rest default to on.
     expect(afterSet.kinds).toEqual(
-      NOTIFICATION_KINDS.map((kind) => ({ kind, enabled: kind !== 'file' })),
+      NOTIFICATION_KINDS.map((kind) => ({
+        kind,
+        enabled: kind !== 'file',
+        delivery: kind === 'file' || kind === 'message' ? 'digest' : 'immediate',
+      })),
     );
     expect(repo.upsertCalls).toEqual([
       { membershipId: MY_MEMBERSHIP, kind: 'file', enabled: false },
@@ -174,5 +183,17 @@ describe('NotificationKindPrefsController (per-kind opt-out, x152)', () => {
       );
       expect(capability).toBe('work.read');
     }
+  });
+
+  it('55-18: unset kinds follow the org profile; required-action kinds are never digested', async () => {
+    const repo = new FakeRepo();
+    const calm = await controllerWith(repo).list(context, member());
+    for (const entry of calm.kinds) expect(entry.enabled).toBe(true);
+    for (const kind of ['client_request', 'mention', 'work_item']) {
+      expect(calm.kinds.find((k) => k.kind === kind)?.delivery).toBe('immediate');
+    }
+    repo.profile = 'standard';
+    const standard = await controllerWith(repo).list(context, member());
+    for (const entry of standard.kinds) expect(entry.delivery).toBe('immediate');
   });
 });
