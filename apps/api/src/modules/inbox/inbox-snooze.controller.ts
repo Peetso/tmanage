@@ -56,6 +56,21 @@ export class InboxSnoozeController {
     return this.snoozes.snooze(context, principal, bundleId, body?.until);
   }
 
+  /**
+   * A21: mark a bundle Done (200) — it leaves the active inbox for the `done` view. Same gate and
+   * 404s as a snooze; `DELETE .../snooze` moves it back.
+   */
+  @Put(':bundleId/done')
+  @RequireCapability('work.read')
+  @HttpCode(200)
+  async done(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('bundleId') bundleId: string,
+  ): Promise<InboxSnoozeView> {
+    return this.snoozes.markDone(context, principal, bundleId);
+  }
+
   /** Un-snooze a bundle (200). Own-membership: an id that is not the caller's snooze is a 404. */
   @Delete(':bundleId/snooze')
   @RequireCapability('work.read')

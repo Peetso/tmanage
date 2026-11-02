@@ -200,8 +200,15 @@ describe('InboxService.list hides snoozed bundles (2026-10-31 live test)', () =>
   }
 
   it('leaves out a bundle snoozed into the future', async () => {
-    const page = await serviceWithSnooze(new Date(NOW.getTime() + 3_600_000)).list(CONTEXT, OWNER);
+    const service = serviceWithSnooze(new Date(NOW.getTime() + 3_600_000));
+    const page = await service.list(CONTEXT, OWNER);
     expect(page.items).toHaveLength(0);
+    // A21: the `snoozed` view lists it; the `done` view does not (a timed snooze is not done).
+    const snoozed = await service.list(CONTEXT, OWNER, { mode: 'snoozed' });
+    expect(snoozed.items.map((item) => item.bundleId)).toEqual(['organization_usage:org-1']);
+    expect((await service.list(CONTEXT, OWNER, { mode: 'done' })).items).toHaveLength(0);
+    const done = serviceWithSnooze(new Date('9999-01-01T00:00:00.000Z'));
+    expect((await done.list(CONTEXT, OWNER, { mode: 'done' })).items).toHaveLength(1);
   });
 
   it('shows the bundle again once its snooze has passed', async () => {

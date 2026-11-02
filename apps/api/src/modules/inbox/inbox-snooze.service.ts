@@ -12,6 +12,8 @@ export interface InboxSnoozeView {
   readonly snoozes: readonly {
     readonly bundleId: string;
     readonly snoozedUntil: string;
+    /** A21: true when this is a Done (a snooze until {@link INBOX_DONE_UNTIL}), not a timed snooze. */
+    readonly done: boolean;
     readonly createdAt: string;
   }[];
 }
@@ -36,6 +38,18 @@ export interface InboxSnoozeView {
  * Snoozes are private to a membership: every read, the upsert and the delete are scoped by the acting
  * `membershipId`, which is `TenantContextGuard`'s and never a value a route supplies.
  */
+/**
+ * A21 (2026-11-02 live test) — "Done" is a snooze that never ends: the same own-membership row,
+ * `snoozed_until` at the first instant of year 9999 (inside MySQL/MariaDB `DATETIME`, and clear of
+ * any session time-zone shift). No column or migration; un-snoozing a done bundle brings it back.
+ */
+export const INBOX_DONE_UNTIL = new Date('9999-01-01T00:00:00.000Z');
+
+/** Whether a snooze's end marks the bundle Done rather than snoozed for a while. */
+export function isDoneUntil(until: Date): boolean {
+  return until.getTime() >= INBOX_DONE_UNTIL.getTime();
+}
+
 export class InboxSnoozeService {
   constructor(
     private readonly database: TenantDatabase,
@@ -87,6 +101,18 @@ export class InboxSnoozeService {
   }
 
   /**
+   * A21: mark one bundle Done — a snooze until {@link INBOX_DONE_UNTIL}, through the same resolve,
+   * relation gate and own-membership upsert as {@link snooze} (404 on anything the caller cannot see).
+   */
+  async markDone(
+    context: TenantContext,
+    principal: Principal,
+    bundleId: string,
+  ): Promise<InboxSnoozeView> {
+    return this.snooze(context, principal, bundleId, INBOX_DONE_UNTIL.toISOString());
+  }
+
+  /**
    * Un-snooze one bundle (200 — nothing new was created). Own-membership: the delete is scoped by the
    * acting membership, so a bundle another member snoozed (or one nobody snoozed) removes nothing and
    * answers 404 — a snooze is private, so this hides the existence of one that is not the caller's.
@@ -113,6 +139,7 @@ export class InboxSnoozeService {
       snoozes: rows.map((row) => ({
         bundleId: row.bundleId,
         snoozedUntil: row.snoozedUntil.toISOString(),
+        done: isDoneUntil(row.snoozedUntil),
         createdAt: row.createdAt.toISOString(),
       })),
     };

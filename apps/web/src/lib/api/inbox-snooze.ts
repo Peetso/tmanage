@@ -19,6 +19,8 @@ import type { InboxItem } from './inbox';
 export interface InboxSnooze {
   readonly bundleId: string;
   readonly snoozedUntil: string;
+  /** A21: true when the bundle was marked Done (a snooze that never ends). */
+  readonly done?: boolean;
   readonly createdAt: string;
 }
 
@@ -54,6 +56,21 @@ export async function snoozeBundle(
     method: 'PUT',
     path: bundlePath(organizationSlug, bundleId),
     body: { until },
+  });
+  return data;
+}
+
+/** A21: mark a bundle Done — it leaves the active inbox for the Done view until un-snoozed. */
+export async function markBundleDone(
+  client: ApiClient,
+  organizationSlug: string,
+  bundleId: string,
+): Promise<InboxSnoozeView> {
+  const { data } = await client.request<InboxSnoozeView>({
+    method: 'PUT',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/inbox/${encodeURIComponent(
+      bundleId,
+    )}/done`,
   });
   return data;
 }

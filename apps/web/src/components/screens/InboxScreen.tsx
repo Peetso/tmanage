@@ -16,7 +16,7 @@ import { compactUnit, translateOr } from '../../lib/i18n/compact-time';
 import { activeLocale } from '../../lib/i18n/locale-store';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
-import { snoozeBundle, unsnoozeBundle } from '../../lib/api/inbox-snooze';
+import { markBundleDone, snoozeBundle, unsnoozeBundle } from '../../lib/api/inbox-snooze';
 import type { MessageKey } from '../../lib/i18n/t';
 import { formatInstant, stateCapsule, stateLabel } from '../../lib/work-item-presentation';
 import { triageStateCapsule, triageStateLabel } from '../../lib/triage-presentation';
@@ -142,11 +142,24 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
   });
   const undoSnooze = useMutation({
     mutationFn: (bundleId: string) => unsnoozeBundle(api, organizationSlug, bundleId),
-    onSuccess: () => {
+    onSuccess: (_result, bundleId) => {
       setSnoozedNotice(null);
+      if (selectedId === bundleId) setSelectedId(null);
       return queryClient.invalidateQueries({ queryKey: ['inbox', organizationSlug] });
     },
   });
+  // A21: Done clears a card for good (until it is moved back); the notice offers Undo, as Snooze's.
+  const done = useMutation({
+    mutationFn: (bundleId: string) => markBundleDone(api, organizationSlug, bundleId),
+    onSuccess: (_result, bundleId) => {
+      setSnoozeMenuFor(null);
+      setSnoozedNotice({ bundleId, text: t('InboxScreen.doneNotice') });
+      if (selectedId === bundleId) setSelectedId(null);
+      return queryClient.invalidateQueries({ queryKey: ['inbox', organizationSlug] });
+    },
+  });
+  // In the Snoozed and Done views a card is one the member cleared: it offers the way back.
+  const cleared = mode === 'snoozed' || mode === 'done';
 
   const markReadProps = (item: InboxItem) => ({
     loading: markRead.isPending && markRead.variables === item.bundleId,
@@ -182,13 +195,13 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
             </InlineAlert>
           ) : null}
 
-          {snooze.isError || undoSnooze.isError ? (
+          {snooze.isError || undoSnooze.isError || done.isError ? (
             <InlineAlert
               tone="danger"
               title={tOr('InboxScreen.snoozeErrorTitle', 'Could not snooze that item')}
               live
             >
-              {describe(snooze.error ?? undoSnooze.error)}
+              {describe(snooze.error ?? undoSnooze.error ?? done.error)}
             </InlineAlert>
           ) : null}
 
@@ -359,7 +372,33 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
                             {t('InboxScreen.markRead')}
                           </Button>
                         ) : null}
-                        {item.objectType === 'organization_usage' ? null : (
+                        {cleared ? (
+                          <Button
+                            tone="outline"
+                            size="compact"
+                            aria-label={`${t('InboxScreen.unsnoozeAriaPrefix')} ${name}`}
+                            loading={undoSnooze.isPending && undoSnooze.variables === item.bundleId}
+                            loadingLabel={t('InboxScreen.unsnoozing')}
+                            onClick={() => undoSnooze.mutate(item.bundleId)}
+                          >
+                            {t(
+                              mode === 'done' ? 'InboxScreen.moveToInbox' : 'InboxScreen.unsnooze',
+                            )}
+                          </Button>
+                        ) : null}
+                        {item.objectType === 'organization_usage' || mode === 'done' ? null : (
+                          <Button
+                            tone="outline"
+                            size="compact"
+                            aria-label={`${t('InboxScreen.doneAriaPrefix')} ${name}`}
+                            loading={done.isPending && done.variables === item.bundleId}
+                            loadingLabel={t('InboxScreen.markingDone')}
+                            onClick={() => done.mutate(item.bundleId)}
+                          >
+                            {t('InboxScreen.done')}
+                          </Button>
+                        )}
+                        {item.objectType === 'organization_usage' || cleared ? null : (
                           <div className="tm-inbox-snooze">
                             <Button
                               tone="outline"
@@ -664,6 +703,8 @@ const MODES: readonly { readonly id: InboxMode; readonly labelKey: MessageKey }[
   { id: 'all', labelKey: 'InboxScreen.modeAll' },
   { id: 'waiting_on_me', labelKey: 'InboxScreen.modeWaitingOnMe' },
   { id: 'client_actions', labelKey: 'InboxScreen.modeClient' },
+  { id: 'snoozed', labelKey: 'InboxScreen.modeSnoozed' },
+  { id: 'done', labelKey: 'InboxScreen.modeDone' },
 ];
 
 const EMPTY_TITLE_KEYS: Record<InboxMode, MessageKey> = {
@@ -671,6 +712,8 @@ const EMPTY_TITLE_KEYS: Record<InboxMode, MessageKey> = {
   all: 'InboxScreen.emptyTitleAll',
   waiting_on_me: 'InboxScreen.emptyTitleWaiting',
   client_actions: 'InboxScreen.emptyTitleClient',
+  snoozed: 'InboxScreen.emptyTitleSnoozed',
+  done: 'InboxScreen.emptyTitleDone',
 };
 
 const EMPTY_BODY_KEYS: Record<InboxMode, MessageKey> = {
@@ -678,6 +721,8 @@ const EMPTY_BODY_KEYS: Record<InboxMode, MessageKey> = {
   all: 'InboxScreen.emptyBodyAll',
   waiting_on_me: 'InboxScreen.emptyBodyWaiting',
   client_actions: 'InboxScreen.emptyBodyClient',
+  snoozed: 'InboxScreen.emptyBodySnoozed',
+  done: 'InboxScreen.emptyBodyDone',
 };
 
 /** The event types this half of INBOX-001 knows, said in words. Unknown types are shown as is. */
@@ -1004,7 +1049,14 @@ function reasonOf(bundle: InboxBundle, t: Translate): string {
   return reasons.join(' ');
 }
 
-const INBOX_MODES: readonly InboxMode[] = ['important', 'all', 'waiting_on_me', 'client_actions'];
+const INBOX_MODES: readonly InboxMode[] = [
+  'important',
+  'all',
+  'waiting_on_me',
+  'client_actions',
+  'snoozed',
+  'done',
+];
 
 function isInboxMode(value: string): value is InboxMode {
   return (INBOX_MODES as readonly string[]).includes(value);

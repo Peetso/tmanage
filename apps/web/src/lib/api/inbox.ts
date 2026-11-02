@@ -9,7 +9,9 @@ import type { ApiClient } from './client';
  * this file has no way to ask for them.
  */
 
-export type InboxMode = 'important' | 'all' | 'waiting_on_me' | 'client_actions';
+/** `snoozed` and `done` (A21) list what the member cleared from the active inbox. */
+export type InboxMode =
+  'important' | 'all' | 'waiting_on_me' | 'client_actions' | 'snoozed' | 'done';
 
 /**
  * What a bundle can be about. CQ-12 added channels, documents, meetings, projects and rules; R4

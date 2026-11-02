@@ -441,4 +441,43 @@ describe('TM-04 inbox live-test fixes (2026-10-31)', () => {
       expect(calls.some((call) => call.method === 'DELETE')).toBe(true);
     });
   });
+
+  it('A21: marks a card done, and the Snoozed view moves a card back to the inbox', async () => {
+    const user = userEvent.setup();
+    const { client, calls } = clientOver((call) => {
+      if (call.method === 'PUT' || call.method === 'DELETE') return json({ snoozes: [] });
+      return json({ items: [bundle()], nextCursor: null });
+    });
+    render(withQuery(<InboxScreen {...NAMES} client={client} />));
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Mark done: Prepare mobile booking flow concepts',
+      }),
+    );
+    await waitFor(() => {
+      expect(
+        calls.some(
+          (call) =>
+            call.method === 'PUT' &&
+            call.url ===
+              'https://api.example.test/v1/organizations/northstar/inbox/work_item%3Awi-1/done',
+        ),
+      ).toBe(true);
+    });
+    expect(await screen.findByText('Marked done')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Snoozed' }));
+    await waitFor(() => {
+      expect(calls.some((call) => modeOf(call.url) === 'snoozed')).toBe(true);
+    });
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Back to inbox: Prepare mobile booking flow concepts',
+      }),
+    );
+    await waitFor(() => {
+      expect(calls.some((call) => call.method === 'DELETE')).toBe(true);
+    });
+  });
 });

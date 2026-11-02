@@ -16,6 +16,7 @@ import {
 } from '../files/usage-counters.repository.js';
 import { isCollaborationObjectType } from './inbox-object-resolvers.js';
 import type { InboxSnoozeRepository } from './inbox-snooze.repository.js';
+import { isDoneUntil } from './inbox-snooze.service.js';
 import type {
   CollaborationObjectType,
   InboxObjectResolvers,
@@ -69,13 +70,22 @@ import type {
  * queries moved. `markBundleRead` still reads its one object through `get`.
  */
 
-export type InboxMode = 'important' | 'all' | 'waiting_on_me' | 'client_actions';
+export type InboxMode =
+  'important' | 'all' | 'waiting_on_me' | 'client_actions' | 'snoozed' | 'done';
 
+/**
+ * A21 (2026-11-02 live test): `snoozed` and `done` are the two views of what the member cleared
+ * from the active inbox. Both read the same notifications as `all` and keep only the bundles the
+ * member's snoozes hide — `done` is a snooze until {@link INBOX_DONE_UNTIL}, so neither needs a
+ * column of its own.
+ */
 export const INBOX_MODES: readonly InboxMode[] = [
   'important',
   'all',
   'waiting_on_me',
   'client_actions',
+  'snoozed',
+  'done',
 ];
 
 export function isInboxMode(value: string): value is InboxMode {
@@ -231,7 +241,7 @@ export class InboxService {
     );
 
     const bundled = await this.bundle(context, principal, rows);
-    const items = await this.withoutSnoozed(context, bundled);
+    const items = await this.withoutSnoozed(context, bundled, mode);
 
     const oldest = rows[rows.length - 1];
     return {
@@ -240,20 +250,33 @@ export class InboxService {
     };
   }
 
-  /** Drop the bundles the acting member has snoozed into the future (a short page, never a lie). */
+  /**
+   * Drop the bundles the acting member has snoozed into the future (a short page, never a lie). In
+   * the `snoozed` and `done` modes the filter turns round: only the hidden bundles stay — a timed
+   * snooze in `snoozed`, a done one in `done`.
+   */
   private async withoutSnoozed<T extends { readonly bundleId: string }>(
     context: TenantContext,
     items: readonly T[],
+    mode: InboxMode = 'all',
   ): Promise<readonly T[]> {
     const repository = this.snoozes;
-    if (repository === undefined || items.length === 0) return items;
+    const cleared = mode === 'snoozed' || mode === 'done';
+    if (repository === undefined || items.length === 0) return cleared ? [] : items;
     const snoozes = await this.database.read(context, (runner) =>
       repository.listForMembership(runner, context, context.membershipId),
     );
     const now = this.clock().getTime();
-    const hidden = new Set(
-      snoozes.filter((row) => row.snoozedUntil.getTime() > now).map((row) => row.bundleId),
-    );
+    const active = snoozes.filter((row) => row.snoozedUntil.getTime() > now);
+    if (cleared) {
+      const wanted = new Set(
+        active
+          .filter((row) => isDoneUntil(row.snoozedUntil) === (mode === 'done'))
+          .map((row) => row.bundleId),
+      );
+      return items.filter((item) => wanted.has(item.bundleId));
+    }
+    const hidden = new Set(active.map((row) => row.bundleId));
     return hidden.size === 0 ? items : items.filter((item) => !hidden.has(item.bundleId));
   }
 

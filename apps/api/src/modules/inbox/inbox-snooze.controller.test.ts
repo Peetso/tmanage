@@ -125,7 +125,12 @@ describe('InboxSnoozeController (IN-01/IN-02, x259)', () => {
 
     const afterSnooze = await controller.snooze(context, manager(), BUNDLE, { until: FUTURE });
     expect(afterSnooze.snoozes).toEqual([
-      { bundleId: BUNDLE, snoozedUntil: FUTURE, createdAt: '2026-09-27T00:00:00.000Z' },
+      {
+        bundleId: BUNDLE,
+        snoozedUntil: FUTURE,
+        done: false,
+        createdAt: '2026-09-27T00:00:00.000Z',
+      },
     ]);
 
     expect((await controller.list(context, manager())).snoozes).toHaveLength(1);
@@ -169,8 +174,25 @@ describe('InboxSnoozeController (IN-01/IN-02, x259)', () => {
     expect(repo.upsertCalls).toBe(0);
   });
 
+  it('A21: marks a bundle done (a never-ending snooze) and un-snoozing brings it back', async () => {
+    const repo = world();
+    const controller = controllerWith(repo);
+
+    const afterDone = await controller.done(context, manager(), BUNDLE);
+    expect(afterDone.snoozes).toEqual([
+      expect.objectContaining({
+        bundleId: BUNDLE,
+        done: true,
+        snoozedUntil: '9999-01-01T00:00:00.000Z',
+      }),
+    ]);
+    await expectStatus(controller.done(context, manager(), `work_item:${PROJECT}`), 404);
+
+    expect((await controller.unsnooze(context, manager(), BUNDLE)).snoozes).toEqual([]);
+  });
+
   it('guards every route with work.read (the capability CapabilityGuard reads)', () => {
-    for (const method of ['list', 'snooze', 'unsnooze'] as const) {
+    for (const method of ['list', 'snooze', 'unsnooze', 'done'] as const) {
       expect(
         Reflect.getMetadata(REQUIRED_CAPABILITY, InboxSnoozeController.prototype[method]),
       ).toBe('work.read');
