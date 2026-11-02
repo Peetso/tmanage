@@ -1,0 +1,1760 @@
+import { createHash } from 'node:crypto';
+import {
+  MoneyError,
+  agingBucket,
+  amountDue,
+  amountInWords,
+  applyPayment,
+  authorize,
+  creditNoteTotals,
+  divideHalfUp,
+  currencyDigits,
+  invoiceTotals,
+  isCreditable,
+  nextInvoiceState,
+  uuidv7,
+} from '@tmanage/domain';
+import type {
+  AgingBucket,
+  AuditAction,
+  Capability,
+  InvoiceLineInput,
+  Principal,
+  TaxRateTotal,
+} from '@tmanage/domain';
+import { withTemplateKey } from '@tmanage/mail';
+import type { Mailer, MailMessage } from '@tmanage/mail';
+import type {
+  ClientCreditNoteLineRow,
+  ClientCreditNoteRow,
+  ClientInvoiceLineRow,
+  ClientInvoicePaymentRow,
+  ClientInvoiceRow,
+} from '../../common/database/schema.js';
+import type {
+  TenantContext,
+  TenantDatabase,
+  TenantQueryRunner,
+} from '../../common/database/tenant-context.js';
+import { escapeHtml, renderActionEmail } from '../../common/email/action-email.js';
+import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import type { AuditService } from '../audit/audit.service.js';
+import type { NotificationsRepository } from '../inbox/notifications.repository.js';
+import { verifyReauthToken } from '../identity/reauth-token.js';
+import {
+  ALLOW_OVERPAYMENT_SETTING_KEY,
+  DEFAULT_STEP_UP_SEND_MINOR,
+  LIST_PAGE,
+  MAX_INVOICE_LINES,
+  PORTAL_SHOW_NAMES_SETTING_KEY,
+  STEP_UP_SEND_SETTING_KEY,
+  addDays,
+  idempotencyKeyHash,
+  invalid,
+  invoiceContentHash,
+  isoDay,
+  sourceIdsOf,
+  validateCreate,
+  validateCreditNote,
+  validateEmail,
+  validateListQuery,
+  validatePatch,
+  validatePayment,
+  validatePull,
+  validateReason,
+  validateSend,
+} from './client-invoices-rules.js';
+import type { LineInput } from './client-invoices-rules.js';
+import type { ClientInvoicesRepository, InvoiceChange } from './client-invoices.repository.js';
+import type { DocumentSequenceService } from './document-sequences.js';
+import { defaultProfile } from './finance-rules.js';
+import type { FinanceProfileValues } from './finance-rules.js';
+import type { FinanceRepository } from './finance.repository.js';
+import { FINANCE_MANAGE, FINANCE_VIEW } from './finance.service.js';
+import { convertMinor, expenseLines, quoteLines, retainerLine, timeLines } from './invoice-pull.js';
+import type { PulledLine } from './invoice-pull.js';
+
+/**
+ * 52-09 — client invoices: draft, pull-in, edit, send (ONE transaction), mark sent, payments, void,
+ * credit notes, reminders, aging, the print view and the client's portal projection.
+ *
+ * Capability stand-ins (no `capabilities.ts` edit): `invoice.view` → `finance.view`;
+ * `invoice.manage` / `invoice.send` / `invoice.record_payment` → `finance.manage`. A send whose
+ * total (in the base currency) is above the org setting `finance.step_up_send_minor` (default
+ * 5,000,000 minor) needs a fresh `x-reauth-token` — the step-up `POST /v1/auth/reauth` issues.
+ * Portal: `client_projection.read`, a client admin or member, and the invoice's client organization
+ * = the principal's own; anything else is a 404, as for an unknown invoice.
+ *
+ * Totals are always recomputed on the server from the lines (`invoiceTotals`). A sent invoice is
+ * frozen by the 0301 triggers; a correction is a credit note. 52-10 (PDF) is not built: `attachPdf`
+ * is accepted and ignored, `pdf` is `null`, and the mail carries the portal link only.
+ */
+
+export interface InvoiceLineView {
+  readonly id: string;
+  readonly position: number;
+  readonly sourceType: string;
+  readonly descriptionEn: string | null;
+  readonly descriptionAr: string | null;
+  readonly quantity: number;
+  readonly unit: string;
+  readonly unitPriceMinor: number;
+  readonly discountBp: number;
+  readonly taxBp: number;
+  readonly lineDiscountMinor: number;
+  readonly lineNetMinor: number;
+  readonly lineTaxMinor: number;
+  readonly lineGrossMinor: number;
+  readonly groupKey: string | null;
+}
+
+export interface InvoiceSummary {
+  readonly id: string;
+  readonly number: string | null;
+  readonly clientOrganizationId: string;
+  readonly kind: string;
+  readonly state: string;
+  readonly currency: string;
+  readonly issueDate: string | null;
+  readonly dueDate: string | null;
+  readonly totalMinor: number;
+  readonly paidMinor: number;
+  readonly amountDueMinor: number;
+  readonly overdue: boolean;
+}
+
+export interface InvoiceView extends InvoiceSummary {
+  readonly projectId: string | null;
+  readonly retainerPeriodId: string | null;
+  readonly quoteId: string | null;
+  readonly language: string;
+  readonly documentLabel: string;
+  readonly supplyDate: string | null;
+  readonly periodStart: string | null;
+  readonly periodEnd: string | null;
+  readonly baseCurrency: string;
+  readonly fxRate: string | null;
+  readonly subtotalMinor: number;
+  readonly discountMinor: number;
+  readonly taxMinor: number;
+  readonly depositAppliedMinor: number;
+  readonly taxByRate: readonly TaxRateTotal[];
+  readonly amountInWords: { readonly en: string; readonly ar: string };
+  readonly poNumber: string | null;
+  readonly notes: string | null;
+  readonly internalNote: string | null;
+  readonly terms: string | null;
+  readonly contentHash: string | null;
+  readonly sentAt: string | null;
+  readonly sentTo: string | null;
+  readonly viewedAt: string | null;
+  readonly paidAt: string | null;
+  readonly voidedAt: string | null;
+  readonly voidReason: string | null;
+  readonly version: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly lines: readonly InvoiceLineView[];
+  readonly payments: readonly {
+    readonly id: string;
+    readonly paidOn: string;
+    readonly amountMinor: number;
+    readonly method: string;
+    readonly reference: string | null;
+    readonly note: string | null;
+  }[];
+  readonly creditNotes: readonly {
+    readonly id: string;
+    readonly number: string;
+    readonly reason: string;
+    readonly totalMinor: number;
+    readonly issuedAt: string;
+  }[];
+  /** 52-10 is not built. */
+  readonly pdf: null;
+}
+
+export interface PullResult {
+  readonly invoice: InvoiceView;
+  /** Billable time in the window still waiting on an approval: never pulled. */
+  readonly waiting: { readonly minutes: number };
+  /** Approved time without a rate snapshot: left out rather than priced at zero. */
+  readonly unpriced: { readonly minutes: number };
+}
+
+export interface AgingView {
+  readonly asOf: string;
+  readonly currencies: readonly {
+    readonly currency: string;
+    readonly buckets: Readonly<Record<AgingBucket, number>>;
+    readonly totalMinor: number;
+    readonly invoiceCount: number;
+  }[];
+}
+
+/** Exactly what a client may see: no cost, no internal note, no member id. */
+export interface PortalInvoiceView {
+  readonly id: string;
+  readonly number: string | null;
+  readonly kind: string;
+  readonly language: string;
+  readonly state: string;
+  readonly documentLabel: string;
+  readonly issueDate: string | null;
+  readonly dueDate: string | null;
+  readonly currency: string;
+  readonly subtotalMinor: number;
+  readonly discountMinor: number;
+  readonly taxMinor: number;
+  readonly totalMinor: number;
+  readonly paidMinor: number;
+  readonly amountDueMinor: number;
+  readonly notes: string | null;
+  readonly lines: readonly {
+    readonly description: string;
+    readonly quantity: number;
+    readonly unit: string;
+    readonly unitPriceMinor: number;
+    readonly taxBp: number;
+    readonly netMinor: number;
+    readonly grossMinor: number;
+  }[];
+  readonly payments: readonly {
+    readonly paidOn: string;
+    readonly amountMinor: number;
+    readonly method: string;
+  }[];
+}
+
+export type PortalInvoiceSummary = Omit<PortalInvoiceView, 'lines' | 'payments' | 'notes'>;
+
+/** Who sent the request, for the timeline. */
+export interface RequestMeta {
+  readonly ip?: string | null;
+  readonly userAgent?: string | null;
+}
+
+export interface SendMeta extends RequestMeta {
+  readonly orgSlug: string;
+  readonly idempotencyKey?: string | undefined;
+  readonly reauthToken?: string | undefined;
+  readonly sessionId?: string | undefined;
+}
+
+export interface ClientInvoicesServiceOptions {
+  readonly database: Pick<TenantDatabase, 'transaction' | 'read'>;
+  readonly repository: ClientInvoicesRepository;
+  readonly finance: Pick<FinanceRepository, 'profile' | 'organization'>;
+  readonly sequences: Pick<DocumentSequenceService, 'nextNumber'>;
+  readonly notifications: Pick<NotificationsRepository, 'insertForRecipient'>;
+  readonly audit: Pick<AuditService, 'record'>;
+  readonly mailer?: Mailer | null;
+  readonly webPublicUrl?: string;
+  readonly sessionSecret?: string;
+  readonly now?: () => Date;
+}
+
+const PORTAL_ROLES: ReadonlySet<string> = new Set(['client_admin', 'client_member']);
+const PORTAL_HIDDEN_STATES: ReadonlySet<string> = new Set(['draft', 'void']);
+const PERSON_LINE_EN = 'Professional services';
+const PERSON_LINE_AR = 'خدمات مهنية';
+
+const notFound = (): ApiError => new ApiError(404, 'not_found', MESSAGES.notFound);
+const forbidden = (code: string): ApiError =>
+  new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, code);
+const conflict = (message: string, field = 'state'): ApiError =>
+  new ApiError(409, 'conflict', message, [{ field, message }]);
+const periodLocked = (): ApiError =>
+  new ApiError(422, 'validation_failed', 'period_locked', [
+    { field: 'issueDate', message: 'period_locked' },
+  ]);
+
+function lineView(row: ClientInvoiceLineRow): InvoiceLineView {
+  return {
+    id: row.id,
+    position: row.position,
+    sourceType: row.sourceType,
+    descriptionEn: row.descriptionEn,
+    descriptionAr: row.descriptionAr,
+    quantity: row.quantityCenti / 100,
+    unit: row.unit,
+    unitPriceMinor: Number(row.unitPriceMinor),
+    discountBp: row.discountBp,
+    taxBp: row.taxBp,
+    lineDiscountMinor: Number(row.lineDiscountMinor),
+    lineNetMinor: Number(row.lineNetMinor),
+    lineTaxMinor: Number(row.lineTaxMinor),
+    lineGrossMinor: Number(row.lineGrossMinor),
+    groupKey: row.groupKey,
+  };
+}
+
+function lineInputOf(
+  row: Pick<ClientInvoiceLineRow, 'quantityCenti' | 'unitPriceMinor' | 'discountBp' | 'taxBp'>,
+): InvoiceLineInput {
+  return {
+    quantityCenti: row.quantityCenti,
+    unitPriceMinor: Number(row.unitPriceMinor),
+    discountBp: row.discountBp,
+    taxBp: row.taxBp,
+  };
+}
+
+function dueOf(row: ClientInvoiceRow): number {
+  return amountDue({
+    totalMinor: Number(row.totalMinor),
+    paidMinor: Number(row.paidMinor),
+    depositAppliedMinor: Number(row.depositAppliedMinor),
+  });
+}
+
+export function invoiceSummary(row: ClientInvoiceRow, today: string): InvoiceSummary {
+  const open = row.state === 'sent' || row.state === 'partially_paid';
+  return {
+    id: row.id,
+    number: row.number,
+    clientOrganizationId: row.clientOrganizationId,
+    kind: row.kind,
+    state: row.state,
+    currency: row.currency,
+    issueDate: row.issueDate,
+    dueDate: row.dueDate,
+    totalMinor: Number(row.totalMinor),
+    paidMinor: Number(row.paidMinor),
+    amountDueMinor: dueOf(row),
+    overdue: open && row.dueDate !== null && row.dueDate < today,
+  };
+}
+
+/** The total in the base currency (for the step-up threshold): ÷ rate, digits adjusted. */
+export function toBaseMinor(
+  amountMinor: number,
+  fxRate: string | null,
+  baseCurrency: string,
+  currency: string,
+): number {
+  if (fxRate === null || baseCurrency === currency) return amountMinor;
+  const [whole = '0', fraction = ''] = fxRate.split('.');
+  const scaled = BigInt(whole + fraction.padEnd(8, '0').slice(0, 8));
+  if (scaled <= 0n) return amountMinor;
+  const shift = currencyDigits(baseCurrency) - currencyDigits(currency);
+  let numerator = BigInt(amountMinor) * 100_000_000n;
+  let denominator = scaled;
+  if (shift > 0) numerator *= 10n ** BigInt(shift);
+  if (shift < 0) denominator *= 10n ** BigInt(-shift);
+  return Number(divideHalfUp(numerator, denominator));
+}
+
+/** 1 / rate, as DECIMAL(18,8) text. */
+function invertRate(rate: string): string | null {
+  const [whole = '0', fraction = ''] = rate.split('.');
+  const scaled = BigInt(whole + fraction.padEnd(8, '0').slice(0, 8));
+  if (scaled <= 0n) return null;
+  const inverse = divideHalfUp(10n ** 16n, scaled);
+  const text = inverse.toString().padStart(9, '0');
+  return `${text.slice(0, -8)}.${text.slice(-8)}`;
+}
+
+export class ClientInvoicesService {
+  private readonly now: () => Date;
+  private readonly mailer: Mailer | null;
+
+  constructor(private readonly options: ClientInvoicesServiceOptions) {
+    this.now = options.now ?? (() => new Date());
+    this.mailer =
+      options.mailer === undefined || options.mailer === null
+        ? null
+        : withTemplateKey(options.mailer, 'client_invoice');
+  }
+
+  private get repo(): ClientInvoicesRepository {
+    return this.options.repository;
+  }
+
+  // ---- reads (finance.view) ----
+
+  async list(
+    context: TenantContext,
+    principal: Principal,
+    query: Record<string, unknown>,
+  ): Promise<{ readonly invoices: readonly InvoiceSummary[]; readonly nextCursor: string | null }> {
+    this.requireView(principal, context);
+    const filter = validateListQuery(query);
+    const today = isoDay(this.now());
+    return this.options.database.read(context, async (r) => {
+      const rows = await this.repo.listInvoices(r, context.organizationId, {
+        ...filter,
+        limit: LIST_PAGE + 1,
+      });
+      const page = rows.slice(0, LIST_PAGE);
+      return {
+        invoices: page.map((row) => invoiceSummary(row, today)),
+        nextCursor: rows.length > LIST_PAGE ? (page.at(-1)?.id ?? null) : null,
+      };
+    });
+  }
+
+  async get(context: TenantContext, principal: Principal, id: string): Promise<InvoiceView> {
+    this.requireView(principal, context);
+    return this.options.database.read(context, async (r) => {
+      const row = await this.repo.findInvoice(r, context.organizationId, id);
+      if (row === null) throw notFound();
+      return this.view(r, context.organizationId, row);
+    });
+  }
+
+  async aging(context: TenantContext, principal: Principal): Promise<AgingView> {
+    this.requireView(principal, context);
+    const today = isoDay(this.now());
+    return this.options.database.read(context, async (r) => {
+      const rows = await this.repo.openInvoices(r, context.organizationId);
+      const byCurrency = new Map<
+        string,
+        { buckets: Record<AgingBucket, number>; total: number; count: number }
+      >();
+      for (const row of rows) {
+        const due = amountDue({
+          totalMinor: Number(row.totalMinor),
+          paidMinor: Number(row.paidMinor),
+          depositAppliedMinor: Number(row.depositAppliedMinor),
+        });
+        const slot = byCurrency.get(row.currency) ?? {
+          buckets: { '0_30': 0, '31_60': 0, '61_90': 0, '90_plus': 0 },
+          total: 0,
+          count: 0,
+        };
+        slot.buckets[agingBucket(row.dueDate ?? today, today)] += due;
+        slot.total += due;
+        slot.count += 1;
+        byCurrency.set(row.currency, slot);
+      }
+      return {
+        asOf: today,
+        currencies: [...byCurrency.entries()]
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([currency, slot]) => ({
+            currency,
+            buckets: slot.buckets,
+            totalMinor: slot.total,
+            invoiceCount: slot.count,
+          })),
+      };
+    });
+  }
+
+  /** The HTML print view (plain-text escaped; bilingual when 'bi'). */
+  async print(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+    lang: unknown,
+  ): Promise<string> {
+    const view = await this.get(context, principal, id);
+    const language =
+      lang === 'en' || lang === 'ar' || lang === 'bi'
+        ? lang
+        : (view.language as 'en' | 'ar' | 'bi');
+    return renderPrint(view, language);
+  }
+
+  // ---- writes (finance.manage) ----
+
+  async create(context: TenantContext, principal: Principal, body: unknown): Promise<InvoiceView> {
+    this.requireManage(principal, context);
+    const input = validateCreate(body);
+    const org = context.organizationId;
+    const at = this.now();
+    return this.options.database.transaction(context, async (tx) => {
+      const client = await this.repo.clientBilling(tx, org, input.clientOrganizationId);
+      if (client === null) throw notFound();
+      if (
+        input.projectId !== null &&
+        !(await this.repo.projectLinkedToClient(
+          tx,
+          org,
+          input.clientOrganizationId,
+          input.projectId,
+        ))
+      ) {
+        throw invalid('projectId', 'project_not_linked_to_client');
+      }
+      const profile = await this.profile(tx, org);
+      const currency = input.currency ?? client.defaultCurrency ?? profile.baseCurrency;
+      const fxRate = await this.rateFor(
+        tx,
+        org,
+        profile.baseCurrency,
+        currency,
+        input.issueDate ?? isoDay(at),
+      );
+      if (input.issueDate !== null) await this.refuseLocked(tx, org, input.issueDate);
+      const terms = client.paymentTermsDays ?? profile.paymentTermsDays;
+      const row: ClientInvoiceRow = {
+        id: uuidv7(),
+        organizationId: org,
+        clientOrganizationId: input.clientOrganizationId,
+        projectId: input.projectId,
+        retainerPeriodId: null,
+        quoteId: null,
+        number: null,
+        kind: input.kind,
+        language: input.language,
+        state: 'draft',
+        documentLabel: 'invoice',
+        issueDate: input.issueDate,
+        dueDate: input.issueDate === null ? null : addDays(input.issueDate, terms),
+        supplyDate: null,
+        periodStart: input.periodStart,
+        periodEnd: input.periodEnd,
+        currency,
+        baseCurrency: profile.baseCurrency,
+        fxRate,
+        subtotalMinor: 0,
+        discountMinor: 0,
+        taxMinor: 0,
+        totalMinor: 0,
+        paidMinor: 0,
+        depositAppliedMinor: 0,
+        poNumber: input.poNumber,
+        notesText: input.notesText,
+        internalNote: input.internalNote,
+        termsText: input.termsText ?? profile.bankDetailsText,
+        buyerSnapshotJson: null,
+        sellerSnapshotJson: null,
+        contentHash: null,
+        sendKeyHash: null,
+        pdfFileAssetId: null,
+        pdfFileVersionId: null,
+        xmlFileAssetId: null,
+        sentAt: null,
+        sentTo: null,
+        viewedAt: null,
+        paidAt: null,
+        voidedAt: null,
+        voidReason: null,
+        exportedAt: null,
+        exportTarget: null,
+        createdBy: context.userId,
+        version: 1,
+        createdAt: at,
+        updatedAt: at,
+      };
+      await this.repo.insertInvoice(tx, row);
+      await this.event(tx, context, row.id, 'created', 'member', null, {}, at);
+      await this.audited(tx, context, 'client_invoice.created', row.id, {
+        client_organization_id: row.clientOrganizationId,
+        kind: row.kind,
+        language: row.language,
+        currency: row.currency,
+      });
+      return this.view(tx, org, row);
+    });
+  }
+
+  async update(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+    body: unknown,
+  ): Promise<InvoiceView> {
+    this.requireManage(principal, context);
+    const patch = validatePatch(body);
+    const org = context.organizationId;
+    const at = this.now();
+    return this.options.database.transaction(context, async (tx) => {
+      const row = await this.draft(tx, org, id);
+      if (row.version !== patch.expectedVersion)
+        throw conflict(MESSAGES.conflict, 'expectedVersion');
+      const change: InvoiceChange = {};
+      for (const key of [
+        'kind',
+        'language',
+        'issueDate',
+        'dueDate',
+        'supplyDate',
+        'poNumber',
+        'notesText',
+        'internalNote',
+        'termsText',
+        'depositAppliedMinor',
+      ] as const) {
+        if (patch[key] !== undefined) Object.assign(change, { [key]: patch[key] });
+      }
+      if (patch.issueDate !== undefined) {
+        await this.refuseLocked(tx, org, patch.issueDate);
+        if (patch.dueDate === undefined) {
+          const client = await this.repo.clientBilling(tx, org, row.clientOrganizationId);
+          const profile = await this.profile(tx, org);
+          change.dueDate = addDays(
+            patch.issueDate,
+            client?.paymentTermsDays ?? profile.paymentTermsDays,
+          );
+        }
+      }
+      if (patch.lines !== undefined) await this.replaceLines(tx, org, row.id, patch.lines, at);
+      const totals = await this.totals(tx, org, row.id);
+      const next: ClientInvoiceRow = {
+        ...row,
+        ...change,
+        ...totals,
+        version: row.version + 1,
+        updatedAt: at,
+      };
+      if (next.depositAppliedMinor > next.totalMinor) {
+        throw invalid('depositAppliedMinor', 'must not exceed the invoice total');
+      }
+      await this.repo.updateInvoice(tx, org, id, {
+        ...change,
+        ...totals,
+        version: next.version,
+        updatedAt: at,
+      });
+      return this.view(tx, org, next);
+    });
+  }
+
+  /** Idempotent on a draft: the pulled lines are replaced, the manual ones kept. */
+  async pull(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+    body: unknown,
+  ): Promise<PullResult> {
+    this.requireManage(principal, context);
+    const input = validatePull(body);
+    const org = context.organizationId;
+    const at = this.now();
+    return this.options.database.transaction(context, async (tx) => {
+      const row = await this.draft(tx, org, id);
+      const profile = await this.profile(tx, org);
+      const convert = (amountBaseMinor: number): number =>
+        convertMinor(amountBaseMinor, row.fxRate, row.baseCurrency, row.currency);
+      await this.repo.deletePulledLines(tx, org, id);
+      const manual = await this.repo.lines(tx, org, id);
+      const pulled: PulledLine[] = [];
+      let waiting = 0;
+      let unpriced = 0;
+      let retainerPeriodId: string | null = null;
+      let quoteId: string | null = row.quoteId;
+      const client = row.clientOrganizationId;
+      if (input.time !== null) {
+        const rows = await this.repo.approvedTime(
+          tx,
+          org,
+          client,
+          input.periodStart,
+          input.periodEnd,
+        );
+        const priced = timeLines(rows, {
+          grouping: input.time,
+          taxBp: profile.defaultTaxRateBp,
+          periodStart: input.periodStart,
+          periodEnd: input.periodEnd,
+          convert,
+        });
+        pulled.push(...priced.lines);
+        unpriced = priced.unpricedMinutes;
+        waiting = await this.repo.waitingMinutes(
+          tx,
+          org,
+          client,
+          input.periodStart,
+          input.periodEnd,
+        );
+      }
+      if (input.expenses) {
+        const projects = await this.repo.clientProjectIds(tx, org, client);
+        const rows = await this.repo.approvedExpenses(
+          tx,
+          org,
+          client,
+          projects,
+          input.periodStart,
+          input.periodEnd,
+        );
+        pulled.push(...expenseLines(rows, convert));
+      }
+      if (input.retainer) {
+        const period = await this.repo.retainerPeriod(
+          tx,
+          org,
+          client,
+          input.periodStart,
+          input.periodEnd,
+        );
+        if (period !== null) {
+          pulled.push(retainerLine(period, profile.defaultTaxRateBp, convert));
+          retainerPeriodId = period.periodId;
+        }
+      }
+      if (input.quote !== null) {
+        const quote = await this.repo.acceptedQuote(tx, org, client, input.quote.quoteId);
+        if (quote === null) throw invalid('include.quote.quoteId', 'quote_not_accepted_for_client');
+        if (quote.currency !== row.currency) {
+          throw invalid('include.quote.quoteId', 'quote_currency_differs_from_invoice');
+        }
+        pulled.push(...quoteLines(quote, input.quote.depositBp));
+        quoteId = input.quote.quoteId;
+      }
+      if (manual.length + pulled.length > MAX_INVOICE_LINES) {
+        throw invalid('include', `an invoice holds at most ${String(MAX_INVOICE_LINES)} lines`);
+      }
+      const start = manual.reduce((max, l) => Math.max(max, l.position + 1), 0);
+      await this.repo.insertLines(
+        tx,
+        pulled.map((line, index) => this.lineRow(org, id, start + index, line, at)),
+      );
+      const totals = await this.totals(tx, org, id);
+      const change: InvoiceChange = {
+        ...totals,
+        periodStart: input.periodStart,
+        periodEnd: input.periodEnd,
+        retainerPeriodId,
+        quoteId,
+        version: row.version + 1,
+        updatedAt: at,
+      };
+      await this.repo.updateInvoice(tx, org, id, change);
+      return {
+        invoice: await this.view(tx, org, { ...row, ...change } as ClientInvoiceRow),
+        waiting: { minutes: waiting },
+        unpriced: { minutes: unpriced },
+      };
+    });
+  }
+
+  /**
+   * ONE transaction: number from `org_document_sequences`, buyer/seller snapshots, the canonical
+   * hash, the source links, state `sent` and the `sent` event. The same `Idempotency-Key` answers
+   * the same response; a second sender without it waits on the row lock and gets a 409. The mail
+   * (EN/AR, transactional lane, the portal link) leaves after the commit.
+   */
+  async send(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+    body: unknown,
+    meta: SendMeta,
+    mail = true,
+  ): Promise<InvoiceView> {
+    this.requireManage(principal, context);
+    const input = mail
+      ? validateSend(body)
+      : { to: [] as string[], message: null, attachPdf: false };
+    const keyHash = idempotencyKeyHash(meta.idempotencyKey);
+    const org = context.organizationId;
+    const at = this.now();
+    const outcome = await this.options.database.transaction(context, async (tx) => {
+      const row = await this.repo.findInvoice(tx, org, id, true);
+      if (row === null) throw notFound();
+      if (row.state !== 'draft') {
+        if (keyHash !== null && row.sendKeyHash === keyHash) {
+          return { view: await this.view(tx, org, row), fresh: false };
+        }
+        throw conflict('already_sent');
+      }
+      const lines = await this.repo.lines(tx, org, id);
+      if (lines.length === 0) throw invalid('lines', 'an invoice needs at least one line');
+      const totals = invoiceTotals(lines.map(lineInputOf));
+      const threshold = Number(
+        (await this.repo.setting(tx, org, STEP_UP_SEND_SETTING_KEY)) ?? DEFAULT_STEP_UP_SEND_MINOR,
+      );
+      const baseTotal = toBaseMinor(totals.totalMinor, row.fxRate, row.baseCurrency, row.currency);
+      if (Number.isFinite(threshold) && baseTotal > threshold && !this.stepUpFresh(context, meta)) {
+        throw new ApiError(
+          403,
+          'reauthentication_required',
+          'Confirm your password to send an invoice of this size.',
+          undefined,
+          'client_invoice.send_step_up',
+        );
+      }
+      const issueDate = row.issueDate ?? isoDay(at);
+      await this.refuseLocked(tx, org, issueDate);
+      const client = await this.repo.clientBilling(tx, org, row.clientOrganizationId);
+      if (client === null) throw notFound();
+      const profile = await this.profile(tx, org);
+      const dueDate =
+        row.dueDate ?? addDays(issueDate, client.paymentTermsDays ?? profile.paymentTermsDays);
+      if (row.depositAppliedMinor > totals.totalMinor) {
+        throw invalid('depositAppliedMinor', 'must not exceed the invoice total');
+      }
+      const issued = await this.options.sequences.nextNumber(tx, org, 'invoice', at);
+      for (const line of lines) await this.link(tx, org, row.id, line, at);
+      const sent: ClientInvoiceRow = {
+        ...row,
+        number: issued.number,
+        state: 'sent',
+        issueDate,
+        dueDate,
+        subtotalMinor: totals.subtotalMinor,
+        discountMinor: totals.discountMinor,
+        taxMinor: totals.taxMinor,
+        totalMinor: totals.totalMinor,
+        buyerSnapshotJson: JSON.stringify({
+          name: client.name,
+          legalNameEn: client.legalNameEn,
+          legalNameAr: client.legalNameAr,
+          taxRegistrationNo: client.taxRegistrationNo,
+          addressEn: client.billingAddressEn,
+          addressAr: client.billingAddressAr,
+          email: client.billingEmail,
+        }),
+        sellerSnapshotJson: JSON.stringify({
+          legalNameEn: profile.legalNameEn,
+          legalNameAr: profile.legalNameAr,
+          taxRegistrationNo: profile.taxRegistrationNo,
+          addressEn: profile.addressEn,
+          addressAr: profile.addressAr,
+          country: profile.country,
+          bankDetails: profile.bankDetailsText,
+        }),
+        sendKeyHash: keyHash,
+        sentAt: at,
+        sentTo: input.to.join(', ').slice(0, 254) || null,
+        version: row.version + 1,
+        updatedAt: at,
+      };
+      sent.contentHash = invoiceContentHash(sent, lines);
+      await this.repo.updateInvoice(tx, org, id, {
+        number: sent.number,
+        state: sent.state,
+        issueDate,
+        dueDate,
+        subtotalMinor: sent.subtotalMinor,
+        discountMinor: sent.discountMinor,
+        taxMinor: sent.taxMinor,
+        totalMinor: sent.totalMinor,
+        buyerSnapshotJson: sent.buyerSnapshotJson,
+        sellerSnapshotJson: sent.sellerSnapshotJson,
+        contentHash: sent.contentHash,
+        sendKeyHash: keyHash,
+        sentAt: at,
+        sentTo: sent.sentTo,
+        version: sent.version,
+        updatedAt: at,
+      });
+      await this.event(
+        tx,
+        context,
+        id,
+        'sent',
+        'member',
+        meta,
+        {
+          number: issued.number,
+          recipients: input.to.length,
+          mail,
+        },
+        at,
+      );
+      await this.audited(tx, context, 'client_invoice.sent', id, {
+        number: issued.number,
+        total_minor: sent.totalMinor,
+        currency: sent.currency,
+        recipient_count: input.to.length,
+        mode: mail ? 'mail' : 'mark_sent',
+      });
+      if (mail) {
+        for (const recipientUserId of await this.repo.clientAdminUserIds(
+          tx,
+          org,
+          row.clientOrganizationId,
+        )) {
+          await this.options.notifications.insertForRecipient(tx, context, {
+            recipientUserId,
+            type: 'client_invoice.sent',
+            objectType: 'client_invoice',
+            objectId: id,
+            dedupeKey: `client_invoice.sent:${id}`,
+          });
+        }
+      }
+      return { view: await this.view(tx, org, sent), fresh: true };
+    });
+    if (outcome.fresh && mail) {
+      await this.deliver(input.to, outcome.view, meta.orgSlug, 'invoice', input.message);
+    }
+    return outcome.view;
+  }
+
+  async recordPayment(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+    body: unknown,
+    meta: RequestMeta = {},
+  ): Promise<InvoiceView> {
+    this.requireManage(principal, context);
+    const input = validatePayment(body);
+    const org = context.organizationId;
+    const at = this.now();
+    return this.options.database.transaction(context, async (tx) => {
+      const row = await this.repo.findInvoice(tx, org, id, true);
+      if (row === null) throw notFound();
+      const allow = (await this.repo.setting(tx, org, ALLOW_OVERPAYMENT_SETTING_KEY)) === 'on';
+      const outcome = applyPayment(
+        {
+          state: row.state,
+          totalMinor: Number(row.totalMinor),
+          paidMinor: Number(row.paidMinor),
+          depositAppliedMinor: Number(row.depositAppliedMinor),
+        },
+        input.amountMinor,
+        allow,
+      );
+      if (!outcome.ok) {
+        if (outcome.error === 'invalid_state') throw conflict(`not_payable:${row.state}`);
+        throw invalid('amountMinor', outcome.error);
+      }
+      const payment: ClientInvoicePaymentRow = {
+        id: uuidv7(),
+        organizationId: org,
+        invoiceId: id,
+        paidOn: input.paidOn,
+        amountMinor: input.amountMinor,
+        currency: row.currency,
+        method: input.method,
+        reference: input.reference,
+        note: input.note,
+        recordedBy: context.userId,
+        createdAt: at,
+      };
+      await this.repo.insertPayment(tx, payment);
+      const change: InvoiceChange = {
+        state: outcome.state,
+        paidMinor: outcome.paidMinor,
+        paidAt: outcome.state === 'paid' ? at : row.paidAt,
+        version: row.version + 1,
+        updatedAt: at,
+      };
+      await this.repo.updateInvoice(tx, org, id, change);
+      await this.event(
+        tx,
+        context,
+        id,
+        'payment_recorded',
+        'member',
+        meta,
+        {
+          amount_minor: input.amountMinor,
+          method: input.method,
+        },
+        at,
+      );
+      await this.audited(tx, context, 'client_invoice.payment_recorded', id, {
+        amount_minor: input.amountMinor,
+        method: input.method,
+        state: outcome.state,
+      });
+      return this.view(tx, org, { ...row, ...change } as ClientInvoiceRow);
+    });
+  }
+
+  /** Draft only; whatever its lines hold is released. */
+  async voidInvoice(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+    body: unknown,
+    meta: RequestMeta = {},
+  ): Promise<InvoiceView> {
+    this.requireManage(principal, context);
+    const reason = validateReason(body);
+    const org = context.organizationId;
+    const at = this.now();
+    return this.options.database.transaction(context, async (tx) => {
+      const row = await this.repo.findInvoice(tx, org, id, true);
+      if (row === null) throw notFound();
+      const next = nextInvoiceState(row.state, 'void');
+      if (next === null) throw conflict(`invalid_transition:${row.state}->void`);
+      const lines = await this.repo.lines(tx, org, id);
+      await this.repo.releaseLinks(
+        tx,
+        org,
+        id,
+        lines.map((l) => l.id),
+      );
+      const change: InvoiceChange = {
+        state: next,
+        voidedAt: at,
+        voidReason: reason,
+        version: row.version + 1,
+        updatedAt: at,
+      };
+      await this.repo.updateInvoice(tx, org, id, change);
+      await this.event(tx, context, id, 'voided', 'member', meta, {}, at);
+      await this.audited(tx, context, 'client_invoice.voided', id, { previous_state: row.state });
+      return this.view(tx, org, { ...row, ...change } as ClientInvoiceRow);
+    });
+  }
+
+  async creditNote(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+    body: unknown,
+    meta: RequestMeta = {},
+  ): Promise<InvoiceView> {
+    this.requireManage(principal, context);
+    const input = validateCreditNote(body);
+    const org = context.organizationId;
+    const at = this.now();
+    return this.options.database.transaction(context, async (tx) => {
+      const row = await this.repo.findInvoice(tx, org, id, true);
+      if (row === null) throw notFound();
+      if (!isCreditable(row.state)) throw conflict(`not_creditable:${row.state}`);
+      const sources: readonly LineInput[] =
+        input.lines ??
+        (await this.repo.lines(tx, org, id)).map((l) => ({
+          id: null,
+          descriptionEn: l.descriptionEn,
+          descriptionAr: l.descriptionAr,
+          quantityCenti: 100,
+          unit: 'item',
+          // The line as issued: its discounted net, at its tax rate.
+          unitPriceMinor: Number(l.lineNetMinor),
+          discountBp: 0,
+          taxBp: l.taxBp,
+        }));
+      const already = (await this.repo.creditNotes(tx, org, id)).reduce(
+        (sum, note) => sum + Number(note.totalMinor),
+        0,
+      );
+      let totals;
+      try {
+        totals = creditNoteTotals(sources.map(lineInputOf), Number(row.totalMinor), already);
+      } catch (error) {
+        if (error instanceof MoneyError) throw invalid('lines', 'credit_exceeds_invoice_total');
+        throw error;
+      }
+      const issued = await this.options.sequences.nextNumber(tx, org, 'credit_note', at);
+      const noteId = uuidv7();
+      const noteLines: ClientCreditNoteLineRow[] = sources.map((line, position) => ({
+        id: uuidv7(),
+        organizationId: org,
+        creditNoteId: noteId,
+        position,
+        descriptionEn: line.descriptionEn,
+        descriptionAr: line.descriptionAr,
+        quantityCenti: line.quantityCenti,
+        unit: line.unit,
+        unitPriceMinor: line.unitPriceMinor,
+        taxBp: line.taxBp,
+        lineNetMinor: totals.lines[position]!.lineNetMinor,
+        lineTaxMinor: totals.lines[position]!.lineTaxMinor,
+        lineGrossMinor: totals.lines[position]!.lineGrossMinor,
+        createdAt: at,
+      }));
+      const note: ClientCreditNoteRow = {
+        id: noteId,
+        organizationId: org,
+        invoiceId: id,
+        number: issued.number,
+        reason: input.reason,
+        subtotalMinor: totals.subtotalMinor,
+        taxMinor: totals.taxMinor,
+        totalMinor: totals.totalMinor,
+        contentHash: createHash('sha256')
+          .update(
+            JSON.stringify([
+              issued.number,
+              row.number,
+              input.reason,
+              noteLines.map((l) => [
+                l.position,
+                l.descriptionEn,
+                l.descriptionAr,
+                l.quantityCenti,
+                l.unitPriceMinor,
+                l.taxBp,
+                l.lineNetMinor,
+                l.lineTaxMinor,
+              ]),
+              totals.totalMinor,
+            ]),
+            'utf8',
+          )
+          .digest('hex'),
+        pdfFileAssetId: null,
+        xmlFileAssetId: null,
+        issuedAt: at,
+        createdBy: context.userId,
+        createdAt: at,
+      };
+      await this.repo.insertCreditNote(tx, note, noteLines);
+      const full = already + totals.totalMinor >= Number(row.totalMinor);
+      const change: InvoiceChange = { version: row.version + 1, updatedAt: at };
+      if (full) change.state = nextInvoiceState(row.state, 'credit_full') ?? row.state;
+      await this.repo.updateInvoice(tx, org, id, change);
+      await this.event(
+        tx,
+        context,
+        id,
+        'credited',
+        'member',
+        meta,
+        {
+          credit_note: issued.number,
+          total_minor: totals.totalMinor,
+          full,
+        },
+        at,
+      );
+      await this.audited(tx, context, 'client_invoice.credited', id, {
+        credit_note_number: issued.number,
+        total_minor: totals.totalMinor,
+        full,
+      });
+      return this.view(tx, org, { ...row, ...change } as ClientInvoiceRow);
+    });
+  }
+
+  /** A templated EN/AR reminder; one per invoice per day. */
+  async reminder(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+    body: unknown,
+    meta: SendMeta,
+  ): Promise<{ readonly sent: true; readonly recipients: number }> {
+    this.requireManage(principal, context);
+    const org = context.organizationId;
+    const at = this.now();
+    const raw = (body ?? {}) as Record<string, unknown>;
+    const view = await this.options.database.transaction(context, async (tx) => {
+      const row = await this.repo.findInvoice(tx, org, id, true);
+      if (row === null) throw notFound();
+      if (row.state !== 'sent' && row.state !== 'partially_paid') {
+        throw conflict(`not_open:${row.state}`);
+      }
+      const since = new Date(`${isoDay(at)}T00:00:00.000Z`);
+      if (await this.repo.hasEventSince(tx, org, id, 'reminder_sent', since)) {
+        throw new ApiError(
+          429,
+          'rate_limited',
+          'A reminder for this invoice was already sent today.',
+        );
+      }
+      let to: string[];
+      if (Array.isArray(raw['to']) && raw['to'].length > 0) {
+        to = validateSend({ to: raw['to'] }).to as string[];
+      } else {
+        const client = await this.repo.clientBilling(tx, org, row.clientOrganizationId);
+        if (client?.billingEmail === null || client?.billingEmail === undefined) {
+          throw invalid('to', 'the client has no billing e-mail; name a recipient');
+        }
+        to = [validateEmail(client.billingEmail, 'to')];
+      }
+      await this.event(
+        tx,
+        context,
+        id,
+        'reminder_sent',
+        'member',
+        meta,
+        { recipients: to.length },
+        at,
+      );
+      await this.audited(tx, context, 'client_invoice.reminder_sent', id, {
+        recipient_count: to.length,
+      });
+      return { view: await this.view(tx, org, row), to };
+    });
+    await this.deliver(view.to, view.view, meta.orgSlug, 'reminder', null);
+    return { sent: true, recipients: view.to.length };
+  }
+
+  // ---- portal (client_projection.read) ----
+
+  async portalList(
+    context: TenantContext,
+    principal: Principal,
+  ): Promise<{ readonly invoices: readonly PortalInvoiceSummary[] }> {
+    const clientOrg = this.portalClient(principal, null);
+    return this.options.database.read(context, async (r) => {
+      const rows = await this.repo.listInvoices(r, context.organizationId, {
+        state: null,
+        clientOrganizationId: clientOrg,
+        cursor: null,
+        excludeDrafts: true,
+        limit: 200,
+      });
+      return {
+        invoices: rows
+          .filter(
+            (row) => row.clientOrganizationId === clientOrg && !PORTAL_HIDDEN_STATES.has(row.state),
+          )
+          .map((row) => portalHeader(row)),
+      };
+    });
+  }
+
+  /** The projection; the first read stamps `viewed_at` and the `viewed` event once. */
+  async portalGet(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+    meta: RequestMeta = {},
+  ): Promise<PortalInvoiceView> {
+    const org = context.organizationId;
+    const at = this.now();
+    return this.options.database.transaction(context, async (tx) => {
+      const row = await this.repo.findInvoice(tx, org, id);
+      if (row === null || PORTAL_HIDDEN_STATES.has(row.state)) throw notFound();
+      this.portalClient(principal, row.clientOrganizationId);
+      if (row.viewedAt === null) {
+        await this.repo.updateInvoice(tx, org, id, { viewedAt: at });
+        await this.event(tx, context, id, 'viewed', 'client', meta, {}, at);
+      }
+      const showNames = (await this.repo.setting(tx, org, PORTAL_SHOW_NAMES_SETTING_KEY)) === 'on';
+      const lines = await this.repo.lines(tx, org, id);
+      const payments = await this.repo.payments(tx, org, id);
+      return {
+        ...portalHeader(row),
+        notes: row.notesText,
+        lines: lines.map((l) => ({
+          description: portalDescription(l, row.language, showNames),
+          quantity: l.quantityCenti / 100,
+          unit: l.unit,
+          unitPriceMinor: Number(l.unitPriceMinor),
+          taxBp: l.taxBp,
+          netMinor: Number(l.lineNetMinor),
+          grossMinor: Number(l.lineGrossMinor),
+        })),
+        payments: payments.map((p) => ({
+          paidOn: p.paidOn,
+          amountMinor: Number(p.amountMinor),
+          method: p.method,
+        })),
+      };
+    });
+  }
+
+  /**
+   * The client principal's organization when it may read invoices (a client admin or member with
+   * `client_projection.read`) and, for one invoice, when it is its own. Anything else is a 404.
+   */
+  private portalClient(principal: Principal, invoiceClientOrg: string | null): string {
+    const own = principal.clientOrganizationId;
+    if (principal.kind !== 'client' || own === null || !PORTAL_ROLES.has(principal.role)) {
+      throw notFound();
+    }
+    if (invoiceClientOrg !== null && invoiceClientOrg !== own) throw notFound();
+    const allowed = authorize({
+      principal,
+      capability: 'client_projection.read',
+      resource: {
+        organizationId: principal.organizationId,
+        projectId: null,
+        audience: 'client_visible',
+        clientOrganizationId: own,
+        lifecycle: 'active',
+      },
+    }).allowed;
+    if (!allowed) throw notFound();
+    return own;
+  }
+
+  // ---- helpers ----
+
+  private async view(
+    r: TenantQueryRunner,
+    org: string,
+    row: ClientInvoiceRow,
+  ): Promise<InvoiceView> {
+    const today = isoDay(this.now());
+    const lines = await this.repo.lines(r, org, row.id);
+    const payments = await this.repo.payments(r, org, row.id);
+    const notes = await this.repo.creditNotes(r, org, row.id);
+    const totals = invoiceTotals(lines.map(lineInputOf));
+    const total = Number(row.totalMinor);
+    return {
+      ...invoiceSummary(row, today),
+      projectId: row.projectId,
+      retainerPeriodId: row.retainerPeriodId,
+      quoteId: row.quoteId,
+      language: row.language,
+      documentLabel: row.documentLabel,
+      supplyDate: row.supplyDate,
+      periodStart: row.periodStart,
+      periodEnd: row.periodEnd,
+      baseCurrency: row.baseCurrency,
+      fxRate: row.fxRate,
+      subtotalMinor: Number(row.subtotalMinor),
+      discountMinor: Number(row.discountMinor),
+      taxMinor: Number(row.taxMinor),
+      depositAppliedMinor: Number(row.depositAppliedMinor),
+      taxByRate: totals.taxByRate,
+      amountInWords: {
+        en: amountInWords(Math.max(0, total), row.currency, 'en'),
+        ar: amountInWords(Math.max(0, total), row.currency, 'ar'),
+      },
+      poNumber: row.poNumber,
+      notes: row.notesText,
+      internalNote: row.internalNote,
+      terms: row.termsText,
+      contentHash: row.contentHash,
+      sentAt: row.sentAt?.toISOString() ?? null,
+      sentTo: row.sentTo,
+      viewedAt: row.viewedAt?.toISOString() ?? null,
+      paidAt: row.paidAt?.toISOString() ?? null,
+      voidedAt: row.voidedAt?.toISOString() ?? null,
+      voidReason: row.voidReason,
+      version: row.version,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+      lines: lines.map(lineView),
+      payments: payments.map((p) => ({
+        id: p.id,
+        paidOn: p.paidOn,
+        amountMinor: Number(p.amountMinor),
+        method: p.method,
+        reference: p.reference,
+        note: p.note,
+      })),
+      creditNotes: notes.map((n) => ({
+        id: n.id,
+        number: n.number,
+        reason: n.reason,
+        totalMinor: Number(n.totalMinor),
+        issuedAt: n.issuedAt.toISOString(),
+      })),
+      pdf: null,
+    };
+  }
+
+  /** The row, locked, when it is a draft: 404 when absent, 409 when issued. */
+  private async draft(tx: TenantQueryRunner, org: string, id: string): Promise<ClientInvoiceRow> {
+    const row = await this.repo.findInvoice(tx, org, id, true);
+    if (row === null) throw notFound();
+    if (row.state !== 'draft') throw conflict('not_draft');
+    return row;
+  }
+
+  /** The header money recomputed from the stored lines. */
+  private async totals(
+    tx: TenantQueryRunner,
+    org: string,
+    id: string,
+  ): Promise<
+    Pick<ClientInvoiceRow, 'subtotalMinor' | 'discountMinor' | 'taxMinor' | 'totalMinor'>
+  > {
+    const totals = invoiceTotals((await this.repo.lines(tx, org, id)).map(lineInputOf));
+    return {
+      subtotalMinor: totals.subtotalMinor,
+      discountMinor: totals.discountMinor,
+      taxMinor: totals.taxMinor,
+      totalMinor: totals.totalMinor,
+    };
+  }
+
+  /** A PUT's lines: named ones are edited (their source kept), new ones are manual, the rest go. */
+  private async replaceLines(
+    tx: TenantQueryRunner,
+    org: string,
+    invoiceId: string,
+    inputs: readonly LineInput[],
+    at: Date,
+  ): Promise<void> {
+    const existing = new Map((await this.repo.lines(tx, org, invoiceId)).map((l) => [l.id, l]));
+    const kept = new Set<string>();
+    const fresh: ClientInvoiceLineRow[] = [];
+    for (const [position, input] of inputs.entries()) {
+      const amounts = invoiceTotals([lineInputOf(input)]).lines[0]!;
+      const values = {
+        position,
+        descriptionEn: input.descriptionEn,
+        descriptionAr: input.descriptionAr,
+        quantityCenti: input.quantityCenti,
+        unit: input.unit,
+        unitPriceMinor: input.unitPriceMinor,
+        discountBp: input.discountBp,
+        taxBp: input.taxBp,
+        lineDiscountMinor: amounts.lineDiscountMinor,
+        lineNetMinor: amounts.lineNetMinor,
+        lineTaxMinor: amounts.lineTaxMinor,
+        lineGrossMinor: amounts.lineGrossMinor,
+      };
+      if (input.id !== null) {
+        if (!existing.has(input.id))
+          throw invalid(`lines[${String(position)}].id`, 'not a line of this invoice');
+        kept.add(input.id);
+        await this.repo.updateLine(tx, org, input.id, values);
+      } else {
+        fresh.push({
+          id: uuidv7(),
+          organizationId: org,
+          invoiceId,
+          sourceType: 'manual',
+          taxRateId: null,
+          taxCategory: null,
+          groupKey: null,
+          sourceIdsJson: null,
+          createdAt: at,
+          ...values,
+        });
+      }
+    }
+    await this.repo.deleteLines(
+      tx,
+      org,
+      invoiceId,
+      [...existing.keys()].filter((lineId) => !kept.has(lineId)),
+    );
+    await this.repo.insertLines(tx, fresh);
+  }
+
+  private lineRow(
+    org: string,
+    invoiceId: string,
+    position: number,
+    line: PulledLine,
+    at: Date,
+  ): ClientInvoiceLineRow {
+    const amounts = invoiceTotals([line]).lines[0]!;
+    return {
+      id: uuidv7(),
+      organizationId: org,
+      invoiceId,
+      position,
+      sourceType: line.sourceType,
+      descriptionEn: line.descriptionEn,
+      descriptionAr: line.descriptionAr,
+      quantityCenti: line.quantityCenti,
+      unit: line.unit,
+      unitPriceMinor: line.unitPriceMinor,
+      discountBp: line.discountBp,
+      taxRateId: null,
+      taxBp: line.taxBp,
+      taxCategory: null,
+      lineDiscountMinor: amounts.lineDiscountMinor,
+      lineNetMinor: amounts.lineNetMinor,
+      lineTaxMinor: amounts.lineTaxMinor,
+      lineGrossMinor: amounts.lineGrossMinor,
+      groupKey: line.groupKey,
+      sourceIdsJson: line.sourceIds.length === 0 ? null : JSON.stringify(line.sourceIds),
+      createdAt: at,
+    };
+  }
+
+  /** A pulled line's sources, linked at send; one already taken by another invoice is a 409. */
+  private async link(
+    tx: TenantQueryRunner,
+    org: string,
+    invoiceId: string,
+    line: ClientInvoiceLineRow,
+    at: Date,
+  ): Promise<void> {
+    const ids = sourceIdsOf(line.sourceIdsJson);
+    if (ids.length === 0) return;
+    let linked = 0;
+    if (line.sourceType === 'time') linked = await this.repo.linkTimeLogs(tx, org, ids, line.id);
+    else if (line.sourceType === 'expense')
+      linked = await this.repo.linkExpenses(tx, org, ids, line.id, at);
+    else if (line.sourceType === 'retainer') {
+      linked = await this.repo.linkRetainerPeriod(tx, org, ids[0]!, invoiceId);
+      if (linked === 1) return;
+    } else return;
+    if (linked !== ids.length) throw conflict('source_already_invoiced', 'lines');
+  }
+
+  private async refuseLocked(tx: TenantQueryRunner, org: string, day: string): Promise<void> {
+    if ((await this.repo.locksHolding(tx, org, day)).length > 0) throw periodLocked();
+  }
+
+  private async rateFor(
+    tx: TenantQueryRunner,
+    org: string,
+    base: string,
+    currency: string,
+    day: string,
+  ): Promise<string | null> {
+    if (currency === base) return null;
+    const direct = await this.repo.exchangeRate(tx, org, base, currency, day);
+    if (direct !== null) return direct;
+    const inverse = await this.repo.exchangeRate(tx, org, currency, base, day);
+    const rate = inverse === null ? null : invertRate(inverse);
+    if (rate === null) throw invalid('currency', 'no_exchange_rate_for_currency');
+    return rate;
+  }
+
+  private async profile(tx: TenantQueryRunner, org: string): Promise<FinanceProfileValues> {
+    const profile = await this.options.finance.profile(tx, org);
+    if (profile !== null) return profile;
+    return defaultProfile(await this.options.finance.organization(tx, org));
+  }
+
+  private stepUpFresh(context: TenantContext, meta: SendMeta): boolean {
+    const secret = this.options.sessionSecret;
+    if (secret === undefined || meta.reauthToken === undefined || meta.sessionId === undefined) {
+      return false;
+    }
+    const verified = verifyReauthToken(meta.reauthToken, secret, this.now().getTime());
+    return (
+      verified.ok &&
+      verified.claims.userId === context.userId &&
+      verified.claims.sessionId === meta.sessionId
+    );
+  }
+
+  private async deliver(
+    to: readonly string[],
+    view: InvoiceView,
+    orgSlug: string,
+    kind: 'invoice' | 'reminder',
+    message: string | null,
+  ): Promise<void> {
+    if (this.mailer === null || to.length === 0) return;
+    const base = (this.options.webPublicUrl ?? '').replace(/\/+$/u, '');
+    const link = `${base}/${encodeURIComponent(orgSlug)}/portal/invoices/${encodeURIComponent(view.id)}`;
+    for (const recipient of to) {
+      try {
+        await this.mailer.send(composeInvoiceEmail({ to: recipient, view, link, kind, message }));
+      } catch {
+        // A mail failure never undoes an issued invoice; the timeline already holds the send.
+      }
+    }
+  }
+
+  private async event(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    invoiceId: string,
+    kind: string,
+    actorKind: 'member' | 'client' | 'system',
+    meta: RequestMeta | null,
+    payload: Readonly<Record<string, string | number | boolean | null>>,
+    at: Date,
+  ): Promise<void> {
+    await this.repo.insertEvent(tx, {
+      id: uuidv7(),
+      organizationId: context.organizationId,
+      invoiceId,
+      kind,
+      actorKind,
+      actorId: context.userId,
+      ip: meta?.ip?.slice(0, 45) ?? null,
+      ua: meta?.userAgent?.slice(0, 255) ?? null,
+      payloadJson: Object.keys(payload).length === 0 ? null : JSON.stringify(payload),
+      createdAt: at,
+    });
+  }
+
+  private async audited(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    action: AuditAction,
+    objectId: string,
+    metadata: Readonly<Record<string, string | number | boolean | null>>,
+  ): Promise<void> {
+    await this.options.audit.record(tx, context, {
+      action,
+      result: 'allowed',
+      objectId,
+      actorUserId: context.userId,
+      metadata,
+      changes: [],
+    });
+  }
+
+  private allows(principal: Principal, context: TenantContext, capability: Capability): boolean {
+    return authorize({
+      principal,
+      capability,
+      resource: {
+        organizationId: context.organizationId,
+        projectId: null,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    }).allowed;
+  }
+
+  private requireView(principal: Principal, context: TenantContext): void {
+    if (principal.kind !== 'internal') throw forbidden('client_invoice.internal_only');
+    if (!this.allows(principal, context, FINANCE_VIEW)) throw forbidden('client_invoice.view');
+  }
+
+  private requireManage(principal: Principal, context: TenantContext): void {
+    if (principal.kind !== 'internal') throw forbidden('client_invoice.internal_only');
+    if (!this.allows(principal, context, FINANCE_MANAGE)) throw forbidden('client_invoice.manage');
+  }
+}
+
+// ── projections and rendering ────────────────────────────────────────────────
+
+function portalHeader(row: ClientInvoiceRow): PortalInvoiceSummary {
+  return {
+    id: row.id,
+    number: row.number,
+    kind: row.kind,
+    language: row.language,
+    state: row.state,
+    documentLabel: row.documentLabel,
+    issueDate: row.issueDate,
+    dueDate: row.dueDate,
+    currency: row.currency,
+    subtotalMinor: Number(row.subtotalMinor),
+    discountMinor: Number(row.discountMinor),
+    taxMinor: Number(row.taxMinor),
+    totalMinor: Number(row.totalMinor),
+    paidMinor: Number(row.paidMinor),
+    amountDueMinor: dueOf(row),
+  };
+}
+
+/** The description in the invoice's language; a by-person line names nobody unless allowed. */
+function portalDescription(
+  line: ClientInvoiceLineRow,
+  language: string,
+  showNames: boolean,
+): string {
+  if (line.groupKey?.startsWith('person:') === true && !showNames) {
+    return language === 'ar' ? PERSON_LINE_AR : PERSON_LINE_EN;
+  }
+  const en = line.descriptionEn ?? line.descriptionAr ?? '';
+  const ar = line.descriptionAr ?? line.descriptionEn ?? '';
+  if (language === 'ar') return ar;
+  if (language === 'en') return en;
+  return en === ar ? en : `${en} / ${ar}`;
+}
+
+function formatMinor(amountMinor: number, currency: string): string {
+  const digits = currencyDigits(currency);
+  const negative = amountMinor < 0;
+  const text = String(Math.abs(amountMinor)).padStart(digits + 1, '0');
+  const whole = digits === 0 ? text : text.slice(0, -digits);
+  const fraction = digits === 0 ? '' : `.${text.slice(-digits)}`;
+  return `${negative ? '-' : ''}${whole.replace(/\B(?=(\d{3})+(?!\d))/gu, ',')}${fraction} ${currency}`;
+}
+
+export function composeInvoiceEmail(facts: {
+  readonly to: string;
+  readonly view: InvoiceView;
+  readonly link: string;
+  readonly kind: 'invoice' | 'reminder';
+  readonly message: string | null;
+}): MailMessage {
+  const { view, link } = facts;
+  const arabic = view.language === 'ar';
+  const number = view.number ?? '';
+  const amount = formatMinor(view.amountDueMinor, view.currency);
+  const due = view.dueDate ?? '';
+  const copy = arabic
+    ? {
+        subject: facts.kind === 'invoice' ? `فاتورة ${number}` : `تذكير بالدفع — فاتورة ${number}`,
+        eyebrow: 'فاتورة',
+        heading: facts.kind === 'invoice' ? `فاتورة ${number}` : `تذكير بالفاتورة ${number}`,
+        intro:
+          facts.kind === 'invoice'
+            ? `المبلغ المستحق ${amount} بتاريخ ${due}.`
+            : `ما زال مبلغ ${amount} مستحقًا منذ ${due}.`,
+        button: 'عرض الفاتورة',
+        fallback: 'إذا لم يعمل الزر، انسخ هذا الرابط إلى متصفحك:',
+        note: 'تفتح الفاتورة في بوابة العميل بعد تسجيل الدخول.',
+        footer: 'وصلتك هذه الرسالة لأنك مدرج كجهة استلام لفواتير هذا الحساب.',
+        labelAmount: 'المبلغ المستحق',
+        labelDue: 'تاريخ الاستحقاق',
+        labelMessage: 'رسالة',
+      }
+    : {
+        subject:
+          facts.kind === 'invoice' ? `Invoice ${number}` : `Payment reminder — invoice ${number}`,
+        eyebrow: 'Invoice',
+        heading: facts.kind === 'invoice' ? `Invoice ${number}` : `Reminder: invoice ${number}`,
+        intro:
+          facts.kind === 'invoice'
+            ? `${amount} is due on ${due}.`
+            : `${amount} has been due since ${due}.`,
+        button: 'View the invoice',
+        fallback: 'Button not working? Copy this link into your browser:',
+        note: 'The invoice opens in the client portal after you sign in.',
+        footer: 'You received this because you are a billing contact for this account.',
+        labelAmount: 'Amount due',
+        labelDue: 'Due date',
+        labelMessage: 'Message',
+      };
+  const rows = [
+    { label: copy.labelAmount, value: amount },
+    { label: copy.labelDue, value: due },
+    ...(facts.message === null ? [] : [{ label: copy.labelMessage, value: facts.message }]),
+  ];
+  return {
+    to: facts.to,
+    subject: copy.subject,
+    text: [
+      copy.heading,
+      copy.intro,
+      ...(facts.message === null ? [] : [facts.message]),
+      `${copy.button}: ${link}`,
+      copy.note,
+      copy.footer,
+    ].join('\n\n'),
+    html: renderActionEmail({
+      arabic,
+      link,
+      rows,
+      subject: copy.subject,
+      eyebrow: copy.eyebrow,
+      heading: copy.heading,
+      intro: copy.intro,
+      button: copy.button,
+      fallback: copy.fallback,
+      note: copy.note,
+      footer: copy.footer,
+    }),
+  };
+}
+
+/** The print view: escaped plain text in a minimal A4 page; both columns when 'bi'. */
+export function renderPrint(view: InvoiceView, language: 'en' | 'ar' | 'bi'): string {
+  const e = escapeHtml;
+  const en = language !== 'ar';
+  const ar = language !== 'en';
+  const label = (english: string, arabic: string): string =>
+    [en ? e(english) : '', ar ? `<span lang="ar" dir="rtl">${e(arabic)}</span>` : '']
+      .filter((s) => s !== '')
+      .join(' / ');
+  const money = (minor: number): string => e(formatMinor(minor, view.currency));
+  const rows = view.lines
+    .map((l) => {
+      const description = [
+        en && l.descriptionEn !== null ? e(l.descriptionEn) : '',
+        ar && l.descriptionAr !== null
+          ? `<div lang="ar" dir="rtl">${e(l.descriptionAr)}</div>`
+          : '',
+      ].join('');
+      return `<tr><td>${description}</td><td>${e(String(l.quantity))} ${e(l.unit)}</td><td>${money(
+        l.unitPriceMinor,
+      )}</td><td>${e(String(l.taxBp / 100))}%</td><td>${money(l.lineGrossMinor)}</td></tr>`;
+    })
+    .join('');
+  const words = [
+    en ? e(view.amountInWords.en) : '',
+    ar ? `<div lang="ar" dir="rtl">${e(view.amountInWords.ar)}</div>` : '',
+  ].join('');
+  return [
+    '<!doctype html>',
+    `<html lang="${language === 'ar' ? 'ar' : 'en'}" dir="${language === 'ar' ? 'rtl' : 'ltr'}">`,
+    '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">',
+    `<title>${e(view.number ?? 'Draft')}</title>`,
+    '<style>body{font-family:Manrope,Tahoma,Arial,sans-serif;margin:24px;color:#090a09}table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #e9e9e5;padding:6px;text-align:start;vertical-align:top}@page{size:A4;margin:16mm}</style>',
+    '</head><body>',
+    `<h1>${label('Invoice', 'فاتورة')} ${e(view.number ?? '')}</h1>`,
+    `<p>${label('Issue date', 'تاريخ الإصدار')}: ${e(view.issueDate ?? '')} — ${label('Due date', 'تاريخ الاستحقاق')}: ${e(view.dueDate ?? '')}</p>`,
+    `<table><thead><tr><th>${label('Description', 'الوصف')}</th><th>${label('Qty', 'الكمية')}</th><th>${label('Unit price', 'سعر الوحدة')}</th><th>${label('Tax', 'الضريبة')}</th><th>${label('Amount', 'المبلغ')}</th></tr></thead><tbody>${rows}</tbody></table>`,
+    `<p>${label('Subtotal', 'المجموع الفرعي')}: ${money(view.subtotalMinor)}</p>`,
+    `<p>${label('Discount', 'الخصم')}: ${money(view.discountMinor)}</p>`,
+    `<p>${label('Tax', 'الضريبة')}: ${money(view.taxMinor)}</p>`,
+    `<p><strong>${label('Total', 'الإجمالي')}: ${money(view.totalMinor)}</strong></p>`,
+    `<p>${label('Amount due', 'المبلغ المستحق')}: ${money(view.amountDueMinor)}</p>`,
+    `<div>${words}</div>`,
+    view.terms === null ? '' : `<p style="white-space:pre-wrap">${e(view.terms)}</p>`,
+    view.notes === null ? '' : `<p style="white-space:pre-wrap">${e(view.notes)}</p>`,
+    view.contentHash === null
+      ? ''
+      : `<p style="font-size:10px;color:#74786f">${e(view.contentHash)}</p>`,
+    '</body></html>',
+  ].join('\n');
+}

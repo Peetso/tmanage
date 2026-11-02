@@ -1243,6 +1243,16 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // through their own context (skip); the in-process spawner (API, `tmanage_app`) reads rule ids
   // across organizations once, then writes every row under a service context naming the org.
   work_item_recurrence_instances: 'organization_id',
+  // ---- R18-a · 52-09 ----
+  // 0301. Tenant-owned: client invoices, their lines, payments, credit notes (and lines) and the
+  // timeline. Reached by members through their own context (finance.view / finance.manage) and by
+  // client principals through the portal projection; the worker never reads them.
+  client_invoices: 'organization_id',
+  client_invoice_lines: 'organization_id',
+  client_invoice_payments: 'organization_id',
+  client_credit_notes: 'organization_id',
+  client_credit_note_lines: 'organization_id',
+  client_invoice_events: 'organization_id',
 });
 
 /**

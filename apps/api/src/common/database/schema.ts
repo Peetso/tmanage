@@ -4925,6 +4925,10 @@ export interface OrgPolicyValue {
   readonly 'pat.max_expiry_days'?: number;
   readonly 'pat.allow_no_expiry'?: boolean;
   readonly 'pat.allowed_scopes'?: readonly string[];
+  /** R18-e (56-25). Sign-in policy; absent = every method, nobody required, no grace. */
+  readonly 'signin.allowed_methods'?: readonly string[];
+  readonly 'security.require_two_step_roles'?: string;
+  readonly 'security.two_step_grace_until'?: string;
 }
 
 /**
@@ -7323,6 +7327,19 @@ export const incidents = mysqlTable(
     resolvedAt: datetime('resolved_at', { mode: 'date', fsp: 3 }),
     published: boolean('published').notNull().default(false),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- 56-13 incident register (0302, R18-f) ---- never public: the status read lists its columns.
+    severity: varchar('severity', { length: 4 }).notNull().default('SEV3'),
+    detectedAt: datetime('detected_at', { mode: 'date', fsp: 3 }),
+    containedAt: datetime('contained_at', { mode: 'date', fsp: 3 }),
+    affectedOrgIdsJson: text('affected_org_ids_json'),
+    dataCategoriesJson: text('data_categories_json'),
+    countriesJson: text('countries_json'),
+    personalData: boolean('personal_data').notNull().default(false),
+    notifiedAuthorityAt: datetime('notified_authority_at', { mode: 'date', fsp: 3 }),
+    notifiedCustomersAt: datetime('notified_customers_at', { mode: 'date', fsp: 3 }),
+    postmortemUrl: varchar('postmortem_url', { length: 512 }),
+    createdBy: char('created_by', { length: 36 }),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }),
   },
   (table) => [index('ix_incidents_published_started').on(table.published, table.startedAt)],
 );
@@ -9267,6 +9284,10 @@ export interface DisplayPreferences {
   readonly locale: DisplayLocale;
   readonly timezone: DisplayTimezone;
   readonly dateFormat: DisplayDateFormat;
+  /** 55-07 (R18-d). Optional: rows saved before 55-07 lack it and read as `'latin'`. */
+  readonly numerals?: 'latin' | 'arabic_indic';
+  /** 55-07 (R18-d). Display-only Hijri beside Gregorian; absent reads as `'gregorian'`. */
+  readonly calendarDisplay?: 'gregorian' | 'gregorian_hijri';
 }
 
 /**
@@ -12462,4 +12483,247 @@ export type WorkItemRecurrenceInstanceRow = typeof workItemRecurrenceInstances.$
 
 Object.assign(TABLES, {
   work_item_recurrence_instances: workItemRecurrenceInstances,
+});
+
+// ---- R18-a · 52-09 client invoices (0301) ----
+
+export const CLIENT_INVOICE_STATES = [
+  'draft',
+  'sent',
+  'partially_paid',
+  'paid',
+  'void',
+  'credited',
+] as const;
+export type ClientInvoiceState = (typeof CLIENT_INVOICE_STATES)[number];
+
+/**
+ * 52-09 (0301). A client invoice. TENANT. Closed lists (`kind`, `language`, `state`) are checked in
+ * `modules/finance/client-invoices-rules.ts`. `number` is NULL while draft and assigned at send; the
+ * 0301 trigger freezes the money, dates, client, number and snapshots once `state <> 'draft'`.
+ */
+export const clientInvoices = mysqlTable(
+  'client_invoices',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    clientOrganizationId: char('client_organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }),
+    retainerPeriodId: char('retainer_period_id', { length: 36 }),
+    quoteId: char('quote_id', { length: 36 }),
+    number: varchar('number', { length: 32 }),
+    kind: varchar('kind', { length: 16 }).notNull().default('standard'),
+    language: varchar('language', { length: 2 }).notNull().default('bi'),
+    state: varchar('state', { length: 16 }).$type<ClientInvoiceState>().notNull().default('draft'),
+    documentLabel: varchar('document_label', { length: 16 }).notNull().default('invoice'),
+    issueDate: date('issue_date', { mode: 'string' }),
+    dueDate: date('due_date', { mode: 'string' }),
+    supplyDate: date('supply_date', { mode: 'string' }),
+    periodStart: date('period_start', { mode: 'string' }),
+    periodEnd: date('period_end', { mode: 'string' }),
+    currency: char('currency', { length: 3 }).notNull(),
+    baseCurrency: char('base_currency', { length: 3 }).notNull(),
+    fxRate: decimal('fx_rate', { precision: 18, scale: 8 }),
+    subtotalMinor: bigint('subtotal_minor', { mode: 'number' }).notNull().default(0),
+    discountMinor: bigint('discount_minor', { mode: 'number' }).notNull().default(0),
+    taxMinor: bigint('tax_minor', { mode: 'number' }).notNull().default(0),
+    totalMinor: bigint('total_minor', { mode: 'number' }).notNull().default(0),
+    paidMinor: bigint('paid_minor', { mode: 'number' }).notNull().default(0),
+    depositAppliedMinor: bigint('deposit_applied_minor', { mode: 'number' }).notNull().default(0),
+    poNumber: varchar('po_number', { length: 64 }),
+    notesText: text('notes_text'),
+    internalNote: text('internal_note'),
+    termsText: text('terms_text'),
+    buyerSnapshotJson: text('buyer_snapshot_json'),
+    sellerSnapshotJson: text('seller_snapshot_json'),
+    contentHash: char('content_hash', { length: 64 }),
+    sendKeyHash: char('send_key_hash', { length: 64 }),
+    pdfFileAssetId: char('pdf_file_asset_id', { length: 36 }),
+    pdfFileVersionId: char('pdf_file_version_id', { length: 36 }),
+    xmlFileAssetId: char('xml_file_asset_id', { length: 36 }),
+    sentAt: datetime('sent_at', { mode: 'date', fsp: 3 }),
+    sentTo: varchar('sent_to', { length: 254 }),
+    viewedAt: datetime('viewed_at', { mode: 'date', fsp: 3 }),
+    paidAt: datetime('paid_at', { mode: 'date', fsp: 3 }),
+    voidedAt: datetime('voided_at', { mode: 'date', fsp: 3 }),
+    voidReason: varchar('void_reason', { length: 500 }),
+    exportedAt: datetime('exported_at', { mode: 'date', fsp: 3 }),
+    exportTarget: varchar('export_target', { length: 24 }),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_ci_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_ci_number').on(table.organizationId, table.number),
+    index('ix_ci_client_state').on(
+      table.organizationId,
+      table.clientOrganizationId,
+      table.state,
+      table.issueDate,
+    ),
+    index('ix_ci_due').on(table.organizationId, table.state, table.dueDate),
+  ],
+);
+
+/** 52-09 (0301). One line; `quantityCenti` is hundredths; amounts are server-computed. TENANT. */
+export const clientInvoiceLines = mysqlTable(
+  'client_invoice_lines',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    invoiceId: char('invoice_id', { length: 36 }).notNull(),
+    position: int('position').notNull(),
+    sourceType: varchar('source_type', { length: 16 }).notNull().default('manual'),
+    descriptionEn: varchar('description_en', { length: 500 }),
+    descriptionAr: varchar('description_ar', { length: 500 }),
+    quantityCenti: int('quantity_centi').notNull(),
+    unit: varchar('unit', { length: 12 }).notNull().default('item'),
+    unitPriceMinor: bigint('unit_price_minor', { mode: 'number' }).notNull(),
+    discountBp: int('discount_bp').notNull().default(0),
+    taxRateId: char('tax_rate_id', { length: 36 }),
+    taxBp: int('tax_bp').notNull().default(0),
+    taxCategory: varchar('tax_category', { length: 4 }),
+    lineDiscountMinor: bigint('line_discount_minor', { mode: 'number' }).notNull().default(0),
+    lineNetMinor: bigint('line_net_minor', { mode: 'number' }).notNull(),
+    lineTaxMinor: bigint('line_tax_minor', { mode: 'number' }).notNull(),
+    lineGrossMinor: bigint('line_gross_minor', { mode: 'number' }).notNull(),
+    groupKey: varchar('group_key', { length: 64 }),
+    sourceIdsJson: text('source_ids_json'),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_cil_org_id').on(table.organizationId, table.id),
+    index('ix_cil_invoice').on(table.organizationId, table.invoiceId, table.position),
+  ],
+);
+
+/** 52-09 (0301). A recorded payment. Append-only. TENANT. */
+export const clientInvoicePayments = mysqlTable(
+  'client_invoice_payments',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    invoiceId: char('invoice_id', { length: 36 }).notNull(),
+    paidOn: date('paid_on', { mode: 'string' }).notNull(),
+    amountMinor: bigint('amount_minor', { mode: 'number' }).notNull(),
+    currency: char('currency', { length: 3 }).notNull(),
+    method: varchar('method', { length: 16 }).notNull(),
+    reference: varchar('reference', { length: 120 }),
+    note: varchar('note', { length: 500 }),
+    recordedBy: char('recorded_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_cip_org_id').on(table.organizationId, table.id),
+    index('ix_cip_invoice').on(table.organizationId, table.invoiceId, table.paidOn),
+  ],
+);
+
+/** 52-09 (0301). A credit note with its own gapless number. Append-only. TENANT. */
+export const clientCreditNotes = mysqlTable(
+  'client_credit_notes',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    invoiceId: char('invoice_id', { length: 36 }).notNull(),
+    number: varchar('number', { length: 32 }).notNull(),
+    reason: varchar('reason', { length: 500 }).notNull(),
+    subtotalMinor: bigint('subtotal_minor', { mode: 'number' }).notNull(),
+    taxMinor: bigint('tax_minor', { mode: 'number' }).notNull(),
+    totalMinor: bigint('total_minor', { mode: 'number' }).notNull(),
+    contentHash: char('content_hash', { length: 64 }).notNull(),
+    pdfFileAssetId: char('pdf_file_asset_id', { length: 36 }),
+    xmlFileAssetId: char('xml_file_asset_id', { length: 36 }),
+    issuedAt: datetime('issued_at', { mode: 'date', fsp: 3 }).notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_ccn_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_ccn_number').on(table.organizationId, table.number),
+    index('ix_ccn_invoice').on(table.organizationId, table.invoiceId),
+  ],
+);
+
+/** 52-09 (0301). One line of a credit note. Append-only. TENANT. */
+export const clientCreditNoteLines = mysqlTable(
+  'client_credit_note_lines',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    creditNoteId: char('credit_note_id', { length: 36 }).notNull(),
+    position: int('position').notNull(),
+    descriptionEn: varchar('description_en', { length: 500 }),
+    descriptionAr: varchar('description_ar', { length: 500 }),
+    quantityCenti: int('quantity_centi').notNull(),
+    unit: varchar('unit', { length: 12 }).notNull().default('item'),
+    unitPriceMinor: bigint('unit_price_minor', { mode: 'number' }).notNull(),
+    taxBp: int('tax_bp').notNull().default(0),
+    lineNetMinor: bigint('line_net_minor', { mode: 'number' }).notNull(),
+    lineTaxMinor: bigint('line_tax_minor', { mode: 'number' }).notNull(),
+    lineGrossMinor: bigint('line_gross_minor', { mode: 'number' }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_ccnl_org_id').on(table.organizationId, table.id),
+    index('ix_ccnl_note').on(table.organizationId, table.creditNoteId, table.position),
+  ],
+);
+
+/** 52-09 (0301). The invoice timeline. Append-only. TENANT. */
+export const clientInvoiceEvents = mysqlTable(
+  'client_invoice_events',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    invoiceId: char('invoice_id', { length: 36 }).notNull(),
+    kind: varchar('kind', { length: 24 }).notNull(),
+    actorKind: varchar('actor_kind', { length: 8 }).notNull(),
+    actorId: char('actor_id', { length: 36 }),
+    ip: varchar('ip', { length: 45 }),
+    ua: varchar('ua', { length: 255 }),
+    payloadJson: text('payload_json'),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_cie_org_id').on(table.organizationId, table.id),
+    index('ix_cie_invoice').on(table.organizationId, table.invoiceId, table.kind, table.createdAt),
+  ],
+);
+
+/**
+ * 0301's eight billing columns on `client_organizations`, as a narrow mirror (the `timeLogPricing`
+ * pattern) so `clientOrganizations` and its fixtures keep their shape. Not in `TABLES`.
+ */
+export const clientOrganizationBilling = mysqlTable('client_organizations', {
+  id: char('id', { length: 36 }).primaryKey(),
+  organizationId: char('organization_id', { length: 36 }).notNull(),
+  name: varchar('name', { length: 190 }).notNull(),
+  legalNameEn: varchar('legal_name_en', { length: 200 }),
+  legalNameAr: varchar('legal_name_ar', { length: 200 }),
+  taxRegistrationNo: varchar('tax_registration_no', { length: 32 }),
+  billingAddressEn: varchar('billing_address_en', { length: 500 }),
+  billingAddressAr: varchar('billing_address_ar', { length: 500 }),
+  billingEmail: varchar('billing_email', { length: 254 }),
+  defaultCurrency: char('default_currency', { length: 3 }),
+  paymentTermsDays: int('payment_terms_days'),
+});
+
+export type ClientInvoiceRow = typeof clientInvoices.$inferSelect;
+export type ClientInvoiceLineRow = typeof clientInvoiceLines.$inferSelect;
+export type ClientInvoicePaymentRow = typeof clientInvoicePayments.$inferSelect;
+export type ClientCreditNoteRow = typeof clientCreditNotes.$inferSelect;
+export type ClientCreditNoteLineRow = typeof clientCreditNoteLines.$inferSelect;
+export type ClientInvoiceEventRow = typeof clientInvoiceEvents.$inferSelect;
+export type ClientOrganizationBillingRow = typeof clientOrganizationBilling.$inferSelect;
+
+Object.assign(TABLES, {
+  client_invoices: clientInvoices,
+  client_invoice_lines: clientInvoiceLines,
+  client_invoice_payments: clientInvoicePayments,
+  client_credit_notes: clientCreditNotes,
+  client_credit_note_lines: clientCreditNoteLines,
+  client_invoice_events: clientInvoiceEvents,
 });

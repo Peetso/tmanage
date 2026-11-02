@@ -1411,6 +1411,45 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'work_item',
     clause: '§12 53-09 / doc 25 §10 — the recurrence spawner created a work item for a series',
   },
+  // ---- R18-a · 52-09 client invoices ----
+  /** A draft invoice was created. Metadata: client org, kind, language, currency. */
+  'client_invoice.created': {
+    objectType: 'client_invoice',
+    clause: '§12 52-09 — a client invoice draft was created',
+  },
+  /** An invoice was issued. Metadata: number, total, currency, recipient count, mail or mark-sent. */
+  'client_invoice.sent': {
+    objectType: 'client_invoice',
+    clause: '§12 52-09 — a client invoice was numbered, frozen and sent (or marked sent)',
+  },
+  /** A payment was recorded. Metadata: amount, method, the state it moved to. */
+  'client_invoice.payment_recorded': {
+    objectType: 'client_invoice',
+    clause: '§12 52-09 — a payment against a client invoice was recorded',
+  },
+  /** A draft was voided; its source links were released. */
+  'client_invoice.voided': {
+    objectType: 'client_invoice',
+    clause: '§12 52-09 — a draft client invoice was voided',
+  },
+  /** A credit note was issued. Metadata: credit-note number, total, whether it credits in full. */
+  'client_invoice.credited': {
+    objectType: 'client_invoice',
+    clause: '§12 52-09 — a credit note was issued against a client invoice',
+  },
+  /** A manual payment reminder was mailed. Metadata: recipient count. */
+  'client_invoice.reminder_sent': {
+    objectType: 'client_invoice',
+    clause: '§12 52-09 — a payment reminder for a client invoice was sent',
+  },
+  /**
+   * 56-25 (R18-e). The sign-in policy changed: allowed methods and who must use two-step.
+   * Metadata: before/after method lists and scopes, and whether a grace period began. No names.
+   */
+  'org.sign_in_policy_changed': {
+    objectType: 'organization',
+    clause: '§12 policy change 56-25 — how members may sign in and who must use two-step',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1661,6 +1700,13 @@ const AUDIT_ACTION_LABELS = {
   'recurrence.ended': 'Ended a repeat rule',
   'recurrence.skipped': 'Skipped one occurrence of a repeat rule',
   'recurrence.spawned': 'Created the next task of a repeat rule',
+  'client_invoice.created': 'Created a client invoice draft',
+  'client_invoice.sent': 'Sent a client invoice',
+  'client_invoice.payment_recorded': 'Recorded a payment on a client invoice',
+  'client_invoice.voided': 'Voided a client invoice draft',
+  'client_invoice.credited': 'Issued a credit note',
+  'client_invoice.reminder_sent': 'Sent a payment reminder',
+  'org.sign_in_policy_changed': 'Changed the sign-in policy',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

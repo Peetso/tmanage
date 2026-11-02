@@ -396,6 +396,30 @@ export type { WorkingCalendar } from './calendar/working-calendar.js';
 export { HOLIDAY_PACKS, HOLIDAY_PACK_KEYS, holidayPack } from './calendar/holiday-packs.js';
 export type { HolidayPack, HolidayPackDay } from './calendar/holiday-packs.js';
 
+// Natural defaults + calm notification profile — 55-07 / 55-18 (R18-d)
+export {
+  DEFAULT_NOTIFICATION_PROFILE,
+  NOTIFICATION_PROFILES,
+  SUGGESTED_LEAD_MAX,
+  SUGGESTED_LEAD_MIN,
+  dateFormatFor,
+  isNotificationProfile,
+  isRequiredActionKind,
+  kindDeliveryFor,
+  medianLeadWorkingDays,
+  notificationDefaultsFor,
+  suggestDueDate,
+  workWeekForTimezone,
+} from './calendar/natural-defaults.js';
+export type {
+  DueDateSuggestion,
+  NaturalDateFormat,
+  NaturalNotificationKind,
+  NaturalWorkWeek,
+  NotificationProfile,
+  NotificationProfileDefaults,
+} from './calendar/natural-defaults.js';
+
 // Rates — 52-04 (R15-a)
 export * from './money/rates.js';
 export * from './integrations/channel-messages.js';
@@ -420,3 +444,16 @@ export * from './schedule/critical-path.js';
 
 // Recurring work v2 (RRULE subset) — 53-09 (R17-e)
 export * from './schedule/recurrence.js';
+
+// Incident response clocks — 56-13 (R18-f)
+export * from './security/incident-clocks.js';
+
+// Organization sign-in policy — 56-25 (R18-e)
+export * from './security/sign-in-policy.js';
+
+// Client invoices: totals, payments, aging, credit notes, amount in words — 52-09 (R18-a)
+export * from './money/invoicing.js';
+export * from './money/amount-in-words.js';
+
+// Quick-add parser, Arabic + English — 55-25 (R18-c)
+export * from './quick-add/index.js';

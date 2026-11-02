@@ -1,7 +1,9 @@
 import { Global, Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
-import { AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
+import { API_CONFIG, AUDIT_SERVICE, MAILER, TENANT_DATABASE } from '../../common/http/tokens.js';
+import type { ApiConfig } from '../../common/http/api-config.js';
+import type { Mailer } from '@tmanage/mail';
 import type { AuditService } from '../audit/audit.service.js';
 import { NotificationsRepository } from '../inbox/notifications.repository.js';
 import { DocumentSequenceService } from './document-sequences.js';
@@ -18,6 +20,10 @@ import { RETAINERS_SERVICE, RetainersController } from './retainers.controller.j
 import { RetainersRepository } from './retainers.repository.js';
 import { RetainersService } from './retainers.service.js';
 import { PortalRetainersController } from '../portal/portal-retainers.controller.js';
+import { PortalInvoicesController } from '../portal/portal-invoices.controller.js';
+import { CLIENT_INVOICES_SERVICE, ClientInvoicesController } from './client-invoices.controller.js';
+import { ClientInvoicesRepository } from './client-invoices.repository.js';
+import { ClientInvoicesService } from './client-invoices.service.js';
 
 /** The gapless numbering service, for the money items that issue documents (52-09, credit notes). */
 export const DOCUMENT_SEQUENCES = Symbol.for('tmanage.DocumentSequenceService');
@@ -74,15 +80,44 @@ export class FinanceModule {
           audit,
         }),
     };
+    // 52-09 client invoices (R18-a); the portal projection's controller sits beside the service.
+    const clientInvoices: Provider = {
+      provide: CLIENT_INVOICES_SERVICE,
+      inject: [
+        TENANT_DATABASE,
+        AUDIT_SERVICE,
+        { token: MAILER, optional: true },
+        { token: API_CONFIG, optional: true },
+      ],
+      useFactory: (
+        database: TenantDatabase,
+        audit: AuditService,
+        mailer: Mailer | null | undefined,
+        config: ApiConfig | undefined,
+      ) =>
+        new ClientInvoicesService({
+          database,
+          repository: new ClientInvoicesRepository(),
+          finance: repository,
+          sequences: new DocumentSequenceService(repository),
+          notifications: new NotificationsRepository(),
+          audit,
+          mailer: mailer ?? null,
+          ...(config?.webPublicUrl === undefined ? {} : { webPublicUrl: config.webPublicUrl }),
+          ...(config?.sessionSecret === undefined ? {} : { sessionSecret: config.sessionSecret }),
+        }),
+    };
     return {
       module: FinanceModule,
-      providers: [service, sequences, rates, expenses, retainers],
+      providers: [service, sequences, rates, expenses, retainers, clientInvoices],
       controllers: [
         FinanceController,
         RatesController,
         ExpensesController,
         RetainersController,
         PortalRetainersController,
+        ClientInvoicesController,
+        PortalInvoicesController,
       ],
       exports: [DOCUMENT_SEQUENCES],
     };

@@ -1226,16 +1226,7 @@ export const NEVER: readonly NeverEntry[] = [
   // 56-21b. The monthly platform access review and its evidence row: super admins only.
   { method: 'GET', path: '/v1/platform/team/access-review/', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/team/access-review/record', reason: 'platform_admin' },
-  // 52-01. The running timer and presence.
-  { method: 'GET', path: '/v1/organizations/:orgSlug/time/timer', reason: 'time_tracking' },
-  { method: 'POST', path: '/v1/organizations/:orgSlug/time/timer/start', reason: 'time_tracking' },
-  { method: 'POST', path: '/v1/organizations/:orgSlug/time/timer/stop', reason: 'time_tracking' },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/time/timer/heartbeat',
-    reason: 'time_tracking',
-  },
-  { method: 'GET', path: '/v1/organizations/:orgSlug/time/active', reason: 'time_tracking' },
+  // 52-01. The running timer and presence moved to ops in R18-b (`finance-time.ts`, `time.*`).
   // R7 slice 6. Chat presence (the tab's own heartbeat, who is online), the "show last seen"
   // privacy toggle and per-message receipts: session-bound live state of the person at the
   // keyboard, not an action an AI performs.
@@ -1593,53 +1584,8 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/time/locks/:lockId/unlock-request',
     reason: 'finance_settings',
   },
-  // R16-a (52-02 / 52-03). Timesheets: payroll-grade time records, their submit / approve and the CSV
-  // export. Finance settings until the `time.timesheet.*` MCP tools land; never an AI tool now.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/time/timesheets/',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/time/timesheets/mine',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/time/timesheets/:timesheetId/entries',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/time/timesheets/:timesheetId/entries/move',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/time/timesheets/:timesheetId/submit',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/time/timesheets/:timesheetId/approve',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/time/timesheets/:timesheetId/request-changes',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/time/timesheets/:timesheetId/copy-from',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/time/timesheets/:timesheetId/export.csv',
-    reason: 'finance_settings',
-  },
+  // R16-a (52-02 / 52-03). Timesheets moved to ops in R18-b (`time.timesheets.*`; approve,
+  // request-changes and the CSV export are confirm-class).
   // ---- R15-c · 54-05 / 54-06 Phase 0 ---- a pasted channel webhook URL is a bearer credential and
   // a link steers outbound egress: never an AI tool, the same reason as the webhook routes.
   {
@@ -1667,109 +1613,8 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/integrations/channel-links/:id/resume',
     reason: 'automation_secrets',
   },
-  // ---- R15-a · 52-04 rates (cost rates are salary proxies; re-price rewrites snapshots) ----
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/finance/rate-cards',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/finance/rate-cards',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/finance/rate-cards/assign',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/finance/rate-cards/:rateCardId',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/finance/rate-cards/:rateCardId/entries',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/finance/rate-cards/:rateCardId/entries',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/finance/rate-cards/:rateCardId/entries/:entryId',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/finance/rates/resolve',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/finance/rates/reprice',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/finance/cost-rates/:membershipId',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/finance/cost-rates/:membershipId',
-    reason: 'finance_settings',
-  },
-  // ---- R16-c · 52-07 expenses ---- money, receipts and approval decisions; org-internal finance
-  // routes, never an AI tool (the plan's MCP actions are a later slice).
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/expenses/',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/expenses/',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/expenses/export.csv',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/expenses/:expenseId',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/expenses/:expenseId',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/expenses/:expenseId',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/expenses/:expenseId/submit',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/expenses/:expenseId/approve',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/expenses/:expenseId/reject',
-    reason: 'finance_settings',
-  },
+  // ---- R15-a · 52-04 rates and R16-c · 52-07 expenses ---- moved to ops in R18-b
+  // (`finance.rate_cards.*`, `finance.rates.*`, `finance.cost_rates.*`, `finance.expenses.*`).
   // ---- R16-f · 54-11 Phase 0 ---- a person's imported address book (third parties' personal
   // data, per user): importing, searching and clearing it feeds the invite flow, and an AI must not
   // harvest or bulk-load addresses. The same reason as the invitation routes.
@@ -1784,19 +1629,7 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/contacts/suggestions',
     reason: 'invitation',
   },
-  // ---- R16-b · 52-05 budgets and burn ----
-  // The burn report carries money and per-person effort (manager-only); the portal projection is
-  // a client's own read. Neither is an AI tool until the 52-05 MCP ops are designed.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/projects/:projectId/budget/burn',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/projects/:projectId/budget',
-    reason: 'finance_settings',
-  },
+  // ---- R16-b · 52-05 budget burn and the portal budget ---- moved to ops in R18-b.
   // R16-d (53-04). Editing a typed dependency in place and the schedule cascade: a cascade
   // re-dates many items (possibly across projects) in one call, so it is withheld — under the
   // closest existing reason, as the working calendar is — until reviewed `schedule.*` ops exist.
@@ -1855,32 +1688,7 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/work-items/:workItemId/code-links/:linkId',
     reason: 'automation_secrets',
   },
-  // ---- R17-a · 52-14 profitability and utilisation reports (org-internal money) ----
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/insights/finance/profitability',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/insights/finance/unbilled',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/insights/finance/utilisation',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/insights/finance/export.csv',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/insights/finance/facts/rebuild',
-    reason: 'finance_settings',
-  },
+  // ---- R17-a · 52-14 finance reports ---- moved to ops in R18-b (`insights.finance.*`).
   // ---- R17-c · 53-05 baselines ---- choosing the current baseline re-points every member's Gantt
   // overlay and variance at another plan; withheld (as the schedule cascade is) until reviewed
   // `schedule.*` ops exist.
@@ -1889,64 +1697,8 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/projects/:projectId/baselines/:baselineId',
     reason: 'policy_definitions',
   },
-  // ---- R17-d · 52-06 retainers ---- money terms (amount per period, currency) and per-person
-  // effort; the two portal reads are a client's own projection, classed as the budget projection
-  // is. None is an AI tool until the 52-06 MCP ops (`retainers.list/get/usage/create`) are designed.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/client-organizations/:clientOrganizationId/retainers',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/client-organizations/:clientOrganizationId/retainers',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/retainers/:retainerId',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/retainers/:retainerId',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/retainers/:retainerId/pause',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/retainers/:retainerId/resume',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/retainers/:retainerId/end',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/retainers/:retainerId/periods',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/retainers/:retainerId/periods/:periodId/entries',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/retainers/',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/retainers/:retainerId',
-    reason: 'finance_settings',
-  },
+  // ---- R17-d · 52-06 retainers ---- moved to ops in R18-b (`finance.retainers.*`,
+  // `portal.retainers.*`).
   // ---- R17-b · 53-06 critical path ---- withheld under the reason the 53-04 cascade routes use
   // until reviewed `schedule.*` ops exist: the read recomputes a stale project synchronously and
   // the POST rewrites the project's stats.
@@ -1959,6 +1711,94 @@ export const NEVER: readonly NeverEntry[] = [
     method: 'POST',
     path: '/v1/organizations/:orgSlug/projects/:projectId/schedule/recompute',
     reason: 'policy_definitions',
+  },
+  // ---- R18-f · 56-13 incident register ---- platform-only: legal clocks and breach records.
+  { method: 'GET', path: '/v1/platform/incidents/', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/incidents/', reason: 'platform_admin' },
+  { method: 'PUT', path: '/v1/platform/incidents/:id', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/incidents/:id/publish', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/incidents/:id/unpublish', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/incidents/:id/resolve', reason: 'platform_admin' },
+  // ---- R18-e · 56-25 organization sign-in policy ---- security administration, never an AI op.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/security/sign-in-policy',
+    reason: 'org_security_manage',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/security/sign-in-policy',
+    reason: 'org_security_manage',
+  },
+  // ---- R18-a · 52-09 client invoices ---- withheld under the finance reason until reviewed
+  // `client_invoices.*` ops exist (52-22): a send issues a fiscal number and mails the client, a
+  // payment or credit note moves money state, and the portal pair is the client's own projection.
+  { method: 'GET', path: '/v1/organizations/:orgSlug/client-invoices', reason: 'finance_settings' },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/client-invoices',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/client-invoices/aging',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/pull',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/send',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/mark-sent',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/payments',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/void',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/credit-notes',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/reminders',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/print',
+    reason: 'finance_settings',
+  },
+  { method: 'GET', path: '/v1/organizations/:orgSlug/portal/invoices', reason: 'finance_settings' },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/invoices/:invoiceId',
+    reason: 'finance_settings',
   },
 ];
 

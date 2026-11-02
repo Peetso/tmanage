@@ -1315,7 +1315,8 @@ GRANT INSERT ON `tmanage`.`import_rows` TO 'tmanage_app'@'%';
 -- (line 60), which is all the public page needs. There is no runtime write path yet: a future admin
 -- slice that drafts/publishes incidents adds INSERT (and, for editing, UPDATE) here with the code
 -- that writes it, per this file's rule that a grant names a statement that exists. No line is emitted
--- now precisely because none exists to name.
+-- now precisely because none exists to name. UPDATE (R18-f, 56-13): the incident register slice
+-- added that write — see its 0302 block at the end of this file.
 -- `maintenance_windows` (Platform states, x185, 0080) gets INSERT and nothing else. The admin write
 -- schedules a window (one row) and the public read reads it through the database-wide SELECT (line
 -- 60); a window is never amended in place in this slice, so UPDATE and DELETE are withheld the way
@@ -2199,3 +2200,32 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`work_item_schedule_stats` TO 
 -- `work_item_recurrence` keeps its 0127 grants (the new columns need nothing new). The worker reads
 -- and writes nothing here.
 GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`work_item_recurrence_instances` TO 'tmanage_app'@'%';
+
+-- ---- R18-f · 56-13 incident register ----
+-- 0302 `incidents` (GLOBAL, 0060 + 0302): the platform incident register. The platform admin
+-- drafts an incident (INSERT), edits it, publishes/unpublishes it and resolves it (UPDATE), each
+-- with its platform audit row in the same transaction. DELETE is withheld: the register is kept
+-- 5 years (the breach register) and no runtime credential removes a row. SELECT is the database-wide
+-- grant, stated again so the block reads whole. The worker reads and writes nothing here.
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`incidents` TO 'tmanage_app'@'%';
+
+-- ---- R18-a · 52-09 client invoices ----
+-- 0301 `client_invoices` / `client_credit_notes` (tenant): finance managers create and edit a draft,
+-- send it (number, snapshots, hash), record payments (paid/state), void a draft and issue credit
+-- notes; the portal stamps `viewed_at` (SELECT, INSERT, UPDATE; never DELETE: fiscal records).
+-- `client_invoice_lines` (tenant): a draft re-pull replaces its pulled lines (SELECT, INSERT,
+-- UPDATE, DELETE; the 0301 triggers refuse UPDATE/DELETE once the invoice is sent).
+-- `client_invoice_payments`, `client_credit_note_lines`, `client_invoice_events` (tenant):
+-- append-only (SELECT, INSERT). The send links the pulled sources: `work_item_time_logs` and
+-- `expenses` (`invoice_line_id`, and `expenses.locked_at`) and `retainer_periods` (`invoice_id`);
+-- those UPDATE grants already exist and are stated again so the block reads whole. The worker
+-- reads and writes nothing here.
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`client_invoices`                 TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`client_credit_notes`             TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`client_invoice_lines`    TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT ON `tmanage`.`client_invoice_payments`                 TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT ON `tmanage`.`client_credit_note_lines`                TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT ON `tmanage`.`client_invoice_events`                   TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`work_item_time_logs`                             TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`expenses`                                        TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`retainer_periods`                                TO 'tmanage_app'@'%';
