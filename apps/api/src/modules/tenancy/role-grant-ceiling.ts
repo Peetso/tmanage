@@ -2,6 +2,7 @@ import {
   capabilitiesFor,
   capabilitySetFor,
   CAPABILITIES,
+  clientCeilingViolations,
   hasCapability,
   INTERNAL_ROLES,
   isCustomRoleId,
@@ -10,7 +11,7 @@ import {
   mayGrantCapability,
   parseCustomRoleCapabilities,
 } from '@tmanage/domain';
-import type { Capability, Principal, Role } from '@tmanage/domain';
+import type { Capability, Principal, PrincipalRole, Role } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
@@ -147,6 +148,23 @@ export function requireMayGrantRole(
       );
     }
   }
+}
+
+/**
+ * 56-28 client ceiling: a role given to a client membership — or a custom role whose base is a
+ * client role — may hold only `CLIENT_CAPABILITY_ALLOWLIST`. Anything else is a 422
+ * `client_ceiling` whose details name each internal capability token, before any write.
+ */
+export function requireClientCeiling(
+  role: PrincipalRole,
+  capabilities: Iterable<Capability>,
+  action: string,
+): void {
+  const outside = clientCeilingViolations(role, capabilities);
+  if (outside.length === 0) return;
+  const details = outside.map((capability) => ({ field: 'capabilities', message: capability }));
+  const message = 'A client role can hold only client capabilities.';
+  throw new ApiError(422, 'client_ceiling', message, details, `${action}:client_ceiling`);
 }
 
 /**

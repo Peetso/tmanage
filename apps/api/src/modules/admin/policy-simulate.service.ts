@@ -1,5 +1,5 @@
-import { authorize, isClientRole } from '@tmanage/domain';
-import type { Audience, Capability, Principal, Role } from '@tmanage/domain';
+import { authorize, capabilitiesFor, clientCeilingViolations, isClientRole } from '@tmanage/domain';
+import type { Audience, Capability, Principal, PrincipalKind, Role } from '@tmanage/domain';
 import { AUDIENCES, CAPABILITIES } from '@tmanage/domain';
 import { createTenantContext } from '../../common/database/tenant-context.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
@@ -69,7 +69,23 @@ export interface PolicySimulationView {
     readonly detail: string;
     /** The stable machine-readable denial code, or null when allowed. */
     readonly denialCode: string | null;
+    /** 56-28: internal capabilities a client principal's effective set carries (empty normally). */
+    readonly warnings: readonly SimulationWarning[];
   };
+}
+
+export interface SimulationWarning {
+  readonly code: 'client_internal_capability';
+  readonly capability: Capability;
+}
+
+/** 56-28: one warning per capability outside the client allowlist, for a client principal only. */
+export function clientCeilingWarnings(kind: PrincipalKind, role: string): SimulationWarning[] {
+  if (kind !== 'client') return [];
+  return clientCeilingViolations(role as Role, capabilitiesFor(role as Role)).map((capability) => ({
+    code: 'client_internal_capability',
+    capability,
+  }));
 }
 
 export class PolicySimulateService {
@@ -184,6 +200,7 @@ export class PolicySimulateService {
           ? `role ${member.role} holds ${capability} and every tenant, relation and audience check passed`
           : decision.detail,
         denialCode: decision.allowed ? null : decision.code,
+        warnings: clientCeilingWarnings(targetPrincipal.kind, member.role),
       },
     };
   }

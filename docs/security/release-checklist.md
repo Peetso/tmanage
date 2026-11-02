@@ -28,6 +28,7 @@ cannot be ticked blocks the release unless an exception is written down with its
 | Migrations               | `pnpm check:mariadb`, and the migrations applied to a local MariaDB 11.8 (`scripts/db/mariadb-server.mjs`) before merge |
 | Ticket security blocks   | Every pull request in the release passed the `SECURITY:` block check                                                    |
 | Public claims            | Nothing on the trust centre page claims more than the evidence above proves, checked against the public-claims registry |
+| Threat model             | Threat model reviewed this quarter (docs/security/threat-model.md)                                                      |
 
 ## Last step
 
