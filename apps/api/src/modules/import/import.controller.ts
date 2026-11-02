@@ -6,13 +6,19 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { IMPORT_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { parseImportCommitBody, parseImportValidationBody } from './import-input.js';
-import type { ImportCommitView, ImportService, ImportValidationView } from './import.service.js';
+import type {
+  ImportCommitView,
+  ImportService,
+  ImportUndoView,
+  ImportValidationView,
+} from './import.service.js';
 import type { SourceRow } from './import-validation.js';
 import { parseIssueKey } from './jira-issues.js';
 import {
   JIRA_FETCHER,
   JIRA_REST_MAPPING,
   JiraFetchError,
+  MAX_JIRA_PAGE_TOKEN,
   fetchJiraIssues,
   jiraBaseUrl,
 } from './jira-rest.js';
@@ -58,6 +64,7 @@ interface JiraSourceRequestBody {
   readonly jql?: unknown;
   readonly projectKey?: unknown;
   readonly startAt?: unknown;
+  readonly nextPageToken?: unknown;
 }
 
 /** R22-e: the rows of one Jira REST page window, ready for `POST …/imports/validations`. */
@@ -65,8 +72,11 @@ export interface JiraSourceView {
   readonly sourceKind: 'jira_issues';
   readonly mapping: typeof JIRA_REST_MAPPING;
   readonly rows: readonly SourceRow[];
+  /** R23-f: the `/search/jql` cursor; at most one of the two cursors is non-null. */
+  readonly nextPageToken: string | null;
   readonly nextStartAt: number | null;
-  readonly total: number;
+  /** `null` on the `/search/jql` path, which reports no count. */
+  readonly total: number | null;
   readonly notes: readonly string[];
 }
 
@@ -164,6 +174,25 @@ export class ImportController {
   }
 
   /**
+   * R23-e (54-24) — `POST …/imports/:jobId/undo`: the one-click undo inside 7 days of the commit.
+   * Created documents and work items are soft-deleted, created phases removed, in one transaction
+   * with the job's undo stamp and an `import.undo` audit row (counts only). `org.manage` at the
+   * guard, plus `project.manage` on every touched project in the service. 404 for a missing or
+   * foreign job; 409 `import_undo_done` / `import_undo_window` / `import_undo_unsupported`.
+   * A bulk delete: on the AI connector's NEVER list.
+   */
+  @Post(':jobId/undo')
+  @RequireCapability('org.manage')
+  @HttpCode(200)
+  async undo(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('jobId') jobId: string,
+  ): Promise<ImportUndoView> {
+    return this.imports.undo(context, principal, jobId);
+  }
+
+  /**
    * R22-e (54-27) — `POST …/imports/sources/jira`: read one window (≤ 1000 issues) of the
    * caller's own Jira Cloud site and return the rows in the CSV-export shape, with the mapping to
    * post them under to `validations`. Nothing is written; the rows still pass the validations
@@ -183,8 +212,9 @@ export class ImportController {
    *
    * `baseUrl` must be `https://<site>.atlassian.net` or `https://<site>.jira.com` (422 otherwise —
    * the SSRF rule). `projectKey` becomes `project = KEY ORDER BY created ASC`; a free `jql` (≤ 500
-   * characters) is sent verbatim — Jira enforces its own grammar. `nextStartAt` is non-null when
-   * Jira has more: the client calls again with it.
+   * characters) is sent verbatim — Jira enforces its own grammar. When Jira has more, exactly one
+   * cursor is non-null (R23-f): `nextPageToken` (the `/search/jql` path) or `nextStartAt` (the
+   * legacy `/search` fallback) — the client calls again sending that one; both at once is a 400.
    */
   @Post('sources/jira')
   @RequireCapability('org.manage')
@@ -224,7 +254,9 @@ interface JiraSourceRequest {
   readonly email: string;
   readonly token: string;
   readonly jql: string;
-  readonly startAt: number;
+  /** The cursor the client sent, if any — at most one of the two. */
+  readonly startAt?: number;
+  readonly nextPageToken?: string;
 }
 
 /** The body, validated. 422 for a disallowed site (the SSRF rule), 400 for anything else. */
@@ -271,7 +303,7 @@ export function parseJiraSourceBody(body: JiraSourceRequestBody): JiraSourceRequ
   } else {
     details.push({ field: 'jql', message: 'send jql or projectKey' });
   }
-  let startAt = 0;
+  let startAt: number | undefined;
   if (body.startAt !== undefined && body.startAt !== null) {
     if (
       typeof body.startAt !== 'number' ||
@@ -284,10 +316,35 @@ export function parseJiraSourceBody(body: JiraSourceRequestBody): JiraSourceRequ
       startAt = body.startAt;
     }
   }
+  let nextPageToken: string | undefined;
+  if (body.nextPageToken !== undefined && body.nextPageToken !== null) {
+    if (
+      typeof body.nextPageToken !== 'string' ||
+      body.nextPageToken === '' ||
+      body.nextPageToken.length > MAX_JIRA_PAGE_TOKEN ||
+      CONTROL.test(body.nextPageToken)
+    ) {
+      details.push({
+        field: 'nextPageToken',
+        message: `must be the cursor Jira returned (${MAX_JIRA_PAGE_TOKEN} characters or fewer)`,
+      });
+    } else if (body.startAt !== undefined && body.startAt !== null) {
+      details.push({ field: 'nextPageToken', message: 'send startAt or nextPageToken, not both' });
+    } else {
+      nextPageToken = body.nextPageToken;
+    }
+  }
   if (details.length > 0) {
     throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
   }
-  return { baseUrl, email, token, jql, startAt };
+  return {
+    baseUrl,
+    email,
+    token,
+    jql,
+    ...(startAt !== undefined ? { startAt } : {}),
+    ...(nextPageToken !== undefined ? { nextPageToken } : {}),
+  };
 }
 
 /** A Jira failure as an API error. The detail names the code the import web translates. */

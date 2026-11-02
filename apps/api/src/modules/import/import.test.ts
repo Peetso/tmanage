@@ -195,6 +195,9 @@ function fakeJobs(): { repo: ImportJobsRepository; created: CreateImportJobInput
         committedAt: null,
         committedCount: null,
         failedCount: null,
+        undoneAt: null,
+        undoneByUserId: null,
+        undoneCount: null,
       } satisfies ImportJobRow;
     },
   } as unknown as ImportJobsRepository;

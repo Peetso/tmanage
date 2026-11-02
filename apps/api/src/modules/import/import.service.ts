@@ -30,13 +30,19 @@ import { commitJiraBatch } from './jira-commit.js';
 import type { JiraCommitDeps, JiraCommitSummary } from './jira-commit.js';
 import { DocumentsRepository } from '../docs/documents.repository.js';
 import { ProjectPhasesRepository } from '../projects/phases.repository.js';
-import { commitBasecampBatch, commitNotionBatch } from './basecamp-commit.js';
+import { commitBasecampBatch, commitNotionBatch, undoImportedEntities } from './basecamp-commit.js';
 import type {
   BasecampCommitSummary,
   ImportCommitDeps,
+  ImportedEntityType,
   ImportRowResult,
   NotionCommitSummary,
+  UndoDeps,
 } from './basecamp-commit.js';
+import { ImportUndoRepository } from './import-undo.repository.js';
+import type { ImportedEntity } from './import-undo.repository.js';
+import { ImportJobAlreadyUndoneError } from './import-jobs.repository.js';
+import { AuditEventsRepository } from '../audit/audit-events.repository.js';
 
 /**
  * ON-09's validate / dry-run service.
@@ -134,7 +140,33 @@ export interface ImportCommitView {
    * `basecamp_schedule_skipped`). Commit response only, like `jira`.
    */
   readonly basecamp?: BasecampCommitSummary;
+  /** R23-e (54-24): when the job was undone, or `null`. Receipt read only. */
+  readonly undoneAt?: string | null;
+  /** R23-e: how many created entities the undo deleted, or `null` before an undo. */
+  readonly undoneCount?: number | null;
+  /**
+   * R23-e: the end of the one-click undo window (commit + 7 days), or `null` once undone, past
+   * the window, or for a kind that cannot be undone (`project`). Receipt read only.
+   */
+  readonly undoAvailableUntil?: string | null;
 }
+
+/** R23-e — `POST …/imports/:jobId/undo`'s answer. */
+export interface ImportUndoView {
+  readonly jobId: string;
+  readonly deleted: number;
+  readonly undoneAt: string;
+}
+
+/** 54-24: the one-click undo is open for 7 days after the commit ("longer via support"). */
+export const IMPORT_UNDO_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** The entity kinds the undo deletes. `label` rows (Jira epics) are left (54-24 "that nothing else uses"). */
+const UNDOABLE_TYPES: ReadonlySet<string> = new Set<ImportedEntityType>([
+  'document',
+  'work_item',
+  'phase',
+]);
 
 /** The `import_jobs` statuses a job must be in to be committable (the validate-half outcomes). */
 const COMMITTABLE_STATUSES: ReadonlySet<string> = new Set(['validated', 'validated_with_errors']);
@@ -174,6 +206,13 @@ export class ImportService {
       memberships: new MembershipsRepository(),
       now: () => new Date(),
     },
+    private readonly undoRepository: ImportUndoRepository = new ImportUndoRepository(),
+    private readonly undoDeps: UndoDeps = {
+      documents: undoRepository,
+      workItems: new WorkItemsRepository(),
+      phases: new ProjectPhasesRepository(),
+    },
+    private readonly audit: Pick<AuditEventsRepository, 'append'> = new AuditEventsRepository(),
   ) {}
 
   async validate(
@@ -347,6 +386,7 @@ export class ImportService {
           sourceIndex: index,
           outcome: 'created',
           createdEntityId: created.id,
+          entityType: 'project',
         });
         written.push({
           sourceIndex: receipt.sourceIndex,
@@ -424,6 +464,13 @@ export class ImportService {
       // defensive floor, not an expected path.
       committedCount: found.job.committedCount ?? 0,
       failedCount: found.job.failedCount ?? 0,
+      undoneAt: found.job.undoneAt === null ? null : found.job.undoneAt.toISOString(),
+      undoneCount: found.job.undoneCount,
+      undoAvailableUntil: undoAvailableUntil(
+        found.job,
+        found.rows,
+        this.importDeps.now().getTime(),
+      ),
       // Already ordered by source index in the repository.
       rows: found.rows.map((row) => ({
         sourceIndex: row.sourceIndex,
@@ -450,6 +497,22 @@ export class ImportService {
         { field: 'options', message: 'must be an object with a projectId' },
       ]);
     }
+    // R23-e: the Jira result does not say what an id is (an epic row cites the label it became),
+    // so the item creates are observed here and every other created id is a `label`.
+    const createdItems = new Set<string>();
+    const baseItems = this.jiraDeps.workItems;
+    const jiraDeps: JiraCommitDeps = {
+      ...this.jiraDeps,
+      workItems: {
+        create: async (...args: Parameters<typeof baseItems.create>) => {
+          const created = await baseItems.create(...args);
+          createdItems.add(created.id);
+          return created;
+        },
+        transitionState: (...args: Parameters<typeof baseItems.transitionState>) =>
+          baseItems.transitionState(...args),
+      },
+    };
     const outcome = await this.database.transaction(context, async (tx) => {
       const { results, summary } = await commitJiraBatch(
         tx,
@@ -465,7 +528,7 @@ export class ImportService {
           },
         },
         this.projects,
-        this.jiraDeps,
+        jiraDeps,
       );
       const written: ImportCommitRowView[] = [];
       for (const result of results) {
@@ -480,6 +543,7 @@ export class ImportService {
           sourceIndex: result.index,
           outcome: 'created',
           createdEntityId: result.createdEntityId,
+          entityType: createdItems.has(result.createdEntityId) ? 'work_item' : 'label',
         });
         written.push({
           sourceIndex: result.index,
@@ -576,6 +640,7 @@ export class ImportService {
           sourceIndex: result.index,
           outcome: 'created',
           createdEntityId: result.createdEntityId,
+          entityType: result.entityType,
         });
         written.push({
           sourceIndex: result.index,
@@ -607,6 +672,92 @@ export class ImportService {
     };
   }
 
+  /**
+   * R23-e (54-24) — undo a committed job inside its 7-day window: every `created` document and
+   * work item is soft-deleted (`deleted_reason 'import_undo'`, restorable until the content purge)
+   * and every created phase definition is removed, in one transaction with the job's undo stamp
+   * and an `import.undo` audit row (counts only).
+   *
+   * Order: the job is resolved tenant-scoped first (404 for a missing / foreign id, or one with no
+   * receipt yet); then the state checks (409 `import_undo_done`, `import_undo_window`,
+   * `import_undo_unsupported` — a `project` row, or a row written before 0316 with no type); then,
+   * inside the transaction, the object-layer `project.manage` `authorize()` on every project the
+   * created entities live in (the capability the commit's phase and key steps check; `project.update`
+   * is not a capability here) — one denial is a 403 before any write. Created labels (Jira epics)
+   * are left in place (54-24 deletes labels only "that nothing else uses"; not built, stated).
+   */
+  async undo(context: TenantContext, principal: Principal, jobId: string): Promise<ImportUndoView> {
+    const found = await this.database.read(context, async (runner) => {
+      const job = await this.jobs.findById(runner, context, jobId);
+      if (!job) return null;
+      const rows = await this.rows.listByJob(runner, context, jobId);
+      return { job, rows };
+    });
+    if (!found || !COMMITTED_STATUSES.has(found.job.status)) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'import_job_not_visible');
+    }
+    const { job, rows } = found;
+    if (job.undoneAt !== null) {
+      throw undoConflict('This import was already undone', 'import_undo_done');
+    }
+    const committedAt = job.committedAt?.getTime() ?? 0;
+    if (this.importDeps.now().getTime() - committedAt > IMPORT_UNDO_WINDOW_MS) {
+      throw undoConflict('The undo window for this import has closed', 'import_undo_window');
+    }
+    const created = rows.filter((row) => row.outcome === 'created');
+    if (created.some((row) => row.entityType === null || row.entityType === 'project')) {
+      throw undoConflict('This kind of import cannot be undone', 'import_undo_unsupported');
+    }
+    const targets: ImportedEntity[] = created.flatMap((row) =>
+      row.createdEntityId !== null && row.entityType !== null && UNDOABLE_TYPES.has(row.entityType)
+        ? [{ type: row.entityType as ImportedEntityType, id: row.createdEntityId }]
+        : [],
+    );
+
+    const stamped = await this.database.transaction(context, async (tx) => {
+      const located = await this.undoRepository.locate(tx, context, targets);
+      for (const projectId of new Set(located.map((entity) => entity.projectId))) {
+        const project = await this.projects.findById(tx, context, projectId);
+        if (!project) continue;
+        const verdict = authorize({
+          principal,
+          capability: 'project.manage',
+          resource: {
+            organizationId: context.organizationId,
+            projectId: project.id,
+            audience: 'internal',
+            lifecycle: project.archivedAt === null ? 'active' : 'archived',
+          },
+        });
+        if (!verdict.allowed) {
+          throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, verdict.code);
+        }
+      }
+      const { deleted } = await undoImportedEntities(tx, context, located, this.undoDeps);
+      let row;
+      try {
+        row = await this.jobs.markUndone(tx, context, jobId, {
+          undoneByUserId: context.userId,
+          undoneCount: deleted,
+        });
+      } catch (error) {
+        if (error instanceof ImportJobAlreadyUndoneError) {
+          throw undoConflict('This import was already undone', 'import_undo_done');
+        }
+        throw error;
+      }
+      await this.audit.append(tx, context, {
+        action: 'import.undo',
+        result: 'allowed',
+        objectId: jobId,
+        metadata: { job_id: jobId, source_kind: job.sourceKind, deleted },
+      });
+      return { deleted, undoneAt: row.undoneAt ?? new Date() };
+    });
+
+    return { jobId, deleted: stamped.deleted, undoneAt: stamped.undoneAt.toISOString() };
+  }
+
   /** Write one `failed` receipt and return its view row. */
   private async recordFailure(
     tx: TenantQueryRunner,
@@ -629,4 +780,28 @@ export class ImportService {
 /** A compact, column-bounded summary of a row's field errors for the receipt. */
 function summarizeRowError(error: RowValidationError): string {
   return error.errors.map((f) => `${f.field}: ${f.message}`).join('; ');
+}
+
+function undoConflict(message: string, code: string): ApiError {
+  // The code travels in `details` (the fifth argument is logged, never serialised) so the import
+  // web can translate it.
+  return new ApiError(409, 'conflict', message, [{ field: 'jobId', message: code }], code);
+}
+
+/** The receipt's `undoAvailableUntil`: commit + 7 days while undoable, else `null`. */
+function undoAvailableUntil(
+  job: {
+    readonly committedAt: Date | null;
+    readonly undoneAt: Date | null;
+  },
+  rows: readonly { readonly outcome: string; readonly entityType: string | null }[],
+  now: number,
+): string | null {
+  if (job.committedAt === null || job.undoneAt !== null) return null;
+  const until = job.committedAt.getTime() + IMPORT_UNDO_WINDOW_MS;
+  if (until < now) return null;
+  const unsupported = rows.some(
+    (row) => row.outcome === 'created' && (row.entityType === null || row.entityType === 'project'),
+  );
+  return unsupported ? null : new Date(until).toISOString();
 }

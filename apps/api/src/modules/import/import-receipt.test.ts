@@ -39,6 +39,9 @@ function committedJob(over: Partial<ImportJobRow> = {}): ImportJobRow {
     committedAt: new Date(),
     committedCount: 2,
     failedCount: 0,
+    undoneAt: null,
+    undoneByUserId: null,
+    undoneCount: null,
     ...over,
   };
 }
@@ -54,6 +57,7 @@ function receiptRow(over: Partial<ImportRowRow> = {}): ImportRowRow {
     createdEntityId: 'proj-1',
     errorDetail: null,
     createdAt: new Date(),
+    entityType: null,
     ...over,
   };
 }

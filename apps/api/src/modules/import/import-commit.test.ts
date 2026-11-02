@@ -154,6 +154,9 @@ function validatedJob(over: Partial<ImportJobRow> = {}): ImportJobRow {
     committedAt: null,
     committedCount: null,
     failedCount: null,
+    undoneAt: null,
+    undoneByUserId: null,
+    undoneCount: null,
     ...over,
   };
 }

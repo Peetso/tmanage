@@ -1596,6 +1596,12 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'client_invoice',
     clause: '§12 52-12 — an issued document could not be signed and was left unsigned',
   },
+  // ---- R23-e · 54-24 import undo ----
+  /** A committed import was undone inside its 7-day window. Metadata: job id, source kind, count. */
+  'import.undo': {
+    objectType: 'import_job',
+    clause: '§12 54-24 — what one import created was deleted in bulk (counts only)',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1879,6 +1885,7 @@ const AUDIT_ACTION_LABELS = {
   'org_secret.certificate_replaced': 'Stored the ZATCA signing certificate',
   'org_secret.certificate_revoked': 'Revoked the ZATCA signing certificate',
   'client_invoice.sign_failed': 'Could not sign an issued invoice',
+  'import.undo': 'Undid an import',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

@@ -35,6 +35,11 @@ export interface CreateImportRowInput {
   readonly createdEntityId?: string | null;
   /** The error that stopped a `failed` row; omitted / null for a `created` row. */
   readonly errorDetail?: string | null;
+  /**
+   * R23-e (0316): the kind of `createdEntityId` (`project` | `work_item` | `document` | `phase` |
+   * `label`) — what the undo reads to delete it. Omitted / null for a `failed` row.
+   */
+  readonly entityType?: string | null;
 }
 
 export class ImportRowsRepository {
@@ -56,6 +61,7 @@ export class ImportRowsRepository {
       outcome: input.outcome,
       createdEntityId: input.createdEntityId ?? null,
       errorDetail: input.errorDetail ?? null,
+      entityType: input.entityType ?? null,
       createdAt: sql`current_timestamp(3)`,
     });
 
@@ -87,7 +93,7 @@ export class ImportRowsRepository {
     return found;
   }
 
-  /** One job's receipt, in source order, within the acting tenant. */
+  /** One job's receipt (with each row's `entityType`), in source order, within the acting tenant. */
   async listByJob(
     runner: TenantQueryRunner,
     context: TenantContext,

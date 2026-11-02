@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { importJobs } from '../../common/database/schema.js';
@@ -131,5 +131,50 @@ export class ImportJobsRepository {
     }
 
     return this.requireById(runner, context, id);
+  }
+
+  /**
+   * R23-e (54-24) — stamp the one-click undo on a committed job, within the acting tenant. The
+   * status predicate (`committed` / `committed_with_errors`) and `undone_at IS NULL` sit on the
+   * statement, so a second undo — or a racing one — matches zero rows and throws, rolling the
+   * caller's transaction (and its deletes) back.
+   */
+  async markUndone(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    id: string,
+    input: { readonly undoneByUserId: string; readonly undoneCount: number },
+  ): Promise<ImportJobRow> {
+    const db = tenantDrizzle(runner);
+
+    const result = await db
+      .update(importJobs)
+      .set({
+        undoneAt: sql`current_timestamp(3)`,
+        undoneByUserId: input.undoneByUserId,
+        undoneCount: input.undoneCount,
+      })
+      .where(
+        and(
+          eq(importJobs.organizationId, context.organizationId),
+          eq(importJobs.id, id),
+          sql`${importJobs.status} in ('committed', 'committed_with_errors')`,
+          isNull(importJobs.undoneAt),
+        ),
+      );
+
+    if (result[0].affectedRows === 0) {
+      throw new ImportJobAlreadyUndoneError(id);
+    }
+
+    return this.requireById(runner, context, id);
+  }
+}
+
+/** A job that was already undone (or is not committed) when the undo stamp ran. */
+export class ImportJobAlreadyUndoneError extends Error {
+  constructor(id: string) {
+    super(`Import job ${id} is not undoable`);
+    this.name = 'ImportJobAlreadyUndoneError';
   }
 }
