@@ -83,7 +83,10 @@ describe('runRule on a held weekend day', () => {
     ownerIds: ['user-1'],
   };
 
-  function recordingTx(timezone = 'UTC'): {
+  function recordingTx(
+    timezone = 'UTC',
+    calendar: unknown = [],
+  ): {
     tx: WorkerTransaction;
     statements: string[];
     params: unknown[][];
@@ -95,6 +98,7 @@ describe('runRule on a held weekend day', () => {
         statements.push(sql);
         params.push([...values]);
         if (/FROM organizations/.test(sql)) return Promise.resolve([{ timezone }] as T);
+        if (/FROM org_working_calendars/.test(sql)) return Promise.resolve(calendar as T);
         return Promise.resolve({ affectedRows: 1 } as T);
       },
     };
@@ -114,11 +118,12 @@ describe('runRule on a held weekend day', () => {
       new Date(Date.UTC(2026, 9, date, 9)),
     );
     expect(statements.some((sql) => /INSERT INTO notifications/.test(sql))).toBe(false);
-    expect(statements).toHaveLength(2);
+    expect(statements).toHaveLength(3);
     expect(statements[0]).toMatch(/SELECT timezone FROM organizations/);
     expect(params[0]).toEqual(['org-1']);
-    expect(statements[1]).toMatch(/INSERT INTO workflow_runs/);
-    const detail = JSON.parse(String(params[1]?.[4])) as Record<string, unknown>;
+    expect(statements[1]).toMatch(/FROM org_working_calendars/);
+    expect(statements[2]).toMatch(/INSERT INTO workflow_runs/);
+    const detail = JSON.parse(String(params[2]?.[4])) as Record<string, unknown>;
     // Gap 10: the held run keeps what the Sunday delivery needs to send it.
     expect(detail).toMatchObject({
       outcome: 'not_run',
@@ -144,6 +149,17 @@ describe('runRule on a held weekend day', () => {
     const riyadh = recordingTx('Asia/Riyadh');
     await runRule({ id: 'event-1', organizationId: 'org-1' }, riyadh.tx, rule, object, at);
     expect(reasonOf(riyadh)).toBe('held_for_weekend');
+  });
+
+  it("holds on a Mon–Fri company calendar's Sunday (no Fri–Sat fallback)", async () => {
+    const monFri = [
+      { id: 'cal-1', working_days_mask: 62, day_start: '09:00:00', time_zone: 'UTC' },
+    ];
+    const r = recordingTx('UTC', monFri);
+    const sunday = new Date(Date.UTC(2026, 9, 25, 9));
+    await runRule({ id: 'event-1', organizationId: 'org-1' }, r.tx, rule, object, sunday);
+    const index = r.statements.findIndex((sql) => /INSERT INTO workflow_runs/.test(sql));
+    expect(JSON.parse(String(r.params[index]?.[4]))).toMatchObject({ reason: 'held_for_weekend' });
   });
 
   it('does not read the company clock for a rule that does not skip weekends', async () => {

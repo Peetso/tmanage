@@ -2,11 +2,9 @@ import type { WorkerTransaction } from './worker-database.js';
 import type { AutomationRule } from './collaboration-store.js';
 import { findDocumentFacts, findWorkItemFacts, insertWorkflowRun } from './collaboration-store.js';
 import { configOf } from './due-soon-store.js';
-import {
-  isWeekendHoldReleased,
-  notifyAndRecord,
-  projectOwners,
-} from '../../consumers/automation-runs.js';
+import { notifyAndRecord, projectOwners } from '../../consumers/automation-runs.js';
+import { isCalendarHoldReleased } from '../../jobs/due-soon-sweeper.js';
+import { readOrganizationCalendar } from './working-calendar-store.js';
 import type { TriggerObject } from '../../consumers/automation-runs.js';
 
 /**
@@ -157,8 +155,10 @@ export async function deliverHeldRuns(
   rule: WeekendRule,
   now: Date = new Date(),
 ): Promise<number> {
-  if (!isWeekendHoldReleased(now, rule.timeZone)) return 0;
   const org = rule.organizationId;
+  // R14: released on the company calendar's next working day from its day start; no row = Sunday 08:00.
+  const calendar = await readOrganizationCalendar(tx, org);
+  if (!isCalendarHoldReleased(calendar, now, rule.timeZone)) return 0;
   const rows = await tx.query<readonly RunRow[]>(
     `SELECT id, detail_json
        FROM workflow_runs

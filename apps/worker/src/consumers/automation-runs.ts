@@ -7,6 +7,8 @@ import {
 } from '../common/database/automation-conditions-store.js';
 import { insertNotification } from '../common/database/notifications-store.js';
 import { findOrganizationTimeZone } from '../common/database/organization-clock-store.js';
+import { readOrganizationCalendar } from '../common/database/working-calendar-store.js';
+import { isHeldByCalendar } from '../jobs/due-soon-sweeper.js';
 import {
   findDocumentFacts,
   findInternalReach,
@@ -213,6 +215,20 @@ export function isWeekendHoldReleased(at: Date, timeZone: string): boolean {
 }
 
 /**
+ * R14 (53-02 follow-up) — the hold reads the company's working calendar (a non-working day or a
+ * holiday, in the calendar's zone); a company that never saved one keeps the Friday–Saturday rule
+ * in `organizations.timezone`.
+ */
+async function isHeldNow(
+  tx: WorkerTransaction,
+  organizationId: string,
+  now: Date,
+): Promise<boolean> {
+  const timeZone = await findOrganizationTimeZone(tx, organizationId);
+  return isHeldByCalendar(await readOrganizationCalendar(tx, organizationId), now, timeZone);
+}
+
+/**
  * Run one rule for one triggering object and append its run. `event` is what makes the run
  * replay-proof: its id is the notification dedupe key (an outbox event, or a due-soon claim).
  */
@@ -238,10 +254,7 @@ export async function runRule(
     });
     return;
   }
-  if (
-    rule.skipWeekends &&
-    isHeldForWeekend(true, now, await findOrganizationTimeZone(tx, event.organizationId))
-  ) {
+  if (rule.skipWeekends && (await isHeldNow(tx, event.organizationId, now))) {
     // What the Sunday delivery needs to send it later. The keys are hidden on the run page.
     await insertWorkflowRun(tx, {
       organizationId: event.organizationId,

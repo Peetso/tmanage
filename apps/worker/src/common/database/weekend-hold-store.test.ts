@@ -52,6 +52,7 @@ function fakeDb(options: { owner?: string | null; itemGone?: boolean } = {}) {
   const tx: WorkerTransaction = {
     query: async <T>(sql: string, params: readonly unknown[] = []): Promise<T> => {
       if (/SELECT timezone FROM organizations/.test(sql)) return [{ timezone: 'UTC' }] as T;
+      if (/FROM org_working_calendars/.test(sql)) return [] as T;
       if (/FROM workflow_runs/.test(sql)) {
         windows.push(params[2]);
         return runs
