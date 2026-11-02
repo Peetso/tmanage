@@ -1266,6 +1266,15 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0305. Tenant-owned: the published client copy of a milestone. Written by managers
   // (project.manage), read by the portal timeline through the client's own context.
   milestone_client_projections: 'organization_id',
+  // ---- R21-f · 54-12 / 54-12a ----
+  // 0312. Tenant-owned: an organization's inbound request address, the inbound mail log and its
+  // attachment metadata. Reached by members through their own context (org.manage for the address,
+  // client_request.triage for the log and trust). The one unscoped read is the ingest's lookup of
+  // a `local_part` (globally unique), on `bootstrapRead(['inbound_email_addresses'])` with the
+  // reason `inbound_email_address_lookup`; everything after runs under that row's organization.
+  inbound_email_addresses: 'organization_id',
+  inbound_emails: 'organization_id',
+  inbound_email_attachments: 'organization_id',
 });
 
 /**

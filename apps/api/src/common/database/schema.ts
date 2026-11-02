@@ -12946,3 +12946,96 @@ export type MilestoneClientProjectionRow = typeof milestoneClientProjections.$in
 Object.assign(TABLES, {
   milestone_client_projections: milestoneClientProjections,
 });
+
+// ---- R21-f · 54-12 inbound e-mail core + 54-12a attachment metadata (0312) ----
+/**
+ * 54-12 (0312). An organization's inbound request address. TENANT. `localPart` is globally unique
+ * (`requests+<slug>-<6>`): the ingest resolves it on `bootstrapRead` before any tenant is known.
+ * `status` is active | rotated (app-checked). No DELETE grant.
+ */
+export const inboundEmailAddresses = mysqlTable(
+  'inbound_email_addresses',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    localPart: varchar('local_part', { length: 64 }).notNull(),
+    status: varchar('status', { length: 16 }).notNull().default('active'),
+    defaultProjectId: char('default_project_id', { length: 36 }),
+    policyJson: text('policy_json').notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    rotatedAt: datetime('rotated_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_iea_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_iea_local').on(table.localPart),
+  ],
+);
+
+/**
+ * 54-12 / 54-12a (0312). One accepted inbound message. TENANT. Unique per organization on
+ * `messageIdHash` (a re-delivery is a duplicate). `outcome` is client_request | held. No DELETE.
+ */
+export const inboundEmails = mysqlTable(
+  'inbound_emails',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    addressId: char('address_id', { length: 36 }).notNull(),
+    messageIdHash: char('message_id_hash', { length: 64 }).notNull(),
+    fromEmail: varchar('from_email', { length: 320 }).notNull(),
+    subject: varchar('subject', { length: 500 }),
+    bodyText: text('body_text'),
+    authResult: varchar('auth_result', { length: 16 }).notNull().default('unknown'),
+    outcome: varchar('outcome', { length: 32 }).notNull(),
+    outcomeReason: varchar('outcome_reason', { length: 32 }),
+    linkedObjectType: varchar('linked_object_type', { length: 32 }),
+    linkedObjectId: char('linked_object_id', { length: 36 }),
+    droppedAttachments: int('dropped_attachments', { unsigned: true }).notNull().default(0),
+    trustedBy: char('trusted_by', { length: 36 }),
+    trustedAt: datetime('trusted_at', { mode: 'date', fsp: 3 }),
+    receivedAt: datetime('received_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_ie2_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_ie2_msgid').on(table.organizationId, table.messageIdHash),
+    index('ix_ie2_org_received').on(table.organizationId, table.receivedAt),
+  ],
+);
+
+/**
+ * 54-12a (0312). Attachment METADATA of one inbound message — no bytes in this slice. TENANT.
+ * `state` follows the 54-12a rule (waiting_trust | too_large | blocked_type | scanning | …).
+ */
+export const inboundEmailAttachments = mysqlTable(
+  'inbound_email_attachments',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    inboundEmailId: char('inbound_email_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 255 }).notNull(),
+    sizeBytes: int('size_bytes', { unsigned: true }).notNull(),
+    declaredType: varchar('declared_type', { length: 127 }),
+    detectedType: varchar('detected_type', { length: 127 }),
+    sha256: char('sha256', { length: 64 }),
+    state: varchar('state', { length: 24 }).notNull(),
+    scanStatus: varchar('scan_status', { length: 16 }),
+    scanSignature: varchar('scan_signature', { length: 120 }),
+    fileAssetId: char('file_asset_id', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_iea2_org_id').on(table.organizationId, table.id),
+    index('ix_iea2_mail').on(table.organizationId, table.inboundEmailId),
+  ],
+);
+
+export type InboundEmailAddressRow = typeof inboundEmailAddresses.$inferSelect;
+export type InboundEmailRow = typeof inboundEmails.$inferSelect;
+export type InboundEmailAttachmentRow = typeof inboundEmailAttachments.$inferSelect;
+
+Object.assign(TABLES, {
+  inbound_email_addresses: inboundEmailAddresses,
+  inbound_emails: inboundEmails,
+  inbound_email_attachments: inboundEmailAttachments,
+});

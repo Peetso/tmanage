@@ -5810,6 +5810,55 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'read',
     scope: 'read',
   },
+  // ---- R21-f · 54-12 inbound e-mail (address, log, attachment metadata, trust) ----
+  {
+    id: 'inbound_email.address.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/inbound-email/address',
+    capability: 'org.manage',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'inbound_email.log.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/inbound-email/log',
+    capability: 'client_request.triage',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'inbound_email.attachments.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/inbound-email/:id/attachments',
+    capability: 'client_request.triage',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'inbound_email.address.create',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/inbound-email/address',
+    capability: 'org.manage',
+    risk: 'write',
+    scope: 'manage',
+  },
+  {
+    id: 'inbound_email.address.rotate',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/inbound-email/address/rotate',
+    capability: 'org.manage',
+    risk: 'confirm',
+    scope: 'manage',
+  },
+  {
+    id: 'inbound_email.trust.create',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/inbound-email/:id/trust',
+    capability: 'client_request.triage',
+    risk: 'confirm',
+    scope: 'write',
+  },
 ];
 
 /** Index of ops by their stable id. */

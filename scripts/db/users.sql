@@ -2278,3 +2278,13 @@ GRANT UPDATE ON `tmanage`.`person_allocations`                              TO '
 -- table) — the app's first DELETE on `person_allocations`. The worker reads and writes nothing here.
 GRANT DELETE ON `tmanage`.`person_allocations`                              TO 'tmanage_app'@'%';
 
+-- R21-f · 54-12 / 54-12a (0312) inbound e-mail core: `inbound_email_addresses`, `inbound_emails` and
+-- `inbound_email_attachments` (tenant). The app creates and rotates an organization's address,
+-- records each accepted message and its attachment metadata, and marks a held mail trusted (SELECT,
+-- INSERT, UPDATE). DELETE is withheld on all three: the inbound log is evidence. The ingest's address
+-- lookup is the one unscoped read, through `bootstrapRead` (reason `inbound_email_address_lookup`).
+-- A resolved mail inserts into `client_requests` under the existing grant. The worker reads and
+-- writes nothing here.
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`inbound_email_addresses`         TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`inbound_emails`                  TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`inbound_email_attachments`       TO 'tmanage_app'@'%';

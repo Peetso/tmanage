@@ -1543,6 +1543,22 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'person_allocation',
     clause: '§12 53-08 — an allocation was removed from the project',
   },
+  // ---- R21-f · 54-12 inbound e-mail ----
+  /** The organization's inbound address was created. Metadata: has_default_project. */
+  'inbound_email_address.created': {
+    objectType: 'inbound_email_address',
+    clause: '§12 54-12 — an inbound request address was created for the organization',
+  },
+  /** The inbound address was rotated; the old one stops accepting mail. Metadata: old id. */
+  'inbound_email_address.rotated': {
+    objectType: 'inbound_email_address',
+    clause: '§12 54-12 — the inbound request address was rotated',
+  },
+  /** A held inbound mail was trusted by a person. Metadata: outcome, attachments released. */
+  'inbound_email.trusted': {
+    objectType: 'inbound_email',
+    clause: '§12 54-12a — a held inbound e-mail was trusted by a person',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1816,6 +1832,9 @@ const AUDIT_ACTION_LABELS = {
   'person_allocation.confirmed': 'Confirmed a tentative allocation',
   'person_allocation.updated': 'Changed an allocation',
   'person_allocation.deleted': 'Removed an allocation',
+  'inbound_email_address.created': 'Created the inbound request address',
+  'inbound_email_address.rotated': 'Rotated the inbound request address',
+  'inbound_email.trusted': 'Trusted a held inbound e-mail',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

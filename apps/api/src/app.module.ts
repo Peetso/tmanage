@@ -223,6 +223,7 @@ import { BillingDiscountsModule } from './modules/billing/discounts.controller.j
 import { BillingUsageExportModule } from './modules/billing/usage-export.controller.js';
 import { ChatModule } from './modules/chat/chat.module.js';
 import { UnfurlModule } from './modules/unfurl/unfurl.module.js';
+import { InboundEmailModule } from './modules/inbound-email/inbound-email.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -1158,6 +1159,8 @@ export class AppModule {
         ChatModule.register(),
         // R20-a (54-09 Phase 0): GET .../unfurl?url= preview cards for allow-listed links.
         UnfurlModule.register(),
+        // R21-f (54-12 / 54-12a): inbound request address, ingest core, log and trust; no poller.
+        InboundEmailModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a
