@@ -34,6 +34,9 @@ const WAVE_C_PREFIXES = [
   'automations',
   'audit',
   'imports',
+  // R18-b: time, timesheets, expenses, rates and retainers (`finance-time.ts`).
+  'time',
+  'finance',
 ] as const;
 
 function isWaveC(id: string): boolean {

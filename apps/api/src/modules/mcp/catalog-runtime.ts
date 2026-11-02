@@ -26,6 +26,7 @@ import {
   toolNameForOp,
 } from './tool-catalog.js';
 import { buildOpRequest, capResult } from './pending-actions.js';
+import { redactFinanceResult } from '../ai-actions/registry/finance-time.js';
 
 /**
  * **The live `/mcp` tool surface — the S5 catalogue wired to S6 execution.**
@@ -160,10 +161,15 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
         ? { headers: { 'content-type': 'application/json' }, body: built.body }
         : {}),
     });
-    const data = capResult(await response.text());
+    const raw = capResult(await response.text());
     if (!response.ok) {
       return { isError: true, data: `The action failed (HTTP ${response.status}).` };
     }
+    // R18-b: the `finance` profile drops cost, margin and bank-detail keys without finance.manage.
+    const data =
+      allDetailsById.get(opId)?.redact === 'finance'
+        ? redactFinanceResult(raw, options.capabilities.has('finance.manage'))
+        : raw;
     return { summary: `${permitted.get(opId)!.title} ran.`, data };
   }
 

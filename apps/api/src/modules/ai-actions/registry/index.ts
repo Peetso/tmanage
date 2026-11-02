@@ -16,6 +16,7 @@
 import type { AiActionOp, RouteKey } from './types.js';
 import { routeKey } from './types.js';
 import { NEVER, neverByKey, isNever } from './never.js';
+import { financeTimeOps } from './finance-time.js';
 
 export * from './types.js';
 export { NEVER, neverByKey, isNever };
@@ -5674,6 +5675,26 @@ export const OPS: readonly AiActionOp[] = [
     capability: 'work.update',
     risk: 'confirm',
     scope: 'write',
+  },
+  // ---- R18-d · 55-07 natural defaults: due-date suggestion (read-only, reveals only a date) ----
+  {
+    id: 'projects.suggest_due.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/suggest-due/',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  // ---- R18-b · 52-22 time, timesheets, expenses, rates, retainers, finance reports ----
+  ...financeTimeOps,
+  // ---- R18-c · 55-25 quick-add resolve (read: title + chips, visible names only) ----
+  {
+    id: 'work.quick_add.resolve',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/work/quick-add/resolve',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
   },
 ];
 

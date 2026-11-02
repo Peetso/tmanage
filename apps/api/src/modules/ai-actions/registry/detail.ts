@@ -40,6 +40,12 @@ export const REDACT_PROFILES = [
   'audit',
   /** User- or org-authored config blobs (preferences, saved views, layouts): no secrets. */
   'config',
+  /**
+   * R18-b. Time, expense, rate, retainer and finance-report results: cost and margin figures,
+   * cost-rate values and bank details are dropped unless the member holds `finance.manage`
+   * (`finance-time.ts` `redactFinanceResult`).
+   */
+  'finance',
 ] as const;
 export type RedactProfile = (typeof REDACT_PROFILES)[number];
 
@@ -63,6 +69,8 @@ export interface AiActionDetail {
   /** True when running the op sends or shows something to other people (openWorldHint). */
   readonly notifies: boolean;
   readonly examples: readonly AiActionExample[];
+  /** R18-b. The Arabic description, listed instead of `description` for an Arabic-locale member. */
+  readonly descriptionAr?: string;
 }
 
 /**
@@ -126,6 +134,7 @@ export function det(d: {
   redact: RedactProfile;
   notifies?: boolean;
   examples?: readonly AiActionExample[];
+  descriptionAr?: string;
 }): AiActionDetail {
   return {
     id: d.id,
@@ -136,6 +145,7 @@ export function det(d: {
     redact: d.redact,
     notifies: d.notifies ?? false,
     examples: d.examples ?? [],
+    ...(d.descriptionAr !== undefined ? { descriptionAr: d.descriptionAr } : {}),
   };
 }
 
