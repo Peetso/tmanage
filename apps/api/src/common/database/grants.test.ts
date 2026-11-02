@@ -197,7 +197,31 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // ---- R22-a ---- +1: the field-cipher rotation re-encrypts `org_secrets`.
     // ---- R22-b ---- +3: the e-invoice chain reconciler reads its sources and `einvoice_chain_checks`.
     expect(reads).toHaveLength(
-      26 + 15 + 1 + 4 + 3 + 1 + 3 + 3 + 1 + 6 + 4 + 2 + 1 + 1 + 1 + 4 + 2 + 1 + 2 + 2 + 2 + 2 + 3 + 1 + 3,
+      26 +
+        15 +
+        1 +
+        4 +
+        3 +
+        1 +
+        3 +
+        3 +
+        1 +
+        6 +
+        4 +
+        2 +
+        1 +
+        1 +
+        1 +
+        4 +
+        2 +
+        1 +
+        2 +
+        2 +
+        2 +
+        2 +
+        3 +
+        1 +
+        3,
     );
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });
