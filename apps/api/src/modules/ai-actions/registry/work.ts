@@ -757,4 +757,13 @@ export const workDetails: readonly AiActionDetail[] = [
     redact: 'standard',
     examples: [{ summary: 'List work labels', args: {} }],
   }),
+  det({
+    id: 'work.quick_add.resolve',
+    title: 'Resolve quick-add text',
+    description:
+      'Parse a quick-add line into a title and chips (owner, project, due date). Only names the caller can see are matched.',
+    input: bodyArgs([], { q: f.shortText(300), projectId: f.id().optional() }),
+    redact: 'standard',
+    examples: [{ summary: 'Resolve quick-add text', args: { q: 'Draft brief @sara tomorrow' } }],
+  }),
 ];

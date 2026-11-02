@@ -915,4 +915,13 @@ export const projectsDetails: readonly AiActionDetail[] = [
       },
     ],
   }),
+  det({
+    id: 'projects.suggest_due.get',
+    title: 'Suggest a due date',
+    description:
+      'Suggest a due date for new work in a project, from its calendar and dated items. Returns only a date.',
+    input: pathOnly('projectId'),
+    redact: 'standard',
+    examples: [{ summary: 'Suggest a due date', args: { projectId: 'proj_1' } }],
+  }),
 ];

@@ -132,7 +132,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // contact suggestions): +34, was 1162.
 // R17 (52-14 finance reports, 53-06 critical path, 53-05 baselines, 52-06 retainers, 53-09
 // recurrence v2): +25, was 1196.
-const EXPECTED_ROUTE_COUNT = 1221;
+// R18 (52-23 client invoices +15, 55-07 suggest-due +1, 55-25 quick-add +1, sign-in policy +2,
+// platform incidents +6): +25, was 1221.
+const EXPECTED_ROUTE_COUNT = 1246;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

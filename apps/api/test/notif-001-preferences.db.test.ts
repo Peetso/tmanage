@@ -8,6 +8,7 @@ import { NotificationPreferencesRepository } from '../src/modules/notifications/
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   NotificationPreferencesService,
+  defaultsFor,
 } from '../src/modules/notifications/notification-preferences.service.js';
 import { startTestDatabase, truncateAll } from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
@@ -115,7 +116,9 @@ afterAll(async () => {
 describe('NOTIF-001 notification preferences', () => {
   it('reads the defaults when the person has never saved', async () => {
     const view = await service.getPreferences(managerCtx, manager);
-    expect(view).toEqual(DEFAULT_NOTIFICATION_PREFERENCES);
+    // 55-18 (R18-d): an unsaved member gets the org profile's defaults, `calm` when unset; the
+    // quiet-hours zone is the org's default timezone, so it is taken from the view itself.
+    expect(view).toEqual(defaultsFor('calm', view.quietHoursTimezone));
   });
 
   it('round-trips an upsert and replaces the same row on a second save', async () => {
