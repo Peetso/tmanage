@@ -28,6 +28,15 @@ import { IterationsRepository } from '../iterations/iterations.repository.js';
 import type { JiraCommitOptions } from './import-input.js';
 import { commitJiraBatch } from './jira-commit.js';
 import type { JiraCommitDeps, JiraCommitSummary } from './jira-commit.js';
+import { DocumentsRepository } from '../docs/documents.repository.js';
+import { ProjectPhasesRepository } from '../projects/phases.repository.js';
+import { commitBasecampBatch, commitNotionBatch } from './basecamp-commit.js';
+import type {
+  BasecampCommitSummary,
+  ImportCommitDeps,
+  ImportRowResult,
+  NotionCommitSummary,
+} from './basecamp-commit.js';
 
 /**
  * ON-09's validate / dry-run service.
@@ -78,6 +87,8 @@ export interface ImportCommitRequest {
   readonly rows: readonly SourceRow[];
   /** R21-e: required for `jira_issues` (the target project, key keeping, status / user maps). */
   readonly jira?: JiraCommitOptions;
+  /** R22-f: required for `notion_database` / `basecamp_messages` (project, status / user maps). */
+  readonly options?: JiraCommitOptions;
 }
 
 /** A terminal committed status. Partial failure lands on `committed_with_errors`. */
@@ -113,6 +124,16 @@ export interface ImportCommitView {
    * response of a `jira_issues` batch; not persisted, so the receipt read omits it.
    */
   readonly jira?: JiraCommitSummary;
+  /**
+   * R22-f: the Notion summary (items, labels, `notion_status_unmapped` / `notion_person_unmatched`
+   * notes). Commit response only, like `jira`.
+   */
+  readonly notion?: NotionCommitSummary;
+  /**
+   * R22-f: the Basecamp summary (`documentsCreated`, `basecampSkipped` by kind, notes such as
+   * `basecamp_schedule_skipped`). Commit response only, like `jira`.
+   */
+  readonly basecamp?: BasecampCommitSummary;
 }
 
 /** The `import_jobs` statuses a job must be in to be committable (the validate-half outcomes). */
@@ -141,6 +162,14 @@ export class ImportService {
       workKeys: new WorkKeysRepository(),
       workItems: new WorkItemsRepository(),
       iterations: new IterationsRepository(),
+      labels: new WorkLabelsRepository(),
+      memberships: new MembershipsRepository(),
+      now: () => new Date(),
+    },
+    private readonly importDeps: ImportCommitDeps = {
+      documents: new DocumentsRepository(),
+      workItems: new WorkItemsRepository(),
+      phases: new ProjectPhasesRepository(),
       labels: new WorkLabelsRepository(),
       memberships: new MembershipsRepository(),
       now: () => new Date(),
@@ -248,6 +277,9 @@ export class ImportService {
 
     if (request.sourceKind === 'jira_issues') {
       return this.commitJira(context, principal, request, errorsByRow);
+    }
+    if (request.sourceKind === 'notion_database' || request.sourceKind === 'basecamp_messages') {
+      return this.commitTargeted(context, principal, request, errorsByRow);
     }
 
     const receipts = await this.database.transaction(context, async (tx) => {
@@ -475,6 +507,103 @@ export class ImportService {
       failedCount: outcome.failedCount,
       rows: outcome.written,
       jira: outcome.summary,
+    };
+  }
+
+  /**
+   * R22-f — commit a `notion_database` / `basecamp_messages` batch into one project: the writes
+   * are `basecamp-commit.ts`'s, inside one transaction with the receipts and the job transition.
+   * A skipped Basecamp row (Campfire, Hill Chart, schedule, file) has no result and so no receipt.
+   */
+  private async commitTargeted(
+    context: TenantContext,
+    principal: Principal,
+    request: ImportCommitRequest,
+    errorsByRow: ReadonlyMap<number, RowValidationError>,
+  ): Promise<ImportCommitView> {
+    const options = request.options;
+    if (!options) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'options', message: 'must be an object with a projectId' },
+      ]);
+    }
+    const input = {
+      mapping: request.mapping,
+      rows: request.rows,
+      options,
+      invalidDetail: (index: number) => {
+        const invalid = errorsByRow.get(index);
+        return invalid ? summarizeRowError(invalid) : null;
+      },
+    };
+    const outcome = await this.database.transaction(context, async (tx) => {
+      let results: readonly ImportRowResult[];
+      let notion: NotionCommitSummary | undefined;
+      let basecamp: BasecampCommitSummary | undefined;
+      if (request.sourceKind === 'notion_database') {
+        const done = await commitNotionBatch(
+          tx,
+          context,
+          principal,
+          input,
+          this.projects,
+          this.importDeps,
+        );
+        results = done.results;
+        notion = done.summary;
+      } else {
+        const done = await commitBasecampBatch(
+          tx,
+          context,
+          principal,
+          input,
+          this.projects,
+          this.importDeps,
+        );
+        results = done.results;
+        basecamp = done.summary;
+      }
+      const written: ImportCommitRowView[] = [];
+      for (const result of results) {
+        if ('error' in result) {
+          written.push(
+            await this.recordFailure(tx, context, request.jobId, result.index, result.error),
+          );
+          continue;
+        }
+        await this.rows.create(tx, context, {
+          jobId: request.jobId,
+          sourceIndex: result.index,
+          outcome: 'created',
+          createdEntityId: result.createdEntityId,
+        });
+        written.push({
+          sourceIndex: result.index,
+          outcome: 'created',
+          createdEntityId: result.createdEntityId,
+          error: null,
+        });
+      }
+      const failedCount = written.filter((r) => r.outcome === 'failed').length;
+      const committedCount = written.length - failedCount;
+      const status: ImportCommitStatus = failedCount > 0 ? 'committed_with_errors' : 'committed';
+      await this.jobs.markCommitted(tx, context, request.jobId, {
+        status,
+        committedCount,
+        failedCount,
+      });
+      return { written, committedCount, failedCount, status, notion, basecamp };
+    });
+
+    return {
+      jobId: request.jobId,
+      sourceKind: request.sourceKind,
+      status: outcome.status,
+      committedCount: outcome.committedCount,
+      failedCount: outcome.failedCount,
+      rows: outcome.written,
+      ...(outcome.notion === undefined ? {} : { notion: outcome.notion }),
+      ...(outcome.basecamp === undefined ? {} : { basecamp: outcome.basecamp }),
     };
   }
 

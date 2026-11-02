@@ -21,6 +21,8 @@
  */
 
 import { onePrefix, validateJiraRow } from './jira-issues.js';
+import { validateNotionRow } from './notion-database.js';
+import { validateBasecampRow } from './basecamp-html.js';
 
 /**
  * The batch ceiling. A dry-run validation walks every row, so an unbounded batch is an
@@ -35,8 +37,18 @@ export const MAX_IMPORT_ROWS = 1000;
  * CSV export, row-validated by `jira-issues.ts`. Originally one — `project`, the rows that become projects
  * in the commit half. A closed vocabulary rather than a free string: a new kind is a reviewed
  * addition with its own target rules below, not a value a caller can invent.
+ *
+ * R22-f (54-28): `notion_database` is a Notion database CSV export (`notion-database.ts`);
+ * `basecamp_messages` is a Basecamp archive the import web unzips in the browser (the API has no
+ * ZIP reader) and posts as one row per message / to-do / list (`basecamp-html.ts`). Both commit
+ * into one `options.projectId`, so a batch targets exactly one project by construction.
  */
-export const IMPORT_SOURCE_KINDS = ['project', 'jira_issues'] as const;
+export const IMPORT_SOURCE_KINDS = [
+  'project',
+  'jira_issues',
+  'notion_database',
+  'basecamp_messages',
+] as const;
 export type ImportSourceKind = (typeof IMPORT_SOURCE_KINDS)[number];
 
 export function isImportSourceKind(value: unknown): value is ImportSourceKind {
@@ -175,6 +187,8 @@ const ROW_VALIDATORS: Record<
 > = {
   project: validateProjectRow,
   jira_issues: validateJiraRow,
+  notion_database: validateNotionRow,
+  basecamp_messages: validateBasecampRow,
 };
 
 /** The batch-level checks per kind: one Jira project (one key prefix) per batch. */

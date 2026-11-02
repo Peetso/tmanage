@@ -98,6 +98,20 @@ describe('validateBatch', () => {
     expect(isImportSourceKind('users')).toBe(false);
     expect(isImportSourceKind(42)).toBe(false);
   });
+
+  it('R22-f: validates notion_database and basecamp_messages rows, and caps 1 001 rows', () => {
+    expect(
+      validateBatch('notion_database', {}, [{ Name: 'Task' }, { Name: '' }]).invalidCount,
+    ).toBe(1);
+    const basecamp = validateBatch('basecamp_messages', {}, [
+      { kind: 'message', title: 'Kickoff', html: '<p>x</p>' },
+      { kind: 'campfire' },
+      { kind: 'chat' },
+    ]);
+    expect(basecamp.errors.map((e) => e.row)).toEqual([2]);
+    const many = Array.from({ length: 1001 }, () => ({ kind: 'campfire' }));
+    expect(validateBatch('basecamp_messages', {}, many).batchErrors[0]?.code).toBe('too_many_rows');
+  });
 });
 
 function fields(details: ValidationDetail[]): string[] {

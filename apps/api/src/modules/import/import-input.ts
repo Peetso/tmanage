@@ -43,6 +43,11 @@ export interface ImportCommitRequest extends ImportValidationRequest {
   readonly jobId: string;
   /** Present exactly when `sourceKind` is `jira_issues`. */
   readonly jira?: JiraCommitOptions;
+  /**
+   * R22-f: present exactly when `sourceKind` is `notion_database` or `basecamp_messages` — the
+   * same `{ projectId, statusMap?, userMap? }` shape as the Jira options (`keepKeys` unused).
+   */
+  readonly options?: JiraCommitOptions;
 }
 
 /** Bounds on the caller-supplied maps: a Jira instance has dozens of statuses, not thousands. */
@@ -152,11 +157,21 @@ export function parseImportCommitBody(
       ? parseJiraOptions(source['options'], details)
       : undefined;
 
+  const options =
+    source['sourceKind'] === 'notion_database' || source['sourceKind'] === 'basecamp_messages'
+      ? parseJiraOptions(source['options'], details)
+      : undefined;
+
   if (details.length > 0 || request === undefined || typeof jobId !== 'string') {
     return undefined;
   }
 
-  return { jobId, ...request, ...(jira === undefined ? {} : { jira }) };
+  return {
+    jobId,
+    ...request,
+    ...(jira === undefined ? {} : { jira }),
+    ...(options === undefined ? {} : { options }),
+  };
 }
 
 /** A bounded `{ string: string }` map, with each value checked by `valueOk`. */
