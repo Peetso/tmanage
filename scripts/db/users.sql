@@ -2053,3 +2053,13 @@ GRANT SELECT ON `tmanage`.`org_holidays`                           TO 'tmanage_w
 -- written to `notifications` under grants the relay already holds. Never DELETE on either table.
 GRANT SELECT, UPDATE ON `tmanage`.`webhook_endpoints`              TO 'tmanage_worker'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`webhook_deliveries`             TO 'tmanage_worker'@'%';
+
+-- ---- R15-b · 52-03 period locks ----
+-- 0288 `time_period_locks` (tenant): finance closes a window (INSERT, or UPDATE to reopen a row of
+-- the same month) and stamps the entry count and the reopen (UPDATE); a lock row is history and no
+-- statement deletes one, so **no DELETE**. SELECT is stated with the writes. The lock stamps
+-- `locked_at` on the window's `work_item_time_logs` entries and the unlock clears it — the first
+-- UPDATE statement on that table, so its UPDATE is granted here (the 0288 triggers keep every data
+-- column of a locked entry fixed). The worker reads neither.
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`time_period_locks`    TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`work_item_time_logs`                   TO 'tmanage_app'@'%';

@@ -137,3 +137,23 @@ function timestamp(raw: unknown, field: string): Date {
 export function utcDay(at: Date): string {
   return at.toISOString().slice(0, 10);
 }
+
+/** A lock window as `isWithinLockedPeriod` reads it; a reopened lock (`unlockedAt` set) holds nothing. */
+export interface LockedPeriod {
+  readonly periodStart: string;
+  readonly periodEnd: string;
+  readonly unlockedAt?: Date | null;
+}
+
+/**
+ * 52-03 — is a `spent_on` day (`YYYY-MM-DD`) inside an open lock? ISO dates compare as strings;
+ * both ends are inclusive.
+ */
+export function isWithinLockedPeriod(spentOn: string, locks: readonly LockedPeriod[]): boolean {
+  return locks.some(
+    (lock) =>
+      (lock.unlockedAt ?? null) === null &&
+      spentOn >= lock.periodStart &&
+      spentOn <= lock.periodEnd,
+  );
+}

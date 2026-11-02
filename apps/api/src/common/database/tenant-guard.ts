@@ -1174,6 +1174,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `tmanage_worker`.
   org_working_calendars: 'organization_id',
   org_holidays: 'organization_id',
+  // ---- R15-b · 52-03 ----
+  // 0288. Tenant-owned: the closed time periods of one organization. Reached by finance through
+  // their own context only; the worker never reads it.
+  time_period_locks: 'organization_id',
 });
 
 /**

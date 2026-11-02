@@ -1136,6 +1136,21 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'oauth_grant',
     clause: '§12 API credentials — a connected app and its tokens were withdrawn by an admin',
   },
+  // ---- R15-b · 52-03 period locks ----
+  /** A window of whole months was closed. Metadata: `period_start`, `period_end`, `entries_locked`. */
+  'time_period.locked': {
+    objectType: 'time_period_lock',
+    clause: '§12 52-03 — a time period was locked (window and entry count)',
+  },
+  /** A closed window was reopened. The typed why lives on the row, never in the metadata. */
+  'time_period.unlocked': {
+    objectType: 'time_period_lock',
+    clause: '§12 52-03 — a locked time period was reopened (the why is kept on the lock row)',
+  },
+  'time_period.unlock_requested': {
+    objectType: 'time_period_lock',
+    clause: '§12 52-03 — a member asked finance to reopen a locked time period',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1330,6 +1345,9 @@ const AUDIT_ACTION_LABELS = {
   'personal_access_token.created': 'Created an API token',
   'personal_access_token.revoked': 'Revoked an API token',
   'oauth_grant.revoked': 'Disconnected an AI app',
+  'time_period.locked': 'Locked a time period',
+  'time_period.unlocked': 'Reopened a locked time period',
+  'time_period.unlock_requested': 'Asked to reopen a locked time period',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

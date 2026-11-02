@@ -11560,3 +11560,37 @@ Object.assign(TABLES, {
   org_working_calendars: orgWorkingCalendars,
   org_holidays: orgHolidays,
 });
+
+/**
+ * 0288 (52-03). One closed window of whole calendar months: every `work_item_time_logs` entry with
+ * `spent_on` inside it carries `locked_at`. TENANT. `unlocked_*` + `reason` stamp a reopen (the row
+ * stays as history); one row per organization per `period_start`. Open locks never overlap
+ * (checked in `modules/time/locks.service.ts`).
+ */
+export const timePeriodLocks = mysqlTable(
+  'time_period_locks',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    periodStart: date('period_start', { mode: 'string' }).notNull(),
+    periodEnd: date('period_end', { mode: 'string' }).notNull(),
+    lockedBy: char('locked_by', { length: 36 }).notNull(),
+    lockedAt: datetime('locked_at', { mode: 'date', fsp: 3 }).notNull(),
+    unlockedBy: char('unlocked_by', { length: 36 }),
+    unlockedAt: datetime('unlocked_at', { mode: 'date', fsp: 3 }),
+    reason: varchar('reason', { length: 500 }),
+    entriesLocked: int('entries_locked').notNull().default(0),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_time_period_locks_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_time_period_locks_start').on(table.organizationId, table.periodStart),
+    index('ix_time_period_locks_end').on(table.organizationId, table.periodEnd),
+  ],
+);
+
+export type TimePeriodLockRow = typeof timePeriodLocks.$inferSelect;
+
+Object.assign(TABLES, {
+  time_period_locks: timePeriodLocks,
+});

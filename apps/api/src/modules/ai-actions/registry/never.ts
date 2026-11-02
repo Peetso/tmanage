@@ -1579,6 +1579,20 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/projects/:projectId/working-calendar',
     reason: 'policy_definitions',
   },
+  // R15-b (52-03). Period locks: closing and reopening finance periods, and the member's request to
+  // reopen one. Finance settings; never an AI tool.
+  { method: 'GET', path: '/v1/organizations/:orgSlug/time/locks/', reason: 'finance_settings' },
+  { method: 'POST', path: '/v1/organizations/:orgSlug/time/locks/', reason: 'finance_settings' },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/time/locks/:lockId',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/time/locks/:lockId/unlock-request',
+    reason: 'finance_settings',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */
