@@ -7,6 +7,20 @@
 import { det, pathOnly, listArgs, bodyArgs, f, type AiActionDetail } from './detail.js';
 
 export const workViewsDetails: readonly AiActionDetail[] = [
+  // R21-a · 53-08: the org-wide workload grid (people × weeks).
+  det({
+    id: 'work_views.workload_org.get',
+    title: 'Get the organization workload',
+    description:
+      'Get planned hours per person per week across the organization; work you cannot read shows as one total.',
+    input: listArgs([], {
+      scope: f.shortText().optional(),
+      from: f.iso().optional(),
+      to: f.iso().optional(),
+    }),
+    redact: 'standard',
+    examples: [{ summary: 'Get the organization workload', args: { from: '2026-11-02' } }],
+  }),
   det({
     id: 'work_views.calendar.get',
     title: 'Get work view calendar',
