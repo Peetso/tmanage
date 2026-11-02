@@ -20,6 +20,8 @@ import { PlatformCapacityModule } from './health/capacity.module.js';
 import { PlatformSecurityReportsModule } from '../security-reports/security-reports.module.js';
 // ---- 56-23 · security signals ----
 import { PlatformSecuritySignalsModule } from '../security-signals/security-signals.module.js';
+// ---- 56-13 · incident register ----
+import { PlatformIncidentsModule } from './incidents/incidents.module.js';
 
 /**
  * Every Platform admin area, one Nest module each (platform-admin v2, PA-02 split). Each area
@@ -51,4 +53,6 @@ export const PLATFORM_AREA_MODULES: DynamicModule[] = [
   PlatformSecurityReportsModule.register(),
   // ---- 56-23 · security signals: alert rules + platform signal list ----
   PlatformSecuritySignalsModule.register(),
+  // ---- 56-13 · incident register: legal clocks, publish to the status page ----
+  PlatformIncidentsModule.register(),
 ];

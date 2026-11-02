@@ -111,6 +111,12 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.access_review_recorded',
   // ---- R14-d ---- a refused platform step-up (feeds `platform_step_up_failures`).
   'platform.step_up_failed',
+  // ---- 56-13 incident register (R18-f) ---- ids, severity and timestamps only.
+  'platform.incident_created',
+  'platform.incident_updated',
+  'platform.incident_published',
+  'platform.incident_unpublished',
+  'platform.incident_resolved',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];

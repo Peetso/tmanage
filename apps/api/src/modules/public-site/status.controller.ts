@@ -2,9 +2,9 @@ import { Controller, Get, Inject } from '@nestjs/common';
 import { uuidv7 } from '@tmanage/domain';
 import { Public } from '../../common/http/decorators.js';
 import { TENANT_DATABASE, PUBLIC_SITE_STATUS_REPOSITORY } from '../../common/http/tokens.js';
-import type { INCIDENT_STATUSES, IncidentRow } from '../../common/database/schema.js';
+import type { INCIDENT_STATUSES } from '../../common/database/schema.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
-import type { StatusRepository } from './status.repository.js';
+import type { PublicIncidentRow, StatusRepository } from './status.repository.js';
 
 /**
  * Public & trust site (x159) — the status page's read.
@@ -24,7 +24,11 @@ import type { StatusRepository } from './status.repository.js';
  *      `startedAt`, so the page cannot grow without bound and the order never depends on insertion.
  */
 
-/** One published incident, as the public page reads it. Never carries a draft or the `published` flag. */
+/**
+ * One published incident, as the public page reads it. Never carries a draft or the `published` flag,
+ * and never an incident-register column (56-13: severity, affected organizations, countries, data
+ * categories, notification times) — {@link PUBLIC_INCIDENT_VIEW_KEYS} is the whole list.
+ */
 export interface PublicIncidentView {
   readonly id: string;
   readonly component: string;
@@ -35,6 +39,18 @@ export interface PublicIncidentView {
   readonly resolvedAt: string | null;
   readonly createdAt: string;
 }
+
+/** Every key of {@link PublicIncidentView}, in order. A test pins the response to exactly these. */
+export const PUBLIC_INCIDENT_VIEW_KEYS = [
+  'id',
+  'component',
+  'status',
+  'title',
+  'body',
+  'startedAt',
+  'resolvedAt',
+  'createdAt',
+] as const satisfies readonly (keyof PublicIncidentView)[];
 
 /** The status page's response: an overall banner state and the recent published incidents. */
 export interface PublicStatusView {
@@ -72,7 +88,7 @@ export class PublicSiteStatusController {
  * a draft that reaches here is still dropped, the order is pinned to `startedAt` desc, and the page
  * is capped at {@link MAX_INCIDENTS}.
  */
-export function toPublicStatus(rows: readonly IncidentRow[]): PublicStatusView {
+export function toPublicStatus(rows: readonly PublicIncidentRow[]): PublicStatusView {
   const published = rows
     .filter((row) => row.published)
     .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())
@@ -94,7 +110,7 @@ function activeOverall(
   return status === 'resolved' ? 'monitoring' : status;
 }
 
-function toIncidentView(row: IncidentRow): PublicIncidentView {
+function toIncidentView(row: PublicIncidentRow): PublicIncidentView {
   return {
     id: row.id,
     component: row.component,

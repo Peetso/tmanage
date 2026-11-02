@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_INCIDENTS, PublicSiteStatusController } from './status.controller.js';
-import type { StatusRepository } from './status.repository.js';
+import {
+  MAX_INCIDENTS,
+  PUBLIC_INCIDENT_VIEW_KEYS,
+  PublicSiteStatusController,
+} from './status.controller.js';
+import { PUBLIC_INCIDENT_COLUMNS } from './status.repository.js';
+import type { PublicIncidentRow, StatusRepository } from './status.repository.js';
 import type { IncidentRow } from '../../common/database/schema.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 
@@ -12,7 +17,7 @@ import type { TenantDatabase } from '../../common/database/tenant-context.js';
  * defence in depth for the public-visibility line — and that the read asks for no session or capability.
  */
 
-function incident(overrides: Partial<IncidentRow>): IncidentRow {
+function incident(overrides: Partial<IncidentRow>): PublicIncidentRow {
   return {
     id: 'incident-0000-0000-0000-000000000001',
     component: 'API',
@@ -28,7 +33,7 @@ function incident(overrides: Partial<IncidentRow>): IncidentRow {
 }
 
 /** A controller wired to a fake identityRead that hands the repository through, over fake rows. */
-function controllerWith(rows: readonly IncidentRow[]): PublicSiteStatusController {
+function controllerWith(rows: readonly PublicIncidentRow[]): PublicSiteStatusController {
   const database = {
     identityRead: async (_options: unknown, work: (runner: unknown) => Promise<unknown>) =>
       work({}),
@@ -81,5 +86,23 @@ describe('PublicSiteStatusController.status', () => {
     );
     const view = await controllerWith(rows).status();
     expect(view.incidents).toHaveLength(MAX_INCIDENTS);
+  });
+
+  it('56-13: never leaks an incident-register column, even when a row carries one', async () => {
+    // The SQL selects the public columns only — no register column is in the select list.
+    expect(Object.keys(PUBLIC_INCIDENT_COLUMNS).sort()).toEqual(
+      [...PUBLIC_INCIDENT_VIEW_KEYS, 'published'].sort(),
+    );
+    // And the mapping drops anything else a row might carry (defence in depth).
+    const leaky = incident({
+      severity: 'SEV0',
+      affectedOrgIdsJson: '["org-secret"]',
+      countriesJson: '["SA"]',
+      personalData: true,
+      createdBy: 'admin-1',
+    });
+    const view = await controllerWith([leaky]).status();
+    expect(Object.keys(view.incidents[0] ?? {})).toEqual([...PUBLIC_INCIDENT_VIEW_KEYS]);
+    expect(JSON.stringify(view)).not.toMatch(/SEV0|org-secret|admin-1/u);
   });
 });
