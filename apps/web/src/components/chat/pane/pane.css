@@ -262,3 +262,13 @@
     border-end-end-radius: 0;
   }
 }
+
+/* A7: the channel composer's pending files and its drop target. */
+.tm-pane-composer-files {
+  margin-block-end: 8px;
+}
+
+.tm-chat-composer[data-dragging='true'] {
+  outline: 1px dashed var(--line-300);
+  outline-offset: 2px;
+}

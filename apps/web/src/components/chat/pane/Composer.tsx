@@ -5,6 +5,8 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
+  type DragEvent,
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
@@ -25,6 +27,14 @@ import type { ApiClient } from '../../../lib/api/client';
 import { clearDraft, getDraft, postMessage, saveDraft } from '../../../lib/api/conversations';
 import type { MessageSummary, PostMessageInput, ReplyMeta } from '../../../lib/api/conversations';
 import { ApiRequestError, NetworkError } from '../../../lib/api/errors';
+import { attachMessageFile } from '../../../lib/api/message-attachments';
+import {
+  ATTACHMENT_ACCEPT,
+  MAX_ATTACHMENTS,
+  attachmentProblem,
+  formatBytes,
+  uploadProjectFile,
+} from '../../../lib/api/uploads';
 import { composeMessage } from '../../../lib/rich-composer';
 import type { MessageKey } from '../../../lib/i18n/t';
 import { useT } from '../../../lib/i18n/use-t';
@@ -140,6 +150,33 @@ function applyToolbarEdit(
 }
 
 /**
+ * A7: add picked or dropped files to the pending list. Files that cannot be attached (empty,
+ * too large, a type the upload verifier refuses) and anything past `MAX_ATTACHMENTS` are left
+ * out; the first reason is answered so the composer can show it.
+ */
+export function addPendingFiles(
+  pending: readonly File[],
+  incoming: readonly File[],
+): { readonly files: File[]; readonly problem: string | undefined; readonly tooMany: boolean } {
+  const files = [...pending];
+  let problem: string | undefined;
+  let tooMany = false;
+  for (const file of incoming) {
+    const reason = attachmentProblem(file);
+    if (reason !== null) {
+      problem ??= reason;
+      continue;
+    }
+    if (files.length >= MAX_ATTACHMENTS) {
+      tooMany = true;
+      break;
+    }
+    files.push(file);
+  }
+  return { files, problem, tooMany };
+}
+
+/**
  * The composer, used by the channel and by the thread pane. One component so the dedupe
  * behaviour — mint the id when a send starts, keep it until that send succeeds — cannot
  * drift between the two.
@@ -167,6 +204,7 @@ export function Composer({
   onCancelReply,
   extras = false,
   voice,
+  attachProjectId,
 }: {
   api: ApiClient;
   organizationSlug: string;
@@ -187,6 +225,13 @@ export function Composer({
   extras?: boolean;
   /** R7 slice 4: slice 5's voice-note recorder, beside Send. */
   voice?: ReactNode;
+  /**
+   * A7: the project the channel's files are stored under. When given, the channel composer shows
+   * an attach button and accepts dropped files; each file is uploaded through the ordinary upload
+   * session (so the virus scan runs) and linked to the message on send. `null` is a conversation
+   * without a project: the button is shown disabled.
+   */
+  attachProjectId?: string | null;
 }) {
   const queries = useQueryClient();
   const t = useT();
@@ -200,6 +245,10 @@ export function Composer({
   const [toolsOpen, setToolsOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [locationError, setLocationError] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [fileProblem, setFileProblem] = useState<string | undefined>(undefined);
+  const [dragging, setDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const controlRef = useRef<HTMLTextAreaElement | null>(null);
   const tOr = useTOr();
   const mention = useMentionComposer({
@@ -276,18 +325,36 @@ export function Composer({
   );
 
   const send = useMutation({
-    mutationFn: (input: PostMessageInput) =>
-      postMessage(api, organizationSlug, conversationId, {
-        ...input,
+    mutationFn: async (input: PostMessageInput & { readonly files?: readonly File[] }) => {
+      const { files = [], ...message } = input;
+      // A7: the files are uploaded first (each through its own upload session, so the scan
+      // runs), then the message is posted, then each file is linked to it.
+      const fileIds: string[] = [];
+      if (files.length > 0 && typeof attachProjectId === 'string') {
+        for (const file of files) {
+          fileIds.push(
+            await uploadProjectFile(api, organizationSlug, { projectId: attachProjectId, file }),
+          );
+        }
+      }
+      const posted = await postMessage(api, organizationSlug, conversationId, {
+        ...message,
         ...(parentMessageId === undefined ? {} : { parentMessageId }),
-        ...(replyTo === undefined || input.kind !== undefined
+        ...(replyTo === undefined || message.kind !== undefined
           ? {}
           : { meta: { ...replyMetaFor(replyTo.message) } }),
-      }),
+      });
+      for (const fileId of fileIds) {
+        await attachMessageFile(api, organizationSlug, conversationId, posted.id, fileId);
+      }
+      return posted;
+    },
     onSuccess: () => {
       onCancelReply?.();
       if (persistDraft) clearedOnSendRef.current = true;
       setDraft('');
+      setPendingFiles([]);
+      setFileProblem(undefined);
       setAttemptId(undefined);
       // The message is sent, so its draft is spent — clear it so a reopen does not restore text
       // that is already in the transcript.
@@ -322,11 +389,14 @@ export function Composer({
   }
 
   function performSend() {
-    if (composed === undefined || send.isPending) return;
+    if ((composed === undefined && pendingFiles.length === 0) || send.isPending) return;
     setInadmissible(undefined);
 
     let content: Pick<PostMessageInput, 'body' | 'bodyRich'>;
-    if (composed.kind === 'plain') {
+    if (composed === undefined) {
+      // A7: files without text still need a body; the file names are what a reader sees.
+      content = { body: pendingFiles.map((file) => file.name).join(', ') };
+    } else if (composed.kind === 'plain') {
       content = { body: composed.body.trim() };
     } else {
       try {
@@ -346,8 +416,63 @@ export function Composer({
     // Reuse the attempt id when this is a retry of a failed send; mint one otherwise.
     const clientGeneratedId = attemptId ?? newCorrelationId();
     setAttemptId(clientGeneratedId);
-    send.mutate({ ...content, clientGeneratedId });
+    send.mutate({
+      ...content,
+      clientGeneratedId,
+      ...(pendingFiles.length > 0 ? { files: pendingFiles } : {}),
+    });
   }
+
+  const attachOn = attachProjectId !== undefined && parentMessageId === undefined;
+  const canAttach = attachOn && typeof attachProjectId === 'string';
+
+  function addFiles(incoming: readonly File[]) {
+    if (!canAttach || incoming.length === 0) return;
+    const next = addPendingFiles(pendingFiles, incoming);
+    setPendingFiles(next.files);
+    setFileProblem(
+      next.tooMany
+        ? tOr(
+            'ChatMessages.attachTooMany',
+            'At most {count} files can go with one message.',
+          ).replace('{count}', String(MAX_ATTACHMENTS))
+        : next.problem,
+    );
+    setAttemptId(undefined);
+  }
+
+  function onFilePicked(event: ChangeEvent<HTMLInputElement>) {
+    addFiles(Array.from(event.target.files ?? []));
+    // Clear the input so picking the same file again still fires a change.
+    event.target.value = '';
+  }
+
+  function removePendingFile(index: number) {
+    setPendingFiles((files) => files.filter((_, at) => at !== index));
+    setFileProblem(undefined);
+    setAttemptId(undefined);
+  }
+
+  const dropProps = canAttach
+    ? {
+        onDragOver: (event: DragEvent<HTMLFormElement>) => {
+          if (!Array.from(event.dataTransfer.types).includes('Files')) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'copy';
+          if (!dragging) setDragging(true);
+        },
+        onDragLeave: (event: DragEvent<HTMLFormElement>) => {
+          if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+          setDragging(false);
+        },
+        onDrop: (event: DragEvent<HTMLFormElement>) => {
+          if (event.dataTransfer.files.length === 0) return;
+          event.preventDefault();
+          setDragging(false);
+          addFiles(Array.from(event.dataTransfer.files));
+        },
+      }
+    : {};
 
   function applyEdit(edit: ToolbarEdit) {
     const control = controlRef.current;
@@ -448,7 +573,12 @@ export function Composer({
   }
 
   return (
-    <form className="tm-chat-composer" onSubmit={submit}>
+    <form
+      className="tm-chat-composer"
+      onSubmit={submit}
+      {...(canAttach ? { 'data-dragging': dragging ? 'true' : 'false' } : {})}
+      {...dropProps}
+    >
       {replyTo !== undefined ? (
         <div className="tm-pane-reply-bar">
           <ReplyQuote
@@ -510,6 +640,47 @@ export function Composer({
         </section>
       ) : null}
 
+      {pendingFiles.length > 0 ? (
+        <ul
+          className="tm-chat-files tm-pane-composer-files"
+          aria-label={tOr('ChatMessages.attachedFiles', 'Files to send')}
+        >
+          {pendingFiles.map((file, index) => (
+            <li key={`${file.name}-${file.size}-${index}`} className="tm-chat-file">
+              <span className="tm-chat-file__icon" aria-hidden="true">
+                <PhoneIcon name="file" size={16} />
+              </span>
+              <span className="tm-chat-file__text">
+                <span className="tm-chat-file__name">{file.name}</span>
+                <span className="tm-chat-file__meta">{formatBytes(file.size)}</span>
+              </span>
+              <button
+                type="button"
+                className="tm-chat-side__round"
+                aria-label={tOr('ChatMessages.removeFile', 'Remove {name}').replace(
+                  '{name}',
+                  file.name,
+                )}
+                disabled={send.isPending}
+                onClick={() => removePendingFile(index)}
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {fileProblem !== undefined ? (
+        <InlineAlert
+          tone="warning"
+          title={tOr('ChatMessages.attachRefused', 'This file cannot be attached')}
+          live
+        >
+          {fileProblem}
+        </InlineAlert>
+      ) : null}
+
       {inadmissible !== undefined ? (
         <InlineAlert tone="danger" title={t('ProjectChannelScreen.formattingCannotSend')} live>
           {inadmissible}
@@ -550,6 +721,45 @@ export function Composer({
             <span aria-hidden="true">+</span>
           </button>
           {toolsOpen ? toolbar : null}
+          {attachOn ? (
+            <>
+              <button
+                type="button"
+                className="tm-chat-side__round"
+                aria-label={
+                  canAttach
+                    ? tOr('ChatMessages.attachFile', 'Attach a file')
+                    : tOr(
+                        'ChatMessages.attachNoProject',
+                        'Files can only be sent in a project chat',
+                      )
+                }
+                title={
+                  canAttach
+                    ? tOr('ChatMessages.attachFile', 'Attach a file')
+                    : tOr(
+                        'ChatMessages.attachNoProject',
+                        'Files can only be sent in a project chat',
+                      )
+                }
+                disabled={!canAttach || send.isPending}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <PhoneIcon name="paperclip" size={16} />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                hidden
+                accept={ATTACHMENT_ACCEPT}
+                tabIndex={-1}
+                aria-hidden="true"
+                onChange={onFilePicked}
+              />
+            </>
+          ) : null}
           {extraButtons}
           <span className="tm-chat-composer__spacer" aria-hidden="true" />
           {voice}
@@ -566,7 +776,7 @@ export function Composer({
               send.isPending ? t('ProjectChannelScreen.sending') : t('ProjectChannelScreen.send')
             }
             title={t('ProjectChannelScreen.send')}
-            disabled={composed === undefined || send.isPending}
+            disabled={(composed === undefined && pendingFiles.length === 0) || send.isPending}
             aria-busy={send.isPending}
           >
             <span className="tm-chat-side__send-arrow" aria-hidden="true">

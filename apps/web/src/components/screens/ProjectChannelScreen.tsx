@@ -741,6 +741,7 @@ export function ProjectChannelScreen({
               placeholder={`${t('ProjectChannelScreen.messagePrefix')} #${conversation.data.name}`}
               mentions={{ projectMemberIds, subtitleOf }}
               extras
+              attachProjectId={conversation.data.projectId}
               voice={
                 <VoiceNoteRecorder
                   client={api}
