@@ -188,12 +188,10 @@ describe('56-21b platform admin rules', () => {
     expect(upserts.some((s) => s.ruleKey === 'public_link_guessing')).toBe(false);
   });
 
-  it('keeps failed step-ups deferred but its evaluator counts per admin', async () => {
+  it('runs failed step-ups (no longer deferred) and fires per admin', async () => {
     const rule = DETECTOR_RULES.find((r) => r.key === 'platform_step_up_failures');
-    expect(rule?.deferred).toBeDefined();
-    expect(await fired('platform_step_up_failures', {})).toHaveLength(0);
-    const { store } = fakeStore(T);
-    const rows = await rule?.detect(store, setting('platform_step_up_failures', true), NOW);
-    expect(rows?.[0]).toMatchObject({ subjectId: ADMIN, count: T });
+    expect(rule?.deferred).toBeUndefined();
+    const rows = await fired('platform_step_up_failures', {});
+    expect(rows[0]).toMatchObject({ subjectKey: ADMIN, organizationId: null, count: T });
   });
 });

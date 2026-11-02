@@ -66,15 +66,14 @@ describe('security signals service', () => {
     expect(travel).toMatchObject({ status: 'deferred', enabled: false });
   });
 
-  it('lists the four 56-21b platform rules and refuses to enable failed step-ups', async () => {
+  it('lists the four 56-21b platform rules and enables failed step-ups', async () => {
     const keys = ['support_sessions_burst', 'platform_access_off_hours'];
     keys.push('platform_step_up_failures', 'support_session_new_country');
     const listed = (await service.rules(req)).filter((r) => keys.includes(r.key));
     expect(listed.map((r) => r.scope)).toEqual(['platform', 'platform', 'platform', 'platform']);
     expect(listed.every((r) => r.label.ar !== '' && r.label.en !== '')).toBe(true);
     const body = { enabled: true, threshold: { count: 3, windowMinutes: 30 } };
-    await expect(
-      service.updateRule(actor, 'platform_step_up_failures', body, req),
-    ).rejects.toMatchObject({ status: 409 });
+    const saved = await service.updateRule(actor, 'platform_step_up_failures', body, req);
+    expect(saved).toMatchObject({ enabled: true });
   });
 });

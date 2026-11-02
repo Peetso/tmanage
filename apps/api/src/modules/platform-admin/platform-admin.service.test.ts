@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PlatformAdminActor } from './platform-admin.guard.js';
 import type { PlatformAdminRepository, PlatformAuditInput } from './platform-admin.repository.js';
 import { PlatformAdminService } from './platform-admin.service.js';
+import { AuthenticationRejectedError } from '../identity/authentication.service.js';
 import { PlatformOrganizationsService } from './organizations/organizations.service.js';
 import { PlatformPeopleService } from './people/people.service.js';
 import type { PlatformPeopleRepository } from './people/people.repository.js';
@@ -187,5 +188,15 @@ describe('PlatformAdminService', () => {
     const { core, audits } = harness();
     await core.stepUp(actor, { password: 'pw', code: '123456' }, ctx);
     expect(audits[0]).toMatchObject({ action: 'platform.step_up', ip: '203.0.113.9' });
+  });
+
+  it('a refused step-up writes platform.step_up_failed and still refuses', async () => {
+    const { repository, audits } = harness();
+    const refused = new AuthenticationRejectedError('invalid_credentials', 'bad_password');
+    const core = new PlatformAdminService(repository, {
+      confirmReauthentication: () => Promise.reject(refused),
+    });
+    await expect(core.stepUp(actor, { password: 'x' }, ctx)).rejects.toBe(refused);
+    expect(audits).toMatchObject([{ action: 'platform.step_up_failed', actorUserId: 'u' }]);
   });
 });

@@ -21,9 +21,9 @@ import type { Mailer } from '@tmanage/mail';
  *
  * 56-21b adds four platform rules over the platform admins' own trail (`platform_support_sessions`,
  * `platform_admin_audit_events`, the 0280 `ip_lookups` cache): a burst of support sessions, a
- * platform access between 00:00 and 06:00 in the admin's own time zone, failed step-ups (deferred:
- * a failed step-up is only in the security log) and a support session from a new country. They
- * carry code defaults, so they run before any `platform_alert_rules` row exists, and they count
+ * platform access between 00:00 and 06:00 in the admin's own time zone, failed step-ups (the
+ * `platform.step_up_failed` audit rows, R14-d) and a support session from a new country. They
+ * carry code defaults (0285 seeds the same values as rows), and they count
  * per (rule, admin, UTC day): one row a day, mailed at most once inside the day-long cooldown.
  *
  * ## Notify
@@ -146,7 +146,7 @@ export interface SecuritySignalStore {
   platformAccessEvents(
     since: Date,
   ): Promise<readonly { adminUserId: string; at: Date; timeZone: string | null }[]>;
-  /** 56-21b (deferred rule): failed platform step-ups per admin since `since`, `>= min`. */
+  /** 56-21b: refused platform step-ups (`platform.step_up_failed`) per admin since `since`. */
   failedStepUps(
     since: Date,
     min: number,
@@ -319,11 +319,8 @@ const PLATFORM_ADMIN_RULES: readonly Rule[] = [
   {
     key: 'platform_step_up_failures',
     severity: 'high',
-    // A failed step-up is written only to `authentication_events` (reauthentication, failed),
-    // which the worker cannot read by design (least privilege, 56-23). Same road as
-    // `credential_stuffing`: an API-side or narrow-view detector.
-    deferred:
-      'failed step-ups are only in the security log, which the worker has no read on by design',
+    // R14-d: a refused step-up also writes `platform.step_up_failed` to the platform audit
+    // trail (already readable), so the worker never needs the security log for this rule.
     defaults: { count: 3, windowMinutes: 30, cooldownMinutes: DAY_MINUTES },
     bucketMinutes: DAY_MINUTES,
     detect: adminCount((store) => store.failedStepUps.bind(store)),

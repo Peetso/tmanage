@@ -22,8 +22,8 @@ import type {
  * LIMIT; nothing here writes a source table.
  * 56-21b (no new grant): the platform admin rules read `platform_support_sessions`,
  * `platform_admin_audit_events` (SELECT, 56-11 block), `ip_lookups` (SELECT, 0280 block) and
- * `users.timezone`, all already held. `failedStepUps` reads `authentication_events` and is never
- * called while its rule is deferred (the grant is refused on purpose).
+ * `users.timezone`, all already held. `failedStepUps` counts the API's `platform.step_up_failed`
+ * audit rows (R14-d), so it needs no read on `authentication_events`.
  * Dates are bound from the application clock.
  */
 
@@ -67,10 +67,9 @@ const SQL = {
     where e.created_at >= ?
       and e.action in ('platform.step_up', 'platform.support_session_started')
     order by e.created_at desc limit ${String(LIMIT * 5)}`,
-  failedStepUps: `select a.user_id, count(*) as n from authentication_events a
-    join platform_admins p on p.user_id = a.user_id
-    where a.occurred_at >= ? and a.action = 'reauthentication' and a.outcome = 'failed'
-    group by a.user_id having count(*) >= ? order by n desc limit ${String(LIMIT)}`,
+  failedStepUps: `select actor_user_id, count(*) as n from platform_admin_audit_events
+    where created_at >= ? and action = 'platform.step_up_failed'
+    group by actor_user_id having count(*) >= ? order by n desc limit ${String(LIMIT)}`,
   supportCountries: `select e.actor_user_id, e.created_at, l.country_code
     from platform_admin_audit_events e left join ip_lookups l on l.ip = e.ip
     where e.created_at >= ? and e.action = 'platform.support_session_started'
@@ -217,7 +216,7 @@ export function createSecuritySignalStore(database: WorkerDatabase): SecuritySig
     },
     async failedStepUps(since, min) {
       return (await read(SQL.failedStepUps, [since, min])).map((r) => ({
-        adminUserId: String(r['user_id']),
+        adminUserId: String(r['actor_user_id']),
         count: num(r['n']),
       }));
     },

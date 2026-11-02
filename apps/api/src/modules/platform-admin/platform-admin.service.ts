@@ -1,5 +1,6 @@
 import { PLATFORM_PERMISSIONS } from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
+import { AuthenticationRejectedError } from '../identity/authentication.service.js';
 import { PLATFORM_STEP_UP_MINUTES } from './platform-admin.access.js';
 import type { PlatformRequestContext } from './platform-admin.access.js';
 import type { PlatformAdminActor } from './platform-admin.guard.js';
@@ -192,13 +193,19 @@ export class PlatformAdminService {
         { field: 'password', message: 'required' },
       ]);
     }
-    await this.reauth.confirmReauthentication({
-      userId: actor.account.userId,
-      sessionId: actor.sessionId,
-      password,
-      code: typeof body?.code === 'string' && body.code !== '' ? body.code : undefined,
-      context,
-    });
+    try {
+      await this.reauth.confirmReauthentication({
+        userId: actor.account.userId,
+        sessionId: actor.sessionId,
+        password,
+        code: typeof body?.code === 'string' && body.code !== '' ? body.code : undefined,
+        context,
+      });
+    } catch (error) {
+      if (error instanceof AuthenticationRejectedError)
+        await this.auditFailedStepUp(actor, context);
+      throw error;
+    }
     const expiresAt = await this.repository.recordStepUp({
       userId: actor.account.userId,
       sessionId: actor.sessionId,
@@ -215,5 +222,24 @@ export class PlatformAdminService {
       }),
     });
     return { expiresAt: expiresAt.toISOString(), mfaVerified: actor.account.mfaEnabled };
+  }
+
+  /**
+   * R14-d: a refused step-up goes to the platform trail too, so the worker's
+   * `platform_step_up_failures` rule counts it without a read on the security log. Best effort:
+   * a failed write never replaces the caller's 401 (the security log row is already written).
+   */
+  private async auditFailedStepUp(
+    actor: PlatformAdminActor,
+    context: RequestContext,
+  ): Promise<void> {
+    const audit = platformAuditFor(actor, context, {
+      action: 'platform.step_up_failed',
+      targetType: 'platform',
+      targetId: null,
+      targetLabel: null,
+      reason: 'Step-up to Platform admin refused (wrong password or two-step code)',
+    });
+    await this.repository.recordAudit(audit).catch(() => undefined);
   }
 }

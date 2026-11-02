@@ -114,7 +114,7 @@ export const SIGNAL_RULES: readonly SignalRule[] = Object.freeze([
     status: 'deferred',
     deferredReason: 'No GeoIP database is bundled; the rule cannot run on this host.',
   },
-  // ---- 56-21b platform admin anomalies (code defaults in the worker until a row is seeded) ----
+  // ---- 56-21b platform admin anomalies (worker code defaults; 0285 seeds the rows) ----
   rule(
     'support_sessions_burst',
     'high',
@@ -129,18 +129,13 @@ export const SIGNAL_RULES: readonly SignalRule[] = Object.freeze([
     'Platform access between midnight and 6 a.m.',
     'دخول إلى المنصة بين منتصف الليل والسادسة صباحاً',
   ),
-  {
-    ...rule(
-      'platform_step_up_failures',
-      'high',
-      'platform',
-      'Repeated failed platform step-ups',
-      'فشل متكرر في تأكيد الدخول إلى المنصة',
-    ),
-    status: 'deferred',
-    deferredReason:
-      'Failed step-ups are only in the security log, which the worker has no read on by design.',
-  },
+  rule(
+    'platform_step_up_failures',
+    'high',
+    'platform',
+    'Repeated failed platform step-ups',
+    'فشل متكرر في تأكيد الدخول إلى المنصة',
+  ),
   rule(
     'support_session_new_country',
     'high',

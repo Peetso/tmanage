@@ -109,6 +109,8 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.alert_rule_updated',
   // ---- 56-21b platform access review ----
   'platform.access_review_recorded',
+  // ---- R14-d ---- a refused platform step-up (feeds `platform_step_up_failures`).
+  'platform.step_up_failed',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];
