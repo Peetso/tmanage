@@ -20,6 +20,8 @@ import { MembershipsRepository } from './memberships.repository.js';
 import { StaffClientRowsRepository } from './membership-resolver.repository.js';
 import { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
 import { customRoleCapabilities } from './member-role.controller.js';
+import { assertClientRoleWithinCeiling } from './client-role-ceiling.js';
+import type { ClientCeilingOf } from './client-role-ceiling.js';
 import {
   InvitationNotFoundError,
   InvitationNotPendingError,
@@ -259,6 +261,8 @@ export interface InvitationsServiceOptions {
   readonly issueLimitPerHour?: number;
   /** N05: portal invitations one client organization may issue (or re-issue) per rolling hour. */
   readonly clientIssueLimitPerHour?: number;
+  /** R23-b (56-28): a client role's ceiling; injectable only so a test can widen one. */
+  readonly clientCeilingOf?: ClientCeilingOf;
 }
 
 /** F36b: the default per-organization issuance ceiling — far above any real onboarding day. */
@@ -355,7 +359,9 @@ export class InvitationsService {
 
     const email = input.email.trim().toLowerCase();
     const customRole = isCustomRoleCandidate(input.role, clientOrganizationId);
-    if (!customRole) this.requireRoleMatchesDestination(input.role, clientOrganizationId);
+    if (!customRole) {
+      this.requireRoleMatchesDestination(input.role, clientOrganizationId, 'invitation.issue');
+    }
     requireSessionForPrivilegedInvite(context, input.role, 'invitation.issue');
     requireOwnerToGrantOwner(principal, input.role, 'invitation.issue');
     // F05: a built-in role only within the inviter's own authority.
@@ -474,7 +480,11 @@ export class InvitationsService {
         if (isCustomRoleCandidate(role, previous.clientOrganizationId)) {
           await this.requireGrantableCustomRole(tx, context, principal, role);
         } else {
-          this.requireRoleMatchesDestination(role, previous.clientOrganizationId);
+          this.requireRoleMatchesDestination(
+            role,
+            previous.clientOrganizationId,
+            'invitation.reissue',
+          );
           // F05: the same ceiling as issue — a re-issue cannot raise the role past the caller.
           requireMayGrantRole(principal, role, context.organizationId, 'invitation.reissue');
         }
@@ -1254,8 +1264,18 @@ export class InvitationsService {
    * membership whose role no client ceiling contains — a principal the authorizer would refuse
    * everything, which is safe and is also a support ticket nobody can explain.
    */
-  private requireRoleMatchesDestination(role: string, clientOrganizationId: string | null): void {
-    const ok = clientOrganizationId === null ? isInternalRole(role) : isClientRole(role);
+  private requireRoleMatchesDestination(
+    role: string,
+    clientOrganizationId: string | null,
+    action: string,
+  ): void {
+    // R23-b (56-28): a client destination also holds the client ceiling — 422 `client_ceiling`
+    // when the role's capabilities reach past `CLIENT_CAPABILITY_ALLOWLIST`, before any write.
+    if (clientOrganizationId !== null && isClientRole(role)) {
+      assertClientRoleWithinCeiling(role, action, this.options.clientCeilingOf);
+      return;
+    }
+    const ok = clientOrganizationId === null ? isInternalRole(role) : false;
     if (!ok) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
         {

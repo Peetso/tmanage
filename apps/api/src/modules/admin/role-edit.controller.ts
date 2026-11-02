@@ -10,6 +10,10 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import type { AuditService } from '../audit/audit.service.js';
 import { RoleEditRepository } from './role-edit.repository.js';
 import { requireRoleAssigner } from '../tenancy/role-grant-ceiling.js';
+import {
+  refuseClientRoleName,
+  requireCustomRoleAudienceCeiling,
+} from '../tenancy/client-role-ceiling.js';
 
 /**
  * Custom role clone + edit (Administration module 18, x195) — the lifecycle the audit named absent after
@@ -57,12 +61,20 @@ export interface RoleEditView {
 /** The clone body — the new role's name (the capability subset is copied from the source). */
 interface CloneRoleBody {
   readonly name?: unknown;
+  /** R23-b: a built-in client role name is refused (422 `client_ceiling`). */
+  readonly role?: unknown;
+  /** R23-b hook (56-28): `'client'` holds the copied subset to the client ceiling. */
+  readonly audience?: unknown;
 }
 
 /** The edit body — a new name and a new capability subset, both arriving as `unknown`. */
 interface EditRoleBody {
   readonly name?: unknown;
   readonly capabilities?: unknown;
+  /** R23-b: a built-in client role name is refused (422 `client_ceiling`). */
+  readonly role?: unknown;
+  /** R23-b hook (56-28): `'client'` holds the new subset to the client ceiling. */
+  readonly audience?: unknown;
 }
 
 /** The org-wide resource the escalation guard and the `org.manage` decision authorize against. */
@@ -112,6 +124,8 @@ export class RoleEditController {
 
       // 2. The real org-wide `org.manage` decision (the decorator is the coarse HTTP gate).
       this.requireOrgManage(principal, context);
+      // R23-b (56-28): custom roles are internal-only today; a client role name is the ceiling's 422.
+      refuseClientRoleName(body?.role, 'custom_role.client_role');
 
       // 3. Validate the new name.
       const name = validateName(body?.name);
@@ -120,6 +134,7 @@ export class RoleEditController {
       //    carry a capability off the allowlist or one the caller cannot itself exercise.
       const capabilities = parseCapabilities(source.capabilitiesJson);
       assertAllAllowlisted(capabilities);
+      requireCustomRoleAudienceCeiling(body?.audience, capabilities, 'custom_role.client_role');
       assertCallerHolds(principal, context, capabilities);
 
       // 5. Duplicate name → 409, no write.
@@ -168,6 +183,8 @@ export class RoleEditController {
 
       // 2. The real org-wide `org.manage` decision.
       this.requireOrgManage(principal, context);
+      // R23-b (56-28): custom roles are internal-only today; a client role name is the ceiling's 422.
+      refuseClientRoleName(body?.role, 'custom_role.client_role');
 
       // 3. Validate the new name.
       const name = validateName(body?.name);
@@ -182,6 +199,11 @@ export class RoleEditController {
       }
       const capabilities = dedupe(requested);
       assertAllAllowlisted(capabilities);
+      requireCustomRoleAudienceCeiling(
+        body?.audience,
+        capabilities as Capability[],
+        'custom_role.client_role',
+      );
       assertCallerHolds(principal, context, capabilities as Capability[]);
 
       // 5. Duplicate name → 409, ignoring the role being edited (a rename to its own name is fine).

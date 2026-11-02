@@ -9,6 +9,10 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import type { CustomRoleRow } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { CustomRolesRepository } from './roles.repository.js';
+import {
+  refuseClientRoleName,
+  requireCustomRoleAudienceCeiling,
+} from '../tenancy/client-role-ceiling.js';
 
 /**
  * Custom roles (Administration module 18, x173) — the roles surface the audit (rank #9) named absent.
@@ -52,6 +56,10 @@ export interface CustomRoleView {
 interface CreateRoleBody {
   readonly name?: unknown;
   readonly capabilities?: unknown;
+  /** R23-b: names a built-in role — a client one is refused (422 `client_ceiling`). */
+  readonly role?: unknown;
+  /** R23-b hook (56-28): `'client'` holds the subset to the client ceiling; default internal. */
+  readonly audience?: unknown;
 }
 
 /** The org-wide resource the escalation guard authorizes each requested capability against. */
@@ -107,6 +115,8 @@ export class CustomRolesController {
       // 2. The real org-wide authorize for `org.manage` (the decorator is the coarse HTTP gate; this is
       //    the tenant-checked decision the test exercises).
       this.requireOrgManage(principal, context);
+      // R23-b (56-28): custom roles are internal-only today; a client role name is the ceiling's 422.
+      refuseClientRoleName(body?.role, 'custom_role.client_role');
 
       // 3. Validate the name: a non-empty, reasonably-bounded string.
       const name = typeof body?.name === 'string' ? body.name.trim() : '';
@@ -138,6 +148,13 @@ export class CustomRolesController {
           ]);
         }
       }
+
+      // R23-b hook: a body saying `audience: 'client'` keeps the subset inside the client ceiling.
+      requireCustomRoleAudienceCeiling(
+        body?.audience,
+        capabilities as Capability[],
+        'custom_role.client_role',
+      );
 
       // 5. Privilege-escalation guard: every requested capability must be one the CALLER can actually
       //    exercise org-wide right now (the real evaluator), so a role can never widen access past its

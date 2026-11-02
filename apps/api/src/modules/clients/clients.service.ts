@@ -4,6 +4,8 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
+import { assertClientRoleWithinCeiling } from '../tenancy/client-role-ceiling.js';
+import type { ClientCeilingOf } from '../tenancy/client-role-ceiling.js';
 import {
   ClientMembershipNotFoundError,
   ClientMembershipsRepository,
@@ -137,6 +139,8 @@ export interface ClientsServiceOptions {
    * read from the environment so a test can state it.
    */
   readonly defaultExpiryDays: number;
+  /** R23-b (56-28): a client role's ceiling; injectable only so a test can widen one. */
+  readonly ceilingOf?: ClientCeilingOf;
 }
 
 export class ClientsService {
@@ -370,6 +374,8 @@ export class ClientsService {
     // a raw id here they could attach any user — internal staff included — to their organization.
     // After the scope check, so a sibling client organization's id stays the same 404 as before.
     this.refuseClientPrincipal(principal, 'client_membership.invite');
+    // R23-b (56-28): the role's ceiling holds only client capabilities — 422 before any write.
+    assertClientRoleWithinCeiling(input.role, 'client_membership.invite', this.options.ceilingOf);
     await this.readOrganization(context, input.clientOrganizationId);
     await this.refuseInternalMember(context, input.userId);
 
@@ -415,6 +421,8 @@ export class ClientsService {
       clientMembershipId,
       'client_membership.change_role',
     );
+    // R23-b (56-28): the same client-ceiling rule as invite, before the transaction.
+    assertClientRoleWithinCeiling(role, 'client_membership.change_role', this.options.ceilingOf);
 
     const row = await this.writing(() =>
       this.database.transaction(context, async (tx) => {

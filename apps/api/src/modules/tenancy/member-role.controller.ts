@@ -19,6 +19,7 @@ import type { AuditService } from '../audit/audit.service.js';
 import { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
 import { MembershipsRepository, MembershipVersionConflictError } from './memberships.repository.js';
 import { InvitationsRepository } from './invitations.repository.js';
+import { refuseClientRoleName } from './client-role-ceiling.js';
 import {
   isOwnerPrincipal as isOwner,
   isRoleAssigner,
@@ -173,6 +174,8 @@ export class MemberRoleController {
         { field: 'customRoleId', message: 'must be a custom role id' },
       ]);
     }
+    // R23-b (56-28): this path is internal-only — a built-in client role is the ceiling's 422.
+    refuseClientRoleName(customRoleId ?? body?.role, 'member_role.client_role');
     const role = customRoleId ?? (typeof body?.role === 'string' ? body.role.trim() : '');
     // PA-01: the Support-session role is internal but only the support service writes it.
     if (customRoleId === undefined && (!isInternalRole(role) || isPlatformSupportRole(role))) {

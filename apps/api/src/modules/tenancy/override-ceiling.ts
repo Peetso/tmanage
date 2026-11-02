@@ -1,11 +1,7 @@
-import {
-  CAPABILITIES,
-  isInternalOnlyCapability,
-  isPlatformSupportRole,
-  mayGrantCapability,
-} from '@tmanage/domain';
-import type { Capability, Principal } from '@tmanage/domain';
+import { CAPABILITIES, isPlatformSupportRole, mayGrantCapability } from '@tmanage/domain';
+import type { Capability, Principal, PrincipalRole } from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
+import { requireClientCeiling } from './role-grant-ceiling.js';
 
 /**
  * platform-admin v2 · PA-01 — the one rule for "may this caller set these per-member overrides?"
@@ -21,8 +17,9 @@ import { ApiError } from '../../common/http/errors.js';
  * - Overrides on an **owner** are refused: "Owners always have every permission".
  * - A `deny` never applies to `platform_support` (the hidden Support-session role), so writing
  *   one is refused rather than stored to no effect.
- * - A client membership can receive only capabilities that are not internal-only;
- *   `authorize()` step 5 would refuse the rest anyway, and storing them would mislead the screen.
+ * - A client membership can be allowed only capabilities inside the 56-28 client ceiling
+ *   (`CLIENT_CAPABILITY_ALLOWLIST`, 422 `client_ceiling`); storing the rest would mislead the
+ *   screen. A deny on a client member stays allowed.
  */
 
 export type OverrideEffect = 'allow' | 'deny';
@@ -144,7 +141,17 @@ export function requireMayOverride(
         `${action}:platform_support_deny`,
       );
     }
-    if (target.audience === 'client' && isInternalOnlyCapability(override.capability)) {
+    // R23-b (56-28): an `allow` on a client member holds the client ceiling (422 `client_ceiling`
+    // naming the capability); a `deny` only takes away, so it stays allowed. A capability the
+    // vocabulary does not know is still the 400 below.
+    if (target.audience === 'client' && override.effect === 'allow') {
+      requireClientCeiling(
+        target.role as PrincipalRole,
+        [override.capability],
+        `${action}:client_allow`,
+      );
+    }
+    if (target.audience === 'client' && !KNOWN.has(override.capability)) {
       throw new ApiError(
         400,
         'validation_failed',

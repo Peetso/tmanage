@@ -140,7 +140,7 @@ describe('requireMayOverride', () => {
     expect(error.status).toBe(400);
   });
 
-  it('refuses an internal-only capability for a client member', () => {
+  it('refuses an internal-only capability for a client member (R23-b: 422 client_ceiling)', () => {
     const error = thrown(() =>
       requireMayOverride(
         caller('owner'),
@@ -150,7 +150,7 @@ describe('requireMayOverride', () => {
         'x',
       ),
     );
-    expect(error.status).toBe(400);
+    expect(error.status).toBe(422);
   });
 
   it('lets an org admin allow a capability they hold', () => {
