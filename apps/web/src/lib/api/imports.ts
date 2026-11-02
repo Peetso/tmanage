@@ -28,13 +28,17 @@ export interface ImportReceiptRow {
 /** A committed job's receipt — pairs with the API's `ImportCommitView`. */
 export interface ImportReceipt {
   readonly jobId: string;
-  readonly sourceKind: 'project' | 'jira_issues';
+  readonly sourceKind: 'project' | 'jira_issues' | 'notion_database' | 'basecamp_messages';
   readonly status: 'committed' | 'committed_with_errors';
   readonly committedCount: number;
   readonly failedCount: number;
   readonly rows: readonly ImportReceiptRow[];
   /** R21-e: a `jira_issues` commit's summary, on the commit response only (never stored). */
   readonly jira?: ImportJiraSummary;
+  /** R22-f: a `notion_database` commit's summary, on the commit response only. */
+  readonly notion?: ImportNotionSummary;
+  /** R22-f: a `basecamp_messages` commit's summary, on the commit response only. */
+  readonly basecamp?: ImportBasecampSummary;
 }
 
 /** R21-e: what a Jira batch created — pairs with the API's `JiraCommitSummary`. */
@@ -44,6 +48,27 @@ export interface ImportJiraSummary {
   readonly sprintsCreated: number;
   readonly itemsKeyed: number;
   readonly epicsSkipped: number;
+  readonly notes: readonly string[];
+  /** R22-e: unknown ADF node / wiki macro names met in descriptions (`jira_unknown_markup`). */
+  readonly descriptionNotes: readonly string[];
+}
+
+/** R22-f: what a Notion database batch created — pairs with the API's `NotionCommitSummary`. */
+export interface ImportNotionSummary {
+  readonly projectId: string;
+  readonly itemsCreated: number;
+  readonly labelsCreated: number;
+  readonly notes: readonly string[];
+}
+
+/** R22-f: what a Basecamp batch created — pairs with the API's `BasecampCommitSummary`. */
+export interface ImportBasecampSummary {
+  readonly projectId: string;
+  readonly documentsCreated: number;
+  readonly itemsCreated: number;
+  readonly phasesCreated: number;
+  /** Rows not imported, by kind: `{ campfire: n, hillchart: n, … }`. */
+  readonly basecampSkipped: Readonly<Record<string, number>>;
   readonly notes: readonly string[];
 }
 

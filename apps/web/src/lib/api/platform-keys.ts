@@ -15,7 +15,9 @@ export type KeyPurpose =
   | 'push_key'
   | 'integration_token'
   | 'zatca_key'
-  | 'reporter_email';
+  | 'reporter_email'
+  // R22-a: the organization secrets envelope (ZATCA signing certificate + key).
+  | 'org_secret';
 
 export type KeyRotationStatus = 'queued' | 'running' | 'done' | 'failed';
 
