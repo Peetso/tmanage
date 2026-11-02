@@ -68,8 +68,9 @@ describe('overrides', () => {
         request,
       ),
     );
-    expect(error.status).toBe(400);
-    expect(error.auditCode).toBe('platform.member_overrides:internal_only');
+    // R23-b (56-28): an allow on a client member holds the client ceiling.
+    expect(error.status).toBe(422);
+    expect(error.auditCode).toBe('platform.member_overrides:client_allow:client_ceiling');
   });
 
   it('refuses an expiry in the past', async () => {
