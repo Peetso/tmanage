@@ -2550,6 +2550,19 @@ export const projectBudgets = mysqlTable(
     createdBy: char('created_by', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- 52-05 (0291) burn ----
+    /** `hours` | `money` | `both`, checked in the application. */
+    budgetType: varchar('budget_type', { length: 8 }).notNull().default('hours'),
+    includeExpenses: boolean('include_expenses').notNull().default(true),
+    clientVisible: boolean('client_visible').notNull().default(false),
+    /** One to four whole percents, ascending, comma-separated. */
+    alertThresholds: varchar('alert_thresholds', { length: 32 }).notNull().default('70,85,95,100'),
+    lastAlertBp: int('last_alert_bp').notNull().default(0),
+    usedMinutesCache: int('used_minutes_cache').notNull().default(0),
+    usedAmountCacheMinor: bigint('used_amount_cache_minor', { mode: 'number' })
+      .notNull()
+      .default(0),
+    cacheRefreshedAt: datetime('cache_refreshed_at', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_project_budgets_org_id').on(table.organizationId, table.id),
@@ -11966,4 +11979,68 @@ export type ContactSuggestionRow = typeof contactSuggestions.$inferSelect;
 
 Object.assign(TABLES, {
   contact_suggestions: contactSuggestions,
+});
+
+// ---- R16-b · 52-05 budgets and burn ----
+
+/**
+ * 52-05 (0291). An optional split of a project's budget by phase. `phaseId` names a
+ * `project_phases` definition row (resolved tenant-scoped by the service) or is NULL. Replace-all
+ * on save, at most 20 lines.
+ */
+export const projectBudgetPhases = mysqlTable(
+  'project_budget_phases',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    phaseId: char('phase_id', { length: 36 }),
+    name: varchar('name', { length: 120 }).notNull(),
+    budgetMinutes: int('budget_minutes'),
+    budgetAmountMinor: bigint('budget_amount_minor', { mode: 'number' }),
+    position: int('position').notNull().default(0),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_project_budget_phases_org_id').on(table.organizationId, table.id),
+    index('ix_project_budget_phases_project').on(
+      table.organizationId,
+      table.projectId,
+      table.position,
+    ),
+  ],
+);
+
+/**
+ * 52-05 (0291). One threshold alert the burn sweep raised. History: inserted by the worker, never
+ * updated or deleted. `notifiedTo` is a JSON array of user ids stored as TEXT.
+ */
+export const budgetAlertEvents = mysqlTable(
+  'budget_alert_events',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    thresholdBp: int('threshold_bp').notNull(),
+    usedBp: int('used_bp').notNull(),
+    notifiedTo: text('notified_to').notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_budget_alert_events_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_budget_alert_events_dedupe').on(
+      table.organizationId,
+      table.projectId,
+      table.thresholdBp,
+      table.createdAt,
+    ),
+  ],
+);
+
+export type ProjectBudgetPhaseRow = typeof projectBudgetPhases.$inferSelect;
+export type BudgetAlertEventRow = typeof budgetAlertEvents.$inferSelect;
+
+Object.assign(TABLES, {
+  project_budget_phases: projectBudgetPhases,
+  budget_alert_events: budgetAlertEvents,
 });

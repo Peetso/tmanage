@@ -227,3 +227,13 @@ export {
 export type { MailDrainReport, MailDrainerDeps, MailDrainerState } from './jobs/mail-drainer.js';
 export { createMailQueueStore } from './common/database/mail-queue-store.js';
 export type { ClaimedMail, MailQueueStore } from './common/database/mail-queue-store.js';
+// R16-b (52-05) — the 15-minute budget burn sweep, exported so the single Hostinger app
+// (`apps/server`) runs it in-process.
+export {
+  BUDGET_BURN_INTERVAL_MS,
+  budgetAlertRecipients,
+  decideBurnAlert,
+  sweepBudgetBurn,
+} from './jobs/budget-burn-sweeper.js';
+export type { BudgetBurnSweepResult } from './jobs/budget-burn-sweeper.js';
+export { createBudgetBurnStore } from './common/database/budget-burn-store.js';

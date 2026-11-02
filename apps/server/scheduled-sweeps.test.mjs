@@ -11,6 +11,7 @@ import {
   apiSweepJobs,
   createSweepScheduler,
   reconcileIntervalMs,
+  startBudgetBurn,
   startChannelPosts,
   startWebhookDeliveries,
   sweepIntervalMs,
@@ -355,6 +356,21 @@ test('R15-c: channel posts start on the worker loop and stop on abort; absent pa
   assert.equal(signal.aborted, true);
   assert.equal(
     startChannelPosts({}, 'pool', {}, () => {}),
+    null,
+  );
+});
+
+test('R16-b: the budget burn sweep runs one pass on start and stops; absent sweep is null', async () => {
+  const stores = [];
+  const worker = {
+    createBudgetBurnStore: (database) => ({ database }),
+    sweepBudgetBurn: async (store) => (stores.push(store), { budgets: 1, alerts: 0, failed: 0 }),
+  };
+  const stop = startBudgetBurn(worker, 'pool', {}, () => {});
+  await stop();
+  assert.deepEqual(stores, [{ database: 'pool' }]);
+  assert.equal(
+    startBudgetBurn({}, 'pool', {}, () => {}),
     null,
   );
 });

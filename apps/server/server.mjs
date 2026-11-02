@@ -92,6 +92,7 @@ import {
   reconcileIntervalMs,
   sweepIntervalMs,
   startWebhookDeliveries,
+  startBudgetBurn,
   sweepsEnabled,
   workerSweepJobs,
 } from './scheduled-sweeps.mjs';
@@ -496,8 +497,10 @@ async function startScheduledSweeps(env, app) {
   reconciler.start();
   // R14-a: outbound webhooks are delivered here; the relay only stages them (R13-s2).
   const stopWebhooks = startWebhookDeliveries(worker, database, env, log, serializeForLog);
+  // R16-b: the 15-minute budget burn sweep (52-05).
+  const stopBudgetBurn = startBudgetBurn(worker, database, env, log, serializeForLog);
   return async () => {
-    await Promise.all([scheduler.stop(), reconciler.stop(), stopWebhooks?.()]);
+    await Promise.all([scheduler.stop(), reconciler.stop(), stopWebhooks?.(), stopBudgetBurn?.()]);
     await database.end();
   };
 }

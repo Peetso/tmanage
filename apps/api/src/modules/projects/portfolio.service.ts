@@ -8,6 +8,8 @@ import {
 } from './portfolio.repository.js';
 import type { PortfolioMilestoneRow } from './portfolio.repository.js';
 import type { ProjectRow } from '../../common/database/schema.js';
+import { BudgetBurnService } from './budget-burn.service.js';
+import type { PortfolioBurnView } from './budget-burn.service.js';
 
 /**
  * The application service for PROJ / module 8 (x137) — the project-portfolio roll-up.
@@ -78,6 +80,8 @@ export interface ProjectPortfolioView {
   readonly archivedAt: string | null;
   /** The project's milestones in due order, for the POR-02 timeline. */
   readonly milestones: readonly PortfolioMilestoneView[];
+  /** 52-05: present only with `include=burn`; null for a project without a budget. */
+  readonly burn?: PortfolioBurnView | null;
 }
 
 /** One milestone on the POR-02 timeline. */
@@ -94,6 +98,8 @@ const MAX_LIMIT = 200;
 
 export interface ListPortfolioOptions {
   readonly limit?: number;
+  /** 52-05: `['burn']` appends `{percentBp, status}` per project (null without a budget). */
+  readonly include?: readonly string[];
 }
 
 export class ProjectPortfolioService {
@@ -158,6 +164,10 @@ export class ProjectPortfolioService {
       objectivesByProject.set(row.projectId, tally);
     }
 
+    const burnByProject = options.include?.includes('burn')
+      ? await new BudgetBurnService(this.database).portfolioBurn(context, projectIds)
+      : null;
+
     return visible.map((project) => {
       const work = workByProject.get(project.id);
       const objectives = objectivesByProject.get(project.id) ?? { open: 0, met: 0, missed: 0 };
@@ -185,6 +195,7 @@ export class ProjectPortfolioService {
           status: row.status,
           published: row.published,
         })),
+        ...(burnByProject ? { burn: burnByProject.get(project.id) ?? null } : {}),
       };
     });
   }

@@ -5,6 +5,7 @@ import { ProjectBudgetController } from './budget.controller.js';
 import { ProjectBudgetService } from './budget.service.js';
 import type { ProjectBudgetRepository } from './budget.repository.js';
 import type { ProjectsRepository } from './projects.repository.js';
+import type { BudgetBurnService } from './budget-burn.service.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { ProjectBudgetRow } from '../../common/database/schema.js';
 
@@ -60,6 +61,9 @@ function build(
       store.find((r) => r.projectId === projectId && r.organizationId === ctx.organizationId) ??
       null,
     sumTrackedMinutes: async () => trackedMinutes,
+    listPhases: async () => [],
+    countProjectPhases: async () => 0,
+    replacePhases: async () => undefined,
     upsert: async (
       _r: unknown,
       ctx: TenantContext,
@@ -69,6 +73,10 @@ function build(
         readonly budgetAmountMinor: number | null;
         readonly currency: string | null;
         readonly createdBy: string;
+        readonly budgetType?: string;
+        readonly includeExpenses?: boolean;
+        readonly clientVisible?: boolean;
+        readonly alertThresholds?: string;
       },
     ) => {
       const existing = store.find(
@@ -84,6 +92,14 @@ function build(
         createdBy: input.createdBy,
         createdAt: existing?.createdAt ?? new Date(Date.UTC(2026, 0, 1)),
         updatedAt: new Date(Date.UTC(2026, 0, 2)),
+        budgetType: input.budgetType,
+        includeExpenses: input.includeExpenses,
+        clientVisible: input.clientVisible,
+        alertThresholds: input.alertThresholds,
+        lastAlertBp: 0,
+        usedMinutesCache: 0,
+        usedAmountCacheMinor: 0,
+        cacheRefreshedAt: null,
       } as ProjectBudgetRow;
       if (existing) Object.assign(existing, row);
       else store.push(row);
@@ -97,8 +113,11 @@ function build(
         : null,
   } as unknown as ProjectsRepository;
 
-  const service = new ProjectBudgetService(database, repository, projects);
-  return { controller: new ProjectBudgetController(service), store };
+  const service = new ProjectBudgetService(database, repository, projects, {
+    burn: { refreshCache: async () => ({ usedMinutes: 0, usedAmountMinor: 0 }) },
+  });
+  const burns = {} as unknown as BudgetBurnService;
+  return { controller: new ProjectBudgetController(service, burns), store };
 }
 
 describe('ProjectBudgetController set → read, budget vs tracked', () => {
@@ -151,6 +170,21 @@ describe('body validation ⇒ 400, no write', () => {
       controller.save(context, owner, PROJECT, { budgetHours: 10, currency: 'USD' }),
     ).rejects.toEqual(expect.objectContaining({ status: 400 }));
     expect(store).toHaveLength(0);
+  });
+});
+
+describe('52-05 budget fields', () => {
+  it('stores type and thresholds, and refuses descending thresholds', async () => {
+    const { controller, store } = build();
+    const saved = await controller.save(context, owner, PROJECT, {
+      budgetHours: 10,
+      budgetType: 'hours',
+      alertThresholds: [50, 90],
+    });
+    expect([saved.budgetType, store[0]?.alertThresholds]).toEqual(['hours', '50,90']);
+    await expect(
+      controller.save(context, owner, PROJECT, { budgetHours: 10, alertThresholds: [90, 50] }),
+    ).rejects.toEqual(expect.objectContaining({ status: 400 }));
   });
 });
 

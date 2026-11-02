@@ -1195,6 +1195,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   rate_cards: 'organization_id',
   rate_card_entries: 'organization_id',
   member_cost_rates: 'organization_id',
+  // ---- R16-b · 52-05 ----
+  // 0291. Tenant-owned: a project's budget split by phase, and the threshold alerts the burn sweep
+  // raised. Reached by members through their own context; the worker writes alert events as
+  // `tmanage_worker`.
+  project_budget_phases: 'organization_id',
+  budget_alert_events: 'organization_id',
   // ---- R16-c · 52-07 ----
   // 0292. Tenant-owned: members' expenses. Reached through the member's own context only; the
   // worker holds no grant on it.

@@ -245,6 +245,44 @@ export function startChannelPosts(worker, database, env, log, describeError = St
   };
 }
 
+/** R16-b — the budget burn sweep's cadence: every 15 minutes (52-05 "never lags more than 15 min"). */
+export const BUDGET_BURN_INTERVAL_MS = 15 * 60_000;
+
+/**
+ * R16-b (52-05) — the budget burn sweep, beside {@link startChannelPosts} and in the same style: its
+ * own scheduler on a 15-minute cadence (one pass now), so a pass over 200 budgets never delays the
+ * minute tick. Idempotent across instances: each budget is refreshed under its row lock and an alert
+ * is raised only above the stored `last_alert_bp`. Returns `stop`, or `null` when the worker module
+ * does not offer the sweep.
+ */
+export function startBudgetBurn(worker, database, env, log, describeError = String) {
+  if (
+    typeof worker.sweepBudgetBurn !== 'function' ||
+    typeof worker.createBudgetBurnStore !== 'function'
+  ) {
+    return null;
+  }
+  const scheduler = createSweepScheduler({
+    jobs: [
+      {
+        name: 'budget-burn',
+        run: () =>
+          worker.sweepBudgetBurn(worker.createBudgetBurnStore(database), (error) =>
+            log(`sweep budget-burn budget failed: ${describeError(error)}`),
+          ),
+        describe: (result) =>
+          `budget burn: ${String(result.budgets)} budget(s), ${String(result.alerts)} alert(s), ${String(result.failed)} failed`,
+        changed: (result) => result.alerts > 0 || result.failed > 0,
+      },
+    ],
+    intervalMs: BUDGET_BURN_INTERVAL_MS,
+    log,
+    describeError,
+  });
+  scheduler.start();
+  return () => scheduler.stop();
+}
+
 /**
  * A small interval scheduler over a list of jobs. Each tick runs every job in order; one job's
  * failure is logged and does not stop the others. A tick that fires while the previous one is

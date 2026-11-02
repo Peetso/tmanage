@@ -57,7 +57,7 @@ export function ProjectBudgetView({
     if (!budget.data) return;
     setHours(budget.data.budgetHours === null ? '' : String(budget.data.budgetHours));
     setAmount(
-      budget.data.budgetAmountMinor === null ? '' : String(budget.data.budgetAmountMinor / 100),
+      budget.data.budgetAmountMinor == null ? '' : String(budget.data.budgetAmountMinor / 100),
     );
     setCurrency(budget.data.currency ?? '');
   }, [budget.data]);
@@ -195,7 +195,7 @@ function BudgetSummary({ summary, t }: { summary: ProjectBudgetSummary; t: Trans
             {summary.remainingHours === null ? '—' : summary.remainingHours}
           </dd>
         </div>
-        {summary.budgetAmountMinor !== null ? (
+        {summary.budgetAmountMinor != null ? (
           <div className="tm-stat">
             <dt className="tm-stat__label">{t('ProjectBudgetView.statBudgetedAmount')}</dt>
             <dd className="tm-stat__value">

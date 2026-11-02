@@ -2116,3 +2116,16 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`contact_suggestions` TO 'tman
 -- `PATCH …/dependencies/:id` edits kind and lag in place — the first UPDATE statement on the table,
 -- so UPDATE is granted beside the existing INSERT, DELETE. The worker reads and writes nothing here.
 GRANT UPDATE ON `tmanage`.`work_item_dependencies`                TO 'tmanage_app'@'%';
+
+-- ---- R16-b · 52-05 budgets and burn ----
+-- 0291 `project_budget_phases` (tenant): a manager replaces a budget's phase split on save (SELECT,
+-- INSERT, UPDATE, DELETE). `budget_alert_events` (tenant): history the app lists (SELECT, INSERT;
+-- never UPDATE or DELETE). The 15-minute burn sweep refreshes the caches and `last_alert_bp` on
+-- `project_budgets` (SELECT, UPDATE — the 0160 trigger still pins identity), reads the time logs it
+-- already reads for 52-01, and records each alert it raises (SELECT, INSERT on
+-- `budget_alert_events`). Never DELETE for the worker.
+GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`project_budget_phases` TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT ON `tmanage`.`budget_alert_events`             TO 'tmanage_app'@'%';
+GRANT SELECT, UPDATE ON `tmanage`.`project_budgets`                 TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`work_item_time_logs`                     TO 'tmanage_worker'@'%';
+GRANT SELECT, INSERT ON `tmanage`.`budget_alert_events`             TO 'tmanage_worker'@'%';

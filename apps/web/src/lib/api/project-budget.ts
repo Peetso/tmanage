@@ -1,3 +1,4 @@
+import type { BudgetType, BurnStatus } from '@tmanage/domain';
 import type { ApiClient } from './client';
 
 /**
@@ -13,10 +14,13 @@ export interface ProjectBudgetSummary {
   readonly projectId: string;
   /** Planned effort in hours, or null when only an amount (or nothing) is budgeted. */
   readonly budgetHours: number | null;
-  /** Planned amount in minor units (e.g. cents), or null when only effort (or nothing) is budgeted. */
-  readonly budgetAmountMinor: number | null;
-  /** ISO-4217 alphabetic code for the amount, or null. */
-  readonly currency: string | null;
+  /**
+   * Planned amount in minor units (e.g. cents), or null when only effort (or nothing) is budgeted.
+   * 52-05: absent unless the caller holds `finance.view`.
+   */
+  readonly budgetAmountMinor?: number | null;
+  /** ISO-4217 alphabetic code for the amount, or null. Absent without `finance.view`. */
+  readonly currency?: string | null;
   /** Effort already logged on the project's work items, in hours. */
   readonly trackedHours: number;
   /** `budgetHours - trackedHours`; positive is effort left, negative is overrun. Null with no effort budget. */
@@ -25,6 +29,39 @@ export interface ProjectBudgetSummary {
   readonly varianceHours: number | null;
   /** When the budget was last saved (ISO-8601), or null when none has been set. */
   readonly updatedAt: string | null;
+  // ---- 52-05 budgets and burn (R16-b) ----
+  readonly budgetType: BudgetType;
+  readonly includeExpenses: boolean;
+  readonly clientVisible: boolean;
+  /** One to four whole percents, ascending. */
+  readonly alertThresholds: readonly number[];
+  readonly phases: readonly ProjectBudgetPhaseSummary[];
+  /** The cached used effort (refreshed on save and by the 15-minute sweep), in hours. */
+  readonly usedHoursCache: number;
+  /** Absent without `finance.view`. */
+  readonly usedAmountCacheMinor?: number;
+  readonly cacheRefreshedAt: string | null;
+  /** Null when no budget has been set. */
+  readonly burn: ProjectBudgetBurnSummary | null;
+}
+
+/** 52-05. One line of a budget's phase split. */
+export interface ProjectBudgetPhaseSummary {
+  readonly phaseId: string | null;
+  readonly name: string;
+  readonly budgetHours: number | null;
+  /** Absent without `finance.view`. */
+  readonly budgetAmountMinor?: number | null;
+  readonly position: number;
+}
+
+/** 52-05. The burn of a budget: share used in basis points and what is left. */
+export interface ProjectBudgetBurnSummary {
+  readonly percentBp: number;
+  readonly remainingMinutes: number | null;
+  /** Absent without `finance.view`. */
+  readonly remainingMinor?: number | null;
+  readonly status: BurnStatus;
 }
 
 export async function getProjectBudget(

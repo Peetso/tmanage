@@ -1784,6 +1784,19 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/contacts/suggestions',
     reason: 'invitation',
   },
+  // ---- R16-b · 52-05 budgets and burn ----
+  // The burn report carries money and per-person effort (manager-only); the portal projection is
+  // a client's own read. Neither is an AI tool until the 52-05 MCP ops are designed.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/budget/burn',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/projects/:projectId/budget',
+    reason: 'finance_settings',
+  },
   // R16-d (53-04). Editing a typed dependency in place and the schedule cascade: a cascade
   // re-dates many items (possibly across projects) in one call, so it is withheld — under the
   // closest existing reason, as the working calendar is — until reviewed `schedule.*` ops exist.

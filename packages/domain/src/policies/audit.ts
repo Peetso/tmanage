@@ -1261,6 +1261,17 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'organization',
     clause: '§12 export — expenses were exported as CSV',
   },
+  // ---- R16-b · 52-05 budgets and burn ----
+  /** A project budget was saved. Metadata: budget type, thresholds, client visibility, phase count. */
+  'budget.updated': {
+    objectType: 'project',
+    clause: '§12 52-05 — a project budget (type, thresholds, client visibility) was changed',
+  },
+  /** The burn sweep raised a threshold alert. System actor; metadata: threshold and used bp. */
+  'budget.alert_raised': {
+    objectType: 'project',
+    clause: '§12 52-05 — a project budget crossed an alert threshold',
+  },
   // ---- R16-f · 54-11 Phase 0 — contact suggestions ----
   /** A person imported a contacts file into their own suggestions. Metadata: counts and source only. */
   'contacts.imported': {
@@ -1508,6 +1519,8 @@ const AUDIT_ACTION_LABELS = {
   'expense.rejected': 'Rejected an expense',
   'expense.deleted': 'Deleted an expense',
   'expense.exported': 'Exported expenses',
+  'budget.updated': 'Changed a project budget',
+  'budget.alert_raised': 'A project budget crossed an alert threshold',
   'contacts.imported': 'Imported contacts for invite suggestions',
   'contacts.cleared': 'Cleared their invite suggestions',
   'work_item.dependency_added': 'Added a work item dependency',

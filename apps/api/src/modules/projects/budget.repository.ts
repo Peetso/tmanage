@@ -1,8 +1,14 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { projectBudgets, workItems, workItemTimeLogs } from '../../common/database/schema.js';
-import type { ProjectBudgetRow } from '../../common/database/schema.js';
+import {
+  projectBudgetPhases,
+  projectBudgets,
+  projectPhases,
+  workItems,
+  workItemTimeLogs,
+} from '../../common/database/schema.js';
+import type { ProjectBudgetPhaseRow, ProjectBudgetRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -27,6 +33,21 @@ export interface SaveProjectBudgetInput {
   readonly currency: string | null;
   /** The person setting the budget — the service passes `context.userId` (insert path only). */
   readonly createdBy: string;
+  /** 52-05 (0291). */
+  readonly budgetType: string;
+  readonly includeExpenses: boolean;
+  readonly clientVisible: boolean;
+  /** Comma-separated whole percents, already validated. */
+  readonly alertThresholds: string;
+}
+
+/** 52-05 (0291). One phase line of a budget's split. */
+export interface BudgetPhaseInput {
+  readonly phaseId: string | null;
+  readonly name: string;
+  readonly budgetMinutes: number | null;
+  readonly budgetAmountMinor: number | null;
+  readonly position: number;
 }
 
 export class ProjectBudgetRepository {
@@ -83,12 +104,20 @@ export class ProjectBudgetRepository {
         createdBy: input.createdBy,
         createdAt: sql`current_timestamp(3)`,
         updatedAt: sql`current_timestamp(3)`,
+        budgetType: input.budgetType,
+        includeExpenses: input.includeExpenses,
+        clientVisible: input.clientVisible,
+        alertThresholds: input.alertThresholds,
       })
       .onDuplicateKeyUpdate({
         set: {
           budgetMinutes: input.budgetMinutes,
           budgetAmountMinor: input.budgetAmountMinor,
           currency: input.currency,
+          budgetType: input.budgetType,
+          includeExpenses: input.includeExpenses,
+          clientVisible: input.clientVisible,
+          alertThresholds: input.alertThresholds,
         },
       });
 
@@ -131,5 +160,80 @@ export class ProjectBudgetRepository {
         ),
       );
     return Number(rows[0]?.total ?? 0);
+  }
+
+  /** 52-05. The budget's phase split, in position order. */
+  async listPhases(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+  ): Promise<readonly ProjectBudgetPhaseRow[]> {
+    return tenantDrizzle(runner)
+      .select()
+      .from(projectBudgetPhases)
+      .where(
+        and(
+          eq(projectBudgetPhases.organizationId, context.organizationId),
+          eq(projectBudgetPhases.projectId, projectId),
+        ),
+      )
+      .orderBy(asc(projectBudgetPhases.position), asc(projectBudgetPhases.id));
+  }
+
+  /**
+   * 52-05. How many of these ids are phase definition rows of this project in this tenant — the
+   * service refuses a split naming any other id (a 400, never a dangling reference).
+   */
+  async countProjectPhases(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+    phaseIds: readonly string[],
+  ): Promise<number> {
+    if (phaseIds.length === 0) return 0;
+    const rows = await tenantDrizzle(runner)
+      .select({ id: projectPhases.id })
+      .from(projectPhases)
+      .where(
+        and(
+          eq(projectPhases.organizationId, context.organizationId),
+          eq(projectPhases.projectId, projectId),
+          isNull(projectPhases.milestoneId),
+          inArray(projectPhases.id, [...phaseIds]),
+        ),
+      );
+    return rows.length;
+  }
+
+  /** 52-05. Replace the whole split (delete, then insert), inside the caller's transaction. */
+  async replacePhases(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+    phases: readonly BudgetPhaseInput[],
+  ): Promise<void> {
+    const db = tenantDrizzle(runner);
+    await db
+      .delete(projectBudgetPhases)
+      .where(
+        and(
+          eq(projectBudgetPhases.organizationId, context.organizationId),
+          eq(projectBudgetPhases.projectId, projectId),
+        ),
+      );
+    if (phases.length === 0) return;
+    await db.insert(projectBudgetPhases).values(
+      phases.map((phase) => ({
+        id: uuidv7(),
+        organizationId: context.organizationId,
+        projectId,
+        phaseId: phase.phaseId,
+        name: phase.name,
+        budgetMinutes: phase.budgetMinutes,
+        budgetAmountMinor: phase.budgetAmountMinor,
+        position: phase.position,
+        createdAt: sql`current_timestamp(3)`,
+      })),
+    );
   }
 }
