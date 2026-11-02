@@ -20,12 +20,23 @@
  * re-submit only the offending rows.
  */
 
+import { onePrefix, validateJiraRow } from './jira-issues.js';
+
 /**
- * The source kinds this slice understands. One today — `project`, the rows that become projects
+ * The batch ceiling. A dry-run validation walks every row, so an unbounded batch is an
+ * unbounded unit of work on a single request — refused rather than absorbed. Re-exported by
+ * `import-input.ts`, which enforces it at the body boundary (a 400); the report's
+ * `too_many_rows` batch error is the same bound seen from inside the pure validator.
+ */
+export const MAX_IMPORT_ROWS = 1000;
+
+/**
+ * The source kinds this slice understands. `jira_issues` (R21-e, 54-27) is a Jira "All fields"
+ * CSV export, row-validated by `jira-issues.ts`. Originally one — `project`, the rows that become projects
  * in the commit half. A closed vocabulary rather than a free string: a new kind is a reviewed
  * addition with its own target rules below, not a value a caller can invent.
  */
-export const IMPORT_SOURCE_KINDS = ['project'] as const;
+export const IMPORT_SOURCE_KINDS = ['project', 'jira_issues'] as const;
 export type ImportSourceKind = (typeof IMPORT_SOURCE_KINDS)[number];
 
 export function isImportSourceKind(value: unknown): value is ImportSourceKind {
@@ -56,6 +67,12 @@ export type SourceMapping = Readonly<Record<string, string>>;
  */
 export type ImportValidationStatus = 'validated' | 'validated_with_errors';
 
+/** A problem with the batch as a whole rather than with one row (R21-e). */
+export interface ImportBatchError {
+  readonly code: 'mixed_prefixes' | 'too_many_rows';
+  readonly message: string;
+}
+
 export interface ImportValidationReport {
   readonly sourceKind: ImportSourceKind;
   readonly status: ImportValidationStatus;
@@ -64,6 +81,11 @@ export interface ImportValidationReport {
   readonly invalidCount: number;
   /** Only the rows that failed, in batch order. Empty when every row passed. */
   readonly errors: readonly RowValidationError[];
+  /**
+   * Batch-level problems (R21-e). A batch error makes the batch uncommittable as a whole, and
+   * the status is `validated_with_errors` even when every row passed.
+   */
+  readonly batchErrors: readonly ImportBatchError[];
 }
 
 /** `projects.name` is `VARCHAR(190)`; the import must not offer a value the column will reject. */
@@ -152,7 +174,28 @@ const ROW_VALIDATORS: Record<
   (mapping: SourceMapping, row: SourceRow) => readonly FieldError[]
 > = {
   project: validateProjectRow,
+  jira_issues: validateJiraRow,
 };
+
+/** The batch-level checks per kind: one Jira project (one key prefix) per batch. */
+function batchErrorsFor(
+  sourceKind: ImportSourceKind,
+  mapping: SourceMapping,
+  rows: readonly SourceRow[],
+): ImportBatchError[] {
+  const errors: ImportBatchError[] = [];
+  if (rows.length > MAX_IMPORT_ROWS) {
+    errors.push({
+      code: 'too_many_rows',
+      message: `must be ${MAX_IMPORT_ROWS} rows or fewer; split the export by sprint`,
+    });
+  }
+  if (sourceKind === 'jira_issues') {
+    const { error } = onePrefix(mapping, rows);
+    if (error) errors.push(error);
+  }
+  return errors;
+}
 
 /**
  * Validate a batch of source rows against a mapping and return the report.
@@ -176,13 +219,15 @@ export function validateBatch(
   const totalCount = rows.length;
   const invalidCount = errors.length;
   const validCount = totalCount - invalidCount;
+  const batchErrors = batchErrorsFor(sourceKind, mapping, rows);
 
   return {
     sourceKind,
-    status: invalidCount > 0 ? 'validated_with_errors' : 'validated',
+    status: invalidCount > 0 || batchErrors.length > 0 ? 'validated_with_errors' : 'validated',
     totalCount,
     validCount,
     invalidCount,
     errors,
+    batchErrors,
   };
 }

@@ -8,6 +8,7 @@ import type {
 } from '../../common/database/tenant-context.js';
 import { projectCommitValues, validateBatch } from './import-validation.js';
 import type {
+  ImportBatchError,
   ImportSourceKind,
   ImportValidationStatus,
   RowValidationError,
@@ -19,6 +20,14 @@ import { ImportRowsRepository } from './import-rows.repository.js';
 import type { ImportRowOutcome } from './import-rows.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { WorkspacesRepository } from '../tenancy/workspaces.repository.js';
+import { MembershipsRepository } from '../tenancy/memberships.repository.js';
+import { WorkKeysRepository } from '../work/work-keys.repository.js';
+import { WorkItemsRepository } from '../work/work-items.repository.js';
+import { WorkLabelsRepository } from '../work/work-labels.repository.js';
+import { IterationsRepository } from '../iterations/iterations.repository.js';
+import type { JiraCommitOptions } from './import-input.js';
+import { commitJiraBatch } from './jira-commit.js';
+import type { JiraCommitDeps, JiraCommitSummary } from './jira-commit.js';
 
 /**
  * ON-09's validate / dry-run service.
@@ -51,6 +60,8 @@ export interface ImportValidationView {
   readonly validCount: number;
   readonly invalidCount: number;
   readonly errors: readonly RowValidationError[];
+  /** R21-e: batch-level problems (`mixed_prefixes`, `too_many_rows`); empty when none. */
+  readonly batchErrors: readonly ImportBatchError[];
 }
 
 /**
@@ -65,6 +76,8 @@ export interface ImportCommitRequest {
   readonly sourceKind: ImportSourceKind;
   readonly mapping: SourceMapping;
   readonly rows: readonly SourceRow[];
+  /** R21-e: required for `jira_issues` (the target project, key keeping, status / user maps). */
+  readonly jira?: JiraCommitOptions;
 }
 
 /** A terminal committed status. Partial failure lands on `committed_with_errors`. */
@@ -94,6 +107,12 @@ export interface ImportCommitView {
   readonly committedCount: number;
   readonly failedCount: number;
   readonly rows: readonly ImportCommitRowView[];
+  /**
+   * R21-e: the Jira summary — sprints created, items keyed, epics turned into labels, and the
+   * receipt notes (`sprint_dates_derived`, `worklogs_not_imported`, …). Only on the commit
+   * response of a `jira_issues` batch; not persisted, so the receipt read omits it.
+   */
+  readonly jira?: JiraCommitSummary;
 }
 
 /** The `import_jobs` statuses a job must be in to be committable (the validate-half outcomes). */
@@ -118,6 +137,14 @@ export class ImportService {
     private readonly rows: ImportRowsRepository = new ImportRowsRepository(),
     private readonly projects: ProjectsRepository = new ProjectsRepository(),
     private readonly workspaces: WorkspacesRepository = new WorkspacesRepository(),
+    private readonly jiraDeps: JiraCommitDeps = {
+      workKeys: new WorkKeysRepository(),
+      workItems: new WorkItemsRepository(),
+      iterations: new IterationsRepository(),
+      labels: new WorkLabelsRepository(),
+      memberships: new MembershipsRepository(),
+      now: () => new Date(),
+    },
   ) {}
 
   async validate(
@@ -145,6 +172,7 @@ export class ImportService {
       validCount: report.validCount,
       invalidCount: report.invalidCount,
       errors: report.errors,
+      batchErrors: report.batchErrors,
     };
   }
 
@@ -209,6 +237,18 @@ export class ImportService {
     // committable; `import_jobs` stored only the validate half's counts, not the row payloads.
     const report = validateBatch(request.sourceKind, request.mapping, request.rows);
     const errorsByRow = new Map(report.errors.map((e) => [e.row, e] as const));
+
+    // A batch error (two Jira prefixes, too many rows) makes the batch uncommittable as a whole.
+    const batchError = report.batchErrors[0];
+    if (batchError) {
+      throw new ApiError(400, 'validation_failed', batchError.message, [
+        { field: 'rows', message: batchError.code },
+      ]);
+    }
+
+    if (request.sourceKind === 'jira_issues') {
+      return this.commitJira(context, principal, request, errorsByRow);
+    }
 
     const receipts = await this.database.transaction(context, async (tx) => {
       const written: ImportCommitRowView[] = [];
@@ -359,6 +399,82 @@ export class ImportService {
         createdEntityId: row.createdEntityId,
         error: row.errorDetail,
       })),
+    };
+  }
+
+  /**
+   * R21-e — commit a `jira_issues` batch: the writes are `commitJiraBatch`'s, inside one
+   * transaction with the per-row receipts and the job transition, exactly as the project kind.
+   */
+  private async commitJira(
+    context: TenantContext,
+    principal: Principal,
+    request: ImportCommitRequest,
+    errorsByRow: ReadonlyMap<number, RowValidationError>,
+  ): Promise<ImportCommitView> {
+    const options = request.jira;
+    if (!options) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'options', message: 'must be an object with a projectId' },
+      ]);
+    }
+    const outcome = await this.database.transaction(context, async (tx) => {
+      const { results, summary } = await commitJiraBatch(
+        tx,
+        context,
+        principal,
+        {
+          mapping: request.mapping,
+          rows: request.rows,
+          options,
+          invalidDetail: (index) => {
+            const invalid = errorsByRow.get(index);
+            return invalid ? summarizeRowError(invalid) : null;
+          },
+        },
+        this.projects,
+        this.jiraDeps,
+      );
+      const written: ImportCommitRowView[] = [];
+      for (const result of results) {
+        if ('error' in result) {
+          written.push(
+            await this.recordFailure(tx, context, request.jobId, result.index, result.error),
+          );
+          continue;
+        }
+        await this.rows.create(tx, context, {
+          jobId: request.jobId,
+          sourceIndex: result.index,
+          outcome: 'created',
+          createdEntityId: result.createdEntityId,
+        });
+        written.push({
+          sourceIndex: result.index,
+          outcome: 'created',
+          createdEntityId: result.createdEntityId,
+          error: null,
+        });
+      }
+      const failedCount = written.filter((r) => r.outcome === 'failed').length;
+      const committedCount = written.length - failedCount;
+      const status: ImportCommitStatus = failedCount > 0 ? 'committed_with_errors' : 'committed';
+      await this.jobs.markCommitted(tx, context, request.jobId, {
+        status,
+        committedCount,
+        failedCount,
+      });
+      return { written, committedCount, failedCount, status, summary };
+    });
+
+    return {
+      jobId: request.jobId,
+      sourceKind: request.sourceKind,
+      status: outcome.status,
+      committedCount: outcome.committedCount,
+      failedCount: outcome.failedCount,
+      rows: outcome.written,
+      jira: outcome.summary,
     };
   }
 

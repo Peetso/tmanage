@@ -6,8 +6,11 @@
  * `upload-input.ts` precedent) so the boundary is unit-testable without standing up HTTP.
  */
 
-import { isImportSourceKind } from './import-validation.js';
+import { MAX_IMPORT_ROWS, isImportSourceKind } from './import-validation.js';
 import type { ImportSourceKind, SourceMapping, SourceRow } from './import-validation.js';
+import { isJiraTargetState } from './jira-issues.js';
+
+export { MAX_IMPORT_ROWS };
 
 export interface ValidationDetail {
   readonly field: string;
@@ -20,20 +23,34 @@ export interface ImportValidationRequest {
   readonly rows: readonly SourceRow[];
 }
 
+/**
+ * R21-e — the Jira commit options. The status / user maps ride in the request rather than in a
+ * stored `options_json` (no migration): a second board re-sends its map.
+ */
+export interface JiraCommitOptions {
+  /** The TManage project the issues land in. */
+  readonly projectId: string;
+  /** Keep `WEB-123` as the item's work key (54-10); needs `project.manage` on the project. */
+  readonly keepKeys: boolean;
+  /** Jira status name → work state; overrides the status-category default. */
+  readonly statusMap: Readonly<Record<string, string>>;
+  /** Assignee email (lower-cased) → TManage user id; unmapped assignees import unowned. */
+  readonly userMap: Readonly<Record<string, string>>;
+}
+
 /** The commit request adds the id of the validated job to the validation shape. */
 export interface ImportCommitRequest extends ImportValidationRequest {
   readonly jobId: string;
+  /** Present exactly when `sourceKind` is `jira_issues`. */
+  readonly jira?: JiraCommitOptions;
 }
+
+/** Bounds on the caller-supplied maps: a Jira instance has dozens of statuses, not thousands. */
+const MAX_MAP_ENTRIES = 500;
+const MAX_MAP_KEY = 320;
 
 /** A job id is a UUID (`CHAR(36)`); shaped here rather than trusted from the body. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/**
- * The batch ceiling. A dry-run validation walks every row, so an unbounded batch is an
- * unbounded unit of work on a single request — refused here rather than absorbed. The commit
- * follow-up, which does real writes, will page; this half only needs a sane cap.
- */
-export const MAX_IMPORT_ROWS = 1000;
 
 /** True for a plain non-null object (not an array, not `null`). */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -130,10 +147,91 @@ export function parseImportCommitBody(
   }
 
   const request = parseImportValidationBody(source, details);
+  const jira =
+    source['sourceKind'] === 'jira_issues'
+      ? parseJiraOptions(source['options'], details)
+      : undefined;
 
   if (details.length > 0 || request === undefined || typeof jobId !== 'string') {
     return undefined;
   }
 
-  return { jobId, ...request };
+  return { jobId, ...request, ...(jira === undefined ? {} : { jira }) };
+}
+
+/** A bounded `{ string: string }` map, with each value checked by `valueOk`. */
+function parseStringMap(
+  field: string,
+  value: unknown,
+  valueOk: (v: string) => boolean,
+  valueMessage: string,
+  details: ValidationDetail[],
+  lowerKeys = false,
+): Record<string, string> | undefined {
+  if (value === undefined) return {};
+  if (!isPlainObject(value)) {
+    details.push({ field, message: 'must be an object' });
+    return undefined;
+  }
+  const entries = Object.entries(value);
+  if (entries.length > MAX_MAP_ENTRIES) {
+    details.push({ field, message: `must have ${MAX_MAP_ENTRIES} entries or fewer` });
+    return undefined;
+  }
+  const map: Record<string, string> = Object.create(null) as Record<string, string>;
+  for (const [key, mapped] of entries) {
+    if (key.length > MAX_MAP_KEY || typeof mapped !== 'string' || !valueOk(mapped)) {
+      details.push({ field, message: `'${key.slice(0, 60)}' ${valueMessage}` });
+      return undefined;
+    }
+    map[lowerKeys ? key.trim().toLowerCase() : key] = mapped;
+  }
+  return map;
+}
+
+/**
+ * `options` for a `jira_issues` commit: `{ projectId, keepKeys?, statusMap?, userMap? }`.
+ * `keepKeys` defaults to `true` — keeping `WEB-123` is the point of the importer.
+ */
+function parseJiraOptions(
+  value: unknown,
+  details: ValidationDetail[],
+): JiraCommitOptions | undefined {
+  if (!isPlainObject(value)) {
+    details.push({ field: 'options', message: 'must be an object with a projectId' });
+    return undefined;
+  }
+  const projectId = value['projectId'];
+  if (typeof projectId !== 'string' || !UUID.test(projectId)) {
+    details.push({ field: 'options.projectId', message: 'must be a project id' });
+  }
+  const keepKeys = value['keepKeys'] ?? true;
+  if (typeof keepKeys !== 'boolean') {
+    details.push({ field: 'options.keepKeys', message: 'must be a boolean' });
+  }
+  const statusMap = parseStringMap(
+    'options.statusMap',
+    value['statusMap'],
+    isJiraTargetState,
+    'must map to backlog, ready, in_progress, internal_review or done',
+    details,
+  );
+  const userMap = parseStringMap(
+    'options.userMap',
+    value['userMap'],
+    (v) => UUID.test(v),
+    'must map to a user id',
+    details,
+    true,
+  );
+  if (
+    typeof projectId !== 'string' ||
+    !UUID.test(projectId) ||
+    typeof keepKeys !== 'boolean' ||
+    statusMap === undefined ||
+    userMap === undefined
+  ) {
+    return undefined;
+  }
+  return { projectId, keepKeys, statusMap, userMap };
 }
