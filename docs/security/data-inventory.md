@@ -21,14 +21,14 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 
 ## Totals
 
-Counted by hand on 2026-11-02 (56-28, R19-f; R21-f adds the three inbound e-mail tables).
+Counted by hand on 2026-11-02 (56-28, R19-f; R21-f adds the three inbound e-mail tables; R22 adds `org_secrets` and `einvoice_chain_checks`).
 
-- Tables: 329 (100 % of `TABLES` once R19-b's `finance_exports` lands; `data-inventory.doc.test.ts` checks it without a database).
-- `delete`: 253
+- Tables: 331 (100 % of `TABLES` once R19-b's `finance_exports` lands; `data-inventory.doc.test.ts` checks it without a database).
+- `delete`: 254
 - `pseudonymise`: 4
 - `keep-fiscal-redacted`: 11
-- `none-no-personal-data`: 61
-- Today `enforced`: 223, `gap`: 45, `n/a`: 61.
+- `none-no-personal-data`: 62
+- Today `enforced`: 223, `gap`: 46, `n/a`: 62.
 
 ## Planned tables
 
@@ -114,6 +114,7 @@ Not a table today — row reserved. Each gets a full inventory row in the slice 
 | `document_templates`              | `body`, `created_by_user_id`                                                                           | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
 | `document_versions`               | `body`, `edited_by_user_id`                                                                            | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
 | `documents`                       | `body`, `published_by_user_id`, `created_by_user_id`, `title_updated_by_user_id`, `deleted_by_user_id` | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
+| `einvoice_chain_checks`           | -                                                                                                      | `none-no-personal-data` | n/a      | 52-12 | Counts and ICV positions of the nightly chain verdict (R22-b); no hash, no amount, no person. Pruned after 90 days by the worker.                                                                                                                                           |
 | `email_suppressions`              | `address_hash`                                                                                         | `pseudonymise`          | gap      | 56-18 | Global security or mail record; to be kept without the person (hash or drop the identifying fields). Not automated yet.                                                                                                                                                     |
 | `expenses`                        | `membership_id`, `note`, `approved_by`, `rejected_reason`                                              | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
 | `figma_connections`               | `membership_id`, `token_ciphertext`, `figma_user_handle`                                               | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
