@@ -5784,6 +5784,23 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'write',
     scope: 'write',
   },
+  // R21-b · 53-08: edit an allocation (write) and hard-delete one (confirm, as every DELETE op).
+  {
+    id: 'projects.allocations.update',
+    method: 'PATCH',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/allocations/:id',
+    capability: 'project.manage',
+    risk: 'write',
+    scope: 'write',
+  },
+  {
+    id: 'projects.allocations.delete',
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/allocations/:id',
+    capability: 'project.manage',
+    risk: 'confirm',
+    scope: 'write',
+  },
   // ---- R21-a · 53-08 org-wide workload grid (read: people × weeks; unreadable work as one bucket) ----
   {
     id: 'work_views.workload_org.get',

@@ -37,6 +37,31 @@ export const projectsDetails: readonly AiActionDetail[] = [
     redact: 'billing',
     examples: [{ summary: 'Confirm', args: { projectId: 'proj_1', id: 'alloc_1' } }],
   }),
+  // R21-b · 53-08: edit and remove an allocation.
+  det({
+    id: 'projects.allocations.update',
+    title: 'Edit a project allocation',
+    description:
+      'Change one allocation’s percent, dates, weekly hours or note. Status changes go through confirm.',
+    input: bodyArgs(['projectId', 'id'], {
+      percent: z.number().optional(),
+      startDate: f.iso().nullable().optional(),
+      endDate: f.iso().nullable().optional(),
+      hoursPerWeek: z.number().nullable().optional(),
+      note: f.shortText().nullable().optional(),
+    }),
+    redact: 'billing',
+    examples: [{ summary: 'Edit', args: { projectId: 'proj_1', id: 'alloc_1', percent: 60 } }],
+  }),
+  det({
+    id: 'projects.allocations.delete',
+    title: 'Remove a project allocation',
+    description:
+      'Remove one project allocation. Confirm-class: needs your approval before it runs.',
+    input: pathOnly('projectId', 'id'),
+    redact: 'billing',
+    examples: [{ summary: 'Remove', args: { projectId: 'proj_1', id: 'alloc_1' } }],
+  }),
   det({
     id: 'projects.allocations.list',
     title: 'List project allocations',

@@ -3335,6 +3335,8 @@ export const workItemEstimates = mysqlTable(
     estimateMinutes: int('estimate_minutes', { unsigned: true }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** 53-08 (0309): manual remaining override; NULL → derived `max(0, estimate − logged)`. */
+    remainingMinutes: int('remaining_minutes', { unsigned: true }),
   },
   (table) => [
     uniqueIndex('uq_work_item_estimates_org_id').on(table.organizationId, table.id),

@@ -22,6 +22,11 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
 export interface UpsertEstimateInput {
   readonly workItemId: string;
   readonly estimateMinutes: number;
+  /**
+   * 53-08 (0309): the manual remaining override. A number sets it, `null` clears it (back to the
+   * derived figure), absent (`undefined`) leaves the stored value as it is.
+   */
+  readonly remainingMinutes?: number | null;
 }
 
 export class WorkItemEstimateRepository {
@@ -58,12 +63,16 @@ export class WorkItemEstimateRepository {
         organizationId: context.organizationId,
         workItemId: input.workItemId,
         estimateMinutes: input.estimateMinutes,
+        remainingMinutes: input.remainingMinutes ?? null,
         createdAt: sql`current_timestamp(3)`,
         updatedAt: sql`current_timestamp(3)`,
       })
       .onDuplicateKeyUpdate({
         set: {
           estimateMinutes: input.estimateMinutes,
+          ...(input.remainingMinutes === undefined
+            ? {}
+            : { remainingMinutes: input.remainingMinutes }),
           updatedAt: sql`current_timestamp(3)`,
         },
       });

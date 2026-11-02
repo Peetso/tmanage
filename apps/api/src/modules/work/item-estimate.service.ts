@@ -46,6 +46,41 @@ export interface WorkItemEstimateView {
   /** `estimate - actual`, or `null` when there is no estimate to compare against. */
   readonly varianceMinutes: number | null;
   readonly updatedAt: string | null;
+  /**
+   * 53-08 (0309): what is left — the manual override when set, else `max(0, estimate − actual)`;
+   * `null` when there is no estimate.
+   */
+  readonly remainingMinutes: number | null;
+  /** Where `remainingMinutes` came from; `null` when there is no estimate. */
+  readonly remainingSource: RemainingSource | null;
+}
+
+export type RemainingSource = 'override' | 'derived';
+
+export interface EffectiveRemainingInput {
+  readonly estimateMinutes: number;
+  /** The stored override, or `null` when none is set. */
+  readonly remainingMinutes: number | null;
+  readonly loggedMinutes: number;
+}
+
+/**
+ * 53-08 (0309): the effective remaining effort of one estimated work item — the one rule every
+ * reader uses (the estimate view and the person-load reads). The override wins when set, even when
+ * more has been logged than it says; otherwise what is left is `max(0, estimate − logged)`, so a
+ * fully (or over-) logged item contributes 0 to the planned load. Nothing is decremented on write.
+ */
+export function effectiveRemaining(input: EffectiveRemainingInput): {
+  readonly remainingMinutes: number;
+  readonly remainingSource: RemainingSource;
+} {
+  if (input.remainingMinutes !== null) {
+    return { remainingMinutes: input.remainingMinutes, remainingSource: 'override' };
+  }
+  return {
+    remainingMinutes: Math.max(0, input.estimateMinutes - input.loggedMinutes),
+    remainingSource: 'derived',
+  };
 }
 
 /** One day short of a working year in minutes — the ceiling a fat-finger cannot exceed. */
@@ -73,23 +108,50 @@ export class WorkItemEstimateService {
         estimate?.estimateMinutes ?? null,
         actualMinutes,
         estimate?.updatedAt ?? null,
+        estimate?.remainingMinutes ?? null,
       );
     });
   }
 
-  /** Set or revise the work item's estimate. Behind `work.update` on the parent item. */
+  /**
+   * Set or revise the work item's estimate. Behind `work.update` on the parent item.
+   *
+   * 53-08 (0309): `remainingMinutes` — a number sets the manual override (0 ≤ n ≤ the estimate;
+   * above it is a 400 `remaining_exceeds_estimate`), `null` clears it (back to derived), absent
+   * leaves the stored override as it is.
+   */
   async set(
     context: TenantContext,
     principal: Principal,
     workItemId: string,
     estimateMinutes: number,
+    remainingMinutes?: number | null,
   ): Promise<WorkItemEstimateView> {
+    if (typeof remainingMinutes === 'number' && remainingMinutes > estimateMinutes) {
+      throw new ApiError(
+        400,
+        'validation_failed',
+        'The request body is invalid',
+        [{ field: 'remainingMinutes', message: 'must not exceed the estimate' }],
+        'remaining_exceeds_estimate',
+      );
+    }
     return this.database.transaction(context, async (tx) => {
       const parent = await this.readableParent(tx, context, principal, workItemId);
       this.requireWrite(principal, parent);
-      const saved = await this.estimates.upsert(tx, context, { workItemId, estimateMinutes });
+      const saved = await this.estimates.upsert(tx, context, {
+        workItemId,
+        estimateMinutes,
+        ...(remainingMinutes === undefined ? {} : { remainingMinutes }),
+      });
       const actualMinutes = await this.estimates.sumLoggedMinutes(tx, context, workItemId);
-      return toView(workItemId, saved.estimateMinutes, actualMinutes, saved.updatedAt);
+      return toView(
+        workItemId,
+        saved.estimateMinutes,
+        actualMinutes,
+        saved.updatedAt,
+        saved.remainingMinutes ?? null,
+      );
     });
   }
 
@@ -145,12 +207,23 @@ function toView(
   estimateMinutes: number | null,
   actualMinutes: number,
   updatedAt: Date | null,
+  storedRemaining: number | null,
 ): WorkItemEstimateView {
+  const remaining =
+    estimateMinutes === null
+      ? null
+      : effectiveRemaining({
+          estimateMinutes,
+          remainingMinutes: storedRemaining,
+          loggedMinutes: actualMinutes,
+        });
   return {
     workItemId,
     estimateMinutes,
     actualMinutes,
     varianceMinutes: estimateMinutes === null ? null : estimateMinutes - actualMinutes,
     updatedAt: updatedAt ? updatedAt.toISOString() : null,
+    remainingMinutes: remaining?.remainingMinutes ?? null,
+    remainingSource: remaining?.remainingSource ?? null,
   };
 }

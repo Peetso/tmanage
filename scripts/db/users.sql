@@ -2271,3 +2271,10 @@ GRANT UPDATE ON `tmanage`.`project_phases`                                  TO '
 -- and `note`. Confirming a tentative allocation (`POST …/allocations/:id/confirm`) is the app's first
 -- UPDATE on the table; the worker reads and writes nothing here.
 GRANT UPDATE ON `tmanage`.`person_allocations`                              TO 'tmanage_app'@'%';
+
+-- R21-b · 53-08 (0309): `work_item_estimates.remaining_minutes` (manual remaining override) is written
+-- by the existing INSERT/UPDATE grant on `work_item_estimates` (the upsert); no new grant there.
+-- `DELETE …/projects/:projectId/allocations/:id` hard-deletes a planning row (no `deleted_at` on the
+-- table) — the app's first DELETE on `person_allocations`. The worker reads and writes nothing here.
+GRANT DELETE ON `tmanage`.`person_allocations`                              TO 'tmanage_app'@'%';
+

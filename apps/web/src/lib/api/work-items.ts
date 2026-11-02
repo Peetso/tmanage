@@ -564,6 +564,9 @@ export interface WorkItemEstimate {
   readonly actualMinutes: number;
   readonly varianceMinutes: number | null;
   readonly updatedAt: string | null;
+  /** 53-08 (0309): what is left — the override when set, else `max(0, estimate − actual)`. */
+  readonly remainingMinutes: number | null;
+  readonly remainingSource: 'override' | 'derived' | null;
 }
 
 export async function getWorkItemEstimate(

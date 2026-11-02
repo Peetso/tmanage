@@ -1,4 +1,15 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
@@ -16,6 +27,7 @@ import { PERSON_ALLOCATION_STATUSES } from './allocations.repository.js';
 import type {
   PersonAllocationStatus,
   PersonAllocationsRepository,
+  UpdatePersonAllocationPatch,
 } from './allocations.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
@@ -66,9 +78,29 @@ interface CreateAllocationBody {
   readonly note?: unknown;
 }
 
+/** 53-08 (R21-b): the PATCH body. `status` is read only to refuse it (confirm is the one path). */
+interface UpdateAllocationBody {
+  readonly percent?: unknown;
+  readonly startDate?: unknown;
+  readonly endDate?: unknown;
+  readonly hoursPerWeek?: unknown;
+  readonly note?: unknown;
+  readonly status?: unknown;
+}
+
 /** 53-08 bounds: a week has 168 hours; a note is one short line. */
 const MAX_HOURS_PER_WEEK = 168;
 const MAX_NOTE_LENGTH = 300;
+
+/** 53-08 (R21-b): the removed row's values the delete audit keeps as `before`. */
+const DELETED_AUDIT_FIELDS = [
+  'percent',
+  'status',
+  'startDate',
+  'endDate',
+  'hoursPerWeek',
+  'note',
+] as const;
 
 const MIN_PERCENT = 1;
 const MAX_PERCENT = 100;
@@ -318,6 +350,136 @@ export class PersonAllocationsController {
     return toView(row);
   }
 
+  /**
+   * 53-08 (R21-b): edit an allocation's percent, dates, weekly hours or note. `project.manage` on
+   * the named project (relation-checked like create); a client principal is a 403. `status` is not
+   * accepted (409 `use_confirm`: confirm stays the one path tentative -> confirmed, and confirmed
+   * never goes back); an empty body is a 400; a start after the end (stored values merged with the
+   * patch) is a 400 `invalid_range`. An unknown, cross-tenant or other-project id is a 404 with no
+   * write and no audit row. Audited (`person_allocation.updated`, the changed fields before/after)
+   * in the UPDATE's transaction.
+   */
+  @Patch(':id')
+  @RequireCapability('project.manage')
+  async update(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+    @Param('id') allocationId: string,
+    @Body() body: UpdateAllocationBody,
+  ): Promise<PersonAllocationView> {
+    if (principal.kind === 'client') {
+      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'allocation_edit_denied');
+    }
+    await this.requireVisibleProject(context, principal, projectId, 'project.manage');
+
+    if (body?.status !== undefined) {
+      throw new ApiError(
+        409,
+        'conflict',
+        'Status changes go through confirm',
+        [{ field: 'status', message: 'use POST /allocations/:id/confirm' }],
+        'use_confirm',
+      );
+    }
+    const patch = parsePatch(body);
+    if (Object.keys(patch).length === 0) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        {
+          field: 'body',
+          message: 'name at least one of percent, startDate, endDate, hoursPerWeek, note',
+        },
+      ]);
+    }
+
+    const notFound = (): ApiError =>
+      new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'allocation_not_visible');
+
+    const row = await this.database.transaction(context, async (tx) => {
+      const existing = await this.allocations.findById(tx, context, allocationId);
+      if (!existing || existing.projectId !== projectId) throw notFound();
+      const before = toView(existing);
+      const start = patch.startDate === undefined ? before.startDate : patch.startDate;
+      const end = patch.endDate === undefined ? before.endDate : patch.endDate;
+      if (start !== null && end !== null && start > end) {
+        throw new ApiError(
+          400,
+          'validation_failed',
+          'The request body is invalid',
+          [{ field: 'endDate', message: 'must not be before startDate' }],
+          'invalid_range',
+        );
+      }
+      const updated = await this.allocations.update(tx, context, projectId, allocationId, patch);
+      if (!updated) throw notFound();
+      const after = toView(updated);
+      const changes = (Object.keys(patch) as (keyof UpdatePersonAllocationPatch)[])
+        .filter((field) => before[field] !== after[field])
+        .map((field) => ({ field, before: before[field], after: after[field] }));
+      await this.audit.record(tx, context, {
+        action: 'person_allocation.updated',
+        result: 'allowed',
+        objectId: allocationId,
+        actorUserId: context.userId,
+        metadata: { project_id: projectId },
+        changes,
+      });
+      return updated;
+    });
+    return toView(row);
+  }
+
+  /**
+   * 53-08 (R21-b): remove an allocation. A hard delete: `person_allocations` (0069) has no
+   * `deleted_at` -- an allocation is a planning fact, not a record, and the audit row
+   * (`person_allocation.deleted`, the row's values as `before`) keeps what it was. `project.manage`
+   * relation-checked; a client principal is a 403; an unknown, cross-tenant or other-project id is a
+   * 404 with no audit row. 204 on success.
+   */
+  @Delete(':id')
+  @RequireCapability('project.manage')
+  @HttpCode(204)
+  async remove(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+    @Param('id') allocationId: string,
+  ): Promise<void> {
+    if (principal.kind === 'client') {
+      throw new ApiError(
+        403,
+        'forbidden',
+        MESSAGES.forbidden,
+        undefined,
+        'allocation_delete_denied',
+      );
+    }
+    await this.requireVisibleProject(context, principal, projectId, 'project.manage');
+
+    const notFound = (): ApiError =>
+      new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'allocation_not_visible');
+
+    await this.database.transaction(context, async (tx) => {
+      const existing = await this.allocations.findById(tx, context, allocationId);
+      if (!existing || existing.projectId !== projectId) throw notFound();
+      const removed = await this.allocations.remove(tx, context, projectId, allocationId);
+      if (removed === 0) throw notFound();
+      const before = toView(existing);
+      await this.audit.record(tx, context, {
+        action: 'person_allocation.deleted',
+        result: 'allowed',
+        objectId: allocationId,
+        actorUserId: context.userId,
+        metadata: { project_id: projectId, membership_id: existing.membershipId },
+        changes: DELETED_AUDIT_FIELDS.map((field) => ({
+          field,
+          before: before[field],
+          after: null,
+        })),
+      });
+    });
+  }
+
   /** Validate an optional `'YYYY-MM-DD'` date field: absent → undefined, present-and-malformed → 400. */
   private optionalDate(value: unknown, field: string): string | undefined {
     if (value === undefined || value === null || value === '') return undefined;
@@ -374,4 +536,48 @@ function parseNote(value: unknown): string | null {
   }
   const trimmed = value.trim();
   return trimmed === '' ? null : trimmed;
+}
+
+/**
+ * 53-08 (R21-b): the PATCH body -> a patch. Absent fields stay absent; each present field is checked
+ * with the same bounds as create. `startDate` / `endDate` / `hoursPerWeek` / `note` accept `null`
+ * to clear; `percent` does not.
+ */
+function parsePatch(body: UpdateAllocationBody | undefined): UpdatePersonAllocationPatch {
+  const invalid = (field: string, message: string): ApiError =>
+    new ApiError(400, 'validation_failed', 'The request body is invalid', [{ field, message }]);
+  const out: {
+    percent?: number;
+    startDate?: string | null;
+    endDate?: string | null;
+    hoursPerWeek?: number | null;
+    note?: string | null;
+  } = {};
+  if (body?.percent !== undefined) {
+    const percent = body.percent;
+    if (
+      typeof percent !== 'number' ||
+      !Number.isInteger(percent) ||
+      percent < MIN_PERCENT ||
+      percent > MAX_PERCENT
+    ) {
+      throw invalid('percent', `must be an integer between ${MIN_PERCENT} and ${MAX_PERCENT}`);
+    }
+    out.percent = percent;
+  }
+  for (const field of ['startDate', 'endDate'] as const) {
+    const value = body?.[field];
+    if (value === undefined) continue;
+    if (value === null) {
+      out[field] = null;
+      continue;
+    }
+    if (typeof value !== 'string' || !DATE_PATTERN.test(value)) {
+      throw invalid(field, 'must be a date in YYYY-MM-DD form, or null');
+    }
+    out[field] = value;
+  }
+  if (body?.hoursPerWeek !== undefined) out.hoursPerWeek = parseHoursPerWeek(body.hoursPerWeek);
+  if (body?.note !== undefined) out.note = parseNote(body.note);
+  return out;
 }

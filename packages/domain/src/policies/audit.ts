@@ -1532,6 +1532,17 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'person_allocation',
     clause: '§12 53-08 — a tentative allocation was confirmed and now counts toward planned hours',
   },
+  // ---- R21-b · 53-08 allocation edit/remove ----
+  /** A people allocation's percent, dates, hours or note changed. Values in changes. */
+  'person_allocation.updated': {
+    objectType: 'person_allocation',
+    clause: '§12 53-08 — an allocation’s share, dates, hours or note changed',
+  },
+  /** A people allocation was removed. The removed row's values as `before` in changes. */
+  'person_allocation.deleted': {
+    objectType: 'person_allocation',
+    clause: '§12 53-08 — an allocation was removed from the project',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1803,6 +1814,8 @@ const AUDIT_ACTION_LABELS = {
   'milestone.unpublished': 'Removed a milestone from the client timeline',
   'phase.updated': 'Changed a timeline phase’s dates',
   'person_allocation.confirmed': 'Confirmed a tentative allocation',
+  'person_allocation.updated': 'Changed an allocation',
+  'person_allocation.deleted': 'Removed an allocation',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

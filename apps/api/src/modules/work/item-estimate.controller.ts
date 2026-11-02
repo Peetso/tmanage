@@ -25,6 +25,8 @@ import {
 
 interface SetEstimateBody {
   readonly minutes?: unknown;
+  /** 53-08 (0309): the manual remaining override; `null` clears it, absent leaves it. */
+  readonly remainingMinutes?: unknown;
 }
 
 @Controller('v1/organizations/:orgSlug/work-items/:workItemId/estimate')
@@ -52,7 +54,8 @@ export class WorkItemEstimateController {
     @Body() body: SetEstimateBody,
   ): Promise<WorkItemEstimateView> {
     const minutes = requiredMinutes(body?.minutes);
-    return this.estimates.set(context, principal, workItemId, minutes);
+    const remaining = optionalRemaining(body?.remainingMinutes);
+    return this.estimates.set(context, principal, workItemId, minutes, remaining);
   }
 }
 
@@ -62,6 +65,21 @@ function requiredMinutes(raw: unknown): number {
       {
         field: 'minutes',
         message: `must be a whole number of minutes, 1 to ${MAX_ESTIMATE_MINUTES}`,
+      },
+    ]);
+  }
+  return raw;
+}
+
+/** 53-08: absent → leave the override; `null` → clear it; else an integer 0 … the cap. */
+function optionalRemaining(raw: unknown): number | null | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === null) return null;
+  if (typeof raw !== 'number' || !Number.isInteger(raw) || raw < 0 || raw > MAX_ESTIMATE_MINUTES) {
+    throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+      {
+        field: 'remainingMinutes',
+        message: `must be a whole number of minutes, 0 to ${MAX_ESTIMATE_MINUTES}, or null`,
       },
     ]);
   }

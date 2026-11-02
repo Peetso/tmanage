@@ -1,8 +1,13 @@
-import { and, eq, gte, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import { defaultWorkingCalendar } from '@tmanage/domain';
 import type { WorkItemState, WorkingCalendar } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { personCapacity, workItemEstimates, workItems } from '../../common/database/schema.js';
+import {
+  personCapacity,
+  workItemEstimates,
+  workItemTimeLogs,
+  workItems,
+} from '../../common/database/schema.js';
 import type {
   PersonAllocationRow,
   PersonCapacityRow,
@@ -11,6 +16,7 @@ import type {
 } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import { WorkingCalendarRepository } from '../working-calendar/working-calendar.repository.js';
+import { effectiveRemaining } from '../work/item-estimate.service.js';
 import { CapacityHeatmapRepository } from './capacity-heatmap.repository.js';
 import { PersonTimeOffRepository } from './time-off.repository.js';
 
@@ -90,7 +96,14 @@ export class PersonLoadRepository {
       .limit(MAX_LOAD_ITEMS);
   }
 
-  /** Estimate minutes by work item id, for the given items only. */
+  /**
+   * Remaining estimate minutes by work item id, for the given items only (53-08, R21-b / 0309).
+   *
+   * The map keeps its name and shape, but the value is what is LEFT, not the original estimate:
+   * `effectiveRemaining` — the manual override when set, else `max(0, estimate − logged)`, the logged
+   * sum read from `work_item_time_logs` in one grouped statement per chunk. A fully (or over-)
+   * logged item without an override contributes 0 minutes, so it adds 0 h to the planned load.
+   */
   async estimatesFor(
     runner: TenantQueryRunner,
     context: TenantContext,
@@ -103,6 +116,7 @@ export class PersonLoadRepository {
         .select({
           workItemId: workItemEstimates.workItemId,
           estimateMinutes: workItemEstimates.estimateMinutes,
+          remainingMinutes: workItemEstimates.remainingMinutes,
         })
         .from(workItemEstimates)
         .where(
@@ -111,7 +125,34 @@ export class PersonLoadRepository {
             inArray(workItemEstimates.workItemId, chunk),
           ),
         );
-      for (const row of rows) out.set(row.workItemId, Number(row.estimateMinutes));
+      if (rows.length === 0) continue;
+      const logged = await tenantDrizzle(runner)
+        .select({
+          workItemId: workItemTimeLogs.workItemId,
+          total: sql<string | null>`sum(${workItemTimeLogs.minutes})`,
+        })
+        .from(workItemTimeLogs)
+        .where(
+          and(
+            eq(workItemTimeLogs.organizationId, context.organizationId),
+            inArray(
+              workItemTimeLogs.workItemId,
+              rows.map((row) => row.workItemId),
+            ),
+          ),
+        )
+        .groupBy(workItemTimeLogs.workItemId);
+      const loggedById = new Map(
+        logged.map((row) => [row.workItemId, row.total == null ? 0 : Number(row.total)] as const),
+      );
+      for (const row of rows) {
+        const remaining = effectiveRemaining({
+          estimateMinutes: Number(row.estimateMinutes),
+          remainingMinutes: row.remainingMinutes == null ? null : Number(row.remainingMinutes),
+          loggedMinutes: loggedById.get(row.workItemId) ?? 0,
+        });
+        out.set(row.workItemId, remaining.remainingMinutes);
+      }
     }
     return out;
   }

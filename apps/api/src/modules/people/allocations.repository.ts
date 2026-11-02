@@ -48,6 +48,18 @@ export interface CreatePersonAllocationInput {
   readonly note?: string | null;
 }
 
+/**
+ * 53-08 (R21-b): the editable fields of an allocation. Absent → unchanged. `status` is deliberately
+ * absent — confirm is the one path tentative → confirmed. No `organizationId`, no `projectId`.
+ */
+export interface UpdatePersonAllocationPatch {
+  readonly percent?: number;
+  readonly startDate?: string | null;
+  readonly endDate?: string | null;
+  readonly hoursPerWeek?: number | null;
+  readonly note?: string | null;
+}
+
 /** 53-08 (0308): the closed allocation status vocabulary (app-checked; the column is VARCHAR). */
 export const PERSON_ALLOCATION_STATUSES = ['tentative', 'confirmed'] as const;
 export type PersonAllocationStatus = (typeof PERSON_ALLOCATION_STATUSES)[number];
@@ -217,5 +229,64 @@ export class PersonAllocationsRepository {
     if (result[0].affectedRows > 0) return 'confirmed';
     const row = await this.findById(runner, context, allocationId);
     return row ? 'already_confirmed' : 'not_found';
+  }
+
+  /**
+   * 53-08 (R21-b): apply a patch to one allocation, tenant- AND project-scoped, and return the row
+   * as now stored — or `null` when the id is unknown, another tenant's, or another project's.
+   */
+  async update(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+    allocationId: string,
+    patch: UpdatePersonAllocationPatch,
+  ): Promise<PersonAllocationRow | null> {
+    const existing = await this.findById(runner, context, allocationId);
+    if (!existing || existing.projectId !== projectId) return null;
+    const set: Record<string, unknown> = {};
+    if (patch.percent !== undefined) set['percent'] = patch.percent;
+    if (patch.startDate !== undefined) set['startDate'] = patch.startDate;
+    if (patch.endDate !== undefined) set['endDate'] = patch.endDate;
+    if (patch.hoursPerWeek !== undefined) {
+      set['hoursPerWeek'] = patch.hoursPerWeek === null ? null : String(patch.hoursPerWeek);
+    }
+    if (patch.note !== undefined) set['note'] = patch.note;
+    if (Object.keys(set).length > 0) {
+      await tenantDrizzle(runner)
+        .update(personAllocations)
+        .set(set)
+        .where(
+          and(
+            eq(personAllocations.organizationId, context.organizationId),
+            eq(personAllocations.projectId, projectId),
+            eq(personAllocations.id, allocationId),
+          ),
+        );
+    }
+    return this.findById(runner, context, allocationId);
+  }
+
+  /**
+   * 53-08 (R21-b): hard-delete one allocation, tenant- AND project-scoped. Returns the rows
+   * affected (0 for an unknown, cross-tenant or other-project id). The table has no `deleted_at`:
+   * an allocation (0069) is a planning fact, not a record — the audit row keeps its values.
+   */
+  async remove(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+    allocationId: string,
+  ): Promise<number> {
+    const result = await tenantDrizzle(runner)
+      .delete(personAllocations)
+      .where(
+        and(
+          eq(personAllocations.organizationId, context.organizationId),
+          eq(personAllocations.projectId, projectId),
+          eq(personAllocations.id, allocationId),
+        ),
+      );
+    return result[0].affectedRows;
   }
 }

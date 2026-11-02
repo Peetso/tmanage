@@ -75,7 +75,7 @@ class FakeEstimateRepository {
   async upsert(
     _r: unknown,
     _c: TenantContext,
-    input: { workItemId: string; estimateMinutes: number },
+    input: { workItemId: string; estimateMinutes: number; remainingMinutes?: number | null },
   ) {
     this.upserts += 1;
     this.row = {
@@ -83,6 +83,11 @@ class FakeEstimateRepository {
       organizationId: ORG,
       workItemId: input.workItemId,
       estimateMinutes: input.estimateMinutes,
+      // 0309: absent leaves the stored override, as the real ON DUPLICATE KEY UPDATE does.
+      remainingMinutes:
+        input.remainingMinutes === undefined
+          ? (this.row?.remainingMinutes ?? null)
+          : input.remainingMinutes,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -180,5 +185,41 @@ describe('WorkItemEstimateController', () => {
     );
     expect(status).toBe(403);
     expect(estimates.upserts).toBe(0);
+  });
+});
+
+describe('53-08 (R21-b) remaining estimate on the estimate view', () => {
+  it('PUT remainingMinutes above the estimate is a 400 remaining_exceeds_estimate, no upsert', async () => {
+    const { controller, estimates } = harness(workItem(), 90);
+    await expect(
+      controller.set(context, member([PROJECT]), WORK_ID, {
+        minutes: 600,
+        remainingMinutes: 900,
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining({ status: 400, auditCode: 'remaining_exceeds_estimate' }),
+    );
+    expect(estimates.upserts).toBe(0);
+  });
+
+  it('an override wins; PUT null clears it back to derived', async () => {
+    const { controller } = harness(workItem(), 90);
+    const related = member([PROJECT]);
+    const overridden = await controller.set(context, related, WORK_ID, {
+      minutes: 600,
+      remainingMinutes: 100,
+    });
+    expect(overridden).toEqual(
+      expect.objectContaining({ remainingMinutes: 100, remainingSource: 'override' }),
+    );
+    const kept = await controller.set(context, related, WORK_ID, { minutes: 600 });
+    expect(kept.remainingSource).toBe('override');
+    const cleared = await controller.set(context, related, WORK_ID, {
+      minutes: 600,
+      remainingMinutes: null,
+    });
+    expect(cleared).toEqual(
+      expect.objectContaining({ remainingMinutes: 510, remainingSource: 'derived' }),
+    );
   });
 });

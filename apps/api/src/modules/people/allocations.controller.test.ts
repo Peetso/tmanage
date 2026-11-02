@@ -60,11 +60,18 @@ function build(
   controller: PersonAllocationsController;
   store: PersonAllocationRow[];
   audited: string[];
+  auditInputs: { readonly action: string; readonly changes?: unknown }[];
 } {
   const audited: string[] = [];
+  const auditInputs: { readonly action: string; readonly changes?: unknown }[] = [];
   const audit = {
-    record: async (_tx: unknown, _ctx: unknown, input: { readonly action: string }) => {
+    record: async (
+      _tx: unknown,
+      _ctx: unknown,
+      input: { readonly action: string; readonly changes?: unknown },
+    ) => {
       audited.push(input.action);
+      auditInputs.push(input);
       return {} as never;
     },
   };
@@ -136,6 +143,28 @@ function build(
     },
     requireById: async (_r: unknown, ctx: TenantContext, id: string) =>
       store.find((row) => row.id === id && row.organizationId === ctx.organizationId)!,
+    update: async (
+      _r: unknown,
+      ctx: TenantContext,
+      projectId: string,
+      id: string,
+      patch: Record<string, unknown>,
+    ) => {
+      const row = store.find(
+        (r) => r.id === id && r.organizationId === ctx.organizationId && r.projectId === projectId,
+      );
+      if (!row) return null;
+      Object.assign(row, patch);
+      return row;
+    },
+    remove: async (_r: unknown, ctx: TenantContext, projectId: string, id: string) => {
+      const index = store.findIndex(
+        (r) => r.id === id && r.organizationId === ctx.organizationId && r.projectId === projectId,
+      );
+      if (index < 0) return 0;
+      store.splice(index, 1);
+      return 1;
+    },
   } as unknown as PersonAllocationsRepository;
 
   const projects = {
@@ -162,6 +191,7 @@ function build(
     ),
     store,
     audited,
+    auditInputs,
   };
 }
 
@@ -319,5 +349,92 @@ describe('53-08 status, hours and confirm', () => {
       PersonAllocationsController.prototype.confirm as object,
     );
     expect(cap).toBe('project.manage');
+  });
+});
+
+describe('53-08 (R21-b) edit and remove an allocation', () => {
+  const client: Principal = { ...owner, kind: 'client', role: 'client_viewer' };
+  const foreign = {
+    id: 'allocation-foreign',
+    organizationId: 'organization-other',
+    projectId: PROJECT,
+    membershipId: MEMBERSHIP,
+    percent: 40,
+    startDate: null,
+    endDate: null,
+    createdAt: new Date(Date.UTC(2026, 0, 1)),
+    status: 'confirmed',
+    hoursPerWeek: null,
+    note: null,
+  } as PersonAllocationRow;
+
+  async function seeded() {
+    const built = build([foreign]);
+    const created = await built.controller.create(context, owner, PROJECT, {
+      membershipId: MEMBERSHIP,
+      percent: 50,
+      startDate: '2026-03-01',
+      endDate: '2026-03-31',
+      status: 'tentative',
+    });
+    return { ...built, id: created.id };
+  }
+
+  it('PATCH status is a 409 use_confirm; an inverted range is a 400 invalid_range; empty is a 400', async () => {
+    const { controller, id, audited } = await seeded();
+    await expect(
+      controller.update(context, owner, PROJECT, id, { status: 'confirmed' }),
+    ).rejects.toEqual(expect.objectContaining({ status: 409, auditCode: 'use_confirm' }));
+    await expect(
+      controller.update(context, owner, PROJECT, id, { endDate: '2026-02-01' }),
+    ).rejects.toEqual(expect.objectContaining({ status: 400, auditCode: 'invalid_range' }));
+    await expect(controller.update(context, owner, PROJECT, id, {})).rejects.toEqual(
+      expect.objectContaining({ status: 400 }),
+    );
+    expect(audited).toEqual([]);
+    const updated = await controller.update(context, owner, PROJECT, id, {
+      percent: 80,
+      note: 'more',
+    });
+    expect(updated).toEqual(expect.objectContaining({ percent: 80, note: 'more' }));
+    expect(audited).toEqual(['person_allocation.updated']);
+  });
+
+  it('PATCH/DELETE a cross-tenant id is a 404 with no audit row', async () => {
+    const { controller, audited, store } = await seeded();
+    await expect(
+      controller.update(context, owner, PROJECT, foreign.id, { percent: 10 }),
+    ).rejects.toEqual(expect.objectContaining({ status: 404 }));
+    await expect(controller.remove(context, owner, PROJECT, foreign.id)).rejects.toEqual(
+      expect.objectContaining({ status: 404 }),
+    );
+    expect(audited).toEqual([]);
+    expect(store.find((row) => row.id === foreign.id)?.percent).toBe(40);
+  });
+
+  it('DELETE removes the row and the audit before carries percent and status', async () => {
+    const { controller, id, store, auditInputs } = await seeded();
+    await controller.remove(context, owner, PROJECT, id);
+    expect(store.find((row) => row.id === id)).toBeUndefined();
+    expect(auditInputs[0]?.action).toBe('person_allocation.deleted');
+    expect(auditInputs[0]?.changes).toEqual(
+      expect.arrayContaining([
+        { field: 'percent', before: 50, after: null },
+        { field: 'status', before: 'tentative', after: null },
+      ]),
+    );
+  });
+
+  it('a client principal is a 403 on both, and both routes need project.manage', async () => {
+    const { controller, id } = await seeded();
+    await expect(controller.update(context, client, PROJECT, id, { percent: 5 })).rejects.toEqual(
+      expect.objectContaining({ status: 403 }),
+    );
+    await expect(controller.remove(context, client, PROJECT, id)).rejects.toEqual(
+      expect.objectContaining({ status: 403 }),
+    );
+    const cap = (method: unknown) => Reflect.getMetadata(REQUIRED_CAPABILITY, method as object);
+    expect(cap(PersonAllocationsController.prototype.update)).toBe('project.manage');
+    expect(cap(PersonAllocationsController.prototype.remove)).toBe('project.manage');
   });
 });
