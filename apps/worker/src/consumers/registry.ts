@@ -31,6 +31,7 @@ import {
   planRequestMessageNotices,
 } from './collaboration-notices.js';
 import { automationRunsConsumer } from './automation-runs.js';
+import { withWebhookStaging } from './webhook-deliveries.js';
 import {
   planReviewCommentNotices,
   planReviewDecisionNotices,
@@ -150,7 +151,9 @@ export function createWorkerOutboxHandlers(
       ? clientRequestSubmittedConsumer
       : both(clientRequestSubmittedConsumer, createClientRequestSubmittedMail(mails));
 
-  return {
+  // R13-s2: every type a webhook kind fires on also stages its pending webhook attempts, after the
+  // event's own consumers, in the same savepoint (`webhook-deliveries.ts`; the sweep delivers).
+  return withWebhookStaging({
     // CQ-12 (AUT-01): every trigger event also runs the organization's enabled rules for it,
     // after the event's own consumers, in the same savepoint.
     'work_item.updated.v1': both(workItemLifecycleConsumer, automationRunsConsumer),
@@ -250,7 +253,7 @@ export function createWorkerOutboxHandlers(
             dependencies.privacyMailer,
           ),
         }),
-  };
+  });
 }
 
 /**

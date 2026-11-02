@@ -1097,6 +1097,23 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'working_calendar',
     clause: '§12 53-02 — a holiday pack was imported (pack key and pack version recorded)',
   },
+  // ---- R13-s2 · outbound webhooks v2 (54-03 + 56-08) ----
+  'webhook.secret_rotated': {
+    objectType: 'webhook_endpoint',
+    clause: '§12 56-08 — a webhook signing secret was rotated (key ids only, never the secret)',
+  },
+  'webhook.paused': {
+    objectType: 'webhook_endpoint',
+    clause: '§12 56-08 — a webhook endpoint was paused by an admin',
+  },
+  'webhook.resumed': {
+    objectType: 'webhook_endpoint',
+    clause: '§12 56-08 — a paused webhook endpoint was resumed',
+  },
+  'webhook.replayed': {
+    objectType: 'webhook_endpoint',
+    clause: '§12 54-03 — past events were queued again for a webhook endpoint',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1284,6 +1301,10 @@ const AUDIT_ACTION_LABELS = {
   'time_log.created': 'Logged time',
   'working_calendar.updated': 'Changed the working calendar',
   'working_calendar.holidays_imported': 'Imported a holiday list',
+  'webhook.secret_rotated': 'Rotated a webhook signing secret',
+  'webhook.paused': 'Paused a webhook',
+  'webhook.resumed': 'Resumed a webhook',
+  'webhook.replayed': 'Replayed events to a webhook',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

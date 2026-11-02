@@ -4344,6 +4344,21 @@ export const webhookEndpoints = mysqlTable(
     enabled: boolean('enabled').notNull().default(true),
     createdBy: char('created_by', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- 0281 · R13 slice 2 (webhooks v2) ----
+    description: varchar('description', { length: 300 }),
+    /** JSON array of subscribed webhook kinds (`webhook-event-catalog.ts`). Always written. */
+    eventsJson: text('events_json').notNull(),
+    /** 'active' | 'paused' | 'needs_rotation'. */
+    status: varchar('status', { length: 16 }).notNull().default('active'),
+    /** FieldCipher envelope (purpose `webhook_secret`, owner = endpoint id). Never projected. */
+    secretEnc: text('secret_enc'),
+    secretPrevEnc: text('secret_prev_enc'),
+    secretPrevHash: char('secret_prev_hash', { length: 64 }),
+    secretRotatedAt: datetime('secret_rotated_at', { mode: 'date', fsp: 3 }),
+    secretPrevExpiresAt: datetime('secret_prev_expires_at', { mode: 'date', fsp: 3 }),
+    failureStreak: int('failure_streak').notNull().default(0),
+    pausedReason: varchar('paused_reason', { length: 200 }),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_webhook_endpoints_org_id').on(table.organizationId, table.id),
@@ -4369,6 +4384,16 @@ export const webhookDeliveries = mysqlTable(
     status: varchar('status', { length: 32 }).notNull(),
     responseCode: smallint('response_code', { unsigned: true }),
     attemptedAt: datetime('attempted_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- 0281 · R13 slice 2 (webhooks v2): one row per attempt ----
+    eventId: char('event_id', { length: 36 }),
+    eventKind: varchar('event_kind', { length: 64 }),
+    attempt: int('attempt').notNull().default(1),
+    nextAttemptAt: datetime('next_attempt_at', { mode: 'date', fsp: 3 }),
+    durationMs: int('duration_ms'),
+    /** At most 500 chars of the target's answer — never the request body, never a secret. */
+    responseExcerpt: varchar('response_excerpt', { length: 500 }),
+    signatureKeyId: varchar('signature_key_id', { length: 8 }),
+    resolvedIp: varchar('resolved_ip', { length: 45 }),
   },
   (table) => [
     uniqueIndex('uq_webhook_deliveries_org_id').on(table.organizationId, table.id),
@@ -4377,6 +4402,7 @@ export const webhookDeliveries = mysqlTable(
       table.endpointId,
       table.id,
     ),
+    index('ix_wd_next').on(table.organizationId, table.nextAttemptAt),
   ],
 );
 

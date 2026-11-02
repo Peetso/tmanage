@@ -57,7 +57,17 @@ export interface WebhookEndpointSummary {
   readonly id: string;
   readonly url: string;
   readonly eventKind: string;
+  // ---- 0281 · R13 slice 2 ----
+  readonly events: readonly string[];
+  readonly description: string | null;
   readonly enabled: boolean;
+  /** 'active' | 'paused' | 'needs_rotation'. */
+  readonly status: string;
+  readonly failureStreak: number;
+  readonly pausedReason: string | null;
+  readonly signingKeyId: string | null;
+  readonly secretRotatedAt: string | null;
+  readonly previousSecretExpiresAt: string | null;
   readonly createdBy: string;
   readonly createdAt: string;
 }

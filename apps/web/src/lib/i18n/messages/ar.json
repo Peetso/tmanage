@@ -15834,5 +15834,9 @@
   "Privacy.signInHeading": "بيانات تسجيل الدخول والجلسات",
   "Privacy.signInBody": "عند تسجيل دخولك نحفظ عنوان IP ووكيل المستخدم الخاص بالمتصفح والوقت وتلميحًا عن تسجيل الدخول الآلي مع أسبابه. ونبحث عن المكان التقريبي لعنوان IP (على مستوى المدينة، من قاعدة بيانات DB-IP Lite المجانية) وعن الشبكة المالكة له. يرى مالكو الشركة ومسؤولوها هذه البيانات لجلسات أعضائهم، وتراها أنت لجلساتك، ويراها فريق منصة TManage ممن لديهم صلاحيات الأمان لحماية الحسابات. وتُحفظ مع سجل تدقيق الأمان وتُحذف عند انتهاء مدة الاحتفاظ به (400 يوم كحد أقصى).",
   "AuditActionLabel.working_calendar.updated": "غيّر تقويم العمل",
-  "AuditActionLabel.working_calendar.holidays_imported": "استورد قائمة عطلات"
+  "AuditActionLabel.working_calendar.holidays_imported": "استورد قائمة عطلات",
+  "AuditActionLabel.webhook.secret_rotated": "غيّر مفتاح توقيع الويب هوك",
+  "AuditActionLabel.webhook.paused": "أوقف الويب هوك مؤقتًا",
+  "AuditActionLabel.webhook.resumed": "استأنف الويب هوك",
+  "AuditActionLabel.webhook.replayed": "أعاد إرسال الأحداث إلى الويب هوك"
 }

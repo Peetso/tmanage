@@ -1,7 +1,7 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { webhookEndpoints } from '../../common/database/schema.js';
+import { outboxEvents, webhookEndpoints } from '../../common/database/schema.js';
 import type { WebhookEndpointRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -27,10 +27,41 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
  */
 export interface CreateWebhookEndpointInput {
   readonly url: string;
+  /** The legacy single kind (0066): the first of `events`. */
   readonly eventKind: string;
   readonly secretHash: string;
   /** The person who registered the endpoint — the controller passes `context.userId`. */
   readonly createdBy: string;
+  // ---- 0281 · R13 slice 2 ----
+  /**
+   * The id the row is written under. Supplied by the controller when the secret is encrypted
+   * before the insert (the envelope's AAD binds it to this id); generated here otherwise.
+   */
+  readonly id?: string;
+  readonly description?: string | null;
+  /** The subscribed kinds, already allowlisted. Defaults to `[eventKind]`. */
+  readonly events?: readonly string[];
+  /** FieldCipher envelope of the secret; null when keyless (the row is then `needs_rotation`). */
+  readonly secretEnc?: string | null;
+  readonly status?: 'active' | 'needs_rotation';
+}
+
+/** 0281: what a rotation writes — the new secret, and the old one kept for the overlap. */
+export interface RotateSecretInput {
+  readonly secretHash: string;
+  readonly secretEnc: string;
+  readonly secretPrevEnc: string | null;
+  readonly secretPrevHash: string | null;
+  readonly rotatedAt: Date;
+  readonly prevExpiresAt: Date | null;
+}
+
+/** 0281: one outbox event a replay re-delivers. */
+export interface ReplayableEvent {
+  readonly id: string;
+  readonly type: string;
+  readonly payload: unknown;
+  readonly occurredAt: Date;
 }
 
 export class WebhooksRepository {
@@ -83,7 +114,7 @@ export class WebhooksRepository {
     input: CreateWebhookEndpointInput,
   ): Promise<WebhookEndpointRow> {
     const db = tenantDrizzle(runner);
-    const id = uuidv7();
+    const id = input.id ?? uuidv7();
 
     await db.insert(webhookEndpoints).values({
       id,
@@ -94,6 +125,10 @@ export class WebhooksRepository {
       enabled: true,
       createdBy: input.createdBy,
       createdAt: sql`current_timestamp(3)`,
+      description: input.description ?? null,
+      eventsJson: JSON.stringify(input.events ?? [input.eventKind]),
+      status: input.status ?? 'active',
+      secretEnc: input.secretEnc ?? null,
     });
 
     // Read back rather than reconstruct: the row now carries a server-generated `created_at`.
@@ -127,5 +162,136 @@ export class WebhooksRepository {
         ),
       );
     return this.findById(runner, context, id);
+  }
+  // ---- 0281 · R13 slice 2 (webhooks v2) ----
+
+  /** Replace the subscribed kinds (and, when given, the description). Tenant-scoped. */
+  async updateSettings(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    id: string,
+    patch: { readonly events?: readonly string[]; readonly description?: string | null },
+  ): Promise<WebhookEndpointRow | null> {
+    const db = tenantDrizzle(runner);
+    await db
+      .update(webhookEndpoints)
+      .set({
+        ...(patch.events !== undefined ? { eventsJson: JSON.stringify(patch.events) } : {}),
+        ...(patch.description !== undefined ? { description: patch.description } : {}),
+        updatedAt: sql`current_timestamp(3)`,
+      })
+      .where(
+        and(
+          eq(webhookEndpoints.organizationId, context.organizationId),
+          eq(webhookEndpoints.id, id),
+        ),
+      );
+    return this.findById(runner, context, id);
+  }
+
+  /**
+   * Store a rotated secret. The endpoint becomes `active` again when it was waiting for a secret
+   * (`needs_rotation`); a paused endpoint stays paused — rotating is not resuming.
+   */
+  async rotateSecret(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    id: string,
+    input: RotateSecretInput,
+  ): Promise<WebhookEndpointRow | null> {
+    const db = tenantDrizzle(runner);
+    await db
+      .update(webhookEndpoints)
+      .set({
+        secretHash: input.secretHash,
+        secretEnc: input.secretEnc,
+        secretPrevEnc: input.secretPrevEnc,
+        secretPrevHash: input.secretPrevHash,
+        secretRotatedAt: input.rotatedAt,
+        secretPrevExpiresAt: input.prevExpiresAt,
+        status: sql`case when ${webhookEndpoints.status} = 'needs_rotation' then 'active' else ${webhookEndpoints.status} end`,
+        updatedAt: sql`current_timestamp(3)`,
+      })
+      .where(
+        and(
+          eq(webhookEndpoints.organizationId, context.organizationId),
+          eq(webhookEndpoints.id, id),
+        ),
+      );
+    return this.findById(runner, context, id);
+  }
+
+  /** Pause (with a reason) or resume (clears the reason and the breaker's streak). */
+  async setStatus(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    id: string,
+    status: 'active' | 'paused',
+    pausedReason: string | null,
+  ): Promise<WebhookEndpointRow | null> {
+    const db = tenantDrizzle(runner);
+    await db
+      .update(webhookEndpoints)
+      .set({
+        status,
+        pausedReason,
+        ...(status === 'active' ? { failureStreak: 0 } : {}),
+        updatedAt: sql`current_timestamp(3)`,
+      })
+      .where(
+        and(
+          eq(webhookEndpoints.organizationId, context.organizationId),
+          eq(webhookEndpoints.id, id),
+        ),
+      );
+    return this.findById(runner, context, id);
+  }
+
+  /**
+   * The acting tenant's outbox events of `types` in `[from, to]`, oldest first, at most `limit`.
+   * The replay reads `limit + 1` to tell "exactly the cap" from "over it".
+   */
+  async listReplayableEvents(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    types: readonly string[],
+    from: Date,
+    to: Date,
+    limit: number,
+  ): Promise<readonly ReplayableEvent[]> {
+    if (types.length === 0) return [];
+    const db = tenantDrizzle(runner);
+    const rows = await db
+      .select({
+        id: outboxEvents.id,
+        type: outboxEvents.type,
+        payload: outboxEvents.payloadJson,
+        occurredAt: outboxEvents.occurredAt,
+      })
+      .from(outboxEvents)
+      .where(
+        and(
+          eq(outboxEvents.organizationId, context.organizationId),
+          inArray(outboxEvents.type, [...types]),
+          gte(outboxEvents.occurredAt, from),
+          lte(outboxEvents.occurredAt, to),
+        ),
+      )
+      .orderBy(asc(outboxEvents.occurredAt), asc(outboxEvents.id))
+      .limit(limit);
+    return rows.map((row) => ({
+      id: row.id,
+      type: row.type,
+      payload: typeof row.payload === 'string' ? safeParse(row.payload) : row.payload,
+      occurredAt: row.occurredAt,
+    }));
+  }
+}
+
+function safeParse(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
   }
 }

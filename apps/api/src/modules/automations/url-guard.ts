@@ -27,6 +27,8 @@
  *   the cloud metadata address `169.254.169.254`, IPv4-mapped IPv6, and IPv6 ULA/link-local.
  */
 
+import { isIP } from 'node:net';
+
 /** The outcome of {@link checkWebhookUrl}: either the URL is allowed, or a reason it is not. */
 export type UrlCheck = { readonly ok: true } | { readonly ok: false; readonly reason: string };
 
@@ -61,6 +63,9 @@ function isBlockedIpv4(octets: readonly number[]): boolean {
   if (a === 192 && b === 168) return true; // 192.168.0.0/16 private
   if (a === 100 && b >= 64 && b <= 127) return true; // 100.64.0.0/10 CGNAT
   if (a >= 224) return true; // 224.0.0.0/4 multicast + 240.0.0.0/4 reserved
+  // R13 slice 2 — the special-purpose blocks a delivery must not reach either.
+  if (a === 192 && b === 0 && octets[2] === 0) return true; // 192.0.0.0/24 IETF protocol
+  if (a === 198 && (b === 18 || b === 19)) return true; // 198.18.0.0/15 benchmarking
   return false;
 }
 
@@ -98,7 +103,30 @@ function isBlockedIpv6(inner: string): boolean {
     return true; // fe80::/10 link-local
   }
   if (head.startsWith('fc') || head.startsWith('fd')) return true; // fc00::/7 unique-local
+  if (head.startsWith('ff')) return true; // ff00::/8 multicast
+  // 64:ff9b::/96 NAT64 can reach any IPv4 address, private ones included.
+  if (host.startsWith('64:ff9b::')) return true;
   return false;
+}
+
+/**
+ * R13 slice 2 (56-08) — the same rules applied to a **resolved** address, for the delivery-time
+ * egress guard (`egress-resolve.ts`): a host that named a public address when it was registered and
+ * answers `127.0.0.1` at delivery (DNS rebinding) is refused here. Anything that is not an IP
+ * literal at all is refused too — the caller passes what the resolver returned, never a name.
+ */
+export function isBlockedIpAddress(raw: string): boolean {
+  const bare = raw
+    .replace(/^\[|\]$/gu, '')
+    .replace(/%.*$/u, '')
+    .toLowerCase();
+  const family = isIP(bare);
+  if (family === 4) {
+    const octets = parseIpv4(bare);
+    return octets === null || isBlockedIpv4(octets);
+  }
+  if (family === 6) return isBlockedIpv6(bare);
+  return true;
 }
 
 /**

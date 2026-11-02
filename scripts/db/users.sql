@@ -2042,3 +2042,14 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`org_working_calendars` TO 'tm
 GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`org_holidays`          TO 'tmanage_app'@'%';
 GRANT SELECT ON `tmanage`.`org_working_calendars`                  TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`org_holidays`                           TO 'tmanage_worker'@'%';
+
+-- ---- R13 slice 2 · outbound webhooks v2 ----
+-- 0281 adds columns only; the app's grants on `webhook_endpoints` (INSERT, UPDATE: create, rotate,
+-- pause/resume, events) and `webhook_deliveries` (INSERT: a manual retry or a replay stages a
+-- pending row) are unchanged. The worker delivers: it reads the endpoints and trips the breaker
+-- (SELECT, UPDATE on `webhook_endpoints` — `failure_streak`, `status`, `paused_reason`), and it
+-- settles each attempt and schedules the next (INSERT, UPDATE on `webhook_deliveries`; SELECT was
+-- granted with 56-23). The event payload is read from `outbox_events` and the admin notice is
+-- written to `notifications` under grants the relay already holds. Never DELETE on either table.
+GRANT SELECT, UPDATE ON `tmanage`.`webhook_endpoints`              TO 'tmanage_worker'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`webhook_deliveries`             TO 'tmanage_worker'@'%';

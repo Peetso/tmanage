@@ -6,6 +6,7 @@ import { WebhooksController } from './webhooks.controller.js';
 import type { CreateWebhookEndpointInput, WebhooksRepository } from './webhooks.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { WebhookEndpointRow } from '../../common/database/schema.js';
+import { createFieldCipher } from '@tmanage/domain/field-cipher';
 
 /**
  * Automations webhooks (x166) — SEC unit suite over fakes with the **real** `authorize()`, so these
@@ -63,7 +64,8 @@ function controllerWith(existing: readonly WebhookEndpointRow[] = []): {
     },
     setEnabled: () => Promise.resolve(null),
   } as unknown as WebhooksRepository;
-  return { controller: new WebhooksController(fakeDatabase(), repo), created };
+  const keyless = createFieldCipher(null);
+  return { controller: new WebhooksController(fakeDatabase(), repo, { cipher: keyless }), created };
 }
 
 async function status(promise: Promise<unknown>): Promise<number> {
@@ -74,10 +76,10 @@ async function status(promise: Promise<unknown>): Promise<number> {
 }
 
 describe('WebhooksController (x166)', () => {
-  it('registers an https public endpoint (201) and never echoes the secret', async () => {
+  it('registers an https public endpoint (201) and never echoes a caller secret', async () => {
     const { controller, created } = controllerWith();
     const view = await controller.register(context, owner(), OK);
-    expect(view).not.toHaveProperty('secret');
+    expect(view.secret).toBeNull();
     expect(view).not.toHaveProperty('secretHash');
     expect(view).not.toHaveProperty('organizationId');
     expect(created[0]?.secretHash).not.toBe(SECRET);

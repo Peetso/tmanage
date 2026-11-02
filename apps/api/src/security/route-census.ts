@@ -69,6 +69,7 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'GET /v1/public/site/changelog': 'read: marketing site',
   'GET /v1/public/site/faq': 'read: marketing site',
   'GET /v1/public/locale-hint': 'read: marketing site',
+  'GET /v1/public/webhook-events': 'read: public webhook event catalogue (R13-s2), no data',
   'GET /v1/public/site/legal/:doc': 'read: marketing site',
   'GET /v1/public/site/plans': 'read: marketing site',
   'GET /v1/public/site/home': 'read: marketing site',

@@ -20,6 +20,15 @@ export interface WebhookDeliveryView {
   readonly status: string;
   readonly responseCode: number | null;
   readonly attemptedAt: string;
+  // ---- 0281 · R13 slice 2 ----
+  readonly eventId: string | null;
+  readonly eventKind: string | null;
+  readonly attempt: number;
+  readonly nextAttemptAt: string | null;
+  readonly durationMs: number | null;
+  /** At most 500 chars of the target's answer. */
+  readonly responseExcerpt: string | null;
+  readonly signatureKeyId: string | null;
 }
 
 /** One page of delivery attempts, with the keyset cursor for the next (older) page. */

@@ -76,6 +76,12 @@ import { createSecurityReportPurgeStore } from './common/database/security-repor
 import { runSecurityReportPurgeLoop } from './jobs/security-report-purge.js';
 import { createIpLookupSweepStore } from './common/database/ip-lookup-sweeper-store.js';
 import { runIpLookupSweepLoop } from './jobs/ip-lookup-sweeper.js';
+// ---- R13-s2 ---- outbound webhooks: the delivery sweep (staging rides the registry).
+import {
+  createWebhookDeliveryStore,
+  runWebhookDeliveryPass,
+} from './consumers/webhook-deliveries.js';
+import { runWebhookRetrySweepLoop } from './jobs/webhook-retry-sweeper.js';
 import { createAuditAnchorStore } from './common/database/audit-anchor-store.js';
 import { anchorSignerFromEnv, runAuditAnchorLoop } from './jobs/audit-anchor.js';
 // ---- 52-01 ---- forgotten-timer auto-stop.
@@ -664,6 +670,24 @@ async function main(): Promise<void> {
     env.GEOIP_RETENTION_DAYS,
     controller.signal,
   );
+  // ---- R13-s2 ---- outbound webhooks: due attempts every 10 s, one in flight per endpoint,
+  // through the delivery-time egress guard. Keyless, every attempt is cancelled as needs_rotation.
+  const webhookOwnHosts = [env.API_PUBLIC_URL, env.WEB_PUBLIC_URL].flatMap((raw) => {
+    try {
+      return [new URL(raw).hostname];
+    } catch {
+      return [];
+    }
+  });
+  const webhookDeps = {
+    store: createWebhookDeliveryStore(database),
+    cipher: createFieldCipher(loadFieldCipherKeyring(env)),
+    ownHosts: webhookOwnHosts,
+  };
+  const webhookDeliveries = runWebhookRetrySweepLoop(
+    () => runWebhookDeliveryPass(webhookDeps),
+    controller.signal,
+  );
   // ---- R13 slice 5 · 57-14 ---- growth rollups nightly (02:00 UTC) and on boot when the last
   // run is over 26 h old; on the 1st the previous month's report goes to ALERT_EMAILS through
   // the same transport (mail_queue when MAIL_QUEUE=on). Empty ALERT_EMAILS → no mail.
@@ -775,6 +799,8 @@ async function main(): Promise<void> {
     await securityReportPurge;
     // ---- R12 ----
     await ipLookupSweep;
+    // ---- R13-s2 ----
+    await webhookDeliveries;
     // ---- R13 slice 5 ----
     await growthRollups;
     // ---- 56-11 ----

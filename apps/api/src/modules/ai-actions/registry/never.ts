@@ -207,6 +207,34 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/automations/webhooks/:id',
     reason: 'automation_secrets',
   },
+  // ---- R13-s2 · webhooks v2 ---- rotate returns a signing secret; pause/resume/replay/retry
+  // steer outbound egress. Never an AI tool, the same reason as the routes above.
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/automations/webhooks/:id/rotate-secret',
+    reason: 'automation_secrets',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/automations/webhooks/:id/pause',
+    reason: 'automation_secrets',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/automations/webhooks/:id/resume',
+    reason: 'automation_secrets',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/automations/webhooks/:id/replay',
+    reason: 'automation_secrets',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/automations/webhooks/:endpointId/deliveries/:deliveryId/retry',
+    reason: 'automation_secrets',
+  },
+  { method: 'GET', path: '/v1/public/webhook-events', reason: 'public_site' },
   {
     method: 'POST',
     path: '/v1/organizations/:orgSlug/billing/plan-change-requests/',

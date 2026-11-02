@@ -26,7 +26,30 @@ import { WebhookDeliveriesRepository } from './webhook-deliveries.repository.js'
  */
 
 /** The outcome tokens a delivery attempt may record. An allowlist; an off-list value is refused. */
-export const WEBHOOK_DELIVERY_STATUSES = ['success', 'failure'] as const;
+export const WEBHOOK_DELIVERY_STATUSES = [
+  'success',
+  'failure',
+  // ---- 0281 · R13 slice 2 — the worker's attempt lifecycle ----
+  /** Staged, waiting for `next_attempt_at` (first attempt, a retry, a manual retry, a replay). */
+  'pending',
+  /** Claimed by the worker; the POST is in flight. */
+  'sending',
+  /** The host resolved to a private / loopback / link-local / metadata address, or to TManage. */
+  'blocked_private_ip',
+  /** The endpoint was paused, disabled or lost its secret before the attempt ran. */
+  'cancelled',
+  /** Not the receiver's fault and never retried: the event is gone or the secret unreadable. */
+  'failed_permanent',
+] as const;
+
+/** 0281: the backoff between attempts — attempt n failed → attempt n+1 after `[n-1]`. */
+export const WEBHOOK_RETRY_BACKOFF_MS = [
+  60_000,
+  5 * 60_000,
+  30 * 60_000,
+  2 * 60 * 60_000,
+  8 * 60 * 60_000,
+] as const;
 export type WebhookDeliveryStatus = (typeof WEBHOOK_DELIVERY_STATUSES)[number];
 
 export function isWebhookDeliveryStatus(value: unknown): value is WebhookDeliveryStatus {
