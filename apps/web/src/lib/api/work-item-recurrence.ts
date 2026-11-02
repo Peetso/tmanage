@@ -15,6 +15,12 @@ export const WORK_ITEM_RECURRENCE_FREQS = ['daily', 'weekly', 'monthly'] as cons
 
 export type WorkItemRecurrenceFreq = (typeof WORK_ITEM_RECURRENCE_FREQS)[number];
 
+/** One occurrence of a rule (53-09): `key` is the scheduled date, `date` the date after the holiday policy. */
+export interface WorkItemRecurrenceOccurrence {
+  readonly key: string;
+  readonly date: string;
+}
+
 /** One recurrence rule — paired Exact with the API's `WorkItemRecurrenceView`. */
 export interface WorkItemRecurrence {
   readonly workItemId: string;
@@ -23,6 +29,21 @@ export interface WorkItemRecurrence {
   readonly until: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
+  // ---- 53-09 recurring work v2 ----
+  readonly rrule: string | null;
+  readonly startsOn: string | null;
+  readonly byWeekday: readonly string[];
+  readonly byMonthDay: number | null;
+  readonly bySetPos: number | null;
+  readonly countLimit: number | null;
+  readonly timeZone: string | null;
+  readonly spawnMode: string;
+  readonly spawnAheadDays: number;
+  readonly holidayPolicy: string;
+  readonly status: string;
+  readonly ownerUserId: string | null;
+  readonly lastOccurrenceKey: string | null;
+  readonly nextDates: readonly WorkItemRecurrenceOccurrence[];
 }
 
 /** The computed next occurrence — paired Exact with the API's `NextOccurrenceView`. */
@@ -33,6 +54,8 @@ export interface NextOccurrence {
   readonly from: string;
   readonly nextAt: string | null;
   readonly exhausted: boolean;
+  /** 53-09: the next occurrence as a civil date with its key (null when exhausted). */
+  readonly next?: WorkItemRecurrenceOccurrence | null;
 }
 
 /** The fields a set sends. Request-side (suffix `Input`), so the contracts gate ignores it. */

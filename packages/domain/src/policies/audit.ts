@@ -1382,6 +1382,35 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'project',
     clause: '§12 53-06 — a project’s critical path and float were recomputed on demand',
   },
+  // ---- R17-e · 53-09 recurring work v2 ----
+  /** A repeat rule was set or changed. Metadata: freq, spawn mode, holiday policy. */
+  'recurrence.updated': {
+    objectType: 'work_item',
+    clause: '§12 53-09 — a work item’s repeat rule (who it spawns as, how often) was changed',
+  },
+  /** Paused by a member, or by the spawner when the owner lost `work.create` (cause in metadata). */
+  'recurrence.paused': {
+    objectType: 'work_item',
+    clause: '§12 53-09 / doc 25 §10 — a repeat rule was paused (fail closed on a lost capability)',
+  },
+  'recurrence.resumed': {
+    objectType: 'work_item',
+    clause: '§12 53-09 — a paused repeat rule was resumed',
+  },
+  'recurrence.ended': {
+    objectType: 'work_item',
+    clause: '§12 53-09 — a repeat rule was ended (no further occurrence spawns)',
+  },
+  /** One occurrence was skipped ahead of time. Metadata: occurrence key. */
+  'recurrence.skipped': {
+    objectType: 'work_item',
+    clause: '§12 53-09 — one occurrence of a repeat rule was skipped',
+  },
+  /** The spawner created an occurrence. Service actor; metadata: entry point, key, series item. */
+  'recurrence.spawned': {
+    objectType: 'work_item',
+    clause: '§12 53-09 / doc 25 §10 — the recurrence spawner created a work item for a series',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1626,6 +1655,12 @@ const AUDIT_ACTION_LABELS = {
   'retainer.ended': 'Ended a retainer',
   'retainer.period_closed': 'Closed a retainer period',
   'schedule.recomputed': "Recomputed the project's critical path",
+  'recurrence.updated': 'Changed a repeat rule',
+  'recurrence.paused': 'Paused a repeat rule',
+  'recurrence.resumed': 'Resumed a repeat rule',
+  'recurrence.ended': 'Ended a repeat rule',
+  'recurrence.skipped': 'Skipped one occurrence of a repeat rule',
+  'recurrence.spawned': 'Created the next task of a repeat rule',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

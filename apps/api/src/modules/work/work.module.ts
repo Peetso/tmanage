@@ -98,6 +98,10 @@ import {
   ScheduleStatsController,
   WORK_SCHEDULE_STATS_SERVICE,
 } from './schedule-stats.controller.js';
+// R17-e (53-09): recurring work v2 — the org calendar for previews and the in-process spawner.
+import { WorkingCalendarRepository } from '../working-calendar/working-calendar.repository.js';
+import { workingCalendarSource } from './item-recurrence.service.js';
+import { RECURRENCE_SPAWNER, RecurrenceSpawner } from './recurrence-spawner.service.js';
 
 /**
  * WORK-001's wiring.
@@ -247,11 +251,15 @@ export class WorkModule {
     // Work item recurrence (x257). A tenant-scoped sub-resource behind work.read/work.update; the
     // work-items repository resolves the parent, the service holds the policy (resolve-before-
     // authorize) and the pure next-occurrence arithmetic. generate-next writes no work item.
+    // R17-e (53-09): + the org calendar (preview / next dates) and the audit trail (v2 actions).
     const recurrenceService: Provider = {
       provide: WORK_ITEM_RECURRENCE_SERVICE,
-      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
-      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
-        new WorkItemRecurrenceService(database, workItems, new WorkItemRecurrenceRepository()),
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY, AUDIT_SERVICE],
+      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository, audit: AuditService) =>
+        new WorkItemRecurrenceService(database, workItems, new WorkItemRecurrenceRepository(), {
+          calendars: workingCalendarSource(new WorkingCalendarRepository()),
+          audit,
+        }),
     };
 
     // x291. A work item's merged activity timeline — read-only, no table. Wired like the watchers:
@@ -321,6 +329,28 @@ export class WorkModule {
       },
     };
 
+    // R17-e (53-09). The in-process recurrence spawner (no route): resolved by RECURRENCE_SPAWNER
+    // from the Hostinger server's minute tick (apiSweepJobs). Creates items through WORK_ITEMS_SERVICE.
+    const recurrenceSpawner: Provider = {
+      provide: RECURRENCE_SPAWNER,
+      inject: [TENANT_DATABASE, WORK_ITEMS_SERVICE, WORK_ITEMS_REPOSITORY, AUDIT_SERVICE],
+      useFactory: (
+        database: TenantDatabase,
+        workItems: WorkItemsService,
+        workItemsRepository: WorkItemsRepository,
+        audit: AuditService,
+      ) =>
+        new RecurrenceSpawner({
+          database,
+          workItems,
+          workItemsRepository,
+          calendars: workingCalendarSource(new WorkingCalendarRepository()),
+          audit,
+          onFailure: (id, error) =>
+            console.error(`[recurrence-spawner] rule ${id} failed`, String(error)),
+        }),
+    };
+
     return {
       module: WorkModule,
       providers: [
@@ -346,8 +376,9 @@ export class WorkModule {
         boardColumnsService,
         scheduleCascadeService,
         scheduleStatsService,
+        recurrenceSpawner,
       ],
-      exports: [service],
+      exports: [service, recurrenceSpawner],
       controllers: [
         WorkItemsController,
         WorkChecklistController,

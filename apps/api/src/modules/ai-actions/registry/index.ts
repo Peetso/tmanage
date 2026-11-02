@@ -5634,6 +5634,47 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'confirm',
     scope: 'manage',
   },
+  // ---- R17-e · 53-09 recurring work v2 (no detail yet: classified, not AI-callable) ----
+  {
+    id: 'work_items.recurrence.preview.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/recurrence/preview',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'work_items.recurrence.skip.create',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/recurrence/skip',
+    capability: 'work.update',
+    risk: 'write',
+    scope: 'write',
+  },
+  {
+    id: 'work_items.recurrence.pause.create',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/recurrence/pause',
+    capability: 'work.update',
+    risk: 'write',
+    scope: 'write',
+  },
+  {
+    id: 'work_items.recurrence.resume.create',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/recurrence/resume',
+    capability: 'work.update',
+    risk: 'write',
+    scope: 'write',
+  },
+  {
+    id: 'work_items.recurrence.end.create',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/recurrence/end',
+    capability: 'work.update',
+    risk: 'confirm',
+    scope: 'write',
+  },
 ];
 
 /** Index of ops by their stable id. */

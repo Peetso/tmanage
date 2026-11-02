@@ -15862,5 +15862,14 @@
   "AuditActionLabel.retainer.period_closed": "Closed a retainer period",
   "AuditActionLabel.finance.report_exported": "Exported a profitability report",
   "AuditActionLabel.finance.facts_rebuilt": "Rebuilt the finance report figures",
-  "AuditActionLabel.schedule.recomputed": "Recomputed the project's critical path"
+  "AuditActionLabel.schedule.recomputed": "Recomputed the project's critical path",
+  "AuditActionLabel.recurrence.updated": "Changed a repeat rule",
+  "AuditActionLabel.recurrence.paused": "Paused a repeat rule",
+  "AuditActionLabel.recurrence.resumed": "Resumed a repeat rule",
+  "AuditActionLabel.recurrence.ended": "Ended a repeat rule",
+  "AuditActionLabel.recurrence.skipped": "Skipped one occurrence of a repeat rule",
+  "AuditActionLabel.recurrence.spawned": "Created the next task of a repeat rule",
+  "NotificationsFeedScreen.typeRecurrencePaused": "A repeat rule you own was paused because you can no longer create tasks in its project",
+  "NotificationsFeedScreen.typeRecurrenceCapReached": "Repeat rules reached today's limit of 500 new tasks",
+  "NotificationsFeedScreen.typeRecurrenceBurstCapped": "A repeat rule had many missed dates; only the next task was created"
 }

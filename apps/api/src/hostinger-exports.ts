@@ -49,3 +49,13 @@ export type {
   OrphanSweepReport,
   PreviewOrphanSweeper,
 } from './modules/files/preview-orphan-sweeper.js';
+// R17-e (53-09). The recurrence spawner, on the minute tick beside the upload-session sweep (the
+// pass returns at once unless 15 minutes passed since its last run).
+export {
+  RECURRENCE_SPAWNER,
+  describeRecurrenceSweep,
+} from './modules/work/recurrence-spawner.service.js';
+export type {
+  RecurrenceSpawnReport,
+  RecurrenceSpawner,
+} from './modules/work/recurrence-spawner.service.js';

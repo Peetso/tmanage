@@ -1238,6 +1238,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // recompute. Reached by members through their own context (work.read reads; the debounced
   // recompute writes under the requester's context); the worker never reads it.
   work_item_schedule_stats: 'organization_id',
+  // ---- R17-e · 53-09 ----
+  // 0300. Tenant-owned: the occurrences a recurrence series spawned or skipped. Members reach it
+  // through their own context (skip); the in-process spawner (API, `tmanage_app`) reads rule ids
+  // across organizations once, then writes every row under a service context naming the org.
+  work_item_recurrence_instances: 'organization_id',
 });
 
 /**

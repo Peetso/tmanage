@@ -15862,5 +15862,14 @@
   "AuditActionLabel.retainer.period_closed": "أغلق فترة عقد خدمة",
   "AuditActionLabel.finance.report_exported": "صدّر تقرير الربحية",
   "AuditActionLabel.finance.facts_rebuilt": "أعاد حساب أرقام التقارير المالية",
-  "AuditActionLabel.schedule.recomputed": "أعاد حساب المسار الحرج للمشروع"
+  "AuditActionLabel.schedule.recomputed": "أعاد حساب المسار الحرج للمشروع",
+  "AuditActionLabel.recurrence.updated": "غيّر قاعدة التكرار",
+  "AuditActionLabel.recurrence.paused": "أوقف قاعدة التكرار مؤقتًا",
+  "AuditActionLabel.recurrence.resumed": "استأنف قاعدة التكرار",
+  "AuditActionLabel.recurrence.ended": "أنهى قاعدة التكرار",
+  "AuditActionLabel.recurrence.skipped": "تخطّى مرة واحدة من قاعدة التكرار",
+  "AuditActionLabel.recurrence.spawned": "أنشأ المهمة التالية من قاعدة التكرار",
+  "NotificationsFeedScreen.typeRecurrencePaused": "أُوقفت قاعدة تكرار تملكها مؤقتًا لأنك لم تعد تستطيع إنشاء مهام في مشروعها",
+  "NotificationsFeedScreen.typeRecurrenceCapReached": "بلغت قواعد التكرار حدّ اليوم وهو 500 مهمة جديدة",
+  "NotificationsFeedScreen.typeRecurrenceBurstCapped": "فاتت قاعدة تكرار مواعيد كثيرة؛ أُنشئت المهمة التالية فقط"
 }

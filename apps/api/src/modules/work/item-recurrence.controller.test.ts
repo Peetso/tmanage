@@ -87,7 +87,7 @@ class FakeRecurrenceRepository {
       untilAt: input.untilAt,
       createdAt: now,
       updatedAt: now,
-    };
+    } as WorkItemRecurrenceRow;
     return this.row;
   }
   async deleteByItem() {
@@ -189,6 +189,24 @@ describe('WorkItemRecurrenceController', () => {
       h.controller.generateNext(context, member([PROJECT]), WORK_ID),
     );
     expect(status).toBe(404);
+  });
+
+  it('53-09: refuses BYSECOND, COUNT 366 and INTERVAL 53 with 422; preview writes nothing', async () => {
+    for (const rrule of [
+      'FREQ=DAILY;BYSECOND=1',
+      'FREQ=DAILY;COUNT=366',
+      'FREQ=DAILY;INTERVAL=53',
+    ]) {
+      const status = await statusOf(() =>
+        h.controller.set(context, member([PROJECT]), WORK_ID, { rrule }),
+      );
+      expect(status).toBe(422);
+    }
+    expect(h.recurrence.writes).toBe(0);
+    await h.controller.set(context, member([PROJECT]), WORK_ID, { preset: 'daily' });
+    const preview = await h.controller.preview(context, member([PROJECT]), WORK_ID, '3');
+    expect(preview.occurrences).toHaveLength(3);
+    expect(h.recurrence.writes).toBe(1);
   });
 });
 

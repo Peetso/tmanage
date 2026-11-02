@@ -2189,3 +2189,13 @@ GRANT SELECT, INSERT, UPDATE ON `tmanage`.`retainer_periods`        TO 'tmanage_
 -- (SELECT). UPDATE is stated so a later partial refresh needs no new grant. The recompute runs in
 -- the API process (debounced), so the worker holds nothing on it.
 GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`work_item_schedule_stats` TO 'tmanage_app'@'%';
+
+-- ---- R17-e · 53-09 recurring work v2 ----
+-- 0300 `work_item_recurrence_instances` (tenant): the occurrences a series spawned or skipped. The
+-- app records a skip (INSERT), and the in-process recurrence spawner — it runs inside the API process
+-- as `tmanage_app` — claims an occurrence (INSERT; the unique key makes a retry a no-op), stores the
+-- spawned item on the claim (UPDATE) and gives a claim back when the item create failed (DELETE), so
+-- the next pass retries. Reading is the database-wide SELECT, stated again so the block reads whole.
+-- `work_item_recurrence` keeps its 0127 grants (the new columns need nothing new). The worker reads
+-- and writes nothing here.
+GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`work_item_recurrence_instances` TO 'tmanage_app'@'%';

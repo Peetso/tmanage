@@ -417,3 +417,6 @@ export * from './money/profitability.js';
 
 // Critical path, float and schedule health — 53-06 (R17-b)
 export * from './schedule/critical-path.js';
+
+// Recurring work v2 (RRULE subset) — 53-09 (R17-e)
+export * from './schedule/recurrence.js';

@@ -153,6 +153,20 @@ export function apiSweepJobs(api, app) {
       changed: (result) =>
         result.released > 0 || result.failed > 0 || result.counterDrift > 0 || result.reclaimed > 0,
     },
+    // R17-e (53-09): the recurrence spawner. Runs every tick, but the pass returns at once unless
+    // 15 minutes passed since its last run. Idempotent across restarts: each occurrence is claimed
+    // by a unique-keyed instance row before its item is created. Present only when the API exports it.
+    ...(api.RECURRENCE_SPAWNER
+      ? [
+          {
+            name: 'recurrence-spawner',
+            run: () => app.get(api.RECURRENCE_SPAWNER).sweep(),
+            describe: (result) => api.describeRecurrenceSweep(result),
+            changed: (result) =>
+              result.spawned > 0 || result.paused > 0 || result.failed > 0 || result.capped > 0,
+          },
+        ]
+      : []),
   ];
 }
 

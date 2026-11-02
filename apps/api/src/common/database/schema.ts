@@ -8302,10 +8302,26 @@ export const workItemRecurrence = mysqlTable(
     untilAt: datetime('until_at', { mode: 'date', fsp: 3 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- R17-e · 53-09 recurring work v2 (0300) ----
+    rrule: varchar('rrule', { length: 512 }),
+    startsOn: date('starts_on', { mode: 'string' }),
+    byWeekday: varchar('by_weekday', { length: 32 }),
+    byMonthday: tinyint('by_monthday'),
+    bySetpos: tinyint('by_setpos'),
+    timeZone: varchar('time_zone', { length: 64 }),
+    spawnMode: varchar('spawn_mode', { length: 12 }).notNull().default('on_schedule'),
+    spawnAheadDays: tinyint('spawn_ahead_days').notNull().default(1),
+    holidayPolicy: varchar('holiday_policy', { length: 20 }).notNull().default('next_working_day'),
+    countLimit: smallint('count_limit'),
+    status: varchar('status', { length: 8 }).notNull().default('active'),
+    templateJson: json('template_json').$type<Record<string, unknown>>(),
+    ownerUserId: char('owner_user_id', { length: 36 }),
+    lastOccurrenceKey: varchar('last_occurrence_key', { length: 32 }),
   },
   (table) => [
     uniqueIndex('uq_work_item_recurrence_org_id').on(table.organizationId, table.id),
     uniqueIndex('uq_work_item_recurrence_item').on(table.organizationId, table.workItemId),
+    index('ix_work_item_recurrence_status').on(table.organizationId, table.status),
   ],
 );
 
@@ -12408,4 +12424,42 @@ export type WorkItemScheduleStatsRow = typeof workItemScheduleStats.$inferSelect
 
 Object.assign(TABLES, {
   work_item_schedule_stats: workItemScheduleStats,
+});
+
+// ---- R17-e · 53-09 recurring work v2 (0300) ----
+/** The two states an occurrence row can record (checked in the application). */
+export const WORK_ITEM_RECURRENCE_INSTANCE_STATUSES = ['created', 'skipped'] as const;
+
+/**
+ * 53-09 (0300). One occurrence a recurrence series has dealt with: `created` (an item was spawned)
+ * or `skipped`. `uq_wiri_occurrence (organization_id, recurrence_id, occurrence_key)` is the spawner's
+ * idempotency key — the row is inserted before the item is created, so a restart never spawns twice.
+ * Removed with its rule (composite FK, ON DELETE CASCADE); never rewritten by "edit series".
+ */
+export const workItemRecurrenceInstances = mysqlTable(
+  'work_item_recurrence_instances',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    recurrenceId: char('recurrence_id', { length: 36 }).notNull(),
+    occurrenceKey: varchar('occurrence_key', { length: 32 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }),
+    previousWorkItemId: char('previous_work_item_id', { length: 36 }),
+    status: varchar('status', { length: 8 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_wiri_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_wiri_occurrence').on(
+      table.organizationId,
+      table.recurrenceId,
+      table.occurrenceKey,
+    ),
+  ],
+);
+
+export type WorkItemRecurrenceInstanceRow = typeof workItemRecurrenceInstances.$inferSelect;
+
+Object.assign(TABLES, {
+  work_item_recurrence_instances: workItemRecurrenceInstances,
 });

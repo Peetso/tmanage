@@ -393,3 +393,17 @@ test('R17-d: the retainer roll runs one pass on start and stops; absent roll is 
     null,
   );
 });
+
+test('R17-e: the recurrence spawner joins the minute tick only when the API exports it', async () => {
+  const SPAWNER = Symbol('spawner');
+  const { api, app } = fakeApi(QUIET_SWEEP, QUIET_RECONCILE, []);
+  assert.equal(apiSweepJobs(api, app).length, 1);
+  const report = { ran: true, spawned: 1, paused: 0, failed: 0, capped: 0 };
+  const job = apiSweepJobs(
+    { ...api, RECURRENCE_SPAWNER: SPAWNER, describeRecurrenceSweep: () => 'spawned 1' },
+    { get: (token) => (token === SPAWNER ? { sweep: async () => report } : app.get(token)) },
+  )[1];
+  assert.equal(job.name, 'recurrence-spawner');
+  assert.equal(job.changed(await job.run()), true);
+  assert.equal(job.describe(report), 'spawned 1');
+});
