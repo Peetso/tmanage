@@ -288,3 +288,53 @@ export function createSecuritySignalStore(database: WorkerDatabase): SecuritySig
     },
   };
 }
+
+// ---- R22-b · 52-12 ----
+/** The fixed `window_start` of a chain-break signal: one row per break, whatever the night. */
+export const CHAIN_BREAK_WINDOW_START = new Date(Date.UTC(2000, 0, 1));
+
+const INCREMENT_SIGNAL_SQL = `insert into security_signals
+    (id, organization_id, scope_key, rule_key, severity, subject_type, subject_id, subject_key,
+     source_hash, count, window_start, first_seen, last_seen, notify_status, notified_at,
+     details_json)
+    values (?, ?, ?, ?, ?, 'organization', ?, ?, ?, ?, ?, ?, ?, 'pending', null, ?)
+    on duplicate key update count = count + 1, last_seen = values(last_seen)`;
+
+/**
+ * 52-12 (R22-b) — the e-invoice chain reconciler's one write here. Unlike `upsertSignal` (a
+ * windowed count, kept at its greatest), a chain break is a standing fact: the dedupe key is the
+ * organization, the rule, the break's source hash and a fixed window start, so the same break seen
+ * again on a later night adds 1 to `count` and moves `last_seen` instead of adding a row. One
+ * statement in its own transaction. Existing 56-23 grant (SELECT/INSERT/UPDATE).
+ */
+export async function incrementOrganizationSignal(
+  database: WorkerDatabase,
+  signal: {
+    readonly id: string;
+    readonly organizationId: string;
+    readonly ruleKey: string;
+    readonly severity: 'low' | 'medium' | 'high';
+    readonly sourceHash: string;
+    readonly count: number;
+    readonly seenAt: Date;
+    readonly details?: Readonly<Record<string, string | number>>;
+  },
+): Promise<void> {
+  await database.transaction((tx) =>
+    tx.query(INCREMENT_SIGNAL_SQL, [
+      signal.id,
+      signal.organizationId,
+      signal.organizationId,
+      signal.ruleKey,
+      signal.severity,
+      signal.organizationId,
+      signal.sourceHash,
+      signal.sourceHash,
+      signal.count,
+      CHAIN_BREAK_WINDOW_START,
+      signal.seenAt,
+      signal.seenAt,
+      signal.details === undefined ? null : JSON.stringify(signal.details),
+    ]),
+  );
+}

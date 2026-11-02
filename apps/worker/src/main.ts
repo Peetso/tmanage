@@ -97,6 +97,8 @@ import { runGrowthRollupLoop } from './jobs/growth-rollup.js';
 // ---- R17-a · 52-14 ---- the nightly finance facts rebuild behind the profitability reports.
 import { createFinanceFactsStore } from './common/database/finance-facts-store.js';
 import { runFinanceFactsLoop } from './jobs/finance-facts-rebuild.js';
+import { createEinvoiceChainStore } from './common/database/einvoice-chain-store.js';
+import { runEinvoiceChainLoop } from './jobs/einvoice-chain-reconciler.js';
 
 /**
  * The worker process entry point.
@@ -712,6 +714,12 @@ async function main(): Promise<void> {
     { store: createFinanceFactsStore(database) },
     controller.signal,
   );
+  // ---- R22-b · 52-12 ---- e-invoice chain reconciler nightly (03:00 UTC) and on boot when the
+  // newest `checked_at` is over 26 h old: every zatca organization's ICV/PIH chain, one verdict each.
+  const einvoiceChain = runEinvoiceChainLoop(
+    { store: createEinvoiceChainStore(database) },
+    controller.signal,
+  );
 
   // RT-001. Sockets exist only in loop mode — a controlled batch has no process to keep a
   // socket open — and only when a port is configured; 0 is the honest default on a host
@@ -814,6 +822,8 @@ async function main(): Promise<void> {
     await growthRollups;
     // ---- R17-a ----
     await financeFacts;
+    // ---- R22-b ----
+    await einvoiceChain;
     // ---- 56-11 ----
     await auditAnchors;
     // ---- 56-23 ----
