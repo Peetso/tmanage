@@ -39,6 +39,16 @@ import { USAGE_LEDGER_REASON, type UsageLedgerRepository } from './usage-ledger.
 import type { UsageThresholdEvaluator } from './usage-thresholds.js';
 import { mayUploadFor, objectTableFor } from './purpose-policy.js';
 import type { ParsedPart, ParsedUploadBody } from './upload-input.js';
+import {
+  CLIENT_DAILY_UPLOAD_LIMIT,
+  classifyUpload,
+  DEFAULT_PRESETS,
+  resolveScanSource,
+  safetyChip,
+} from './file-safety.js';
+import type { SafetyChip, ScanSource } from './file-safety.js';
+import { DailyUploadCountRepository, startOfUtcDay } from './daily-upload-count.repository.js';
+import type { FileSafetySettingsSource } from '../tenancy/file-safety-settings.js';
 
 /**
  * FILE-001's application service — the upload session, from reservation to a file version.
@@ -103,6 +113,10 @@ export interface FileAssetView {
    * the client's projection is {@link ClientFileAssetView}, and `35` :100 fixes their copy.
    */
   readonly rejectionCode: string | null;
+  /** 56-06 (R19-e). Who judged the latest version's bytes (`tmanage` | `provider` | `none`). */
+  readonly scanSource: ScanSource;
+  /** 56-06 (R19-e). The chip key the file row shows; the web translates it. */
+  readonly safetyChip: SafetyChip;
 }
 
 /** The client's projection of a file asset: everything but the security metadata. */
@@ -120,6 +134,8 @@ export function clientFileAssetView(view: FileAssetView): ClientFileAssetView {
     fileVersionId: view.fileVersionId,
     versionNo: view.versionNo,
     createdAt: view.createdAt,
+    scanSource: view.scanSource,
+    safetyChip: view.safetyChip,
   };
 }
 
@@ -228,7 +244,16 @@ function toFileAssetView(
     versionNo: version.versionNo,
     createdAt: asset.createdAt.toISOString(),
     rejectionCode: asset.rejectionCode,
+    scanSource: scanSourceOf(version),
+    safetyChip: safetyChip(version),
   };
+}
+
+/** 56-06. The stored source, or (a pre-0307 row) the resolver's answer from the scanner name. */
+function scanSourceOf(version: FileVersionRow): ScanSource {
+  const stored = version.scanSource;
+  if (stored === 'tmanage' || stored === 'provider' || stored === 'none') return stored;
+  return resolveScanSource({ scanner: version.scanner, storedAt: version.objectKey });
 }
 
 interface Draft {
@@ -279,6 +304,12 @@ export class FilesService {
     private readonly thresholds: UsageThresholdEvaluator | null,
     /** CQ-09. Asked for a verify-then-scan pass once an upload commits; absent = cron-driven. */
     private readonly scanJob: ScanRequester | null = null,
+    /**
+     * 56-06 (R19-e). The organization's file-safety settings (type presets, the plan's per-file
+     * cap). Absent: the default presets and the configured upload ceiling — never no rule at all.
+     */
+    private readonly safety: FileSafetySettingsSource | null = null,
+    private readonly dailyUploads: DailyUploadCountRepository = new DailyUploadCountRepository(),
   ) {}
 
   // ── The studio's door ──────────────────────────────────────────────────────
@@ -468,6 +499,9 @@ export class FilesService {
       );
     }
 
+    // 56-06: the one file-safety rule (`file-safety.ts`), before anything is reserved or opened.
+    await this.requireFileSafety(context, draft);
+
     const project = await this.database.read(context, (runner) =>
       this.projects.findById(runner, context, input.projectId),
     );
@@ -498,6 +532,10 @@ export class FilesService {
       this.sessions.findByIdempotencyKey(runner, context, input.idempotencyKey),
     );
     if (existing) return this.replay(existing, principal, input);
+
+    // 56-06: a client user starts at most 20 uploads per UTC day (one COUNT). A replay above is
+    // not a new upload, so it is answered before this.
+    if (principal.kind === 'client') await this.requireDailyAllowance(context, draft);
 
     // The open-upload cap (security review 2026-09-04): the quota bounds the bytes, this
     // bounds the count. Read here so a person at the cap costs no provider upload; read
@@ -1455,6 +1493,60 @@ export class FilesService {
         lifecycle: 'active',
       },
     }).allowed;
+  }
+
+  /**
+   * 56-06 (R19-e). Classify the declared upload with the shared rule. A refusal is a 422
+   * `file_not_allowed` whose one detail carries the reason token and nothing else — never which
+   * magic or which name matched — and an `upload_session.refused` row records the token.
+   */
+  private async requireFileSafety(context: TenantContext, draft: Draft): Promise<void> {
+    const { input, principal } = draft;
+    const settings = this.safety ? await this.safety.read(context) : null;
+    const result = classifyUpload({
+      fileName: input.fileName,
+      declaredType: input.mimeType,
+      sizeBytes: input.sizeBytes,
+      channel: principal.kind === 'client' ? 'client' : 'member',
+      presets: settings?.presets ?? DEFAULT_PRESETS,
+      maxBytes: settings?.maxFileBytes ?? this.config.uploadMaxBytes,
+    });
+    if (result.ok) return;
+    await this.recordRefusal(context, draft, {
+      denial_code: 'file_not_allowed',
+      file_safety_code: result.reason,
+    });
+    throw new ApiError(
+      422,
+      'file_not_allowed',
+      'This file cannot be uploaded',
+      [{ field: 'reason', message: result.reason }],
+      `file_not_allowed:${result.reason}`,
+    );
+  }
+
+  /** 56-06 (R19-e). The client's daily upload allowance: the 21st start of a UTC day is a 429. */
+  private async requireDailyAllowance(context: TenantContext, draft: Draft): Promise<void> {
+    const started = await this.database.read(context, (runner) =>
+      this.dailyUploads.countSince(
+        runner,
+        context,
+        draft.principal.userId,
+        startOfUtcDay(new Date()),
+      ),
+    );
+    if (started < CLIENT_DAILY_UPLOAD_LIMIT) return;
+    await this.recordRefusal(context, draft, {
+      denial_code: 'daily_upload_limit',
+      limit: CLIENT_DAILY_UPLOAD_LIMIT,
+    });
+    throw new ApiError(
+      429,
+      'daily_upload_limit',
+      'You have reached the upload limit for today. Try again tomorrow',
+      [{ field: 'limit', message: String(CLIENT_DAILY_UPLOAD_LIMIT) }],
+      'daily_upload_limit',
+    );
   }
 
   /**

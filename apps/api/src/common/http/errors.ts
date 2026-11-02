@@ -51,6 +51,15 @@ export type ApiErrorCode =
   // allowed methods and the organization); a policy change that would lock members out (409).
   | 'method_not_allowed'
   | 'members_without_method'
+  // ---- 56-28 (R19-f) ---- a client role that would carry an internal capability (422; details
+  // name the capability tokens).
+  | 'client_ceiling'
+  // ---- 56-06 (R19-e) ---- an upload the file-safety rule refuses (422; one detail names the
+  // reason token only); a scanned-only rule with no scanner (409); a client's 21st upload of the
+  // UTC day (429).
+  | 'file_not_allowed'
+  | 'scanner_missing'
+  | 'daily_upload_limit'
   | 'internal_error';
 
 export interface ApiErrorDetail {

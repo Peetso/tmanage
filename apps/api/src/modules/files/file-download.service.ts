@@ -10,7 +10,11 @@ import type { ClientRequestsRepository } from '../requests/client-requests.repos
 import type { FileAssetsRepository } from './file-assets.repository.js';
 import { FileClientRelation } from './file-client-relation.js';
 import { mayDownloadFor } from './purpose-policy.js';
-import { readDownloadScanPolicy } from '../tenancy/download-scan-policy.js';
+import { readDownloadScanPolicy, scannerConfigured } from '../tenancy/download-scan-policy.js';
+import {
+  REQUIRE_SCAN_FOR_CLIENTS_KEY,
+  requireScanStoredOn,
+} from '../tenancy/file-safety-settings.js';
 import type { ScannerPresence } from '../tenancy/download-scan-policy.js';
 import { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import type { FileAssetRow, FileVersionRow, ProjectRow } from '../../common/database/schema.js';
@@ -316,7 +320,25 @@ export class FileDownloadService {
     });
     if (!decision.allowed) throw await this.refuse(context, decision.code, action);
 
-    return { asset, version, project, access: await this.accessOf(context, asset, version) };
+    const access = await this.accessOf(context, asset, version);
+    // 56-06 (R19-e): with a scanner present and `require_scan_for_clients` on (the default), a
+    // client is served scanned-clean bytes only; anything else is the one indistinguishable 404.
+    // Members are unchanged — `downloads_before_scan` stays their rule.
+    if (principal.kind === 'client' && !isScannedClean(access)) {
+      if (await this.clientsNeedScan(context)) {
+        throw await this.refuse(context, 'client_scan_required', action);
+      }
+    }
+    return { asset, version, project, access };
+  }
+
+  /** 56-06 (R19-e). The effective `require_scan_for_clients`: stored (default on) AND a scanner. */
+  private async clientsNeedScan(context: TenantContext): Promise<boolean> {
+    if (!scannerConfigured(this.scanner)) return false;
+    const row = await this.database.read(context, (runner) =>
+      this.settings.findByKey(runner, context, REQUIRE_SCAN_FOR_CLIENTS_KEY),
+    );
+    return requireScanStoredOn(row?.settingValue);
   }
 
   /** Step 5: the version's servable state under the owner's scan policy (B3). */
@@ -432,6 +454,11 @@ export function assertDoor(principal: Principal, door: 'internal' | 'client'): v
   if (door === 'client' && (principal.kind !== 'client' || !principal.clientOrganizationId)) {
     throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'not_a_client_principal');
   }
+}
+
+/** 56-06. Bytes a scan cleared: servable from `private` with a `clean` label. */
+export function isScannedClean(access: FileAccess): boolean {
+  return access.state === 'servable' && access.scanStatus === 'clean';
 }
 
 /** The typed state a refused-but-authorized download reports (CQ-09). */

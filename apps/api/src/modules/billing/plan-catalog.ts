@@ -66,6 +66,8 @@ export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 
 /** One gibibyte, the unit the storage allowances are counted in (the same 1024 scale the UI uses). */
 const GB = 1024 ** 3;
+/** One mebibyte, for the per-file caps (56-06). */
+const MB = 1024 ** 2;
 
 /**
  * What each flat plan allows — Figma F4 (390:22381) "Plan and usage". `null` is "no limit". People
@@ -77,14 +79,20 @@ export interface PlanLimits {
   readonly people: number | null;
   readonly activeProjects: number | null;
   readonly storageBytes: number;
+  /**
+   * 56-06 (R19-e). The largest single file this plan accepts. Never above the upload contract's
+   * 5 GiB ceiling (`CONTRACT_MAX_SIZE_BYTES`); `planMaxFileBytes` in `files/file-safety.ts` reads it
+   * from this table. Optional only so a merged entitlement (`mergeLimits`) need not carry it.
+   */
+  readonly maxFileBytes?: number;
 }
 
 export const PLAN_LIMITS: Readonly<Record<CatalogPlanId, PlanLimits>> = {
-  free: { people: 3, activeProjects: 3, storageBytes: 2 * GB },
-  starter: { people: 10, activeProjects: null, storageBytes: 25 * GB },
-  studio: { people: null, activeProjects: null, storageBytes: 100 * GB },
-  business: { people: null, activeProjects: null, storageBytes: 500 * GB },
-  enterprise: { people: null, activeProjects: null, storageBytes: 1024 * GB },
+  free: { people: 3, activeProjects: 3, storageBytes: 2 * GB, maxFileBytes: 25 * MB },
+  starter: { people: 10, activeProjects: null, storageBytes: 25 * GB, maxFileBytes: 250 * MB },
+  studio: { people: null, activeProjects: null, storageBytes: 100 * GB, maxFileBytes: GB },
+  business: { people: null, activeProjects: null, storageBytes: 500 * GB, maxFileBytes: 2 * GB },
+  enterprise: { people: null, activeProjects: null, storageBytes: 1024 * GB, maxFileBytes: 5 * GB },
 };
 
 /** The plan features a change can switch on or off, in the order the preview lists gains. */

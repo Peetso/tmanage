@@ -38,6 +38,7 @@ import { UsageCountersRepository } from './usage-counters.repository.js';
 import { UsageLedgerRepository } from './usage-ledger.repository.js';
 import { UsageThresholdEvaluator } from './usage-thresholds.js';
 import { FilesService } from './files.service.js';
+import { FileSafetySettingsReader } from '../tenancy/file-safety-settings.js';
 import { FileVerifier } from './file-verifier.js';
 import { FileScanner } from './file-scanner.js';
 import {
@@ -154,6 +155,7 @@ export class FilesModule {
         AUDIT_SERVICE,
         OUTBOX_EVENTS_REPOSITORY,
         FILE_SCAN_JOB,
+        MALWARE_SCANNER,
       ],
       useFactory: (
         database: TenantDatabase,
@@ -166,6 +168,7 @@ export class FilesModule {
         audit: AuditService,
         outbox: OutboxEventsRepository,
         scanJob: FileScanJob,
+        malwareScanner: MalwareScanner,
       ) =>
         new FilesService(
           database,
@@ -183,6 +186,8 @@ export class FilesModule {
           // commit paths already use, so the band write and its event commit with the move.
           new UsageThresholdEvaluator(counters, outbox, audit),
           scanJob,
+          // 56-06 (R19-e): the organization's type presets and plan cap for the upload door.
+          new FileSafetySettingsReader(database, malwareScanner),
         ),
     };
 

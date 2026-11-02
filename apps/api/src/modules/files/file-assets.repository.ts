@@ -9,6 +9,7 @@ import type {
   TenantContext,
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
+import { resolveScanSource } from './file-safety.js';
 
 /**
  * File assets and their versions — the rows an upload produces.
@@ -384,6 +385,8 @@ export class FileAssetsRepository {
         scanVerdict: facts.scanVerdict,
         scannedAt: facts.scannedAt,
         scanner: facts.scanner,
+        // 56-06 (0307): who judged the bytes, written with the verdict (`file-safety.ts`).
+        scanSource: resolveScanSource({ scanner: facts.scanner }),
         ...(facts.scanVerdict === 'clean' ? { trustZone: 'private' } : {}),
       })
       .where(

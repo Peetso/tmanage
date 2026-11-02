@@ -49,6 +49,7 @@ import { RolesMatrixController } from '../admin/roles-matrix.controller.js';
 import { ProvisioningService } from './provisioning.service.js';
 import { WorkspacesController } from './workspaces.controller.js';
 import { WorkspacesRepository } from './workspaces.repository.js';
+import { FileSafetySettingsController } from './file-safety-settings.controller.js';
 
 /**
  * Spec §3 steps 2 to 4, made injectable — plus, since TEN-001's second half landed, the two
@@ -214,6 +215,8 @@ export class TenancyModule {
         // `me` view, and the role matrix the D7 editor draws (SPEC §3.3).
         MembershipOverridesController,
         RolesMatrixController,
+        // 56-06 (R19-e): Security → File safety (`org.security.manage`).
+        FileSafetySettingsController,
       ],
     };
   }

@@ -17,6 +17,19 @@ import {
   toPublicDefinition,
 } from './public-forms.validate.js';
 import type { PublicFormDefinition, SubmittedValue } from './public-forms.validate.js';
+import { classifyUpload, DEFAULT_PRESETS } from '../files/file-safety.js';
+import type { ClassifyResult } from '../files/file-safety.js';
+
+/** 56-06 / 52-20a: a public form's attachment, judged by the one file-safety rule (images + PDF). */
+export function classifyPublicFormAttachment(file: {
+  readonly fileName: string;
+  readonly declaredType: string;
+  readonly sizeBytes: number;
+  readonly head?: Buffer;
+}): ClassifyResult {
+  const maxBytes = 25 * 1024 * 1024;
+  return classifyUpload({ ...file, channel: 'public_form', presets: DEFAULT_PRESETS, maxBytes });
+}
 
 /**
  * 52-20 — public intake forms, backend half (spec 52 §52-20, migration 0258).

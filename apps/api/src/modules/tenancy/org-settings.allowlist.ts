@@ -20,6 +20,7 @@
 
 import { NOTIFICATION_PROFILES } from '@tmanage/domain';
 import { DISPLAY_LOCALES } from '../../common/database/schema.js';
+import { DEFAULT_PRESETS, isFileTypePreset, presetsToCsv } from '../files/file-safety.js';
 
 /** The fixed set of settings this slice ships. A key outside this set is never writable. */
 export const ORG_SETTING_KEYS = [
@@ -40,6 +41,10 @@ export const ORG_SETTING_KEYS = [
   'downloads_before_scan',
   // 55-18 (R18-d): the org notification profile a member with no saved settings starts from.
   'notification_profile',
+  // 56-06 (R19-e): file safety. Written only through `PUT …/security/file-safety`
+  // (`org.security.manage`, audited, scanner-checked), never through the generic PUT.
+  'file_safety_presets',
+  'require_scan_for_clients',
 ] as const;
 
 export type OrgSettingKey = (typeof ORG_SETTING_KEYS)[number];
@@ -74,6 +79,11 @@ export type DownloadsBeforeScan = (typeof DOWNLOADS_BEFORE_SCAN_VALUES)[number];
 export const OWNER_ONLY_SETTING_KEYS: readonly OrgSettingKey[] = [
   'downloads_before_scan',
   'require_two_step',
+  // 56-06 (R19-e): refused by the generic PUT for everyone, like the two above. Their own route is
+  // `PUT …/security/file-safety` (`org.security.manage`), which refuses `require_scan_for_clients`
+  // = 'true' when no scanner is configured — a check the generic PUT could not make.
+  'file_safety_presets',
+  'require_scan_for_clients',
 ];
 
 /** Whether `key` may only be changed by the owner, through its own route. */
@@ -194,6 +204,26 @@ const SPECS: Readonly<Record<OrgSettingKey, OrgSettingSpec>> = Object.freeze({
     default: 'calm',
     validate: oneOf(NOTIFICATION_PROFILES, 'Choose calm or standard.'),
   },
+  // 56-06. A csv of the enabled type presets (`files/file-safety.ts` FILE_TYPE_PRESETS), stored in
+  // catalog order. Defaults to every preset but archives. At least one preset must stay on.
+  file_safety_presets: {
+    default: presetsToCsv(DEFAULT_PRESETS),
+    validate: (raw) => {
+      const names = raw
+        .split(',')
+        .map((name) => name.trim().toLowerCase())
+        .filter((name) => name !== '');
+      if (names.length === 0) return { ok: false, message: 'Keep at least one file type on.' };
+      if (!names.every(isFileTypePreset)) {
+        return { ok: false, message: 'Choose from the offered file types.' };
+      }
+      return { ok: true, value: presetsToCsv(names.filter(isFileTypePreset)) };
+    },
+  },
+  // 56-06. Clients download only scanned-clean files. The default `true` takes effect only while a
+  // scanner is configured (`file-safety-settings.ts` reads the effective value): without one no
+  // verdict would ever arrive and every client file would be unreachable.
+  require_scan_for_clients: { default: 'true', validate: booleanValue },
 });
 
 /** The on/off keys the A11 routes read through {@link isSettingOn}. */
