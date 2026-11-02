@@ -1,4 +1,5 @@
-import { createHash } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { uploadObjectKey } from '@tmanage/storage';
 import {
   EXECUTABLE_EXTENSIONS,
   isExecutableHead,
@@ -33,37 +34,278 @@ const MAX_SLUG_IN_LOCAL = 48;
 
 export type AuthResult = 'pass' | 'fail' | 'none' | 'unknown';
 
-/** 54-12a states this slice can produce. `clean` needs a scanner and bytes: never set here. */
-export type AttachmentState = 'waiting_trust' | 'too_large' | 'blocked_type' | 'scanning';
+/** R22-c — 54-12a rule (6): per-organization attachment bytes a day; past it a row is `too_large`. */
+export const MAX_DAILY_ATTACHMENT_BYTES = 200 * 1024 * 1024;
+/** R22-c — the largest webhook body read (the 10 MB message cap; base64 inflation counts). */
+export const MAX_WEBHOOK_BODY_BYTES = 10 * 1024 * 1024;
+/** R22-c — the head `attachmentState` sniffs. */
+export const HEAD_BYTES = 4096;
+/** R22-c — `x-inbound-timestamp` must be within this many seconds of the server clock. */
+export const WEBHOOK_TOLERANCE_SECONDS = 300;
+
+/**
+ * The full 54-12a vocabulary. Ingest writes `waiting_trust`, `too_large`, `blocked_type`,
+ * `scanning` and (R22-c) `unavailable`; `clean` / `blocked_threat` are written by the scan pass
+ * (slice d) only. `unavailable`: the bytes are not held — a trusted mail's attachments (a push has
+ * no mailbox to re-fetch from; "ask the sender to re-send") or a passing mail that carried none.
+ */
+export type AttachmentState =
+  'waiting_trust' | 'too_large' | 'blocked_type' | 'scanning' | 'unavailable';
 export const ATTACHMENT_STATES: readonly string[] = [
   'waiting_trust',
   'too_large',
   'blocked_type',
   'scanning',
   'clean',
+  'blocked_threat',
+  'unavailable',
   'infected',
   'imported',
 ];
 
 export type HeldReason =
-  'dmarc_failed' | 'unknown_sender' | 'no_default_project' | 'project_not_shared';
+  | 'dmarc_failed'
+  | 'unknown_sender'
+  | 'no_default_project'
+  | 'project_not_shared'
+  | 'member_hold_policy'
+  | 'work_item_refused';
 export const HELD_REASONS: readonly HeldReason[] = [
   'dmarc_failed',
   'unknown_sender',
   'no_default_project',
   'project_not_shared',
+  'member_hold_policy',
+  'work_item_refused',
 ];
 
 export type InboundOutcome =
   | { readonly outcome: 'client_request' }
+  | { readonly outcome: 'work_item' }
   | { readonly outcome: 'held'; readonly reason: HeldReason };
 
 export interface ParsedInboundAttachment {
   readonly name: string;
   readonly sizeBytes: number;
   readonly declaredType: string | null;
-  /** The first bytes when the fetcher has them; `null` until bytes exist (this slice). */
+  /** The first bytes when the fetcher has them; derived from {@link bytes} when absent. */
   readonly head: Buffer | null;
+  /**
+   * R22-c: the decoded bytes (the webhook decodes base64 once, after the body-size check).
+   * `null`/absent when the fetcher has none. Dropped unwritten for a mail whose DMARC did not pass.
+   */
+  readonly bytes?: Buffer | null;
+}
+
+/**
+ * R22-c — where a parked attachment's bytes live in the quarantine zone. Derived, never stored.
+ * The inbound ADDRESS id stands in the `project` slot of `uploadObjectKey`: the key stays under
+ * `tenant/{org}/` (so the erasure and usage walks see it) without a per-mail project (a held mail
+ * has none). Slice d (scan, preview, download) imports this same function.
+ */
+export function attachmentObjectKey(
+  organizationId: string,
+  addressId: string,
+  attachmentId: string,
+): string {
+  return uploadObjectKey({ organizationId, projectId: addressId, uploadId: attachmentId });
+}
+
+/**
+ * R22-c — the webhook signature: `x-inbound-signature: v1=<hex HMAC-SHA256(secret,
+ * timestamp + '.' + rawBody)>` and `x-inbound-timestamp` (unix seconds) within ±300 s. Any miss is
+ * the one `invalid` — the answer never says which part failed. Constant-time comparison.
+ */
+export function verifyWebhookSignature(input: {
+  readonly rawBody: Buffer | undefined;
+  readonly signature: string | undefined;
+  readonly timestamp: string | undefined;
+  readonly secret: string;
+  readonly now: Date;
+}): 'valid' | 'invalid' {
+  const { rawBody, signature, timestamp, secret } = input;
+  if (rawBody === undefined || signature === undefined || timestamp === undefined) {
+    return 'invalid';
+  }
+  if (!/^\d{1,12}$/u.test(timestamp)) return 'invalid';
+  const skew = Math.abs(Math.floor(input.now.getTime() / 1000) - Number(timestamp));
+  if (skew > WEBHOOK_TOLERANCE_SECONDS) return 'invalid';
+  const match = /^v1=([0-9a-f]{64})$/u.exec(signature.trim());
+  if (!match) return 'invalid';
+  const expected = createHmac('sha256', secret)
+    .update(`${timestamp}.`, 'utf8')
+    .update(rawBody)
+    .digest();
+  const given = Buffer.from(match[1] as string, 'hex');
+  return given.length === expected.length && timingSafeEqual(given, expected) ? 'valid' : 'invalid';
+}
+
+export interface FieldProblem {
+  readonly field: string;
+  readonly message: string;
+}
+
+const MAX_ADDRESS_FIELD = 1000;
+const MAX_TEXT_PART = 1024 * 1024;
+const MAX_HEADER_KEYS = 50;
+const MAX_HEADER_VALUE = 8192;
+const MAX_HEADER_VALUES = 20;
+const MAX_DECLARED_ATTACHMENTS = 20;
+const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/u;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/**
+ * R22-c — the webhook's JSON body -> {@link ParsedInboundMessage}, or the list of problems (422).
+ * Strings are bounded (subject 500, text/html 1 MiB each, header values 8 KiB, ≤ 50 header keys,
+ * ≤ 20 declared attachments `{ name, contentType, size, contentBase64 }`). Only the first
+ * {@link MAX_ATTACHMENTS} attachments are decoded; the rest are counted and dropped by ingest. A
+ * decoded attachment's size is its byte count, never the declared `size`.
+ */
+export function parseWebhookBody(
+  json: unknown,
+  correlationId: string,
+):
+  | { readonly ok: true; readonly message: ParsedInboundMessage }
+  | { readonly ok: false; readonly details: readonly FieldProblem[] } {
+  const details: FieldProblem[] = [];
+  if (!isRecord(json)) {
+    return { ok: false, details: [{ field: 'body', message: 'must be a JSON object' }] };
+  }
+  const requiredString = (field: string, max: number): string => {
+    const value = json[field];
+    if (typeof value !== 'string' || value.trim() === '' || value.length > max) {
+      details.push({ field, message: `must be a non-empty string of at most ${String(max)}` });
+      return '';
+    }
+    return value;
+  };
+  const optionalString = (field: string, max: number): string | null => {
+    const value = json[field];
+    if (value === undefined || value === null) return null;
+    if (typeof value !== 'string' || value.length > max) {
+      details.push({ field, message: `must be a string of at most ${String(max)} or null` });
+      return null;
+    }
+    return value;
+  };
+  const to = requiredString('to', MAX_ADDRESS_FIELD);
+  const from = requiredString('from', MAX_ADDRESS_FIELD);
+  const messageId = optionalString('messageId', MAX_ADDRESS_FIELD);
+  const date = optionalString('date', 200);
+  const subject = optionalString('subject', 500);
+  const text = optionalString('text', MAX_TEXT_PART);
+  const html = optionalString('html', MAX_TEXT_PART);
+
+  // No prototype: a `__proto__` header name stays a plain key.
+  const headers = Object.create(null) as Record<string, string | readonly string[]>;
+  const rawHeaders = json['headers'];
+  if (rawHeaders !== undefined && rawHeaders !== null) {
+    if (!isRecord(rawHeaders) || Object.keys(rawHeaders).length > MAX_HEADER_KEYS) {
+      details.push({
+        field: 'headers',
+        message: `must be an object of at most ${String(MAX_HEADER_KEYS)} keys`,
+      });
+    } else {
+      for (const [key, value] of Object.entries(rawHeaders)) {
+        const okValue = (v: unknown): v is string =>
+          typeof v === 'string' && v.length <= MAX_HEADER_VALUE;
+        if (key.length > 200) {
+          details.push({ field: 'headers', message: 'a header name is too long' });
+        } else if (okValue(value)) {
+          headers[key] = value;
+        } else if (
+          Array.isArray(value) &&
+          value.length <= MAX_HEADER_VALUES &&
+          value.every(okValue)
+        ) {
+          headers[key] = [...value];
+        } else {
+          details.push({ field: `headers.${key}`, message: 'must be a bounded string or list' });
+        }
+      }
+    }
+  }
+
+  const attachments: ParsedInboundAttachment[] = [];
+  const rawAttachments = json['attachments'];
+  if (rawAttachments !== undefined && rawAttachments !== null) {
+    if (!Array.isArray(rawAttachments) || rawAttachments.length > MAX_DECLARED_ATTACHMENTS) {
+      details.push({
+        field: 'attachments',
+        message: `must be a list of at most ${String(MAX_DECLARED_ATTACHMENTS)}`,
+      });
+    } else {
+      rawAttachments.forEach((entry: unknown, index) => {
+        const field = `attachments[${String(index)}]`;
+        if (!isRecord(entry)) {
+          details.push({ field, message: 'must be an object' });
+          return;
+        }
+        const name = entry['name'];
+        const contentType = entry['contentType'];
+        const size = entry['size'];
+        const content = entry['contentBase64'];
+        if (typeof name !== 'string' || name.trim() === '' || name.length > 255) {
+          details.push({
+            field: `${field}.name`,
+            message: 'must be a non-empty string of at most 255',
+          });
+          return;
+        }
+        if (
+          contentType !== undefined &&
+          contentType !== null &&
+          (typeof contentType !== 'string' || contentType.length > 127)
+        ) {
+          details.push({
+            field: `${field}.contentType`,
+            message: 'must be a string of at most 127 or null',
+          });
+          return;
+        }
+        if (typeof size !== 'number' || !Number.isInteger(size) || size < 0 || size > 0xffffffff) {
+          details.push({ field: `${field}.size`, message: 'must be a non-negative integer' });
+          return;
+        }
+        let bytes: Buffer | null = null;
+        if (content !== undefined && content !== null) {
+          const compact = typeof content === 'string' ? content.replace(/\s+/gu, '') : null;
+          if (compact === null || compact.length % 4 !== 0 || !BASE64.test(compact)) {
+            details.push({ field: `${field}.contentBase64`, message: 'must be base64 or null' });
+            return;
+          }
+          // Decoded once, and only for the attachments ingest keeps.
+          if (index < MAX_ATTACHMENTS) bytes = Buffer.from(compact, 'base64');
+        }
+        attachments.push({
+          name,
+          sizeBytes: bytes !== null ? bytes.length : size,
+          declaredType: typeof contentType === 'string' ? contentType : null,
+          head: bytes !== null ? bytes.subarray(0, HEAD_BYTES) : null,
+          bytes,
+        });
+      });
+    }
+  }
+
+  if (details.length > 0) return { ok: false, details };
+  return {
+    ok: true,
+    message: {
+      to,
+      from,
+      messageId,
+      date,
+      subject,
+      text,
+      html,
+      headers,
+      attachments,
+      correlationId,
+    },
+  };
 }
 
 /** One message, already parsed by whatever fetched it. Header names are matched case-insensitively. */
@@ -276,15 +518,49 @@ export interface SenderClient {
   readonly userId: string;
 }
 
-/** 54-12: a client request only for a DMARC-passing known client on a shared default project. */
+/** R22-c: the sender as an active internal member of this organization. */
+export interface SenderMember {
+  readonly userId: string;
+  readonly membershipId: string;
+}
+
+/** R22-c: what a passing member's mail becomes (`policy_json.member_outcome`, default `work_item`). */
+export type MemberOutcomePolicy = 'work_item' | 'hold';
+
+/** `policy_json.member_outcome`, defaulting to `work_item` on anything else or unreadable JSON. */
+export function memberOutcomeOf(policyJson: string | null): MemberOutcomePolicy {
+  try {
+    const parsed: unknown = JSON.parse(policyJson ?? '{}');
+    return isRecord(parsed) && parsed['member_outcome'] === 'hold' ? 'hold' : 'work_item';
+  } catch {
+    return 'work_item';
+  }
+}
+
+/**
+ * 54-12: a client request only for a DMARC-passing known client on a shared default project; a
+ * work item (R22-c) for a DMARC-passing internal member when the address has a default project and
+ * the policy does not say `hold`. A sender who is both is treated as the client: a client contact
+ * is the narrower audience.
+ */
 export function decideOutcome(input: {
   readonly authResult: AuthResult;
   readonly senderClient: SenderClient | null;
+  readonly senderMember?: SenderMember | null;
+  readonly memberOutcome?: MemberOutcomePolicy;
   readonly defaultProjectId: string | null;
   readonly projectShared: boolean;
 }): InboundOutcome {
   if (input.authResult !== 'pass') return { outcome: 'held', reason: 'dmarc_failed' };
-  if (input.senderClient === null) return { outcome: 'held', reason: 'unknown_sender' };
+  if (input.senderClient === null) {
+    const member = input.senderMember ?? null;
+    if (member === null) return { outcome: 'held', reason: 'unknown_sender' };
+    if ((input.memberOutcome ?? 'work_item') === 'hold') {
+      return { outcome: 'held', reason: 'member_hold_policy' };
+    }
+    if (input.defaultProjectId === null) return { outcome: 'held', reason: 'no_default_project' };
+    return { outcome: 'work_item' };
+  }
   if (input.defaultProjectId === null) return { outcome: 'held', reason: 'no_default_project' };
   if (!input.projectShared) return { outcome: 'held', reason: 'project_not_shared' };
   return { outcome: 'client_request' };

@@ -25,6 +25,7 @@ import type {
  * - `GET  …/inbound-email/log`             — newest first, keyset cursor; never a body.
  * - `GET  …/inbound-email/:id/attachments` — attachment metadata (no bytes exist yet).
  * - `POST …/inbound-email/:id/trust`       — trust a held mail whose DMARC did not pass.
+ * R22-c: the signed JSON intake `POST /v1/public/inbound-email/webhook` is inbound-webhook.controller.ts.
  */
 @Controller('v1/organizations/:orgSlug/inbound-email')
 export class InboundEmailController {

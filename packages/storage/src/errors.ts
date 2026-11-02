@@ -84,6 +84,17 @@ export class PromotionClosedError extends Error {
   }
 }
 
+/**
+ * R22-c: `putQuarantine` was asked to write under a key that already holds an object. The one
+ * server-side quarantine write is write-once: parked bytes are never replaced.
+ */
+export class ObjectExistsError extends Error {
+  constructor() {
+    super('an object is already stored under that key');
+    this.name = 'ObjectExistsError';
+  }
+}
+
 /** A key or handle component that would compose a path outside the store's root. */
 export class UnsafeObjectPathError extends Error {
   constructor(readonly component: string) {

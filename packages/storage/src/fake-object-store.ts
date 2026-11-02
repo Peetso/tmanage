@@ -12,11 +12,17 @@ import type {
   PromoteObjectInput,
   Promotion,
   PutDerivativeInput,
+  PutQuarantineInput,
   RemoveObjectInput,
   StoredObject,
   WithdrawObjectInput,
 } from './object-store.js';
-import { ObjectNotFoundError, PromotionClosedError, SizeMismatchError } from './errors.js';
+import {
+  ObjectExistsError,
+  ObjectNotFoundError,
+  PromotionClosedError,
+  SizeMismatchError,
+} from './errors.js';
 
 /**
  * The driver a suite holds in its hand — `packages/mail`'s console driver, for bytes.
@@ -59,6 +65,8 @@ export class FakeObjectStore implements ObjectStore {
   /** R4 slice 2: every derivative written and every one deleted, by key, in order. */
   readonly derivativesPut: string[] = [];
   readonly derivativesDeleted: string[] = [];
+  /** R22-c: every quarantine object written by `putQuarantine`, by key, in order. */
+  readonly quarantinePut: string[] = [];
   /** Thrown by the next call to any method, then cleared. The provider being down. */
   failNext: Error | null = null;
   /**
@@ -172,6 +180,17 @@ export class FakeObjectStore implements ObjectStore {
 
   async openDerivative(input: DerivativeKeyInput): Promise<OpenedObject> {
     return this.openObject({ zone: 'derived', objectKey: input.objectKey });
+  }
+
+  /** Stored under `quarantine/objectKey` in {@link objects}; write-once like the real driver. */
+  async putQuarantine(input: PutQuarantineInput): Promise<StoredObject> {
+    this.consumeFailure();
+    const slot = `quarantine/${input.objectKey}`;
+    if (this.objects.has(slot)) throw new ObjectExistsError();
+    const bytes = Buffer.from(input.body);
+    this.quarantinePut.push(input.objectKey);
+    this.objects.set(slot, bytes);
+    return { sizeBytes: bytes.length, etag: createHash('md5').update(bytes).digest('hex') };
   }
 
   async deleteDerivative(input: DerivativeKeyInput): Promise<void> {

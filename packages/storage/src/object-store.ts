@@ -206,6 +206,15 @@ export interface PutDerivativeInput {
   readonly body: Uint8Array;
 }
 
+/**
+ * R22-c — bytes a server-side producer already holds whole, parked in the `quarantine` zone for the
+ * scan pass. The key must sit under `tenant/{uuid}/`.
+ */
+export interface PutQuarantineInput {
+  readonly objectKey: string;
+  readonly body: Uint8Array;
+}
+
 export interface DerivativeKeyInput {
   readonly objectKey: string;
 }
@@ -254,4 +263,12 @@ export interface ObjectStore {
   openDerivative(input: DerivativeKeyInput): Promise<OpenedObject>;
   /** Remove a derivative, if any. Idempotent, and confined to the `derived` zone. */
   deleteDerivative(input: DerivativeKeyInput): Promise<void>;
+  /**
+   * R22-c (54-12a). Write bytes the server already holds into the `quarantine` zone, whole and
+   * **write-once**: an existing object under the key is refused with `ObjectExistsError`, never
+   * replaced. The one server-side quarantine put — every other quarantine object arrives through
+   * the browser's multipart path, which cannot carry an inbound-mail webhook's attachment bytes.
+   * Never touches `private` or `derived`; promotion stays the scan pass's `promote`.
+   */
+  putQuarantine(input: PutQuarantineInput): Promise<StoredObject>;
 }

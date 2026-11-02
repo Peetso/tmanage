@@ -14,6 +14,7 @@ import type {
   PromoteObjectInput,
   Promotion,
   PutDerivativeInput,
+  PutQuarantineInput,
   RemoveObjectInput,
   StoredObject,
   WithdrawObjectInput,
@@ -107,6 +108,9 @@ class UnavailableObjectStore implements ObjectStore {
     return Promise.reject(new ObjectStoreUnavailableError());
   }
   deleteDerivative(_input: DerivativeKeyInput): Promise<void> {
+    return Promise.reject(new ObjectStoreUnavailableError());
+  }
+  putQuarantine(_input: PutQuarantineInput): Promise<StoredObject> {
     return Promise.reject(new ObjectStoreUnavailableError());
   }
 }

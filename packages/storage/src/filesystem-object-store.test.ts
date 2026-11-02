@@ -19,6 +19,7 @@ import {
   MissingPartError,
   MultipartUploadMismatchError,
   MultipartUploadNotFoundError,
+  ObjectExistsError,
   ObjectNotFoundError,
   PartEtagMismatchError,
   PartTooLargeError,
@@ -1123,5 +1124,21 @@ describe('FilesystemObjectStore — derivatives (R4 slice 2)', () => {
     );
     expect(lstatSync(path).isSymbolicLink()).toBe(true);
     expect(readFileSync(secret, 'utf8')).toBe('not a derivative');
+  });
+});
+
+describe('FilesystemObjectStore — putQuarantine (R22-c)', () => {
+  it('writes once into quarantine and refuses an existing key', async () => {
+    const body = Buffer.from('%PDF-1.7 parked');
+    expect(await store.putQuarantine({ objectKey: KEY, body })).toEqual({
+      sizeBytes: body.length,
+      etag: md5(body),
+    });
+    expect(readFileSync(store.objectPath('quarantine', KEY))).toEqual(body);
+    await expect(
+      store.putQuarantine({ objectKey: KEY, body: Buffer.from('replacement') }),
+    ).rejects.toBeInstanceOf(ObjectExistsError);
+    expect(readFileSync(store.objectPath('quarantine', KEY))).toEqual(body);
+    expect(existsSync(store.objectPath('private', KEY))).toBe(false);
   });
 });

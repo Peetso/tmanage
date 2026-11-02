@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { FakeObjectStore } from './fake-object-store.js';
-import { ObjectNotFoundError, PromotionClosedError, SizeMismatchError } from './errors.js';
+import {
+  ObjectExistsError,
+  ObjectNotFoundError,
+  PromotionClosedError,
+  SizeMismatchError,
+} from './errors.js';
 import {
   InvalidObjectKeyComponentError,
   derivativeObjectKey,
@@ -221,5 +226,18 @@ describe('FakeObjectStore — derivatives (R4 slice 2)', () => {
       'down',
     );
     expect(store.objects.size).toBe(0);
+  });
+});
+
+describe('FakeObjectStore — putQuarantine (R22-c)', () => {
+  it('is write-once', async () => {
+    const store = new FakeObjectStore(() => 0);
+    const key = uploadObjectKey({ organizationId: ORG, projectId: PROJECT, uploadId: UPLOAD });
+    await store.putQuarantine({ objectKey: key, body: Buffer.from('a') });
+    await expect(
+      store.putQuarantine({ objectKey: key, body: Buffer.from('b') }),
+    ).rejects.toBeInstanceOf(ObjectExistsError);
+    expect(store.objects.get(`quarantine/${key}`)?.toString()).toBe('a');
+    expect(store.quarantinePut).toEqual([key]);
   });
 });

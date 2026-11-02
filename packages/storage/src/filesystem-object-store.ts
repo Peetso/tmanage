@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { once } from 'node:events';
 import { createReadStream, createWriteStream } from 'node:fs';
 import type { WriteStream } from 'node:fs';
-import { lstat, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { link, lstat, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -10,6 +10,7 @@ import {
   MissingPartError,
   MultipartUploadMismatchError,
   MultipartUploadNotFoundError,
+  ObjectExistsError,
   ObjectNotFoundError,
   PartEtagMismatchError,
   PartTooLargeError,
@@ -29,6 +30,7 @@ import type {
   PromoteObjectInput,
   Promotion,
   PutDerivativeInput,
+  PutQuarantineInput,
   RemoveObjectInput,
   StoredObject,
   TrustZone,
@@ -500,6 +502,40 @@ export class FilesystemObjectStore implements ObjectStore, PartSink {
     await this.assertContained(path);
     const body = Buffer.from(input.body.buffer, input.body.byteOffset, input.body.byteLength);
     await this.writeAtomically(path, body);
+    return { sizeBytes: body.length, etag: createHash('md5').update(body).digest('hex') };
+  }
+
+  /**
+   * R22-c — write-once into `quarantine`: the bytes go to a temporary file beside the path and are
+   * then hard-linked to it, and `link` refuses an existing path (`EEXIST` -> `ObjectExistsError`),
+   * so a reader never sees half an object and an existing one is never replaced. Same key and
+   * containment checks as `putDerivative`.
+   */
+  async putQuarantine(input: PutQuarantineInput): Promise<StoredObject> {
+    const path = this.objectPath('quarantine', input.objectKey);
+    if (!tenantOfObjectKey(input.objectKey)) throw new UnsafeObjectPathError('objectKey');
+    await this.assertContained(path);
+    try {
+      await lstat(path);
+      throw new ObjectExistsError();
+    } catch (error) {
+      if (!isNotFound(error)) throw error;
+    }
+    await mkdir(dirname(path), { recursive: true });
+    await this.assertContained(path);
+    const body = Buffer.from(input.body.buffer, input.body.byteOffset, input.body.byteLength);
+    const temporary = temporaryBeside(path);
+    try {
+      await writeFile(temporary, body, { flag: 'wx' });
+      try {
+        await link(temporary, path);
+      } catch (error) {
+        if ((error as { code?: unknown }).code === 'EEXIST') throw new ObjectExistsError();
+        throw error;
+      }
+    } finally {
+      await rm(temporary, { force: true, maxRetries: 3 });
+    }
     return { sizeBytes: body.length, etag: createHash('md5').update(body).digest('hex') };
   }
 

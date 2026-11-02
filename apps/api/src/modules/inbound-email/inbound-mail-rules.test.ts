@@ -1,6 +1,10 @@
+import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   MAX_MESSAGE_BYTES,
+  attachmentObjectKey,
+  parseWebhookBody,
+  verifyWebhookSignature,
   attachmentState,
   authResultOf,
   bodyOf,
@@ -107,5 +111,76 @@ describe('inbound mail rules (R21-f)', () => {
       text: 'plain',
     });
     expect(body).toBe('Hi & bye');
+  });
+});
+
+describe('inbound webhook rules (R22-c)', () => {
+  const secret = 's'.repeat(40);
+  const now = new Date('2026-11-02T12:00:00.000Z');
+  const ts = String(Math.floor(now.getTime() / 1000));
+  const sign = (body: string, at = ts) =>
+    `v1=${createHmac('sha256', secret).update(`${at}.${body}`).digest('hex')}`;
+  const check = (body: string, signature: string, timestamp = ts) =>
+    verifyWebhookSignature({ rawBody: Buffer.from(body), signature, timestamp, secret, now });
+
+  it('accepts a correct signature within 300 s and refuses stale or foreign ones', () => {
+    expect(check('{"a":1}', sign('{"a":1}'))).toBe('valid');
+    const stale = String(Number(ts) - 301);
+    expect(check('{"a":1}', sign('{"a":1}', stale), stale)).toBe('invalid');
+    expect(check('{"a":2}', sign('{"a":1}'))).toBe('invalid');
+    expect(check('{"a":1}', 'v1=zz')).toBe('invalid');
+  });
+
+  it('parses a bounded body and decodes the kept attachments', () => {
+    const parsed = parseWebhookBody(
+      {
+        to: 'requests+a-ab12cd@x.com',
+        from: 'b@c.com',
+        subject: 'Hi',
+        headers: JSON.parse(
+          '{"__proto__":["p"],"Authentication-Results":["dmarc=pass"]}',
+        ) as unknown,
+        attachments: [
+          { name: 'a.pdf', contentType: 'application/pdf', size: 99, contentBase64: 'JVBERg==' },
+        ],
+      },
+      'corr',
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.message.attachments[0]).toMatchObject({ name: 'a.pdf', sizeBytes: 4 });
+    expect(Object.getPrototypeOf(parsed.message.headers)).toBeNull();
+    expect(parsed.message.attachments[0]?.bytes?.toString()).toBe('%PDF');
+    const bad = parseWebhookBody({ to: '', from: 'b@c.com', subject: 'x'.repeat(501) }, 'c');
+    expect(bad.ok ? [] : bad.details.map((d) => d.field)).toEqual(['to', 'subject']);
+  });
+
+  it('derives the quarantine key under the tenant prefix', () => {
+    const id = (n: string) => `0192f000-0000-7000-8000-0000000000${n}`;
+    expect(attachmentObjectKey(id('01'), id('02'), id('03'))).toBe(
+      `tenant/${id('01')}/project/${id('02')}/upload/${id('03')}/object`,
+    );
+  });
+
+  it('member branch: work item with a default project; the client branch wins when both', () => {
+    const base = {
+      authResult: 'pass' as const,
+      senderClient: null,
+      senderMember: { userId: 'u', membershipId: 'm' },
+      defaultProjectId: 'p',
+      projectShared: false,
+    };
+    expect(decideOutcome(base)).toEqual({ outcome: 'work_item' });
+    expect(decideOutcome({ ...base, memberOutcome: 'hold' })).toMatchObject({ outcome: 'held' });
+    expect(decideOutcome({ ...base, defaultProjectId: null })).toMatchObject({
+      reason: 'no_default_project',
+    });
+    expect(
+      decideOutcome({
+        ...base,
+        senderClient: { clientOrganizationId: 'co', userId: 'cu' },
+        projectShared: true,
+      }),
+    ).toEqual({ outcome: 'client_request' });
   });
 });

@@ -1,10 +1,14 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { authorize, uuidv7 } from '@tmanage/domain';
 import type { Capability, Principal } from '@tmanage/domain';
+import type { ObjectStore } from '@tmanage/storage';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { createFixedWindowLimiter } from '../../common/http/rate-limiter.js';
 import type { RequestAdmission } from '../../common/http/rate-limiter.js';
-import { createServiceContext } from '../../common/database/tenant-context.js';
+import {
+  SERVICE_PRINCIPAL_ID,
+  createServiceContext,
+} from '../../common/database/tenant-context.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type {
   InboundEmailAddressRow,
@@ -12,23 +16,35 @@ import type {
 } from '../../common/database/schema.js';
 import { AuditEventsRepository } from '../audit/audit-events.repository.js';
 import { ClientRequestsRepository } from '../requests/client-requests.repository.js';
+import type { WorkItemsService } from '../work/work-items.service.js';
 import type { InboundEmailRepository, LogCursor } from './inbound-email.repository.js';
 import {
+  HEAD_BYTES,
   INBOUND_DOMAIN,
   MAX_ATTACHMENTS,
+  MAX_DAILY_ATTACHMENT_BYTES,
   PER_ADDRESS_PER_HOUR,
+  attachmentObjectKey,
   attachmentState,
   authResultOf,
   bodyOf,
   decideOutcome,
   decodeRfc2047,
   localPartFor,
+  memberOutcomeOf,
   messageIdHash,
   parseRecipient,
   senderAddress,
   suffixFrom,
 } from './inbound-mail-rules.js';
-import type { AuthResult, InboundOutcome, ParsedInboundMessage } from './inbound-mail-rules.js';
+import type {
+  AttachmentState,
+  AuthResult,
+  HeldReason,
+  InboundOutcome,
+  ParsedInboundMessage,
+  SenderMember,
+} from './inbound-mail-rules.js';
 
 /**
  * R21-f — 54-12 inbound e-mail core and the 54-12a attachment rule.
@@ -43,10 +59,18 @@ import type { AuthResult, InboundOutcome, ParsedInboundMessage } from './inbound
  * resolved on `bootstrapRead(['inbound_email_addresses'])` (reason `inbound_email_address_lookup`)
  * and everything after runs under a service context of that address's organization.
  *
+ * R22-c added: the member -> work item outcome (created through `WorkItemsService.create` under a
+ * service principal scoped to the address's default project, the member as owner), and attachment
+ * BYTES from the JSON webhook — a passing mail's `scanning` attachments are parked write-once in the
+ * quarantine zone under {@link attachmentObjectKey} with their SHA-256; a failing mail's bytes are
+ * dropped before any write (54-12a rule 5) and the org's 200 MiB/day cap turns the rest
+ * `too_large`. An object parked in a transaction that then rolls back (a racing duplicate) is left
+ * under the tenant prefix for the erasure walk — it has no row and is never served.
+ *
  * NOT built here (cut, stated so nobody relies on it): the IMAP / Gmail / Graph fetch (no IMAP or
- * MIME library is in the lockfile and the mailbox is an hPanel step), attachment BYTES (every row is
- * metadata — no fetch, preview, download or scanner call, so no row is ever `clean`), the
- * member -> work item outcome, the "ask the sender to re-send" reply, and the triage screen.
+ * MIME library is in the lockfile and the mailbox is an hPanel step), the scan pass (no row is
+ * ever `clean` here), preview/download, the "ask the sender to re-send" reply, and the triage
+ * screen.
  *
  * The per-address hour budget is in process (`createFixedWindowLimiter`): a restart forgets the
  * window and a second process would count separately — the limiter's own stated limits.
@@ -62,7 +86,7 @@ const ADDRESS_ATTEMPTS = 3;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
 export type IngestStatus =
-  'dropped' | 'dropped_rate_limited' | 'duplicate' | 'client_request' | 'held';
+  'dropped' | 'dropped_rate_limited' | 'duplicate' | 'client_request' | 'work_item' | 'held';
 
 export interface IngestResult {
   readonly status: IngestStatus;
@@ -122,6 +146,10 @@ export interface InboundEmailDeps {
   readonly audit?: Pick<AuditEventsRepository, 'append'>;
   readonly requests?: Pick<ClientRequestsRepository, 'submit'>;
   readonly limiter?: RequestAdmission;
+  /** R22-c: the member -> work item outcome. Absent: that outcome is held `work_item_refused`. */
+  readonly workItems?: Pick<WorkItemsService, 'create'>;
+  /** R22-c: where a passing mail's attachment bytes are parked. Absent: rows are `unavailable`. */
+  readonly store?: Pick<ObjectStore, 'putQuarantine'>;
   readonly random?: (size: number) => Buffer;
   readonly now?: () => Date;
   readonly domain?: string;
@@ -182,6 +210,8 @@ export class InboundEmailService {
   private readonly random: (size: number) => Buffer;
   private readonly now: () => Date;
   private readonly domain: string;
+  private readonly workItems: Pick<WorkItemsService, 'create'> | null;
+  private readonly store: Pick<ObjectStore, 'putQuarantine'> | null;
 
   constructor(
     private readonly database: TenantDatabase,
@@ -195,6 +225,8 @@ export class InboundEmailService {
     this.random = deps.random ?? ((size) => randomBytes(size));
     this.now = deps.now ?? (() => new Date());
     this.domain = deps.domain ?? INBOUND_DOMAIN;
+    this.workItems = deps.workItems ?? null;
+    this.store = deps.store ?? null;
   }
 
   // ── Org side ──────────────────────────────────────────────────────────────
@@ -367,7 +399,7 @@ export class InboundEmailService {
   async trust(context: TenantContext, principal: Principal, id: string): Promise<TrustResult> {
     requireCapability(principal, context, 'client_request.triage');
     const at = this.now();
-    return this.database.transaction(context, async (runner) => {
+    const trusted = await this.database.transaction(context, async (runner) => {
       const mail = await this.repository.findEmail(runner, context, id, true);
       if (!mail) throw mailNotFound();
       if (mail.trustedAt !== null) {
@@ -411,7 +443,8 @@ export class InboundEmailService {
         { trustedBy: principal.userId, outcome, outcomeReason, linkedObjectType, linkedObjectId },
         at,
       );
-      const attachmentsReleased = await this.repository.releaseWaitingAttachments(
+      // R22-c: the bytes were never kept (rule 5) and a push cannot be re-fetched.
+      const attachmentsReleased = await this.repository.expireWaitingAttachments(
         runner,
         context,
         id,
@@ -423,8 +456,24 @@ export class InboundEmailService {
         objectId: id,
         metadata: { outcome, attachments_released: attachmentsReleased },
       });
-      return { id, outcome, outcomeReason, linkedObjectType, linkedObjectId, attachmentsReleased };
+      const result: TrustResult = {
+        id,
+        outcome,
+        outcomeReason,
+        linkedObjectType,
+        linkedObjectId,
+        attachmentsReleased,
+      };
+      return { result, decided, mail };
     });
+    if (trusted.decided.outcome.outcome !== 'work_item') return trusted.result;
+    const filed = await this.fileWorkItem(context, id, {
+      projectId: trusted.decided.projectId,
+      member: trusted.decided.member,
+      subject: trusted.mail.subject,
+      body: trusted.mail.bodyText ?? '',
+    });
+    return { ...trusted.result, ...filed };
   }
 
   // ── Ingest ────────────────────────────────────────────────────────────────
@@ -458,15 +507,37 @@ export class InboundEmailService {
     const hash = messageIdHash(message.messageId, { from, date: message.date, subject });
     const authResult = authResultOf(message.headers);
     const body = bodyOf(message);
-    const kept = message.attachments.slice(0, MAX_ATTACHMENTS);
-    const dropped = message.attachments.length - kept.length;
+    const dropped = Math.max(0, message.attachments.length - MAX_ATTACHMENTS);
+    // 54-12a rule 5: a mail that did not pass DMARC keeps metadata only — its bytes are dropped
+    // here, before anything could write them.
+    const kept: KeptAttachment[] = message.attachments.slice(0, MAX_ATTACHMENTS).map((a) => {
+      const bytes = authResult === 'pass' ? (a.bytes ?? null) : null;
+      const sizeBytes = bytes !== null ? bytes.length : a.sizeBytes;
+      const head = bytes !== null ? bytes.subarray(0, HEAD_BYTES) : a.head;
+      return {
+        id: uuidv7(),
+        name: a.name,
+        declaredType: a.declaredType,
+        sizeBytes,
+        bytes,
+        state: attachmentState({
+          sizeBytes,
+          declaredType: a.declaredType,
+          name: a.name,
+          head,
+          authResult,
+        }),
+      };
+    });
     const at = this.now();
     const id = uuidv7();
 
+    let result: { readonly ingest: IngestResult; readonly decided: Decided };
     try {
-      return await this.database.transaction(context, async (runner): Promise<IngestResult> => {
+      result = await this.database.transaction(context, async (runner) => {
         if (await this.repository.findByMessageHash(runner, context, hash)) {
-          return { status: 'duplicate' };
+          const duplicate: IngestResult = { status: 'duplicate' };
+          return { ingest: duplicate, decided: NO_DECISION };
         }
         const decided = await this.decide(runner, context, authResult, from, address);
         let linkedObjectId: string | null = null;
@@ -500,36 +571,137 @@ export class InboundEmailService {
           },
           at,
         );
+        const rows = await this.parkAttachments(runner, context, address.id, kept, at);
         await this.repository.insertAttachments(
           runner,
           context,
-          kept.map((a) => ({
-            id: uuidv7(),
-            inboundEmailId: id,
-            name: a.name.slice(0, 255),
-            sizeBytes: Math.max(0, Math.min(Math.trunc(a.sizeBytes), 0xffffffff)),
-            declaredType: a.declaredType?.slice(0, 127) ?? null,
-            state: attachmentState({
-              sizeBytes: a.sizeBytes,
-              declaredType: a.declaredType,
-              name: a.name,
-              head: a.head,
-              authResult,
-            }),
-          })),
+          rows.map((row) => ({ ...row, inboundEmailId: id })),
           at,
         );
-        return {
+        const ingest: IngestResult = {
           status: decided.outcome.outcome,
           inboundEmailId: id,
           ...(reason !== null ? { reason } : {}),
         };
+        return { ingest, decided };
       });
     } catch (error) {
       // Two deliveries of one message racing past the read: the unique key decides.
       if (isDuplicate(error)) return { status: 'duplicate' };
       throw error;
     }
+    if (result.decided.outcome.outcome !== 'work_item') return result.ingest;
+    const filed = await this.fileWorkItem(context, id, {
+      projectId: result.decided.projectId,
+      member: result.decided.member,
+      subject,
+      body,
+    });
+    return {
+      status: filed.outcome,
+      inboundEmailId: id,
+      ...(filed.outcomeReason !== null ? { reason: filed.outcomeReason } : {}),
+    };
+  }
+
+  /**
+   * 54-12a: the state each kept attachment is recorded in, and — for a passing mail's `scanning`
+   * rows — its bytes parked in quarantine with their SHA-256. Over the organization's daily bytes
+   * a row is `too_large`; a `scanning` row with no bytes (or no store) is `unavailable`.
+   */
+  private async parkAttachments(
+    runner: Parameters<Parameters<TenantDatabase['transaction']>[1]>[0],
+    context: TenantContext,
+    addressId: string,
+    kept: readonly KeptAttachment[],
+    at: Date,
+  ): Promise<readonly ParkedAttachment[]> {
+    const scanning = kept.some((a) => a.state === 'scanning');
+    let usedToday = scanning
+      ? await this.repository.dailyAttachmentBytes(runner, context, startOfUtcDay(at))
+      : 0;
+    const rows: ParkedAttachment[] = [];
+    for (const a of kept) {
+      let state: AttachmentState = a.state;
+      let sha256: string | null = null;
+      if (state === 'scanning') {
+        if (usedToday + a.sizeBytes > MAX_DAILY_ATTACHMENT_BYTES) {
+          state = 'too_large';
+        } else if (a.bytes === null || this.store === null) {
+          state = 'unavailable';
+        } else {
+          await this.store.putQuarantine({
+            objectKey: attachmentObjectKey(context.organizationId, addressId, a.id),
+            body: a.bytes,
+          });
+          sha256 = createHash('sha256').update(a.bytes).digest('hex');
+          usedToday += a.sizeBytes;
+        }
+      }
+      rows.push({
+        id: a.id,
+        name: a.name.slice(0, 255),
+        sizeBytes: Math.max(0, Math.min(Math.trunc(a.sizeBytes), 0xffffffff)),
+        declaredType: a.declaredType?.slice(0, 127) ?? null,
+        state,
+        sha256,
+      });
+    }
+    return rows;
+  }
+
+  /**
+   * R22-c: the member's mail becomes a work item in the address's default project, owned by the
+   * member, created through `WorkItemsService.create` (its own transaction, audit and outbox event)
+   * under a service principal that reaches that one project only. A refusal (archived project,
+   * owner no longer a member, no service wired) leaves the mail held `work_item_refused`.
+   */
+  private async fileWorkItem(
+    context: TenantContext,
+    mailId: string,
+    input: {
+      readonly projectId: string | null;
+      readonly member: SenderMember | null;
+      readonly subject: string | null;
+      readonly body: string;
+    },
+  ): Promise<FiledOutcome> {
+    let linkedObjectId: string | null = null;
+    if (this.workItems !== null && input.projectId !== null && input.member !== null) {
+      try {
+        const item = await this.workItems.create(
+          context,
+          inboundServicePrincipal(context.organizationId, input.projectId),
+          {
+            projectId: input.projectId,
+            title: titleOf(input.subject),
+            description: input.body === '' ? null : input.body,
+            ownerUserId: input.member.userId,
+          },
+        );
+        linkedObjectId = item.id;
+      } catch {
+        linkedObjectId = null;
+      }
+    }
+    const filed: FiledOutcome =
+      linkedObjectId !== null
+        ? {
+            outcome: 'work_item',
+            outcomeReason: null,
+            linkedObjectType: 'work_item',
+            linkedObjectId,
+          }
+        : {
+            outcome: 'held',
+            outcomeReason: 'work_item_refused',
+            linkedObjectType: null,
+            linkedObjectId: null,
+          };
+    await this.database.transaction(context, (runner) =>
+      this.repository.setOutcome(runner, context, mailId, filed),
+    );
+    return filed;
   }
 
   private async decide(
@@ -538,11 +710,7 @@ export class InboundEmailService {
     authResult: AuthResult,
     from: string,
     address: InboundEmailAddressRow | null,
-  ): Promise<{
-    readonly outcome: InboundOutcome;
-    readonly sender: { readonly clientOrganizationId: string; readonly userId: string } | null;
-    readonly projectId: string | null;
-  }> {
+  ): Promise<Decided> {
     if (authResult !== 'pass') {
       return {
         outcome: decideOutcome({
@@ -552,10 +720,14 @@ export class InboundEmailService {
           projectShared: false,
         }),
         sender: null,
+        member: null,
         projectId: null,
       };
     }
     const sender = await this.repository.findSenderClient(runner, context, from);
+    // A client contact is the narrower audience: the member lookup runs only for a non-client.
+    const member =
+      sender === null ? await this.repository.findSenderMember(runner, context, from) : null;
     const projectId = address?.defaultProjectId ?? null;
     const projectShared =
       sender !== null &&
@@ -571,10 +743,13 @@ export class InboundEmailService {
       outcome: decideOutcome({
         authResult,
         senderClient: sender,
+        senderMember: member,
+        memberOutcome: memberOutcomeOf(address?.policyJson ?? null),
         defaultProjectId: projectId,
         projectShared,
       }),
       sender,
+      member,
       projectId,
     };
   }
@@ -594,10 +769,73 @@ export class InboundEmailService {
   }
 }
 
+interface Decided {
+  readonly outcome: InboundOutcome;
+  readonly sender: { readonly clientOrganizationId: string; readonly userId: string } | null;
+  readonly member: SenderMember | null;
+  readonly projectId: string | null;
+}
+
+const NO_DECISION: Decided = {
+  outcome: { outcome: 'held', reason: 'unknown_sender' },
+  sender: null,
+  member: null,
+  projectId: null,
+};
+
+interface KeptAttachment {
+  readonly id: string;
+  readonly name: string;
+  readonly declaredType: string | null;
+  readonly sizeBytes: number;
+  readonly bytes: Buffer | null;
+  readonly state: AttachmentState;
+}
+
+interface ParkedAttachment {
+  readonly id: string;
+  readonly name: string;
+  readonly sizeBytes: number;
+  readonly declaredType: string | null;
+  readonly state: AttachmentState;
+  readonly sha256: string | null;
+}
+
+interface FiledOutcome {
+  readonly outcome: 'work_item' | 'held';
+  readonly outcomeReason: HeldReason | null;
+  readonly linkedObjectType: string | null;
+  readonly linkedObjectId: string | null;
+}
+
+function startOfUtcDay(at: Date): Date {
+  return new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate()));
+}
+
+/**
+ * R22-c: the principal an inbound member mail files work under — the platform's service id as a
+ * plain `member` reaching exactly the address's default project (chosen by an org manager when
+ * the address was set up), nothing org-wide. Same shape as `platformGrantPrincipal`.
+ */
+export function inboundServicePrincipal(organizationId: string, projectId: string): Principal {
+  return {
+    userId: SERVICE_PRINCIPAL_ID,
+    organizationId,
+    kind: 'internal',
+    role: 'member',
+    membershipId: SERVICE_PRINCIPAL_ID,
+    membershipStatus: 'active',
+    clientOrganizationId: null,
+    projectIds: [projectId],
+    hasOrgWideScope: false,
+  };
+}
+
 function policyJson(): string {
   return JSON.stringify({
     perHour: PER_ADDRESS_PER_HOUR,
     maxAttachments: MAX_ATTACHMENTS,
+    member_outcome: 'work_item',
   });
 }
 

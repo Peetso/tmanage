@@ -1,10 +1,11 @@
-import { and, desc, eq, inArray, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lt, ne, notInArray, or, sql } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
   clientMemberships,
   inboundEmailAddresses,
   inboundEmailAttachments,
   inboundEmails,
+  memberships,
   projectClients,
   projects,
   users,
@@ -19,7 +20,7 @@ import type {
   TenantContext,
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
-import type { SenderClient } from './inbound-mail-rules.js';
+import type { SenderClient, SenderMember } from './inbound-mail-rules.js';
 
 /**
  * R21-f (54-12 / 54-12a, 0312) — storage for `inbound_email_addresses`, `inbound_emails` and
@@ -51,6 +52,8 @@ export interface NewInboundAttachment {
   readonly sizeBytes: number;
   readonly declaredType: string | null;
   readonly state: string;
+  /** R22-c: set only when the bytes were parked in the quarantine zone. */
+  readonly sha256?: string | null;
 }
 
 export interface LogCursor {
@@ -298,6 +301,7 @@ export class InboundEmailRepository {
           name: row.name,
           sizeBytes: row.sizeBytes,
           declaredType: row.declaredType,
+          sha256: row.sha256 ?? null,
           state: row.state,
           createdAt: at,
           updatedAt: at,
@@ -323,8 +327,12 @@ export class InboundEmailRepository {
       .orderBy(inboundEmailAttachments.createdAt, inboundEmailAttachments.id);
   }
 
-  /** 54-12a: trusting a mail moves its `waiting_trust` attachments to `scanning`. */
-  async releaseWaitingAttachments(
+  /**
+   * 54-12a / R22-c: trusting a mail turns its `waiting_trust` attachments `unavailable` — their
+   * bytes were dropped unwritten (rule 5) and a pushed mail has no mailbox to re-fetch from, so the
+   * honest state is "ask the sender to re-send". (R21-f moved them to `scanning`, with no bytes.)
+   */
+  async expireWaitingAttachments(
     runner: TenantQueryRunner,
     context: TenantContext,
     emailId: string,
@@ -341,9 +349,20 @@ export class InboundEmailRepository {
         ),
       );
     if (rows.length === 0) return 0;
+    await this.markUnavailable(runner, context, emailId, at);
+    return rows.length;
+  }
+
+  /** `waiting_trust` rows of one mail -> `unavailable`. */
+  async markUnavailable(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    emailId: string,
+    at: Date,
+  ): Promise<void> {
     await tenantDrizzle(runner)
       .update(inboundEmailAttachments)
-      .set({ state: 'scanning', updatedAt: at })
+      .set({ state: 'unavailable', updatedAt: at })
       .where(
         and(
           eq(inboundEmailAttachments.organizationId, context.organizationId),
@@ -351,7 +370,76 @@ export class InboundEmailRepository {
           eq(inboundEmailAttachments.state, 'waiting_trust'),
         ),
       );
-    return rows.length;
+  }
+
+  /**
+   * R22-c — 54-12a rule (6): attachment bytes this organization took in since `dayStart` (UTC),
+   * not counting rows refused as `blocked_type` / `too_large`.
+   */
+  async dailyAttachmentBytes(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    dayStart: Date,
+  ): Promise<number> {
+    const rows = await tenantDrizzle(runner)
+      .select({ total: sql<string | number | null>`sum(${inboundEmailAttachments.sizeBytes})` })
+      .from(inboundEmailAttachments)
+      .where(
+        and(
+          eq(inboundEmailAttachments.organizationId, context.organizationId),
+          gte(inboundEmailAttachments.createdAt, dayStart),
+          notInArray(inboundEmailAttachments.state, ['blocked_type', 'too_large']),
+        ),
+      );
+    return Number(rows[0]?.total ?? 0);
+  }
+
+  /** R22-c: the outcome after the work item was (or could not be) created. */
+  async setOutcome(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    id: string,
+    input: {
+      readonly outcome: string;
+      readonly outcomeReason: string | null;
+      readonly linkedObjectType: string | null;
+      readonly linkedObjectId: string | null;
+    },
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .update(inboundEmails)
+      .set(input)
+      .where(
+        and(eq(inboundEmails.organizationId, context.organizationId), eq(inboundEmails.id, id)),
+      );
+  }
+
+  /**
+   * R22-c: the sender as an internal member of THIS organization — `users.email` (lower-cased
+   * exact match) joined to an `active` `memberships` row of the organization. `null` otherwise
+   * (a member of another organization included).
+   */
+  async findSenderMember(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    email: string,
+  ): Promise<SenderMember | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({ userId: memberships.userId, membershipId: memberships.id })
+      .from(memberships)
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .where(
+        and(
+          eq(memberships.organizationId, context.organizationId),
+          eq(memberships.status, 'active'),
+          // The hidden Support-session membership is not a sender.
+          ne(memberships.role, 'platform_support'),
+          eq(sql`lower(${users.email})`, email.toLowerCase()),
+        ),
+      )
+      .orderBy(memberships.id)
+      .limit(1);
+    return rows[0] ?? null;
   }
 
   /**
