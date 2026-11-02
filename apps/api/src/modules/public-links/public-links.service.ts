@@ -33,6 +33,11 @@ import { PublicLinksRepository, type findLinkByTokenHash } from './public-links.
  *   further read and write runs in a SERVICE context for that link's organization, so the link
  *   reaches exactly its own object. Any unknown or malformed token is the same 404.
  * - Every outsider action is an event row and an audit row (`public_link.opened|decided`).
+ * - R23-a (55-14, 56 §5.15): a kind may FORCE its own policy. `magic_signin` is always single use
+ *   with a 15-minute expiry — a caller's `expiresInDays`/`maxUses` is ignored, not refused, and the
+ *   `public_link.created` audit row says `forced_policy`. An open is counted atomically
+ *   (`uses < max_uses`); a consumed magic link answers the same flat 404 as an unknown token, so
+ *   a second use cannot tell "used" from "never existed". Every other kind keeps `expired`.
  */
 
 export const DEFAULT_EXPIRY_DAYS = 7;
@@ -47,6 +52,18 @@ const MAX_EMAIL = 320;
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 const LANGUAGES = ['en', 'ar'] as const;
 const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
+export const MAGIC_SIGNIN_TTL_MS = 15 * 60_000;
+
+/** A kind's forced expiry and use limit; `null` = the caller's `expiresInDays`/`maxUses` apply. */
+export const KIND_POLICY: Readonly<
+  Record<PublicLinkKind, { readonly ttlMs: number | null; readonly maxUses: number | null }>
+> = {
+  approval: { ttlMs: null, maxUses: null },
+  intake: { ttlMs: null, maxUses: null },
+  quote: { ttlMs: null, maxUses: null },
+  share: { ttlMs: null, maxUses: null },
+  magic_signin: { ttlMs: MAGIC_SIGNIN_TTL_MS, maxUses: 1 },
+};
 
 export type LinkStatus = 'active' | 'opened' | 'decided' | 'expired' | 'revoked';
 
@@ -163,6 +180,8 @@ export class PublicLinksService {
       throw invalid('audienceEmail', 'is required when an e-mail code is required');
     }
     const at = this.now();
+    const policy = KIND_POLICY[input.kind];
+    const forced = policy.ttlMs !== null || policy.maxUses !== null;
     const secret = this.options.secrets.issueToken();
     const row: PublicLinkRow = {
       id: uuidv7(),
@@ -176,8 +195,8 @@ export class PublicLinksService {
       audienceEmail: input.audienceEmail,
       requireCode: input.requireCode,
       language: input.language,
-      expiresAt: new Date(at.getTime() + input.expiresInDays * DAY_MS),
-      maxUses: input.maxUses,
+      expiresAt: new Date(at.getTime() + (policy.ttlMs ?? input.expiresInDays * DAY_MS)),
+      maxUses: policy.maxUses ?? input.maxUses,
       uses: 0,
       decision: null,
       decidedAt: null,
@@ -188,7 +207,8 @@ export class PublicLinksService {
       lastOpenedAt: null,
     };
     await this.store.insert(tx, context, row);
-    await this.audited(tx, context, 'public_link.created', row, {}, context.userId);
+    const extra = forced ? { forced_policy: input.kind } : {};
+    await this.audited(tx, context, 'public_link.created', row, extra, context.userId);
     return { ...toView(row, at), token: secret.token };
   }
 
@@ -253,6 +273,7 @@ export class PublicLinksService {
   async open(token: unknown, meta: OutsiderMeta): Promise<OutsiderLinkView> {
     return this.outsider(token, async (tx, context, link) => {
       const at = this.now();
+      if (consumed(link, at)) throw notFound('public_link.unknown_token');
       const state = terminalState(link, at);
       if (state !== null) return state;
       const adapter = this.options.targets.get(link.targetType);
@@ -261,7 +282,11 @@ export class PublicLinksService {
       if (link.versionHash !== null && target.versionHash !== link.versionHash) {
         return { state: 'superseded' };
       }
-      await this.store.recordOpen(tx, context, link.id, at);
+      // Counted before anything is shown: false = a parallel open used the last use first.
+      if (!(await this.store.recordOpen(tx, context, link.id, at))) {
+        if (link.kind === 'magic_signin') throw notFound('public_link.unknown_token');
+        return { state: 'expired' };
+      }
       await this.event(tx, context, link, 'opened', null, meta);
       await this.audited(tx, context, 'public_link.opened', link, {}, null);
       return {
@@ -286,6 +311,7 @@ export class PublicLinksService {
   ): Promise<{ readonly expiresInSeconds: number }> {
     const sent = await this.outsider(token, async (tx, context, link) => {
       const at = this.now();
+      if (consumed(link, at)) return fail(notFound('public_link.unknown_token'));
       const state = terminalState(link, at);
       if (state !== null) return fail(unusable(state.state));
       if (link.audienceEmail === null) {
@@ -331,6 +357,7 @@ export class PublicLinksService {
     const raw = (body ?? {}) as Record<string, unknown>;
     const outcome = await this.outsider(token, async (tx, context, link) => {
       const at = this.now();
+      if (consumed(link, at)) return fail(notFound('public_link.unknown_token'));
       const state = terminalState(link, at);
       if (state !== null) return fail(unusable(state.state));
       const adapter = this.options.targets.get(link.targetType);
@@ -504,6 +531,16 @@ export function linkStatus(row: PublicLinkRow, at: Date): LinkStatus {
   if (row.decision !== null) return 'decided';
   if (row.expiresAt <= at || (row.maxUses !== null && row.uses >= row.maxUses)) return 'expired';
   return row.lastOpenedAt === null ? 'active' : 'opened';
+}
+
+/** A used-up `magic_signin` link: it must answer exactly like a token that never existed. */
+function consumed(row: PublicLinkRow, at: Date): boolean {
+  return (
+    row.kind === 'magic_signin' &&
+    linkStatus(row, at) === 'expired' &&
+    row.maxUses !== null &&
+    row.uses >= row.maxUses
+  );
 }
 
 function terminalState(row: PublicLinkRow, at: Date): OutsiderLinkView | null {

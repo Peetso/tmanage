@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, isNull, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, isNull, lt, or, sql } from 'drizzle-orm';
 import type { RowDataPacket } from 'mysql2';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
@@ -133,13 +133,27 @@ export class PublicLinksRepository {
     return result[0].affectedRows > 0;
   }
 
-  async recordOpen(runner: TenantQueryRunner, context: TenantContext, linkId: string, at: Date) {
-    await tenantDrizzle(runner)
+  /**
+   * Count one open — atomically: the `uses < max_uses` predicate means two parallel first opens
+   * of a single-use link cannot both pass (R23-a, 55-14). False when the row was already used up.
+   */
+  async recordOpen(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    linkId: string,
+    at: Date,
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
       .update(publicLinks)
       .set({ uses: sql`${publicLinks.uses} + 1`, lastOpenedAt: at })
       .where(
-        and(eq(publicLinks.organizationId, context.organizationId), eq(publicLinks.id, linkId)),
+        and(
+          eq(publicLinks.organizationId, context.organizationId),
+          eq(publicLinks.id, linkId),
+          or(isNull(publicLinks.maxUses), lt(publicLinks.uses, publicLinks.maxUses)),
+        ),
       );
+    return result[0].affectedRows === 1;
   }
 
   /** The one terminal decision: true only for the call that made it. */
