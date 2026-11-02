@@ -167,6 +167,22 @@ function build(
 }
 
 describe('ProjectPortfolioController roll-up', () => {
+  it('passes ?include=burn through to the service (R16-b)', async () => {
+    let seen: unknown;
+    const stub = {
+      list: async (_c: unknown, _p: unknown, options: unknown) => {
+        seen = options;
+        return [];
+      },
+    } as unknown as ProjectPortfolioService;
+    const controller = new ProjectPortfolioController(
+      stub,
+      {} as unknown as ProjectPortfolioCapacityService,
+    );
+    await controller.list(context, owner, undefined, 'burn, ');
+    expect(seen).toEqual({ include: ['burn'] });
+  });
+
   it('summarises each visible project with open work, objective tallies, and latest activity', async () => {
     const { controller } = build(
       [project(PROJECT_A, ORG), project(PROJECT_B, ORG)],

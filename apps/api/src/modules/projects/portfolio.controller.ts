@@ -47,6 +47,7 @@ export class ProjectPortfolioController {
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
     @Query('limit') limit?: string,
+    @Query('include') include?: string,
   ): Promise<{ readonly projects: readonly ProjectPortfolioView[] }> {
     const parsedLimit = limit === undefined ? undefined : Number(limit);
     if (parsedLimit !== undefined && !Number.isSafeInteger(parsedLimit)) {
@@ -58,6 +59,15 @@ export class ProjectPortfolioController {
     return {
       projects: await this.portfolio.list(context, principal, {
         ...(parsedLimit !== undefined ? { limit: parsedLimit } : {}),
+        // R16-b: `?include=burn` (comma-separated) reaches the service; unknown names are ignored there.
+        ...(include !== undefined
+          ? {
+              include: include
+                .split(',')
+                .map((name) => name.trim())
+                .filter((name) => name !== ''),
+            }
+          : {}),
       }),
     };
   }

@@ -54,6 +54,19 @@ describe('parseUploadBody', () => {
     }
   });
 
+  it('holds an expense receipt to images or PDF of at most 10 MB', () => {
+    const receipt = { ...good(), purpose: 'expense_receipt' };
+    const ok: ValidationDetail[] = [];
+    expect(parseUploadBody({ ...receipt, mimeType: 'image/png' }, MAX, ok)).toBeDefined();
+    const big: ValidationDetail[] = [];
+    expect(
+      parseUploadBody({ ...receipt, sizeBytes: 10 * 1024 * 1024 + 1 }, MAX, big),
+    ).toBeUndefined();
+    const zip: ValidationDetail[] = [];
+    parseUploadBody({ ...receipt, mimeType: 'application/zip' }, MAX, zip);
+    expect([fields(big), fields(zip)]).toEqual([['sizeBytes'], ['mimeType']]);
+  });
+
   it('refuses a purpose outside the enum and an audience outside the two a caller may ask for', () => {
     const details: ValidationDetail[] = [];
     parseUploadBody(

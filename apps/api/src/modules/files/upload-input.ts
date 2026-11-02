@@ -1,6 +1,7 @@
 import { isContentHash } from '@tmanage/domain';
 import { UPLOAD_PURPOSES } from '../../common/database/schema.js';
 import type { UploadPurpose } from '../../common/database/schema.js';
+import { purposeUploadLimit, withinPurposeLimit } from './purpose-policy.js';
 
 /**
  * Body and header parsing shared by FILE-001's two doors — the studio's `/upload-sessions`
@@ -142,6 +143,19 @@ export function parseUploadBody(
       audience = input['audience'];
     } else {
       details.push({ field: 'audience', message: 'must be internal or client_visible' });
+    }
+  }
+
+  // R16-c: a purpose's own bounds (an expense receipt: images or PDF, at most 10 MB), checked
+  // when the session is created so a refused file never reserves storage.
+  if (details.length === 0 && isUploadPurpose(purposeRaw) && typeof sizeBytes === 'number') {
+    const limit = purposeUploadLimit(purposeRaw);
+    if (limit !== null && !withinPurposeLimit(purposeRaw, mimeType, sizeBytes)) {
+      details.push(
+        sizeBytes > limit.maxBytes
+          ? { field: 'sizeBytes', message: `exceeds ${limit.maxBytes} bytes for ${purposeRaw}` }
+          : { field: 'mimeType', message: `must be one of ${limit.mimeTypes.join(', ')}` },
+      );
     }
   }
 
