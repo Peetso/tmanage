@@ -1489,6 +1489,10 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/chat/:conversationId/archive',
     reason: 'session',
   },
+  // R13 slice 5 (57-14). Platform growth rollups and their CSV: cross-tenant aggregates for the
+  // platform admin, never an AI tool.
+  { method: 'GET', path: '/v1/platform/activity/growth/', reason: 'platform_admin' },
+  { method: 'GET', path: '/v1/platform/activity/growth/export.csv', reason: 'platform_admin' },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

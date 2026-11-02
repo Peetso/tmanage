@@ -1324,6 +1324,11 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // 0280. The IP cache (approximate place and network of an address). GLOBAL: an address belongs to
   // no organization; sign-ins and sessions join on `ip`. Reached only through `identityTransaction`.
   'ip_lookups',
+  // ---- R13 slice 5 · 57-14 ----
+  // 0284. Platform growth rollups. GLOBAL: platform-wide rollup, no org — counts, rates and
+  // durations only (no organization id, no actor hash). Written by the worker's growth job, read
+  // by platform admins through `identityRead(['platform_growth_rollups'])`.
+  'platform_growth_rollups',
 ]);
 
 export function isTenantTable(name: string): boolean {

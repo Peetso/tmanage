@@ -15,6 +15,9 @@ import { ActivityRepository } from './activity.repository.js';
 import { PlatformActivityService } from './activity.service.js';
 import { ExportsRepository } from './exports.repository.js';
 import { PlatformExportsController } from './exports.controller.js';
+// ---- R13 slice 5 · 57-14 ---- Growth rollups (reads only).
+import { PLATFORM_GROWTH_REPOSITORY, PlatformGrowthController } from './growth.controller.js';
+import { GrowthRepository } from './growth.repository.js';
 import { PlatformAdminActionsController } from './platform-actions.controller.js';
 import { PlatformSupportSessionsListController } from './support-sessions-list.controller.js';
 
@@ -56,6 +59,11 @@ export class PlatformActivityModule {
               objectStore: objectStore ?? null,
             }),
         },
+        {
+          provide: PLATFORM_GROWTH_REPOSITORY,
+          inject: [TENANT_DATABASE],
+          useFactory: (database: TenantDatabase) => new GrowthRepository(database),
+        },
       ],
       controllers: [
         PlatformActivityController,
@@ -64,6 +72,7 @@ export class PlatformActivityModule {
         PlatformAdminActionsController,
         PlatformSupportSessionsListController,
         PlatformExportsController,
+        PlatformGrowthController,
       ],
     };
   }

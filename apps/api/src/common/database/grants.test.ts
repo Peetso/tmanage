@@ -181,7 +181,9 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // ---- R4-12 ---- +1: the review notices read `file_assets` for the file's name and uploader.
     // ---- R7-1 ---- +1: the link unfurl reads `link_previews` where it records a preview.
     // ---- R12-1 ---- +1: the IP-cache retention sweep reads `ip_lookups` where it deletes.
-    expect(reads).toHaveLength(26 + 15 + 1 + 4 + 3 + 1 + 3 + 3 + 1 + 6 + 4 + 2 + 1 + 1 + 1);
+    // ---- R13-5 ---- +4: the growth job reads `platform_growth_rollups` where it writes, and its
+    // sources `product_events`, `subscriptions` and `approvals`.
+    expect(reads).toHaveLength(26 + 15 + 1 + 4 + 3 + 1 + 3 + 3 + 1 + 6 + 4 + 2 + 1 + 1 + 1 + 4);
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });
 

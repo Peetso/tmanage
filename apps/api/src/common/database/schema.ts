@@ -11399,3 +11399,45 @@ export type IpLookupRow = typeof ipLookups.$inferSelect;
 Object.assign(TABLES, {
   ip_lookups: ipLookups,
 });
+
+// ---- R13 slice 5 · 57-14 Growth rollups ----
+
+/** The period a growth rollup row covers (0284). */
+export const GROWTH_PERIOD_KINDS = ['week', 'month'] as const;
+export type GrowthPeriodKind = (typeof GROWTH_PERIOD_KINDS)[number];
+
+/**
+ * 0284 (57-14). One platform-wide number per (period, metric, dimension): sign-ups by source, the
+ * activation funnels, time to first project, cohort retention, MRR from subscriptions, approval
+ * turnaround. GLOBAL (NON_TENANT_TABLES): a rollup is about the whole platform, never one tenant —
+ * counts, rates and durations only, no organization id or actor hash (PRIV-06). The worker's
+ * nightly growth job upserts on the unique key; `GET /v1/platform/activity/growth` reads it.
+ */
+export const platformGrowthRollups = mysqlTable(
+  'platform_growth_rollups',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    periodKind: varchar('period_kind', { length: 8 }).notNull(),
+    periodStart: date('period_start', { mode: 'string' }).notNull(),
+    metric: varchar('metric', { length: 48 }).notNull(),
+    dimension: varchar('dimension', { length: 64 }).notNull().default(''),
+    valueNum: decimal('value_num', { precision: 18, scale: 4 }).notNull(),
+    sampleCount: int('sample_count').notNull().default(0),
+    computedAt: datetime('computed_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_platform_growth_rollups_key').on(
+      table.periodKind,
+      table.periodStart,
+      table.metric,
+      table.dimension,
+    ),
+    index('ix_platform_growth_rollups_computed').on(table.computedAt),
+  ],
+);
+
+export type PlatformGrowthRollupRow = typeof platformGrowthRollups.$inferSelect;
+
+Object.assign(TABLES, {
+  platform_growth_rollups: platformGrowthRollups,
+});

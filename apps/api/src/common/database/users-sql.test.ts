@@ -220,6 +220,10 @@ describe('the grants and the schema agree', () => {
       platform_audit_anchors:
         '56-11 worker-written only: the daily platform anchor is inserted on the worker credential; ' +
         'the API only reads it (database-wide read)',
+      // ---- R13-5 ----
+      platform_growth_rollups:
+        '57-14 worker-written only: the nightly growth job upserts the rollups on the worker ' +
+        'credential; the API only reads them for /v1/platform/activity/growth (database-wide read)',
     };
     for (const table of schemaTables) {
       const writable = privilegesOn('tmanage_app', table);
@@ -348,6 +352,8 @@ describe('the runtime user is actually least-privilege', () => {
     purgeTables.add('time_timers');
     // ---- R12 ---- the IP cache's retention sweep; derived data, never work a person made.
     purgeTables.add('ip_lookups');
+    // ---- R13-5 ---- growth rollups older than 13 months; derived numbers, never work a person made.
+    purgeTables.add('platform_growth_rollups');
     for (const grant of grantsFor('tmanage_worker')) {
       if (purgeTables.has(grant.table)) continue;
       expect(grant.privileges, `worker grant on ${grant.table}`).not.toContain('DELETE');

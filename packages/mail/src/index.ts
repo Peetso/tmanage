@@ -87,3 +87,16 @@ export type {
   SecurityDigestInput,
   SecurityDigestSignal,
 } from './templates/security_alert_digest.js';
+// 57-14 — the monthly go-to-market report's words (sent by the worker's growth rollup job).
+export {
+  GTM_CSV_HEADER,
+  MONTHLY_GTM_REPORT_TEMPLATE_KEY,
+  composeMonthlyGtmReport,
+  gtmCsvCell,
+  gtmRollupsToCsv,
+} from './templates/monthly_gtm_report.js';
+export type {
+  GtmFunnelStep,
+  GtmRollupCsvRow,
+  MonthlyGtmReportInput,
+} from './templates/monthly_gtm_report.js';

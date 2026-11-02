@@ -2018,3 +2018,16 @@ GRANT SELECT, INSERT, UPDATE ON `tmanage`.`link_previews`          TO 'tmanage_w
 -- The new `authentication_events` and `sessions` columns ride the existing table-level grants.
 GRANT SELECT, INSERT, UPDATE ON `tmanage`.`ip_lookups`             TO 'tmanage_app'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ip_lookups`                     TO 'tmanage_worker'@'%';
+
+-- ---- R13 slice 5 · 57-14 Growth rollups ----
+-- 0284 `platform_growth_rollups` (global, no tenant): the worker's nightly growth job upserts the
+-- rollups (SELECT, INSERT, UPDATE on the unique key) and deletes rows older than 13 months
+-- (DELETE) — derived numbers, never work a person made. The app's SELECT rides the database-wide
+-- read (the Growth route reads only). The job reads its sources: `product_events` (sign-up source,
+-- cohort retention by actor hash), `subscriptions` (MRR) and `approvals` (turnaround); the
+-- organizations, projects, invitations, work items, decisions and project clients it counts are
+-- already readable. Ids, hashes and timestamps only — no content column is selected (PRIV-06).
+GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`platform_growth_rollups` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`product_events`                         TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`subscriptions`                          TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`approvals`                              TO 'tmanage_worker'@'%';

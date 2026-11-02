@@ -84,6 +84,10 @@ import { runTimerAutostopLoop } from './jobs/timer-autostop.js';
 // ---- 56-23 ---- the security detector and its signal store.
 import { createSecuritySignalStore } from './common/database/security-signal-store.js';
 import { runSecurityDetectorLoop } from './jobs/security-detector.js';
+// ---- R13 slice 5 · 57-14 ---- the nightly growth rollups and the monthly GTM report mail.
+import { composeMonthlyGtmReport } from '@tmanage/mail';
+import { createGrowthRollupStore } from './common/database/growth-rollup-store.js';
+import { runGrowthRollupLoop } from './jobs/growth-rollup.js';
 
 /**
  * The worker process entry point.
@@ -660,6 +664,21 @@ async function main(): Promise<void> {
     env.GEOIP_RETENTION_DAYS,
     controller.signal,
   );
+  // ---- R13 slice 5 · 57-14 ---- growth rollups nightly (02:00 UTC) and on boot when the last
+  // run is over 26 h old; on the 1st the previous month's report goes to ALERT_EMAILS through
+  // the same transport (mail_queue when MAIL_QUEUE=on). Empty ALERT_EMAILS → no mail.
+  const growthRollups = runGrowthRollupLoop(
+    {
+      store: createGrowthRollupStore(database),
+      mailer: transport,
+      alertEmails: (env.ALERT_EMAILS ?? '')
+        .split(',')
+        .map((address) => address.trim())
+        .filter((address) => address.includes('@')),
+      composeReport: composeMonthlyGtmReport,
+    },
+    controller.signal,
+  );
 
   // RT-001. Sockets exist only in loop mode — a controlled batch has no process to keep a
   // socket open — and only when a port is configured; 0 is the honest default on a host
@@ -756,6 +775,8 @@ async function main(): Promise<void> {
     await securityReportPurge;
     // ---- R12 ----
     await ipLookupSweep;
+    // ---- R13 slice 5 ----
+    await growthRollups;
     // ---- 56-11 ----
     await auditAnchors;
     // ---- 56-23 ----
