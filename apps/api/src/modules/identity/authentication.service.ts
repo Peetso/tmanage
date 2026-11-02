@@ -23,6 +23,8 @@ import { BEARER_CREDENTIALS_REVOKER, type BearerCredentialCutoff } from './beare
 import type { SignInAbuseControl, SignInAbuseReason } from './sign-in-abuse-control.js';
 import type { IdentityQueryRunner } from '../../common/database/tenant-context.js';
 import { openResetSignInGrant } from './reset-sign-in-grant.js';
+import { ApiError } from '../../common/http/errors.js';
+import type { SignInPolicyGate } from './sign-in-policy.repository.js';
 
 /**
  * ID-002 — what actually proves a person is who they say they are.
@@ -254,6 +256,9 @@ export type AuthenticationReason =
   // ---- platform-admin v2 · PA-06 ---- A platform admin disabled the account (0247). The caller
   // hears the ordinary `invalid_credentials`; only this row says why.
   | 'account_disabled'
+  // R18-e (56-25). A correct password refused because the organization's sign-in policy does not
+  // allow passwords. Excluded from the lockout count (`NON_CREDENTIAL_FAILURE_REASONS`).
+  | 'policy_method_not_allowed'
   // `D08`. Which source budget refused, in the abuse control's own words — reused rather
   // than retyped, so the two lists cannot drift apart.
   | SignInAbuseReason;
@@ -367,6 +372,12 @@ export interface AuthenticationOptions {
    * living in this interface rather than arriving as another constructor parameter.
    */
   readonly abuseControl: SignInAbuseControl;
+  /**
+   * R18-e (56-25). The organization sign-in policy, consulted only after a CORRECT password (so
+   * the refusal is no e-mail-existence oracle). Absent (unit suites, the platform admin's own
+   * service) = no policy check; `identity.module.ts` always wires it.
+   */
+  readonly signInPolicy?: Pick<SignInPolicyGate, 'check'>;
 }
 
 export interface SignInContext {
@@ -600,6 +611,23 @@ export class AuthenticationService {
         reason: 'account_disabled',
       });
       throw new AuthenticationRejectedError('invalid_credentials', 'account_disabled');
+    }
+    // R18-e (56-25). Only now, after the right password: a person every one of whose
+    // organizations forbids passwords is refused, told which methods to use, and the row says why.
+    // A failed read throws (fail closed: no session).
+    const policyRefusal = await this.options.signInPolicy?.check(
+      userId,
+      'password',
+      context.correlationId,
+    );
+    if (policyRefusal) {
+      await this.record(context, {
+        userId,
+        action: AUTHENTICATION_ACTIONS.passwordSignIn,
+        outcome: 'failed',
+        reason: 'policy_method_not_allowed',
+      });
+      throw signInMethodNotAllowed(policyRefusal);
     }
     const currentHash = found.stored.passwordHash;
     // N01 (wave 11): only a grant that actually carried the attempt through a full window is
@@ -1814,4 +1842,25 @@ export class AuthenticationService {
         }),
     );
   }
+}
+
+/**
+ * R18-e (56-25). The refusal a person gets when their organization's sign-in policy does not allow
+ * the method they used: 403 `method_not_allowed`, the details naming the allowed methods and the
+ * organization (`use`, `organization`). Given only after the credential was proved.
+ */
+export function signInMethodNotAllowed(refusal: {
+  readonly use: readonly string[];
+  readonly organization: string;
+}): ApiError {
+  return new ApiError(
+    403,
+    'method_not_allowed',
+    'Your company does not allow this way of signing in.',
+    [
+      { field: 'use', message: refusal.use.join(',') },
+      { field: 'organization', message: refusal.organization },
+    ],
+    'sign_in_policy:method_not_allowed',
+  );
 }

@@ -26,6 +26,7 @@ import { MembershipsRepository } from '../tenancy/memberships.repository.js';
 import { ProvisioningService } from '../tenancy/provisioning.service.js';
 import { GoogleAuthController, type GoogleAuthOptions } from './google-auth.controller.js';
 import { GoogleAuthService } from './google-auth.service.js';
+import { SignInPolicyGate } from '../identity/sign-in-policy.repository.js';
 import {
   GOOGLE_AUTH_ADMISSION,
   GOOGLE_AUTH_OPTIONS,
@@ -99,6 +100,8 @@ export class GoogleAuthModule {
             databaseBacked: (config.platformAdminEmails?.length ?? 0) > 0,
           }),
           sessionSecret: config.sessionSecret,
+          // R18-e (56-25): the organization sign-in policy, checked after Google proved the person.
+          signInPolicy: new SignInPolicyGate(database),
         }),
     };
     const sessions: Provider = {

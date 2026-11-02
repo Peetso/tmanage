@@ -32,6 +32,17 @@ import { CONTACT_MAX_PER_WINDOW, CONTACT_WINDOW_MS } from '../public-site/contac
 import { GeoModule, IP_INTELLIGENCE } from './geo/geo.module.js';
 import type { IpIntelligenceService } from './geo/ip-intelligence.service.js';
 import { SessionsRepository } from './sessions.repository.js';
+// R18-e (56-25): the organization sign-in policy routes and the sign-in gate.
+import { AUDIT_SERVICE, MAILER } from '../../common/http/tokens.js';
+import type { AuditService } from '../audit/audit.service.js';
+import type { Mailer } from '@tmanage/mail';
+import {
+  SIGN_IN_POLICY_SECRET,
+  SIGN_IN_POLICY_SERVICE,
+  SignInPolicyController,
+} from './sign-in-policy.controller.js';
+import { SignInPolicyService } from './sign-in-policy.service.js';
+import { SignInPolicyGate } from './sign-in-policy.repository.js';
 
 /**
  * ID-001's HTTP surface.
@@ -90,6 +101,8 @@ export class IdentityModule {
               maxPerSourceAccount: config.authAbuseMaxPerSourceAccount,
               maxGlobal: config.authAbuseMaxGlobal,
             }),
+            // R18-e (56-25): the organization sign-in policy, checked after the password.
+            signInPolicy: new SignInPolicyGate(database),
           },
           // D07. The keyring was parsed and validated at boot by `packages/config`, so a
           // malformed `AUTH_MFA_SEED_KEYS` has already stopped the process by the time this
@@ -143,6 +156,23 @@ export class IdentityModule {
         }),
     };
 
+    // R18-e (56-25). The sign-in policy service (audit and mail optional, like the other modules).
+    const signInPolicyService: Provider = {
+      provide: SIGN_IN_POLICY_SERVICE,
+      inject: [
+        TENANT_DATABASE,
+        { token: AUDIT_SERVICE, optional: true },
+        { token: MAILER, optional: true },
+      ],
+      useFactory: (database: TenantDatabase, audit?: AuditService, mailer?: Mailer | null) =>
+        new SignInPolicyService(database, audit, mailer ?? null),
+    };
+    const signInPolicySecret: Provider = {
+      provide: SIGN_IN_POLICY_SECRET,
+      inject: [API_CONFIG],
+      useFactory: (config: ApiConfig) => config.sessionSecret,
+    };
+
     return {
       module: IdentityModule,
       imports: [GeoModule],
@@ -153,6 +183,8 @@ export class IdentityModule {
         authenticationService,
         authenticationEventRecorder,
         personalAccessTokenAuthenticator,
+        signInPolicyService,
+        signInPolicySecret,
       ],
       exports: [
         sessionService,
@@ -165,6 +197,7 @@ export class IdentityModule {
         AuthenticationController,
         CredentialsController,
         PasswordResetController,
+        SignInPolicyController,
       ],
     };
   }

@@ -45,6 +45,12 @@ export type ApiErrorCode =
   // A platform admin whose preset lacks the route's permission (403; details name the key).
   | 'platform_permission_missing'
   | 'support_session_required'
+  // ---- 56-13 (R18-f) ---- resolving an incident while a legal notification clock is open (422).
+  | 'clock_open'
+  // ---- 56-25 (R18-e) ---- the sign-in policy does not allow this method (403; details name the
+  // allowed methods and the organization); a policy change that would lock members out (409).
+  | 'method_not_allowed'
+  | 'members_without_method'
   | 'internal_error';
 
 export interface ApiErrorDetail {

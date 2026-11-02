@@ -126,6 +126,9 @@ export const NON_CREDENTIAL_FAILURE_REASONS = [
   ...SIGN_IN_ABUSE_REASONS,
   'locked_out',
   ...REAUTH_FAILURE_REASONS,
+  // R18-e (56-25): a CORRECT credential refused by the organization's sign-in policy. Nobody
+  // guessed anything; counting it would let the policy lock the person out of the other methods.
+  'policy_method_not_allowed',
 ] as const;
 
 /**

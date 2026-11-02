@@ -9,6 +9,11 @@ import type { TenantDatabase } from '../../database/tenant-context.js';
 import { readOrgSwitch } from '../../../modules/tenancy/org-policy.js';
 import { OrgSettingsRepository } from '../../../modules/tenancy/org-settings.repository.js';
 import { hasActiveSecondFactorRow } from '../../../modules/identity/second-factor-presence.repository.js';
+import { parseSignInPolicy, twoStepRequiredFor, twoStepScopeCovers } from '@tmanage/domain';
+import { SignInPolicyRepository } from '../../../modules/identity/sign-in-policy.repository.js';
+
+/** R18-e (56-25). Set while a person must enrol but is still inside the grace period. */
+export const TWO_STEP_GRACE_HEADER = 'X-TManage-Two-Step-Grace';
 
 /**
  * A11 — the company switch "Everyone must use two-step sign-in", enforced.
@@ -42,6 +47,9 @@ export class TwoStepRequirementGuard implements CanActivate {
     @Optional()
     @Inject(OrgSettingsRepository)
     private readonly settings: OrgSettingsRepository = new OrgSettingsRepository(),
+    @Optional()
+    @Inject(SignInPolicyRepository)
+    private readonly signInPolicy: SignInPolicyRepository = new SignInPolicyRepository(),
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -58,9 +66,41 @@ export class TwoStepRequirementGuard implements CanActivate {
     if (isTwoStepExemptPath(request.url)) return true;
 
     const required = await readOrgSwitch(this.database, tenant, 'require_two_step', this.settings);
-    if (!required) return true;
+    if (required) {
+      if (await hasActiveSecondFactor(this.database, session.userId, state.correlationId)) {
+        return true;
+      }
+      throw twoStepRequiredError();
+    }
 
-    if (await hasActiveSecondFactor(this.database, session.userId, state.correlationId)) {
+    // R18-e (56-25). The sign-in policy's role rule: 'admins' or 'everyone' (internal roles) must
+    // hold a factor; inside the grace period they pass with a warning header, after it they are
+    // refused. Owners are never refused in the beta (header only). Needs the resolved role.
+    const role = state.membership?.role;
+    if (role === undefined) return true;
+    const policy = parseSignInPolicy(
+      await this.database.read(tenant, (runner) => this.signInPolicy.readDocument(runner, tenant)),
+    );
+    if (!twoStepScopeCovers(policy.requireTwoStepRoles, role)) return true;
+    const verdict = twoStepRequiredFor({
+      policy,
+      roleKey: role,
+      isOwner: role === 'owner',
+      hasSecondFactor: await hasActiveSecondFactor(
+        this.database,
+        session.userId,
+        state.correlationId,
+      ),
+      now: new Date(),
+    });
+    if (verdict === false) return true;
+    if (verdict === 'grace') {
+      const http = context.switchToHttp();
+      const reply =
+        typeof http.getResponse === 'function'
+          ? http.getResponse<{ header?: (name: string, value: string) => unknown }>()
+          : undefined;
+      reply?.header?.(TWO_STEP_GRACE_HEADER, policy.graceUntil ?? 'owner');
       return true;
     }
     throw twoStepRequiredError();

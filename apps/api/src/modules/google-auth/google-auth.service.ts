@@ -11,6 +11,7 @@ import {
   SignupEmailTakenError,
 } from '../signup/signup-accounts.repository.js';
 import type { GoogleClaims, GoogleFlow, PendingMfa } from './google-oidc.js';
+import type { SignInPolicyGate } from '../identity/sign-in-policy.repository.js';
 import {
   GOOGLE_IDENTITY_TABLES,
   IdentityAlreadyLinkedError,
@@ -47,7 +48,9 @@ export type GoogleRefusal =
   | 'email_mismatch'
   | 'invitation_unusable'
   | 'already_linked'
-  | 'unverified_account';
+  | 'unverified_account'
+  // R18-e (56-25): every organization of this person forbids Google sign-in.
+  | 'method_not_allowed';
 
 type LinkResult = string | null | 'already_linked' | 'unverified_account';
 
@@ -81,6 +84,8 @@ export interface GoogleAuthServiceDeps {
   readonly identities?: UserIdentitiesRepository;
   readonly accounts?: SignupAccountsRepository;
   readonly now?: () => number;
+  /** R18-e (56-25). The organization sign-in policy; absent = no policy check (unit suites). */
+  readonly signInPolicy?: Pick<SignInPolicyGate, 'check'>;
 }
 
 const AFTER_SIGN_IN = '/organizations';
@@ -286,6 +291,13 @@ export class GoogleAuthService {
     returnTo: string,
     context: SignInContext,
   ): Promise<GoogleOutcome> {
+    // R18-e (56-25). After Google proved the identity: refused when every organization of this
+    // person forbids Google sign-in. A failed read throws (fail closed: no session).
+    const refusal = await this.deps.signInPolicy?.check(userId, 'google', context.correlationId);
+    if (refusal) {
+      await this.record(context, userId, 'failed', 'policy_method_not_allowed');
+      return { kind: 'refused', reason: 'method_not_allowed' };
+    }
     const factors = await this.factorsOf(userId, context);
     if (factors.length > 0) return this.challenge(userId, factors, returnTo, context);
     await this.record(context, userId, 'succeeded', null);

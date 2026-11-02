@@ -279,6 +279,22 @@ export function mergePolicy(base: OrgPolicyValue, patch: Partial<OrgPolicyValue>
     ...(maxExpiry === undefined ? {} : { 'pat.max_expiry_days': maxExpiry }),
     ...(allowNoExpiry === undefined ? {} : { 'pat.allow_no_expiry': allowNoExpiry }),
     ...(allowedScopes === undefined ? {} : { 'pat.allowed_scopes': allowedScopes }),
+    // R18-e (56-25): the sign-in keys are written by their own route; carried, never dropped here.
+    ...signInKeysOf(base as unknown as Readonly<Record<string, unknown>>),
+  };
+}
+
+/** R18-e (56-25). The sign-in policy keys of a document, carried through untouched. */
+function signInKeysOf(doc: Readonly<Record<string, unknown>>): Partial<OrgPolicyValue> {
+  const methods = doc['signin.allowed_methods'];
+  const scope = doc['security.require_two_step_roles'];
+  const grace = doc['security.two_step_grace_until'];
+  return {
+    ...(Array.isArray(methods) && methods.every((m) => typeof m === 'string')
+      ? { 'signin.allowed_methods': methods as string[] }
+      : {}),
+    ...(typeof scope === 'string' ? { 'security.require_two_step_roles': scope } : {}),
+    ...(typeof grace === 'string' ? { 'security.two_step_grace_until': grace } : {}),
   };
 }
 
@@ -320,5 +336,6 @@ export function normalizePolicy(stored: unknown): OrgPolicyValue {
     ...(allowedScopes !== null && allowedScopes.length > 0
       ? { 'pat.allowed_scopes': allowedScopes }
       : {}),
+    ...signInKeysOf(base),
   };
 }
