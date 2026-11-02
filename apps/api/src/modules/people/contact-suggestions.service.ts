@@ -1,8 +1,4 @@
-import {
-  CONTACT_IMPORT_MAX_BYTES,
-  parseContactsCsv,
-  parseVcard,
-} from '@tmanage/domain';
+import { CONTACT_IMPORT_MAX_BYTES, parseContactsCsv, parseVcard } from '@tmanage/domain';
 import type { ContactSkipReasons } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -109,9 +105,10 @@ export class ContactSuggestionsService {
 
     const updated = await this.database.transaction(context, async (runner) => {
       await this.repository.deleteExpired(runner, context, now);
-      const existing = emails.length > 0
-        ? await this.repository.existingEmails(runner, context, emails)
-        : new Set<string>();
+      const existing =
+        emails.length > 0
+          ? await this.repository.existingEmails(runner, context, emails)
+          : new Set<string>();
       if (parsed.contacts.length > 0) {
         await this.repository.upsert(runner, context, source, parsed.contacts, now, expiresAt);
       }
@@ -136,7 +133,10 @@ export class ContactSuggestionsService {
     };
   }
 
-  async suggest(context: TenantContext, rawQuery: unknown): Promise<readonly ContactSuggestionView[]> {
+  async suggest(
+    context: TenantContext,
+    rawQuery: unknown,
+  ): Promise<readonly ContactSuggestionView[]> {
     const q = typeof rawQuery === 'string' ? rawQuery.trim() : '';
     if (q.length < 1 || q.length > SUGGEST_QUERY_MAX) {
       throw new ApiError(400, 'validation_failed', 'The request is invalid', [
@@ -169,7 +169,13 @@ export class ContactSuggestionsService {
     const since = now.getTime() - HOUR_MS;
     const recent = (this.budget.get(key) ?? []).filter((at) => at > since);
     if (recent.length >= IMPORTS_PER_HOUR) {
-      throw new ApiError(429, 'rate_limited', MESSAGES.rateLimited, undefined, 'contacts_import_rate');
+      throw new ApiError(
+        429,
+        'rate_limited',
+        MESSAGES.rateLimited,
+        undefined,
+        'contacts_import_rate',
+      );
     }
     recent.push(now.getTime());
     this.budget.delete(key);

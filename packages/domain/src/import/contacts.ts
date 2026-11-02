@@ -200,9 +200,7 @@ function findColumns(header: readonly string[]): CsvColumns {
   if (email === -1) {
     // Generic fallback: the first column that names an email and is not its type or label.
     email = keys.findIndex(
-      (key) =>
-        (key.includes('email') || key.includes('e-mail')) &&
-        !/type|display|label/.test(key),
+      (key) => (key.includes('email') || key.includes('e-mail')) && !/type|display|label/.test(key),
     );
   }
   let company = exact(COMPANY_HEADERS);
@@ -284,7 +282,9 @@ function parseVcardLine(line: string): VcardLine | null {
 }
 
 function isQuotedPrintable(params: readonly string[]): boolean {
-  return params.some((param) => param === 'ENCODING=QUOTED-PRINTABLE' || param === 'QUOTED-PRINTABLE');
+  return params.some(
+    (param) => param === 'ENCODING=QUOTED-PRINTABLE' || param === 'QUOTED-PRINTABLE',
+  );
 }
 
 /** vCard text escapes: `\,` `\;` `\\` `\n`. */
@@ -303,7 +303,9 @@ function components(value: string): string[] {
  */
 export function parseVcard(text: string): ContactParseResult {
   const collector = new Collector();
-  const unfolded = stripBom(text).replace(/\r\n|\r/g, '\n').replace(/\n[ \t]/g, '');
+  const unfolded = stripBom(text)
+    .replace(/\r\n|\r/g, '\n')
+    .replace(/\n[ \t]/g, '');
 
   let inCard = false;
   let fn: string | null = null;

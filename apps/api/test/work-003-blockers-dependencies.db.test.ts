@@ -284,9 +284,9 @@ describe('the dependency edges', () => {
   it('refuses the cycle a single-row check cannot see', async () => {
     await work.addDependency(ownerCtx, owner, b, c);
     // a -> b -> c stands; c -> a would close the loop two edges away.
-    await expectApiError(work.addDependency(ownerCtx, owner, c, a), 422);
+    await expectApiError(work.addDependency(ownerCtx, owner, c, a), 409);
     // And the direct reversal.
-    await expectApiError(work.addDependency(ownerCtx, owner, b, a), 422);
+    await expectApiError(work.addDependency(ownerCtx, owner, b, a), 409);
   });
 
   it('an edge is immutable at the engine; removal is audited', async () => {
