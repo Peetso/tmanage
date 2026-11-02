@@ -6,12 +6,19 @@ import {
   amountInWords,
   applyPayment,
   authorize,
+  canUseLabel,
   creditNoteTotals,
+  defaultLabelFor,
   divideHalfUp,
   currencyDigits,
   invoiceTotals,
   isCreditable,
+  isValidTaxRef,
+  labelCopy,
   nextInvoiceState,
+  resolvedRegime,
+  taxNoticeCopy,
+  taxNoticeRequired,
   uuidv7,
 } from '@tmanage/domain';
 import type {
@@ -57,12 +64,14 @@ import {
   validateCreate,
   validateCreditNote,
   validateEmail,
+  validateLabel,
   validateListQuery,
   validatePatch,
   validatePayment,
   validatePull,
   validateReason,
   validateSend,
+  validateTaxRegistration,
 } from './client-invoices-rules.js';
 import type { LineInput } from './client-invoices-rules.js';
 import type { ClientInvoicesRepository, InvoiceChange } from './client-invoices.repository.js';
@@ -129,6 +138,11 @@ export interface InvoiceView extends InvoiceSummary {
   readonly quoteId: string | null;
   readonly language: string;
   readonly documentLabel: string;
+  /** 52-28: the reference the agency entered (ETA uuid / ZATCA uuid / accounting-tool ref). */
+  readonly taxRegistrationRef: string | null;
+  readonly taxRegisteredAt: string | null;
+  /** 52-28: the "not a tax invoice" line went out with the sent document. */
+  readonly taxNoticeShown: boolean;
   readonly supplyDate: string | null;
   readonly periodStart: string | null;
   readonly periodEnd: string | null;
@@ -200,6 +214,11 @@ export interface PortalInvoiceView {
   readonly language: string;
   readonly state: string;
   readonly documentLabel: string;
+  /** 52-28: the label in the invoice's language ("Proforma invoice / فاتورة مبدئية" when bi). */
+  readonly documentLabelText: string;
+  /** 52-28: the "not a tax invoice" line when it went out with the document, else null. */
+  readonly taxNotice: string | null;
+  readonly taxRegistrationRef: string | null;
   readonly issueDate: string | null;
   readonly dueDate: string | null;
   readonly currency: string;
@@ -454,7 +473,19 @@ export class ClientInvoicesService {
       lang === 'en' || lang === 'ar' || lang === 'bi'
         ? lang
         : (view.language as 'en' | 'ar' | 'bi');
-    return renderPrint(view, language);
+    // A sent document shows the notice it went out with; a draft previews today's rule.
+    const notice =
+      view.state === 'draft'
+        ? taxNoticeRequired(
+            (
+              await this.options.database.read(context, (r) =>
+                this.profile(r, context.organizationId),
+              )
+            ).country,
+            view.documentLabel,
+          )
+        : noticeOf(view);
+    return renderPrint(view, language, { notice });
   }
 
   // ---- writes (finance.manage) ----
@@ -500,7 +531,7 @@ export class ClientInvoicesService {
         kind: input.kind,
         language: input.language,
         state: 'draft',
-        documentLabel: 'invoice',
+        documentLabel: defaultLabelFor(profile.country, profile.vatRegistrationStatus),
         issueDate: input.issueDate,
         dueDate: input.issueDate === null ? null : addDays(input.issueDate, terms),
         supplyDate: null,
@@ -534,6 +565,9 @@ export class ClientInvoicesService {
         voidReason: null,
         exportedAt: null,
         exportTarget: null,
+        taxRegistrationRef: null,
+        taxRegisteredAt: null,
+        taxNoticeShown: false,
         createdBy: context.userId,
         version: 1,
         createdAt: at,
@@ -546,6 +580,7 @@ export class ClientInvoicesService {
         kind: row.kind,
         language: row.language,
         currency: row.currency,
+        document_label: row.documentLabel,
       });
       return this.view(tx, org, row);
     });
@@ -812,6 +847,7 @@ export class ClientInvoicesService {
         sendKeyHash: keyHash,
         sentAt: at,
         sentTo: input.to.join(', ').slice(0, 254) || null,
+        taxNoticeShown: taxNoticeRequired(profile.country, row.documentLabel),
         version: row.version + 1,
         updatedAt: at,
       };
@@ -831,6 +867,7 @@ export class ClientInvoicesService {
         sendKeyHash: keyHash,
         sentAt: at,
         sentTo: sent.sentTo,
+        taxNoticeShown: sent.taxNoticeShown,
         version: sent.version,
         updatedAt: at,
       });
@@ -876,6 +913,137 @@ export class ClientInvoicesService {
       await this.deliver(input.to, outcome.view, meta.orgSlug, 'invoice', input.message);
     }
     return outcome.view;
+  }
+
+  /**
+   * 52-28 — a draft's document label. `tax_invoice` passes only the country rule (KSA/EG: VAT
+   * registered and a registration reference recorded), else 422 `tax_invoice_requires_registration`.
+   * An issued invoice is a 409 `not_draft`; its label moves only through the tax-registration route.
+   */
+  async setLabel(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+    body: unknown,
+    meta: RequestMeta = {},
+  ): Promise<InvoiceView> {
+    this.requireManage(principal, context);
+    const label = validateLabel(body);
+    const org = context.organizationId;
+    const at = this.now();
+    return this.options.database.transaction(context, async (tx) => {
+      const row = await this.draft(tx, org, id);
+      if (row.documentLabel === label) return this.view(tx, org, row);
+      const profile = await this.profile(tx, org);
+      const check = canUseLabel({
+        country: profile.country,
+        vatStatus: profile.vatRegistrationStatus,
+        label,
+        taxRegistrationRef: row.taxRegistrationRef,
+      });
+      if (!check.ok) {
+        throw new ApiError(422, 'validation_failed', check.reason, [
+          { field: 'documentLabel', message: check.reason },
+        ]);
+      }
+      const change: InvoiceChange = {
+        documentLabel: label,
+        version: row.version + 1,
+        updatedAt: at,
+      };
+      await this.repo.updateInvoice(tx, org, id, change);
+      await this.event(
+        tx,
+        context,
+        id,
+        'label_changed',
+        'member',
+        meta,
+        { before: row.documentLabel, after: label },
+        at,
+      );
+      await this.audited(
+        tx,
+        context,
+        'client_invoice.label_changed',
+        id,
+        { before: row.documentLabel, after: label },
+        [{ field: 'documentLabel', before: row.documentLabel, after: label }],
+      );
+      return this.view(tx, org, { ...row, ...change } as ClientInvoiceRow);
+    });
+  }
+
+  /**
+   * 52-28 — record the tax registration reference (any state but void; post-send allowed). The
+   * shape is checked per regime; a proforma/commercial label becomes `tax_invoice` when the rule
+   * then passes. Idempotent: the same ref again answers unchanged, a different one is a 409.
+   * `tax_notice_shown` keeps what went out with the document.
+   */
+  async recordTaxRegistration(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+    body: unknown,
+    meta: RequestMeta = {},
+  ): Promise<InvoiceView> {
+    this.requireManage(principal, context);
+    const at = this.now();
+    const input = validateTaxRegistration(body, at);
+    const org = context.organizationId;
+    return this.options.database.transaction(context, async (tx) => {
+      const row = await this.repo.findInvoice(tx, org, id, true);
+      if (row === null) throw notFound();
+      if (row.state === 'void') throw conflict('not_registrable:void');
+      if (row.taxRegistrationRef !== null) {
+        if (row.taxRegistrationRef === input.ref) return this.view(tx, org, row);
+        throw conflict('already_registered', 'ref');
+      }
+      const profile = await this.profile(tx, org);
+      const regime = resolvedRegime(profile.country, profile.einvoiceRegime);
+      if (!isValidTaxRef(regime, input.ref)) throw invalid('ref', `invalid_tax_ref_for_${regime}`);
+      const upgrade =
+        (row.documentLabel === 'proforma' || row.documentLabel === 'commercial') &&
+        canUseLabel({
+          country: profile.country,
+          vatStatus: profile.vatRegistrationStatus,
+          label: 'tax_invoice',
+          taxRegistrationRef: input.ref,
+        }).ok;
+      const label = upgrade ? 'tax_invoice' : row.documentLabel;
+      const change: InvoiceChange = {
+        taxRegistrationRef: input.ref,
+        taxRegisteredAt: input.registeredAt,
+        documentLabel: label,
+        version: row.version + 1,
+        updatedAt: at,
+      };
+      await this.repo.updateInvoice(tx, org, id, change);
+      await this.event(
+        tx,
+        context,
+        id,
+        'tax_registered',
+        'member',
+        meta,
+        { regime, label_before: row.documentLabel, label_after: label },
+        at,
+      );
+      await this.audited(
+        tx,
+        context,
+        'client_invoice.tax_registered',
+        id,
+        {
+          regime,
+          registered_on: isoDay(input.registeredAt),
+          label_before: row.documentLabel,
+          label_after: label,
+        },
+        [{ field: 'documentLabel', before: row.documentLabel, after: label }],
+      );
+      return this.view(tx, org, { ...row, ...change } as ClientInvoiceRow);
+    });
   }
 
   async recordPayment(
@@ -1276,6 +1444,9 @@ export class ClientInvoicesService {
       quoteId: row.quoteId,
       language: row.language,
       documentLabel: row.documentLabel,
+      taxRegistrationRef: row.taxRegistrationRef ?? null,
+      taxRegisteredAt: row.taxRegisteredAt?.toISOString() ?? null,
+      taxNoticeShown: row.taxNoticeShown === true,
       supplyDate: row.supplyDate,
       periodStart: row.periodStart,
       periodEnd: row.periodEnd,
@@ -1547,6 +1718,11 @@ export class ClientInvoicesService {
     action: AuditAction,
     objectId: string,
     metadata: Readonly<Record<string, string | number | boolean | null>>,
+    changes: readonly {
+      readonly field: string;
+      readonly before: unknown;
+      readonly after: unknown;
+    }[] = [],
   ): Promise<void> {
     await this.options.audit.record(tx, context, {
       action,
@@ -1554,7 +1730,7 @@ export class ClientInvoicesService {
       objectId,
       actorUserId: context.userId,
       metadata,
-      changes: [],
+      changes,
     });
   }
 
@@ -1584,7 +1760,17 @@ export class ClientInvoicesService {
 
 // ── projections and rendering ────────────────────────────────────────────────
 
+/** 52-28: the notice goes with a document that went out with it, until it is a tax invoice. */
+function noticeOf(row: Pick<InvoiceView, 'taxNoticeShown' | 'documentLabel'>): boolean {
+  return row.taxNoticeShown && row.documentLabel !== 'tax_invoice';
+}
+
+function langOf(language: string): 'en' | 'ar' | 'bi' {
+  return language === 'en' || language === 'ar' ? language : 'bi';
+}
+
 function portalHeader(row: ClientInvoiceRow): PortalInvoiceSummary {
+  const lang = langOf(row.language);
   return {
     id: row.id,
     number: row.number,
@@ -1592,6 +1778,14 @@ function portalHeader(row: ClientInvoiceRow): PortalInvoiceSummary {
     language: row.language,
     state: row.state,
     documentLabel: row.documentLabel,
+    documentLabelText: labelCopy(row.documentLabel, lang),
+    taxNotice: noticeOf({
+      taxNoticeShown: row.taxNoticeShown === true,
+      documentLabel: row.documentLabel,
+    })
+      ? taxNoticeCopy(lang)
+      : null,
+    taxRegistrationRef: row.taxRegistrationRef ?? null,
     issueDate: row.issueDate,
     dueDate: row.dueDate,
     currency: row.currency,
@@ -1639,13 +1833,16 @@ export function composeInvoiceEmail(facts: {
   const { view, link } = facts;
   const arabic = view.language === 'ar';
   const number = view.number ?? '';
+  // 52-28: the document's label leads the heading; the notice line follows the amount.
+  const docLabel = labelCopy(view.documentLabel, arabic ? 'ar' : 'en');
+  const notice = noticeOf(view) ? taxNoticeCopy(arabic ? 'ar' : 'en') : null;
   const amount = formatMinor(view.amountDueMinor, view.currency);
   const due = view.dueDate ?? '';
   const copy = arabic
     ? {
         subject: facts.kind === 'invoice' ? `فاتورة ${number}` : `تذكير بالدفع — فاتورة ${number}`,
         eyebrow: 'فاتورة',
-        heading: facts.kind === 'invoice' ? `فاتورة ${number}` : `تذكير بالفاتورة ${number}`,
+        heading: facts.kind === 'invoice' ? `${docLabel} ${number}` : `تذكير بالفاتورة ${number}`,
         intro:
           facts.kind === 'invoice'
             ? `المبلغ المستحق ${amount} بتاريخ ${due}.`
@@ -1662,7 +1859,7 @@ export function composeInvoiceEmail(facts: {
         subject:
           facts.kind === 'invoice' ? `Invoice ${number}` : `Payment reminder — invoice ${number}`,
         eyebrow: 'Invoice',
-        heading: facts.kind === 'invoice' ? `Invoice ${number}` : `Reminder: invoice ${number}`,
+        heading: facts.kind === 'invoice' ? `${docLabel} ${number}` : `Reminder: invoice ${number}`,
         intro:
           facts.kind === 'invoice'
             ? `${amount} is due on ${due}.`
@@ -1686,6 +1883,7 @@ export function composeInvoiceEmail(facts: {
     text: [
       copy.heading,
       copy.intro,
+      ...(notice === null ? [] : [notice]),
       ...(facts.message === null ? [] : [facts.message]),
       `${copy.button}: ${link}`,
       copy.note,
@@ -1698,7 +1896,7 @@ export function composeInvoiceEmail(facts: {
       subject: copy.subject,
       eyebrow: copy.eyebrow,
       heading: copy.heading,
-      intro: copy.intro,
+      intro: notice === null ? copy.intro : `${copy.intro} ${notice}`,
       button: copy.button,
       fallback: copy.fallback,
       note: copy.note,
@@ -1708,7 +1906,11 @@ export function composeInvoiceEmail(facts: {
 }
 
 /** The print view: escaped plain text in a minimal A4 page; both columns when 'bi'. */
-export function renderPrint(view: InvoiceView, language: 'en' | 'ar' | 'bi'): string {
+export function renderPrint(
+  view: InvoiceView,
+  language: 'en' | 'ar' | 'bi',
+  options: { readonly notice: boolean } = { notice: false },
+): string {
   const e = escapeHtml;
   const en = language !== 'ar';
   const ar = language !== 'en';
@@ -1739,9 +1941,10 @@ export function renderPrint(view: InvoiceView, language: 'en' | 'ar' | 'bi'): st
     `<html lang="${language === 'ar' ? 'ar' : 'en'}" dir="${language === 'ar' ? 'rtl' : 'ltr'}">`,
     '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">',
     `<title>${e(view.number ?? 'Draft')}</title>`,
-    '<style>body{font-family:Manrope,Tahoma,Arial,sans-serif;margin:24px;color:#090a09}table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #e9e9e5;padding:6px;text-align:start;vertical-align:top}@page{size:A4;margin:16mm}</style>',
+    '<style>body{font-family:Manrope,Tahoma,Arial,sans-serif;margin:24px;color:#090a09}table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #e9e9e5;padding:6px;text-align:start;vertical-align:top}.doc-label{display:inline-block;border:1px solid #090a09;border-radius:4px;padding:2px 8px;font-size:14px;vertical-align:middle}@page{size:A4;margin:16mm}</style>',
     '</head><body>',
-    `<h1>${label('Invoice', 'فاتورة')} ${e(view.number ?? '')}</h1>`,
+    // 52-28: the label chip at the start of the title line.
+    `<h1><span class="doc-label">${label(labelCopy(view.documentLabel, 'en'), labelCopy(view.documentLabel, 'ar'))}</span> ${e(view.number ?? '')}</h1>`,
     `<p>${label('Issue date', 'تاريخ الإصدار')}: ${e(view.issueDate ?? '')} — ${label('Due date', 'تاريخ الاستحقاق')}: ${e(view.dueDate ?? '')}</p>`,
     `<table><thead><tr><th>${label('Description', 'الوصف')}</th><th>${label('Qty', 'الكمية')}</th><th>${label('Unit price', 'سعر الوحدة')}</th><th>${label('Tax', 'الضريبة')}</th><th>${label('Amount', 'المبلغ')}</th></tr></thead><tbody>${rows}</tbody></table>`,
     `<p>${label('Subtotal', 'المجموع الفرعي')}: ${money(view.subtotalMinor)}</p>`,
@@ -1749,9 +1952,15 @@ export function renderPrint(view: InvoiceView, language: 'en' | 'ar' | 'bi'): st
     `<p>${label('Tax', 'الضريبة')}: ${money(view.taxMinor)}</p>`,
     `<p><strong>${label('Total', 'الإجمالي')}: ${money(view.totalMinor)}</strong></p>`,
     `<p>${label('Amount due', 'المبلغ المستحق')}: ${money(view.amountDueMinor)}</p>`,
+    options.notice
+      ? `<p class="tax-notice">${label(taxNoticeCopy('en'), taxNoticeCopy('ar'))}</p>`
+      : '',
     `<div>${words}</div>`,
     view.terms === null ? '' : `<p style="white-space:pre-wrap">${e(view.terms)}</p>`,
     view.notes === null ? '' : `<p style="white-space:pre-wrap">${e(view.notes)}</p>`,
+    view.taxRegistrationRef === null
+      ? ''
+      : `<p class="tax-ref" style="font-size:10px">${label('Registered reference as entered by the agency', 'المرجع المسجل كما أدخلته الوكالة')}: ${e(view.taxRegistrationRef)}</p>`,
     view.contentHash === null
       ? ''
       : `<p style="font-size:10px;color:#74786f">${e(view.contentHash)}</p>`,

@@ -854,6 +854,16 @@ export const projectMilestones = mysqlTable(
     createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** 53-07 (0305). The date promised to the client. */
+    committedOn: date('committed_on', { mode: 'string' }),
+    /** 53-07 (0305). The internal forecast; never in a client payload. */
+    forecastOn: date('forecast_on', { mode: 'string' }),
+    /** 53-07 (0305). Manual order on the timeline. */
+    timelineOrder: int('timeline_order'),
+    /** 53-07 (0305). The client-safe name the published copy uses. */
+    clientTitle: varchar('client_title', { length: 300 }),
+    /** 53-07 (0305). Optimistic concurrency for dragged dates. */
+    version: int('version').notNull().default(1),
   },
   (table) => [
     uniqueIndex('uq_project_milestones_org_id').on(table.organizationId, table.id),
@@ -2601,6 +2611,12 @@ export const projectPhases = mysqlTable(
     /** Assignment rows only; the definition row (`project_phases.id`) the milestone is placed into. */
     phaseId: char('phase_id', { length: 36 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** 53-07 (0305). Definition rows only: the phase band's explicit start. */
+    startsOn: date('starts_on', { mode: 'string' }),
+    /** 53-07 (0305). Definition rows only: the phase band's explicit end. */
+    endsOn: date('ends_on', { mode: 'string' }),
+    /** 53-07 (0305). Definition rows only: a design-token name for the band colour. */
+    colorToken: varchar('color_token', { length: 32 }),
   },
   (table) => [
     uniqueIndex('uq_project_phases_org_id').on(table.organizationId, table.id),
@@ -5634,6 +5650,11 @@ export const fileVersions = mysqlTable(
     scanVerdict: varchar('scan_verdict', { length: 16 }),
     scannedAt: datetime('scanned_at', { mode: 'date', fsp: 3 }),
     scanner: varchar('scanner', { length: 64 }),
+    /**
+     * 56-06 (0307). Who judged the bytes: `tmanage` | `provider` | `none`; written with the verdict.
+     * NULL on older rows reads as `resolveScanSource` (`files/file-safety.ts`) answers it.
+     */
+    scanSource: varchar('scan_source', { length: 8 }),
     /** Which zone holds the servable object: `quarantine` at birth, `private` once promoted (ADR-0006). */
     trustZone: varchar('trust_zone', { length: 16 }).notNull().default('quarantine'),
     etag: varchar('etag', { length: 255 }),
@@ -11167,6 +11188,15 @@ export const orgFinanceProfiles = mysqlTable(
     showHijri: boolean('show_hijri').notNull().default(false),
     bankDetailsText: text('bank_details_text'),
     paymentTermsDays: int('payment_terms_days').notNull().default(30),
+    /** 52-28 (0303): `not_registered | registered`, app-checked. */
+    vatRegistrationStatus: varchar('vat_registration_status', { length: 16 })
+      .$type<'not_registered' | 'registered'>()
+      .notNull()
+      .default('not_registered'),
+    /** 52-28 (0303): `zatca | eta | pint_ae | none`; NULL = derived from the country. */
+    einvoiceRegime: varchar('einvoice_regime', { length: 8 }).$type<
+      'zatca' | 'eta' | 'pint_ae' | 'none'
+    >(),
     version: int('version').notNull().default(1),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
@@ -12549,6 +12579,11 @@ export const clientInvoices = mysqlTable(
     voidReason: varchar('void_reason', { length: 500 }),
     exportedAt: datetime('exported_at', { mode: 'date', fsp: 3 }),
     exportTarget: varchar('export_target', { length: 24 }),
+    /** 52-28 (0303): ETA uuid / ZATCA uuid / accounting-tool ref, entered by the agency. */
+    taxRegistrationRef: varchar('tax_registration_ref', { length: 64 }),
+    taxRegisteredAt: datetime('tax_registered_at', { mode: 'date', fsp: 3 }),
+    /** 52-28 (0303): 1 when the "not a tax invoice" line went out with the sent document. */
+    taxNoticeShown: boolean('tax_notice_shown').notNull().default(false),
     createdBy: char('created_by', { length: 36 }).notNull(),
     version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
@@ -12726,4 +12761,134 @@ Object.assign(TABLES, {
   client_credit_notes: clientCreditNotes,
   client_credit_note_lines: clientCreditNoteLines,
   client_invoice_events: clientInvoiceEvents,
+});
+
+// ---- R19-b · 52-11 accounting export by file (0304) ----
+/**
+ * 52-11 (0304). One accounting export run: target, period, kinds, record counts and the SHA-256 of
+ * its `manifest.json`. The zip itself is never stored (streamed once). Append-only. TENANT.
+ */
+export const financeExports = mysqlTable(
+  'finance_exports',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    target: varchar('target', { length: 24 }).notNull(),
+    periodStart: date('period_start', { mode: 'string' }).notNull(),
+    periodEnd: date('period_end', { mode: 'string' }).notNull(),
+    kinds: varchar('kinds', { length: 64 }).notNull(),
+    rowCountsJson: text('row_counts_json').notNull(),
+    manifestSha256: char('manifest_sha256', { length: 64 }).notNull(),
+    latinOnly: boolean('latin_only').notNull().default(false),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_finance_exports_org_id').on(table.organizationId, table.id),
+    index('ix_finance_exports_org_created').on(table.organizationId, table.createdAt),
+  ],
+);
+
+export type FinanceExportRow = typeof financeExports.$inferSelect;
+
+Object.assign(TABLES, { finance_exports: financeExports });
+
+// ---- R19-d · 53-21 iterations (light sprints) and points (0306) ----
+/**
+ * 53-21 (0306). A named, dated slice of one project's work. TENANT. `status` is planned | active |
+ * completed (app-checked); `completedAt` is set once by complete-and-roll. No DELETE grant.
+ */
+export const iterations = mysqlTable(
+  'iterations',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 120 }).notNull(),
+    goal: varchar('goal', { length: 300 }),
+    startsOn: date('starts_on', { mode: 'string' }).notNull(),
+    endsOn: date('ends_on', { mode: 'string' }).notNull(),
+    status: varchar('status', { length: 12 }).notNull().default('planned'),
+    completedAt: datetime('completed_at', { mode: 'date', fsp: 3 }),
+    movedCount: int('moved_count'),
+    leftCount: int('left_count'),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    version: int('version').notNull().default(1),
+  },
+  (table) => [
+    uniqueIndex('uq_iterations_org_id').on(table.organizationId, table.id),
+    index('ix_iterations_org_project_starts').on(
+      table.organizationId,
+      table.projectId,
+      table.startsOn,
+    ),
+  ],
+);
+
+/**
+ * 0306's three `work_items` planning columns, as a narrow mirror (the `timeLogPricing` pattern) so
+ * `WorkItemRow` and its many fixtures keep their shape. Not in `TABLES`. Never read by a client
+ * projection.
+ */
+export const workItemPlanning = mysqlTable('work_items', {
+  id: char('id', { length: 36 }).primaryKey(),
+  organizationId: char('organization_id', { length: 36 }).notNull(),
+  projectId: char('project_id', { length: 36 }).notNull(),
+  title: varchar('title', { length: 300 }).notNull(),
+  state: varchar('state', { length: 32 }).notNull(),
+  audience: varchar('audience', { length: 32 }).notNull(),
+  completedAt: datetime('completed_at', { mode: 'date', fsp: 3 }),
+  deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+  iterationId: char('iteration_id', { length: 36 }),
+  points: smallint('points'),
+  iterationAssignedAt: datetime('iteration_assigned_at', { mode: 'date', fsp: 3 }),
+});
+
+/** 0306's `projects.points_enabled`, as a narrow mirror. Not in `TABLES`. */
+export const projectPlanning = mysqlTable('projects', {
+  id: char('id', { length: 36 }).primaryKey(),
+  organizationId: char('organization_id', { length: 36 }).notNull(),
+  pointsEnabled: boolean('points_enabled').notNull().default(false),
+});
+
+export type IterationRow = typeof iterations.$inferSelect;
+export type WorkItemPlanningRow = typeof workItemPlanning.$inferSelect;
+
+Object.assign(TABLES, {
+  iterations,
+});
+
+// ---- R19-c · 53-07 milestones and phases on the timeline (0305) ----
+/**
+ * 53-07 (0305). The published client copy of one milestone: only the allowlisted columns (client
+ * title, committed date, client status, phase name), copied at publish time. The portal timeline
+ * reads this table and never the live `project_milestones` row. Unpublish deletes the copy. TENANT.
+ */
+export const milestoneClientProjections = mysqlTable(
+  'milestone_client_projections',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    milestoneId: char('milestone_id', { length: 36 }).notNull(),
+    clientTitle: varchar('client_title', { length: 300 }).notNull(),
+    committedOn: date('committed_on', { mode: 'string' }),
+    status: varchar('status', { length: 16 }).notNull(),
+    phaseName: varchar('phase_name', { length: 200 }),
+    publishedByUserId: char('published_by_user_id', { length: 36 }).notNull(),
+    publishedAt: datetime('published_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_mcp_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_mcp_org_milestone').on(table.organizationId, table.milestoneId),
+    index('ix_mcp_org_project').on(table.organizationId, table.projectId),
+  ],
+);
+
+export type MilestoneClientProjectionRow = typeof milestoneClientProjections.$inferSelect;
+
+Object.assign(TABLES, {
+  milestone_client_projections: milestoneClientProjections,
 });

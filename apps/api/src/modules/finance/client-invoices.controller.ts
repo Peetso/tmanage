@@ -7,6 +7,7 @@ import {
   Inject,
   Ip,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -38,6 +39,8 @@ export const CLIENT_INVOICES_SERVICE = Symbol.for('tmanage.ClientInvoicesService
  * and `invoice.record_payment` → `finance.manage`. The service re-checks each. A send above the
  * org's step-up threshold also needs `x-reauth-token`; `Idempotency-Key` makes a send retry-safe.
  * Org-internal; the client reads only the projection in `portal/portal-invoices.controller.ts`.
+ * 52-28 (R19-a): `PATCH …/label` (draft only) and `POST …/tax-registration` (any state but void)
+ * need `finance.manage`; a client principal gets the 404 every org route gives it.
  */
 @Controller('v1/organizations/:orgSlug')
 export class ClientInvoicesController {
@@ -160,6 +163,39 @@ export class ClientInvoicesController {
       },
       false,
     );
+  }
+
+  @Patch('client-invoices/:invoiceId/label')
+  @RequireCapability('finance.manage')
+  setLabel(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('invoiceId') invoiceId: string,
+    @Body() body: unknown,
+    @Headers('user-agent') userAgent: string | undefined,
+    @Ip() ip: string | undefined,
+  ): Promise<InvoiceView> {
+    return this.service.setLabel(context, principal, invoiceId, body, {
+      ip: ip ?? null,
+      userAgent: userAgent ?? null,
+    });
+  }
+
+  @Post('client-invoices/:invoiceId/tax-registration')
+  @HttpCode(200)
+  @RequireCapability('finance.manage')
+  taxRegistration(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('invoiceId') invoiceId: string,
+    @Body() body: unknown,
+    @Headers('user-agent') userAgent: string | undefined,
+    @Ip() ip: string | undefined,
+  ): Promise<InvoiceView> {
+    return this.service.recordTaxRegistration(context, principal, invoiceId, body, {
+      ip: ip ?? null,
+      userAgent: userAgent ?? null,
+    });
   }
 
   @Post('client-invoices/:invoiceId/payments')

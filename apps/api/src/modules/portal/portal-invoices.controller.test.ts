@@ -21,7 +21,10 @@ const client = (clientOrganizationId: string, role = 'client_admin'): Principal 
   hasOrgWideScope: false,
 });
 
-function controller(): { controller: PortalInvoicesController; update: ReturnType<typeof vi.fn> } {
+function controller(row: Record<string, unknown> = {}): {
+  controller: PortalInvoicesController;
+  update: ReturnType<typeof vi.fn>;
+} {
   const update = vi.fn(async () => undefined);
   const repository = {
     findInvoice: async () => ({
@@ -44,6 +47,7 @@ function controller(): { controller: PortalInvoicesController; update: ReturnTyp
       notesText: 'Thank you',
       internalNote: 'margin is thin',
       viewedAt: null,
+      ...row,
     }),
     updateInvoice: update,
     insertEvent: async () => undefined,
@@ -102,5 +106,35 @@ describe('AUTH-52-10/11 portal invoice projection', () => {
     await expect(
       c.get(context, client('acme', 'client_viewer'), 'i1', undefined, undefined),
     ).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+/** 52-28 — the header carries the label (client language) and the notice; never the rule or VAT status. */
+describe('52-28 portal invoice label and notice', () => {
+  it('shows the proforma label and the notice that went out, without the rule text', async () => {
+    const { controller: c } = controller({
+      language: 'ar',
+      documentLabel: 'proforma',
+      taxNoticeShown: true,
+      taxRegistrationRef: null,
+    });
+    const body = await c.get(context, client('acme'), 'i1', undefined, undefined);
+    expect(body).toMatchObject({
+      documentLabel: 'proforma',
+      documentLabelText: 'فاتورة مبدئية',
+      taxRegistrationRef: null,
+    });
+    expect(body.taxNotice).toContain('ليست فاتورة ضريبية');
+    expect(JSON.stringify(body)).not.toMatch(/vat|regime|registration_status|zatca"|requires/iu);
+  });
+
+  it('drops the notice once the invoice is a tax invoice', async () => {
+    const { controller: c } = controller({
+      documentLabel: 'tax_invoice',
+      taxNoticeShown: true,
+      taxRegistrationRef: 'ABCDEFGHJK0123456789ABCDEF',
+    });
+    const body = await c.get(context, client('acme'), 'i1', undefined, undefined);
+    expect(body).toMatchObject({ documentLabelText: 'Tax invoice', taxNotice: null });
   });
 });

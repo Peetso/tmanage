@@ -49,7 +49,7 @@ describe('finance capabilities', () => {
     const guards = [
       ...source.matchAll(/@(Get|Post|Put)\([^)]*\)\s*@RequireCapability\('([^']+)'\)/g),
     ];
-    expect(guards).toHaveLength(8);
+    expect(guards).toHaveLength(9); // 52-23's 8 + 52-28 GET tax-document-rules (R19-a)
     for (const [, verb, capability] of guards) {
       expect(capability).toBe(verb === 'Get' ? 'finance.view' : 'finance.manage');
     }

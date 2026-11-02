@@ -7,8 +7,10 @@ import {
   profileChanges,
   readiness,
   validateExchangeRate,
+  validateProfile,
   validateTaxRate,
 } from './finance-rules.js';
+import { taxDocumentRulesFor } from './finance.service.js';
 
 /** An in-memory store whose `lockAndTake` serializes issuers on a per-row lock, like FOR UPDATE. */
 function fakeStore(timeZone: string): DocumentSequenceStore {
@@ -116,5 +118,42 @@ describe('52-23 finance foundations', () => {
       invoicing: ['profile_not_saved'],
     });
     expect(readiness(after, true, 4).einvoicing).toEqual(['legal_name_ar', 'address']);
+  });
+});
+
+/** 52-28 — the profile's VAT status / regime and the resolved tax-document rules. */
+describe('52-28 finance profile tax-document fields', () => {
+  it('accepts the VAT status and a regime override, refuses an unknown value', () => {
+    const base = defaultProfile({ name: 'Acme', defaultLocale: 'ar-EG' });
+    expect(base).toMatchObject({ vatRegistrationStatus: 'not_registered', einvoiceRegime: null });
+    const saved = validateProfile(
+      { vatRegistrationStatus: 'registered', einvoiceRegime: 'eta' },
+      base,
+    );
+    expect(saved).toMatchObject({ vatRegistrationStatus: 'registered', einvoiceRegime: 'eta' });
+    expect(validateProfile({ einvoiceRegime: null }, saved).einvoiceRegime).toBeNull();
+    expect(() => validateProfile({ vatRegistrationStatus: 'yes' }, base)).toThrow();
+    expect(() => validateProfile({ einvoiceRegime: 'peppol' }, base)).toThrow();
+  });
+
+  it('resolves the rules for a registered EG org: proforma default, tax invoice gated, notice on', () => {
+    const eg = {
+      ...defaultProfile({ name: 'Acme', defaultLocale: 'ar-EG' }),
+      vatRegistrationStatus: 'registered' as const,
+    };
+    const rules = taxDocumentRulesFor(eg);
+    expect(rules).toMatchObject({
+      country: 'EG',
+      regime: 'eta',
+      defaultLabel: 'proforma',
+      noticeRequired: true,
+    });
+    expect(rules.labels.find((l) => l.label === 'tax_invoice')).toEqual({
+      label: 'tax_invoice',
+      enabled: false,
+      reason: 'tax_invoice_requires_registration',
+    });
+    const de = taxDocumentRulesFor({ ...eg, country: 'DE' });
+    expect(de).toMatchObject({ regime: 'none', defaultLabel: 'invoice', noticeRequired: false });
   });
 });

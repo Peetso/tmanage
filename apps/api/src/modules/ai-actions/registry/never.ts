@@ -1800,6 +1800,75 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/portal/invoices/:invoiceId',
     reason: 'finance_settings',
   },
+  // ---- R19-a · 52-28 tax-document labels ---- a label on a fiscal document and a recorded tax
+  // registration reference are the agency's own legal claims; no AI op (MCP ops are 52-28 later).
+  {
+    method: 'PATCH',
+    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/label',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/tax-registration',
+    reason: 'finance_settings',
+  },
+  // ---- R19-d · 53-21 iterations: every planning write (reads are ops in index.ts) ----
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/iterations',
+    reason: 'work_planning',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/iteration-settings',
+    reason: 'work_planning',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/iterations/:iterationId',
+    reason: 'work_planning',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/iterations/:iterationId/items',
+    reason: 'work_planning',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/iterations/:iterationId/complete',
+    reason: 'work_planning',
+  },
+  // 56-06 (R19-e): changing file safety (type presets, scanned-only for clients) is a security
+  // policy change an AI must not drive.
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/security/file-safety/',
+    reason: 'org_security_manage',
+  },
+  // 53-07 (R19-c): `projects.milestones.publish` / unpublish and a phase's band dates change what
+  // the client timeline shows.
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/milestones/:id/publish',
+    reason: 'client_projection',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/milestones/:id/publish',
+    reason: 'client_projection',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/phases/:phaseId/dates',
+    reason: 'client_projection',
+  },
+  // 52-11 (R19-b): an accounting export is a step-up mass egress of the books (fresh reauth,
+  // 5/hour/org); never an AI tool. The history list is the `finance.exports.list` read op.
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/finance/exports/',
+    reason: 'finance_settings',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

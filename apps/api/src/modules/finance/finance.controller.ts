@@ -7,6 +7,7 @@ import type {
   ExchangeRateView,
   FinanceProfileView,
   FinanceService,
+  TaxDocumentRulesView,
   TaxRateView,
 } from './finance.service.js';
 
@@ -14,9 +15,10 @@ export const FINANCE_SERVICE = Symbol.for('tmanage.FinanceService');
 
 /**
  * 52-23 — `/v1/organizations/:orgSlug/finance`: profile, tax rates, manual exchange rates and the
- * readiness check. The route guard asks the capability the service asks again at organization
- * scope (`finance.manage` to write, `finance.view` to read — see `finance.service.ts`). No public
- * route.
+ * readiness check, and (52-28) the tax-document rules (`finance.view`; the profile's VAT status and
+ * e-invoice regime are written by the profile PUT, `finance.manage`). The route guard asks the
+ * capability the service asks again at organization scope (`finance.manage` to write,
+ * `finance.view` to read — see `finance.service.ts`). No public route.
  */
 @Controller('v1/organizations/:orgSlug/finance')
 export class FinanceController {
@@ -93,6 +95,16 @@ export class FinanceController {
     @Body() body: unknown,
   ): Promise<ExchangeRateView> {
     return this.service.createExchangeRate(context, principal, body);
+  }
+
+  /** 52-28 — the tax-document rules for this organization's country and VAT status. */
+  @Get('tax-document-rules')
+  @RequireCapability('finance.view')
+  taxDocumentRules(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+  ): Promise<TaxDocumentRulesView> {
+    return this.service.taxDocumentRules(context, principal);
   }
 
   @Get('readiness')

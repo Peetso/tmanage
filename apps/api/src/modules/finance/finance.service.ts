@@ -1,4 +1,14 @@
-import { authorize } from '@tmanage/domain';
+import {
+  authorize,
+  canUseLabel,
+  defaultLabelFor,
+  DOCUMENT_LABELS,
+  isEinvoiceRegime,
+  resolvedRegime,
+  taxDocumentRuleFor,
+  taxNoticeRequired,
+} from '@tmanage/domain';
+import type { DocumentLabel, EinvoiceRegime, TaxDocumentRule } from '@tmanage/domain';
 import type { AuditAction, Capability, Principal } from '@tmanage/domain';
 import type {
   OrgExchangeRateRow,
@@ -44,8 +54,48 @@ const MAX_LIST = 200;
 export interface FinanceProfileView extends FinanceProfileValues {
   /** False until the first save; the values are then the defaults. */
   readonly saved: boolean;
+  /** 52-28: the country's tax-document rule row (regime = the override when set). */
+  readonly taxDocumentRule: TaxDocumentRule;
   readonly version: number;
   readonly updatedAt: string | null;
+}
+
+/** 52-28 — `GET …/finance/tax-document-rules`: what the settings row and the drawer show. */
+export interface TaxDocumentRulesView {
+  readonly country: string;
+  readonly vatRegistrationStatus: string;
+  readonly regime: EinvoiceRegime;
+  readonly defaultLabel: DocumentLabel;
+  readonly labels: readonly {
+    readonly label: DocumentLabel;
+    readonly enabled: boolean;
+    readonly reason?: string;
+  }[];
+  readonly noticeRequired: boolean;
+}
+
+/**
+ * The rules resolved for a profile. `tax_invoice` is listed as enabled only where it needs no
+ * per-document reference; in KSA/EG it is reached through the tax-registration route.
+ */
+export function taxDocumentRulesFor(profile: FinanceProfileValues): TaxDocumentRulesView {
+  const defaultLabel = defaultLabelFor(profile.country, profile.vatRegistrationStatus);
+  return {
+    country: profile.country,
+    vatRegistrationStatus: profile.vatRegistrationStatus,
+    regime: resolvedRegime(profile.country, profile.einvoiceRegime),
+    defaultLabel,
+    labels: DOCUMENT_LABELS.map((label) => {
+      const check = canUseLabel({
+        country: profile.country,
+        vatStatus: profile.vatRegistrationStatus,
+        label,
+        taxRegistrationRef: null,
+      });
+      return check.ok ? { label, enabled: true } : { label, enabled: false, reason: check.reason };
+    }),
+    noticeRequired: taxNoticeRequired(profile.country, defaultLabel),
+  };
 }
 
 export interface TaxRateView extends TaxRateInput {
@@ -106,6 +156,16 @@ function profileValues(row: OrgFinanceProfileRow): FinanceProfileValues {
     showHijri: row.showHijri,
     bankDetailsText: row.bankDetailsText,
     paymentTermsDays: row.paymentTermsDays,
+    vatRegistrationStatus:
+      row.vatRegistrationStatus === 'registered' ? 'registered' : 'not_registered',
+    einvoiceRegime: isEinvoiceRegime(row.einvoiceRegime) ? row.einvoiceRegime : null,
+  };
+}
+
+function ruleRow(profile: FinanceProfileValues): TaxDocumentRule {
+  return {
+    ...taxDocumentRuleFor(profile.country),
+    regime: resolvedRegime(profile.country, profile.einvoiceRegime),
   };
 }
 
@@ -342,6 +402,17 @@ export class FinanceService {
     }
   }
 
+  /** 52-28 — the resolved tax-document rules for this organization (`finance.view`). */
+  async taxDocumentRules(
+    context: TenantContext,
+    principal: Principal,
+  ): Promise<TaxDocumentRulesView> {
+    this.require(principal, context, FINANCE_VIEW);
+    return this.options.database.read(context, async (r) =>
+      taxDocumentRulesFor(await this.loadProfile(r, context)),
+    );
+  }
+
   async readiness(context: TenantContext, principal: Principal): Promise<FinanceReadiness> {
     this.require(principal, context, FINANCE_VIEW);
     return this.options.database.read(context, async (r) => {
@@ -369,15 +440,19 @@ export class FinanceService {
   ): Promise<FinanceProfileView> {
     const row = await this.options.repository.profile(runner, context.organizationId);
     if (row === null) {
+      const defaults = await this.defaults(runner, context);
       return {
-        ...(await this.defaults(runner, context)),
+        ...defaults,
+        taxDocumentRule: ruleRow(defaults),
         saved: false,
         version: 0,
         updatedAt: null,
       };
     }
+    const values = profileValues(row);
     return {
-      ...profileValues(row),
+      ...values,
+      taxDocumentRule: ruleRow(values),
       saved: true,
       version: row.version,
       updatedAt: row.updatedAt.toISOString(),

@@ -20,6 +20,10 @@ import type {
  * by-person line names nobody unless `finance.portal_show_names` is on), payments and the public
  * notes. Never cost, rate card, the internal note or a member id. The first read stamps
  * `viewed_at` and a `viewed` event once.
+ *
+ * 52-28 (R19-a): the header also carries `documentLabel`, `documentLabelText` (the invoice's
+ * language), `taxNotice` (the "not a tax invoice" line when it went out with the document, else
+ * null) and `taxRegistrationRef` — never the rule text or the organization's VAT status.
  */
 @Controller('v1/organizations/:orgSlug')
 export class PortalInvoicesController {

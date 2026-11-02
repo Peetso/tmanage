@@ -455,5 +455,20 @@ export * from './security/sign-in-policy.js';
 export * from './money/invoicing.js';
 export * from './money/amount-in-words.js';
 
+// Tax-document labels per country (proforma / commercial / tax invoice) — 52-28 (R19-a)
+export * from './finance/tax-document-rules.js';
+
 // Quick-add parser, Arabic + English — 55-25 (R18-c)
 export * from './quick-add/index.js';
+
+// Iterations (light sprints) and points: burndown, next free slot — 53-21 (R19-d)
+export * from './work/burndown.js';
+
+// Milestones and phases on the timeline: bands, diamonds, client status — 53-07 (R19-c)
+export * from './calendar/timeline-bands.js';
+
+// Client-ceiling review: the client capability allowlist — 56-28 (R19-f)
+export * from './policies/client-ceiling.js';
+
+// Accounting export by file: seven target column maps — 52-11 (R19-b)
+export * from './finance/exports/index.js';

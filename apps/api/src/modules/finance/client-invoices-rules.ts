@@ -1,6 +1,12 @@
 import { createHash } from 'node:crypto';
-import { INVOICE_KINDS, INVOICE_LANGUAGES, PAYMENT_METHODS, isCurrencyCode } from '@tmanage/domain';
-import type { InvoiceKind, InvoiceLanguage, PaymentMethod } from '@tmanage/domain';
+import {
+  INVOICE_KINDS,
+  INVOICE_LANGUAGES,
+  PAYMENT_METHODS,
+  isCurrencyCode,
+  isDocumentLabel,
+} from '@tmanage/domain';
+import type { DocumentLabel, InvoiceKind, InvoiceLanguage, PaymentMethod } from '@tmanage/domain';
 import type { ClientInvoiceLineRow, ClientInvoiceRow } from '../../common/database/schema.js';
 import { ApiError } from '../../common/http/errors.js';
 
@@ -382,6 +388,38 @@ export function validatePayment(raw: unknown): PaymentInput {
     reference: optionalText(body['reference'], 'reference', 120),
     note: optionalText(body['note'], 'note', MAX_DESCRIPTION),
   };
+}
+
+/** 52-28 — `PATCH …/label {documentLabel}`. */
+export function validateLabel(raw: unknown): DocumentLabel {
+  const label = record(raw)['documentLabel'];
+  if (!isDocumentLabel(label)) {
+    throw invalid('documentLabel', 'must be one of invoice, proforma, commercial, tax_invoice');
+  }
+  return label;
+}
+
+export interface TaxRegistrationInput {
+  readonly ref: string;
+  /** Midnight UTC of the registration day, or the exact instant when one was given. */
+  readonly registeredAt: Date;
+}
+
+/** 52-28 — `POST …/tax-registration {ref, registeredAt}`; the shape per regime is checked later. */
+export function validateTaxRegistration(raw: unknown, now: Date): TaxRegistrationInput {
+  const body = record(raw);
+  const ref = requiredText(body['ref'], 'ref', 64);
+  const at = body['registeredAt'];
+  let registeredAt: Date;
+  if (isIsoDate(at)) registeredAt = new Date(`${at}T00:00:00.000Z`);
+  else if (typeof at === 'string' && /^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:\d{2})$/u.test(at)) {
+    registeredAt = new Date(at);
+    if (Number.isNaN(registeredAt.getTime())) throw invalid('registeredAt', 'is not a date');
+  } else throw invalid('registeredAt', 'must be a date (YYYY-MM-DD) or an ISO date-time');
+  if (registeredAt.getTime() > now.getTime() + DAY_MS) {
+    throw invalid('registeredAt', 'must not be in the future');
+  }
+  return { ref, registeredAt };
 }
 
 export function validateReason(raw: unknown): string {

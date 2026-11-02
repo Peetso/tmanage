@@ -1,3 +1,5 @@
+import { EINVOICE_REGIMES, VAT_REGISTRATION_STATUSES } from '@tmanage/domain';
+import type { EinvoiceRegime, VatRegistrationStatus } from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
 
 /**
@@ -70,6 +72,10 @@ export interface FinanceProfileValues {
   readonly showHijri: boolean;
   readonly bankDetailsText: string | null;
   readonly paymentTermsDays: number;
+  /** 52-28: VAT registration; a registered KSA/EG org drafts proforma invoices by default. */
+  readonly vatRegistrationStatus: VatRegistrationStatus;
+  /** 52-28: the e-invoice regime override; `null` = derived from the country. */
+  readonly einvoiceRegime: EinvoiceRegime | null;
 }
 
 export function invalid(field: string, message: string): ApiError {
@@ -105,6 +111,8 @@ export function defaultProfile(
     showHijri: false,
     bankDetailsText: null,
     paymentTermsDays: 30,
+    vatRegistrationStatus: 'not_registered',
+    einvoiceRegime: null,
   };
 }
 
@@ -187,6 +195,12 @@ export function validateProfile(
     }),
     bankDetailsText: pick('bankDetailsText', (v) => nullableText(v, 'bankDetailsText', 2000)),
     paymentTermsDays: pick('paymentTermsDays', (v) => wholeNumber(v, 'paymentTermsDays', 0, 365)),
+    vatRegistrationStatus: pick('vatRegistrationStatus', (v) =>
+      oneOf(v, 'vatRegistrationStatus', VAT_REGISTRATION_STATUSES),
+    ),
+    einvoiceRegime: pick('einvoiceRegime', (v) =>
+      v === null ? null : oneOf(v, 'einvoiceRegime', EINVOICE_REGIMES),
+    ),
   };
 }
 

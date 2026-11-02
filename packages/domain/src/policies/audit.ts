@@ -1443,12 +1443,88 @@ export const AUDIT_ACTION_CATALOG = {
     clause: '§12 52-09 — a payment reminder for a client invoice was sent',
   },
   /**
+   * 52-11 (R19-b). An accounting export was downloaded. Metadata: export id, target and the record
+   * count per kind — never any exported content.
+   */
+  'finance.exported': {
+    objectType: 'finance_export',
+    clause: '§12 52-11 — an accounting export of invoices, payments or expenses was downloaded',
+  },
+  /** 52-28 (R19-a). A draft's document label changed. Metadata: before/after label. */
+  'client_invoice.label_changed': {
+    objectType: 'client_invoice',
+    clause: '§12 52-28 — the tax-document label of a draft client invoice changed',
+  },
+  /**
+   * 52-28 (R19-a). A tax registration reference was recorded (post-send allowed); the label may
+   * have moved to tax invoice. Metadata: before/after label, registered day. The ref is not logged.
+   */
+  'client_invoice.tax_registered': {
+    objectType: 'client_invoice',
+    clause: '§12 52-28 — a tax registration reference was recorded on a client invoice',
+  },
+  /**
    * 56-25 (R18-e). The sign-in policy changed: allowed methods and who must use two-step.
    * Metadata: before/after method lists and scopes, and whether a grace period began. No names.
    */
   'org.sign_in_policy_changed': {
     objectType: 'organization',
     clause: '§12 policy change 56-25 — how members may sign in and who must use two-step',
+  },
+  /**
+   * 56-06 (R19-e). File safety changed: the enabled type presets and whether clients download
+   * only scanned-clean files. Metadata: before/after preset names and booleans. No names.
+   */
+  'org.file_safety_changed': {
+    objectType: 'organization',
+    clause: '§12 policy change 56-06 — which file types are accepted and what clients may download',
+  },
+  // ---- R19-d · 53-21 iterations (light sprints) and points ----
+  /** An iteration was created. Metadata: project id, dates; never the name or goal. */
+  'iteration.created': {
+    objectType: 'iteration',
+    clause: '§12 53-21 — an iteration (light sprint) was planned for a project',
+  },
+  /** An iteration's name, goal or dates changed. Metadata: the changed field names and dates. */
+  'iteration.updated': {
+    objectType: 'iteration',
+    clause: '§12 53-21 — an iteration was edited',
+  },
+  /** Work items were added to or removed from an iteration. Metadata: counts, never titles. */
+  'iteration.items_moved': {
+    objectType: 'iteration',
+    clause: '§12 53-21 — work items moved into or out of an iteration',
+  },
+  /** An iteration was completed. Metadata: unfinished items moved, finished items left. */
+  'iteration.completed': {
+    objectType: 'iteration',
+    clause: '§12 53-21 — an iteration was completed and its unfinished work rolled on',
+  },
+  /** A project's story points were switched on or off. Metadata: before/after. */
+  'project.points_setting_changed': {
+    objectType: 'project',
+    clause: '§12 53-21 — story points were switched on or off for a project',
+  },
+  // ---- R19-c · 53-07 milestones and phases on the timeline ----
+  /** A milestone's committed date moved. Metadata: had_projection; before/after + reason in changes. */
+  'milestone.date_changed': {
+    objectType: 'project_milestone',
+    clause: '§12 53-07 — a milestone’s committed date moved, with the client-safe reason',
+  },
+  /** A milestone's client copy was published (or refreshed). Metadata: status. */
+  'milestone.published': {
+    objectType: 'project_milestone',
+    clause: '§12 53-07 — a milestone was published to the client timeline',
+  },
+  /** A milestone's client copy was removed. */
+  'milestone.unpublished': {
+    objectType: 'project_milestone',
+    clause: '§12 53-07 — a milestone was removed from the client timeline',
+  },
+  /** A phase's dates or colour changed. Metadata: which fields; values in changes. */
+  'phase.updated': {
+    objectType: 'project_phase',
+    clause: '§12 53-07 — a timeline phase’s dates or colour changed',
   },
 } as const satisfies Record<string, AuditActionDefinition>;
 
@@ -1706,7 +1782,20 @@ const AUDIT_ACTION_LABELS = {
   'client_invoice.voided': 'Voided a client invoice draft',
   'client_invoice.credited': 'Issued a credit note',
   'client_invoice.reminder_sent': 'Sent a payment reminder',
+  'finance.exported': 'Downloaded an accounting export',
+  'client_invoice.label_changed': 'Changed the document label of an invoice draft',
+  'client_invoice.tax_registered': 'Recorded a tax registration reference on an invoice',
   'org.sign_in_policy_changed': 'Changed the sign-in policy',
+  'org.file_safety_changed': 'Changed the file safety settings',
+  'iteration.created': 'Planned an iteration',
+  'iteration.updated': 'Edited an iteration',
+  'iteration.items_moved': 'Moved work into or out of an iteration',
+  'iteration.completed': 'Completed an iteration',
+  'project.points_setting_changed': 'Switched story points on or off for a project',
+  'milestone.date_changed': 'Moved a milestone’s committed date',
+  'milestone.published': 'Published a milestone to the client timeline',
+  'milestone.unpublished': 'Removed a milestone from the client timeline',
+  'phase.updated': 'Changed a timeline phase’s dates',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

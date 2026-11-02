@@ -22,6 +22,8 @@ import { auditDetails } from './audit.js';
 import { importDetails } from './import.js';
 import { privacyDetails } from './privacy.js';
 import { financeTimeDetails } from './finance-time.js';
+import { taxDocumentDetails } from './tax-documents.js';
+import { financeExportDetails } from './finance-exports.js';
 
 export const waveCDetails: readonly AiActionDetail[] = [
   ...clientsDetails,
@@ -37,6 +39,8 @@ export const waveCDetails: readonly AiActionDetail[] = [
   ...importDetails,
   ...privacyDetails,
   ...financeTimeDetails,
+  ...taxDocumentDetails,
+  ...financeExportDetails,
 ];
 
 /** Wave C details indexed by op id (throws on a duplicate id within the wave). */

@@ -4832,6 +4832,15 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'confirm',
     scope: 'manage',
   },
+  // 56-06 (R19-e): file safety, read only (the PUT is NEVER, org_security_manage).
+  {
+    id: 'org.settings.file_safety.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/security/file-safety/',
+    capability: 'org.security.manage',
+    risk: 'read',
+    scope: 'read',
+  },
   // C6 (0229): the company logo, organization-scoped.
   {
     id: 'settings.logo_image.info',
@@ -5693,6 +5702,58 @@ export const OPS: readonly AiActionOp[] = [
     method: 'GET',
     path: '/v1/organizations/:orgSlug/work/quick-add/resolve',
     capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  // ---- R19-a · 52-28 tax-document rules (read: country rule row, labels, notice flag) ----
+  {
+    id: 'finance.tax_document_rules.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/finance/tax-document-rules',
+    capability: 'finance.view',
+    risk: 'read',
+    scope: 'read',
+  },
+  // ---- R19-d · 53-21 iterations (read: header, items' id/title/state/points, burndown counts) ----
+  {
+    id: 'iterations.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/iterations',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'iterations.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/iterations/:iterationId',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'iterations.burndown',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/iterations/:iterationId/burndown',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  // ---- R19-c · 53-07 the client timeline (read: published copies only) ----
+  {
+    id: 'portal.timeline.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/projects/:projectId/timeline',
+    capability: 'client_projection.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  // ---- R19-b · 52-11 accounting export history (read: target, period, kinds, counts, sha256) ----
+  {
+    id: 'finance.exports.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/finance/exports/',
+    capability: 'finance.view',
     risk: 'read',
     scope: 'read',
   },

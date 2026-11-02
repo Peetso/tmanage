@@ -2229,3 +2229,40 @@ GRANT SELECT, INSERT ON `tmanage`.`client_invoice_events`                   TO '
 GRANT UPDATE ON `tmanage`.`work_item_time_logs`                             TO 'tmanage_app'@'%';
 GRANT UPDATE ON `tmanage`.`expenses`                                        TO 'tmanage_app'@'%';
 GRANT UPDATE ON `tmanage`.`retainer_periods`                                TO 'tmanage_app'@'%';
+
+-- ---- R19-b · 52-11 accounting export by file ----
+-- 0304 `finance_exports` (tenant): each export run is recorded once (SELECT, INSERT); the history
+-- is append-only, so UPDATE and DELETE are withheld. The same transaction marks the exported
+-- invoices (`client_invoices.exported_at` / `export_target`); that UPDATE grant exists (0301 block)
+-- and is stated again so the block reads whole. `client_credit_notes` carries no exported mark.
+-- The worker reads and writes nothing here.
+GRANT SELECT, INSERT ON `tmanage`.`finance_exports`                         TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`client_invoices`                                 TO 'tmanage_app'@'%';
+-- R19-a · 52-28 (0303): new columns on `client_invoices` (tax_registration_ref, tax_registered_at,
+-- tax_notice_shown) and `org_finance_profiles` (vat_registration_status, einvoice_regime) need no
+-- new grant — UPDATE on both tables already exists (above and the 52-23 block).
+
+-- ---- R19-d · 53-21 iterations (light sprints) and points ----
+-- 0306 `iterations` (tenant): a project manager plans, edits and completes an iteration (SELECT,
+-- INSERT, UPDATE). DELETE is withheld: an iteration is planning history. `work_items` gains
+-- `iteration_id`, `iteration_assigned_at` and `points`, and `projects` gains `points_enabled`; their
+-- UPDATE grants already exist and are stated again so the block reads whole. The worker reads and
+-- writes nothing here.
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`iterations`                      TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`work_items`                                      TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`projects`                                        TO 'tmanage_app'@'%';
+
+-- ---- R19-c · 53-07 milestones and phases on the timeline ----
+-- 0305 `milestone_client_projections` (tenant): publishing a milestone upserts its client copy
+-- (SELECT, INSERT, UPDATE) and unpublishing — or deleting the milestone — removes it (DELETE). The
+-- portal timeline reads it. `project_milestones` gains committed/forecast dates, timeline order,
+-- client title and version, and `project_phases` gains band dates and colour; their UPDATE grants
+-- already exist and are stated again so the block reads whole. The worker reads and writes nothing
+-- here.
+GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`milestone_client_projections` TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`project_milestones`                              TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`project_phases`                                  TO 'tmanage_app'@'%';
+
+-- R19-e · 56-06 (0307): `file_versions.scan_source` (tmanage|provider|none) is written beside the
+-- scan verdict by the existing UPDATE grant on `file_versions` (above); no new grant. The file-safety
+-- settings are `org_settings` rows (`file_safety_presets`, `require_scan_for_clients`).
