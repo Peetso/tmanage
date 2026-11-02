@@ -12631,6 +12631,9 @@ export const clientInvoices = mysqlTable(
     zatcaPih: char('zatca_pih', { length: 64 }),
     zatcaXmlHash: char('zatca_xml_hash', { length: 64 }),
     zatcaStatus: varchar('zatca_status', { length: 16 }).notNull().default('not_applicable'),
+    /** 52-12 (0313): base64 DER ECDSA signature of the XML, and the signing cert's SHA-256. */
+    zatcaSignature: varchar('zatca_signature', { length: 255 }),
+    zatcaCertFingerprint: char('zatca_cert_fingerprint', { length: 64 }),
     createdBy: char('created_by', { length: 36 }).notNull(),
     version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
@@ -12724,6 +12727,9 @@ export const clientCreditNotes = mysqlTable(
     zatcaPih: char('zatca_pih', { length: 64 }),
     zatcaXmlHash: char('zatca_xml_hash', { length: 64 }),
     zatcaStatus: varchar('zatca_status', { length: 16 }).notNull().default('not_applicable'),
+    /** 52-12 (0313): as on `client_invoices`. */
+    zatcaSignature: varchar('zatca_signature', { length: 255 }),
+    zatcaCertFingerprint: char('zatca_cert_fingerprint', { length: 64 }),
     issuedAt: datetime('issued_at', { mode: 'date', fsp: 3 }).notNull(),
     createdBy: char('created_by', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
@@ -13039,3 +13045,64 @@ Object.assign(TABLES, {
   inbound_emails: inboundEmails,
   inbound_email_attachments: inboundEmailAttachments,
 });
+
+// ---- R22-b · 52-12 e-invoice chain reconciler verdicts (0314) ----
+/**
+ * 52-12 (0314). One nightly verdict of the worker's ICV/PIH chain walk over an organization's
+ * `client_invoices` + `client_credit_notes`. `status` ok | broken | empty; `breakReason` gap |
+ * pih_mismatch | genesis_mismatch | duplicate_hash. Written by the worker only; pruned at 90 days.
+ * TENANT.
+ */
+export const einvoiceChainChecks = mysqlTable(
+  'einvoice_chain_checks',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    checkedAt: datetime('checked_at', { mode: 'date', fsp: 3 }).notNull(),
+    status: varchar('status', { length: 16 }).notNull(),
+    headIcv: int('head_icv', { unsigned: true }),
+    documents: int('documents', { unsigned: true }).notNull().default(0),
+    breakIcv: int('break_icv', { unsigned: true }),
+    breakReason: varchar('break_reason', { length: 32 }),
+    detailJson: text('detail_json'),
+  },
+  (table) => [
+    uniqueIndex('uq_ecc_org_id').on(table.organizationId, table.id),
+    index('ix_ecc_org_checked').on(table.organizationId, table.checkedAt),
+  ],
+);
+
+export type EinvoiceChainCheckRow = typeof einvoiceChainChecks.$inferSelect;
+
+Object.assign(TABLES, { einvoice_chain_checks: einvoiceChainChecks });
+
+// ---- R22-a · 52-12 org secrets: the ZATCA signing certificate (0313) ----
+/**
+ * 52-12 (0313). An organization's recoverable secret. `ciphertext` is a FieldCipher `fc1.` envelope
+ * (purpose `org_secret`, owner = the row id); `metaJson` holds public facts only (issuer, subject,
+ * serial, validity, SHA-256 fingerprint, sandbox). `status` active | rotated | revoked; a replaced
+ * secret is kept `rotated` so an old invoice's QR still rebuilds. No DELETE grant. TENANT.
+ */
+export const orgSecrets = mysqlTable(
+  'org_secrets',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    secretKey: varchar('secret_key', { length: 64 }).notNull(),
+    ciphertext: text('ciphertext').notNull(),
+    keyVersion: varchar('key_version', { length: 32 }),
+    metaJson: text('meta_json').notNull(),
+    status: varchar('status', { length: 16 }).notNull().default('active'),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    rotatedAt: datetime('rotated_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_org_secrets_org_id').on(table.organizationId, table.id),
+    index('ix_org_secrets_org_key').on(table.organizationId, table.secretKey, table.status),
+  ],
+);
+
+export type OrgSecretRow = typeof orgSecrets.$inferSelect;
+
+Object.assign(TABLES, { org_secrets: orgSecrets });

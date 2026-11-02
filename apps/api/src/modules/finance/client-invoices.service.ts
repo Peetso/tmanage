@@ -27,9 +27,11 @@ import type {
   AuditAction,
   Capability,
   InvoiceLineInput,
+  Phase1QrInput,
   Principal,
   TaxRateTotal,
 } from '@tmanage/domain';
+import { phase2Qr, verifyXmlSignature } from '@tmanage/domain/zatca-sign';
 import { withTemplateKey } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import type {
@@ -48,6 +50,7 @@ import { escapeHtml, renderActionEmail } from '../../common/email/action-email.j
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { NotificationsRepository } from '../inbox/notifications.repository.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { verifyReauthToken } from '../identity/reauth-token.js';
 import {
   ALLOW_OVERPAYMENT_SETTING_KEY,
@@ -84,8 +87,13 @@ import {
   invoiceDocument,
   invoiceUblLines,
   qrFor,
+  sellerFromSnapshot,
+  twoPlaces,
   ublProfileOf,
 } from './einvoice-rules.js';
+import { SigningFailure } from './einvoice-signing.service.js';
+import type { DocumentSignature, EinvoiceSigningService } from './einvoice-signing.service.js';
+import type { OrgSecretsRepository } from './org-secrets.repository.js';
 import type { EinvoiceDocument } from './einvoice-rules.js';
 import { defaultProfile } from './finance-rules.js';
 import type { FinanceProfileValues } from './finance-rules.js';
@@ -212,9 +220,15 @@ export interface EinvoiceView {
   readonly xmlHash: string | null;
   /** The rebuilt XML's hash equals the stored one; null when no hash was stored (pint_ae). */
   readonly hashMatches: boolean | null;
-  /** ZATCA Phase-1 TLV base64; null for pint_ae. */
+  /** ZATCA TLV base64: Phase 1 (tags 1–5), Phase 2 (tags 1–9) when signed; null for pint_ae. */
   readonly qr: string | null;
   readonly xml: string;
+  /** 52-12 (R22-a): base64 DER ECDSA signature of the XML; null when unsigned. */
+  readonly signature: string | null;
+  /** SHA-256 of the signing certificate; null when unsigned. */
+  readonly certFingerprint: string | null;
+  /** The rebuilt XML verifies against the stored signature (second tamper check); null unsigned. */
+  readonly signatureValid: boolean | null;
 }
 
 export interface PullResult {
@@ -296,6 +310,11 @@ export interface ClientInvoicesServiceOptions {
   readonly sequences: Pick<DocumentSequenceService, 'nextNumber'>;
   readonly notifications: Pick<NotificationsRepository, 'insertForRecipient'>;
   readonly audit: Pick<AuditService, 'record'>;
+  /** 52-12 (R22-a): signs a chain link with the org's ZATCA certificate; absent = never signs. */
+  readonly signing?: Pick<EinvoiceSigningService, 'signDocument' | 'certificateFor'> | null;
+  /** Counts the org's `client_invoice.sign_failed` audit rows (the third in 24 h raises an event). */
+  readonly signingStore?: Pick<OrgSecretsRepository, 'signFailuresSince'>;
+  readonly outbox?: Pick<OutboxEventsRepository, 'append'>;
   readonly mailer?: Mailer | null;
   readonly webPublicUrl?: string;
   readonly sessionSecret?: string;
@@ -518,6 +537,24 @@ export class ClientInvoicesService {
         chained ? { icv: Number(row.zatcaIcv), pih: row.zatcaPih ?? '' } : null,
       );
       const stored = row.zatcaXmlHash ?? null;
+      const signature = row.zatcaSignature ?? null;
+      const fingerprint = row.zatcaCertFingerprint ?? null;
+      let qr = regime === 'zatca' ? qrFor(doc) : null;
+      let signatureValid: boolean | null = null;
+      if (row.zatcaStatus === 'signed' && signature !== null && fingerprint !== null) {
+        // 52-12 (R22-a): the certificate the document was signed with (active or rotated) gives
+        // the public key and CA signature of tags 8–9; re-verifying is the second tamper check.
+        const cert = (await this.options.signing?.certificateFor(r, org, fingerprint)) ?? null;
+        signatureValid = cert !== null && verifyXmlSignature(xml, signature, cert.publicKeyPem);
+        if (cert !== null && stored !== null) {
+          qr = phase2Qr(phase1Of(doc), {
+            xmlHashHex: stored,
+            signatureB64: signature,
+            publicKeyDer: Uint8Array.from(Buffer.from(cert.publicKeyDerB64, 'base64')),
+            certSignatureDer: Uint8Array.from(Buffer.from(cert.certSignatureB64, 'base64')),
+          });
+        }
+      }
       return {
         invoiceId: row.id,
         number: row.number ?? '',
@@ -527,8 +564,11 @@ export class ClientInvoicesService {
         pih: row.zatcaPih ?? null,
         xmlHash: stored,
         hashMatches: stored === null ? null : xmlHash(xml) === stored,
-        qr: regime === 'zatca' ? qrFor(doc) : null,
+        qr,
         xml,
+        signature,
+        certFingerprint: fingerprint,
+        signatureValid,
       };
     });
   }
@@ -644,6 +684,8 @@ export class ClientInvoicesService {
         zatcaPih: null,
         zatcaXmlHash: null,
         zatcaStatus: 'not_applicable',
+        zatcaSignature: null,
+        zatcaCertFingerprint: null,
         createdBy: context.userId,
         version: 1,
         createdAt: at,
@@ -950,12 +992,21 @@ export class ClientInvoicesService {
         sent.zatcaPih = link.pih;
         sent.zatcaXmlHash = link.xmlHash;
         sent.zatcaStatus = 'ready';
+        // 52-12 (R22-a): signed inside the same transaction; a failure never blocks the send.
+        const signed = await this.signLink(tx, context, id, 'invoice', id, link.xml);
+        if (signed !== null) {
+          sent.zatcaSignature = signed.signature;
+          sent.zatcaCertFingerprint = signed.fingerprint;
+          sent.zatcaStatus = 'signed';
+        }
       }
       await this.repo.updateInvoice(tx, org, id, {
         zatcaIcv: sent.zatcaIcv ?? null,
         zatcaPih: sent.zatcaPih ?? null,
         zatcaXmlHash: sent.zatcaXmlHash ?? null,
         zatcaStatus: sent.zatcaStatus ?? 'not_applicable',
+        zatcaSignature: sent.zatcaSignature ?? null,
+        zatcaCertFingerprint: sent.zatcaCertFingerprint ?? null,
         number: sent.number,
         state: sent.state,
         issueDate,
@@ -1355,6 +1406,8 @@ export class ClientInvoicesService {
         zatcaPih: null,
         zatcaXmlHash: null,
         zatcaStatus: 'not_applicable',
+        zatcaSignature: null,
+        zatcaCertFingerprint: null,
         issuedAt: at,
         createdBy: context.userId,
         createdAt: at,
@@ -1387,6 +1440,12 @@ export class ClientInvoicesService {
         note.zatcaPih = link.pih;
         note.zatcaXmlHash = link.xmlHash;
         note.zatcaStatus = 'ready';
+        const signed = await this.signLink(tx, context, id, 'credit_note', noteId, link.xml);
+        if (signed !== null) {
+          note.zatcaSignature = signed.signature;
+          note.zatcaCertFingerprint = signed.fingerprint;
+          note.zatcaStatus = 'signed';
+        }
       }
       await this.repo.insertCreditNote(tx, note, noteLines);
       const full = already + totals.totalMinor >= Number(row.totalMinor);
@@ -1798,6 +1857,47 @@ export class ClientInvoicesService {
     return defaultProfile(await this.options.finance.organization(tx, org));
   }
 
+  /**
+   * 52-12 (R22-a): sign one chain link with the org's ZATCA certificate. `null` when there is no
+   * signer or no active certificate (the link stays `ready`). A failure is audited
+   * `client_invoice.sign_failed` with its code and never blocks the send; the organization's third
+   * failure in 24 hours (counted from those audit rows, this one included) raises
+   * `finance.einvoice_sign_failed.v1`.
+   */
+  private async signLink(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    invoiceId: string,
+    documentKind: 'invoice' | 'credit_note',
+    documentId: string,
+    xml: string,
+  ): Promise<DocumentSignature | null> {
+    const signer = this.options.signing;
+    if (signer === undefined || signer === null) return null;
+    try {
+      return await signer.signDocument(tx, context.organizationId, xml);
+    } catch (error) {
+      const code = error instanceof SigningFailure ? error.code : 'sign_failed';
+      await this.audited(tx, context, 'client_invoice.sign_failed', invoiceId, {
+        document: documentKind,
+        document_id: documentId,
+        code,
+      });
+      const since = new Date(this.now().getTime() - 24 * 60 * 60 * 1000);
+      const failures =
+        (await this.options.signingStore?.signFailuresSince(tx, context.organizationId, since)) ??
+        0;
+      if (failures === 3) {
+        await this.options.outbox?.append(tx, context, {
+          type: 'finance.einvoice_sign_failed.v1',
+          aggregateId: invoiceId,
+          payload: { documentId, documentKind, code, failuresIn24h: failures },
+        });
+      }
+      return null;
+    }
+  }
+
   private stepUpFresh(context: TenantContext, meta: SendMeta): boolean {
     const secret = this.options.sessionSecret;
     if (secret === undefined || meta.reauthToken === undefined || meta.sessionId === undefined) {
@@ -1901,6 +2001,18 @@ export class ClientInvoicesService {
 }
 
 // ── projections and rendering ────────────────────────────────────────────────
+
+/** 52-12 (R22-a): the Phase-1 QR fields of a document — the same values `qrFor` encodes. */
+function phase1Of(doc: EinvoiceDocument): Phase1QrInput {
+  const seller = sellerFromSnapshot(doc.sellerSnapshotJson);
+  return {
+    sellerName: seller.legalNameAr ?? seller.legalNameEn ?? '',
+    vatNumber: seller.taxRegistrationNo ?? '',
+    timestamp: doc.issuedAt,
+    totalWithVat: twoPlaces(doc.totalMinor, doc.currency),
+    vatAmount: twoPlaces(doc.taxMinor, doc.currency),
+  };
+}
 
 /** 52-28: the notice goes with a document that went out with it, until it is a tax invoice. */
 function noticeOf(row: Pick<InvoiceView, 'taxNoticeShown' | 'documentLabel'>): boolean {

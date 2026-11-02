@@ -42,6 +42,9 @@ const DENIED_KEYS: ReadonlySet<string> = new Set([
   'authorization',
   'cookie',
   'set-cookie',
+  // 52-12 (R22-a): the ZATCA certificate PUT body.
+  'privatekeypem',
+  'certificatepem',
 ]);
 
 /** Case-insensitive suffixes: any key ending in one of these is a secret regardless of prefix. */

@@ -1673,6 +1673,7 @@ export const NEVER: readonly NeverEntry[] = [
     reason: 'automation_secrets',
   },
   { method: 'POST', path: '/v1/public/integrations/github/:hookId', reason: 'public_intake' },
+  { method: 'POST', path: '/v1/public/inbound-email/webhook', reason: 'public_intake' },
   {
     method: 'PUT',
     path: '/v1/organizations/:orgSlug/projects/:projectId/work-key-prefix',
@@ -1873,6 +1874,25 @@ export const NEVER: readonly NeverEntry[] = [
   {
     method: 'POST',
     path: '/v1/organizations/:orgSlug/finance/exports/',
+    reason: 'finance_settings',
+  },
+  // R22-e (54-27): the Jira REST fetch carries an Atlassian API token in the body (used once,
+  // never stored) and steers outbound egress: never an AI tool, the same class as channel links.
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/imports/sources/jira',
+    reason: 'automation_secrets',
+  },
+  // R22-a (52-12): the ZATCA certificate + private key are pasted behind org.security.manage and a
+  // fresh step-up, and revoking it stops signing; key material must never pass through an AI tool.
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/finance/einvoicing/certificate',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/finance/einvoicing/certificate',
     reason: 'finance_settings',
   },
 ];

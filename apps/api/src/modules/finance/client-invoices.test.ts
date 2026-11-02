@@ -1,17 +1,24 @@
+import { generateKeyPairSync, randomBytes } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { decodeTlv } from '@tmanage/domain';
+import { createFieldCipher, loadFieldCipherKeyring } from '@tmanage/domain/field-cipher';
+import { selfSignedCertificate } from '@tmanage/domain/zatca-sign';
 import type { Principal } from '@tmanage/domain';
 import type {
   ClientCreditNoteRow,
   ClientInvoiceLineRow,
   ClientInvoiceRow,
   OrgFinanceProfileRow,
+  OrgSecretRow,
 } from '../../common/database/schema.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
 import { ClientInvoicesController } from './client-invoices.controller.js';
 import type { ClientInvoicesRepository } from './client-invoices.repository.js';
 import { ClientInvoicesService, renderPrint } from './client-invoices.service.js';
+import type { ClientInvoicesServiceOptions } from './client-invoices.service.js';
+import { EinvoiceSigningService, SigningFailure } from './einvoice-signing.service.js';
+import type { OrgSecretsRepository } from './org-secrets.repository.js';
 import { GENESIS_PIH } from './einvoice-rules.js';
 import { defaultProfile } from './finance-rules.js';
 import type { FinanceProfileValues } from './finance-rules.js';
@@ -421,7 +428,11 @@ describe('52-28 tax-document labels', () => {
  * 52-12 (R21-d) UNIT-52-19: the hash chain over many invoices and credit notes through `send` /
  * `creditNote` with an in-memory repository, and the e-invoice read.
  */
-function chainWorld(regime: 'zatca' | 'eta' | 'pint_ae', count: number) {
+function chainWorld(
+  regime: 'zatca' | 'eta' | 'pint_ae',
+  count: number,
+  extra: Partial<ClientInvoicesServiceOptions> = {},
+) {
   const at = new Date('2026-11-02T09:00:00Z');
   const rows = new Map<string, ClientInvoiceRow>();
   const notes: ClientCreditNoteRow[] = [];
@@ -535,6 +546,7 @@ function chainWorld(regime: 'zatca' | 'eta' | 'pint_ae', count: number) {
     notifications: { insertForRecipient: vi.fn(async () => undefined) },
     audit: { record: vi.fn(async () => undefined) } as never,
     now: () => at,
+    ...extra,
   });
   return { service, rows, notes, ids: [...rows.keys()] };
 }
@@ -619,5 +631,115 @@ describe('52-12 e-invoice hash chain', () => {
       qr: null,
       hashMatches: null,
     });
+  });
+});
+
+/** 52-12 (R22-a) INT-52-24: a real signer over an in-memory `org_secrets` and a real FieldCipher. */
+function realSigner() {
+  const secrets: OrgSecretRow[] = [];
+  const signer = new EinvoiceSigningService({
+    database: {
+      transaction: async (_c: unknown, work: (r: unknown) => unknown) => work({}),
+      read: async (_c: unknown, work: (r: unknown) => unknown) => work({}),
+    } as never,
+    repository: {
+      findActive: async () => secrets.find((r) => r.status === 'active') ?? null,
+      insert: async (_r: unknown, row: OrgSecretRow) => {
+        secrets.push({ ...row });
+      },
+      markStatus: async (_r: unknown, _o: string, id: string, status: string) => {
+        secrets.find((r) => r.id === id)!.status = status;
+      },
+      findByFingerprint: async (_r: unknown, _o: string, _k: string, fp: string) =>
+        secrets.find((r) => r.metaJson.includes(fp)) ?? null,
+    } as unknown as OrgSecretsRepository,
+    audit: { record: vi.fn(async () => undefined) } as never,
+    cipher: createFieldCipher(
+      loadFieldCipherKeyring({ FIELD_CIPHER_KEYS: `1:${randomBytes(32).toString('base64')}` }),
+    ),
+    sessionSecret: 'secret',
+    now: () => new Date('2026-11-02T09:00:00Z'),
+  });
+  const key = generateKeyPairSync('ec', { namedCurve: 'secp256k1' })
+    .privateKey.export({ type: 'pkcs8', format: 'pem' })
+    .toString();
+  const certificatePem = selfSignedCertificate({
+    privateKeyPem: key,
+    issuerCn: 'TManage Test CA',
+    subjectCn: 'Studio',
+    notBefore: new Date('2026-01-01T00:00:00Z'),
+    notAfter: new Date('2027-01-01T00:00:00Z'),
+  });
+  return { signer, secrets, body: { certificatePem, privateKeyPem: key } };
+}
+
+describe('52-12 Phase-2 signing at send (R22-a)', () => {
+  it('INT-52-24: a zatca org with a certificate sends signed; nine QR tags, tag 6 = the stored hash; the credit note is signed too', async () => {
+    const { signer, body } = realSigner();
+    const reauthToken = (await import('../identity/reauth-token.js')).signReauthToken(
+      { userId: 'u1', sessionId: 's1', expiresAt: new Date('2026-11-02T09:01:00Z') },
+      'secret',
+    );
+    await signer.replace(context, owner, body, { reauthToken, sessionId: 's1' });
+    const w = chainWorld('zatca', 1, { signing: signer });
+    const id = w.ids[0]!;
+    await w.service.send(context, owner, id, {}, { orgSlug: 'studio' }, false);
+    const row = w.rows.get(id)!;
+    expect(row.zatcaStatus).toBe('signed');
+    expect(row.zatcaCertFingerprint).toMatch(/^[0-9a-f]{64}$/u);
+    const view = await w.service.einvoice(context, owner, id);
+    expect(view).toMatchObject({ status: 'signed', signatureValid: true, hashMatches: true });
+    const tags = decodeTlv(view.qr!);
+    expect(tags.map((t) => t.tag)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(tags[5]!.value).toBe(row.zatcaXmlHash);
+    expect(tags[6]!.value).toBe(row.zatcaSignature);
+    await w.service.creditNote(context, owner, id, { reason: 'Refund', full: true });
+    expect(w.notes[0]!.zatcaStatus).toBe('signed');
+    row.zatcaSignature = `${row.zatcaSignature!.slice(0, 20)}${'A'.repeat(row.zatcaSignature!.length - 20)}`;
+    expect((await w.service.einvoice(context, owner, id)).signatureValid).toBe(false);
+  });
+
+  it('a sign failure leaves the send ready and audited; the third in 24 h raises the event', async () => {
+    const append = vi.fn(async () => 'e1');
+    let failures = 0;
+    const record = vi.fn(async () => {
+      failures += 1;
+    });
+    const w = chainWorld('zatca', 3, {
+      signing: {
+        signDocument: async () => {
+          throw new SigningFailure('certificate_expired');
+        },
+        certificateFor: async () => null,
+      },
+      signingStore: {
+        signFailuresSince: async () =>
+          record.mock.calls.filter((c) => JSON.stringify(c).includes('client_invoice.sign_failed'))
+            .length,
+      },
+      outbox: { append },
+      audit: { record } as never,
+    });
+    for (const id of w.ids) {
+      await w.service.send(context, owner, id, {}, { orgSlug: 'studio' }, false);
+      expect(w.rows.get(id)).toMatchObject({ state: 'sent', zatcaStatus: 'ready' });
+    }
+    expect(failures).toBeGreaterThan(0);
+    expect(JSON.stringify(record.mock.calls)).toContain('certificate_expired');
+    expect(append).toHaveBeenCalledTimes(1);
+    expect(append.mock.calls[0]).toMatchObject([
+      {},
+      context,
+      { type: 'finance.einvoice_sign_failed.v1', payload: { failuresIn24h: 3 } },
+    ]);
+  });
+
+  it('without a certificate (none or revoked) a send is ready with five QR tags', async () => {
+    const { signer } = realSigner();
+    const w = chainWorld('zatca', 1, { signing: signer });
+    await w.service.send(context, owner, w.ids[0]!, {}, { orgSlug: 'studio' }, false);
+    const view = await w.service.einvoice(context, owner, w.ids[0]!);
+    expect(view).toMatchObject({ status: 'ready', signature: null, signatureValid: null });
+    expect(decodeTlv(view.qr!)).toHaveLength(5);
   });
 });

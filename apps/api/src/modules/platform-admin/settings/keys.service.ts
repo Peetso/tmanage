@@ -19,6 +19,7 @@ export const ROTATABLE_PURPOSES: readonly FieldCipherPurpose[] = [
   'storage_token',
   'calendar_token',
   'reporter_email',
+  'org_secret',
 ];
 
 /** Quarterly schedule (56-02 runbook): next rotation due three months after the last one. */

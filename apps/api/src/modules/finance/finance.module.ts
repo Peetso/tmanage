@@ -6,6 +6,7 @@ import type { ApiConfig } from '../../common/http/api-config.js';
 import type { Mailer } from '@tmanage/mail';
 import type { AuditService } from '../audit/audit.service.js';
 import { NotificationsRepository } from '../inbox/notifications.repository.js';
+import { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { DocumentSequenceService } from './document-sequences.js';
 import { EXPENSES_SERVICE, ExpensesController } from './expenses.controller.js';
 import { ExpensesRepository } from './expenses.repository.js';
@@ -27,6 +28,13 @@ import { ClientInvoicesService } from './client-invoices.service.js';
 import { FINANCE_EXPORTS_SERVICE, FinanceExportsController } from './finance-exports.controller.js';
 import { FinanceExportsRepository } from './finance-exports.repository.js';
 import { FinanceExportsService } from './finance-exports.service.js';
+import { EinvoiceSigningService } from './einvoice-signing.service.js';
+import {
+  EINVOICE_SIGNING_SERVICE,
+  EinvoicingCertificateController,
+} from './einvoicing-certificate.controller.js';
+import { OrgSecretsRepository } from './org-secrets.repository.js';
+import { EinvoiceChainController } from './einvoice-chain.controller.js';
 
 /** The gapless numbering service, for the money items that issue documents (52-09, credit notes). */
 export const DOCUMENT_SEQUENCES = Symbol.for('tmanage.DocumentSequenceService');
@@ -83,22 +91,39 @@ export class FinanceModule {
           audit,
         }),
     };
+    // R22-a · 52-12 the ZATCA signing certificate (org_secrets) and the one decrypting signer.
+    const signing: Provider = {
+      provide: EINVOICE_SIGNING_SERVICE,
+      inject: [TENANT_DATABASE, AUDIT_SERVICE, { token: API_CONFIG, optional: true }],
+      useFactory: (database: TenantDatabase, audit: AuditService, config: ApiConfig | undefined) =>
+        new EinvoiceSigningService({
+          database,
+          repository: new OrgSecretsRepository(),
+          audit,
+          ...(config?.sessionSecret === undefined ? {} : { sessionSecret: config.sessionSecret }),
+        }),
+    };
     // 52-09 client invoices (R18-a); the portal projection's controller sits beside the service.
     const clientInvoices: Provider = {
       provide: CLIENT_INVOICES_SERVICE,
       inject: [
         TENANT_DATABASE,
         AUDIT_SERVICE,
+        EINVOICE_SIGNING_SERVICE,
         { token: MAILER, optional: true },
         { token: API_CONFIG, optional: true },
       ],
       useFactory: (
         database: TenantDatabase,
         audit: AuditService,
+        signer: EinvoiceSigningService,
         mailer: Mailer | null | undefined,
         config: ApiConfig | undefined,
       ) =>
         new ClientInvoicesService({
+          signing: signer,
+          signingStore: new OrgSecretsRepository(),
+          outbox: new OutboxEventsRepository(),
           database,
           repository: new ClientInvoicesRepository(),
           finance: repository,
@@ -124,7 +149,16 @@ export class FinanceModule {
     };
     return {
       module: FinanceModule,
-      providers: [service, sequences, rates, expenses, retainers, clientInvoices, financeExports],
+      providers: [
+        service,
+        sequences,
+        rates,
+        expenses,
+        retainers,
+        signing,
+        clientInvoices,
+        financeExports,
+      ],
       controllers: [
         FinanceController,
         RatesController,
@@ -134,6 +168,10 @@ export class FinanceModule {
         ClientInvoicesController,
         PortalInvoicesController,
         FinanceExportsController,
+        // R22-a · 52-12 the ZATCA signing certificate.
+        EinvoicingCertificateController,
+        // R22-b · 52-12 the e-invoice chain verdict (worker-written, read-only here).
+        EinvoiceChainController,
       ],
       exports: [DOCUMENT_SEQUENCES],
     };

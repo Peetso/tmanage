@@ -5859,6 +5859,51 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'confirm',
     scope: 'write',
   },
+  // ---- R22-d · 54-12a clean inbound attachment bytes (preview, download) and the ask-resend reply ----
+  // The bytes of a third party's file are confirm/manage like `files.content.list`; the ask-resend
+  // e-mails a third party, so it is confirm-class.
+  {
+    id: 'inbound_email.attachment.preview.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/inbound-email/attachments/:id/preview',
+    capability: 'client_request.triage',
+    risk: 'confirm',
+    scope: 'manage',
+  },
+  {
+    id: 'inbound_email.attachment.download.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/inbound-email/attachments/:id/download',
+    capability: 'file.download',
+    risk: 'confirm',
+    scope: 'manage',
+  },
+  {
+    id: 'inbound_email.ask_resend.create',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/inbound-email/:id/ask-resend',
+    capability: 'client_request.triage',
+    risk: 'confirm',
+    scope: 'write',
+  },
+  // ---- R22-b · 52-12 e-invoice chain verdict (read: status, counter, counts; no hash, no amount) ----
+  {
+    id: 'finance.einvoicing.chain.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/finance/einvoicing/chain',
+    capability: 'finance.view',
+    risk: 'read',
+    scope: 'read',
+  },
+  // ---- R22-a · 52-12 ZATCA signing certificate (status only: never a key; PUT/DELETE are NEVER) ----
+  {
+    id: 'finance.einvoicing.certificate.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/finance/einvoicing/certificate',
+    capability: 'finance.manage',
+    risk: 'read',
+    scope: 'read',
+  },
 ];
 
 /** Index of ops by their stable id. */

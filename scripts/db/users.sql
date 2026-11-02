@@ -2288,3 +2288,29 @@ GRANT DELETE ON `tmanage`.`person_allocations`                              TO '
 GRANT SELECT, INSERT, UPDATE ON `tmanage`.`inbound_email_addresses`         TO 'tmanage_app'@'%';
 GRANT SELECT, INSERT, UPDATE ON `tmanage`.`inbound_emails`                  TO 'tmanage_app'@'%';
 GRANT SELECT, INSERT, UPDATE ON `tmanage`.`inbound_email_attachments`       TO 'tmanage_app'@'%';
+
+-- ---- R22-b · 52-12 e-invoice chain reconciler ----
+-- 0314 `einvoice_chain_checks` (tenant): the worker's nightly verdict of each `zatca` organization's
+-- ICV/PIH chain. The app reads the latest verdict for `GET …/finance/einvoicing/chain` (SELECT). The
+-- worker records one verdict per organization per night (SELECT, INSERT) and prunes verdicts older
+-- than 90 days (DELETE); no UPDATE — a verdict is never rewritten. To walk the chain the worker
+-- reads five columns of `client_invoices` and `client_credit_notes` (id, organization_id, zatca_icv,
+-- zatca_pih, zatca_xml_hash) — SELECT on both, new for the worker — and `org_finance_profiles`
+-- (einvoice_regime), already held (0260 / 52-14 blocks). A break is written to `security_signals`
+-- under the existing 56-23 SELECT/INSERT/UPDATE grant.
+GRANT SELECT ON `tmanage`.`einvoice_chain_checks`                           TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT, DELETE ON `tmanage`.`einvoice_chain_checks`           TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`client_invoices`                                 TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`client_credit_notes`                             TO 'tmanage_worker'@'%';
+
+-- ---- R22-a · 52-12 org secrets (ZATCA signing certificate) ----
+-- 0313 `org_secrets` (tenant): an organization's FieldCipher-encrypted secrets (purpose `org_secret`,
+-- owner = row id). The app stores and replaces the ZATCA certificate + key behind
+-- org.security.manage + step-up, and the finance signing service reads the active row at send
+-- (SELECT, INSERT, UPDATE). DELETE is withheld: a replaced certificate is kept `rotated` (an old
+-- invoice's QR rebuilds from it) and a removed one is `revoked`. The worker re-encrypts envelopes
+-- under the newest key for the 56-02 key-rotation job only (SELECT, UPDATE). 0313 also adds
+-- `zatca_signature` / `zatca_cert_fingerprint` to `client_invoices` and `client_credit_notes`,
+-- written by the send / credit-note UPDATE and INSERT the app already holds.
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`org_secrets`                     TO 'tmanage_app'@'%';
+GRANT SELECT, UPDATE ON `tmanage`.`org_secrets`                             TO 'tmanage_worker'@'%';

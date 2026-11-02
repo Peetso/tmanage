@@ -35,6 +35,8 @@ export const ROTATION_TARGETS = {
     column: 'reporter_email_enc',
     ownerColumn: 'id',
   },
+  /** 52-12 (R22-a): the writer is `einvoicing-certificate.controller.ts` (purpose `org_secret`, owner = row id). */
+  org_secret: { table: 'org_secrets', column: 'ciphertext', ownerColumn: 'id' },
 } as const;
 export type RotationPurpose = keyof typeof ROTATION_TARGETS;
 export type RotationTarget = (typeof ROTATION_TARGETS)[RotationPurpose];

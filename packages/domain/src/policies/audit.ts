@@ -1559,6 +1559,43 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'inbound_email',
     clause: '§12 54-12a — a held inbound e-mail was trusted by a person',
   },
+  // ---- R22-d · 54-12a inbound attachment scan, download, ask-resend ----
+  /** The scan pass cleared an inbound attachment; it now lives in the private zone. Metadata: scanner, size. */
+  'inbound_email.attachment_clean': {
+    objectType: 'inbound_email_attachment',
+    clause: '§12 54-12a — an inbound e-mail attachment passed the malware scan',
+  },
+  /** The scan pass found malware; the bytes were removed. Metadata: scanner, size. Never the detection name. */
+  'inbound_email.attachment_blocked': {
+    objectType: 'inbound_email_attachment',
+    clause: '§12 54-12a — an inbound e-mail attachment was blocked as a threat',
+  },
+  /** A member downloaded a clean inbound attachment (`file.download`). Metadata: source, size. */
+  'inbound_email.attachment_downloaded': {
+    objectType: 'inbound_email_attachment',
+    clause: '§12 54-12a — a clean inbound e-mail attachment was downloaded (file.download)',
+  },
+  /** A member asked the sender to re-send blocked attachments. Metadata: attachment count. */
+  'inbound_email.ask_resend': {
+    objectType: 'inbound_email',
+    clause: '§12 54-12a — the sender was asked to re-send attachments in an allowed format',
+  },
+  // ---- R22-a · 52-12 ZATCA signing certificate ----
+  /** The ZATCA certificate was stored or replaced. Metadata: fingerprint, sandbox — never the PEM. */
+  'org_secret.certificate_replaced': {
+    objectType: 'org_secret',
+    clause: '§12 52-12 — the organization’s ZATCA signing certificate was stored or replaced',
+  },
+  /** The ZATCA certificate was revoked; new documents go out unsigned. Metadata: fingerprint. */
+  'org_secret.certificate_revoked': {
+    objectType: 'org_secret',
+    clause: '§12 52-12 — the organization’s ZATCA signing certificate was revoked',
+  },
+  /** Signing a sent invoice or credit note failed; it went out `ready`. Metadata: error code. */
+  'client_invoice.sign_failed': {
+    objectType: 'client_invoice',
+    clause: '§12 52-12 — an issued document could not be signed and was left unsigned',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1835,6 +1872,13 @@ const AUDIT_ACTION_LABELS = {
   'inbound_email_address.created': 'Created the inbound request address',
   'inbound_email_address.rotated': 'Rotated the inbound request address',
   'inbound_email.trusted': 'Trusted a held inbound e-mail',
+  'inbound_email.attachment_clean': 'An inbound e-mail attachment passed the virus scan',
+  'inbound_email.attachment_blocked': 'Blocked an inbound e-mail attachment as a threat',
+  'inbound_email.attachment_downloaded': 'Downloaded an inbound e-mail attachment',
+  'inbound_email.ask_resend': 'Asked an e-mail sender to re-send attachments',
+  'org_secret.certificate_replaced': 'Stored the ZATCA signing certificate',
+  'org_secret.certificate_revoked': 'Revoked the ZATCA signing certificate',
+  'client_invoice.sign_failed': 'Could not sign an issued invoice',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

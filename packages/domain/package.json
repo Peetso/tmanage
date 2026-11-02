@@ -16,6 +16,10 @@
     "./field-cipher": {
       "types": "./dist/security/field-cipher.d.ts",
       "default": "./dist/security/field-cipher.js"
+    },
+    "./zatca-sign": {
+      "types": "./dist/finance/zatca/sign.d.ts",
+      "default": "./dist/finance/zatca/sign.js"
     }
   },
   "main": "./dist/index.js",

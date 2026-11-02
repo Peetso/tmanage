@@ -1275,6 +1275,14 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   inbound_email_addresses: 'organization_id',
   inbound_emails: 'organization_id',
   inbound_email_attachments: 'organization_id',
+  // ---- R22-b · 52-12 ----
+  // 0314. The worker's nightly e-invoice chain verdicts; members read the latest through their
+  // own context (finance.view). Written and pruned by the worker only.
+  einvoice_chain_checks: 'organization_id',
+  // ---- R22-a · 52-12 ----
+  // 0313. An organization's envelope-encrypted secrets (the ZATCA signing certificate). Written
+  // behind org.security.manage + step-up; decrypted only by the finance signing service.
+  org_secrets: 'organization_id',
 });
 
 /**

@@ -44,6 +44,8 @@ export const FIELD_CIPHER_PURPOSES = [
   'integration_token',
   'zatca_key',
   'reporter_email',
+  // 52-12 (R22-a): `org_secrets.ciphertext`, the ZATCA signing certificate + key (owner = row id).
+  'org_secret',
 ] as const;
 export type FieldCipherPurpose = (typeof FIELD_CIPHER_PURPOSES)[number];
 

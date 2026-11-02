@@ -273,6 +273,16 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'project_milestone',
     catalog: '§4 milestone published — client portal timeline',
   },
+  /** 54-12a (R22-d): the inbound scan pass blocked an attachment as a threat — 56-23 reads it later. */
+  'inbound_email.attachment_blocked.v1': {
+    aggregateType: 'inbound_email_attachment',
+    catalog: '54-12a attachment blocked_threat — security signal (56-23); no consumer yet',
+  },
+  /** 52-12 (R22-a): the third signing failure of an organization in 24 h — owner alert; no consumer yet. */
+  'finance.einvoice_sign_failed.v1': {
+    aggregateType: 'client_invoice',
+    catalog: '52-12 e-invoice signing failing — finance owner alert',
+  },
 } as const satisfies Record<string, OutboxEventDefinition>;
 
 export type OutboxEventType = keyof typeof OUTBOX_EVENT_CATALOG;
@@ -719,6 +729,23 @@ export interface OutboxEventPayloads {
   readonly 'file.preview_ready.v1': FilePreviewUsageV1;
   readonly 'file.preview_removed.v1': FilePreviewUsageV1;
   readonly 'milestone.published.v1': MilestonePublishedV1;
+  readonly 'inbound_email.attachment_blocked.v1': InboundAttachmentBlockedV1;
+  readonly 'finance.einvoice_sign_failed.v1': EinvoiceSignFailedV1;
+}
+
+/** 52-12 (R22-a). Ids, the error code and the 24-hour count — never certificate or key text. */
+export interface EinvoiceSignFailedV1 {
+  readonly documentId: string;
+  readonly documentKind: 'invoice' | 'credit_note';
+  readonly code: string;
+  readonly failuresIn24h: number;
+}
+
+/** 54-12a (R22-d). Ids and the scanner token only — never the detection name or a file name. */
+export interface InboundAttachmentBlockedV1 {
+  readonly attachmentId: string;
+  readonly inboundEmailId: string;
+  readonly scanner: string;
 }
 
 /** 53-07 (R19-c). Ids only — the client copy is read from `milestone_client_projections`. */

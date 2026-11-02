@@ -34,7 +34,8 @@ export function zatcaTimestamp(at: Date): string {
   return `${at.toISOString().slice(0, 19)}Z`;
 }
 
-function field(tag: number, value: Uint8Array): number[] {
+/** One TLV field: tag byte, length byte, value (≤ 255 bytes). Shared with the Phase-2 QR. */
+export function tlvField(tag: number, value: Uint8Array): number[] {
   if (value.length > MAX_VALUE) throw new RangeError(`tag ${tag} is longer than 255 bytes`);
   return [tag, value.length, ...value];
 }
@@ -47,11 +48,11 @@ export function phase1Qr(input: Phase1QrInput): string {
     if (!AMOUNT.test(amount)) throw new RangeError(`${name} must be a decimal with two places`);
   }
   const bytes = [
-    ...field(1, cutUtf8(utf8(input.sellerName.trim()), MAX_VALUE)),
-    ...field(2, utf8(input.vatNumber)),
-    ...field(3, utf8(zatcaTimestamp(input.timestamp))),
-    ...field(4, utf8(input.totalWithVat)),
-    ...field(5, utf8(input.vatAmount)),
+    ...tlvField(1, cutUtf8(utf8(input.sellerName.trim()), MAX_VALUE)),
+    ...tlvField(2, utf8(input.vatNumber)),
+    ...tlvField(3, utf8(zatcaTimestamp(input.timestamp))),
+    ...tlvField(4, utf8(input.totalWithVat)),
+    ...tlvField(5, utf8(input.vatAmount)),
   ];
   return toBase64(Uint8Array.from(bytes));
 }
