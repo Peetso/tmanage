@@ -15841,5 +15841,12 @@
   "AuditActionLabel.webhook.replayed": "أعاد إرسال الأحداث إلى الويب هوك",
   "AuditActionLabel.personal_access_token.created": "أنشأ رمز وصول للواجهة البرمجية",
   "AuditActionLabel.personal_access_token.revoked": "ألغى رمز وصول للواجهة البرمجية",
-  "AuditActionLabel.oauth_grant.revoked": "فصل تطبيق ذكاء اصطناعي"
+  "AuditActionLabel.oauth_grant.revoked": "فصل تطبيق ذكاء اصطناعي",
+  "AuditActionLabel.rate_card.created": "أنشأ بطاقة أسعار",
+  "AuditActionLabel.rate_card.updated": "عدّل بطاقة أسعار",
+  "AuditActionLabel.rate_card.entry_added": "أضاف سعرًا",
+  "AuditActionLabel.rate_card.entry_removed": "أزال سعرًا",
+  "AuditActionLabel.cost_rate.changed": "عدّل معدل تكلفة شخص",
+  "AuditActionLabel.rates.repriced": "أعاد تسعير الوقت غير المفوتر",
+  "AuditActionLabel.work_item.billable_changed": "غيّر ما إذا كان بند العمل قابلًا للفوترة"
 }

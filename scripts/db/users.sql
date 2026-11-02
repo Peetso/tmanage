@@ -2063,3 +2063,16 @@ GRANT INSERT, UPDATE ON `tmanage`.`webhook_deliveries`             TO 'tmanage_w
 -- column of a locked entry fixed). The worker reads neither.
 GRANT SELECT, INSERT, UPDATE ON `tmanage`.`time_period_locks`    TO 'tmanage_app'@'%';
 GRANT UPDATE ON `tmanage`.`work_item_time_logs`                   TO 'tmanage_app'@'%';
+
+-- ---- R15-a · 52-04 rates ----
+-- 0287 `rate_cards` / `rate_card_entries` / `member_cost_rates` (tenant): finance managers create,
+-- edit, archive and delete cards, entries and cost rates; members' time entries read them to take
+-- a price snapshot. The worker reads the two card tables (later budget/invoice jobs) and never
+-- `member_cost_rates` (a salary proxy). Re-pricing unbilled entries updates the snapshot columns of
+-- `work_item_time_logs`, so its UPDATE is stated here too (the same grant R15-b states for locks).
+GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`rate_cards`        TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`rate_card_entries` TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`member_cost_rates` TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`work_item_time_logs`                   TO 'tmanage_app'@'%';
+GRANT SELECT ON `tmanage`.`rate_cards`                             TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`rate_card_entries`                      TO 'tmanage_worker'@'%';

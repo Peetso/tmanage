@@ -1593,6 +1593,62 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/time/locks/:lockId/unlock-request',
     reason: 'finance_settings',
   },
+  // ---- R15-a · 52-04 rates (cost rates are salary proxies; re-price rewrites snapshots) ----
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/finance/rate-cards',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/finance/rate-cards',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/finance/rate-cards/assign',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/finance/rate-cards/:rateCardId',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/finance/rate-cards/:rateCardId/entries',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/finance/rate-cards/:rateCardId/entries',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/finance/rate-cards/:rateCardId/entries/:entryId',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/finance/rates/resolve',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/finance/rates/reprice',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/finance/cost-rates/:membershipId',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/finance/cost-rates/:membershipId',
+    reason: 'finance_settings',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

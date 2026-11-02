@@ -15841,5 +15841,12 @@
   "AuditActionLabel.webhook.replayed": "Replayed events to a webhook",
   "AuditActionLabel.personal_access_token.created": "Created an API token",
   "AuditActionLabel.personal_access_token.revoked": "Revoked an API token",
-  "AuditActionLabel.oauth_grant.revoked": "Disconnected an AI app"
+  "AuditActionLabel.oauth_grant.revoked": "Disconnected an AI app",
+  "AuditActionLabel.rate_card.created": "Created a rate card",
+  "AuditActionLabel.rate_card.updated": "Changed a rate card",
+  "AuditActionLabel.rate_card.entry_added": "Added a rate",
+  "AuditActionLabel.rate_card.entry_removed": "Removed a rate",
+  "AuditActionLabel.cost_rate.changed": "Changed a person's cost rate",
+  "AuditActionLabel.rates.repriced": "Re-priced unbilled time",
+  "AuditActionLabel.work_item.billable_changed": "Changed whether a work item is billable"
 }

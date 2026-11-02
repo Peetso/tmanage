@@ -8,6 +8,7 @@ import { ProjectClientsRepository } from '../clients/project-clients.repository.
 import { ProjectMembershipsRepository } from '../projects/project-memberships.repository.js';
 import { ObjectiveWorkLinksRepository } from '../projects/objective-work-links.repository.js';
 import { WorkItemFilesRepository } from './item-files.repository.js';
+import { RatesRepository } from '../finance/rates.repository.js';
 import {
   effectivePageSize,
   MAX_PAGE_SIZE,
@@ -134,6 +135,11 @@ export function toWorkItemView(row: WorkItemRow, correlationId: string): WorkIte
 }
 
 const toView = toWorkItemView;
+
+/** 52-04: the work item's billable flag (`null` = inherit the project), read and written here. */
+const billing = new RatesRepository();
+const billableLabel = (value: boolean | null): string =>
+  value === null ? 'inherit' : value ? 'billable' : 'non_billable';
 
 // ── WORK-003's views ──────────────────────────────────────────────────────────
 
@@ -521,8 +527,11 @@ export class WorkItemsService {
     principal: Principal,
     workItemId: string,
     expectedVersion: number,
-    requested: UpdateWorkItemInput,
-  ): Promise<WorkItemView> {
+    requested: UpdateWorkItemInput & {
+      /** 52-04: `true` / `false`, or `null` to inherit the project's `billable_default`. */
+      readonly billable?: boolean | null;
+    },
+  ): Promise<WorkItemView & { readonly billable?: boolean | null }> {
     const before = await this.readForWrite(context, principal, workItemId, 'work.update');
     if (requested.ownerUserId) await this.requireOwnerIsMember(context, requested.ownerUserId);
     const input = await this.resolveMove(context, principal, before, requested);
@@ -593,6 +602,30 @@ export class WorkItemsService {
           });
         }
 
+        // 52-04: billable (or inherit) — `work.update`, audited, so a member hiding their own
+        // hours as non-billable leaves a trail.
+        if (requested.billable !== undefined) {
+          const was = await billing.workItemBillable(tx, context.organizationId, updated.id);
+          await billing.setWorkItemBillable(
+            tx,
+            context.organizationId,
+            updated.id,
+            requested.billable,
+          );
+          if (was !== requested.billable) {
+            await this.audit?.record(tx, context, {
+              action: 'work_item.billable_changed',
+              objectId: updated.id,
+              result: 'allowed',
+              metadata: {
+                project_id: updated.projectId,
+                billable_before: billableLabel(was),
+                billable_after: billableLabel(requested.billable),
+              },
+            });
+          }
+        }
+
         // CQ-12 (APR-03): "client action needed" is a request to the client; the worker emails
         // the client people who can act on it. Only on the move into that audience.
         if (
@@ -610,7 +643,8 @@ export class WorkItemsService {
       }),
     );
 
-    return toView(row, context.correlationId);
+    const view = toView(row, context.correlationId);
+    return requested.billable === undefined ? view : { ...view, billable: requested.billable };
   }
 
   /**

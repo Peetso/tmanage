@@ -122,7 +122,10 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // public/webhook-events), was 1126.
 // R13 slice 3 (56-09): +2 NEVER (GET/DELETE security/tokens), was 1132.
 // R13 slice 4 (53-02): +8 NEVER (org and project working-calendar, holidays, import-pack), was 1134.
-const EXPECTED_ROUTE_COUNT = 1142;
+// R15-b (52-03): +4 NEVER (time period locks list/create/delete/unlock-request), was 1142.
+// R15-a (52-04): +11 NEVER (`finance_settings`: rate cards, entries, resolve, reprice, cost
+// rates), was 1146.
+const EXPECTED_ROUTE_COUNT = 1157;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

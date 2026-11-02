@@ -60,7 +60,7 @@ export interface AddTimeLogInput {
    */
   readonly startedAt?: Date | null;
   readonly endedAt?: Date | null;
-  /** 52-01. Default true. */
+  /** 52-01. Absent = the work item's `billable`, else the project's `billable_default` (52-04). */
   readonly billable?: boolean;
 }
 
@@ -111,7 +111,9 @@ export class WorkTimeLogsService {
         note: input.note,
         startedAt: input.startedAt ?? null,
         endedAt: input.endedAt ?? null,
-        billable: input.billable ?? true,
+        // 52-04: absent = the work item's flag, else the project's default (repository).
+        ...(input.billable === undefined ? {} : { billable: input.billable }),
+        // The repository fills rate_snapshot_minor / cost_snapshot_minor from the rate cards.
         source: 'manual',
       });
       if (this.audit) {

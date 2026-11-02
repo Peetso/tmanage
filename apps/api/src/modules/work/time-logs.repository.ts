@@ -1,9 +1,11 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { workItemTimeLogs } from '../../common/database/schema.js';
+import { timeLogPricing, workItemTimeLogs } from '../../common/database/schema.js';
 import type { WorkItemTimeLogRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+import { RatesRepository } from '../finance/rates.repository.js';
+import { priceTimeLog } from '../finance/rates.service.js';
 
 /**
  * Work item time logs — x231's storage half (Work module 7).
@@ -29,12 +31,16 @@ export interface CreateTimeLogInput {
   readonly projectId?: string | null;
   readonly startedAt?: Date | null;
   readonly endedAt?: Date | null;
+  /** Absent = 52-04 default: the work item's `billable`, else the project's `billable_default`. */
   readonly billable?: boolean;
   readonly source?: 'manual' | 'timer';
   readonly needsReview?: boolean;
 }
 
 export class WorkTimeLogsRepository {
+  /** 52-04 (0287). Reads the rate cards and cost rates for the snapshot taken at log time. */
+  constructor(private readonly rates: RatesRepository = new RatesRepository()) {}
+
   /** One time-log entry, scoped to the tenant and its parent work item; `null` if absent. */
   async findEntry(
     runner: TenantQueryRunner,
@@ -102,6 +108,18 @@ export class WorkTimeLogsRepository {
     input: CreateTimeLogInput,
   ): Promise<WorkItemTimeLogRow> {
     const id = uuidv7();
+    // 52-04: price the hour now — sell rate (resolveRate) and the member's cost rate on `spent_on`.
+    // A missing rate stays NULL, never 0; changing a rate later never rewrites this row.
+    const pricing = await priceTimeLog(runner, context.organizationId, this.rates, {
+      projectId: input.projectId ?? null,
+      membershipId: input.loggedBy,
+      spentOn: input.spentOn,
+    });
+    const itemBillable =
+      input.billable === undefined && input.workItemId !== null
+        ? await this.rates.workItemBillable(runner, context.organizationId, input.workItemId)
+        : null;
+    const billable = input.billable ?? itemBillable ?? pricing.billableDefault;
 
     await tenantDrizzle(runner)
       .insert(workItemTimeLogs)
@@ -115,12 +133,24 @@ export class WorkTimeLogsRepository {
         spentOn: input.spentOn,
         startedAt: input.startedAt ?? null,
         endedAt: input.endedAt ?? null,
-        billable: input.billable ?? true,
+        billable,
         source: input.source ?? 'manual',
         needsReview: input.needsReview ?? false,
         note: input.note,
         createdAt: sql`current_timestamp(3)`,
       });
+    if (pricing.rateSnapshotMinor !== null || pricing.costSnapshotMinor !== null) {
+      await tenantDrizzle(runner)
+        .update(timeLogPricing)
+        .set({
+          rateSnapshotMinor: pricing.rateSnapshotMinor,
+          costSnapshotMinor: pricing.costSnapshotMinor,
+          snapshotCurrency: pricing.snapshotCurrency,
+        })
+        .where(
+          and(eq(timeLogPricing.organizationId, context.organizationId), eq(timeLogPricing.id, id)),
+        );
+    }
 
     const created = await this.findById(runner, context, id);
     if (!created) {

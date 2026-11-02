@@ -7,6 +7,9 @@ import { DocumentSequenceService } from './document-sequences.js';
 import { FINANCE_SERVICE, FinanceController } from './finance.controller.js';
 import { FinanceRepository } from './finance.repository.js';
 import { FinanceService } from './finance.service.js';
+import { RATES_SERVICE, RatesController } from './rates.controller.js';
+import { RatesRepository } from './rates.repository.js';
+import { RatesService } from './rates.service.js';
 
 /** The gapless numbering service, for the money items that issue documents (52-09, credit notes). */
 export const DOCUMENT_SEQUENCES = Symbol.for('tmanage.DocumentSequenceService');
@@ -30,10 +33,17 @@ export class FinanceModule {
       provide: DOCUMENT_SEQUENCES,
       useFactory: () => new DocumentSequenceService(repository),
     };
+    // 52-04 rate cards, cost rates, resolver, re-price (R15-a).
+    const rates: Provider = {
+      provide: RATES_SERVICE,
+      inject: [TENANT_DATABASE, AUDIT_SERVICE],
+      useFactory: (database: TenantDatabase, audit: AuditService) =>
+        new RatesService({ database, repository: new RatesRepository(), audit }),
+    };
     return {
       module: FinanceModule,
-      providers: [service, sequences],
-      controllers: [FinanceController],
+      providers: [service, sequences, rates],
+      controllers: [FinanceController, RatesController],
       exports: [DOCUMENT_SEQUENCES],
     };
   }

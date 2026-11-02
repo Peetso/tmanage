@@ -108,6 +108,11 @@ export const FORBIDDEN_CLIENT_FIELDS: readonly string[] = [
   'objectKey',
   'providerUploadId',
   'otherClientIdentities',
+  // 52-04 (R15-a): sell and cost rates reach a client only as an invoice line's unit price.
+  'hourlyCostMinor',
+  'costSnapshotMinor',
+  'rateSnapshotMinor',
+  'hourlyMinor',
 ];
 
 const FORBIDDEN_SET: ReadonlySet<string> = new Set(FORBIDDEN_CLIENT_FIELDS);

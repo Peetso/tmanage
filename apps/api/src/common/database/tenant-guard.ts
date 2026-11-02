@@ -1178,6 +1178,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0288. Tenant-owned: the closed time periods of one organization. Reached by finance through
   // their own context only; the worker never reads it.
   time_period_locks: 'organization_id',
+  // ---- R15-a · 52-04 ----
+  // 0287. Tenant-owned: rate cards, their entries and member cost rates. Reached by members
+  // through their own context (finance.view / finance.manage); the worker reads the two card
+  // tables only, never `member_cost_rates`.
+  rate_cards: 'organization_id',
+  rate_card_entries: 'organization_id',
+  member_cost_rates: 'organization_id',
 });
 
 /**

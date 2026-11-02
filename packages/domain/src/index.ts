@@ -395,3 +395,6 @@ export {
 export type { WorkingCalendar } from './calendar/working-calendar.js';
 export { HOLIDAY_PACKS, HOLIDAY_PACK_KEYS, holidayPack } from './calendar/holiday-packs.js';
 export type { HolidayPack, HolidayPackDay } from './calendar/holiday-packs.js';
+
+// Rates — 52-04 (R15-a)
+export * from './money/rates.js';

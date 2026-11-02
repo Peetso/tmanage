@@ -11594,3 +11594,133 @@ export type TimePeriodLockRow = typeof timePeriodLocks.$inferSelect;
 Object.assign(TABLES, {
   time_period_locks: timePeriodLocks,
 });
+
+// ---- R15-a · 52-04 rates ----
+
+/**
+ * 52-04 (0287). A rate card: one currency at one scope — `org` (`scope_id` NULL), `client` (a
+ * client organization id) or `project` (a project id). Tenant-owned; `scope_id` is resolved
+ * tenant-scoped by `modules/finance/rates.service.ts` before insert.
+ */
+export const rateCards = mysqlTable(
+  'rate_cards',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    scope: varchar('scope', { length: 16 }).notNull(),
+    scopeId: char('scope_id', { length: 36 }),
+    name: varchar('name', { length: 120 }).notNull(),
+    currency: char('currency', { length: 3 }).notNull(),
+    archivedAt: datetime('archived_at', { mode: 'date', fsp: 3 }),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_rate_cards_org_id').on(table.organizationId, table.id),
+    index('ix_rate_cards_scope').on(
+      table.organizationId,
+      table.scope,
+      table.scopeId,
+      table.archivedAt,
+    ),
+  ],
+);
+
+/** 52-04 (0287). One hourly sell rate of a card over `[effective_from, effective_to)`. */
+export const rateCardEntries = mysqlTable(
+  'rate_card_entries',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    rateCardId: char('rate_card_id', { length: 36 }).notNull(),
+    targetType: varchar('target_type', { length: 16 }).notNull(),
+    targetKey: varchar('target_key', { length: 64 }),
+    hourlyMinor: bigint('hourly_minor', { mode: 'number' }).notNull(),
+    effectiveFrom: date('effective_from', { mode: 'string' }).notNull(),
+    effectiveTo: date('effective_to', { mode: 'string' }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_rate_card_entries_org_id').on(table.organizationId, table.id),
+    index('ix_rate_card_entries_target').on(
+      table.organizationId,
+      table.rateCardId,
+      table.targetType,
+      table.targetKey,
+      table.effectiveFrom,
+    ),
+  ],
+);
+
+/**
+ * 52-04 (0287). A member's internal hourly cost (a salary proxy). Behind `finance.manage` only,
+ * never in a list projection, redacted in audit changes; the worker holds no grant on it.
+ */
+export const memberCostRates = mysqlTable(
+  'member_cost_rates',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    hourlyCostMinor: bigint('hourly_cost_minor', { mode: 'number' }).notNull(),
+    currency: char('currency', { length: 3 }).notNull(),
+    effectiveFrom: date('effective_from', { mode: 'string' }).notNull(),
+    effectiveTo: date('effective_to', { mode: 'string' }),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_member_cost_rates_org_id').on(table.organizationId, table.id),
+    index('ix_member_cost_rates_member').on(
+      table.organizationId,
+      table.membershipId,
+      table.effectiveFrom,
+    ),
+  ],
+);
+
+export type RateCardRow = typeof rateCards.$inferSelect;
+export type RateCardEntryRow = typeof rateCardEntries.$inferSelect;
+export type MemberCostRateRow = typeof memberCostRates.$inferSelect;
+
+/**
+ * 52-04 (0287) column views over existing tables. The 0287 columns of `projects`, `work_items` and
+ * `work_item_time_logs` are read and written through these narrow mirrors (same SQL table, only
+ * the columns the rates code touches) so `ProjectRow` / `WorkItemRow` / `WorkItemTimeLogRow` and
+ * the many fixtures built from them keep their shape. Not in `TABLES`: the full definitions above
+ * are the registered ones.
+ */
+export const projectRateSettings = mysqlTable('projects', {
+  id: char('id', { length: 36 }).primaryKey(),
+  organizationId: char('organization_id', { length: 36 }).notNull(),
+  billableDefault: boolean('billable_default').notNull().default(true),
+  rateCardId: char('rate_card_id', { length: 36 }),
+});
+
+export const workItemBilling = mysqlTable('work_items', {
+  id: char('id', { length: 36 }).primaryKey(),
+  organizationId: char('organization_id', { length: 36 }).notNull(),
+  projectId: char('project_id', { length: 36 }).notNull(),
+  billable: boolean('billable'),
+});
+
+export const timeLogPricing = mysqlTable('work_item_time_logs', {
+  id: char('id', { length: 36 }).primaryKey(),
+  organizationId: char('organization_id', { length: 36 }).notNull(),
+  projectId: char('project_id', { length: 36 }),
+  loggedBy: char('logged_by', { length: 36 }).notNull(),
+  spentOn: date('spent_on', { mode: 'string' }).notNull(),
+  billable: boolean('billable').notNull().default(true),
+  lockedAt: datetime('locked_at', { mode: 'date', fsp: 3 }),
+  rateSnapshotMinor: bigint('rate_snapshot_minor', { mode: 'number' }),
+  costSnapshotMinor: bigint('cost_snapshot_minor', { mode: 'number' }),
+  snapshotCurrency: char('snapshot_currency', { length: 3 }),
+  invoiceLineId: char('invoice_line_id', { length: 36 }),
+});
+
+Object.assign(TABLES, {
+  rate_cards: rateCards,
+  rate_card_entries: rateCardEntries,
+  member_cost_rates: memberCostRates,
+});

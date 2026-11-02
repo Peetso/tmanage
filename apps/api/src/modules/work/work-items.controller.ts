@@ -71,6 +71,8 @@ interface UpdateWorkItemBody {
   readonly audience?: unknown;
   readonly startAt?: unknown;
   readonly dueAt?: unknown;
+  /** 52-04: `true` / `false`, or `null` to inherit the project's default. */
+  readonly billable?: unknown;
 }
 
 interface TransitionBody {
@@ -205,7 +207,7 @@ export class WorkItemsController {
     @CurrentPrincipal() principal: Principal,
     @Param('workItemId') workItemId: string,
     @Body() body: UpdateWorkItemBody,
-  ): Promise<WorkItemView> {
+  ): Promise<WorkItemView & { readonly billable?: boolean | null }> {
     const details: { field: string; message: string }[] = [];
     const version = requiredVersion(body?.version, details);
 
@@ -223,11 +225,17 @@ export class WorkItemsController {
           ? body.ownerUserId
           : undefined;
 
+    const billable = body?.billable;
+    if (billable !== undefined && billable !== null && typeof billable !== 'boolean') {
+      details.push({ field: 'billable', message: 'must be true, false or null' });
+    }
+
     if (details.length > 0 || version === undefined) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
     }
 
     return this.workItems.update(context, principal, workItemId, version, {
+      ...(billable === undefined ? {} : { billable: billable as boolean | null }),
       ...(title === undefined ? {} : { title }),
       ...(type === undefined ? {} : { type }),
       ...(description === undefined ? {} : { description }),

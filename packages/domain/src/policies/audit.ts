@@ -1151,6 +1151,37 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'time_period_lock',
     clause: '§12 52-03 — a member asked finance to reopen a locked time period',
   },
+  // ---- R15-a · 52-04 rates ----
+  'rate_card.created': {
+    objectType: 'rate_card',
+    clause: '§12 52-04 — a rate card was created',
+  },
+  'rate_card.updated': {
+    objectType: 'rate_card',
+    clause: '§12 52-04 — a rate card was renamed, archived or assigned to a project',
+  },
+  'rate_card.entry_added': {
+    objectType: 'rate_card',
+    clause: '§12 52-04 — a rate was added to a rate card',
+  },
+  'rate_card.entry_removed': {
+    objectType: 'rate_card',
+    clause: '§12 52-04 — a rate was removed from a rate card',
+  },
+  /** A member's internal cost rate changed. The amount is redacted in the changes, never stored. */
+  'cost_rate.changed': {
+    objectType: 'membership',
+    clause: '§12 52-04 — a member cost rate (salary proxy) was changed',
+  },
+  /** Unbilled, unlocked time entries were re-priced; metadata carries the count only. */
+  'rates.repriced': {
+    objectType: 'organization',
+    clause: '§12 52-04 — unbilled time entries were re-priced',
+  },
+  'work_item.billable_changed': {
+    objectType: 'work_item',
+    clause: '§12 52-04 — whether a work item is billable was changed',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1348,6 +1379,13 @@ const AUDIT_ACTION_LABELS = {
   'time_period.locked': 'Locked a time period',
   'time_period.unlocked': 'Reopened a locked time period',
   'time_period.unlock_requested': 'Asked to reopen a locked time period',
+  'rate_card.created': 'Created a rate card',
+  'rate_card.updated': 'Changed a rate card',
+  'rate_card.entry_added': 'Added a rate',
+  'rate_card.entry_removed': 'Removed a rate',
+  'cost_rate.changed': "Changed a person's cost rate",
+  'rates.repriced': 'Re-priced unbilled time',
+  'work_item.billable_changed': 'Changed whether a work item is billable',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */
