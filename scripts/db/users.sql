@@ -2182,3 +2182,10 @@ GRANT SELECT ON `tmanage`.`retainer_projects`                       TO 'tmanage_
 GRANT SELECT ON `tmanage`.`work_item_time_logs`                     TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`work_items`                              TO 'tmanage_worker'@'%';
 GRANT SELECT, INSERT, UPDATE ON `tmanage`.`retainer_periods`        TO 'tmanage_worker'@'%';
+
+-- ---- R17-b · 53-06 critical path, float and schedule health ----
+-- 0297 `work_item_schedule_stats` (tenant): the API's recompute replaces a project's rows in one
+-- transaction (DELETE, then INSERT) and the critical-path, timeline and health reads list them
+-- (SELECT). UPDATE is stated so a later partial refresh needs no new grant. The recompute runs in
+-- the API process (debounced), so the worker holds nothing on it.
+GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`work_item_schedule_stats` TO 'tmanage_app'@'%';

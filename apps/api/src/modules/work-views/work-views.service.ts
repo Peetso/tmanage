@@ -51,6 +51,13 @@ export interface WorkTimelineItem {
   readonly dueAt: string | null;
   /** The ids of the predecessors this caller may read; a redacted edge is absent, not named. */
   readonly predecessorIds: readonly string[];
+  /**
+   * 53-06. Total float in working days from the last critical-path recompute; `null` when the item
+   * has no stats row. Absent for a client principal (the client allowlist path strips it).
+   */
+  readonly floatDays?: number | null;
+  /** 53-06. On the critical path at the last recompute; `false` without a row. Absent for clients. */
+  readonly critical?: boolean;
 }
 
 /**
@@ -375,6 +382,13 @@ export class WorkViewsService {
         ...(principal.kind === 'client' ? { audiences: CLIENT_AUDIENCES } : {}),
       }),
     );
+    // 53-06: float and critical from the stored stats — never for a client principal.
+    const schedule =
+      principal.kind === 'client'
+        ? null
+        : await this.database.read(context, (runner) =>
+            this.timeline.listScheduleStats(runner, context, projectId),
+          );
 
     const items: WorkTimelineItem[] = [];
     for (const { item, predecessors } of rows) {
@@ -397,6 +411,12 @@ export class WorkViewsService {
         startAt: item.startAt ? item.startAt.toISOString() : null,
         dueAt: item.dueAt ? item.dueAt.toISOString() : null,
         predecessorIds,
+        ...(schedule === null
+          ? {}
+          : {
+              floatDays: schedule.get(item.id)?.floatDays ?? null,
+              critical: schedule.get(item.id)?.critical ?? false,
+            }),
       });
     }
 

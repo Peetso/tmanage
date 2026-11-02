@@ -5,6 +5,7 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import type { ProjectRow } from '../../common/database/schema.js';
 import { ProjectsRepository } from './projects.repository.js';
 import { ProjectHealthRepository } from './health.repository.js';
+import type { ProjectScheduleDriverRow, ProjectScheduleSignalRow } from './health.repository.js';
 
 /**
  * The application service for PROJ / module 8 (x208) — the computed project-health roll-up.
@@ -76,7 +77,28 @@ export interface ProjectHealthView {
   /** `neutral` when the project has no health signals at all; otherwise the banded score. */
   readonly band: ProjectHealthBand;
   readonly signals: ProjectHealthSignals;
+  /**
+   * 53-06. The stored critical-path summary, or `null` when the project has never been recomputed.
+   * Informational: the score and the band do not use it. Optional so the existing web shape stays
+   * an exact pair until the health card shows it.
+   */
+  readonly schedule?: ProjectScheduleHealth | null;
 }
+
+/** 53-06. A project's schedule block on the health view. */
+export interface ProjectScheduleHealth {
+  readonly criticalEndDate: string | null;
+  readonly criticalCount: number;
+  /** Baseline slip in working days — `null` until 53-05's baselines are wired in (R18). */
+  readonly slipDays: null;
+  /** Up to three critical items (latest early finish first) the caller may read. */
+  readonly drivers: readonly { readonly id: string; readonly title: string }[];
+  /** Of those top three, how many the caller may not read — counted, never named. */
+  readonly hiddenDrivers: number;
+}
+
+/** 53-06. How many critical items the health card names per project. */
+export const SCHEDULE_DRIVERS_PER_PROJECT = 3;
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -113,7 +135,7 @@ export class ProjectHealthService {
     );
     const visible = rows.filter((row) => this.mayRead(principal, row));
 
-    return this.computeFor(context, visible);
+    return this.computeFor(context, visible, principal);
   }
 
   /**
@@ -133,7 +155,7 @@ export class ProjectHealthService {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'project_not_visible');
     }
 
-    const [view] = await this.computeFor(context, [row]);
+    const [view] = await this.computeFor(context, [row], principal);
     // `computeFor` returns exactly one view per input row, so this is always defined.
     return view!;
   }
@@ -142,16 +164,30 @@ export class ProjectHealthService {
   private async computeFor(
     context: TenantContext,
     projects: readonly ProjectRow[],
+    principal: Principal,
   ): Promise<readonly ProjectHealthView[]> {
     const projectIds = projects.map((row) => row.id);
     const today = toCalendarDay(this.now());
 
-    const [milestones, risks, objectives] = await this.database.read(context, async (runner) => {
-      const m = await this.health.milestoneSignals(runner, context, projectIds, today);
-      const r = await this.health.riskSignals(runner, context, projectIds);
-      const o = await this.health.objectiveSignals(runner, context, projectIds);
-      return [m, r, o] as const;
-    });
+    const [milestones, risks, objectives, schedules, drivers] = await this.database.read(
+      context,
+      async (runner) => {
+        const m = await this.health.milestoneSignals(runner, context, projectIds, today);
+        const r = await this.health.riskSignals(runner, context, projectIds);
+        const o = await this.health.objectiveSignals(runner, context, projectIds);
+        // 53-06: one grouped read for the list, plus the critical items to name the drivers.
+        const s = await this.health.scheduleSignals(runner, context, projectIds);
+        const d = await this.health.scheduleDrivers(runner, context, projectIds);
+        return [m, r, o, s, d] as const;
+      },
+    );
+    const scheduleByProject = new Map(schedules.map((row) => [row.projectId, row]));
+    const driversByProject = new Map<string, ProjectScheduleDriverRow[]>();
+    for (const row of drivers) {
+      const list = driversByProject.get(row.projectId) ?? [];
+      if (list.length < SCHEDULE_DRIVERS_PER_PROJECT) list.push(row);
+      driversByProject.set(row.projectId, list);
+    }
 
     const milestonesByProject = new Map(milestones.map((row) => [row.projectId, row]));
     const risksByProject = new Map(risks.map((row) => [row.projectId, row]));
@@ -180,8 +216,42 @@ export class ProjectHealthService {
         score,
         band: bandFor(signals, score),
         signals,
+        schedule: this.scheduleOf(
+          principal,
+          scheduleByProject.get(project.id),
+          driversByProject.get(project.id),
+        ),
       };
     });
+  }
+
+  /** 53-06: the schedule block; drivers the caller cannot read are counted, never named. */
+  private scheduleOf(
+    principal: Principal,
+    signal: ProjectScheduleSignalRow | undefined,
+    top: readonly ProjectScheduleDriverRow[] = [],
+  ): ProjectScheduleHealth | null {
+    if (!signal || principal.kind === 'client') return null;
+    const readable = top.filter(
+      (row) =>
+        authorize({
+          principal,
+          capability: 'work.read',
+          resource: {
+            organizationId: row.organizationId,
+            projectId: row.projectId,
+            audience: row.audience,
+            lifecycle: row.state === 'archived' ? 'archived' : 'active',
+          },
+        }).allowed,
+    );
+    return {
+      criticalEndDate: signal.criticalEndDate,
+      criticalCount: signal.criticalCount,
+      slipDays: null, // R18 wires 53-05's baselines in; this slice does not read them.
+      drivers: readable.map((row) => ({ id: row.workItemId, title: row.title })),
+      hiddenDrivers: top.length - readable.length,
+    };
   }
 
   /** The relation gate: `work.read` against the project row, exactly as `ProjectsService`. */

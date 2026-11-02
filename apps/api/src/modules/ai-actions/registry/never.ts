@@ -1947,6 +1947,19 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/portal/retainers/:retainerId',
     reason: 'finance_settings',
   },
+  // ---- R17-b · 53-06 critical path ---- withheld under the reason the 53-04 cascade routes use
+  // until reviewed `schedule.*` ops exist: the read recomputes a stale project synchronously and
+  // the POST rewrites the project's stats.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/schedule/critical-path',
+    reason: 'policy_definitions',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/schedule/recompute',
+    reason: 'policy_definitions',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

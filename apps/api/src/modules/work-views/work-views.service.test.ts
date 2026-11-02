@@ -74,12 +74,16 @@ function member(projectIds: readonly string[]): Principal {
 }
 
 /** A service whose repository returns exactly `rows`, unscoped, so `mayRead` must drop the foreign one. */
-function serviceWith(rows: readonly TimelineItemRow[]): WorkViewsService {
+function serviceWith(
+  rows: readonly TimelineItemRow[],
+  stats: ReadonlyMap<string, { floatDays: number | null; critical: boolean }> = new Map(),
+): WorkViewsService {
   const database = {
     read: async (_context: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
   } as unknown as TenantDatabase;
   const timeline = {
     listProjectTimeline: async () => rows,
+    listScheduleStats: async () => stats,
   } as unknown as WorkTimelineRepository;
   return new WorkViewsService(database, timeline);
 }
@@ -187,6 +191,24 @@ describe('WorkViewsService.projectTimeline', () => {
     const view = await service.projectTimeline(context, member([PROJECT]), PROJECT);
 
     expect(view).toEqual({ projectId: PROJECT, items: [] });
+  });
+
+  it('53-06: carries float and critical from the stats, null / false without a row', async () => {
+    const [a, b] = [
+      item({ id: 'work-a', startAt: DAY_ONE }),
+      item({ id: 'work-b', startAt: DAY_TWO }),
+    ];
+    const stats = new Map([[a.id, { floatDays: 0, critical: true }]]);
+    const rows = [a, b].map((row) => ({ item: row, predecessors: [] }));
+    const view = await serviceWith(rows, stats).projectTimeline(
+      context,
+      member([PROJECT]),
+      PROJECT,
+    );
+    expect(view.items.map((r) => [r.floatDays, r.critical])).toEqual([
+      [0, true],
+      [null, false],
+    ]);
   });
 });
 

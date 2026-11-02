@@ -24,6 +24,7 @@ import type { AuditService } from '../audit/audit.service.js';
 import { WorkingCalendarRepository } from '../working-calendar/working-calendar.repository.js';
 import { WorkItemsRepository, WorkItemVersionConflictError } from './work-items.repository.js';
 import { WorkGraphRepository } from './work-graph.repository.js';
+import { requestScheduleRecompute } from './schedule-stats.service.js';
 
 /**
  * 53-04 — editing a typed edge in place, and the schedule cascade (preview, then apply).
@@ -131,6 +132,7 @@ export class ScheduleCascadeService {
           lag_after: lag,
         },
       });
+      requestScheduleRecompute(context, item.projectId); // 53-06
       return {
         id: after.id,
         workItemId: after.workItemId,
@@ -207,6 +209,10 @@ export class ScheduleCascadeService {
             },
           });
         }
+        requestScheduleRecompute(
+          context,
+          ...[plan.root, ...plan.moves.map((m) => m.row)].map((r) => r.projectId),
+        ); // 53-06
         return view;
       });
     } catch (error) {

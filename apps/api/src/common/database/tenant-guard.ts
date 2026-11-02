@@ -1233,6 +1233,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   retainers: 'organization_id',
   retainer_projects: 'organization_id',
   retainer_periods: 'organization_id',
+  // ---- R17-b · 53-06 ----
+  // 0297. Tenant-owned: a project's critical-path answer per work item, replaced whole by each
+  // recompute. Reached by members through their own context (work.read reads; the debounced
+  // recompute writes under the requester's context); the worker never reads it.
+  work_item_schedule_stats: 'organization_id',
 });
 
 /**

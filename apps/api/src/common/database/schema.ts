@@ -12370,3 +12370,42 @@ Object.assign(TABLES, {
   retainer_projects: retainerProjects,
   retainer_periods: retainerPeriods,
 });
+
+// ---- R17-b · 53-06 critical path, float and schedule health ----
+
+/**
+ * 53-06 (0297). One project's critical-path answer per scheduled work item, replaced whole by each
+ * recompute under one `batchId`. Dates are company-calendar civil dates (`YYYY-MM-DD`). No id: the
+ * primary key leads with the tenant column. No foreign key to `work_items` (a deleted item has no
+ * row in the next batch); the project is bound by the composite key.
+ */
+export const workItemScheduleStats = mysqlTable(
+  'work_item_schedule_stats',
+  {
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    earlyStart: date('early_start', { mode: 'string' }),
+    earlyFinish: date('early_finish', { mode: 'string' }),
+    lateStart: date('late_start', { mode: 'string' }),
+    lateFinish: date('late_finish', { mode: 'string' }),
+    totalFloatDays: smallint('total_float_days'),
+    isCritical: boolean('is_critical').notNull().default(false),
+    batchId: char('batch_id', { length: 36 }).notNull(),
+    computedAt: datetime('computed_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.workItemId] }),
+    index('ix_work_item_schedule_stats_project').on(
+      table.organizationId,
+      table.projectId,
+      table.isCritical,
+    ),
+  ],
+);
+
+export type WorkItemScheduleStatsRow = typeof workItemScheduleStats.$inferSelect;
+
+Object.assign(TABLES, {
+  work_item_schedule_stats: workItemScheduleStats,
+});

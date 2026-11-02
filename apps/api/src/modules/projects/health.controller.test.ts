@@ -114,6 +114,20 @@ function build(
       riskSeed.filter((row) => ids.includes(row.projectId)),
     objectiveSignals: async (_r: unknown, _c: TenantContext, ids: readonly string[]) =>
       objectiveSeed.filter((row) => ids.includes(row.projectId)),
+    scheduleSignals: async (_r: unknown, _c: TenantContext, ids: readonly string[]) =>
+      ids.includes(GREEN)
+        ? [{ projectId: GREEN, criticalEndDate: '2026-06-30', criticalCount: 2 }]
+        : [],
+    // Two critical items on GREEN; the second reads as another tenant's, so it is never named.
+    scheduleDrivers: async () =>
+      [ORG, OTHER_ORG].map((organizationId, i) => ({
+        organizationId,
+        projectId: GREEN,
+        workItemId: `w${i}`,
+        title: `T${i}`,
+        audience: 'internal',
+        state: 'todo',
+      })),
   } as unknown as ProjectHealthRepository;
 
   const service = new ProjectHealthService(database, projects, health, NOW);
@@ -183,6 +197,19 @@ describe('ProjectHealth single read', () => {
     const view = await single.get(context, owner, GREEN);
     expect(view.projectId).toBe(GREEN);
     expect(view.band).toBe('green');
+  });
+
+  it('53-06: adds the schedule block, naming only readable drivers and counting the rest', async () => {
+    const { single } = build([project(GREEN, ORG), project(RED, ORG)]);
+    const view = await single.get(context, owner, GREEN);
+    expect(view.schedule).toEqual({
+      criticalEndDate: '2026-06-30',
+      criticalCount: 2,
+      slipDays: null,
+      drivers: [{ id: 'w0', title: 'T0' }],
+      hiddenDrivers: 1,
+    });
+    expect((await single.get(context, owner, RED)).schedule).toBeNull();
   });
 
   it('maps an unrelated same-tenant project to 404, not 403', async () => {

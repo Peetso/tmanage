@@ -1376,6 +1376,12 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'retainer',
     clause: '§12 52-06 — a retainer period closed and its usage was frozen',
   },
+  // ---- R17-b · 53-06 critical path ----
+  /** A manager recomputed a project's critical path on demand. Metadata: project, batch, items. */
+  'schedule.recomputed': {
+    objectType: 'project',
+    clause: '§12 53-06 — a project’s critical path and float were recomputed on demand',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1619,6 +1625,7 @@ const AUDIT_ACTION_LABELS = {
   'retainer.resumed': 'Resumed a retainer',
   'retainer.ended': 'Ended a retainer',
   'retainer.period_closed': 'Closed a retainer period',
+  'schedule.recomputed': "Recomputed the project's critical path",
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

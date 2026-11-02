@@ -37,6 +37,7 @@ import {
 import type { PredecessorHealthRow } from './work-graph.repository.js';
 import type { TypedDependencyInput } from './work-graph.repository.js';
 import { findCycle } from '@tmanage/domain';
+import { requestScheduleRecompute } from './schedule-stats.service.js';
 
 /**
  * WORK-001's application service — spec §3 steps 5 to 7 for the work aggregate.
@@ -648,6 +649,9 @@ export class WorkItemsService {
       }),
     );
 
+    if (requested.startAt !== undefined || requested.dueAt !== undefined || moving) {
+      requestScheduleRecompute(context, row.projectId, before.projectId); // 53-06
+    }
     const view = toView(row, context.correlationId);
     return requested.billable === undefined ? view : { ...view, billable: requested.billable };
   }
@@ -884,6 +888,7 @@ export class WorkItemsService {
         });
         return added;
       });
+      requestScheduleRecompute(context, dependent.projectId); // 53-06
       return {
         id: row.id,
         workItemId: row.workItemId,
@@ -936,7 +941,7 @@ export class WorkItemsService {
     workItemId: string,
     dependencyId: string,
   ): Promise<void> {
-    await this.readForWrite(context, principal, workItemId, 'work.update');
+    const dependent = await this.readForWrite(context, principal, workItemId, 'work.update');
 
     await this.database.transaction(context, async (tx) => {
       const removed = await this.graph.removeDependency(tx, context, workItemId, dependencyId);
@@ -953,6 +958,7 @@ export class WorkItemsService {
         },
       });
     });
+    requestScheduleRecompute(context, dependent.projectId); // 53-06
   }
 
   /** The item's blocker ledger, oldest first — US-B04's history, raised and resolved. */

@@ -414,3 +414,6 @@ export * from './schedule/dependencies.js';
 
 // Profitability and utilisation — 52-14 (R17-a)
 export * from './money/profitability.js';
+
+// Critical path, float and schedule health — 53-06 (R17-b)
+export * from './schedule/critical-path.js';

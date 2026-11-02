@@ -3895,3 +3895,15 @@ type _scoreboardTimerRow = Assert<ScoreboardTimerRowPair>;
 type _publicFormField = Assert<PublicFormFieldPair>;
 type _publicFormDefinition = Assert<PublicFormDefinitionPair>;
 type _publicFormState = Assert<PublicFormStatePair>;
+
+// ---- R17-b · 53-06 critical path ----
+// The timeline item gains two optional fields and the health view an optional `schedule` block;
+// optional, so `_workTimeline` and `_projectHealth` above stay Exact until the web reads them. This
+// pins their API types so a change to either fails here.
+type TimelineScheduleFields = Pick<ApiWorkTimelineView['items'][number], 'floatDays' | 'critical'>;
+type _timelineScheduleFields = Assert<
+  Exact<TimelineScheduleFields, { readonly floatDays?: number | null; readonly critical?: boolean }>
+>;
+type _healthScheduleNullable = Assert<
+  [null] extends [NonNullable<ApiProjectHealthView['schedule']>['slipDays']] ? true : false
+>;

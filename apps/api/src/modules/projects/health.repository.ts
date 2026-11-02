@@ -1,9 +1,12 @@
-import { and, count, eq, inArray, isNotNull, lt, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
+import type { Audience } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
   projectMilestones,
   projectObjectives,
   projectRisks,
+  workItems,
+  workItemScheduleStats,
 } from '../../common/database/schema.js';
 import type { ProjectObjectiveStatus } from './project-objectives.repository.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
@@ -47,6 +50,24 @@ export interface ProjectObjectiveSignalRow {
   readonly projectId: string;
   readonly status: ProjectObjectiveStatus;
   readonly count: number;
+}
+
+/** 53-06. One project's stored critical-path summary (0297). */
+export interface ProjectScheduleSignalRow {
+  readonly projectId: string;
+  /** The latest early finish over the project's rows. */
+  readonly criticalEndDate: string | null;
+  readonly criticalCount: number;
+}
+
+/** 53-06. A critical item of a project, with what the service needs to authorize and name it. */
+export interface ProjectScheduleDriverRow {
+  readonly organizationId: string;
+  readonly projectId: string;
+  readonly workItemId: string;
+  readonly title: string;
+  readonly audience: Audience;
+  readonly state: string;
 }
 
 export class ProjectHealthRepository {
@@ -163,5 +184,85 @@ export class ProjectHealthRepository {
       status: row.status as ProjectObjectiveStatus,
       count: Number(row.count),
     }));
+  }
+
+  /**
+   * 53-06. Per-project critical-path summary from `work_item_schedule_stats`, one grouped pass over
+   * the given projects within the acting tenant. A project with no rows (never recomputed) is
+   * absent; the service reads an absence as "no schedule".
+   */
+  async scheduleSignals(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectIds: readonly string[],
+  ): Promise<readonly ProjectScheduleSignalRow[]> {
+    if (projectIds.length === 0) return [];
+    const rows = await tenantDrizzle(runner)
+      .select({
+        projectId: workItemScheduleStats.projectId,
+        criticalEndDate: sql<string | null>`max(${workItemScheduleStats.earlyFinish})`,
+        criticalCount:
+          sql<number>`sum(case when ${workItemScheduleStats.isCritical} = 1 then 1 else 0 end)`.mapWith(
+            Number,
+          ),
+      })
+      .from(workItemScheduleStats)
+      .where(
+        and(
+          eq(workItemScheduleStats.organizationId, context.organizationId),
+          inArray(workItemScheduleStats.projectId, [...projectIds]),
+        ),
+      )
+      .groupBy(workItemScheduleStats.projectId);
+    return rows.map((row) => ({
+      projectId: row.projectId,
+      criticalEndDate:
+        row.criticalEndDate === null ? null : String(row.criticalEndDate).slice(0, 10),
+      criticalCount: Number(row.criticalCount ?? 0),
+    }));
+  }
+
+  /**
+   * 53-06. The critical items of the given projects joined to their live work items, latest early
+   * finish first per project. The service keeps the top three per project and names only those the
+   * caller may read.
+   */
+  async scheduleDrivers(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectIds: readonly string[],
+  ): Promise<readonly ProjectScheduleDriverRow[]> {
+    if (projectIds.length === 0) return [];
+    return tenantDrizzle(runner)
+      .select({
+        organizationId: workItems.organizationId,
+        projectId: workItems.projectId,
+        workItemId: workItems.id,
+        title: workItems.title,
+        audience: workItems.audience,
+        state: workItems.state,
+      })
+      .from(workItemScheduleStats)
+      .innerJoin(
+        workItems,
+        and(
+          eq(workItems.organizationId, workItemScheduleStats.organizationId),
+          eq(workItems.id, workItemScheduleStats.workItemId),
+        ),
+      )
+      .where(
+        and(
+          eq(workItemScheduleStats.organizationId, context.organizationId),
+          eq(workItems.organizationId, context.organizationId),
+          inArray(workItemScheduleStats.projectId, [...projectIds]),
+          eq(workItemScheduleStats.isCritical, true),
+          isNull(workItems.deletedAt),
+        ),
+      )
+      .orderBy(
+        asc(workItemScheduleStats.projectId),
+        desc(workItemScheduleStats.earlyFinish),
+        asc(workItemScheduleStats.workItemId),
+      );
   }
 }

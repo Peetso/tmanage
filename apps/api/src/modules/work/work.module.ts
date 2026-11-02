@@ -92,6 +92,12 @@ import {
   WORK_SCHEDULE_CASCADE_SERVICE,
 } from './schedule-cascade.controller.js';
 import { WorkKeysController } from './work-keys.controller.js';
+import { ScheduleStatsService, registerScheduleStats } from './schedule-stats.service.js';
+import { ScheduleStatsRepository } from './schedule-stats.repository.js';
+import {
+  ScheduleStatsController,
+  WORK_SCHEDULE_STATS_SERVICE,
+} from './schedule-stats.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -302,6 +308,19 @@ export class WorkModule {
         new ScheduleCascadeService(database, workItems, audit),
     };
 
+    // R17-b (53-06). The critical path per project: the recompute, its debounce (the running
+    // service is registered so the work-items and cascade services can request a run without a
+    // constructor change) and the critical-path read.
+    const scheduleStatsService: Provider = {
+      provide: WORK_SCHEDULE_STATS_SERVICE,
+      inject: [TENANT_DATABASE, AUDIT_SERVICE],
+      useFactory: (database: TenantDatabase, audit: AuditService) => {
+        const stats = new ScheduleStatsService(database, new ScheduleStatsRepository(), audit);
+        registerScheduleStats(stats);
+        return stats;
+      },
+    };
+
     return {
       module: WorkModule,
       providers: [
@@ -326,6 +345,7 @@ export class WorkModule {
         customFieldsService,
         boardColumnsService,
         scheduleCascadeService,
+        scheduleStatsService,
       ],
       exports: [service],
       controllers: [
@@ -351,6 +371,8 @@ export class WorkModule {
         ScheduleCascadeController,
         // R16-e (54-10 Phase 0): work-key prefix + code links. Stateless; resolves its own deps.
         WorkKeysController,
+        // R17-b (53-06): critical path read and recompute.
+        ScheduleStatsController,
       ],
     };
   }

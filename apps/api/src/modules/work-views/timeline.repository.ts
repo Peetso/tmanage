@@ -1,4 +1,7 @@
+import { and, eq } from 'drizzle-orm';
 import type { Audience } from '@tmanage/domain';
+import { tenantDrizzle } from '../../common/database/drizzle.js';
+import { workItemScheduleStats } from '../../common/database/schema.js';
 import { MAX_PAGE_SIZE, WorkItemsRepository } from '../work/work-items.repository.js';
 import { WorkGraphRepository } from '../work/work-graph.repository.js';
 import type { PredecessorHealthRow } from '../work/work-graph.repository.js';
@@ -79,5 +82,38 @@ export class WorkTimelineRepository {
       after = last.id;
     }
     return collected;
+  }
+
+  /**
+   * 53-06. The project's stored float and critical flag per work item (0297), keyed by item id.
+   * Empty when no recompute has run; the service then reports `floatDays: null, critical: false`.
+   */
+  async listScheduleStats(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+  ): Promise<ReadonlyMap<string, { floatDays: number | null; critical: boolean }>> {
+    const rows = await tenantDrizzle(runner)
+      .select({
+        workItemId: workItemScheduleStats.workItemId,
+        totalFloatDays: workItemScheduleStats.totalFloatDays,
+        isCritical: workItemScheduleStats.isCritical,
+      })
+      .from(workItemScheduleStats)
+      .where(
+        and(
+          eq(workItemScheduleStats.organizationId, context.organizationId),
+          eq(workItemScheduleStats.projectId, projectId),
+        ),
+      );
+    return new Map(
+      rows.map((row) => [
+        row.workItemId,
+        {
+          floatDays: row.totalFloatDays === null ? null : Number(row.totalFloatDays),
+          critical: Boolean(row.isCritical),
+        },
+      ]),
+    );
   }
 }

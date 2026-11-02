@@ -15861,5 +15861,6 @@
   "AuditActionLabel.retainer.ended": "أنهى عقد خدمة",
   "AuditActionLabel.retainer.period_closed": "أغلق فترة عقد خدمة",
   "AuditActionLabel.finance.report_exported": "صدّر تقرير الربحية",
-  "AuditActionLabel.finance.facts_rebuilt": "أعاد حساب أرقام التقارير المالية"
+  "AuditActionLabel.finance.facts_rebuilt": "أعاد حساب أرقام التقارير المالية",
+  "AuditActionLabel.schedule.recomputed": "أعاد حساب المسار الحرج للمشروع"
 }
