@@ -20,7 +20,7 @@ export interface InboxSnooze {
   readonly bundleId: string;
   readonly snoozedUntil: string;
   /** A21: true when the bundle was marked Done (a snooze that never ends). */
-  readonly done?: boolean;
+  readonly done: boolean;
   readonly createdAt: string;
 }
 

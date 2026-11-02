@@ -141,7 +141,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // R22 (einvoice certificate +3, chain status +1, inbound webhook +1, attachment preview/download/
 // ask-resend +3, Jira REST source +1): +9, was 1278.
 // R23 (import undo +1): +1, was 1287.
-const EXPECTED_ROUTE_COUNT = 1288;
+// R27 (A21 inbox mark done +1): +1, was 1288.
+const EXPECTED_ROUTE_COUNT = 1289;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

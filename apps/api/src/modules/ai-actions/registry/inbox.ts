@@ -115,6 +115,14 @@ export const inboxDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'Delete inbox snooze', args: { bundleId: 'bun_1' } }],
   }),
   det({
+    id: 'inbox.done.set',
+    title: 'Mark inbox bundle done',
+    description: 'Mark an inbox bundle done; it leaves the active inbox until un-snoozed.',
+    input: bodyArgs(['bundleId'], {}),
+    redact: 'standard',
+    examples: [{ summary: 'Mark an inbox bundle done', args: { bundleId: 'bun_1' } }],
+  }),
+  det({
     id: 'inbox.snooze.set',
     title: 'Set inbox snooze',
     description: 'Set inbox snooze.',

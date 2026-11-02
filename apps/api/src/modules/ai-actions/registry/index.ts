@@ -2338,6 +2338,14 @@ export const OPS: readonly AiActionOp[] = [
     scope: 'write',
   },
   {
+    id: 'inbox.done.set',
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/inbox/:bundleId/done',
+    capability: 'work.read',
+    risk: 'write',
+    scope: 'write',
+  },
+  {
     id: 'inbox.flagged.list',
     method: 'GET',
     path: '/v1/organizations/:orgSlug/inbox/flagged',
