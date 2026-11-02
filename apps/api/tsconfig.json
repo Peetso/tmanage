@@ -15,7 +15,7 @@
     // carries an explicit `@Inject(TOKEN)`.
     "experimentalDecorators": true
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.json"],
   "exclude": ["src/**/*.test.ts", "dist", "node_modules"],
   "references": [
     { "path": "../../packages/config" },
