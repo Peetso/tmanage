@@ -1411,6 +1411,8 @@ export class ClientInvoicesService {
         issuedAt: at,
         createdBy: context.userId,
         createdAt: at,
+        exportedAt: null,
+        exportTarget: null,
       };
       if ((await this.profile(tx, org)).einvoiceRegime === 'zatca') {
         // 52-12: a credit note is a link of the same chain (one counter with the invoices), its

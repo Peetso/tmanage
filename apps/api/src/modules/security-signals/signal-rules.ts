@@ -143,6 +143,15 @@ export const SIGNAL_RULES: readonly SignalRule[] = Object.freeze([
     'Support session from a new country',
     'جلسة دعم من بلد جديد',
   ),
+  // R23-d (52-12): written by the worker's nightly e-invoice chain reconciler. Its rows dedup by
+  // source_hash, so the count is nights-in-a-row and the default threshold 1 is right.
+  rule(
+    'einvoice_chain_break',
+    'high',
+    'organization',
+    'E-invoice chain break detected',
+    'اكتُشف انقطاع في سلسلة الفواتير الإلكترونية',
+  ),
 ]);
 
 const BY_KEY = new Map(SIGNAL_RULES.map((entry) => [entry.key, entry]));

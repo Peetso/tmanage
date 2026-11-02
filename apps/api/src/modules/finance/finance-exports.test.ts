@@ -80,7 +80,33 @@ function invoice(id: string, exportedAt: Date | null = null) {
   };
 }
 
-function world(options: { invoices?: ReturnType<typeof invoice>[]; failMark?: boolean } = {}) {
+function creditNote(id: string, exportedAt: Date | null = null) {
+  return {
+    ...{
+      id,
+      number: `CN-${id}`,
+      invoiceId: 'i1',
+      invoiceNumber: 'INV-i1',
+      issueDate: '2026-10-06',
+    },
+    ...{
+      currency: 'SAR',
+      reason: 'Refund',
+      subtotalMinor: 1_000,
+      taxMinor: 150,
+      totalMinor: 1_150,
+    },
+    ...{ customerId: 'c1', customerName: 'Acme', customerNameAr: null, exportedAt, lines: [] },
+  };
+}
+
+interface WorldOptions {
+  invoices?: ReturnType<typeof invoice>[];
+  creditNotes?: ReturnType<typeof creditNote>[];
+  failMark?: boolean;
+}
+
+function world(options: WorldOptions = {}) {
   const invoices = options.invoices ?? [invoice('i1')];
   const committed = { marked: [] as string[], exports: 0, audits: [] as unknown[] };
   const repository = {
@@ -110,7 +136,8 @@ function world(options: { invoices?: ReturnType<typeof invoice>[]; failMark?: bo
           ],
         ],
       ]),
-    creditNotes: async () => [],
+    creditNotes: async () => options.creditNotes ?? [],
+    markCreditNotesExported: vi.fn(async () => undefined),
     payments: async () => [],
     customers: async () => [
       {
@@ -220,6 +247,41 @@ describe('POST finance/exports (52-11)', () => {
     await expect(
       service.create(context, owner, { ...BODY, reexport: true }, stepUp),
     ).resolves.toMatchObject({ filename: expect.stringContaining('generic') });
+  });
+
+  it('R23-d: marks invoices and credit notes with the same at/target and counts both', async () => {
+    const notes = [creditNote('n1'), creditNote('n2')];
+    const { service, repository, committed } = world({ creditNotes: notes });
+    const body = { ...BODY, kinds: ['invoices', 'credit_notes'] };
+    const download = await service.create(context, owner, body, stepUp);
+    expect(download.zip.toString('utf8')).not.toMatch(/exportedAt|exported_at/u);
+    const invoiceMark = vi.mocked(repository.markInvoicesExported).mock.calls[0];
+    const noteMark = vi.mocked(repository.markCreditNotesExported).mock.calls[0];
+    expect(noteMark?.slice(1)).toEqual([ORG, ['n1', 'n2'], NOW, 'generic']);
+    expect(invoiceMark?.slice(3)).toEqual(noteMark?.slice(3));
+    expect(committed.audits[0]).toMatchObject({
+      metadata: { invoices_count: 1, credit_notes_count: 2, credit_notes_marked: 2 },
+    });
+  });
+
+  it('R23-d: exported credit notes are a 409 without reexport and marked again with it', async () => {
+    const at = new Date('2026-10-30T00:00:00Z');
+    const notes = [creditNote('n1', at), creditNote('n2', at)];
+    const { service, repository } = world({ creditNotes: notes });
+    const body = { ...BODY, kinds: ['credit_notes'] };
+    await expect(service.create(context, owner, body, stepUp)).rejects.toMatchObject({
+      status: 409,
+      message: 'already_exported',
+      details: [{ field: 'already_exported_credit_notes', message: '2' }],
+    });
+    expect(repository.insertExport).not.toHaveBeenCalled();
+    expect(repository.markCreditNotesExported).not.toHaveBeenCalled();
+    await service.create(context, owner, { ...body, reexport: true }, stepUp);
+    expect(repository.markCreditNotesExported).toHaveBeenCalledTimes(1);
+    const payments = { ...BODY, kinds: ['payments'] };
+    await service.create(context, owner, payments, stepUp);
+    expect(repository.markCreditNotesExported).toHaveBeenCalledTimes(1);
+    expect(repository.markInvoicesExported).not.toHaveBeenCalled();
   });
 
   it('413 export_too_large over 5,000 invoices', async () => {

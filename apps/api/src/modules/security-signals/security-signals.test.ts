@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import type { PlatformAdminActor } from '../platform-admin/platform-admin.guard.js';
-import { SecuritySignalsService } from './security-signals.service.js';
+import { SecuritySignalsService, toSignalView } from './security-signals.service.js';
+import { signalRule } from './signal-rules.js';
 import type * as Repo from './security-signals.repository.js';
 
 const ORG = '0190a000-0000-7000-8000-000000000001';
@@ -75,5 +76,15 @@ describe('security signals service', () => {
     const body = { enabled: true, threshold: { count: 3, windowMinutes: 30 } };
     const saved = await service.updateRule(actor, 'platform_step_up_failures', body, req);
     expect(saved).toMatchObject({ enabled: true });
+  });
+
+  it('labels the R22-b e-invoice chain break rule in EN and AR', async () => {
+    const chain = signalRule('einvoice_chain_break');
+    expect(chain).toMatchObject({ severity: 'high', scope: 'organization', status: 'active' });
+    expect(chain?.label.en).not.toBe('');
+    expect(chain?.label.ar).toMatch(/^[^A-Za-z]+$/u);
+    expect((await service.rules(req)).some((r) => r.key === 'einvoice_chain_break')).toBe(true);
+    const view = toSignalView({ ...row, ruleKey: 'einvoice_chain_break' });
+    expect(view.label.en).toBe(chain?.label.en);
   });
 });

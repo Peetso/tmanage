@@ -225,14 +225,6 @@ export class FinanceExportsService {
         ? await repo.invoices(tx, org, periodStart, periodEnd, FINANCE_EXPORT_MAX_INVOICES + 1)
         : [];
       if (invoiceRows.length > FINANCE_EXPORT_MAX_INVOICES) throw tooLarge('invoices');
-      if (wants('invoices') && !request.reexport) {
-        const already = invoiceRows.filter((row) => row.exportedAt !== null).length;
-        if (already > 0) {
-          throw new ApiError(409, 'conflict', 'already_exported', [
-            { field: 'already_exported', message: String(already) },
-          ]);
-        }
-      }
       const lines = wants('invoices')
         ? await repo.invoiceLines(
             tx,
@@ -247,7 +239,7 @@ export class FinanceExportsService {
           }))
         : [];
       const limit = FINANCE_EXPORT_MAX_ROWS + 1;
-      const creditNotes = wants('credit_notes')
+      const creditNoteRows = wants('credit_notes')
         ? await repo.creditNotes(
             tx,
             org,
@@ -262,7 +254,23 @@ export class FinanceExportsService {
       const expenses = wants('expenses')
         ? await repo.expenses(tx, org, periodStart, periodEnd, limit)
         : [];
-      if (creditNotes.length > FINANCE_EXPORT_MAX_ROWS) throw tooLarge('credit_notes');
+      if (creditNoteRows.length > FINANCE_EXPORT_MAX_ROWS) throw tooLarge('credit_notes');
+      if (!request.reexport) {
+        // R23-d: invoices and credit notes carry the same mark; one 409 may name both.
+        const details: { field: string; message: string }[] = [];
+        const marked = (rows: readonly { exportedAt: Date | null }[]): number =>
+          rows.filter((row) => row.exportedAt !== null).length;
+        const invoicesDone = wants('invoices') ? marked(invoiceRows) : 0;
+        const notesDone = marked(creditNoteRows);
+        if (invoicesDone > 0) {
+          details.push({ field: 'already_exported', message: String(invoicesDone) });
+        }
+        if (notesDone > 0) {
+          details.push({ field: 'already_exported_credit_notes', message: String(notesDone) });
+        }
+        if (details.length > 0) throw new ApiError(409, 'conflict', 'already_exported', details);
+      }
+      const creditNotes = creditNoteRows.map(({ exportedAt: _exportedAt, ...row }) => row);
       if (payments.length > FINANCE_EXPORT_MAX_ROWS) throw tooLarge('payments');
       if (expenses.length > FINANCE_EXPORT_MAX_ROWS) throw tooLarge('expenses');
       const customers = wants('customers')
@@ -320,6 +328,15 @@ export class FinanceExportsService {
           target,
         );
       }
+      if (creditNotes.length > 0) {
+        await repo.markCreditNotesExported(
+          tx,
+          org,
+          creditNotes.map((row) => row.id),
+          at,
+          target,
+        );
+      }
       await this.options.audit.record(tx, context, {
         action: 'finance.exported',
         result: 'allowed',
@@ -333,6 +350,7 @@ export class FinanceExportsService {
           kinds: kinds.join(':'),
           latin_only: request.latinOnly,
           reexport: request.reexport,
+          credit_notes_marked: creditNotes.length,
           ...Object.fromEntries(
             Object.entries(built.rowCounts).map(([kind, count]) => [`${kind}_count`, count]),
           ),

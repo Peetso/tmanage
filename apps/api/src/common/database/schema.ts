@@ -7279,6 +7279,10 @@ export const importJobs = mysqlTable(
     committedAt: datetime('committed_at', { mode: 'date', fsp: 3 }),
     committedCount: int('committed_count', { unsigned: true }),
     failedCount: int('failed_count', { unsigned: true }),
+    /** R23-e (0316, 54-24): the one-click undo, inside 7 days of the commit. NULL until undone. */
+    undoneAt: datetime('undone_at', { mode: 'date', fsp: 3 }),
+    undoneByUserId: char('undone_by_user_id', { length: 36 }),
+    undoneCount: int('undone_count', { unsigned: true }),
   },
   (table) => [
     uniqueIndex('uq_import_jobs_org_id').on(table.organizationId, table.id),
@@ -7309,6 +7313,11 @@ export const importRows = mysqlTable(
     /** The error that stopped a failed row, or NULL for a created row. */
     errorDetail: varchar('error_detail', { length: 500 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    /**
+     * R23-e (0316): the kind of `createdEntityId` — `project` | `work_item` | `document` |
+     * `phase` | `label`. NULL for a failed row and for rows written before 0316.
+     */
+    entityType: varchar('entity_type', { length: 16 }),
   },
   (table) => [
     uniqueIndex('uq_import_rows_org_id').on(table.organizationId, table.id),
@@ -12733,12 +12742,16 @@ export const clientCreditNotes = mysqlTable(
     issuedAt: datetime('issued_at', { mode: 'date', fsp: 3 }).notNull(),
     createdBy: char('created_by', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** 52-11 (0315): set by the accounting export, as on `client_invoices`. */
+    exportedAt: datetime('exported_at', { mode: 'date', fsp: 3 }),
+    exportTarget: varchar('export_target', { length: 24 }),
   },
   (table) => [
     uniqueIndex('uq_ccn_org_id').on(table.organizationId, table.id),
     uniqueIndex('uq_client_credit_notes_org_icv').on(table.organizationId, table.zatcaIcv),
     uniqueIndex('uq_ccn_number').on(table.organizationId, table.number),
     index('ix_ccn_invoice').on(table.organizationId, table.invoiceId),
+    index('ix_ccn_org_exported').on(table.organizationId, table.exportedAt),
   ],
 );
 

@@ -89,6 +89,7 @@ export const CREDIT_NOTE_EXPORT_COLUMNS = {
   taxMinor: clientCreditNotes.taxMinor,
   totalMinor: clientCreditNotes.totalMinor,
   issuedAt: clientCreditNotes.issuedAt,
+  exportedAt: clientCreditNotes.exportedAt,
   invoiceNumber: clientInvoices.number,
   currency: clientInvoices.currency,
   clientOrganizationId: clientInvoices.clientOrganizationId,
@@ -153,6 +154,11 @@ export const EXPENSE_EXPORT_COLUMNS = {
 } as const;
 
 export interface InvoiceExportRead extends InvoiceExportRow {
+  readonly exportedAt: Date | null;
+}
+
+/** R23-d (0315): the credit note's export mark rides along; the service strips it. */
+export interface CreditNoteExportRead extends CreditNoteExportRow {
   readonly exportedAt: Date | null;
 }
 
@@ -262,7 +268,7 @@ export class FinanceExportsRepository {
     from: Date,
     toExclusive: Date,
     limit: number,
-  ): Promise<readonly CreditNoteExportRow[]> {
+  ): Promise<readonly CreditNoteExportRead[]> {
     const rows = await tenantDrizzle(runner)
       .select(CREDIT_NOTE_EXPORT_COLUMNS)
       .from(clientCreditNotes)
@@ -302,6 +308,7 @@ export class FinanceExportsRepository {
       customerId: r.clientOrganizationId,
       customerName: r.legalNameEn ?? r.clientName ?? '',
       customerNameAr: r.legalNameAr ?? null,
+      exportedAt: r.exportedAt,
       lines: lines.get(r.id) ?? [],
     }));
   }
@@ -458,6 +465,27 @@ export class FinanceExportsRepository {
         .set({ exportedAt: at, exportTarget: target })
         .where(
           and(eq(clientInvoices.organizationId, organizationId), inArray(clientInvoices.id, ids)),
+        );
+    }
+  }
+
+  /** R23-d (0315): the credit-note twin of `markInvoicesExported`, chunked and org-scoped. */
+  async markCreditNotesExported(
+    runner: TenantQueryRunner,
+    organizationId: string,
+    creditNoteIds: readonly string[],
+    at: Date,
+    target: string,
+  ): Promise<void> {
+    for (const ids of chunks(creditNoteIds)) {
+      await tenantDrizzle(runner)
+        .update(clientCreditNotes)
+        .set({ exportedAt: at, exportTarget: target })
+        .where(
+          and(
+            eq(clientCreditNotes.organizationId, organizationId),
+            inArray(clientCreditNotes.id, ids),
+          ),
         );
     }
   }
