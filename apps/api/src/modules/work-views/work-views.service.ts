@@ -1,4 +1,11 @@
-import { authorize, isWorkItemState } from '@tmanage/domain';
+import {
+  authorize,
+  isWorkItemState,
+  milestoneMarkers,
+  orderMilestones,
+  phaseBands,
+} from '@tmanage/domain';
+import type { MilestoneHealth, TimelineMilestoneInput } from '@tmanage/domain';
 import type { Audience, Principal, WorkItemState } from '@tmanage/domain';
 import { logUnrecognisedRowState } from '../../common/observability/logger.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
@@ -69,7 +76,40 @@ export interface WorkTimelineItem {
 export interface WorkTimelineView {
   readonly projectId: string;
   readonly items: readonly WorkTimelineItem[];
+  /** 53-07. The phase bands; absent for a client principal (the portal timeline serves them). */
+  readonly phases?: readonly WorkTimelinePhase[];
+  /** 53-07. The milestone diamonds; absent for a client principal. */
+  readonly milestones?: readonly WorkTimelineMilestone[];
 }
+
+/** 53-07. One phase band: explicit dates, else the span of its milestones, else null ends. */
+export interface WorkTimelinePhase {
+  readonly id: string;
+  readonly name: string;
+  readonly startsOn: string | null;
+  readonly endsOn: string | null;
+  readonly colorToken: string | null;
+  readonly position: number;
+}
+
+/** 53-07. One milestone diamond on the internal timeline. */
+export interface WorkTimelineMilestone {
+  readonly id: string;
+  readonly title: string;
+  /** The diamond's day: committed, else forecast, else due. */
+  readonly date: string | null;
+  readonly committedOn: string | null;
+  readonly forecastOn: string | null;
+  /** `planned | met | missed`. */
+  readonly status: string;
+  readonly health: MilestoneHealth;
+  readonly phaseId: string | null;
+  /** The milestones this one depends on (`milestone_links`). */
+  readonly linkedItemIds: readonly string[];
+}
+
+/** 53-07. The milestone window: 12 months either side of today — 24 months around the view. */
+const MILESTONE_WINDOW_MONTHS = 12;
 
 /**
  * The audiences a client principal may read — `internal` absent by design, the control that
@@ -421,7 +461,117 @@ export class WorkViewsService {
     }
 
     items.sort(compareForTimeline);
-    return { projectId, items };
+    if (principal.kind === 'client' || !this.mayReadProject(context, principal, projectId)) {
+      return { projectId, items };
+    }
+    return { projectId, items, ...(await this.milestoneLayer(context, projectId, new Date())) };
+  }
+
+  /** 53-07. May this internal principal read the project's milestone layer? `work.read`, relation. */
+  private mayReadProject(context: TenantContext, principal: Principal, projectId: string): boolean {
+    return authorize({
+      principal,
+      capability: 'work.read',
+      resource: {
+        organizationId: context.organizationId,
+        projectId,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    }).allowed;
+  }
+
+  /**
+   * 53-07. The phase bands and milestone diamonds — one read each for phases, milestones (bounded
+   * to {@link MILESTONE_WINDOW_MONTHS} either side of `now`) and their links.
+   */
+  async milestoneLayer(
+    context: TenantContext,
+    projectId: string,
+    now: Date,
+  ): Promise<{
+    readonly phases: readonly WorkTimelinePhase[];
+    readonly milestones: readonly WorkTimelineMilestone[];
+  }> {
+    const today = now.toISOString().slice(0, 10);
+    const window = {
+      from: shiftMonths(now, -MILESTONE_WINDOW_MONTHS),
+      to: shiftMonths(now, MILESTONE_WINDOW_MONTHS),
+    };
+    const { phaseRows, milestoneRows, links } = await this.database.read(
+      context,
+      async (runner) => {
+        const phaseRows = await this.timeline.listTimelinePhases(runner, context, projectId);
+        const milestoneRows = await this.timeline.listTimelineMilestones(
+          runner,
+          context,
+          projectId,
+          window,
+        );
+        const links = await this.timeline.listMilestoneLinks(
+          runner,
+          context,
+          milestoneRows.map((row) => row.id),
+        );
+        return { phaseRows, milestoneRows, links };
+      },
+    );
+
+    const phaseOf = new Map<string, string>();
+    for (const row of phaseRows) {
+      if (row.milestoneId !== null && row.phaseId !== null)
+        phaseOf.set(row.milestoneId, row.phaseId);
+    }
+    const inputs: TimelineMilestoneInput[] = orderMilestones(
+      milestoneRows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        status: row.status,
+        dueOn: row.dueOn,
+        committedOn: row.committedOn ?? null,
+        forecastOn: row.forecastOn ?? null,
+        timelineOrder: row.timelineOrder ?? null,
+        phaseId: phaseOf.get(row.id) ?? null,
+      })),
+    );
+    const markers = new Map(milestoneMarkers(inputs, today).map((marker) => [marker.id, marker]));
+    const bands = phaseBands(
+      phaseRows
+        .filter((row) => row.milestoneId === null)
+        .map((row) => ({
+          id: row.id,
+          name: row.name ?? '',
+          position: row.position ?? 0,
+          startsOn: row.startsOn ?? null,
+          endsOn: row.endsOn ?? null,
+          colorToken: row.colorToken ?? null,
+        })),
+      inputs,
+    );
+
+    return {
+      phases: bands.map((band) => ({
+        id: band.id,
+        name: band.name,
+        startsOn: band.startsOn,
+        endsOn: band.endsOn,
+        colorToken: band.colorToken,
+        position: band.position,
+      })),
+      milestones: inputs.map((input) => ({
+        id: input.id,
+        title: input.title,
+        date: markers.get(input.id)?.date ?? null,
+        committedOn: input.committedOn,
+        forecastOn: input.forecastOn,
+        status: input.status,
+        health: markers.get(input.id)?.health ?? 'on_track',
+        phaseId: input.phaseId,
+        linkedItemIds: links
+          .filter((link) => link.milestoneId === input.id)
+          .map((link) => link.dependsOnMilestoneId),
+      })),
+    };
   }
 
   /**
@@ -649,4 +799,12 @@ function compareNullableId(left: string | null, right: string | null): number {
   if (left === null) return 1;
   if (right === null) return -1;
   return left < right ? -1 : left > right ? 1 : 0;
+}
+
+/** 53-07. `now` shifted by whole months, as a civil UTC day (`YYYY-MM-DD`). */
+function shiftMonths(now: Date, months: number): string {
+  const shifted = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + months, now.getUTCDate()),
+  );
+  return shifted.toISOString().slice(0, 10);
 }

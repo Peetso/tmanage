@@ -275,3 +275,97 @@ describe('A9 milestone plan, details and delete', () => {
     );
   });
 });
+
+/** 53-07 — dated moves with a client-safe reason, the version check, and publish = copy. */
+describe('53-07 milestone timeline edits and publish', () => {
+  function timelineService(published: boolean) {
+    const store = fakeMilestones({
+      version: 3,
+      committedOn: '2026-12-01',
+      forecastOn: '2026-12-20',
+      clientTitle: null,
+      ownerUserId: 'user-owner-secret',
+      description: 'internal notes',
+    } as Partial<ProjectMilestoneRow>);
+    const copies: Record<string, unknown>[] = [];
+    const audits: { action: string; changes?: unknown }[] = [];
+    const events: unknown[] = [];
+    const repo = Object.assign(store.repo, {
+      findByIdForUpdate: () => Promise.resolve(store.row),
+      findProjection: () =>
+        Promise.resolve(published ? { clientTitle: 'Launch', phaseName: null } : null),
+      countProjections: () => Promise.resolve(0),
+      phaseNameOf: () => Promise.resolve('Build'),
+      upsertProjection: (_r: never, _c: TenantContext, input: Record<string, unknown>) => {
+        copies.push(input);
+        return Promise.resolve({ ...input, publishedAt: new Date('2026-11-02T00:00:00.000Z') });
+      },
+    });
+    const audit = { record: (_t: never, _c: never, input: never) => audits.push(input) };
+    const outbox = { append: (_t: never, _c: never, input: never) => events.push(input) };
+    const service = new MilestoneLifecycleService(
+      fakeDatabase(),
+      fakeProjects([PROJECT]),
+      repo,
+      undefined,
+      undefined,
+      undefined,
+      audit as never,
+      outbox as never,
+    );
+    return { service, store, copies, audits, events };
+  }
+
+  it('refuses a dragged committed date on a published milestone without a reason (422)', async () => {
+    const { service, store } = timelineService(true);
+    const controller = new MilestoneLifecycleController(service);
+    await expect(
+      controller.edit(context, internalManager(), PROJECT, MILESTONE, {
+        committedOn: '2026-12-15',
+      }),
+    ).rejects.toMatchObject({ status: 422, auditCode: 'reason_required' });
+    expect(store.updates).toHaveLength(0);
+  });
+
+  it('answers 409 version_conflict on a stale expectedVersion, writing nothing', async () => {
+    const { service, store } = timelineService(false);
+    const controller = new MilestoneLifecycleController(service);
+    await expect(
+      controller.edit(context, internalManager(), PROJECT, MILESTONE, {
+        committedOn: '2026-12-15',
+        expectedVersion: 2,
+      }),
+    ).rejects.toMatchObject({ status: 409, auditCode: 'version_conflict' });
+    expect(store.updates).toHaveLength(0);
+  });
+
+  it('records the move with before/after and the reason in the audit row, never on the milestone', async () => {
+    const { service, store, audits } = timelineService(true);
+    const controller = new MilestoneLifecycleController(service);
+    await controller.edit(context, internalManager(), PROJECT, MILESTONE, {
+      committedOn: '2026-12-15',
+      expectedVersion: 3,
+      clientSafeReason: 'Waiting on the venue photos',
+    });
+    expect(store.updates.at(-1)).toEqual({ committedOn: '2026-12-15' });
+    expect(audits[0]).toMatchObject({
+      action: 'milestone.date_changed',
+      changes: [
+        { field: 'committed_on', before: '2026-12-01' },
+        { field: 'client_safe_reason', after: 'Waiting on the venue photos' },
+      ],
+    });
+  });
+
+  it('publishes a copy of only the allowlisted columns, audited and emitted', async () => {
+    const { service, copies, audits, events } = timelineService(false);
+    const publication = await service.publish(context, internalManager(), PROJECT, MILESTONE);
+    expect(Object.keys(copies[0] ?? {}).sort()).toEqual(
+      ['clientTitle', 'committedOn', 'milestoneId', 'phaseName', 'projectId', 'status'].sort(),
+    );
+    expect(copies[0]).toMatchObject({ clientTitle: 'Design sign-off', phaseName: 'Build' });
+    expect(JSON.stringify(publication)).not.toMatch(/user-owner-secret|internal notes|2026-12-20/);
+    expect(audits.map((entry) => entry.action)).toEqual(['milestone.published']);
+    expect(events).toHaveLength(1);
+  });
+});

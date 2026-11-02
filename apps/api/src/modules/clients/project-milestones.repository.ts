@@ -2,12 +2,16 @@ import { and, asc, eq, or, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
+  milestoneClientProjections,
   milestoneLinks,
   projectMilestones,
   projectPhases,
   projectRetroNotes,
 } from '../../common/database/schema.js';
-import type { ProjectMilestoneRow } from '../../common/database/schema.js';
+import type {
+  MilestoneClientProjectionRow,
+  ProjectMilestoneRow,
+} from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -69,7 +73,31 @@ export interface UpdateProjectMilestonePatch {
   readonly ownerUserId?: string | null;
   /** A9. "Show on the client timeline" — the client-visibility gate. */
   readonly published?: boolean;
+  /** 53-07 (0305). The date promised to the client; `null` clears it. */
+  readonly committedOn?: string | null;
+  /** 53-07 (0305). The internal forecast; `null` clears it. */
+  readonly forecastOn?: string | null;
+  /** 53-07 (0305). Manual timeline order; `null` clears it. */
+  readonly timelineOrder?: number | null;
+  /** 53-07 (0305). The client-safe name; `null` falls back to the title. */
+  readonly clientTitle?: string | null;
 }
+
+/**
+ * 53-07. The allowlisted columns a publish copies into `milestone_client_projections`. Nothing else
+ * of the milestone reaches the client copy: no owner, no internal title, no forecast, no reason.
+ */
+export interface MilestoneProjectionInput {
+  readonly projectId: string;
+  readonly milestoneId: string;
+  readonly clientTitle: string;
+  readonly committedOn: string | null;
+  readonly status: string;
+  readonly phaseName: string | null;
+}
+
+/** 53-07. At most this many published copies per project. */
+export const MAX_PROJECTIONS_PER_PROJECT = 200;
 
 export interface ListProjectMilestonesOptions {
   /** Required: this reads one project's milestones, never a whole tenant's. */
@@ -223,6 +251,12 @@ export class ProjectMilestonesRepository {
     if (patch.description !== undefined) values['description'] = patch.description;
     if (patch.ownerUserId !== undefined) values['ownerUserId'] = patch.ownerUserId;
     if (patch.published !== undefined) values['published'] = patch.published;
+    if (patch.committedOn !== undefined) values['committedOn'] = patch.committedOn;
+    if (patch.forecastOn !== undefined) values['forecastOn'] = patch.forecastOn;
+    if (patch.timelineOrder !== undefined) values['timelineOrder'] = patch.timelineOrder;
+    if (patch.clientTitle !== undefined) values['clientTitle'] = patch.clientTitle;
+    // 53-07: every edit moves the version, so a stale drag is detectable (409).
+    values['version'] = sql`${projectMilestones.version} + 1`;
 
     await db
       .update(projectMilestones)
@@ -287,12 +321,180 @@ export class ProjectMilestonesRepository {
     context: TenantContext,
     milestoneId: string,
   ): Promise<void> {
+    // 53-07: the client copy goes with the milestone (its composite FK would refuse otherwise).
+    await this.deleteProjection(runner, context, milestoneId);
     await tenantDrizzle(runner)
       .delete(projectMilestones)
       .where(
         and(
           eq(projectMilestones.organizationId, context.organizationId),
           eq(projectMilestones.id, milestoneId),
+        ),
+      );
+  }
+
+  /** 53-07. The milestone locked for an edit inside the caller's transaction (version check). */
+  async findByIdForUpdate(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    milestoneId: string,
+  ): Promise<ProjectMilestoneRow | null> {
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(projectMilestones)
+      .where(
+        and(
+          eq(projectMilestones.organizationId, context.organizationId),
+          eq(projectMilestones.id, milestoneId),
+        ),
+      )
+      .limit(1)
+      .for('update');
+    return rows[0] ?? null;
+  }
+
+  /** 53-07. The name of the phase this milestone is assigned to, or null. */
+  async phaseNameOf(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    milestoneId: string,
+  ): Promise<string | null> {
+    const db = tenantDrizzle(runner);
+    const [assignment] = await db
+      .select({ phaseId: projectPhases.phaseId })
+      .from(projectPhases)
+      .where(
+        and(
+          eq(projectPhases.organizationId, context.organizationId),
+          eq(projectPhases.milestoneId, milestoneId),
+        ),
+      )
+      .limit(1);
+    if (!assignment?.phaseId) return null;
+    const [phase] = await db
+      .select({ name: projectPhases.name })
+      .from(projectPhases)
+      .where(
+        and(
+          eq(projectPhases.organizationId, context.organizationId),
+          eq(projectPhases.id, assignment.phaseId),
+        ),
+      )
+      .limit(1);
+    return phase?.name ?? null;
+  }
+
+  /** 53-07. The published client copy of one milestone, or null. */
+  async findProjection(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    milestoneId: string,
+  ): Promise<MilestoneClientProjectionRow | null> {
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(milestoneClientProjections)
+      .where(
+        and(
+          eq(milestoneClientProjections.organizationId, context.organizationId),
+          eq(milestoneClientProjections.milestoneId, milestoneId),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /** 53-07. How many client copies a project has (the publish cap). */
+  async countProjections(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+  ): Promise<number> {
+    const [row] = await tenantDrizzle(runner)
+      .select({ n: sql<number>`count(*)` })
+      .from(milestoneClientProjections)
+      .where(
+        and(
+          eq(milestoneClientProjections.organizationId, context.organizationId),
+          eq(milestoneClientProjections.projectId, projectId),
+        ),
+      );
+    return Number(row?.n ?? 0);
+  }
+
+  /** 53-07. A project's client copies, ordered by committed date (undated last), then title. */
+  async listProjections(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+  ): Promise<readonly MilestoneClientProjectionRow[]> {
+    return tenantDrizzle(runner)
+      .select()
+      .from(milestoneClientProjections)
+      .where(
+        and(
+          eq(milestoneClientProjections.organizationId, context.organizationId),
+          eq(milestoneClientProjections.projectId, projectId),
+        ),
+      )
+      .orderBy(
+        sql`${milestoneClientProjections.committedOn} is null`,
+        asc(milestoneClientProjections.committedOn),
+        asc(milestoneClientProjections.clientTitle),
+        asc(milestoneClientProjections.id),
+      )
+      .limit(MAX_PROJECTIONS_PER_PROJECT);
+  }
+
+  /**
+   * 53-07. Insert or refresh the client copy — only the allowlisted columns. The unique
+   * `(organization_id, milestone_id)` key makes a re-publish an update of the same row.
+   */
+  async upsertProjection(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    input: MilestoneProjectionInput,
+  ): Promise<MilestoneClientProjectionRow> {
+    await tenantDrizzle(runner)
+      .insert(milestoneClientProjections)
+      .values({
+        id: uuidv7(),
+        organizationId: context.organizationId,
+        projectId: input.projectId,
+        milestoneId: input.milestoneId,
+        clientTitle: input.clientTitle,
+        committedOn: input.committedOn,
+        status: input.status,
+        phaseName: input.phaseName,
+        publishedByUserId: context.userId,
+        publishedAt: sql`current_timestamp(3)`,
+      })
+      .onDuplicateKeyUpdate({
+        set: {
+          clientTitle: input.clientTitle,
+          committedOn: input.committedOn,
+          status: input.status,
+          phaseName: input.phaseName,
+          publishedByUserId: context.userId,
+          publishedAt: sql`current_timestamp(3)`,
+        },
+      });
+    const row = await this.findProjection(runner, context, input.milestoneId);
+    if (!row) throw new Error(`milestone projection ${input.milestoneId} vanished after upsert`);
+    return row;
+  }
+
+  /** 53-07. Remove the client copy (unpublish). Both predicates, as every write here. */
+  async deleteProjection(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    milestoneId: string,
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .delete(milestoneClientProjections)
+      .where(
+        and(
+          eq(milestoneClientProjections.organizationId, context.organizationId),
+          eq(milestoneClientProjections.milestoneId, milestoneId),
         ),
       );
   }

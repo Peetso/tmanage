@@ -9,6 +9,7 @@ import { WorkCalendarRepository } from './calendar.repository.js';
 import { SavedViewsRepository } from './saved-views.repository.js';
 import { WorkViewsService } from './work-views.service.js';
 import { WorkViewsController } from './work-views.controller.js';
+import { PortalTimelineController, PortalTimelineService } from './portal-timeline.controller.js';
 
 /**
  * WK-04's wiring — the Work views read layer.
@@ -35,11 +36,18 @@ export class WorkViewsModule {
         ),
     };
 
+    // 53-07: the client timeline, read from the published copies only.
+    const portalTimeline: Provider = {
+      provide: PortalTimelineService,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) => new PortalTimelineService(database),
+    };
+
     return {
       module: WorkViewsModule,
-      providers: [service],
+      providers: [service, portalTimeline],
       exports: [service],
-      controllers: [WorkViewsController],
+      controllers: [WorkViewsController, PortalTimelineController],
     };
   }
 }

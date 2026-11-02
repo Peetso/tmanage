@@ -268,6 +268,11 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'privacy_deletion_request',
     catalog: '33-LEGAL §8 deletion lifecycle — owner notification, email',
   },
+  /** 53-07 (R19-c): a milestone's client copy was published — portal refresh; no consumer yet. */
+  'milestone.published.v1': {
+    aggregateType: 'project_milestone',
+    catalog: '§4 milestone published — client portal timeline',
+  },
 } as const satisfies Record<string, OutboxEventDefinition>;
 
 export type OutboxEventType = keyof typeof OUTBOX_EVENT_CATALOG;
@@ -713,6 +718,13 @@ export interface OutboxEventPayloads {
   readonly 'review.decision_recorded.v1': ReviewDecisionRecordedV1;
   readonly 'file.preview_ready.v1': FilePreviewUsageV1;
   readonly 'file.preview_removed.v1': FilePreviewUsageV1;
+  readonly 'milestone.published.v1': MilestonePublishedV1;
+}
+
+/** 53-07 (R19-c). Ids only — the client copy is read from `milestone_client_projections`. */
+export interface MilestonePublishedV1 {
+  readonly milestoneId: string;
+  readonly projectId: string;
 }
 
 /**

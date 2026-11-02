@@ -9,7 +9,7 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { authorize, isInternalRole } from '@tmanage/domain';
+import { authorize, clientStatusOf, isInternalRole } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
@@ -20,9 +20,19 @@ import { MembershipsRepository } from '../tenancy/memberships.repository.js';
 import { ClientOrganizationsRepository } from './client-organizations.repository.js';
 import { ProjectClientsRepository } from './project-clients.repository.js';
 import { ProjectMilestonesRepository } from './project-milestones.repository.js';
+import { MAX_PROJECTIONS_PER_PROJECT } from './project-milestones.repository.js';
 import type { UpdateProjectMilestonePatch } from './project-milestones.repository.js';
-import { toProjectMilestoneView } from './project-milestones.projection.js';
+import {
+  toMilestonePublication,
+  toProjectMilestoneView,
+  toTimelineMilestoneInput,
+} from './project-milestones.projection.js';
+import type { MilestonePublication } from './project-milestones.projection.js';
 import type { ProjectMilestoneView } from './project-milestones.controller.js';
+import type { AuditService } from '../audit/audit.service.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
+import type { ProjectMilestoneRow } from '../../common/database/schema.js';
+import type { TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
  * SEC / Portal milestone lifecycle (x202) — edit and complete an existing milestone.
@@ -61,6 +71,16 @@ export interface MilestoneEditView {
   readonly createdAt: string;
   /** An ISO-8601 instant — the last edit, and for a completed milestone its completion date. */
   readonly updatedAt: string;
+  /** 53-07. The date promised to the client. */
+  readonly committedOn?: string | null;
+  /** 53-07. The internal forecast. */
+  readonly forecastOn?: string | null;
+  /** 53-07. Manual timeline order. */
+  readonly timelineOrder?: number | null;
+  /** 53-07. The client-safe name the published copy uses. */
+  readonly clientTitle?: string | null;
+  /** 53-07. Send it back as `expectedVersion` on the next edit. */
+  readonly version?: number;
 }
 
 /**
@@ -114,7 +134,21 @@ export interface EditMilestoneCommand {
   readonly projectId: string;
   readonly milestoneId: string;
   readonly patch: UpdateProjectMilestonePatch;
+  /** 53-07. The version the editor last read; a mismatch is 409 `version_conflict`. */
+  readonly expectedVersion?: number;
+  /**
+   * 53-07. Why the committed date moved, in words a client may read. Required (422
+   * `reason_required`) when the milestone is published and `committedOn` changes. Stored only in
+   * the `milestone.date_changed` audit row's before/after, never on the milestone.
+   */
+  readonly clientSafeReason?: string;
 }
+
+/** 53-07. The client-safe reason is a sentence, not a document. */
+const MAX_REASON_LENGTH = 500;
+
+/** 53-07. Today as a civil UTC day, for the client status a copy carries. */
+const TODAY = (): string => new Date().toISOString().slice(0, 10);
 
 /**
  * The milestone lifecycle service — resolve tenant-scoped, authorize, then edit or complete.
@@ -131,6 +165,10 @@ export class MilestoneLifecycleService {
     private readonly members: MembershipsRepository = new MembershipsRepository(),
     private readonly shares: ProjectClientsRepository = new ProjectClientsRepository(),
     private readonly clientOrganizations: ClientOrganizationsRepository = new ClientOrganizationsRepository(),
+    /** 53-07. `milestone.date_changed`, `milestone.published`, `milestone.unpublished`. */
+    private readonly audit?: AuditService,
+    /** 53-07. `milestone.published.v1`. */
+    private readonly outbox?: OutboxEventsRepository,
   ) {}
 
   /**
@@ -216,12 +254,165 @@ export class MilestoneLifecycleService {
       await this.requireOwner(context, input.patch.ownerUserId);
     }
 
-    const row = await this.database.transaction(context, (tx) =>
-      this.milestones.update(tx, context, input.milestoneId, input.patch),
-    );
+    const timelineEdit =
+      input.expectedVersion !== undefined || input.patch.committedOn !== undefined;
+    const row = await this.database.transaction(context, async (tx) => {
+      if (!timelineEdit) return this.milestones.update(tx, context, input.milestoneId, input.patch);
+      return this.editTimeline(tx, context, input);
+    });
     if (!row) throw new ApiError(404, 'not_found', MESSAGES.notFound);
 
     return toMilestoneEditView(row);
+  }
+
+  /**
+   * 53-07. A timeline edit inside the caller's transaction: lock the row, check the version, demand
+   * a client-safe reason when a published milestone's committed date moves, write, keep the client
+   * copy's date and status in step, and audit the move with before/after and the reason.
+   */
+  private async editTimeline(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    input: EditMilestoneCommand,
+  ): Promise<ProjectMilestoneRow | null> {
+    const current = await this.milestones.findByIdForUpdate(tx, context, input.milestoneId);
+    if (!current) return null;
+    if (input.expectedVersion !== undefined && current.version !== input.expectedVersion) {
+      throw new ApiError(
+        409,
+        'conflict',
+        'This milestone was changed by someone else. Reload and try again.',
+        undefined,
+        'version_conflict',
+      );
+    }
+
+    const dateMoves =
+      input.patch.committedOn !== undefined && input.patch.committedOn !== current.committedOn;
+    const projection = dateMoves
+      ? await this.milestones.findProjection(tx, context, input.milestoneId)
+      : null;
+    if (projection && !input.clientSafeReason) {
+      throw new ApiError(
+        422,
+        'validation_failed',
+        'Say why the date moved — the client will see it',
+        [{ field: 'clientSafeReason', message: 'is required when a published date moves' }],
+        'reason_required',
+      );
+    }
+
+    const row = await this.milestones.update(tx, context, input.milestoneId, input.patch);
+    if (!row || !dateMoves) return row;
+
+    if (projection) {
+      await this.milestones.upsertProjection(tx, context, {
+        projectId: row.projectId,
+        milestoneId: row.id,
+        clientTitle: projection.clientTitle,
+        committedOn: row.committedOn,
+        status: clientStatusOf(toTimelineMilestoneInput(row, null), TODAY()),
+        phaseName: projection.phaseName,
+      });
+    }
+    await this.audit?.record(tx, context, {
+      action: 'milestone.date_changed',
+      result: 'allowed',
+      objectId: row.id,
+      metadata: { project_id: row.projectId, had_projection: projection !== null },
+      changes: [
+        { field: 'committed_on', before: current.committedOn, after: row.committedOn },
+        ...(input.clientSafeReason
+          ? [{ field: 'client_safe_reason', before: null, after: input.clientSafeReason }]
+          : []),
+      ],
+    });
+    return row;
+  }
+
+  /**
+   * 53-07. Publish a milestone to the client timeline — ONE transaction: copy only the allowlisted
+   * columns into `milestone_client_projections` (client title ?? title, committed date, the client
+   * status, the phase name), set the old `published` flag for the older readers, audit and emit.
+   * A re-publish refreshes the copy. At most {@link MAX_PROJECTIONS_PER_PROJECT} per project.
+   */
+  async publish(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+    milestoneId: string,
+  ): Promise<MilestonePublication> {
+    await this.resolveManageable(context, principal, projectId);
+    await this.resolveMilestone(context, projectId, milestoneId);
+
+    const copy = await this.database.transaction(context, async (tx) => {
+      const row = await this.milestones.findByIdForUpdate(tx, context, milestoneId);
+      if (!row) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+      const existing = await this.milestones.findProjection(tx, context, milestoneId);
+      if (
+        !existing &&
+        (await this.milestones.countProjections(tx, context, projectId)) >=
+          MAX_PROJECTIONS_PER_PROJECT
+      ) {
+        throw new ApiError(
+          409,
+          'conflict',
+          `A project can show at most ${MAX_PROJECTIONS_PER_PROJECT} milestones to its client`,
+          undefined,
+          'projection_limit',
+        );
+      }
+      const phaseName = await this.milestones.phaseNameOf(tx, context, milestoneId);
+      const status = clientStatusOf(toTimelineMilestoneInput(row, null), TODAY());
+      const projection = await this.milestones.upsertProjection(tx, context, {
+        projectId,
+        milestoneId,
+        clientTitle: row.clientTitle ?? row.title,
+        committedOn: row.committedOn,
+        status,
+        phaseName,
+      });
+      if (!row.published) {
+        await this.milestones.update(tx, context, milestoneId, { published: true });
+      }
+      await this.audit?.record(tx, context, {
+        action: 'milestone.published',
+        result: 'allowed',
+        objectId: milestoneId,
+        metadata: { project_id: projectId, status, refreshed: existing !== null },
+      });
+      await this.outbox?.append(tx, context, {
+        type: 'milestone.published.v1',
+        aggregateId: milestoneId,
+        payload: { milestoneId, projectId },
+      });
+      return projection;
+    });
+
+    return toMilestonePublication(copy);
+  }
+
+  /** 53-07. Remove the client copy (and the old flag), audited. Idempotent: no copy is still 204. */
+  async unpublish(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+    milestoneId: string,
+  ): Promise<void> {
+    await this.resolveManageable(context, principal, projectId);
+    await this.resolveMilestone(context, projectId, milestoneId);
+
+    await this.database.transaction(context, async (tx) => {
+      const existing = await this.milestones.findProjection(tx, context, milestoneId);
+      await this.milestones.deleteProjection(tx, context, milestoneId);
+      await this.milestones.update(tx, context, milestoneId, { published: false });
+      await this.audit?.record(tx, context, {
+        action: 'milestone.unpublished',
+        result: 'allowed',
+        objectId: milestoneId,
+        metadata: { project_id: projectId, had_projection: existing !== null },
+      });
+    });
   }
 
   /**
@@ -342,17 +533,100 @@ function parseEditBody(
   }
 
   parseA9Fields(record, patch, details);
+  const timeline = parseTimelineFields(record, details);
 
   if (details.length > 0) {
     throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
   }
-  if (Object.keys(patch).length === 0) {
+  const merged: UpdateProjectMilestonePatch = { ...patch, ...timeline.patch };
+  if (Object.keys(merged).length === 0) {
     throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
       { field: 'title', message: 'provide at least one field to edit' },
     ]);
   }
 
-  return { projectId, milestoneId, patch };
+  return {
+    projectId,
+    milestoneId,
+    patch: merged,
+    ...(timeline.expectedVersion === undefined
+      ? {}
+      : { expectedVersion: timeline.expectedVersion }),
+    ...(timeline.clientSafeReason === undefined
+      ? {}
+      : { clientSafeReason: timeline.clientSafeReason }),
+  };
+}
+
+/** 53-07 — `committedOn`, `forecastOn`, `timelineOrder`, `clientTitle`, `expectedVersion`, reason. */
+function parseTimelineFields(
+  record: Record<string, unknown>,
+  details: { field: string; message: string }[],
+): {
+  patch: {
+    committedOn?: string | null;
+    forecastOn?: string | null;
+    timelineOrder?: number | null;
+    clientTitle?: string | null;
+  };
+  expectedVersion?: number;
+  clientSafeReason?: string;
+} {
+  const patch: {
+    committedOn?: string | null;
+    forecastOn?: string | null;
+    timelineOrder?: number | null;
+    clientTitle?: string | null;
+  } = {};
+  for (const field of ['committedOn', 'forecastOn'] as const) {
+    if (!(field in record)) continue;
+    const raw = record[field];
+    if (raw === null) patch[field] = null;
+    else if (typeof raw === 'string' && DUE_ON_PATTERN.test(raw)) patch[field] = raw;
+    else details.push({ field, message: 'must be a YYYY-MM-DD date or null' });
+  }
+  if ('timelineOrder' in record) {
+    const raw = record['timelineOrder'];
+    if (raw === null) patch.timelineOrder = null;
+    else if (typeof raw === 'number' && Number.isSafeInteger(raw) && raw >= 0 && raw <= 1_000_000)
+      patch.timelineOrder = raw;
+    else
+      details.push({ field: 'timelineOrder', message: 'must be a non-negative integer or null' });
+  }
+  if ('clientTitle' in record) {
+    const raw = record['clientTitle'];
+    if (raw === null || (typeof raw === 'string' && raw.trim() === '')) patch.clientTitle = null;
+    else if (typeof raw === 'string' && raw.trim().length <= MAX_MILESTONE_TITLE_LENGTH)
+      patch.clientTitle = raw.trim();
+    else
+      details.push({
+        field: 'clientTitle',
+        message: `must be a string of ${MAX_MILESTONE_TITLE_LENGTH} characters or fewer, or null`,
+      });
+  }
+  let expectedVersion: number | undefined;
+  if ('expectedVersion' in record) {
+    const raw = record['expectedVersion'];
+    if (typeof raw === 'number' && Number.isSafeInteger(raw) && raw >= 1) expectedVersion = raw;
+    else details.push({ field: 'expectedVersion', message: 'must be a positive integer' });
+  }
+  let clientSafeReason: string | undefined;
+  if ('clientSafeReason' in record && record['clientSafeReason'] !== null) {
+    const raw = record['clientSafeReason'];
+    if (typeof raw === 'string' && raw.trim().length <= MAX_REASON_LENGTH) {
+      if (raw.trim() !== '') clientSafeReason = raw.trim();
+    } else {
+      details.push({
+        field: 'clientSafeReason',
+        message: `must be a string of ${MAX_REASON_LENGTH} characters or fewer`,
+      });
+    }
+  }
+  return {
+    patch,
+    ...(expectedVersion === undefined ? {} : { expectedVersion }),
+    ...(clientSafeReason === undefined ? {} : { clientSafeReason }),
+  };
 }
 
 /** A9 — `description` (string or null), `ownerUserId` (id or null) and `published` (boolean). */
@@ -406,7 +680,15 @@ function toMilestoneDetailView(
 
 /** The internal edit view — the full record plus `updatedAt`. Built field by field. */
 function toMilestoneEditView(row: Parameters<typeof toProjectMilestoneView>[0]): MilestoneEditView {
-  return { ...toProjectMilestoneView(row), updatedAt: row.updatedAt.toISOString() };
+  return {
+    ...toProjectMilestoneView(row),
+    updatedAt: row.updatedAt.toISOString(),
+    committedOn: row.committedOn ?? null,
+    forecastOn: row.forecastOn ?? null,
+    timelineOrder: row.timelineOrder ?? null,
+    clientTitle: row.clientTitle ?? null,
+    version: row.version,
+  };
 }
 
 /**
@@ -455,6 +737,35 @@ export class MilestoneLifecycleController {
     @Body() body: unknown,
   ): Promise<MilestoneEditView> {
     return this.lifecycle.edit(context, principal, parseEditBody(projectId, milestoneId, body));
+  }
+
+  /**
+   * 53-07. Publish the milestone to the client timeline: copies only the allowlisted columns.
+   * `project.manage` (`client_projection.publish` is not a capability key).
+   */
+  @Post(':projectId/milestones/:id/publish')
+  @RequireCapability('project.manage')
+  @HttpCode(200)
+  async publish(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+    @Param('id') milestoneId: string,
+  ): Promise<MilestonePublication> {
+    return this.lifecycle.publish(context, principal, projectId, milestoneId);
+  }
+
+  /** 53-07. Remove the milestone from the client timeline (deletes the copy). `project.manage`. */
+  @Delete(':projectId/milestones/:id/publish')
+  @RequireCapability('project.manage')
+  @HttpCode(204)
+  async unpublish(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+    @Param('id') milestoneId: string,
+  ): Promise<void> {
+    await this.lifecycle.unpublish(context, principal, projectId, milestoneId);
   }
 
   @Post(':projectId/milestones/:id/complete')

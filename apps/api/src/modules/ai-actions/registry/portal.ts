@@ -363,4 +363,13 @@ export const portalDetails: readonly AiActionDetail[] = [
     redact: 'client_safe',
     examples: [{ summary: 'Complete', args: { uploadSessionId: 'us_1' } }],
   }),
+  // 53-07 (R19-c): the client timeline — published milestone copies and phase bands only.
+  det({
+    id: 'portal.timeline.get',
+    title: 'Portal timeline',
+    description: 'Phase bands and published milestones shown to the client for a project.',
+    input: pathOnly('projectId'),
+    redact: 'client_safe',
+    examples: [{ summary: 'By project', args: { projectId: 'p_1' } }],
+  }),
 ];

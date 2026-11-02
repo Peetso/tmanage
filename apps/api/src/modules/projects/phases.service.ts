@@ -5,6 +5,7 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import { ProjectPhasesRepository } from './phases.repository.js';
 import { ProjectsRepository } from './projects.repository.js';
 import type { ProjectPhaseRow } from '../../common/database/schema.js';
+import type { AuditService } from '../audit/audit.service.js';
 
 /**
  * The application service for PROJ / module 8 (x294) — project timeline phases. It follows the
@@ -38,6 +39,19 @@ export interface ProjectPhaseView {
   readonly name: string;
   readonly position: number;
   readonly milestoneIds: readonly string[];
+  /** 53-07. The band's explicit start, or null (then derived from its milestones). */
+  readonly startsOn?: string | null;
+  /** 53-07. The band's explicit end, or null. */
+  readonly endsOn?: string | null;
+  /** 53-07. A design-token name for the band colour, or null. */
+  readonly colorToken?: string | null;
+}
+
+/** 53-07. What `PUT …/phases/:phaseId/dates` sets — all three, each nullable. */
+export interface PhaseDatesInput {
+  readonly startsOn: string | null;
+  readonly endsOn: string | null;
+  readonly colorToken: string | null;
 }
 
 /** The record of a milestone placed into a phase. */
@@ -53,7 +67,51 @@ export class ProjectPhasesService {
     private readonly phases: ProjectPhasesRepository = new ProjectPhasesRepository(),
     /** Read-only, used to prove a named project exists **inside this tenant** before a write. */
     private readonly projects: ProjectsRepository = new ProjectsRepository(),
+    /** 53-07. `phase.updated`. */
+    private readonly audit?: AuditService,
   ) {}
+
+  /**
+   * 53-07. Set a phase's band dates and colour (`project.manage`). The project is resolved
+   * manage-visible first, then the phase as a **definition** row of that project — an assignment
+   * row, another project's phase or an unknown id is a 404. Audited with before/after.
+   */
+  async setDates(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+    phaseId: string,
+    input: PhaseDatesInput,
+  ): Promise<ProjectPhaseView> {
+    await this.requireManageableProject(context, principal, projectId);
+    const phase = await this.database.read(context, (runner) =>
+      this.phases.findDefinitionById(runner, context, phaseId),
+    );
+    if (!phase || phase.projectId !== projectId) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'phase_not_visible');
+    }
+
+    const { row, assignments } = await this.database.transaction(context, async (tx) => {
+      const updated = await this.phases.updateDefinitionDates(tx, context, phaseId, input);
+      if (!updated) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+      await this.audit?.record(tx, context, {
+        action: 'phase.updated',
+        result: 'allowed',
+        objectId: phaseId,
+        metadata: { project_id: projectId },
+        changes: [
+          { field: 'starts_on', before: phase.startsOn ?? null, after: input.startsOn },
+          { field: 'ends_on', before: phase.endsOn ?? null, after: input.endsOn },
+          { field: 'color_token', before: phase.colorToken ?? null, after: input.colorToken },
+        ],
+      });
+      return {
+        row: updated,
+        assignments: await this.phases.listAssignments(tx, context, projectId),
+      };
+    });
+    return toView(row, assignments);
+  }
 
   /**
    * Resolve a project the principal may manage, tenant- and relation-scoped, or throw the not-found
@@ -216,5 +274,8 @@ function toView(
     name: definition.name ?? '',
     position: definition.position ?? 0,
     milestoneIds,
+    startsOn: definition.startsOn ?? null,
+    endsOn: definition.endsOn ?? null,
+    colorToken: definition.colorToken ?? null,
   };
 }

@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
+  AUDIT_SERVICE,
   PROJECT_PHASES_REPOSITORY,
   PROJECT_PHASES_SERVICE,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import type { AuditService } from '../audit/audit.service.js';
 import { ProjectPhasesRepository } from './phases.repository.js';
 import { ProjectPhasesService } from './phases.service.js';
 import { ProjectPhasesController } from './phases.controller.js';
@@ -29,9 +31,12 @@ export class ProjectPhasesModule {
     };
     const service: Provider = {
       provide: PROJECT_PHASES_SERVICE,
-      inject: [TENANT_DATABASE, PROJECT_PHASES_REPOSITORY],
-      useFactory: (database: TenantDatabase, phases: ProjectPhasesRepository) =>
-        new ProjectPhasesService(database, phases, new ProjectsRepository()),
+      inject: [TENANT_DATABASE, PROJECT_PHASES_REPOSITORY, AUDIT_SERVICE],
+      useFactory: (
+        database: TenantDatabase,
+        phases: ProjectPhasesRepository,
+        audit: AuditService,
+      ) => new ProjectPhasesService(database, phases, new ProjectsRepository(), audit),
     };
 
     return {

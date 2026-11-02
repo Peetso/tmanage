@@ -14,7 +14,13 @@ import type { PredecessorHealthRow } from '../work/work-graph.repository.js';
 import { ProjectNotFoundError } from '../projects/projects.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import type { ProjectRow, SavedViewRow, WorkItemRow } from '../../common/database/schema.js';
+import type {
+  ProjectMilestoneRow,
+  ProjectPhaseRow,
+  ProjectRow,
+  SavedViewRow,
+  WorkItemRow,
+} from '../../common/database/schema.js';
 
 /**
  * WK-04 Work timeline: `projectTimeline` composes the work + work-graph reads into an ordered,
@@ -77,6 +83,11 @@ function member(projectIds: readonly string[]): Principal {
 function serviceWith(
   rows: readonly TimelineItemRow[],
   stats: ReadonlyMap<string, { floatDays: number | null; critical: boolean }> = new Map(),
+  layer: {
+    phases?: readonly Partial<ProjectPhaseRow>[];
+    milestones?: readonly Partial<ProjectMilestoneRow>[];
+    links?: readonly { milestoneId: string; dependsOnMilestoneId: string }[];
+  } = {},
 ): WorkViewsService {
   const database = {
     read: async (_context: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
@@ -84,6 +95,9 @@ function serviceWith(
   const timeline = {
     listProjectTimeline: async () => rows,
     listScheduleStats: async () => stats,
+    listTimelinePhases: async () => layer.phases ?? [],
+    listTimelineMilestones: async () => layer.milestones ?? [],
+    listMilestoneLinks: async () => layer.links ?? [],
   } as unknown as WorkTimelineRepository;
   return new WorkViewsService(database, timeline);
 }
@@ -190,7 +204,7 @@ describe('WorkViewsService.projectTimeline', () => {
 
     const view = await service.projectTimeline(context, member([PROJECT]), PROJECT);
 
-    expect(view).toEqual({ projectId: PROJECT, items: [] });
+    expect(view).toEqual({ projectId: PROJECT, items: [], phases: [], milestones: [] });
   });
 
   it('53-06: carries float and critical from the stats, null / false without a row', async () => {
@@ -208,6 +222,62 @@ describe('WorkViewsService.projectTimeline', () => {
     expect(view.items.map((r) => [r.floatDays, r.critical])).toEqual([
       [0, true],
       [null, false],
+    ]);
+  });
+});
+
+describe('53-07 timeline phases and milestones', () => {
+  it('draws a band from explicit dates and one from its milestones, and places each diamond', async () => {
+    const milestone = (overrides: Partial<ProjectMilestoneRow>): Partial<ProjectMilestoneRow> => ({
+      title: 'm',
+      status: 'planned',
+      dueOn: null,
+      committedOn: null,
+      forecastOn: null,
+      timelineOrder: null,
+      ...overrides,
+    });
+    const view = await serviceWith([], new Map(), {
+      phases: [
+        {
+          id: 'p1',
+          name: 'Design',
+          position: 0,
+          milestoneId: null,
+          phaseId: null,
+          startsOn: '2026-01-01',
+          endsOn: '2026-02-01',
+          colorToken: 'accent.teal',
+        },
+        {
+          id: 'p2',
+          name: 'Build',
+          position: 1,
+          milestoneId: null,
+          phaseId: null,
+          startsOn: null,
+          endsOn: null,
+          colorToken: null,
+        },
+        { id: 'a1', name: null, position: null, milestoneId: 'm1', phaseId: 'p2' },
+        { id: 'a2', name: null, position: null, milestoneId: 'm2', phaseId: 'p2' },
+      ],
+      milestones: [
+        milestone({ id: 'm1', title: 'Beta', committedOn: '2099-03-01', forecastOn: '2099-04-01' }),
+        milestone({ id: 'm2', title: 'Launch', dueOn: '2099-05-01' }),
+      ],
+      links: [{ milestoneId: 'm2', dependsOnMilestoneId: 'm1' }],
+    }).projectTimeline(context, member([PROJECT]), PROJECT);
+
+    expect(view.phases?.map((p) => [p.id, p.startsOn, p.endsOn])).toEqual([
+      ['p1', '2026-01-01', '2026-02-01'],
+      ['p2', '2099-03-01', '2099-05-01'],
+    ]);
+    expect(
+      view.milestones?.map((m) => [m.id, m.date, m.health, m.phaseId, m.linkedItemIds]),
+    ).toEqual([
+      ['m1', '2099-03-01', 'at_risk', 'p2', []],
+      ['m2', '2099-05-01', 'on_track', 'p2', ['m1']],
     ]);
   });
 });

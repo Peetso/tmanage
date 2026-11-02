@@ -283,4 +283,31 @@ export class ProjectPhasesRepository {
     const row = rows[0];
     return row ? { id: row.id, projectId: row.projectId } : null;
   }
+
+  /**
+   * 53-07. Set a phase definition's band dates and colour, within the acting tenant. The
+   * `milestone_id IS NULL` predicate keeps an assignment row out of reach even if a caller named one.
+   */
+  async updateDefinitionDates(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    phaseId: string,
+    input: {
+      readonly startsOn: string | null;
+      readonly endsOn: string | null;
+      readonly colorToken: string | null;
+    },
+  ): Promise<ProjectPhaseRow | null> {
+    await tenantDrizzle(runner)
+      .update(projectPhases)
+      .set({ startsOn: input.startsOn, endsOn: input.endsOn, colorToken: input.colorToken })
+      .where(
+        and(
+          eq(projectPhases.organizationId, context.organizationId),
+          eq(projectPhases.id, phaseId),
+          isNull(projectPhases.milestoneId),
+        ),
+      );
+    return this.findDefinitionById(runner, context, phaseId);
+  }
 }

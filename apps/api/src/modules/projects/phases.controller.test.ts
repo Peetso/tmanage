@@ -142,6 +142,19 @@ function build(
       store.push(row);
       return row;
     },
+    updateDefinitionDates: async (
+      _r: unknown,
+      ctx: TenantContext,
+      phaseId: string,
+      input: { startsOn: string | null; endsOn: string | null; colorToken: string | null },
+    ) => {
+      const row = store.find(
+        (r) => isDef(r) && r.id === phaseId && r.organizationId === ctx.organizationId,
+      );
+      if (!row) return null;
+      Object.assign(row, input);
+      return row;
+    },
     findMilestoneRef: async (
       _r: unknown,
       ctx: TenantContext,
@@ -267,5 +280,49 @@ describe('the route ceilings the CapabilityGuard enforces', () => {
     expect(cap(ProjectPhasesController.prototype.list)).toBe('project.manage');
     expect(cap(ProjectPhasesController.prototype.remove)).toBe('project.manage');
     expect(cap(ProjectPhasesController.prototype.assign)).toBe('project.manage');
+  });
+});
+
+describe('53-07 phase band dates', () => {
+  it('sets a definition row’s dates and colour, and 404s on an assignment row', async () => {
+    const { controller, store } = build();
+    const phase = await controller.create(context, owner, PROJECT, { name: 'Build', position: 0 });
+    const view = await controller.setDates(context, owner, PROJECT, phase.id, {
+      startsOn: '2026-11-01',
+      endsOn: '2026-12-31',
+      colorToken: 'accent.teal',
+    });
+    expect(view).toMatchObject({
+      startsOn: '2026-11-01',
+      endsOn: '2026-12-31',
+      colorToken: 'accent.teal',
+    });
+
+    const mid = 'milestone-0000-0000-0000-0000-00000000000a';
+    await controller.assign(context, owner, mid, phase.id);
+    const assignmentId = store.find((r) => r.milestoneId === mid)?.id as string;
+    await expect(
+      controller.setDates(context, owner, PROJECT, assignmentId, {
+        startsOn: '2026-11-01',
+        endsOn: null,
+        colorToken: null,
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('refuses an end before the start (400) and guards the route with project.manage', async () => {
+    const { controller } = build();
+    const phase = await controller.create(context, owner, PROJECT, { name: 'QA', position: 0 });
+    await expect(
+      controller.setDates(context, owner, PROJECT, phase.id, {
+        startsOn: '2026-12-31',
+        endsOn: '2026-11-01',
+        colorToken: null,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    const handler = (ProjectPhasesController.prototype as unknown as Record<string, object>)[
+      'setDates'
+    ] as object;
+    expect(Reflect.getMetadata(REQUIRED_CAPABILITY, handler)).toBe('project.manage');
   });
 });

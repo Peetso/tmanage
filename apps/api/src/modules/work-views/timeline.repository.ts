@@ -1,7 +1,13 @@
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { Audience } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { workItemScheduleStats } from '../../common/database/schema.js';
+import {
+  milestoneLinks,
+  projectMilestones,
+  projectPhases,
+  workItemScheduleStats,
+} from '../../common/database/schema.js';
+import type { ProjectMilestoneRow, ProjectPhaseRow } from '../../common/database/schema.js';
 import { MAX_PAGE_SIZE, WorkItemsRepository } from '../work/work-items.repository.js';
 import { WorkGraphRepository } from '../work/work-graph.repository.js';
 import type { PredecessorHealthRow } from '../work/work-graph.repository.js';
@@ -116,4 +122,76 @@ export class WorkTimelineRepository {
       ]),
     );
   }
+
+  /**
+   * 53-07. The project's phase rows in one read — definitions (`milestone_id IS NULL`) and the
+   * milestone assignments — so the service can draw bands and place each diamond in its phase.
+   */
+  async listTimelinePhases(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+  ): Promise<readonly ProjectPhaseRow[]> {
+    return tenantDrizzle(runner)
+      .select()
+      .from(projectPhases)
+      .where(
+        and(
+          eq(projectPhases.organizationId, context.organizationId),
+          eq(projectPhases.projectId, projectId),
+        ),
+      )
+      .orderBy(asc(projectPhases.position), asc(projectPhases.id))
+      .limit(MAX_TIMELINE_PHASE_ROWS);
+  }
+
+  /**
+   * 53-07. The project's milestones whose diamond day (`committed_on ?? forecast_on ?? due_on`)
+   * falls inside `[from, to]`, plus the undated ones, in one read.
+   */
+  async listTimelineMilestones(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+    window: { readonly from: string; readonly to: string },
+  ): Promise<readonly ProjectMilestoneRow[]> {
+    const day = sql`coalesce(${projectMilestones.committedOn}, ${projectMilestones.forecastOn}, ${projectMilestones.dueOn})`;
+    return tenantDrizzle(runner)
+      .select()
+      .from(projectMilestones)
+      .where(
+        and(
+          eq(projectMilestones.organizationId, context.organizationId),
+          eq(projectMilestones.projectId, projectId),
+          sql`(${day} is null or ${day} between ${window.from} and ${window.to})`,
+        ),
+      )
+      .orderBy(asc(projectMilestones.id))
+      .limit(MAX_TIMELINE_MILESTONES);
+  }
+
+  /** 53-07. The depends-on edges of these milestones, in one read (`milestone_links`). */
+  async listMilestoneLinks(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    milestoneIds: readonly string[],
+  ): Promise<readonly { milestoneId: string; dependsOnMilestoneId: string }[]> {
+    if (milestoneIds.length === 0) return [];
+    return tenantDrizzle(runner)
+      .select({
+        milestoneId: milestoneLinks.milestoneId,
+        dependsOnMilestoneId: milestoneLinks.dependsOnMilestoneId,
+      })
+      .from(milestoneLinks)
+      .where(
+        and(
+          eq(milestoneLinks.organizationId, context.organizationId),
+          inArray(milestoneLinks.milestoneId, [...milestoneIds]),
+        ),
+      );
+  }
 }
+
+/** 53-07. Bounds on the timeline's milestone and phase reads. */
+export const MAX_TIMELINE_MILESTONES = 500;
+const MAX_TIMELINE_PHASE_ROWS = 1000;

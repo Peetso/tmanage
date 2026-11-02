@@ -97,6 +97,12 @@ export const NEVER_REASONS = [
   // 0237. A person's own Google/Microsoft calendar connection and its OAuth callback: each mints
   // or holds that person's third-party credential.
   'calendar_connection',
+  // 53-21. Iteration planning writes (create, edit, move items, complete-and-roll, the points
+  // switch): a bulk re-plan of a project an AI must not drive until reviewed `iterations.*` ops exist.
+  'work_planning',
+  // 53-07. What the client timeline shows: publishing or unpublishing a milestone's client copy and
+  // a phase's band dates. Client-facing content an AI must not change until reviewed ops exist.
+  'client_projection',
 ] as const;
 export type NeverReason = (typeof NEVER_REASONS)[number];
 

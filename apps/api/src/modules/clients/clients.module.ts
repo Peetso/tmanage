@@ -276,12 +276,17 @@ export class ClientsModule {
      */
     const milestoneLifecycle: Provider = {
       provide: MILESTONE_LIFECYCLE_SERVICE,
-      inject: [TENANT_DATABASE],
-      useFactory: (database: TenantDatabase) =>
+      inject: [TENANT_DATABASE, AUDIT_SERVICE, OUTBOX_EVENTS_REPOSITORY],
+      useFactory: (database: TenantDatabase, audit: AuditService, outbox: OutboxEventsRepository) =>
         new MilestoneLifecycleService(
           database,
           new ProjectsRepository(),
           new ProjectMilestonesRepository(),
+          undefined,
+          undefined,
+          undefined,
+          audit,
+          outbox,
         ),
     };
 
