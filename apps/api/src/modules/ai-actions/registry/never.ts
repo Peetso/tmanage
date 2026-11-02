@@ -1794,6 +1794,12 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/print',
     reason: 'finance_settings',
   },
+  // R21-d · 52-12: the e-invoice XML/QR read — NEVER, as every client-invoices route.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/einvoice',
+    reason: 'finance_settings',
+  },
   { method: 'GET', path: '/v1/organizations/:orgSlug/portal/invoices', reason: 'finance_settings' },
   {
     method: 'GET',

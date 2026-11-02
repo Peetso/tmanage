@@ -12626,6 +12626,11 @@ export const clientInvoices = mysqlTable(
     taxRegisteredAt: datetime('tax_registered_at', { mode: 'date', fsp: 3 }),
     /** 52-28 (0303): 1 when the "not a tax invoice" line went out with the sent document. */
     taxNoticeShown: boolean('tax_notice_shown').notNull().default(false),
+    /** 52-12 (0311): the hash chain — gapless counter, previous hash, own XML hash, status. */
+    zatcaIcv: int('zatca_icv', { unsigned: true }),
+    zatcaPih: char('zatca_pih', { length: 64 }),
+    zatcaXmlHash: char('zatca_xml_hash', { length: 64 }),
+    zatcaStatus: varchar('zatca_status', { length: 16 }).notNull().default('not_applicable'),
     createdBy: char('created_by', { length: 36 }).notNull(),
     version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
@@ -12633,6 +12638,7 @@ export const clientInvoices = mysqlTable(
   },
   (table) => [
     uniqueIndex('uq_ci_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_client_invoices_org_icv').on(table.organizationId, table.zatcaIcv),
     uniqueIndex('uq_ci_number').on(table.organizationId, table.number),
     index('ix_ci_client_state').on(
       table.organizationId,
@@ -12713,12 +12719,18 @@ export const clientCreditNotes = mysqlTable(
     contentHash: char('content_hash', { length: 64 }).notNull(),
     pdfFileAssetId: char('pdf_file_asset_id', { length: 36 }),
     xmlFileAssetId: char('xml_file_asset_id', { length: 36 }),
+    /** 52-12 (0311): the same hash chain as `client_invoices` (one counter per org). */
+    zatcaIcv: int('zatca_icv', { unsigned: true }),
+    zatcaPih: char('zatca_pih', { length: 64 }),
+    zatcaXmlHash: char('zatca_xml_hash', { length: 64 }),
+    zatcaStatus: varchar('zatca_status', { length: 16 }).notNull().default('not_applicable'),
     issuedAt: datetime('issued_at', { mode: 'date', fsp: 3 }).notNull(),
     createdBy: char('created_by', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
   },
   (table) => [
     uniqueIndex('uq_ccn_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_client_credit_notes_org_icv').on(table.organizationId, table.zatcaIcv),
     uniqueIndex('uq_ccn_number').on(table.organizationId, table.number),
     index('ix_ccn_invoice').on(table.organizationId, table.invoiceId),
   ],

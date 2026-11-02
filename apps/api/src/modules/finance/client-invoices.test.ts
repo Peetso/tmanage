@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import { decodeTlv } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import type {
+  ClientCreditNoteRow,
   ClientInvoiceLineRow,
   ClientInvoiceRow,
   OrgFinanceProfileRow,
@@ -10,6 +12,7 @@ import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
 import { ClientInvoicesController } from './client-invoices.controller.js';
 import type { ClientInvoicesRepository } from './client-invoices.repository.js';
 import { ClientInvoicesService, renderPrint } from './client-invoices.service.js';
+import { GENESIS_PIH } from './einvoice-rules.js';
 import { defaultProfile } from './finance-rules.js';
 import type { FinanceProfileValues } from './finance-rules.js';
 
@@ -411,5 +414,210 @@ describe('52-28 tax-document labels', () => {
         registeredAt: '2026-11-02',
       }),
     ).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+/**
+ * 52-12 (R21-d) UNIT-52-19: the hash chain over many invoices and credit notes through `send` /
+ * `creditNote` with an in-memory repository, and the e-invoice read.
+ */
+function chainWorld(regime: 'zatca' | 'eta' | 'pint_ae', count: number) {
+  const at = new Date('2026-11-02T09:00:00Z');
+  const rows = new Map<string, ClientInvoiceRow>();
+  const notes: ClientCreditNoteRow[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const id = `00000000-0000-7000-8000-${String(i).padStart(12, '0')}`;
+    rows.set(id, {
+      id,
+      organizationId: ORG,
+      clientOrganizationId: CLIENT,
+      state: 'draft',
+      number: null,
+      language: 'en',
+      documentLabel: 'invoice',
+      currency: 'SAR',
+      baseCurrency: 'SAR',
+      fxRate: null,
+      issueDate: null,
+      dueDate: null,
+      supplyDate: null,
+      subtotalMinor: 0,
+      discountMinor: 0,
+      taxMinor: 0,
+      totalMinor: 0,
+      paidMinor: 0,
+      depositAppliedMinor: 0,
+      zatcaIcv: null,
+      zatcaPih: null,
+      zatcaXmlHash: null,
+      zatcaStatus: 'not_applicable',
+      version: 1,
+      createdAt: at,
+      updatedAt: at,
+    } as unknown as ClientInvoiceRow);
+  }
+  const line = {
+    id: 'l1',
+    position: 0,
+    sourceType: 'manual',
+    descriptionEn: 'Design',
+    descriptionAr: 'تصميم',
+    unit: 'item',
+    quantityCenti: 100,
+    unitPriceMinor: 100_000,
+    discountBp: 0,
+    taxBp: 1500,
+    taxCategory: 'S',
+    lineNetMinor: 100_000,
+    lineTaxMinor: 15_000,
+    lineGrossMinor: 115_000,
+    lineDiscountMinor: 0,
+    sourceIdsJson: null,
+  } as unknown as ClientInvoiceLineRow;
+  const counters: Record<string, number> = {};
+  const heads = (): { icv: number; xmlHash: string }[] =>
+    [...rows.values(), ...notes]
+      .filter((r) => r.zatcaIcv !== null)
+      .map((r) => ({ icv: r.zatcaIcv!, xmlHash: r.zatcaXmlHash! }));
+  const repository = {
+    findInvoice: async (_r: unknown, _o: string, id: string) =>
+      rows.has(id) ? { ...rows.get(id)! } : null,
+    updateInvoice: async (_r: unknown, _o: string, id: string, change: object) => {
+      Object.assign(rows.get(id)!, change);
+    },
+    lines: async () => [line],
+    payments: async () => [],
+    creditNotes: async (_r: unknown, _o: string, id: string) =>
+      notes.filter((n) => n.invoiceId === id),
+    insertCreditNote: async (_r: unknown, note: ClientCreditNoteRow) => {
+      notes.push(note);
+    },
+    insertEvent: async () => undefined,
+    setting: async () => undefined,
+    locksHolding: async () => [],
+    releaseLinks: async () => undefined,
+    clientBilling: async () => ({ id: CLIENT, name: 'Acme', paymentTermsDays: 15 }),
+    clientAdminUserIds: async () => [],
+    lockChain: vi.fn(async () => undefined),
+    chainHead: async () =>
+      heads().reduce<{ icv: number; xmlHash: string } | null>(
+        (a, b) => (a === null || b.icv > a.icv ? b : a),
+        null,
+      ),
+  } as unknown as ClientInvoicesRepository;
+  const transaction = async (_c: unknown, work: (r: unknown) => unknown) => work({});
+  const service = new ClientInvoicesService({
+    database: { transaction, read: transaction } as never,
+    repository,
+    finance: {
+      profile: async () =>
+        ({
+          ...defaultProfile({ name: 'Studio', defaultLocale: 'en-SA' }),
+          country: regime === 'eta' ? 'EG' : 'SA',
+          einvoiceRegime: regime,
+          legalNameAr: 'استوديو',
+          taxRegistrationNo: '310122393500003',
+          addressEn: 'King Fahd Rd, Riyadh',
+        }) as unknown as OrgFinanceProfileRow,
+      organization: async () => ({ name: 'Studio', defaultLocale: 'en-SA', timezone: 'UTC' }),
+    },
+    sequences: {
+      nextNumber: (async (_r: unknown, _o: string, kind: string) => {
+        counters[kind] = (counters[kind] ?? 0) + 1;
+        return {
+          kind,
+          periodKey: '2026',
+          value: counters[kind],
+          number: `${kind}-${String(counters[kind])}`,
+        };
+      }) as never,
+    },
+    notifications: { insertForRecipient: vi.fn(async () => undefined) },
+    audit: { record: vi.fn(async () => undefined) } as never,
+    now: () => at,
+  });
+  return { service, rows, notes, ids: [...rows.keys()] };
+}
+
+describe('52-12 e-invoice hash chain', () => {
+  it('UNIT-52-19: 100 invoices + 10 credit notes chain icv 1..110 gapless, each pih the previous hash; a credited invoice keeps its icv, a voided draft takes none', async () => {
+    const w = chainWorld('zatca', 100);
+    for (const [i, id] of w.ids.entries()) {
+      await w.service.send(context, owner, id, {}, { orgSlug: 'studio' }, false);
+      if (i % 10 === 9)
+        await w.service.creditNote(context, owner, id, { reason: 'Refund', full: true });
+    }
+    const chain = [...w.rows.values(), ...w.notes].sort((a, b) => a.zatcaIcv! - b.zatcaIcv!);
+    expect(chain.map((r) => r.zatcaIcv)).toEqual(Array.from({ length: 110 }, (_, i) => i + 1));
+    expect(chain[0]!.zatcaPih).toBe(GENESIS_PIH);
+    for (let i = 1; i < chain.length; i += 1)
+      expect(chain[i]!.zatcaPih).toBe(chain[i - 1]!.zatcaXmlHash);
+    expect(chain.every((r) => r.zatcaStatus === 'ready')).toBe(true);
+    expect((await w.service.get(context, owner, w.ids[9]!)).einvoice).toEqual({
+      status: 'ready',
+      icv: 10,
+    });
+    const extra = chainWorld('zatca', 1);
+    const voided = await extra.service.voidInvoice(context, owner, extra.ids[0]!, {
+      reason: 'Wrong client',
+    });
+    expect(voided.einvoice).toBeNull();
+    await extra.service
+      .send(context, owner, extra.ids[0]!, {}, { orgSlug: 'studio' }, false)
+      .catch(() => undefined);
+    expect(extra.rows.get(extra.ids[0]!)!.zatcaIcv).toBeNull();
+  });
+
+  it('leaves a non-zatca send outside the chain; the read: draft 409, eta 404, client 403', async () => {
+    const eta = chainWorld('eta', 2);
+    await eta.service.send(context, owner, eta.ids[0]!, {}, { orgSlug: 'studio' }, false);
+    expect(eta.rows.get(eta.ids[0]!)).toMatchObject({
+      zatcaIcv: null,
+      zatcaPih: null,
+      zatcaXmlHash: null,
+      zatcaStatus: 'not_applicable',
+    });
+    await expect(eta.service.einvoice(context, owner, eta.ids[0]!)).rejects.toMatchObject({
+      status: 404,
+      details: [{ field: 'regime', message: 'einvoice_not_applicable' }],
+    });
+    await expect(eta.service.einvoice(context, owner, eta.ids[1]!)).rejects.toMatchObject({
+      status: 409,
+    });
+    const client = {
+      ...owner,
+      kind: 'client',
+      role: 'client_admin',
+      clientOrganizationId: CLIENT,
+    } as unknown as Principal;
+    await expect(eta.service.einvoice(context, client, eta.ids[0]!)).rejects.toMatchObject({
+      status: 403,
+    });
+  });
+
+  it('returns the XML, a QR carrying the stored total, hashMatches true; a tampered hash is false', async () => {
+    const w = chainWorld('zatca', 1);
+    const id = w.ids[0]!;
+    await w.service.send(context, owner, id, {}, { orgSlug: 'studio' }, false);
+    const view = await w.service.einvoice(context, owner, id);
+    expect(view).toMatchObject({
+      regime: 'zatca',
+      status: 'ready',
+      icv: 1,
+      pih: GENESIS_PIH,
+      hashMatches: true,
+    });
+    expect(view.xml).toContain('<cbc:ID>invoice-1</cbc:ID>');
+    expect(decodeTlv(view.qr!).find((f) => f.tag === 4)?.value).toBe('1150.00');
+    w.rows.get(id)!.zatcaXmlHash = '0'.repeat(64);
+    expect((await w.service.einvoice(context, owner, id)).hashMatches).toBe(false);
+    const pint = chainWorld('pint_ae', 1);
+    await pint.service.send(context, owner, pint.ids[0]!, {}, { orgSlug: 'studio' }, false);
+    expect(await pint.service.einvoice(context, owner, pint.ids[0]!)).toMatchObject({
+      regime: 'pint_ae',
+      icv: null,
+      qr: null,
+      hashMatches: null,
+    });
   });
 });

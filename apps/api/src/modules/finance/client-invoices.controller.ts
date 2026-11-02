@@ -26,6 +26,7 @@ import type { AuthenticatedSession } from '../identity/session.service.js';
 import type {
   AgingView,
   ClientInvoicesService,
+  EinvoiceView,
   InvoiceSummary,
   InvoiceView,
   PullResult,
@@ -266,6 +267,23 @@ export class ClientInvoicesController {
       ip: ip ?? null,
       userAgent: userAgent ?? null,
     });
+  }
+
+  /**
+   * 52-12 (R21-d) — the e-invoice of an issued invoice: UBL XML, Phase-1 QR, chain facts and
+   * `hashMatches`. Same authorization as the read; never cached.
+   */
+  @Get('client-invoices/:invoiceId/einvoice')
+  @RequireCapability('finance.view')
+  async einvoice(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('invoiceId') invoiceId: string,
+    @Res({ passthrough: true }) reply: { header(name: string, value: string): unknown },
+  ): Promise<EinvoiceView> {
+    const view = await this.service.einvoice(context, principal, invoiceId);
+    reply.header('cache-control', 'private, no-store');
+    return view;
   }
 
   /** The HTML print view: same authorization as the read, every value escaped as plain text. */

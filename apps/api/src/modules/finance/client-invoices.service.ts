@@ -20,6 +20,7 @@ import {
   taxNoticeCopy,
   taxNoticeRequired,
   uuidv7,
+  xmlHash,
 } from '@tmanage/domain';
 import type {
   AgingBucket,
@@ -76,6 +77,16 @@ import {
 import type { LineInput } from './client-invoices-rules.js';
 import type { ClientInvoicesRepository, InvoiceChange } from './client-invoices.repository.js';
 import type { DocumentSequenceService } from './document-sequences.js';
+import {
+  chainLink,
+  creditNoteUblLines,
+  einvoiceXml,
+  invoiceDocument,
+  invoiceUblLines,
+  qrFor,
+  ublProfileOf,
+} from './einvoice-rules.js';
+import type { EinvoiceDocument } from './einvoice-rules.js';
 import { defaultProfile } from './finance-rules.js';
 import type { FinanceProfileValues } from './finance-rules.js';
 import type { FinanceRepository } from './finance.repository.js';
@@ -186,6 +197,24 @@ export interface InvoiceView extends InvoiceSummary {
   }[];
   /** 52-10 is not built. */
   readonly pdf: null;
+  /** 52-12 (0311): the hash-chain facts; null when the invoice is outside the chain. */
+  readonly einvoice: { readonly status: string; readonly icv: number | null } | null;
+}
+
+/** 52-12 (R21-d): `GET …/client-invoices/:id/einvoice`. */
+export interface EinvoiceView {
+  readonly invoiceId: string;
+  readonly number: string;
+  readonly regime: 'zatca' | 'pint_ae';
+  readonly status: string;
+  readonly icv: number | null;
+  readonly pih: string | null;
+  readonly xmlHash: string | null;
+  /** The rebuilt XML's hash equals the stored one; null when no hash was stored (pint_ae). */
+  readonly hashMatches: boolean | null;
+  /** ZATCA Phase-1 TLV base64; null for pint_ae. */
+  readonly qr: string | null;
+  readonly xml: string;
 }
 
 export interface PullResult {
@@ -461,6 +490,49 @@ export class ClientInvoicesService {
     });
   }
 
+  /**
+   * 52-12 — the e-invoice of an issued invoice: the UBL XML rebuilt from the stored row, lines and
+   * snapshots, the chain facts, and whether the rebuilt hash equals the stored one (the tamper
+   * check). A draft is a 409 `not_issued`; an org without a structured regime (and an invoice
+   * outside the chain) a 404 `einvoice_not_applicable`. Same authorization as the read.
+   */
+  async einvoice(context: TenantContext, principal: Principal, id: string): Promise<EinvoiceView> {
+    this.requireView(principal, context);
+    const org = context.organizationId;
+    return this.options.database.read(context, async (r) => {
+      const row = await this.repo.findInvoice(r, org, id);
+      if (row === null) throw notFound();
+      if (row.state === 'draft') throw conflict('not_issued');
+      const chained = row.zatcaIcv !== null && row.zatcaIcv !== undefined;
+      const regime = chained ? 'zatca' : ublProfileOf((await this.profile(r, org)).einvoiceRegime);
+      if (regime === null) {
+        throw new ApiError(404, 'not_found', 'einvoice_not_applicable', [
+          { field: 'regime', message: 'einvoice_not_applicable' },
+        ]);
+      }
+      const doc = invoiceDocument(row);
+      const xml = einvoiceXml(
+        doc,
+        invoiceUblLines(await this.repo.lines(r, org, id), row.language),
+        regime,
+        chained ? { icv: Number(row.zatcaIcv), pih: row.zatcaPih ?? '' } : null,
+      );
+      const stored = row.zatcaXmlHash ?? null;
+      return {
+        invoiceId: row.id,
+        number: row.number ?? '',
+        regime,
+        status: row.zatcaStatus ?? 'not_applicable',
+        icv: chained ? Number(row.zatcaIcv) : null,
+        pih: row.zatcaPih ?? null,
+        xmlHash: stored,
+        hashMatches: stored === null ? null : xmlHash(xml) === stored,
+        qr: regime === 'zatca' ? qrFor(doc) : null,
+        xml,
+      };
+    });
+  }
+
   /** The HTML print view (plain-text escaped; bilingual when 'bi'). */
   async print(
     context: TenantContext,
@@ -568,6 +640,10 @@ export class ClientInvoicesService {
         taxRegistrationRef: null,
         taxRegisteredAt: null,
         taxNoticeShown: false,
+        zatcaIcv: null,
+        zatcaPih: null,
+        zatcaXmlHash: null,
+        zatcaStatus: 'not_applicable',
         createdBy: context.userId,
         version: 1,
         createdAt: at,
@@ -843,6 +919,10 @@ export class ClientInvoicesService {
           addressAr: profile.addressAr,
           country: profile.country,
           bankDetails: profile.bankDetailsText,
+          // 52-12: the structured address the e-invoice XML is rebuilt from (regime orgs only).
+          ...(ublProfileOf(profile.einvoiceRegime) === null
+            ? {}
+            : { address: profile.addressJson }),
         }),
         sendKeyHash: keyHash,
         sentAt: at,
@@ -852,7 +932,30 @@ export class ClientInvoicesService {
         updatedAt: at,
       };
       sent.contentHash = invoiceContentHash(sent, lines);
+      if (profile.einvoiceRegime === 'zatca') {
+        // 52-12: the ICV is assigned here, with the number, never on a draft. Gapless: the
+        // invoice number already holds its sequence row lock (`DocumentSequenceService`), and
+        // `lockChain` serialises invoices with credit notes, which take another sequence.
+        await this.repo.lockChain(tx, org);
+        const head = await this.repo.chainHead(tx, org);
+        const link = chainLink(head, (position) =>
+          einvoiceXml(
+            invoiceDocument(sent),
+            invoiceUblLines(lines, sent.language),
+            'zatca',
+            position,
+          ),
+        );
+        sent.zatcaIcv = link.icv;
+        sent.zatcaPih = link.pih;
+        sent.zatcaXmlHash = link.xmlHash;
+        sent.zatcaStatus = 'ready';
+      }
       await this.repo.updateInvoice(tx, org, id, {
+        zatcaIcv: sent.zatcaIcv ?? null,
+        zatcaPih: sent.zatcaPih ?? null,
+        zatcaXmlHash: sent.zatcaXmlHash ?? null,
+        zatcaStatus: sent.zatcaStatus ?? 'not_applicable',
         number: sent.number,
         state: sent.state,
         issueDate,
@@ -1143,6 +1246,8 @@ export class ClientInvoicesService {
         id,
         lines.map((l) => l.id),
       );
+      // 52-12: the chain is untouched — only a draft voids, and a draft never holds an ICV (it is
+      // assigned at send); an issued invoice is corrected by a credit note, its own chain link.
       const change: InvoiceChange = {
         state: next,
         voidedAt: at,
@@ -1246,10 +1351,43 @@ export class ClientInvoicesService {
           .digest('hex'),
         pdfFileAssetId: null,
         xmlFileAssetId: null,
+        zatcaIcv: null,
+        zatcaPih: null,
+        zatcaXmlHash: null,
+        zatcaStatus: 'not_applicable',
         issuedAt: at,
         createdBy: context.userId,
         createdAt: at,
       };
+      if ((await this.profile(tx, org)).einvoiceRegime === 'zatca') {
+        // 52-12: a credit note is a link of the same chain (one counter with the invoices), its
+        // seller as the corrected invoice froze it; assigned with its number, under `lockChain`.
+        await this.repo.lockChain(tx, org);
+        const doc: EinvoiceDocument = {
+          id: noteId,
+          number: issued.number,
+          kind: 'credit_note',
+          issuedAt: at,
+          issueDate: isoDay(at),
+          supplyDate: row.supplyDate ?? row.issueDate,
+          currency: row.currency,
+          buyerSnapshotJson: row.buyerSnapshotJson,
+          sellerSnapshotJson: row.sellerSnapshotJson,
+          subtotalMinor: totals.subtotalMinor,
+          discountMinor: 0,
+          taxMinor: totals.taxMinor,
+          totalMinor: totals.totalMinor,
+          billingReference: row.number,
+          creditReason: input.reason,
+        };
+        const link = chainLink(await this.repo.chainHead(tx, org), (position) =>
+          einvoiceXml(doc, creditNoteUblLines(noteLines, row.language), 'zatca', position),
+        );
+        note.zatcaIcv = link.icv;
+        note.zatcaPih = link.pih;
+        note.zatcaXmlHash = link.xmlHash;
+        note.zatcaStatus = 'ready';
+      }
       await this.repo.insertCreditNote(tx, note, noteLines);
       const full = already + totals.totalMinor >= Number(row.totalMinor);
       const change: InvoiceChange = { version: row.version + 1, updatedAt: at };
@@ -1492,6 +1630,10 @@ export class ClientInvoicesService {
         issuedAt: n.issuedAt.toISOString(),
       })),
       pdf: null,
+      einvoice:
+        row.zatcaStatus === undefined || row.zatcaStatus === 'not_applicable'
+          ? null
+          : { status: row.zatcaStatus, icv: row.zatcaIcv ?? null },
     };
   }
 

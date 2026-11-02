@@ -5,6 +5,7 @@ import {
   eq,
   gte,
   inArray,
+  isNotNull,
   isNull,
   lt,
   lte,
@@ -24,6 +25,7 @@ import {
   clientOrganizationBilling,
   expenses,
   orgExchangeRates,
+  orgFinanceProfiles,
   orgSettings,
   projectClients,
   quoteLines,
@@ -753,6 +755,59 @@ export class ClientInvoicesRepository {
         ),
       );
   }
+
+  // ---- 52-12 (0311) hash chain ----
+
+  /**
+   * Serialises every chain link of the organization: one row lock on its finance profile, taken
+   * inside the send / credit-note transaction. Invoices and credit notes take different document
+   * sequences (`DocumentSequenceService` locks one row per kind), so the counter they share needs
+   * this single lock to stay gapless and unique across both tables.
+   */
+  async lockChain(runner: TenantQueryRunner, organizationId: string): Promise<void> {
+    await tenantDrizzle(runner)
+      .select({ organizationId: orgFinanceProfiles.organizationId })
+      .from(orgFinanceProfiles)
+      .where(eq(orgFinanceProfiles.organizationId, organizationId))
+      .limit(1)
+      .for('update');
+  }
+
+  /** The last link: the highest ICV over invoices and credit notes, or null for the first. */
+  async chainHead(runner: TenantQueryRunner, organizationId: string): Promise<ChainHead | null> {
+    const db = tenantDrizzle(runner);
+    const invoice = await db
+      .select({ icv: clientInvoices.zatcaIcv, xmlHash: clientInvoices.zatcaXmlHash })
+      .from(clientInvoices)
+      .where(
+        and(eq(clientInvoices.organizationId, organizationId), isNotNull(clientInvoices.zatcaIcv)),
+      )
+      .orderBy(desc(clientInvoices.zatcaIcv))
+      .limit(1)
+      .for('update');
+    const note = await db
+      .select({ icv: clientCreditNotes.zatcaIcv, xmlHash: clientCreditNotes.zatcaXmlHash })
+      .from(clientCreditNotes)
+      .where(
+        and(
+          eq(clientCreditNotes.organizationId, organizationId),
+          isNotNull(clientCreditNotes.zatcaIcv),
+        ),
+      )
+      .orderBy(desc(clientCreditNotes.zatcaIcv))
+      .limit(1)
+      .for('update');
+    const heads = [...invoice, ...note].filter(
+      (h): h is { icv: number; xmlHash: string } => h.icv !== null && h.xmlHash !== null,
+    );
+    if (heads.length === 0) return null;
+    return heads.reduce((a, b) => (Number(b.icv) > Number(a.icv) ? b : a));
+  }
+}
+
+export interface ChainHead {
+  readonly icv: number;
+  readonly xmlHash: string;
 }
 
 function affected(result: unknown): number {
