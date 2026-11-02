@@ -1,6 +1,6 @@
 import { generateKeyPairSync, randomBytes } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
-import { decodeTlv } from '@tmanage/domain';
+import { assertSafeAuditMetadata, decodeTlv } from '@tmanage/domain';
 import { createFieldCipher, loadFieldCipherKeyring } from '@tmanage/domain/field-cipher';
 import { selfSignedCertificate } from '@tmanage/domain/zatca-sign';
 import type { Principal } from '@tmanage/domain';
@@ -544,7 +544,12 @@ function chainWorld(
       }) as never,
     },
     notifications: { insertForRecipient: vi.fn(async () => undefined) },
-    audit: { record: vi.fn(async () => undefined) } as never,
+    // The real write boundary refuses unsafe metadata keys (A8: `credit_note_number` was a 500).
+    audit: {
+      record: vi.fn(async (_tx: unknown, _c: unknown, entry: { metadata: unknown }) => {
+        assertSafeAuditMetadata(entry.metadata);
+      }),
+    } as never,
     now: () => at,
     ...extra,
   });

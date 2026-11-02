@@ -22,6 +22,21 @@
   color: var(--paper-0);
 }
 
+/* A2: the message body carries its own ink (--ink-800, and --ink-650 on .tm-prose) from
+   chat.css / globals.css. On the own bubble, whose background is --ink-950, that ink matched
+   the bubble (both #f5f6f0 in dark, near-black on black in light). The body, its paragraphs
+   and its prose follow the bubble's inverted --paper-0 ink instead, in both themes. */
+.tm-pane-bubble[data-own='true'] .tm-chat-message__body,
+.tm-pane-bubble[data-own='true'] .tm-chat-message__body p,
+.tm-pane-bubble[data-own='true'] .tm-chat-message__body .tm-prose {
+  color: var(--paper-0);
+}
+
+.tm-pane-bubble[data-own='true'] .tm-chat-message__body a {
+  color: inherit;
+  text-decoration: underline;
+}
+
 .tm-pane-bubble[data-run='middle'],
 .tm-pane-bubble[data-run='last'] {
   border-start-start-radius: 6px;

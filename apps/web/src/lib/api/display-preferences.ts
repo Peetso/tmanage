@@ -77,6 +77,27 @@ export type DisplayPreferencesUpdate = Omit<
   'uiMode' | 'uiModeSource' | 'uiModeLocked'
 > & { readonly uiMode?: DisplayPreferencesView['uiMode'] };
 
+/**
+ * The PUT body for a full record: only the stored settings, never the computed `uiModeSource` /
+ * `uiModeLocked` (the API rejects an unknown field with 400 "display preferences are invalid"), and
+ * `uiMode` only when it is the member's own choice — an inherited mode stays inherited.
+ */
+export function toDisplayPreferencesUpdate(
+  view: DisplayPreferencesView | DisplayPreferencesUpdate,
+): DisplayPreferencesUpdate {
+  const ownMode = !('uiModeSource' in view) || view.uiModeSource === 'self';
+  return {
+    theme: view.theme,
+    density: view.density,
+    locale: view.locale,
+    timezone: view.timezone,
+    dateFormat: view.dateFormat,
+    numerals: view.numerals,
+    calendarDisplay: view.calendarDisplay,
+    ...(ownMode && view.uiMode !== undefined ? { uiMode: view.uiMode } : {}),
+  };
+}
+
 function path(organizationSlug: string): string {
   return `/v1/organizations/${encodeURIComponent(organizationSlug)}/me/display-preferences`;
 }
@@ -97,7 +118,8 @@ export async function updateDisplayPreferences(
   const { data } = await client.request<DisplayPreferencesView>({
     method: 'PUT',
     path: path(organizationSlug),
-    body: settings,
+    // Re-built field by field so a caller that spreads a fetched view cannot send read-only fields.
+    body: toDisplayPreferencesUpdate(settings),
   });
   return data;
 }

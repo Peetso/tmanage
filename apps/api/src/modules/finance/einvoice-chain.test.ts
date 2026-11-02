@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import type { EinvoiceChainCheckRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import { analyzeStatement } from '../../common/database/tenant-guard.js';
 import { EinvoiceChainController } from './einvoice-chain.controller.js';
-import type { EinvoiceChainRepository } from './einvoice-chain.repository.js';
+import { EinvoiceChainRepository } from './einvoice-chain.repository.js';
 
 /** 52-12 (R22-b) — the chain verdict route: no row → never_checked, a client principal → 403. */
 
@@ -59,5 +60,23 @@ describe('GET …/finance/einvoicing/chain', () => {
     await expect(
       new EinvoiceChainController(database, repo(row)).chain(context, principal('client')),
     ).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe('EinvoiceChainRepository.latest', () => {
+  it('A9: its statement passes the tenant guard (the `documents` column is qualified) and maps the row', async () => {
+    const seen: { sql: string; params: readonly unknown[] }[] = [];
+    const runner = {
+      query: async (sql: string, params: readonly unknown[]) => {
+        seen.push({ sql, params });
+        return [['x', ORG, '2026-11-02 03:00:00.000', 'ok', 7, '7', null, null, '{}']];
+      },
+    };
+    const row = await new EinvoiceChainRepository().latest(runner as never, ORG);
+    expect(seen).toHaveLength(1);
+    const statement = seen[0]!;
+    expect(statement.sql).toContain('`einvoice_chain_checks`.`documents`');
+    expect(analyzeStatement(statement.sql, statement.params, ORG).violations).toEqual([]);
+    expect(row).toMatchObject({ id: 'x', status: 'ok', headIcv: 7, documents: 7 });
   });
 });

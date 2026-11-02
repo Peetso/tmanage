@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
@@ -14,6 +15,15 @@ import '../../styles/screens/chat.css';
 export interface NewChannelFormProps {
   readonly api: ApiClient;
   readonly organizationSlug: string;
+  /**
+   * Where the new channel opens. Default: the studio channel page, `/<slug>/chat/<id>` — the
+   * same address `NewGroupDialog` opens after "Create group".
+   */
+  readonly channelHref?: (conversationId: string) => string;
+}
+
+export function defaultChannelHref(organizationSlug: string, conversationId: string): string {
+  return `/${encodeURIComponent(organizationSlug)}/chat/${encodeURIComponent(conversationId)}`;
 }
 
 /**
@@ -21,8 +31,9 @@ export interface NewChannelFormProps {
  * (`ChatScreen`) into the chat list's empty pane. Disabled until the projects arrive, so a name
  * typed before hydration is never silently erased.
  */
-export function NewChannelForm({ api, organizationSlug }: NewChannelFormProps) {
+export function NewChannelForm({ api, organizationSlug, channelHref }: NewChannelFormProps) {
   const tOr = useTOr();
+  const router = useRouter();
   const queries = useQueryClient();
   const [name, setName] = useState('');
   const [projectId, setProjectId] = useState('');
@@ -34,10 +45,16 @@ export function NewChannelForm({ api, organizationSlug }: NewChannelFormProps) {
 
   const create = useMutation({
     mutationFn: () => createConversation(api, organizationSlug, { projectId, name }),
-    onSuccess: () => {
+    onSuccess: (created) => {
       setName('');
       void queries.invalidateQueries({ queryKey: chatKeys.all(organizationSlug) });
       void queries.invalidateQueries({ queryKey: ['conversations', organizationSlug] });
+      // A3: open the channel just made, rather than leaving the cleared form behind.
+      router.push(
+        channelHref === undefined
+          ? defaultChannelHref(organizationSlug, created.id)
+          : channelHref(created.id),
+      );
     },
   });
 

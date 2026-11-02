@@ -1469,7 +1469,9 @@ export class ClientInvoicesService {
         at,
       );
       await this.audited(tx, context, 'client_invoice.credited', id, {
-        credit_note_number: issued.number,
+        // Not `credit_note_number`: `note` is a refused audit key segment (content, not a fact),
+        // and the refusal turned every credit note into a 500.
+        credit_number: issued.number,
         total_minor: totals.totalMinor,
         full,
       });

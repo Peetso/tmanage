@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import { analyzeStatement } from '../../common/database/tenant-guard.js';
 import { ChatListController } from './chat-list.controller.js';
 import { chatListParams, chatListSql, ChatListRepository } from './chat-list.repository.js';
 import type { ChatListDbRow } from './chat-list.repository.js';
@@ -41,6 +42,18 @@ describe('chat list (R7 slice 2)', () => {
     expect(sql).toContain('AND cm.archived_at IS NULL');
     const one = { includeArchived: true, hasOrgWideScope: true, conversationId: 'c1' };
     expect(chatListSql(one).split('?').length - 1).toBe(chatListParams(context, one).length);
+  });
+
+  it('passes the tenant guard for the list and the one-conversation read (A1 live 500)', () => {
+    const live = { organizationId: 'org-1', userId: 'u-1', membershipId: 'm-1' } as TenantContext;
+    for (const query of [
+      { includeArchived: false, hasOrgWideScope: false },
+      { includeArchived: true, hasOrgWideScope: true, conversationId: 'c1', limit: 1 },
+    ]) {
+      const sql = chatListSql(query);
+      expect(sql).not.toMatch(/\(SELECT COUNT/i);
+      expect(analyzeStatement(sql, chatListParams(live, query), 'org-1').violations).toEqual([]);
+    }
   });
 
   it('answers 200 with the DM titled by the other person, and 404 for a stranger', async () => {

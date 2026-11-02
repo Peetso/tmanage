@@ -1,6 +1,7 @@
 import type { ApiClient } from './client';
 import {
   getDisplayPreferences,
+  toDisplayPreferencesUpdate,
   updateDisplayPreferences,
   type DisplayLocale,
   type DisplayPreferencesView,
@@ -92,7 +93,7 @@ export function saveLanguageAndTimezone(
   choice: { readonly language: AppLanguage; readonly timezone: DisplayTimezone },
 ): Promise<DisplayPreferencesView> {
   return updateDisplayPreferences(client, organizationSlug, {
-    ...current,
+    ...toDisplayPreferencesUpdate(current),
     locale: localeForLanguage(choice.language, current.locale),
     timezone: choice.timezone,
   });

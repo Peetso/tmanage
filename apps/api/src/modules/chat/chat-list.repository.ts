@@ -14,6 +14,11 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
  *
  * Unread = messages after the viewer's last-read message (by sequence number), top-level, not
  * removed, not the viewer's own. No read row means everything is unread.
+ *
+ * The unread count is a `LEFT JOIN messages um` + `GROUP BY`, not a scalar subquery in the
+ * SELECT list: the tenant guard (enforced in production) cannot see a tenant predicate inside a
+ * SELECT-list subquery and rejects the whole statement, which was the live 500 (A1, 2026-11-02).
+ * Every other join is at most one row per conversation, so grouping keeps one row each.
  */
 
 export interface ChatListDbRow {
@@ -58,11 +63,7 @@ export function chatListSql(query: ChatListQuery): string {
           lm.created_at AS last_created_at, lm.author_user_id AS last_author_user_id,
           la.display_name AS last_author_name, ou.display_name AS other_display_name,
           mu.muted AS muted,
-          (SELECT COUNT(*) FROM messages um
-            WHERE um.organization_id = ? AND um.conversation_id = c.id
-              AND um.parent_message_id IS NULL AND um.deleted_at IS NULL
-              AND um.author_user_id <> ?
-              AND um.sequence_no > COALESCE(rm.sequence_no, 0)) AS unread_count
+          COUNT(um.id) AS unread_count
      FROM conversation_memberships cm
      JOIN conversations c ON c.organization_id = ? AND c.id = cm.conversation_id
      LEFT JOIN messages lm ON lm.organization_id = ? AND lm.id = c.last_message_id
@@ -75,12 +76,21 @@ export function chatListSql(query: ChatListQuery): string {
      LEFT JOIN messages rm ON rm.organization_id = ? AND rm.id = rs.last_read_message_id
      LEFT JOIN conversation_mutes mu ON mu.organization_id = ? AND mu.conversation_id = c.id
            AND mu.membership_id = ?
+     LEFT JOIN messages um ON um.organization_id = ? AND um.conversation_id = c.id
+           AND um.parent_message_id IS NULL AND um.deleted_at IS NULL
+           AND um.author_user_id <> ?
+           AND um.sequence_no > COALESCE(rm.sequence_no, 0)
     WHERE cm.organization_id = ? AND cm.user_id = ?
       AND (c.kind <> 'project_channel' OR ? = 1 OR EXISTS (
             SELECT 1 FROM project_memberships pm
              WHERE pm.organization_id = ? AND pm.project_id = c.project_id AND pm.user_id = ?))
       ${query.includeArchived ? '' : 'AND cm.archived_at IS NULL'}
       ${query.conversationId === undefined ? '' : 'AND c.id = ?'}
+    GROUP BY c.id, c.kind, c.name, c.project_id, c.photo_file_asset_id,
+             c.direct_user_low_id, c.direct_user_high_id, c.last_message_at, c.created_at,
+             cm.id, cm.pinned_at, cm.archived_at,
+             lm.id, lm.kind, lm.body, lm.deleted_at, lm.created_at, lm.author_user_id,
+             la.display_name, ou.display_name, mu.muted
     ORDER BY (cm.pinned_at IS NULL), cm.pinned_at DESC,
              (c.last_message_at IS NULL), c.last_message_at DESC, c.created_at DESC
     LIMIT ${String(Math.min(Math.max(1, query.limit ?? CHAT_LIST_LIMIT), CHAT_LIST_LIMIT))}`;
@@ -93,8 +103,6 @@ export function chatListParams(
   const org = context.organizationId;
   return [
     org,
-    context.userId,
-    org,
     org,
     context.userId,
     org,
@@ -102,6 +110,8 @@ export function chatListParams(
     org,
     org,
     context.membershipId,
+    org,
+    context.userId,
     org,
     context.userId,
     query.hasOrgWideScope ? 1 : 0,

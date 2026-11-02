@@ -42,6 +42,15 @@ const DISPLAY = {
   locale: 'en-US',
   timezone: 'Europe/London',
   dateFormat: 'iso',
+  numerals: 'latin',
+  calendarDisplay: 'gregorian',
+};
+/** The GET view also carries the computed 55-04 fields, which the PUT must never send back (A4). */
+const DISPLAY_VIEW = {
+  ...DISPLAY,
+  uiMode: 'simple',
+  uiModeSource: 'org_default',
+  uiModeLocked: false,
 };
 
 interface Call {
@@ -60,7 +69,7 @@ function mount(factors: unknown[] = []) {
     let payload: unknown = {};
     if (url.pathname.endsWith('/me/profile')) payload = method === 'PUT' ? body : PROFILE;
     else if (url.pathname.endsWith('/me/display-preferences'))
-      payload = method === 'PUT' ? body : DISPLAY;
+      payload = method === 'PUT' ? { ...DISPLAY_VIEW, ...(body as object) } : DISPLAY_VIEW;
     else if (url.pathname === '/v1/auth/factors') payload = { factors, recoveryCodesRemaining: 0 };
     return Promise.resolve(
       new Response(JSON.stringify(payload), {

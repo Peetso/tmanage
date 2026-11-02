@@ -1,0 +1,39 @@
+/*
+ * A5: the English / Arabic switch on the sign-in page (and its `/ar/sign-in` twin, which renders
+ * the same page). The switch is the website's own Web/Language switch; its look is repeated here
+ * because `website.css` only loads inside the website chrome, and the identity shell renders
+ * outside it (the same reason `state-screen.css` repeats it).
+ */
+.tm-sign-in-lang {
+  position: absolute;
+  inset-block-start: var(--s4);
+  inset-inline-end: var(--s4);
+  z-index: 1;
+}
+
+.tm-sign-in-lang .tm-web-lang {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-950);
+}
+
+.tm-sign-in-lang .tm-web-lang__option {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tm-sign-in-lang .tm-web-lang__option[lang='ar'] {
+  font-family: var(--font-arabic);
+}
+
+.tm-sign-in-lang .tm-web-lang__option:hover {
+  text-decoration: underline;
+}
