@@ -11,6 +11,7 @@ import {
   apiSweepJobs,
   createSweepScheduler,
   reconcileIntervalMs,
+  startWebhookDeliveries,
   sweepIntervalMs,
   sweepsEnabled,
   workerSweepJobs,
@@ -308,4 +309,30 @@ test('the content purge runs on the first tick and then at most once an hour', a
   assert.equal(calls.filter((call) => call.kind === 'purge').length, 1);
   assert.equal(second.skipped, true);
   assert.equal(job.changed(second), false);
+});
+
+test('webhook deliveries run the worker pass on its loop with env-built deps, and stop aborts it', async () => {
+  const calls = [];
+  let signal;
+  const worker = {
+    createWebhookDeliveryDeps: (database, env) => ({ database, host: env.API_PUBLIC_URL }),
+    runWebhookDeliveryPass: async (deps) => (calls.push(deps), { delivered: 1, failed: 0 }),
+    runWebhookRetrySweepLoop: async (pass, s) => {
+      signal = s;
+      await pass();
+    },
+  };
+  const stop = startWebhookDeliveries(
+    worker,
+    'pool',
+    { API_PUBLIC_URL: 'https://a.test' },
+    () => {},
+  );
+  await stop();
+  assert.deepEqual(calls, [{ database: 'pool', host: 'https://a.test' }]);
+  assert.equal(signal.aborted, true);
+  assert.equal(
+    startWebhookDeliveries({}, 'pool', {}, () => {}),
+    null,
+  );
 });

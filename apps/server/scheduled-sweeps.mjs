@@ -1,3 +1,4 @@
+/* global AbortController -- Node 18+ global; the server eslint env predates it */
 // The in-process scheduled sweeps — what the Hostinger cron entries for the worker's `--sweep-*`
 // commands used to do, run on a timer inside the one Node app instead.
 //
@@ -181,6 +182,36 @@ export function apiReconcileJobs(api, app) {
         ]
       : []),
   ];
+}
+
+/**
+ * R14-a — the outbound webhook delivery loop (R13-s2), beside the minute tick rather than in it:
+ * the worker's own `runWebhookRetrySweepLoop` (one pass now, then every 10 s) so a staged attempt
+ * goes out within seconds and a 10 s receiver timeout never delays the other sweeps. The outbox
+ * consumer stages attempts in the relay; this is the only sender. Idempotent across instances: an
+ * attempt is sent only after its state-conditioned claim. Returns `stop` (abort, then wait for the
+ * pass in flight), or `null` when the worker module does not offer the delivery pass.
+ */
+export function startWebhookDeliveries(worker, database, env, log, describeError = String) {
+  if (
+    typeof worker.runWebhookDeliveryPass !== 'function' ||
+    typeof worker.runWebhookRetrySweepLoop !== 'function' ||
+    typeof worker.createWebhookDeliveryDeps !== 'function'
+  ) {
+    return null;
+  }
+  const deps = worker.createWebhookDeliveryDeps(database, env);
+  const controller = new AbortController();
+  const loop = worker.runWebhookRetrySweepLoop(
+    () => worker.runWebhookDeliveryPass(deps),
+    controller.signal,
+    (error) => log(`sweep webhooks failed: ${describeError(error)}`),
+  );
+  log('webhook deliveries on (every 10000ms)');
+  return async () => {
+    controller.abort();
+    await loop;
+  };
 }
 
 /**

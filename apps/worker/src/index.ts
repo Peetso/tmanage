@@ -62,6 +62,13 @@ export { createRequestDeferSweepStore } from './common/database/request-defer-st
 export { DUE_SOON_TRIGGER, dueInDaysOf, sweepDueSoon } from './jobs/due-soon-sweeper.js';
 export type { DueSoonSweepResult } from './jobs/due-soon-sweeper.js';
 export { createDueSoonSweepStore } from './common/database/due-soon-store.js';
+// R14-a — the outbound webhook delivery sweep, exported so the single Hostinger app
+// (`apps/server`) delivers staged attempts on the same loop the standalone worker runs.
+export {
+  createWebhookDeliveryDeps,
+  runWebhookDeliveryPass,
+} from './consumers/webhook-deliveries.js';
+export { runWebhookRetrySweepLoop } from './jobs/webhook-retry-sweeper.js';
 // C2 — the invitation-expiry sweep, exported so the single Hostinger app (`apps/server`) runs the
 // same `--sweep-invitations` job on its in-process timer.
 export { sweepOverdueInvitations } from './invitations/invitation-sweep.js';

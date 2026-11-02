@@ -91,6 +91,7 @@ import {
   createSweepScheduler,
   reconcileIntervalMs,
   sweepIntervalMs,
+  startWebhookDeliveries,
   sweepsEnabled,
   workerSweepJobs,
 } from './scheduled-sweeps.mjs';
@@ -493,8 +494,10 @@ async function startScheduledSweeps(env, app) {
   });
   scheduler.start();
   reconciler.start();
+  // R14-a: outbound webhooks are delivered here; the relay only stages them (R13-s2).
+  const stopWebhooks = startWebhookDeliveries(worker, database, env, log, serializeForLog);
   return async () => {
-    await Promise.all([scheduler.stop(), reconciler.stop()]);
+    await Promise.all([scheduler.stop(), reconciler.stop(), stopWebhooks?.()]);
     await database.end();
   };
 }

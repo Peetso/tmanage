@@ -3,14 +3,22 @@ import { lookup as dnsLookup } from 'node:dns/promises';
 import { request as httpsRequest } from 'node:https';
 import type { IncomingMessage } from 'node:http';
 import { isIP } from 'node:net';
-import type { FieldCipher } from '@tmanage/domain/field-cipher';
-import { listStagingEndpoints, stagePending } from '../common/database/webhook-delivery-store.js';
+import {
+  createFieldCipher,
+  loadFieldCipherKeyring,
+  type FieldCipher,
+} from '@tmanage/domain/field-cipher';
+import {
+  createWebhookDeliveryStore,
+  listStagingEndpoints,
+  stagePending,
+} from '../common/database/webhook-delivery-store.js';
 import type {
   AttemptSettlement,
   OpenAttempt,
   WebhookDeliveryStore,
 } from '../common/database/webhook-delivery-store.js';
-import type { WorkerTransaction } from '../common/database/worker-database.js';
+import type { WorkerDatabase, WorkerTransaction } from '../common/database/worker-database.js';
 import type { ClaimedOutboxEvent } from '../common/database/outbox-store.js';
 import type { OutboxHandler, OutboxHandlers } from '../outbox/dispatcher.js';
 import { isRefusedAddress } from './link-previews.js';
@@ -589,4 +597,35 @@ export async function runWebhookDeliveryPass(
     );
   }
   return { delivered, failed };
+}
+
+/** TManage's own hostnames from its public URLs; an unparsable URL contributes nothing. */
+export function webhookOwnHosts(urls: readonly (string | undefined)[]): string[] {
+  return urls.flatMap((raw) => {
+    try {
+      return raw === undefined ? [] : [new URL(raw).hostname];
+    } catch {
+      return [];
+    }
+  });
+}
+
+/**
+ * R14-a — the delivery pass's dependencies from one worker pool and the env, so the single
+ * Hostinger app (`apps/server`) delivers exactly as the standalone worker does. Keyless
+ * (`FIELD_CIPHER_KEYS` unset), every attempt is cancelled as `needs_rotation`.
+ */
+export function createWebhookDeliveryDeps(
+  database: WorkerDatabase,
+  env: {
+    readonly API_PUBLIC_URL?: string | undefined;
+    readonly WEB_PUBLIC_URL?: string | undefined;
+    readonly FIELD_CIPHER_KEYS?: string | undefined;
+  },
+): WebhookDeliveryDeps {
+  return {
+    store: createWebhookDeliveryStore(database),
+    cipher: createFieldCipher(loadFieldCipherKeyring(env)),
+    ownHosts: webhookOwnHosts([env.API_PUBLIC_URL, env.WEB_PUBLIC_URL]),
+  };
 }
