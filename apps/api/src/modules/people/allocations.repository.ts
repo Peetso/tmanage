@@ -41,7 +41,16 @@ export interface CreatePersonAllocationInput {
   readonly percent: number;
   readonly startDate?: string | null;
   readonly endDate?: string | null;
+  /** 53-08 (0308): `'tentative'` | `'confirmed'`; omitted → the column default `'confirmed'`. */
+  readonly status?: PersonAllocationStatus;
+  /** 53-08 (0308): explicit weekly hours; null/omitted → `percent` of capacity. */
+  readonly hoursPerWeek?: number | null;
+  readonly note?: string | null;
 }
+
+/** 53-08 (0308): the closed allocation status vocabulary (app-checked; the column is VARCHAR). */
+export const PERSON_ALLOCATION_STATUSES = ['tentative', 'confirmed'] as const;
+export type PersonAllocationStatus = (typeof PERSON_ALLOCATION_STATUSES)[number];
 
 export interface ListPersonAllocationsOptions {
   /** Required: this slice lists one project's allocations, never a whole tenant's. */
@@ -174,9 +183,39 @@ export class PersonAllocationsRepository {
       startDate: input.startDate ?? null,
       endDate: input.endDate ?? null,
       createdAt: sql`current_timestamp(3)`,
+      status: input.status ?? 'confirmed',
+      hoursPerWeek: input.hoursPerWeek ?? null,
+      note: input.note ?? null,
     });
 
     // Read back rather than reconstruct: the row now carries a server-generated `created_at`.
     return this.requireById(runner, context, id);
+  }
+
+  /**
+   * 53-08: confirm a tentative allocation (`status` tentative → confirmed), tenant-scoped. The
+   * predicate carries `status = 'tentative'`, so a concurrent second confirm changes nothing and
+   * the method reports it: `'confirmed'` (this call flipped it), `'already_confirmed'`, or
+   * `'not_found'` (unknown or another tenant's id).
+   */
+  async confirm(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    allocationId: string,
+  ): Promise<'confirmed' | 'already_confirmed' | 'not_found'> {
+    const db = tenantDrizzle(runner);
+    const result = await db
+      .update(personAllocations)
+      .set({ status: 'confirmed' })
+      .where(
+        and(
+          eq(personAllocations.organizationId, context.organizationId),
+          eq(personAllocations.id, allocationId),
+          eq(personAllocations.status, 'tentative'),
+        ),
+      );
+    if (result[0].affectedRows > 0) return 'confirmed';
+    const row = await this.findById(runner, context, allocationId);
+    return row ? 'already_confirmed' : 'not_found';
   }
 }

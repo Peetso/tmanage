@@ -5766,6 +5766,24 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'read',
     scope: 'read',
   },
+  // ---- R20-b · 53-08 workload hours (read: hours per week; unreadable work as one bucket) ----
+  {
+    id: 'people.load.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/people/:membershipId/load/',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  // R20-b: confirming a tentative allocation follows the allocation create op (write).
+  {
+    id: 'projects.allocations.confirm.create',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/allocations/:id/confirm',
+    capability: 'project.manage',
+    risk: 'write',
+    scope: 'write',
+  },
 ];
 
 /** Index of ops by their stable id. */

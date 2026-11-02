@@ -1526,6 +1526,12 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'project_phase',
     clause: '§12 53-07 — a timeline phase’s dates or colour changed',
   },
+  // ---- R20-b · 53-08 workload hours ----
+  /** A tentative people allocation was confirmed. Metadata: project id; status before/after in changes. */
+  'person_allocation.confirmed': {
+    objectType: 'person_allocation',
+    clause: '§12 53-08 — a tentative allocation was confirmed and now counts toward planned hours',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1796,6 +1802,7 @@ const AUDIT_ACTION_LABELS = {
   'milestone.published': 'Published a milestone to the client timeline',
   'milestone.unpublished': 'Removed a milestone from the client timeline',
   'phase.updated': 'Changed a timeline phase’s dates',
+  'person_allocation.confirmed': 'Confirmed a tentative allocation',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

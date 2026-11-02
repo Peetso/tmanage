@@ -16,6 +16,9 @@ import { PeopleDirectoryController } from './directory.controller.js';
 import { ContactSuggestionsController } from './contact-suggestions.controller.js';
 import { ContactSuggestionsRepository } from './contact-suggestions.repository.js';
 import { ContactSuggestionsService } from './contact-suggestions.service.js';
+import { PersonLoadController } from './person-load.controller.js';
+import { PersonLoadRepository } from './person-load.repository.js';
+import { PersonLoadService } from './person-load.service.js';
 
 /**
  * PEOPLE / module 14.
@@ -33,6 +36,10 @@ import { ContactSuggestionsService } from './contact-suggestions.service.js';
  *
  * (R16-f, 54-11 Phase 0) The caller's own invite suggestions imported from a contacts file: a
  * stateless repository and a service over the `@Global` `TENANT_DATABASE` (0295).
+ *
+ * (R20-b, 53-08) One person's weekly load (`GET …/people/:membershipId/load`): a read service over
+ * the tenant database, its own read repository and a memberships repository. Allocation confirm
+ * (`POST …/allocations/:id/confirm`) audits through the `@Global` `AUDIT_SERVICE`.
  */
 @Module({})
 export class PeopleModule {
@@ -61,6 +68,13 @@ export class PeopleModule {
       inject: [TENANT_DATABASE],
     };
 
+    const personLoadService: Provider = {
+      provide: PersonLoadService,
+      useFactory: (database: TenantDatabase) =>
+        new PersonLoadService(database, new PersonLoadRepository(), new MembershipsRepository()),
+      inject: [TENANT_DATABASE],
+    };
+
     return {
       module: PeopleModule,
       providers: [
@@ -69,11 +83,13 @@ export class PeopleModule {
         membershipsRepository,
         directoryRepository,
         contactSuggestionsService,
+        personLoadService,
       ],
       controllers: [
         PersonAllocationsController,
         PeopleDirectoryController,
         ContactSuggestionsController,
+        PersonLoadController,
       ],
     };
   }

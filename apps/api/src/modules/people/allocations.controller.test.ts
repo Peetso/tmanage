@@ -56,7 +56,18 @@ function build(
   seed: readonly PersonAllocationRow[] = [],
   knownProjectIds: readonly string[] = [PROJECT],
   knownMembershipIds: readonly string[] = [MEMBERSHIP],
-): { controller: PersonAllocationsController; store: PersonAllocationRow[] } {
+): {
+  controller: PersonAllocationsController;
+  store: PersonAllocationRow[];
+  audited: string[];
+} {
+  const audited: string[] = [];
+  const audit = {
+    record: async (_tx: unknown, _ctx: unknown, input: { readonly action: string }) => {
+      audited.push(input.action);
+      return {} as never;
+    },
+  };
   const store: PersonAllocationRow[] = [...seed];
   let seq = store.length;
   const database = {
@@ -95,6 +106,9 @@ function build(
         readonly percent: number;
         readonly startDate?: string | null;
         readonly endDate?: string | null;
+        readonly status?: string;
+        readonly hoursPerWeek?: number | null;
+        readonly note?: string | null;
       },
     ) => {
       const row = {
@@ -106,10 +120,22 @@ function build(
         startDate: input.startDate ?? null,
         endDate: input.endDate ?? null,
         createdAt: new Date(Date.UTC(2026, 0, seq)),
+        status: input.status ?? 'confirmed',
+        hoursPerWeek: input.hoursPerWeek ?? null,
+        note: input.note ?? null,
       } as PersonAllocationRow;
       store.push(row);
       return row;
     },
+    confirm: async (_r: unknown, ctx: TenantContext, id: string) => {
+      const row = store.find((r) => r.id === id && r.organizationId === ctx.organizationId);
+      if (!row) return 'not_found';
+      if (row.status !== 'tentative') return 'already_confirmed';
+      (row as { status: string }).status = 'confirmed';
+      return 'confirmed';
+    },
+    requireById: async (_r: unknown, ctx: TenantContext, id: string) =>
+      store.find((row) => row.id === id && row.organizationId === ctx.organizationId)!,
   } as unknown as PersonAllocationsRepository;
 
   const projects = {
@@ -127,8 +153,15 @@ function build(
   } as unknown as MembershipsRepository;
 
   return {
-    controller: new PersonAllocationsController(database, allocations, projects, memberships),
+    controller: new PersonAllocationsController(
+      database,
+      allocations,
+      projects,
+      memberships,
+      audit,
+    ),
     store,
+    audited,
   };
 }
 
@@ -223,5 +256,68 @@ describe('the route ceilings the CapabilityGuard enforces', () => {
     const cap = (method: unknown) => Reflect.getMetadata(REQUIRED_CAPABILITY, method as object);
     expect(cap(PersonAllocationsController.prototype.create)).toBe('project.manage');
     expect(cap(PersonAllocationsController.prototype.list)).toBe('work.read');
+  });
+});
+
+describe('53-08 status, hours and confirm', () => {
+  const client: Principal = { ...owner, kind: 'client', role: 'client_viewer' };
+
+  it('stores tentative with hours and a note; an unknown status is a 400 with no write', async () => {
+    const { controller, store } = build();
+    await expect(
+      controller.create(context, owner, PROJECT, {
+        membershipId: MEMBERSHIP,
+        percent: 50,
+        status: 'maybe',
+      }),
+    ).rejects.toEqual(expect.objectContaining({ status: 400 }));
+    await expect(
+      controller.create(context, owner, PROJECT, {
+        membershipId: MEMBERSHIP,
+        percent: 50,
+        hoursPerWeek: 169,
+      }),
+    ).rejects.toEqual(expect.objectContaining({ status: 400 }));
+    expect(store).toHaveLength(0);
+    const created = await controller.create(context, owner, PROJECT, {
+      membershipId: MEMBERSHIP,
+      percent: 50,
+      status: 'tentative',
+      hoursPerWeek: 12.5,
+      note: 'pending SOW',
+    });
+    expect(created).toEqual(
+      expect.objectContaining({ status: 'tentative', hoursPerWeek: 12.5, note: 'pending SOW' }),
+    );
+  });
+
+  it('confirms once (audited), then a second confirm is a 409', async () => {
+    const { controller, audited } = build();
+    const created = await controller.create(context, owner, PROJECT, {
+      membershipId: MEMBERSHIP,
+      percent: 50,
+      status: 'tentative',
+    });
+    const confirmed = await controller.confirm(context, owner, PROJECT, created.id);
+    expect(confirmed.status).toBe('confirmed');
+    expect(audited).toEqual(['person_allocation.confirmed']);
+    await expect(controller.confirm(context, owner, PROJECT, created.id)).rejects.toEqual(
+      expect.objectContaining({ status: 409, auditCode: 'allocation_already_confirmed' }),
+    );
+    await expect(controller.confirm(context, owner, PROJECT, 'nope')).rejects.toEqual(
+      expect.objectContaining({ status: 404 }),
+    );
+  });
+
+  it('a client principal is a 403 on confirm, and the route needs project.manage', async () => {
+    const { controller } = build();
+    await expect(controller.confirm(context, client, PROJECT, 'any')).rejects.toEqual(
+      expect.objectContaining({ status: 403 }),
+    );
+    const cap = Reflect.getMetadata(
+      REQUIRED_CAPABILITY,
+      PersonAllocationsController.prototype.confirm as object,
+    );
+    expect(cap).toBe('project.manage');
   });
 });

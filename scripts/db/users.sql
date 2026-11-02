@@ -2266,3 +2266,8 @@ GRANT UPDATE ON `tmanage`.`project_phases`                                  TO '
 -- R19-e · 56-06 (0307): `file_versions.scan_source` (tmanage|provider|none) is written beside the
 -- scan verdict by the existing UPDATE grant on `file_versions` (above); no new grant. The file-safety
 -- settings are `org_settings` rows (`file_safety_presets`, `require_scan_for_clients`).
+
+-- R20-b · 53-08 (0308): `person_allocations` gains `status` (tentative|confirmed), `hours_per_week`
+-- and `note`. Confirming a tentative allocation (`POST …/allocations/:id/confirm`) is the app's first
+-- UPDATE on the table; the worker reads and writes nothing here.
+GRANT UPDATE ON `tmanage`.`person_allocations`                              TO 'tmanage_app'@'%';

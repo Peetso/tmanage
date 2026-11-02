@@ -4685,6 +4685,10 @@ export const personAllocations = mysqlTable(
     startDate: date('start_date', { mode: 'string' }),
     endDate: date('end_date', { mode: 'string' }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    // ---- R20-b · 53-08 (0308): tentative|confirmed (app-checked), explicit hours, a short note ----
+    status: varchar('status', { length: 10 }).notNull().default('confirmed'),
+    hoursPerWeek: decimal('hours_per_week', { precision: 5, scale: 2, mode: 'number' }),
+    note: varchar('note', { length: 300 }),
   },
   (table) => [
     uniqueIndex('uq_person_allocations_org_id').on(table.organizationId, table.id),

@@ -4,6 +4,7 @@ import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import {
+  AUDIT_SERVICE,
   PERSON_ALLOCATIONS_REPOSITORY,
   PROJECTS_REPOSITORY,
   MEMBERSHIPS_REPOSITORY,
@@ -11,7 +12,12 @@ import {
 } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { PersonAllocationRow } from '../../common/database/schema.js';
-import type { PersonAllocationsRepository } from './allocations.repository.js';
+import { PERSON_ALLOCATION_STATUSES } from './allocations.repository.js';
+import type {
+  PersonAllocationStatus,
+  PersonAllocationsRepository,
+} from './allocations.repository.js';
+import type { AuditService } from '../audit/audit.service.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { MembershipsRepository } from '../tenancy/memberships.repository.js';
 
@@ -43,6 +49,11 @@ export interface PersonAllocationView {
   readonly endDate: string | null;
   /** An ISO-8601 instant. */
   readonly createdAt: string;
+  /** 53-08: `tentative` allocations are shown apart from planned hours until confirmed. */
+  readonly status: PersonAllocationStatus;
+  /** 53-08: explicit weekly hours; null → `percent` of the member's capacity. */
+  readonly hoursPerWeek: number | null;
+  readonly note: string | null;
 }
 
 interface CreateAllocationBody {
@@ -50,7 +61,14 @@ interface CreateAllocationBody {
   readonly percent?: unknown;
   readonly startDate?: unknown;
   readonly endDate?: unknown;
+  readonly status?: unknown;
+  readonly hoursPerWeek?: unknown;
+  readonly note?: unknown;
 }
+
+/** 53-08 bounds: a week has 168 hours; a note is one short line. */
+const MAX_HOURS_PER_WEEK = 168;
+const MAX_NOTE_LENGTH = 300;
 
 const MIN_PERCENT = 1;
 const MAX_PERCENT = 100;
@@ -71,6 +89,9 @@ function toView(row: PersonAllocationRow): PersonAllocationView {
     startDate: row.startDate,
     endDate: row.endDate,
     createdAt: row.createdAt.toISOString(),
+    status: row.status === 'tentative' ? 'tentative' : 'confirmed',
+    hoursPerWeek: row.hoursPerWeek === null ? null : Number(row.hoursPerWeek),
+    note: row.note,
   };
 }
 
@@ -82,6 +103,7 @@ export class PersonAllocationsController {
     private readonly allocations: PersonAllocationsRepository,
     @Inject(PROJECTS_REPOSITORY) private readonly projects: ProjectsRepository,
     @Inject(MEMBERSHIPS_REPOSITORY) private readonly memberships: MembershipsRepository,
+    @Inject(AUDIT_SERVICE) private readonly audit: Pick<AuditService, 'record'>,
   ) {}
 
   /**
@@ -203,6 +225,9 @@ export class PersonAllocationsController {
 
     const startDate = this.optionalDate(body?.startDate, 'startDate');
     const endDate = this.optionalDate(body?.endDate, 'endDate');
+    const status = parseStatus(body?.status);
+    const hoursPerWeek = parseHoursPerWeek(body?.hoursPerWeek);
+    const note = parseNote(body?.note);
 
     // One active allocation per (project, membership): a duplicate is a 409 with no second row.
     const active = await this.database.read(context, (runner) =>
@@ -225,8 +250,71 @@ export class PersonAllocationsController {
         percent,
         ...(startDate === undefined ? {} : { startDate }),
         ...(endDate === undefined ? {} : { endDate }),
+        status,
+        hoursPerWeek,
+        note,
       }),
     );
+    return toView(row);
+  }
+
+  /**
+   * 53-08: confirm a tentative allocation — it then counts toward planned hours. `project.manage`
+   * on the named project (relation-checked like create); an unknown, cross-tenant or other-project
+   * allocation id is a 404; an allocation already confirmed is a 409 with no write. Audited
+   * (`person_allocation.confirmed`, status before/after) in the same transaction as the UPDATE.
+   */
+  @Post(':id/confirm')
+  @RequireCapability('project.manage')
+  @HttpCode(200)
+  async confirm(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+    @Param('id') allocationId: string,
+  ): Promise<PersonAllocationView> {
+    if (principal.kind === 'client') {
+      throw new ApiError(
+        403,
+        'forbidden',
+        MESSAGES.forbidden,
+        undefined,
+        'allocation_confirm_denied',
+      );
+    }
+    await this.requireVisibleProject(context, principal, projectId, 'project.manage');
+
+    const notFound = (): ApiError =>
+      new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'allocation_not_visible');
+    const alreadyConfirmed = (): ApiError =>
+      new ApiError(
+        409,
+        'conflict',
+        'This allocation is already confirmed',
+        [{ field: 'status', message: 'already confirmed' }],
+        'allocation_already_confirmed',
+      );
+
+    const existing = await this.database.read(context, (runner) =>
+      this.allocations.findById(runner, context, allocationId),
+    );
+    if (!existing || existing.projectId !== projectId) throw notFound();
+    if (existing.status !== 'tentative') throw alreadyConfirmed();
+
+    const row = await this.database.transaction(context, async (tx) => {
+      const outcome = await this.allocations.confirm(tx, context, allocationId);
+      if (outcome === 'not_found') throw notFound();
+      if (outcome === 'already_confirmed') throw alreadyConfirmed();
+      await this.audit.record(tx, context, {
+        action: 'person_allocation.confirmed',
+        result: 'allowed',
+        objectId: allocationId,
+        actorUserId: context.userId,
+        metadata: { project_id: projectId },
+        changes: [{ field: 'status', before: 'tentative', after: 'confirmed' }],
+      });
+      return this.allocations.requireById(tx, context, allocationId);
+    });
     return toView(row);
   }
 
@@ -240,4 +328,50 @@ export class PersonAllocationsController {
     }
     return value;
   }
+}
+
+/** 53-08: optional `status`, default `'confirmed'`; anything else is a 400. */
+function parseStatus(value: unknown): PersonAllocationStatus {
+  if (value === undefined || value === null) return 'confirmed';
+  if (
+    typeof value === 'string' &&
+    (PERSON_ALLOCATION_STATUSES as readonly string[]).includes(value)
+  ) {
+    return value as PersonAllocationStatus;
+  }
+  throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+    { field: 'status', message: "must be 'tentative' or 'confirmed'" },
+  ]);
+}
+
+/** 53-08: optional `hoursPerWeek`, 0 < n ≤ 168 with at most two decimals; else a 400. */
+function parseHoursPerWeek(value: unknown): number | null {
+  if (value === undefined || value === null) return null;
+  if (
+    typeof value !== 'number' ||
+    !Number.isFinite(value) ||
+    value <= 0 ||
+    value > MAX_HOURS_PER_WEEK ||
+    Math.abs(Math.round(value * 100) - value * 100) > 1e-6
+  ) {
+    throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+      {
+        field: 'hoursPerWeek',
+        message: `must be a number above 0 and at most ${MAX_HOURS_PER_WEEK}, with two decimals`,
+      },
+    ]);
+  }
+  return value;
+}
+
+/** 53-08: optional `note`, at most 300 characters; blank → null. */
+function parseNote(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string' || value.length > MAX_NOTE_LENGTH) {
+    throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+      { field: 'note', message: `must be text of at most ${MAX_NOTE_LENGTH} characters` },
+    ]);
+  }
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
 }
