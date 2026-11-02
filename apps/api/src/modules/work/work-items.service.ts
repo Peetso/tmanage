@@ -38,6 +38,11 @@ import type { PredecessorHealthRow } from './work-graph.repository.js';
 import type { TypedDependencyInput } from './work-graph.repository.js';
 import { findCycle } from '@tmanage/domain';
 import { requestScheduleRecompute } from './schedule-stats.service.js';
+import {
+  applyWorkItemPlanning,
+  type WorkItemPlanningChange,
+  type WorkItemPlanningResult,
+} from '../iterations/work-item-planning.js';
 
 /**
  * WORK-001's application service — spec §3 steps 5 to 7 for the work aggregate.
@@ -536,8 +541,8 @@ export class WorkItemsService {
     requested: UpdateWorkItemInput & {
       /** 52-04: `true` / `false`, or `null` to inherit the project's `billable_default`. */
       readonly billable?: boolean | null;
-    },
-  ): Promise<WorkItemView & { readonly billable?: boolean | null }> {
+    } & WorkItemPlanningChange, // 53-21: points, iterationId
+  ): Promise<WorkItemView & { readonly billable?: boolean | null } & WorkItemPlanningChange> {
     const before = await this.readForWrite(context, principal, workItemId, 'work.update');
     if (requested.ownerUserId) await this.requireOwnerIsMember(context, requested.ownerUserId);
     const input = await this.resolveMove(context, principal, before, requested);
@@ -576,6 +581,7 @@ export class WorkItemsService {
       input.audience !== before.audience &&
       input.audience !== 'internal';
 
+    let planning: WorkItemPlanningResult | null = null; // 53-21
     const row = await this.writing(() =>
       this.database.transaction(context, async (tx) => {
         const updated = await this.workItems.update(
@@ -585,6 +591,7 @@ export class WorkItemsService {
           expectedVersion,
           input,
         );
+        planning = await applyWorkItemPlanning(tx, context, updated, requested);
 
         if (moving) {
           // F24 + F50: edges scoped to the source project do not travel with the item. Objective
@@ -652,7 +659,10 @@ export class WorkItemsService {
     if (requested.startAt !== undefined || requested.dueAt !== undefined || moving) {
       requestScheduleRecompute(context, row.projectId, before.projectId); // 53-06
     }
-    const view = toView(row, context.correlationId);
+    const view = {
+      ...toView(row, context.correlationId),
+      ...((planning as WorkItemPlanningResult | null) ?? {}),
+    };
     return requested.billable === undefined ? view : { ...view, billable: requested.billable };
   }
 

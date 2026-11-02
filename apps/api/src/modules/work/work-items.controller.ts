@@ -14,6 +14,10 @@ import { WORK_ITEM_STATES } from '@tmanage/domain';
 import type { Audience, Principal, WorkItemState } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
+import {
+  parsePlanningFields,
+  type WorkItemPlanningChange,
+} from '../iterations/work-item-planning.js';
 import { WORK_ITEMS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import {
@@ -78,6 +82,9 @@ interface UpdateWorkItemBody {
   readonly dueAt?: unknown;
   /** 52-04: `true` / `false`, or `null` to inherit the project's default. */
   readonly billable?: unknown;
+  /** 53-21: story points (null | 0..100) and the iteration (null = backlog). */
+  readonly points?: unknown;
+  readonly iterationId?: unknown;
 }
 
 interface TransitionBody {
@@ -212,7 +219,7 @@ export class WorkItemsController {
     @CurrentPrincipal() principal: Principal,
     @Param('workItemId') workItemId: string,
     @Body() body: UpdateWorkItemBody,
-  ): Promise<WorkItemView & { readonly billable?: boolean | null }> {
+  ): Promise<WorkItemView & { readonly billable?: boolean | null } & WorkItemPlanningChange> {
     const details: { field: string; message: string }[] = [];
     const version = requiredVersion(body?.version, details);
 
@@ -235,11 +242,13 @@ export class WorkItemsController {
       details.push({ field: 'billable', message: 'must be true, false or null' });
     }
 
+    const planning = parsePlanningFields(body, details); // 53-21
     if (details.length > 0 || version === undefined) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
     }
 
     return this.workItems.update(context, principal, workItemId, version, {
+      ...planning,
       ...(billable === undefined ? {} : { billable: billable as boolean | null }),
       ...(title === undefined ? {} : { title }),
       ...(type === undefined ? {} : { type }),

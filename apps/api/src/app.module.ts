@@ -30,6 +30,7 @@ import { IdentityModule } from './modules/identity/identity.module.js';
 import { TenancyModule } from './modules/tenancy/tenancy.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
 import { WorkModule } from './modules/work/work.module.js';
+import { IterationsModule } from './modules/iterations/iterations.module.js';
 import { PersonCapacityModule } from './modules/people/capacity.module.js';
 import { ReportingLinesModule } from './modules/people/reporting-lines.module.js';
 import { MemberAvailabilityModule } from './modules/people/availability.module.js';
@@ -387,6 +388,10 @@ export class AppModule {
           : IdentityModule.register(),
         ProjectsModule.register(),
         WorkModule.register(),
+        // 53-21 (R19-d). Iterations (light sprints) and points. After `WorkModule` by subject: an
+        // iteration names work items, and the composite foreign keys mean a caller who names one that
+        // is not theirs gets a refusal rather than a foreign-key 500.
+        IterationsModule.register(),
         // HOME-03: the My Day personal-work read. Read-only over `work_items` by owner; reuses
         // `work.read` and the work module's `WorkItemView`, adds nothing to the work module.
         HomeModule.register(),
