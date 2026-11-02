@@ -55,6 +55,12 @@ const CATALOG: readonly IntegrationCatalogApp[] = Object.freeze([
     category: 'automation',
     capabilities: Object.freeze(['trigger', 'action']),
   }),
+  Object.freeze({
+    id: 'teams',
+    name: 'Microsoft Teams',
+    category: 'messaging',
+    capabilities: Object.freeze(['notify', 'channel-post']),
+  }),
 ]) as readonly IntegrationCatalogApp[];
 
 /**

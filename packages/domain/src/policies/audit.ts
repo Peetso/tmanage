@@ -1182,6 +1182,24 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'work_item',
     clause: '§12 52-04 — whether a work item is billable was changed',
   },
+  // ---- R15-c · 54-05 / 54-06 Phase 0 — Slack / Teams channel notices ----
+  /** A channel link was created. Metadata: kind, url_host, event count — never the URL. */
+  'channel_link.created': {
+    objectType: 'integration_channel_link',
+    clause: '§12 54-05 — a Slack or Teams channel was connected by a pasted webhook URL',
+  },
+  'channel_link.removed': {
+    objectType: 'integration_channel_link',
+    clause: '§12 54-05 — a Slack or Teams channel link was removed',
+  },
+  'channel_link.paused': {
+    objectType: 'integration_channel_link',
+    clause: '§12 54-05 — a Slack or Teams channel link was paused',
+  },
+  'channel_link.resumed': {
+    objectType: 'integration_channel_link',
+    clause: '§12 54-05 — a paused Slack or Teams channel link was resumed',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1386,6 +1404,10 @@ const AUDIT_ACTION_LABELS = {
   'cost_rate.changed': "Changed a person's cost rate",
   'rates.repriced': 'Re-priced unbilled time',
   'work_item.billable_changed': 'Changed whether a work item is billable',
+  'channel_link.created': 'Connected a Slack or Teams channel',
+  'channel_link.removed': 'Removed a Slack or Teams channel',
+  'channel_link.paused': 'Paused a Slack or Teams channel',
+  'channel_link.resumed': 'Resumed a Slack or Teams channel',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

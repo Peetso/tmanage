@@ -69,6 +69,13 @@ export {
   runWebhookDeliveryPass,
 } from './consumers/webhook-deliveries.js';
 export { runWebhookRetrySweepLoop } from './jobs/webhook-retry-sweeper.js';
+// R15-c — the Slack / Teams channel post sweep, exported so the single Hostinger app (`apps/server`)
+// posts staged channel notices on the same loop.
+export {
+  createChannelPostDeps,
+  runChannelPostPass,
+  runChannelPostSweepLoop,
+} from './jobs/channel-post-sweeper.js';
 // C2 — the invitation-expiry sweep, exported so the single Hostinger app (`apps/server`) runs the
 // same `--sweep-invitations` job on its in-process timer.
 export { sweepOverdueInvitations } from './invitations/invitation-sweep.js';

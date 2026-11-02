@@ -26,6 +26,7 @@ import { AutomationVariablesController } from './variables.controller.js';
 import { AutomationTemplateTagsRepository } from './template-tags.repository.js';
 import { AutomationTemplateTagsService } from './template-tags.service.js';
 import { AutomationTemplateTagsController } from './template-tags.controller.js';
+import { ChannelLinksController } from './channel-links.controller.js';
 
 /**
  * Automations & integrations (module 17). Workflow templates — define, list (x162), edit (x189),
@@ -95,6 +96,9 @@ export class AutomationsModule {
         WorkflowConditionsController,
         AutomationVariablesController,
         AutomationTemplateTagsController,
+        // R15-c (54-05 / 54-06 Phase 0): pasted Slack / Teams channel links. Its dependencies
+        // (cipher, audit writer, egress settings) default inside the service from the environment.
+        ChannelLinksController,
       ],
     };
   }

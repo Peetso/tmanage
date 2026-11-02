@@ -11561,6 +11561,96 @@ Object.assign(TABLES, {
   org_holidays: orgHolidays,
 });
 
+// ---- R15-c · 54-05 Slack + 54-06 Teams Phase 0 ----
+
+export const CHANNEL_LINK_KINDS = ['slack', 'teams'] as const;
+export type ChannelLinkKind = (typeof CHANNEL_LINK_KINDS)[number];
+export const CHANNEL_POST_STATUSES = [
+  'staged',
+  'sending',
+  'delivered',
+  'failed',
+  'cancelled',
+] as const;
+export type ChannelPostStatus = (typeof CHANNEL_POST_STATUSES)[number];
+
+/**
+ * 0289 (54-05 / 54-06 Phase 0). One pasted Slack / Teams incoming-webhook channel. TENANT. The URL
+ * lives only in `webhookUrlEnc` (FieldCipher, AAD = link id) and is never projected; `urlHost` is
+ * what a caller sees. `externalChannelId` = SHA-256 hex of the URL path. `projectId` NULL = org-wide.
+ */
+export const integrationChannelLinks = mysqlTable(
+  'integration_channel_links',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    connectionId: char('connection_id', { length: 36 }).notNull(),
+    kind: varchar('kind', { length: 8 }).notNull(),
+    projectId: char('project_id', { length: 36 }),
+    externalChannelId: varchar('external_channel_id', { length: 190 }).notNull(),
+    externalChannelLabel: varchar('external_channel_label', { length: 300 }),
+    webhookUrlEnc: text('webhook_url_enc').notNull(),
+    urlHost: varchar('url_host', { length: 255 }).notNull(),
+    eventsJson: text('events_json').notNull(),
+    locale: varchar('locale', { length: 35 }).notNull().default('en'),
+    status: varchar('status', { length: 16 }).notNull().default('active'),
+    failureStreak: int('failure_streak').notNull().default(0),
+    pausedReason: varchar('paused_reason', { length: 200 }),
+    lastPostedAt: datetime('last_posted_at', { mode: 'date', fsp: 3 }),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_icl_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_icl_conn_proj').on(
+      table.organizationId,
+      table.connectionId,
+      table.projectId,
+      table.externalChannelId,
+    ),
+    index('ix_icl_org_status').on(table.organizationId, table.status),
+  ],
+);
+
+export type IntegrationChannelLinkRow = typeof integrationChannelLinks.$inferSelect;
+
+/**
+ * 0289. The channel post ledger, `webhook_deliveries`-shaped: one row per (link, outbox event),
+ * retried in place. A test post has no outbox event. TENANT. Cascades with its link.
+ */
+export const integrationChannelPosts = mysqlTable(
+  'integration_channel_posts',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    linkId: char('link_id', { length: 36 }).notNull(),
+    outboxEventId: char('outbox_event_id', { length: 36 }),
+    eventKind: varchar('event_kind', { length: 64 }).notNull(),
+    locale: varchar('locale', { length: 35 }).notNull(),
+    status: varchar('status', { length: 16 }).notNull(),
+    attempt: int('attempt').notNull().default(1),
+    nextAttemptAt: datetime('next_attempt_at', { mode: 'date', fsp: 3 }),
+    lastStatusCode: smallint('last_status_code', { unsigned: true }),
+    lastError: varchar('last_error', { length: 500 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_icp_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_icp_link_event').on(table.organizationId, table.linkId, table.outboxEventId),
+    index('ix_icp_org_due').on(table.organizationId, table.status, table.nextAttemptAt),
+    index('ix_icp_link_created').on(table.organizationId, table.linkId, table.createdAt),
+  ],
+);
+
+export type IntegrationChannelPostRow = typeof integrationChannelPosts.$inferSelect;
+
+Object.assign(TABLES, {
+  integration_channel_links: integrationChannelLinks,
+  integration_channel_posts: integrationChannelPosts,
+});
+
 /**
  * 0288 (52-03). One closed window of whole calendar months: every `work_item_time_logs` entry with
  * `spent_on` inside it carries `locked_at`. TENANT. `unlocked_*` + `reason` stamp a reopen (the row

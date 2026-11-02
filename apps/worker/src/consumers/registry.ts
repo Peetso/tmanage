@@ -32,6 +32,7 @@ import {
 } from './collaboration-notices.js';
 import { automationRunsConsumer } from './automation-runs.js';
 import { withWebhookStaging } from './webhook-deliveries.js';
+import { withChannelNoticeStaging } from './channel-notices.js';
 import {
   planReviewCommentNotices,
   planReviewDecisionNotices,
@@ -153,107 +154,113 @@ export function createWorkerOutboxHandlers(
 
   // R13-s2: every type a webhook kind fires on also stages its pending webhook attempts, after the
   // event's own consumers, in the same savepoint (`webhook-deliveries.ts`; the sweep delivers).
-  return withWebhookStaging({
-    // CQ-12 (AUT-01): every trigger event also runs the organization's enabled rules for it,
-    // after the event's own consumers, in the same savepoint.
-    'work_item.updated.v1': both(workItemLifecycleConsumer, automationRunsConsumer),
-    'work_item.created.v1': automationRunsConsumer,
-    'meeting.scheduled.v1': automationRunsConsumer,
-    'document.published.v1': automationRunsConsumer,
-    // NOTIF-001 — see `client-request-notifications.ts` for who is told what, and why.
-    // The mail half is `client-request-mail.ts`; it sends after the batch commits.
-    'client_request.submitted.v1': both(submitted, automationRunsConsumer),
-    // CQ-12 (COL-05, APR-03) — see `collaboration-notices.ts`. `message.created.v1` is composed
-    // with the realtime fan-out in `main.ts` when the socket server runs.
-    // R7 slice 6: a message in a direct conversation also tells the other participant (in-app).
-    'message.created.v1': both(
-      createCollaborationNotices(planMentionNotices, collaborationMails),
-      directConversationMessageNoticesConsumer,
-    ),
-    // BK3-left: a direct message tells the other participant (in-app). Composed with the DM
-    // realtime fan-out in `main.ts` when the socket server runs.
-    'direct_message.created.v1': directMessageNoticesConsumer,
-    'document.comment_created.v1': createCollaborationNotices(
-      planCommentNotices,
-      collaborationMails,
-    ),
-    'meeting.attendee_invited.v1': createCollaborationNotices(
-      planMeetingInviteNotices,
-      collaborationMails,
-    ),
-    // BK5: a meeting's title/date/time changed — the attendees at that moment are told.
-    'meeting.changed.v1': createCollaborationNotices(planMeetingChangedNotices, collaborationMails),
-    'project.member_added.v1': createCollaborationNotices(
-      planProjectAddedNotices,
-      collaborationMails,
-    ),
-    'work_item.client_action_requested.v1': createCollaborationNotices(
-      planClientActionNotices,
-      collaborationMails,
-    ),
-    // 0211 (APR-01/02), NT1: a version sent for client approval — the picked client deciders get
-    // an in-app row and a "please review" email.
-    'approval.requested.v1': createCollaborationNotices(
-      planApprovalRequestedNotices,
-      collaborationMails,
-    ),
-    // Q3: the client (or a staff reviewer) decided — the sender and the project's deliverable
-    // makers get an in-app row and an email that bypasses quiet hours (yes-critical).
-    'approval.decided.v1': createCollaborationNotices(
-      planApprovalDecidedNotices,
-      collaborationMails,
-    ),
-    // 0212 (BG3), NT1: a message on a client request tells the other side — see the planner.
-    'client_request.message_posted.v1': createCollaborationNotices(
-      planRequestMessageNotices,
-      collaborationMails,
-    ),
-    // R4 slice 12 — the proofing viewer: comments, mentions, resolved threads and decisions on a
-    // file under review. See `review-notices.ts` for who is told; same delivery path as above.
-    'review.thread_created.v1': createCollaborationNotices(
-      planReviewCommentNotices,
-      collaborationMails,
-    ),
-    'review.comment_added.v1': createCollaborationNotices(
-      planReviewCommentNotices,
-      collaborationMails,
-    ),
-    'review.thread_resolved.v1': createCollaborationNotices(
-      planReviewResolvedNotices,
-      collaborationMails,
-    ),
-    'review.decision_recorded.v1': createCollaborationNotices(
-      planReviewDecisionNotices,
-      collaborationMails,
-    ),
-    'client_request.transitioned.v1':
-      mails === null
-        ? clientRequestTransitionedConsumer
-        : both(clientRequestTransitionedConsumer, createClientRequestTransitionedMail(mails)),
-    // WORK-003 — the blocker's ask owner, and nobody else.
-    'work_item.blocked.v1': workItemBlockedConsumer,
-    // USAGE-001 — the org-wide owner/admin inbox notice (x68, slice 4b, unconditional), composed
-    // with the mail half (slice 4c) when a transport is wired. Notice first, so a mail throw rolls
-    // back an event whose notice is re-inserted idempotently on redelivery.
-    'usage.threshold_reached.v1':
-      usageMails === null
-        ? usageThresholdReachedConsumer
-        : both(usageThresholdReachedConsumer, createUsageThresholdMail(usageMails)),
-    // INBOX-001 — a quiet-hours-deferred email resumes on its own internal type, handled only by
-    // the resume path(s), never by the notification consumer. Registered only when at least one
-    // interrupting producer that defers is wired, since only they produce a resume row.
-    ...(resumeHandler === null ? {} : { [QUIET_HOURS_MAIL_RESUME_TYPE]: resumeHandler }),
-    // H3 — the data-rights receipts: "your export is ready", "deletion scheduled / cancelled /
-    // carried out". Mail only; registered when a transport is wired.
-    ...(dependencies.privacyMailer === undefined || !dependencies.privacyMailer.enabled
-      ? {}
-      : {
-          'privacy_export.ready.v1': createPrivacyExportReadyMail(dependencies.privacyMailer),
-          'privacy_deletion.changed.v1': createPrivacyDeletionChangedMail(
-            dependencies.privacyMailer,
-          ),
-        }),
-  });
+  // R15-c: the same types also stage Slack / Teams channel notices (`channel-notices.ts`).
+  return withChannelNoticeStaging(
+    withWebhookStaging({
+      // CQ-12 (AUT-01): every trigger event also runs the organization's enabled rules for it,
+      // after the event's own consumers, in the same savepoint.
+      'work_item.updated.v1': both(workItemLifecycleConsumer, automationRunsConsumer),
+      'work_item.created.v1': automationRunsConsumer,
+      'meeting.scheduled.v1': automationRunsConsumer,
+      'document.published.v1': automationRunsConsumer,
+      // NOTIF-001 — see `client-request-notifications.ts` for who is told what, and why.
+      // The mail half is `client-request-mail.ts`; it sends after the batch commits.
+      'client_request.submitted.v1': both(submitted, automationRunsConsumer),
+      // CQ-12 (COL-05, APR-03) — see `collaboration-notices.ts`. `message.created.v1` is composed
+      // with the realtime fan-out in `main.ts` when the socket server runs.
+      // R7 slice 6: a message in a direct conversation also tells the other participant (in-app).
+      'message.created.v1': both(
+        createCollaborationNotices(planMentionNotices, collaborationMails),
+        directConversationMessageNoticesConsumer,
+      ),
+      // BK3-left: a direct message tells the other participant (in-app). Composed with the DM
+      // realtime fan-out in `main.ts` when the socket server runs.
+      'direct_message.created.v1': directMessageNoticesConsumer,
+      'document.comment_created.v1': createCollaborationNotices(
+        planCommentNotices,
+        collaborationMails,
+      ),
+      'meeting.attendee_invited.v1': createCollaborationNotices(
+        planMeetingInviteNotices,
+        collaborationMails,
+      ),
+      // BK5: a meeting's title/date/time changed — the attendees at that moment are told.
+      'meeting.changed.v1': createCollaborationNotices(
+        planMeetingChangedNotices,
+        collaborationMails,
+      ),
+      'project.member_added.v1': createCollaborationNotices(
+        planProjectAddedNotices,
+        collaborationMails,
+      ),
+      'work_item.client_action_requested.v1': createCollaborationNotices(
+        planClientActionNotices,
+        collaborationMails,
+      ),
+      // 0211 (APR-01/02), NT1: a version sent for client approval — the picked client deciders get
+      // an in-app row and a "please review" email.
+      'approval.requested.v1': createCollaborationNotices(
+        planApprovalRequestedNotices,
+        collaborationMails,
+      ),
+      // Q3: the client (or a staff reviewer) decided — the sender and the project's deliverable
+      // makers get an in-app row and an email that bypasses quiet hours (yes-critical).
+      'approval.decided.v1': createCollaborationNotices(
+        planApprovalDecidedNotices,
+        collaborationMails,
+      ),
+      // 0212 (BG3), NT1: a message on a client request tells the other side — see the planner.
+      'client_request.message_posted.v1': createCollaborationNotices(
+        planRequestMessageNotices,
+        collaborationMails,
+      ),
+      // R4 slice 12 — the proofing viewer: comments, mentions, resolved threads and decisions on a
+      // file under review. See `review-notices.ts` for who is told; same delivery path as above.
+      'review.thread_created.v1': createCollaborationNotices(
+        planReviewCommentNotices,
+        collaborationMails,
+      ),
+      'review.comment_added.v1': createCollaborationNotices(
+        planReviewCommentNotices,
+        collaborationMails,
+      ),
+      'review.thread_resolved.v1': createCollaborationNotices(
+        planReviewResolvedNotices,
+        collaborationMails,
+      ),
+      'review.decision_recorded.v1': createCollaborationNotices(
+        planReviewDecisionNotices,
+        collaborationMails,
+      ),
+      'client_request.transitioned.v1':
+        mails === null
+          ? clientRequestTransitionedConsumer
+          : both(clientRequestTransitionedConsumer, createClientRequestTransitionedMail(mails)),
+      // WORK-003 — the blocker's ask owner, and nobody else.
+      'work_item.blocked.v1': workItemBlockedConsumer,
+      // USAGE-001 — the org-wide owner/admin inbox notice (x68, slice 4b, unconditional), composed
+      // with the mail half (slice 4c) when a transport is wired. Notice first, so a mail throw rolls
+      // back an event whose notice is re-inserted idempotently on redelivery.
+      'usage.threshold_reached.v1':
+        usageMails === null
+          ? usageThresholdReachedConsumer
+          : both(usageThresholdReachedConsumer, createUsageThresholdMail(usageMails)),
+      // INBOX-001 — a quiet-hours-deferred email resumes on its own internal type, handled only by
+      // the resume path(s), never by the notification consumer. Registered only when at least one
+      // interrupting producer that defers is wired, since only they produce a resume row.
+      ...(resumeHandler === null ? {} : { [QUIET_HOURS_MAIL_RESUME_TYPE]: resumeHandler }),
+      // H3 — the data-rights receipts: "your export is ready", "deletion scheduled / cancelled /
+      // carried out". Mail only; registered when a transport is wired.
+      ...(dependencies.privacyMailer === undefined || !dependencies.privacyMailer.enabled
+        ? {}
+        : {
+            'privacy_export.ready.v1': createPrivacyExportReadyMail(dependencies.privacyMailer),
+            'privacy_deletion.changed.v1': createPrivacyDeletionChangedMail(
+              dependencies.privacyMailer,
+            ),
+          }),
+    }),
+  );
 }
 
 /**

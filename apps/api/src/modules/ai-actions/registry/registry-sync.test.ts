@@ -125,7 +125,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // R15-b (52-03): +4 NEVER (time period locks list/create/delete/unlock-request), was 1142.
 // R15-a (52-04): +11 NEVER (`finance_settings`: rate cards, entries, resolve, reprice, cost
 // rates), was 1146.
-const EXPECTED_ROUTE_COUNT = 1157;
+// R15-c (54-05 / 54-06 Phase 0): +5 NEVER (`automation_secrets`: channel links create, list,
+// delete, test, resume), was 1157.
+const EXPECTED_ROUTE_COUNT = 1162;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

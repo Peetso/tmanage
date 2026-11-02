@@ -208,6 +208,37 @@ export function startWebhookDeliveries(worker, database, env, log, describeError
     (error) => log(`sweep webhooks failed: ${describeError(error)}`),
   );
   log('webhook deliveries on (every 10000ms)');
+  // R15-c: Slack / Teams channel posts ride on the same start and stop (server.mjs is unchanged).
+  const stopChannelPosts = startChannelPosts(worker, database, env, log, describeError);
+  return async () => {
+    controller.abort();
+    await Promise.all([loop, stopChannelPosts?.()]);
+  };
+}
+
+/**
+ * R15-c — the Slack / Teams channel post loop (54-05 / 54-06 Phase 0), the same shape as
+ * {@link startWebhookDeliveries}: the worker's `runChannelPostSweepLoop` (one pass now, then every
+ * 10 s). The outbox consumer stages posts in the relay; this is the only sender, and a post goes out
+ * only after its state-conditioned claim. Returns `stop`, or `null` when the worker module does not
+ * offer the channel pass.
+ */
+export function startChannelPosts(worker, database, env, log, describeError = String) {
+  if (
+    typeof worker.runChannelPostPass !== 'function' ||
+    typeof worker.runChannelPostSweepLoop !== 'function' ||
+    typeof worker.createChannelPostDeps !== 'function'
+  ) {
+    return null;
+  }
+  const deps = worker.createChannelPostDeps(database, env);
+  const controller = new AbortController();
+  const loop = worker.runChannelPostSweepLoop(
+    () => worker.runChannelPostPass(deps),
+    controller.signal,
+    (error) => log(`sweep channel posts failed: ${describeError(error)}`),
+  );
+  log('channel posts on (every 10000ms)');
   return async () => {
     controller.abort();
     await loop;

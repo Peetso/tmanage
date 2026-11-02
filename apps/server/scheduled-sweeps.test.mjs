@@ -11,6 +11,7 @@ import {
   apiSweepJobs,
   createSweepScheduler,
   reconcileIntervalMs,
+  startChannelPosts,
   startWebhookDeliveries,
   sweepIntervalMs,
   sweepsEnabled,
@@ -333,6 +334,27 @@ test('webhook deliveries run the worker pass on its loop with env-built deps, an
   assert.equal(signal.aborted, true);
   assert.equal(
     startWebhookDeliveries({}, 'pool', {}, () => {}),
+    null,
+  );
+});
+
+test('R15-c: channel posts start on the worker loop and stop on abort; absent pass is null', async () => {
+  const calls = [];
+  let signal;
+  const worker = {
+    createChannelPostDeps: (database) => ({ database }),
+    runChannelPostPass: async (deps) => (calls.push(deps), { delivered: 0, failed: 0 }),
+    runChannelPostSweepLoop: async (pass, abortSignal) => {
+      signal = abortSignal;
+      await pass();
+    },
+  };
+  const stop = startChannelPosts(worker, 'pool', {}, () => {});
+  await stop();
+  assert.deepEqual(calls, [{ database: 'pool' }]);
+  assert.equal(signal.aborted, true);
+  assert.equal(
+    startChannelPosts({}, 'pool', {}, () => {}),
     null,
   );
 });

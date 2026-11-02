@@ -2054,6 +2054,18 @@ GRANT SELECT ON `tmanage`.`org_holidays`                           TO 'tmanage_w
 GRANT SELECT, UPDATE ON `tmanage`.`webhook_endpoints`              TO 'tmanage_worker'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`webhook_deliveries`             TO 'tmanage_worker'@'%';
 
+-- ---- R15 slice c · Slack / Teams channel notices (Phase 0) ----
+-- 0289 `integration_channel_links` / `integration_channel_posts` (tenant): the app creates, lists,
+-- resumes and removes a pasted channel (SELECT, INSERT, UPDATE, DELETE on links; the ledger rows go
+-- with a removed link by ON DELETE CASCADE) and stages a test post (SELECT, INSERT on posts). The
+-- worker stages one post per matching link inside the event's transaction and settles it
+-- (SELECT, INSERT, UPDATE on posts), and trips the breaker (SELECT, UPDATE on links). Never DELETE
+-- for the worker.
+GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`integration_channel_links` TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT ON `tmanage`.`integration_channel_posts`      TO 'tmanage_app'@'%';
+GRANT SELECT, UPDATE ON `tmanage`.`integration_channel_links`      TO 'tmanage_worker'@'%';
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`integration_channel_posts` TO 'tmanage_worker'@'%';
+
 -- ---- R15-b · 52-03 period locks ----
 -- 0288 `time_period_locks` (tenant): finance closes a window (INSERT, or UPDATE to reopen a row of
 -- the same month) and stamps the entry count and the reopen (UPDATE); a lock row is history and no

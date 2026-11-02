@@ -398,3 +398,4 @@ export type { HolidayPack, HolidayPackDay } from './calendar/holiday-packs.js';
 
 // Rates — 52-04 (R15-a)
 export * from './money/rates.js';
+export * from './integrations/channel-messages.js';

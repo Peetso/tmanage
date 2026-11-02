@@ -186,8 +186,10 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // ---- R13-s4 ---- +2: the due-soon sweep reads `org_working_calendars` and `org_holidays`.
     // ---- R13-s2 ---- +1: the delivery sweep reads `webhook_endpoints` (fan-out, breaker).
     // ---- R15-a ---- +2: `rate_cards` and `rate_card_entries` (never `member_cost_rates`).
+    // ---- R15-c ---- +2: channel staging and the post sweep read `integration_channel_links` and
+    // `integration_channel_posts` where they write them.
     expect(reads).toHaveLength(
-      26 + 15 + 1 + 4 + 3 + 1 + 3 + 3 + 1 + 6 + 4 + 2 + 1 + 1 + 1 + 4 + 2 + 1 + 2,
+      26 + 15 + 1 + 4 + 3 + 1 + 3 + 3 + 1 + 6 + 4 + 2 + 1 + 1 + 1 + 4 + 2 + 1 + 2 + 2,
     );
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });

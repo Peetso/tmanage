@@ -1178,6 +1178,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0288. Tenant-owned: the closed time periods of one organization. Reached by finance through
   // their own context only; the worker never reads it.
   time_period_locks: 'organization_id',
+  // ---- R15-c · 54-05 / 54-06 Phase 0 ----
+  // 0289. Tenant-owned: a pasted Slack / Teams channel (URL encrypted, never projected) and its post
+  // ledger. Managed by `org.manage` through the TenantContext; the worker stages and posts as
+  // `tmanage_worker`.
+  integration_channel_links: 'organization_id',
+  integration_channel_posts: 'organization_id',
   // ---- R15-a · 52-04 ----
   // 0287. Tenant-owned: rate cards, their entries and member cost rates. Reached by members
   // through their own context (finance.view / finance.manage); the worker reads the two card

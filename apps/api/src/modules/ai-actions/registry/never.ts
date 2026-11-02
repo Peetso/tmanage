@@ -1593,6 +1593,33 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/time/locks/:lockId/unlock-request',
     reason: 'finance_settings',
   },
+  // ---- R15-c · 54-05 / 54-06 Phase 0 ---- a pasted channel webhook URL is a bearer credential and
+  // a link steers outbound egress: never an AI tool, the same reason as the webhook routes.
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/integrations/:kind/channel-links',
+    reason: 'automation_secrets',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/integrations/channel-links',
+    reason: 'automation_secrets',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/integrations/channel-links/:id',
+    reason: 'automation_secrets',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/integrations/channel-links/:id/test',
+    reason: 'automation_secrets',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/integrations/channel-links/:id/resume',
+    reason: 'automation_secrets',
+  },
   // ---- R15-a · 52-04 rates (cost rates are salary proxies; re-price rewrites snapshots) ----
   {
     method: 'GET',
