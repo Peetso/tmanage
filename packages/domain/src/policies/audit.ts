@@ -1200,6 +1200,28 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'integration_channel_link',
     clause: '§12 54-05 — a paused Slack or Teams channel link was resumed',
   },
+  // ---- R16-e · 54-10 GitHub Phase 0 — repository webhooks, work keys, code links ----
+  /** A repository webhook was added. Metadata: repo, project count — never the secret. */
+  'github_hook.created': {
+    objectType: 'github_repo_hook',
+    clause: '§12 54-10 — a GitHub repository webhook was connected',
+  },
+  'github_hook.removed': {
+    objectType: 'github_repo_hook',
+    clause: '§12 54-10 — a GitHub repository webhook was removed',
+  },
+  'github_hook.secret_rotated': {
+    objectType: 'github_repo_hook',
+    clause: '§12 54-10 — a GitHub repository webhook secret was rotated',
+  },
+  'project.work_key_prefix_set': {
+    objectType: 'project',
+    clause: '§12 54-10 — a project work-key prefix was set',
+  },
+  'work_item.code_link_removed': {
+    objectType: 'work_item',
+    clause: '§12 54-10 — a code link was removed from a work item',
+  },
   // ---- R16-a · 52-02 timesheets / 52-03 approvals ----
   /**
    * Entries of a week were edited (batch edit, unsorted move or copy from another week). Metadata:
@@ -1507,6 +1529,11 @@ const AUDIT_ACTION_LABELS = {
   'channel_link.removed': 'Removed a Slack or Teams channel',
   'channel_link.paused': 'Paused a Slack or Teams channel',
   'channel_link.resumed': 'Resumed a Slack or Teams channel',
+  'github_hook.created': 'Connected a GitHub repository',
+  'github_hook.removed': 'Removed a GitHub repository',
+  'github_hook.secret_rotated': 'Rotated a GitHub webhook secret',
+  'project.work_key_prefix_set': 'Set a project work-key prefix',
+  'work_item.code_link_removed': 'Removed a code link from a work item',
   'timesheet.entries_edited': 'Edited time on a timesheet',
   'timesheet.submitted': 'Submitted a timesheet',
   'timesheet.approved': 'Approved a timesheet',

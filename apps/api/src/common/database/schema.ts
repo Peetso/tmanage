@@ -11981,6 +11981,125 @@ Object.assign(TABLES, {
   contact_suggestions: contactSuggestions,
 });
 
+// ---- R16-e · 54-10 GitHub Phase 0 ----
+
+export const GITHUB_HOOK_STATUSES = ['active', 'paused'] as const;
+export type GithubHookStatus = (typeof GITHUB_HOOK_STATUSES)[number];
+export const CODE_LINK_KINDS = ['branch', 'pr', 'commit'] as const;
+export type CodeLinkKind = (typeof CODE_LINK_KINDS)[number];
+
+/**
+ * 0294 (54-10 Phase 0). One pasted GitHub repository webhook. TENANT. The HMAC secret lives only in
+ * `secretEnc` (FieldCipher `integration_token`, AAD = hook id) and is never projected.
+ * `projectIdsJson` = the frozen project ids a key may resolve in.
+ */
+export const githubRepoHooks = mysqlTable(
+  'github_repo_hooks',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    connectionId: char('connection_id', { length: 36 }).notNull(),
+    repoFullName: varchar('repo_full_name', { length: 300 }).notNull(),
+    secretEnc: text('secret_enc').notNull(),
+    projectIdsJson: text('project_ids_json').notNull(),
+    status: varchar('status', { length: 10 }).notNull().default('active'),
+    eventsHourStartedAt: datetime('events_hour_started_at', { mode: 'date', fsp: 3 }),
+    eventsHourCount: int('events_hour_count').notNull().default(0),
+    lastEventAt: datetime('last_event_at', { mode: 'date', fsp: 3 }),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_github_repo_hooks_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_github_repo_hooks_repo').on(table.organizationId, table.repoFullName),
+  ],
+);
+
+export type GithubRepoHookRow = typeof githubRepoHooks.$inferSelect;
+
+/** 0294. The replay guard: one row per (hook, `X-GitHub-Delivery`). TENANT. Cascades with its hook. */
+export const githubDeliveries = mysqlTable(
+  'github_deliveries',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    hookId: char('hook_id', { length: 36 }).notNull(),
+    deliveryId: varchar('delivery_id', { length: 64 }).notNull(),
+    receivedAt: datetime('received_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_github_deliveries_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_github_deliveries_delivery').on(
+      table.organizationId,
+      table.hookId,
+      table.deliveryId,
+    ),
+    index('ix_github_deliveries_received').on(table.organizationId, table.hookId, table.receivedAt),
+  ],
+);
+
+export type GithubDeliveryRow = typeof githubDeliveries.$inferSelect;
+
+/** 0294. One branch / pull request / commit linked to one work item. TENANT. Internal only. */
+export const workItemCodeLinks = mysqlTable(
+  'work_item_code_links',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    connectionId: char('connection_id', { length: 36 }),
+    provider: varchar('provider', { length: 16 }).notNull(),
+    repoFullName: varchar('repo_full_name', { length: 300 }).notNull(),
+    linkKind: varchar('link_kind', { length: 16 }).notNull(),
+    externalId: varchar('external_id', { length: 190 }).notNull(),
+    title: varchar('title', { length: 500 }),
+    state: varchar('state', { length: 32 }),
+    url: varchar('url', { length: 2048 }).notNull(),
+    actorLogin: varchar('actor_login', { length: 190 }),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_wicl_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_wicl_item_ext').on(
+      table.organizationId,
+      table.workItemId,
+      table.provider,
+      table.linkKind,
+      table.externalId,
+    ),
+  ],
+);
+
+export type WorkItemCodeLinkRow = typeof workItemCodeLinks.$inferSelect;
+
+/**
+ * 0294 column views over `projects` / `work_items` (the 0287 pattern): only the work-key columns,
+ * so `ProjectRow` / `WorkItemRow` and their fixtures keep their shape. Not in `TABLES`.
+ */
+export const projectWorkKeys = mysqlTable('projects', {
+  id: char('id', { length: 36 }).primaryKey(),
+  organizationId: char('organization_id', { length: 36 }).notNull(),
+  archivedAt: datetime('archived_at', { mode: 'date', fsp: 3 }),
+  workKeyPrefix: varchar('work_key_prefix', { length: 10 }),
+  workKeyNext: int('work_key_next', { unsigned: true }).notNull().default(1),
+});
+
+export const workItemWorkKeys = mysqlTable('work_items', {
+  id: char('id', { length: 36 }).primaryKey(),
+  organizationId: char('organization_id', { length: 36 }).notNull(),
+  projectId: char('project_id', { length: 36 }).notNull(),
+  createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+  workKey: varchar('work_key', { length: 20 }),
+});
+
+Object.assign(TABLES, {
+  github_repo_hooks: githubRepoHooks,
+  github_deliveries: githubDeliveries,
+  work_item_code_links: workItemCodeLinks,
+});
+
 // ---- R16-b · 52-05 budgets and burn ----
 
 /**

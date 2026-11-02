@@ -403,6 +403,9 @@ export * from './integrations/channel-messages.js';
 // Budget burn — 52-05 (R16-b)
 export * from './money/burn.js';
 
+// Work keys — 54-10 GitHub Phase 0 (R16-e)
+export * from './integrations/work-keys.js';
+
 // Contact import — 54-11 Phase 0 (R16-f)
 export * from './import/contacts.js';
 

@@ -2117,6 +2117,16 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`contact_suggestions` TO 'tman
 -- so UPDATE is granted beside the existing INSERT, DELETE. The worker reads and writes nothing here.
 GRANT UPDATE ON `tmanage`.`work_item_dependencies`                TO 'tmanage_app'@'%';
 
+-- ---- R16-e · 54-10 GitHub Phase 0 ----
+-- 0294 `github_repo_hooks` / `github_deliveries` / `work_item_code_links` (tenant): owners add,
+-- list, rotate and remove a repository webhook (the event budget and `last_event_at` are UPDATEs);
+-- the inbound route records each delivery id and deletes rows older than seven days; links are
+-- upserted from events and removed by a member (DELETE). UPDATE on `projects` (prefix, counter)
+-- and `work_items` (`work_key`) is already granted. The worker holds nothing on these tables.
+GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`github_repo_hooks`    TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`github_deliveries`    TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`work_item_code_links` TO 'tmanage_app'@'%';
+
 -- ---- R16-b · 52-05 budgets and burn ----
 -- 0291 `project_budget_phases` (tenant): a manager replaces a budget's phase split on save (SELECT,
 -- INSERT, UPDATE, DELETE). `budget_alert_events` (tenant): history the app lists (SELECT, INSERT;

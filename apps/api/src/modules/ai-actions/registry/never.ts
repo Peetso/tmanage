@@ -1815,6 +1815,46 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/work-items/:workItemId/schedule/cascade-apply',
     reason: 'policy_definitions',
   },
+  // ---- R16-e · 54-10 GitHub Phase 0 ---- a repository webhook holds an HMAC secret (returned on
+  // create/rotate): never an AI tool, the same reason as the webhook routes. The inbound route is
+  // untrusted outside content. The work-key prefix rewrites every item's key; code links are
+  // integration data with no reviewed op yet.
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/integrations/github/repo-hooks',
+    reason: 'automation_secrets',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/integrations/github/repo-hooks',
+    reason: 'automation_secrets',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/integrations/github/repo-hooks/:id',
+    reason: 'automation_secrets',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/integrations/github/repo-hooks/:id/rotate-secret',
+    reason: 'automation_secrets',
+  },
+  { method: 'POST', path: '/v1/public/integrations/github/:hookId', reason: 'public_intake' },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/work-key-prefix',
+    reason: 'policy_definitions',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/code-links',
+    reason: 'automation_secrets',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/code-links/:linkId',
+    reason: 'automation_secrets',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

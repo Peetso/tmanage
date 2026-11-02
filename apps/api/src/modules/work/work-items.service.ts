@@ -9,6 +9,7 @@ import { ProjectMembershipsRepository } from '../projects/project-memberships.re
 import { ObjectiveWorkLinksRepository } from '../projects/objective-work-links.repository.js';
 import { WorkItemFilesRepository } from './item-files.repository.js';
 import { RatesRepository } from '../finance/rates.repository.js';
+import { ensureWorkKey } from './work-keys.service.js';
 import {
   effectivePageSize,
   MAX_PAGE_SIZE,
@@ -487,6 +488,8 @@ export class WorkItemsService {
 
     const row = await this.database.transaction(context, async (tx) => {
       const created = await this.workItems.create(tx, context, input);
+      // R16-e (54-10): the item's work key (`TM-482`) when its project has a prefix; no-op otherwise.
+      await ensureWorkKey(tx, context, created.id);
 
       await this.audit?.record(tx, context, {
         action: 'work_item.created',

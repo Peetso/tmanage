@@ -94,6 +94,8 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'GET /v1/public/forms/:slug': 'named',
   'POST /v1/public/forms/:slug/submissions': 'named',
   'POST /v1/public/security-reports/': 'named',
+  // R16-e (54-10): GitHub repository webhook delivery — HMAC per hook, per-hook throttle.
+  'POST /v1/public/integrations/github/:hookId': 'named',
 };
 
 /** Signed-in routes with no capability because they act only on the caller's own account. */

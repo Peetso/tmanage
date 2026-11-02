@@ -27,6 +27,11 @@ import { AutomationTemplateTagsRepository } from './template-tags.repository.js'
 import { AutomationTemplateTagsService } from './template-tags.service.js';
 import { AutomationTemplateTagsController } from './template-tags.controller.js';
 import { ChannelLinksController } from './channel-links.controller.js';
+import {
+  GithubHooksController,
+  GithubInboundController,
+  GithubRawBodyCapture,
+} from './github-hooks.controller.js';
 
 /**
  * Automations & integrations (module 17). Workflow templates — define, list (x162), edit (x189),
@@ -86,6 +91,8 @@ export class AutomationsModule {
         variablesRepository,
         templateTagsRepository,
         templateTagsService,
+        // R16-e (54-10 Phase 0): keeps the GitHub inbound route's raw body for the HMAC check.
+        GithubRawBodyCapture,
       ],
       controllers: [
         WorkflowTemplatesController,
@@ -99,6 +106,10 @@ export class AutomationsModule {
         // R15-c (54-05 / 54-06 Phase 0): pasted Slack / Teams channel links. Its dependencies
         // (cipher, audit writer, egress settings) default inside the service from the environment.
         ChannelLinksController,
+        // R16-e (54-10 GitHub Phase 0): pasted repository webhooks (org.manage) and the public
+        // inbound delivery route. Dependencies default inside the service from the environment.
+        GithubHooksController,
+        GithubInboundController,
       ],
     };
   }

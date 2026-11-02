@@ -91,6 +91,7 @@ import {
   ScheduleCascadeController,
   WORK_SCHEDULE_CASCADE_SERVICE,
 } from './schedule-cascade.controller.js';
+import { WorkKeysController } from './work-keys.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -348,6 +349,8 @@ export class WorkModule {
         WorkCustomFieldsController,
         WorkBoardColumnsController,
         ScheduleCascadeController,
+        // R16-e (54-10 Phase 0): work-key prefix + code links. Stateless; resolves its own deps.
+        WorkKeysController,
       ],
     };
   }

@@ -1188,6 +1188,14 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `tmanage_worker`.
   integration_channel_links: 'organization_id',
   integration_channel_posts: 'organization_id',
+  // ---- R16-e · 54-10 GitHub Phase 0 ----
+  // 0294. Tenant-owned: a pasted repository webhook (secret encrypted, never projected), its
+  // delivery replay guard and the code links on work items. Managed through the TenantContext; the
+  // public inbound route finds the hook on `bootstrapRead(['github_repo_hooks'])`, then every write
+  // runs under a service context bound to the hook's organization. The worker never reads them.
+  github_repo_hooks: 'organization_id',
+  github_deliveries: 'organization_id',
+  work_item_code_links: 'organization_id',
   // ---- R15-a · 52-04 ----
   // 0287. Tenant-owned: rate cards, their entries and member cost rates. Reached by members
   // through their own context (finance.view / finance.manage); the worker reads the two card
