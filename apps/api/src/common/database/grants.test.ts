@@ -183,7 +183,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // ---- R12-1 ---- +1: the IP-cache retention sweep reads `ip_lookups` where it deletes.
     // ---- R13-5 ---- +4: the growth job reads `platform_growth_rollups` where it writes, and its
     // sources `product_events`, `subscriptions` and `approvals`.
-    expect(reads).toHaveLength(26 + 15 + 1 + 4 + 3 + 1 + 3 + 3 + 1 + 6 + 4 + 2 + 1 + 1 + 1 + 4);
+    // ---- R13-s4 ---- +2: the due-soon sweep reads `org_working_calendars` and `org_holidays`.
+    expect(reads).toHaveLength(26 + 15 + 1 + 4 + 3 + 1 + 3 + 3 + 1 + 6 + 4 + 2 + 1 + 1 + 1 + 4 + 2);
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });
 

@@ -2031,3 +2031,14 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`platform_growth_rollups` TO '
 GRANT SELECT ON `tmanage`.`product_events`                         TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`subscriptions`                          TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`approvals`                              TO 'tmanage_worker'@'%';
+
+-- ---- R13 slice 4 · working calendar ----
+-- 0283 `org_working_calendars` / `org_holidays` (tenant): the app reads and writes the company
+-- calendar and project overrides (INSERT, UPDATE with the version check), adds, imports and
+-- removes holidays (INSERT, DELETE), and DELETEs both for the company erasure; SELECT is stated with
+-- the writes it pairs with. The worker's due-soon sweep and weekend hold read the company calendar
+-- and its holidays (SELECT only — the worker never writes a calendar).
+GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`org_working_calendars` TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`org_holidays`          TO 'tmanage_app'@'%';
+GRANT SELECT ON `tmanage`.`org_working_calendars`                  TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`org_holidays`                           TO 'tmanage_worker'@'%';

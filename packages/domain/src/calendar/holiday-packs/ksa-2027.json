@@ -1,0 +1,62 @@
+{
+  "packKey": "ksa-2027",
+  "country": "SA",
+  "year": 2027,
+  "version": "2027.1",
+  "holidays": [
+    {
+      "date": "2027-02-22",
+      "labelEn": "Founding Day",
+      "labelAr": "يوم التأسيس",
+      "estimated": false
+    },
+    {
+      "date": "2027-03-09",
+      "labelEn": "Eid al-Fitr",
+      "labelAr": "عيد الفطر",
+      "estimated": true
+    },
+    {
+      "date": "2027-03-10",
+      "labelEn": "Eid al-Fitr holiday",
+      "labelAr": "عطلة عيد الفطر",
+      "estimated": true
+    },
+    {
+      "date": "2027-03-11",
+      "labelEn": "Eid al-Fitr holiday",
+      "labelAr": "عطلة عيد الفطر",
+      "estimated": true
+    },
+    {
+      "date": "2027-05-15",
+      "labelEn": "Arafat Day",
+      "labelAr": "يوم عرفة",
+      "estimated": true
+    },
+    {
+      "date": "2027-05-16",
+      "labelEn": "Eid al-Adha",
+      "labelAr": "عيد الأضحى",
+      "estimated": true
+    },
+    {
+      "date": "2027-05-17",
+      "labelEn": "Eid al-Adha holiday",
+      "labelAr": "عطلة عيد الأضحى",
+      "estimated": true
+    },
+    {
+      "date": "2027-05-18",
+      "labelEn": "Eid al-Adha holiday",
+      "labelAr": "عطلة عيد الأضحى",
+      "estimated": true
+    },
+    {
+      "date": "2027-09-23",
+      "labelEn": "Saudi National Day",
+      "labelAr": "اليوم الوطني السعودي",
+      "estimated": false
+    }
+  ]
+}

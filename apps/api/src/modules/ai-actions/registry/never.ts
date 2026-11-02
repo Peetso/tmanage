@@ -1508,6 +1508,49 @@ export const NEVER: readonly NeverEntry[] = [
   // platform admin, never an AI tool.
   { method: 'GET', path: '/v1/platform/activity/growth/', reason: 'platform_admin' },
   { method: 'GET', path: '/v1/platform/activity/growth/export.csv', reason: 'platform_admin' },
+  // R13-s4 (53-02). The working calendar: company working days, hours, holidays, pack imports and
+  // project overrides. Organization policy that every date calculation reads; withheld (under the
+  // closest existing reason) until reviewed `calendar.working.*` ops exist.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/working-calendar',
+    reason: 'policy_definitions',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/working-calendar',
+    reason: 'policy_definitions',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/working-calendar/holidays',
+    reason: 'policy_definitions',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/working-calendar/holidays/:holidayId',
+    reason: 'policy_definitions',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/working-calendar/import-pack',
+    reason: 'policy_definitions',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/working-calendar',
+    reason: 'policy_definitions',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/working-calendar',
+    reason: 'policy_definitions',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/working-calendar',
+    reason: 'policy_definitions',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

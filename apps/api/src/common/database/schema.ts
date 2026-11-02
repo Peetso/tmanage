@@ -11455,3 +11455,80 @@ export type PlatformGrowthRollupRow = typeof platformGrowthRollups.$inferSelect;
 Object.assign(TABLES, {
   platform_growth_rollups: platformGrowthRollups,
 });
+
+// ---- R13-s4 · 53-02 working calendar ----
+
+export const WORKING_CALENDAR_SCOPES = ['org', 'project'] as const;
+export type WorkingCalendarScope = (typeof WORKING_CALENDAR_SCOPES)[number];
+export const HOLIDAY_SOURCES = ['pack', 'custom'] as const;
+export type HolidaySource = (typeof HOLIDAY_SOURCES)[number];
+
+/**
+ * 0283 (53-02). The company's working calendar (`scope = 'org'`, no project) or one project's
+ * override. TENANT. `working_days_mask` bit 0 = Sunday; `day_start`/`day_end` are wall-clock in
+ * `time_zone`; `version` is the optimistic-concurrency counter (a stale PUT is a 409). No row = the
+ * default (Sun–Thu, 09:00–17:00, the organization's zone).
+ */
+export const orgWorkingCalendars = mysqlTable(
+  'org_working_calendars',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    scope: varchar('scope', { length: 8 }).notNull(),
+    projectId: char('project_id', { length: 36 }),
+    workingDaysMask: tinyint('working_days_mask', { unsigned: true }).notNull(),
+    dayStart: time('day_start').notNull(),
+    dayEnd: time('day_end').notNull(),
+    timeZone: varchar('time_zone', { length: 64 }).notNull(),
+    version: int('version').notNull().default(1),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_org_working_calendars_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_org_working_calendars_scope').on(
+      table.organizationId,
+      table.scope,
+      table.projectId,
+    ),
+  ],
+);
+
+export type OrgWorkingCalendarRow = typeof orgWorkingCalendars.$inferSelect;
+
+/**
+ * 0283 (53-02). One day off of one calendar: typed by an owner (`custom`) or imported from a static
+ * holiday pack (`pack`, with `pack_key` + `pack_version`). `estimated` marks an expected Hijri date.
+ * TENANT. One per calendar per date; the service caps a calendar at 400.
+ */
+export const orgHolidays = mysqlTable(
+  'org_holidays',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    calendarId: char('calendar_id', { length: 36 }).notNull(),
+    date: date('date', { mode: 'string' }).notNull(),
+    labelEn: varchar('label_en', { length: 80 }).notNull(),
+    labelAr: varchar('label_ar', { length: 80 }),
+    source: varchar('source', { length: 8 }).notNull(),
+    packKey: varchar('pack_key', { length: 32 }),
+    packVersion: varchar('pack_version', { length: 16 }),
+    estimated: boolean('estimated').notNull().default(false),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_org_holidays_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_org_holidays_calendar_date').on(
+      table.organizationId,
+      table.calendarId,
+      table.date,
+    ),
+  ],
+);
+
+export type OrgHolidayRow = typeof orgHolidays.$inferSelect;
+
+Object.assign(TABLES, {
+  org_working_calendars: orgWorkingCalendars,
+  org_holidays: orgHolidays,
+});

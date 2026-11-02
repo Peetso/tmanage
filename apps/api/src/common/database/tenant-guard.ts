@@ -1168,6 +1168,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0265. Tenant-owned: one membership's running timer. Reached only by its own member through
   // the TenantContext; the worker's auto-stop is cross-tenant as `tmanage_worker`.
   time_timers: 'organization_id',
+  // ---- R13-s4 · 53-02 ----
+  // 0283. Tenant-owned: the company's working calendar (and project overrides) and its holidays.
+  // Reached by members through their own context; the worker's due-soon sweep reads them as
+  // `tmanage_worker`.
+  org_working_calendars: 'organization_id',
+  org_holidays: 'organization_id',
 });
 
 /**

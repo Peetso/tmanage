@@ -1,0 +1,86 @@
+{
+  "packKey": "uae-2026",
+  "country": "AE",
+  "year": 2026,
+  "version": "2026.1",
+  "holidays": [
+    {
+      "date": "2026-01-01",
+      "labelEn": "New Year's Day",
+      "labelAr": "رأس السنة الميلادية",
+      "estimated": false
+    },
+    {
+      "date": "2026-03-20",
+      "labelEn": "Eid al-Fitr",
+      "labelAr": "عيد الفطر",
+      "estimated": true
+    },
+    {
+      "date": "2026-03-21",
+      "labelEn": "Eid al-Fitr holiday",
+      "labelAr": "عطلة عيد الفطر",
+      "estimated": true
+    },
+    {
+      "date": "2026-03-22",
+      "labelEn": "Eid al-Fitr holiday",
+      "labelAr": "عطلة عيد الفطر",
+      "estimated": true
+    },
+    {
+      "date": "2026-05-26",
+      "labelEn": "Arafat Day",
+      "labelAr": "يوم عرفة",
+      "estimated": true
+    },
+    {
+      "date": "2026-05-27",
+      "labelEn": "Eid al-Adha",
+      "labelAr": "عيد الأضحى",
+      "estimated": true
+    },
+    {
+      "date": "2026-05-28",
+      "labelEn": "Eid al-Adha holiday",
+      "labelAr": "عطلة عيد الأضحى",
+      "estimated": true
+    },
+    {
+      "date": "2026-05-29",
+      "labelEn": "Eid al-Adha holiday",
+      "labelAr": "عطلة عيد الأضحى",
+      "estimated": true
+    },
+    {
+      "date": "2026-06-16",
+      "labelEn": "Islamic New Year",
+      "labelAr": "رأس السنة الهجرية",
+      "estimated": true
+    },
+    {
+      "date": "2026-08-25",
+      "labelEn": "Prophet's Birthday",
+      "labelAr": "المولد النبوي الشريف",
+      "estimated": true
+    },
+    {
+      "date": "2026-12-01",
+      "labelEn": "Commemoration Day",
+      "labelAr": "يوم الشهيد",
+      "estimated": false
+    },
+    {
+      "date": "2026-12-02",
+      "labelEn": "UAE National Day",
+      "labelAr": "اليوم الوطني",
+      "estimated": false
+    },
+    {
+      "date": "2026-12-03",
+      "labelEn": "UAE National Day",
+      "labelAr": "اليوم الوطني",
+      "estimated": false
+    }
+  ]
+}

@@ -362,3 +362,36 @@ export type { SuggestedLocale } from './i18n/country-locale.js';
 // One CSV cell-escaping rule for every export — 52-29 (R13-s1)
 export { CSV_BOM, CSV_RECORD_SEPARATOR, escapeCsvCell, toCsv } from './export/csv.js';
 export type { CsvValue, ToCsvOptions } from './export/csv.js';
+
+// Working calendar and MENA holiday packs — 53-02 (R13-s4)
+export {
+  ALL_DAYS_MASK,
+  DEFAULT_DAY_END,
+  DEFAULT_DAY_START,
+  DEFAULT_WORKING_DAYS_MASK,
+  MAX_HOLIDAYS_PER_CALENDAR,
+  MAX_HOLIDAY_LABEL_LENGTH,
+  WORKING_CALENDAR_HORIZON_DAYS,
+  WORKING_CALENDAR_HORIZON_YEARS,
+  WorkingCalendarRangeError,
+  addWorkingDays,
+  dayNumberOf,
+  defaultWorkingCalendar,
+  hasWorkingDay,
+  isIsoDate,
+  isWithinHorizon,
+  isWorkingDay,
+  isWorkingInstant,
+  localDateOf,
+  maskOfWeekdays,
+  minutesOfClock,
+  nextWorkingStart,
+  nthWorkingDay,
+  weekdayOf,
+  weekdaysOfMask,
+  workingDaysBetween,
+  zonedInstant,
+} from './calendar/working-calendar.js';
+export type { WorkingCalendar } from './calendar/working-calendar.js';
+export { HOLIDAY_PACKS, HOLIDAY_PACK_KEYS, holidayPack } from './calendar/holiday-packs.js';
+export type { HolidayPack, HolidayPackDay } from './calendar/holiday-packs.js';

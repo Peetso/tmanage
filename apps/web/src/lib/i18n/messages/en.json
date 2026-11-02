@@ -15832,5 +15832,7 @@
   "RouteTitle.adminSessionTrail": "Session sign-in trail",
   "RouteTitle.platformPersonSignInTrail": "Sign-in trail",
   "Privacy.signInHeading": "Sign-in and session data",
-  "Privacy.signInBody": "When you sign in we store the IP address, the browser's user agent, the time and an automated-sign-in hint with its reasons. We look up the approximate place of the IP (city level, from the free DB-IP Lite database) and the network that owns it. A company's owners and admins can see this for their members' sessions, you can see it for your own, and TManage platform staff with security rights can see it to protect accounts. It is kept with the security audit trail and deleted when that retention ends (at most 400 days)."
+  "Privacy.signInBody": "When you sign in we store the IP address, the browser's user agent, the time and an automated-sign-in hint with its reasons. We look up the approximate place of the IP (city level, from the free DB-IP Lite database) and the network that owns it. A company's owners and admins can see this for their members' sessions, you can see it for your own, and TManage platform staff with security rights can see it to protect accounts. It is kept with the security audit trail and deleted when that retention ends (at most 400 days).",
+  "AuditActionLabel.working_calendar.updated": "Changed the working calendar",
+  "AuditActionLabel.working_calendar.holidays_imported": "Imported a holiday list"
 }

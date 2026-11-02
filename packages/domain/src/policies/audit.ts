@@ -1088,6 +1088,15 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'time_log',
     clause: '§12 52-01 — a time entry was logged (manual or a stopped timer)',
   },
+  // ---- R13-s4 · 53-02 ----
+  'working_calendar.updated': {
+    objectType: 'working_calendar',
+    clause: '§12 53-02 — the company or a project working calendar or its holidays changed',
+  },
+  'working_calendar.holidays_imported': {
+    objectType: 'working_calendar',
+    clause: '§12 53-02 — a holiday pack was imported (pack key and pack version recorded)',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1273,6 +1282,8 @@ const AUDIT_ACTION_LABELS = {
   'time_timer.started': 'Started a timer',
   'time_timer.auto_stopped': 'A forgotten timer was stopped',
   'time_log.created': 'Logged time',
+  'working_calendar.updated': 'Changed the working calendar',
+  'working_calendar.holidays_imported': 'Imported a holiday list',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

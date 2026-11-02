@@ -1,0 +1,110 @@
+{
+  "packKey": "eg-2027",
+  "country": "EG",
+  "year": 2027,
+  "version": "2027.1",
+  "holidays": [
+    {
+      "date": "2027-01-07",
+      "labelEn": "Coptic Christmas",
+      "labelAr": "عيد الميلاد المجيد",
+      "estimated": false
+    },
+    {
+      "date": "2027-01-25",
+      "labelEn": "Revolution Day and Police Day",
+      "labelAr": "ثورة 25 يناير وعيد الشرطة",
+      "estimated": false
+    },
+    {
+      "date": "2027-03-09",
+      "labelEn": "Eid al-Fitr",
+      "labelAr": "عيد الفطر",
+      "estimated": true
+    },
+    {
+      "date": "2027-03-10",
+      "labelEn": "Eid al-Fitr holiday",
+      "labelAr": "عطلة عيد الفطر",
+      "estimated": true
+    },
+    {
+      "date": "2027-03-11",
+      "labelEn": "Eid al-Fitr holiday",
+      "labelAr": "عطلة عيد الفطر",
+      "estimated": true
+    },
+    {
+      "date": "2027-04-25",
+      "labelEn": "Sinai Liberation Day",
+      "labelAr": "عيد تحرير سيناء",
+      "estimated": false
+    },
+    {
+      "date": "2027-05-01",
+      "labelEn": "Labour Day",
+      "labelAr": "عيد العمال",
+      "estimated": false
+    },
+    {
+      "date": "2027-05-03",
+      "labelEn": "Sham el-Nessim",
+      "labelAr": "شم النسيم",
+      "estimated": false
+    },
+    {
+      "date": "2027-05-15",
+      "labelEn": "Arafat Day",
+      "labelAr": "يوم عرفة",
+      "estimated": true
+    },
+    {
+      "date": "2027-05-16",
+      "labelEn": "Eid al-Adha",
+      "labelAr": "عيد الأضحى",
+      "estimated": true
+    },
+    {
+      "date": "2027-05-17",
+      "labelEn": "Eid al-Adha holiday",
+      "labelAr": "عطلة عيد الأضحى",
+      "estimated": true
+    },
+    {
+      "date": "2027-05-18",
+      "labelEn": "Eid al-Adha holiday",
+      "labelAr": "عطلة عيد الأضحى",
+      "estimated": true
+    },
+    {
+      "date": "2027-06-06",
+      "labelEn": "Islamic New Year",
+      "labelAr": "رأس السنة الهجرية",
+      "estimated": true
+    },
+    {
+      "date": "2027-06-30",
+      "labelEn": "June 30 Revolution",
+      "labelAr": "ذكرى ثورة 30 يونيو",
+      "estimated": false
+    },
+    {
+      "date": "2027-07-23",
+      "labelEn": "July 23 Revolution",
+      "labelAr": "ذكرى ثورة 23 يوليو",
+      "estimated": false
+    },
+    {
+      "date": "2027-08-14",
+      "labelEn": "Prophet's Birthday",
+      "labelAr": "المولد النبوي الشريف",
+      "estimated": true
+    },
+    {
+      "date": "2027-10-06",
+      "labelEn": "Armed Forces Day",
+      "labelAr": "عيد القوات المسلحة",
+      "estimated": false
+    }
+  ]
+}
