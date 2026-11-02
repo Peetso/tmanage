@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
-import { mintPersonalAccessToken } from './personal-access-token.js';
+import { hashAddress, mintPersonalAccessToken } from './personal-access-token.js';
 import {
   PersonalAccessTokenNotAuthenticatedError,
   PersonalAccessTokensService,
@@ -51,6 +51,28 @@ function row(overrides: Partial<PersonalAccessTokenAuthRow> = {}): PersonalAcces
 
 describe('PersonalAccessTokensService.authenticate', () => {
   const token = mintPersonalAccessToken().token;
+
+  it('records the hashed request address with the use, never the raw address (R15, 0286)', async () => {
+    const recordUsage = vi.fn(async () => undefined);
+    const database = {
+      bootstrapRead: vi.fn(async (_o: unknown, work: (r: unknown) => Promise<unknown>) => work({})),
+      transaction: vi.fn(async (_c: unknown, work: (tx: unknown) => Promise<unknown>) => work({})),
+    } as unknown as TenantDatabase;
+    const repo = { findUsableByHash: vi.fn(async () => row()), recordUsage };
+    const service = new PersonalAccessTokensService(
+      database,
+      repo as unknown as PersonalAccessTokensRepository,
+    );
+    await service.authenticate(token, CORRELATION, '203.0.113.7');
+    expect(recordUsage).toHaveBeenCalledWith(
+      {},
+      expect.anything(),
+      'tok1',
+      expect.any(Date),
+      hashAddress('203.0.113.7'),
+    );
+    expect(JSON.stringify(recordUsage.mock.calls)).not.toContain('203.0.113.7');
+  });
 
   it('resolves a live token to its own member and tenant, with no elevation', async () => {
     const result = await serviceWith(row()).authenticate(token, CORRELATION);

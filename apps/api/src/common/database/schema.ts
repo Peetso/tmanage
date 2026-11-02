@@ -163,6 +163,8 @@ export const personalAccessTokens = mysqlTable(
     /** R13 s3 (0282). Optional JSON list of IPs / CIDR ranges; NULL or `[]` means any address. */
     ipAllowlistJson: text('ip_allowlist_json'),
     lastUsedAt: datetime('last_used_at', { mode: 'date', fsp: 3 }),
+    /** R15 (0286). `hashAddress` (40 hex of SHA-256) of the address of the token's latest use. */
+    lastIpHash: char('last_ip_hash', { length: 40 }),
     expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }),
     revokedAt: datetime('revoked_at', { mode: 'date', fsp: 3 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),

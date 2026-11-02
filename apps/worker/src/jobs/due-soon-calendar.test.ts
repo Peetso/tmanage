@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaultWorkingCalendar, maskOfWeekdays } from '@tmanage/domain';
 import { isCalendarHoldReleased, isHeldByCalendar } from './due-soon-sweeper.js';
+import { heldReleaseNote } from './weekend-hold-calendar.js';
 
 /** 53-02 — the weekend hold reads the company calendar; no row keeps the Fri–Sat rule. */
 
@@ -24,5 +25,17 @@ describe('calendar-aware weekend hold', () => {
     expect(isHeldByCalendar(monFri, MONDAY_10, 'UTC')).toBe(true); // imported holiday
     const noHoliday = { ...monFri, holidays: new Set<string>() };
     expect(isCalendarHoldReleased(noHoliday, MONDAY_10, 'UTC')).toBe(true);
+  });
+
+  it('names the real release day, not always Sunday morning (R15)', () => {
+    const monFri = {
+      ...defaultWorkingCalendar('Asia/Riyadh'),
+      workingDaysMask: maskOfWeekdays([1, 2, 3, 4, 5]),
+    };
+    expect(heldReleaseNote(monFri, MONDAY_10, 'UTC')).toBe(' on Monday, the next working day');
+    expect(heldReleaseNote(null, SUNDAY_7, 'Asia/Riyadh')).toBe(
+      ' on Sunday morning, after the weekend',
+    );
+    expect(heldReleaseNote(null, MONDAY_10, 'Asia/Riyadh')).toBe(' on Monday, after the weekend');
   });
 });

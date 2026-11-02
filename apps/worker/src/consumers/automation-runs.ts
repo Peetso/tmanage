@@ -8,7 +8,7 @@ import {
 import { insertNotification } from '../common/database/notifications-store.js';
 import { findOrganizationTimeZone } from '../common/database/organization-clock-store.js';
 import { readOrganizationCalendar } from '../common/database/working-calendar-store.js';
-import { isHeldByCalendar } from '../jobs/due-soon-sweeper.js';
+import { isHeldByCalendar } from '../jobs/weekend-hold-calendar.js';
 import {
   findDocumentFacts,
   findInternalReach,
@@ -155,64 +155,14 @@ export function notRunReason(actionKind: string): string | null {
   return 'external_action_not_supported_in_app';
 }
 
-/**
- * A14 — "Skip weekends". The studio week ends on Friday and Saturday, so a rule with
- * `skipWeekends` does not send a reminder on those days **in the company's timezone**
- * (`organizations.timezone`; an unknown zone reads as UTC): the run is recorded as not run, held
- * for the weekend, with what it was about. Gap 10: the due-soon sweep then delivers every held run
- * on Sunday morning ({@link isWeekendHoldReleased}), once (`weekend-hold-store.ts`).
- * Pure, so the suite can enumerate the days.
- */
-export function isHeldForWeekend(skipWeekends: boolean, at: Date, timeZone = 'UTC'): boolean {
-  if (!skipWeekends) return false;
-  const { day } = localClock(at, timeZone);
-  return day === 5 || day === 6;
-}
-
-/** The local hour on Sunday from which held weekend runs go out. */
-export const SUNDAY_DELIVERY_HOUR = 8;
-
-const WEEKDAYS: Readonly<Record<string, number>> = {
-  Sun: 0,
-  Mon: 1,
-  Tue: 2,
-  Wed: 3,
-  Thu: 4,
-  Fri: 5,
-  Sat: 6,
-};
-
-/** The weekday (0 = Sunday) and hour (0–23) at `at` in `timeZone`; an unknown zone reads as UTC. */
-export function localClock(at: Date, timeZone: string): { day: number; hour: number } {
-  let parts: Intl.DateTimeFormatPart[];
-  try {
-    parts = new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      weekday: 'short',
-      hour: 'numeric',
-      hourCycle: 'h23',
-    }).formatToParts(at);
-  } catch {
-    return { day: at.getUTCDay(), hour: at.getUTCHours() };
-  }
-  const weekday = parts.find((part) => part.type === 'weekday')?.value ?? '';
-  const hour = Number(parts.find((part) => part.type === 'hour')?.value);
-  return {
-    day: WEEKDAYS[weekday] ?? at.getUTCDay(),
-    hour: Number.isInteger(hour) ? hour % 24 : at.getUTCHours(),
-  };
-}
-
-/**
- * Gap 10 — whether a run held over the weekend may go out now: not on Friday or Saturday, and on
- * Sunday only from {@link SUNDAY_DELIVERY_HOUR} local time. A sweep that misses Sunday delivers on
- * the next weekday it runs (the store bounds how old a hold it still delivers).
- */
-export function isWeekendHoldReleased(at: Date, timeZone: string): boolean {
-  const { day, hour } = localClock(at, timeZone);
-  if (day === 5 || day === 6) return false;
-  return day !== 0 || hour >= SUNDAY_DELIVERY_HOUR;
-}
+// A14 / Gap 10 / R14 hold rules live in `jobs/weekend-hold-calendar.ts` (R15: breaks the
+// automation-runs <-> due-soon-sweeper import cycle); re-exported for existing callers.
+export {
+  SUNDAY_DELIVERY_HOUR,
+  isHeldForWeekend,
+  isWeekendHoldReleased,
+  localClock,
+} from '../jobs/weekend-hold-calendar.js';
 
 /**
  * R14 (53-02 follow-up) — the hold reads the company's working calendar (a non-working day or a
@@ -255,7 +205,7 @@ export async function runRule(
     return;
   }
   if (rule.skipWeekends && (await isHeldNow(tx, event.organizationId, now))) {
-    // What the Sunday delivery needs to send it later. The keys are hidden on the run page.
+    // What the later release (weekend-hold-store.ts) needs to send it. The keys are hidden on the run page.
     await insertWorkflowRun(tx, {
       organizationId: event.organizationId,
       templateId: rule.id,
@@ -278,14 +228,19 @@ export async function runRule(
 /**
  * The notify-owner action: tell each owner (and the project lead when the rule says so) who may
  * still open the object, then append the run. `held` marks a weekend-held run delivered later: the
- * notice keeps the original dedupe key, and the run names the held run it closes.
+ * notice keeps the original dedupe key, the run names the held run it closes, and its effect names
+ * the day it went out.
  */
 export async function notifyAndRecord(
   event: Pick<ClaimedOutboxEvent, 'id' | 'organizationId'>,
   tx: WorkerTransaction,
   rule: AutomationRule,
   object: TriggerObject,
-  held?: { readonly heldRunId: string },
+  held?: {
+    readonly heldRunId: string;
+    /** R15: the release-day words (`heldReleaseNote`), e.g. " on Monday, the next working day". */
+    readonly releaseNote: string;
+  },
 ): Promise<void> {
   const base = {
     templateId: rule.id,
@@ -322,7 +277,7 @@ export async function notifyAndRecord(
   // appended the run that closes it: record nothing twice.
   if (held !== undefined && told > 0 && fresh === 0) return;
 
-  const after = held === undefined ? '' : ' on Sunday morning, after the weekend';
+  const after = held === undefined ? '' : held.releaseNote;
   await insertWorkflowRun(tx, {
     organizationId: event.organizationId,
     templateId: rule.id,

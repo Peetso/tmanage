@@ -215,7 +215,11 @@ export class SessionAuthGuard implements CanActivate {
       }
       if (bearer !== undefined) {
         try {
-          const authed = await this.personalAccessTokens.authenticate(bearer, state.correlationId);
+          const authed = await this.personalAccessTokens.authenticate(
+            bearer,
+            state.correlationId,
+            request.ip ?? null,
+          );
           state.session = { sessionId: `pat:${authed.tokenId}`, userId: authed.userId };
           state.authScheme = 'personal_access_token';
           // The token is bound to ONE organization and membership (0202). Carry that binding so

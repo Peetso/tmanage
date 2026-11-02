@@ -6,6 +6,7 @@ import type { PersonalAccessTokenRow } from '../../common/database/schema.js';
 import {
   DEFAULT_PAT_SCOPES,
   evaluateTokenUsability,
+  hashAddress,
   hashPersonalAccessToken,
   isWellFormedPersonalAccessToken,
   mintPersonalAccessToken,
@@ -386,7 +387,11 @@ export class PersonalAccessTokensService {
    * single-message discipline session authentication keeps. On success the token's last use is
    * recorded best-effort, scoped to its own tenant, and a failure there never costs the request.
    */
-  async authenticate(token: string, correlationId: string): Promise<AuthenticatedToken> {
+  async authenticate(
+    token: string,
+    correlationId: string,
+    ip: string | null = null,
+  ): Promise<AuthenticatedToken> {
     if (!isWellFormedPersonalAccessToken(token)) {
       throw new PersonalAccessTokenNotAuthenticatedError('malformed');
     }
@@ -409,7 +414,7 @@ export class PersonalAccessTokensService {
       throw new PersonalAccessTokenNotAuthenticatedError(usability.reason ?? 'unknown');
     }
 
-    await this.touch(row, correlationId);
+    await this.touch(row, correlationId, ip);
 
     return {
       tokenId: row.id,
@@ -421,8 +426,16 @@ export class PersonalAccessTokensService {
     };
   }
 
-  /** Record the token's last use. Best-effort: scoped to its tenant, and never throws upward. */
-  private async touch(row: PersonalAccessTokenAuthRow, correlationId: string): Promise<void> {
+  /**
+   * Record the token's last use and (R15, 0286) the hashed address it came from, in the same
+   * one-way form the guard's allowlist refusal audit uses. Best-effort: scoped to its tenant, and
+   * never throws upward.
+   */
+  private async touch(
+    row: PersonalAccessTokenAuthRow,
+    correlationId: string,
+    ip: string | null,
+  ): Promise<void> {
     try {
       const context = createServiceContext({
         organizationId: row.organizationId,
@@ -430,7 +443,7 @@ export class PersonalAccessTokensService {
         policyVersion: 'personal-access-token-usage',
       });
       await this.database.transaction(context, (tx) =>
-        this.tokens.recordUsage(tx, context, row.id, new Date()),
+        this.tokens.recordUsage(tx, context, row.id, new Date(), hashAddress(ip)),
       );
     } catch {
       // A failed usage timestamp is never the caller's problem; authentication already succeeded.

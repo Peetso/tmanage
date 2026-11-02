@@ -1,7 +1,4 @@
-import { isWorkingInstant, minutesOfClock } from '@tmanage/domain';
-import type { WorkingCalendar } from '@tmanage/domain';
 import type { AutomationRule } from '../common/database/collaboration-store.js';
-import { isHeldForWeekend, isWeekendHoldReleased } from '../consumers/automation-runs.js';
 
 /**
  * C1 (AUT-03): the "work item due in N days" automation trigger.
@@ -76,41 +73,6 @@ export async function sweepDueSoon(store: DueSoonSweepStore): Promise<DueSoonSwe
 }
 
 // ---- R13-s4 · 53-02 working calendar ----
-// The company calendar is read by `readOrganizationCalendar` (working-calendar-store.ts).
-
-/**
- * Whether a "Skip weekends" rule holds a run at `at`: on a non-working day (a weekend day or a
- * holiday) of the company calendar, in its zone. With no calendar row, today's rule: Friday or
- * Saturday in `fallbackTimeZone` (`organizations.timezone`).
- */
-export function isHeldByCalendar(
-  calendar: WorkingCalendar | null,
-  at: Date,
-  fallbackTimeZone: string,
-): boolean {
-  if (calendar === null) return isHeldForWeekend(true, at, fallbackTimeZone);
-  return !isWorkingInstant(at, calendar);
-}
-
-/**
- * Whether held runs may go out at `at`: a working day of the company calendar, from its
- * `dayStart`. With no calendar row, today's rule (not Friday/Saturday; Sunday from 08:00).
- */
-export function isCalendarHoldReleased(
-  calendar: WorkingCalendar | null,
-  at: Date,
-  fallbackTimeZone: string,
-): boolean {
-  if (calendar === null) return isWeekendHoldReleased(at, fallbackTimeZone);
-  if (!isWorkingInstant(at, calendar)) return false;
-  const opens = minutesOfClock(calendar.dayStart.slice(0, 5)) ?? 0;
-  const local = new Intl.DateTimeFormat('en-US', {
-    timeZone: calendar.timeZone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(at);
-  const hour = Number(local.find((part) => part.type === 'hour')?.value ?? 0) % 24;
-  const minute = Number(local.find((part) => part.type === 'minute')?.value ?? 0);
-  return hour * 60 + minute >= opens;
-}
+// The company calendar is read by `readOrganizationCalendar` (working-calendar-store.ts). The hold
+// and release rules live in `weekend-hold-calendar.ts` (R15), re-exported for existing callers.
+export { isCalendarHoldReleased, isHeldByCalendar } from './weekend-hold-calendar.js';

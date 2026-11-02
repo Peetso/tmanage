@@ -3,7 +3,7 @@ import type { AutomationRule } from './collaboration-store.js';
 import { findDocumentFacts, findWorkItemFacts, insertWorkflowRun } from './collaboration-store.js';
 import { configOf } from './due-soon-store.js';
 import { notifyAndRecord, projectOwners } from '../../consumers/automation-runs.js';
-import { isCalendarHoldReleased } from '../../jobs/due-soon-sweeper.js';
+import { heldReleaseNote, isCalendarHoldReleased } from '../../jobs/weekend-hold-calendar.js';
 import { readOrganizationCalendar } from './working-calendar-store.js';
 import type { TriggerObject } from '../../consumers/automation-runs.js';
 
@@ -167,6 +167,7 @@ export async function deliverHeldRuns(
       ORDER BY started_at, id`,
     [org, rule.id, HELD_RUN_MAX_AGE_DAYS],
   );
+  const releaseNote = heldReleaseNote(calendar, now, rule.timeZone);
   let delivered = 0;
   for (const run of undeliveredHeldRuns(rows)) {
     const object = await heldObject(tx, org, run);
@@ -187,6 +188,7 @@ export async function deliverHeldRuns(
     } else {
       await notifyAndRecord({ id: run.eventId, organizationId: org }, tx, rule, object, {
         heldRunId: run.runId,
+        releaseNote,
       });
     }
     delivered += 1;

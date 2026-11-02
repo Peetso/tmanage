@@ -49,7 +49,7 @@ export interface OrgCredentialView {
   readonly scopes: readonly string[];
   readonly expiresAt: string | null;
   readonly lastUsedAt: string | null;
-  /** Not recorded yet (no column); always `null`. */
+  /** R15 (0286): hashed address of a token's latest use; `null` for an app or a token not used since. */
   readonly lastIpHash: string | null;
   readonly createdAt: string;
   /** No use (or, never used, no creation) in the last 90 days. */
@@ -89,7 +89,7 @@ export class OrgTokensService {
           scopes: parseStoredScopes(row.scopes),
           expiresAt: row.expiresAt?.toISOString() ?? null,
           lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
-          lastIpHash: null,
+          lastIpHash: row.lastIpHash,
           createdAt: row.createdAt.toISOString(),
           unusedFor90Days: isUnusedFor90Days(row.lastUsedAt, row.createdAt, now),
         })),

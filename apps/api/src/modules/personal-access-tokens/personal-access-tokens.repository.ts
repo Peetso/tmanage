@@ -50,6 +50,8 @@ export interface OrganizationTokenRow {
   readonly tokenPrefix: string;
   readonly scopes: string;
   readonly lastUsedAt: Date | null;
+  /** R15 (0286). Hashed address of the latest use; NULL until the token is next used. */
+  readonly lastIpHash: string | null;
   readonly expiresAt: Date | null;
   readonly createdAt: Date;
 }
@@ -226,6 +228,7 @@ export class PersonalAccessTokensRepository {
         tokenPrefix: personalAccessTokens.tokenPrefix,
         scopes: personalAccessTokens.scopes,
         lastUsedAt: personalAccessTokens.lastUsedAt,
+        lastIpHash: personalAccessTokens.lastIpHash,
         expiresAt: personalAccessTokens.expiresAt,
         createdAt: personalAccessTokens.createdAt,
       })
@@ -284,16 +287,18 @@ export class PersonalAccessTokensRepository {
   /**
    * Record that a token was just used, scoped to its own tenant. Best-effort: the caller runs it
    * after authentication succeeds and swallows any failure, so a failed touch never costs a request.
+   * R15 (0286): `lastIpHash` is the hashed request address; an unknown address keeps the old one.
    */
   async recordUsage(
     runner: TenantQueryRunner,
     context: TenantContext,
     tokenId: string,
     now: Date,
+    lastIpHash: string | null = null,
   ): Promise<void> {
     await tenantDrizzle(runner)
       .update(personalAccessTokens)
-      .set({ lastUsedAt: now })
+      .set(lastIpHash === null ? { lastUsedAt: now } : { lastUsedAt: now, lastIpHash })
       .where(
         and(
           eq(personalAccessTokens.organizationId, context.organizationId),
