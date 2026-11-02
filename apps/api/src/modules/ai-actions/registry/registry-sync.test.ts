@@ -134,7 +134,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // recurrence v2): +25, was 1196.
 // R18 (52-23 client invoices +15, 55-07 suggest-due +1, 55-25 quick-add +1, sign-in policy +2,
 // platform incidents +6): +25, was 1221.
-const EXPECTED_ROUTE_COUNT = 1246;
+// R19 (tax document labels +3, finance exports +2, milestone timeline +4, iterations +8, file
+// safety +2): +19, was 1246.
+const EXPECTED_ROUTE_COUNT = 1265;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).
