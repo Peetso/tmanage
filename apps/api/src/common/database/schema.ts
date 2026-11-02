@@ -3708,6 +3708,8 @@ export const UPLOAD_PURPOSES = [
   // 0232: a file sent with a reply on a client request (A8), bound to the request like
   // `request_attachment` but listed only through `request_message_files`.
   'request_message',
+  // 0292 (52-07): an expense receipt (image or PDF, <= 10 MB), internal upload and download only.
+  'expense_receipt',
 ] as const;
 export type UploadPurpose = (typeof UPLOAD_PURPOSES)[number];
 
@@ -11813,4 +11815,58 @@ Object.assign(TABLES, {
   rate_cards: rateCards,
   rate_card_entries: rateCardEntries,
   member_cost_rates: memberCostRates,
+});
+
+// ---- R16-c · 52-07 expenses ----
+
+/**
+ * 52-07 (0292). One spend by one member (`membership_id` from the caller's context) on one day,
+ * optionally on a project. `state` is checked in `modules/finance/expenses-rules.ts`;
+ * `approval_id` and `invoice_line_id` are reserved; `locked_at` is set only by a later 52-09 path
+ * and the 0292 triggers then keep the row's money, date, project and state fixed. Receipt ids name
+ * an `expense_receipt` upload; no foreign key to the files tables (the 0257 rule).
+ */
+export const expenses = mysqlTable(
+  'expenses',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }),
+    clientOrganizationId: char('client_organization_id', { length: 36 }),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    spentOn: date('spent_on', { mode: 'string' }).notNull(),
+    category: varchar('category', { length: 24 }).notNull(),
+    amountMinor: bigint('amount_minor', { mode: 'number' }).notNull(),
+    currency: char('currency', { length: 3 }).notNull(),
+    amountBaseMinor: bigint('amount_base_minor', { mode: 'number' }),
+    fxRate: decimal('fx_rate', { precision: 18, scale: 8 }),
+    taxBp: int('tax_bp').notNull().default(0),
+    billable: boolean('billable').notNull().default(false),
+    markupBp: int('markup_bp').notNull().default(0),
+    note: varchar('note', { length: 500 }),
+    receiptFileAssetId: char('receipt_file_asset_id', { length: 36 }),
+    receiptFileVersionId: char('receipt_file_version_id', { length: 36 }),
+    state: varchar('state', { length: 16 }).notNull().default('submitted'),
+    approvalId: char('approval_id', { length: 36 }),
+    approvedBy: char('approved_by', { length: 36 }),
+    approvedAt: datetime('approved_at', { mode: 'date', fsp: 3 }),
+    rejectedReason: varchar('rejected_reason', { length: 500 }),
+    invoiceLineId: char('invoice_line_id', { length: 36 }),
+    lockedAt: datetime('locked_at', { mode: 'date', fsp: 3 }),
+    version: int('version', { unsigned: true }).notNull().default(1),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_expenses_org_id').on(table.organizationId, table.id),
+    index('ix_expenses_project_day').on(table.organizationId, table.projectId, table.spentOn),
+    index('ix_expenses_member_state').on(table.organizationId, table.membershipId, table.state),
+    index('ix_expenses_receipt').on(table.organizationId, table.receiptFileVersionId),
+  ],
+);
+
+export type ExpenseRow = typeof expenses.$inferSelect;
+
+Object.assign(TABLES, {
+  expenses,
 });

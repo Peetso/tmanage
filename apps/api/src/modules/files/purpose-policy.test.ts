@@ -16,6 +16,7 @@ import {
   mayDownloadFor,
   mayUploadFor,
   objectTableFor,
+  withinPurposeLimit,
 } from './purpose-policy.js';
 
 /**
@@ -28,7 +29,9 @@ import {
 describe('request_message — the reply-file purpose', () => {
   it('is a stored purpose, appended after every older value', () => {
     expect(UPLOAD_PURPOSES).toContain('request_message');
-    expect(UPLOAD_PURPOSES.indexOf('request_message')).toBe(UPLOAD_PURPOSES.length - 1);
+    expect(UPLOAD_PURPOSES.indexOf('request_message')).toBe(
+      UPLOAD_PURPOSES.indexOf('org_logo') + 1,
+    );
   });
 
   it('may be uploaded and downloaded by the studio and by a client, never by a service', () => {
@@ -167,5 +170,17 @@ describe('request_message — the client download gate', () => {
     }
     expect(refused).toBeInstanceOf(ApiError);
     expect(t.denials).toContain('client_relation_mismatch');
+  });
+});
+
+describe('expense_receipt (0292, 52-07)', () => {
+  it('is internal-only, images or PDF up to 10 MB', () => {
+    expect(UPLOAD_PURPOSES.at(-1)).toBe('expense_receipt');
+    expect(mayUploadFor('internal', 'expense_receipt')).toBe(true);
+    expect(mayUploadFor('client', 'expense_receipt')).toBe(false);
+    expect(mayDownloadFor('client', 'expense_receipt')).toBe(false);
+    expect(withinPurposeLimit('expense_receipt', 'application/pdf', 10 * 1024 * 1024)).toBe(true);
+    expect(withinPurposeLimit('expense_receipt', 'image/png', 10 * 1024 * 1024 + 1)).toBe(false);
+    expect(withinPurposeLimit('expense_receipt', 'text/html', 10)).toBe(false);
   });
 });

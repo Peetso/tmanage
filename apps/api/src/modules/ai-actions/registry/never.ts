@@ -1676,6 +1676,53 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/finance/cost-rates/:membershipId',
     reason: 'finance_settings',
   },
+  // ---- R16-c · 52-07 expenses ---- money, receipts and approval decisions; org-internal finance
+  // routes, never an AI tool (the plan's MCP actions are a later slice).
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/expenses/',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/expenses/',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/expenses/export.csv',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/expenses/:expenseId',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/expenses/:expenseId',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/expenses/:expenseId',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/expenses/:expenseId/submit',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/expenses/:expenseId/approve',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/expenses/:expenseId/reject',
+    reason: 'finance_settings',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

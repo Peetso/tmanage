@@ -3,7 +3,11 @@ import type { DynamicModule, Provider } from '@nestjs/common';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { NotificationsRepository } from '../inbox/notifications.repository.js';
 import { DocumentSequenceService } from './document-sequences.js';
+import { EXPENSES_SERVICE, ExpensesController } from './expenses.controller.js';
+import { ExpensesRepository } from './expenses.repository.js';
+import { ExpensesService } from './expenses.service.js';
 import { FINANCE_SERVICE, FinanceController } from './finance.controller.js';
 import { FinanceRepository } from './finance.repository.js';
 import { FinanceService } from './finance.service.js';
@@ -40,10 +44,24 @@ export class FinanceModule {
       useFactory: (database: TenantDatabase, audit: AuditService) =>
         new RatesService({ database, repository: new RatesRepository(), audit }),
     };
+    // 52-07 expenses (R16-c).
+    const expenses: Provider = {
+      provide: EXPENSES_SERVICE,
+      inject: [TENANT_DATABASE, AUDIT_SERVICE],
+      useFactory: (database: TenantDatabase, audit: AuditService) =>
+        new ExpensesService({
+          database,
+          repository: new ExpensesRepository(),
+          finance: repository,
+          rates: new RatesRepository(),
+          notifications: new NotificationsRepository(),
+          audit,
+        }),
+    };
     return {
       module: FinanceModule,
-      providers: [service, sequences, rates],
-      controllers: [FinanceController, RatesController],
+      providers: [service, sequences, rates, expenses],
+      controllers: [FinanceController, RatesController, ExpensesController],
       exports: [DOCUMENT_SEQUENCES],
     };
   }

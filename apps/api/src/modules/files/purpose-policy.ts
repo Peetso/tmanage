@@ -29,6 +29,8 @@ const PERMITTED: Readonly<Record<PrincipalKind, readonly UploadPurpose[]>> = {
     'deliverable',
     'org_logo',
     'request_message',
+    // 0292 (52-07): an expense receipt — internal only, never a client.
+    'expense_receipt',
   ],
   client: ['request_attachment', 'request_message'],
   // A service principal never uploads through the API; the worker writes versions directly.
@@ -66,6 +68,8 @@ const DOWNLOADABLE: Readonly<Record<PrincipalKind, readonly UploadPurpose[]>> = 
     'deliverable',
     'org_logo',
     'request_message',
+    // 0292 (52-07): receipts are internal files; a client never downloads one.
+    'expense_receipt',
   ],
   client: ['request_attachment', 'request_message', 'deliverable'],
   service: [],
@@ -91,3 +95,31 @@ export const REQUEST_MESSAGE_FILE_PURPOSES: readonly UploadPurpose[] = [
   // Uploads from before 0232 (and ones reserved just before a deploy) still attach and list.
   'request_attachment',
 ];
+
+/** A purpose's own size and media-type bounds, tighter than the global upload ceiling. */
+export interface PurposeUploadLimit {
+  readonly maxBytes: number;
+  readonly mimeTypes: readonly string[];
+}
+
+/** 52-07: a receipt is a photo or a PDF of at most 10 MB. */
+const EXPENSE_RECEIPT_LIMIT: PurposeUploadLimit = {
+  maxBytes: 10 * 1024 * 1024,
+  mimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf'],
+};
+
+/** The purpose's own bounds, or `null` when only the global ones apply. */
+export function purposeUploadLimit(purpose: UploadPurpose): PurposeUploadLimit | null {
+  return purpose === 'expense_receipt' ? EXPENSE_RECEIPT_LIMIT : null;
+}
+
+/** May a declared upload of `purpose` carry this media type and size? */
+export function withinPurposeLimit(
+  purpose: UploadPurpose,
+  mimeType: string,
+  sizeBytes: number,
+): boolean {
+  const limit = purposeUploadLimit(purpose);
+  if (limit === null) return true;
+  return sizeBytes <= limit.maxBytes && limit.mimeTypes.includes(mimeType.toLowerCase());
+}

@@ -1200,6 +1200,39 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'integration_channel_link',
     clause: '§12 54-05 — a paused Slack or Teams channel link was resumed',
   },
+  // ---- R16-c · 52-07 expenses ----
+  /**
+   * An expense was recorded, changed, submitted, decided, deleted or exported. Amounts and receipt
+   * ids may appear in the changes; a note never does (redacted).
+   */
+  'expense.created': {
+    objectType: 'expense',
+    clause: '§12 52-07 — a member recorded an expense',
+  },
+  'expense.updated': {
+    objectType: 'expense',
+    clause: '§12 52-07 — an expense was changed (amount edits bump its version)',
+  },
+  'expense.submitted': {
+    objectType: 'expense',
+    clause: '§12 52-07 — an expense was submitted for approval',
+  },
+  'expense.approved': {
+    objectType: 'expense',
+    clause: '§12 approval decision — an expense was approved (by a manager or the threshold)',
+  },
+  'expense.rejected': {
+    objectType: 'expense',
+    clause: '§12 approval decision — an expense was rejected (the why stays on the row)',
+  },
+  'expense.deleted': {
+    objectType: 'expense',
+    clause: '§12 52-07 — a member deleted an own draft expense',
+  },
+  'expense.exported': {
+    objectType: 'organization',
+    clause: '§12 export — expenses were exported as CSV',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1408,6 +1441,13 @@ const AUDIT_ACTION_LABELS = {
   'channel_link.removed': 'Removed a Slack or Teams channel',
   'channel_link.paused': 'Paused a Slack or Teams channel',
   'channel_link.resumed': 'Resumed a Slack or Teams channel',
+  'expense.created': 'Recorded an expense',
+  'expense.updated': 'Changed an expense',
+  'expense.submitted': 'Submitted an expense',
+  'expense.approved': 'Approved an expense',
+  'expense.rejected': 'Rejected an expense',
+  'expense.deleted': 'Deleted an expense',
+  'expense.exported': 'Exported expenses',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

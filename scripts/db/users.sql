@@ -2088,3 +2088,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`member_cost_rates` TO 'tmanag
 GRANT UPDATE ON `tmanage`.`work_item_time_logs`                   TO 'tmanage_app'@'%';
 GRANT SELECT ON `tmanage`.`rate_cards`                             TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`rate_card_entries`                      TO 'tmanage_worker'@'%';
+
+-- ---- R16-c · 52-07 expenses ----
+-- 0292 `expenses` (tenant): a member records, edits, submits and deletes an own draft (DELETE);
+-- approvers approve or reject (UPDATE); finance exports (SELECT). The 0292 triggers keep a locked
+-- row's data columns fixed and refuse its DELETE. The worker holds nothing on it.
+GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`expenses`          TO 'tmanage_app'@'%';
