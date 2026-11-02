@@ -28,11 +28,23 @@ export interface ImportReceiptRow {
 /** A committed job's receipt — pairs with the API's `ImportCommitView`. */
 export interface ImportReceipt {
   readonly jobId: string;
-  readonly sourceKind: 'project';
+  readonly sourceKind: 'project' | 'jira_issues';
   readonly status: 'committed' | 'committed_with_errors';
   readonly committedCount: number;
   readonly failedCount: number;
   readonly rows: readonly ImportReceiptRow[];
+  /** R21-e: a `jira_issues` commit's summary, on the commit response only (never stored). */
+  readonly jira?: ImportJiraSummary;
+}
+
+/** R21-e: what a Jira batch created — pairs with the API's `JiraCommitSummary`. */
+export interface ImportJiraSummary {
+  readonly projectId: string;
+  readonly prefix: string | null;
+  readonly sprintsCreated: number;
+  readonly itemsKeyed: number;
+  readonly epicsSkipped: number;
+  readonly notes: readonly string[];
 }
 
 export async function fetchImportReceipt(
