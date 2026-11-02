@@ -130,7 +130,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // R16 (52-02/03 timesheets, 52-05 budget burn + portal budget, 52-07 expenses, 53-04 dependency
 // PATCH + cascade preview/apply, 54-10 GitHub repo hooks, work-key prefix, code links, 54-11
 // contact suggestions): +34, was 1162.
-const EXPECTED_ROUTE_COUNT = 1196;
+// R17 (52-14 finance reports, 53-06 critical path, 53-05 baselines, 52-06 retainers, 53-09
+// recurrence v2): +25, was 1196.
+const EXPECTED_ROUTE_COUNT = 1221;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).
