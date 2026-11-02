@@ -35,6 +35,24 @@ export const MAX_LOCALE_LENGTH = 35;
  * that evicted an existing customer would be worse than the collision it prevented.
  */
 export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
+  // The public website's top-level paths (A22): a static route wins over [orgSlug], so an
+  // organisation holding one of these could never be reached at its own address.
+  'about',
+  'changelog',
+  'client-portal',
+  'communication',
+  'contact',
+  'customers',
+  'download',
+  'faq',
+  'features',
+  'integrations',
+  'pricing',
+  'product',
+  'resources',
+  'solutions',
+  'terms',
+  'website-kit',
   'admin',
   'api',
   'app',

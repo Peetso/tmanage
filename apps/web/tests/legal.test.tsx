@@ -99,6 +99,23 @@ describe('legal short addresses', () => {
       ]),
     );
   });
+
+  it('A22: sends the Arabic short addresses and /communication to their public pages', async () => {
+    const { default: config } = await import('../next.config');
+    const redirects = await config.redirects?.();
+    expect(redirects).toEqual(
+      expect.arrayContaining([
+        { source: '/ar/privacy', destination: '/ar/legal/privacy', permanent: true },
+        { source: '/ar/terms', destination: '/ar/legal/terms', permanent: true },
+        { source: '/communication', destination: '/features/communication', permanent: true },
+        {
+          source: '/ar/communication',
+          destination: '/ar/features/communication',
+          permanent: true,
+        },
+      ]),
+    );
+  });
 });
 
 describe('legal pages render their full text on the server', () => {

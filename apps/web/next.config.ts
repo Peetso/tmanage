@@ -64,6 +64,17 @@ const config: NextConfig = {
     return [
       { source: '/privacy', destination: '/legal/privacy', permanent: true },
       { source: '/terms', destination: '/legal/terms', permanent: true },
+      // A22: the same short addresses in Arabic, and `/communication` (the chat & calendar page's
+      // short name). Without these `/communication` fell into `[orgSlug]` ("You no longer have
+      // access") and `/ar/communication`, `/ar/privacy`, `/ar/terms` were the Arabic 404.
+      { source: '/ar/privacy', destination: '/ar/legal/privacy', permanent: true },
+      { source: '/ar/terms', destination: '/ar/legal/terms', permanent: true },
+      { source: '/communication', destination: '/features/communication', permanent: true },
+      {
+        source: '/ar/communication',
+        destination: '/ar/features/communication',
+        permanent: true,
+      },
     ];
   },
 
