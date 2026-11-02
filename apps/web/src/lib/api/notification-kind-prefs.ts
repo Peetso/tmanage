@@ -22,6 +22,8 @@ export interface NotificationKindPrefView {
   readonly kinds: readonly {
     readonly kind: NotificationKind;
     readonly enabled: boolean;
+    /** 55-18 (R18-d): how this kind reaches the member under the org profile. */
+    readonly delivery: 'immediate' | 'digest';
   }[];
 }
 

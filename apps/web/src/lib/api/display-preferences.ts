@@ -57,6 +57,10 @@ export interface DisplayPreferencesView {
   readonly locale: DisplayLocale;
   readonly timezone: DisplayTimezone;
   readonly dateFormat: DisplayDateFormat;
+  /** 55-07 (R18-d): digit shapes; a row saved before 55-07 reads as `latin`. */
+  readonly numerals: 'latin' | 'arabic_indic';
+  /** 55-07 (R18-d): the calendar shown beside dates (display-only); defaults to `gregorian`. */
+  readonly calendarDisplay: 'gregorian' | 'gregorian_hijri';
 }
 
 function path(organizationSlug: string): string {
