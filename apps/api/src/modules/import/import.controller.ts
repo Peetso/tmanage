@@ -1,11 +1,22 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Optional, Param, Post } from '@nestjs/common';
+import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
-import { ApiError } from '../../common/http/errors.js';
+import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { IMPORT_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { parseImportCommitBody, parseImportValidationBody } from './import-input.js';
 import type { ImportCommitView, ImportService, ImportValidationView } from './import.service.js';
+import type { SourceRow } from './import-validation.js';
+import { parseIssueKey } from './jira-issues.js';
+import {
+  JIRA_FETCHER,
+  JIRA_REST_MAPPING,
+  JiraFetchError,
+  fetchJiraIssues,
+  jiraBaseUrl,
+} from './jira-rest.js';
+import type { JiraFetch } from './jira-rest.js';
 
 /**
  * ON-09 / ADM-10 — the onboarding-import validate / dry-run endpoint.
@@ -40,9 +51,39 @@ interface ImportCommitRequestBody extends ImportValidationRequestBody {
   readonly jobId?: unknown;
 }
 
+interface JiraSourceRequestBody {
+  readonly baseUrl?: unknown;
+  readonly email?: unknown;
+  readonly token?: unknown;
+  readonly jql?: unknown;
+  readonly projectKey?: unknown;
+  readonly startAt?: unknown;
+}
+
+/** R22-e: the rows of one Jira REST page window, ready for `POST …/imports/validations`. */
+export interface JiraSourceView {
+  readonly sourceKind: 'jira_issues';
+  readonly mapping: typeof JIRA_REST_MAPPING;
+  readonly rows: readonly SourceRow[];
+  readonly nextStartAt: number | null;
+  readonly total: number;
+  readonly notes: readonly string[];
+}
+
+const MAX_JQL = 500;
+const MAX_TOKEN = 2048;
+const MAX_START_AT = 1_000_000;
+// eslint-disable-next-line no-control-regex
+const CONTROL = /[\u0000-\u001f\u007f]/u;
+
 @Controller('v1/organizations/:orgSlug/imports')
 export class ImportController {
-  constructor(@Inject(IMPORT_SERVICE) private readonly imports: ImportService) {}
+  constructor(
+    @Inject(IMPORT_SERVICE) private readonly imports: ImportService,
+    @Optional()
+    @Inject(JIRA_FETCHER)
+    private readonly jiraFetch: JiraFetch = (url, init) => fetch(url, init),
+  ) {}
 
   @Post('validations')
   @RequireCapability('org.manage')
@@ -121,4 +162,154 @@ export class ImportController {
   ): Promise<ImportCommitView> {
     return this.imports.getReceipt(context, jobId);
   }
+
+  /**
+   * R22-e (54-27) — `POST …/imports/sources/jira`: read one window (≤ 1000 issues) of the
+   * caller's own Jira Cloud site and return the rows in the CSV-export shape, with the mapping to
+   * post them under to `validations`. Nothing is written; the rows still pass the validations
+   * route and the commit's per-row checks.
+   *
+   * ## Capability
+   *
+   * `org.manage`, as the sibling import routes — checked by the guard and again here with the
+   * real `authorize` before any outbound request, because this route spends egress.
+   *
+   * ## The credential (deviation from 54-27, stated)
+   *
+   * 54-27 keeps the API token "in the vault for the job only"; the vault (54-01) and a background
+   * job are not built. The token lives for this one request: it builds one basic-auth header and
+   * is never stored, logged (`token` is a redacted field name) or echoed — no error carries it.
+   * The route is on the AI connector's NEVER list.
+   *
+   * `baseUrl` must be `https://<site>.atlassian.net` or `https://<site>.jira.com` (422 otherwise —
+   * the SSRF rule). `projectKey` becomes `project = KEY ORDER BY created ASC`; a free `jql` (≤ 500
+   * characters) is sent verbatim — Jira enforces its own grammar. `nextStartAt` is non-null when
+   * Jira has more: the client calls again with it.
+   */
+  @Post('sources/jira')
+  @RequireCapability('org.manage')
+  @HttpCode(200)
+  async jiraSource(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Body() body: JiraSourceRequestBody,
+  ): Promise<JiraSourceView> {
+    const verdict = authorize({
+      principal,
+      capability: 'org.manage',
+      resource: {
+        organizationId: context.organizationId,
+        projectId: null,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    });
+    if (!verdict.allowed) {
+      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, verdict.code);
+    }
+
+    const request = parseJiraSourceBody(body ?? {});
+    try {
+      const result = await fetchJiraIssues({ fetch: this.jiraFetch, ...request });
+      return { sourceKind: 'jira_issues', mapping: JIRA_REST_MAPPING, ...result };
+    } catch (error) {
+      if (error instanceof JiraFetchError) throw jiraApiError(error);
+      throw error;
+    }
+  }
+}
+
+interface JiraSourceRequest {
+  readonly baseUrl: string;
+  readonly email: string;
+  readonly token: string;
+  readonly jql: string;
+  readonly startAt: number;
+}
+
+/** The body, validated. 422 for a disallowed site (the SSRF rule), 400 for anything else. */
+export function parseJiraSourceBody(body: JiraSourceRequestBody): JiraSourceRequest {
+  const baseUrl = jiraBaseUrl(body.baseUrl);
+  if (baseUrl === null) {
+    throw new ApiError(422, 'validation_failed', 'That Jira site is not allowed', [
+      {
+        field: 'baseUrl',
+        message: 'must be https://<site>.atlassian.net or https://<site>.jira.com',
+      },
+    ]);
+  }
+  const details: { field: string; message: string }[] = [];
+  const email = typeof body.email === 'string' ? body.email.trim() : '';
+  if (
+    email.length < 3 ||
+    email.length > 320 ||
+    !email.includes('@') ||
+    /[\s:]/u.test(email) ||
+    CONTROL.test(email)
+  ) {
+    details.push({ field: 'email', message: 'must be the Atlassian account email' });
+  }
+  const token = typeof body.token === 'string' ? body.token.trim() : '';
+  if (token === '' || token.length > MAX_TOKEN || CONTROL.test(token)) {
+    details.push({ field: 'token', message: 'must be an Atlassian API token' });
+  }
+  let jql = '';
+  if (body.projectKey !== undefined && body.jql !== undefined) {
+    details.push({ field: 'jql', message: 'send jql or projectKey, not both' });
+  } else if (body.projectKey !== undefined) {
+    const key = typeof body.projectKey === 'string' ? body.projectKey.trim() : '';
+    if (parseIssueKey(`${key}-1`) === null) {
+      details.push({ field: 'projectKey', message: 'must be a Jira project key like WEB' });
+    } else {
+      jql = `project = ${key} ORDER BY created ASC`;
+    }
+  } else if (typeof body.jql === 'string' && body.jql.trim() !== '') {
+    jql = body.jql.trim();
+    if (jql.length > MAX_JQL || CONTROL.test(jql.replace(/[\n\t]/gu, ' '))) {
+      details.push({ field: 'jql', message: `must be ${MAX_JQL} characters or fewer` });
+    }
+  } else {
+    details.push({ field: 'jql', message: 'send jql or projectKey' });
+  }
+  let startAt = 0;
+  if (body.startAt !== undefined && body.startAt !== null) {
+    if (
+      typeof body.startAt !== 'number' ||
+      !Number.isInteger(body.startAt) ||
+      body.startAt < 0 ||
+      body.startAt > MAX_START_AT
+    ) {
+      details.push({ field: 'startAt', message: 'must be a whole number, 0 or more' });
+    } else {
+      startAt = body.startAt;
+    }
+  }
+  if (details.length > 0) {
+    throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
+  }
+  return { baseUrl, email, token, jql, startAt };
+}
+
+/** A Jira failure as an API error. The detail names the code the import web translates. */
+function jiraApiError(error: JiraFetchError): ApiError {
+  if (error.code === 'jira_rate_limited') {
+    return new ApiError(
+      429,
+      'rate_limited',
+      'Jira is rate limiting this site. Try again later',
+      [
+        { field: 'jira', message: error.code },
+        { field: 'retryAfterSeconds', message: String(error.retryAfterSeconds ?? 60) },
+      ],
+      error.code,
+    );
+  }
+  const field = error.code === 'jira_auth_failed' ? 'token' : 'jira';
+  return new ApiError(
+    422,
+    'validation_failed',
+    error.message,
+    [{ field, message: error.code }],
+    error.code,
+  );
 }

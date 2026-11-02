@@ -21,13 +21,16 @@
  *   carries sprint names only, so an iteration's window is derived from its issues' created /
  *   due dates ({@link sprintWindow}) and the receipt says so (`sprint_dates_derived`).
  *
- * Not here: worklogs (never imported — privacy), story points, attachments, comments, the REST
- * path and its ADF converter (later slices).
+ * Not here: worklogs (never imported — privacy), story points, attachments, comments. R22-e adds
+ * {@link jiraDescription}: every description becomes Markdown (ADF from the REST path, wiki
+ * markup from the CSV export), and unknown markup is named in the receipt.
  */
 
 import { WORK_ITEM_STATES, normalizeWorkKeyPrefix } from '@tmanage/domain';
 import type { WorkItemState } from '@tmanage/domain';
 import type { FieldError, SourceMapping, SourceRow } from './import-validation.js';
+import { adfToMarkdown } from './jira-adf.js';
+import { wikiToMarkdown } from './jira-wiki.js';
 
 /** The target fields a Jira mapping may name. */
 export const JIRA_FIELDS = [
@@ -52,7 +55,7 @@ const MAX_TITLE = 300;
 export const MAX_SPRINT_NAME = 120;
 export const MAX_LABEL_NAME = 120;
 /** A description is `TEXT`; bounded well under 64 KiB so a multi-byte body still fits. */
-const MAX_DESCRIPTION = 20_000;
+export const MAX_DESCRIPTION = 20_000;
 const MAX_SHORT_TEXT = 190;
 
 /**
@@ -390,6 +393,49 @@ export interface JiraItemPlan {
   readonly notes: readonly string[];
 }
 
+export interface JiraDescription {
+  readonly markdown: string;
+  /** Unknown ADF node / wiki macro names, plus `description_truncated` when cut. */
+  readonly notes: readonly string[];
+}
+
+/**
+ * R22-e — a Jira description as Markdown. A trimmed text that starts with `{` and parses as JSON
+ * with `type === 'doc'` is ADF (the REST path puts the raw ADF JSON in the row); anything else is
+ * wiki markup (the CSV export). Both converters are pure and bounded by `MAX_DESCRIPTION`.
+ */
+export function jiraDescription(raw: string): JiraDescription {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('{')) {
+    let parsed: unknown = null;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      parsed = null;
+    }
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      (parsed as { type?: unknown }).type === 'doc'
+    ) {
+      const adf = adfToMarkdown(parsed, {
+        maxNodes: 5000,
+        maxDepth: 32,
+        maxChars: MAX_DESCRIPTION,
+      });
+      return {
+        markdown: adf.markdown,
+        notes: adf.truncated ? [...adf.unknownNodes, 'description_truncated'] : adf.unknownNodes,
+      };
+    }
+  }
+  const wiki = wikiToMarkdown(raw, MAX_DESCRIPTION);
+  return {
+    markdown: wiki.markdown,
+    notes: wiki.truncated ? [...wiki.unknownMacros, 'description_truncated'] : wiki.unknownMacros,
+  };
+}
+
 export interface JiraEpicPlan {
   readonly rowIndex: number;
   readonly key: string;
@@ -402,6 +448,8 @@ export interface JiraCommitPlan {
   readonly sprints: readonly SprintPlan[];
   readonly epics: readonly JiraEpicPlan[];
   readonly notes: readonly string[];
+  /** R22-e: the distinct unknown ADF node / wiki macro names across the batch's descriptions. */
+  readonly descriptionNotes: readonly string[];
 }
 
 export interface JiraPlanOptions {
@@ -445,6 +493,8 @@ export function jiraCommitPlan(
   const epicKeys = new Set(epics.map((e) => e.key));
 
   let parentsUnlinked = false;
+  const unknownMarkup = new Set<string>();
+  let descriptionTruncated = false;
   const items = itemRows.map(({ rowIndex, row, type }): JiraItemPlan => {
     const key = text('issueKey', mapping, row) ?? '';
     const parsed = parseIssueKey(key);
@@ -458,12 +508,18 @@ export function jiraCommitPlan(
     if (parentKey !== null && epicKey === null) parentsUnlinked = true;
     const notes = [type.note, status.note].filter((n): n is string => n !== null);
     if (type.subtask) notes.push('subtask');
+    const rawDescription = text('description', mapping, row);
+    const described = rawDescription === undefined ? null : jiraDescription(rawDescription);
+    for (const note of described?.notes ?? []) {
+      if (note === 'description_truncated') descriptionTruncated = true;
+      else unknownMarkup.add(note);
+    }
     return {
       rowIndex,
       key,
       number: parsed?.number ?? 0,
       title: text('summary', mapping, row) ?? key,
-      description: text('description', mapping, row) ?? null,
+      description: described === null || described.markdown === '' ? null : described.markdown,
       type: type.type,
       state: status.state,
       assigneeEmail: text('assigneeEmail', mapping, row)?.toLowerCase() ?? null,
@@ -484,7 +540,10 @@ export function jiraCommitPlan(
   if (sprints.length > 0) notes.unshift('sprint_dates_derived');
   if (parentsUnlinked) notes.push('parent_links_not_created');
   if (rows.length >= options.rowCap) notes.push('split_by_sprint');
-  return { prefix, items, sprints, epics, notes };
+  const descriptionNotes = [...unknownMarkup].sort();
+  if (descriptionNotes.length > 0) notes.push(`jira_unknown_markup:${descriptionNotes.join(',')}`);
+  if (descriptionTruncated) notes.push('description_truncated');
+  return { prefix, items, sprints, epics, notes, descriptionNotes };
 }
 
 /** Whether `prefix` can become a 54-10 `work_key_prefix` (2..10 Latin, no underscore). */

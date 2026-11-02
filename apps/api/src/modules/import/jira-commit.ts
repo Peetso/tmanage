@@ -64,6 +64,8 @@ export interface JiraCommitSummary {
   readonly itemsKeyed: number;
   readonly epicsSkipped: number;
   readonly notes: readonly string[];
+  /** R22-e: unknown ADF node / wiki macro names met in descriptions (receipt `jira_unknown_markup`). */
+  readonly descriptionNotes: readonly string[];
 }
 
 /** Iterations read per project to match sprint names; a project with more is an outlier. */
@@ -181,7 +183,15 @@ export async function commitJiraBatch(
       results.set(rowIndex, { index: rowIndex, error: createVerdict.detail });
     return {
       results: [...results.values()].sort((a, b) => a.index - b.index),
-      summary: summaryOf(project.id, prefix, 0, 0, plan.epics.length, plan.notes),
+      summary: summaryOf(
+        project.id,
+        prefix,
+        0,
+        0,
+        plan.epics.length,
+        plan.notes,
+        plan.descriptionNotes,
+      ),
     };
   }
 
@@ -296,9 +306,15 @@ export async function commitJiraBatch(
 
   return {
     results: [...results.values()].sort((a, b) => a.index - b.index),
-    summary: summaryOf(project.id, prefix, sprintsCreated, itemsKeyed, plan.epics.length, [
-      ...notes,
-    ]),
+    summary: summaryOf(
+      project.id,
+      prefix,
+      sprintsCreated,
+      itemsKeyed,
+      plan.epics.length,
+      [...notes],
+      plan.descriptionNotes,
+    ),
   };
 }
 
@@ -309,8 +325,9 @@ function summaryOf(
   itemsKeyed: number,
   epicsSkipped: number,
   notes: readonly string[],
+  descriptionNotes: readonly string[],
 ): JiraCommitSummary {
-  return { projectId, prefix, sprintsCreated, itemsKeyed, epicsSkipped, notes };
+  return { projectId, prefix, sprintsCreated, itemsKeyed, epicsSkipped, notes, descriptionNotes };
 }
 
 /** Assignee email → user id, kept only for an active member of this organization. */

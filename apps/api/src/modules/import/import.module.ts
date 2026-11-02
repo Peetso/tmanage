@@ -10,6 +10,8 @@ import { ImportJobsRepository } from './import-jobs.repository.js';
 import { ImportRowsRepository } from './import-rows.repository.js';
 import { ImportService } from './import.service.js';
 import { ImportController } from './import.controller.js';
+import { JIRA_FETCHER } from './jira-rest.js';
+import type { JiraFetch } from './jira-rest.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { WorkspacesRepository } from '../tenancy/workspaces.repository.js';
 
@@ -40,10 +42,15 @@ export class ImportModule {
           new WorkspacesRepository(),
         ),
     };
+    // R22-e: the Jira REST source's fetcher — global `fetch` (Node 20), no new dependency.
+    const jiraFetcher: Provider = {
+      provide: JIRA_FETCHER,
+      useValue: ((url, init) => fetch(url, init)) satisfies JiraFetch,
+    };
 
     return {
       module: ImportModule,
-      providers: [repository, service],
+      providers: [repository, service, jiraFetcher],
       exports: [service],
       controllers: [ImportController],
     };
