@@ -324,6 +324,7 @@ const POLICY_DECISION: PolicySimulationView = {
     decidingRule: 'role:manager grants project.manage',
     detail: 'Managers may manage the projects they are assigned to.',
     denialCode: null,
+    warnings: [],
   },
 };
 

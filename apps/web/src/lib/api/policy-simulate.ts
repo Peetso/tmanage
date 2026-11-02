@@ -1,3 +1,4 @@
+import type { Capability } from '@tmanage/domain';
 import type { ApiClient } from './client';
 
 /**
@@ -35,7 +36,15 @@ export interface PolicySimulationView {
     readonly decidingRule: string;
     readonly detail: string;
     readonly denialCode: string | null;
+    /** Internal capabilities a client principal carries (56-28); empty for every normal role. */
+    readonly warnings: readonly PolicySimulationWarning[];
   };
+}
+
+/** One client-ceiling warning: a capability outside the client allowlist. */
+export interface PolicySimulationWarning {
+  readonly code: 'client_internal_capability';
+  readonly capability: Capability;
 }
 
 function endpoint(organizationSlug: string): string {
