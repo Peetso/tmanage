@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState, type FormEvent } from 'react';
+import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { addWorkComment, listWorkComments, type WorkComment } from '../../lib/api/work-items';
@@ -10,6 +10,15 @@ import { useDictation } from '../voice/useDictation';
 import { MicButton, MicNotice } from '../voice/VoiceControls';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { appLocale } from '../../lib/i18n/app-locale';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { useMembers } from '../../lib/use-members';
+import {
+  MentionPicker,
+  findMentionQuery,
+  insertMention,
+  memberRoleLabel,
+  type MentionOption,
+} from '../chat/MentionPicker';
 
 export interface WorkCommentsPanelProps {
   organizationSlug: string;
@@ -18,6 +27,7 @@ export interface WorkCommentsPanelProps {
 }
 
 const MAX_BODY_LENGTH = 5000;
+const MAX_MENTION_OPTIONS = 8;
 
 function formatWhen(iso: string): string {
   const at = new Date(iso);
@@ -49,6 +59,78 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
     onChange: (next) => setBody(next.slice(0, MAX_BODY_LENGTH)),
   });
   const [failure, setFailure] = useState<string | undefined>(undefined);
+
+  // A19 (2026-11-02 live test): typing "@" here offered nobody — the box had no people source at
+  // all. The organization's member directory (the same cached `useMembers` the owner field reads)
+  // now feeds the chat mention picker; the pick is written into the text as "@Name".
+  const tOr = useTOr();
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  const pickerId = useId();
+  const [mention, setMention] = useState<{ start: number; query: string } | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const directory = useMembers(api, organizationSlug, mention?.query ?? '');
+  const needle = (mention?.query ?? '').toLocaleLowerCase();
+  const mentionOptions: MentionOption[] = mention
+    ? directory.members
+        .filter(
+          (member) =>
+            member.status !== 'suspended' &&
+            member.status !== 'offboarded' &&
+            member.displayName.toLocaleLowerCase().includes(needle),
+        )
+        .slice(0, MAX_MENTION_OPTIONS)
+        .map((member) => {
+          const subtitle = memberRoleLabel(member.role, tOr);
+          return {
+            userId: member.userId,
+            displayName: member.displayName,
+            mention: `@${member.displayName}`,
+            group: 'others' as const,
+            ...(subtitle ? { subtitle } : {}),
+          };
+        })
+    : [];
+  const safeActive = Math.min(activeIndex, Math.max(mentionOptions.length - 1, 0));
+
+  function refreshMention(text: string, caret: number | null) {
+    const next = caret === null ? null : findMentionQuery(text, caret);
+    setMention(next);
+    if (next?.query !== mention?.query) setActiveIndex(0);
+  }
+
+  function pickMention(option: MentionOption) {
+    const box = textRef.current;
+    if (!mention || !box) return;
+    const caret = box.selectionStart ?? body.length;
+    const next = insertMention(body, mention.start, caret, option.displayName);
+    setBody(next.text.slice(0, MAX_BODY_LENGTH));
+    setMention(null);
+    requestAnimationFrame(() => {
+      box.focus();
+      box.setSelectionRange(next.caret, next.caret);
+    });
+  }
+
+  function onBodyKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (!mention) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setMention(null);
+      return;
+    }
+    if (mentionOptions.length === 0) return;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveIndex((safeActive + 1) % mentionOptions.length);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveIndex((safeActive - 1 + mentionOptions.length) % mentionOptions.length);
+    } else if (event.key === 'Enter' || event.key === 'Tab') {
+      event.preventDefault();
+      const option = mentionOptions[safeActive];
+      if (option) pickMention(option);
+    }
+  }
 
   const comments = useQuery({
     queryKey,
@@ -126,14 +208,43 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
           <label className="tm-field__label" htmlFor={bodyId}>
             {t('WorkCommentsPanel.addLabel')}
           </label>
-          <textarea
-            id={bodyId}
-            className="tm-field__control"
-            value={body}
-            rows={3}
-            maxLength={MAX_BODY_LENGTH}
-            onChange={(event) => setBody(event.target.value)}
-          />
+          <div style={{ position: 'relative' }}>
+            <textarea
+              ref={textRef}
+              id={bodyId}
+              className="tm-field__control"
+              value={body}
+              rows={3}
+              maxLength={MAX_BODY_LENGTH}
+              role={mention ? 'combobox' : undefined}
+              aria-expanded={mention ? true : undefined}
+              aria-controls={mention ? pickerId : undefined}
+              aria-autocomplete={mention ? 'list' : undefined}
+              aria-activedescendant={
+                mention && mentionOptions.length > 0 ? `${pickerId}-${safeActive}` : undefined
+              }
+              onChange={(event) => {
+                setBody(event.target.value);
+                refreshMention(event.target.value, event.target.selectionStart);
+              }}
+              onKeyDown={onBodyKeyDown}
+              onClick={(event) =>
+                refreshMention(event.currentTarget.value, event.currentTarget.selectionStart)
+              }
+              onBlur={() => setMention(null)}
+            />
+            {mention ? (
+              <MentionPicker
+                id={pickerId}
+                options={mentionOptions}
+                activeIndex={safeActive}
+                onPick={pickMention}
+                onHover={setActiveIndex}
+                othersHeading={t('MentionPicker.label')}
+                query={mention.query}
+              />
+            ) : null}
+          </div>
           <span className="tm-field__hint">{t('WorkCommentsPanel.hint')}</span>
         </div>
         <div className="tm-row">
