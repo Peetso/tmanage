@@ -4,6 +4,7 @@ import {
   defaultLabelFor,
   DOCUMENT_LABELS,
   isEinvoiceRegime,
+  parseAddressJson,
   resolvedRegime,
   taxDocumentRuleFor,
   taxNoticeRequired,
@@ -159,6 +160,8 @@ function profileValues(row: OrgFinanceProfileRow): FinanceProfileValues {
     vatRegistrationStatus:
       row.vatRegistrationStatus === 'registered' ? 'registered' : 'not_registered',
     einvoiceRegime: isEinvoiceRegime(row.einvoiceRegime) ? row.einvoiceRegime : null,
+    // 52-12: re-checked on the way out, so a hand-edited row cannot reach the XML builder raw.
+    addressJson: parseAddressJson(row.addressJson),
   };
 }
 

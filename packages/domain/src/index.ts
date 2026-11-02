@@ -472,3 +472,8 @@ export * from './policies/client-ceiling.js';
 
 // Accounting export by file: seven target column maps — 52-11 (R19-b)
 export * from './finance/exports/index.js';
+
+// E-invoicing readiness: structured address, ZATCA Phase-1 QR, UBL 2.1 / PINT-AE XML — 52-12 (R21-c)
+export * from './finance/zatca/address.js';
+export * from './finance/zatca/tlv.js';
+export * from './finance/zatca/ubl.js';

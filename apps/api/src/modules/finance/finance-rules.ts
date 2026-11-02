@@ -1,5 +1,13 @@
-import { EINVOICE_REGIMES, VAT_REGISTRATION_STATUSES } from '@tmanage/domain';
-import type { EinvoiceRegime, VatRegistrationStatus } from '@tmanage/domain';
+import {
+  ADDRESS_FIELDS,
+  addressFormatErrors,
+  addressMissing,
+  EINVOICE_REGIMES,
+  parseAddressJson,
+  resolvedRegime,
+  VAT_REGISTRATION_STATUSES,
+} from '@tmanage/domain';
+import type { EinvoiceRegime, StructuredAddress, VatRegistrationStatus } from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
 
 /**
@@ -76,6 +84,8 @@ export interface FinanceProfileValues {
   readonly vatRegistrationStatus: VatRegistrationStatus;
   /** 52-28: the e-invoice regime override; `null` = derived from the country. */
   readonly einvoiceRegime: EinvoiceRegime | null;
+  /** 52-12 (0310): the structured seller address an e-invoice needs; `null` = not given. */
+  readonly addressJson: StructuredAddress | null;
 }
 
 export function invalid(field: string, message: string): ApiError {
@@ -113,6 +123,7 @@ export function defaultProfile(
     paymentTermsDays: 30,
     vatRegistrationStatus: 'not_registered',
     einvoiceRegime: null,
+    addressJson: null,
   };
 }
 
@@ -156,6 +167,30 @@ export function currency(value: unknown, field: string): string {
 }
 
 const PREFIX = /^[A-Z0-9-]{1,16}$/u;
+
+/**
+ * 52-12 — `addressJson` in a PUT: an object (unknown keys dropped, text trimmed ≤ 120), `null` or
+ * an all-empty object clears it. A non-object, a non-text field or a wrongly shaped SA building
+ * number / postal code is a 400.
+ */
+export function validateAddressJson(value: unknown, country: string): StructuredAddress | null {
+  if (value === null) return null;
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw invalid('addressJson', 'must be an object or null');
+  }
+  const input = value as Record<string, unknown>;
+  for (const field of ADDRESS_FIELDS) {
+    const item = input[field];
+    if (item !== undefined && item !== null && typeof item !== 'string') {
+      throw invalid(`addressJson.${field}`, 'must be text');
+    }
+  }
+  const address = parseAddressJson(input);
+  if (address === null) return null;
+  const errors = addressFormatErrors(address, country);
+  if (errors[0] !== undefined) throw invalid(`addressJson.${errors[0]}`, 'has an invalid format');
+  return address;
+}
 const TRN = /^[A-Za-z0-9-]{3,32}$/u;
 
 /** A PUT body merged over the current (or default) profile: absent fields keep their value. */
@@ -164,6 +199,8 @@ export function validateProfile(
   current: FinanceProfileValues,
 ): FinanceProfileValues {
   const input = record(body);
+  const country =
+    input['country'] === undefined ? current.country : text(input['country'], 'country', 2);
   const pick = <K extends keyof FinanceProfileValues>(
     key: K,
     parse: (value: unknown) => FinanceProfileValues[K],
@@ -201,6 +238,7 @@ export function validateProfile(
     einvoiceRegime: pick('einvoiceRegime', (v) =>
       v === null ? null : oneOf(v, 'einvoiceRegime', EINVOICE_REGIMES),
     ),
+    addressJson: pick('addressJson', (v) => validateAddressJson(v, country)),
   };
 }
 
@@ -308,9 +346,43 @@ export interface FinanceReadiness {
   readonly ready: boolean;
   readonly invoicing: readonly string[];
   readonly einvoicing: readonly string[];
+  /** 52-12: the regime in force (the override, else the country's). */
+  readonly einvoicingRegime: EinvoiceRegime;
+  /** 52-12: nothing left on the regime's checklist (`none` → true). */
+  readonly einvoicingReady: boolean;
 }
 
-/** What is missing: `invoicing` blocks issuing an invoice; `einvoicing` only the ZATCA path. */
+/** ZATCA VAT registration number: 15 digits, first and last digit 3. */
+export const ZATCA_VAT_NUMBER = /^3\d{13}3$/u;
+
+/**
+ * 52-12 — the per-regime e-invoicing checklist (keys; the web maps them to copy). `certificate`
+ * (ZATCA CSID), `peppol_id` (an accredited PINT-AE service provider) and `activity_code` (ETA) stay
+ * listed until a later pass stores them.
+ */
+export function einvoicingChecklist(
+  profile: FinanceProfileValues,
+  regime: EinvoiceRegime,
+): readonly string[] {
+  const trn = profile.taxRegistrationNo;
+  switch (regime) {
+    case 'zatca':
+      return [
+        ...(trn === null || !ZATCA_VAT_NUMBER.test(trn) ? ['tax_registration_no'] : []),
+        ...(profile.legalNameAr === null ? ['legal_name_ar'] : []),
+        ...(addressMissing(profile.addressJson, 'SA').length > 0 ? ['address_structured'] : []),
+        'certificate',
+      ];
+    case 'pint_ae':
+      return [...(trn === null ? ['tax_registration_no'] : []), 'peppol_id'];
+    case 'eta':
+      return [...(trn === null ? ['tax_registration_no'] : []), 'activity_code'];
+    case 'none':
+      return [];
+  }
+}
+
+/** What is missing: `invoicing` blocks issuing an invoice; `einvoicing` only the e-invoice path. */
 export function readiness(
   profile: FinanceProfileValues,
   saved: boolean,
@@ -320,13 +392,15 @@ export function readiness(
   if (!saved) invoicing.push('profile_not_saved');
   if (profile.legalNameEn === null && profile.legalNameAr === null) invoicing.push('legal_name');
   if (activeTaxRates === 0) invoicing.push('tax_rates');
-  const einvoicing: string[] = [];
-  if (profile.country === 'SA') {
-    if (profile.taxRegistrationNo === null) einvoicing.push('tax_registration_no');
-    if (profile.legalNameAr === null) einvoicing.push('legal_name_ar');
-    if (profile.addressAr === null && profile.addressEn === null) einvoicing.push('address');
-  }
-  return { ready: invoicing.length === 0, invoicing, einvoicing };
+  const einvoicingRegime = resolvedRegime(profile.country, profile.einvoiceRegime);
+  const einvoicing = einvoicingChecklist(profile, einvoicingRegime);
+  return {
+    ready: invoicing.length === 0,
+    invoicing,
+    einvoicing,
+    einvoicingRegime,
+    einvoicingReady: einvoicing.length === 0,
+  };
 }
 
 /** The TRN as the audit trail keeps it: last four characters only. */
@@ -343,6 +417,9 @@ export function profileChanges(
   const changes: { field: string; before: unknown; after: unknown }[] = [];
   for (const key of Object.keys(after) as (keyof FinanceProfileValues)[]) {
     if (before[key] === after[key]) continue;
+    if (key === 'addressJson' && JSON.stringify(before[key]) === JSON.stringify(after[key])) {
+      continue;
+    }
     const mask = key === 'taxRegistrationNo';
     changes.push({
       field: key,

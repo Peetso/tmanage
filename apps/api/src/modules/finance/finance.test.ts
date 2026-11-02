@@ -117,7 +117,53 @@ describe('52-23 finance foundations', () => {
       ready: false,
       invoicing: ['profile_not_saved'],
     });
-    expect(readiness(after, true, 4).einvoicing).toEqual(['legal_name_ar', 'address']);
+    expect(readiness(after, true, 4).einvoicing).toEqual([
+      'legal_name_ar',
+      'address_structured',
+      'certificate',
+    ]);
+  });
+});
+
+/** 52-12 (R21-c) — the per-regime e-invoicing checklist and the structured address. */
+describe('52-12 e-invoicing readiness', () => {
+  const sa = defaultProfile({ name: 'Acme', defaultLocale: 'ar-SA' });
+  const address = {
+    building: '1234',
+    street: 'King Fahd Rd',
+    district: 'Al Olaya',
+    city: 'Riyadh',
+    postalCode: '12345',
+    countryCode: 'SA',
+  };
+
+  it('lists a 14-digit TRN, drops the address once complete, lists peppol_id for PINT-AE', () => {
+    const short = readiness({ ...sa, taxRegistrationNo: '31012239350003' }, true, 4);
+    expect(short).toMatchObject({ einvoicingRegime: 'zatca', einvoicingReady: false });
+    expect(short.einvoicing).toContain('tax_registration_no');
+    const full = validateProfile(
+      { taxRegistrationNo: '310122393500003', legalNameAr: 'أكمي', addressJson: address },
+      sa,
+    );
+    expect(readiness(full, true, 4).einvoicing).toEqual(['certificate']);
+    const ae = readiness({ ...full, einvoiceRegime: 'pint_ae' }, true, 4);
+    expect(ae).toMatchObject({ einvoicingRegime: 'pint_ae', einvoicing: ['peppol_id'] });
+    expect(readiness({ ...full, country: 'DE' }, true, 4)).toMatchObject({
+      einvoicingRegime: 'none',
+      einvoicingReady: true,
+    });
+  });
+
+  it('refuses a malformed address with 400, clears it with null, ignores unchanged objects', () => {
+    expect(() => validateProfile({ addressJson: { building: 'abc' } }, sa)).toThrow(
+      expect.objectContaining({ status: 400 }),
+    );
+    expect(() => validateProfile({ addressJson: 'Riyadh' }, sa)).toThrow();
+    const saved = validateProfile({ addressJson: address }, sa);
+    expect(validateProfile({ addressJson: null }, saved).addressJson).toBeNull();
+    expect(profileChanges(saved, validateProfile({ addressJson: { ...address } }, saved))).toEqual(
+      [],
+    );
   });
 });
 

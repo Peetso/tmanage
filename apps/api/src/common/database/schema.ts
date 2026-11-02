@@ -2,6 +2,7 @@ import {
   bigint,
   boolean,
   char,
+  customType,
   date,
   decimal,
   datetime,
@@ -11172,6 +11173,34 @@ Object.assign(TABLES, {
  * part of a client projection. Closed lists (`numbering_reset`, `digits`, `tax_scheme`) are checked
  * in `finance/finance-rules.ts`. Absent until the first save; the API answers defaults until then.
  */
+/**
+ * 52-12 (0310): a JSON object kept in a TEXT column (MariaDB-safe). Written only through
+ * `parseAddressJson`; a stored value that is not an object reads as NULL.
+ */
+const addressJsonText = customType<{ data: StructuredAddressColumn; driverData: string }>({
+  dataType: () => 'text',
+  toDriver: (value) => JSON.stringify(value),
+  fromDriver: (value) => {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return (
+        typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed : null
+      ) as StructuredAddressColumn;
+    } catch {
+      return null as unknown as StructuredAddressColumn;
+    }
+  },
+});
+/** Mirrors `StructuredAddress` in `@tmanage/domain` (schema.ts imports nothing from the domain). */
+export interface StructuredAddressColumn {
+  readonly building: string;
+  readonly street: string;
+  readonly district: string;
+  readonly city: string;
+  readonly postalCode: string;
+  readonly countryCode: string;
+}
+
 export const orgFinanceProfiles = mysqlTable(
   'org_finance_profiles',
   {
@@ -11208,6 +11237,8 @@ export const orgFinanceProfiles = mysqlTable(
     einvoiceRegime: varchar('einvoice_regime', { length: 8 }).$type<
       'zatca' | 'eta' | 'pint_ae' | 'none'
     >(),
+    /** 52-12 (0310): the structured seller address (JSON text, `parseAddressJson`); NULL = none. */
+    addressJson: addressJsonText('address_json'),
     version: int('version').notNull().default(1),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
