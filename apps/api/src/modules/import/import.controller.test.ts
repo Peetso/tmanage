@@ -86,4 +86,32 @@ describe('ImportController.jiraSource (R22-e)', () => {
       'project = WEB ORDER BY created ASC',
     );
   });
+
+  it('refuses both cursors at once and a bad nextPageToken with 400', async () => {
+    const fetch = vi.fn<JiraFetch>();
+    for (const over of [
+      { startAt: 100, nextPageToken: 'p2' },
+      { nextPageToken: 'x'.repeat(3000) },
+      { nextPageToken: 'a\u0000b' },
+    ]) {
+      const error = await controller(fetch)
+        .jiraSource(context, owner(), body(over))
+        .catch((e: unknown) => e);
+      expect((error as ApiError).status).toBe(400);
+    }
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('passes the nextPageToken through and returns the new cursor', async () => {
+    const fetch = vi.fn<JiraFetch>(
+      async () => new Response(JSON.stringify({ issues: [], isLast: true, names: { a: 'A' } })),
+    );
+    const view = await controller(fetch).jiraSource(
+      context,
+      owner(),
+      body({ nextPageToken: 'p2' }),
+    );
+    expect(new URL(String(fetch.mock.calls[0]?.[0])).searchParams.get('nextPageToken')).toBe('p2');
+    expect(view).toMatchObject({ nextPageToken: null, nextStartAt: null, total: null });
+  });
 });

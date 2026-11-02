@@ -22,8 +22,23 @@
  *
  * ## Paging
  *
- * No background job: a call loops `/rest/api/3/search` pages of 100 until `max` rows, and returns
- * `nextStartAt` when Jira has more — the client calls again with that `startAt`.
+ * No background job: a call loops pages of 100 until `max` rows, then hands the client a cursor to
+ * call again with. R23-f (54-27 part 3) moved the loop to Atlassian's current search API:
+ *
+ * 1. **New path first** — `GET /rest/api/3/search/jql` with token paging: each page carries an
+ *    opaque `nextPageToken` and `isLast`; there is no `total`, and the endpoint returns only `id`
+ *    unless `fields` is named, so {@link JIRA_SEARCH_FIELDS} names every field the mapper reads.
+ *    The cursor returned is `nextPageToken` (`nextStartAt` is `null`, `total` is `null`).
+ * 2. **Legacy fallback** — when the *first* `/search/jql` request of a call answers 404 or 410
+ *    (a site that has not got the new API), the rest of the call uses the deprecated
+ *    `GET /rest/api/3/search` with `startAt` paging and notes `jira_legacy_search`; the cursor
+ *    returned is `nextStartAt`. A client that sends `startAt` is continuing a legacy cursor and
+ *    stays legacy. A 404 on a later `/search/jql` page is an error, never a silent switch.
+ *
+ * The sprint / epic-link custom field ids come from the page's `names` / `schema` expansion. When
+ * a `/search/jql` page carries neither, one `GET /rest/api/3/field` call per run supplies the
+ * same {@link JiraFieldMeta} (same SSRF, size and timeout rules); if that call fails the run
+ * notes `jira_field_meta_unavailable` and the sprint column is absent — never an error.
  */
 
 import { MAX_IMPORT_ROWS } from './import-validation.js';
@@ -131,6 +146,62 @@ export function jiraSearchUrl(
     expand: 'names,schema',
   });
   return `${origin}/rest/api/3/search?${params.toString()}`;
+}
+
+/** Longest `nextPageToken` accepted from a client or from Jira (the token is opaque). */
+export const MAX_JIRA_PAGE_TOKEN = 2048;
+
+/**
+ * The fields `/rest/api/3/search/jql` is asked for — every field {@link jiraIssueToRow} reads.
+ * The sprint / epic-link custom field ids differ per site, so `*navigable` brings the custom
+ * fields along (both are navigable) instead of a site-specific id.
+ */
+export const JIRA_SEARCH_FIELDS = [
+  'summary',
+  'issuetype',
+  'status',
+  'priority',
+  'assignee',
+  'reporter',
+  'created',
+  'updated',
+  'duedate',
+  'labels',
+  'parent',
+  'description',
+  '*navigable',
+] as const;
+
+function allowedOrigin(baseUrl: string): string {
+  const origin = jiraBaseUrl(baseUrl);
+  if (origin === null) throw new JiraFetchError('jira_bad_request', 'The Jira site is not allowed');
+  return origin;
+}
+
+/**
+ * The token-paged search URL for one page (R23-f). `nextPageToken` is opaque: it is encoded by
+ * `URLSearchParams` and never logged. `baseUrl` must pass {@link jiraBaseUrl}.
+ */
+export function jiraSearchJqlUrl(
+  baseUrl: string,
+  jql: string,
+  nextPageToken: string | null,
+  maxResults = JIRA_PAGE_SIZE,
+): string {
+  const origin = allowedOrigin(baseUrl);
+  const params = new URLSearchParams({
+    jql,
+    maxResults: String(maxResults),
+    fields: JIRA_SEARCH_FIELDS.join(','),
+    expand: 'names,schema',
+  });
+  if (nextPageToken !== null) params.set('nextPageToken', nextPageToken);
+  return `${origin}/rest/api/3/search/jql?${params.toString()}`;
+}
+
+/** The field catalogue URL the sprint / epic ids come from when a page has no `names`. */
+export function jiraFieldUrl(baseUrl: string): string {
+  return `${allowedOrigin(baseUrl)}/rest/api/3/field`;
 }
 
 // ─── Mapping ─────────────────────────────────────────────────────────────
@@ -255,15 +326,22 @@ export interface FetchJiraIssuesInput {
   readonly email: string;
   readonly token: string;
   readonly jql: string;
+  /** A legacy cursor: the call stays on `/rest/api/3/search`. Exclusive with `nextPageToken`. */
   readonly startAt?: number;
+  /** A `/search/jql` cursor from an earlier call. */
+  readonly nextPageToken?: string;
   readonly max?: number;
   readonly timeoutMs?: number;
 }
 
 export interface FetchJiraIssuesResult {
   readonly rows: readonly SourceRow[];
+  /** The `/search/jql` cursor to call again with, or `null`. */
+  readonly nextPageToken: string | null;
+  /** The legacy cursor to call again with, or `null`. At most one of the two is non-null. */
   readonly nextStartAt: number | null;
-  readonly total: number;
+  /** Jira's issue count — legacy path only; `/search/jql` has none. */
+  readonly total: number | null;
   readonly notes: readonly string[];
 }
 
@@ -297,13 +375,12 @@ async function boundedText(response: Response): Promise<string> {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-async function fetchPage(
+/** One GET under the egress rules, mapped to {@link JiraFetchError} codes; the parsed JSON. */
+async function getJson(
   input: FetchJiraIssuesInput,
   authorization: string,
-  startAt: number,
-  maxResults: number,
-): Promise<{ issues: unknown[]; total: number; meta: JiraFieldMeta }> {
-  const url = jiraSearchUrl(input.baseUrl, input.jql, startAt, maxResults);
+  url: string,
+): Promise<{ body: unknown; status: number }> {
   let response: Response;
   try {
     response = await input.fetch(url, {
@@ -338,57 +415,184 @@ async function fetchPage(
     await response.body?.cancel().catch(() => undefined);
     throw new JiraFetchError('jira_unavailable', `Jira answered ${status}`, status);
   }
-  let body: Record<string, unknown> | null;
   try {
-    body = record(JSON.parse(await boundedText(response)));
+    return { body: JSON.parse(await boundedText(response)) as unknown, status };
   } catch (error) {
     if (error instanceof JiraFetchError) throw error;
     throw new JiraFetchError('jira_bad_response', 'Jira sent an unreadable response', status);
   }
-  if (!body || !Array.isArray(body['issues'])) {
+}
+
+interface SearchPage {
+  readonly issues: unknown[];
+  readonly meta: JiraFieldMeta;
+  /** Legacy shape only. */
+  readonly total: number;
+  /** `/search/jql` shape only: the next cursor, `null` when absent. */
+  readonly nextPageToken: string | null;
+  readonly isLast: boolean;
+}
+
+/** Reads either response shape: `{ issues, nextPageToken?, isLast? }` or `{ issues, total }`. */
+function readSearchPage(body: unknown, status: number): SearchPage {
+  const page = record(body);
+  if (!page || !Array.isArray(page['issues'])) {
     throw new JiraFetchError('jira_bad_response', 'Jira sent an unreadable response', status);
   }
-  const total = Number(body['total']);
+  const total = Number(page['total']);
+  const token = page['nextPageToken'];
+  if (
+    token !== undefined &&
+    token !== null &&
+    (typeof token !== 'string' || token.length > MAX_JIRA_PAGE_TOKEN)
+  ) {
+    throw new JiraFetchError('jira_bad_response', 'Jira sent an unreadable response', status);
+  }
   return {
-    issues: body['issues'] as unknown[],
+    issues: page['issues'] as unknown[],
+    meta: { names: record(page['names']) ?? {}, schema: record(page['schema']) ?? {} },
     total: Number.isFinite(total) && total >= 0 ? Math.floor(total) : 0,
-    meta: {
-      names: record(body['names']) ?? {},
-      schema: record(body['schema']) ?? {},
-    },
+    nextPageToken: typeof token === 'string' && token !== '' ? token : null,
+    isLast: page['isLast'] === true,
   };
 }
 
+function hasMeta(meta: JiraFieldMeta): boolean {
+  return Object.keys(meta.names ?? {}).length > 0 || Object.keys(meta.schema ?? {}).length > 0;
+}
+
 /**
- * Read up to `max` issues starting at `startAt`, page by page. `nextStartAt` is the offset to
- * call again with, or `null` when Jira has no more.
+ * The site's field catalogue (`GET /rest/api/3/field`) as {@link JiraFieldMeta}, or `null` when
+ * it cannot be read — the caller notes `jira_field_meta_unavailable` and maps without it.
+ */
+export async function customFieldMeta(
+  input: FetchJiraIssuesInput,
+  authorization: string,
+): Promise<JiraFieldMeta | null> {
+  try {
+    const { body } = await getJson(input, authorization, jiraFieldUrl(input.baseUrl));
+    if (!Array.isArray(body)) return null;
+    const names: Record<string, unknown> = {};
+    const schema: Record<string, unknown> = {};
+    for (const field of body) {
+      const entry = record(field);
+      const id = str(entry?.['id']);
+      if (entry === null || id === undefined) continue;
+      if (entry['name'] !== undefined) names[id] = entry['name'];
+      if (record(entry['schema']) !== null) schema[id] = entry['schema'];
+    }
+    return { names, schema };
+  } catch {
+    // Any failure (status, size, timeout, shape) degrades to "no sprint column", never an error.
+    return null;
+  }
+}
+
+/**
+ * Read up to `max` issues, page by page — `/search/jql` first, the legacy `/search` when the
+ * first `/search/jql` request answers 404/410 or when the client sent a legacy `startAt`. The
+ * result carries exactly the cursor of the path used (see the module comment).
  */
 export async function fetchJiraIssues(input: FetchJiraIssuesInput): Promise<FetchJiraIssuesResult> {
   const max = Math.min(MAX_IMPORT_ROWS, Math.max(1, Math.floor(input.max ?? MAX_IMPORT_ROWS)));
   const authorization = `Basic ${Buffer.from(`${input.email}:${input.token}`, 'utf8').toString('base64')}`;
-  const rows: SourceRow[] = [];
   const notes = new Set<string>([
     'comments_not_imported',
     'attachments_not_imported',
     'worklogs_not_imported',
   ]);
-  let startAt = Math.max(0, Math.floor(input.startAt ?? 0));
+  if (input.startAt !== undefined) {
+    return fetchLegacy(input, authorization, Math.max(0, Math.floor(input.startAt)), max, notes);
+  }
+
+  const rows: SourceRow[] = [];
+  const seen = new Set<string>();
+  let token: string | null = input.nextPageToken ?? null;
+  if (token !== null) seen.add(token);
+  let fieldMeta: JiraFieldMeta | null | undefined;
+  let first = true;
+  while (rows.length < max) {
+    const url = jiraSearchJqlUrl(
+      input.baseUrl,
+      input.jql,
+      token,
+      Math.min(JIRA_PAGE_SIZE, max - rows.length),
+    );
+    let response: { body: unknown; status: number };
+    try {
+      response = await getJson(input, authorization, url);
+    } catch (error) {
+      // Only the very first request of a fresh run may switch paths; a client continuing a
+      // `/search/jql` cursor has no offset to continue from, so its 404 stays an error.
+      if (
+        first &&
+        token === null &&
+        error instanceof JiraFetchError &&
+        (error.status === 404 || error.status === 410)
+      ) {
+        notes.add('jira_legacy_search');
+        return fetchLegacy(input, authorization, 0, max, notes);
+      }
+      throw error;
+    }
+    first = false;
+    const page = readSearchPage(response.body, response.status);
+    let meta = page.meta;
+    if (!hasMeta(meta)) {
+      if (fieldMeta === undefined) {
+        fieldMeta = await customFieldMeta(input, authorization);
+        if (fieldMeta === null) notes.add('jira_field_meta_unavailable');
+      }
+      meta = fieldMeta ?? {};
+    }
+    const taken = page.issues.slice(0, max - rows.length);
+    for (const issue of taken) rows.push(jiraIssueToRow(issue, meta, notes));
+    if (page.issues.length === 0 || page.isLast || page.nextPageToken === null) {
+      return { rows, nextPageToken: null, nextStartAt: null, total: null, notes: [...notes] };
+    }
+    if (seen.has(page.nextPageToken)) {
+      throw new JiraFetchError('jira_bad_response', 'Jira repeated a page cursor', response.status);
+    }
+    seen.add(page.nextPageToken);
+    token = page.nextPageToken;
+  }
+  return { rows, nextPageToken: token, nextStartAt: null, total: null, notes: [...notes] };
+}
+
+/** The legacy `/rest/api/3/search` loop (`startAt` paging, `total` known). */
+async function fetchLegacy(
+  input: FetchJiraIssuesInput,
+  authorization: string,
+  from: number,
+  max: number,
+  notes: Set<string>,
+): Promise<FetchJiraIssuesResult> {
+  const rows: SourceRow[] = [];
+  let startAt = from;
   let total = 0;
   while (rows.length < max) {
-    const page = await fetchPage(
-      input,
-      authorization,
+    const url = jiraSearchUrl(
+      input.baseUrl,
+      input.jql,
       startAt,
       Math.min(JIRA_PAGE_SIZE, max - rows.length),
     );
+    const { body, status } = await getJson(input, authorization, url);
+    const page = readSearchPage(body, status);
     total = page.total;
     // A page longer than asked for is cut; `startAt` moves by what was taken.
     const taken = page.issues.slice(0, max - rows.length);
     for (const issue of taken) rows.push(jiraIssueToRow(issue, page.meta, notes));
     startAt += taken.length;
     if (page.issues.length === 0 || startAt >= total) {
-      return { rows, nextStartAt: null, total, notes: [...notes] };
+      return { rows, nextPageToken: null, nextStartAt: null, total, notes: [...notes] };
     }
   }
-  return { rows, nextStartAt: startAt < total ? startAt : null, total, notes: [...notes] };
+  return {
+    rows,
+    nextPageToken: null,
+    nextStartAt: startAt < total ? startAt : null,
+    total,
+    notes: [...notes],
+  };
 }

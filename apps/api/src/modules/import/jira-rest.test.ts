@@ -3,7 +3,9 @@ import {
   JiraFetchError,
   fetchJiraIssues,
   jiraBaseUrlAllowed,
+  JIRA_SEARCH_FIELDS,
   jiraIssueToRow,
+  jiraSearchJqlUrl,
   jiraSearchUrl,
 } from './jira-rest.js';
 import type { JiraFetch } from './jira-rest.js';
@@ -99,7 +101,7 @@ describe('fetchJiraIssues (R22-e)', () => {
       const startAt = Number(new URL(url).searchParams.get('startAt'));
       return page(startAt, 100, 200);
     });
-    const result = await fetchJiraIssues(input(fetch));
+    const result = await fetchJiraIssues({ ...input(fetch), startAt: 0 });
     expect(result.rows).toHaveLength(200);
     expect(result.nextStartAt).toBeNull();
     expect(result.total).toBe(200);
@@ -115,7 +117,7 @@ describe('fetchJiraIssues (R22-e)', () => {
     const fetch = vi.fn<JiraFetch>(async (url) =>
       page(Number(new URL(url).searchParams.get('startAt')), 100, 5000),
     );
-    const result = await fetchJiraIssues({ ...input(fetch), max: 150 });
+    const result = await fetchJiraIssues({ ...input(fetch), startAt: 0, max: 150 });
     expect(result.rows).toHaveLength(150);
     expect(result.nextStartAt).toBe(150);
   });
@@ -138,6 +140,14 @@ describe('fetchJiraIssues (R22-e)', () => {
     expect(String((error as Error).message)).not.toContain(TOKEN);
     expect(String((error as Error).stack)).not.toContain(TOKEN);
     expect(JSON.stringify(error)).not.toContain(TOKEN);
+    const cursor = 'opaque-page-cursor-xyz';
+    const again = (await fetchJiraIssues({ ...input(fetch), nextPageToken: cursor }).catch(
+      (e: unknown) => e as Error,
+    )) as Error;
+    for (const text of [again.message, String(again.stack), JSON.stringify(again)]) {
+      expect(text).not.toContain(TOKEN);
+      expect(text).not.toContain(cursor);
+    }
   });
 
   it('maps 429 to jira_rate_limited with retryAfterSeconds', async () => {
@@ -155,5 +165,124 @@ describe('fetchJiraIssues (R22-e)', () => {
     await expect(fetchJiraIssues(input(fetch))).rejects.toMatchObject({
       code: 'jira_response_too_large',
     });
+  });
+});
+
+/** A `/search/jql` page: `count` issues, `next` as the cursor (or `isLast`). */
+function jqlPage(from: number, count: number, next: string | null, meta = true): Response {
+  return new Response(
+    JSON.stringify({
+      issues: Array.from({ length: count }, (_, i) => issue(from + i + 1)),
+      ...(next === null ? { isLast: true } : { nextPageToken: next, isLast: false }),
+      ...(meta ? META : {}),
+    }),
+    { status: 200 },
+  );
+}
+
+const FIELDS = [
+  { id: 'summary', name: 'Summary', schema: { type: 'string' } },
+  {
+    id: 'customfield_10020',
+    name: 'Sprint',
+    schema: { type: 'array', custom: 'com.pyxis.greenhopper.jira:gh-sprint' },
+  },
+];
+
+const path = (url: unknown) => new URL(String(url)).pathname;
+
+describe('fetchJiraIssues on /rest/api/3/search/jql (R23-f)', () => {
+  it('pages by nextPageToken until isLast, naming every mapped field', async () => {
+    const fetch = vi.fn<JiraFetch>(async (url) =>
+      new URL(url).searchParams.get('nextPageToken') === 'p2'
+        ? jqlPage(100, 100, null)
+        : jqlPage(0, 100, 'p2'),
+    );
+    const result = await fetchJiraIssues(input(fetch));
+    expect(result.rows).toHaveLength(200);
+    expect(result).toMatchObject({ nextPageToken: null, nextStartAt: null, total: null });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    const second = new URL(String(fetch.mock.calls[1]?.[0]));
+    expect(second.pathname).toBe('/rest/api/3/search/jql');
+    expect(second.searchParams.get('nextPageToken')).toBe('p2');
+    const fields = second.searchParams.get('fields')?.split(',') ?? [];
+    for (const f of ['summary', 'issuetype', 'status', 'priority', 'assignee', 'reporter']) {
+      expect(fields).toContain(f);
+    }
+    for (const f of ['created', 'updated', 'duedate', 'labels', 'parent', 'description']) {
+      expect(fields).toContain(f);
+    }
+    expect(fields).toEqual([...JIRA_SEARCH_FIELDS]);
+  });
+
+  it('returns the last page token when max is reached', async () => {
+    const fetch = vi.fn<JiraFetch>(async () => jqlPage(0, 50, 'p-next'));
+    const result = await fetchJiraIssues({ ...input(fetch), max: 50 });
+    expect(result).toMatchObject({ nextPageToken: 'p-next', nextStartAt: null });
+  });
+
+  it('falls back to the legacy search when the first request answers 404', async () => {
+    const fetch = vi.fn<JiraFetch>(async (url) =>
+      path(url) === '/rest/api/3/search/jql'
+        ? new Response('', { status: 404 })
+        : page(Number(new URL(url).searchParams.get('startAt')), 100, 5000),
+    );
+    const result = await fetchJiraIssues({ ...input(fetch), max: 150 });
+    expect(path(fetch.mock.calls[1]?.[0])).toBe('/rest/api/3/search');
+    expect(new URL(String(fetch.mock.calls[1]?.[0])).searchParams.get('startAt')).toBe('0');
+    expect(result).toMatchObject({ nextStartAt: 150, nextPageToken: null, total: 5000 });
+    expect(result.notes).toContain('jira_legacy_search');
+  });
+
+  it('treats a 404 on a later page as jira_unavailable, not a switch', async () => {
+    const fetch = vi.fn<JiraFetch>(async (url) =>
+      new URL(url).searchParams.has('nextPageToken')
+        ? new Response('', { status: 404 })
+        : jqlPage(0, 100, 'p2'),
+    );
+    await expect(fetchJiraIssues(input(fetch))).rejects.toMatchObject({
+      code: 'jira_unavailable',
+    });
+    expect(fetch.mock.calls.every(([url]) => path(url) === '/rest/api/3/search/jql')).toBe(true);
+  });
+
+  it('reads the sprint ids from one /field call when the page has no names', async () => {
+    const fetch = vi.fn<JiraFetch>(async (url) => {
+      if (path(url) === '/rest/api/3/field') return new Response(JSON.stringify(FIELDS));
+      return new URL(url).searchParams.has('nextPageToken')
+        ? jqlPage(100, 1, null, false)
+        : jqlPage(0, 100, 'p2', false);
+    });
+    const result = await fetchJiraIssues(input(fetch));
+    expect(fetch.mock.calls.filter(([url]) => path(url) === '/rest/api/3/field')).toHaveLength(1);
+    expect(result.rows[0]?.['Sprint']).toEqual(['Sprint 1', 'Sprint 2']);
+    expect(result.notes).not.toContain('jira_field_meta_unavailable');
+  });
+
+  it('notes a failed /field call and returns the rows without a sprint column', async () => {
+    const fetch = vi.fn<JiraFetch>(async (url) =>
+      path(url) === '/rest/api/3/field'
+        ? new Response('', { status: 500 })
+        : jqlPage(0, 3, null, false),
+    );
+    const result = await fetchJiraIssues(input(fetch));
+    expect(result.rows).toHaveLength(3);
+    expect(result.rows[0]?.['Sprint']).toBeUndefined();
+    expect(result.notes).toContain('jira_field_meta_unavailable');
+  });
+
+  it('refuses a page that repeats its cursor', async () => {
+    const fetch = vi.fn<JiraFetch>(async () => jqlPage(0, 10, 'same'));
+    await expect(fetchJiraIssues(input(fetch))).rejects.toMatchObject({
+      code: 'jira_bad_response',
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('refuses a disallowed site exactly as the legacy URL builder', () => {
+    for (const bad of ['http://acme.atlassian.net', 'https://evil.com']) {
+      expect(() => jiraSearchJqlUrl(bad, 'x', null)).toThrow(JiraFetchError);
+      expect(() => jiraSearchUrl(bad, 'x', 0)).toThrow(JiraFetchError);
+    }
   });
 });
