@@ -5,6 +5,7 @@ import {
   defaultFor,
   isSettingOn,
   validateDefaultLocale,
+  parseLockedRoles,
   validateValue,
 } from './org-settings.allowlist.js';
 import { requireOrgPermission } from './org-policy.js';
@@ -136,5 +137,29 @@ describe('R12 default_locale', () => {
     expect(validateDefaultLocale(' zh-CN ')).toEqual({ ok: true, value: 'zh-CN' });
     expect(validateDefaultLocale('en').ok).toBe(true);
     expect(validateDefaultLocale('es').ok).toBe(false);
+  });
+});
+
+describe('55-04 ui mode keys', () => {
+  it('default_ui_mode defaults to simple and accepts simple/power only', () => {
+    expect(defaultFor('default_ui_mode')).toBe('simple');
+    expect(validateValue('default_ui_mode', ' Power ')).toEqual({ ok: true, value: 'power' });
+    expect(validateValue('default_ui_mode', 'expert').ok).toBe(false);
+  });
+
+  it('ui_mode_locked_roles refuses unknown and client roles, de-duplicates in catalogue order', () => {
+    expect(defaultFor('ui_mode_locked_roles')).toBe('');
+    expect(validateValue('ui_mode_locked_roles', 'wizard').ok).toBe(false);
+    expect(validateValue('ui_mode_locked_roles', 'member,client_viewer')).toEqual({
+      ok: false,
+      message: 'Client roles are always simple.',
+    });
+    expect(validateValue('ui_mode_locked_roles', 'member, owner,owner')).toEqual({
+      ok: true,
+      value: 'owner,member',
+    });
+    expect(validateValue('ui_mode_locked_roles', '')).toEqual({ ok: true, value: '' });
+    expect(parseLockedRoles('owner,member')).toEqual(['owner', 'member']);
+    expect(parseLockedRoles(undefined)).toEqual([]);
   });
 });

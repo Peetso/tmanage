@@ -20,6 +20,16 @@ import type { DisplayPreferencesService, DisplayPreferencesView } from './displa
  * routes sit behind `work.read`, the internal-read capability A11Y-183's preferences reuse (module
  * 20, and pass-25 forbids inventing a capability). Validation and the closed vocabularies live in
  * {@link DisplayPreferencesService}.
+ *
+ * ## 55-04 (R20-c): Simple / Power mode rides on the same two routes
+ *
+ * The body may carry `uiMode` (`simple` | `power`; absent = inherit the org default) and the GET
+ * returns the effective `uiMode`, `uiModeSource` and `uiModeLocked`. The caller's `principal.role`
+ * is passed so the service can apply the org's `ui_mode_locked_roles`: a locked role sending a mode
+ * other than the org default is refused 409 (detail `ui_mode_locked`) with nothing written. Personal mode is
+ * self-service under the unchanged `work.read`; the org default and the lock are `org.manage`
+ * through the existing `PUT …/settings/:key` (keys `default_ui_mode`, `ui_mode_locked_roles`). The
+ * mode changes no capability. No route was added.
  */
 @Controller('v1/organizations/:orgSlug/me/display-preferences')
 export class DisplayPreferencesController {
@@ -33,7 +43,7 @@ export class DisplayPreferencesController {
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
   ): Promise<DisplayPreferencesView> {
-    return this.service.read(context, principal.membershipId);
+    return this.service.read(context, principal.membershipId, principal.role);
   }
 
   @Put()
@@ -44,6 +54,6 @@ export class DisplayPreferencesController {
     @CurrentPrincipal() principal: Principal,
     @Body() body: unknown,
   ): Promise<DisplayPreferencesView> {
-    return this.service.replace(context, principal.membershipId, body);
+    return this.service.replace(context, principal.membershipId, principal.role, body);
   }
 }

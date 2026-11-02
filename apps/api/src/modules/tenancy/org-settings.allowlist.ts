@@ -18,7 +18,7 @@
  * later reader will parse.
  */
 
-import { NOTIFICATION_PROFILES } from '@tmanage/domain';
+import { ASSIGNABLE_INTERNAL_ROLES, CLIENT_ROLES, NOTIFICATION_PROFILES } from '@tmanage/domain';
 import { DISPLAY_LOCALES } from '../../common/database/schema.js';
 import { DEFAULT_PRESETS, isFileTypePreset, presetsToCsv } from '../files/file-safety.js';
 
@@ -45,6 +45,10 @@ export const ORG_SETTING_KEYS = [
   // (`org.security.manage`, audited, scanner-checked), never through the generic PUT.
   'file_safety_presets',
   'require_scan_for_clients',
+  // 55-04 (R20-c): Simple/Power mode. The org default a member with no own `uiMode` inherits, and
+  // the internal roles that may not leave it. Both are `org.manage` keys on the generic PUT.
+  'default_ui_mode',
+  'ui_mode_locked_roles',
 ] as const;
 
 export type OrgSettingKey = (typeof ORG_SETTING_KEYS)[number];
@@ -89,6 +93,42 @@ export const OWNER_ONLY_SETTING_KEYS: readonly OrgSettingKey[] = [
 /** Whether `key` may only be changed by the owner, through its own route. */
 export function isOwnerOnlySettingKey(key: OrgSettingKey): boolean {
   return OWNER_ONLY_SETTING_KEYS.includes(key);
+}
+
+/**
+ * 55-04 (R20-c). The two shell modes. The mode changes **no** capability — it only decides how much
+ * of the navigation the web shows — so it is a display setting, never an authorization input.
+ */
+export const UI_MODES = ['simple', 'power'] as const;
+export type UiMode = (typeof UI_MODES)[number];
+
+/**
+ * 55-04. The roles `ui_mode_locked_roles` may name: the assignable internal roles, in catalogue
+ * order. Client roles are absent on purpose — the portal is always simple by design, so locking one
+ * is meaningless and refused with its own message. The hidden Support-session role is not offered.
+ */
+const LOCKABLE_ROLES: readonly string[] = ASSIGNABLE_INTERNAL_ROLES;
+const CLIENT_ROLE_SET: readonly string[] = CLIENT_ROLES;
+
+/** 55-04. Validate a csv of lockable roles: de-duplicated and stored in catalogue order; `''` = no lock. */
+function lockedRolesValue(raw: string): OrgSettingValidation {
+  const names = raw
+    .split(',')
+    .map((name) => name.trim().toLowerCase())
+    .filter((name) => name !== '');
+  if (names.some((name) => CLIENT_ROLE_SET.includes(name))) {
+    return { ok: false, message: 'Client roles are always simple.' };
+  }
+  if (!names.every((name) => LOCKABLE_ROLES.includes(name))) {
+    return { ok: false, message: 'Choose from the offered roles.' };
+  }
+  return { ok: true, value: LOCKABLE_ROLES.filter((role) => names.includes(role)).join(',') };
+}
+
+/** 55-04. The roles a stored `ui_mode_locked_roles` value locks (`undefined`/`''` = none). */
+export function parseLockedRoles(stored: string | undefined): readonly string[] {
+  const names = (stored ?? '').split(',').map((name) => name.trim());
+  return LOCKABLE_ROLES.filter((role) => names.includes(role));
 }
 
 /** A validator for a key whose value must be one of a closed list. */
@@ -224,6 +264,10 @@ const SPECS: Readonly<Record<OrgSettingKey, OrgSettingSpec>> = Object.freeze({
   // scanner is configured (`file-safety-settings.ts` reads the effective value): without one no
   // verdict would ever arrive and every client file would be unreachable.
   require_scan_for_clients: { default: 'true', validate: booleanValue },
+  // 55-04. Every org starts `simple` (the "<= 15 people" size rule is not built); an admin flips it.
+  default_ui_mode: { default: 'simple', validate: oneOf(UI_MODES, 'Choose simple or power.') },
+  // 55-04. No role is locked until an admin names one.
+  ui_mode_locked_roles: { default: '', validate: lockedRolesValue },
 });
 
 /** The on/off keys the A11 routes read through {@link isSettingOn}. */

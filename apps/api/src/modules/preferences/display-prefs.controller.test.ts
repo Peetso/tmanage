@@ -4,6 +4,7 @@ import type { Principal } from '@tmanage/domain';
 import { DisplayPreferencesController } from './display-prefs.controller.js';
 import { DEFAULT_DISPLAY_PREFERENCES, DisplayPreferencesService } from './display-prefs.service.js';
 import type { DisplayPreferencesRepository } from './display-prefs.repository.js';
+import type { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import { ApiError } from '../../common/http/errors.js';
 import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -76,7 +77,21 @@ class FakeDisplayPreferencesRepository {
   }
 }
 
-function controllerWith(repo: FakeDisplayPreferencesRepository): DisplayPreferencesController {
+/** 55-04: the org settings the service reads — `default_ui_mode` / `ui_mode_locked_roles` rows. */
+function orgSettingsWith(rows: Record<string, string> = {}): OrgSettingsRepository {
+  return {
+    findByKey: (_r: unknown, _c: unknown, key: string) =>
+      Promise.resolve(key in rows ? { settingValue: rows[key] } : undefined),
+  } as unknown as OrgSettingsRepository;
+}
+
+/** The computed 55-04 fields for a member with no own mode in a default (unlocked, simple) org. */
+const INHERITED = { uiMode: 'simple', uiModeSource: 'org_default', uiModeLocked: false } as const;
+
+function controllerWith(
+  repo: FakeDisplayPreferencesRepository,
+  org: Record<string, string> = {},
+): DisplayPreferencesController {
   const database = {
     read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
     transaction: async (_c: unknown, work: (tx: unknown) => Promise<unknown>) => work({}),
@@ -84,6 +99,7 @@ function controllerWith(repo: FakeDisplayPreferencesRepository): DisplayPreferen
   const service = new DisplayPreferencesService(
     database,
     repo as unknown as DisplayPreferencesRepository,
+    orgSettingsWith(org),
   );
   return new DisplayPreferencesController(service);
 }
@@ -98,7 +114,7 @@ describe('DisplayPreferencesController (PREF-DISPLAY, x285)', () => {
   it('reads the shipped defaults when the member has never saved', async () => {
     const repo = new FakeDisplayPreferencesRepository();
     const result = await controllerWith(repo).get(context, member());
-    expect(result).toEqual(DEFAULT_DISPLAY_PREFERENCES);
+    expect(result).toEqual({ ...DEFAULT_DISPLAY_PREFERENCES, ...INHERITED });
   });
 
   it('persists a valid update and reads it back — always the caller’s own membership', async () => {
@@ -106,14 +122,24 @@ describe('DisplayPreferencesController (PREF-DISPLAY, x285)', () => {
     const controller = controllerWith(repo);
 
     const saved = await controller.put(context, member(), { ...VALID });
-    expect(saved).toEqual({ ...VALID, numerals: 'latin', calendarDisplay: 'gregorian' });
+    expect(saved).toEqual({
+      ...VALID,
+      numerals: 'latin',
+      calendarDisplay: 'gregorian',
+      ...INHERITED,
+    });
 
     // The subject is the authenticated principal's membership, never a value the request named.
     expect(repo.upsertCalls).toHaveLength(1);
     expect(repo.upsertCalls[0]!.membershipId).toBe(MY_MEMBERSHIP);
 
     const readBack = await controller.get(context, member());
-    expect(readBack).toEqual({ ...VALID, numerals: 'latin', calendarDisplay: 'gregorian' });
+    expect(readBack).toEqual({
+      ...VALID,
+      numerals: 'latin',
+      calendarDisplay: 'gregorian',
+      ...INHERITED,
+    });
   });
 
   it('accepts any IANA time zone, not a short allow-list (R9: every country)', async () => {
@@ -203,5 +229,50 @@ describe('DisplayPreferencesController (PREF-DISPLAY, x285)', () => {
     // The service is built from the database and the repository alone; nothing it holds can write
     // product_events, so the calendar choice never reaches an analytics stream (PDPL).
     expect(DisplayPreferencesService.length).toBe(2);
+  });
+
+  it('55-04: no own mode reads the org default; an own mode wins; a stored power org default is read', async () => {
+    const repo = new FakeDisplayPreferencesRepository();
+    const inherited = await controllerWith(repo, { default_ui_mode: 'power' }).get(
+      context,
+      member(),
+    );
+    expect(inherited.uiMode).toBe('power');
+    expect(inherited.uiModeSource).toBe('org_default');
+
+    repo.rows.set(MY_MEMBERSHIP, { ...VALID, uiMode: 'power' });
+    const own = await controllerWith(repo).get(context, member());
+    expect(own).toMatchObject({ uiMode: 'power', uiModeSource: 'self', uiModeLocked: false });
+  });
+
+  it('55-04: a locked role sending a mode other than the org default is 409 and nothing is written', async () => {
+    const repo = new FakeDisplayPreferencesRepository();
+    const org = { ui_mode_locked_roles: 'member' };
+    await expectStatus(
+      controllerWith(repo, org).put(context, member(), { ...VALID, uiMode: 'power' }),
+      409,
+    );
+    expect(repo.upsertCalls).toHaveLength(0);
+
+    // Omitting uiMode, or sending the org default, is accepted.
+    const saved = await controllerWith(repo, org).put(context, member(), { ...VALID });
+    expect(saved).toMatchObject({
+      uiMode: 'simple',
+      uiModeSource: 'org_default',
+      uiModeLocked: true,
+    });
+    await controllerWith(repo, org).put(context, member(), { ...VALID, uiMode: 'simple' });
+    expect(repo.upsertCalls).toHaveLength(2);
+  });
+
+  it('55-04: an unlocked member saves power; an off-vocabulary mode is 400 with no write', async () => {
+    const repo = new FakeDisplayPreferencesRepository();
+    const saved = await controllerWith(repo).put(context, member(), { ...VALID, uiMode: 'power' });
+    expect(saved).toMatchObject({ uiMode: 'power', uiModeSource: 'self' });
+    await expectStatus(
+      controllerWith(repo).put(context, member(), { ...VALID, uiMode: 'expert' }),
+      400,
+    );
+    expect(repo.upsertCalls).toHaveLength(1);
   });
 });

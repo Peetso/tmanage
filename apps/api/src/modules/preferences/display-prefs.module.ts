@@ -7,6 +7,7 @@ import {
 import { DisplayPreferencesController } from './display-prefs.controller.js';
 import { DisplayPreferencesRepository } from './display-prefs.repository.js';
 import { DisplayPreferencesService } from './display-prefs.service.js';
+import { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 
 /**
  * PREF-DISPLAY display-preferences wiring (module 20, x285).
@@ -29,9 +30,15 @@ export class DisplayPreferencesModule {
       useClass: DisplayPreferencesService,
     };
 
+    // 55-04 (R20-c): the service reads the org default mode and the locked roles.
+    const orgSettings: Provider = {
+      provide: OrgSettingsRepository,
+      useFactory: () => new OrgSettingsRepository(),
+    };
+
     return {
       module: DisplayPreferencesModule,
-      providers: [repository, service],
+      providers: [repository, orgSettings, service],
       controllers: [DisplayPreferencesController],
     };
   }
