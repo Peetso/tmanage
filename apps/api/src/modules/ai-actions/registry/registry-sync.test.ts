@@ -117,7 +117,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // R12 slice 1: +1 NEVER (`public_site`: GET /v1/public/locale-hint), was 1118.
 // R12 slice 2: +3 NEVER (session / admin / platform sign-in trail CSVs), was 1119.
 // R13 slice 5 (57-14): +2 NEVER (GET platform/activity/growth, .../growth/export.csv), was 1122.
-const EXPECTED_ROUTE_COUNT = 1124;
+// R13 slice 6 (56-21b): +2 NEVER (GET platform/team/access-review, POST .../record), was 1124.
+const EXPECTED_ROUTE_COUNT = 1126;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

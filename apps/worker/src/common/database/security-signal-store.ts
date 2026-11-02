@@ -20,6 +20,10 @@ import type {
  * (least-privilege.db.test.ts), so `credential_stuffing` is refused and skipped (logged once)
  * until that decision changes. Every source read is bounded by an indexed time column and a
  * LIMIT; nothing here writes a source table.
+ * 56-21b (no new grant): the platform admin rules read `platform_support_sessions`,
+ * `platform_admin_audit_events` (SELECT, 56-11 block), `ip_lookups` (SELECT, 0280 block) and
+ * `users.timezone`, all already held. `failedStepUps` reads `authentication_events` and is never
+ * called while its rule is deferred (the grant is refused on purpose).
  * Dates are bound from the application clock.
  */
 
@@ -55,6 +59,27 @@ const SQL = {
     where updated_at >= ? order by updated_at desc limit ?`,
   chainTail: `select chain_seq, prev_hash, row_hash from audit_events
     where organization_id = ? and chain_seq is not null order by chain_seq desc limit ?`,
+  supportStarts: `select admin_user_id, count(*) as n from platform_support_sessions
+    where started_at >= ? group by admin_user_id having count(*) >= ? order by n desc
+    limit ${String(LIMIT)}`,
+  platformAccess: `select e.actor_user_id, e.created_at, u.timezone
+    from platform_admin_audit_events e left join users u on u.id = e.actor_user_id
+    where e.created_at >= ?
+      and e.action in ('platform.step_up', 'platform.support_session_started')
+    order by e.created_at desc limit ${String(LIMIT * 5)}`,
+  failedStepUps: `select a.user_id, count(*) as n from authentication_events a
+    join platform_admins p on p.user_id = a.user_id
+    where a.occurred_at >= ? and a.action = 'reauthentication' and a.outcome = 'failed'
+    group by a.user_id having count(*) >= ? order by n desc limit ${String(LIMIT)}`,
+  supportCountries: `select e.actor_user_id, e.created_at, l.country_code
+    from platform_admin_audit_events e left join ip_lookups l on l.ip = e.ip
+    where e.created_at >= ? and e.action = 'platform.support_session_started'
+    order by e.created_at desc limit ${String(LIMIT)}`,
+  adminCountries: `select distinct l.country_code
+    from platform_admin_audit_events e join ip_lookups l on l.ip = e.ip
+    where e.actor_user_id = ? and e.created_at >= ? and e.created_at < ?
+      and l.country_code is not null
+    limit 50`,
   upsert: `insert into security_signals
     (id, organization_id, scope_key, rule_key, severity, subject_type, subject_id, subject_key,
      source_hash, count, window_start, first_seen, last_seen, notify_status, notified_at,
@@ -176,6 +201,37 @@ export function createSecuritySignalStore(database: WorkerDatabase): SecuritySig
         prevHash: text(r['prev_hash']),
         rowHash: text(r['row_hash']),
       }));
+    },
+    async supportSessionStarts(since, min) {
+      return (await read(SQL.supportStarts, [since, min])).map((r) => ({
+        adminUserId: String(r['admin_user_id']),
+        count: num(r['n']),
+      }));
+    },
+    async platformAccessEvents(since) {
+      return (await read(SQL.platformAccess, [since])).map((r) => ({
+        adminUserId: String(r['actor_user_id']),
+        at: date(r['created_at']) ?? new Date(0),
+        timeZone: text(r['timezone']),
+      }));
+    },
+    async failedStepUps(since, min) {
+      return (await read(SQL.failedStepUps, [since, min])).map((r) => ({
+        adminUserId: String(r['user_id']),
+        count: num(r['n']),
+      }));
+    },
+    async supportSessionCountries(since) {
+      return (await read(SQL.supportCountries, [since])).map((r) => ({
+        adminUserId: String(r['actor_user_id']),
+        at: date(r['created_at']) ?? new Date(0),
+        countryCode: text(r['country_code']),
+      }));
+    },
+    async adminCountries(adminUserId, from, before) {
+      return (await read(SQL.adminCountries, [adminUserId, from, before])).map((r) =>
+        String(r['country_code']),
+      );
     },
     async upsertSignal(signal: SignalRecord) {
       await write(SQL.upsert, [

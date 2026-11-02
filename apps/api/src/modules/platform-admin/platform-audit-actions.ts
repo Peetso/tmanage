@@ -107,6 +107,8 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.security_reports_purged',
   // ---- 56-23 security signals ----
   'platform.alert_rule_updated',
+  // ---- 56-21b platform access review ----
+  'platform.access_review_recorded',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];

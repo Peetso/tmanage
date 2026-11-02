@@ -19,6 +19,13 @@ import type { Mailer } from '@tmanage/mail';
  * stuffing is deferred too (the worker has no read on `authentication_events`, by design): a
  * deferred rule is never attempted, even when its row says enabled, so it logs nothing.
  *
+ * 56-21b adds four platform rules over the platform admins' own trail (`platform_support_sessions`,
+ * `platform_admin_audit_events`, the 0280 `ip_lookups` cache): a burst of support sessions, a
+ * platform access between 00:00 and 06:00 in the admin's own time zone, failed step-ups (deferred:
+ * a failed step-up is only in the security log) and a support session from a new country. They
+ * carry code defaults, so they run before any `platform_alert_rules` row exists, and they count
+ * per (rule, admin, UTC day): one row a day, mailed at most once inside the day-long cooldown.
+ *
  * ## Notify
  *
  * - **Batching** — nothing is mailed while the last digest is younger than 15 minutes; pending
@@ -130,6 +137,26 @@ export interface SecuritySignalStore {
   ): Promise<readonly { organizationId: string; chainSeq: number; headHash: string }[]>;
   /** The newest `limit` chained rows of one organization, highest `chain_seq` first. */
   chainTail(organizationId: string, limit: number): Promise<readonly ChainRow[]>;
+  /** 56-21b: support sessions started per admin since `since`, `>= min`. */
+  supportSessionStarts(
+    since: Date,
+    min: number,
+  ): Promise<readonly { adminUserId: string; count: number }[]>;
+  /** 56-21b: platform step-ups and support-session starts since `since`, with the admin's zone. */
+  platformAccessEvents(
+    since: Date,
+  ): Promise<readonly { adminUserId: string; at: Date; timeZone: string | null }[]>;
+  /** 56-21b (deferred rule): failed platform step-ups per admin since `since`, `>= min`. */
+  failedStepUps(
+    since: Date,
+    min: number,
+  ): Promise<readonly { adminUserId: string; count: number }[]>;
+  /** 56-21b: support-session starts since `since` with the start IP's cached country, or null. */
+  supportSessionCountries(
+    since: Date,
+  ): Promise<readonly { adminUserId: string; at: Date; countryCode: string | null }[]>;
+  /** 56-21b: the known countries of one admin's platform trail in `[from, before)`. */
+  adminCountries(adminUserId: string, from: Date, before: Date): Promise<readonly string[]>;
   upsertSignal(signal: SignalRecord): Promise<void>;
   pendingSignals(limit: number): Promise<readonly PendingSignal[]>;
   notifiedSince(since: Date): Promise<readonly NotifiedKey[]>;
@@ -184,6 +211,10 @@ interface Rule {
   readonly severity: SignalSeverity;
   /** Set = the rule cannot run in this process; it is never attempted, even when enabled. */
   readonly deferred?: string;
+  /** The setting used while `platform_alert_rules` has no row for this rule (56-21b). */
+  readonly defaults?: Omit<RuleSetting, 'ruleKey' | 'enabled'>;
+  /** Dedupe bucket in minutes when it differs from the read window (a day for 56-21b). */
+  readonly bucketMinutes?: number;
   detect(
     store: SecuritySignalStore,
     setting: RuleSetting,
@@ -204,6 +235,118 @@ const orgBurst =
       sourceHash: null,
       count: row.count,
     }));
+
+const DAY_MINUTES = 1_440;
+const NEW_COUNTRY_LOOKBACK_MS = 90 * DAY_MINUTES * MINUTE_MS;
+const OFF_HOURS_END = 6;
+export const PLATFORM_FALLBACK_ZONE = 'Asia/Riyadh';
+
+/**
+ * The hour (0-23) of `at` in `timeZone`. The users column defaults to `UTC`, which nobody chose,
+ * so `UTC`, an empty value or a zone this runtime does not know read as {@link PLATFORM_FALLBACK_ZONE}.
+ */
+export function localHour(at: Date, timeZone: string | null): number {
+  const zone = timeZone === null || timeZone === '' || timeZone === 'UTC' ? null : timeZone;
+  const hourIn = (z: string) =>
+    Number(
+      new Intl.DateTimeFormat('en-GB', { timeZone: z, hour: 'numeric', hourCycle: 'h23' }).format(
+        at,
+      ),
+    );
+  try {
+    return hourIn(zone ?? PLATFORM_FALLBACK_ZONE);
+  } catch {
+    return hourIn(PLATFORM_FALLBACK_ZONE);
+  }
+}
+
+const perAdmin = (
+  rows: readonly { readonly adminUserId: string; readonly country?: string }[],
+  min: number,
+): SignalCandidate[] => {
+  const counts = new Map<string, { count: number; country: string | undefined }>();
+  for (const row of rows) {
+    const seen = counts.get(row.adminUserId);
+    counts.set(row.adminUserId, { count: (seen?.count ?? 0) + 1, country: row.country });
+  }
+  return [...counts]
+    .filter(([, seen]) => seen.count >= min)
+    .map(([adminUserId, seen]) => ({
+      organizationId: null,
+      subjectType: 'platform_admin',
+      subjectId: adminUserId,
+      sourceHash: null,
+      count: seen.count,
+      ...(seen.country === undefined ? {} : { details: { country: seen.country } }),
+    }));
+};
+
+const adminCount =
+  (
+    read: (
+      store: SecuritySignalStore,
+    ) => (since: Date, min: number) => Promise<readonly { adminUserId: string; count: number }[]>,
+  ): Rule['detect'] =>
+  async (store, setting, now) =>
+    (await read(store)(since(now, setting), setting.count)).map((row) => ({
+      organizationId: null,
+      subjectType: 'platform_admin',
+      subjectId: row.adminUserId,
+      sourceHash: null,
+      count: row.count,
+    }));
+
+/** 56-21b: the platform admins' own anomalies; NULL organization, platform digest only. */
+const PLATFORM_ADMIN_RULES: readonly Rule[] = [
+  {
+    key: 'support_sessions_burst',
+    severity: 'high',
+    defaults: { count: 6, windowMinutes: DAY_MINUTES, cooldownMinutes: DAY_MINUTES },
+    bucketMinutes: DAY_MINUTES,
+    detect: adminCount((store) => store.supportSessionStarts.bind(store)),
+  },
+  {
+    key: 'platform_access_off_hours',
+    severity: 'medium',
+    defaults: { count: 1, windowMinutes: DAY_MINUTES, cooldownMinutes: DAY_MINUTES },
+    bucketMinutes: DAY_MINUTES,
+    detect: async (store, setting, now) => {
+      const events = await store.platformAccessEvents(since(now, setting));
+      const late = events.filter((event) => localHour(event.at, event.timeZone) < OFF_HOURS_END);
+      return perAdmin(late, setting.count);
+    },
+  },
+  {
+    key: 'platform_step_up_failures',
+    severity: 'high',
+    // A failed step-up is written only to `authentication_events` (reauthentication, failed),
+    // which the worker cannot read by design (least privilege, 56-23). Same road as
+    // `credential_stuffing`: an API-side or narrow-view detector.
+    deferred:
+      'failed step-ups are only in the security log, which the worker has no read on by design',
+    defaults: { count: 3, windowMinutes: 30, cooldownMinutes: DAY_MINUTES },
+    bucketMinutes: DAY_MINUTES,
+    detect: adminCount((store) => store.failedStepUps.bind(store)),
+  },
+  {
+    key: 'support_session_new_country',
+    severity: 'high',
+    defaults: { count: 1, windowMinutes: 60, cooldownMinutes: DAY_MINUTES },
+    bucketMinutes: DAY_MINUTES,
+    detect: async (store, setting, now) => {
+      const fresh: { adminUserId: string; country: string }[] = [];
+      for (const start of await store.supportSessionCountries(since(now, setting))) {
+        // Unknown place: skipped, never guessed. No known history: nothing to differ from.
+        if (start.countryCode === null) continue;
+        const from = new Date(start.at.getTime() - NEW_COUNTRY_LOOKBACK_MS);
+        const used = await store.adminCountries(start.adminUserId, from, start.at);
+        if (used.length === 0 || used.includes(start.countryCode)) continue;
+        fresh.push({ adminUserId: start.adminUserId, country: start.countryCode });
+      }
+      return perAdmin(fresh, setting.count);
+    },
+  },
+];
 
 /** v1 catalog; labels and the API's validation live in `modules/security-signals/signal-rules.ts`. */
 export const DETECTOR_RULES: readonly Rule[] = [
@@ -314,7 +457,18 @@ export const DETECTOR_RULES: readonly Rule[] = [
         count: 1,
       })),
   },
+  ...PLATFORM_ADMIN_RULES,
 ];
+
+/** The stored settings, plus a rule's code defaults while it has no row yet (56-21b). */
+export function effectiveSettings(rows: readonly RuleSetting[]): Map<string, RuleSetting> {
+  const settings = new Map(rows.map((row) => [row.ruleKey, row]));
+  for (const rule of DETECTOR_RULES) {
+    if (rule.defaults === undefined || settings.has(rule.key)) continue;
+    settings.set(rule.key, { ruleKey: rule.key, enabled: true, ...rule.defaults });
+  }
+  return settings;
+}
 
 function windowStart(now: Date, windowMinutes: number): Date {
   const ms = Math.max(1, windowMinutes) * MINUTE_MS;
@@ -348,7 +502,7 @@ export interface DetectorResult {
 }
 
 export async function detectSignals(deps: DetectorDeps, now: Date): Promise<number> {
-  const settings = new Map((await deps.store.rules()).map((rule) => [rule.ruleKey, rule]));
+  const settings = effectiveSettings(await deps.store.rules());
   let detected = 0;
   for (const rule of DETECTOR_RULES) {
     const setting = settings.get(rule.key);
@@ -368,7 +522,7 @@ export async function detectSignals(deps: DetectorDeps, now: Date): Promise<numb
         ruleKey: rule.key,
         severity: rule.severity,
         subjectKey: candidate.subjectId ?? candidate.sourceHash ?? '-',
-        windowStart: windowStart(now, setting.windowMinutes),
+        windowStart: windowStart(now, rule.bucketMinutes ?? setting.windowMinutes),
         seenAt: now,
       });
       detected += 1;
@@ -392,7 +546,7 @@ export async function dispatchSignals(
   const pending = await store.pendingSignals(PENDING_BATCH);
   if (pending.length === 0) return { mailed: 0, suppressed: 0 };
 
-  const rules = new Map((await store.rules()).map((rule) => [rule.ruleKey, rule]));
+  const rules = effectiveSettings(await store.rules());
   const longest = Math.max(0, ...[...rules.values()].map((rule) => rule.cooldownMinutes));
   const lastSent = new Map<string, number>();
   for (const key of await store.notifiedSince(new Date(now.getTime() - longest * MINUTE_MS))) {
