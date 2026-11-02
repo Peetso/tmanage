@@ -1855,6 +1855,14 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/work-items/:workItemId/code-links/:linkId',
     reason: 'automation_secrets',
   },
+  // ---- R17-c · 53-05 baselines ---- choosing the current baseline re-points every member's Gantt
+  // overlay and variance at another plan; withheld (as the schedule cascade is) until reviewed
+  // `schedule.*` ops exist.
+  {
+    method: 'PATCH',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/baselines/:baselineId',
+    reason: 'policy_definitions',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

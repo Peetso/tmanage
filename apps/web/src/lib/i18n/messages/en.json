@@ -15850,5 +15850,8 @@
   "AuditActionLabel.rates.repriced": "Re-priced unbilled time",
   "AuditActionLabel.work_item.billable_changed": "Changed whether a work item is billable",
   "AuditActionLabel.contacts.imported": "Imported contacts for invite suggestions",
-  "AuditActionLabel.contacts.cleared": "Cleared their invite suggestions"
+  "AuditActionLabel.contacts.cleared": "Cleared their invite suggestions",
+  "AuditActionLabel.baseline.created": "Saved a schedule baseline",
+  "AuditActionLabel.baseline.activated": "Made a baseline the current one",
+  "AuditActionLabel.baseline.deleted": "Deleted a schedule baseline"
 }

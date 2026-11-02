@@ -1,11 +1,18 @@
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { projectBaselines, projectMilestones } from '../../common/database/schema.js';
+import {
+  projectBaselineItems,
+  projectBaselines,
+  projectMilestones,
+  workItems,
+} from '../../common/database/schema.js';
 import type {
+  ProjectBaselineItemRow,
   ProjectBaselineMilestoneSnapshot,
   ProjectBaselineRow,
   ProjectMilestoneRow,
+  WorkItemRow,
 } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -40,7 +47,39 @@ export interface CreateProjectBaselineInput {
   readonly snapshot: readonly ProjectBaselineMilestoneSnapshot[];
   /** The person who froze the baseline — the service passes `context.userId`. */
   readonly createdBy: string;
+  /** 53-05: 'milestones' | 'full' (checked by the controller). */
+  readonly kind?: BaselineKind;
+  readonly note?: string | null;
 }
+
+export const BASELINE_KINDS = ['milestones', 'full'] as const;
+export type BaselineKind = (typeof BASELINE_KINDS)[number];
+
+/** 53-05: one work item frozen into a 'full' baseline (civil dates in the org calendar's zone). */
+export interface NewBaselineItem {
+  readonly workItemId: string;
+  readonly startAt: string | null;
+  readonly dueAt: string | null;
+  readonly durationWorkingDays: number | null;
+  readonly itemVersion: number | null;
+}
+
+/** The live columns a snapshot and a variance read need — never the description. */
+export type LiveBaselineItem = Pick<
+  WorkItemRow,
+  | 'id'
+  | 'organizationId'
+  | 'projectId'
+  | 'title'
+  | 'audience'
+  | 'state'
+  | 'startAt'
+  | 'dueAt'
+  | 'version'
+>;
+
+/** Rows per multi-row INSERT when freezing items. */
+const ITEM_INSERT_CHUNK = 500;
 
 export interface ListProjectBaselinesOptions {
   /** Required: this lists one project's baselines, never a whole tenant's. */
@@ -169,6 +208,8 @@ export class ProjectBaselineRepository {
       projectId: input.projectId,
       label: input.label,
       snapshot: input.snapshot,
+      kind: input.kind ?? 'milestones',
+      note: input.note ?? null,
       createdBy: input.createdBy,
       createdAt: sql`current_timestamp(3)`,
     });
@@ -195,6 +236,164 @@ export class ProjectBaselineRepository {
         and(
           eq(projectBaselines.organizationId, context.organizationId),
           eq(projectBaselines.id, baselineId),
+        ),
+      );
+  }
+
+  // ---- 53-05 (0298) ----
+
+  /** How many baselines a project holds (the 50-per-project cap). */
+  async countForProject(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+  ): Promise<number> {
+    const rows = await tenantDrizzle(runner)
+      .select({ n: count() })
+      .from(projectBaselines)
+      .where(
+        and(
+          eq(projectBaselines.organizationId, context.organizationId),
+          eq(projectBaselines.projectId, projectId),
+        ),
+      );
+    return Number(rows[0]?.n ?? 0);
+  }
+
+  /** The project's live (not deleted) work items, id order — the snapshot and variance source. */
+  async listLiveItems(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+    limit: number,
+  ): Promise<readonly LiveBaselineItem[]> {
+    return tenantDrizzle(runner)
+      .select({
+        id: workItems.id,
+        organizationId: workItems.organizationId,
+        projectId: workItems.projectId,
+        title: workItems.title,
+        audience: workItems.audience,
+        state: workItems.state,
+        startAt: workItems.startAt,
+        dueAt: workItems.dueAt,
+        version: workItems.version,
+      })
+      .from(workItems)
+      .where(
+        and(
+          eq(workItems.organizationId, context.organizationId),
+          eq(workItems.projectId, projectId),
+          isNull(workItems.deletedAt),
+        ),
+      )
+      .orderBy(asc(workItems.id))
+      .limit(limit);
+  }
+
+  /** Freeze items into a baseline, in multi-row chunks, inside the caller's transaction. */
+  async insertItems(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    baselineId: string,
+    items: readonly NewBaselineItem[],
+  ): Promise<void> {
+    const db = tenantDrizzle(runner);
+    for (let i = 0; i < items.length; i += ITEM_INSERT_CHUNK) {
+      await db.insert(projectBaselineItems).values(
+        items.slice(i, i + ITEM_INSERT_CHUNK).map((item) => ({
+          id: uuidv7(),
+          organizationId: context.organizationId,
+          baselineId,
+          workItemId: item.workItemId,
+          startAt: item.startAt,
+          dueAt: item.dueAt,
+          durationWorkingDays: item.durationWorkingDays,
+          itemVersion: item.itemVersion,
+          milestoneId: null,
+          createdAt: sql`current_timestamp(3)`,
+        })),
+      );
+    }
+  }
+
+  /** One baseline's frozen items, by work item id. */
+  async listItems(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    baselineId: string,
+  ): Promise<readonly ProjectBaselineItemRow[]> {
+    return tenantDrizzle(runner)
+      .select()
+      .from(projectBaselineItems)
+      .where(
+        and(
+          eq(projectBaselineItems.organizationId, context.organizationId),
+          eq(projectBaselineItems.baselineId, baselineId),
+        ),
+      )
+      .orderBy(asc(projectBaselineItems.workItemId));
+  }
+
+  /** Frozen item counts for the listed baselines. */
+  async itemCounts(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    baselineIds: readonly string[],
+  ): Promise<ReadonlyMap<string, number>> {
+    if (baselineIds.length === 0) return new Map();
+    const rows = await tenantDrizzle(runner)
+      .select({ baselineId: projectBaselineItems.baselineId, n: count() })
+      .from(projectBaselineItems)
+      .where(
+        and(
+          eq(projectBaselineItems.organizationId, context.organizationId),
+          inArray(projectBaselineItems.baselineId, [...baselineIds]),
+        ),
+      )
+      .groupBy(projectBaselineItems.baselineId);
+    return new Map(rows.map((row) => [row.baselineId, Number(row.n)]));
+  }
+
+  /** The project's current baseline, or null. */
+  async findCurrent(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+  ): Promise<ProjectBaselineRow | null> {
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(projectBaselines)
+      .where(
+        and(
+          eq(projectBaselines.organizationId, context.organizationId),
+          eq(projectBaselines.projectId, projectId),
+          eq(projectBaselines.isCurrent, true),
+        ),
+      )
+      .orderBy(desc(projectBaselines.createdAt), desc(projectBaselines.id))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Make `baselineId` the project's only current baseline: one UPDATE over the project's rows, so
+   * two concurrent activations serialise on the row locks and leave exactly one current. Only
+   * `is_current` changes — the 0298 trigger refuses any other column.
+   */
+  async setCurrent(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+    baselineId: string,
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .update(projectBaselines)
+      .set({ isCurrent: sql`case when ${projectBaselines.id} = ${baselineId} then 1 else 0 end` })
+      .where(
+        and(
+          eq(projectBaselines.organizationId, context.organizationId),
+          eq(projectBaselines.projectId, projectId),
         ),
       );
   }

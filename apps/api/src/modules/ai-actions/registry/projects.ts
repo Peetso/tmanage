@@ -66,6 +66,15 @@ export const projectsDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'List project baselines', args: { projectId: 'proj_1' } }],
   }),
   det({
+    id: 'projects.baselines.overlay.get',
+    title: 'Get the current baseline overlay',
+    description:
+      "The current baseline's frozen start and due dates per work item (timeline ghost bars).",
+    input: pathOnly('projectId'),
+    redact: 'standard',
+    examples: [{ summary: 'Get the baseline overlay', args: { projectId: 'proj_1' } }],
+  }),
+  det({
     id: 'projects.baselines.variance.list',
     title: 'List project baselines variance',
     description: 'List project baselines variance.',

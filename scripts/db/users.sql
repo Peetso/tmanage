@@ -2139,3 +2139,13 @@ GRANT SELECT, INSERT ON `tmanage`.`budget_alert_events`             TO 'tmanage_
 GRANT SELECT, UPDATE ON `tmanage`.`project_budgets`                 TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`work_item_time_logs`                     TO 'tmanage_worker'@'%';
 GRANT SELECT, INSERT ON `tmanage`.`budget_alert_events`             TO 'tmanage_worker'@'%';
+
+-- ---- R17-c · 53-05 baselines on the timeline ----
+-- 0298 `project_baseline_items` (tenant): a manager freezes every live item of a project into a
+-- 'full' baseline (INSERT), members read the variance and the Gantt overlay (SELECT), and the rows
+-- go with their baseline (DELETE, and the composite FK's ON DELETE CASCADE). Never UPDATE: a frozen
+-- row is immutable. `project_baselines` gains UPDATE (0162 granted none) for `is_current` only — the
+-- 0298 trigger `trg_project_baselines_only_current` refuses any other column change at the engine.
+-- The worker reads and writes nothing here.
+GRANT SELECT, INSERT, DELETE ON `tmanage`.`project_baseline_items` TO 'tmanage_app'@'%';
+GRANT UPDATE ON `tmanage`.`project_baselines`                      TO 'tmanage_app'@'%';

@@ -1321,6 +1321,22 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'work_item',
     clause: '§12 53-04 — a schedule cascade moved this item’s start and due dates',
   },
+  // ---- R17-c · 53-05 baselines on the timeline ----
+  /** A baseline was saved. Metadata: kind, item and milestone counts; never the label or note. */
+  'baseline.created': {
+    objectType: 'project_baseline',
+    clause: '§12 53-05 — a project schedule baseline was frozen',
+  },
+  /** A baseline became the project's current one (the timeline overlay). */
+  'baseline.activated': {
+    objectType: 'project_baseline',
+    clause: '§12 53-05 — a baseline became the current one the timeline compares against',
+  },
+  /** A baseline (and its frozen items) was deleted. */
+  'baseline.deleted': {
+    objectType: 'project_baseline',
+    clause: '§12 53-05 — a project schedule baseline was deleted',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1553,6 +1569,9 @@ const AUDIT_ACTION_LABELS = {
   'work_item.dependency_added': 'Added a work item dependency',
   'work_item.dependency_changed': 'Changed a work item dependency',
   'work_item.rescheduled': 'Rescheduled a work item through its dependencies',
+  'baseline.created': 'Saved a schedule baseline',
+  'baseline.activated': 'Made a baseline the current one',
+  'baseline.deleted': 'Deleted a schedule baseline',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

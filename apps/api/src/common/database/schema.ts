@@ -2649,6 +2649,11 @@ export const projectBaselines = mysqlTable(
     projectId: char('project_id', { length: 36 }).notNull(),
     label: varchar('label', { length: 300 }).notNull(),
     snapshot: json('snapshot').$type<readonly ProjectBaselineMilestoneSnapshot[]>().notNull(),
+    // ---- R17-c · 53-05 (0298) ---- 'milestones' | 'full' (app-checked); the one current baseline
+    // per project (the only column the 0298 trigger lets change); an internal note.
+    kind: varchar('kind', { length: 12 }).notNull().default('milestones'),
+    isCurrent: boolean('is_current').notNull().default(false),
+    note: varchar('note', { length: 500 }),
     createdBy: char('created_by', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
   },
@@ -12163,3 +12168,41 @@ Object.assign(TABLES, {
   project_budget_phases: projectBudgetPhases,
   budget_alert_events: budgetAlertEvents,
 });
+
+// ---- R17-c · 53-05 baselines on the timeline (0298) ----
+/**
+ * 53-05 (0298). One work item frozen into a 'full' project baseline: civil start/due dates in the
+ * org calendar's zone at snapshot time, the working-day duration and the item's version then.
+ * INSERT-only for the app; removed with its baseline (composite FK, ON DELETE CASCADE). No FK to
+ * `work_items` — a purged item's frozen row is what variance reports as 'removed'.
+ */
+export const projectBaselineItems = mysqlTable(
+  'project_baseline_items',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    baselineId: char('baseline_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    startAt: date('start_at', { mode: 'string' }),
+    dueAt: date('due_at', { mode: 'string' }),
+    durationWorkingDays: smallint('duration_working_days'),
+    itemVersion: int('item_version', { unsigned: true }),
+    milestoneId: char('milestone_id', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_project_baseline_items_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_project_baseline_items_baseline_item').on(
+      table.organizationId,
+      table.baselineId,
+      table.workItemId,
+    ),
+  ],
+);
+
+export type ProjectBaselineItemRow = typeof projectBaselineItems.$inferSelect;
+
+Object.assign(TABLES, {
+  project_baseline_items: projectBaselineItems,
+});
+

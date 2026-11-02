@@ -1217,6 +1217,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0295. Tenant-owned and per user: one person's imported invite suggestions. Every statement
   // also predicates on the caller's `user_id`; the worker never reads it.
   contact_suggestions: 'organization_id',
+  // ---- R17-c · 53-05 ----
+  // 0298. Tenant-owned: the work items frozen into a project baseline. Reached by members through
+  // their own context (work.read reads, project.manage writes); the worker never reads it.
+  project_baseline_items: 'organization_id',
 });
 
 /**

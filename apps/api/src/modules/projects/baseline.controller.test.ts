@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
 import { ProjectBaselineController } from './baseline.controller.js';
-import { ProjectBaselineService, computeDeltaDays } from './baseline.service.js';
+import {
+  MAX_BASELINES_PER_PROJECT,
+  ProjectBaselineService,
+  computeDeltaDays,
+} from './baseline.service.js';
+import type { WorkingCalendarRepository } from '../working-calendar/working-calendar.repository.js';
 import type { ProjectBaselineRepository } from './baseline.repository.js';
 import type { ProjectsRepository } from './projects.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -43,6 +49,7 @@ function principal(
 
 const owner = principal('owner', [], true);
 const managerElsewhere = principal('manager', []);
+const member = principal('member', [PROJECT]);
 const context = { organizationId: ORG, userId: USER } as unknown as TenantContext;
 
 function milestone(id: string, title: string, dueOn: string | null): ProjectMilestoneRow {
@@ -101,11 +108,24 @@ function build(
         projectId: input.projectId,
         label: input.label,
         snapshot: input.snapshot,
+        kind: 'full',
+        isCurrent: false,
+        note: null,
         createdBy: input.createdBy,
         createdAt: new Date(Date.UTC(2026, 0, seq)),
       } as ProjectBaselineRow;
       store.push(row);
       return row;
+    },
+    countForProject: async () => store.length,
+    listLiveItems: async () => [],
+    insertItems: async () => undefined,
+    listItems: async () => [],
+    itemCounts: async () => new Map(),
+    findCurrent: async () => store.find((b) => b.isCurrent) ?? null,
+    requireById: async (_r: unknown, _c: unknown, id: string) => store.find((b) => b.id === id),
+    setCurrent: async (_r: unknown, _c: unknown, _p: string, id: string) => {
+      for (const b of store) (b as { isCurrent: boolean }).isCurrent = b.id === id;
     },
     delete: async (_r: unknown, ctx: TenantContext, id: string) => {
       const i = store.findIndex((b) => b.id === id && b.organizationId === ctx.organizationId);
@@ -119,7 +139,11 @@ function build(
         : null,
   } as unknown as ProjectsRepository;
 
-  const service = new ProjectBaselineService(database, repository, projects);
+  const calendars = {
+    findCalendar: async () => null,
+    organizationTimeZone: async () => 'UTC',
+  } as unknown as WorkingCalendarRepository;
+  const service = new ProjectBaselineService(database, repository, projects, { calendars });
   return { controller: new ProjectBaselineController(service), store, live };
 }
 
@@ -199,6 +223,9 @@ describe('the Known-trap: an unknown or cross-tenant id is a 404, no write, neve
       projectId: 'project-0000-0000-0000-0000-0000000000ee',
       label: 'Other project',
       snapshot: [],
+      kind: 'milestones',
+      isCurrent: false,
+      note: null,
       createdBy: USER,
       createdAt: new Date(),
     } as ProjectBaselineRow;
@@ -209,12 +236,57 @@ describe('the Known-trap: an unknown or cross-tenant id is a 404, no write, neve
   });
 });
 
+describe('53-05 — cap, current baseline, delete-current', () => {
+  it('refuses the 51st baseline of a project with 422', async () => {
+    const seed = Array.from({ length: MAX_BASELINES_PER_PROJECT }, (_, i) => ({
+      id: `b-${i}`,
+      organizationId: ORG,
+      projectId: PROJECT,
+      snapshot: [],
+      createdAt: new Date(),
+    })) as unknown as ProjectBaselineRow[];
+    const { controller } = build([], [PROJECT], seed);
+    await expect(controller.create(context, owner, PROJECT, { label: 'One more' })).rejects.toEqual(
+      expect.objectContaining({ status: 422, auditCode: 'baseline_limit' }),
+    );
+  });
+
+  it('keeps exactly one current baseline and refuses deleting it (409)', async () => {
+    const { controller, store } = build();
+    const a = await controller.create(context, owner, PROJECT, { label: 'A' });
+    const b = await controller.create(context, owner, PROJECT, { label: 'B' });
+    await controller.patch(context, owner, PROJECT, a.id, { isCurrent: true });
+    await controller.patch(context, owner, PROJECT, b.id, { isCurrent: true });
+    expect(store.filter((row) => row.isCurrent).map((row) => row.id)).toEqual([b.id]);
+    await expect(controller.discard(context, owner, PROJECT, b.id)).rejects.toEqual(
+      expect.objectContaining({ status: 409, auditCode: 'baseline_is_current' }),
+    );
+  });
+});
+
 describe('the route ceiling the CapabilityGuard enforces', () => {
-  it('requires project.manage on every route', () => {
+  it('writes need project.manage, reads need work.read; a member reads but cannot PATCH', async () => {
     const cap = (method: unknown) => Reflect.getMetadata(REQUIRED_CAPABILITY, method as object);
-    expect(cap(ProjectBaselineController.prototype.create)).toBe('project.manage');
-    expect(cap(ProjectBaselineController.prototype.list)).toBe('project.manage');
-    expect(cap(ProjectBaselineController.prototype.variance)).toBe('project.manage');
-    expect(cap(ProjectBaselineController.prototype.discard)).toBe('project.manage');
+    const proto = ProjectBaselineController.prototype;
+    for (const write of [proto.create, proto.patch, proto.discard]) {
+      expect(cap(write)).toBe('project.manage');
+    }
+    for (const read of [proto.list, proto.variance, proto.overlay])
+      expect(cap(read)).toBe('work.read');
+
+    const { controller } = build([milestone('m1', 'Design', '2026-03-01')]);
+    const created = await controller.create(context, owner, PROJECT, { label: 'Kickoff' });
+    const seen = await controller.variance(context, member, PROJECT, created.id);
+    expect(seen.baselineId).toBe(created.id);
+    // The guard's 403: a member lacks project.manage on the PATCH route's capability.
+    const resource = {
+      organizationId: ORG,
+      projectId: PROJECT,
+      audience: 'internal' as const,
+      lifecycle: 'active' as const,
+    };
+    expect(authorize({ principal: member, capability: 'project.manage', resource }).allowed).toBe(
+      false,
+    );
   });
 });

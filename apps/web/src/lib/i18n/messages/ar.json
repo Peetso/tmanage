@@ -15850,5 +15850,8 @@
   "AuditActionLabel.rates.repriced": "أعاد تسعير الوقت غير المفوتر",
   "AuditActionLabel.work_item.billable_changed": "غيّر ما إذا كان بند العمل قابلًا للفوترة",
   "AuditActionLabel.contacts.imported": "استورد جهات اتصال لاقتراحات الدعوة",
-  "AuditActionLabel.contacts.cleared": "مسح اقتراحات الدعوة الخاصة به"
+  "AuditActionLabel.contacts.cleared": "مسح اقتراحات الدعوة الخاصة به",
+  "AuditActionLabel.baseline.created": "حفظ خط أساس للجدول الزمني",
+  "AuditActionLabel.baseline.activated": "جعل خط الأساس هو الحالي",
+  "AuditActionLabel.baseline.deleted": "حذف خط أساس للجدول الزمني"
 }

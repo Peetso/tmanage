@@ -18,8 +18,16 @@ export interface ProjectBaselineSummary {
   readonly id: string;
   readonly projectId: string;
   readonly label: string;
+  /** 53-05: an internal note, or null. */
+  readonly note: string | null;
+  /** 53-05: 'milestones' (the milestone plan only) or 'full' (every work item frozen too). */
+  readonly kind: 'milestones' | 'full';
+  /** 53-05: whether this is the project's current baseline (the timeline overlay). */
+  readonly isCurrent: boolean;
   /** How many milestones were frozen into this baseline. */
   readonly milestoneCount: number;
+  /** 53-05: how many work items were frozen into this baseline (0 for a milestone-only one). */
+  readonly itemCount: number;
   readonly createdBy: string;
   /** An ISO-8601 instant. */
   readonly createdAt: string;
@@ -37,11 +45,39 @@ export interface ProjectBaselineVarianceRow {
   readonly deltaDays: number | null;
 }
 
+/** 53-05: one work item's variance against the baseline (dates are `YYYY-MM-DD`). */
+export interface ProjectBaselineItemVariance {
+  readonly workItemId: string;
+  /** The live title when the caller may read the item; null otherwise or when removed. */
+  readonly title: string | null;
+  readonly baselineStart: string | null;
+  readonly baselineDue: string | null;
+  readonly currentStart: string | null;
+  readonly currentDue: string | null;
+  /** Working days of slip (positive = later); null when either side has no date. */
+  readonly deltaWorkingDays: number | null;
+  readonly status: 'slipped' | 'early' | 'on_track' | 'removed' | 'added';
+}
+
+export interface ProjectBaselineVarianceSummary {
+  readonly slipped: number;
+  readonly early: number;
+  readonly onTrack: number;
+  readonly removed: number;
+  readonly added: number;
+  readonly maxSlipDays: number;
+}
+
 export interface ProjectBaselineVariance {
   readonly baselineId: string;
   readonly label: string;
   readonly createdAt: string;
+  /** 53-05: the other baseline compared against, or null when compared to the live plan. */
+  readonly againstBaselineId: string | null;
   readonly rows: readonly ProjectBaselineVarianceRow[];
+  readonly items: readonly ProjectBaselineItemVariance[];
+  readonly summary: ProjectBaselineVarianceSummary;
+  readonly nextCursor: string | null;
 }
 
 export async function listProjectBaselines(
