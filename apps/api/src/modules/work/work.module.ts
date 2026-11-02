@@ -102,6 +102,9 @@ import {
 import { WorkingCalendarRepository } from '../working-calendar/working-calendar.repository.js';
 import { workingCalendarSource } from './item-recurrence.service.js';
 import { RECURRENCE_SPAWNER, RecurrenceSpawner } from './recurrence-spawner.service.js';
+// R18-c (55-25): quick-add resolve (Arabic + English parser, candidate lookup).
+import { QuickAddService } from './quick-add.service.js';
+import { WORK_QUICK_ADD_SERVICE, WorkQuickAddController } from './quick-add.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -377,6 +380,12 @@ export class WorkModule {
         scheduleCascadeService,
         scheduleStatsService,
         recurrenceSpawner,
+        // R18-c (55-25): quick-add resolve — a read over the directory, projects and calendar.
+        {
+          provide: WORK_QUICK_ADD_SERVICE,
+          inject: [TENANT_DATABASE],
+          useFactory: (database: TenantDatabase) => new QuickAddService(database),
+        },
       ],
       exports: [service, recurrenceSpawner],
       controllers: [
@@ -404,6 +413,8 @@ export class WorkModule {
         WorkKeysController,
         // R17-b (53-06): critical path read and recompute.
         ScheduleStatsController,
+        // R18-c (55-25): quick-add resolve.
+        WorkQuickAddController,
       ],
     };
   }

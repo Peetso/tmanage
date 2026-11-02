@@ -1,0 +1,2297 @@
+{
+  "$comment": "55-25 quick-add fixture. 2026-11-05 is a Thursday. Calendars: sun-thu (default), mon-fri, sun-thu-hol (sun-thu with 2026-11-08 and 2026-11-30 off). Numeric dates are d/m.",
+  "people": [
+    "Sara Ahmed",
+    "Sara Ali",
+    "Omar Khaled",
+    "Lina Haddad",
+    "Youssef Nabil",
+    "سارة محمد",
+    "عمر خالد",
+    "العنود السالم",
+    "ليلى حسن",
+    "أحمد يوسف",
+    "نورة العتيبي"
+  ],
+  "projects": [
+    "Website Redesign",
+    "Mobile App",
+    "Q4 Campaign",
+    "Brand Refresh",
+    "إطلاق المتجر",
+    "حملة رمضان"
+  ],
+  "calendars": {
+    "sun-thu": {
+      "workingDays": [0, 1, 2, 3, 4],
+      "holidays": []
+    },
+    "mon-fri": {
+      "workingDays": [1, 2, 3, 4, 5],
+      "holidays": []
+    },
+    "sun-thu-hol": {
+      "workingDays": [0, 1, 2, 3, 4],
+      "holidays": ["2026-11-08", "2026-11-30"]
+    }
+  },
+  "cases": [
+    {
+      "id": "en-001",
+      "lang": "en",
+      "text": "Send the invoice tomorrow",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Send the invoice",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-002",
+      "lang": "en",
+      "text": "Review homepage copy today",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Review homepage copy",
+      "expect": {
+        "date": "2026-11-05"
+      }
+    },
+    {
+      "id": "en-003",
+      "lang": "en",
+      "text": "by Thursday Call the printer",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Call the printer",
+      "expect": {
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "en-004",
+      "lang": "en",
+      "text": "Prepare Q4 deck on Sunday",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Prepare Q4 deck",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-005",
+      "lang": "en",
+      "text": "Fix login bug next week",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Fix login bug",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-006",
+      "lang": "en",
+      "text": "Draft client proposal friday",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Draft client proposal",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-007",
+      "lang": "en",
+      "text": "Update brand guidelines end of month",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Update brand guidelines",
+      "expect": {
+        "date": "2026-11-30"
+      }
+    },
+    {
+      "id": "en-008",
+      "lang": "en",
+      "text": "day after tomorrow Book meeting room",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Book meeting room",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-009",
+      "lang": "en",
+      "text": "Check analytics report 12/11",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Check analytics report",
+      "expect": {
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "en-010",
+      "lang": "en",
+      "text": "Approve banner designs 7/11",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Approve banner designs",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-011",
+      "lang": "en",
+      "text": "Send the invoice 2026-12-24",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Send the invoice",
+      "expect": {
+        "date": "2026-12-24"
+      }
+    },
+    {
+      "id": "en-012",
+      "lang": "en",
+      "text": "Review homepage copy 25/12/2026",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Review homepage copy",
+      "expect": {
+        "date": "2026-12-27"
+      }
+    },
+    {
+      "id": "en-013",
+      "lang": "en",
+      "text": "Nov 12 Call the printer",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Call the printer",
+      "expect": {
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "en-014",
+      "lang": "en",
+      "text": "Prepare Q4 deck in 3 days",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Prepare Q4 deck",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-015",
+      "lang": "en",
+      "text": "Fix login bug in 2 working days",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Fix login bug",
+      "expect": {
+        "date": "2026-11-09"
+      }
+    },
+    {
+      "id": "en-016",
+      "lang": "en",
+      "text": "Draft client proposal @omar p1",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Draft client proposal",
+      "expect": {
+        "owner": "omar",
+        "priority": "p1"
+      }
+    },
+    {
+      "id": "en-017",
+      "lang": "en",
+      "text": "Update brand guidelines for Lina tomorrow",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Update brand guidelines",
+      "expect": {
+        "owner": "Lina",
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-018",
+      "lang": "en",
+      "text": "#website 2h Book meeting room",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Book meeting room",
+      "expect": {
+        "project": "website",
+        "estimate": 120
+      }
+    },
+    {
+      "id": "en-019",
+      "lang": "en",
+      "text": "Check analytics report in project Mobile App 30m",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Check analytics report",
+      "expect": {
+        "project": "Mobile App",
+        "estimate": 30
+      }
+    },
+    {
+      "id": "en-020",
+      "lang": "en",
+      "text": "Approve banner designs urgent",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Approve banner designs",
+      "expect": {
+        "priority": "p1"
+      }
+    },
+    {
+      "id": "en-021",
+      "lang": "en",
+      "text": "Send the invoice p2 1h30m",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Send the invoice",
+      "expect": {
+        "priority": "p2",
+        "estimate": 90
+      }
+    },
+    {
+      "id": "en-022",
+      "lang": "en",
+      "text": "Review homepage copy @youssef #brand-refresh wednesday",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Review homepage copy",
+      "expect": {
+        "owner": "youssef",
+        "project": "brand refresh",
+        "date": "2026-11-11"
+      }
+    },
+    {
+      "id": "en-023",
+      "lang": "en",
+      "text": "for Sara Ahmed by Monday p3 Call the printer",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Call the printer",
+      "expect": {
+        "owner": "Sara Ahmed",
+        "date": "2026-11-09",
+        "priority": "p3"
+      }
+    },
+    {
+      "id": "en-024",
+      "lang": "en",
+      "text": "Prepare Q4 deck tuesday 45 min",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Prepare Q4 deck",
+      "expect": {
+        "date": "2026-11-10",
+        "estimate": 45
+      }
+    },
+    {
+      "id": "en-025",
+      "lang": "en",
+      "text": "Fix login bug @sara_ali 1.5h",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Fix login bug",
+      "expect": {
+        "owner": "sara ali",
+        "estimate": 90
+      }
+    },
+    {
+      "id": "en-026",
+      "lang": "en",
+      "text": "Draft client proposal due Saturday important",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Draft client proposal",
+      "expect": {
+        "date": "2026-11-08",
+        "priority": "p2"
+      }
+    },
+    {
+      "id": "en-027",
+      "lang": "en",
+      "text": "Update brand guidelines next thursday #q4",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Update brand guidelines",
+      "expect": {
+        "date": "2026-11-12",
+        "project": "q4"
+      }
+    },
+    {
+      "id": "en-028",
+      "lang": "en",
+      "text": "in 2 weeks an hour Book meeting room",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Book meeting room",
+      "expect": {
+        "date": "2026-11-19",
+        "estimate": 60
+      }
+    },
+    {
+      "id": "en-029",
+      "lang": "en",
+      "text": "Check analytics report on 5 December low priority",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Check analytics report",
+      "expect": {
+        "date": "2026-12-06",
+        "priority": "p3"
+      }
+    },
+    {
+      "id": "en-030",
+      "lang": "en",
+      "text": "Approve banner designs for Omar Khaled eom half an hour",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Approve banner designs",
+      "expect": {
+        "owner": "Omar Khaled",
+        "date": "2026-11-30",
+        "estimate": 30
+      }
+    },
+    {
+      "id": "en-031",
+      "lang": "en",
+      "text": "Review homepage copy tomorrow",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Review homepage copy",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-032",
+      "lang": "en",
+      "text": "Call the printer today",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Call the printer",
+      "expect": {
+        "date": "2026-11-05"
+      }
+    },
+    {
+      "id": "en-033",
+      "lang": "en",
+      "text": "by Thursday Prepare Q4 deck",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Prepare Q4 deck",
+      "expect": {
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "en-034",
+      "lang": "en",
+      "text": "Fix login bug on Sunday",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Fix login bug",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-035",
+      "lang": "en",
+      "text": "Draft client proposal next week",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Draft client proposal",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-036",
+      "lang": "en",
+      "text": "Update brand guidelines friday",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Update brand guidelines",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-037",
+      "lang": "en",
+      "text": "Book meeting room end of month",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Book meeting room",
+      "expect": {
+        "date": "2026-11-30"
+      }
+    },
+    {
+      "id": "en-038",
+      "lang": "en",
+      "text": "day after tomorrow Check analytics report",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Check analytics report",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-039",
+      "lang": "en",
+      "text": "Approve banner designs 12/11",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Approve banner designs",
+      "expect": {
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "en-040",
+      "lang": "en",
+      "text": "Send the invoice 7/11",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Send the invoice",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-041",
+      "lang": "en",
+      "text": "Review homepage copy 2026-12-24",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Review homepage copy",
+      "expect": {
+        "date": "2026-12-24"
+      }
+    },
+    {
+      "id": "en-042",
+      "lang": "en",
+      "text": "Call the printer 25/12/2026",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Call the printer",
+      "expect": {
+        "date": "2026-12-27"
+      }
+    },
+    {
+      "id": "en-043",
+      "lang": "en",
+      "text": "Nov 12 Prepare Q4 deck",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Prepare Q4 deck",
+      "expect": {
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "en-044",
+      "lang": "en",
+      "text": "Fix login bug in 3 days",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Fix login bug",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-045",
+      "lang": "en",
+      "text": "Draft client proposal in 2 working days",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Draft client proposal",
+      "expect": {
+        "date": "2026-11-09"
+      }
+    },
+    {
+      "id": "en-046",
+      "lang": "en",
+      "text": "Update brand guidelines @omar p1",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Update brand guidelines",
+      "expect": {
+        "owner": "omar",
+        "priority": "p1"
+      }
+    },
+    {
+      "id": "en-047",
+      "lang": "en",
+      "text": "Book meeting room for Lina tomorrow",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Book meeting room",
+      "expect": {
+        "owner": "Lina",
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-048",
+      "lang": "en",
+      "text": "#website 2h Check analytics report",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Check analytics report",
+      "expect": {
+        "project": "website",
+        "estimate": 120
+      }
+    },
+    {
+      "id": "en-049",
+      "lang": "en",
+      "text": "Approve banner designs in project Mobile App 30m",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Approve banner designs",
+      "expect": {
+        "project": "Mobile App",
+        "estimate": 30
+      }
+    },
+    {
+      "id": "en-050",
+      "lang": "en",
+      "text": "Send the invoice urgent",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Send the invoice",
+      "expect": {
+        "priority": "p1"
+      }
+    },
+    {
+      "id": "en-051",
+      "lang": "en",
+      "text": "Review homepage copy p2 1h30m",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Review homepage copy",
+      "expect": {
+        "priority": "p2",
+        "estimate": 90
+      }
+    },
+    {
+      "id": "en-052",
+      "lang": "en",
+      "text": "Call the printer @youssef #brand-refresh wednesday",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Call the printer",
+      "expect": {
+        "owner": "youssef",
+        "project": "brand refresh",
+        "date": "2026-11-11"
+      }
+    },
+    {
+      "id": "en-053",
+      "lang": "en",
+      "text": "for Sara Ahmed by Monday p3 Prepare Q4 deck",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Prepare Q4 deck",
+      "expect": {
+        "owner": "Sara Ahmed",
+        "date": "2026-11-09",
+        "priority": "p3"
+      }
+    },
+    {
+      "id": "en-054",
+      "lang": "en",
+      "text": "Fix login bug tuesday 45 min",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Fix login bug",
+      "expect": {
+        "date": "2026-11-10",
+        "estimate": 45
+      }
+    },
+    {
+      "id": "en-055",
+      "lang": "en",
+      "text": "Draft client proposal @sara_ali 1.5h",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Draft client proposal",
+      "expect": {
+        "owner": "sara ali",
+        "estimate": 90
+      }
+    },
+    {
+      "id": "en-056",
+      "lang": "en",
+      "text": "Update brand guidelines due Saturday important",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Update brand guidelines",
+      "expect": {
+        "date": "2026-11-08",
+        "priority": "p2"
+      }
+    },
+    {
+      "id": "en-057",
+      "lang": "en",
+      "text": "Book meeting room next thursday #q4",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Book meeting room",
+      "expect": {
+        "date": "2026-11-12",
+        "project": "q4"
+      }
+    },
+    {
+      "id": "en-058",
+      "lang": "en",
+      "text": "in 2 weeks an hour Check analytics report",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Check analytics report",
+      "expect": {
+        "date": "2026-11-19",
+        "estimate": 60
+      }
+    },
+    {
+      "id": "en-059",
+      "lang": "en",
+      "text": "Approve banner designs on 5 December low priority",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Approve banner designs",
+      "expect": {
+        "date": "2026-12-06",
+        "priority": "p3"
+      }
+    },
+    {
+      "id": "en-060",
+      "lang": "en",
+      "text": "Send the invoice for Omar Khaled eom half an hour",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Send the invoice",
+      "expect": {
+        "owner": "Omar Khaled",
+        "date": "2026-11-30",
+        "estimate": 30
+      }
+    },
+    {
+      "id": "en-061",
+      "lang": "en",
+      "text": "Call the printer tomorrow",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Call the printer",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-062",
+      "lang": "en",
+      "text": "Prepare Q4 deck today",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Prepare Q4 deck",
+      "expect": {
+        "date": "2026-11-05"
+      }
+    },
+    {
+      "id": "en-063",
+      "lang": "en",
+      "text": "by Thursday Fix login bug",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Fix login bug",
+      "expect": {
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "en-064",
+      "lang": "en",
+      "text": "Draft client proposal on Sunday",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Draft client proposal",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-065",
+      "lang": "en",
+      "text": "Update brand guidelines next week",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Update brand guidelines",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-066",
+      "lang": "en",
+      "text": "Book meeting room friday",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Book meeting room",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-067",
+      "lang": "en",
+      "text": "Check analytics report end of month",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Check analytics report",
+      "expect": {
+        "date": "2026-11-30"
+      }
+    },
+    {
+      "id": "en-068",
+      "lang": "en",
+      "text": "day after tomorrow Approve banner designs",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Approve banner designs",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-069",
+      "lang": "en",
+      "text": "Send the invoice 12/11",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Send the invoice",
+      "expect": {
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "en-070",
+      "lang": "en",
+      "text": "Review homepage copy 7/11",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Review homepage copy",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-071",
+      "lang": "en",
+      "text": "Call Omar tomorrow",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Call Omar",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-072",
+      "lang": "en",
+      "text": "Email for Zed tomorrow",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Email for Zed",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-073",
+      "lang": "en",
+      "text": "@zed review copy",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "@zed review copy",
+      "expect": {}
+    },
+    {
+      "id": "en-074",
+      "lang": "en",
+      "text": "#nowhere kickoff p1",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "#nowhere kickoff",
+      "expect": {
+        "priority": "p1"
+      }
+    },
+    {
+      "id": "en-075",
+      "lang": "en",
+      "text": "Write report for Sara",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Write report",
+      "expect": {
+        "owner": "Sara"
+      }
+    },
+    {
+      "id": "en-076",
+      "lang": "en",
+      "text": "Ship release thursday",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Ship release",
+      "expect": {
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "en-077",
+      "lang": "en",
+      "text": "Ship release tomorrow",
+      "today": "2026-11-05",
+      "calendar": "mon-fri",
+      "title": "Ship release",
+      "expect": {
+        "date": "2026-11-06"
+      }
+    },
+    {
+      "id": "en-078",
+      "lang": "en",
+      "text": "Ship release saturday",
+      "today": "2026-11-05",
+      "calendar": "mon-fri",
+      "title": "Ship release",
+      "expect": {
+        "date": "2026-11-09"
+      }
+    },
+    {
+      "id": "en-079",
+      "lang": "en",
+      "text": "Plan sprint next week",
+      "today": "2026-11-05",
+      "calendar": "mon-fri",
+      "title": "Plan sprint",
+      "expect": {
+        "date": "2026-11-09"
+      }
+    },
+    {
+      "id": "en-080",
+      "lang": "en",
+      "text": "Timesheets end of week",
+      "today": "2026-11-05",
+      "calendar": "mon-fri",
+      "title": "Timesheets",
+      "expect": {
+        "date": "2026-11-06"
+      }
+    },
+    {
+      "id": "en-081",
+      "lang": "en",
+      "text": "Payroll friday",
+      "today": "2026-11-05",
+      "calendar": "mon-fri",
+      "title": "Payroll",
+      "expect": {
+        "date": "2026-11-06"
+      }
+    },
+    {
+      "id": "en-082",
+      "lang": "en",
+      "text": "Courier pickup tomorrow",
+      "today": "2026-11-05",
+      "calendar": "sun-thu-hol",
+      "title": "Courier pickup",
+      "expect": {
+        "date": "2026-11-09"
+      }
+    },
+    {
+      "id": "en-083",
+      "lang": "en",
+      "text": "Close the books end of month",
+      "today": "2026-11-05",
+      "calendar": "sun-thu-hol",
+      "title": "Close the books",
+      "expect": {
+        "date": "2026-11-29"
+      }
+    },
+    {
+      "id": "en-084",
+      "lang": "en",
+      "text": "Kickoff on Sunday",
+      "today": "2026-11-05",
+      "calendar": "sun-thu-hol",
+      "title": "Kickoff",
+      "expect": {
+        "date": "2026-11-09"
+      }
+    },
+    {
+      "id": "en-085",
+      "lang": "en",
+      "text": "Reply to vendor today",
+      "today": "2026-11-06",
+      "calendar": "sun-thu",
+      "title": "Reply to vendor",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-086",
+      "lang": "en",
+      "text": "Weekly review friday",
+      "today": "2026-11-06",
+      "calendar": "sun-thu",
+      "title": "Weekly review",
+      "expect": {
+        "date": "2026-11-15"
+      }
+    },
+    {
+      "id": "en-087",
+      "lang": "en",
+      "text": "Send recap tomorrow",
+      "today": "2026-11-04",
+      "calendar": "sun-thu",
+      "title": "Send recap",
+      "expect": {
+        "date": "2026-11-05"
+      }
+    },
+    {
+      "id": "en-088",
+      "lang": "en",
+      "text": "Send recap day after tomorrow",
+      "today": "2026-11-04",
+      "calendar": "sun-thu",
+      "title": "Send recap",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-089",
+      "lang": "en",
+      "text": "Fix bug (tomorrow)",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Fix bug",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-090",
+      "lang": "en",
+      "text": "Pay rent tomorrow, then call bank",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Pay rent, then call bank",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-091",
+      "lang": "en",
+      "text": "Tomorrow: renew the domain",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "renew the domain",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-092",
+      "lang": "en",
+      "text": "Review العقد tomorrow",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Review العقد",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-093",
+      "lang": "en",
+      "text": "Budget review 1/1",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Budget review",
+      "expect": {
+        "date": "2027-01-03"
+      }
+    },
+    {
+      "id": "en-094",
+      "lang": "en",
+      "text": "Renew SSL in 2 weeks",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Renew SSL",
+      "expect": {
+        "date": "2026-11-19"
+      }
+    },
+    {
+      "id": "en-095",
+      "lang": "en",
+      "text": "Standup notes eow",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Standup notes",
+      "expect": {
+        "date": "2026-11-05"
+      }
+    },
+    {
+      "id": "en-096",
+      "lang": "en",
+      "text": "Invoice 31/2",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Invoice 31/2",
+      "expect": {}
+    },
+    {
+      "id": "en-097",
+      "lang": "en",
+      "text": "Plain task with no tokens",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Plain task with no tokens",
+      "expect": {}
+    },
+    {
+      "id": "en-098",
+      "lang": "en",
+      "text": "Order supplies tomorrow next week",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Order supplies next week",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "en-099",
+      "lang": "en",
+      "text": "Design review for Lina Haddad #mobile 2 hours",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Design review",
+      "expect": {
+        "owner": "Lina Haddad",
+        "project": "mobile",
+        "estimate": 120
+      }
+    },
+    {
+      "id": "en-100",
+      "lang": "en",
+      "text": "Prepare slides by the end of the month p2",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Prepare slides",
+      "expect": {
+        "date": "2026-11-30",
+        "priority": "p2"
+      }
+    },
+    {
+      "id": "ar-001",
+      "lang": "ar",
+      "text": "إرسال الفاتورة غدًا",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "إرسال الفاتورة",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-002",
+      "lang": "ar",
+      "text": "مراجعة محتوى الصفحة غدا",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "مراجعة محتوى الصفحة",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-003",
+      "lang": "ar",
+      "text": "اليوم الاتصال بالمطبعة",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "الاتصال بالمطبعة",
+      "expect": {
+        "date": "2026-11-05"
+      }
+    },
+    {
+      "id": "ar-004",
+      "lang": "ar",
+      "text": "تجهيز عرض الربع الرابع بكرة",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "تجهيز عرض الربع الرابع",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-005",
+      "lang": "ar",
+      "text": "إصلاح خطأ الدخول بعد غد",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "إصلاح خطأ الدخول",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-006",
+      "lang": "ar",
+      "text": "كتابة مقترح العميل الأسبوع القادم",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "كتابة مقترح العميل",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-007",
+      "lang": "ar",
+      "text": "تحديث دليل الهوية يوم الخميس",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "تحديث دليل الهوية",
+      "expect": {
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "ar-008",
+      "lang": "ar",
+      "text": "الأحد حجز قاعة الاجتماعات",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "حجز قاعة الاجتماعات",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-009",
+      "lang": "ar",
+      "text": "مراجعة تقرير التحليلات الاثنين القادم",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "مراجعة تقرير التحليلات",
+      "expect": {
+        "date": "2026-11-09"
+      }
+    },
+    {
+      "id": "ar-010",
+      "lang": "ar",
+      "text": "اعتماد تصاميم البانر حتى الأربعاء",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "اعتماد تصاميم البانر",
+      "expect": {
+        "date": "2026-11-11"
+      }
+    },
+    {
+      "id": "ar-011",
+      "lang": "ar",
+      "text": "إرسال الفاتورة نهاية الشهر",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "إرسال الفاتورة",
+      "expect": {
+        "date": "2026-11-30"
+      }
+    },
+    {
+      "id": "ar-012",
+      "lang": "ar",
+      "text": "مراجعة محتوى الصفحة ١٢/١١",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "مراجعة محتوى الصفحة",
+      "expect": {
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "ar-013",
+      "lang": "ar",
+      "text": "٧/١١ الاتصال بالمطبعة",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "الاتصال بالمطبعة",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-014",
+      "lang": "ar",
+      "text": "تجهيز عرض الربع الرابع ٢٠٢٦-١٢-٢٤",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "تجهيز عرض الربع الرابع",
+      "expect": {
+        "date": "2026-12-24"
+      }
+    },
+    {
+      "id": "ar-015",
+      "lang": "ar",
+      "text": "إصلاح خطأ الدخول ٢٥/١٢/٢٠٢٦",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "إصلاح خطأ الدخول",
+      "expect": {
+        "date": "2026-12-27"
+      }
+    },
+    {
+      "id": "ar-016",
+      "lang": "ar",
+      "text": "كتابة مقترح العميل ۱۲/۱۱",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "كتابة مقترح العميل",
+      "expect": {
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "ar-017",
+      "lang": "ar",
+      "text": "تحديث دليل الهوية ١٢ نوفمبر",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "تحديث دليل الهوية",
+      "expect": {
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "ar-018",
+      "lang": "ar",
+      "text": "بعد ٣ أيام حجز قاعة الاجتماعات",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "حجز قاعة الاجتماعات",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-019",
+      "lang": "ar",
+      "text": "مراجعة تقرير التحليلات بعد يومين عاجل",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "مراجعة تقرير التحليلات",
+      "expect": {
+        "date": "2026-11-08",
+        "priority": "p1"
+      }
+    },
+    {
+      "id": "ar-020",
+      "lang": "ar",
+      "text": "اعتماد تصاميم البانر خلال أسبوع مهم",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "اعتماد تصاميم البانر",
+      "expect": {
+        "date": "2026-11-12",
+        "priority": "p2"
+      }
+    },
+    {
+      "id": "ar-021",
+      "lang": "ar",
+      "text": "إرسال الفاتورة ساعتين",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "إرسال الفاتورة",
+      "expect": {
+        "estimate": 120
+      }
+    },
+    {
+      "id": "ar-022",
+      "lang": "ar",
+      "text": "مراجعة محتوى الصفحة نصف ساعة الجمعة",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "مراجعة محتوى الصفحة",
+      "expect": {
+        "estimate": 30,
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-023",
+      "lang": "ar",
+      "text": "٣ ساعات الثلاثاء الاتصال بالمطبعة",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "الاتصال بالمطبعة",
+      "expect": {
+        "estimate": 180,
+        "date": "2026-11-10"
+      }
+    },
+    {
+      "id": "ar-024",
+      "lang": "ar",
+      "text": "تجهيز عرض الربع الرابع لسارة ساعة ونصف",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "تجهيز عرض الربع الرابع",
+      "expect": {
+        "owner": "سارة",
+        "estimate": 90
+      }
+    },
+    {
+      "id": "ar-025",
+      "lang": "ar",
+      "text": "إصلاح خطأ الدخول للعنود غدا",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "إصلاح خطأ الدخول",
+      "expect": {
+        "owner": "العنود",
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-026",
+      "lang": "ar",
+      "text": "كتابة مقترح العميل @عمر عاجل",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "كتابة مقترح العميل",
+      "expect": {
+        "owner": "عمر",
+        "priority": "p1"
+      }
+    },
+    {
+      "id": "ar-027",
+      "lang": "ar",
+      "text": "تحديث دليل الهوية في مشروع حملة رمضان ٢٠ دقيقة",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "تحديث دليل الهوية",
+      "expect": {
+        "project": "حملة رمضان",
+        "estimate": 20
+      }
+    },
+    {
+      "id": "ar-028",
+      "lang": "ar",
+      "text": "#حملة_رمضان مهم حجز قاعة الاجتماعات",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "حجز قاعة الاجتماعات",
+      "expect": {
+        "project": "حملة رمضان",
+        "priority": "p2"
+      }
+    },
+    {
+      "id": "ar-029",
+      "lang": "ar",
+      "text": "مراجعة تقرير التحليلات لليلى بعد غد ساعتين",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "مراجعة تقرير التحليلات",
+      "expect": {
+        "owner": "ليلى",
+        "date": "2026-11-08",
+        "estimate": 120
+      }
+    },
+    {
+      "id": "ar-030",
+      "lang": "ar",
+      "text": "اعتماد تصاميم البانر لأحمد يوسف في مشروع إطلاق المتجر الخميس",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "اعتماد تصاميم البانر",
+      "expect": {
+        "owner": "أحمد يوسف",
+        "project": "إطلاق المتجر",
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "ar-031",
+      "lang": "ar",
+      "text": "مراجعة محتوى الصفحة غدًا",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "مراجعة محتوى الصفحة",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-032",
+      "lang": "ar",
+      "text": "الاتصال بالمطبعة غدا",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "الاتصال بالمطبعة",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-033",
+      "lang": "ar",
+      "text": "اليوم تجهيز عرض الربع الرابع",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "تجهيز عرض الربع الرابع",
+      "expect": {
+        "date": "2026-11-05"
+      }
+    },
+    {
+      "id": "ar-034",
+      "lang": "ar",
+      "text": "إصلاح خطأ الدخول بكرة",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "إصلاح خطأ الدخول",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-035",
+      "lang": "ar",
+      "text": "كتابة مقترح العميل بعد غد",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "كتابة مقترح العميل",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-036",
+      "lang": "ar",
+      "text": "تحديث دليل الهوية الأسبوع القادم",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "تحديث دليل الهوية",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-037",
+      "lang": "ar",
+      "text": "حجز قاعة الاجتماعات يوم الخميس",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "حجز قاعة الاجتماعات",
+      "expect": {
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "ar-038",
+      "lang": "ar",
+      "text": "الأحد مراجعة تقرير التحليلات",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "مراجعة تقرير التحليلات",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-039",
+      "lang": "ar",
+      "text": "اعتماد تصاميم البانر الاثنين القادم",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "اعتماد تصاميم البانر",
+      "expect": {
+        "date": "2026-11-09"
+      }
+    },
+    {
+      "id": "ar-040",
+      "lang": "ar",
+      "text": "إرسال الفاتورة حتى الأربعاء",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "إرسال الفاتورة",
+      "expect": {
+        "date": "2026-11-11"
+      }
+    },
+    {
+      "id": "ar-041",
+      "lang": "ar",
+      "text": "مراجعة محتوى الصفحة نهاية الشهر",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "مراجعة محتوى الصفحة",
+      "expect": {
+        "date": "2026-11-30"
+      }
+    },
+    {
+      "id": "ar-042",
+      "lang": "ar",
+      "text": "الاتصال بالمطبعة ١٢/١١",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "الاتصال بالمطبعة",
+      "expect": {
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "ar-043",
+      "lang": "ar",
+      "text": "٧/١١ تجهيز عرض الربع الرابع",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "تجهيز عرض الربع الرابع",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-044",
+      "lang": "ar",
+      "text": "إصلاح خطأ الدخول ٢٠٢٦-١٢-٢٤",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "إصلاح خطأ الدخول",
+      "expect": {
+        "date": "2026-12-24"
+      }
+    },
+    {
+      "id": "ar-045",
+      "lang": "ar",
+      "text": "كتابة مقترح العميل ٢٥/١٢/٢٠٢٦",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "كتابة مقترح العميل",
+      "expect": {
+        "date": "2026-12-27"
+      }
+    },
+    {
+      "id": "ar-046",
+      "lang": "ar",
+      "text": "تحديث دليل الهوية ۱۲/۱۱",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "تحديث دليل الهوية",
+      "expect": {
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "ar-047",
+      "lang": "ar",
+      "text": "حجز قاعة الاجتماعات ١٢ نوفمبر",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "حجز قاعة الاجتماعات",
+      "expect": {
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "ar-048",
+      "lang": "ar",
+      "text": "بعد ٣ أيام مراجعة تقرير التحليلات",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "مراجعة تقرير التحليلات",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-049",
+      "lang": "ar",
+      "text": "اعتماد تصاميم البانر بعد يومين عاجل",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "اعتماد تصاميم البانر",
+      "expect": {
+        "date": "2026-11-08",
+        "priority": "p1"
+      }
+    },
+    {
+      "id": "ar-050",
+      "lang": "ar",
+      "text": "إرسال الفاتورة خلال أسبوع مهم",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "إرسال الفاتورة",
+      "expect": {
+        "date": "2026-11-12",
+        "priority": "p2"
+      }
+    },
+    {
+      "id": "ar-051",
+      "lang": "ar",
+      "text": "مراجعة محتوى الصفحة ساعتين",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "مراجعة محتوى الصفحة",
+      "expect": {
+        "estimate": 120
+      }
+    },
+    {
+      "id": "ar-052",
+      "lang": "ar",
+      "text": "الاتصال بالمطبعة نصف ساعة الجمعة",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "الاتصال بالمطبعة",
+      "expect": {
+        "estimate": 30,
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-053",
+      "lang": "ar",
+      "text": "٣ ساعات الثلاثاء تجهيز عرض الربع الرابع",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "تجهيز عرض الربع الرابع",
+      "expect": {
+        "estimate": 180,
+        "date": "2026-11-10"
+      }
+    },
+    {
+      "id": "ar-054",
+      "lang": "ar",
+      "text": "إصلاح خطأ الدخول لسارة ساعة ونصف",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "إصلاح خطأ الدخول",
+      "expect": {
+        "owner": "سارة",
+        "estimate": 90
+      }
+    },
+    {
+      "id": "ar-055",
+      "lang": "ar",
+      "text": "كتابة مقترح العميل للعنود غدا",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "كتابة مقترح العميل",
+      "expect": {
+        "owner": "العنود",
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-056",
+      "lang": "ar",
+      "text": "تحديث دليل الهوية @عمر عاجل",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "تحديث دليل الهوية",
+      "expect": {
+        "owner": "عمر",
+        "priority": "p1"
+      }
+    },
+    {
+      "id": "ar-057",
+      "lang": "ar",
+      "text": "حجز قاعة الاجتماعات في مشروع حملة رمضان ٢٠ دقيقة",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "حجز قاعة الاجتماعات",
+      "expect": {
+        "project": "حملة رمضان",
+        "estimate": 20
+      }
+    },
+    {
+      "id": "ar-058",
+      "lang": "ar",
+      "text": "#حملة_رمضان مهم مراجعة تقرير التحليلات",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "مراجعة تقرير التحليلات",
+      "expect": {
+        "project": "حملة رمضان",
+        "priority": "p2"
+      }
+    },
+    {
+      "id": "ar-059",
+      "lang": "ar",
+      "text": "اعتماد تصاميم البانر لليلى بعد غد ساعتين",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "اعتماد تصاميم البانر",
+      "expect": {
+        "owner": "ليلى",
+        "date": "2026-11-08",
+        "estimate": 120
+      }
+    },
+    {
+      "id": "ar-060",
+      "lang": "ar",
+      "text": "إرسال الفاتورة لأحمد يوسف في مشروع إطلاق المتجر الخميس",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "إرسال الفاتورة",
+      "expect": {
+        "owner": "أحمد يوسف",
+        "project": "إطلاق المتجر",
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "ar-061",
+      "lang": "ar",
+      "text": "الاتصال بالمطبعة غدًا",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "الاتصال بالمطبعة",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-062",
+      "lang": "ar",
+      "text": "تجهيز عرض الربع الرابع غدا",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "تجهيز عرض الربع الرابع",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-063",
+      "lang": "ar",
+      "text": "اليوم إصلاح خطأ الدخول",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "إصلاح خطأ الدخول",
+      "expect": {
+        "date": "2026-11-05"
+      }
+    },
+    {
+      "id": "ar-064",
+      "lang": "ar",
+      "text": "كتابة مقترح العميل بكرة",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "كتابة مقترح العميل",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-065",
+      "lang": "ar",
+      "text": "تحديث دليل الهوية بعد غد",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "تحديث دليل الهوية",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-066",
+      "lang": "ar",
+      "text": "حجز قاعة الاجتماعات الأسبوع القادم",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "حجز قاعة الاجتماعات",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-067",
+      "lang": "ar",
+      "text": "مراجعة تقرير التحليلات يوم الخميس",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "مراجعة تقرير التحليلات",
+      "expect": {
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "ar-068",
+      "lang": "ar",
+      "text": "الأحد اعتماد تصاميم البانر",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "اعتماد تصاميم البانر",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-069",
+      "lang": "ar",
+      "text": "إرسال الفاتورة الاثنين القادم",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "إرسال الفاتورة",
+      "expect": {
+        "date": "2026-11-09"
+      }
+    },
+    {
+      "id": "ar-070",
+      "lang": "ar",
+      "text": "مراجعة محتوى الصفحة حتى الأربعاء",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "مراجعة محتوى الصفحة",
+      "expect": {
+        "date": "2026-11-11"
+      }
+    },
+    {
+      "id": "ar-071",
+      "lang": "ar",
+      "text": "اتصل بعمر غدا",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "اتصل بعمر",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-072",
+      "lang": "ar",
+      "text": "لزياد غدا",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "لزياد",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-073",
+      "lang": "ar",
+      "text": "@زياد مراجعة",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "@زياد مراجعة",
+      "expect": {}
+    },
+    {
+      "id": "ar-074",
+      "lang": "ar",
+      "text": "للمراجعة النهائية غدا",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "للمراجعة النهائية",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-075",
+      "lang": "ar",
+      "text": "مهمة جديدة غدا",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "مهمة جديدة",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-076",
+      "lang": "ar",
+      "text": "الاجتماع الساعة ٣ غدا",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "الاجتماع الساعة ٣",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-077",
+      "lang": "ar",
+      "text": "تسليم التصميم الخميس",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "تسليم التصميم",
+      "expect": {
+        "date": "2026-11-12"
+      }
+    },
+    {
+      "id": "ar-078",
+      "lang": "ar",
+      "text": "مراجعة landing page غدا",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "مراجعة landing page",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-079",
+      "lang": "ar",
+      "text": "‏مراجعة العقد غدا",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "‏مراجعة العقد",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-080",
+      "lang": "ar",
+      "text": "ترتيب الملفات الجمعة",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "ترتيب الملفات",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-081",
+      "lang": "ar",
+      "text": "ترتيب الملفات السبت",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "ترتيب الملفات",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-082",
+      "lang": "ar",
+      "text": "رفع التقرير غدا",
+      "today": "2026-11-05",
+      "calendar": "mon-fri",
+      "title": "رفع التقرير",
+      "expect": {
+        "date": "2026-11-06"
+      }
+    },
+    {
+      "id": "ar-083",
+      "lang": "ar",
+      "text": "رفع التقرير الأسبوع القادم",
+      "today": "2026-11-05",
+      "calendar": "mon-fri",
+      "title": "رفع التقرير",
+      "expect": {
+        "date": "2026-11-09"
+      }
+    },
+    {
+      "id": "ar-084",
+      "lang": "ar",
+      "text": "رفع التقرير السبت",
+      "today": "2026-11-05",
+      "calendar": "mon-fri",
+      "title": "رفع التقرير",
+      "expect": {
+        "date": "2026-11-09"
+      }
+    },
+    {
+      "id": "ar-085",
+      "lang": "ar",
+      "text": "اجتماع الفريق الأحد",
+      "today": "2026-11-05",
+      "calendar": "sun-thu-hol",
+      "title": "اجتماع الفريق",
+      "expect": {
+        "date": "2026-11-09"
+      }
+    },
+    {
+      "id": "ar-086",
+      "lang": "ar",
+      "text": "إقفال الحسابات نهاية الشهر",
+      "today": "2026-11-05",
+      "calendar": "sun-thu-hol",
+      "title": "إقفال الحسابات",
+      "expect": {
+        "date": "2026-11-29"
+      }
+    },
+    {
+      "id": "ar-087",
+      "lang": "ar",
+      "text": "شحن الطلبية بكرة",
+      "today": "2026-11-05",
+      "calendar": "sun-thu-hol",
+      "title": "شحن الطلبية",
+      "expect": {
+        "date": "2026-11-09"
+      }
+    },
+    {
+      "id": "ar-088",
+      "lang": "ar",
+      "text": "الرد على المورد اليوم",
+      "today": "2026-11-06",
+      "calendar": "sun-thu",
+      "title": "الرد على المورد",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-089",
+      "lang": "ar",
+      "text": "المراجعة الأسبوعية الجمعة",
+      "today": "2026-11-06",
+      "calendar": "sun-thu",
+      "title": "المراجعة الأسبوعية",
+      "expect": {
+        "date": "2026-11-15"
+      }
+    },
+    {
+      "id": "ar-090",
+      "lang": "ar",
+      "text": "إرسال الملخص غدا",
+      "today": "2026-11-04",
+      "calendar": "sun-thu",
+      "title": "إرسال الملخص",
+      "expect": {
+        "date": "2026-11-05"
+      }
+    },
+    {
+      "id": "ar-091",
+      "lang": "ar",
+      "text": "تجديد النطاق ١/١",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "تجديد النطاق",
+      "expect": {
+        "date": "2027-01-03"
+      }
+    },
+    {
+      "id": "ar-092",
+      "lang": "ar",
+      "text": "تجديد الشهادة بعد أسبوعين",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "تجديد الشهادة",
+      "expect": {
+        "date": "2026-11-19"
+      }
+    },
+    {
+      "id": "ar-093",
+      "lang": "ar",
+      "text": "تصميم الشعار لنورة العتيبي يوم الثلاثاء ٤٥ دقيقة",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "تصميم الشعار",
+      "expect": {
+        "owner": "نورة العتيبي",
+        "date": "2026-11-10",
+        "estimate": 45
+      }
+    },
+    {
+      "id": "ar-094",
+      "lang": "ar",
+      "text": "مراجعة العقد لعمر خالد، عاجل",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "مراجعة العقد",
+      "expect": {
+        "owner": "عمر خالد",
+        "priority": "p1"
+      }
+    },
+    {
+      "id": "ar-095",
+      "lang": "ar",
+      "text": "Landing page مراجعة غدًا",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "Landing page مراجعة",
+      "expect": {
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "ar-096",
+      "lang": "ar",
+      "text": "مهمة بلا رموز",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "مهمة بلا رموز",
+      "expect": {}
+    },
+    {
+      "id": "ar-097",
+      "lang": "ar",
+      "text": "تحضير العرض نهاية الأسبوع",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "تحضير العرض",
+      "expect": {
+        "date": "2026-11-05"
+      }
+    },
+    {
+      "id": "ar-098",
+      "lang": "ar",
+      "text": "تحضير العرض ٥ ديسمبر",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "تحضير العرض",
+      "expect": {
+        "date": "2026-12-06"
+      }
+    },
+    {
+      "id": "ar-099",
+      "lang": "ar",
+      "text": "كتابة المحضر لـسارة",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "كتابة المحضر",
+      "expect": {
+        "owner": "سارة"
+      }
+    },
+    {
+      "id": "ar-100",
+      "lang": "ar",
+      "text": "متابعة العميل غداً ربع ساعة",
+      "today": "2026-11-05",
+      "calendar": "sun-thu",
+      "title": "متابعة العميل",
+      "expect": {
+        "date": "2026-11-08",
+        "estimate": 15
+      }
+    }
+  ]
+}
