@@ -99,7 +99,9 @@
   color: var(--paper-50);
 }
 
-.tm-ai-panel {
+/* R25 A18: not `.tm-ai-panel` — that is the fixed, 400px AI side panel (`ai-panel/ai-panel.css`),
+   whose global rule pinned this tab panel over the right-hand column. */
+.tm-ai-assistant-panel {
   display: flex;
   flex-direction: column;
   gap: var(--s3);

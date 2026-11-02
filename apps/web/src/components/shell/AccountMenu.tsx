@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { getDisplayPreferences, updateDisplayPreferences } from '../../lib/api/display-preferences';
 import { signOut } from '../../lib/api/session';
 import { authBoundary } from '../../lib/auth-boundary';
 import {
@@ -169,6 +170,17 @@ function AccountMenuPanel({
   const [languagesOpen, setLanguagesOpen] = useState(false);
   const chooseLanguage = (next: (typeof OFFERED_LOCALES)[number]) => {
     activeLocale.set(next);
+    // R25 A6: the workspace now follows the saved preference on every load, so the pick is saved
+    // there too — otherwise the next load would switch back. Best-effort: the in-tab switch above
+    // already happened, and a failed save only means the next load keeps the old language.
+    const api = browserApiClient();
+    void getDisplayPreferences(api, organizationSlug)
+      .then((current) =>
+        current.locale === next
+          ? undefined
+          : updateDisplayPreferences(api, organizationSlug, { ...current, locale: next }),
+      )
+      .catch(() => undefined);
     onClose(true);
   };
 

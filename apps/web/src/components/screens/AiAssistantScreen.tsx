@@ -307,7 +307,7 @@ function AssistantPanel({
       id="tm-ai-panel"
       role="tabpanel"
       aria-labelledby={`tm-ai-tab-${assistant}`}
-      className="tm-ai-panel"
+      className="tm-ai-assistant-panel"
     >
       <ol className="tm-ai-howto">
         {panel.steps.map((step) => (
