@@ -12206,3 +12206,115 @@ Object.assign(TABLES, {
   project_baseline_items: projectBaselineItems,
 });
 
+// ---- R17-d · 52-06 retainers ----
+
+/**
+ * 52-06 (0299). A retainer: an allowance per period (hours and/or an amount in the base currency)
+ * for one client organization. `period`, `rollover`, `billingTiming` and `state` are closed lists
+ * checked in `modules/finance/retainers-rules.ts`. `rateCardId` is reserved for 52-09.
+ */
+export const retainers = mysqlTable(
+  'retainers',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    clientOrganizationId: char('client_organization_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 120 }).notNull(),
+    period: varchar('period', { length: 12 }).notNull().default('monthly'),
+    hoursPerPeriod: int('hours_per_period'),
+    amountPerPeriodMinor: bigint('amount_per_period_minor', { mode: 'number' }),
+    currency: char('currency', { length: 3 }),
+    rollover: varchar('rollover', { length: 12 }).notNull().default('none'),
+    rolloverCapMinutes: int('rollover_cap_minutes'),
+    billingTiming: varchar('billing_timing', { length: 12 }).notNull().default('advance'),
+    startsOn: date('starts_on', { mode: 'string' }).notNull(),
+    endsOn: date('ends_on', { mode: 'string' }),
+    state: varchar('state', { length: 12 }).notNull().default('active'),
+    clientVisible: boolean('client_visible').notNull().default(true),
+    rateCardId: char('rate_card_id', { length: 36 }),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_retainers_org_id').on(table.organizationId, table.id),
+    index('ix_retainers_client_state').on(
+      table.organizationId,
+      table.clientOrganizationId,
+      table.state,
+    ),
+  ],
+);
+
+/** 52-06 (0299). A project a retainer covers; one retainer per project at a time (service 409). */
+export const retainerProjects = mysqlTable(
+  'retainer_projects',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    retainerId: char('retainer_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_retainer_projects_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_retainer_projects_identity').on(
+      table.organizationId,
+      table.retainerId,
+      table.projectId,
+    ),
+    index('ix_retainer_projects_project').on(table.organizationId, table.projectId),
+  ],
+);
+
+/**
+ * 52-06 (0299). One period of a retainer. `(organizationId, retainerId, periodStart)` is unique:
+ * the worker roll's idempotency key. The caches are derived (frozen at close); `invoiceId` is
+ * reserved for 52-09.
+ */
+export const retainerPeriods = mysqlTable(
+  'retainer_periods',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    retainerId: char('retainer_id', { length: 36 }).notNull(),
+    periodStart: date('period_start', { mode: 'string' }).notNull(),
+    periodEnd: date('period_end', { mode: 'string' }).notNull(),
+    allowanceMinutes: int('allowance_minutes').notNull().default(0),
+    rolloverInMinutes: int('rollover_in_minutes').notNull().default(0),
+    usedMinutesCache: int('used_minutes_cache').notNull().default(0),
+    overageMinutesCache: int('overage_minutes_cache').notNull().default(0),
+    state: varchar('state', { length: 12 }).notNull().default('open'),
+    invoiceId: char('invoice_id', { length: 36 }),
+    closedAt: datetime('closed_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_retainer_periods_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_retainer_periods_start').on(
+      table.organizationId,
+      table.retainerId,
+      table.periodStart,
+    ),
+    index('ix_retainer_periods_open').on(table.state, table.periodEnd),
+  ],
+);
+
+/**
+ * 0299's reserved `work_item_time_logs.retainer_period_id`, as a narrow mirror (the
+ * `timeLogPricing` pattern) so `WorkItemTimeLogRow` and its fixtures keep their shape. Never
+ * written in 52-06: attribution is a read-time SUM. Not in `TABLES`.
+ */
+export const timeLogRetainer = mysqlTable('work_item_time_logs', {
+  id: char('id', { length: 36 }).primaryKey(),
+  organizationId: char('organization_id', { length: 36 }).notNull(),
+  retainerPeriodId: char('retainer_period_id', { length: 36 }),
+});
+
+export type RetainerRow = typeof retainers.$inferSelect;
+export type RetainerProjectRow = typeof retainerProjects.$inferSelect;
+export type RetainerPeriodRow = typeof retainerPeriods.$inferSelect;
+
+Object.assign(TABLES, {
+  retainers,
+  retainer_projects: retainerProjects,
+  retainer_periods: retainerPeriods,
+});

@@ -12,6 +12,7 @@ import {
   createSweepScheduler,
   reconcileIntervalMs,
   startBudgetBurn,
+  startRetainerRoll,
   startChannelPosts,
   startWebhookDeliveries,
   sweepIntervalMs,
@@ -371,6 +372,24 @@ test('R16-b: the budget burn sweep runs one pass on start and stops; absent swee
   assert.deepEqual(stores, [{ database: 'pool' }]);
   assert.equal(
     startBudgetBurn({}, 'pool', {}, () => {}),
+    null,
+  );
+});
+
+test('R17-d: the retainer roll runs one pass on start and stops; absent roll is null', async () => {
+  const stores = [];
+  const worker = {
+    createRetainerStore: (database) => ({ database }),
+    sweepRetainerPeriods: async (store) => {
+      stores.push(store);
+      return { closed: 0, refreshed: 1, failed: 0 };
+    },
+  };
+  const stop = startRetainerRoll(worker, 'pool', {}, () => {});
+  await stop();
+  assert.deepEqual(stores, [{ database: 'pool' }]);
+  assert.equal(
+    startRetainerRoll({}, 'pool', {}, () => {}),
     null,
   );
 });

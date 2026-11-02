@@ -15853,5 +15853,11 @@
   "AuditActionLabel.contacts.cleared": "Cleared their invite suggestions",
   "AuditActionLabel.baseline.created": "Saved a schedule baseline",
   "AuditActionLabel.baseline.activated": "Made a baseline the current one",
-  "AuditActionLabel.baseline.deleted": "Deleted a schedule baseline"
+  "AuditActionLabel.baseline.deleted": "Deleted a schedule baseline",
+  "AuditActionLabel.retainer.created": "Created a retainer",
+  "AuditActionLabel.retainer.updated": "Updated a retainer",
+  "AuditActionLabel.retainer.paused": "Paused a retainer",
+  "AuditActionLabel.retainer.resumed": "Resumed a retainer",
+  "AuditActionLabel.retainer.ended": "Ended a retainer",
+  "AuditActionLabel.retainer.period_closed": "Closed a retainer period"
 }

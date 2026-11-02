@@ -1337,6 +1337,34 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'project_baseline',
     clause: '§12 53-05 — a project schedule baseline was deleted',
   },
+  // ---- R17-d · 52-06 retainers ----
+  /** A retainer was created. Metadata: client org, period, hours, rollover, project count, amount. */
+  'retainer.created': {
+    objectType: 'retainer',
+    clause: '§12 52-06 — a client retainer (allowance, period, covered projects) was created',
+  },
+  /** A retainer was edited. Metadata: the changed fields (hours, amount, rollover, visibility). */
+  'retainer.updated': {
+    objectType: 'retainer',
+    clause: '§12 52-06 — a retainer’s allowance, rollover, visibility or projects changed',
+  },
+  'retainer.paused': {
+    objectType: 'retainer',
+    clause: '§12 52-06 — a retainer was paused (its periods stop rolling)',
+  },
+  'retainer.resumed': {
+    objectType: 'retainer',
+    clause: '§12 52-06 — a paused retainer was resumed',
+  },
+  'retainer.ended': {
+    objectType: 'retainer',
+    clause: '§12 52-06 — a retainer was ended (no further period opens)',
+  },
+  /** The hourly roll closed a period. System actor; metadata: period id, used/overage, rollover. */
+  'retainer.period_closed': {
+    objectType: 'retainer',
+    clause: '§12 52-06 — a retainer period closed and its usage was frozen',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -1572,6 +1600,12 @@ const AUDIT_ACTION_LABELS = {
   'baseline.created': 'Saved a schedule baseline',
   'baseline.activated': 'Made a baseline the current one',
   'baseline.deleted': 'Deleted a schedule baseline',
+  'retainer.created': 'Created a retainer',
+  'retainer.updated': 'Updated a retainer',
+  'retainer.paused': 'Paused a retainer',
+  'retainer.resumed': 'Resumed a retainer',
+  'retainer.ended': 'Ended a retainer',
+  'retainer.period_closed': 'Closed a retainer period',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

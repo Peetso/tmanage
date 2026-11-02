@@ -2149,3 +2149,20 @@ GRANT SELECT, INSERT ON `tmanage`.`budget_alert_events`             TO 'tmanage_
 -- The worker reads and writes nothing here.
 GRANT SELECT, INSERT, DELETE ON `tmanage`.`project_baseline_items` TO 'tmanage_app'@'%';
 GRANT UPDATE ON `tmanage`.`project_baselines`                      TO 'tmanage_app'@'%';
+
+-- ---- R17-d · 52-06 retainers ----
+-- 0299 `retainers` / `retainer_periods` (tenant): finance managers create, edit, pause, resume and
+-- end a retainer (SELECT, INSERT, UPDATE) and the create opens its first period; a period's
+-- allowance follows an hours edit (UPDATE). `retainer_projects` (tenant): replace-all on save
+-- (SELECT, INSERT, DELETE; never UPDATE). Nothing deletes a retainer or a period: history. The
+-- hourly period roll reads the retainer and the projects it covers, sums the time logs, closes a
+-- period and opens the next (SELECT, INSERT, UPDATE on `retainer_periods`); `work_item_time_logs`
+-- and `work_items` were already readable and are stated again so the block reads whole.
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`retainers`               TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`retainer_periods`        TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT, DELETE ON `tmanage`.`retainer_projects`       TO 'tmanage_app'@'%';
+GRANT SELECT ON `tmanage`.`retainers`                               TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`retainer_projects`                       TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`work_item_time_logs`                     TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`work_items`                              TO 'tmanage_worker'@'%';
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`retainer_periods`        TO 'tmanage_worker'@'%';

@@ -1221,6 +1221,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0298. Tenant-owned: the work items frozen into a project baseline. Reached by members through
   // their own context (work.read reads, project.manage writes); the worker never reads it.
   project_baseline_items: 'organization_id',
+  // ---- R17-d · 52-06 ----
+  // 0299. Tenant-owned: retainers, the projects they cover and their periods. Reached by members
+  // through their own context; the hourly period roll reads and writes them as `tmanage_worker`,
+  // always naming the organization.
+  retainers: 'organization_id',
+  retainer_projects: 'organization_id',
+  retainer_periods: 'organization_id',
 });
 
 /**

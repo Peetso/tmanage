@@ -15853,5 +15853,11 @@
   "AuditActionLabel.contacts.cleared": "مسح اقتراحات الدعوة الخاصة به",
   "AuditActionLabel.baseline.created": "حفظ خط أساس للجدول الزمني",
   "AuditActionLabel.baseline.activated": "جعل خط الأساس هو الحالي",
-  "AuditActionLabel.baseline.deleted": "حذف خط أساس للجدول الزمني"
+  "AuditActionLabel.baseline.deleted": "حذف خط أساس للجدول الزمني",
+  "AuditActionLabel.retainer.created": "أنشأ عقد خدمة شهري",
+  "AuditActionLabel.retainer.updated": "عدّل عقد خدمة شهري",
+  "AuditActionLabel.retainer.paused": "أوقف عقد خدمة مؤقتًا",
+  "AuditActionLabel.retainer.resumed": "استأنف عقد خدمة",
+  "AuditActionLabel.retainer.ended": "أنهى عقد خدمة",
+  "AuditActionLabel.retainer.period_closed": "أغلق فترة عقد خدمة"
 }

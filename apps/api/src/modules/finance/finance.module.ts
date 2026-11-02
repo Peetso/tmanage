@@ -14,6 +14,10 @@ import { FinanceService } from './finance.service.js';
 import { RATES_SERVICE, RatesController } from './rates.controller.js';
 import { RatesRepository } from './rates.repository.js';
 import { RatesService } from './rates.service.js';
+import { RETAINERS_SERVICE, RetainersController } from './retainers.controller.js';
+import { RetainersRepository } from './retainers.repository.js';
+import { RetainersService } from './retainers.service.js';
+import { PortalRetainersController } from '../portal/portal-retainers.controller.js';
 
 /** The gapless numbering service, for the money items that issue documents (52-09, credit notes). */
 export const DOCUMENT_SEQUENCES = Symbol.for('tmanage.DocumentSequenceService');
@@ -58,10 +62,28 @@ export class FinanceModule {
           audit,
         }),
     };
+    // 52-06 retainers (R17-d); the portal projection's controller sits beside the service it reads.
+    const retainers: Provider = {
+      provide: RETAINERS_SERVICE,
+      inject: [TENANT_DATABASE, AUDIT_SERVICE],
+      useFactory: (database: TenantDatabase, audit: AuditService) =>
+        new RetainersService({
+          database,
+          repository: new RetainersRepository(),
+          finance: repository,
+          audit,
+        }),
+    };
     return {
       module: FinanceModule,
-      providers: [service, sequences, rates, expenses],
-      controllers: [FinanceController, RatesController, ExpensesController],
+      providers: [service, sequences, rates, expenses, retainers],
+      controllers: [
+        FinanceController,
+        RatesController,
+        ExpensesController,
+        RetainersController,
+        PortalRetainersController,
+      ],
       exports: [DOCUMENT_SEQUENCES],
     };
   }

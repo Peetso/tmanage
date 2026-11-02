@@ -93,6 +93,7 @@ import {
   sweepIntervalMs,
   startWebhookDeliveries,
   startBudgetBurn,
+  startRetainerRoll,
   sweepsEnabled,
   workerSweepJobs,
 } from './scheduled-sweeps.mjs';
@@ -499,8 +500,16 @@ async function startScheduledSweeps(env, app) {
   const stopWebhooks = startWebhookDeliveries(worker, database, env, log, serializeForLog);
   // R16-b: the 15-minute budget burn sweep (52-05).
   const stopBudgetBurn = startBudgetBurn(worker, database, env, log, serializeForLog);
+  // R17-d: the hourly retainer period roll (52-06).
+  const stopRetainerRoll = startRetainerRoll(worker, database, env, log, serializeForLog);
   return async () => {
-    await Promise.all([scheduler.stop(), reconciler.stop(), stopWebhooks?.(), stopBudgetBurn?.()]);
+    await Promise.all([
+      scheduler.stop(),
+      reconciler.stop(),
+      stopWebhooks?.(),
+      stopBudgetBurn?.(),
+      stopRetainerRoll?.(),
+    ]);
     await database.end();
   };
 }

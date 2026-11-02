@@ -283,6 +283,44 @@ export function startBudgetBurn(worker, database, env, log, describeError = Stri
   return () => scheduler.stop();
 }
 
+/** R17-d — the retainer period roll's cadence: hourly (52-06 rolls on the org's own midnight). */
+export const RETAINER_ROLL_INTERVAL_MS = 60 * 60_000;
+
+/**
+ * R17-d (52-06) — the retainer period roll, beside {@link startBudgetBurn} and in the same style:
+ * its own hourly scheduler (one pass now). Idempotent across instances: each period is closed under
+ * the retainer row lock and the next is opened against the `(organization_id, retainer_id,
+ * period_start)` key, so a second pass skips. Returns `stop`, or `null` when the worker module does
+ * not offer the roll.
+ */
+export function startRetainerRoll(worker, database, env, log, describeError = String) {
+  if (
+    typeof worker.sweepRetainerPeriods !== 'function' ||
+    typeof worker.createRetainerStore !== 'function'
+  ) {
+    return null;
+  }
+  const scheduler = createSweepScheduler({
+    jobs: [
+      {
+        name: 'retainer-roll',
+        run: () =>
+          worker.sweepRetainerPeriods(worker.createRetainerStore(database), (error) =>
+            log(`sweep retainer-roll period failed: ${describeError(error)}`),
+          ),
+        describe: (result) =>
+          `retainer roll: ${String(result.closed)} closed, ${String(result.refreshed)} refreshed, ${String(result.failed)} failed`,
+        changed: (result) => result.closed > 0 || result.failed > 0,
+      },
+    ],
+    intervalMs: RETAINER_ROLL_INTERVAL_MS,
+    log,
+    describeError,
+  });
+  scheduler.start();
+  return () => scheduler.stop();
+}
+
 /**
  * A small interval scheduler over a list of jobs. Each tick runs every job in order; one job's
  * failure is logged and does not stop the others. A tick that fires while the previous one is

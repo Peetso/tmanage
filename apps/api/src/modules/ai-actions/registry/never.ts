@@ -1863,6 +1863,64 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/projects/:projectId/baselines/:baselineId',
     reason: 'policy_definitions',
   },
+  // ---- R17-d · 52-06 retainers ---- money terms (amount per period, currency) and per-person
+  // effort; the two portal reads are a client's own projection, classed as the budget projection
+  // is. None is an AI tool until the 52-06 MCP ops (`retainers.list/get/usage/create`) are designed.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/client-organizations/:clientOrganizationId/retainers',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/client-organizations/:clientOrganizationId/retainers',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/retainers/:retainerId',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/retainers/:retainerId',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/retainers/:retainerId/pause',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/retainers/:retainerId/resume',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/retainers/:retainerId/end',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/retainers/:retainerId/periods',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/retainers/:retainerId/periods/:periodId/entries',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/retainers/',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/retainers/:retainerId',
+    reason: 'finance_settings',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

@@ -237,3 +237,15 @@ export {
 } from './jobs/budget-burn-sweeper.js';
 export type { BudgetBurnSweepResult } from './jobs/budget-burn-sweeper.js';
 export { createBudgetBurnStore } from './common/database/budget-burn-store.js';
+// R17-d (52-06) — the hourly retainer period roll, exported so the single Hostinger app
+// (`apps/server`) runs it in-process.
+export {
+  RETAINER_ROLL_INTERVAL_MS,
+  decideRetainerRoll,
+  nextRetainerPeriod,
+  retainerPeriodBounds,
+  retainerRolloverIn,
+  sweepRetainerPeriods,
+} from './jobs/retainer-period-roll.js';
+export type { RetainerRollResult, RetainerStore } from './jobs/retainer-period-roll.js';
+export { createRetainerStore } from './common/database/retainer-store.js';
