@@ -21,6 +21,11 @@ export interface PersonAllocationSummary {
   readonly endDate: string | null;
   /** An ISO-8601 instant. */
   readonly createdAt: string;
+  /** 53-08 (R20-b): `tentative` allocations stay out of planned hours until confirmed. */
+  readonly status: 'tentative' | 'confirmed';
+  /** 53-08 (R20-b): explicit weekly hours; null means `percent` of the member's capacity. */
+  readonly hoursPerWeek: number | null;
+  readonly note: string | null;
 }
 
 export async function listPersonAllocations(

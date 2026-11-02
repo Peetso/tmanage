@@ -61,7 +61,21 @@ export interface DisplayPreferencesView {
   readonly numerals: 'latin' | 'arabic_indic';
   /** 55-07 (R18-d): the calendar shown beside dates (display-only); defaults to `gregorian`. */
   readonly calendarDisplay: 'gregorian' | 'gregorian_hijri';
+  /** 55-04 (R20-c): the effective shell mode — the member's own, else (or when locked) the org default. */
+  readonly uiMode: 'simple' | 'power';
+  readonly uiModeSource: 'self' | 'org_default';
+  /** 55-04 (R20-c): the caller's role is locked to the org default; the screen hides the switch. */
+  readonly uiModeLocked: boolean;
 }
+
+/**
+ * The PUT body: the stored settings without the computed 55-04 fields. `uiMode` is the member's own
+ * choice; leaving it out means "inherit the org default".
+ */
+export type DisplayPreferencesUpdate = Omit<
+  DisplayPreferencesView,
+  'uiMode' | 'uiModeSource' | 'uiModeLocked'
+> & { readonly uiMode?: DisplayPreferencesView['uiMode'] };
 
 function path(organizationSlug: string): string {
   return `/v1/organizations/${encodeURIComponent(organizationSlug)}/me/display-preferences`;
@@ -78,7 +92,7 @@ export async function getDisplayPreferences(
 export async function updateDisplayPreferences(
   client: ApiClient,
   organizationSlug: string,
-  settings: DisplayPreferencesView,
+  settings: DisplayPreferencesUpdate,
 ): Promise<DisplayPreferencesView> {
   const { data } = await client.request<DisplayPreferencesView>({
     method: 'PUT',

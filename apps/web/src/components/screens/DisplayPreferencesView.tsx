@@ -50,6 +50,9 @@ const DEFAULTS: DisplayPreferences = {
   dateFormat: 'iso',
   numerals: 'latin',
   calendarDisplay: 'gregorian',
+  uiMode: 'simple',
+  uiModeSource: 'org_default',
+  uiModeLocked: false,
 };
 
 /**
@@ -176,6 +179,8 @@ export function DisplayPreferencesView({
         // 55-07: not edited on this screen yet, so the stored values are sent back unchanged.
         numerals: stored.numerals,
         calendarDisplay: stored.calendarDisplay,
+        // 55-04: keep the member's own mode; an inherited mode is left out so it stays inherited.
+        ...(stored.uiModeSource === 'self' ? { uiMode: stored.uiMode } : {}),
       }),
     onSuccess: (result) => {
       queries.setQueryData(['display-preferences', organizationSlug], result);
