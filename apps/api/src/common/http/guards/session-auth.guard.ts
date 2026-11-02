@@ -28,7 +28,14 @@ import {
   isInProcessRequest,
 } from '../../../modules/mcp/internal-grant.js';
 import type { InternalGrantStore } from '../../../modules/mcp/internal-grant.js';
-import { TOKEN_PREFIX } from '../../../modules/personal-access-tokens/personal-access-token.js';
+import {
+  DEFAULT_PAT_SCOPES,
+  TOKEN_PREFIX,
+  hashAddress,
+  ipAllowed,
+  routeScopeClass,
+  scopesCover,
+} from '../../../modules/personal-access-tokens/personal-access-token.js';
 import {
   MCP_OAUTH_AUTHENTICATOR,
   McpOAuthNotAuthenticatedError,
@@ -105,6 +112,7 @@ export class SessionAuthGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest<{
       readonly ip?: string;
+      readonly method?: string;
       readonly url?: unknown;
       readonly headers: Record<string, string | string[] | undefined>;
       readonly raw?: unknown;
@@ -218,6 +226,7 @@ export class SessionAuthGuard implements CanActivate {
             organizationId: authed.organizationId,
             membershipId: authed.membershipId,
           };
+          this.enforceTokenLimits(request, state, authed);
           return true;
         } catch (error) {
           if (error instanceof PersonalAccessTokenNotAuthenticatedError) {
@@ -280,6 +289,80 @@ export class SessionAuthGuard implements CanActivate {
   }
 
   /**
+   * R13 s3 (56-09). What a personal access token may do, beyond being valid.
+   *
+   * 1. **IP allowlist.** A token limited to addresses/ranges is refused (403) from anywhere else; the
+   *    refusal row carries a hash of the address, never the address.
+   * 2. **Scopes.** On `/mcp` the token's scopes go to the endpoint (the same seam an OAuth grant
+   *    uses), which filters the tool catalogue and refuses a call outside them per tool. Everywhere
+   *    else the route is classified (`read` for GET/HEAD, `write` otherwise, lifted to `manage` or
+   *    `billing` by its path) and a token without that scope answers 403 `insufficient_scope`.
+   *
+   * Scopes only narrow: the capability gate and every object check still run afterwards. A token
+   * whose row predates 0282 (or a test double with no scopes) holds read + write.
+   */
+  private enforceTokenLimits(
+    request: {
+      readonly ip?: string;
+      readonly method?: string;
+      readonly url?: unknown;
+      readonly headers: Record<string, string | string[] | undefined>;
+    },
+    state: ReturnType<typeof requireRequestState>,
+    authed: {
+      readonly tokenId: string;
+      readonly userId: string;
+      readonly organizationId: string;
+      readonly membershipId: string;
+      readonly scopes?: readonly string[];
+      readonly ipAllowlist?: readonly string[];
+    },
+  ): void {
+    const allowlist = authed.ipAllowlist ?? [];
+    if (!ipAllowed(request.ip ?? null, allowlist)) {
+      const hashed = hashAddress(request.ip ?? null);
+      this.recordRefusal(
+        hashed === null ? { headers: request.headers } : { headers: request.headers, ip: hashed },
+        state.correlationId,
+        PAT_IP_DENIED_REASON,
+      );
+      throw new ApiError(
+        403,
+        'forbidden',
+        'This token cannot be used from this network.',
+        undefined,
+        'pat_ip_not_allowed',
+      );
+    }
+    const scopes = authed.scopes ?? DEFAULT_PAT_SCOPES;
+    if (isMcpPath(request.url)) {
+      // The MCP endpoint narrows per tool. Same identity values the endpoint uses for a PAT.
+      const sessionId = `pat:${authed.tokenId}`;
+      recordMcpOAuthAccess(state, {
+        grantId: sessionId,
+        userId: authed.userId,
+        membershipId: authed.membershipId,
+        organizationId: authed.organizationId,
+        scopes: scopes.join(' '),
+        clientId: sessionId,
+        clientName: 'AI assistant',
+      });
+      return;
+    }
+    const routeClass = routeScopeClass(request.method ?? 'GET', request.url);
+    if (!scopesCover(scopes, routeClass)) {
+      this.recordRefusal(request, state.correlationId, PAT_SCOPE_DENIED_REASON);
+      throw new ApiError(
+        403,
+        'forbidden',
+        `This token is not allowed to do that. It needs "${routeClass}" access.`,
+        [{ field: 'scope', message: 'insufficient_scope' }],
+        `insufficient_scope:${routeClass}`,
+      );
+    }
+  }
+
+  /**
    * The 401. On `/mcp` it carries the OAuth challenge (`WWW-Authenticate: Bearer
    * resource_metadata=…`) so an AI client can discover the authorization server from it; every
    * other route keeps the plain 401 it always had.
@@ -326,6 +409,11 @@ export class SessionAuthGuard implements CanActivate {
  * account's session is refused. Sign-in writes the same token (`authentication.service.ts`).
  */
 export const ACCOUNT_DISABLED_REASON = 'account_disabled';
+
+/** R13 s3. `authentication_events.reason` for a token used on a route its scopes do not cover. */
+export const PAT_SCOPE_DENIED_REASON = 'pat.scope_denied';
+/** R13 s3. `authentication_events.reason` for a token used from outside its IP allowlist. */
+export const PAT_IP_DENIED_REASON = 'pat.ip_denied';
 
 /** NV02: at most this many refusal rows per source address per window. */
 export const REFUSAL_ROWS_PER_ADDRESS = 1;

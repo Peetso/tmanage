@@ -1,4 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { DEFAULT_SCOPES, KNOWN_SCOPES, requiredScopeFor } from '../oauth/scopes.js';
+import { isIpv4, isIpv6 } from '../admin/cidr.js';
 
 /**
  * Personal access tokens — the credential an MCP client (Claude Desktop/Code, ChatGPT's
@@ -133,4 +135,139 @@ export function evaluateTokenUsability(lifecycle: TokenLifecycle, now: Date): To
     return { usable: false, reason: 'expired' };
   }
   return { usable: true, reason: null };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// R13 s3 (56-09): scopes, route classes and the per-token IP allowlist — pure.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The scope a token holds when its row predates 0282 or it was created without a list. */
+export const DEFAULT_PAT_SCOPES: readonly string[] = DEFAULT_SCOPES;
+
+/** The class of access a route needs, matching the OAuth short scope names. */
+export type RouteScopeClass = 'read' | 'write' | 'manage' | 'billing';
+
+/** Path segments that lift a route to `manage` (administration, security, policy, roles, people). */
+const MANAGE_SEGMENTS: ReadonlySet<string> = new Set([
+  'admin',
+  'security',
+  'policies',
+  'roles',
+  'members',
+]);
+
+/**
+ * The class a route needs, from its method and path: `read` for GET/HEAD, `write` otherwise, lifted
+ * to `billing` for anything under `/billing` and to `manage` under `/admin`, `/security`,
+ * `/policies`, `/roles` or `/members`. The organization slug (`/v1/organizations/<slug>/…`) is
+ * skipped, so a company named "billing" does not lift every route.
+ */
+export function routeScopeClass(method: string, url: unknown): RouteScopeClass {
+  const base: RouteScopeClass = method === 'GET' || method === 'HEAD' ? 'read' : 'write';
+  const path = typeof url === 'string' ? (url.split('?')[0] ?? '') : '';
+  let segments = path.split('/').filter((segment) => segment !== '');
+  if (segments[0] === 'v1' && segments[1] === 'organizations' && segments.length >= 3) {
+    segments = segments.slice(3);
+  }
+  if (segments.includes('billing')) return 'billing';
+  if (segments.some((segment) => MANAGE_SEGMENTS.has(segment))) return 'manage';
+  return base;
+}
+
+/** Does a token's scope list cover a route class? Scopes only narrow; nothing implies another. */
+export function scopesCover(scopes: readonly string[], routeClass: RouteScopeClass): boolean {
+  const required = requiredScopeFor(routeClass);
+  return required !== null && scopes.includes(required);
+}
+
+/** Parse the stored space-separated scopes; unknown words are dropped, never widened. */
+export function parseStoredScopes(stored: string | null | undefined): readonly string[] {
+  if (stored === null || stored === undefined) return DEFAULT_PAT_SCOPES;
+  const present = new Set(stored.split(/\s+/).filter((s) => s !== ''));
+  return KNOWN_SCOPES.filter((scope) => present.has(scope));
+}
+
+/** Parse the stored IP allowlist JSON; anything unreadable is treated as a list that admits nobody. */
+export function parseStoredIpAllowlist(stored: string | null | undefined): readonly string[] {
+  if (stored === null || stored === undefined || stored.trim() === '') return [];
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    if (Array.isArray(parsed) && parsed.every((entry) => typeof entry === 'string')) {
+      return parsed as string[];
+    }
+  } catch {
+    // fall through: fail closed
+  }
+  return ['invalid'];
+}
+
+/** An address as a family and a big integer, or null. IPv4-mapped IPv6 is read as IPv4. */
+function addressValue(address: string): { family: 4 | 6; value: bigint } | null {
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address);
+  const plain = mapped ? (mapped[1] as string) : address;
+  if (isIpv4(plain)) {
+    const value = plain.split('.').reduce((acc, octet) => (acc << 8n) | BigInt(Number(octet)), 0n);
+    return { family: 4, value };
+  }
+  if (!isIpv6(plain)) return null;
+  let text = plain.toLowerCase();
+  // An embedded IPv4 tail becomes two hextets.
+  const tail = /(\d+\.\d+\.\d+\.\d+)$/.exec(text);
+  if (tail) {
+    const v4 = addressValue(tail[1] as string);
+    if (v4 === null) return null;
+    const hi = ((v4.value >> 16n) & 0xffffn).toString(16);
+    const lo = (v4.value & 0xffffn).toString(16);
+    text = text.slice(0, -(tail[1] as string).length) + `${hi}:${lo}`;
+  }
+  const [head, rest] = text.split('::') as [string, string | undefined];
+  const headParts = head === '' ? [] : head.split(':');
+  const restParts = rest === undefined || rest === '' ? [] : rest.split(':');
+  const fill = rest === undefined ? 0 : 8 - headParts.length - restParts.length;
+  if (fill < 0) return null;
+  const parts = [...headParts, ...Array<string>(fill).fill('0'), ...restParts];
+  if (parts.length !== 8) return null;
+  let value = 0n;
+  for (const part of parts) value = (value << 16n) | BigInt(parseInt(part, 16));
+  return { family: 6, value };
+}
+
+/** Is `address` inside one address-or-CIDR entry (as `admin/cidr.ts` canonicalises them)? */
+export function addressInEntry(address: string, entry: string): boolean {
+  const target = addressValue(address);
+  const slash = entry.indexOf('/');
+  const range = addressValue(slash === -1 ? entry : entry.slice(0, slash));
+  if (target === null || range === null || target.family !== range.family) return false;
+  const width = target.family === 4 ? 32 : 128;
+  const prefix = slash === -1 ? width : Number(entry.slice(slash + 1));
+  if (!Number.isInteger(prefix) || prefix < 0 || prefix > width) return false;
+  const shift = BigInt(width - prefix);
+  return target.value >> shift === range.value >> shift;
+}
+
+/**
+ * Whether a request address may use a token with this allowlist. An empty list admits every
+ * address; a non-empty one admits only addresses inside an entry, and an unknown address is refused.
+ */
+export function ipAllowed(
+  address: string | null | undefined,
+  allowlist: readonly string[],
+): boolean {
+  if (allowlist.length === 0) return true;
+  if (address === null || address === undefined || address === '') return false;
+  return allowlist.some((entry) => addressInEntry(address, entry));
+}
+
+/** A one-way, fixed-length form of an address for audit rows (40 hex chars of SHA-256). */
+export function hashAddress(address: string | null | undefined): string | null {
+  if (address === null || address === undefined || address === '') return null;
+  return createHash('sha256').update(address, 'utf8').digest('hex').slice(0, 40);
+}
+
+/** "Unused for 90 days": no use (or, never used, no creation) in the last 90 days. */
+export const UNUSED_AFTER_DAYS = 90;
+
+export function isUnusedFor90Days(lastUsedAt: Date | null, createdAt: Date, now: Date): boolean {
+  const since = (lastUsedAt ?? createdAt).getTime();
+  return now.getTime() - since >= UNUSED_AFTER_DAYS * 24 * 60 * 60 * 1000;
 }

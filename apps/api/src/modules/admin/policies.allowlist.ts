@@ -19,6 +19,7 @@
  * is the fixed, validated access-policy document only.
  */
 import type { OrgPolicyValue } from '../../common/database/schema.js';
+import { KNOWN_SCOPES } from '../oauth/scopes.js';
 
 // Re-export the stored document type (defined beside its column in schema.ts, the convention every
 // JSON column follows) so the controller, repository and web pair import it from one place.
@@ -30,6 +31,10 @@ export const ORG_POLICY_KEYS = [
   'invite_domain_allowlist',
   'guest_access_enabled',
   'idle_signout_minutes',
+  // R13 s3 (56-09): personal access token policy.
+  'pat.max_expiry_days',
+  'pat.allow_no_expiry',
+  'pat.allowed_scopes',
 ] as const;
 
 export type OrgPolicyKey = (typeof ORG_POLICY_KEYS)[number];
@@ -47,6 +52,44 @@ export const DEFAULT_POLICY: OrgPolicyValue = Object.freeze({
  * from the session's last refresh (`tenant-context.guard.ts`, `SessionService.refresh`).
  */
 export const IDLE_SIGNOUT_CHOICES: readonly number[] = Object.freeze([0, 30, 60, 240, 480]);
+
+/** R13 s3. The longest expiry a token may be given, by default (days). */
+export const DEFAULT_PAT_MAX_EXPIRY_DAYS = 365;
+/** R13 s3. The hard ceiling an owner may raise `pat.max_expiry_days` to: two years. */
+export const PAT_MAX_EXPIRY_CEILING_DAYS = 730;
+
+/** R13 s3. The token policy in force, with every absent key resolved to its default. */
+export interface PatPolicy {
+  readonly maxExpiryDays: number;
+  readonly allowNoExpiry: boolean;
+  readonly allowedScopes: readonly string[];
+}
+
+/**
+ * R13 s3. The personal access token policy for an organization's (normalised) document. Absent keys
+ * take the defaults: 365 days, no never-expiring tokens, all four scopes allowed.
+ */
+export function resolvePatPolicy(policy: OrgPolicyValue): PatPolicy {
+  return {
+    maxExpiryDays: policy['pat.max_expiry_days'] ?? DEFAULT_PAT_MAX_EXPIRY_DAYS,
+    allowNoExpiry: policy['pat.allow_no_expiry'] ?? false,
+    allowedScopes: policy['pat.allowed_scopes'] ?? KNOWN_SCOPES,
+  };
+}
+
+/** R13 s3. A scope list: known scopes only, de-duplicated, in canonical order; null if invalid. */
+function canonicalScopes(raw: unknown): readonly string[] | null {
+  const list =
+    typeof raw === 'string'
+      ? raw.split(/\s+/).filter((s) => s !== '')
+      : Array.isArray(raw)
+        ? raw
+        : null;
+  if (list === null || list.some((s) => typeof s !== 'string' || !KNOWN_SCOPES.includes(s))) {
+    return null;
+  }
+  return Object.freeze(KNOWN_SCOPES.filter((scope) => (list as string[]).includes(scope)));
+}
 
 /** A validator's verdict: the canonical typed value to store, or a message naming what was wrong. */
 export type OrgPolicyFieldValidation =
@@ -136,6 +179,43 @@ const SPECS: Readonly<Record<OrgPolicyKey, OrgPolicySpec>> = Object.freeze({
       return { ok: false, message: 'Enter true or false.' };
     },
   },
+  // R13 s3. Whole days in 1..730; a number or a numeric string.
+  'pat.max_expiry_days': {
+    validate: (raw) => {
+      const value =
+        typeof raw === 'number'
+          ? raw
+          : typeof raw === 'string' && /^\d+$/.test(raw.trim())
+            ? Number(raw.trim())
+            : NaN;
+      if (!Number.isInteger(value) || value < 1 || value > PAT_MAX_EXPIRY_CEILING_DAYS) {
+        return {
+          ok: false,
+          message: `Choose a number of days from 1 to ${PAT_MAX_EXPIRY_CEILING_DAYS}.`,
+        };
+      }
+      return { ok: true, value };
+    },
+  },
+  // R13 s3. A boolean, as guest_access_enabled.
+  'pat.allow_no_expiry': {
+    validate: (raw) => {
+      if (typeof raw === 'boolean') return { ok: true, value: raw };
+      if (raw === 'true') return { ok: true, value: true };
+      if (raw === 'false') return { ok: true, value: false };
+      return { ok: false, message: 'Enter true or false.' };
+    },
+  },
+  // R13 s3. A non-empty list of known scopes (or a space-separated string of them).
+  'pat.allowed_scopes': {
+    validate: (raw) => {
+      const scopes = canonicalScopes(raw);
+      if (scopes === null || scopes.length === 0) {
+        return { ok: false, message: `Choose one or more of: ${KNOWN_SCOPES.join(', ')}.` };
+      }
+      return { ok: true, value: scopes };
+    },
+  },
 });
 
 /** Whether `key` is an allowlisted access policy. Narrows to {@link OrgPolicyKey} for the callers. */
@@ -187,11 +267,18 @@ export function validatePolicyPatch(body: unknown): OrgPolicyPatchResult {
  * and to return.
  */
 export function mergePolicy(base: OrgPolicyValue, patch: Partial<OrgPolicyValue>): OrgPolicyValue {
+  const maxExpiry = patch['pat.max_expiry_days'] ?? base['pat.max_expiry_days'];
+  const allowNoExpiry = patch['pat.allow_no_expiry'] ?? base['pat.allow_no_expiry'];
+  const allowedScopes = patch['pat.allowed_scopes'] ?? base['pat.allowed_scopes'];
   return {
     session_max_hours: patch.session_max_hours ?? base.session_max_hours,
     invite_domain_allowlist: patch.invite_domain_allowlist ?? base.invite_domain_allowlist,
     guest_access_enabled: patch.guest_access_enabled ?? base.guest_access_enabled,
     idle_signout_minutes: patch.idle_signout_minutes ?? base.idle_signout_minutes,
+    // R13 s3: the token keys are written only once set, so an older document reads unchanged.
+    ...(maxExpiry === undefined ? {} : { 'pat.max_expiry_days': maxExpiry }),
+    ...(allowNoExpiry === undefined ? {} : { 'pat.allow_no_expiry': allowNoExpiry }),
+    ...(allowedScopes === undefined ? {} : { 'pat.allowed_scopes': allowedScopes }),
   };
 }
 
@@ -208,6 +295,10 @@ export function normalizePolicy(stored: unknown): OrgPolicyValue {
   const domains = base['invite_domain_allowlist'];
   const guest = base['guest_access_enabled'];
   const idle = base['idle_signout_minutes'];
+  // R13 s3: a token key is carried only when stored and valid; absent, `resolvePatPolicy` defaults it.
+  const maxExpiry = SPECS['pat.max_expiry_days'].validate(base['pat.max_expiry_days']);
+  const allowNoExpiry = base['pat.allow_no_expiry'];
+  const allowedScopes = canonicalScopes(base['pat.allowed_scopes']);
   return {
     session_max_hours:
       typeof hours === 'number' && Number.isInteger(hours)
@@ -222,5 +313,12 @@ export function normalizePolicy(stored: unknown): OrgPolicyValue {
       typeof idle === 'number' && IDLE_SIGNOUT_CHOICES.includes(idle)
         ? idle
         : DEFAULT_POLICY.idle_signout_minutes,
+    ...(maxExpiry.ok && typeof base['pat.max_expiry_days'] === 'number'
+      ? { 'pat.max_expiry_days': maxExpiry.value as number }
+      : {}),
+    ...(typeof allowNoExpiry === 'boolean' ? { 'pat.allow_no_expiry': allowNoExpiry } : {}),
+    ...(allowedScopes !== null && allowedScopes.length > 0
+      ? { 'pat.allowed_scopes': allowedScopes }
+      : {}),
   };
 }

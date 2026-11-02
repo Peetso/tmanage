@@ -257,6 +257,18 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/me/personal-access-tokens/:tokenId',
     reason: 'auth',
   },
+  // R13 s3 (56-09): the owner's org-wide token overview — list and revoke any member's token or
+  // connected app. A credential surface: never an AI tool (B3).
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/security/tokens/',
+    reason: 'auth',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/security/tokens/:id',
+    reason: 'auth',
+  },
   {
     method: 'GET',
     path: '/v1/organizations/address-availability',

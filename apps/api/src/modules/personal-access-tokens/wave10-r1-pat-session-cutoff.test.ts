@@ -77,6 +77,8 @@ function harness(session: SessionState | null) {
     database,
     tokens as unknown as PersonalAccessTokensRepository,
     sessions as unknown as SessionsRepository,
+    // R13 s3: no stored policy — the defaults apply.
+    { find: vi.fn(async () => undefined) },
   );
   return { service, tokens, sessions, order };
 }
@@ -146,9 +148,10 @@ describe('N04 — a token minted while a recovery ends the session does not surv
       sessionId: SESSION,
       userId: USER,
     });
+    // R13 s3: an absent expiry is `undefined` (the 90-day default), no longer `null` (never).
     expect(create).toHaveBeenCalledWith(CONTEXT, PRINCIPAL, {
       name: 'laptop',
-      expiresInDays: null,
+      expiresInDays: undefined,
       sessionId: SESSION,
     });
   });

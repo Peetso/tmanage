@@ -59,6 +59,9 @@ describe('PersonalAccessTokensService.authenticate', () => {
       organizationId: ORG,
       membershipId: MEMBERSHIP,
       userId: USER,
+      // R13 s3: a pre-0282 row (no scopes column read) keeps read + write, never more.
+      scopes: ['tmanage:read', 'tmanage:write'],
+      ipAllowlist: [],
     });
   });
 

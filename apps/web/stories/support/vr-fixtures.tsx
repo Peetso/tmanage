@@ -65,6 +65,8 @@ const EXISTING_TOKEN: PersonalAccessTokenView = {
   expiresAt: '2027-01-13T00:00:00.000Z',
   createdAt: '2026-09-01T09:00:00.000Z',
   revokedAt: null,
+  scopes: ['tmanage:read', 'tmanage:write'],
+  ipAllowlist: [],
 };
 
 const REVOKED_TOKEN: PersonalAccessTokenView = {
@@ -75,6 +77,8 @@ const REVOKED_TOKEN: PersonalAccessTokenView = {
   expiresAt: null,
   createdAt: '2026-07-10T09:00:00.000Z',
   revokedAt: '2026-08-25T10:00:00.000Z',
+  scopes: ['tmanage:read', 'tmanage:write'],
+  ipAllowlist: [],
 };
 
 const CREATED_TOKEN_VIEW: PersonalAccessTokenView = {
@@ -85,6 +89,8 @@ const CREATED_TOKEN_VIEW: PersonalAccessTokenView = {
   expiresAt: null,
   createdAt: '2026-10-17T09:00:00.000Z',
   revokedAt: null,
+  scopes: ['tmanage:read', 'tmanage:write'],
+  ipAllowlist: [],
 };
 
 const CREATED_TOKEN: CreatedPersonalAccessTokenView = {

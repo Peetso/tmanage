@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   Inject,
   Module,
@@ -20,7 +21,13 @@ import {
 } from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { requestState } from '../../common/http/request-state.js';
-import { TENANT_DATABASE } from '../../common/http/tokens.js';
+import { API_CONFIG, TENANT_DATABASE } from '../../common/http/tokens.js';
+import type { ApiConfig } from '../../common/http/api-config.js';
+import {
+  OrgTokensController,
+  ORG_TOKENS_SERVICE,
+  OrgTokensService,
+} from './org-tokens.controller.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuthenticatedSession } from '../identity/session.service.js';
 import { PersonalAccessTokensService } from './personal-access-tokens.service.js';
@@ -66,7 +73,7 @@ const AuthScheme = createParamDecorator(
  * behind a real cookie session (and therefore behind CSRF and the full re-auth posture); a token
  * presented on this route is refused with the generic `forbidden`.
  */
-function requireInteractiveSession(authScheme: string | undefined): void {
+export function requireInteractiveSession(authScheme: string | undefined): void {
   if (authScheme !== 'cookie') {
     throw new ApiError(
       403,
@@ -81,6 +88,10 @@ function requireInteractiveSession(authScheme: string | undefined): void {
 interface CreateTokenBody {
   readonly name?: unknown;
   readonly expiresInDays?: unknown;
+  /** R13 s3: optional scopes (array or space-separated); omitted, read + write. */
+  readonly scopes?: unknown;
+  /** R13 s3: optional IPs / CIDR ranges the token may be used from. */
+  readonly ipAllowlist?: unknown;
 }
 
 @Controller('v1/organizations/:orgSlug/me/personal-access-tokens')
@@ -110,6 +121,7 @@ export class PersonalAccessTokensController {
     @Body() body: CreateTokenBody,
     @AuthScheme() authScheme: string | undefined,
     @CurrentSession() session?: AuthenticatedSession,
+    @Headers('x-reauth-token') reauthToken?: string,
   ): Promise<CreatedPersonalAccessTokenView> {
     requireInteractiveSession(authScheme);
     const name = typeof body?.name === 'string' ? body.name : undefined;
@@ -120,11 +132,15 @@ export class PersonalAccessTokensController {
     }
     const expiresInDays = parseExpiry(body?.expiresInDays);
     // N04 (wave 10): the service re-reads this session after the insert commits and revokes the
-    // new token if a recovery ended the session meanwhile.
+    // new token if a recovery ended the session meanwhile. R13 s3: the org's token policy decides
+    // scopes, expiry (90-day default) and the never-expiring case (which needs the step-up).
     return this.tokens.create(context, principal, {
       name,
       expiresInDays,
       sessionId: session?.sessionId,
+      ...(body?.scopes === undefined ? {} : { scopes: body.scopes }),
+      ...(body?.ipAllowlist === undefined ? {} : { ipAllowlist: body.ipAllowlist }),
+      ...(typeof reauthToken === 'string' && reauthToken !== '' ? { reauthToken } : {}),
     });
   }
 
@@ -148,9 +164,13 @@ export class PersonalAccessTokensController {
   }
 }
 
-/** `expiresInDays` is optional; absent or null means "never expires". Anything else must be a number. */
-function parseExpiry(raw: unknown): number | null {
-  if (raw === undefined || raw === null) return null;
+/**
+ * `expiresInDays` is optional. R13 s3: absent means the 90-day default (`undefined`); an explicit
+ * `null` asks for a token that never expires, which the org policy and a step-up must allow.
+ */
+function parseExpiry(raw: unknown): number | null | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === null) return null;
   if (typeof raw !== 'number') {
     throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
       { field: 'expiresInDays', message: 'must be a number of days, or null' },
@@ -169,13 +189,26 @@ export class PersonalAccessTokensModule {
   static register(): DynamicModule {
     const service: Provider = {
       provide: PERSONAL_ACCESS_TOKENS_SERVICE,
+      inject: [TENANT_DATABASE, API_CONFIG],
+      useFactory: (database: TenantDatabase, config: ApiConfig) =>
+        new PersonalAccessTokensService(
+          database,
+          undefined,
+          undefined,
+          undefined,
+          config.sessionSecret,
+        ),
+    };
+    // R13 s3: the owner's org-wide token overview.
+    const orgTokens: Provider = {
+      provide: ORG_TOKENS_SERVICE,
       inject: [TENANT_DATABASE],
-      useFactory: (database: TenantDatabase) => new PersonalAccessTokensService(database),
+      useFactory: (database: TenantDatabase) => new OrgTokensService(database),
     };
     return {
       module: PersonalAccessTokensModule,
-      providers: [service],
-      controllers: [PersonalAccessTokensController],
+      providers: [service, orgTokens],
+      controllers: [PersonalAccessTokensController, OrgTokensController],
     };
   }
 }

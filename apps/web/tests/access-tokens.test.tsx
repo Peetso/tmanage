@@ -17,6 +17,8 @@ function token(overrides: Partial<PersonalAccessTokenView> = {}): PersonalAccess
     expiresAt: '2026-12-31T00:00:00.000Z',
     revokedAt: null,
     createdAt: '2026-10-02T00:00:00.000Z',
+    scopes: ['tmanage:read', 'tmanage:write'],
+    ipAllowlist: [],
     ...overrides,
   };
 }

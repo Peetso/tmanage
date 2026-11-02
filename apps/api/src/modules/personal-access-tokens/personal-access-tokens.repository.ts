@@ -1,8 +1,8 @@
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { personalAccessTokens } from '../../common/database/schema.js';
+import { personalAccessTokens, users } from '../../common/database/schema.js';
 import type { PersonalAccessTokenRow } from '../../common/database/schema.js';
 import type {
   BootstrapQueryRunner,
@@ -34,6 +34,24 @@ export interface InsertPersonalAccessTokenInput {
   readonly tokenPrefix: string;
   /** The creator-chosen expiry, or `null` for a token that does not expire. */
   readonly expiresAt: Date | null;
+  /** R13 s3. Space-separated scopes; omitted, the column default (read + write). */
+  readonly scopes?: string;
+  /** R13 s3. JSON list of IPs / CIDR ranges, or null for any address. */
+  readonly ipAllowlistJson?: string | null;
+}
+
+/** R13 s3. One live token in the organization, with its creator's name — the owner overview. */
+export interface OrganizationTokenRow {
+  readonly id: string;
+  readonly membershipId: string;
+  readonly userId: string;
+  readonly creatorName: string;
+  readonly name: string;
+  readonly tokenPrefix: string;
+  readonly scopes: string;
+  readonly lastUsedAt: Date | null;
+  readonly expiresAt: Date | null;
+  readonly createdAt: Date;
 }
 
 /** The fields the authentication path needs from a token row, resolved tenant-free by hash. */
@@ -44,6 +62,10 @@ export interface PersonalAccessTokenAuthRow {
   readonly userId: string;
   readonly revokedAt: Date | null;
   readonly expiresAt: Date | null;
+  /** R13 s3 (0282). Stored space-separated scopes; absent on a pre-0282 read. */
+  readonly scopes?: string | null;
+  /** R13 s3 (0282). Stored IP allowlist JSON, or null. */
+  readonly ipAllowlistJson?: string | null;
 }
 
 export class PersonalAccessTokensRepository {
@@ -108,6 +130,8 @@ export class PersonalAccessTokensRepository {
       tokenHash: input.tokenHash,
       tokenPrefix: input.tokenPrefix,
       expiresAt: input.expiresAt,
+      ...(input.scopes === undefined ? {} : { scopes: input.scopes }),
+      ...(input.ipAllowlistJson === undefined ? {} : { ipAllowlistJson: input.ipAllowlistJson }),
       createdAt: sql`current_timestamp(3)`,
     });
     const rows = await db
@@ -160,7 +184,8 @@ export class PersonalAccessTokensRepository {
     tokenHash: string,
   ): Promise<PersonalAccessTokenAuthRow | undefined> {
     const rows = (await runner.query(
-      `SELECT id, organization_id, membership_id, user_id, revoked_at, expires_at
+      `SELECT id, organization_id, membership_id, user_id, revoked_at, expires_at,
+              scopes, ip_allowlist_json
          FROM personal_access_tokens
         WHERE token_hash = ?
         LIMIT 1`,
@@ -177,7 +202,83 @@ export class PersonalAccessTokensRepository {
         row['revoked_at'] == null ? null : new Date(row['revoked_at'] as string | number | Date),
       expiresAt:
         row['expires_at'] == null ? null : new Date(row['expires_at'] as string | number | Date),
+      scopes: row['scopes'] == null ? null : String(row['scopes']),
+      ipAllowlistJson: row['ip_allowlist_json'] == null ? null : String(row['ip_allowlist_json']),
     };
+  }
+
+  /**
+   * R13 s3. Every live (unrevoked, unexpired) token in the acting organization, with its creator's
+   * display name, newest first — the owner's org-wide overview. Scoped on `organization_id`.
+   */
+  async listLiveForOrganization(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    now: Date,
+  ): Promise<readonly OrganizationTokenRow[]> {
+    return tenantDrizzle(runner)
+      .select({
+        id: personalAccessTokens.id,
+        membershipId: personalAccessTokens.membershipId,
+        userId: personalAccessTokens.userId,
+        creatorName: users.displayName,
+        name: personalAccessTokens.name,
+        tokenPrefix: personalAccessTokens.tokenPrefix,
+        scopes: personalAccessTokens.scopes,
+        lastUsedAt: personalAccessTokens.lastUsedAt,
+        expiresAt: personalAccessTokens.expiresAt,
+        createdAt: personalAccessTokens.createdAt,
+      })
+      .from(personalAccessTokens)
+      .innerJoin(users, eq(users.id, personalAccessTokens.userId))
+      .where(
+        and(
+          eq(personalAccessTokens.organizationId, context.organizationId),
+          isNull(personalAccessTokens.revokedAt),
+          or(isNull(personalAccessTokens.expiresAt), gt(personalAccessTokens.expiresAt, now)),
+        ),
+      )
+      .orderBy(desc(personalAccessTokens.id));
+  }
+
+  /**
+   * R13 s3. The owner's revoke: one live token in the acting organization, whoever minted it.
+   * Returns the target's membership (for the audit trail) or `undefined` when nothing changed.
+   */
+  async revokeInOrganization(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    tokenId: string,
+    now: Date,
+  ): Promise<{ readonly membershipId: string; readonly userId: string } | undefined> {
+    const db = tenantDrizzle(runner);
+    const rows = await db
+      .select({
+        membershipId: personalAccessTokens.membershipId,
+        userId: personalAccessTokens.userId,
+      })
+      .from(personalAccessTokens)
+      .where(
+        and(
+          eq(personalAccessTokens.organizationId, context.organizationId),
+          eq(personalAccessTokens.id, tokenId),
+          isNull(personalAccessTokens.revokedAt),
+        ),
+      )
+      .limit(1);
+    const target = rows[0];
+    if (!target) return undefined;
+    const result = await db
+      .update(personalAccessTokens)
+      .set({ revokedAt: now })
+      .where(
+        and(
+          eq(personalAccessTokens.organizationId, context.organizationId),
+          eq(personalAccessTokens.id, tokenId),
+          isNull(personalAccessTokens.revokedAt),
+        ),
+      );
+    return result[0].affectedRows === 1 ? target : undefined;
   }
 
   /**

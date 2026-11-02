@@ -49,6 +49,10 @@ export interface OrgPolicyView {
     readonly invite_domain_allowlist: readonly string[];
     readonly guest_access_enabled: boolean;
     readonly idle_signout_minutes: number;
+    /** R13 s3: personal access token policy; absent means the default (`resolvePatPolicy`). */
+    readonly 'pat.max_expiry_days'?: number;
+    readonly 'pat.allow_no_expiry'?: boolean;
+    readonly 'pat.allowed_scopes'?: readonly string[];
   };
 }
 
@@ -138,6 +142,16 @@ export class PoliciesController {
             guest_access_enabled: merged.guest_access_enabled,
             invite_domain_count: merged.invite_domain_allowlist.length,
             idle_signout_minutes: merged.idle_signout_minutes,
+            // R13 s3: the token policy, when set (numbers and a count — never a list).
+            ...(merged['pat.max_expiry_days'] === undefined
+              ? {}
+              : { pat_max_expiry_days: merged['pat.max_expiry_days'] }),
+            ...(merged['pat.allow_no_expiry'] === undefined
+              ? {}
+              : { pat_allow_no_expiry: merged['pat.allow_no_expiry'] }),
+            ...(merged['pat.allowed_scopes'] === undefined
+              ? {}
+              : { pat_allowed_scope_count: merged['pat.allowed_scopes'].length }),
           },
         });
       }

@@ -155,6 +155,13 @@ export const personalAccessTokens = mysqlTable(
     tokenHash: char('token_hash', { length: 64 }).notNull(),
     /** The safe display hint, e.g. `tmanage_pat_a1b2c3…`; not enough to reconstruct the token. */
     tokenPrefix: varchar('token_prefix', { length: 32 }).notNull(),
+    /**
+     * R13 s3 (0282). Space-separated scopes (`tmanage:read tmanage:write …`, `oauth/scopes.ts`).
+     * The Bearer guard refuses a route whose class the token lacks; scopes only narrow.
+     */
+    scopes: varchar('scopes', { length: 190 }).notNull().default('tmanage:read tmanage:write'),
+    /** R13 s3 (0282). Optional JSON list of IPs / CIDR ranges; NULL or `[]` means any address. */
+    ipAllowlistJson: text('ip_allowlist_json'),
     lastUsedAt: datetime('last_used_at', { mode: 'date', fsp: 3 }),
     expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }),
     revokedAt: datetime('revoked_at', { mode: 'date', fsp: 3 }),
@@ -4857,6 +4864,13 @@ export interface OrgPolicyValue {
   readonly guest_access_enabled: boolean;
   /** R3. Sign out after this many idle minutes (since the last refresh); 0 = Off. */
   readonly idle_signout_minutes: number;
+  /**
+   * R13 s3 (56-09). Personal access token policy. Optional: absent means the default
+   * (`policies.allowlist.ts` `resolvePatPolicy`: 365 days, no never-expiring tokens, all scopes).
+   */
+  readonly 'pat.max_expiry_days'?: number;
+  readonly 'pat.allow_no_expiry'?: boolean;
+  readonly 'pat.allowed_scopes'?: readonly string[];
 }
 
 /**

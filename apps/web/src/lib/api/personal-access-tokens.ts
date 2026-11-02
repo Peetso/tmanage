@@ -21,6 +21,10 @@ export interface PersonalAccessTokenView {
   readonly expiresAt: string | null;
   readonly revokedAt: string | null;
   readonly createdAt: string;
+  /** R13 s3: the scopes the token holds (`tmanage:read` …), in canonical order. */
+  readonly scopes: readonly string[];
+  /** R13 s3: addresses / ranges the token may be used from; empty means any. */
+  readonly ipAllowlist: readonly string[];
 }
 
 /** The create response: the view plus the plaintext, returned exactly once. */
