@@ -40,6 +40,7 @@ import type {
   ClientInvoiceLineRow,
   ClientInvoicePaymentRow,
   ClientInvoiceRow,
+  ClientOrganizationBillingRow,
 } from '../../common/database/schema.js';
 import type {
   TenantContext,
@@ -64,6 +65,7 @@ import {
   invalid,
   invoiceContentHash,
   isoDay,
+  pulledSourceTypes,
   sourceIdsOf,
   validateCreate,
   validateCreditNote,
@@ -95,7 +97,7 @@ import { SigningFailure } from './einvoice-signing.service.js';
 import type { DocumentSignature, EinvoiceSigningService } from './einvoice-signing.service.js';
 import type { OrgSecretsRepository } from './org-secrets.repository.js';
 import type { EinvoiceDocument } from './einvoice-rules.js';
-import { defaultProfile } from './finance-rules.js';
+import { defaultProfile, taxNoticeFor } from './finance-rules.js';
 import type { FinanceProfileValues } from './finance-rules.js';
 import type { FinanceRepository } from './finance.repository.js';
 import { FINANCE_MANAGE, FINANCE_VIEW } from './finance.service.js';
@@ -585,19 +587,27 @@ export class ClientInvoicesService {
       lang === 'en' || lang === 'ar' || lang === 'bi'
         ? lang
         : (view.language as 'en' | 'ar' | 'bi');
+    const org = context.organizationId;
+    // B5: a sent document prints the parties it went out with; a draft previews today's profile
+    // and the client's billing record.
+    const { parties, country } = await this.options.database.read(context, async (r) => {
+      const row = await this.repo.findInvoice(r, org, id);
+      if (row === null) throw notFound();
+      const profile = await this.profile(r, org);
+      if (view.state !== 'draft' && row.sellerSnapshotJson !== null) {
+        const seller = sellerFromSnapshot(row.sellerSnapshotJson);
+        return {
+          parties: printPartiesFromSnapshots(row.sellerSnapshotJson, row.buyerSnapshotJson),
+          country: seller.country ?? profile.country,
+        };
+      }
+      const client = await this.repo.clientBilling(r, org, row.clientOrganizationId);
+      return { parties: printPartiesFromRecords(profile, client), country: profile.country };
+    });
     // A sent document shows the notice it went out with; a draft previews today's rule.
     const notice =
-      view.state === 'draft'
-        ? taxNoticeRequired(
-            (
-              await this.options.database.read(context, (r) =>
-                this.profile(r, context.organizationId),
-              )
-            ).country,
-            view.documentLabel,
-          )
-        : noticeOf(view);
-    return renderPrint(view, language, { notice });
+      view.state === 'draft' ? taxNoticeRequired(country, view.documentLabel) : noticeOf(view);
+    return renderPrint(view, language, { notice, parties, country });
   }
 
   // ---- writes (finance.manage) ----
@@ -766,7 +776,7 @@ export class ClientInvoicesService {
     });
   }
 
-  /** Idempotent on a draft: the pulled lines are replaced, the manual ones kept. */
+  /** Idempotent on a draft: the pulled kinds' lines are replaced; manual and other kinds kept. */
   async pull(
     context: TenantContext,
     principal: Principal,
@@ -782,12 +792,20 @@ export class ClientInvoicesService {
       const profile = await this.profile(tx, org);
       const convert = (amountBaseMinor: number): number =>
         convertMinor(amountBaseMinor, row.fxRate, row.baseCurrency, row.currency);
-      await this.repo.deletePulledLines(tx, org, id);
-      const manual = await this.repo.lines(tx, org, id);
+      // B2: only the kinds this pull asks for are replaced; every other line stays on the draft.
+      const replaced = pulledSourceTypes(input);
+      const existing = await this.repo.lines(tx, org, id);
+      await this.repo.deleteLines(
+        tx,
+        org,
+        id,
+        existing.filter((l) => replaced.has(l.sourceType)).map((l) => l.id),
+      );
+      const kept = existing.filter((l) => !replaced.has(l.sourceType));
       const pulled: PulledLine[] = [];
       let waiting = 0;
       let unpriced = 0;
-      let retainerPeriodId: string | null = null;
+      let retainerPeriodId: string | null = input.retainer ? null : (row.retainerPeriodId ?? null);
       let quoteId: string | null = row.quoteId;
       const client = row.clientOrganizationId;
       if (input.time !== null) {
@@ -849,10 +867,10 @@ export class ClientInvoicesService {
         pulled.push(...quoteLines(quote, input.quote.depositBp));
         quoteId = input.quote.quoteId;
       }
-      if (manual.length + pulled.length > MAX_INVOICE_LINES) {
+      if (kept.length + pulled.length > MAX_INVOICE_LINES) {
         throw invalid('include', `an invoice holds at most ${String(MAX_INVOICE_LINES)} lines`);
       }
-      const start = manual.reduce((max, l) => Math.max(max, l.position + 1), 0);
+      const start = kept.reduce((max, l) => Math.max(max, l.position + 1), 0);
       await this.repo.insertLines(
         tx,
         pulled.map((line, index) => this.lineRow(org, id, start + index, line, at)),
@@ -2041,7 +2059,7 @@ function portalHeader(row: ClientInvoiceRow): PortalInvoiceSummary {
       taxNoticeShown: row.taxNoticeShown === true,
       documentLabel: row.documentLabel,
     })
-      ? taxNoticeCopy(lang)
+      ? taxNoticeFor(sellerFromSnapshot(row.sellerSnapshotJson).country, lang)
       : null,
     taxRegistrationRef: row.taxRegistrationRef ?? null,
     issueDate: row.issueDate,
@@ -2163,11 +2181,138 @@ export function composeInvoiceEmail(facts: {
   };
 }
 
-/** The print view: escaped plain text in a minimal A4 page; both columns when 'bi'. */
+/** B5: one party on the print — the seller (agency) or the buyer (client). */
+export interface PrintParty {
+  readonly nameEn: string | null;
+  readonly nameAr: string | null;
+  readonly taxRegistrationNo: string | null;
+  readonly addressEn: string | null;
+  readonly addressAr: string | null;
+}
+
+export interface PrintParties {
+  readonly seller: PrintParty;
+  readonly buyer: PrintParty;
+}
+
+function snapshotText(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() !== '' ? value : null;
+}
+
+/** A sent invoice: the frozen seller/buyer snapshots. */
+export function printPartiesFromSnapshots(
+  sellerJson: string | null,
+  buyerJson: string | null,
+): PrintParties {
+  const seller = sellerFromSnapshot(sellerJson);
+  let buyer: Record<string, unknown> = {};
+  try {
+    const value: unknown = buyerJson === null ? {} : JSON.parse(buyerJson);
+    if (value !== null && typeof value === 'object') buyer = value as Record<string, unknown>;
+  } catch {
+    buyer = {};
+  }
+  return {
+    seller: {
+      nameEn: seller.legalNameEn,
+      nameAr: seller.legalNameAr,
+      taxRegistrationNo: seller.taxRegistrationNo,
+      addressEn: seller.addressEn,
+      addressAr: seller.addressAr,
+    },
+    buyer: {
+      nameEn: snapshotText(buyer['legalNameEn']) ?? snapshotText(buyer['name']),
+      nameAr: snapshotText(buyer['legalNameAr']),
+      taxRegistrationNo: snapshotText(buyer['taxRegistrationNo']),
+      addressEn: snapshotText(buyer['addressEn']),
+      addressAr: snapshotText(buyer['addressAr']),
+    },
+  };
+}
+
+/** A draft: today's finance profile and the client's billing record. */
+export function printPartiesFromRecords(
+  profile: FinanceProfileValues,
+  client: ClientOrganizationBillingRow | null,
+): PrintParties {
+  return {
+    seller: {
+      nameEn: profile.legalNameEn,
+      nameAr: profile.legalNameAr,
+      taxRegistrationNo: profile.taxRegistrationNo,
+      addressEn: profile.addressEn,
+      addressAr: profile.addressAr,
+    },
+    buyer: {
+      nameEn: client === null ? null : (client.legalNameEn ?? client.name),
+      nameAr: client?.legalNameAr ?? null,
+      taxRegistrationNo: client?.taxRegistrationNo ?? null,
+      addressEn: client?.billingAddressEn ?? null,
+      addressAr: client?.billingAddressAr ?? null,
+    },
+  };
+}
+
+const PRINT_STYLE = [
+  'body{font-family:Manrope,Tahoma,Arial,sans-serif;margin:24px;color:#090a09;font-size:13px;line-height:1.45}',
+  'h1{font-size:22px;margin:0 0 8px}',
+  'h2{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#74786f;margin:0 0 4px}',
+  '.dates{color:#40443d;margin:0 0 16px}',
+  '.parties{display:flex;gap:24px;margin:0 0 20px}',
+  '.party{flex:1;border:1px solid #e9e9e5;border-radius:6px;padding:10px 12px}',
+  '.party p{margin:2px 0}.party .name{font-weight:700}.party .vat{font-variant-numeric:tabular-nums}',
+  'table{width:100%;border-collapse:collapse;margin:0 0 16px}',
+  'th{background:#f4f4f1;font-weight:600}',
+  'td,th{border-bottom:1px solid #e9e9e5;padding:6px;text-align:start;vertical-align:top}',
+  '.totals{margin-inline-start:auto;max-width:320px}.totals p{margin:2px 0;text-align:end}',
+  '.doc-label{display:inline-block;border:1px solid #090a09;border-radius:4px;padding:2px 8px;font-size:14px;vertical-align:middle}',
+  '@page{size:A4;margin:16mm}',
+  '@media print{body{margin:0}}',
+].join('');
+
+/** The seller and buyer boxes: names, VAT number and address in the print's language(s). */
+function partiesBlock(
+  parties: PrintParties,
+  label: (english: string, arabic: string) => string,
+  en: boolean,
+  ar: boolean,
+): string {
+  const e = escapeHtml;
+  const pair = (english: string | null, arabicText: string | null): string => {
+    const parts = [
+      en && english !== null ? e(english) : '',
+      ar && arabicText !== null ? `<span lang="ar" dir="rtl">${e(arabicText)}</span>` : '',
+    ].filter((part) => part !== '');
+    if (parts.length > 0) return parts.join('<br>');
+    // Only the other language was entered: print it rather than an empty line.
+    const fallback = english ?? arabicText;
+    return fallback === null ? '' : e(fallback);
+  };
+  const box = (heading: string, headingAr: string, party: PrintParty): string => {
+    const name = pair(party.nameEn, party.nameAr);
+    const address = pair(party.addressEn, party.addressAr);
+    return [
+      `<section class="party"><h2>${label(heading, headingAr)}</h2>`,
+      name === '' ? '' : `<p class="name">${name}</p>`,
+      party.taxRegistrationNo === null
+        ? ''
+        : `<p class="vat">${label('VAT number', 'الرقم الضريبي')}: ${e(party.taxRegistrationNo)}</p>`,
+      address === '' ? '' : `<p class="address">${address}</p>`,
+      '</section>',
+    ].join('');
+  };
+  return `<div class="parties">${box('From', 'من', parties.seller)}${box('Bill to', 'إلى', parties.buyer)}</div>`;
+}
+
+/** The print view: escaped plain text on an A4 page with the parties; both columns when 'bi'. */
 export function renderPrint(
   view: InvoiceView,
   language: 'en' | 'ar' | 'bi',
-  options: { readonly notice: boolean } = { notice: false },
+  options: {
+    readonly notice: boolean;
+    readonly parties?: PrintParties;
+    readonly country?: string | null;
+  } = { notice: false },
 ): string {
   const e = escapeHtml;
   const en = language !== 'ar';
@@ -2199,19 +2344,22 @@ export function renderPrint(
     `<html lang="${language === 'ar' ? 'ar' : 'en'}" dir="${language === 'ar' ? 'rtl' : 'ltr'}">`,
     '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">',
     `<title>${e(view.number ?? 'Draft')}</title>`,
-    '<style>body{font-family:Manrope,Tahoma,Arial,sans-serif;margin:24px;color:#090a09}table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #e9e9e5;padding:6px;text-align:start;vertical-align:top}.doc-label{display:inline-block;border:1px solid #090a09;border-radius:4px;padding:2px 8px;font-size:14px;vertical-align:middle}@page{size:A4;margin:16mm}</style>',
+    `<style>${PRINT_STYLE}</style>`,
     '</head><body>',
     // 52-28: the label chip at the start of the title line.
     `<h1><span class="doc-label">${label(labelCopy(view.documentLabel, 'en'), labelCopy(view.documentLabel, 'ar'))}</span> ${e(view.number ?? '')}</h1>`,
-    `<p>${label('Issue date', 'تاريخ الإصدار')}: ${e(view.issueDate ?? '')} — ${label('Due date', 'تاريخ الاستحقاق')}: ${e(view.dueDate ?? '')}</p>`,
-    `<table><thead><tr><th>${label('Description', 'الوصف')}</th><th>${label('Qty', 'الكمية')}</th><th>${label('Unit price', 'سعر الوحدة')}</th><th>${label('Tax', 'الضريبة')}</th><th>${label('Amount', 'المبلغ')}</th></tr></thead><tbody>${rows}</tbody></table>`,
+    `<p class="dates">${label('Issue date', 'تاريخ الإصدار')}: ${e(view.issueDate ?? '')} — ${label('Due date', 'تاريخ الاستحقاق')}: ${e(view.dueDate ?? '')}</p>`,
+    options.parties === undefined ? '' : partiesBlock(options.parties, label, en, ar),
+    `<table class="lines"><thead><tr><th>${label('Description', 'الوصف')}</th><th>${label('Qty', 'الكمية')}</th><th>${label('Unit price', 'سعر الوحدة')}</th><th>${label('Tax', 'الضريبة')}</th><th>${label('Amount', 'المبلغ')}</th></tr></thead><tbody>${rows}</tbody></table>`,
+    '<div class="totals">',
     `<p>${label('Subtotal', 'المجموع الفرعي')}: ${money(view.subtotalMinor)}</p>`,
     `<p>${label('Discount', 'الخصم')}: ${money(view.discountMinor)}</p>`,
     `<p>${label('Tax', 'الضريبة')}: ${money(view.taxMinor)}</p>`,
     `<p><strong>${label('Total', 'الإجمالي')}: ${money(view.totalMinor)}</strong></p>`,
     `<p>${label('Amount due', 'المبلغ المستحق')}: ${money(view.amountDueMinor)}</p>`,
+    '</div>',
     options.notice
-      ? `<p class="tax-notice">${label(taxNoticeCopy('en'), taxNoticeCopy('ar'))}</p>`
+      ? `<p class="tax-notice">${label(taxNoticeFor(options.country, 'en'), taxNoticeFor(options.country, 'ar'))}</p>`
       : '',
     `<div>${words}</div>`,
     view.terms === null ? '' : `<p style="white-space:pre-wrap">${e(view.terms)}</p>`,

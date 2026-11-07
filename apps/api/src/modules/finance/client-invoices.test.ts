@@ -153,9 +153,12 @@ function world(
       },
     ],
     waitingMinutes: async () => 120,
-    deletePulledLines: async () => undefined,
+    deleteLines: async (_r: unknown, _o: string, _id: string, ids: readonly string[]) => {
+      const keep = lines.filter((l) => !ids.includes(l.id));
+      lines.splice(0, lines.length, ...keep);
+    },
     insertLines: async (_r: unknown, rows: ClientInvoiceLineRow[]) => {
-      lines.splice(0, lines.length, ...rows);
+      lines.push(...rows);
     },
   } as unknown as ClientInvoicesRepository;
   const transaction = vi.fn(async (_c: unknown, work: (r: unknown) => unknown) => work({}));
@@ -192,7 +195,7 @@ function world(
     webPublicUrl: 'https://tmanage.test',
     now: () => at,
   });
-  return { service, invoice, inserted, linked, transaction, mailer, audit };
+  return { service, invoice, inserted, linked, transaction, mailer, audit, lines };
 }
 
 const meta = { orgSlug: 'studio', idempotencyKey: 'send-1' };
@@ -276,6 +279,17 @@ describe('52-09 client invoices', () => {
       unitPriceMinor: 20_000,
       groupKey: 'person:m9',
     });
+  });
+
+  it('B2: pulling time alone keeps the expense lines already on the draft', async () => {
+    const w = world();
+    w.lines.push({ ...w.lines[0], id: 'e1', position: 1, sourceType: 'expense' } as never);
+    const result = await w.service.pull(context, owner, w.invoice.id, {
+      period: { from: '2026-10-01', to: '2026-10-31' },
+      include: { time: 'by_task' },
+    });
+    expect(result.invoice.lines.map((l) => l.sourceType).sort()).toEqual(['expense', 'time']);
+    expect(result.invoice.lines.find((l) => l.sourceType === 'expense')?.id).toBe('e1');
   });
 });
 
@@ -395,6 +409,57 @@ describe('52-28 tax-document labels', () => {
     expect(html).toContain('Registered reference as entered by the agency');
     expect(html).toContain(zatcaRef);
     expect(html).not.toContain('tax-notice');
+  });
+
+  it('B5/B6: the print names seller, client, VAT numbers and addresses, and only ZATCA on SA', () => {
+    const view = {
+      number: 'INV-2',
+      documentLabel: 'proforma',
+      taxRegistrationRef: null,
+      currency: 'SAR',
+      lines: [],
+      amountInWords: { en: '', ar: '' },
+      terms: null,
+      notes: null,
+      contentHash: null,
+      issueDate: null,
+      dueDate: null,
+      subtotalMinor: 0,
+      discountMinor: 0,
+      taxMinor: 0,
+      totalMinor: 0,
+      amountDueMinor: 0,
+    } as unknown as Parameters<typeof renderPrint>[0];
+    const party = (name: string, vat: string, address: string) => ({
+      nameEn: name,
+      nameAr: null,
+      taxRegistrationNo: vat,
+      addressEn: address,
+      addressAr: null,
+    });
+    const html = renderPrint(view, 'bi', {
+      notice: true,
+      country: 'SA',
+      parties: {
+        seller: party('Studio LLC', '300000000000003', 'Riyadh <1>'),
+        buyer: party('Acme Co', '311111111111113', 'Jeddah'),
+      },
+    });
+    for (const text of [
+      'Studio LLC',
+      '300000000000003',
+      'Riyadh &lt;1&gt;',
+      'Acme Co',
+      '311111111111113',
+      'Jeddah',
+      'VAT number',
+      'class="parties"',
+    ]) {
+      expect(html).toContain(text);
+    }
+    expect(html).toContain('ZATCA');
+    expect(html).not.toContain('ETA');
+    expect(html).not.toContain('مصلحة الضرائب المصرية');
   });
 
   it('AUTH-52-18: the label routes need finance.manage and refuse a client principal', async () => {

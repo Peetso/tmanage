@@ -341,6 +341,19 @@ export function validatePull(raw: unknown): PullInput {
   };
 }
 
+/**
+ * B2: the line kinds a pull replaces — only the ones it asks for. Pulling time alone keeps the
+ * expense, retainer and quote lines already on the draft; manual lines are never replaced.
+ */
+export function pulledSourceTypes(input: PullInput): ReadonlySet<string> {
+  const kinds = new Set<string>();
+  if (input.time !== null) kinds.add('time');
+  if (input.expenses) kinds.add('expense');
+  if (input.retainer) kinds.add('retainer');
+  if (input.quote !== null) kinds.add('quote');
+  return kinds;
+}
+
 export function validateEmail(value: unknown, field: string): string {
   const email = typeof value === 'string' ? value.trim() : '';
   if (email.length > MAX_EMAIL || !EMAIL_SHAPE.test(email)) {

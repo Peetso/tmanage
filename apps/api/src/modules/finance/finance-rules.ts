@@ -5,6 +5,7 @@ import {
   EINVOICE_REGIMES,
   parseAddressJson,
   resolvedRegime,
+  taxNoticeCopy,
   VAT_REGISTRATION_STATUSES,
 } from '@tmanage/domain';
 import type { EinvoiceRegime, StructuredAddress, VatRegistrationStatus } from '@tmanage/domain';
@@ -428,4 +429,28 @@ export function profileChanges(
     });
   }
   return changes;
+}
+
+/**
+ * B6: the "not a tax invoice" line names only the authority of the seller's country — ZATCA for
+ * KSA, ETA for Egypt; any other country keeps the shared two-authority wording.
+ */
+const TAX_NOTICE_BY_COUNTRY: Readonly<
+  Record<string, { readonly en: string; readonly ar: string }>
+> = {
+  SA: {
+    en: 'This document is not a tax invoice. A tax invoice will follow once it is registered with ZATCA.',
+    ar: 'هذه الوثيقة ليست فاتورة ضريبية. سيتم إصدار الفاتورة الضريبية بعد تسجيلها لدى هيئة الزكاة والضريبة والجمارك.',
+  },
+  EG: {
+    en: 'This document is not a tax invoice. A tax invoice will follow once it is registered with ETA.',
+    ar: 'هذه الوثيقة ليست فاتورة ضريبية. سيتم إصدار الفاتورة الضريبية بعد تسجيلها لدى مصلحة الضرائب المصرية.',
+  },
+};
+
+export function taxNoticeFor(country: string | null | undefined, lang: 'en' | 'ar' | 'bi'): string {
+  const copy = TAX_NOTICE_BY_COUNTRY[(country ?? '').toUpperCase()];
+  if (copy === undefined) return taxNoticeCopy(lang);
+  if (lang === 'bi') return `${copy.en}\n${copy.ar}`;
+  return copy[lang];
 }
