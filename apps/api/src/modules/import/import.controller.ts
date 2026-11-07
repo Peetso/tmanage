@@ -8,6 +8,7 @@ import type { TenantContext } from '../../common/database/tenant-context.js';
 import { parseImportCommitBody, parseImportValidationBody } from './import-input.js';
 import type {
   ImportCommitView,
+  ImportJobListView,
   ImportService,
   ImportUndoView,
   ImportValidationView,
@@ -94,6 +95,18 @@ export class ImportController {
     @Inject(JIRA_FETCHER)
     private readonly jiraFetch: JiraFetch = (url, init) => fetch(url, init),
   ) {}
+
+  /**
+   * R31 (A11) — `GET …/imports`: the tenant's recent committed imports, newest first, for the
+   * import start page (history, receipt links, undo). The live 404 on this path was a missing
+   * route, not a prefix problem: the module only served the validate / commit / receipt / undo
+   * sub-paths. `org.manage`, the same coarse gate as every sibling import route.
+   */
+  @Get()
+  @RequireCapability('org.manage')
+  async list(@Ctx() context: TenantContext): Promise<ImportJobListView> {
+    return this.imports.listRecent(context);
+  }
 
   @Post('validations')
   @RequireCapability('org.manage')

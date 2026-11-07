@@ -158,6 +158,33 @@ export interface ImportUndoView {
   readonly undoneAt: string;
 }
 
+/**
+ * R31 (A11) — one committed import in `GET …/imports`, the import start page's history row.
+ * `undoAvailableUntil` is the window end when the job is committed, not undone, inside 7 days
+ * and not a `project` import (projects cannot be undone); the undo route still re-checks every
+ * created row, so this is a hint for the button, never the gate.
+ */
+export interface ImportJobSummaryView {
+  readonly jobId: string;
+  readonly sourceKind: ImportSourceKind;
+  readonly status: ImportCommitStatus;
+  readonly totalCount: number;
+  readonly committedCount: number;
+  readonly failedCount: number;
+  readonly createdAt: string;
+  readonly committedAt: string | null;
+  readonly undoneAt: string | null;
+  readonly undoAvailableUntil: string | null;
+}
+
+/** R31 (A11) — `GET …/imports`: the most recent committed imports, newest first. */
+export interface ImportJobListView {
+  readonly jobs: readonly ImportJobSummaryView[];
+}
+
+/** How many recent imports the start page lists. */
+export const RECENT_IMPORTS_LIMIT = 20;
+
 /** 54-24: the one-click undo is open for 7 days after the commit ("longer via support"). */
 export const IMPORT_UNDO_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -479,6 +506,15 @@ export class ImportService {
         error: row.errorDetail,
       })),
     };
+  }
+
+  /** R31 (A11) — the tenant's recent committed imports for the start page (`org.manage`). */
+  async listRecent(context: TenantContext): Promise<ImportJobListView> {
+    const jobs = await this.database.read(context, (runner) =>
+      this.jobs.listRecentCommitted(runner, context, RECENT_IMPORTS_LIMIT),
+    );
+    const now = this.importDeps.now().getTime();
+    return { jobs: jobs.map((job) => importJobSummary(job, now)) };
   }
 
   /**
@@ -804,4 +840,33 @@ function undoAvailableUntil(
     (row) => row.outcome === 'created' && (row.entityType === null || row.entityType === 'project'),
   );
   return unsupported ? null : new Date(until).toISOString();
+}
+
+/** R31 (A11) — one `import_jobs` row as a history entry (see {@link ImportJobSummaryView}). */
+export function importJobSummary(
+  job: {
+    readonly id: string;
+    readonly sourceKind: string;
+    readonly status: string;
+    readonly totalCount: number;
+    readonly committedCount: number | null;
+    readonly failedCount: number | null;
+    readonly createdAt: Date;
+    readonly committedAt: Date | null;
+    readonly undoneAt: Date | null;
+  },
+  now: number,
+): ImportJobSummaryView {
+  return {
+    jobId: job.id,
+    sourceKind: job.sourceKind as ImportSourceKind,
+    status: job.status === 'committed' ? 'committed' : 'committed_with_errors',
+    totalCount: job.totalCount,
+    committedCount: job.committedCount ?? 0,
+    failedCount: job.failedCount ?? 0,
+    createdAt: job.createdAt.toISOString(),
+    committedAt: job.committedAt === null ? null : job.committedAt.toISOString(),
+    undoneAt: job.undoneAt === null ? null : job.undoneAt.toISOString(),
+    undoAvailableUntil: job.sourceKind === 'project' ? null : undoAvailableUntil(job, [], now),
+  };
 }

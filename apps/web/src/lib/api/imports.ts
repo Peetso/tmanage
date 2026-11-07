@@ -84,3 +84,125 @@ export async function fetchImportReceipt(
   });
   return data;
 }
+
+/** The source kinds the import API understands — pairs with the API's `ImportSourceKind`. */
+export type ImportSourceKind = 'project' | 'jira_issues' | 'notion_database' | 'basecamp_messages';
+
+/**
+ * R31 (A11) — one recent committed import on the start page — pairs with the API's
+ * `ImportJobSummaryView`. `undoAvailableUntil` is a hint for the undo button; the undo route
+ * re-checks everything.
+ */
+export interface ImportJobSummary {
+  readonly jobId: string;
+  readonly sourceKind: ImportSourceKind;
+  readonly status: 'committed' | 'committed_with_errors';
+  readonly totalCount: number;
+  readonly committedCount: number;
+  readonly failedCount: number;
+  readonly createdAt: string;
+  readonly committedAt: string | null;
+  readonly undoneAt: string | null;
+  readonly undoAvailableUntil: string | null;
+}
+
+/** R31 (A11) — `GET …/imports` — pairs with the API's `ImportJobListView`. */
+export interface ImportJobList {
+  readonly jobs: readonly ImportJobSummary[];
+}
+
+/** One row's problems in a validation report — pairs with the API's `RowValidationError`. */
+export interface ImportRowProblem {
+  readonly row: number;
+  readonly errors: readonly { readonly field: string; readonly message: string }[];
+}
+
+/** `POST …/imports/validations` — pairs with the API's `ImportValidationView`. */
+export interface ImportValidationReport {
+  readonly jobId: string;
+  readonly sourceKind: ImportSourceKind;
+  readonly status: 'validated' | 'validated_with_errors';
+  readonly totalCount: number;
+  readonly validCount: number;
+  readonly invalidCount: number;
+  readonly errors: readonly ImportRowProblem[];
+  readonly batchErrors: readonly {
+    readonly code: 'mixed_prefixes' | 'too_many_rows';
+    readonly message: string;
+  }[];
+}
+
+/** `POST …/imports/:jobId/undo` — pairs with the API's `ImportUndoView`. */
+export interface ImportUndoResult {
+  readonly jobId: string;
+  readonly deleted: number;
+  readonly undoneAt: string;
+}
+
+/** The batch the start page posts: a source kind, its column mapping and the parsed rows. */
+export interface ImportBatchInput {
+  readonly sourceKind: ImportSourceKind;
+  readonly mapping: Readonly<Record<string, string>>;
+  readonly rows: readonly Readonly<Record<string, unknown>>[];
+}
+
+/** The commit adds the validated job id and, for every kind but `project`, the target project. */
+export interface ImportCommitInput extends ImportBatchInput {
+  readonly jobId: string;
+  readonly projectId?: string;
+}
+
+function importsPath(organizationSlug: string): string {
+  return `/v1/organizations/${encodeURIComponent(organizationSlug)}/imports`;
+}
+
+export async function listImports(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<readonly ImportJobSummary[]> {
+  const { data } = await client.request<ImportJobList>({ path: importsPath(organizationSlug) });
+  return data.jobs;
+}
+
+export async function validateImport(
+  client: ApiClient,
+  organizationSlug: string,
+  input: ImportBatchInput,
+): Promise<ImportValidationReport> {
+  const { data } = await client.request<ImportValidationReport>({
+    method: 'POST',
+    path: `${importsPath(organizationSlug)}/validations`,
+    body: input,
+  });
+  return data;
+}
+
+export async function commitImport(
+  client: ApiClient,
+  organizationSlug: string,
+  input: ImportCommitInput,
+): Promise<ImportReceipt> {
+  const { projectId, ...batch } = input;
+  const options =
+    batch.sourceKind === 'project' || projectId === undefined
+      ? {}
+      : { options: { projectId, statusMap: {}, userMap: {} } };
+  const { data } = await client.request<ImportReceipt>({
+    method: 'POST',
+    path: `${importsPath(organizationSlug)}/commits`,
+    body: { ...batch, ...options },
+  });
+  return data;
+}
+
+export async function undoImport(
+  client: ApiClient,
+  organizationSlug: string,
+  jobId: string,
+): Promise<ImportUndoResult> {
+  const { data } = await client.request<ImportUndoResult>({
+    method: 'POST',
+    path: `${importsPath(organizationSlug)}/${encodeURIComponent(jobId)}/undo`,
+  });
+  return data;
+}

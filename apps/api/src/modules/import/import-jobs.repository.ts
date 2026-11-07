@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { importJobs } from '../../common/database/schema.js';
@@ -89,6 +89,30 @@ export class ImportJobsRepository {
     const found = await this.findById(runner, context, id);
     if (!found) throw new Error(`Import job ${id} was not found`);
     return found;
+  }
+
+  /**
+   * R31 (A11) — the acting tenant's most recent committed imports, newest first, for the import
+   * start page's history and its undo button. Validate-only attempts are left out: they have no
+   * receipt and nothing to undo. Bounded by `limit`; served by `ix_import_jobs_org_created`.
+   */
+  async listRecentCommitted(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    limit: number,
+  ): Promise<ImportJobRow[]> {
+    const db = tenantDrizzle(runner);
+    return db
+      .select()
+      .from(importJobs)
+      .where(
+        and(
+          eq(importJobs.organizationId, context.organizationId),
+          inArray(importJobs.status, ['committed', 'committed_with_errors']),
+        ),
+      )
+      .orderBy(desc(importJobs.createdAt), desc(importJobs.id))
+      .limit(limit);
   }
 
   /**

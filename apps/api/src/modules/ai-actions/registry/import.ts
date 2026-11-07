@@ -8,6 +8,15 @@ import { det, pathOnly, bodyArgs, f, type AiActionDetail } from './detail.js';
 
 export const importDetails: readonly AiActionDetail[] = [
   det({
+    id: 'imports.list',
+    title: 'List recent imports',
+    description:
+      'The most recent finished imports, newest first, with their counts and undo window.',
+    input: pathOnly(),
+    redact: 'standard',
+    examples: [{ summary: 'Recent imports', args: {} }],
+  }),
+  det({
     id: 'imports.receipt.list',
     title: 'Get an import receipt',
     description: 'The outcome of a finished import job — what was created, skipped or rejected.',

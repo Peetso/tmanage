@@ -2282,6 +2282,14 @@ export const OPS: readonly AiActionOp[] = [
     scope: 'write',
   },
   {
+    id: 'imports.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/imports/',
+    capability: 'org.manage',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
     id: 'imports.receipt.list',
     method: 'GET',
     path: '/v1/organizations/:orgSlug/imports/:jobId/receipt',
