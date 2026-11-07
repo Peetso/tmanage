@@ -17,7 +17,6 @@ import {
   labelCopy,
   nextInvoiceState,
   resolvedRegime,
-  taxNoticeCopy,
   taxNoticeRequired,
   uuidv7,
   xmlHash,
@@ -61,12 +60,14 @@ import {
   PORTAL_SHOW_NAMES_SETTING_KEY,
   STEP_UP_SEND_SETTING_KEY,
   addDays,
+  arabicExpenseDescription,
   idempotencyKeyHash,
   invalid,
   invoiceContentHash,
   isoDay,
   pulledSourceTypes,
   sourceIdsOf,
+  unitLabel,
   validateCreate,
   validateCreditNote,
   validateEmail,
@@ -920,7 +921,7 @@ export class ClientInvoicesService {
       if (row === null) throw notFound();
       if (row.state !== 'draft') {
         if (keyHash !== null && row.sendKeyHash === keyHash) {
-          return { view: await this.view(tx, org, row), fresh: false };
+          return { view: await this.view(tx, org, row), fresh: false, country: null };
         }
         throw conflict('already_sent');
       }
@@ -1079,10 +1080,21 @@ export class ClientInvoicesService {
           });
         }
       }
-      return { view: await this.view(tx, org, sent), fresh: true };
+      return {
+        view: await this.view(tx, org, sent),
+        fresh: true,
+        country: sellerFromSnapshot(sent.sellerSnapshotJson).country,
+      };
     });
     if (outcome.fresh && mail) {
-      await this.deliver(input.to, outcome.view, meta.orgSlug, 'invoice', input.message);
+      await this.deliver(
+        input.to,
+        outcome.view,
+        meta.orgSlug,
+        'invoice',
+        input.message,
+        outcome.country,
+      );
     }
     return outcome.view;
   }
@@ -1546,9 +1558,13 @@ export class ClientInvoicesService {
       await this.audited(tx, context, 'client_invoice.reminder_sent', id, {
         recipient_count: to.length,
       });
-      return { view: await this.view(tx, org, row), to };
+      return {
+        view: await this.view(tx, org, row),
+        to,
+        country: sellerFromSnapshot(row.sellerSnapshotJson).country,
+      };
     });
-    await this.deliver(view.to, view.view, meta.orgSlug, 'reminder', null);
+    await this.deliver(view.to, view.view, meta.orgSlug, 'reminder', null, view.country);
     return { sent: true, recipients: view.to.length };
   }
 
@@ -1939,13 +1955,16 @@ export class ClientInvoicesService {
     orgSlug: string,
     kind: 'invoice' | 'reminder',
     message: string | null,
+    country: string | null,
   ): Promise<void> {
     if (this.mailer === null || to.length === 0) return;
     const base = (this.options.webPublicUrl ?? '').replace(/\/+$/u, '');
     const link = `${base}/${encodeURIComponent(orgSlug)}/portal/invoices/${encodeURIComponent(view.id)}`;
     for (const recipient of to) {
       try {
-        await this.mailer.send(composeInvoiceEmail({ to: recipient, view, link, kind, message }));
+        await this.mailer.send(
+          composeInvoiceEmail({ to: recipient, view, link, kind, message, country }),
+        );
       } catch {
         // A mail failure never undoes an issued invoice; the timeline already holds the send.
       }
@@ -2084,7 +2103,7 @@ function portalDescription(
     return language === 'ar' ? PERSON_LINE_AR : PERSON_LINE_EN;
   }
   const en = line.descriptionEn ?? line.descriptionAr ?? '';
-  const ar = line.descriptionAr ?? line.descriptionEn ?? '';
+  const ar = arabicExpenseDescription(line.descriptionAr ?? line.descriptionEn ?? '');
   if (language === 'ar') return ar;
   if (language === 'en') return en;
   return en === ar ? en : `${en} / ${ar}`;
@@ -2105,13 +2124,15 @@ export function composeInvoiceEmail(facts: {
   readonly link: string;
   readonly kind: 'invoice' | 'reminder';
   readonly message: string | null;
+  /** B6: the seller's country as sent; picks the one authority the notice names. */
+  readonly country?: string | null;
 }): MailMessage {
   const { view, link } = facts;
   const arabic = view.language === 'ar';
   const number = view.number ?? '';
   // 52-28: the document's label leads the heading; the notice line follows the amount.
   const docLabel = labelCopy(view.documentLabel, arabic ? 'ar' : 'en');
-  const notice = noticeOf(view) ? taxNoticeCopy(arabic ? 'ar' : 'en') : null;
+  const notice = noticeOf(view) ? taxNoticeFor(facts.country, arabic ? 'ar' : 'en') : null;
   const amount = formatMinor(view.amountDueMinor, view.currency);
   const due = view.dueDate ?? '';
   const copy = arabic
@@ -2327,10 +2348,10 @@ export function renderPrint(
       const description = [
         en && l.descriptionEn !== null ? e(l.descriptionEn) : '',
         ar && l.descriptionAr !== null
-          ? `<div lang="ar" dir="rtl">${e(l.descriptionAr)}</div>`
+          ? `<div lang="ar" dir="rtl">${e(arabicExpenseDescription(l.descriptionAr))}</div>`
           : '',
       ].join('');
-      return `<tr><td>${description}</td><td>${e(String(l.quantity))} ${e(l.unit)}</td><td>${money(
+      return `<tr><td>${description}</td><td>${e(String(l.quantity))} ${e(unitLabel(l.unit, language))}</td><td>${money(
         l.unitPriceMinor,
       )}</td><td>${e(String(l.taxBp / 100))}%</td><td>${money(l.lineGrossMinor)}</td></tr>`;
     })

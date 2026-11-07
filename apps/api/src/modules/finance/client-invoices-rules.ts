@@ -28,6 +28,47 @@ export const MAX_QUANTITY = 100_000;
 export const LIST_PAGE = 50;
 export const LINE_UNITS = ['item', 'hour', 'day', 'month', 'fixed'] as const;
 export type LineUnit = (typeof LINE_UNITS)[number];
+
+/** C5: the unit as the print shows it, per invoice language; an unknown unit stays as stored. */
+const UNIT_LABELS: Readonly<Record<string, { readonly en: string; readonly ar: string }>> = {
+  item: { en: 'item', ar: 'بند' },
+  hour: { en: 'hour', ar: 'ساعة' },
+  day: { en: 'day', ar: 'يوم' },
+  month: { en: 'month', ar: 'شهر' },
+  fixed: { en: 'fixed', ar: 'مبلغ ثابت' },
+};
+
+export function unitLabel(unit: string, lang: 'en' | 'ar' | 'bi'): string {
+  const copy = UNIT_LABELS[unit];
+  if (copy === undefined) return unit;
+  return lang === 'bi' ? `${copy.en} / ${copy.ar}` : copy[lang];
+}
+
+/** C5: the Arabic name of an expense category (`EXPENSE_CATEGORIES`); unknown stays as stored. */
+const EXPENSE_CATEGORY_AR: Readonly<Record<string, string>> = {
+  Ads: 'إعلانات',
+  Software: 'برمجيات',
+  Travel: 'سفر',
+  Print: 'طباعة',
+  Freelancer: 'عمل حر',
+  Other: 'أخرى',
+};
+
+export function expenseCategoryAr(category: string): string {
+  return EXPENSE_CATEGORY_AR[category] ?? category;
+}
+
+/**
+ * C5: lines pulled before this fix stored `مصروف — Software (…)`; the print and portal show the
+ * category in Arabic without rewriting the issued line.
+ */
+export function arabicExpenseDescription(text: string): string {
+  return text.replace(
+    /^(مصروف — )([A-Za-z]+)( \()/u,
+    (_m, head: string, category: string, tail: string) =>
+      `${head}${expenseCategoryAr(category)}${tail}`,
+  );
+}
 export const TIME_GROUPINGS = ['by_task', 'by_person', 'by_day', 'single'] as const;
 export type TimeGrouping = (typeof TIME_GROUPINGS)[number];
 export const SOURCE_TYPES = ['time', 'expense', 'retainer', 'quote', 'manual'] as const;

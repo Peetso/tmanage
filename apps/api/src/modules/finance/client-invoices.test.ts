@@ -15,7 +15,11 @@ import type { TenantContext } from '../../common/database/tenant-context.js';
 import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
 import { ClientInvoicesController } from './client-invoices.controller.js';
 import type { ClientInvoicesRepository } from './client-invoices.repository.js';
-import { ClientInvoicesService, renderPrint } from './client-invoices.service.js';
+import {
+  ClientInvoicesService,
+  composeInvoiceEmail,
+  renderPrint,
+} from './client-invoices.service.js';
 import type { ClientInvoicesServiceOptions } from './client-invoices.service.js';
 import { EinvoiceSigningService, SigningFailure } from './einvoice-signing.service.js';
 import type { OrgSecretsRepository } from './org-secrets.repository.js';
@@ -460,6 +464,63 @@ describe('52-28 tax-document labels', () => {
     expect(html).toContain('ZATCA');
     expect(html).not.toContain('ETA');
     expect(html).not.toContain('مصلحة الضرائب المصرية');
+  });
+
+  it('C5: an Arabic print shows the expense category and the unit in Arabic', () => {
+    const view = {
+      number: 'INV-3',
+      documentLabel: 'invoice',
+      taxRegistrationRef: null,
+      currency: 'SAR',
+      lines: [
+        {
+          descriptionEn: 'Expense — Software (2026-11-01)',
+          descriptionAr: 'مصروف — Software (2026-11-01)',
+          quantity: 1,
+          unit: 'hour',
+          unitPriceMinor: 100,
+          taxBp: 1500,
+          lineGrossMinor: 115,
+        },
+      ],
+      amountInWords: { en: '', ar: '' },
+      terms: null,
+      notes: null,
+      contentHash: null,
+      issueDate: null,
+      dueDate: null,
+      subtotalMinor: 0,
+      discountMinor: 0,
+      taxMinor: 0,
+      totalMinor: 0,
+      amountDueMinor: 0,
+    } as unknown as Parameters<typeof renderPrint>[0];
+    const html = renderPrint(view, 'ar', { notice: false });
+    expect(html).toContain('مصروف — برمجيات (2026-11-01)');
+    expect(html).toContain('1 ساعة');
+    expect(html).not.toContain('Software');
+  });
+
+  it('B6: the invoice e-mail names only the authority of the seller country', () => {
+    const view = {
+      number: 'INV-4',
+      language: 'en',
+      documentLabel: 'proforma',
+      taxNoticeShown: true,
+      currency: 'EGP',
+      amountDueMinor: 100,
+      dueDate: '2026-12-01',
+    } as unknown as Parameters<typeof composeInvoiceEmail>[0]['view'];
+    const mail = composeInvoiceEmail({
+      to: 'a@example.com',
+      view,
+      link: 'https://x',
+      kind: 'invoice',
+      message: null,
+      country: 'EG',
+    });
+    expect(mail.text).toContain('ETA');
+    expect(mail.text).not.toContain('ZATCA');
   });
 
   it('AUTH-52-18: the label routes need finance.manage and refuse a client principal', async () => {

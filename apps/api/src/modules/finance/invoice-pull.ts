@@ -1,4 +1,5 @@
 import { currencyDigits, divideHalfUp, expenseChargeMinor } from '@tmanage/domain';
+import { expenseCategoryAr } from './client-invoices-rules.js';
 import type { LineUnit, SourceType, TimeGrouping } from './client-invoices-rules.js';
 
 /**
@@ -189,7 +190,7 @@ export function expenseLines(
     .map((row) => ({
       sourceType: 'expense' as const,
       descriptionEn: `Expense — ${row.category} (${row.spentOn})`,
-      descriptionAr: `مصروف — ${row.category} (${row.spentOn})`,
+      descriptionAr: `مصروف — ${expenseCategoryAr(row.category)} (${row.spentOn})`,
       quantityCenti: 100,
       unit: 'item' as const,
       unitPriceMinor: convert(expenseChargeMinor(row)),
