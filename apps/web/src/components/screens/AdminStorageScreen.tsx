@@ -43,6 +43,7 @@ import { isFirstTimeStorage } from '../../lib/storage-attach-state';
 import { useOrganizationName } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/storage.css';
+import './admin-label-spacing.css';
 
 /**
  * Owner decision 2026-10-31 (reverses 2026-10-26): TManage storage (1 GB per company) is

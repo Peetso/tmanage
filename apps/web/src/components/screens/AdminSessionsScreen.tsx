@@ -4,7 +4,9 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
-import { shortDevice, sinceLabel } from '../admin/format';
+import { shortDevice } from '../admin/format';
+import { localizedSinceLabel } from '../admin/localized-time';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import {
   adminSessionTrailCsvUrl,
@@ -195,6 +197,7 @@ function SessionRow({
   onOpen: () => void;
 }) {
   const t = useT();
+  const locale = useActiveLocale();
   return (
     <tr>
       <td>
@@ -219,7 +222,7 @@ function SessionRow({
       </td>
       <td>
         <span className="tm-cc-cell-mono" title={formatMoment(session.lastSeenAt)}>
-          {sinceLabel(session.lastSeenAt)}
+          {localizedSinceLabel(session.lastSeenAt, locale)}
         </span>
       </td>
       <td className="tm-cc-end">

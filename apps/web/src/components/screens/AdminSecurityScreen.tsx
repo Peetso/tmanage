@@ -8,7 +8,10 @@ import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { readSecuritySettings, setSecuritySettings } from '../../lib/api/admin-security';
 import { listOrgSessions } from '../../lib/api/admin-sessions';
-import { shortDevice, sinceLabel } from '../admin/format';
+import { shortDevice } from '../admin/format';
+import { localizedSinceLabel } from '../admin/localized-time';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import './admin-label-spacing.css';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
@@ -40,6 +43,7 @@ export function AdminSecurityScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const locale = useActiveLocale();
   const tr = useTOr();
   // Wave 9 S8 (F09): the sign-in policy is the company owner's choice; everyone else reads it.
   const { role, known } = useOrganizationRole(organizationSlug);
@@ -259,7 +263,9 @@ export function AdminSecurityScreen({
                       </span>
                     </td>
                     <td className="tm-cc-end">
-                      <span className="tm-cc-cell-mono">{sinceLabel(session.lastSeenAt)}</span>
+                      <span className="tm-cc-cell-mono">
+                        {localizedSinceLabel(session.lastSeenAt, locale)}
+                      </span>
                     </td>
                   </tr>
                 ))}

@@ -17,6 +17,7 @@ import { arabicTwinPath } from '../../lib/i18n/public-locale-routes';
 import { TransferNotice } from '../website/pages/data-location/TransferNotice';
 import '../website/pages/data-location/data-location.css';
 import './data-location-card.css';
+import './admin-label-spacing.css';
 
 export interface DataLocationCardProps {
   readonly organizationName: string;

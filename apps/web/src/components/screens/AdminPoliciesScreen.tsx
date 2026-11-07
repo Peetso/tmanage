@@ -11,6 +11,9 @@ import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { localizedHours } from '../admin/localized-time';
+import './admin-label-spacing.css';
 
 /** R3. The "Sign out after inactivity" choices, in minutes (0 = Off), as the API allows them. */
 const IDLE_CHOICES = [0, 30, 60, 240, 480] as const;
@@ -54,6 +57,7 @@ export function AdminPoliciesScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const locale = useActiveLocale();
 
   const policy = useQuery({
     queryKey: ['org-policies', organizationSlug],
@@ -273,7 +277,7 @@ export function AdminPoliciesScreen({
                 </td>
                 <td className="tm-cc-end">
                   <span className="tm-cc-cell-mono">
-                    {current ? `${current.session_max_hours}h` : '—'}
+                    {current ? localizedHours(current.session_max_hours, locale) : '—'}
                   </span>
                 </td>
               </tr>

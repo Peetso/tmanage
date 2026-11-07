@@ -14,13 +14,18 @@ import {
 } from '../../lib/api/integration-directory';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { getStorageStatus } from '../../lib/api/google-drive';
+import { getOneDriveStatus } from '../../lib/api/onedrive';
+import { oneDriveStatusKey } from '../storage/OneDriveAttachPicker';
+import { appState } from './integration-directory-view';
 import {
-  appState,
-  describeApp,
-  describeAppLine,
-  directoryTitle,
-  relativeAgo,
-} from './integration-directory-view';
+  localizedDescribeApp,
+  localizedDescribeAppLine,
+  localizedDirectoryTitle,
+  localizedRelativeAgo,
+} from './integration-directory-i18n';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface IntegrationDirectoryScreenProps {
@@ -54,11 +59,42 @@ export function IntegrationDirectoryScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tr = useTOr();
+  const locale = useActiveLocale();
 
   const apps = useQuery({
     queryKey: ['integration-apps', organizationSlug],
     queryFn: () => listIntegrationApps(api, organizationSlug),
   });
+  // C22: Google Drive and OneDrive are company storage (Control > Storage); the directory lists
+  // them too, with their connection state, so an owner finds them where the other tools are.
+  // Same keys as the Storage screen, so the two share one request.
+  const drive = useQuery({
+    queryKey: ['storage-status', organizationSlug],
+    queryFn: () => getStorageStatus(api, organizationSlug),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const oneDrive = useQuery({
+    queryKey: oneDriveStatusKey(organizationSlug),
+    queryFn: () => getOneDriveStatus(api, organizationSlug),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const storageRows: readonly StorageRow[] = [
+    {
+      id: 'google-drive',
+      name: 'Google Drive',
+      status: drive.data?.googleDrive.status,
+      account: drive.data?.googleDrive.accountEmail ?? null,
+    },
+    {
+      id: 'onedrive',
+      name: 'OneDrive',
+      status: oneDrive.data?.oneDrive.status,
+      account: oneDrive.data?.oneDrive.accountEmail ?? null,
+    },
+  ];
 
   const [activeAppId, setActiveAppId] = useState('');
   const [label, setLabel] = useState('');
@@ -95,7 +131,9 @@ export function IntegrationDirectoryScreen({
   const canConnect = activeApp !== null && label.trim() !== '' && !connect.isPending;
   const loaded = !apps.isPending && !apps.isError;
 
-  const title = loaded ? directoryTitle(rows) : t('IntegrationDirectoryScreen.titleFallback');
+  const title = loaded
+    ? localizedDirectoryTitle(rows, tr, locale)
+    : t('IntegrationDirectoryScreen.titleFallback');
 
   return (
     <AppShell
@@ -152,13 +190,6 @@ export function IntegrationDirectoryScreen({
           </InlineAlert>
         ) : null}
 
-        {apps.isPending ? (
-          <LoadingRegion label={t('IntegrationDirectoryScreen.loading')}>
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
         {loaded && filter !== 'available' && connectedApps.length > 0 ? (
           <section aria-labelledby="tm-apps-connected-heading" className="tm-aut-col">
             <h2 id="tm-apps-connected-heading" className="tm-visually-hidden">
@@ -182,7 +213,7 @@ export function IntegrationDirectoryScreen({
                       </span>
                     </div>
                     <h3 className="tm-aut-tool__name">{app.name}</h3>
-                    <p className="tm-aut-tool__body">{describeApp(app)}</p>
+                    <p className="tm-aut-tool__body">{localizedDescribeApp(app, tr, locale)}</p>
                     <ul
                       className="tm-aut-tool__foot"
                       aria-label={`${app.name} ${t('IntegrationDirectoryScreen.connectionsSuffix')}`}
@@ -192,10 +223,12 @@ export function IntegrationDirectoryScreen({
                           <span className="tm-aut-mono">{connection.label}</span>
                           <span className="tm-aut-mono">
                             <span className="tm-visually-hidden">
-                              {connection.status}
+                              {connection.status === 'connected'
+                                ? t('IntegrationDirectoryScreen.stateConnected')
+                                : t('IntegrationDirectoryScreen.statePending')}
                               {t('IntegrationDirectoryScreen.commaAdded')}
                             </span>
-                            {relativeAgo(connection.createdAt)}
+                            {localizedRelativeAgo(connection.createdAt, tr, locale)}
                           </span>
                         </li>
                       ))}
@@ -220,83 +253,110 @@ export function IntegrationDirectoryScreen({
               </span>
             </div>
 
-            {!apps.isPending ? (
-              <ul
-                className="tm-aut-list"
-                aria-label={t('IntegrationDirectoryScreen.appsInDirectory')}
-              >
-                {(filter === 'connected' ? connectedApps : availableApps).map((app) => (
-                  <li key={app.id}>
+            {apps.isPending ? (
+              <LoadingRegion label={t('IntegrationDirectoryScreen.loading')}>
+                <Skeleton height="var(--row)" />
+                <Skeleton height="var(--row)" />
+              </LoadingRegion>
+            ) : null}
+
+            {/* The storage, webhook and AI rows need no catalog, so they show at once (C22). */}
+            <ul
+              className="tm-aut-list"
+              aria-label={t('IntegrationDirectoryScreen.appsInDirectory')}
+            >
+              {(filter === 'connected' ? connectedApps : availableApps).map((app) => (
+                <li key={app.id}>
+                  <span className="tm-aut-glyph tm-aut-glyph--small" aria-hidden="true">
+                    {glyphFor(app.category)}
+                  </span>
+                  <div className="tm-aut-list__main">
+                    <h3 className="tm-aut-rowtitle">{app.name}</h3>
+                    <span className="tm-aut-rowsub">
+                      {localizedDescribeAppLine(app, tr, locale)}
+                      {app.connections.length > 0
+                        ? ` · ${app.connections.length} ${
+                            app.connections.length === 1
+                              ? t('IntegrationDirectoryScreen.connectionSingular')
+                              : t('IntegrationDirectoryScreen.connectionPlural')
+                          }`
+                        : ''}
+                    </span>
+                  </div>
+                  <div className="tm-aut-list__end">
+                    <a
+                      href="#tm-connect"
+                      className="tm-aut-btn"
+                      aria-label={`${t('IntegrationDirectoryScreen.connectVerb')} ${app.name}`}
+                      onClick={() => setActiveAppId(app.id)}
+                    >
+                      {t('IntegrationDirectoryScreen.connect')}
+                    </a>
+                  </div>
+                </li>
+              ))}
+              {storageRows
+                .filter((row) =>
+                  filter === 'all'
+                    ? true
+                    : filter === 'connected'
+                      ? row.status === 'connected'
+                      : row.status !== 'connected',
+                )
+                .map((row) => (
+                  <li key={row.id}>
                     <span className="tm-aut-glyph tm-aut-glyph--small" aria-hidden="true">
-                      {glyphFor(app.category)}
+                      {glyphFor('storage')}
                     </span>
                     <div className="tm-aut-list__main">
-                      <h3 className="tm-aut-rowtitle">{app.name}</h3>
-                      <span className="tm-aut-rowsub">
-                        {describeAppLine(app)}
-                        {app.connections.length > 0
-                          ? ` · ${app.connections.length} ${
-                              app.connections.length === 1
-                                ? t('IntegrationDirectoryScreen.connectionSingular')
-                                : t('IntegrationDirectoryScreen.connectionPlural')
-                            }`
-                          : ''}
-                      </span>
+                      <h3 className="tm-aut-rowtitle">{row.name}</h3>
+                      <span className="tm-aut-rowsub">{storageLine(row, tr)}</span>
                     </div>
                     <div className="tm-aut-list__end">
-                      <a
-                        href="#tm-connect"
-                        className="tm-aut-btn"
-                        aria-label={`${t('IntegrationDirectoryScreen.connectVerb')} ${app.name}`}
-                        onClick={() => setActiveAppId(app.id)}
-                      >
-                        {t('IntegrationDirectoryScreen.connect')}
-                      </a>
+                      <Link href={`/${organizationSlug}/admin/storage`} className="tm-aut-btn">
+                        {row.status === 'connected'
+                          ? t('IntegrationDirectoryScreen.manage')
+                          : t('IntegrationDirectoryScreen.setUp')}
+                      </Link>
                     </div>
                   </li>
                 ))}
-                <li>
-                  <span className="tm-aut-glyph tm-aut-glyph--small" aria-hidden="true">
-                    {'{ }'}
+              <li>
+                <span className="tm-aut-glyph tm-aut-glyph--small" aria-hidden="true">
+                  {'{ }'}
+                </span>
+                <div className="tm-aut-list__main">
+                  <h3 className="tm-aut-rowtitle">{t('IntegrationDirectoryScreen.webhooks')}</h3>
+                  <span className="tm-aut-rowsub">
+                    {t('IntegrationDirectoryScreen.webhooksSub')}
                   </span>
-                  <div className="tm-aut-list__main">
-                    <h3 className="tm-aut-rowtitle">{t('IntegrationDirectoryScreen.webhooks')}</h3>
-                    <span className="tm-aut-rowsub">
-                      {t('IntegrationDirectoryScreen.webhooksSub')}
-                    </span>
-                  </div>
-                  <div className="tm-aut-list__end">
-                    <Link
-                      href={`/${organizationSlug}/admin/automations/webhooks`}
-                      className="tm-aut-btn"
-                    >
-                      {t('IntegrationDirectoryScreen.manage')}
-                    </Link>
-                  </div>
-                </li>
-                <li>
-                  <span className="tm-aut-glyph tm-aut-glyph--small" aria-hidden="true">
-                    ✦
+                </div>
+                <div className="tm-aut-list__end">
+                  <Link
+                    href={`/${organizationSlug}/admin/automations/webhooks`}
+                    className="tm-aut-btn"
+                  >
+                    {t('IntegrationDirectoryScreen.manage')}
+                  </Link>
+                </div>
+              </li>
+              <li>
+                <span className="tm-aut-glyph tm-aut-glyph--small" aria-hidden="true">
+                  ✦
+                </span>
+                <div className="tm-aut-list__main">
+                  <h3 className="tm-aut-rowtitle">{t('IntegrationDirectoryScreen.aiAssistant')}</h3>
+                  <span className="tm-aut-rowsub">
+                    {t('IntegrationDirectoryScreen.aiAssistantSub')}
                   </span>
-                  <div className="tm-aut-list__main">
-                    <h3 className="tm-aut-rowtitle">
-                      {t('IntegrationDirectoryScreen.aiAssistant')}
-                    </h3>
-                    <span className="tm-aut-rowsub">
-                      {t('IntegrationDirectoryScreen.aiAssistantSub')}
-                    </span>
-                  </div>
-                  <div className="tm-aut-list__end">
-                    <Link
-                      href={`/${organizationSlug}/settings/ai-assistant`}
-                      className="tm-aut-btn"
-                    >
-                      {t('IntegrationDirectoryScreen.setUp')}
-                    </Link>
-                  </div>
-                </li>
-              </ul>
-            ) : null}
+                </div>
+                <div className="tm-aut-list__end">
+                  <Link href={`/${organizationSlug}/settings/ai-assistant`} className="tm-aut-btn">
+                    {t('IntegrationDirectoryScreen.setUp')}
+                  </Link>
+                </div>
+              </li>
+            </ul>
           </section>
 
           <section
@@ -412,6 +472,30 @@ export function IntegrationDirectoryScreen({
 }
 
 type DirectoryFilter = 'all' | 'connected' | 'available';
+
+/** A company-storage row (Google Drive, OneDrive); `status` is undefined until its read answers. */
+interface StorageRow {
+  readonly id: string;
+  readonly name: string;
+  readonly status: 'not_connected' | 'connected' | 'error' | undefined;
+  readonly account: string | null;
+}
+
+/** A storage row's line: who it is connected as, that it needs reconnecting, or what it is for. */
+function storageLine(row: StorageRow, tr: (key: string, english: string) => string): string {
+  if (row.status === 'connected') {
+    return row.account
+      ? tr(
+          'IntegrationDirectoryScreen.storageConnectedAs',
+          'company storage · connected as {account}',
+        ).replace('{account}', row.account)
+      : tr('IntegrationDirectoryScreen.storageConnected', 'company storage · connected');
+  }
+  if (row.status === 'error') {
+    return tr('IntegrationDirectoryScreen.storageError', 'company storage · needs reconnecting');
+  }
+  return tr('IntegrationDirectoryScreen.storageSub', 'keep the company’s files in your own drive');
+}
 
 /** The square glyph on each tool card, from the app's category (INT-01's ▦ ✉ ⇪ ◫). */
 function glyphFor(category: string): string {

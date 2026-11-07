@@ -103,7 +103,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/admin/storage': { en: 'Storage', key: 'RouteTitle.adminStorage' },
   '/[orgSlug]/ai/approve/[id]': { en: 'AI approval', key: 'RouteTitle.aiApprove' },
   '/[orgSlug]/automations': { en: 'Automations', key: 'RouteTitle.automations' },
-  '/[orgSlug]/automations/apps': { en: 'Automation apps', key: 'RouteTitle.automationApps' },
+  '/[orgSlug]/automations/apps': { en: 'Integrations', key: 'RouteTitle.automationApps' },
   '/[orgSlug]/automations/runs': { en: 'Automation runs', key: 'RouteTitle.automationRuns' },
   '/[orgSlug]/automations/schedules': { en: 'Schedules', key: 'RouteTitle.automationSchedules' },
   '/[orgSlug]/automations/templates/[templateId]': {

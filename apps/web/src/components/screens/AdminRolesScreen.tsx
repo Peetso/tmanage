@@ -10,6 +10,8 @@ import { createCustomRole, readCustomRoles } from '../../lib/api/admin-roles';
 import type { ApiClient } from '../../lib/api/client';
 import { CAPABILITIES_BY_AREA, capabilityLabel } from '../../lib/capability-labels';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { useDisplayFormatters } from '../../lib/i18n/use-formatters';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface AdminRolesScreenProps {
@@ -43,6 +45,11 @@ export function AdminRolesScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tr = useTOr();
+  const format = useDisplayFormatters();
+  // C6: the plain name in the active locale; the English name until the key is merged.
+  const nameOf = (capability: string) =>
+    tr(`CapabilityLabel.${capability}`, capabilityLabel(capability));
 
   const roles = useQuery({
     queryKey: ['admin-roles', organizationSlug],
@@ -150,7 +157,7 @@ export function AdminRolesScreen({
                           </Link>
                         </strong>
                         <span className="tm-cc-cell-sub">
-                          {role.capabilities.slice(0, 3).map(capabilityLabel).join(' · ')}
+                          {role.capabilities.slice(0, 3).map(nameOf).join(' · ')}
                           {role.capabilities.length > 3 ? ' …' : ''}
                         </span>
                       </td>
@@ -163,7 +170,13 @@ export function AdminRolesScreen({
                         </span>
                       </td>
                       <td className="tm-cc-end">
-                        <span className="tm-cc-cell-mono">{formatDay(role.createdAt)}</span>
+                        <span className="tm-cc-cell-mono">
+                          {format.day(role.createdAt, {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </span>
                       </td>
                     </tr>
                   ))}
@@ -211,7 +224,7 @@ export function AdminRolesScreen({
                 {CAPABILITIES_BY_AREA.map((capability) => (
                   <li key={capability}>
                     <Checkbox
-                      label={capabilityLabel(capability)}
+                      label={nameOf(capability)}
                       name={`capability-${capability}`}
                       checked={selected.has(capability)}
                       onChange={() => toggle(capability)}
@@ -248,10 +261,4 @@ export function AdminRolesScreen({
       </div>
     </ControlCenterShell>
   );
-}
-
-function formatDay(iso: string): string {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return iso;
-  return at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
