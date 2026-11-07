@@ -4,6 +4,7 @@ import {
   allTimeZones,
   canonicalTimeZone,
   isTimeZone,
+  timeZoneCity,
   timeZoneLabel,
   timeZoneOffset,
   timeZoneOptions,
@@ -45,10 +46,20 @@ describe('time zones (R9)', () => {
     expect(timeZoneLabel('America/New_York', { locale: 'en', at: winter })).toBe(
       '(GMT-5) New York, United States',
     );
-    expect(timeZoneLabel('Africa/Cairo', { locale: 'ar', at: winter })).toBe('(GMT+2) Cairo، مصر');
+    expect(timeZoneLabel('Africa/Cairo', { locale: 'ar', at: winter })).toBe(
+      '(GMT+2) القاهرة، مصر',
+    );
     expect(timeZoneLabel('UTC', { locale: 'en', at: winter, utcName: 'Coordinated' })).toBe(
       '(GMT+0) Coordinated',
     );
+  });
+
+  it('names the city of every listed zone in Arabic (C7)', () => {
+    const missing = Object.keys(TIME_ZONE_COUNTRIES).filter(
+      (zone) => zone !== 'UTC' && !/[؀-ۿ]/.test(timeZoneCity(zone, 'ar')),
+    );
+    expect(missing).toEqual([]);
+    expect(timeZoneCity('Asia/Calcutta', 'ar')).toBe('كولكاتا');
   });
 
   it('reads the offset for the date asked about, not just today', () => {

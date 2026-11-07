@@ -1,3 +1,4 @@
+import { TIME_ZONE_CITIES_AR } from './time-zones-ar';
 import { TIME_ZONE_COUNTRIES } from './time-zones-data';
 
 /**
@@ -98,8 +99,15 @@ export function timeZoneOffsetMinutes(zone: string, at: Date = new Date()): numb
   return match[1] === '-' ? -minutes : minutes;
 }
 
-/** "Ho Chi Minh" for `Asia/Ho_Chi_Minh`, "Buenos Aires" for `America/Argentina/Buenos_Aires`. */
-export function timeZoneCity(zone: string): string {
+/**
+ * "Ho Chi Minh" for `Asia/Ho_Chi_Minh`, "Buenos Aires" for `America/Argentina/Buenos_Aires`;
+ * in Arabic "هو تشي منه" from `time-zones-ar.ts`, the Latin name where that has no entry.
+ */
+export function timeZoneCity(zone: string, locale = 'en'): string {
+  if (locale.toLowerCase().startsWith('ar')) {
+    const arabic = TIME_ZONE_CITIES_AR[canonicalTimeZone(zone)];
+    if (arabic) return arabic;
+  }
   const last = zone.split('/').pop() ?? zone;
   return last.replace(/_/g, ' ');
 }
@@ -157,7 +165,7 @@ export function timeZoneLabel(zone: string, options: TimeZoneLabelOptions): stri
   const offset = timeZoneOffset(zone, options.at);
   const prefix = offset === '' ? '' : `(${offset}) `;
   if (zone === 'UTC' || zone === 'Etc/UTC') return `${prefix}${options.utcName ?? 'UTC'}`;
-  const city = timeZoneCity(zone);
+  const city = timeZoneCity(zone, options.locale);
   const country = timeZoneCountry(zone, options.locale);
   const comma = options.locale.toLowerCase().startsWith('ar') ? '، ' : ', ';
   return `${prefix}${country === '' || country === city ? city : `${city}${comma}${country}`}`;
