@@ -1323,3 +1323,20 @@ button.tm-prefs-kbd:focus-visible {
 .tm-prefs-section > legend {
   margin-block-end: var(--s3);
 }
+
+/*
+ * C20 (live test 2026-11-02): the open time zone list let the next heading ("Security" on
+ * Profile, the date format field on Appearance) paint through it. Whatever ancestor opens a
+ * stacking context, the card and field that hold an open list are lifted above their siblings,
+ * and the list keeps a solid paper ground and a lift shadow in both themes.
+ */
+.tm-prefs-card:has(.tm-combobox__listbox[data-open]),
+.tm-prefs-card .tm-field:has(.tm-combobox__listbox[data-open]) {
+  position: relative;
+  z-index: 70;
+}
+
+.tm-prefs-card .tm-combobox__listbox {
+  background-color: var(--paper-0);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}

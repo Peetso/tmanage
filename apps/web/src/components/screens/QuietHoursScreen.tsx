@@ -7,6 +7,7 @@ import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import type { MessageKey } from '../../lib/i18n/t';
 import { getQuietHours, updateQuietHours } from '../../lib/api/quiet-hours';
 import type { QuietHoursView } from '../../lib/api/quiet-hours';
@@ -21,6 +22,26 @@ import type { ApiClient } from '../../lib/api/client';
 import { PreferenceToggle } from './PreferencesScreen';
 import { TimeZoneSelect } from '../TimeZoneSelect';
 import '../../styles/screens/preferences.css';
+
+/**
+ * The start/end choices: every quarter hour as 24-hour "HH:MM", plus the saved value when it is
+ * off the grid. A `<select>` rather than `<input type="time">`, whose AM/PM follows the browser's
+ * own language, not the page's (C7: Arabic pages showed "10:00 PM").
+ */
+export function timeChoices(current: string): string[] {
+  const choices: string[] = [];
+  for (let minutes = 0; minutes < 24 * 60; minutes += 15) {
+    const hh = String(Math.floor(minutes / 60)).padStart(2, '0');
+    const mm = String(minutes % 60).padStart(2, '0');
+    choices.push(`${hh}:${mm}`);
+  }
+  const value = current.slice(0, 5);
+  if (/^\d{2}:\d{2}$/.test(value) && !choices.includes(value)) {
+    choices.push(value);
+    choices.sort();
+  }
+  return choices;
+}
 
 export interface QuietHoursScreenProps {
   organizationSlug: string;
@@ -77,6 +98,7 @@ export function QuietHoursScreen({
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
+  const tOr = useTOr();
 
   const preferences = useQuery({
     queryKey: ['quiet-hours', organizationSlug],
@@ -190,26 +212,36 @@ export function QuietHoursScreen({
                   <label className="tm-prefs-field__label" htmlFor="tm-quiet-start">
                     {t('QuietHoursScreen.startTime')}
                   </label>
-                  <input
+                  <select
                     id="tm-quiet-start"
                     className="tm-prefs-field__control"
-                    type="time"
-                    value={startTime}
+                    value={startTime.slice(0, 5)}
                     onChange={(event) => setStartTime(event.target.value)}
-                  />
+                  >
+                    {timeChoices(startTime).map((time) => (
+                      <option key={time} value={time}>
+                        {time}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="tm-prefs-field">
                   <label className="tm-prefs-field__label" htmlFor="tm-quiet-end">
                     {t('QuietHoursScreen.endTime')}
                   </label>
-                  <input
+                  <select
                     id="tm-quiet-end"
                     className="tm-prefs-field__control"
-                    type="time"
-                    value={endTime}
+                    value={endTime.slice(0, 5)}
                     onChange={(event) => setEndTime(event.target.value)}
-                  />
+                  >
+                    {timeChoices(endTime).map((time) => (
+                      <option key={time} value={time}>
+                        {time}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <TimeZoneSelect
@@ -268,7 +300,14 @@ export function QuietHoursScreen({
               </h2>
               <p className="tm-prefs-card__body">
                 {enabled
-                  ? `${timezone || browserTimezone()}, on ${days.length === 7 ? 'every day' : `${days.length} day${days.length === 1 ? '' : 's'} a week`}. Notifications wait until the window ends.`
+                  ? `${timezone || browserTimezone()}${
+                      days.length === 7
+                        ? tOr(
+                            'QuietHoursScreen.summaryEveryDay',
+                            ', every day. Notifications wait until the window ends.',
+                          )
+                        : `${tOr('QuietHoursScreen.summaryOnPrefix', ', on ')}${days.length}${tOr('QuietHoursScreen.summaryOfSevenDays', ' of 7 days. Notifications wait until the window ends.')}`
+                    }`
                   : t('QuietHoursScreen.summaryOffBody')}
               </p>
             </div>

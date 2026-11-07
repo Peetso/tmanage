@@ -18,6 +18,7 @@ import {
 import { getDigestPreference, type DigestPrefView } from '../../lib/api/digest';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/preferences.css';
@@ -53,7 +54,16 @@ const KIND_LABEL_KEYS: Readonly<Record<NotificationKind, { label: MessageKey; hi
     },
   };
 
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+/** Indexed by `dayOfWeek` (0 = Sunday), the same keys the digest screen uses. */
+const WEEKDAY_KEYS: readonly MessageKey[] = [
+  'DigestPreferenceScreen.daySunday',
+  'DigestPreferenceScreen.dayMonday',
+  'DigestPreferenceScreen.dayTuesday',
+  'DigestPreferenceScreen.dayWednesday',
+  'DigestPreferenceScreen.dayThursday',
+  'DigestPreferenceScreen.dayFriday',
+  'DigestPreferenceScreen.daySaturday',
+];
 
 /**
  * **Notifications (PREF-03; per-kind notification opt-out, x152).**
@@ -76,6 +86,7 @@ export function NotificationKindPrefs({
   const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
+  const tOr = useTOr();
   const queryClient = useQueryClient();
   const queryKey = ['notification-kind-prefs', organizationSlug];
 
@@ -228,7 +239,9 @@ export function NotificationKindPrefs({
             <h2 id="tm-digest-card" className="tm-prefs-eyebrow">
               {t('NotificationKindPrefs.summaryEmail')}
             </h2>
-            <p className="tm-prefs-card__lead">{describeDigest(digest.data, digest.isPending)}</p>
+            <p className="tm-prefs-card__lead">
+              {describeDigest(t, tOr, digest.data, digest.isPending)}
+            </p>
             <p className="tm-prefs-card__note">{t('NotificationKindPrefs.summaryNote')}</p>
             <div className="tm-prefs-card__foot">
               <Link className="tm-prefs-capsule" href={`/${organizationSlug}/settings/digest`}>
@@ -242,14 +255,23 @@ export function NotificationKindPrefs({
   );
 }
 
-function describeDigest(digest: DigestPrefView | undefined, pending: boolean): string {
+function describeDigest(
+  t: (key: MessageKey) => string,
+  tOr: (key: string, english: string) => string,
+  digest: DigestPrefView | undefined,
+  pending: boolean,
+): string {
   if (!digest || typeof digest.cadence !== 'string') {
-    return pending ? 'Loading…' : 'Your summary setting could not be read.';
+    return pending
+      ? t('NotificationKindPrefs.loadingEllipsis')
+      : tOr('NotificationKindPrefs.summaryUnreadable', 'Your summary setting could not be read.');
   }
   const hour = `${String(digest.sendHour).padStart(2, '0')}:00`;
-  if (digest.cadence === 'immediate') return 'Each notification is sent as it happens';
+  if (digest.cadence === 'immediate') return t('DigestPreferenceScreen.leadImmediate');
   if (digest.cadence === 'weekly') {
-    return `One email every ${WEEKDAYS[digest.dayOfWeek] ?? 'week'} at ${hour}`;
+    const dayKey = WEEKDAY_KEYS[digest.dayOfWeek];
+    const day = dayKey ? t(dayKey) : '';
+    return `${t('DigestPreferenceScreen.leadWeeklyPrefix')}${day}${t('DigestPreferenceScreen.leadWeeklyMid')}${hour}`;
   }
-  return `One email a day at ${hour}`;
+  return `${t('DigestPreferenceScreen.leadDailyPrefix')}${hour}`;
 }
