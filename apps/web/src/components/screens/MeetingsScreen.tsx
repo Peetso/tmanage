@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
+import { appLocale } from '../../lib/i18n/app-locale';
+import { activeIsEnglish } from '../../lib/i18n/compact-time';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useHydrated } from '../../lib/use-hydrated';
@@ -51,7 +53,7 @@ export function MeetingsScreen({
   const eyebrow =
     !hydrated && !now
       ? ''
-      : `${new Intl.DateTimeFormat('en-GB', {
+      : `${new Intl.DateTimeFormat(dateLocale(), {
           weekday: 'long',
           day: 'numeric',
           month: 'short',
@@ -98,6 +100,15 @@ export function MeetingsScreen({
       />
     </AppShell>
   );
+}
+
+/**
+ * The locale the meeting dates are drawn in: the member's display locale (an Arabic member reads
+ * an Arabic date line, 2026-11-02 functional test), with English kept in the approved en-GB shape
+ * ("Tue 20 Oct") rather than en-US's "Tue, Oct 20".
+ */
+export function dateLocale(locale: string = appLocale()): string {
+  return activeIsEnglish(locale) ? 'en-GB' : locale;
 }
 
 /** "CAIRO, " from the reader's zone (`Africa/Cairo`), or nothing for a bare offset zone. */
@@ -353,7 +364,7 @@ export function initials(name: string): string {
 export function whenLabel(iso: string): string {
   const parsed = new Date(iso);
   if (Number.isNaN(parsed.getTime())) return iso;
-  const day = new Intl.DateTimeFormat('en-GB', {
+  const day = new Intl.DateTimeFormat(dateLocale(), {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
@@ -365,7 +376,7 @@ export function whenLabel(iso: string): string {
 export function clockLabel(iso: string): string {
   const parsed = new Date(iso);
   if (Number.isNaN(parsed.getTime())) return iso;
-  return new Intl.DateTimeFormat('en-GB', {
+  return new Intl.DateTimeFormat(dateLocale(), {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,

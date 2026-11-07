@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { MeetingsScreen } from '../src/components/screens/MeetingsScreen';
+import { MeetingsScreen, dateLocale } from '../src/components/screens/MeetingsScreen';
 import { ApiClient } from '../src/lib/api/client';
 import { expectNoAxeViolations } from './axe';
 
@@ -97,5 +97,10 @@ describe('MeetingsScreen', () => {
     expect(screen.getByRole('button', { name: 'Month' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Past' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Today' })).toBeTruthy();
+  });
+
+  it('draws meeting dates in the member locale, English in the en-GB shape', () => {
+    expect(dateLocale('ar-EG')).toBe('ar-EG');
+    expect(dateLocale('en-US')).toBe('en-GB');
   });
 });
