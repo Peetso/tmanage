@@ -336,6 +336,14 @@ export const OPS: readonly AiActionOp[] = [
     scope: 'read',
   },
   {
+    id: 'audit.events.changes',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/audit/events/:eventId/changes',
+    capability: 'audit.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
     id: 'audit.events.export',
     method: 'GET',
     path: '/v1/organizations/:orgSlug/audit/events/export',

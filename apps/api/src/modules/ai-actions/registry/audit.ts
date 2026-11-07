@@ -6,7 +6,7 @@
  * B4/T-RED). The `audit` redaction profile strips token hashes, raw bodies and IP addresses from
  * every result, so an AI principal never sees a secret in the log.
  */
-import { det, listArgs, noArgs, f, type AiActionDetail } from './detail.js';
+import { det, listArgs, noArgs, pathOnly, f, type AiActionDetail } from './detail.js';
 
 export const auditDetails: readonly AiActionDetail[] = [
   det({
@@ -21,6 +21,14 @@ export const auditDetails: readonly AiActionDetail[] = [
     }),
     redact: 'audit',
     examples: [{ summary: 'Last 50', args: { limit: 50 } }],
+  }),
+  det({
+    id: 'audit.events.changes',
+    title: 'Show what one audit event changed',
+    description: 'Before and after values, field by field, for one audit event you may see.',
+    input: pathOnly('eventId'),
+    redact: 'audit',
+    examples: [{ summary: 'One event', args: { eventId: 'ev_123' } }],
   }),
   det({
     id: 'audit.events.export',
