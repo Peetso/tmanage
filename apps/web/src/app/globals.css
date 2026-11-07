@@ -674,22 +674,10 @@ html[lang^='zh'] body {
 }
 
 /*
- * PRJ-01 (Arabic RTL) keeps the rail at the physical left edge and mirrors the canvas inside
- * it, so the grid's columns are swapped rather than letting `direction` move the rail.
+ * The rail is the grid's first column, so in Arabic `direction: rtl` puts it on the right
+ * (inline start) and the canvas mirrors beside it (owner functional test C11, 2026-11-02).
+ * No RTL override: every shell rule here is a logical property.
  */
-[dir='rtl'] .tm-app__frame {
-  grid-template-columns: minmax(0, 1fr) var(--rail);
-}
-
-[dir='rtl'] .tm-rail {
-  grid-column: 2;
-  grid-row: 1;
-}
-
-[dir='rtl'] .tm-app__body {
-  grid-column: 1;
-  grid-row: 1;
-}
 
 .tm-rail {
   position: sticky;
@@ -1860,10 +1848,6 @@ html[lang^='zh'] body {
     grid-template-columns: var(--rail-compact) minmax(0, 1fr);
   }
 
-  [dir='rtl'] .tm-app__frame {
-    grid-template-columns: minmax(0, 1fr) var(--rail-compact);
-  }
-
   .tm-canvas-header {
     flex-wrap: wrap;
   }
@@ -1952,10 +1936,6 @@ html[lang^='zh'] body {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  [dir='rtl'] .tm-app__frame {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .tm-rail {
     display: none;
   }
@@ -1983,10 +1963,6 @@ html[lang^='zh'] body {
     font-size: var(--t-ui-sm);
     font-weight: 600;
     text-decoration: none;
-  }
-
-  [dir='rtl'] .tm-app__body {
-    grid-column: 1;
   }
 
   .tm-app__body {
