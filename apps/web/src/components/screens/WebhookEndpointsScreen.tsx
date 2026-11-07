@@ -13,11 +13,13 @@ import {
   setWebhookEndpointEnabled,
   WEBHOOK_EVENT_KINDS,
   webhookEventLabel,
+  webhookEventMessageKey,
   type WebhookEndpointSummary,
   type WebhookEventKind,
 } from '../../lib/api/webhooks';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface WebhookEndpointsScreenProps {
@@ -47,6 +49,8 @@ export function WebhookEndpointsScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tOr = useTOr();
+  const eventName = (kind: string) => tOr(webhookEventMessageKey(kind), webhookEventLabel(kind));
 
   const endpoints = useQuery({
     queryKey: ['webhook-endpoints', organizationSlug],
@@ -162,7 +166,11 @@ export function WebhookEndpointsScreen({
                     <div className="tm-aut-list__main">
                       <span className="tm-aut-rowtitle tm-aut-url">{endpoint.url}</span>
                       <span className="tm-aut-rowsub">
-                        {webhookEventLabel(endpoint.eventKind)} &middot;{' '}
+                        {eventName(endpoint.eventKind)}{' '}
+                        <span className="tm-aut-mono" dir="ltr">
+                          {endpoint.eventKind}
+                        </span>{' '}
+                        &middot;{' '}
                         {endpoint.enabled
                           ? t('WebhookEndpointsScreen.enabled')
                           : t('WebhookEndpointsScreen.disabled')}
@@ -232,10 +240,13 @@ export function WebhookEndpointsScreen({
                 >
                   {WEBHOOK_EVENT_KINDS.map((kind) => (
                     <option key={kind} value={kind}>
-                      {webhookEventLabel(kind)}
+                      {eventName(kind)}
                     </option>
                   ))}
                 </select>
+                <span className="tm-field__hint tm-aut-mono" dir="ltr">
+                  {eventKind}
+                </span>
               </div>
 
               <Field

@@ -49,6 +49,16 @@ export function webhookEventLabel(kind: string): string {
 }
 
 /**
+ * The i18n message key for an event kind's plain name (C6-webhooks): `work.created` →
+ * `WebhookEndpointsScreen.eventKind.work_created`. The screen resolves it with `useTOr`, falling back
+ * to {@link webhookEventLabel} for a kind the catalog does not name yet, so Arabic shows Arabic and an
+ * older kind still never shows a dotted code as its name.
+ */
+export function webhookEventMessageKey(kind: string): string {
+  return `WebhookEndpointsScreen.eventKind.${kind.replace(/\./g, '_')}`;
+}
+
+/**
  * One webhook endpoint — paired Exact with the API's `WebhookEndpointView`. `organizationId` is
  * absent on both sides, and there is no `secret` field: the wire projection never echoes the tenant
  * id or the signing secret.
