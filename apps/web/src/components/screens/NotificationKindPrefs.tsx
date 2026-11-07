@@ -11,6 +11,10 @@ import {
   type NotificationKind,
 } from '../../lib/api/notification-kind-prefs';
 import { getQuietHours } from '../../lib/api/quiet-hours';
+import {
+  effectiveQuietHours,
+  getNotificationPreferences,
+} from '../../lib/api/notification-preferences';
 import { getDigestPreference, type DigestPrefView } from '../../lib/api/digest';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
@@ -86,6 +90,13 @@ export function NotificationKindPrefs({
     retry: false,
   });
 
+  // NOTIF-001 holds the window delivery honours; the card shows it when one is saved there.
+  const notification = useQuery({
+    queryKey: ['notification-preferences', organizationSlug],
+    queryFn: () => getNotificationPreferences(api, organizationSlug),
+    retry: false,
+  });
+
   const digest = useQuery({
     queryKey: ['digest-preference', organizationSlug],
     queryFn: () => getDigestPreference(api, organizationSlug),
@@ -101,7 +112,10 @@ export function NotificationKindPrefs({
   });
 
   const kinds = prefs.data?.kinds ?? [];
-  const quiet = quietHours.data;
+  const quiet =
+    quietHours.data && !notification.isPending
+      ? effectiveQuietHours(quietHours.data, notification.data)
+      : undefined;
 
   return (
     <AppShell
@@ -198,7 +212,7 @@ export function NotificationKindPrefs({
                 ? quiet.enabled
                   ? `${quiet.startTime} – ${quiet.endTime} ${quiet.timezone}. ${t('NotificationKindPrefs.notificationsWait')}`
                   : t('NotificationKindPrefs.quietOff')
-                : quietHours.isPending
+                : quietHours.isPending || notification.isPending
                   ? t('NotificationKindPrefs.loadingEllipsis')
                   : t('NotificationKindPrefs.quietUnreadable')}
             </p>

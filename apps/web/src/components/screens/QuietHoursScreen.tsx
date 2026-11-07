@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
@@ -10,6 +10,12 @@ import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { getQuietHours, updateQuietHours } from '../../lib/api/quiet-hours';
 import type { QuietHoursView } from '../../lib/api/quiet-hours';
+import {
+  effectiveQuietHours,
+  getNotificationPreferences,
+  updateNotificationPreferences,
+  withQuietWindow,
+} from '../../lib/api/notification-preferences';
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { PreferenceToggle } from './PreferencesScreen';
@@ -77,6 +83,18 @@ export function QuietHoursScreen({
     queryFn: () => getQuietHours(api, organizationSlug),
   });
 
+  // NOTIF-001 holds the window delivery honours; a window saved there must show in this form too.
+  const notification = useQuery({
+    queryKey: ['notification-preferences', organizationSlug],
+    queryFn: () => getNotificationPreferences(api, organizationSlug),
+    retry: false,
+  });
+
+  const effective = useMemo(
+    () => (preferences.data ? effectiveQuietHours(preferences.data, notification.data) : undefined),
+    [preferences.data, notification.data],
+  );
+
   const [enabled, setEnabled] = useState(DEFAULTS.enabled);
   const [startTime, setStartTime] = useState(DEFAULTS.startTime);
   const [endTime, setEndTime] = useState(DEFAULTS.endTime);
@@ -85,13 +103,13 @@ export function QuietHoursScreen({
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    if (!preferences.data) return;
-    setEnabled(preferences.data.enabled);
-    setStartTime(preferences.data.startTime);
-    setEndTime(preferences.data.endTime);
-    setTimezone(preferences.data.timezone);
-    setDays(preferences.data.days);
-  }, [preferences.data]);
+    if (!effective) return;
+    setEnabled(effective.enabled);
+    setStartTime(effective.startTime);
+    setEndTime(effective.endTime);
+    setTimezone(effective.timezone);
+    setDays(effective.days);
+  }, [effective]);
 
   const toggleDay = (value: number) => {
     setDays((current) =>
@@ -102,14 +120,25 @@ export function QuietHoursScreen({
   };
 
   const save = useMutation({
-    mutationFn: (): Promise<QuietHoursView> =>
-      updateQuietHours(api, organizationSlug, {
+    mutationFn: async (): Promise<QuietHoursView> => {
+      const window: QuietHoursView = {
         enabled,
         startTime,
         endTime,
         timezone: timezone.trim() || browserTimezone(),
         days,
-      }),
+      };
+      // Keep the delivery store in step first: it validates the window more strictly.
+      if (notification.data) {
+        const synced = await updateNotificationPreferences(
+          api,
+          organizationSlug,
+          withQuietWindow(notification.data, window),
+        );
+        queries.setQueryData(['notification-preferences', organizationSlug], synced);
+      }
+      return updateQuietHours(api, organizationSlug, window);
+    },
     onSuccess: (result) => {
       queries.setQueryData(['quiet-hours', organizationSlug], result);
       setSaved(true);
@@ -123,7 +152,7 @@ export function QuietHoursScreen({
       eyebrow={t('QuietHoursScreen.eyebrow')}
       title={t('QuietHoursScreen.title')}
     >
-      {preferences.isPending ? (
+      {preferences.isPending || notification.isPending ? (
         <LoadingRegion label={t('QuietHoursScreen.loading')}>
           <Skeleton />
         </LoadingRegion>
