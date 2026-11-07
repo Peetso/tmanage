@@ -1,7 +1,8 @@
-import { createHash } from 'node:crypto';
+import { join } from 'node:path';
 import { NextResponse, type NextRequest } from 'next/server';
 import { nonceFromBytes, policyHeaders, resolveCspMode } from './lib/csp';
 import { localeBootScript } from './lib/i18n/locale-boot';
+import { createPrerenderedScriptHashes, sha256Source } from './lib/prerendered-script-hashes';
 
 /**
  * The request-time half of the browser security policy (56-01; Next 16 names this file `proxy`).
@@ -22,21 +23,32 @@ import { localeBootScript } from './lib/i18n/locale-boot';
  *
  * A page prerendered at build time was rendered with no request, so its HTML carries no nonce.
  * `next dev` (the e2e harness) renders every page per request and cannot show this; the live
- * report-only soak can, and the runbook says what to do about it before enforcing.
+ * report-only soak can (B18: ~17 `script-src-elem` reports per page). In production such a path
+ * gets the hash policy instead (`lib/prerendered-script-hashes.ts`): `'self'` plus the SHA-256 of
+ * each inline script of the very HTML Next serves for it.
  */
 
 /** The locale boot script never changes within a build, so its hash is computed once. */
-const BOOT_SCRIPT_HASH = `sha256-${createHash('sha256').update(localeBootScript()).digest('base64')}`;
+const BOOT_SCRIPT_HASH = sha256Source(localeBootScript());
+
+/** `next start` runs with the web app as its working directory; the dist dir as next.config.ts. */
+const prerenderedHashes = createPrerenderedScriptHashes(
+  join(process.cwd(), process.env['TMANAGE_NEXT_DIST_DIR'] ?? '.next'),
+);
 
 export function proxy(request: NextRequest): NextResponse {
   const nonce = nonceFromBytes(crypto.getRandomValues(new Uint8Array(16)));
+  const development = process.env.NODE_ENV !== 'production';
+  // `next dev` renders every page per request; a stale build's manifest must not count there.
+  const pageHashes = development ? undefined : prerenderedHashes(request.nextUrl.pathname);
   const headers = policyHeaders({
     nonce,
     mode: resolveCspMode(process.env['CSP_MODE']),
     host: request.headers.get('host') ?? undefined,
     apiBaseUrl: process.env['NEXT_PUBLIC_API_BASE_URL'],
-    development: process.env.NODE_ENV !== 'production',
-    scriptHashes: [BOOT_SCRIPT_HASH],
+    development,
+    scriptHashes: [BOOT_SCRIPT_HASH, ...(pageHashes ?? [])],
+    prerendered: pageHashes !== undefined,
   });
 
   const requestHeaders = new Headers(request.headers);

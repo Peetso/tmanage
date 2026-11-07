@@ -1,11 +1,14 @@
+import { basename } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   buildContentSecurityPolicy,
+  inlineScriptBodies,
   nonceFromBytes,
   policyHeaders,
   resolveCspMode,
   TRUSTED_TYPES_REPORT_ONLY,
 } from '../src/lib/csp';
+import { createPrerenderedScriptHashes, sha256Source } from '../src/lib/prerendered-script-hashes';
 
 /** 56-01 — the pure policy builder `src/proxy.ts` calls on every page request. */
 
@@ -78,6 +81,45 @@ describe('the browser security policy', () => {
       'content-security-policy',
       'content-security-policy-report-only',
     ]);
+  });
+
+  it('B18: a prerendered page gets self plus its inline-script hashes, no nonce, no unsafe-inline', () => {
+    const html =
+      '<script>boot()</script><script src="/_next/static/chunks/a.js" async=""></script>' +
+      '<script>self.__next_f.push([1])</script>';
+    expect(inlineScriptBodies(html)).toEqual(['boot()', 'self.__next_f.push([1])']);
+    const files: Record<string, string> = {
+      'prerender-manifest.json': JSON.stringify({
+        routes: {
+          '/platform': { routeType: 'page', initialRevalidateSeconds: false },
+          '/robots.txt': { routeType: 'route', initialRevalidateSeconds: false },
+        },
+      }),
+      'platform.html': html,
+    };
+    const lookup = createPrerenderedScriptHashes('', (path) => {
+      const text = files[basename(path)];
+      if (text === undefined) throw new Error(`missing ${path}`);
+      return text;
+    });
+    expect(lookup('/acme/home')).toBeUndefined();
+    expect(lookup('/robots.txt')).toBeUndefined();
+    const hashes = lookup('/platform') ?? [];
+    expect(hashes).toEqual([sha256Source('boot()'), sha256Source('self.__next_f.push([1])')]);
+
+    const scripts = directive(
+      buildContentSecurityPolicy({
+        nonce: 'abc123==',
+        development: false,
+        prerendered: true,
+        scriptHashes: ['sha256-boot=', 'sha256-boot=', ...hashes],
+      }),
+      'script-src',
+    );
+    expect(scripts).toBe(
+      `script-src 'self' 'sha256-boot=' ${hashes.map((h) => `'${h}'`).join(' ')}`,
+    );
+    expect(scripts).not.toMatch(/nonce|strict-dynamic|unsafe-inline/);
   });
 
   it('encodes 16 bytes as a 24-character base64 nonce', () => {

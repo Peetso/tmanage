@@ -12,14 +12,22 @@
 // resource's ORIGIN (or a keyword: inline, eval, data, blob, ...). No cookie is read, so there is
 // no user id to log, and nothing the browser sent is echoed back.
 //
-// Limits: 1 KB of body (413), 60 reports a minute per client address (429), anything else 204 —
-// a malformed report is dropped silently rather than explained to whoever sent it.
+// Limits (B18, sized to real traffic): 64 KB of body (413) — one `report-uri` report carries the
+// whole original policy and runs 1–3 KB, a Reporting API batch holds many — and a per-address
+// token bucket of 600 reports that refills at 300 a minute (429), so a tab burst from several
+// tabs behind one office address is kept. Anything else 204; a malformed report is dropped
+// silently rather than explained to whoever sent it. A line already logged in the last minute is
+// not logged again: one broken page in many tabs is one line, not hundreds.
 
 import { BlockList, isIP } from 'node:net';
 
 export const CSP_REPORT_PATH = '/csp-report';
-export const MAX_BODY_BYTES = 1024;
-export const MAX_PER_MINUTE = 60;
+export const MAX_BODY_BYTES = 64 * 1024;
+/** Burst a client may send at once, and the steady rate it refills at. */
+export const MAX_BURST = 600;
+export const MAX_PER_MINUTE = 300;
+/** Reports read from one Reporting API batch. */
+const MAX_BATCH = 100;
 const WINDOW_MS = 60_000;
 /** Above this many tracked addresses, expired windows are swept before a new one is added. */
 const SWEEP_AT = 10_000;
@@ -85,21 +93,46 @@ export function clientAddress(req, isTrusted) {
   return forwarded[0] ?? peer;
 }
 
-/** A fixed 60-second window per address, in memory (one process; a restart forgets, by design). */
-export function createReportLimiter({ max = MAX_PER_MINUTE, now = Date.now } = {}) {
-  const windows = new Map();
-  return (key) => {
+/**
+ * A token bucket per address, in memory (one process; a restart forgets, by design): `burst`
+ * reports at once, refilled at `perMinute`. `cost` is the number of reports in the request.
+ */
+export function createReportLimiter({
+  burst = MAX_BURST,
+  perMinute = MAX_PER_MINUTE,
+  now = Date.now,
+} = {}) {
+  const buckets = new Map();
+  const refill = (bucket, at) =>
+    Math.min(burst, bucket.tokens + ((at - bucket.at) * perMinute) / WINDOW_MS);
+  return (key, cost = 1) => {
     const at = now();
-    if (windows.size >= SWEEP_AT) {
-      for (const [k, w] of windows) if (at - w.start >= WINDOW_MS) windows.delete(k);
+    if (buckets.size >= SWEEP_AT) {
+      for (const [k, b] of buckets) if (refill(b, at) >= burst) buckets.delete(k);
     }
-    const current = windows.get(key);
-    if (current === undefined || at - current.start >= WINDOW_MS) {
-      windows.set(key, { start: at, count: 1 });
-      return true;
+    const bucket = buckets.get(key) ?? { tokens: burst, at };
+    bucket.tokens = refill(bucket, at);
+    bucket.at = at;
+    buckets.set(key, bucket);
+    if (bucket.tokens < cost) return false;
+    bucket.tokens -= cost;
+    return true;
+  };
+}
+
+/** `true` the first time a line is seen in a minute; bounded, so a flood cannot grow it. */
+export function createLineDeduper({ now = Date.now } = {}) {
+  const seen = new Map();
+  return (line) => {
+    const at = now();
+    if (seen.size >= SWEEP_AT) {
+      for (const [k, t] of seen) if (at - t >= WINDOW_MS) seen.delete(k);
+      if (seen.size >= SWEEP_AT) seen.clear();
     }
-    current.count += 1;
-    return current.count <= max;
+    const last = seen.get(line);
+    if (last !== undefined && at - last < WINDOW_MS) return false;
+    seen.set(line, at);
+    return true;
   };
 }
 
@@ -142,19 +175,28 @@ function directiveName(value) {
 }
 
 /**
- * The redacted summary of one report, or `undefined` when the body is not a report. Reads both
- * shapes: `report-uri`'s `{"csp-report": {...}}` and the Reporting API's `[{type, body}]`.
+ * The redacted summaries of every report in a body (`[]` when it holds none). Reads both shapes:
+ * `report-uri`'s `{"csp-report": {...}}` and the Reporting API's batch `[{type, body}, ...]`.
  */
-export function summarizeReport(text) {
+export function summarizeReports(text) {
   let parsed;
   try {
     parsed = JSON.parse(text);
   } catch {
-    return undefined;
+    return [];
   }
-  const legacy = parsed?.['csp-report'];
-  const modern = Array.isArray(parsed) ? parsed[0]?.body : undefined;
-  const report = legacy ?? modern;
+  const reports = Array.isArray(parsed)
+    ? parsed.slice(0, MAX_BATCH).map((entry) => entry?.body)
+    : [parsed?.['csp-report']];
+  return reports.map(summarizeOne).filter((summary) => summary !== undefined);
+}
+
+/** The first report's summary, or `undefined` (kept for callers of the single-report shape). */
+export function summarizeReport(text) {
+  return summarizeReports(text)[0];
+}
+
+function summarizeOne(report) {
   if (report === null || typeof report !== 'object') return undefined;
   const summary = {
     documentUri: pathOnly(report['document-uri'] ?? report.documentURL),
@@ -179,6 +221,7 @@ export function createCspReportHandler({
   trustedProxies,
   log,
   limiter = createReportLimiter(),
+  firstSeen = createLineDeduper(),
 } = {}) {
   const isTrusted = trustedProxyMatcher(trustedProxies);
   return (req, res) => {
@@ -187,7 +230,9 @@ export function createCspReportHandler({
       req.resume();
       return;
     }
-    if (!limiter(clientAddress(req, isTrusted))) {
+    const client = clientAddress(req, isTrusted);
+    // One token to read the body at all; a batch pays for the rest of its reports once parsed.
+    if (!limiter(client)) {
       answer(res, 429, { 'retry-after': '60', connection: 'close' });
       req.resume();
       return;
@@ -216,8 +261,15 @@ export function createCspReportHandler({
     req.on('end', () => {
       if (done) return;
       done = true;
-      const summary = summarizeReport(Buffer.concat(chunks).toString('utf8'));
-      if (summary !== undefined) log(`csp-report ${JSON.stringify(summary)}`);
+      const summaries = summarizeReports(Buffer.concat(chunks).toString('utf8'));
+      if (summaries.length > 1 && !limiter(client, summaries.length - 1)) {
+        answer(res, 429, { 'retry-after': '60' });
+        return;
+      }
+      for (const summary of summaries) {
+        const line = `csp-report ${JSON.stringify(summary)}`;
+        if (firstSeen(line)) log(line);
+      }
       answer(res, 204);
     });
     req.on('error', () => {

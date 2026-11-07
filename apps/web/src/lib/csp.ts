@@ -24,6 +24,9 @@
  *   `onedrive.live.com` or the tenant's `*.sharepoint.com`. Without these the pickers break.
  *   `frame-src` also names Figma's embed host (R4 slice 13): the viewer's "Live" mode shows a
  *   Figma frame in an iframe. Nothing else from Figma is allowed (snapshots come from our API).
+ * - Prerendered pages (B18) get `script-src 'self'` plus the SHA-256 of each inline script of
+ *   their HTML instead of the nonce: built with no request, their scripts carry no nonce, and
+ *   under `'strict-dynamic'` every one was reported. Still never `'unsafe-inline'`.
  * - `worker-src 'self'`. With `strict-dynamic`, `'self'` in `script-src` is ignored, and the
  *   service worker (`/sw.js`) falls back to `script-src`; it needs its own directive.
  *
@@ -90,6 +93,26 @@ export interface CspInput {
   readonly development: boolean;
   /** `'sha256-…'` sources for the fixed inline scripts (the locale boot script). */
   readonly scriptHashes?: readonly string[];
+  /**
+   * B18. The page is served from build-time prerendered HTML, which carries no nonce: script-src
+   * is then `'self'` plus `scriptHashes` (every inline script of that HTML), without the nonce and
+   * without `'strict-dynamic'` — under which each of its ~17 chunk scripts was a violation.
+   */
+  readonly prerendered?: boolean;
+}
+
+/**
+ * The text of every inline `<script>` in a page's HTML (those without `src`), exactly as the
+ * browser hashes it. Pure; `lib/prerendered-script-hashes.ts` hashes the result.
+ */
+export function inlineScriptBodies(html: string): string[] {
+  const bodies: string[] = [];
+  for (const match of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)) {
+    const attributes = match[1] ?? '';
+    const body = match[2] ?? '';
+    if (!/\ssrc\s*=/i.test(attributes) && body !== '') bodies.push(body);
+  }
+  return bodies;
 }
 
 /** The page policy itself, one string, directives in a fixed order. */
@@ -106,9 +129,8 @@ export function buildContentSecurityPolicy(input: CspInput): string {
     [
       'script-src',
       "'self'",
-      `'nonce-${input.nonce}'`,
-      "'strict-dynamic'",
-      ...(input.scriptHashes ?? []).map((hash) => `'${hash}'`),
+      ...(input.prerendered === true ? [] : [`'nonce-${input.nonce}'`, "'strict-dynamic'"]),
+      ...[...new Set(input.scriptHashes ?? [])].map((hash) => `'${hash}'`),
       ...(input.development ? ["'unsafe-eval'"] : []),
     ],
     ['style-src', "'self'", "'unsafe-inline'"],
