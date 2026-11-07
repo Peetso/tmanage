@@ -170,6 +170,11 @@ describe('CL-01 the client overview', () => {
     expect(within(dates).getByText('29 Oct')).toBeInTheDocument();
   });
 
+  it('names a missing agreed date as the launch date (B7)', async () => {
+    renderOverview([item()], [{ ...PROJECT, committedAt: null }]);
+    expect(await screen.findByText('No launch date agreed yet')).toBeInTheDocument();
+  });
+
   it('says nothing has been shared rather than showing an empty list', async () => {
     renderOverview([]);
 

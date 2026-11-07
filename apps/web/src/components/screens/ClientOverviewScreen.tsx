@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { clientOnlyRead } from '../../lib/portal-preview';
+import { clientOnlyRead, usePortalPreview } from '../../lib/portal-preview';
+import { useHydrated } from '../../lib/use-hydrated';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -30,6 +32,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { Avatar, daysUntil, humanize, isPast, longDay, shortDay } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface ClientOverviewScreenProps {
@@ -67,7 +70,7 @@ export function ClientOverviewScreen({
   clientName: passedClientName,
   providerName: passedProviderName,
   client,
-  now = new Date(),
+  now: fixedNow,
 }: ClientOverviewScreenProps) {
   const describe = useDescribeApiError(PORTAL_LINES);
   const { clientName, providerName } = usePortalNames(
@@ -77,6 +80,14 @@ export function ClientOverviewScreen({
   );
   const api = client ?? browserApiClient();
   const t = useT();
+  const tOr = useTOr();
+  // B8 (2026-11-07): the "As of" moment is the browser's, never the server render's — printing
+  // it before hydration made the server and client text differ (React #418).
+  const [loadedAt] = useState(() => new Date());
+  const now = fixedNow ?? loadedAt;
+  const hydrated = useHydrated();
+  // B9: a staff preview cannot read the client's requests; say so instead of an empty list.
+  const preview = usePortalPreview(organizationSlug);
 
   const projects = useQuery({
     queryKey: ['portal-projects', organizationSlug],
@@ -142,8 +153,8 @@ export function ClientOverviewScreen({
       providerName={providerName}
       activeNavigationId="overview"
       title={project?.name ?? t('ClientOverviewScreen.overview')}
-      eyebrow={eyebrowFor(project)}
-      description={describeHeadline(project, actionCount)}
+      eyebrow={eyebrowFor(project, tOr)}
+      description={describeHeadline(project, actionCount, tOr)}
       headerAside={
         project ? (
           <HeaderMetrics project={project} waiting={waiting} questions={questions} now={now} />
@@ -205,16 +216,19 @@ export function ClientOverviewScreen({
               organizationSlug={organizationSlug}
               providerName={providerName}
               requests={requests.data ?? []}
+              preview={preview}
             />
             <TeamCard
               organizationSlug={organizationSlug}
               providerName={providerName}
               people={people.data ?? []}
             />
-            <p className="tm-pt-quiet">
-              {t('ClientOverviewScreen.asOfPrefix')}
-              {formatMoment(now)}
-            </p>
+            {fixedNow !== undefined || hydrated ? (
+              <p className="tm-pt-quiet">
+                {t('ClientOverviewScreen.asOfPrefix')}
+                {formatMoment(now)}
+              </p>
+            ) : null}
           </div>
         </div>
       </div>
@@ -222,28 +236,56 @@ export function ClientOverviewScreen({
   );
 }
 
-function eyebrowFor(project: PortalProject | undefined): string | undefined {
+type TranslateOr = ReturnType<typeof useTOr>;
+
+/** Fills `{name}` placeholders in a catalog string. */
+function fill(template: string, values: Readonly<Record<string, string | number>>): string {
+  return template.replace(/\{(\w+)\}/g, (whole, name: string) =>
+    name in values ? String(values[name]) : whole,
+  );
+}
+
+// C4 (2026-11-07): the eyebrow and headline came from English literals, so the Arabic portal
+// read "YOUR PROJECT" and "No date has been agreed yet". They come from the catalog now.
+function eyebrowFor(project: PortalProject | undefined, tOr: TranslateOr): string | undefined {
   if (!project) return undefined;
   if (project.committedAt && project.forecastAt) {
     return project.forecastAt <= project.committedAt
-      ? 'Your project · on track for the agreed date'
-      : 'Your project · estimate is later than the agreed date';
+      ? tOr('ClientOverviewScreen.eyebrowOnTrack', 'Your project · on track for the agreed date')
+      : tOr(
+          'ClientOverviewScreen.eyebrowLater',
+          'Your project · estimate is later than the agreed date',
+        );
   }
-  return 'Your project';
+  return tOr('ClientOverviewScreen.eyebrowProject', 'Your project');
 }
 
-function describeHeadline(project: PortalProject | undefined, actions: number): string | undefined {
+/**
+ * B7 (2026-11-07): the project's agreed date is the *launch* date. Saying only "No date has been
+ * agreed yet" read as a contradiction of the stage dates the timeline shows as committed, so the
+ * missing date is named for what it is.
+ */
+function describeHeadline(
+  project: PortalProject | undefined,
+  actions: number,
+  tOr: TranslateOr,
+): string | undefined {
   if (!project) return undefined;
   const toward = project.committedAt
-    ? `Everything is moving toward ${longDay(project.committedAt)}.`
-    : 'No date has been agreed yet.';
+    ? fill(tOr('ClientOverviewScreen.headlineToward', 'Everything is moving toward {date}.'), {
+        date: longDay(project.committedAt),
+      })
+    : tOr('ClientOverviewScreen.headlineNoLaunchDate', 'No launch date has been agreed yet.');
   const needed =
     actions === 0
-      ? ' Nothing is needed from you right now.'
+      ? tOr('ClientOverviewScreen.headlineNothingNeeded', 'Nothing is needed from you right now.')
       : actions === 1
-        ? ' One thing from you is needed.'
-        : ` ${actions} things from you are needed.`;
-  return `${toward}${needed}`;
+        ? tOr('ClientOverviewScreen.headlineOneNeeded', 'One thing from you is needed.')
+        : fill(
+            tOr('ClientOverviewScreen.headlineManyNeeded', '{count} things from you are needed.'),
+            { count: actions },
+          );
+  return `${toward} ${needed}`;
 }
 
 interface HeaderMetricsProps {
@@ -256,6 +298,7 @@ interface HeaderMetricsProps {
 /** CL-01's two numbers: days to the agreed date, and how many things wait on the client. */
 function HeaderMetrics({ project, waiting, questions, now }: HeaderMetricsProps) {
   const t = useT();
+  const tOr = useTOr();
   const days = daysUntil(project.committedAt, now);
   const count = waiting.length + questions.length;
   const soon = waiting.some((item) => {
@@ -270,7 +313,7 @@ function HeaderMetrics({ project, waiting, questions, now }: HeaderMetricsProps)
         <p className="tm-pt-metric__value">{days ?? '—'}</p>
         <p className="tm-pt-metric__label">
           {days === null
-            ? t('ClientOverviewScreen.noDateAgreedYet')
+            ? tOr('ClientOverviewScreen.noLaunchDateAgreed', 'No launch date agreed yet')
             : days === 1
               ? t('ClientOverviewScreen.dayToLaunch')
               : t('ClientOverviewScreen.daysToLaunch')}
@@ -333,6 +376,7 @@ function JourneyTrack({
   hasSharedWork,
 }: JourneyTrackProps) {
   const t = useT();
+  const tOr = useTOr();
   const ordered = [...milestones].sort(byDueOn);
   const nowIndex = ordered.findIndex((milestone) => milestone.status !== 'met');
 
@@ -345,8 +389,13 @@ function JourneyTrack({
         {ordered.length > 0 ? (
           <p className="tm-pt-quiet">
             {nowIndex === -1
-              ? `all ${ordered.length} stages done`
-              : `stage ${nowIndex + 1} of ${ordered.length}`}{' '}
+              ? fill(tOr('ClientOverviewScreen.allStagesDone', 'all {count} stages done'), {
+                  count: ordered.length,
+                })
+              : fill(tOr('ClientOverviewScreen.stageOf', 'stage {index} of {total}'), {
+                  index: nowIndex + 1,
+                  total: ordered.length,
+                })}{' '}
             ·{' '}
             <Link href={`/${organizationSlug}/portal/timeline`}>
               {t('ClientOverviewScreen.seeFullTimeline')}
@@ -682,12 +731,15 @@ function RequestsCard({
   organizationSlug,
   providerName,
   requests,
+  preview,
 }: {
   organizationSlug: string;
   providerName: string;
   requests: readonly ClientRequest[];
+  preview: boolean;
 }) {
   const t = useT();
+  const tOr = useTOr();
   const waiting = requests.filter(isWaitingOnClient);
   const recent = [...waiting, ...requests.filter((request) => !isWaitingOnClient(request))].slice(
     0,
@@ -700,7 +752,14 @@ function RequestsCard({
         {t('ClientOverviewScreen.whatAskedFor')}
       </h2>
 
-      {requests.length === 0 ? (
+      {preview ? (
+        <p className="tm-pt-card__body">
+          {tOr(
+            'ClientOverviewScreen.requestsPreview',
+            'Requests are not available in the staff preview. Only someone from the client can see and send them.',
+          )}
+        </p>
+      ) : requests.length === 0 ? (
         <p className="tm-pt-card__body">
           {t('ClientOverviewScreen.noRequestsBefore')}
           {providerName}
@@ -735,7 +794,10 @@ function RequestsCard({
           <>
             {' · '}
             <Link href={`/${organizationSlug}/portal/requests`}>
-              See all {requests.length} of your requests
+              {fill(
+                tOr('ClientOverviewScreen.seeAllCountRequests', 'See all {count} of your requests'),
+                { count: requests.length },
+              )}
             </Link>
           </>
         ) : requests.length > 0 ? (

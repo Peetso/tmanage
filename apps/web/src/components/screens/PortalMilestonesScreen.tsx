@@ -12,8 +12,10 @@ import type { ApiClient } from '../../lib/api/client';
 import { longDay, shortDay, Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 
 type Translate = ReturnType<typeof useT>;
+type TranslateOr = ReturnType<typeof useTOr>;
 
 export interface PortalMilestonesScreenProps {
   organizationSlug: string;
@@ -126,6 +128,7 @@ function eyebrowFor(dated: readonly ClientMilestone[], t: Translate): string {
 }
 
 function Legend({ t }: { t: Translate }) {
+  const tOr = useTOr();
   return (
     <ul className="tm-pt-legend" aria-label={t('PortalMilestonesScreen.legendKey')}>
       <li>
@@ -138,7 +141,7 @@ function Legend({ t }: { t: Translate }) {
       </li>
       <li>
         <span className="tm-pt-legend__dot" aria-hidden="true" />
-        {t('PortalMilestonesScreen.legendCommitted')}
+        {tOr('PortalMilestonesScreen.legendAgreed', 'agreed date')}
       </li>
       <li>
         <span className="tm-pt-legend__dot tm-pt-legend__dot--none" aria-hidden="true" />
@@ -171,6 +174,7 @@ function MilestonesSection({
   hasProject,
   t,
 }: MilestonesSectionProps) {
+  const tOr = useTOr();
   if (!hasProject) {
     return (
       <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
@@ -238,7 +242,7 @@ function MilestonesSection({
                 </span>
                 <span className="tm-pt-step__name">{milestone.title}</span>
                 <span className="tm-pt-step__date tm-pt-step__date--after">
-                  {statusLabel(milestone.status, t)}
+                  {statusLabel(milestone, t, tOr)}
                 </span>
               </li>
             );
@@ -259,7 +263,7 @@ function MilestonesSection({
                 </span>
                 <div className="tm-pt-item__main">
                   <p className="tm-pt-rows__title">{milestone.title}</p>
-                  <p className="tm-pt-quiet">{describeDue(milestone, t)}</p>
+                  <p className="tm-pt-quiet">{describeDue(milestone, t, tOr)}</p>
                 </div>
                 <Tag
                   tone={
@@ -270,7 +274,7 @@ function MilestonesSection({
                         : undefined
                   }
                 >
-                  {statusLabel(milestone.status, t)}
+                  {statusLabel(milestone, t, tOr)}
                 </Tag>
               </li>
             ))}
@@ -305,24 +309,37 @@ function weight(severity: ClientRisk['severity']): number {
   return severity === 'high' ? 3 : severity === 'medium' ? 2 : 1;
 }
 
-function statusLabel(status: MilestoneStatus, t: Translate): string {
+/**
+ * B7 (2026-11-07): one vocabulary for dates — "agreed". An open stage with a date used to read
+ * "Committed for …" beside a "Planned" tag, while the overview said no date was agreed; an open
+ * stage now says whether its date is agreed, and an undated one says so plainly.
+ */
+export function statusLabel(
+  milestone: Pick<ClientMilestone, 'status' | 'dueOn'>,
+  t: Translate,
+  tOr: TranslateOr,
+): string {
+  const status: MilestoneStatus = milestone.status;
   switch (status) {
     case 'met':
       return t('PortalMilestonesScreen.statusDone');
     case 'missed':
       return t('PortalMilestonesScreen.statusMissed');
     default:
-      return t('PortalMilestonesScreen.statusPlanned');
+      return milestone.dueOn === null
+        ? tOr('PortalMilestonesScreen.statusNoDate', 'No date yet')
+        : tOr('PortalMilestonesScreen.statusAgreed', 'Date agreed');
   }
 }
 
-function describeDue(milestone: ClientMilestone, t: Translate): string {
-  if (milestone.dueOn === null) return t('PortalMilestonesScreen.noDateCommitted');
+function describeDue(milestone: ClientMilestone, t: Translate, tOr: TranslateOr): string {
+  if (milestone.dueOn === null)
+    return tOr('PortalMilestonesScreen.noDateAgreed', 'No date agreed yet');
   if (milestone.status === 'met')
     return `${t('PortalMilestonesScreen.doneWasDue')} ${longDay(milestone.dueOn)}`;
   if (milestone.status === 'missed')
     return `${t('PortalMilestonesScreen.missedWasDue')} ${longDay(milestone.dueOn)}`;
-  return `${t('PortalMilestonesScreen.committedFor')} ${longDay(milestone.dueOn)}`;
+  return `${tOr('PortalMilestonesScreen.agreedFor', 'Agreed for')} ${longDay(milestone.dueOn)}`;
 }
 
 function byDueOn(left: ClientMilestone, right: ClientMilestone): number {

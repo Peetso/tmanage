@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { clientOnlyRead } from '../../lib/portal-preview';
+import { clientOnlyRead, usePortalPreview } from '../../lib/portal-preview';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -18,6 +18,7 @@ import {
 import { shortDay, Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 
 export interface ClientRequestsScreenProps {
   organizationSlug: string;
@@ -50,6 +51,8 @@ export function ClientRequestsScreen({
   );
   const api = client ?? browserApiClient();
   const t = useT();
+  const tOr = useTOr();
+  const preview = usePortalPreview(organizationSlug);
 
   const projects = useQuery({
     queryKey: ['portal-projects', organizationSlug],
@@ -111,7 +114,23 @@ export function ClientRequestsScreen({
           </LoadingRegion>
         ) : null}
 
-        {!requests.isPending && !requests.isError && ordered.length === 0 ? (
+        {/* B9 (2026-11-07): a staff preview gets no client requests from the API (403). It says
+            so rather than showing the client's "nothing asked yet" empty state. */}
+        {preview && !requests.isPending && !requests.isError ? (
+          <div className="tm-pt-card tm-pt-card--dashed tm-pt-card--lg">
+            <h2 className="tm-pt-card__title">
+              {tOr('ClientRequestsScreen.previewTitle', 'Not available in the preview')}
+            </h2>
+            <p className="tm-pt-card__body">
+              {tOr(
+                'ClientRequestsScreen.previewBody',
+                'Requests are visible only to people from the client, so this list stays empty in a staff preview.',
+              )}
+            </p>
+          </div>
+        ) : null}
+
+        {!preview && !requests.isPending && !requests.isError && ordered.length === 0 ? (
           <div className="tm-pt-card tm-pt-card--dashed tm-pt-card--lg">
             <h2 className="tm-pt-card__title">{t('ClientRequestsScreen.emptyTitle')}</h2>
             <p className="tm-pt-card__body">
