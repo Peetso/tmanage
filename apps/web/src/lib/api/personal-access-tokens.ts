@@ -40,6 +40,27 @@ export const TOKEN_EXPIRY_CHOICES = [30, 90, 365] as const;
 export type TokenExpiryDays = (typeof TOKEN_EXPIRY_CHOICES)[number];
 export const DEFAULT_TOKEN_EXPIRY: TokenExpiryDays = 90;
 
+/**
+ * The access a token can be given (R13 s3 / A15), in the server's canonical order. Scopes only
+ * narrow: a token never does more than its member can, whatever it holds. The org's token policy
+ * may refuse some of these; the server's message then says which.
+ */
+export const TOKEN_SCOPE_CHOICES = [
+  'tmanage:read',
+  'tmanage:write',
+  'tmanage:manage',
+  'tmanage:billing',
+] as const;
+export type TokenScope = (typeof TOKEN_SCOPE_CHOICES)[number];
+/** The create dialog's starting point — the same read + write the server defaults to. */
+export const DEFAULT_TOKEN_SCOPES: readonly TokenScope[] = ['tmanage:read', 'tmanage:write'];
+
+/** The chosen scopes, de-duplicated, unknown words dropped, in canonical order. */
+export function canonicalScopes(scopes: Iterable<string>): TokenScope[] {
+  const chosen = new Set(scopes);
+  return TOKEN_SCOPE_CHOICES.filter((scope) => chosen.has(scope));
+}
+
 /** How a token reads on the page: in use, close to its end (seven days or less), or finished. */
 export type TokenStatus = 'active' | 'expiring' | 'expired' | 'revoked';
 
@@ -70,12 +91,12 @@ export async function listPersonalAccessTokens(
 export async function createPersonalAccessToken(
   client: ApiClient,
   organizationSlug: string,
-  input: { name: string; expiresInDays: TokenExpiryDays },
+  input: { name: string; expiresInDays: TokenExpiryDays; scopes: readonly TokenScope[] },
 ): Promise<CreatedPersonalAccessTokenView> {
   const { data } = await client.request<CreatedPersonalAccessTokenView>({
     method: 'POST',
     path: collectionPath(organizationSlug),
-    body: input,
+    body: { ...input, scopes: canonicalScopes(input.scopes) },
   });
   return data;
 }

@@ -84,13 +84,26 @@ describe('SecurityScreen — Access tokens', () => {
     expect(within(dialog).getByLabelText<HTMLInputElement>('90 days').checked).toBe(true);
     fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Laptop script' } });
     fireEvent.click(within(dialog).getByLabelText('30 days'));
+    expect(within(dialog).getByLabelText<HTMLInputElement>('Read').checked).toBe(true);
+    fireEvent.click(within(dialog).getByLabelText('Write'));
+    fireEvent.click(within(dialog).getByLabelText('Read'));
+    expect(within(dialog).getByRole('button', { name: 'Create token' })).toHaveProperty(
+      'disabled',
+      true,
+    );
+    fireEvent.click(within(dialog).getByLabelText('Manage'));
+    fireEvent.click(within(dialog).getByLabelText('Read'));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create token' }));
 
     expect((await screen.findByTestId('tm-token-secret')).textContent).toBe(
       'tmanage_pat_secretvalue',
     );
     const post = calls.find((call) => call.method === 'POST');
-    expect(JSON.parse(post?.body ?? '{}')).toEqual({ name: 'Laptop script', expiresInDays: 30 });
+    expect(JSON.parse(post?.body ?? '{}')).toEqual({
+      name: 'Laptop script',
+      expiresInDays: 30,
+      scopes: ['tmanage:read', 'tmanage:manage'],
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
     await screen.findByText('Laptop script');
