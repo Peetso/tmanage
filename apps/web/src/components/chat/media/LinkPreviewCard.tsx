@@ -45,7 +45,6 @@ export function LinkPreviewCard({
   readySignal = 0,
   client,
 }: LinkPreviewCardProps) {
-  const tOr = useTOr();
   const [preview, setPreview] = useState<LinkPreview | null>(null);
 
   useEffect(() => {
@@ -68,19 +67,46 @@ export function LinkPreviewCard({
     };
   }, [client, conversationId, messageId, organizationSlug, readySignal]);
 
-  if (preview === null || preview.status !== 'ready' || !/^https?:\/\//iu.test(preview.url)) {
-    return null;
-  }
-  const site = preview.siteName ?? hostOf(preview.url);
+  if (preview === null || preview.status !== 'ready') return null;
+  return (
+    <LinkPreviewCardView
+      url={preview.url}
+      siteName={preview.siteName}
+      title={preview.title}
+      description={preview.description}
+    />
+  );
+}
+
+export interface LinkPreviewCardViewProps {
+  readonly url: string;
+  readonly siteName: string | null;
+  readonly title: string | null;
+  readonly description: string | null;
+}
+
+/**
+ * The card itself, with no fetching — reused by any surface that already holds an unfurl (the
+ * work-item comment timeline). Draws nothing for a link that is not http(s).
+ */
+export function LinkPreviewCardView({
+  url,
+  siteName,
+  title,
+  description,
+}: LinkPreviewCardViewProps) {
+  const tOr = useTOr();
+  if (!/^https?:\/\//iu.test(url)) return null;
+  const site = siteName ?? hostOf(url);
   return (
     <a
       className="r7-link-card"
-      href={preview.url}
+      href={url}
       target="_blank"
       rel="noopener noreferrer nofollow"
       aria-label={tOr('ChatMedia.linkPreview', 'Link preview: {title}').replace(
         '{title}',
-        preview.title ?? site,
+        title ?? site,
       )}
     >
       <span className="r7-link-card__thumb" aria-hidden="true">
@@ -88,11 +114,9 @@ export function LinkPreviewCard({
       </span>
       <span className="r7-link-card__text">
         <span className="r7-link-card__site">{site}</span>
-        {preview.title === null ? null : (
-          <span className="r7-link-card__title">{preview.title}</span>
-        )}
-        {preview.description === null ? null : (
-          <span className="r7-link-card__description">{preview.description}</span>
+        {title === null ? null : <span className="r7-link-card__title">{title}</span>}
+        {description === null ? null : (
+          <span className="r7-link-card__description">{description}</span>
         )}
       </span>
     </a>

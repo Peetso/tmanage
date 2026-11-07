@@ -14,6 +14,9 @@ import { connectorSentence } from '../../lib/work-activity-presentation';
 import { useT } from '../../lib/i18n/use-t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { appLocale } from '../../lib/i18n/app-locale';
+import { getUnfurlCard, unfurlSiteName } from '../../lib/api/unfurl';
+import { firstLink, splitLinks } from '../../lib/linkify';
+import { LinkPreviewCardView } from '../chat/media/LinkPreviewCard';
 
 export interface WorkItemActivityFeedProps {
   organizationSlug: string;
@@ -31,6 +34,74 @@ function formatWhen(iso: string): string {
 /** A small glyph per entry kind — a spoken label goes on the row, this is decoration only. */
 function icon(kind: WorkActivityEntry['kind']): string {
   return kind === 'comment' ? '◌' : '●';
+}
+
+/** A comment body with its http(s) links clickable; everything else stays plain text. */
+function LinkifiedText({ text }: { text: string }) {
+  return (
+    <>
+      {splitLinks(text).map((segment, index) =>
+        segment.kind === 'link' ? (
+          <a key={index} href={segment.href} target="_blank" rel="noopener noreferrer nofollow">
+            {segment.text}
+          </a>
+        ) : (
+          segment.text
+        ),
+      )}
+    </>
+  );
+}
+
+/**
+ * The preview card for a comment's first link, from the org-scoped unfurl proxy. Links the proxy
+ * does not preview (not allow-listed, unreachable) draw nothing; the link in the text remains.
+ */
+function CommentLinkCard({
+  api,
+  organizationSlug,
+  url,
+}: {
+  api: ApiClient;
+  organizationSlug: string;
+  url: string;
+}) {
+  const card = useQuery({
+    queryKey: ['unfurl', organizationSlug, url],
+    queryFn: () => getUnfurlCard(api, organizationSlug, url),
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
+  if (!card.data) return null;
+  const href = /^https?:\/\//iu.test(card.data.openUrl) ? card.data.openUrl : card.data.url;
+  return (
+    <LinkPreviewCardView
+      url={href}
+      siteName={unfurlSiteName(card.data)}
+      title={card.data.title}
+      description={card.data.description}
+    />
+  );
+}
+
+function CommentBody({
+  api,
+  organizationSlug,
+  text,
+}: {
+  api: ApiClient;
+  organizationSlug: string;
+  text: string;
+}) {
+  const link = firstLink(text);
+  return (
+    <>
+      <LinkifiedText text={text} />
+      {link === null ? null : (
+        <CommentLinkCard api={api} organizationSlug={organizationSlug} url={link} />
+      )}
+    </>
+  );
 }
 
 /**
@@ -137,14 +208,31 @@ export function WorkItemActivityFeed({
                               entry.viaApp,
                             )}
                           </span>
-                          {entry.kind === 'comment' ? ` ${entry.summary}` : null}
+                          {entry.kind === 'comment' ? (
+                            <>
+                              {' '}
+                              <CommentBody
+                                api={api}
+                                organizationSlug={organizationSlug}
+                                text={entry.summary}
+                              />
+                            </>
+                          ) : null}
                         </>
                       ) : (
                         <>
                           {entry.actorId
                             ? `${memberDisplayName(entry.actorId, directory.members, directory.isPending)} — `
                             : t('WorkItemActivityFeed.system')}
-                          {entry.summary}
+                          {entry.kind === 'comment' ? (
+                            <CommentBody
+                              api={api}
+                              organizationSlug={organizationSlug}
+                              text={entry.summary}
+                            />
+                          ) : (
+                            entry.summary
+                          )}
                         </>
                       )}
                     </span>
