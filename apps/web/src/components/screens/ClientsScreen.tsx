@@ -169,6 +169,11 @@ export function ClientsScreen({
     )
     .sort((a, b) => b.invitation.createdAt.localeCompare(a.invitation.createdAt));
 
+  // B3 (live test 2026-11-02): a tab count is drawn only once its list has loaded. Before, a
+  // pending, failed or signed-out read drew "Organizations 0" beside companies that do exist.
+  const invitationsLoaded =
+    organizations.isSuccess && invitationQueries.every((query) => query.isSuccess);
+
   const term = search.trim().toLocaleLowerCase();
   const shownRows =
     term === '' ? rows : rows.filter((row) => row.company.name.toLocaleLowerCase().includes(term));
@@ -252,7 +257,7 @@ export function ClientsScreen({
             onClick={() => setView('organizations')}
           >
             {t('Clients.tabOrganizations')}
-            <span className="cl-count">{companies.length}</span>
+            {organizations.isSuccess ? <span className="cl-count">{companies.length}</span> : null}
           </button>
           <button
             type="button"
@@ -261,7 +266,7 @@ export function ClientsScreen({
             onClick={() => setView('invitations')}
           >
             {t('Clients.tabInvitations')}
-            <span className="cl-count">{invitationRows.length}</span>
+            {invitationsLoaded ? <span className="cl-count">{invitationRows.length}</span> : null}
           </button>
         </div>
 

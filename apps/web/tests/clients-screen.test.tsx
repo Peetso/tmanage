@@ -299,6 +299,16 @@ describe('ClientsScreen', () => {
     expect(document.querySelector('.cl-screen')!.getAttribute('data-view')).toBe('invitations');
   });
 
+  it('draws a tab count only once its list has loaded, never a premature 0', async () => {
+    mount();
+    const tab = screen.getByRole('button', {
+      name: new RegExp(label('Clients.tabOrganizations')),
+    });
+    expect(tab.querySelector('.cl-count')).toBeNull();
+    await screen.findByRole('list', { name: label('Clients.organizationsTitle') });
+    await waitFor(() => expect(tab.querySelector('.cl-count')?.textContent).toBe('4'));
+  });
+
   it('sends the personal note with the invitation', async () => {
     const calls = mount();
     await screen.findByRole('list', { name: label('Clients.organizationsTitle') });
