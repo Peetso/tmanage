@@ -28,6 +28,8 @@ describe('Arabic legal copy', () => {
   it('translates every section of both documents', () => {
     for (const key of ['terms', 'privacy'] as const) {
       const ids = LEGAL_DOCUMENTS[key].sections.map((section) => section.id);
+      // The web route appends its own sign-in section to the privacy policy (C8).
+      if (key === 'privacy') ids.push('sign-in-data');
       expect(Object.keys(LEGAL_DOCUMENTS_AR[key].sections).sort()).toEqual([...ids].sort());
     }
   });
@@ -66,6 +68,20 @@ describe('MarketingLegalScreen in Arabic', () => {
     render(withQuery(<MarketingLegalScreen doc="terms" document={LEGAL_DOCUMENTS.terms} />));
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('شروط الخدمة');
     expect(screen.getByRole('heading', { level: 2, name: 'الاستخدام المقبول' })).toBeDefined();
+  });
+
+  it('renders the web-only sign-in section of the privacy policy in Arabic', () => {
+    act(() => activeLocale.set('ar-EG'));
+    const signIn = { id: 'sign-in-data', heading: 'Sign-in and session data', body: 'English' };
+    const privacy = {
+      ...LEGAL_DOCUMENTS.privacy,
+      sections: [...LEGAL_DOCUMENTS.privacy.sections, signIn],
+    };
+    render(withQuery(<MarketingLegalScreen doc="privacy" document={privacy} />));
+    expect(document.getElementById('sign-in-data')?.textContent).toContain(
+      'بيانات تسجيل الدخول والجلسات',
+    );
+    expect(document.getElementById('sign-in-data')?.textContent).not.toContain('English');
   });
 
   it('shows the English document unchanged in English, without the note', () => {

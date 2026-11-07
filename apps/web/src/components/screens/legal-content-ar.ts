@@ -1,5 +1,6 @@
 import { LEGAL_COPY_AR, LEGAL_ENGLISH_PREVAILS_AR as ENGLISH_PREVAILS_AR } from '@tmanage/domain';
 import type { LegalDoc } from '../../lib/api/public-legal';
+import { translate } from '../../lib/i18n/t';
 
 /**
  * **Arabic legal copy (live-check M2).** A faithful Arabic translation of the Terms of Service and the
@@ -25,4 +26,19 @@ export interface ArabicLegalDocument {
 /** Shown under the intro of each Arabic legal page. */
 export const LEGAL_ENGLISH_PREVAILS_AR: string = ENGLISH_PREVAILS_AR;
 
-export const LEGAL_DOCUMENTS_AR: Readonly<Record<LegalDoc, ArabicLegalDocument>> = LEGAL_COPY_AR;
+/**
+ * The privacy page's web-only "Sign-in and session data" section (`/legal/privacy` appends it with
+ * the id `sign-in-data`) is not in the domain copy, so its Arabic comes from the catalog here.
+ */
+const SIGN_IN_SECTION_AR = {
+  heading: translate('ar', 'Privacy.signInHeading'),
+  body: translate('ar', 'Privacy.signInBody'),
+};
+
+export const LEGAL_DOCUMENTS_AR: Readonly<Record<LegalDoc, ArabicLegalDocument>> = {
+  ...LEGAL_COPY_AR,
+  privacy: {
+    ...LEGAL_COPY_AR.privacy,
+    sections: { ...LEGAL_COPY_AR.privacy.sections, 'sign-in-data': SIGN_IN_SECTION_AR },
+  },
+};
