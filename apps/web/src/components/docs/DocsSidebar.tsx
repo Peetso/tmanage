@@ -88,13 +88,13 @@ export function DocsSidebar({
           ⌕
         </span>
         <span className="tm-visually-hidden">
-          {tOr('DocsSidebar.findLabel', 'Find a channel or person')}
+          {tOr('DocsSidebar.findLabel', 'Find a document')}
         </span>
         <input
           type="search"
           value={find}
           onChange={(event) => setFind(event.target.value)}
-          placeholder={tOr('DocsSidebar.findPlaceholder', 'Find a channel or person')}
+          placeholder={tOr('DocsSidebar.findPlaceholder', 'Find a document')}
         />
         <kbd className="tm-docside__kbd" aria-hidden="true">
           ⌘K

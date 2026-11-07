@@ -2,7 +2,7 @@
 
 import type { Editor } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 
 import { useTOr } from '../../../lib/i18n/use-t-or';
 
@@ -156,6 +156,23 @@ const TOGGLES: readonly ToolId[] = [
 export function EditorToolbar({ editor, onImage, onEmbed, onLink }: EditorToolbarProps) {
   const tOr = useTOr();
   const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  // C14: the "More" menu closes on a click outside it and on Escape, not only on its own button.
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onPointer = (event: MouseEvent) => {
+      if (!moreRef.current?.contains(event.target as Node)) setMoreOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMoreOpen(false);
+    };
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [moreOpen]);
   const active = useEditorState({
     editor,
     selector: ({ editor: current }) =>
@@ -232,7 +249,7 @@ export function EditorToolbar({ editor, onImage, onEmbed, onLink }: EditorToolba
         </Fragment>
       ))}
       <span className="tm-doced__sep" aria-hidden="true" />
-      <div className="tm-doced__more">
+      <div className="tm-doced__more" ref={moreRef}>
         <button
           type="button"
           className="tm-docpage__tool"

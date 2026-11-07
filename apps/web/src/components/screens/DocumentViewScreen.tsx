@@ -210,7 +210,7 @@ export function DocumentViewScreen({
                   {people[0] ? `${people[0].displayName} · ` : ''}
                   {t('DocumentViewScreen.updated')}{' '}
                   <time dateTime={data.updatedAt} title={formatInstant(data.updatedAt)}>
-                    {formatRelative(data.updatedAt)}
+                    {formatRelative(data.updatedAt, locale)}
                   </time>
                   {people.length > 0
                     ? ` · ${people.length} ${
@@ -230,27 +230,30 @@ export function DocumentViewScreen({
                   versionNo={previewVersionNo}
                   people={people}
                 />
-              ) : null}
-              <div className="tm-dx-sheet__body" hidden={historyOpen && previewVersionNo !== null}>
-                {/* R5: an `html` body renders through the read-only Tiptap schema (unknown nodes
+              ) : (
+                // C15: render the current body only when no older version is previewed — the
+                // body's `display: flex` beat the `hidden` attribute, so both texts showed.
+                <div className="tm-dx-sheet__body">
+                  {/* R5: an `html` body renders through the read-only Tiptap schema (unknown nodes
                     drop, never injected HTML); comment anchors talk to the rail both ways. */}
-                {(data as { bodyFormat?: 'markdown' | 'html' }).bodyFormat === 'html' ? (
-                  <DocBodyView
-                    html={data.body}
-                    activeAnchorId={activeAnchorId}
-                    onCommentClick={setActiveAnchorId}
-                  />
-                ) : (
-                  /* The body's Markdown as headings, lists, bold and safe links (live test
+                  {(data as { bodyFormat?: 'markdown' | 'html' }).bodyFormat === 'html' ? (
+                    <DocBodyView
+                      html={data.body}
+                      activeAnchorId={activeAnchorId}
+                      onCommentClick={setActiveAnchorId}
+                    />
+                  ) : (
+                    /* The body's Markdown as headings, lists, bold and safe links (live test
                     2026-10-31: it showed raw "#" and "**"). React escapes every string; no HTML
                     is parsed. */
-                  <DocMarkdown
-                    body={data.body}
-                    doneLabel={tOr('DocumentViewScreen.checkDone', 'Done')}
-                    openLabel={tOr('DocumentViewScreen.checkOpen', 'Not done')}
-                  />
-                )}
-              </div>
+                    <DocMarkdown
+                      body={data.body}
+                      doneLabel={tOr('DocumentViewScreen.checkDone', 'Done')}
+                      openLabel={tOr('DocumentViewScreen.checkOpen', 'Not done')}
+                    />
+                  )}
+                </div>
+              )}
             </article>
           </div>
 
@@ -300,12 +303,12 @@ function formatClock(iso: string, locale: string): string {
   ).format(at);
 }
 
-/** "26 minutes ago", "3 days ago" — the sheet byline's age. */
-function formatRelative(iso: string): string {
+/** "26 minutes ago", "3 days ago" — the sheet byline's age, in the active locale (C2). */
+export function formatRelative(iso: string, locale: string): string {
   const at = new Date(iso).getTime();
   if (Number.isNaN(at)) return iso;
   const seconds = Math.round((at - Date.now()) / 1000);
-  const format = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+  const format = new Intl.RelativeTimeFormat(tagFor(locale), { numeric: 'auto' });
   const steps: readonly [Intl.RelativeTimeFormatUnit, number][] = [
     ['day', 86_400],
     ['hour', 3_600],
