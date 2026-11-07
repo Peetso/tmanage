@@ -103,6 +103,14 @@ export const clientsDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'Pending', args: { clientOrganizationId: 'co_123' } }],
   }),
   det({
+    id: 'client_organizations.projects.list',
+    title: 'List projects shared with a client company',
+    description: 'Id, name, status and share date of every active project shared with one client.',
+    input: pathOnly('clientOrganizationId'),
+    redact: 'client_safe',
+    examples: [{ summary: 'One company', args: { clientOrganizationId: 'co_123' } }],
+  }),
+  det({
     id: 'client_organizations.options.list',
     title: 'List client companies to pick from',
     description: 'Id and name of every active client company, for choosing a project client.',

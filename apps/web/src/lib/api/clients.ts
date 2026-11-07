@@ -163,6 +163,26 @@ export async function getClientOrganization(
   return data;
 }
 
+/** One project shared with a client company (B10). */
+export interface ClientProject {
+  readonly id: string;
+  readonly name: string;
+  readonly status: string;
+  readonly sharedAt: string;
+}
+
+/** `GET client-organizations/:id/projects` — the active projects shared with one company. */
+export async function listClientProjects(
+  client: ApiClient,
+  organizationSlug: string,
+  clientOrganizationId: string,
+): Promise<readonly ClientProject[]> {
+  const { data } = await client.request<{ projects: readonly ClientProject[] }>({
+    path: `${orgPath(organizationSlug)}/client-organizations/${encodeURIComponent(clientOrganizationId)}/projects`,
+  });
+  return data.projects;
+}
+
 /** `PATCH client-organizations/:id` — rename, guarded by the row's `updatedAt`. */
 export async function renameClientOrganization(
   client: ApiClient,

@@ -79,6 +79,13 @@ function mount() {
         ],
       });
     }
+    if (method === 'GET' && path === '/client-organizations/co-atlas/projects') {
+      return reply({
+        projects: [
+          { id: 'p-1', name: 'Atlas launch', status: 'active', sharedAt: '2026-10-02T00:00:00Z' },
+        ],
+      });
+    }
     if (method === 'PATCH') return reply({ ...ATLAS, name: (body as { name: string }).name });
     if (method === 'DELETE') return reply({ ...ATLAS, archivedAt: '2026-10-31T12:00:00Z' });
     return reply({});
@@ -107,6 +114,13 @@ function mount() {
 }
 
 describe('ClientCompanyScreen', () => {
+  it('lists the projects shared with the company, each opening the project (B10)', async () => {
+    mount();
+    const list = await screen.findByRole('list', { name: label('Clients.sharedProjectsTitle') });
+    const link = within(list).getByRole('link', { name: /Atlas launch/ });
+    expect(link.getAttribute('href')).toBe('/northstar/projects/p-1');
+  });
+
   it('shows the company, its people by name and its pending invitations', async () => {
     const calls = mount();
     const people = await screen.findByRole('list', { name: label('Clients.peopleTitle') });

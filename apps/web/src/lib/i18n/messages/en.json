@@ -14639,6 +14639,8 @@
   "Clients.archiveBody": "You can no longer invite people into it or share new projects with it. People who already use the portal keep their access until you remove them. Projects and files stay, and the company stays in your list marked Archived.",
   "Clients.archiving": "Archiving",
   "Clients.archiveFailed": "The company could not be archived",
+  "Clients.sharedProjectsTitle": "Shared projects",
+  "Clients.sharedProjectsNone": "No project is shared with this company yet.",
   "NewClientRequestScreen.previewTitle": "Client preview",
   "NewClientRequestScreen.previewBody": "Only someone from the client can send a request. The form is shown exactly as they see it.",
   "ClientPortalShell.previewNoteGeneric": "This is what your client sees. Nothing here is internal.",

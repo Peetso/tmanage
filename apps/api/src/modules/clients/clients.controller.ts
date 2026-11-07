@@ -21,6 +21,7 @@ import type {
   ClientMembershipView,
   ClientOrganizationOption,
   ClientOrganizationView,
+  ClientProjectView,
   ClientsService,
   ProjectClientView,
 } from './clients.service.js';
@@ -172,6 +173,23 @@ export class ClientsController {
     return {
       invitations: all.filter(
         (invitation) => invitation.clientOrganizationId === clientOrganizationId,
+      ),
+    };
+  }
+
+  /** B10: the projects shared with one client company, for its detail page. */
+  @Get('client-organizations/:clientOrganizationId/projects')
+  @RequireCapability('org.manage')
+  async listOrganizationProjects(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('clientOrganizationId') clientOrganizationId: string,
+  ): Promise<{ readonly projects: readonly ClientProjectView[] }> {
+    return {
+      projects: await this.clients.listOrganizationProjects(
+        context,
+        principal,
+        clientOrganizationId,
       ),
     };
   }

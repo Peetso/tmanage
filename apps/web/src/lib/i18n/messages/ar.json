@@ -14639,6 +14639,8 @@
   "Clients.archiveBody": "لن يمكنك دعوة أشخاص إليها أو مشاركة مشاريع جديدة معها. من يستخدم البوابة حاليًا يحتفظ بصلاحيته حتى تزيله. تبقى المشاريع والملفات، وتبقى الشركة في قائمتك بعلامة «مؤرشفة».",
   "Clients.archiving": "جارٍ الأرشفة",
   "Clients.archiveFailed": "تعذّرت أرشفة الشركة",
+  "Clients.sharedProjectsTitle": "المشاريع المشتركة",
+  "Clients.sharedProjectsNone": "لم تتم مشاركة أي مشروع مع هذه الشركة بعد.",
   "NewClientRequestScreen.previewTitle": "معاينة العميل",
   "NewClientRequestScreen.previewBody": "لا يرسل الطلب إلا شخص من جهة العميل. يظهر النموذج تمامًا كما يراه.",
   "ClientPortalShell.previewNoteGeneric": "هذا ما يراه عميلك. لا شيء هنا داخلي.",

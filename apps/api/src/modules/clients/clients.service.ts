@@ -83,6 +83,14 @@ export interface ProjectClientView {
   readonly createdAt: string;
 }
 
+/** B10: one project shared with a client company, as its detail page lists it. */
+export interface ClientProjectView {
+  readonly id: string;
+  readonly name: string;
+  readonly status: string;
+  readonly sharedAt: string;
+}
+
 /** One row of the New project client picker (PRJ-02). */
 export interface ClientOrganizationOption {
   readonly id: string;
@@ -199,6 +207,40 @@ export class ClientsService {
   ): Promise<ClientOrganizationView> {
     this.requireCapability(principal, context, 'org.manage', 'client_organization.read');
     return toOrganizationView(await this.readOrganization(context, clientOrganizationId));
+  }
+
+  /**
+   * B10 — the projects shared with one client company, for its detail page: id, name, status
+   * and when it was shared, sorted by name. Archived projects are left out (the client no longer
+   * sees them either). `org.manage`, like the rest of that page; 404 for a foreign company.
+   */
+  async listOrganizationProjects(
+    context: TenantContext,
+    principal: Principal,
+    clientOrganizationId: string,
+  ): Promise<readonly ClientProjectView[]> {
+    this.requireCapability(principal, context, 'org.manage', 'client_organization.projects');
+    await this.readOrganization(context, clientOrganizationId);
+
+    const rows = await this.database.read(context, async (runner) => {
+      const shares = await this.shares.list(runner, context, {
+        clientOrganizationId,
+        limit: OPTIONS_LIMIT,
+      });
+      const found: ClientProjectView[] = [];
+      for (const share of shares) {
+        const project = await this.projects.findById(runner, context, share.projectId);
+        if (!project || project.archivedAt !== null) continue;
+        found.push({
+          id: project.id,
+          name: project.name,
+          status: project.status,
+          sharedAt: share.createdAt.toISOString(),
+        });
+      }
+      return found;
+    });
+    return rows.sort((a, b) => a.name.localeCompare(b.name));
   }
 
   async createOrganization(

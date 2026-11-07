@@ -142,7 +142,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // ask-resend +3, Jira REST source +1): +9, was 1278.
 // R23 (import undo +1): +1, was 1287.
 // R27 (A21 inbox mark done +1): +1, was 1288.
-const EXPECTED_ROUTE_COUNT = 1289;
+// R28 (B10 client company projects +1): +1, was 1289.
+const EXPECTED_ROUTE_COUNT = 1290;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

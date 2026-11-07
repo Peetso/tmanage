@@ -12,6 +12,7 @@ import {
   getClientOrganization,
   listClientInvitations,
   listClientPeople,
+  listClientProjects,
   reissueClientInvitation,
   renameClientOrganization,
 } from '../../lib/api/clients';
@@ -56,8 +57,9 @@ const STATUS_KEY = {
  * "Clients · Client company detail (2026-10-31 live-test fix)" 446:37327, with the rename dialog
  * 446:37470 and the archive confirmation 446:37514).
  *
- * Opened from a row on Clients. The company's name, its people (name, email, role), its pending
- * invitations with Resend, and three actions: Rename (`PATCH client-organizations/:id`), Archive
+ * Opened from a row on Clients. The company's name, its people (name, email, role), the projects
+ * shared with it (B10, each opening the project), its pending invitations with Resend, and three
+ * actions: Rename (`PATCH client-organizations/:id`), Archive
  * (`DELETE`, which archives) and Invite person (the t5-b dialog with this company filled in).
  */
 export function ClientCompanyScreen({
@@ -89,6 +91,11 @@ export function ClientCompanyScreen({
       listClientInvitations(api, organizationSlug, clientOrganizationId, ['pending', 'expired']),
   });
 
+  const projects = useQuery({
+    queryKey: [...key, 'projects'],
+    queryFn: () => listClientProjects(api, organizationSlug, clientOrganizationId),
+  });
+
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['clients', organizationSlug] });
 
   const resend = useMutation({
@@ -104,6 +111,7 @@ export function ClientCompanyScreen({
 
   const nowMs = now();
   const members = people.data ?? [];
+  const shared = projects.data ?? [];
   const invites = [...(invitations.data ?? [])].sort((a, b) =>
     b.createdAt.localeCompare(a.createdAt),
   );
@@ -277,6 +285,43 @@ export function ClientCompanyScreen({
                   {t('Clients.companyNote', { name: org.name })}
                 </p>
               ) : null}
+            </section>
+
+            <section
+              className="tm-card cl-card cl-card--organizations cl-card--projects"
+              aria-labelledby="cl-company-projects-title"
+            >
+              <h2 id="cl-company-projects-title" className="cl-card__title">
+                {t('Clients.sharedProjectsTitle')}
+                <span className="cl-count cl-count--client">{shared.length}</span>
+              </h2>
+              {projects.isError ? (
+                <InlineAlert tone="danger" title={t('Clients.loadFailed')} live>
+                  {describePeopleError(projects.error)}
+                </InlineAlert>
+              ) : shared.length === 0 ? (
+                <p className="cl-empty">
+                  {projects.isPending ? '' : t('Clients.sharedProjectsNone')}
+                </p>
+              ) : (
+                <ul className="cl-list" aria-label={t('Clients.sharedProjectsTitle')}>
+                  {shared.map((project) => (
+                    <li key={project.id} className="cl-item">
+                      <Link
+                        className="cl-row cl-row--link"
+                        href={`/${organizationSlug}/projects/${encodeURIComponent(project.id)}`}
+                      >
+                        <span className="cl-orb" aria-hidden="true">
+                          {initialsOf(project.name)}
+                        </span>
+                        <span className="cl-row__text">
+                          <span className="cl-row__name cl-break">{project.name}</span>
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
           </div>
         )}

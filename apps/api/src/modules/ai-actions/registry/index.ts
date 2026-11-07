@@ -896,6 +896,14 @@ export const OPS: readonly AiActionOp[] = [
     scope: 'read',
   },
   {
+    id: 'client_organizations.projects.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/client-organizations/:clientOrganizationId/projects',
+    capability: 'org.manage',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
     id: 'client_organizations.options.list',
     method: 'GET',
     path: '/v1/organizations/:orgSlug/client-organization-options',
