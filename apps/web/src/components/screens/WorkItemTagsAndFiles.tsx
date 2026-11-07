@@ -9,6 +9,7 @@ import { WorkItemLabelChips } from './WorkItemLabelChips';
 import { NotScannedDownload } from './NotScannedDownload';
 import { useT } from '../../lib/i18n/use-t';
 import './capture-extras.css';
+import './work-item-tags-files.css';
 
 export interface WorkItemTagsAndFilesProps {
   readonly organizationSlug: string;
@@ -70,7 +71,7 @@ export function WorkItemTagsAndFiles({
         ) : files.data.length === 0 ? (
           <p className="tm-capture-extra__hint">{t('WorkItemTagsAndFiles.noFiles')}</p>
         ) : (
-          <ul className="tm-capture-extra__chips tm-capture-extra__list">
+          <ul className="tm-capture-extra__chips tm-capture-extra__list tm-work-files">
             {files.data.map((file) =>
               file.availability === 'ready' ? (
                 // Ready: a download link, as before. A link to the scan route is offered only
@@ -82,7 +83,9 @@ export function WorkItemTagsAndFiles({
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <span className="tm-capture-extra__file-name">{file.fileName}</span>
+                    <span className="tm-capture-extra__file-name" title={file.fileName}>
+                      {file.fileName}
+                    </span>
                   </a>
                 </li>
               ) : file.availability === 'scanning' ? (
@@ -91,7 +94,9 @@ export function WorkItemTagsAndFiles({
                 // disabled with the reason.
                 <li key={file.id} className="tm-scan-row">
                   <span className="tm-chip tm-chip--compact" aria-disabled="true">
-                    <span className="tm-capture-extra__file-name">{file.fileName}</span>
+                    <span className="tm-capture-extra__file-name" title={file.fileName}>
+                      {file.fileName}
+                    </span>
                   </span>
                   <NotScannedDownload
                     href={`${base}/v1/organizations/${encodeURIComponent(organizationSlug)}/files/${encodeURIComponent(file.fileAssetId)}/content`}
@@ -102,7 +107,9 @@ export function WorkItemTagsAndFiles({
                 // Not servable: the file's name with the reason, never a dead link.
                 <li key={file.id}>
                   <span className="tm-chip tm-chip--compact" aria-disabled="true">
-                    <span className="tm-capture-extra__file-name">{file.fileName}</span>
+                    <span className="tm-capture-extra__file-name" title={file.fileName}>
+                      {file.fileName}
+                    </span>
                   </span>
                   <span className="tm-capture-extra__hint" role="status">
                     {t('WorkItemTagsAndFiles.unavailable')}

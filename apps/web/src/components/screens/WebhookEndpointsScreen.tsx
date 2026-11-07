@@ -4,8 +4,7 @@ import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { ControlCenterSections } from '../admin/ControlCenterShell';
-import { AppShell } from '../shell/AppShell';
+import { ControlCenterShell } from '../admin/ControlCenterShell';
 import '../../styles/screens/automations.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -86,14 +85,14 @@ export function WebhookEndpointsScreen({
   const enabledCount = rows.filter((endpoint) => endpoint.enabled).length;
 
   return (
-    <AppShell
+    // C19: the Control Center frame, like every other admin page. Inside the app shell the
+    // Control Center menu sat beside the app's own side menu, so the page showed two.
+    <ControlCenterShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      activeNavigationId="admin"
-      contextRail={
-        <ControlCenterSections organizationSlug={organizationSlug} section="integrations" />
-      }
-      eyebrow={t('WebhookEndpointsScreen.eyebrow')}
+      section="integrations"
+      crumbs={[t('ControlCenterShell.integrations'), t('WebhookEndpointsScreen.title')]}
+      {...(client ? { client } : {})}
       title={t('WebhookEndpointsScreen.title')}
       {...(rows.length > 0
         ? {
@@ -271,6 +270,6 @@ export function WebhookEndpointsScreen({
           </section>
         </div>
       </div>
-    </AppShell>
+    </ControlCenterShell>
   );
 }

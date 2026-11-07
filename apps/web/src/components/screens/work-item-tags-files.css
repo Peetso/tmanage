@@ -1,0 +1,29 @@
+/*
+ * C12 (2026-11-02 live test): the work item's Files panel. In the overview's narrow column a
+ * long file name squeezed its chip down to one letter per line. Each file keeps one line and the
+ * name ends in an ellipsis instead; the full name stays in the link's title.
+ */
+
+.tm-work-files > li {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.tm-work-files .tm-chip {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.tm-work-files .tm-capture-extra__file-name {
+  display: block;
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
+  word-break: normal;
+}

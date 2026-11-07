@@ -116,7 +116,8 @@ export function useMessageReactionTally(
 
 /**
  * A16 — the Figma's reaction pills under a message: only reactions someone has used, each with
- * its count (the member's own drawn pressed), then a "☺ +" pill that opens the full picker.
+ * its count (the member's own drawn pressed), then a "☺ +" pill that opens the full picker. The
+ * picker is not drawn here: the caller draws the message's single `EmojiPicker` (C13).
  * `MessageReactionsView` below stays the full chip bar for the screens that already use it.
  */
 export function MessageReactionPills({
@@ -145,7 +146,9 @@ export function MessageReactionPills({
     messageId,
   );
   const used = rows.filter((row) => row.count > 0);
-  if (used.length === 0 && !pickerOpen) return null;
+  // C13: the picker itself is the message's one EmojiPicker, drawn by the caller; drawing a second
+  // grid here put two pickers on top of each other.
+  if (used.length === 0) return null;
 
   return (
     <div
@@ -181,29 +184,6 @@ export function MessageReactionPills({
         >
           <span aria-hidden="true">{'\u{263A}'} +</span>
         </button>
-      ) : null}
-      {pickerOpen ? (
-        <div
-          className="tm-chat-react-picker"
-          role="group"
-          aria-label={tOr('ProjectChannelScreen.addReaction', 'Add a reaction')}
-        >
-          {ALLOWED_REACTIONS.map(({ emoji }) => (
-            <button
-              key={emoji}
-              type="button"
-              className="tm-chat-react-picker__item"
-              aria-label={reactionLabel(emoji, tOr, t)}
-              disabled={toggle.isPending}
-              onClick={() => {
-                react(emoji);
-                onPickerOpenChange(false);
-              }}
-            >
-              <span aria-hidden="true">{emoji}</span>
-            </button>
-          ))}
-        </div>
       ) : null}
       {toggle.isError ? (
         <InlineAlert tone="danger">{messageOf(t, toggle.error)}</InlineAlert>

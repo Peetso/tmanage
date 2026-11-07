@@ -92,11 +92,8 @@ export function ConnectedAppsScreen({
           </InlineAlert>
         ) : (
           <>
-            {view.data.owner ? (
-              <p className="tm-connected__caption">
-                {fillTemplate(t('ConnectedApps.ownerView'), { name: view.data.viewerName })}
-              </p>
-            ) : null}
+            {/* C19: "Owner view · name" is the Control Center eyebrow above the title; a second
+                caption here repeated it. */}
             {revoke.isError || toggle.isError ? (
               <InlineAlert tone="danger" title={t('ConnectedApps.saveError')} live>
                 {null}
