@@ -1,0 +1,89 @@
+/*
+ * Quotes (R31 L04 A12): the list, the draft editor and the client's accept page (/q/:token).
+ * Figma: "R31 L04 A12 Quotes · List, Draft editor, Client accept" section on the Product page.
+ * Tokens only; logical properties throughout so the Arabic layout mirrors.
+ */
+
+.tm-quote__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--s4);
+}
+
+.tm-quote__lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-quote__line {
+  display: grid;
+  grid-template-columns:
+    minmax(180px, 3fr) minmax(96px, 1fr) minmax(80px, 1fr) minmax(110px, 1.3fr)
+    minmax(72px, 0.8fr) auto;
+  align-items: end;
+  gap: var(--s3);
+}
+
+.tm-quote__terms {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-ui-md);
+  white-space: pre-wrap;
+}
+
+.tm-quote__link {
+  margin: 0;
+  padding: var(--s3);
+  border-radius: var(--r-card);
+  background: var(--paper-50);
+  color: var(--ink-800);
+  font-family: var(--font-mono);
+  font-size: var(--t-ui-sm);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.tm-quote-public {
+  min-block-size: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s5);
+  padding: 64px var(--s4) 48px;
+  background: var(--paper-50);
+}
+
+.tm-quote-public__card {
+  inline-size: 100%;
+  max-inline-size: 760px;
+}
+
+.tm-quote-public__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-heading-page);
+  font-weight: 600;
+}
+
+.tm-quote-public__code {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s3);
+}
+
+.tm-quote-public__footer {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--t-ui-sm);
+}
+
+@media (max-width: 900px) {
+  .tm-quote__line {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}

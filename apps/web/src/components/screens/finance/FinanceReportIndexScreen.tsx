@@ -7,12 +7,13 @@ import { FinanceReportSectionTabs } from './FinanceReportSectionTabs';
 import '../../../styles/screens/finance-ledger.css';
 
 const AREAS: readonly {
-  suffix: string;
+  /** Route below the organization, e.g. `/finance/profile`. */
+  path: string;
   title: readonly [string, string];
   body: readonly [string, string];
 }[] = [
   {
-    suffix: '/profile',
+    path: '/finance/profile',
     title: ['FinanceIndex.profileTitle', 'Finance profile'],
     body: [
       'FinanceIndex.profileBody',
@@ -20,37 +21,42 @@ const AREAS: readonly {
     ],
   },
   {
-    suffix: '/rates',
+    path: '/finance/rates',
     title: ['FinanceIndex.ratesTitle', 'Rate cards'],
     body: ['FinanceIndex.ratesBody', 'What an hour costs and what it is billed at.'],
   },
   {
-    suffix: '/timesheets',
+    path: '/finance/timesheets',
     title: ['FinanceIndex.timesheetsTitle', 'Timesheets'],
     body: ['FinanceIndex.timesheetsBody', 'Submit the week and approve the team’s time.'],
   },
   {
-    suffix: '/expenses',
+    path: '/finance/expenses',
     title: ['FinanceIndex.expensesTitle', 'Expenses'],
     body: ['FinanceIndex.expensesBody', 'Submit receipts and approve what others spent.'],
   },
   {
-    suffix: '/retainers',
+    path: '/finance/retainers',
     title: ['FinanceIndex.retainersTitle', 'Retainers'],
     body: ['FinanceIndex.retainersBody', 'Hours each client buys per period, and what is used.'],
   },
   {
-    suffix: '/invoices',
+    path: '/finance/invoices',
     title: ['FinanceIndex.invoicesTitle', 'Invoices'],
     body: ['FinanceIndex.invoicesBody', 'Client invoices, what is paid and what is overdue.'],
   },
   {
-    suffix: '/period-locks',
+    path: '/quotes',
+    title: ['Quotes.title', 'Quotes'],
+    body: ['FinanceIndex.quotesBody', 'Price the work and send it for the client to accept.'],
+  },
+  {
+    path: '/finance/period-locks',
     title: ['FinanceIndex.periodLocksTitle', 'Period locks'],
     body: ['FinanceIndex.periodLocksBody', 'Close a month so its numbers stay as they are.'],
   },
   {
-    suffix: '/reports',
+    path: '/finance/reports',
     title: ['FinanceIndex.reportsTitle', 'Reports'],
     body: ['FinanceIndex.reportsBody', 'Receivables aging and accounting exports.'],
   },
@@ -83,8 +89,8 @@ export function FinanceReportIndexScreen({
         <FinanceReportSectionTabs organizationSlug={organizationSlug} current="overview" />
         <ul className="tm-fin-index">
           {AREAS.map((area) => (
-            <li key={area.suffix}>
-              <Link href={`/${organizationSlug}/finance${area.suffix}`}>
+            <li key={area.path}>
+              <Link href={`/${organizationSlug}${area.path}`}>
                 <span className="tm-fin-card-title">{tOr(...area.title)}</span>
                 <span className="tm-fin-muted">{tOr(...area.body)}</span>
               </Link>
