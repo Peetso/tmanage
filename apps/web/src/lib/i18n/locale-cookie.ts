@@ -5,10 +5,11 @@ import { DISPLAY_LOCALES, type DisplayLocale } from '../api/display-preferences'
  * `localStorage` (`locale-boot.ts`).
  *
  * The language switch writes this cookie as well as `localStorage`, and the inline boot script
- * and the store read it first. The root layout deliberately does not read it: `cookies()` there
- * would make every route dynamic and stop the public pages being prerendered and CDN-cached
- * (release no-go 70645c82), so `<html lang dir>` is still set in the browser before the first
- * paint. The cookie keeps a server-side reader possible later (a segment that is dynamic anyway).
+ * and the store read it first. The root layout reads it only in a render that is per-request
+ * already (B17, `server-html-attributes.ts`), so a dynamic page's first HTML has the right
+ * `<html lang dir>`; `cookies()` in every render would make every route dynamic and stop the public
+ * pages being prerendered and CDN-cached (release no-go 70645c82), so on those pages the locale is
+ * still set in the browser before the first paint.
  *
  * The cookie is a display preference, not a credential: readable by the page (not HttpOnly, so the
  * boot script and the store can agree with it), `SameSite=Lax`, one year, `Secure` on https. Its

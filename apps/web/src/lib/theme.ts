@@ -1,4 +1,5 @@
 import type { DisplayDensity, DisplayTheme } from './api/display-preferences';
+import { writeThemeCookie } from './theme-cookie';
 
 /**
  * PREF-02's theme, applied. The member's saved theme (`light` / `dark` / `system`) becomes
@@ -30,6 +31,8 @@ export function applyTheme(theme: DisplayTheme): void {
   } catch {
     // Private mode or blocked storage: the theme still applies for this page.
   }
+  // B17: the cookie lets a dynamic server render put this theme in the first HTML.
+  writeThemeCookie(theme);
   if (typeof window.matchMedia !== 'function') return;
   const query = window.matchMedia('(prefers-color-scheme: dark)');
   if (systemListener) query.removeEventListener('change', systemListener);

@@ -100,23 +100,23 @@ const SRC = join(dirname(fileURLToPath(import.meta.url)), '../src');
 const LAYOUT_SOURCE = join(SRC, 'app/layout.tsx');
 
 describe('the root layout stays static (public pages prerendered)', () => {
-  it('reads neither cookies nor headers, and is not async', () => {
+  it('reads neither cookies nor headers itself (only via the request-render guard, B17)', () => {
     const source = readFileSync(LAYOUT_SOURCE, 'utf8');
     expect(source).not.toMatch(/from 'next\/headers'/);
     expect(source).not.toMatch(/server-locale/);
-    expect(source).not.toMatch(/export (default )?async function/);
     expect(source).not.toMatch(/generateMetadata/);
   });
 
   it('renders the English left-to-right baseline the boot script corrects', async () => {
     document.cookie = `${LOCALE_COOKIE_NAME}=ar-EG; Path=/`;
     const { default: RootLayout, metadata } = await import('../src/app/layout');
-    const element: unknown = RootLayout({ children: null });
-    expect(element).not.toBeInstanceOf(Promise);
+    // Outside a per-request render (a build-time prerender) the layout reads no request.
+    const element: unknown = await RootLayout({ children: null });
     if (!isValidElement(element)) throw new Error('RootLayout did not return an element');
-    const html = element as ReactElement<{ lang: string; dir: string }>;
+    const html = element as ReactElement<{ lang: string; dir: string; 'data-theme': string }>;
     expect(html.props.lang).toBe('en');
     expect(html.props.dir).toBe('ltr');
+    expect(html.props['data-theme']).toBe('light');
     expect(metadata.description).toBe(SITE_DESCRIPTION_EN);
     expect(requestReads.count).toBe(0);
   });

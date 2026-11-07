@@ -13,6 +13,7 @@ import { UpdateToast } from '../components/pwa/UpdateToast';
 import { LocaleHintToast } from '../components/shell/LocaleHintToast';
 import { localeBootScript } from '../lib/i18n/locale-boot';
 import { SITE_DESCRIPTION_EN } from '../lib/i18n/locale-html';
+import { serverHtmlAttributes } from '../lib/i18n/server-html-attributes';
 
 /**
  * Manrope, self-hosted.
@@ -114,9 +115,12 @@ const LOCALE_BOOT_SCRIPT = localeBootScript();
  * *nested* case — a client-portal preview rendered inside the internal app — and is
  * deliberately not used here.
  *
- * `lang="en" dir="ltr"` is the server-rendered baseline: correct with no JavaScript and for
- * every Latin-script member. The pages stay static (no `cookies()`/`headers()` here — shared
- * hosting, prerendered public pages, release no-go 70645c82), so the tab's own locale is applied in
+ * `lang="en" dir="ltr"` with `data-theme="light"` is the prerendered baseline: correct with no
+ * JavaScript and for every Latin-script member. The public pages stay static (shared hosting,
+ * prerendered public pages, release no-go 70645c82), so `serverHtmlAttributes()` reads the request
+ * only in a render that is per-request already (B17): a dynamic route's first HTML then carries
+ * the `app/ar` route's or the saved cookie's `lang`/`dir` and the saved theme, with no flip after
+ * hydration. On a prerendered page the tab's own locale is applied in
  * the browser: the inline `<head>` script from `locale-boot.ts` reads an allowlisted `?lang=`, the
  * saved-locale cookie the language switch writes, or the cached locale, and sets `lang`/`dir`
  * before the first paint; `LocaleDirectionProvider` (mounted just inside `<body>`) keeps them in
@@ -129,13 +133,14 @@ const LOCALE_BOOT_SCRIPT = localeBootScript();
  * properties, so that switch is a value change rather than a rewrite. The Arabic face the tokens
  * name (Alexandria) is still not packaged — recorded as open in `docs/implementation-status.md`.
  */
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const html = await serverHtmlAttributes();
   return (
     <html
-      lang="en"
-      dir="ltr"
+      lang={html.lang}
+      dir={html.dir}
       className={manrope.variable}
-      data-theme="light"
+      data-theme={html.theme}
       data-density="balanced"
       suppressHydrationWarning
     >
