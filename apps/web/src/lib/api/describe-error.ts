@@ -47,15 +47,38 @@ const NETWORK_DOWN: CatalogLine = ['ApiError.networkDown', API_ERROR_NETWORK_DOW
 const GENERIC: CatalogLine = ['ApiError.generic', API_ERROR_GENERIC_EN];
 
 /**
+ * The API's fixed refusal sentences (`MESSAGES` in `apps/api/src/common/http/errors.ts`), each with
+ * the catalog key that carries it in the reader's language. These are the sentences no call site
+ * words for the member, so passing them through verbatim left an Arabic screen showing English (C9).
+ * The match is on the exact sentence: a message a service wrote itself is still shown as written.
+ */
+const STOCK_MESSAGE_KEYS: ReadonlyMap<string, string> = new Map([
+  ['The request carries no valid session', 'ApiError.stock.unauthenticated'],
+  ['You do not have permission to perform this action', 'ApiError.stock.forbidden'],
+  ['The request could not be verified. Reload the page and try again', 'ApiError.stock.csrfFailed'],
+  [
+    'No organization matching that identifier is available to you',
+    'ApiError.stock.organizationNotFound',
+  ],
+  ['The requested resource was not found', 'ApiError.stock.notFound'],
+  ['The resource was modified concurrently. Reload and try again', 'ApiError.stock.conflict'],
+  ['The request could not be completed', 'ApiError.stock.internal'],
+  ['Too many requests. Wait a moment and try again', 'ApiError.stock.rateLimited'],
+]);
+
+/**
  * The one sentence a screen shows for a failed API call, in the active language.
  *
  * A refusal the API answered with keeps the server's own message (the API already words it for
- * the member). A request that never got an answer, and anything else, use the shared catalog lines
+ * the member), except the API's fixed stock sentences, which come from the catalog. A request that never got an answer, and anything else, use the shared catalog lines
  * `ApiError.networkDown` and `ApiError.generic` (or the screen's own `lines`), so an Arabic screen
  * never shows English here.
  */
 export function describeApiError(error: unknown, t: TranslateOr, lines?: ApiErrorLines): string {
-  if (error instanceof ApiRequestError) return error.message;
+  if (error instanceof ApiRequestError) {
+    const stockKey = STOCK_MESSAGE_KEYS.get(error.message);
+    return stockKey === undefined ? error.message : t(stockKey, error.message);
+  }
   if (error instanceof NetworkError) return t(...(lines?.network ?? NETWORK_DOWN));
   return t(...(lines?.generic ?? GENERIC));
 }

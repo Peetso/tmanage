@@ -4,18 +4,25 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { Field, InlineAlert } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
-import { apiBaseUrl } from '../../lib/api/browser-client';
+import { MemberSelect } from '../MemberSelect';
+import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
+import type { ApiClient } from '../../lib/api/client';
+import { useMembers } from '../../lib/use-members';
+import { useHydrated } from '../../lib/use-hydrated';
 import {
   auditFilteredExportUrl,
   MAX_AUDIT_EXPORT_WINDOW_DAYS,
 } from '../../lib/api/admin-audit-export';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 
 export interface AuditExportScreenProps {
   organizationSlug: string;
   organizationName: string;
   /** Injected in tests. Defaults to the real API origin. */
   baseUrl?: string;
+  /** Injected in tests. Defaults to the browser client; reads the member directory for the picker. */
+  client?: ApiClient;
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -43,8 +50,16 @@ export function AuditExportScreen({
   organizationSlug,
   organizationName,
   baseUrl,
+  client,
 }: AuditExportScreenProps) {
   const t = useT();
+  const tr = useTOr();
+  const api = client ?? browserApiClient();
+  // C18 (2026-11-02 live test): the field asked for a raw actor id. It now picks a person by name
+  // from the member directory and still sends the chosen member's id as `actor`.
+  const hydrated = useHydrated();
+  const [search, setSearch] = useState('');
+  const directory = useMembers(api, organizationSlug, search);
   const [fromDay, setFromDay] = useState('');
   const [toDay, setToDay] = useState('');
   const [actor, setActor] = useState('');
@@ -112,10 +127,16 @@ export function AuditExportScreen({
                 required
               />
             </div>
-            <Field
-              label={t('AuditExportScreen.actorId')}
+            <MemberSelect
+              label={tr('AuditExportScreen.actorPerson', 'Person')}
+              members={directory.members}
               value={actor}
-              onChange={(event) => setActor(event.currentTarget.value)}
+              onChange={setActor}
+              onSearchChange={setSearch}
+              loading={directory.isPending}
+              failed={directory.isError}
+              disabled={!hydrated}
+              openOnFocus
               hint={t('AuditExportScreen.actorHint')}
             />
             <Field
