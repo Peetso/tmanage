@@ -436,29 +436,32 @@ export class InvitationsRepository {
     return Number(rows[0]?.count ?? 0);
   }
 
-  /** The pending invitations for one address, newest first. Used to refuse a duplicate. */
+  /**
+   * The open (pending, unexpired) invitations for one address in this organization, newest
+   * first. Used to refuse a duplicate.
+   *
+   * B11: organization-wide, whatever the destination. It used to match only invitations with
+   * the same `clientOrganizationId`, so one address could hold a team invitation and a client
+   * invitation at once — two live tokens for one person, each granting a different membership.
+   * The second argument is kept for the callers' signature and no longer narrows the match.
+   */
   async findPendingForEmail(
     runner: TenantQueryRunner,
     context: TenantContext,
     email: string,
-    clientOrganizationId: string | null,
+    _clientOrganizationId?: string | null,
   ): Promise<readonly InvitationRow[]> {
-    const predicates = [
-      eq(invitations.organizationId, context.organizationId),
-      eq(invitations.email, email),
-      eq(invitations.status, 'pending'),
-      NOT_YET_EXPIRED,
-    ];
-    predicates.push(
-      clientOrganizationId === null
-        ? sql`${invitations.clientOrganizationId} is null`
-        : eq(invitations.clientOrganizationId, clientOrganizationId),
-    );
-
     return tenantDrizzle(runner)
       .select()
       .from(invitations)
-      .where(and(...predicates))
+      .where(
+        and(
+          eq(invitations.organizationId, context.organizationId),
+          eq(invitations.email, email),
+          eq(invitations.status, 'pending'),
+          NOT_YET_EXPIRED,
+        ),
+      )
       .orderBy(desc(invitations.id));
   }
 

@@ -7,7 +7,10 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchPendingInvitations, revokeInvitation } from '../../lib/api/admin-invitations';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
+import { CLIENT_ROLES, INTERNAL_ROLES } from '@tmanage/domain';
 import { describeInternalRole } from '../../lib/roles';
+import { useCustomRoles } from '../people/ChangeRoleDialog';
+import type { CustomRoleOption } from '../people/ChangeRoleDialog';
 import { useT } from '../../lib/i18n/use-t';
 import { appLocale } from '../../lib/i18n/app-locale';
 
@@ -54,6 +57,11 @@ export function AdminInvitationsView({
     },
   });
 
+  // B11: a custom role is stored as its id; show the role's own name, never the id.
+  const customRoles = useCustomRoles(api, organizationSlug);
+  const roleName = (role: string) =>
+    invitationRoleName(role, customRoles.data, t('PeopleDirectoryScreen.role.custom'));
+
   const rows = invitations.data?.invitations ?? [];
 
   return (
@@ -99,7 +107,7 @@ export function AdminInvitationsView({
             {rows.map((invitation) => (
               <li key={invitation.id} className="tm-row">
                 <strong>{invitation.email}</strong>
-                <span className="tm-muted">{describeInternalRole(invitation.role).label}</span>
+                <span className="tm-muted">{roleName(invitation.role)}</span>
                 <span>
                   {t('AdminInvitationsView.invitedByPrefix')} {invitation.invitedByName}
                 </span>
@@ -128,6 +136,23 @@ export function AdminInvitationsView({
       </section>
     </AppShell>
   );
+}
+
+/**
+ * B11: the name an invitation's role is shown with — a custom role's own name, a built-in role's
+ * label (team or client), and only for an id no longer in the roles list the generic fallback.
+ */
+export function invitationRoleName(
+  role: string,
+  customRoles: readonly CustomRoleOption[] | undefined,
+  fallback: string,
+): string {
+  const custom = customRoles?.find((entry) => entry.id === role);
+  if (custom) return custom.name;
+  const builtIn =
+    (INTERNAL_ROLES as readonly string[]).includes(role) ||
+    (CLIENT_ROLES as readonly string[]).includes(role);
+  return builtIn ? describeInternalRole(role).label : fallback;
 }
 
 /** Format an ISO timestamp following the browser's locale; an unparseable value is shown verbatim. */

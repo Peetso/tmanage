@@ -32,6 +32,7 @@ import {
 import { INVITATIONS_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { requireOrgPermission } from './org-policy.js';
+import { InvitationsRepository } from './invitations.repository.js';
 import type { InvitationStatus } from './invitations.repository.js';
 import type {
   AcceptedInvitationView,
@@ -201,6 +202,10 @@ export class InvitationsController {
     if (clientOrganizationId !== null) {
       await requireOrgPermission(this.database, context, principal, 'members_can_invite_clients');
     }
+
+    // B11: one open invitation per address per organization. The service refuses the same inside
+    // its write transaction; this earlier read names the case with a code the screen can match.
+    await requireNoOpenInvitation(this.database, context, email);
 
     return withoutTokenForBoundCaller(
       context,
@@ -425,6 +430,34 @@ export function withoutTokenForBoundCaller(
   if (context.actorChannel !== 'ai_assistant') return issued;
   const { token: _token, ...rest } = issued;
   return rest;
+}
+
+/** B11: the detail token a duplicate invitation is refused with. */
+export const INVITATION_ALREADY_PENDING = 'invitation_already_pending';
+
+/**
+ * Refuse (409) an address that already holds an open invitation here — internal or client.
+ * A controller built without the database (a unit test) skips the read; the service's own check
+ * inside the issuing transaction still holds.
+ */
+export async function requireNoOpenInvitation(
+  database: TenantDatabase | undefined,
+  context: TenantContext,
+  email: string,
+  repository: InvitationsRepository = new InvitationsRepository(),
+): Promise<void> {
+  if (!database) return;
+  const open = await database.read(context, (runner) =>
+    repository.findPendingForEmail(runner, context, email),
+  );
+  if (open.length === 0) return;
+  throw new ApiError(
+    409,
+    'conflict',
+    'That address already has a pending invitation. Revoke it or change its role instead.',
+    [{ field: 'email', message: INVITATION_ALREADY_PENDING }],
+    INVITATION_ALREADY_PENDING,
+  );
 }
 
 function isStatus(value: string): value is InvitationStatus {
