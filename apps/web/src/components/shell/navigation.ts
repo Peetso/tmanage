@@ -85,6 +85,7 @@ export const INTERNAL_NAVIGATION: readonly NavigationItem[] = [
   { id: 'clients', label: 'Clients', messageKey: 'nav.clients', href: '/clients', glyph: '◇' },
   { id: 'people', label: 'People', messageKey: 'nav.people', href: '/people', glyph: '◎' },
   { id: 'insights', label: 'Insights', messageKey: 'nav.insights', href: '/insights', glyph: '◔' },
+  { id: 'finance', label: 'Finance', messageKey: 'nav.finance', href: '/finance', glyph: '¤' },
 ];
 
 /**

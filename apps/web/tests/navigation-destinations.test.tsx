@@ -47,11 +47,11 @@ const ALL_DESTINATIONS: readonly NavigationItem[] = [...INTERNAL_NAVIGATION, ...
 describe('every navigation destination resolves to a page', () => {
   it('walks a full navigation, not an empty one', () => {
     // A mapping bug that matched nothing would make every case below vacuously pass.
-    // Q1 added the "Clients" internal destination (/clients).
-    expect(INTERNAL_NAVIGATION.length).toBe(9);
+    // Q1 added the "Clients" internal destination (/clients); A10a added "Finance" (/finance).
+    expect(INTERNAL_NAVIGATION.length).toBe(10);
     // Portal risks (x140) added the "Risks" client destination (/portal/risks).
     expect(CLIENT_NAVIGATION.length).toBe(8);
-    expect(ALL_DESTINATIONS.length).toBe(17);
+    expect(ALL_DESTINATIONS.length).toBe(18);
   });
 
   it.each(ALL_DESTINATIONS.map((item) => [item.label, item] as const))(
