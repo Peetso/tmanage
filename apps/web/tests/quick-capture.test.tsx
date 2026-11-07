@@ -50,6 +50,24 @@ describe('buildCapturePayload', () => {
     });
   });
 
+  it('reads "tomorrow 3pm" (English or Arabic) out of the title into the due date (B1)', () => {
+    const now = new Date(2026, 10, 7, 9, 0); // Saturday 7 Nov 2026, 09:00 local
+    const at = (h: number, d = 8): string => new Date(2026, 10, d, h, 0).toISOString();
+    expect(buildCapturePayload({ projectId: 'p', title: 'Call Sara tomorrow 3pm', now })).toEqual({
+      projectId: 'p',
+      title: 'Call Sara',
+      dueAt: at(15),
+    });
+    expect(
+      buildCapturePayload({ projectId: 'p', title: 'اتصل بسارة غداً الساعة 15:00', now }),
+    ).toEqual({ projectId: 'p', title: 'اتصل بسارة', dueAt: at(15) });
+    expect(buildCapturePayload({ projectId: 'p', title: 'Send invoice monday', now })).toEqual({
+      projectId: 'p',
+      title: 'Send invoice',
+      dueAt: '2026-11-09T12:00:00.000Z',
+    });
+  });
+
   it('adds the owner and committed day picked on the chips (2026-10-31 live test)', () => {
     expect(
       buildCapturePayload({

@@ -31,6 +31,7 @@ import { NoStorageAttach, useAttachStorageState } from '../storage/NoStorageAtta
 import { DueDatePicker, formatChipDay, useA6T } from '../work/DueDatePicker';
 import { OwnerPickerDialog, useOwnerCandidates } from '../work/OwnerPickerDialog';
 import { dayToInstant } from '../../lib/work-item-presentation';
+import { parseQuickDate, quickDateInstant } from '../../lib/quick-date';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/home.css';
@@ -108,14 +109,21 @@ export function buildCapturePayload(input: {
   readonly ownerUserId?: string | null;
   /** The committed day picked on the capsule's date chip, `YYYY-MM-DD`, when one was. */
   readonly committedDay?: string;
+  /** The clock "tomorrow 3pm" in the title is read against (FIX-QUEUE B1). */
+  readonly now?: Date;
 }): CreateWorkItemInput {
-  const dueAt =
-    input.committedDay === undefined || input.committedDay === ''
+  const picked = input.committedDay !== undefined && input.committedDay !== '';
+  // A date written in the title ("tomorrow 3pm") leaves the title and becomes the due date,
+  // unless a day was picked on the chip: the pick wins.
+  const parsed = parseQuickDate(input.title, input.now);
+  const dueAt = picked
+    ? dayToInstant(input.committedDay ?? '')
+    : parsed === null
       ? null
-      : dayToInstant(input.committedDay);
+      : quickDateInstant(parsed);
   return {
     projectId: input.projectId,
-    title: input.title.trim(),
+    title: (parsed?.title ?? input.title).trim(),
     ...(input.ownerUserId ? { ownerUserId: input.ownerUserId } : {}),
     ...(dueAt === null ? {} : { dueAt }),
   };
@@ -223,6 +231,8 @@ export function QuickCaptureScreen({
     ownerUserId === null
       ? undefined
       : owners.candidates.find((candidate) => candidate.userId === ownerUserId)?.displayName;
+  // The day a date written in the title would set, shown on the date chip until one is picked.
+  const shownDay = committedDay !== '' ? committedDay : (parseQuickDate(title)?.day ?? '');
   const projectName = available.find((project) => project.id === effectiveProjectId)?.name ?? '';
 
   const toggleLabel = (labelId: string): void => {
@@ -422,17 +432,17 @@ export function QuickCaptureScreen({
               <button
                 type="button"
                 className={`tm-chip tm-chip--compact tm-capture__chip-button ${
-                  committedDay === '' ? 'tm-chip--dashed' : 'tm-capture__chip-static'
+                  shownDay === '' ? 'tm-chip--dashed' : 'tm-capture__chip-static'
                 }`}
                 aria-haspopup="dialog"
                 disabled={capture.isPending}
                 onClick={() => setPicker('date')}
               >
-                {committedDay === ''
+                {shownDay === ''
                   ? t('QuickCaptureScreen.committedNotSet')
                   : t('QuickCaptureScreen.committedChosen' as MessageKey).replace(
                       '{date}',
-                      formatChipDay(committedDay, locale),
+                      formatChipDay(shownDay, locale),
                     )}
               </button>
             </div>
@@ -571,7 +581,7 @@ export function QuickCaptureScreen({
             </div>
           </div>
 
-          {ownerUserId !== null && committedDay !== '' ? null : (
+          {ownerUserId !== null && shownDay !== '' ? null : (
             <p className="tm-capture__note-callout">
               <span className="tm-capture__note-glyph" aria-hidden="true">
                 !
@@ -597,7 +607,7 @@ export function QuickCaptureScreen({
           {picker === 'date' ? (
             <DueDatePicker
               heading={ta('DueDatePicker.dueHeading')}
-              value={committedDay}
+              value={shownDay}
               onSet={(day) => {
                 setCommittedDay(day ?? '');
                 setPicker(null);
