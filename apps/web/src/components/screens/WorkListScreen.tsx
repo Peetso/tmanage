@@ -26,6 +26,7 @@ import { useMembers } from '../../lib/use-members';
 import type { ApiClient } from '../../lib/api/client';
 import type { MessageKey } from '../../lib/i18n/t';
 import { activeIsEnglish, compactUnit, translateOr } from '../../lib/i18n/compact-time';
+import { appLocale } from '../../lib/i18n/app-locale';
 import { useT } from '../../lib/i18n/use-t';
 import { OPEN_COMMAND_PALETTE_EVENT } from './CommandPalette';
 import { WorkBoardView } from './WorkBoardView';
@@ -288,7 +289,7 @@ export function WorkListScreen({
   const clientWaitingCount = loadedRows.filter(
     (row) => row.audience === 'client_action_required',
   ).length;
-  const countLabel = `${loadedRows.length}${workItems.hasNextPage ? '+' : ''}`;
+  const countLabel = `${localCount(loadedRows.length)}${workItems.hasNextPage ? '+' : ''}`;
   // CQ-07 (WRK-10): "1 items" reads wrong; a single loaded row with no further page is one item.
   const itemWord =
     loadedRows.length === 1 && !workItems.hasNextPage
@@ -635,10 +636,10 @@ export function WorkListScreen({
           {selectedRows.length > 0 ? (
             <section className="tm-wk-bulk" aria-labelledby="tm-work-bulk">
               <span className="tm-wk-bulk__count" aria-hidden="true">
-                {selectedRows.length}
+                {localCount(selectedRows.length)}
               </span>
               <h2 id="tm-work-bulk" className="tm-wk-bulk__label">
-                <span className="tm-visually-hidden">{selectedRows.length} </span>
+                <span className="tm-visually-hidden">{localCount(selectedRows.length)} </span>
                 {t('WorkListScreen.selectedSetAudience')}
               </h2>
               <span className="tm-wk-bulk__rule" aria-hidden="true" />
@@ -691,8 +692,8 @@ export function WorkListScreen({
                   </span>
                   <div>
                     <p className="tm-prose">
-                      {widening.length} {t('WorkListScreen.reviewWideningOf')} {selectedRows.length}{' '}
-                      {t('WorkListScreen.reviewWideningSelected')}{' '}
+                      {localCount(widening.length)} {t('WorkListScreen.reviewWideningOf')}{' '}
+                      {localCount(selectedRows.length)} {t('WorkListScreen.reviewWideningSelected')}{' '}
                       {selectedRows.length === 1
                         ? t('WorkListScreen.itemSingular')
                         : t('WorkListScreen.itemPlural')}{' '}
@@ -714,7 +715,7 @@ export function WorkListScreen({
                     !
                   </span>
                   <span>
-                    {selectedRows.length - widening.length}{' '}
+                    {localCount(selectedRows.length - widening.length)}{' '}
                     {t('WorkListScreen.reviewPartialAlready')}{' '}
                     {audienceLabel(pendingBulk).toLowerCase()}{' '}
                     {t('WorkListScreen.reviewPartialLeft')}
@@ -759,8 +760,8 @@ export function WorkListScreen({
                 <table className="tm-wk-table">
                   <caption className="tm-visually-hidden">
                     {t('WorkListScreen.colCaption')}
-                    {projectId === '' ? '' : ` ${t('WorkListScreen.colCaptionInProject')}`},{' '}
-                    {rows.length} {t('WorkListScreen.shown')}
+                    {projectId === '' ? '' : ` ${t('WorkListScreen.colCaptionInProject')}`}
+                    {listComma()} {localCount(rows.length)} {t('WorkListScreen.shown')}
                   </caption>
                   <thead>
                     <tr>
@@ -819,7 +820,7 @@ export function WorkListScreen({
                             <td colSpan={8}>
                               {t('WorkListScreen.groupProjectPrefix')} {group.label}
                               <span className="tm-wk-table__group-count">
-                                {group.rows.length}{' '}
+                                {localCount(group.rows.length)}{' '}
                                 {group.rows.length === 1
                                   ? t('WorkListScreen.itemSingular')
                                   : t('WorkListScreen.itemPlural')}
@@ -929,7 +930,7 @@ export function WorkListScreen({
               </div>
               <p className="tm-wk-table__foot">
                 {t('WorkListScreen.footRowsPrefix')}
-                {rows.length}
+                {localCount(rows.length)}
                 {workItems.hasNextPage ? (
                   <>
                     {' · '}
@@ -961,7 +962,7 @@ export function WorkListScreen({
       <Announce
         message={
           (workItems.data?.pages.length ?? 0) > 1 && !workItems.isFetchingNextPage
-            ? `${loadedRows.length} ${loadedRows.length === 1 ? t('WorkListScreen.workItemSingular') : t('WorkListScreen.workItemPlural')} ${t('WorkListScreen.loadedInTotal')}`
+            ? `${localCount(loadedRows.length)} ${loadedRows.length === 1 ? t('WorkListScreen.workItemSingular') : t('WorkListScreen.workItemPlural')} ${t('WorkListScreen.loadedInTotal')}`
             : ''
         }
       />
@@ -1027,7 +1028,9 @@ function typeName(type: string): string {
   return translateOr(`WorkItemType.${key}`, key.charAt(0).toUpperCase() + key.slice(1));
 }
 
+/** The type cell: the short Latin code ("TSK") in English, the localized type word elsewhere. */
 function typeCode(type: string): string {
+  if (!activeIsEnglish()) return typeName(type);
   return TYPE_CODE[type.toLowerCase()] ?? type.slice(0, 3).toUpperCase();
 }
 
@@ -1043,13 +1046,23 @@ function shortDay(value: string): string {
   const bare = value.length === 10;
   const parsed = new Date(bare ? `${value}T00:00:00.000Z` : value);
   if (Number.isNaN(parsed.getTime())) return value;
-  // Arabic reads Arabic month names with Latin digits, as the Arabic frames write them.
-  const tag = activeIsEnglish() ? 'en-GB' : 'ar-u-nu-latn';
+  // The active locale's month names and digits, so a row never mixes digit systems (C1).
+  const tag = activeIsEnglish() ? 'en-GB' : appLocale();
   return new Intl.DateTimeFormat(tag, {
     day: 'numeric',
     month: 'short',
     ...(bare ? { timeZone: 'UTC' } : {}),
   }).format(parsed);
+}
+
+/** A count in the active locale's digits, matching the age and date cells beside it (C1). */
+function localCount(value: number): string {
+  return new Intl.NumberFormat(appLocale()).format(value);
+}
+
+/** The list separator before a count: the Arabic comma outside English (C1). */
+function listComma(): string {
+  return activeIsEnglish() ? ',' : '،';
 }
 
 /** WK-02's "Fresh" column: how long since the item last changed; a fortnight reads as stale. */

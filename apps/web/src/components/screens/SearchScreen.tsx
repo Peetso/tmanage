@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { useT } from '../../lib/i18n/use-t';
+import { appLocale } from '../../lib/i18n/app-locale';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { search } from '../../lib/api/search';
 import { listProjects } from '../../lib/api/projects';
@@ -199,7 +200,7 @@ export function SearchScreen({
           <div className="tm-sa-searchbar__actions">
             {settled ? (
               <span className="tm-sa-searchbar__count" aria-live="polite">
-                {total}{' '}
+                {localCount(total)}{' '}
                 {total === 1 ? t('SearchScreen.resultSingular') : t('SearchScreen.resultPlural')}
               </span>
             ) : null}
@@ -246,7 +247,7 @@ export function SearchScreen({
                   aria-pressed={kind === 'all'}
                   onClick={() => setKind('all')}
                 >
-                  {t('SearchScreen.allFacet')} {total}
+                  {t('SearchScreen.allFacet')} {localCount(total)}
                 </button>
                 {KIND_ORDER.map((value) => {
                   const count = hits.filter((hit) => hit.kind === value).length;
@@ -259,7 +260,7 @@ export function SearchScreen({
                       onClick={() => setKind(value)}
                       disabled={count === 0}
                     >
-                      {KIND_FACET[value]} {count}
+                      {KIND_FACET[value]} {localCount(count)}
                     </button>
                   );
                 })}
@@ -314,7 +315,7 @@ export function SearchScreen({
           <section className="tm-sa-results" aria-labelledby="tm-search-results">
             <h2 id="tm-search-results" className="tm-sa-eyebrow">
               {total > 0
-                ? `${t('SearchScreen.resultsHeadingPrefix')} (${total}) ${t('SearchScreen.resultsHeadingSuffix')}`
+                ? `${t('SearchScreen.resultsHeadingPrefix')} (${localCount(total)}) ${t('SearchScreen.resultsHeadingSuffix')}`
                 : t('SearchScreen.resultsHeading')}
             </h2>
 
@@ -429,9 +430,15 @@ export function shortRef(id: string): string {
   return hex.length >= 8 ? `${hex.slice(0, 4)}·${hex.slice(4, 8)}` : id.toUpperCase();
 }
 
-/** "13 Aug" — the design's short date on the card's meta line. */
-export function shortDate(iso: string): string {
+/** "13 Aug" — the design's short date on the card's meta line, in the active locale (C1). */
+export function shortDate(iso: string, locale: string = appLocale()): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const tag = locale.toLowerCase().startsWith('en') ? 'en-GB' : locale;
+  return date.toLocaleDateString(tag, { day: 'numeric', month: 'short' });
+}
+
+/** A result count in the active locale's digits, matching the dates beside it (C1). */
+function localCount(value: number): string {
+  return new Intl.NumberFormat(appLocale()).format(value);
 }

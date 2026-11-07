@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { useT } from '../../lib/i18n/use-t';
+import { appLocale } from '../../lib/i18n/app-locale';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   createSavedSearch,
@@ -39,7 +40,14 @@ const KIND_LABEL: Readonly<Record<SearchResultKind, string>> = {
   project: 'Project',
 };
 
-const DATE = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
+/** "13 Aug" in English; the active locale's month names and digits elsewhere (C1). */
+const DATE = {
+  format(at: Date): string {
+    const locale = appLocale();
+    const tag = locale.toLowerCase().startsWith('en') ? 'en-GB' : locale;
+    return new Intl.DateTimeFormat(tag, { day: 'numeric', month: 'short' }).format(at);
+  },
+};
 
 /**
  * **SRCH saved & recent searches (x214)** — drawn as SR-04 Saved search: the saved list in a

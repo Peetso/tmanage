@@ -96,6 +96,10 @@ describe('work list in Arabic (ACT-11)', () => {
     expect(within(row).queryByText('Blocked')).not.toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: blocked })).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: 'Blocked' })).not.toBeInTheDocument();
+    // C1: the type cell reads the Arabic type word, the caption uses the Arabic comma.
+    expect(within(row).getByText(ar['WorkItemType.task'])).toBeInTheDocument();
+    expect(within(row).queryByText('TSK')).not.toBeInTheDocument();
+    expect(container.querySelector('caption')?.textContent).toMatch(/، ١ /);
 
     await expectNoAxeViolations(container);
   });
