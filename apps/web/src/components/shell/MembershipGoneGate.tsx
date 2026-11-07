@@ -2,10 +2,12 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Button, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from './IdentityShell';
+import { rememberOrganizations, wasKnownOrganization } from './known-memberships';
+import { NotFoundState, StateScreen } from '../state/StateScreens';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listOrganizations } from '../../lib/api/organizations';
 import { signOut } from '../../lib/api/session';
@@ -23,6 +25,11 @@ import { authBoundary } from '../../lib/auth-boundary';
  * It decides only on a successful read: a still-loading or failed list is not "access removed", so
  * the app renders normally and its own error handling takes over. Mount it only where a
  * `QueryClient` is in the tree.
+ *
+ * An absent slug is "removed" only when this browser saw it in an earlier list (B16,
+ * `known-memberships`). A slug it never saw — `/admin` read as a workspace, a typo, someone else's
+ * organization — shows the not-found state instead, so a stranger is not told they "no longer"
+ * have access to something they never had, and the page does not confirm that the slug exists.
  */
 export function MembershipGoneGate({
   organizationSlug,
@@ -36,11 +43,22 @@ export function MembershipGoneGate({
     queryFn: () => listOrganizations(browserApiClient()),
     staleTime: 5 * 60_000,
   });
+  const loaded = organizations.isSuccess ? organizations.data : null;
+
+  useEffect(() => {
+    if (loaded) rememberOrganizations(loaded.map((org) => org.slug));
+  }, [loaded]);
 
   // Only a loaded list can tell "removed" from "not read yet". Until then, render the app.
-  if (!organizations.isSuccess) return <>{children}</>;
-  const current = organizations.data.find((org) => org.slug === organizationSlug);
-  if (current) return <>{children}</>;
+  if (!loaded) return <>{children}</>;
+  if (loaded.some((org) => org.slug === organizationSlug)) return <>{children}</>;
+  if (!wasKnownOrganization(organizationSlug)) {
+    return (
+      <StateScreen label="Not found" labelKey="StateScreens.eyebrowNotFound">
+        <NotFoundState homeHref="/organizations" />
+      </StateScreen>
+    );
+  }
 
   return <MembershipGonePage />;
 }
