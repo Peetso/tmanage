@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { adminSecurityAlerts, auditEvents, organizations } from '../../common/database/schema.js';
@@ -16,6 +17,15 @@ export interface RecentSecurityMatch {
   readonly objectId: string | null;
   readonly occurredAt: Date;
 }
+
+/**
+ * B13 (2026-11-02 live test): the `none` scanner driver writes a `file_asset.scan_failed` row with
+ * `cause: no_scanner` when no scanner is configured. Nothing failed — the file simply was not
+ * virus-scanned — so that row is never a security-alert match. Every other `scan_failed` row (a
+ * real scanner error) still matches. `JSON_UNQUOTE(JSON_EXTRACT(...))` reads the same on MySQL 8
+ * and on MariaDB (where JSON is LONGTEXT); a row without `cause` reads NULL and is kept.
+ */
+export const NOT_NO_SCANNER_ROW: SQL = sql`not (${auditEvents.action} = 'file_asset.scan_failed' and coalesce(json_unquote(json_extract(${auditEvents.metadataJson}, '$.cause')), '') = 'no_scanner')`;
 
 /**
  * The data half of the admin security-event alert configuration (Administration, security monitoring,
@@ -132,6 +142,7 @@ export class AdminSecurityAlertsRepository {
         and(
           eq(auditEvents.organizationId, context.organizationId),
           inArray(auditEvents.action, [...enabledKeys]),
+          NOT_NO_SCANNER_ROW,
         ),
       )
       .orderBy(desc(auditEvents.createdAt))
