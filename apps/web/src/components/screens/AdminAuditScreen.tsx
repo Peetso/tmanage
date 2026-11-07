@@ -1,13 +1,18 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
-import { auditExportUrl, listAuditEvents, MAX_AUDIT_PAGE } from '../../lib/api/admin-audit';
-import type { AdminAuditEvent } from '../../lib/api/admin-audit';
+import {
+  auditExportUrl,
+  listAuditEventChanges,
+  listAuditEvents,
+  MAX_AUDIT_PAGE,
+} from '../../lib/api/admin-audit';
+import type { AdminAuditChange, AdminAuditEvent } from '../../lib/api/admin-audit';
 import { auditSentence } from '../../lib/audit-presentation';
 import { listMembers } from '../../lib/api/members';
 import { useDescribeApiError } from '../../lib/api/describe-error';
@@ -97,6 +102,13 @@ export function AdminAuditScreen({
   // ADM-11: the log is flooded with refused attempts, so collapse each run of consecutive
   // refusals into one line the viewer can expand. Allowed and errored events are never grouped.
   const grouped = useMemo(() => groupDeniedRuns(rows), [rows]);
+  // B13 (2026-11-02 live test): the aside showed no before/after. They are read per event, only
+  // once one is opened, from the redacted `audit_event_changes` rows behind the same `audit.read`.
+  const changes = useQuery({
+    queryKey: ['admin-audit-changes', organizationSlug, selected?.id],
+    queryFn: () => listAuditEventChanges(api, organizationSlug, selected!.id),
+    enabled: selected !== null,
+  });
 
   function onApply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -132,7 +144,10 @@ export function AdminAuditScreen({
       ? t('AdminAuditScreen.system')
       : (actorNames.get(actorId) ?? t('AdminAuditScreen.aTeammate'));
 
-  const outcomeWord = (result: AdminAuditEvent['result']): string => {
+  const outcomeWord = (event: AdminAuditEvent): string => {
+    const { result } = event;
+    if (event.scanNote === 'no_scanner')
+      return tr('AdminAuditScreen.outcomeNotScanned', 'Not scanned');
     if (result === 'denied') return t('AdminAuditScreen.outcomeRefused');
     if (result === 'error') return t('AdminAuditScreen.outcomeError');
     return t('AdminAuditScreen.outcomeChange');
@@ -262,8 +277,8 @@ export function AdminAuditScreen({
         <aside className="tm-cc-card" aria-label={t('AdminAuditScreen.asideLabel')}>
           {selected ? (
             <>
-              <p className="tm-cc-eyebrow">{outcomeWord(selected.result)}</p>
-              <h2 className="tm-cc-card__title">{auditSentence(selected)}</h2>
+              <p className="tm-cc-eyebrow">{outcomeWord(selected)}</p>
+              <h2 className="tm-cc-card__title">{eventSentence(selected, tr)}</h2>
               <dl className="tm-cc-dl">
                 <dt>{t('AdminAuditScreen.detailWho')}</dt>
                 <dd>{actorLabel(selected.actorId)}</dd>
@@ -274,6 +289,12 @@ export function AdminAuditScreen({
                 <dt>{t('AdminAuditScreen.detailReference')}</dt>
                 <dd className="tm-mono">{selected.id}</dd>
               </dl>
+              <hr className="tm-cc-rule" />
+              <ChangesSection
+                changes={changes.data}
+                loading={changes.isPending}
+                failed={changes.isError}
+              />
               <hr className="tm-cc-rule" />
             </>
           ) : (
@@ -343,6 +364,7 @@ function AuditRow({
   selected: boolean;
   onSelect: () => void;
 }) {
+  const tr = useTOr();
   return (
     <tr data-selected={selected ? 'true' : undefined}>
       <td>
@@ -355,7 +377,7 @@ function AuditRow({
           aria-pressed={selected}
           onClick={onSelect}
         >
-          {auditSentence(event)}
+          {eventSentence(event, tr)}
         </button>
       </td>
       <td>{actor}</td>
@@ -426,6 +448,77 @@ function RefusedRunRows({
           ))
         : null}
     </>
+  );
+}
+
+/**
+ * The row's sentence. The no-scanner row (B13) reads "Not virus-scanned: no scanner is set up"
+ * rather than "Could not scan a file (failed)": nothing failed, the file was simply not scanned.
+ */
+function eventSentence(event: AdminAuditEvent, tr: (key: string, fallback: string) => string) {
+  if (event.scanNote === 'no_scanner') {
+    return tr('AdminAuditScreen.notScanned', 'Not virus-scanned: no scanner is set up');
+  }
+  return auditSentence(event);
+}
+
+/** B13: the selected event's before/after rows, in the detail aside. */
+function ChangesSection({
+  changes,
+  loading,
+  failed,
+}: {
+  changes: readonly AdminAuditChange[] | undefined;
+  loading: boolean;
+  failed: boolean;
+}) {
+  const tr = useTOr();
+  const value = (text: string | null) => text ?? tr('AdminAuditScreen.valueEmpty', '(empty)');
+  return (
+    <section className="tm-stack tm-stack--tight" aria-labelledby="tm-audit-changes-title">
+      <h3 id="tm-audit-changes-title" className="tm-cc-card__title">
+        {tr('AdminAuditScreen.changesTitle', 'What changed')}
+      </h3>
+      {loading ? (
+        <p className="tm-cc-card__body">
+          {tr('AdminAuditScreen.changesLoading', 'Loading changes…')}
+        </p>
+      ) : failed ? (
+        <p className="tm-cc-card__body" role="alert">
+          {tr('AdminAuditScreen.changesError', 'Could not load what changed.')}
+        </p>
+      ) : !changes || changes.length === 0 ? (
+        <p className="tm-cc-card__body">
+          {tr(
+            'AdminAuditScreen.changesEmpty',
+            'This event did not record before and after values.',
+          )}
+        </p>
+      ) : (
+        <dl className="tm-cc-dl" data-testid="audit-changes">
+          {changes.map((change) => (
+            <Fragment key={change.field}>
+              <dt>{humanise(change.field)}</dt>
+              <dd>
+                {change.redacted ? (
+                  tr('AdminAuditScreen.changesRedacted', 'Hidden for security')
+                ) : (
+                  <>
+                    <span>
+                      {tr('AdminAuditScreen.changesBefore', 'Before')}: {value(change.before)}
+                    </span>
+                    <br />
+                    <span>
+                      {tr('AdminAuditScreen.changesAfter', 'After')}: {value(change.after)}
+                    </span>
+                  </>
+                )}
+              </dd>
+            </Fragment>
+          ))}
+        </dl>
+      )}
+    </section>
   );
 }
 

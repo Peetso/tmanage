@@ -1,10 +1,10 @@
-import { Controller, Get, Inject, Query, Res, StreamableFile } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Query, Res, StreamableFile } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
 import { AUDIT_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type { AdminAuditEventView, AuditService } from './audit.service.js';
+import type { AdminAuditEventView, AuditEventChangeEntry, AuditService } from './audit.service.js';
 import { auditEventsToCsv } from './audit-export-csv.js';
 
 /** The one method the export needs of the framework reply: set a header before the first byte. */
@@ -66,6 +66,20 @@ export class AuditController {
         ...(entityId ? { entityId } : {}),
       }),
     };
+  }
+
+  /**
+   * B13 — one event's before/after rows, behind `audit.read`, for the viewer's detail aside.
+   * Scope narrowing and the 404 for an event the caller may not see live in the service.
+   */
+  @Get('events/:eventId/changes')
+  @RequireCapability('audit.read')
+  async changes(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('eventId') eventId: string,
+  ): Promise<{ readonly changes: readonly AuditEventChangeEntry[] }> {
+    return { changes: await this.audit.changesForViewer(context, principal, eventId) };
   }
 
   /**

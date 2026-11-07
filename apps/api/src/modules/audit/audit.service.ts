@@ -4,6 +4,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { TenantQueryRunner } from '../../common/database/tenant-context.js';
 import { AuditEventsRepository } from './audit-events.repository.js';
+import { AuditEventChangesRepository } from './audit-event-changes.repository.js';
 import type { AppendAuditEventInput, ListAuditEventsOptions } from './audit-events.repository.js';
 import type { AuditEventRow } from '../../common/database/schema.js';
 
@@ -117,6 +118,38 @@ export interface AdminAuditEventView {
   readonly result: AuditResult;
   /** A one-line, non-sensitive gloss derived from the action and its result. */
   readonly summary: string;
+  /**
+   * B13 (2026-11-02 live test). Set only on the `file_asset.scan_failed` row the `none` scanner
+   * driver writes (`cause: no_scanner`): nothing failed, the file simply was not virus-scanned
+   * because no scanner is configured. Without it the trail read "Verified" and "Could not scan a
+   * file (failed)" for the same file a minute apart. A fixed token, never the metadata itself.
+   */
+  readonly scanNote?: 'no_scanner';
+}
+
+/**
+ * B13: one before/after row of an org audit event, as the viewer's detail aside renders it.
+ * The value is already redacted and capped at write time (`audit-redaction.ts`); a redacted row
+ * carries neither value, only `redacted: true`, so the reader never held it.
+ */
+export interface AuditEventChangeEntry {
+  readonly field: string;
+  readonly before: string | null;
+  readonly after: string | null;
+  readonly redacted: boolean;
+}
+
+/** The summary the `none` driver's row reads with, in place of "Could not scan a file (failed)". */
+export const NO_SCANNER_SUMMARY = 'Not virus-scanned: no scanner is set up';
+
+function isNoScannerRow(view: AuditEventView): boolean {
+  if (view.action !== 'file_asset.scan_failed') return false;
+  const metadata = view.metadata;
+  return (
+    typeof metadata === 'object' &&
+    metadata !== null &&
+    (metadata as Record<string, unknown>)['cause'] === 'no_scanner'
+  );
 }
 
 /**
@@ -141,7 +174,8 @@ export interface AuditViewerListOptions {
  * deliberately dropped. The raw `action` and the `result` travel alongside it so the viewer can
  * still filter by the stable key and group the refusals (ADM-11).
  */
-function toAdminAuditView(view: AuditEventView): AdminAuditEventView {
+export function toAdminAuditView(view: AuditEventView): AdminAuditEventView {
+  const noScanner = isNoScannerRow(view);
   return {
     id: view.id,
     occurredAt: view.createdAt,
@@ -150,7 +184,8 @@ function toAdminAuditView(view: AuditEventView): AdminAuditEventView {
     entityType: view.objectType,
     entityId: view.objectId,
     result: view.result,
-    summary: describeAuditEvent(view.action, view.result),
+    summary: noScanner ? NO_SCANNER_SUMMARY : describeAuditEvent(view.action, view.result),
+    ...(noScanner ? { scanNote: 'no_scanner' as const } : {}),
   };
 }
 
@@ -186,6 +221,7 @@ export class AuditService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly events: AuditEventsRepository = new AuditEventsRepository(),
+    private readonly changes: AuditEventChangesRepository = new AuditEventChangesRepository(),
   ) {}
 
   /**
@@ -322,6 +358,36 @@ export class AuditService {
 
     const rows = await this.view(context, principal, listOptions);
     return rows.map(toAdminAuditView);
+  }
+
+  /**
+   * B13 — the before/after rows of one event, for the viewer's detail aside. Behind the same
+   * `audit.read` as the list, and narrowed the same way: the event is looked up under the
+   * caller's tenant, and a caller without organization-wide scope may only open an event they
+   * acted in. An event that is not there, is another tenant's, or is outside the caller's own
+   * activity is one indistinguishable 404 — never an empty list that would confirm it exists.
+   */
+  async changesForViewer(
+    context: TenantContext,
+    principal: Principal,
+    auditEventId: string,
+  ): Promise<readonly AuditEventChangeEntry[]> {
+    if (!hasCapability(principal.role, 'audit.read')) {
+      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'audit_read_denied');
+    }
+    const rows = await this.database.read(context, async (runner) => {
+      const event = await this.events.findById(runner, context, auditEventId);
+      if (event === null) return null;
+      if (!principal.hasOrgWideScope && event.actorUserId !== principal.userId) return null;
+      return this.changes.listFor(runner, context, auditEventId);
+    });
+    if (rows === null) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    return rows.map((row) => ({
+      field: row.field,
+      before: row.redacted ? null : row.beforeValue,
+      after: row.redacted ? null : row.afterValue,
+      redacted: row.redacted,
+    }));
   }
 
   /**

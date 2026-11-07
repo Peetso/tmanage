@@ -31,6 +31,34 @@ export interface AdminAuditEvent {
    */
   readonly result: 'allowed' | 'denied' | 'error';
   readonly summary: string;
+  /**
+   * B13: present only on the row the `none` scanner driver writes — the file was not
+   * virus-scanned because no scanner is set up, which is not a failure.
+   */
+  readonly scanNote?: 'no_scanner';
+}
+
+/**
+ * B13: one before/after row of an event (the API's `AuditEventChangeEntry`). A redacted row
+ * carries neither value. An object-literal alias, like {@link AdminAuditPage}.
+ */
+export type AdminAuditChange = {
+  readonly field: string;
+  readonly before: string | null;
+  readonly after: string | null;
+  readonly redacted: boolean;
+};
+
+/** `GET .../audit/events/:eventId/changes`, behind `audit.read`. */
+export async function listAuditEventChanges(
+  client: ApiClient,
+  organizationSlug: string,
+  eventId: string,
+): Promise<readonly AdminAuditChange[]> {
+  const { data } = await client.request<{ readonly changes: readonly AdminAuditChange[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/audit/events/${encodeURIComponent(eventId)}/changes`,
+  });
+  return data.changes;
 }
 
 /**
