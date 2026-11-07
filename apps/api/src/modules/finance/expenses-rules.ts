@@ -72,6 +72,21 @@ export function refuseTransition(state: string, event: ExpenseEvent): ApiError {
   ]);
 }
 
+/**
+ * B20 — no self-approval, same rule and shape as the timesheet path (`cannotApproveOwn` in
+ * `time/timesheets-rules.ts`): the submitter never approves or rejects their own expense. The
+ * auto-approval under the org threshold is the owner's policy for every submitter, not a decision
+ * by the submitter, and it records no `approvedBy`.
+ */
+export const cannotApproveOwnExpense = (): ApiError =>
+  new ApiError(
+    403,
+    'forbidden',
+    'You cannot decide on your own expense.',
+    [{ field: 'expenseId', message: 'cannot_approve_own' }],
+    'cannot_approve_own',
+  );
+
 /** Auto-approval: strictly under the threshold, in base-currency minor units. */
 export function autoApproves(amountBaseMinor: number, thresholdMinor: number): boolean {
   return amountBaseMinor < thresholdMinor;

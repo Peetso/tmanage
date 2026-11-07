@@ -23,6 +23,7 @@ import {
   EXPENSE_PAGE,
   MAX_EXPORT_ROWS,
   autoApproves,
+  cannotApproveOwnExpense,
   fxRateMissing,
   nextExpenseState,
   noteText,
@@ -465,14 +466,7 @@ export class ExpensesService {
     return this.options.database.transaction(context, async (tx) => {
       const row = await this.require(tx, context, id, true);
       if (!this.mayApprove(principal, context, row)) throw notFound();
-      if (row.membershipId === context.membershipId)
-        throw new ApiError(
-          403,
-          'forbidden',
-          'You cannot approve or reject your own expense.',
-          [{ field: 'expense', message: 'cannot_approve_own' }],
-          'cannot_approve_own',
-        );
+      if (row.membershipId === context.membershipId) throw cannotApproveOwnExpense();
       this.assertUnlocked(row);
       const state = nextExpenseState(row.state, event);
       if (state === null) throw refuseTransition(row.state, event);

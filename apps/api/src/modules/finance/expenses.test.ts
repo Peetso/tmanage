@@ -84,10 +84,15 @@ describe('52-07 money and permission rules', () => {
     });
   });
 
-  it('AUTH-52-08 — never approves one’s own expense', async () => {
+  it('AUTH-52-08 / B20 — never approves or rejects one’s own expense, timesheet error shape', async () => {
+    const own = { status: 403, code: 'forbidden', auditCode: 'cannot_approve_own' };
+    const details = [{ field: 'expenseId', message: 'cannot_approve_own' }];
     await expect(
       service(row({ state: 'submitted' })).approve(context, owner, 'e1', {}),
-    ).rejects.toMatchObject({ status: 403, auditCode: 'cannot_approve_own' });
+    ).rejects.toMatchObject({ ...own, details });
+    await expect(
+      service(row({ state: 'submitted' })).reject(context, owner, 'e1', { note: 'not mine' }),
+    ).rejects.toMatchObject(own);
   });
 
   it('exports a note only on the exporter’s own rows', () => {
