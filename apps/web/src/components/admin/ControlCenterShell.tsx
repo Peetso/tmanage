@@ -49,7 +49,9 @@ export type ControlCenterSection =
   // D5 (Figma F5): data export and deletion requests, owner-only.
   | 'privacy'
   | 'organization'
-  | 'billing';
+  | 'billing'
+  // A10b: the finance home, after Billing in the last group.
+  | 'finance';
 
 /**
  * The P11 keys, written to the wave's i18n fragment (`i18n-P11.*.json`) and merged into the
@@ -205,6 +207,12 @@ const GROUPS: readonly SectionGroup[] = [
         labelKey: 'ControlCenterShell.billing',
         href: '/billing',
         capability: 'org.manage',
+      },
+      {
+        id: 'finance',
+        labelKey: ccKey('ControlCenter.finance'),
+        href: '/finance',
+        capability: 'finance.view',
       },
     ],
   },

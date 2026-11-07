@@ -1,0 +1,183 @@
+/*
+ * Finance ledger screens (R31 L02 A10b): retainers, client invoices, period locks, reports and the
+ * finance index. Figma: "R31 L02 A10b Finance" section on the Product page. Tokens only; logical
+ * properties throughout so the Arabic layout mirrors.
+ */
+
+.tm-fin-tabs {
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-fin-tabs__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 26px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-fin-tabs__link {
+  display: inline-flex;
+  padding-block-end: 9px;
+  border-block-end: 2px solid transparent;
+  color: var(--ink-500);
+  font-size: var(--t-ui-md);
+  line-height: 19px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.tm-fin-tabs__link:hover {
+  border-block-end-color: var(--lime-600);
+  color: var(--ink-950);
+}
+
+.tm-fin-tabs__link[aria-current='page'] {
+  border-block-end-color: var(--ink-950);
+  color: var(--ink-950);
+  font-weight: 600;
+}
+
+.tm-fin-tabs__link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-fin {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--s6);
+  align-items: start;
+}
+
+.tm-fin--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.tm-fin-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-fin-table-card {
+  overflow-x: auto;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-fin-table-card .tm-table {
+  border-width: 0;
+  border-radius: 0;
+}
+
+.tm-fin-num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.tm-fin-card-title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-heading-card);
+  font-weight: 600;
+}
+
+.tm-fin-muted {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-fin-buckets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+}
+
+.tm-fin-buckets > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.tm-fin-buckets dt {
+  color: var(--ink-650);
+  font-size: var(--t-ui-md);
+}
+
+.tm-fin-buckets dd {
+  margin: 0;
+  font-family: var(--font-mono);
+}
+
+.tm-fin-index {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-fin-index a {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  block-size: 100%;
+  padding: 22px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  color: var(--ink-800);
+  text-decoration: none;
+}
+
+.tm-fin-index a:hover {
+  border-color: var(--ink-950);
+}
+
+.tm-fin-index a:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-fin-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s3);
+}
+
+.tm-fin-totals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+}
+
+.tm-fin-totals > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.tm-fin-totals dd {
+  margin: 0;
+  font-family: var(--font-mono);
+}
+
+.tm-fin-totals > div:last-child {
+  padding-block-start: var(--s2);
+  border-block-start: var(--b-quiet) solid var(--line-300);
+  font-weight: 600;
+}
+
+@media (max-width: 1100px) {
+  .tm-fin {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

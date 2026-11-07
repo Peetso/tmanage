@@ -40,6 +40,8 @@ describe('controlCenterSectionsFor', () => {
         ['privacy', '/admin/privacy'],
         ['organization', '/settings'],
         ['billing', '/billing'],
+        // A10b: the finance home closes the last group.
+        ['finance', '/finance'],
       ],
     ]);
     expect(foot).toEqual([]);
