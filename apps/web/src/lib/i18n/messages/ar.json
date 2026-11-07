@@ -14472,6 +14472,8 @@
   "DataLocation.cardRegionValue": "الافتراضية · {label}",
   "DataLocation.card.database": "استضافة Hostinger المشتركة، مركز بيانات في أوروبا",
   "DataLocation.card.files": "Google Drive · في منطقتك",
+  "DataLocation.card.files.tmanage": "تخزين TManage · في مركز البيانات نفسه مع قاعدة البيانات",
+  "DataLocation.card.files.onedrive": "OneDrive · في منطقتك",
   "DataLocation.card.backups": "Hostinger في المنطقة نفسها · نسخ غير متصلة لدى فريق TManage",
   "DataLocation.card.email": "Hostinger SMTP · أوروبا",
   "DataLocation.card.ai": "لا شيء. تستخدم Claude أو ChatGPT الخاص بك.",

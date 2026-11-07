@@ -14452,6 +14452,8 @@
   "DataLocation.cardRegionValue": "默认 · {label}",
   "DataLocation.card.database": "Hostinger 共享主机，位于欧洲的数据中心",
   "DataLocation.card.files": "Google Drive · 位于你自己的区域",
+  "DataLocation.card.files.tmanage": "TManage 存储 · 与数据库位于同一数据中心",
+  "DataLocation.card.files.onedrive": "OneDrive · 位于你自己的区域",
   "DataLocation.card.backups": "Hostinger，同一区域 · 由 TManage 团队保存的离线副本",
   "DataLocation.card.email": "Hostinger SMTP · 欧洲",
   "DataLocation.card.ai": "无。你使用自己的 Claude 或 ChatGPT。",

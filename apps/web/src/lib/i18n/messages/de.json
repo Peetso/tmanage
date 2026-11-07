@@ -14452,6 +14452,8 @@
   "DataLocation.cardRegionValue": "Standard · {label}",
   "DataLocation.card.database": "Hostinger Shared Hosting, Rechenzentrum in Europa",
   "DataLocation.card.files": "Google Drive · in Ihrer eigenen Region",
+  "DataLocation.card.files.tmanage": "TManage-Speicher · dasselbe Rechenzentrum wie die Datenbank",
+  "DataLocation.card.files.onedrive": "OneDrive · in Ihrer eigenen Region",
   "DataLocation.card.backups": "Hostinger, gleiche Region · Offline-Kopien beim TManage-Team",
   "DataLocation.card.email": "Hostinger SMTP · Europa",
   "DataLocation.card.ai": "Keine. Sie nutzen Ihr eigenes Claude oder ChatGPT.",

@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Badge } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
+import { getStorageStatus, type StorageStatusView } from '../../lib/api/google-drive';
 import {
   REGION_REQUEST_HREF,
   fetchPublicDataLocation,
@@ -27,11 +29,35 @@ const STATEMENT_PATH = '/security/data-location';
 /** [key, label, value] — Figma 445:20940. */
 const LOCATION_ROWS: readonly (readonly [string, string, string])[] = [
   ['database', 'Database and app', 'Hostinger shared hosting, data centre in Europe'],
-  ['files', 'Files', 'Google Drive · in your own region'],
+  // Value drawn from the configured storage by filesLocationOf.
+  ['files', 'Files', ''],
   ['backups', 'Backups', 'Hostinger, same region · offline copies held by the TManage team'],
   ['email', 'Email', 'Hostinger SMTP · Europe'],
   ['ai', 'AI', 'None. You use your own Claude or ChatGPT.'],
 ];
+
+/**
+ * The Files row names the company's configured storage (0236 storage mode), not a fixed provider:
+ * TManage's own storage unless the owner switched to Google Drive or OneDrive. `undefined` (still
+ * loading, unreadable, or no organization in the route) shows a neutral dash rather than a guess.
+ */
+export function filesLocationOf(
+  mode: StorageStatusView['storageMode'] | undefined,
+  tr: (key: string, fallback: string) => string,
+): string {
+  if (mode === 'google_drive') {
+    return tr('DataLocation.card.files', 'Google Drive · in your own region');
+  }
+  if (mode === 'onedrive')
+    return tr('DataLocation.card.files.onedrive', 'OneDrive · in your own region');
+  if (mode === 'tmanage') {
+    return tr(
+      'DataLocation.card.files.tmanage',
+      'TManage storage · same data centre as the database',
+    );
+  }
+  return '—';
+}
 
 /** [key, name, purpose, always] — Figma 445:20979. */
 const PROCESSORS: readonly (readonly [string, string, string, boolean])[] = [
@@ -57,6 +83,16 @@ export function DataLocationCard({ organizationName, client }: DataLocationCardP
     queryKey: ['public-data-location'],
     queryFn: () => fetchPublicDataLocation(client),
     staleTime: 5 * 60_000,
+  });
+  const params = useParams<{ orgSlug?: string }>();
+  const organizationSlug = typeof params?.orgSlug === 'string' ? params.orgSlug : '';
+  // Same key as the Control center's Storage badge and screen, so they share one request.
+  const storage = useQuery({
+    queryKey: ['storage-status', organizationSlug],
+    queryFn: () => getStorageStatus(client, organizationSlug),
+    staleTime: 60_000,
+    retry: false,
+    enabled: organizationSlug !== '',
   });
   const regionLabel = regionLabelOf(
     location.data,
@@ -96,7 +132,11 @@ export function DataLocationCard({ organizationName, client }: DataLocationCardP
           {LOCATION_ROWS.map(([key, label, value]) => (
             <div key={key} className="tm-dloc-card__row">
               <dt>{tr(`DataLocation.row.${key}.data`, label)}</dt>
-              <dd>{tr(`DataLocation.card.${key}`, value)}</dd>
+              <dd>
+                {key === 'files'
+                  ? filesLocationOf(storage.data?.storageMode, tr)
+                  : tr(`DataLocation.card.${key}`, value)}
+              </dd>
             </div>
           ))}
         </dl>

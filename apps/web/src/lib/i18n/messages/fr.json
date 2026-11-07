@@ -14452,6 +14452,8 @@
   "DataLocation.cardRegionValue": "Par défaut · {label}",
   "DataLocation.card.database": "Hébergement mutualisé Hostinger, centre de données en Europe",
   "DataLocation.card.files": "Google Drive · dans votre propre région",
+  "DataLocation.card.files.tmanage": "Stockage TManage · même centre de données que la base de données",
+  "DataLocation.card.files.onedrive": "OneDrive · dans votre propre région",
   "DataLocation.card.backups": "Hostinger, même région · copies hors ligne conservées par l’équipe TManage",
   "DataLocation.card.email": "SMTP Hostinger · Europe",
   "DataLocation.card.ai": "Aucun. Vous utilisez votre propre Claude ou ChatGPT.",
