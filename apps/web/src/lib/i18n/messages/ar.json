@@ -3594,7 +3594,6 @@
   "AuditExportScreen.filtersLabel": "عوامل تصفية تصدير سجل التدقيق",
   "AuditExportScreen.from": "من",
   "AuditExportScreen.to": "إلى",
-  "AuditExportScreen.actorId": "معرّف الفاعل",
   "AuditExportScreen.actorHint": "اختياري. اختر شخصًا لتصدير إجراءاته فقط.",
   "AuditExportScreen.action": "الإجراء",
   "AuditExportScreen.actionHint": "اختياري. اسم إجراء دقيق، مثل membership.revoked.",

@@ -3594,7 +3594,6 @@
   "AuditExportScreen.filtersLabel": "Filter für den Audit-Export",
   "AuditExportScreen.from": "Von",
   "AuditExportScreen.to": "Bis",
-  "AuditExportScreen.actorId": "Akteur-ID",
   "AuditExportScreen.actorHint": "Optional. Den Export auf die Aktionen einer Person beschränken.",
   "AuditExportScreen.action": "Aktion",
   "AuditExportScreen.actionHint": "Optional. Ein exakter Aktionsname, z. B. membership.revoked.",

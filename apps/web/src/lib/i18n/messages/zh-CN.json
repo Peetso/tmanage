@@ -3594,7 +3594,6 @@
   "AuditExportScreen.filtersLabel": "审计导出筛选",
   "AuditExportScreen.from": "从",
   "AuditExportScreen.to": "至",
-  "AuditExportScreen.actorId": "操作人 ID",
   "AuditExportScreen.actorHint": "可选。将导出限制为某一用户的操作。",
   "AuditExportScreen.action": "操作",
   "AuditExportScreen.actionHint": "可选。确切的操作名称，例如 membership.revoked。",
