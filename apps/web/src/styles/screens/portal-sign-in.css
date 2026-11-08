@@ -1,0 +1,59 @@
+/* 55-14 — client portal sign-in by e-mail link (Figma R43 L1-55-14, 575:33082). */
+
+.tm-portal-signin {
+  min-block-size: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 64px var(--s4) 48px;
+  background: var(--paper-50);
+}
+
+.tm-portal-signin__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  inline-size: 100%;
+  max-inline-size: 440px;
+  padding: var(--s8);
+}
+
+.tm-portal-signin__eyebrow {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-portal-signin__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-heading-page);
+  font-weight: 600;
+}
+
+.tm-portal-signin__body {
+  margin: 0;
+  color: var(--ink-650);
+}
+
+.tm-portal-signin__note {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-portal-signin__link {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.tm-portal-signin__card .tm-button {
+  inline-size: 100%;
+}

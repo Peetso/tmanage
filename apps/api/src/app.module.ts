@@ -21,6 +21,7 @@ import { HttpExceptionFilter } from './common/http/http-exception.filter.js';
 import { SessionAuthGuard } from './common/http/guards/session-auth.guard.js';
 import { RateLimitsModule } from './modules/rate-limits/rate-limits.module.js';
 import { PublicLinksModule } from './modules/public-links/public-links.module.js';
+import { PortalSignInModule } from './modules/portal-sign-in/portal-sign-in.module.js';
 import { DurableThrottleGuard } from './modules/rate-limits/durable-throttle.guard.js';
 import { CsrfGuard } from './common/http/guards/csrf.guard.js';
 import { TenantContextGuard } from './common/http/guards/tenant-context.guard.js';
@@ -957,6 +958,10 @@ export class AppModule {
         // member routes under `/public-links`, outsider routes under `/v1/public/links/:token`.
         // Global: consumers register their target adapter and issue links through it.
         PublicLinksModule.register({
+          pepper: options.config.publicLinkPepper ?? options.config.csrfSecret,
+        }),
+        // 55-14. Client portal sign-in by e-mail link (`magic_signin` links) and its code fallback.
+        PortalSignInModule.register({
           pepper: options.config.publicLinkPepper ?? options.config.csrfSecret,
         }),
         ContactModule.register({

@@ -51,6 +51,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/pricing': { en: 'Pricing', key: 'WebsiteTitle.pricing' },
   '/product': { en: 'Product overview', key: 'WebsiteTitle.product' },
   '/a/[token]': { en: 'Approval request', key: 'RouteTitle.approverLink' },
+  '/portal-sign-in/[token]': { en: 'Portal sign-in', key: 'RouteTitle.portalSignInLink' },
   '/q/[token]': { en: 'Quote', key: 'RouteTitle.quotePublic' },
   '/resources': { en: 'Resources', key: 'WebsiteTitle.resources' },
   '/security': { en: 'Security & trust', key: 'WebsiteTitle.security' },
@@ -282,6 +283,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/policies': { en: 'Policies', key: 'RouteTitle.policies' },
   '/[orgSlug]/policies/simulate': { en: 'Policy simulator', key: 'RouteTitle.policiesSimulate' },
   '/[orgSlug]/portal': { en: 'Client portal', key: 'RouteTitle.portal' },
+  '/[orgSlug]/portal/sign-in': { en: 'Portal sign-in', key: 'RouteTitle.portalSignIn' },
   '/[orgSlug]/portal/actions': { en: 'Actions', key: 'RouteTitle.portalActions' },
   '/[orgSlug]/portal/deliverables': { en: 'Deliverables', key: 'RouteTitle.portalDeliverables' },
   '/[orgSlug]/portal/deliverables/[deliverableVersionId]': {

@@ -75,6 +75,8 @@ export const SESSION_ESTABLISHING_ROUTES: ReadonlySet<string> = new Set([
   'v1/invitations/registrations',
   'public/setup',
   'v1/dev/sessions',
+  'v1/public/portal-sign-in/code',
+  'v1/public/portal-sign-in/links/:token/consume',
 ]);
 
 /** Fetch-metadata values a same-origin page (or the user typing a URL) produces. */
