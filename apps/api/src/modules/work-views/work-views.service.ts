@@ -65,6 +65,17 @@ export interface WorkTimelineItem {
   readonly floatDays?: number | null;
   /** 53-06. On the critical path at the last recompute; `false` without a row. Absent for clients. */
   readonly critical?: boolean;
+  /**
+   * 53-03. The readable predecessor edges with their ids, so the editable Gantt can remove one
+   * (`DELETE .../dependencies/:id`). The same redaction as `predecessorIds`; absent for clients.
+   */
+  readonly dependencies?: readonly WorkTimelineDependency[];
+}
+
+/** 53-03. One readable predecessor edge on the timeline: the edge id and the item it waits on. */
+export interface WorkTimelineDependency {
+  readonly id: string;
+  readonly predecessorId: string;
 }
 
 /**
@@ -437,11 +448,13 @@ export class WorkViewsService {
       if (!this.mayRead(principal, item)) continue;
 
       const predecessorIds: string[] = [];
+      const dependencies: WorkTimelineDependency[] = [];
       for (const predecessor of predecessors) {
         if (predecessor.deletedAt !== null) continue; // Not a live edge.
         // Authorize each predecessor against its own project and audience before its id shows.
         if (!this.mayReadPredecessor(context, principal, predecessor)) continue;
         predecessorIds.push(predecessor.workItemId);
+        dependencies.push({ id: predecessor.dependencyId, predecessorId: predecessor.workItemId });
       }
 
       items.push({
@@ -456,6 +469,7 @@ export class WorkViewsService {
           : {
               floatDays: schedule.get(item.id)?.floatDays ?? null,
               critical: schedule.get(item.id)?.critical ?? false,
+              dependencies,
             }),
       });
     }

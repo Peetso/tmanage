@@ -199,6 +199,23 @@ describe('WorkViewsService.projectTimeline', () => {
     expect(JSON.stringify(view)).not.toContain(OTHER_PROJECT);
   });
 
+  it('53-03: carries each readable edge id for removal, never the redacted one', async () => {
+    const dependent = item({ id: 'work-e-0000000000-0000-000000000005', startAt: DAY_ONE });
+    const readable = predecessor({ dependencyId: 'dep-readable', workItemId: 'work-pred-r' });
+    const hidden = predecessor({
+      dependencyId: 'dep-hidden',
+      workItemId: 'work-pred-h',
+      projectId: 'project-0000-0000-0000-0000-000000000002',
+    });
+    const view = await serviceWith([
+      { item: dependent, predecessors: [readable, hidden] },
+    ]).projectTimeline(context, member([PROJECT]), PROJECT);
+    expect(view.items[0]?.dependencies).toEqual([
+      { id: 'dep-readable', predecessorId: 'work-pred-r' },
+    ]);
+    expect(JSON.stringify(view)).not.toContain('dep-hidden');
+  });
+
   it('returns the documented empty value for a project with no readable items', async () => {
     const service = serviceWith([]);
 

@@ -1,0 +1,300 @@
+/*
+ * 53-03 Editable Gantt — the editing layer over the WK-04 timeline (`work-planning.css`).
+ * Figma: Product page, section "R35 L1-53-03". Logical properties only, so the chart mirrors in
+ * Arabic with no extra rules: time runs right to left there.
+ */
+
+.wte-bar {
+  padding: 0;
+  cursor: grab;
+  touch-action: none;
+  font: inherit;
+}
+
+.wte-bar:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.wte-bar[aria-pressed='true'] {
+  background: var(--lime-100);
+  border: 2px solid var(--ink-950);
+}
+
+.wte-bar--moving {
+  cursor: grabbing;
+  background: var(--lime-100);
+  border: 2px solid var(--ink-950);
+}
+
+.wte-bar--critical {
+  border: 2px solid var(--warning-600);
+}
+
+.wte-bar--link-from {
+  box-shadow: 0 0 0 3px var(--lime-500);
+}
+
+.wte-edge {
+  position: absolute;
+  inset-block: -3px;
+  inline-size: 6px;
+  border-radius: var(--r-capsule);
+  cursor: ew-resize;
+}
+
+.wte-edge--start {
+  inset-inline-start: -3px;
+}
+
+.wte-edge--end {
+  inset-inline-end: -3px;
+}
+
+.wte-bar:hover .wte-edge,
+.wte-bar:focus-visible .wte-edge,
+.wte-bar[aria-pressed='true'] .wte-edge {
+  background: var(--ink-950);
+}
+
+.wte-link-dot {
+  position: absolute;
+  inset-block-start: 2px;
+  inset-inline-end: -16px;
+  inline-size: 10px;
+  block-size: 10px;
+  border: 1px solid var(--ink-950);
+  border-radius: 50%;
+  background: var(--lime-500);
+  cursor: crosshair;
+  opacity: 0;
+}
+
+.wte-bar:hover .wte-link-dot,
+.wte-bar:focus-visible .wte-link-dot,
+.wte-bar[aria-pressed='true'] .wte-link-dot {
+  opacity: 1;
+}
+
+.wte-ghost {
+  position: absolute;
+  inset-block-start: 29px;
+  block-size: 6px;
+  border: 1px dashed var(--ink-650);
+  border-radius: var(--r-capsule);
+  pointer-events: none;
+}
+
+.wte-badge {
+  position: absolute;
+  inset-block-start: -8px;
+  z-index: 2;
+  padding: 2px 8px;
+  border-radius: var(--r-control);
+  background: var(--ink-950);
+  color: var(--paper-0);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.wte-slack {
+  position: absolute;
+  inset-block-start: 11px;
+  padding-inline-start: 22px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 18px;
+  color: var(--ink-500);
+  white-space: nowrap;
+}
+
+.wte-dep--critical {
+  border-color: var(--warning-600);
+  border-block-start-width: 2px;
+  border-inline-end-width: 2px;
+}
+
+.wte-row--layer {
+  background: var(--paper-50);
+}
+
+.wte-row--selected {
+  background: var(--paper-50);
+}
+
+.wte-layer-label {
+  font-size: 12px;
+  color: var(--ink-500);
+}
+
+.wte-phase {
+  position: absolute;
+  inset-block: 8px;
+  overflow: hidden;
+  padding-inline: 10px;
+  border-radius: var(--r-control);
+  background: var(--lime-100);
+  font-size: 12px;
+  line-height: 24px;
+  color: var(--ink-800);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wte-diamond {
+  position: absolute;
+  inset-block-start: 13px;
+  inline-size: 14px;
+  block-size: 14px;
+  margin-inline-start: -7px;
+  padding: 0;
+  border: 0;
+  background: var(--ink-950);
+  transform: rotate(45deg);
+  cursor: grab;
+  touch-action: none;
+}
+
+.wte-diamond--moving {
+  background: var(--lime-500);
+  outline: 2px solid var(--ink-950);
+}
+
+.wte-diamond:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.wte-diamond__name {
+  position: absolute;
+  inset-block-start: -2px;
+  inset-inline-start: 18px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-650);
+  white-space: nowrap;
+  transform: rotate(-45deg);
+  transform-origin: 0 50%;
+  pointer-events: none;
+}
+
+.wte-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-650);
+}
+
+.wte-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.wte-cascade,
+.wte-undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 8px 8px 16px;
+  border: 1px solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  font-size: 13px;
+  color: var(--ink-800);
+}
+
+.wte-cascade {
+  border-color: var(--lime-500);
+  background: var(--lime-100);
+}
+
+.wte-button {
+  min-block-size: 36px;
+  padding: 0 16px;
+  border: 1px solid var(--line-700);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.wte-button--ink {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  color: var(--paper-0);
+}
+
+.wte-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wte-button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.wte-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px;
+  border: 1px solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.wte-panel__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.wte-panel__subtitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.wte-panel__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-650);
+}
+
+.wte-panel__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: 13px;
+}
+
+.wte-panel__row--spread {
+  justify-content: space-between;
+}
+
+.wte-deps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .wte-bar,
+  .wte-diamond {
+    transition: box-shadow 120ms ease;
+  }
+}

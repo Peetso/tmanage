@@ -1,5 +1,6 @@
-import type { WorkItemState } from '@tmanage/domain';
+import type { MilestoneHealth, WorkItemState } from '@tmanage/domain';
 import type { ApiClient } from './client';
+import { ApiRequestError } from './errors';
 
 /**
  * WK-04 Work views — the timeline read.
@@ -23,12 +24,51 @@ interface WorkTimelineItem {
   readonly dueAt: string | null;
   /** The ids of the predecessors this caller may read; a redacted edge is absent, not named. */
   readonly predecessorIds: readonly string[];
+  /** 53-06. Total float in working days at the last recompute; `null` without a stats row. */
+  readonly floatDays?: number | null;
+  /** 53-06. On the critical path at the last recompute. */
+  readonly critical?: boolean;
+  /** 53-03. The readable predecessor edges with their ids, so one can be removed. */
+  readonly dependencies?: readonly WorkTimelineDependency[];
+}
+
+/** 53-03. One readable predecessor edge. Nested in the timeline response; not exported. */
+interface WorkTimelineDependency {
+  readonly id: string;
+  readonly predecessorId: string;
+}
+
+/** 53-07. One phase band. Nested in the timeline response; not exported. */
+interface WorkTimelinePhase {
+  readonly id: string;
+  readonly name: string;
+  readonly startsOn: string | null;
+  readonly endsOn: string | null;
+  readonly colorToken: string | null;
+  readonly position: number;
+}
+
+/** 53-07. One milestone diamond. Nested in the timeline response; not exported. */
+interface WorkTimelineMilestone {
+  readonly id: string;
+  readonly title: string;
+  readonly date: string | null;
+  readonly committedOn: string | null;
+  readonly forecastOn: string | null;
+  readonly status: string;
+  readonly health: MilestoneHealth;
+  readonly phaseId: string | null;
+  readonly linkedItemIds: readonly string[];
 }
 
 /** The timeline read's response — paired Exact with the API's `WorkTimelineView` in the contracts gate. */
 export interface WorkTimelineView {
   readonly projectId: string;
   readonly items: readonly WorkTimelineItem[];
+  /** 53-07. The phase bands; absent for a client principal. */
+  readonly phases?: readonly WorkTimelinePhase[];
+  /** 53-07. The milestone diamonds; absent for a client principal. */
+  readonly milestones?: readonly WorkTimelineMilestone[];
 }
 
 /** One timeline row, for the screen — an indexed access, so it is not a second enumerated shape. */
@@ -43,6 +83,180 @@ export async function getWorkTimeline(
     path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-views/timeline/${encodeURIComponent(projectId)}`,
   });
   return data;
+}
+
+/** One milestone on the timeline, for the screen — an indexed access, not a second shape. */
+export type WorkTimelineMilestoneRow = NonNullable<WorkTimelineView['milestones']>[number];
+
+/** One phase band, for the screen — an indexed access, not a second shape. */
+export type WorkTimelinePhaseRow = NonNullable<WorkTimelineView['phases']>[number];
+
+const orgPath = (organizationSlug: string) =>
+  `/v1/organizations/${encodeURIComponent(organizationSlug)}`;
+
+/*
+ * 53-03 Editable Gantt — the writes the timeline makes, all on routes 53-04..07 already serve.
+ *
+ * A move or resize is the 53-04 cascade: preview what else would move, then apply with the
+ * previewed list (`expectedMoves`) so a schedule that changed in between is a 409, never a
+ * surprise. The response shapes (the API's `CascadePlanView`, the baseline overlay and the
+ * critical-path read) are declared here unexported — the contracts gate enumerates exported
+ * response shapes — and the screen reaches them through the functions' return types.
+ */
+interface TimelineCascadeMove {
+  readonly id: string;
+  readonly projectId: string;
+  readonly title: string;
+  readonly startAt: string | null;
+  readonly dueAt: string | null;
+  readonly deltaWorkingDays: number;
+}
+
+interface TimelineCascadePlan {
+  readonly workItemId: string;
+  readonly startAt: string | null;
+  readonly dueAt: string | null;
+  readonly moves: readonly TimelineCascadeMove[];
+  readonly hiddenCount: number;
+  readonly crossProjectIds: readonly string[];
+  readonly unscheduled: readonly string[];
+}
+
+/** The new dates of a moved or resized bar. A request shape. */
+export interface TimelineMoveInput {
+  readonly startAt: string | null;
+  readonly dueAt: string | null;
+}
+
+export async function previewTimelineMove(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  input: TimelineMoveInput,
+): Promise<TimelineCascadePlan> {
+  const { data } = await client.request<TimelineCascadePlan>({
+    method: 'POST',
+    path: `${orgPath(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/schedule/cascade-preview`,
+    body: input,
+  });
+  return data;
+}
+
+export async function applyTimelineMove(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  input: TimelineMoveInput,
+  expectedMoves: readonly string[],
+): Promise<TimelineCascadePlan> {
+  const { data } = await client.request<TimelineCascadePlan>({
+    method: 'POST',
+    path: `${orgPath(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/schedule/cascade-apply`,
+    body: { ...input, expectedMoves },
+  });
+  return data;
+}
+
+/** Draw a finish-to-start edge: `workItemId` waits on `predecessorId`. */
+export async function addTimelineDependency(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  predecessorId: string,
+): Promise<void> {
+  await client.request({
+    method: 'POST',
+    path: `${orgPath(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/dependencies`,
+    body: { dependsOnWorkItemId: predecessorId, kind: 'FS', lagWorkingDays: 0 },
+  });
+}
+
+export async function removeTimelineDependency(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  dependencyId: string,
+): Promise<void> {
+  await client.request({
+    method: 'DELETE',
+    path: `${orgPath(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/dependencies/${encodeURIComponent(dependencyId)}`,
+  });
+}
+
+interface TimelineBaselineOverlay {
+  readonly baselineId: string;
+  readonly label: string;
+  readonly createdAt: string;
+  readonly items: readonly {
+    readonly workItemId: string;
+    readonly startAt: string | null;
+    readonly dueAt: string | null;
+  }[];
+}
+
+/** The current baseline's frozen dates (ghost bars), or `null` when the project has none. */
+export async function getTimelineBaseline(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+): Promise<TimelineBaselineOverlay | null> {
+  try {
+    const { data } = await client.request<TimelineBaselineOverlay>({
+      path: `${orgPath(organizationSlug)}/projects/${encodeURIComponent(projectId)}/baselines/current/overlay`,
+    });
+    return data;
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+interface TimelineCriticalPath {
+  readonly projectId: string;
+  readonly computedAt: string | null;
+  readonly criticalEndDate: string | null;
+  readonly criticalCount: number;
+  readonly items: readonly {
+    readonly id: string;
+    readonly totalFloatDays: number | null;
+    readonly isCritical: boolean;
+  }[];
+}
+
+/** The critical-path read — the API recomputes a stale project, so it is fresher than the timeline. */
+export async function getTimelineCriticalPath(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+): Promise<TimelineCriticalPath> {
+  const { data } = await client.request<TimelineCriticalPath>({
+    path: `${orgPath(organizationSlug)}/projects/${encodeURIComponent(projectId)}/schedule/critical-path`,
+  });
+  return data;
+}
+
+/** A dragged milestone: the one date field its diamond is drawn from. A request shape. */
+export interface TimelineMilestoneMoveInput {
+  readonly field: 'committedOn' | 'forecastOn' | 'dueOn';
+  readonly date: string;
+  readonly clientSafeReason?: string;
+}
+
+export async function moveTimelineMilestone(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+  milestoneId: string,
+  input: TimelineMilestoneMoveInput,
+): Promise<void> {
+  await client.request({
+    method: 'PATCH',
+    path: `${orgPath(organizationSlug)}/projects/${encodeURIComponent(projectId)}/milestones/${encodeURIComponent(milestoneId)}`,
+    body: {
+      [input.field]: input.date,
+      ...(input.clientSafeReason ? { clientSafeReason: input.clientSafeReason } : {}),
+    },
+  });
 }
 
 /**
