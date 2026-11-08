@@ -22,6 +22,8 @@ import { PlatformSecurityReportsModule } from '../security-reports/security-repo
 import { PlatformSecuritySignalsModule } from '../security-signals/security-signals.module.js';
 // ---- 56-13 · incident register ----
 import { PlatformIncidentsModule } from './incidents/incidents.module.js';
+// ---- R37 · connect apps simply: the owner's setup checklist ----
+import { PlatformConnectSetupModule } from './connect-setup/connect-setup.controller.js';
 
 /**
  * Every Platform admin area, one Nest module each (platform-admin v2, PA-02 split). Each area
@@ -55,4 +57,6 @@ export const PLATFORM_AREA_MODULES: DynamicModule[] = [
   PlatformSecuritySignalsModule.register(),
   // ---- 56-13 · incident register: legal clocks, publish to the status page ----
   PlatformIncidentsModule.register(),
+  // ---- R37 · connect apps simply: the owner's setup checklist ----
+  PlatformConnectSetupModule.register(),
 ];

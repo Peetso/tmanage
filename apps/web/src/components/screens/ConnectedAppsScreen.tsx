@@ -5,6 +5,7 @@ import { useId, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
+import { ConnectAppsCards } from './ConnectAppsCards';
 import { FigmaConnectCard } from './FigmaConnectCard';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -82,6 +83,8 @@ export function ConnectedAppsScreen({
       description={t('ConnectedApps.description')}
     >
       <div className="tm-connected">
+        {/* R37: the one-click app cards (calendars, company storage) come first. */}
+        <ConnectAppsCards api={api} organizationSlug={organizationSlug} />
         {view.isPending ? (
           <LoadingRegion label={t('ConnectedApps.loading')}>
             <Skeleton height="320px" radius="var(--r-card)" />

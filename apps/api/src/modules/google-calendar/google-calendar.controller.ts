@@ -13,6 +13,7 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
+import { providerErrorReason } from '../platform-admin/connect-setup/connect-setup.js';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import { Ctx, NoTenant, Public, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -179,9 +180,10 @@ export class GoogleCalendarCallbackController {
     @Query('code') code: unknown,
     @Query('state') state: unknown,
     @Req() request: RequestLike,
+    @Query('error') error?: unknown,
   ): { readonly url: string; readonly statusCode: number } {
     return {
-      url: calendarCallbackTarget(this.options, cookieHeader(request), code, state),
+      url: calendarCallbackTarget(this.options, cookieHeader(request), code, state, error),
       statusCode: 302,
     };
   }
@@ -193,13 +195,16 @@ export function calendarCallbackTarget(
   cookies: string | undefined,
   code: unknown,
   state: unknown,
+  error?: unknown,
 ): string {
   const base = options.webPublicUrl.replace(/\/+$/, '');
   const flow = openCalendarFlow(readCookie(cookies, GCAL_FLOW_COOKIE), options.sessionSecret);
   if (!flow || !SLUG_PATTERN.test(flow.organizationSlug)) return `${base}/`;
   const screen = `${base}/${flow.organizationSlug}/settings/connected-apps`;
   if (typeof code !== 'string' || typeof state !== 'string' || code.length > 2048) {
-    return `${screen}#gcal=error`;
+    // R37: a provider error we explain travels on as `reason`, so the card can say why.
+    const reason = providerErrorReason(error);
+    return reason ? `${screen}#gcal=error&reason=${reason}` : `${screen}#gcal=error`;
   }
   return `${screen}#${new URLSearchParams({ gcal: 'complete', code, state }).toString()}`;
 }

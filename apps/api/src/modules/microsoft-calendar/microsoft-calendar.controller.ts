@@ -13,6 +13,7 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
+import { providerErrorReason } from '../platform-admin/connect-setup/connect-setup.js';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import { Ctx, NoTenant, Public, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -171,9 +172,10 @@ export class MicrosoftCalendarCallbackController {
     @Query('code') code: unknown,
     @Query('state') state: unknown,
     @Req() request: RequestLike,
+    @Query('error') error?: unknown,
   ): { readonly url: string; readonly statusCode: number } {
     return {
-      url: microsoftCalendarCallbackTarget(this.options, cookieHeader(request), code, state),
+      url: microsoftCalendarCallbackTarget(this.options, cookieHeader(request), code, state, error),
       statusCode: 302,
     };
   }
@@ -185,6 +187,7 @@ export function microsoftCalendarCallbackTarget(
   cookies: string | undefined,
   code: unknown,
   state: unknown,
+  error?: unknown,
 ): string {
   const base = options.webPublicUrl.replace(/\/+$/, '');
   const flow = openMicrosoftCalendarFlow(
@@ -194,7 +197,9 @@ export function microsoftCalendarCallbackTarget(
   if (!flow || !SLUG_PATTERN.test(flow.organizationSlug)) return `${base}/`;
   const screen = `${base}/${flow.organizationSlug}/settings/connected-apps`;
   if (typeof code !== 'string' || typeof state !== 'string' || code.length > 4096) {
-    return `${screen}#mscal=error`;
+    // R37: a provider error we explain travels on as `reason`, so the card can say why.
+    const reason = providerErrorReason(error);
+    return reason ? `${screen}#mscal=error&reason=${reason}` : `${screen}#mscal=error`;
   }
   return `${screen}#${new URLSearchParams({ mscal: 'complete', code, state }).toString()}`;
 }

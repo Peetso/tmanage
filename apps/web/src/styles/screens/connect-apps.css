@@ -1,0 +1,210 @@
+/*
+ * R37 Connect apps simply — Figma "R37 Connect apps simply" (Product page): the app cards and the
+ * owner's "Set it up" checklist, EN + AR. Tokens only; logical properties so Arabic mirrors through
+ * the document direction.
+ */
+
+.tm-connect-apps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  color: var(--ink-950);
+}
+
+.tm-connect-apps__title,
+.tm-connect-guide__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+}
+
+.tm-connect-apps__lede,
+.tm-connect-guide__intro {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-650);
+}
+
+.tm-connect-apps__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-connect-apps__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s5);
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+}
+
+.tm-connect-apps__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-connect-apps__logo {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 44px;
+  block-size: 44px;
+  flex: none;
+  border-radius: var(--r-control);
+  background: var(--paper-150);
+  font-weight: 600;
+  font-size: var(--t-ui-md);
+}
+
+.tm-connect-apps__name {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 600;
+}
+
+.tm-connect-apps__what,
+.tm-connect-apps__hint {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-connect-apps__hint {
+  color: var(--ink-500);
+}
+
+.tm-connect-apps__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  margin-block-start: auto;
+}
+
+.tm-connect-apps__actions--stack {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.tm-connect-apps__manage,
+.tm-connect-guide__link {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--ink-950);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.tm-connect-apps__manage:focus-visible,
+.tm-connect-guide__link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* The owner's checklist. */
+.tm-connect-guide {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s4);
+  padding: var(--s6);
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+}
+
+.tm-connect-guide > * {
+  max-inline-size: 100%;
+}
+
+.tm-connect-guide__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  inline-size: 100%;
+}
+
+.tm-connect-guide__steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  inline-size: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-connect-guide__step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s3);
+  border-radius: var(--r-compact);
+}
+
+.tm-connect-guide__step[data-fix='true'] {
+  background: var(--lime-100);
+}
+
+.tm-connect-guide__number {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 28px;
+  block-size: 28px;
+  flex: none;
+  border-radius: var(--r-capsule);
+  background: var(--lime-100);
+  font-size: var(--t-ui-sm);
+  font-weight: 600;
+}
+
+.tm-connect-guide__step[data-fix='true'] .tm-connect-guide__number {
+  background: var(--lime-500);
+}
+
+.tm-connect-guide__body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s2);
+  min-inline-size: 0;
+  flex: 1;
+}
+
+.tm-connect-guide__text {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+.tm-connect-guide__value-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  inline-size: 100%;
+}
+
+.tm-connect-guide__value {
+  flex: 1;
+  min-inline-size: 0;
+  padding: var(--s2) var(--s3);
+  overflow-wrap: anywhere;
+  background: var(--paper-50);
+  border-radius: var(--r-control);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  text-align: start;
+}
