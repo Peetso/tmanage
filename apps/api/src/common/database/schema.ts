@@ -13322,3 +13322,31 @@ export const supportMessages = mysqlTable(
 export type SupportMessageRow = typeof supportMessages.$inferSelect;
 
 Object.assign(TABLES, { support_threads: supportThreads, support_messages: supportMessages });
+
+// ---- R40 · 54-22 template packs gallery (0325) ----
+
+/**
+ * 0325 (54-22). One built-in template pack a workspace has installed. The pack content lives in
+ * code (`projects/template-packs.catalog.ts`); this row only records the install: the catalog
+ * `pack_key`, how many templates it added, who installed it and when. TENANT: keyed
+ * `(organization_id, id)`; `(organization_id, pack_key)` is unique, so a pack installs once.
+ */
+export const templatePacks = mysqlTable(
+  'template_packs',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    packKey: varchar('pack_key', { length: 64 }).notNull(),
+    templatesCreated: int('templates_created', { unsigned: true }).notNull().default(0),
+    installedBy: char('installed_by', { length: 36 }).notNull(),
+    installedAt: datetime('installed_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_template_packs_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_template_packs_org_pack').on(table.organizationId, table.packKey),
+  ],
+);
+
+export type TemplatePackRow = typeof templatePacks.$inferSelect;
+
+Object.assign(TABLES, { template_packs: templatePacks });

@@ -1901,6 +1901,11 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`external_approvers` TO 'tmanage_app'@
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`support_threads`  TO 'tmanage_app'@'%';
 GRANT INSERT, DELETE         ON `tmanage`.`support_messages` TO 'tmanage_app'@'%';
 
+-- ---- R40 · 54-22 template packs gallery ----
+-- 0325 `template_packs` (tenant): one row inserted per installed pack; never amended. DELETE only
+-- for the company erasure. SELECT rides the database-wide read.
+GRANT INSERT, DELETE ON `tmanage`.`template_packs` TO 'tmanage_app'@'%';
+
 -- ---- 52-08 · quotes ----
 -- 0259 `quotes` (tenant): created, edited while draft, sent and decided (UPDATE); DELETE only for
 -- the company erasure. SELECT rides the database-wide read.

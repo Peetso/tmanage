@@ -21,14 +21,14 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 
 ## Totals
 
-Counted by hand on 2026-11-02 (56-28, R19-f; R21-f adds the three inbound e-mail tables; R22 adds `org_secrets` and `einvoice_chain_checks`; R32 C25 adds `work_item_client_audience`; R33 C26 adds `work_item_assignees`; R34 B11 adds `invitation_pending_keys`; R35 52-18 adds `external_approvers`; R39 55-17 adds `support_threads` and `support_messages`).
+Counted by hand on 2026-11-02 (56-28, R19-f; R21-f adds the three inbound e-mail tables; R22 adds `org_secrets` and `einvoice_chain_checks`; R32 C25 adds `work_item_client_audience`; R33 C26 adds `work_item_assignees`; R34 B11 adds `invitation_pending_keys`; R35 52-18 adds `external_approvers`; R39 55-17 adds `support_threads` and `support_messages`; R40 54-22 adds `template_packs`).
 
-- Tables: 337 (100 % of `TABLES` once R19-b's `finance_exports` lands; `data-inventory.doc.test.ts` checks it without a database).
-- `delete`: 259
+- Tables: 338 (100 % of `TABLES` once R19-b's `finance_exports` lands; `data-inventory.doc.test.ts` checks it without a database).
+- `delete`: 260
 - `pseudonymise`: 4
 - `keep-fiscal-redacted`: 11
 - `none-no-personal-data`: 63
-- Today `enforced`: 227, `gap`: 45, `n/a`: 63.
+- Today `enforced`: 228, `gap`: 45, `n/a`: 63.
 
 ## Planned tables
 
@@ -343,6 +343,7 @@ Not tables, so not counted in the totals or by `data-inventory.doc.test.ts`. Add
 | `subscriptions`                   | -                                                                                                                                     | `none-no-personal-data` | n/a      | H3    | No personal field. Deleted with the company anyway (H3). Fiscal record: deleted today with the company; a fiscal retention decision (33-LEGAL §7) is open.                                                                                                                  |
 | `support_messages`                | `body`, `attachment_name`, `author_user_id`                                                                                           | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
 | `support_threads`                 | `subject`, `context_path`, `started_by_user_id`                                                                                       | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts; messages first).                                                                                                                                                                           |
+| `template_packs`                  | `installed_by`                                                                                                                        | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
 | `time_period_locks`               | `locked_by`, `unlocked_by`, `reason`                                                                                                  | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
 | `time_timers`                     | `membership_id`, `user_id`, `note`                                                                                                    | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
 | `timesheets`                      | `membership_id`, `decided_by`, `decision_note`                                                                                        | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts). Approved timesheets are append-only (T-17).                                                                                                                                               |

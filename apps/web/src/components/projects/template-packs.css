@@ -1,0 +1,103 @@
+/*
+ * 54-22 — Template packs gallery and install confirm (Figma Product page, section
+ * "R40 L1-54-22-template-packs"). TManage tokens only; logical properties so the Arabic (RTL)
+ * frames mirror without overrides.
+ */
+
+.tm-packs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+}
+
+.tm-packs__head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tm-packs__title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-packs__lede,
+.tm-packs__desc {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-650);
+}
+
+.tm-packs__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-packs__card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-packs__card--installed {
+  background: var(--lime-100);
+}
+
+.tm-packs__name {
+  margin: 0;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-packs__meta,
+.tm-packs__note {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-500);
+}
+
+.tm-packs__action {
+  margin-block-start: auto;
+}
+
+.tm-packs__list-label {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-packs__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-packs__list-item {
+  padding: 12px var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}

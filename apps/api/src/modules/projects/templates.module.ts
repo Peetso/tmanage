@@ -13,6 +13,9 @@ import { ProjectTemplatesService } from './templates.service.js';
 import { ProjectTemplatesController } from './templates.controller.js';
 import { ProjectsRepository } from './projects.repository.js';
 import { ProjectsService } from './projects.service.js';
+import { TemplatePacksController } from './template-packs.controller.js';
+import { TEMPLATE_PACKS_SERVICE, TemplatePacksService } from './template-packs.service.js';
+import { TemplatePacksRepository } from './template-packs.repository.js';
 
 /**
  * PROJ / module 8 (x234). Reusable project templates — define, list, and instantiate a project from a
@@ -48,12 +51,20 @@ export class ProjectTemplatesModule {
           audit,
         ),
     };
+    // 54-22. The template-packs gallery: installing a pack writes through the same templates
+    // repository, so a pack's templates are ordinary templates.
+    const packs: Provider = {
+      provide: TEMPLATE_PACKS_SERVICE,
+      inject: [TENANT_DATABASE, PROJECT_TEMPLATES_REPOSITORY],
+      useFactory: (database: TenantDatabase, templates: ProjectTemplatesRepository) =>
+        new TemplatePacksService(database, new TemplatePacksRepository(), templates),
+    };
 
     return {
       module: ProjectTemplatesModule,
-      providers: [repository, service],
+      providers: [repository, service, packs],
       exports: [service],
-      controllers: [ProjectTemplatesController],
+      controllers: [TemplatePacksController, ProjectTemplatesController],
     };
   }
 }

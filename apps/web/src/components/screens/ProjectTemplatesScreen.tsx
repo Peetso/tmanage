@@ -13,6 +13,7 @@ import {
   templateMeta,
 } from '../projects/NewProjectFromTemplateDialog';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { TemplatePacksGallery } from '../projects/TemplatePacksGallery';
 import '../projects/templates-milestones.css';
 import type { ApiClient } from '../../lib/api/client';
 import { useDescribeApiError } from '../../lib/api/describe-error';
@@ -237,6 +238,8 @@ export function ProjectTemplatesScreen({
                 </ul>
               </section>
             ) : null}
+
+            <TemplatePacksGallery api={api} organizationSlug={organizationSlug} />
           </div>
         </div>
       </div>

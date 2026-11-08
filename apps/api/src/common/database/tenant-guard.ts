@@ -1308,6 +1308,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // organization, with a platform audit row.
   support_threads: 'organization_id',
   support_messages: 'organization_id',
+  // ---- R40 · 54-22 ----
+  // 0325. Tenant-owned: which built-in template packs one organization has installed. Written by
+  // the pack install (one row per pack); read by the template-packs gallery.
+  template_packs: 'organization_id',
 });
 
 /**
