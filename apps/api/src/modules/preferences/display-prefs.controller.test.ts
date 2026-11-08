@@ -126,6 +126,7 @@ describe('DisplayPreferencesController (PREF-DISPLAY, x285)', () => {
       ...VALID,
       numerals: 'latin',
       calendarDisplay: 'gregorian',
+      weekStart: 'monday',
       ...INHERITED,
     });
 
@@ -138,6 +139,7 @@ describe('DisplayPreferencesController (PREF-DISPLAY, x285)', () => {
       ...VALID,
       numerals: 'latin',
       calendarDisplay: 'gregorian',
+      weekStart: 'monday',
       ...INHERITED,
     });
   });
@@ -220,6 +222,23 @@ describe('DisplayPreferencesController (PREF-DISPLAY, x285)', () => {
     );
     await expectStatus(
       controllerWith(repo).put(context, member(), { ...VALID, calendarDisplay: 'hijri_only' }),
+      400,
+    );
+    expect(repo.upsertCalls).toHaveLength(before);
+  });
+
+  it('C24: weekStart defaults to monday on an old row, saves saturday, and 400s off-vocabulary', async () => {
+    const repo = new FakeDisplayPreferencesRepository();
+    repo.rows.set(MY_MEMBERSHIP, { ...VALID });
+    expect((await controllerWith(repo).get(context, member())).weekStart).toBe('monday');
+    const saved = await controllerWith(repo).put(context, member(), {
+      ...VALID,
+      weekStart: 'saturday',
+    });
+    expect(saved.weekStart).toBe('saturday');
+    const before = repo.upsertCalls.length;
+    await expectStatus(
+      controllerWith(repo).put(context, member(), { ...VALID, weekStart: 'friday' }),
       400,
     );
     expect(repo.upsertCalls).toHaveLength(before);

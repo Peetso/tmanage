@@ -66,6 +66,8 @@ export interface DisplayPreferencesView {
   readonly dateFormat: DisplayDateFormat;
   readonly numerals: DisplayNumerals;
   readonly calendarDisplay: DisplayCalendar;
+  /** C24. The first day of the week calendars and week pickers start on. */
+  readonly weekStart: DisplayWeekStart;
   /** 55-04. The effective shell mode: the member's own, else (or when locked) the org default. */
   readonly uiMode: UiMode;
   readonly uiModeSource: 'self' | 'org_default';
@@ -97,6 +99,9 @@ export const DISPLAY_NUMERALS = ['latin', 'arabic_indic'] as const;
 export type DisplayNumerals = (typeof DISPLAY_NUMERALS)[number];
 export const DISPLAY_CALENDARS = ['gregorian', 'gregorian_hijri'] as const;
 export type DisplayCalendar = (typeof DISPLAY_CALENDARS)[number];
+/** C24 — the first day of the member's week (Saturday is common across the region). Optional like 55-07's keys. */
+export const DISPLAY_WEEK_STARTS = ['monday', 'sunday', 'saturday'] as const;
+export type DisplayWeekStart = (typeof DISPLAY_WEEK_STARTS)[number];
 
 /**
  * The shipped defaults an unsaved member is reached by: follow the OS theme, comfortable, en-US, UTC,
@@ -110,6 +115,7 @@ export const DEFAULT_DISPLAY_PREFERENCES: StoredDisplayPreferencesView = {
   dateFormat: 'iso',
   numerals: 'latin',
   calendarDisplay: 'gregorian',
+  weekStart: 'monday',
 };
 
 /** The only keys a PUT body may carry — anything else is a 400 (fixed-key allowlist). */
@@ -121,6 +127,7 @@ const ALLOWED_KEYS: ReadonlySet<string> = new Set([
   'dateFormat',
   'numerals',
   'calendarDisplay',
+  'weekStart',
   'uiMode',
 ]);
 
@@ -207,6 +214,7 @@ function viewOf(saved: DisplayPreferences | null, org: OrgUiMode): DisplayPrefer
     dateFormat: settings.dateFormat,
     numerals: settings.numerals ?? DEFAULT_DISPLAY_PREFERENCES.numerals,
     calendarDisplay: settings.calendarDisplay ?? DEFAULT_DISPLAY_PREFERENCES.calendarDisplay,
+    weekStart: settings.weekStart ?? DEFAULT_DISPLAY_PREFERENCES.weekStart,
     uiMode: useOwn ? own : org.defaultMode,
     uiModeSource: useOwn ? 'self' : 'org_default',
     uiModeLocked: org.locked,
@@ -253,6 +261,10 @@ function parseInput(body: unknown): DisplayPreferences {
     value['calendarDisplay'] === undefined
       ? DEFAULT_DISPLAY_PREFERENCES.calendarDisplay
       : oneOf('calendarDisplay', DISPLAY_CALENDARS);
+  const weekStart =
+    value['weekStart'] === undefined
+      ? DEFAULT_DISPLAY_PREFERENCES.weekStart
+      : oneOf('weekStart', DISPLAY_WEEK_STARTS);
   // 55-04: optional, and absent stays absent — it means "inherit the org default", not a value.
   const uiMode = value['uiMode'] === undefined ? undefined : oneOf('uiMode', UI_MODES);
 
@@ -268,6 +280,7 @@ function parseInput(body: unknown): DisplayPreferences {
     dateFormat,
     numerals,
     calendarDisplay,
+    weekStart,
     ...(uiMode === undefined ? {} : { uiMode }),
   };
 }

@@ -50,6 +50,18 @@ export type DisplayTimezone = string;
 export const DISPLAY_DATE_FORMATS = ['iso', 'us', 'eu', 'long'] as const;
 export type DisplayDateFormat = (typeof DISPLAY_DATE_FORMATS)[number];
 
+/** Digit shapes (55-07); `latin` is the default. */
+export const DISPLAY_NUMERALS = ['latin', 'arabic_indic'] as const;
+export type DisplayNumerals = (typeof DISPLAY_NUMERALS)[number];
+
+/** Simple / Power shell mode (55-04). */
+export const DISPLAY_UI_MODES = ['simple', 'power'] as const;
+export type DisplayUiMode = (typeof DISPLAY_UI_MODES)[number];
+
+/** C24: the first day of the week; `monday` is the default. Mirrors the API's `DISPLAY_WEEK_STARTS`. */
+export const DISPLAY_WEEK_STARTS = ['monday', 'sunday', 'saturday'] as const;
+export type DisplayWeekStart = (typeof DISPLAY_WEEK_STARTS)[number];
+
 /** The five display settings the GET/PUT route exchanges. Paired Exact with the API view. */
 export interface DisplayPreferencesView {
   readonly theme: DisplayTheme;
@@ -58,11 +70,13 @@ export interface DisplayPreferencesView {
   readonly timezone: DisplayTimezone;
   readonly dateFormat: DisplayDateFormat;
   /** 55-07 (R18-d): digit shapes; a row saved before 55-07 reads as `latin`. */
-  readonly numerals: 'latin' | 'arabic_indic';
+  readonly numerals: DisplayNumerals;
   /** 55-07 (R18-d): the calendar shown beside dates (display-only); defaults to `gregorian`. */
   readonly calendarDisplay: 'gregorian' | 'gregorian_hijri';
+  /** C24: the first day of the week; the API reads an unsaved value as `monday`. */
+  readonly weekStart: DisplayWeekStart;
   /** 55-04 (R20-c): the effective shell mode — the member's own, else (or when locked) the org default. */
-  readonly uiMode: 'simple' | 'power';
+  readonly uiMode: DisplayUiMode;
   readonly uiModeSource: 'self' | 'org_default';
   /** 55-04 (R20-c): the caller's role is locked to the org default; the screen hides the switch. */
   readonly uiModeLocked: boolean;
@@ -94,6 +108,7 @@ export function toDisplayPreferencesUpdate(
     dateFormat: view.dateFormat,
     numerals: view.numerals,
     calendarDisplay: view.calendarDisplay,
+    weekStart: view.weekStart,
     ...(ownMode && view.uiMode !== undefined ? { uiMode: view.uiMode } : {}),
   };
 }

@@ -9325,6 +9325,8 @@ export interface DisplayPreferences {
   readonly numerals?: 'latin' | 'arabic_indic';
   /** 55-07 (R18-d). Display-only Hijri beside Gregorian; absent reads as `'gregorian'`. */
   readonly calendarDisplay?: 'gregorian' | 'gregorian_hijri';
+  /** C24. The first day of the member's week; absent reads as `'monday'`. Display-only. */
+  readonly weekStart?: 'monday' | 'sunday' | 'saturday';
   /**
    * 55-04 (R20-c). The member's own Simple/Power shell mode. Absent = inherit the org's
    * `default_ui_mode` setting — the effective mode is computed on read, never stored as a default.

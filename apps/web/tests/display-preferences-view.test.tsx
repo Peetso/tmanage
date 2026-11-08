@@ -94,6 +94,22 @@ describe('DisplayPreferencesView (PREF-02)', () => {
     expect(calls.find((call) => call.method === 'PUT')?.body).toEqual({
       ...SAVED,
       density: 'compact',
+      numerals: 'latin',
+      weekStart: 'monday',
+    });
+  });
+
+  it('C24: picking Power, Arabic-Indic and Saturday sends them as the member own choice', async () => {
+    const calls = mount();
+    fireEvent.click(await screen.findByLabelText('Power'));
+    fireEvent.click(screen.getByLabelText(/Arabic-Indic/));
+    fireEvent.click(screen.getByLabelText('Saturday'));
+    fireEvent.click(screen.getByRole('button', { name: /Save/ }));
+    await waitFor(() => expect(calls.some((call) => call.method === 'PUT')).toBe(true));
+    expect(calls.find((call) => call.method === 'PUT')?.body).toMatchObject({
+      uiMode: 'power',
+      numerals: 'arabic_indic',
+      weekStart: 'saturday',
     });
   });
 });

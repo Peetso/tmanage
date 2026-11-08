@@ -8,7 +8,10 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import {
   DISPLAY_DATE_FORMATS,
   DISPLAY_DENSITIES,
+  DISPLAY_NUMERALS,
   DISPLAY_THEMES,
+  DISPLAY_UI_MODES,
+  DISPLAY_WEEK_STARTS,
   getDisplayPreferences,
   updateDisplayPreferences,
 } from '../../lib/api/display-preferences';
@@ -18,10 +21,18 @@ import type {
   DisplayDateFormat,
   DisplayDensity,
   DisplayLocale,
+  DisplayNumerals,
   DisplayPreferencesView as DisplayPreferences,
   DisplayTheme,
   DisplayTimezone,
+  DisplayUiMode,
+  DisplayWeekStart,
 } from '../../lib/api/display-preferences';
+import {
+  getNotificationPreferences,
+  updateNotificationPreferences,
+} from '../../lib/api/notification-preferences';
+import { withCalmPreset } from '../../lib/calm-notifications';
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { activeLocale } from '../../lib/i18n/locale-store';
@@ -50,6 +61,7 @@ const DEFAULTS: DisplayPreferences = {
   dateFormat: 'iso',
   numerals: 'latin',
   calendarDisplay: 'gregorian',
+  weekStart: 'monday',
   uiMode: 'simple',
   uiModeSource: 'org_default',
   uiModeLocked: false,
@@ -89,6 +101,27 @@ const EN = {
   'DisplayPreferencesView.sampleHours': '26h',
   'DisplayPreferencesView.noDate': 'No date',
   'DisplayPreferencesView.done': 'Done',
+  'DisplayPreferencesView.mode': 'Mode',
+  'DisplayPreferencesView.modeSimple': 'Simple',
+  'DisplayPreferencesView.modePower': 'Power',
+  'DisplayPreferencesView.modeNote':
+    'Simple keeps the screens short. Power shows every tool and column.',
+  'DisplayPreferencesView.modeLocked':
+    'Your workspace uses one mode for your role, so it cannot be changed here.',
+  'DisplayPreferencesView.numerals': 'Numbers',
+  'DisplayPreferencesView.numeralsLatin': 'Latin',
+  'DisplayPreferencesView.numeralsArabic': 'Arabic-Indic',
+  'DisplayPreferencesView.weekStart': 'Week starts on',
+  'DisplayPreferencesView.weekMonday': 'Monday',
+  'DisplayPreferencesView.weekSunday': 'Sunday',
+  'DisplayPreferencesView.weekSaturday': 'Saturday',
+  'DisplayPreferencesView.notifications': 'Notifications',
+  'DisplayPreferencesView.calmNote':
+    'Calm: one daily digest, quiet from 19:00 to 08:00. Mentions and client requests still arrive at once.',
+  'DisplayPreferencesView.calmAction': 'Use calm notifications',
+  'DisplayPreferencesView.calmApplying': 'Applying…',
+  'DisplayPreferencesView.calmDone': 'Calm notifications are on',
+  'DisplayPreferencesView.calmError': 'We could not change your notifications',
 } as const;
 
 type AppearanceKey = keyof typeof EN;
@@ -102,6 +135,23 @@ const THEME_LABELS: Record<DisplayTheme, AppearanceKey> = {
 const DENSITY_LABELS: Record<DisplayDensity, AppearanceKey> = {
   comfortable: 'DisplayPreferencesView.densityComfortable',
   compact: 'DisplayPreferencesView.densityCompact',
+};
+
+const MODE_LABELS: Record<DisplayUiMode, AppearanceKey> = {
+  simple: 'DisplayPreferencesView.modeSimple',
+  power: 'DisplayPreferencesView.modePower',
+};
+
+/** The style's name, then a sample in it (the sample digits are the point, never translated). */
+const NUMERAL_LABELS: Record<DisplayNumerals, readonly [AppearanceKey, string]> = {
+  latin: ['DisplayPreferencesView.numeralsLatin', '123'],
+  arabic_indic: ['DisplayPreferencesView.numeralsArabic', '١٢٣'],
+};
+
+const WEEK_START_LABELS: Record<DisplayWeekStart, AppearanceKey> = {
+  monday: 'DisplayPreferencesView.weekMonday',
+  sunday: 'DisplayPreferencesView.weekSunday',
+  saturday: 'DisplayPreferencesView.weekSaturday',
 };
 
 /** The format's name, then a fixed sample date written in it (digits are not translated). */
@@ -159,6 +209,17 @@ export function DisplayPreferencesView({
   ).concat(OFFERED_LOCALES.some((value) => value === stored.locale) ? [] : [stored.locale]);
   const timezone = timezoneDraft ?? stored.timezone;
   const dateFormat = dateFormatDraft ?? stored.dateFormat;
+  // C24: mode, digit shapes and week start. Numerals and week start are stored and exposed through
+  // this API for the screens that format with them; no shared formatter applies them app-wide yet.
+  const [uiModeDraft, setUiMode] = useState<DisplayUiMode | null>(null);
+  const [numeralsDraft, setNumerals] = useState<DisplayNumerals | null>(null);
+  const [weekStartDraft, setWeekStart] = useState<DisplayWeekStart | null>(null);
+  const uiMode = uiModeDraft ?? stored.uiMode;
+  const numerals = numeralsDraft ?? stored.numerals ?? DEFAULTS.numerals;
+  const weekStart = weekStartDraft ?? stored.weekStart ?? 'monday';
+  // A mode the member picked here is theirs; untouched, an inherited mode stays inherited.
+  const ownMode: DisplayUiMode | undefined =
+    uiModeDraft ?? (stored.uiModeSource === 'self' ? stored.uiMode : undefined);
   const [saved, setSaved] = useState(false);
 
   // Publish the saved locale to the active-locale store so the shell's `dir`/`lang` and every
@@ -176,15 +237,19 @@ export function DisplayPreferencesView({
         locale,
         timezone,
         dateFormat,
-        // 55-07: not edited on this screen yet, so the stored values are sent back unchanged.
-        numerals: stored.numerals,
+        numerals,
+        weekStart,
+        // 55-07: not edited on this screen yet, so the stored value is sent back unchanged.
         calendarDisplay: stored.calendarDisplay,
-        // 55-04: keep the member's own mode; an inherited mode is left out so it stays inherited.
-        ...(stored.uiModeSource === 'self' ? { uiMode: stored.uiMode } : {}),
+        // 55-04: the member's own mode; an inherited (or locked) mode is left out so it stays so.
+        ...(ownMode !== undefined && !stored.uiModeLocked ? { uiMode: ownMode } : {}),
       }),
     onSuccess: (result) => {
       queries.setQueryData(['display-preferences', organizationSlug], result);
       setLocale(null);
+      setUiMode(null);
+      setNumerals(null);
+      setWeekStart(null);
       // Apply the saved language to the whole app at once (ACT-03): the store flips the document's
       // direction and re-binds the formatters, so Arabic reads right-to-left immediately without a
       // reload rather than only taking effect on the marketing site.
@@ -192,6 +257,22 @@ export function DisplayPreferencesView({
       applyTheme(result.theme);
       applyDensity(result.density);
       setSaved(true);
+    },
+  });
+
+  // C24: the calm preset is written to the member's own notification settings at once — a separate
+  // store (NOTIF-001), so it has its own button rather than riding on "Save".
+  const calm = useMutation({
+    mutationFn: async () => {
+      const current = await getNotificationPreferences(api, organizationSlug);
+      return updateNotificationPreferences(
+        api,
+        organizationSlug,
+        withCalmPreset(current, timezone),
+      );
+    },
+    onSuccess: (result) => {
+      queries.setQueryData(['notification-preferences', organizationSlug], result);
     },
   });
 
@@ -269,6 +350,108 @@ export function DisplayPreferencesView({
                 </div>
                 <p className="tm-prefs-card__note">{tr('DisplayPreferencesView.densityNote')}</p>
               </fieldset>
+
+              <hr className="tm-prefs-rule" />
+
+              <fieldset className="tm-prefs-section">
+                <legend className="tm-prefs-eyebrow">{tr('DisplayPreferencesView.mode')}</legend>
+                {stored.uiModeLocked ? (
+                  <p className="tm-prefs-card__note">{tr('DisplayPreferencesView.modeLocked')}</p>
+                ) : (
+                  <>
+                    <div className="tm-prefs-choices">
+                      {DISPLAY_UI_MODES.map((value) => (
+                        <label key={value} className="tm-prefs-choice">
+                          <input
+                            type="radio"
+                            name="tm-display-mode"
+                            value={value}
+                            checked={uiMode === value}
+                            onChange={() => setUiMode(value)}
+                          />
+                          {tr(MODE_LABELS[value])}
+                        </label>
+                      ))}
+                    </div>
+                    <p className="tm-prefs-card__note">{tr('DisplayPreferencesView.modeNote')}</p>
+                  </>
+                )}
+              </fieldset>
+
+              <hr className="tm-prefs-rule" />
+
+              <fieldset className="tm-prefs-section">
+                <legend className="tm-prefs-eyebrow">
+                  {tr('DisplayPreferencesView.numerals')}
+                </legend>
+                <div className="tm-prefs-choices">
+                  {DISPLAY_NUMERALS.map((value) => (
+                    <label key={value} className="tm-prefs-choice">
+                      <input
+                        type="radio"
+                        name="tm-display-numerals"
+                        value={value}
+                        checked={numerals === value}
+                        onChange={() => setNumerals(value)}
+                      />
+                      {`${tr(NUMERAL_LABELS[value][0])} ${NUMERAL_LABELS[value][1]}`}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              <hr className="tm-prefs-rule" />
+
+              <fieldset className="tm-prefs-section">
+                <legend className="tm-prefs-eyebrow">
+                  {tr('DisplayPreferencesView.weekStart')}
+                </legend>
+                <div className="tm-prefs-choices">
+                  {DISPLAY_WEEK_STARTS.map((value) => (
+                    <label key={value} className="tm-prefs-choice">
+                      <input
+                        type="radio"
+                        name="tm-display-week-start"
+                        value={value}
+                        checked={weekStart === value}
+                        onChange={() => setWeekStart(value)}
+                      />
+                      {tr(WEEK_START_LABELS[value])}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              <hr className="tm-prefs-rule" />
+
+              <section className="tm-prefs-section" aria-labelledby="tm-display-calm-heading">
+                <h2 id="tm-display-calm-heading" className="tm-prefs-eyebrow">
+                  {tr('DisplayPreferencesView.notifications')}
+                </h2>
+                <p className="tm-prefs-card__note">{tr('DisplayPreferencesView.calmNote')}</p>
+                <div>
+                  <button
+                    type="button"
+                    className="tm-prefs-capsule"
+                    disabled={calm.isPending}
+                    onClick={() => calm.mutate()}
+                  >
+                    {calm.isPending
+                      ? tr('DisplayPreferencesView.calmApplying')
+                      : tr('DisplayPreferencesView.calmAction')}
+                  </button>
+                </div>
+                {calm.isError ? (
+                  <InlineAlert tone="danger" title={tr('DisplayPreferencesView.calmError')}>
+                    {errorMessage(calm.error)}
+                  </InlineAlert>
+                ) : null}
+                {calm.isSuccess ? (
+                  <InlineAlert tone="success" title={tr('DisplayPreferencesView.calmDone')}>
+                    {tr('DisplayPreferencesView.calmNote')}
+                  </InlineAlert>
+                ) : null}
+              </section>
 
               <hr className="tm-prefs-rule" />
 
