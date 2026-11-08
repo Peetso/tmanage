@@ -206,6 +206,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     en: 'Client company',
     key: 'RouteTitle.clientCompany',
   },
+  '/[orgSlug]/clients/import': { en: 'Import contacts', key: 'RouteTitle.clientsImport' },
   '/[orgSlug]/copilot': { en: 'Copilot', key: 'RouteTitle.copilot' },
   '/[orgSlug]/decisions': { en: 'Decisions', key: 'RouteTitle.decisions' },
   '/[orgSlug]/decisions/[decisionId]': { en: 'Decision', key: 'RouteTitle.decision' },

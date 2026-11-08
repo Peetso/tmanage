@@ -97,7 +97,7 @@ export const KEYS_COPY = {
   purpose_calendar_token: 'Calendars (Google, Outlook)',
   purpose_mfa: 'Two-step sign-in',
   purpose_webhook_secret: 'Webhook signing',
-  purpose_scim_token: 'Directory sync (SCIM)',
+  purpose_scim_token: 'Directory sync (planned)',
   purpose_push_key: 'Push notifications',
   purpose_integration_token: 'Integrations',
   purpose_zatca_key: 'E-invoicing (ZATCA)',

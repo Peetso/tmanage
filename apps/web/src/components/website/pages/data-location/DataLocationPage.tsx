@@ -153,7 +153,7 @@ export function DataLocationPage({ client }: { client?: ApiClient }) {
             )}
             body={tr(
               'DataLocation.transferBody',
-              'Saudi Arabia: transferred outside the Kingdom under PDPL Article 29, with SDAIA standard contractual clauses attached. UAE: covered by contractual safeguards. Egypt: public bodies may need a transfer permit, so ask us before you sign.',
+              'Saudi Arabia: transferred outside the Kingdom under PDPL Article 29. Ask us for the transfer terms before you sign. UAE: covered by contractual safeguards. Egypt: public bodies may need a transfer permit, so ask us before you sign.',
             )}
           />
         </section>

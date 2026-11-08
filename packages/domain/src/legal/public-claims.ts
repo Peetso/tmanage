@@ -50,8 +50,19 @@ export const PUBLIC_CLAIMS: readonly PublicClaim[] = Object.freeze([
   {
     id: 'sso',
     textKey: 'SignInScreen.continueSso',
-    proofIds: ['SEC56-13', 'SEC56-14', 'SEC56-15', 'SEC56-16', 'SEC56-17', 'SEC56-18'],
-    status: 'hidden',
+    proofIds: [
+      'SEC56-13',
+      'SEC56-14',
+      'SEC56-15',
+      'SEC56-16',
+      'SEC56-17',
+      'SEC56-18',
+      'apps/api/src/modules/sso/sso.test.ts',
+    ],
+    // Built in 1051eb72 (OpenID Connect company sign-in, owner settings, enforcement).
+    status: 'shipped',
+    verifiedAt: '2026-11-08',
+    proofRunRef: 'R46 integrator unit run: apps/api/src/modules/sso/sso.test.ts (1051eb72)',
     owner: '54-14',
     phrases: {
       en: [/\bSSO\b/u, /single sign-on/iu],
@@ -62,8 +73,11 @@ export const PUBLIC_CLAIMS: readonly PublicClaim[] = Object.freeze([
   {
     id: 'saml',
     textKey: 'PricingPage.compareRowSaml',
-    proofIds: ['SEC56-21', 'SEC56-22'],
-    status: 'hidden',
+    proofIds: ['SEC56-21', 'SEC56-22', 'apps/api/src/modules/sso/sso-saml.test.ts'],
+    // Built in 93844ed0 (SAML 2.0 company sign-in alongside OpenID Connect).
+    status: 'shipped',
+    verifiedAt: '2026-11-08',
+    proofRunRef: 'R46 integrator unit run: apps/api/src/modules/sso/sso-saml.test.ts (93844ed0)',
     owner: '54-15',
     phrases: { en: [/\bSAML\b/u], ar: [/\bSAML\b/u] },
     plannedKeys: SSO_PLANNED_KEYS,
@@ -80,8 +94,12 @@ export const PUBLIC_CLAIMS: readonly PublicClaim[] = Object.freeze([
   {
     id: 'passkeys',
     textKey: 'SignInScreen.continuePasskey',
-    proofIds: ['E2E-56-22'],
-    status: 'hidden',
+    proofIds: ['E2E-56-22', 'apps/api/src/modules/identity/passkeys/webauthn.test.ts'],
+    // Built in dc6fb413 (passkeys, signed-in devices, new-device mail, security score).
+    status: 'shipped',
+    verifiedAt: '2026-11-08',
+    proofRunRef:
+      'R46 integrator unit run: apps/api/src/modules/identity/passkeys/webauthn.test.ts (dc6fb413)',
     owner: '56-22',
     phrases: {
       en: [/passkey/iu, /webauthn/iu],
@@ -195,8 +213,16 @@ export const PUBLIC_CLAIMS: readonly PublicClaim[] = Object.freeze([
   {
     id: 'tax_invoice_wording',
     textKey: 'InvoiceDocument.taxInvoiceTitle',
-    proofIds: ['SEC-52-21'],
-    status: 'hidden',
+    proofIds: [
+      'SEC-52-21',
+      'packages/domain/src/finance/tax-document-rules.test.ts',
+      'apps/api/src/modules/finance/client-invoices.test.ts',
+    ],
+    // Built (52-28): a tax_invoice label passes only the country rule (VAT registered + reference).
+    status: 'shipped',
+    verifiedAt: '2026-11-08',
+    proofRunRef:
+      'R46 integrator unit run: packages/domain/src/finance/tax-document-rules.test.ts, apps/api/src/modules/finance/client-invoices.test.ts',
     owner: '52-28',
     phrases: {
       en: [/tax invoice/iu, /VAT invoice/iu],

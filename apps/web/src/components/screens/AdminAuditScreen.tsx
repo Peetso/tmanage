@@ -491,7 +491,7 @@ function RefusedRunRows({
  */
 function eventSentence(event: AdminAuditEvent, tr: (key: string, fallback: string) => string) {
   if (event.scanNote === 'no_scanner') {
-    return tr('AdminAuditScreen.notScanned', 'Not virus-scanned: no scanner is set up');
+    return tr('AdminAuditScreen.notScanned', 'Not scanned for viruses: no scanner is set up');
   }
   return auditSentence(event);
 }

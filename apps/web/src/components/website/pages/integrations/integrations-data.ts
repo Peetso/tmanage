@@ -137,7 +137,7 @@ export const INTEGRATIONS: readonly Integration[] = [
   },
   {
     id: 'scim',
-    name: 'SCIM provisioning',
+    name: 'Directory provisioning',
     nameKey: `${K}nameScim`,
     lineKey: `${K}lineScim`,
     line: 'Add and remove people automatically from your directory.',

@@ -149,7 +149,7 @@ export function DataLocationCard({ organizationName, client }: DataLocationCardP
           )}
           body={tr(
             'DataLocation.cardTransferBody',
-            'Saudi Arabia: transferred under PDPL Article 29 with SDAIA standard contractual clauses attached. UAE: contractual safeguards. Egypt: public bodies may need a transfer permit.',
+            'Saudi Arabia: transferred under PDPL Article 29; ask us for the transfer terms. UAE: contractual safeguards. Egypt: public bodies may need a transfer permit.',
           )}
         />
 

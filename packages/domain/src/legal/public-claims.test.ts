@@ -5,7 +5,7 @@ import * as c from './public-claims.js';
 
 const ROOT = join(import.meta.dirname, '../../../..');
 const read = (path: string) => readFileSync(join(ROOT, path), 'utf8');
-const now = new Date('2026-10-29T12:00:00Z');
+const now = new Date('2026-11-08T12:00:00Z');
 const tree = (dir: string): string[] =>
   readdirSync(join(ROOT, dir)).flatMap((n) => {
     if (statSync(join(ROOT, dir, n)).isDirectory())
