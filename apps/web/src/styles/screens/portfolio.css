@@ -9,7 +9,8 @@
 /* ── POR-01 · header ─────────────────────────────────────────────────────────── */
 
 /* The frame's headline is 48/52 at weight 500, between `heading.page` and the display metric. */
-.tm-app__body:has(.tm-por) .tm-canvas-header__title {
+.tm-app__body:has(.tm-por) .tm-canvas-header__title,
+.tm-app__body:has(.tm-por-view-bar) .tm-canvas-header__title {
   font-size: 48px;
   line-height: 52px;
   letter-spacing: -0.03em;

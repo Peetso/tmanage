@@ -35,6 +35,8 @@ import { useOrganizationName, useOrganizationRole } from '../../lib/use-organiza
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { describePeopleError } from './peopleShared';
+import { ViewSwitcher } from '../views/ViewSwitcher';
+import { useViewPreference } from '../views/use-view-preference';
 import { invitationRoleName } from './AdminInvitationsView';
 import '../../styles/screens/people.css';
 
@@ -54,6 +56,10 @@ type MemberRow = PersonSummary;
 
 /** Owner and org admin assign roles and invite (`12-PERMISSION-MATRIX` §2 "Assign roles"). */
 const ROLE_ASSIGNERS = new Set(['owner', 'org_admin']);
+
+/** R38 G5-views: the members as a table or as cards. */
+const PEOPLE_LAYOUTS = ['list', 'grid'] as const;
+type PeopleLayout = (typeof PEOPLE_LAYOUTS)[number];
 
 const PLURAL_EN: Record<string, { one: string; other: string }> = {
   members: { one: '1 member', other: '{count} members' },
@@ -128,6 +134,11 @@ export function PeopleDirectoryScreen({
   const iAmOwner = myRole === 'owner';
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [announcement, setAnnouncement] = useState('');
+  const [layout, setLayout] = useViewPreference<PeopleLayout>(
+    `people:${organizationSlug}`,
+    PEOPLE_LAYOUTS,
+    'list',
+  );
   // F1: a member holding a custom role shows that role's name, not its id — for every viewer.
   const customRoles = useCustomRoles(api, organizationSlug, myRole !== undefined);
   const chip = useRoleChipLabel(customRoles.data);
@@ -227,6 +238,15 @@ export function PeopleDirectoryScreen({
             {summary ? <p className="ppl-members-header__summary">{summary}</p> : null}
           </div>
           <div className="ppl-members-header__actions">
+            <ViewSwitcher
+              label={tr('ViewSwitcher.peopleLabel', 'People view')}
+              options={[
+                { id: 'list', label: tr('ViewSwitcher.list', 'List') },
+                { id: 'grid', label: tr('ViewSwitcher.grid', 'Grid') },
+              ]}
+              value={layout}
+              onChange={setLayout}
+            />
             <Link
               href={`/${organizationSlug}/people/capacity`}
               className="tm-button tm-button--outline tm-button--default ppl-members-header__cta"
@@ -269,7 +289,47 @@ export function PeopleDirectoryScreen({
           </InlineAlert>
         ) : null}
 
-        {people.isSuccess ? (
+        {people.isSuccess && layout === 'grid' ? (
+          roster.length === 0 ? (
+            <p className="ppl-members__empty">
+              {tr('PeopleDirectoryScreen.noMembers', 'No members yet.')}
+            </p>
+          ) : (
+            <ul
+              className="tm-view-grid"
+              aria-label={tr('PeopleDirectoryScreen.listLabel', 'People in this organization')}
+            >
+              {roster.map((person) => {
+                const mayChange = canAssign && (person.role !== 'owner' || iAmOwner);
+                const chipLabel = person.roleName ?? chip(person.role);
+                return (
+                  <li key={person.userId}>
+                    <MemberCardView
+                      person={person}
+                      organizationSlug={organizationSlug}
+                      chipLabel={chipLabel}
+                      projectsLabel={plural('projects', person.projectCount)}
+                      mayChangeRole={mayChange}
+                      onChangeRole={() =>
+                        setDialog({
+                          kind: 'role',
+                          target: {
+                            userId: person.userId,
+                            displayName: person.displayName,
+                            role: person.role,
+                            version: person.version,
+                          },
+                        })
+                      }
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          )
+        ) : null}
+
+        {people.isSuccess && layout === 'list' ? (
           <div className="ppl-members-card">
             <table
               className="ppl-members"
@@ -477,6 +537,62 @@ export function PeopleDirectoryScreen({
         />
       ) : null}
     </ControlCenterShell>
+  );
+}
+
+/** R38 G5-views: one member as a card in the Grid view. */
+function MemberCardView({
+  person,
+  organizationSlug,
+  chipLabel,
+  projectsLabel,
+  mayChangeRole,
+  onChangeRole,
+}: {
+  person: MemberRow;
+  organizationSlug: string;
+  chipLabel: string;
+  projectsLabel: string;
+  mayChangeRole: boolean;
+  onChangeRole: () => void;
+}) {
+  const tr = useTOr();
+  const profileHref = person.membershipId
+    ? `/${organizationSlug}/people/${encodeURIComponent(person.membershipId)}`
+    : null;
+  return (
+    <article className="tm-view-card ppl-member-card">
+      <span className="ppl-avatar ppl-avatar--40" aria-hidden="true">
+        {initialsOf(person.displayName)}
+      </span>
+      <h3 className="tm-view-card__title">
+        {profileHref ? <Link href={profileHref}>{person.displayName}</Link> : person.displayName}
+      </h3>
+      {person.email ? (
+        <p className="tm-view-card__meta" dir="ltr">
+          {person.email}
+        </p>
+      ) : null}
+      <p className="tm-view-card__meta">{projectsLabel}</p>
+      <div>
+        {mayChangeRole ? (
+          <button
+            type="button"
+            className="ppl-role-chip"
+            aria-label={fill(
+              tr('PeopleDirectoryScreen.roleChip', 'Role of {name}: {role}. Change role'),
+              { name: person.displayName, role: chipLabel },
+            )}
+            onClick={onChangeRole}
+          >
+            {chipLabel}
+            <span className="ppl-role-chip__caret" aria-hidden="true" />
+          </button>
+        ) : (
+          <span className="ppl-role-chip ppl-role-chip--static">{chipLabel}</span>
+        )}
+      </div>
+    </article>
   );
 }
 

@@ -17405,5 +17405,19 @@
   "Clients.projectsNoMatch": "لا يوجد مشروع يطابق هذا البحث.",
   "Clients.projectsHint": "تُشارك كل المشاريع المختارة مع شركة العميل عند قبول الدعوة.",
   "PendingInvitations.projects": "المشاريع: {names}",
-  "AdminInvitationsView.projectsPrefix": "المشاريع:"
+  "AdminInvitationsView.projectsPrefix": "المشاريع:",
+  "ViewSwitcher.list": "قائمة",
+  "ViewSwitcher.board": "لوحة",
+  "ViewSwitcher.grid": "بطاقات",
+  "ViewSwitcher.timeline": "الجدول الزمني",
+  "ViewSwitcher.calendar": "التقويم",
+  "ViewSwitcher.workload": "عبء العمل",
+  "ViewSwitcher.projectsLabel": "طريقة عرض المشاريع",
+  "ViewSwitcher.clientsLabel": "طريقة عرض العملاء",
+  "ViewSwitcher.peopleLabel": "طريقة عرض الأشخاص",
+  "ViewSwitcher.workLabel": "طريقة عرض العمل",
+  "ViewSwitcher.status.at_risk": "بحاجة إلى قرار",
+  "ViewSwitcher.status.watch": "تحت المتابعة",
+  "ViewSwitcher.status.on_track": "على المسار",
+  "ViewSwitcher.status.archived": "مؤرشف"
 }

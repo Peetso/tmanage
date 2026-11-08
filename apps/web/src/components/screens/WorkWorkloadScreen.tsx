@@ -1,9 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { WorkViewSwitcher } from '../views/WorkViewSwitcher';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
@@ -83,25 +83,11 @@ export function WorkWorkloadScreen({
       }
       actions={
         <div className="wp-toolbar">
-          <nav className="wp-segmented" aria-label={t('WorkWorkloadScreen.workViews')}>
-            <Link href={`/${organizationSlug}/work`}>{t('WorkWorkloadScreen.list')}</Link>
-            <Link
-              href={`/${organizationSlug}/work/timeline${
-                chosenProjectId === '' ? '' : `?project=${encodeURIComponent(chosenProjectId)}`
-              }`}
-            >
-              {t('WorkWorkloadScreen.timeline')}
-            </Link>
-            {/* CQ-07 (WRK-08): the switcher was missing Calendar; the four views now match. */}
-            <Link
-              href={`/${organizationSlug}/work/calendar${
-                chosenProjectId === '' ? '' : `?project=${encodeURIComponent(chosenProjectId)}`
-              }`}
-            >
-              {t('WorkWorkloadScreen.calendar')}
-            </Link>
-            <span aria-current="page">{t('WorkWorkloadScreen.workload')}</span>
-          </nav>
+          <WorkViewSwitcher
+            organizationSlug={organizationSlug}
+            projectId={chosenProjectId}
+            current="workload"
+          />
           <label className="tm-visually-hidden" htmlFor="tm-workload-project">
             {t('WorkWorkloadScreen.showWorkloadFor')}
           </label>

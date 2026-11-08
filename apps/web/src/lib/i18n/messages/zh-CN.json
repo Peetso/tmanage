@@ -17240,5 +17240,19 @@
   "Clients.projectsNoMatch": "没有与该搜索匹配的项目。",
   "Clients.projectsHint": "对方接受邀请后，所选的每个项目都会共享给该客户公司。",
   "PendingInvitations.projects": "项目：{names}",
-  "AdminInvitationsView.projectsPrefix": "项目："
+  "AdminInvitationsView.projectsPrefix": "项目：",
+  "ViewSwitcher.list": "列表",
+  "ViewSwitcher.board": "看板",
+  "ViewSwitcher.grid": "网格",
+  "ViewSwitcher.timeline": "时间线",
+  "ViewSwitcher.calendar": "日历",
+  "ViewSwitcher.workload": "工作量",
+  "ViewSwitcher.projectsLabel": "项目视图",
+  "ViewSwitcher.clientsLabel": "客户视图",
+  "ViewSwitcher.peopleLabel": "人员视图",
+  "ViewSwitcher.workLabel": "工作视图",
+  "ViewSwitcher.status.at_risk": "需要决策",
+  "ViewSwitcher.status.watch": "关注",
+  "ViewSwitcher.status.on_track": "按计划进行",
+  "ViewSwitcher.status.archived": "已归档"
 }

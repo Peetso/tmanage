@@ -23,7 +23,9 @@ export default function WorkPage({ params }: { params: Promise<{ orgSlug: string
   const project = search.get('project');
   // 2026-10-31 live test: the view and the state filter live in the address too, so a reload
   // reopens the board or the filtered list the person was looking at.
-  const view = search.get('view') === 'board' ? 'board' : 'list';
+  // R38 G5-views: with no `?view=`, the screen opens the view last chosen on this page.
+  const viewParam = search.get('view');
+  const view = viewParam === 'board' || viewParam === 'list' ? viewParam : undefined;
   const states = parseStateParam(search.get('state'));
 
   return (
@@ -31,7 +33,7 @@ export default function WorkPage({ params }: { params: Promise<{ orgSlug: string
       organizationSlug={orgSlug}
       organizationName={FIXTURE_ORGANIZATION_NAME}
       {...(project === null ? {} : { initialProjectId: project })}
-      initialView={view}
+      {...(view === undefined ? {} : { initialView: view })}
       initialStates={states}
     />
   );

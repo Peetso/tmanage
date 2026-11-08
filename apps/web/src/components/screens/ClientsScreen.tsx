@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, SearchField, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { ViewSwitcher } from '../views/ViewSwitcher';
+import { useViewPreference } from '../views/use-view-preference';
 import {
   InviteClientDialog,
   IssuedLinkNotice,
@@ -22,6 +24,7 @@ import type { ClientMembership, ClientOrganization } from '../../lib/api/clients
 import type { InvitationSummary, IssuedInvitation } from '../../lib/api/invitations';
 import type { ApiClient } from '../../lib/api/client';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import { describePeopleError, initialsOf } from './peopleShared';
 import '../../styles/screens/clients.css';
 
@@ -75,6 +78,10 @@ function daysSince(iso: string, now: number): number {
   return Math.max(0, Math.round((todayDay - startDay) / 86_400_000));
 }
 
+/** R38 G5-views: the client companies as rows or as cards. */
+const CLIENTS_LAYOUTS = ['list', 'grid'] as const;
+type ClientsLayout = (typeof CLIENTS_LAYOUTS)[number];
+
 export interface ClientsScreenProps {
   organizationSlug: string;
   organizationName: string;
@@ -113,10 +120,16 @@ export function ClientsScreen({
 }: ClientsScreenProps) {
   const api = client ?? browserApiClient();
   const t = useClientsT();
+  const tOr = useTOr();
   const locale = useActiveLocale();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'organizations' | 'invitations'>('organizations');
+  const [layout, setLayout] = useViewPreference<ClientsLayout>(
+    `clients:${organizationSlug}`,
+    CLIENTS_LAYOUTS,
+    'list',
+  );
   const [inviting, setInviting] = useState(false);
   const [issued, setIssued] = useState<IssuedInvitation | null>(null);
   // The email of the invitation just re-sent. A resend revokes the old row and issues a new one,
@@ -248,7 +261,7 @@ export function ClientsScreen({
         </div>
       }
     >
-      <div className="cl-screen" data-view={view}>
+      <div className="cl-screen" data-view={view} data-layout={layout}>
         <div className="cl-tabs" role="group" aria-label={t('Clients.viewsLabel')}>
           <button
             type="button"
@@ -268,6 +281,18 @@ export function ClientsScreen({
             {t('Clients.tabInvitations')}
             {invitationsLoaded ? <span className="cl-count">{invitationRows.length}</span> : null}
           </button>
+          {view === 'organizations' ? (
+            <ViewSwitcher
+              className="cl-view-switcher"
+              label={tOr('ViewSwitcher.clientsLabel', 'Clients view')}
+              options={[
+                { id: 'list', label: tOr('ViewSwitcher.list', 'List') },
+                { id: 'grid', label: tOr('ViewSwitcher.grid', 'Grid') },
+              ]}
+              value={layout}
+              onChange={setLayout}
+            />
+          ) : null}
         </div>
 
         {issued ? <IssuedLinkNotice issued={issued} onDone={() => setIssued(null)} /> : null}
@@ -309,11 +334,18 @@ export function ClientsScreen({
                   {term === '' ? t('Clients.emptyOrganizations') : t('Clients.noMatches')}
                 </p>
               ) : (
-                <ul className="cl-list" aria-label={t('Clients.organizationsTitle')}>
+                <ul
+                  className={layout === 'grid' ? 'cl-list tm-view-grid' : 'cl-list'}
+                  aria-label={t('Clients.organizationsTitle')}
+                >
                   {shownRows.map((row) => (
                     <li key={row.company.id} className="cl-item">
                       <Link
-                        className="cl-row cl-row--link"
+                        className={
+                          layout === 'grid'
+                            ? 'cl-row cl-row--link cl-row--card tm-view-card'
+                            : 'cl-row cl-row--link'
+                        }
                         href={`/${organizationSlug}/clients/${encodeURIComponent(row.company.id)}`}
                       >
                         <span className="cl-orb" aria-hidden="true">

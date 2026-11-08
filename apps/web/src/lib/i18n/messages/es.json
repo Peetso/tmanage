@@ -17242,5 +17242,19 @@
   "Clients.projectsNoMatch": "Ningún proyecto coincide con esa búsqueda.",
   "Clients.projectsHint": "Cada proyecto elegido se comparte con la empresa cliente cuando acepta la invitación.",
   "PendingInvitations.projects": "Proyectos: {names}",
-  "AdminInvitationsView.projectsPrefix": "Proyectos:"
+  "AdminInvitationsView.projectsPrefix": "Proyectos:",
+  "ViewSwitcher.list": "Lista",
+  "ViewSwitcher.board": "Tablero",
+  "ViewSwitcher.grid": "Cuadrícula",
+  "ViewSwitcher.timeline": "Cronología",
+  "ViewSwitcher.calendar": "Calendario",
+  "ViewSwitcher.workload": "Carga de trabajo",
+  "ViewSwitcher.projectsLabel": "Vista de proyectos",
+  "ViewSwitcher.clientsLabel": "Vista de clientes",
+  "ViewSwitcher.peopleLabel": "Vista de personas",
+  "ViewSwitcher.workLabel": "Vista de trabajo",
+  "ViewSwitcher.status.at_risk": "Requiere una decisión",
+  "ViewSwitcher.status.watch": "Vigilar",
+  "ViewSwitcher.status.on_track": "En curso",
+  "ViewSwitcher.status.archived": "Archivado"
 }

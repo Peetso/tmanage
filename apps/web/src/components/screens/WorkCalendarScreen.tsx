@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import type { WorkItemState } from '@tmanage/domain';
+import { WorkViewSwitcher } from '../views/WorkViewSwitcher';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
@@ -134,24 +135,11 @@ export function WorkCalendarScreen({
             not the one view with no way back to the list / timeline / workload. Each link keeps
             the chosen project.
           */}
-          <nav className="wp-segmented" aria-label={t('WorkCalendarScreen.workViews')}>
-            <Link href={`/${organizationSlug}/work`}>{t('WorkCalendarScreen.list')}</Link>
-            <Link
-              href={`/${organizationSlug}/work/timeline${
-                chosenProjectId === '' ? '' : `?project=${encodeURIComponent(chosenProjectId)}`
-              }`}
-            >
-              {t('WorkCalendarScreen.timeline')}
-            </Link>
-            <span aria-current="page">{t('WorkCalendarScreen.calendar')}</span>
-            <Link
-              href={`/${organizationSlug}/work/workload${
-                chosenProjectId === '' ? '' : `?project=${encodeURIComponent(chosenProjectId)}`
-              }`}
-            >
-              {t('WorkCalendarScreen.workload')}
-            </Link>
-          </nav>
+          <WorkViewSwitcher
+            organizationSlug={organizationSlug}
+            projectId={chosenProjectId}
+            current="calendar"
+          />
           <label className="tm-visually-hidden" htmlFor="tm-calendar-project">
             {t('WorkCalendarScreen.showCalendarFor')}
           </label>

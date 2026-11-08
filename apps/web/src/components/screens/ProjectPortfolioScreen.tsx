@@ -21,10 +21,53 @@ import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { PortfolioTimeline } from './portfolio/PortfolioTimeline';
 import { PortfolioCapacityPanel } from './portfolio/PortfolioCapacityPanel';
+import { ViewSwitcher } from '../views/ViewSwitcher';
+import { useViewPreference } from '../views/use-view-preference';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import '../../styles/screens/portfolio.css';
 import '../../styles/screens/portfolio-planning.css';
 
 type Translate = ReturnType<typeof useT>;
+type TranslateOr = ReturnType<typeof useTOr>;
+
+/** R38 G5-views: the Projects page's views. */
+export const PROJECT_VIEWS = ['list', 'board', 'grid', 'timeline'] as const;
+export type ProjectView = (typeof PROJECT_VIEWS)[number];
+
+/**
+ * Board columns in a fixed order. The API's project status is only active or archived, so an
+ * active project is placed by the same exception-first reading the list uses: a decision is due
+ * (danger), worth watching (warning), or on track.
+ */
+const STATUS_ORDER = ['at_risk', 'watch', 'on_track', 'archived'] as const;
+export type BoardStatus = (typeof STATUS_ORDER)[number];
+
+const TONE_STATUS: Record<PortfolioRow['tone'], BoardStatus> = {
+  danger: 'at_risk',
+  warning: 'watch',
+  neutral: 'on_track',
+};
+
+/** The board's columns, in `STATUS_ORDER`; a column with no projects is left out. */
+export function groupByStatus(
+  rows: readonly PortfolioRow[],
+): { status: BoardStatus; rows: PortfolioRow[] }[] {
+  return STATUS_ORDER.map((status) => ({
+    status,
+    rows: rows.filter((row) => (row.archived ? 'archived' : TONE_STATUS[row.tone]) === status),
+  })).filter((group) => group.rows.length > 0);
+}
+
+const STATUS_ENGLISH: Record<BoardStatus, string> = {
+  at_risk: 'Needs a decision',
+  watch: 'Watch',
+  on_track: 'On track',
+  archived: 'Archived',
+};
+
+function statusLabel(status: BoardStatus, tOr: TranslateOr): string {
+  return tOr(`ViewSwitcher.status.${status}`, STATUS_ENGLISH[status]);
+}
 
 export interface ProjectPortfolioScreenProps {
   organizationSlug: string;
@@ -56,6 +99,18 @@ export function ProjectPortfolioScreen({
 }: ProjectPortfolioScreenProps) {
   const api = client ?? browserApiClient();
   const t = useT();
+  const tOr = useTOr();
+  const [view, setView] = useViewPreference<ProjectView>(
+    `projects:${organizationSlug}`,
+    PROJECT_VIEWS,
+    'list',
+  );
+  const viewLabels: Record<ProjectView, string> = {
+    list: tOr('ViewSwitcher.list', 'List'),
+    board: tOr('ViewSwitcher.board', 'Board'),
+    grid: tOr('ViewSwitcher.grid', 'Grid'),
+    timeline: tOr('ViewSwitcher.timeline', 'Timeline'),
+  };
 
   const portfolio = useQuery({
     queryKey: ['project-portfolio', organizationSlug],
@@ -142,6 +197,17 @@ export function ProjectPortfolioScreen({
       ) : null}
 
       {hasRows ? (
+        <div className="tm-view-bar tm-por-view-bar">
+          <ViewSwitcher
+            label={tOr('ViewSwitcher.projectsLabel', 'Projects view')}
+            options={PROJECT_VIEWS.map((id) => ({ id, label: viewLabels[id] }))}
+            value={view}
+            onChange={setView}
+          />
+        </div>
+      ) : null}
+
+      {hasRows && view === 'list' ? (
         <section className="tm-por" aria-labelledby="tm-portfolio-heading">
           <h2 id="tm-portfolio-heading" className="tm-visually-hidden">
             {t('ProjectPortfolioScreen.projectsHeading')}
@@ -163,7 +229,42 @@ export function ProjectPortfolioScreen({
         </section>
       ) : null}
 
-      {hasRows ? (
+      {hasRows && view === 'board' ? (
+        <section className="tm-view-board" aria-label={viewLabels.board}>
+          {groupByStatus(rows).map((group) => (
+            <section
+              key={group.status}
+              className="tm-view-board__column"
+              aria-labelledby={`tm-por-board-${group.status}`}
+            >
+              <h2 id={`tm-por-board-${group.status}`} className="tm-view-board__heading">
+                {statusLabel(group.status, tOr)}
+                <span className="tm-view-board__count">{group.rows.length}</span>
+              </h2>
+              {group.rows.map((row) => (
+                <PortfolioCardView
+                  key={row.project.projectId}
+                  organizationSlug={organizationSlug}
+                  row={row}
+                  t={t}
+                />
+              ))}
+            </section>
+          ))}
+        </section>
+      ) : null}
+
+      {hasRows && view === 'grid' ? (
+        <ul className="tm-view-grid" aria-label={t('ProjectPortfolioScreen.projectsHeading')}>
+          {rows.map((row) => (
+            <li key={row.project.projectId}>
+              <PortfolioCardView organizationSlug={organizationSlug} row={row} t={t} />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {hasRows && (view === 'list' || view === 'timeline') ? (
         <div className="tm-por-plan">
           <PortfolioTimeline timeline={timeline} />
           <PortfolioCapacityPanel
@@ -246,6 +347,43 @@ function PortfolioRowView({
         <dt>{t('ProjectPortfolioScreen.colClientWait')}</dt>
         <dd>{waitHours === null ? '—' : formatWait(waitHours)}</dd>
       </dl>
+    </article>
+  );
+}
+
+/** A project as a card — the board's and the grid's item. */
+function PortfolioCardView({
+  organizationSlug,
+  row,
+  t,
+}: {
+  organizationSlug: string;
+  row: PortfolioRow;
+  t: Translate;
+}) {
+  const { project } = row;
+  const meta = row.archived
+    ? t('ProjectPortfolioScreen.archivedMeta')
+    : [project.clientName ?? t('ProjectPortfolioScreen.internal'), project.ownerName]
+        .filter(Boolean)
+        .join(' · ');
+  const committed = row.archived ? null : (project.committedOn ?? null);
+  return (
+    <article
+      className="tm-view-card"
+      data-tone={row.tone === 'neutral' ? undefined : row.tone}
+      aria-labelledby={`tm-por-card-${project.projectId}`}
+    >
+      <h3 id={`tm-por-card-${project.projectId}`} className="tm-view-card__title">
+        <Link href={`/${organizationSlug}/projects/${project.projectId}`}>{project.name}</Link>
+      </h3>
+      <p className="tm-view-card__meta">{meta}</p>
+      <p className="tm-view-card__meta">{row.why}</p>
+      {committed ? (
+        <p className="tm-view-card__meta">
+          {t('ProjectPortfolioScreen.colCommitted')} <bdi>{formatDay(committed)}</bdi>
+        </p>
+      ) : null}
     </article>
   );
 }

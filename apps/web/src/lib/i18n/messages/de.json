@@ -17240,5 +17240,19 @@
   "Clients.projectsNoMatch": "Kein Projekt passt zu dieser Suche.",
   "Clients.projectsHint": "Jedes ausgewählte Projekt wird mit dem Kundenunternehmen geteilt, sobald die Einladung angenommen wird.",
   "PendingInvitations.projects": "Projekte: {names}",
-  "AdminInvitationsView.projectsPrefix": "Projekte:"
+  "AdminInvitationsView.projectsPrefix": "Projekte:",
+  "ViewSwitcher.list": "Liste",
+  "ViewSwitcher.board": "Board",
+  "ViewSwitcher.grid": "Kacheln",
+  "ViewSwitcher.timeline": "Zeitachse",
+  "ViewSwitcher.calendar": "Kalender",
+  "ViewSwitcher.workload": "Auslastung",
+  "ViewSwitcher.projectsLabel": "Projektansicht",
+  "ViewSwitcher.clientsLabel": "Kundenansicht",
+  "ViewSwitcher.peopleLabel": "Personenansicht",
+  "ViewSwitcher.workLabel": "Arbeitsansicht",
+  "ViewSwitcher.status.at_risk": "Entscheidung nötig",
+  "ViewSwitcher.status.watch": "Beobachten",
+  "ViewSwitcher.status.on_track": "Im Plan",
+  "ViewSwitcher.status.archived": "Archiviert"
 }

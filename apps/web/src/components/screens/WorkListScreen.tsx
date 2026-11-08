@@ -33,6 +33,8 @@ import { WorkBoardView } from './WorkBoardView';
 import { PhoneWorkOverview } from '../phone/PhoneWorkOverview';
 import { useA6T } from '../work/DueDatePicker';
 import { DoerStack } from '../work/WorkPeopleBlock';
+import { WorkViewSwitcher } from '../views/WorkViewSwitcher';
+import { useViewPreference } from '../views/use-view-preference';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface WorkListScreenProps {
@@ -133,13 +135,19 @@ export function WorkListScreen({
   initialProjectId,
   client,
   now = new Date(),
-  initialView = 'list',
+  initialView,
   initialStates = [],
 }: WorkListScreenProps) {
   const describeError = useDescribeApiError();
   const t = useT();
   const ta = useA6T();
-  const [view, setView] = useState<'list' | 'board'>(initialView);
+  // R38 G5-views: a `?view=` in the address wins; otherwise the last view chosen on this page.
+  const [view, setView] = useViewPreference<'list' | 'board'>(
+    `work:${organizationSlug}`,
+    LOCAL_WORK_VIEWS,
+    'list',
+    initialView,
+  );
   const api = client ?? browserApiClient();
   const canCreateProjects = useCanCreateProjects(organizationSlug, client);
   const queries = useQueryClient();
@@ -299,8 +307,6 @@ export function WorkListScreen({
   // CQ-07 (WRK-10): when the list is filtered to one project, name that project in the heading
   // rather than the state view's label ("All work"), which described the whole organization.
   const selectedProjectName = projectId === '' ? undefined : projectNames.get(projectId);
-  // CQ-07 (WRK-08): the project, as a query string the sibling views read from the URL.
-  const viewQuery = projectId === '' ? '' : `?project=${encodeURIComponent(projectId)}`;
 
   /*
    * WK-02 groups the rows under a heading per milestone. Milestones are not on the list
@@ -473,25 +479,14 @@ export function WorkListScreen({
         </div>
       }
     >
-      <nav className="tm-wk-tabs" aria-label={ta('WorkBoard.viewsLabel')}>
-        <button
-          type="button"
-          aria-current={view === 'list' ? 'page' : undefined}
-          onClick={() => setView('list')}
-        >
-          {t('WorkListScreen.viewList')}
-        </button>
-        <button
-          type="button"
-          aria-current={view === 'board' ? 'page' : undefined}
-          onClick={() => setView('board')}
-        >
-          {ta('WorkBoard.tab')}
-        </button>
-        <Link href={`/${organizationSlug}/work/timeline${viewQuery}`}>
-          {t('WorkListScreen.viewTimeline')}
-        </Link>
-      </nav>
+      <div className="tm-view-bar tm-wk-view-bar">
+        <WorkViewSwitcher
+          organizationSlug={organizationSlug}
+          projectId={projectId}
+          current={view}
+          onLocalChange={setView}
+        />
+      </div>
 
       {view === 'board' ? (
         <>
@@ -991,6 +986,9 @@ const STATE_FILTER_LABEL: Record<WorkItemState, MessageKey> = {
   done: 'WorkListScreen.stateDone',
   archived: 'WorkListScreen.stateArchived',
 };
+
+/** The views the Work list draws in place; Timeline, Calendar and Workload are their own pages. */
+const LOCAL_WORK_VIEWS = ['list', 'board'] as const;
 
 /** The rail's views: each is a real server-side state filter, named the way people ask for it. */
 const STATE_VIEWS: readonly {
