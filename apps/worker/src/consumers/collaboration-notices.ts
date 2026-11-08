@@ -31,6 +31,7 @@ import {
   isNotificationKindEnabled,
   listProjectClientPeople,
   listWorkItemClientAudience,
+  listWorkItemSupervisors,
 } from '../common/database/collaboration-store.js';
 import type { InternalReach } from '../common/database/collaboration-store.js';
 import type { ClaimedOutboxEvent } from '../common/database/outbox-store.js';
@@ -486,6 +487,77 @@ export const planProjectAddedNotices: NoticePlanner = async (event, tx, mailer) 
     },
   ];
 };
+
+/**
+ * `work_item.people_assigned.v1` → C26. Each person newly made a doer or supervisor of a work item
+ * is told in-app, if they are still an active internal member who may read work on the project.
+ * Clients are never named (the people routes accept internal members only) and never told here.
+ */
+export const planPeopleAssignedNotices: NoticePlanner = async (event, tx) => {
+  const raw = payloadOf(event);
+  const workItemId = stringField(raw, 'workItemId', event.id);
+  const projectId = stringField(raw, 'projectId', event.id);
+  const assignedByUserId = stringField(raw, 'assignedByUserId', event.id);
+  const notices: PlannedNotice[] = [];
+  for (const userId of idList(raw, 'userIds')) {
+    if (userId === assignedByUserId) continue;
+    const reach = await findInternalReach(tx, event.organizationId, userId, projectId);
+    if (!mayBeTold(reach, 'work.read') || reach === null) continue;
+    notices.push(
+      inAppWorkNotice(
+        userId,
+        reach.membershipId,
+        'work_item.people_assigned.v1',
+        workItemId,
+        `work_item.people_assigned:${event.id}:${userId}`,
+      ),
+    );
+  }
+  return notices;
+};
+
+/**
+ * `work_item.updated.v1` into `done` → C26. The item's supervisors are told in-app that the work
+ * they oversee was marked done. Any other state tells nobody.
+ */
+export const planSupervisorDoneNotices: NoticePlanner = async (event, tx) => {
+  const raw = payloadOf(event);
+  if (raw['toState'] !== 'done') return [];
+  const workItemId = stringField(raw, 'workItemId', event.id);
+  const projectId = stringField(raw, 'projectId', event.id);
+  const notices: PlannedNotice[] = [];
+  for (const userId of await listWorkItemSupervisors(tx, event.organizationId, workItemId)) {
+    const reach = await findInternalReach(tx, event.organizationId, userId, projectId);
+    if (!mayBeTold(reach, 'work.read') || reach === null) continue;
+    notices.push(
+      inAppWorkNotice(
+        userId,
+        reach.membershipId,
+        'work_item.supervised_done.v1',
+        workItemId,
+        `work_item.supervised_done:${event.id}:${userId}`,
+      ),
+    );
+  }
+  return notices;
+};
+
+function inAppWorkNotice(
+  userId: string,
+  membershipId: string,
+  type: string,
+  workItemId: string,
+  dedupeKey: string,
+): PlannedNotice {
+  return {
+    recipientUserId: userId,
+    optOutKind: null,
+    membershipId,
+    inApp: { type, objectType: 'work_item', objectId: workItemId, dedupeKey },
+    mailKind: null,
+    mail: () => Promise.resolve(null),
+  };
+}
 
 /**
  * `work_item.client_action_requested.v1` → APR-03. Every client person who may decide

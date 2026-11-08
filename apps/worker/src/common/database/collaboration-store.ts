@@ -441,3 +441,24 @@ export async function insertWorkflowRun(
     [uuidv7(), input.organizationId, input.templateId, input.status, JSON.stringify(input.detail)],
   );
 }
+
+/**
+ * C26 (0318): the active members who supervise a work item, by user id. Told when it is done.
+ */
+export async function listWorkItemSupervisors(
+  tx: WorkerTransaction,
+  organizationId: string,
+  workItemId: string,
+): Promise<readonly string[]> {
+  const rows = await tx.query<readonly { user_id: string }[]>(
+    `SELECT m.user_id
+       FROM work_item_assignees a
+       JOIN memberships m
+         ON m.organization_id = a.organization_id
+        AND m.id = a.membership_id
+      WHERE a.organization_id = ? AND a.work_item_id = ? AND a.role = 'supervisor'
+        AND m.status = 'active'`,
+    [organizationId, workItemId],
+  );
+  return rows.map((row) => row.user_id);
+}

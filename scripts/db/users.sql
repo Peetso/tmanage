@@ -2328,3 +2328,12 @@ GRANT SELECT, UPDATE ON `tmanage`.`org_secrets`                             TO '
 -- listed companies' people.
 GRANT SELECT, INSERT, DELETE ON `tmanage`.`work_item_client_audience`        TO 'tmanage_app'@'%';
 GRANT SELECT ON `tmanage`.`work_item_client_audience`                        TO 'tmanage_worker'@'%';
+
+-- ---- R33 · C26 several doers and supervisors on a task ----
+-- 0318 `work_item_assignees` (tenant): who does (`doer`) and who supervises (`supervisor`) a work
+-- item; the work item's owner stays the lead doer. The app replaces a role's set from the people
+-- routes and keeps the lead in step on an owner change (SELECT, INSERT, DELETE; DELETE also serves
+-- the company erasure). Rows are never rewritten, so no UPDATE. The worker reads it (SELECT) to
+-- tell the supervisors when the item is marked done.
+GRANT SELECT, INSERT, DELETE ON `tmanage`.`work_item_assignees`              TO 'tmanage_app'@'%';
+GRANT SELECT ON `tmanage`.`work_item_assignees`                              TO 'tmanage_worker'@'%';

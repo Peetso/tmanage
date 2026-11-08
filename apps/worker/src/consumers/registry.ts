@@ -23,6 +23,8 @@ import {
   planApprovalDecidedNotices,
   planApprovalRequestedNotices,
   planClientActionNotices,
+  planPeopleAssignedNotices,
+  planSupervisorDoneNotices,
   planCommentNotices,
   planMeetingChangedNotices,
   planMeetingInviteNotices,
@@ -159,7 +161,13 @@ export function createWorkerOutboxHandlers(
     withWebhookStaging({
       // CQ-12 (AUT-01): every trigger event also runs the organization's enabled rules for it,
       // after the event's own consumers, in the same savepoint.
-      'work_item.updated.v1': both(workItemLifecycleConsumer, automationRunsConsumer),
+      // C26: a task marked done also tells its supervisors (in-app).
+      'work_item.updated.v1': both(
+        both(workItemLifecycleConsumer, automationRunsConsumer),
+        createCollaborationNotices(planSupervisorDoneNotices, null),
+      ),
+      // C26: people newly made doers or supervisors of a task are told (in-app).
+      'work_item.people_assigned.v1': createCollaborationNotices(planPeopleAssignedNotices, null),
       'work_item.created.v1': automationRunsConsumer,
       'meeting.scheduled.v1': automationRunsConsumer,
       'document.published.v1': automationRunsConsumer,

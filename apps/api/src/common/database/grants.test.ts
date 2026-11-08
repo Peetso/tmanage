@@ -197,6 +197,7 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // ---- R22-a ---- +1: the field-cipher rotation re-encrypts `org_secrets`.
     // ---- R22-b ---- +3: the e-invoice chain reconciler reads its sources and `einvoice_chain_checks`.
     // ---- R32 C25 ---- +1: the client-action email reads `work_item_client_audience`.
+    // ---- R33 C26 ---- +1: the supervisor done notice reads `work_item_assignees`.
     expect(reads).toHaveLength(
       26 +
         15 +
@@ -223,6 +224,7 @@ describe('parseGrantScript — what the real users.sql says each principal may h
         3 +
         1 +
         3 +
+        1 +
         1,
     );
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);

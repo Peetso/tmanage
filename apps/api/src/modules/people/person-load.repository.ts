@@ -19,6 +19,7 @@ import { WorkingCalendarRepository } from '../working-calendar/working-calendar.
 import { effectiveRemaining } from '../work/item-estimate.service.js';
 import { CapacityHeatmapRepository } from './capacity-heatmap.repository.js';
 import { PersonTimeOffRepository } from './time-off.repository.js';
+import { isDoerOf } from '../work/work-item-assignees.repository.js';
 
 /**
  * 53-08 (R20-b) — the reads behind one person's load. Read-only, tenant-scoped on every statement
@@ -85,7 +86,7 @@ export class PersonLoadRepository {
       .where(
         and(
           eq(workItems.organizationId, context.organizationId),
-          eq(workItems.ownerUserId, ownerUserId),
+          isDoerOf(context, ownerUserId), // C26: every doer, not only the lead
           inArray(workItems.state, [...OPEN_LOAD_STATES]),
           isNull(workItems.deletedAt),
           or(isNotNull(workItems.startAt), isNotNull(workItems.dueAt)),

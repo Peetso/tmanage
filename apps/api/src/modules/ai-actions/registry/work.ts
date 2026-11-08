@@ -643,6 +643,46 @@ export const workDetails: readonly AiActionDetail[] = [
     redact: 'standard',
     examples: [{ summary: 'Set work item watchers', args: { workItemId: 'wi_1' } }],
   }),
+  // R33 C26.
+  det({
+    id: 'work_items.people.get',
+    title: 'Who is on a work item',
+    description: 'The people who do a work item (the lead first) and the people who supervise it.',
+    input: listArgs(['workItemId']),
+    redact: 'standard',
+    examples: [{ summary: 'Who is doing this task', args: { workItemId: 'wi_1' } }],
+  }),
+  det({
+    id: 'work_items.people.doers.set',
+    title: 'Set who does a work item',
+    description:
+      'Replace the people who do a work item. The first person becomes the lead (owner); an ' +
+      'empty list leaves the item unassigned.',
+    input: bodyArgs(['workItemId'], { userIds: z.array(f.id()).max(50) }),
+    redact: 'standard',
+    examples: [
+      { summary: 'Two people do this task', args: { workItemId: 'wi_1', userIds: ['u_1', 'u_2'] } },
+    ],
+  }),
+  det({
+    id: 'work_items.people.supervisors.set',
+    title: 'Set who supervises a work item',
+    description:
+      'Replace the people who supervise a work item. They are told when it is marked done.',
+    input: bodyArgs(['workItemId'], { userIds: z.array(f.id()).max(50) }),
+    redact: 'standard',
+    examples: [{ summary: 'Supervise this task', args: { workItemId: 'wi_1', userIds: ['u_3'] } }],
+  }),
+  det({
+    id: 'work_items.people.watchers.add',
+    title: 'Add watchers to a work item',
+    description: 'Add several people as watchers of a work item at once.',
+    input: bodyArgs(['workItemId'], { userIds: z.array(f.id()).max(50) }),
+    redact: 'standard',
+    examples: [
+      { summary: 'Watch this task', args: { workItemId: 'wi_1', userIds: ['u_4', 'u_5'] } },
+    ],
+  }),
   det({
     id: 'work.board_columns.create',
     title: 'Create work board columns',

@@ -1287,6 +1287,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0317. The client companies a client-facing work item is narrowed to (no rows = all of the
   // project's clients). Written by the work-item update; read by every client work-item read.
   work_item_client_audience: 'organization_id',
+  // ---- R33 · C26 ----
+  // 0318. The doers and supervisors of a work item (the owner stays the lead doer). Written by the
+  // people routes and the owner change on the work-item update; read by My Day and workload.
+  work_item_assignees: 'organization_id',
 });
 
 /**

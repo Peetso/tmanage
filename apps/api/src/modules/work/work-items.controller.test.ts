@@ -12,6 +12,7 @@ import type { WorkItemFilesRepository } from './item-files.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { WorkItemRow } from '../../common/database/schema.js';
 import type { WorkItemClientAudienceRepository } from './work-item-client-audience.repository.js';
+import type { WorkItemAssigneesRepository } from './work-item-assignees.repository.js';
 
 /**
  * A6 — the work item's description and the move to another project, proved database-free over
@@ -155,6 +156,8 @@ function harness() {
       list: async () => [],
       replace: async () => undefined,
     } as unknown as WorkItemClientAudienceRepository,
+    // C26: an owner change keeps the doer rows in step; nothing is stored here.
+    { syncLead: async () => undefined } as unknown as WorkItemAssigneesRepository,
   );
   return {
     controller: new WorkItemsController(service),

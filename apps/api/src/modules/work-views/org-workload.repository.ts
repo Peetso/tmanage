@@ -8,6 +8,7 @@ import {
   personCapacity,
   personTimeOff,
   users,
+  workItemAssignees,
   workItems,
 } from '../../common/database/schema.js';
 import type {
@@ -125,7 +126,7 @@ export class OrgWorkloadRepository {
     window: LoadWindow,
   ): Promise<readonly WorkloadItemRow[]> {
     if (ownerUserIds.length === 0) return [];
-    return tenantDrizzle(runner)
+    const owned = await tenantDrizzle(runner)
       .select(itemColumns)
       .from(workItems)
       .where(
@@ -135,6 +136,35 @@ export class OrgWorkloadRepository {
         ),
       )
       .limit(MAX_PAGE_LOAD_ITEMS);
+    // C26: an item with several doers counts for each of them, not only the lead. A non-lead
+    // doer's copy carries the doer's user id in `ownerUserId`, which is what the page groups on.
+    const shared = await tenantDrizzle(runner)
+      .select({ ...itemColumns, ownerUserId: memberships.userId })
+      .from(workItems)
+      .innerJoin(
+        workItemAssignees,
+        and(
+          eq(workItemAssignees.organizationId, workItems.organizationId),
+          eq(workItemAssignees.workItemId, workItems.id),
+          eq(workItemAssignees.role, 'doer'),
+        ),
+      )
+      .innerJoin(
+        memberships,
+        and(
+          eq(memberships.organizationId, workItemAssignees.organizationId),
+          eq(memberships.id, workItemAssignees.membershipId),
+        ),
+      )
+      .where(
+        and(
+          ...openItemPredicates(context, scope, window),
+          inArray(memberships.userId, [...ownerUserIds]),
+          or(isNull(workItems.ownerUserId), ne(workItems.ownerUserId, memberships.userId)),
+        ),
+      )
+      .limit(MAX_PAGE_LOAD_ITEMS);
+    return [...owned, ...shared];
   }
 
   /** Owner-less open items touching the window (scope-filtered), capped like one person's load. */

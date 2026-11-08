@@ -10,6 +10,7 @@ import {
   workItems,
 } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+import { isDoerOf } from '../work/work-item-assignees.repository.js';
 
 /**
  * x169's read seam — one member's profile (module 14, audit #4 "People Missing — profile view").
@@ -155,7 +156,7 @@ export class PersonProfileRepository {
       .where(
         and(
           eq(workItems.organizationId, context.organizationId),
-          eq(workItems.ownerUserId, ownerUserId),
+          isDoerOf(context, ownerUserId), // C26: every doer, not only the lead
           inArray(workItems.state, [...OPEN_WORK_STATES]),
           isNull(workItems.deletedAt),
         ),

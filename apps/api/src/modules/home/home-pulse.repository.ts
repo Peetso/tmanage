@@ -4,6 +4,7 @@ import { meetings, workItems } from '../../common/database/schema.js';
 import type { MeetingRow, WorkItemRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import { MY_DAY_STATES } from './my-day.repository.js';
+import { isDoerOf } from '../work/work-item-assignees.repository.js';
 
 /**
  * HOME-01's Pulse/Focus read half — the two tenant-scoped reads the Focus summary counts over.
@@ -35,7 +36,7 @@ export class HomePulseRepository {
       .where(
         and(
           eq(workItems.organizationId, context.organizationId),
-          eq(workItems.ownerUserId, ownerUserId),
+          isDoerOf(context, ownerUserId), // C26: every doer, not only the lead
           inArray(workItems.state, [...MY_DAY_STATES]),
           isNull(workItems.deletedAt),
         ),

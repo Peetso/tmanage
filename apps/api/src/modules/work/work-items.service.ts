@@ -40,6 +40,7 @@ import { findCycle } from '@tmanage/domain';
 import { requestScheduleRecompute } from './schedule-stats.service.js';
 import { resolveClientAudience } from './work-item-client-audience.js';
 import { WorkItemClientAudienceRepository } from './work-item-client-audience.repository.js';
+import { WorkItemAssigneesRepository } from './work-item-assignees.repository.js';
 import {
   applyWorkItemPlanning,
   type WorkItemPlanningChange,
@@ -357,6 +358,8 @@ export class WorkItemsService {
     private readonly itemFiles: WorkItemFilesRepository = new WorkItemFilesRepository(),
     /** C25 (0317): which of the project's client companies may see the item. Stateless. */
     private readonly clientAudience: WorkItemClientAudienceRepository = new WorkItemClientAudienceRepository(),
+    /** C26 (0318): the doers and supervisors; the owner stays the lead doer. Stateless. */
+    private readonly assignees: WorkItemAssigneesRepository = new WorkItemAssigneesRepository(),
   ) {}
 
   /**
@@ -627,6 +630,31 @@ export class WorkItemsService {
           input,
         );
         planning = await applyWorkItemPlanning(tx, context, updated, requested);
+
+        // C26: the owner is the lead doer. A changed owner keeps the doer rows in step and the
+        // new lead is told, the way `PUT …/people/doers` tells a newly added doer.
+        if (updated.ownerUserId !== before.ownerUserId) {
+          await this.assignees.syncLead(
+            tx,
+            context,
+            workItemId,
+            updated.ownerUserId,
+            before.ownerUserId,
+          );
+          if (updated.ownerUserId !== null && updated.ownerUserId !== context.userId) {
+            await this.outbox?.append(tx, context, {
+              type: 'work_item.people_assigned.v1',
+              aggregateId: updated.id,
+              payload: {
+                workItemId: updated.id,
+                projectId: updated.projectId,
+                role: 'doer',
+                userIds: [updated.ownerUserId],
+                assignedByUserId: context.userId,
+              },
+            });
+          }
+        }
 
         if (moving) {
           // F24 + F50: edges scoped to the source project do not travel with the item. Objective

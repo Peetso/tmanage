@@ -76,6 +76,7 @@ import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { dayOf, DueDatePicker, formatChipDay, formatShortDay, useA6T } from '../work/DueDatePicker';
 import { initialsOf, OwnerPickerDialog, useOwnerCandidates } from '../work/OwnerPickerDialog';
+import { WorkPeopleBlock } from '../work/WorkPeopleBlock';
 import { EditWorkItemDialog, type WorkItemChanges } from '../work/EditWorkItemDialog';
 import { DeleteWorkItemDialog } from '../work/DeleteWorkItemDialog';
 import { WorkItemActionsMenu, type WorkItemAction } from '../work/WorkItemActionsMenu';
@@ -683,6 +684,14 @@ function WorkItemBody({
           </button>
         ) : null}
       </div>
+      {/* C26: doers (lead first), supervisors and watchers — Figma R33 C26 531:30917. */}
+      <WorkPeopleBlock
+        api={api}
+        organizationSlug={organizationSlug}
+        workItemId={item.id}
+        projectId={item.projectId}
+        projectName={projectName}
+      />
       {fieldErrors.size > 0 && overlay?.kind !== 'edit' ? (
         <p className="tm-field__error" role="alert">
           {[...fieldErrors.values()].join(' ')}

@@ -74,6 +74,11 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'work_item',
     catalog: '§4 work_item.blocked.v1 — health, inbox, notification',
   },
+  /** C26: people were made doers or supervisors of a work item — each is told in-app. */
+  'work_item.people_assigned.v1': {
+    aggregateType: 'work_item',
+    catalog: '§4 work item assignment — notification',
+  },
   /**
    * FILE-001. §4 names the aggregate `upload` and the DBML names `storage_reservation`;
    * the row that exists is `upload_sessions`, and `ix_outbox_events_org_aggregate`
@@ -562,6 +567,15 @@ export interface MeetingChangedV1 {
 }
 
 /** CQ-12 (COL-05). */
+/** C26: ids only. `role` is `doer` or `supervisor`; the worker re-checks each person's reach. */
+export interface WorkItemPeopleAssignedV1 {
+  readonly workItemId: string;
+  readonly projectId: string;
+  readonly role: 'doer' | 'supervisor';
+  readonly userIds: readonly string[];
+  readonly assignedByUserId: string;
+}
+
 export interface ProjectMemberAddedV1 {
   readonly projectId: string;
   readonly userId: string;
@@ -700,6 +714,7 @@ export interface OutboxEventPayloads {
   readonly 'message.converted.v1': MessageConvertedV1;
   readonly 'work_item.updated.v1': WorkItemUpdatedV1;
   readonly 'work_item.blocked.v1': WorkItemBlockedV1;
+  readonly 'work_item.people_assigned.v1': WorkItemPeopleAssignedV1;
   readonly 'upload.completed.v1': UploadCompletedV1;
   readonly 'usage.storage_reserved.v1': UsageStorageReservedV1;
   readonly 'usage.storage_committed.v1': UsageStorageCommittedV1;

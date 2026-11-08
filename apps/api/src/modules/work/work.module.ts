@@ -105,6 +105,12 @@ import { RECURRENCE_SPAWNER, RecurrenceSpawner } from './recurrence-spawner.serv
 // R18-c (55-25): quick-add resolve (Arabic + English parser, candidate lookup).
 import { QuickAddService } from './quick-add.service.js';
 import { WORK_QUICK_ADD_SERVICE, WorkQuickAddController } from './quick-add.controller.js';
+// R33 C26: several doers, supervisors and watchers on a task.
+import { WorkItemPeopleService } from './work-item-people.service.js';
+import {
+  WORK_ITEM_PEOPLE_SERVICE,
+  WorkItemPeopleController,
+} from './work-item-people.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -386,6 +392,15 @@ export class WorkModule {
           inject: [TENANT_DATABASE],
           useFactory: (database: TenantDatabase) => new QuickAddService(database),
         },
+        {
+          provide: WORK_ITEM_PEOPLE_SERVICE,
+          inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY, OUTBOX_EVENTS_REPOSITORY],
+          useFactory: (
+            database: TenantDatabase,
+            workItems: WorkItemsRepository,
+            outbox: OutboxEventsRepository,
+          ) => new WorkItemPeopleService(database, workItems, outbox),
+        },
       ],
       exports: [service, recurrenceSpawner],
       controllers: [
@@ -415,6 +430,8 @@ export class WorkModule {
         ScheduleStatsController,
         // R18-c (55-25): quick-add resolve.
         WorkQuickAddController,
+        // R33 C26: the people on a task.
+        WorkItemPeopleController,
       ],
     };
   }

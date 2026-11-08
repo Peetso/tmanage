@@ -155,6 +155,61 @@ export async function getWorkItemClientAudience(
   return data.clientOrganizationIds;
 }
 
+/** C26: who does a task (lead first), who supervises it and who watches it, by user id. */
+export interface WorkItemPeople {
+  readonly doerUserIds: readonly string[];
+  readonly supervisorUserIds: readonly string[];
+  readonly watcherUserIds: readonly string[];
+}
+
+export type WorkItemPeopleRole = 'doers' | 'supervisors';
+
+function peoplePath(organizationSlug: string, workItemId: string): string {
+  return `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/people`;
+}
+
+export async function getWorkItemPeople(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+): Promise<WorkItemPeople> {
+  const { data } = await client.request<WorkItemPeople>({
+    path: peoplePath(organizationSlug, workItemId),
+  });
+  return data;
+}
+
+/** C26: replace the doers (the first becomes the owner) or the supervisors. */
+export async function setWorkItemPeople(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  role: WorkItemPeopleRole,
+  userIds: readonly string[],
+): Promise<WorkItemPeople> {
+  const { data } = await client.request<WorkItemPeople>({
+    path: `${peoplePath(organizationSlug, workItemId)}/${role}`,
+    method: 'PUT',
+    body: { userIds },
+  });
+  return data;
+}
+
+/** C26: add several watchers at once. */
+export async function addWorkItemWatchers(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  userIds: readonly string[],
+): Promise<{ readonly added: number }> {
+  const { data } = await client.request<{ readonly added: number }>({
+    path: `${peoplePath(organizationSlug, workItemId)}/watchers`,
+    method: 'POST',
+    body: { userIds },
+  });
+  return data;
+}
+
 /**
  * A6 "Duplicate": a new item with the same project, type, owner, dates, audience and
  * description, titled `copyTitle` (the screen's "Copy of …"). It starts at the lifecycle's

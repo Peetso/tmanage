@@ -13148,3 +13148,36 @@ export const workItemClientAudience = mysqlTable(
 export type WorkItemClientAudienceRow = typeof workItemClientAudience.$inferSelect;
 
 Object.assign(TABLES, { work_item_client_audience: workItemClientAudience });
+
+// ---- R33 · C26 several doers and supervisors on a task (0318) ----
+/**
+ * C26 (0318). The members who do (`doer`) or supervise (`supervisor`) a work item. The item's
+ * `owner_user_id` is the lead doer: with doer rows present it is always one of them; with none,
+ * the owner alone is the doer (every item written before 0318). Replaced per role as a set by
+ * `PUT work-items/:id/people/{doers,supervisors}`. TENANT.
+ */
+export const workItemAssignees = mysqlTable(
+  'work_item_assignees',
+  {
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    role: varchar('role', { length: 16 }).$type<'doer' | 'supervisor'>().notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.organizationId, table.workItemId, table.membershipId, table.role],
+    }),
+    index('ix_wia_member').on(
+      table.organizationId,
+      table.membershipId,
+      table.role,
+      table.workItemId,
+    ),
+  ],
+);
+
+export type WorkItemAssigneeRow = typeof workItemAssignees.$inferSelect;
+
+Object.assign(TABLES, { work_item_assignees: workItemAssignees });

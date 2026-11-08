@@ -294,6 +294,8 @@ const TYPE_LABEL_KEYS: Record<string, MessageKey> = {
   'document.comment_created.v1': 'NotificationsFeedScreen.typeDocumentCommentCreated',
   'meeting.attendee_invited.v1': 'NotificationsFeedScreen.typeMeetingAttendeeInvited',
   'project.member_added.v1': 'NotificationsFeedScreen.typeProjectMemberAdded',
+  'work_item.people_assigned.v1': 'NotificationsFeedScreen.typePeopleAssigned',
+  'work_item.supervised_done.v1': 'NotificationsFeedScreen.typeSupervisedDone',
   'automation.notified.v1': 'NotificationsFeedScreen.typeAutomationNotified',
   'automation.test_run.v1': 'NotificationsFeedScreen.typeAutomationTestRun',
   'review.comment_added.v1': 'NotificationsFeedScreen.typeReviewComment',

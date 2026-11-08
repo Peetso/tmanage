@@ -5,6 +5,7 @@ import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { workItems } from '../../common/database/schema.js';
 import type { WorkItemRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+import { isDoerOf } from '../work/work-item-assignees.repository.js';
 
 /**
  * HOME-03's read half — the acting user's own open work across every project, read-only.
@@ -104,7 +105,7 @@ export class MyDayRepository {
     const db = tenantDrizzle(runner);
     const owned = and(
       eq(workItems.organizationId, context.organizationId),
-      eq(workItems.ownerUserId, ownerUserId),
+      isDoerOf(context, ownerUserId), // C26: every doer, not only the lead
       inArray(workItems.state, [...MY_DAY_STATES]),
       isNull(workItems.deletedAt),
     );
@@ -154,7 +155,7 @@ export class MyDayRepository {
       .where(
         and(
           eq(workItems.organizationId, context.organizationId),
-          eq(workItems.ownerUserId, ownerUserId),
+          isDoerOf(context, ownerUserId), // C26: every doer, not only the lead
           inArray(workItems.state, [...MY_DAY_STATES]),
           isNull(workItems.deletedAt),
         ),

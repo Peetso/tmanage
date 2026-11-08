@@ -2098,3 +2098,42 @@ button.tm-wk-chip[aria-expanded='true'] {
   line-height: var(--t-body-md-line);
   color: var(--ink-650);
 }
+
+/* C26 — the people on a task (Figma R33 C26, 531:30917): Doers, Supervisors, Watchers. */
+.tm-wk-people-block {
+  display: grid;
+  gap: var(--s3);
+  margin-block: var(--s4);
+}
+.tm-wk-people-block__heading {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-650);
+}
+.tm-wk-people-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+.tm-wk-people-row__label {
+  inline-size: 110px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-800);
+}
+.tm-wk-people-row__empty {
+  font-size: 13px;
+  color: var(--ink-650);
+}
+.tm-wk-stack {
+  display: inline-flex;
+}
+.tm-wk-stack > .tm-wk-orb + .tm-wk-orb {
+  margin-inline-start: -10px;
+  box-shadow: 0 0 0 2px var(--paper-0);
+}
+.tm-wk-stack > .tm-wk-orb[data-more='true'] {
+  background: var(--paper-150);
+}
