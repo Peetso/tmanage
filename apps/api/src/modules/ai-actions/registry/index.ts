@@ -5936,6 +5936,48 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'read',
     scope: 'read',
   },
+  // ---- R31 A13 · people overview (read: this week's capacity roster, time off, allocations) ----
+  {
+    id: 'people.capacity_roster.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/people/capacity',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'people.time_off_overview.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/people/time-off',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'people.allocations_overview.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/people/allocations',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  // ---- R31 A14 · workload in hours (read) and the owner/admin weekly-capacity write ----
+  {
+    id: 'insights.workload_hours.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/insights/workload-hours/',
+    capability: 'report.view',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'insights.workload_hours.capacity.set',
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/insights/workload-hours/capacity/:membershipId',
+    capability: 'org.manage',
+    risk: 'write',
+    scope: 'manage',
+  },
 ];
 
 /** Index of ops by their stable id. */

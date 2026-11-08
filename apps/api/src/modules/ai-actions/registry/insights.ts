@@ -49,6 +49,23 @@ export const insightsDetails: readonly AiActionDetail[] = [
     redact: 'standard',
     examples: [{ summary: 'Read', args: {} }],
   }),
+  // R31 A14: workload in hours, and the owner/admin weekly-capacity write.
+  det({
+    id: 'insights.workload_hours.get',
+    title: 'Workload in hours',
+    description: 'Planned hours against weekly capacity per person.',
+    input: listArgs(),
+    redact: 'standard',
+    examples: [{ summary: 'Read', args: {} }],
+  }),
+  det({
+    id: 'insights.workload_hours.capacity.set',
+    title: "Set a person's weekly capacity",
+    description: 'Set the weekly working hours for one member (owner and org admin only).',
+    input: bodyArgs(['membershipId'], { weeklyHours: f.int(0, 168) }),
+    redact: 'standard',
+    examples: [{ summary: '32h/week', args: { membershipId: 'm_1', weeklyHours: 32 } }],
+  }),
   det({
     id: 'insights.workload.export_csv',
     title: 'Export workload as CSV',

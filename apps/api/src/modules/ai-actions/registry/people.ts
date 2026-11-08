@@ -97,6 +97,32 @@ export const peopleDetails: readonly AiActionDetail[] = [
       },
     ],
   }),
+  // R31 A13: the people overview (this week's roster, and time off / allocations in a window).
+  det({
+    id: 'people.capacity_roster.list',
+    title: 'Capacity this week',
+    description: "Everyone's capacity, allocated hours and time off for the current week.",
+    input: listArgs(),
+    redact: 'people',
+    examples: [{ summary: 'This week', args: {} }],
+  }),
+  det({
+    id: 'people.time_off_overview.list',
+    title: 'Time off across people',
+    description: 'Time off for everyone in a date window (default: the next weeks).',
+    input: listArgs([], { from: f.iso().optional(), to: f.iso().optional() }),
+    redact: 'people',
+    examples: [{ summary: 'November', args: { from: '2026-11-01', to: '2026-11-30' } }],
+  }),
+  det({
+    id: 'people.allocations_overview.list',
+    title: 'Allocations across people',
+    description:
+      'Planned allocations for everyone in a date window; only projects the caller can read.',
+    input: listArgs([], { from: f.iso().optional(), to: f.iso().optional() }),
+    redact: 'people',
+    examples: [{ summary: 'November', args: { from: '2026-11-01', to: '2026-11-30' } }],
+  }),
   det({
     id: 'people.capacity.list',
     title: "A person's capacity",
