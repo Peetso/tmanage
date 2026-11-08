@@ -1926,6 +1926,44 @@ export const NEVER: readonly NeverEntry[] = [
     method: 'DELETE',
     path: '/v1/organizations/:orgSlug/finance/einvoicing/certificate',
     reason: 'finance_settings',
+  }, // R39 55-17: in-app support conversations to the platform team. A person-to-team channel, not
+  // exposed to the AI connector; the platform inbox is platform admin.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/support/threads/',
+    reason: 'support_conversation',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/support/threads/',
+    reason: 'support_conversation',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/support/threads/:threadId',
+    reason: 'support_conversation',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/support/threads/:threadId/messages',
+    reason: 'support_conversation',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/support/threads/:threadId/close',
+    reason: 'support_conversation',
+  },
+  { method: 'GET', path: '/v1/platform/support/threads/', reason: 'platform_admin' },
+  { method: 'GET', path: '/v1/platform/support/threads/:threadId', reason: 'platform_admin' },
+  {
+    method: 'POST',
+    path: '/v1/platform/support/threads/:threadId/messages',
+    reason: 'platform_admin',
+  },
+  {
+    method: 'POST',
+    path: '/v1/platform/support/threads/:threadId/status',
+    reason: 'platform_admin',
   },
 ];
 

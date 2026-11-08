@@ -103,6 +103,9 @@ export const NEVER_REASONS = [
   // 53-07. What the client timeline shows: publishing or unpublishing a milestone's client copy and
   // a phase's band dates. Client-facing content an AI must not change until reviewed ops exist.
   'client_projection',
+  // 55-17. In-app support conversations with the TManage platform team: a person-to-team channel
+  // (the member's own message, the context they saw) that an AI must not write on their behalf.
+  'support_conversation',
 ] as const;
 export type NeverReason = (typeof NEVER_REASONS)[number];
 

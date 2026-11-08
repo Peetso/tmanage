@@ -117,6 +117,9 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.incident_published',
   'platform.incident_unpublished',
   'platform.incident_resolved',
+  // ---- R39 · 55-17 · support inbox ----
+  'platform.support_replied',
+  'platform.support_status_changed',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];

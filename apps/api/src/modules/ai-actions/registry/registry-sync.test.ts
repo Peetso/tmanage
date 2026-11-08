@@ -155,7 +155,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // was 1305.
 // R37 (GET platform/connect-setup, +1 NEVER) and R35 53-15 (GET + PUT me/notification-matrix,
 // +2 ops): +3, was 1307.
-const EXPECTED_ROUTE_COUNT = 1310;
+// R39 55-17 (support threads: 5 org + 4 platform routes, +9 NEVER): +9, was 1310.
+const EXPECTED_ROUTE_COUNT = 1319;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

@@ -28,6 +28,7 @@ import { SupportSessionEndedGate } from '../platform/support/SupportSessionEnded
 import { AccountMenu } from './AccountMenu';
 import { AiPanelLauncher } from '../ai-panel/AiPanelLauncher';
 import { HelpContextLink } from '../help/HelpContextLink';
+import { SupportLauncher } from '../support/SupportLauncher';
 import { BetaTag } from './BetaTag';
 import { ThemeSync } from './ThemeSync';
 
@@ -308,6 +309,8 @@ export function AppShell({
                       {actions}
                       {/* Row 55-16: the Help centre article for this screen. */}
                       <HelpContextLink />
+                      {/* Row 55-17: the help menu with "Contact support" (needs the query client). */}
+                      {queryClient ? <SupportLauncher organizationSlug={organizationSlug} /> : null}
                       {/* "Let AI do the job" (Figma 400:5399): needs the query client. */}
                       {queryClient ? <AiPanelLauncher organizationSlug={organizationSlug} /> : null}
                     </div>

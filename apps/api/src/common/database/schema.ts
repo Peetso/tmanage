@@ -13256,3 +13256,69 @@ export const externalApprovers = mysqlTable(
 export type ExternalApproverRow = typeof externalApprovers.$inferSelect;
 
 Object.assign(TABLES, { external_approvers: externalApprovers });
+
+// ---- R39 · 55-17 in-app support conversations (0324) ----
+
+/**
+ * 0324 (55-17). One support conversation a member opened with the TManage platform team: subject,
+ * `status` (`open | waiting | closed`, checked in `support/support.policy.ts`), the page and app
+ * version shown to the person before sending, counters for the inbox. TENANT: keyed
+ * `(organization_id, id)`. The platform team lists across organizations only via `bootstrapRead`.
+ */
+export const supportThreads = mysqlTable(
+  'support_threads',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    startedByUserId: char('started_by_user_id', { length: 36 }).notNull(),
+    subject: varchar('subject', { length: 160 }).notNull(),
+    status: varchar('status', { length: 16 }).notNull().default('open'),
+    contextPath: varchar('context_path', { length: 300 }),
+    contextAppVersion: varchar('context_app_version', { length: 40 }),
+    messageCount: int('message_count', { unsigned: true }).notNull().default(0),
+    lastMessageAt: datetime('last_message_at', { mode: 'date', fsp: 3 }).notNull(),
+    lastAuthorKind: varchar('last_author_kind', { length: 16 }).notNull().default('member'),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    closedAt: datetime('closed_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_support_threads_org_id').on(table.organizationId, table.id),
+    index('ix_support_threads_org_starter').on(
+      table.organizationId,
+      table.startedByUserId,
+      table.lastMessageAt,
+    ),
+    index('ix_support_threads_status_last').on(table.status, table.lastMessageAt),
+  ],
+);
+
+export type SupportThreadRow = typeof supportThreads.$inferSelect;
+
+/**
+ * 0324 (55-17). One message in a support conversation: `author_kind` `member | platform`, the text,
+ * and an optional screenshot (`attachment_file_id`, a same-organization `file_assets` id the
+ * service checks belongs to the author). TENANT: keyed `(organization_id, id)`.
+ */
+export const supportMessages = mysqlTable(
+  'support_messages',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    threadId: char('thread_id', { length: 36 }).notNull(),
+    authorKind: varchar('author_kind', { length: 16 }).notNull(),
+    authorUserId: char('author_user_id', { length: 36 }).notNull(),
+    body: text('body').notNull(),
+    attachmentFileId: char('attachment_file_id', { length: 36 }),
+    attachmentName: varchar('attachment_name', { length: 255 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_support_messages_org_id').on(table.organizationId, table.id),
+    index('ix_support_messages_thread').on(table.organizationId, table.threadId, table.createdAt),
+  ],
+);
+
+export type SupportMessageRow = typeof supportMessages.$inferSelect;
+
+Object.assign(TABLES, { support_threads: supportThreads, support_messages: supportMessages });

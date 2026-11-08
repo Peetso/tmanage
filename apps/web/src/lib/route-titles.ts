@@ -47,6 +47,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/legal/privacy': { en: 'Privacy Policy', key: 'WebsiteTitle.privacy' },
   '/legal/terms': { en: 'Terms of Service', key: 'WebsiteTitle.terms' },
   '/platform/incidents': { en: 'Incidents', key: 'RouteTitle.platformIncidents' },
+  '/platform/support': { en: 'Support', key: 'RouteTitle.platformSupport' },
   '/pricing': { en: 'Pricing', key: 'WebsiteTitle.pricing' },
   '/product': { en: 'Product overview', key: 'WebsiteTitle.product' },
   '/a/[token]': { en: 'Approval request', key: 'RouteTitle.approverLink' },

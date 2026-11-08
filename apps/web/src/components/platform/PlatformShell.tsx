@@ -15,7 +15,14 @@ import '../../styles/screens/admin.css';
  * Overview · Organizations · People · Content · Activity · Settings · Team.
  */
 export type PlatformSection =
-  'overview' | 'organizations' | 'people' | 'content' | 'activity' | 'settings' | 'team';
+  | 'overview'
+  | 'organizations'
+  | 'support'
+  | 'people'
+  | 'content'
+  | 'activity'
+  | 'settings'
+  | 'team';
 
 /**
  * Section ids the screens used before v2. Still accepted so a screen an area slice has not yet
@@ -35,6 +42,7 @@ export type PlatformSubsection = 'team-admins' | 'team-presets';
 const SECTIONS: readonly { id: PlatformSection; labelKey: MessageKey; href: string }[] = [
   { id: 'overview', labelKey: 'PlatformShell.overview', href: '/platform' },
   { id: 'organizations', labelKey: 'PlatformShell.organizations', href: '/platform/organizations' },
+  { id: 'support', labelKey: 'PlatformShell.support', href: '/platform/support' },
   { id: 'people', labelKey: 'PlatformShell.people', href: '/platform/people' },
   // Content lives under an organization (B5); the entry opens a picker of organizations.
   { id: 'content', labelKey: 'PlatformShell.content', href: '/platform/content' },

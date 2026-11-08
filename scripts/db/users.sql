@@ -1894,6 +1894,13 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`public_link_codes`  TO 'tmanage_app'@
 -- `approval.decided.v1` payload carries everything its planner reads.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`external_approvers` TO 'tmanage_app'@'%';
 
+-- ---- R39 · 55-17 in-app support conversations ----
+-- 0324 `support_threads` / `support_messages` (tenant): threads are inserted and their status and
+-- counters updated; messages are append-only. DELETE only for the company erasure. SELECT rides
+-- the database-wide read. The worker needs no grant (the reply notice is written by the API).
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`support_threads`  TO 'tmanage_app'@'%';
+GRANT INSERT, DELETE         ON `tmanage`.`support_messages` TO 'tmanage_app'@'%';
+
 -- ---- 52-08 · quotes ----
 -- 0259 `quotes` (tenant): created, edited while draft, sent and decided (UPDATE); DELETE only for
 -- the company erasure. SELECT rides the database-wide read.

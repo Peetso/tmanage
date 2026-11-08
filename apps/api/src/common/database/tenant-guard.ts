@@ -1300,6 +1300,14 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0319. The claim an open invitation holds on its address (one per organization and address).
   // Written and deleted by the invitation issue, accept, revoke and expiry paths.
   invitation_pending_keys: 'organization_id',
+  // ---- R39 · 55-17 ----
+  // 0324. Tenant-owned: one organization's support conversations with the platform team. Members
+  // reach them through their own context (own threads, or all for `org.manage`); the platform
+  // team lists across organizations only through `bootstrapRead(['support_threads',
+  // 'organizations'])` with a recorded reason and writes under a service context for the thread's
+  // organization, with a platform audit row.
+  support_threads: 'organization_id',
+  support_messages: 'organization_id',
 });
 
 /**
