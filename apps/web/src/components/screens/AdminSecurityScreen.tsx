@@ -5,6 +5,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton, Switch } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
+import { SignInPolicyCard, SignInPolicyGrace } from '../admin/SignInPolicyCard';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { readSecuritySettings, setSecuritySettings } from '../../lib/api/admin-security';
 import { listOrgSessions } from '../../lib/api/admin-sessions';
@@ -104,119 +105,125 @@ export function AdminSecurityScreen({
       }
     >
       <div className="tm-cc-split tm-cc-split--even">
-        <section className="tm-cc-card" aria-labelledby="tm-admin-security-heading">
-          <h2 id="tm-admin-security-heading" className="tm-visually-hidden">
-            {t('AdminSecurityScreen.securityHeading')}
-          </h2>
+        <div className="tm-cc-column">
+          <section className="tm-cc-card" aria-labelledby="tm-admin-security-heading">
+            <h2 id="tm-admin-security-heading" className="tm-visually-hidden">
+              {t('AdminSecurityScreen.securityHeading')}
+            </h2>
 
-          {settings.isError ? (
-            <InlineAlert tone="danger" title={t('AdminSecurityScreen.loadError')} live>
-              {describeError(settings.error)}
-            </InlineAlert>
-          ) : null}
+            {settings.isError ? (
+              <InlineAlert tone="danger" title={t('AdminSecurityScreen.loadError')} live>
+                {describeError(settings.error)}
+              </InlineAlert>
+            ) : null}
 
-          {settings.isPending ? (
-            <LoadingRegion label={t('AdminSecurityScreen.loading')}>
-              <Skeleton height="var(--row)" />
-              <Skeleton height="var(--row)" />
-            </LoadingRegion>
-          ) : null}
+            {settings.isPending ? (
+              <LoadingRegion label={t('AdminSecurityScreen.loading')}>
+                <Skeleton height="var(--row)" />
+                <Skeleton height="var(--row)" />
+              </LoadingRegion>
+            ) : null}
 
-          {!settings.isPending && !settings.isError ? (
-            <form
-              className="tm-stack"
-              noValidate
-              aria-label={t('AdminSecurityScreen.formLabel')}
-              onSubmit={(event: FormEvent<HTMLFormElement>) => {
-                event.preventDefault();
-                setSaved(false);
-                if (!save.isPending && !readOnly) save.mutate();
-              }}
-            >
-              <ul className="tm-cc-rows">
-                <li>
-                  <Switch
-                    label={t('AdminSecurityScreen.require2faLabel')}
-                    hint={
-                      readOnly
-                        ? tr(
-                            'AdminSecurityScreen.s8.ownerOnly',
-                            'Only the company owner can change this setting.',
-                          )
-                        : t('AdminSecurityScreen.require2faHint')
-                    }
-                    checked={enforce2fa}
-                    disabled={save.isPending || readOnly}
-                    onChange={(event) => {
-                      setSaved(false);
-                      setEnforce2fa(event.target.checked);
-                    }}
-                  />
-                  <span className={enforce2fa ? 'tm-cc-pill tm-cc-pill--on' : 'tm-cc-pill'}>
-                    {enforce2fa
-                      ? t('AdminSecurityScreen.pillOn')
-                      : t('AdminSecurityScreen.pillOff')}
-                  </span>
-                </li>
-                <li>
-                  <div className="tm-cc-rows__text">
-                    <p className="tm-cc-rows__title">
-                      {t('AdminSecurityScreen.sessionLengthTitle')}
-                    </p>
-                    <p className="tm-cc-rows__sub">{t('AdminSecurityScreen.sessionLengthSub')}</p>
+            {!settings.isPending && !settings.isError ? (
+              <form
+                className="tm-stack"
+                noValidate
+                aria-label={t('AdminSecurityScreen.formLabel')}
+                onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                  event.preventDefault();
+                  setSaved(false);
+                  if (!save.isPending && !readOnly) save.mutate();
+                }}
+              >
+                <ul className="tm-cc-rows">
+                  <li>
+                    <Switch
+                      label={t('AdminSecurityScreen.require2faLabel')}
+                      hint={
+                        readOnly
+                          ? tr(
+                              'AdminSecurityScreen.s8.ownerOnly',
+                              'Only the company owner can change this setting.',
+                            )
+                          : t('AdminSecurityScreen.require2faHint')
+                      }
+                      checked={enforce2fa}
+                      disabled={save.isPending || readOnly}
+                      onChange={(event) => {
+                        setSaved(false);
+                        setEnforce2fa(event.target.checked);
+                      }}
+                    />
+                    <span className={enforce2fa ? 'tm-cc-pill tm-cc-pill--on' : 'tm-cc-pill'}>
+                      {enforce2fa
+                        ? t('AdminSecurityScreen.pillOn')
+                        : t('AdminSecurityScreen.pillOff')}
+                    </span>
+                  </li>
+                  <li>
+                    <div className="tm-cc-rows__text">
+                      <p className="tm-cc-rows__title">
+                        {t('AdminSecurityScreen.sessionLengthTitle')}
+                      </p>
+                      <p className="tm-cc-rows__sub">{t('AdminSecurityScreen.sessionLengthSub')}</p>
+                    </div>
+                    <Link
+                      href={`/${organizationSlug}/policies`}
+                      className="tm-button tm-button--outline tm-button--compact"
+                    >
+                      {t('AdminSecurityScreen.edit')}
+                    </Link>
+                  </li>
+                  <li>
+                    <div className="tm-cc-rows__text">
+                      <p className="tm-cc-rows__title">
+                        {t('AdminSecurityScreen.trustedRangesTitle')}
+                      </p>
+                      <p className="tm-cc-rows__sub">{t('AdminSecurityScreen.trustedRangesSub')}</p>
+                    </div>
+                    <Link
+                      href={`/${organizationSlug}/admin/ip-allowlist`}
+                      className="tm-button tm-button--outline tm-button--compact"
+                    >
+                      {t('AdminSecurityScreen.ranges')}
+                    </Link>
+                  </li>
+                </ul>
+
+                {save.isError ? (
+                  <InlineAlert tone="danger" title={t('AdminSecurityScreen.saveError')} live>
+                    {describeError(save.error)}
+                  </InlineAlert>
+                ) : null}
+                {saved && !save.isPending && !save.isError ? (
+                  <InlineAlert tone="success" title={t('AdminSecurityScreen.savedTitle')} live>
+                    {t('AdminSecurityScreen.savedBody')}
+                  </InlineAlert>
+                ) : null}
+
+                {readOnly ? null : (
+                  <div className="tm-row">
+                    <Button
+                      type="submit"
+                      tone="ink"
+                      size="accessible"
+                      loading={save.isPending}
+                      loadingLabel={t('AdminSecurityScreen.saving')}
+                    >
+                      {t('AdminSecurityScreen.save')}
+                    </Button>
                   </div>
-                  <Link
-                    href={`/${organizationSlug}/policies`}
-                    className="tm-button tm-button--outline tm-button--compact"
-                  >
-                    {t('AdminSecurityScreen.edit')}
-                  </Link>
-                </li>
-                <li>
-                  <div className="tm-cc-rows__text">
-                    <p className="tm-cc-rows__title">
-                      {t('AdminSecurityScreen.trustedRangesTitle')}
-                    </p>
-                    <p className="tm-cc-rows__sub">{t('AdminSecurityScreen.trustedRangesSub')}</p>
-                  </div>
-                  <Link
-                    href={`/${organizationSlug}/admin/ip-allowlist`}
-                    className="tm-button tm-button--outline tm-button--compact"
-                  >
-                    {t('AdminSecurityScreen.ranges')}
-                  </Link>
-                </li>
-              </ul>
+                )}
+              </form>
+            ) : null}
+          </section>
 
-              {save.isError ? (
-                <InlineAlert tone="danger" title={t('AdminSecurityScreen.saveError')} live>
-                  {describeError(save.error)}
-                </InlineAlert>
-              ) : null}
-              {saved && !save.isPending && !save.isError ? (
-                <InlineAlert tone="success" title={t('AdminSecurityScreen.savedTitle')} live>
-                  {t('AdminSecurityScreen.savedBody')}
-                </InlineAlert>
-              ) : null}
-
-              {readOnly ? null : (
-                <div className="tm-row">
-                  <Button
-                    type="submit"
-                    tone="ink"
-                    size="accessible"
-                    loading={save.isPending}
-                    loadingLabel={t('AdminSecurityScreen.saving')}
-                  >
-                    {t('AdminSecurityScreen.save')}
-                  </Button>
-                </div>
-              )}
-            </form>
-          ) : null}
-        </section>
+          {/* A16: allowed sign-in methods and two-step by role (Figma R31 L08 A16). */}
+          <SignInPolicyCard api={api} organizationSlug={organizationSlug} readOnly={readOnly} />
+        </div>
 
         <div className="tm-cc-column">
+          <SignInPolicyGrace api={api} organizationSlug={organizationSlug} />
           {loaded && !settings.data.enforce2fa ? (
             <section
               className="tm-cc-card tm-cc-card--attention"

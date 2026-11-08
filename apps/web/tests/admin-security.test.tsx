@@ -18,15 +18,28 @@ import { expectNoAxeViolations } from './axe';
 
 function securityClient(): ApiClient {
   const body = { enforce2fa: true, ipAllowlist: ['203.0.113.0/24', '2001:db8::/32'] };
+  // A16 — the sign-in policy card on the same screen reads its own endpoint.
+  const signInPolicy = {
+    allowedMethods: ['password', 'google', 'microsoft', 'sso'],
+    requireTwoStepRoles: 'nobody',
+    graceUntil: null,
+    sessionMaxHours: 720,
+    idleSignOutMinutes: 0,
+    membersWithoutAlternative: 0,
+    ownMethods: ['password'],
+  };
   return new ApiClient({
     baseUrl: 'https://api.example.test',
     csrfCookieName: 'tm_session_csrf',
-    fetch: (() =>
+    fetch: ((input: RequestInfo | URL) =>
       Promise.resolve(
-        new Response(JSON.stringify(body), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        }),
+        new Response(
+          JSON.stringify(String(input).includes('/sign-in-policy') ? signInPolicy : body),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
       )) as typeof globalThis.fetch,
     readCsrfToken: () => undefined,
     newCorrelationId: () => 'correlation-fixed',

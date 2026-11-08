@@ -1,6 +1,7 @@
 import {
   SIGN_IN_POLICY_KEYS,
   authorize,
+  isSignInMethod,
   isTwoStepTightened,
   parseSignInPolicy,
   twoStepGraceUntil,
@@ -40,6 +41,20 @@ export interface SignInPolicyState {
   readonly idleSignOutMinutes: number;
   /** Active non-owner members with no allowed method other than a password. */
   readonly membersWithoutAlternative: number;
+  /** A16: the methods the person asking can sign in with themselves (password, linked providers). */
+  readonly ownMethods: readonly SignInMethod[];
+}
+
+/**
+ * A16 — the owner keeps a way in. The change is refused when no allowed method is one the owner
+ * making it actually has (a password, or a linked provider), so the last method they use is never
+ * switched off from under them. Pure, so the rule is proved without a database.
+ */
+export function keepsOwnerAWayIn(
+  allowed: readonly SignInMethod[],
+  own: readonly SignInMethod[],
+): boolean {
+  return allowed.some((method) => own.includes(method));
 }
 
 /** The linked-identity providers among the allowed methods (everything but `password`). */
@@ -85,7 +100,8 @@ export class SignInPolicyService {
         context,
         providersOf(policy.allowedMethods),
       );
-      return stateOf(policy, raw, without);
+      const own = await this.ownMethods(runner, principal.userId);
+      return stateOf(policy, raw, without, own);
     });
   }
 
@@ -96,6 +112,16 @@ export class SignInPolicyService {
     stepUpFresh: boolean,
   ): Promise<SignInPolicyState> {
     requireSecurityManage(principal, context);
+    // A16: the company owner decides how people sign in; others holding the capability only read.
+    if (principal.kind !== 'internal' || principal.role !== 'owner') {
+      throw new ApiError(
+        403,
+        'forbidden',
+        'Only the company owner can change this setting.',
+        undefined,
+        'sign_in_policy.write:not_owner',
+      );
+    }
     if (!stepUpFresh) {
       throw new ApiError(
         403,
@@ -131,6 +157,18 @@ export class SignInPolicyService {
               'sign_in_policy.lock_out',
             );
           }
+        }
+
+        // A16: never switch off the last method the owner making the change signs in with.
+        const own = await this.ownMethods(tx, principal.userId);
+        if (!keepsOwnerAWayIn(patch.allowedMethods, own)) {
+          throw new ApiError(
+            409,
+            'conflict',
+            'Keep at least one way you sign in yourself.',
+            [{ field: 'ownMethods', message: own.join(',') }],
+            'sign_in_policy.owner_lock_out',
+          );
         }
 
         const graceUntil = isTwoStepTightened(
@@ -179,7 +217,7 @@ export class SignInPolicyService {
         }
         const without = await this.repository.countMembersWithout(tx, context, providers);
         return {
-          state: stateOf(next, merged, without),
+          state: stateOf(next, merged, without, own),
           before: previous,
           after: next,
           owners: changed ? await this.repository.listOwners(tx, context) : [],
@@ -189,6 +227,15 @@ export class SignInPolicyService {
 
     await this.notifyOwners(owners, before, after);
     return state;
+  }
+
+  /** The person's own sign-in methods, in canonical order; unknown providers are dropped. */
+  private async ownMethods(
+    runner: Parameters<SignInPolicyRepository['listOwnMethods']>[0],
+    userId: string,
+  ): Promise<SignInMethod[]> {
+    const raw = await this.repository.listOwnMethods(runner, userId);
+    return raw.filter(isSignInMethod);
   }
 
   /** One `auth`-lane notice per owner, after the commit. A failed send never undoes the change. */
@@ -223,7 +270,12 @@ function documentOf(raw: unknown): Record<string, unknown> {
     : {};
 }
 
-function stateOf(policy: SignInPolicy, raw: unknown, without: number): SignInPolicyState {
+function stateOf(
+  policy: SignInPolicy,
+  raw: unknown,
+  without: number,
+  own: readonly SignInMethod[],
+): SignInPolicyState {
   const access = raw === undefined || raw === null ? DEFAULT_POLICY : normalizePolicy(raw);
   return {
     allowedMethods: policy.allowedMethods,
@@ -232,6 +284,7 @@ function stateOf(policy: SignInPolicy, raw: unknown, without: number): SignInPol
     sessionMaxHours: access.session_max_hours,
     idleSignOutMinutes: access.idle_signout_minutes,
     membersWithoutAlternative: without,
+    ownMethods: own,
   };
 }
 

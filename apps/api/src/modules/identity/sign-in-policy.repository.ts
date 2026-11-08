@@ -77,6 +77,19 @@ export class SignInPolicyRepository {
     return Number(internal[0]?.['n'] ?? 0) + Number(client[0]?.['n'] ?? 0);
   }
 
+  /**
+   * A16 — how this person can sign in themselves: `password` when they hold one, plus every
+   * provider they have linked. Both tables are per person (no `organization_id`), keyed by the id.
+   */
+  async listOwnMethods(runner: TenantQueryRunner, userId: string): Promise<readonly string[]> {
+    const rows = await runner.query<QueryRows>(
+      `SELECT 'password' AS method FROM user_passwords p WHERE p.user_id = ?
+       UNION SELECT ui.provider AS method FROM user_identities ui WHERE ui.user_id = ?`,
+      [userId, userId],
+    );
+    return rows.map((row) => String(row['method']));
+  }
+
   /** The acting organization's active owners and their mail language. */
   async listOwners(
     runner: TenantQueryRunner,

@@ -44,7 +44,7 @@ const admin = {
   hasOrgWideScope: true,
 } as unknown as Principal;
 
-function policyService(input: { stored?: unknown; without?: number }) {
+function policyService(input: { stored?: unknown; without?: number; own?: string[] }) {
   const upsert = vi.fn(async () => undefined);
   const record = vi.fn(async () => undefined);
   const send = vi.fn(async () => 'sent' as const);
@@ -52,6 +52,7 @@ function policyService(input: { stored?: unknown; without?: number }) {
     readDocument: vi.fn(async () => input.stored),
     countMembersWithout: vi.fn(async () => input.without ?? 0),
     listOwners: vi.fn(async () => [{ email: 'owner@acme.test', locale: 'ar' }]),
+    listOwnMethods: vi.fn(async () => input.own ?? ['password']),
   } as unknown as SignInPolicyRepository;
   const database = {
     read: async (_c: unknown, work: (r: unknown) => unknown) => work({}),
@@ -76,6 +77,21 @@ describe('PUT …/security/sign-in-policy', () => {
       status: 409,
       code: 'members_without_method',
       details: [{ field: 'count', message: '3' }],
+    });
+    expect(h.upsert).not.toHaveBeenCalled();
+  });
+
+  it('A16: only the owner may change it, and never off the last method the owner uses (409)', async () => {
+    const h = policyService({ own: ['password'] });
+    const body = { allowedMethods: ['google'], requireTwoStepRoles: 'nobody' };
+    const orgAdmin = { ...admin, role: 'org_admin' } as unknown as Principal;
+    await expect(h.service.update(context, orgAdmin, body, true)).rejects.toMatchObject({
+      status: 403,
+    });
+    await expect(h.service.update(context, admin, body, true)).rejects.toMatchObject({
+      status: 409,
+      code: 'conflict',
+      details: [{ field: 'ownMethods', message: 'password' }],
     });
     expect(h.upsert).not.toHaveBeenCalled();
   });
