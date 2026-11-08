@@ -17220,5 +17220,16 @@
   "RetainerForm.save": "Enregistrer le forfait",
   "RetainerForm.startsOn": "Commence le",
   "RouteTitle.financeInvoiceEdit": "Modifier la facture",
-  "RouteTitle.financeInvoiceNew": "Nouvelle facture"
+  "RouteTitle.financeInvoiceNew": "Nouvelle facture",
+  "ChatGroups.linkedTo": "Lié à",
+  "ChatGroups.general": "Général (lié à aucun projet)",
+  "ChatGroups.generalHint": "Pour vous et les personnes choisies dans cet espace de travail",
+  "ChatGroups.project": "Un projet",
+  "ChatGroups.projectHint": "Toute l'équipe du projet le rejoint",
+  "ChatGroups.chooseProject": "Choisir un projet",
+  "ChatList.sectionGeneral": "Général",
+  "ChatList.sectionProjects": "Projets",
+  "ChatList.sectionDirect": "Messages directs",
+  "ChatWorkspaces.label": "Espaces de travail",
+  "ChatWorkspaces.unread": "{count} non lus"
 }

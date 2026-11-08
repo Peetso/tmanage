@@ -17220,5 +17220,16 @@
   "RetainerForm.save": "Retainer speichern",
   "RetainerForm.startsOn": "Beginnt am",
   "RouteTitle.financeInvoiceEdit": "Rechnung bearbeiten",
-  "RouteTitle.financeInvoiceNew": "Neue Rechnung"
+  "RouteTitle.financeInvoiceNew": "Neue Rechnung",
+  "ChatGroups.linkedTo": "Verknüpft mit",
+  "ChatGroups.general": "Allgemein (mit keinem Projekt verknüpft)",
+  "ChatGroups.generalHint": "Für dich und die Personen, die du in diesem Workspace auswählst",
+  "ChatGroups.project": "Ein Projekt",
+  "ChatGroups.projectHint": "Alle im Projekt treten bei",
+  "ChatGroups.chooseProject": "Projekt auswählen",
+  "ChatList.sectionGeneral": "Allgemein",
+  "ChatList.sectionProjects": "Projekte",
+  "ChatList.sectionDirect": "Direktnachrichten",
+  "ChatWorkspaces.label": "Workspaces",
+  "ChatWorkspaces.unread": "{count} ungelesen"
 }

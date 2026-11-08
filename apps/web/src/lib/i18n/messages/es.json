@@ -17222,5 +17222,16 @@
   "RetainerForm.save": "Guardar iguala",
   "RetainerForm.startsOn": "Empieza el",
   "RouteTitle.financeInvoiceEdit": "Editar factura",
-  "RouteTitle.financeInvoiceNew": "Nueva factura"
+  "RouteTitle.financeInvoiceNew": "Nueva factura",
+  "ChatGroups.linkedTo": "Vinculado a",
+  "ChatGroups.general": "General (sin vincular a un proyecto)",
+  "ChatGroups.generalHint": "Para ti y las personas que elijas en este espacio de trabajo",
+  "ChatGroups.project": "Un proyecto",
+  "ChatGroups.projectHint": "Todo el equipo del proyecto se une",
+  "ChatGroups.chooseProject": "Elige un proyecto",
+  "ChatList.sectionGeneral": "General",
+  "ChatList.sectionProjects": "Proyectos",
+  "ChatList.sectionDirect": "Mensajes directos",
+  "ChatWorkspaces.label": "Espacios de trabajo",
+  "ChatWorkspaces.unread": "{count} sin leer"
 }

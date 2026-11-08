@@ -1,6 +1,6 @@
 'use client';
 
-import { useContext, useMemo, useState } from 'react';
+import { useContext, useMemo, useState, type ReactNode } from 'react';
 import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ApiClient } from '../../lib/api/client';
@@ -12,6 +12,7 @@ import type { LiveSocketFactory } from '../../lib/use-channel-live-feed';
 import { ChatListRow } from './ChatListRow';
 import { ChatListSearch } from './ChatListSearch';
 import { NewChatSheet } from './NewChatSheet';
+import { sectionChatRows, type ChatSectionId } from './chat-workspaces';
 import './chat-shell.css';
 
 export interface ChatListPaneProps {
@@ -31,6 +32,15 @@ export interface ChatListPaneProps {
   readonly door?: 'studio' | 'portal';
   /** "New chat" (people → direct conversation, New group). Off for the portal. */
   readonly allowNewChat?: boolean;
+  /**
+   * R38 G2: where a row (and a just-opened chat) links. Default `${listUrlBase}/${id}`; the
+   * workspace tabs pass one that keeps `?ws=` so another workspace's chat opens in this app.
+   */
+  readonly rowHref?: (conversationId: string) => string;
+  /** R38 G2: drawn above the title (the workspace tabs). */
+  readonly header?: ReactNode;
+  /** R38 G1: where "New group" in the New chat sheet goes. */
+  readonly newGroupHref?: string;
 }
 
 /** How often the list re-reads without a frame: other chats' news arrives at this pace. */
@@ -53,6 +63,9 @@ export function ChatListPane({
   socketFactory,
   door = 'studio',
   allowNewChat = true,
+  rowHref,
+  header,
+  newGroupHref,
 }: ChatListPaneProps) {
   const tOr = useTOr();
   const router = useContext(AppRouterContext);
@@ -87,6 +100,13 @@ export function ChatListPane({
     .filter((row) => (showArchived ? row.archivedAt !== null : row.archivedAt === null))
     .filter((row) => chatRowMatches(row, search));
 
+  const hrefOf = rowHref ?? ((conversationId: string) => `${listUrlBase}/${conversationId}`);
+  const sectionTitle: Record<ChatSectionId, string> = {
+    general: tOr('ChatList.sectionGeneral', 'General'),
+    projects: tOr('ChatList.sectionProjects', 'Projects'),
+    direct: tOr('ChatList.sectionDirect', 'Direct messages'),
+  };
+
   function go(href: string) {
     if (router) router.push(href);
     else window.location.assign(href);
@@ -101,6 +121,7 @@ export function ChatListPane({
 
   return (
     <div className="tm-chat-side tm-chatlist">
+      {header ?? null}
       <div className="tm-chatlist__head">
         <h2 className="tm-chatlist__title">
           {showArchived
@@ -142,35 +163,49 @@ export function ChatListPane({
       ) : shown.length === 0 ? (
         <p className="tm-chatlist__note tm-chatlist__empty">{emptyText}</p>
       ) : (
-        <ul className="tm-chatlist__rows" aria-label={tOr('ChatList.title', 'Chats')}>
-          {shown.map((row) => (
-            <ChatListRow
-              key={row.conversationId}
-              row={row}
-              href={`${listUrlBase}/${row.conversationId}`}
-              active={row.conversationId === activeConversationId}
-              {...(door === 'studio'
-                ? {
-                    onTogglePin: (r: ChatListRowData) =>
-                      mark.mutate({ row: r, mark: 'pin', on: r.pinnedAt === null }),
-                    onToggleArchive: (r: ChatListRowData) =>
-                      mark.mutate({ row: r, mark: 'archive', on: r.archivedAt === null }),
-                  }
-                : {})}
-            />
+        <div className="tm-chatlist__sections">
+          {sectionChatRows(shown).map((section) => (
+            <section
+              key={section.id}
+              className="tm-chatlist__section"
+              aria-labelledby={`tm-chatlist-${section.id}`}
+            >
+              <h3 id={`tm-chatlist-${section.id}`} className="tm-chatlist__section-title">
+                {sectionTitle[section.id]}
+              </h3>
+              <ul className="tm-chatlist__rows" aria-label={sectionTitle[section.id]}>
+                {section.rows.map((row) => (
+                  <ChatListRow
+                    key={row.conversationId}
+                    row={row}
+                    href={hrefOf(row.conversationId)}
+                    active={row.conversationId === activeConversationId}
+                    {...(door === 'studio'
+                      ? {
+                          onTogglePin: (r: ChatListRowData) =>
+                            mark.mutate({ row: r, mark: 'pin', on: r.pinnedAt === null }),
+                          onToggleArchive: (r: ChatListRowData) =>
+                            mark.mutate({ row: r, mark: 'archive', on: r.archivedAt === null }),
+                        }
+                      : {})}
+                  />
+                ))}
+              </ul>
+            </section>
           ))}
-        </ul>
+        </div>
       )}
       {composing ? (
         <NewChatSheet
           api={api}
           organizationSlug={organizationSlug}
           organizationName={organizationName}
+          {...(newGroupHref === undefined ? {} : { newGroupHref })}
           onClose={() => setComposing(false)}
           onOpened={(conversationId) => {
             setComposing(false);
             void queries.invalidateQueries({ queryKey: chatKeys.all(organizationSlug) });
-            go(`${listUrlBase}/${conversationId}`);
+            go(hrefOf(conversationId));
           }}
         />
       ) : null}

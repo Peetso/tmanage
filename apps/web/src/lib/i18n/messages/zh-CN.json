@@ -17220,5 +17220,16 @@
   "RetainerForm.save": "保存包月合约",
   "RetainerForm.startsOn": "开始日期",
   "RouteTitle.financeInvoiceEdit": "编辑发票",
-  "RouteTitle.financeInvoiceNew": "新建发票"
+  "RouteTitle.financeInvoiceNew": "新建发票",
+  "ChatGroups.linkedTo": "关联到",
+  "ChatGroups.general": "通用（不关联项目）",
+  "ChatGroups.generalHint": "供你和你在此工作区中选择的人使用",
+  "ChatGroups.project": "一个项目",
+  "ChatGroups.projectHint": "项目中的所有人都会加入",
+  "ChatGroups.chooseProject": "选择项目",
+  "ChatList.sectionGeneral": "通用",
+  "ChatList.sectionProjects": "项目",
+  "ChatList.sectionDirect": "私信",
+  "ChatWorkspaces.label": "工作区",
+  "ChatWorkspaces.unread": "{count} 条未读"
 }

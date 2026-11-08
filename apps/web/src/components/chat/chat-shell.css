@@ -1817,3 +1817,63 @@
     font-weight: 600;
   }
 }
+
+/* R38 G2 — workspace tabs above the chat list (Figma "R38 G1G2-chat"). */
+.tm-chatws__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-chatws__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-block: 6px;
+  padding-inline: 10px;
+  border: var(--b-quiet) solid transparent;
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  color: var(--ink-950);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.tm-chatws__tab[data-active='true'] {
+  border-color: var(--lime-500);
+  background: var(--lime-100);
+  font-weight: 600;
+}
+
+.tm-chatws__tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--lime-500);
+}
+
+.tm-chatws__badge {
+  display: grid;
+  place-items: center;
+  min-inline-size: 18px;
+  block-size: 18px;
+  padding-inline: 5px;
+  box-sizing: border-box;
+  border-radius: var(--r-capsule);
+  background: var(--lime-500);
+  color: var(--ink-950);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* R38 G1 — the list in sections: General, Projects, Direct messages. */
+.tm-chatlist__section-title {
+  margin: 12px 0 4px;
+  color: var(--ink-650);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}

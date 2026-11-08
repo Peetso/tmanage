@@ -147,7 +147,7 @@ export async function createConversation(
   client: ApiClient,
   organizationSlug: string,
   input:
-    | { readonly projectId: string; readonly name: string }
+    | { readonly projectId: string; readonly name: string; readonly description?: string }
     | { readonly kind: 'group'; readonly name: string; readonly description?: string },
 ): Promise<ConversationSummary> {
   const { data } = await client.request<ConversationSummary>({

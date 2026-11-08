@@ -2,6 +2,8 @@
 
 import type { ApiClient } from '../../lib/api/client';
 import { ChatListPane } from './ChatListPane';
+import { ChatWorkspaceTabs } from './ChatWorkspaceTabs';
+import { chatHref, newGroupHref } from './chat-workspaces';
 
 export interface ChatSidebarProps {
   readonly api: ApiClient;
@@ -11,6 +13,11 @@ export interface ChatSidebarProps {
   readonly activeConversationId?: string;
   /** Pre-R7: a direct conversation is a conversation now, so this is the same id. */
   readonly activeDirectConversationId?: string;
+  /**
+   * R38 G2: the app's own workspace when `organizationSlug` is another one the person opened
+   * from the chat page's workspace tabs. Links stay inside this workspace's app.
+   */
+  readonly shellOrganizationSlug?: string;
 }
 
 /**
@@ -25,15 +32,20 @@ export function ChatSidebar({
   organizationName,
   activeConversationId,
   activeDirectConversationId,
+  shellOrganizationSlug,
 }: ChatSidebarProps) {
+  const shell = shellOrganizationSlug ?? organizationSlug;
   const active = activeConversationId ?? activeDirectConversationId;
   return (
     <ChatListPane
       api={api}
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      listUrlBase={`/${organizationSlug}/chat`}
+      listUrlBase={`/${shell}/chat`}
       live={false}
+      rowHref={(id) => chatHref(shell, organizationSlug, id)}
+      newGroupHref={newGroupHref(shell, organizationSlug)}
+      header={<ChatWorkspaceTabs api={api} shellSlug={shell} activeSlug={organizationSlug} />}
       {...(active === undefined ? {} : { activeConversationId: active })}
     />
   );

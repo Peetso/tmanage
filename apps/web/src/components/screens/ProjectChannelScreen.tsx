@@ -98,6 +98,7 @@ import {
 } from '../decisions/RecordDecisionDialog';
 import '../../styles/screens/chat.css';
 import '../chat/chat-shell.css';
+import { chatHref } from '../chat/chat-workspaces';
 import { appLocale } from '../../lib/i18n/app-locale';
 
 type Translate = ReturnType<typeof useT>;
@@ -115,6 +116,12 @@ export interface ProjectChannelScreenProps {
    * threads; the studio has both.
    */
   door?: 'studio' | 'portal';
+  /**
+   * R38 G2: the app's own workspace when this conversation belongs to another workspace the
+   * person opened from the chat page's workspace tabs. The frame stays here; every chat read and
+   * write still goes to `organizationSlug`, under the person's own membership there.
+   */
+  shellOrganizationSlug?: string;
 }
 
 type WorkAudience = 'internal' | 'client_visible' | 'client_action_required';
@@ -169,8 +176,11 @@ export function ProjectChannelScreen({
   socketFactory,
   reconnectBaseMs,
   door = 'studio',
+  shellOrganizationSlug,
 }: ProjectChannelScreenProps) {
   const portal = door === 'portal';
+  const shellSlug = shellOrganizationSlug ?? organizationSlug;
+  const chatListHref = chatHref(shellSlug, organizationSlug);
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
@@ -475,7 +485,7 @@ export function ProjectChannelScreen({
 
   return (
     <AppShell
-      organizationSlug={organizationSlug}
+      organizationSlug={shellSlug}
       organizationName={organizationName}
       activeNavigationId="chat"
       title={hash ?? t('ProjectChannelScreen.channelFallback')}
@@ -521,6 +531,7 @@ export function ProjectChannelScreen({
         <ChatSidebar
           api={api}
           organizationSlug={organizationSlug}
+          {...(shellOrganizationSlug === undefined ? {} : { shellOrganizationSlug })}
           organizationName={organizationName}
           activeConversationId={conversationId}
         />
@@ -576,7 +587,7 @@ export function ProjectChannelScreen({
           <div className="tm-chat-phone-head">
             <Link
               className="tm-chat-phone-head__back"
-              href={`/${organizationSlug}/chat`}
+              href={chatListHref}
               aria-label={t('ProjectChannelScreen.backToAllChannels')}
             >
               <span className="tm-phone-chat__glyph" aria-hidden="true">
@@ -624,9 +635,7 @@ export function ProjectChannelScreen({
         {channelRevoked ? (
           <InlineAlert tone="warning" title={t('ProjectChannelScreen.noAccessTitle')} live>
             <p className="tm-prose">{t('ProjectChannelScreen.noAccessBody')}</p>
-            <Link href={`/${organizationSlug}/chat`}>
-              {t('ProjectChannelScreen.backToAllChannels')}
-            </Link>
+            <Link href={chatListHref}>{t('ProjectChannelScreen.backToAllChannels')}</Link>
           </InlineAlert>
         ) : null}
 

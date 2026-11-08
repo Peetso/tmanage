@@ -17385,5 +17385,16 @@
   "RetainerForm.save": "حفظ العقد",
   "RetainerForm.startsOn": "يبدأ في",
   "RouteTitle.financeInvoiceEdit": "تعديل الفاتورة",
-  "RouteTitle.financeInvoiceNew": "فاتورة جديدة"
+  "RouteTitle.financeInvoiceNew": "فاتورة جديدة",
+  "ChatGroups.linkedTo": "مرتبطة بـ",
+  "ChatGroups.general": "عامة (غير مرتبطة بمشروع)",
+  "ChatGroups.generalHint": "لك وللأشخاص الذين تختارهم من مساحة العمل هذه",
+  "ChatGroups.project": "مشروع",
+  "ChatGroups.projectHint": "ينضم إليها كل أعضاء المشروع",
+  "ChatGroups.chooseProject": "اختر مشروعاً",
+  "ChatList.sectionGeneral": "عام",
+  "ChatList.sectionProjects": "المشاريع",
+  "ChatList.sectionDirect": "الرسائل المباشرة",
+  "ChatWorkspaces.label": "مساحات العمل",
+  "ChatWorkspaces.unread": "{count} غير مقروءة"
 }

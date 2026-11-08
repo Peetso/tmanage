@@ -6,6 +6,8 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { ChatListPane } from './ChatListPane';
+import { ChatWorkspaceTabs } from './ChatWorkspaceTabs';
+import { chatHref, newGroupHref } from './chat-workspaces';
 import './chat-shell.css';
 
 export interface ChatShellProps {
@@ -24,6 +26,11 @@ export interface ChatShellProps {
   readonly empty?: ReactNode;
   /** The right pane: the open conversation. Omitted on the bare list. */
   readonly children?: ReactNode;
+  /**
+   * R38 G2: the workspace whose chats are on screen when it is not the app's own (the page's
+   * `?ws=`). Studio only; the list, its links and the tabs follow it, the app frame does not.
+   */
+  readonly workspaceSlug?: string;
 }
 
 /**
@@ -41,21 +48,38 @@ export function ChatShell({
   api,
   empty,
   children,
+  workspaceSlug,
 }: ChatShellProps) {
   const tOr = useTOr();
   const open = activeConversationId !== undefined;
   const organizationSlug = decodeURIComponent(listUrlBase.split('/').filter(Boolean)[0] ?? '');
+  const studio = door === 'studio';
+  const chatSlug = studio && workspaceSlug !== undefined ? workspaceSlug : organizationSlug;
+  const backHref = studio ? chatHref(organizationSlug, chatSlug) : listUrlBase;
   return (
     <div className="tm-chatshell" data-door={door} data-open={open ? 'true' : 'false'}>
       <aside className="tm-chatshell__list" aria-label={tOr('ChatList.title', 'Chats')}>
         {list ?? (
           <ChatListPane
             api={api ?? browserApiClient()}
-            organizationSlug={organizationSlug}
+            organizationSlug={chatSlug}
             organizationName={organizationName ?? ''}
             listUrlBase={listUrlBase}
             door={door}
-            allowNewChat={door === 'studio'}
+            allowNewChat={studio}
+            {...(studio
+              ? {
+                  rowHref: (id: string) => chatHref(organizationSlug, chatSlug, id),
+                  newGroupHref: newGroupHref(organizationSlug, chatSlug),
+                  header: (
+                    <ChatWorkspaceTabs
+                      api={api ?? browserApiClient()}
+                      shellSlug={organizationSlug}
+                      activeSlug={chatSlug}
+                    />
+                  ),
+                }
+              : {})}
             {...(activeConversationId === undefined ? {} : { activeConversationId })}
           />
         )}
@@ -63,7 +87,7 @@ export function ChatShell({
       <section className="tm-chatshell__pane">
         {open ? (
           <>
-            <Link className="tm-chatshell__back" href={listUrlBase}>
+            <Link className="tm-chatshell__back" href={backHref}>
               <span aria-hidden="true" className="tm-chatshell__back-arrow">
                 ←
               </span>{' '}

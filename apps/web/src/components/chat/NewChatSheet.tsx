@@ -12,6 +12,8 @@ export interface NewChatSheetProps {
   readonly onClose: () => void;
   /** Called with the direct conversation's id (a `conversations` row since R7). */
   readonly onOpened: (conversationId: string) => void;
+  /** R38 G2: "New group" for the workspace on screen. Default `/<slug>/chat?new=group`. */
+  readonly newGroupHref?: string;
 }
 
 /**
@@ -24,6 +26,7 @@ export function NewChatSheet({
   organizationName,
   onClose,
   onOpened,
+  newGroupHref,
 }: NewChatSheetProps) {
   const tOr = useTOr();
   return (
@@ -34,7 +37,10 @@ export function NewChatSheet({
       onClose={onClose}
       onOpened={(conversation) => onOpened(conversation.id)}
       extraAction={
-        <Link className="tm-chatlist__newgroup" href={`/${organizationSlug}/chat?new=group`}>
+        <Link
+          className="tm-chatlist__newgroup"
+          href={newGroupHref ?? `/${organizationSlug}/chat?new=group`}
+        >
           <span aria-hidden="true">👥</span> {tOr('ChatList.newGroup', 'New group')}
         </Link>
       }

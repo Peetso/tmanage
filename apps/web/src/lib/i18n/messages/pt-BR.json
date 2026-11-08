@@ -17220,5 +17220,16 @@
   "RetainerForm.save": "Salvar retainer",
   "RetainerForm.startsOn": "Começa em",
   "RouteTitle.financeInvoiceEdit": "Editar fatura",
-  "RouteTitle.financeInvoiceNew": "Nova fatura"
+  "RouteTitle.financeInvoiceNew": "Nova fatura",
+  "ChatGroups.linkedTo": "Vinculado a",
+  "ChatGroups.general": "Geral (sem vínculo com projeto)",
+  "ChatGroups.generalHint": "Para você e as pessoas que escolher neste espaço de trabalho",
+  "ChatGroups.project": "Um projeto",
+  "ChatGroups.projectHint": "Todos do projeto entram",
+  "ChatGroups.chooseProject": "Escolha um projeto",
+  "ChatList.sectionGeneral": "Geral",
+  "ChatList.sectionProjects": "Projetos",
+  "ChatList.sectionDirect": "Mensagens diretas",
+  "ChatWorkspaces.label": "Espaços de trabalho",
+  "ChatWorkspaces.unread": "{count} não lidas"
 }

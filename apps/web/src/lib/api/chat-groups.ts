@@ -136,7 +136,13 @@ export async function joinGroupInvite(
     .conversationId;
 }
 
-/** Create a group, then set its photo and add each picked person (each add posts "X added Y"). */
+/**
+ * Create a group, then set its photo and add each picked person (each add posts "X added Y").
+ *
+ * R38 G1: with no `projectId` (the default, "General") the group belongs to no project: its
+ * members are the creator and the people picked. With a `projectId` it is that project's channel:
+ * the project team joins it, as for any channel, so nobody is added one by one.
+ */
 export async function createGroup(
   api: ApiClient,
   slug: string,
@@ -145,8 +151,17 @@ export async function createGroup(
     readonly description?: string;
     readonly photoFileAssetId?: string;
     readonly memberUserIds: readonly string[];
+    readonly projectId?: string;
   },
 ): Promise<ConversationSummary> {
+  if (input.projectId !== undefined) {
+    const channel = await createConversation(api, slug, {
+      projectId: input.projectId,
+      name: input.name,
+      ...(input.description ? { description: input.description } : {}),
+    });
+    return channel;
+  }
   const created = await createConversation(api, slug, {
     kind: 'group',
     name: input.name,
