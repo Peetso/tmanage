@@ -52,7 +52,10 @@ export interface IssueInvitationInput {
   readonly role: string;
   /** Null or omitted for an internal invitation; a client organization id for portal access. */
   readonly clientOrganizationId?: string | null;
-  /** A1 (r-invite "Add to projects"): projects the person joins when they accept. Internal only. */
+  /**
+   * A1 (r-invite "Add to projects"): projects the person joins when they accept. R38 G4: on a client
+   * invitation, the projects shared with the client company when they accept.
+   */
   readonly projectIds?: readonly string[];
   /** A1 (r-invite "Personal note"): at most 500 characters; blank is none. */
   readonly note?: string | null;

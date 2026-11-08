@@ -29,6 +29,16 @@ import type { CustomRoleOption } from './ChangeRoleDialog';
 
 export type PendingInvitation = AdminInvitationsView['invitations'][number];
 
+/**
+ * R38 G4: the names of the projects an invitation is tagged with, joined for its row ("" for none).
+ * Tolerates a row from an API that predates the field.
+ */
+export function invitationProjectNames(invitation: {
+  readonly projects?: readonly { readonly name: string }[];
+}): string {
+  return (invitation.projects ?? []).map((project) => project.name).join(', ');
+}
+
 /** "HN" for hana@northstar.studio: the first letter of the name and of the domain. */
 export function initialsOfEmail(email: string): string {
   const [local = '', domain = ''] = email.split('@');
@@ -171,6 +181,13 @@ function InvitationRow({
                 date: shortDate(invitation.createdAt),
               })}
             </span>
+            {invitationProjectNames(invitation) !== '' ? (
+              <span className="ppl-member__email">
+                {fill(tr('PendingInvitations.projects', 'Projects: {names}'), {
+                  names: invitationProjectNames(invitation),
+                })}
+              </span>
+            ) : null}
           </span>
         </span>
       </td>

@@ -17233,5 +17233,14 @@
   "ChatList.sectionProjects": "Proyectos",
   "ChatList.sectionDirect": "Mensajes directos",
   "ChatWorkspaces.label": "Espacios de trabajo",
-  "ChatWorkspaces.unread": "{count} sin leer"
+  "ChatWorkspaces.unread": "{count} sin leer",
+  "Clients.projectsOptionalLabel": "Proyectos para compartir (opcional)",
+  "Clients.projectsSearchLabel": "Buscar proyectos",
+  "Clients.projectsSearchPlaceholder": "Escribe el nombre de un proyecto",
+  "Clients.projectsChosen": "Proyectos elegidos",
+  "Clients.projectsRemove": "Quitar {name}",
+  "Clients.projectsNoMatch": "Ningún proyecto coincide con esa búsqueda.",
+  "Clients.projectsHint": "Cada proyecto elegido se comparte con la empresa cliente cuando acepta la invitación.",
+  "PendingInvitations.projects": "Proyectos: {names}",
+  "AdminInvitationsView.projectsPrefix": "Proyectos:"
 }

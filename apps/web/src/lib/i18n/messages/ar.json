@@ -17396,5 +17396,14 @@
   "ChatList.sectionProjects": "المشاريع",
   "ChatList.sectionDirect": "الرسائل المباشرة",
   "ChatWorkspaces.label": "مساحات العمل",
-  "ChatWorkspaces.unread": "{count} غير مقروءة"
+  "ChatWorkspaces.unread": "{count} غير مقروءة",
+  "Clients.projectsOptionalLabel": "المشاريع المشاركة (اختياري)",
+  "Clients.projectsSearchLabel": "ابحث في المشاريع",
+  "Clients.projectsSearchPlaceholder": "اكتب اسم المشروع",
+  "Clients.projectsChosen": "المشاريع المختارة",
+  "Clients.projectsRemove": "إزالة {name}",
+  "Clients.projectsNoMatch": "لا يوجد مشروع يطابق هذا البحث.",
+  "Clients.projectsHint": "تُشارك كل المشاريع المختارة مع شركة العميل عند قبول الدعوة.",
+  "PendingInvitations.projects": "المشاريع: {names}",
+  "AdminInvitationsView.projectsPrefix": "المشاريع:"
 }

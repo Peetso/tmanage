@@ -77,6 +77,16 @@ class FakeRepository {
     );
   }
 
+  listProjectsFor(): Promise<
+    readonly { invitationId: string; projectId: string; projectName: string }[]
+  > {
+    return Promise.resolve(
+      this.rows
+        .filter((r) => r.id === 'inv-1')
+        .map(() => ({ invitationId: 'inv-1', projectId: 'p-1', projectName: 'Website' })),
+    );
+  }
+
   findStatus(_r: unknown, _c: unknown, id: string): Promise<InvitationStatusRow | undefined> {
     return Promise.resolve(this.rows.find((r) => r.id === id));
   }
@@ -114,6 +124,18 @@ describe('AdminInvitationManagementController (ADM invitations, x328)', () => {
     expect(first).toBeDefined();
     expect(first).toMatchObject({ id: 'inv-1', email: 'invitee@example.test' });
     expect(Object.keys(first as object)).not.toContain('tokenHash');
+  });
+
+  it('R38 G4: shows the projects an invitation is tagged with on its row', async () => {
+    const repo = new FakeRepository([
+      { id: 'inv-1', status: 'pending' },
+      { id: 'inv-2', status: 'pending' },
+    ]);
+    const view = await controllerWith(repo).list(context, owner());
+    expect(view.invitations.map((row) => row.projects)).toEqual([
+      [{ id: 'p-1', name: 'Website' }],
+      [],
+    ]);
   });
 
   it('403s list without org.manage (the real authorize), and does not read another tenant’s rows', async () => {

@@ -49,6 +49,18 @@ export class InvitationManagementService {
     this.requireOrgManage(principal, context);
 
     const rows = await this.repository.listPending(runner, context);
+    // R38 G4: the projects each invitation is tagged with, shown on its row.
+    const tagged = await this.repository.listProjectsFor(
+      runner,
+      context,
+      rows.map((row) => row.id),
+    );
+    const projectsOf = new Map<string, { id: string; name: string }[]>();
+    for (const entry of tagged) {
+      const list = projectsOf.get(entry.invitationId) ?? [];
+      list.push({ id: entry.projectId, name: entry.projectName });
+      projectsOf.set(entry.invitationId, list);
+    }
     return {
       invitations: rows.map((row) => ({
         id: row.id,
@@ -60,6 +72,7 @@ export class InvitationManagementService {
         expiresAt: row.expiresAt.toISOString(),
         createdAt: row.createdAt,
         isExpired: row.expiresAt.getTime() <= now.getTime(),
+        projects: projectsOf.get(row.id) ?? [],
       })),
     };
   }

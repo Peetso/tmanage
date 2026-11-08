@@ -215,7 +215,7 @@ describe('ClientsScreen', () => {
     expect(within(rowOf('Meridian Press')).getByText(label('Clients.statusArchived'))).toBeTruthy();
   });
 
-  it('creates a new company, invites into it with its id, then shares the chosen project', async () => {
+  it('creates a new company, then invites into it with its id and the chosen project', async () => {
     const calls = mount();
 
     fireEvent.click(screen.getByRole('button', { name: label('Clients.inviteClient') }));
@@ -227,25 +227,20 @@ describe('ClientsScreen', () => {
       target: { value: 'Lotus Labs' },
     });
     fireEvent.click(within(dialog).getByLabelText(label('Clients.roleAdminOption')));
-    const projects = within(dialog).getByLabelText(label('Clients.projectsLabel'));
-    await within(dialog).findByRole('option', { name: 'Website relaunch' });
-    fireEvent.change(projects, { target: { value: 'p-web' } });
+    // R38 G4: projects are tagged on the invitation and shared when the client accepts.
+    fireEvent.click(await within(dialog).findByLabelText('Website relaunch'));
     fireEvent.click(within(dialog).getByRole('button', { name: label('Clients.send') }));
 
     await screen.findByDisplayValue(/\/invitations\/tok-1$/);
     const posts = calls.filter((call) => call.method === 'POST');
-    expect(posts.map((call) => call.path)).toEqual([
-      '/client-organizations',
-      '/invitations',
-      '/projects/p-web/clients',
-    ]);
+    expect(posts.map((call) => call.path)).toEqual(['/client-organizations', '/invitations']);
     expect(posts[0]!.body).toEqual({ name: 'Lotus Labs' });
     expect(posts[1]!.body).toEqual({
       email: 'sara@lotus.example',
       role: 'client_admin',
       clientOrganizationId: 'co-new',
+      projectIds: ['p-web'],
     });
-    expect(posts[2]!.body).toEqual({ clientOrganizationId: 'co-new' });
   });
 
   it('resends a pending invitation and offers Send again for an expired one', async () => {

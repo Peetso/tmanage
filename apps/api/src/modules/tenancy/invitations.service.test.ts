@@ -4,6 +4,7 @@ import type { InvitationRow } from '../../common/database/schema.js';
 import { ApiError } from '../../common/http/errors.js';
 import type { CredentialsRepository } from '../identity/credentials.repository.js';
 import type { ClientMembershipsRepository } from '../clients/client-memberships.repository.js';
+import type { ProjectClientsRepository } from '../clients/project-clients.repository.js';
 import { InviteeAccountExistsError } from './invitee-accounts.repository.js';
 import type { InviteeAccountsRepository } from './invitee-accounts.repository.js';
 import { InvitationAlreadyPendingError } from './invitations.repository.js';
@@ -81,6 +82,7 @@ interface Harness {
   readonly addProjectMemberships: ReturnType<typeof vi.fn>;
   readonly issue: ReturnType<typeof vi.fn>;
   readonly attachProjects: ReturnType<typeof vi.fn>;
+  readonly share: ReturnType<typeof vi.fn>;
 }
 
 function harness(
@@ -102,6 +104,10 @@ function harness(
     /** NV04. */
     readonly platformAdminEmails?: readonly string[];
     readonly existingAccount?: boolean;
+    /** R38 G4: accept as a client invitation of this client organization. */
+    readonly clientOrganizationId?: string;
+    /** R38 G4: projects already shared with that client organization. */
+    readonly alreadyShared?: readonly string[];
   } = {},
 ): Harness {
   const pending = 'pending' in options ? options.pending : INVITATION;
@@ -116,7 +122,16 @@ function harness(
     ) => work({ identity: runner, tenant: () => runner }),
   } as unknown as TenantDatabase;
 
-  const markAccepted = vi.fn(() => Promise.resolve({ ...INVITATION, status: 'accepted' }));
+  const markAccepted = vi.fn(() =>
+    Promise.resolve({
+      ...INVITATION,
+      status: 'accepted',
+      clientOrganizationId: options.clientOrganizationId ?? null,
+    }),
+  );
+  const share = vi.fn((_r: unknown, _c: unknown, input: { projectId: string }) =>
+    Promise.resolve({ id: `share-${input.projectId}` }),
+  );
   const addProjectMemberships = vi.fn(
     (_r: unknown, _c: unknown, _u: string, ids: readonly string[]) => Promise.resolve(ids.length),
   );
@@ -146,8 +161,12 @@ function harness(
   const memberships = {
     invite,
     transitionStatus: vi.fn(() => Promise.resolve({ id: 'm-1', role: 'member' })),
-    findByUserId: vi.fn(() =>
-      Promise.resolve(inviter ? { id: 'm-inviter', userId: OWNER, ...inviter } : null),
+    findByUserId: vi.fn((_r: unknown, _c: unknown, id: string) =>
+      Promise.resolve(
+        inviter && !(options.clientOrganizationId && id === USER)
+          ? { id: 'm-inviter', userId: OWNER, ...inviter }
+          : null,
+      ),
     ),
   } as unknown as MembershipsRepository;
 
@@ -158,7 +177,15 @@ function harness(
     database,
     invitations,
     memberships,
-    {} as ClientMembershipsRepository,
+    {
+      invite: () => Promise.resolve({ id: 'cm-1', updatedAt: new Date() }),
+      transitionStatus: () =>
+        Promise.resolve({
+          id: 'cm-1',
+          clientOrganizationId: options.clientOrganizationId,
+          role: 'client_reviewer',
+        }),
+    } as unknown as ClientMembershipsRepository,
     undefined,
     undefined,
     { platformAdminEmails: options.platformAdminEmails ?? [] },
@@ -178,6 +205,13 @@ function harness(
     } as unknown as PoliciesRepository,
     // Wave 11 Q4 (M05): this harness's accepting account holds no client row to end.
     { openClientRowsOf: () => Promise.resolve([]) } as unknown as StaffClientRowsRepository,
+    {
+      find: (_r: unknown, _c: unknown, input: { projectId: string }) =>
+        Promise.resolve(
+          options.alreadyShared?.includes(input.projectId) ? { id: 'old' } : undefined,
+        ),
+      share,
+    } as unknown as ProjectClientsRepository,
   );
   return {
     service,
@@ -188,6 +222,7 @@ function harness(
     addProjectMemberships,
     issue,
     attachProjects,
+    share,
   };
 }
 
@@ -391,17 +426,63 @@ describe('A1: "Add to projects" and "Personal note" on an invitation', () => {
     expect(issue).not.toHaveBeenCalled();
   });
 
-  it('refuses projects on a client invitation and a note over 500 characters (400)', async () => {
-    const { service } = harness();
+  it('R38 G4: stores the projects on a client invitation at issue, sharing nothing yet', async () => {
+    const { service, attachProjects, share } = harness({ liveProjectIds: [P1, P2] });
 
-    const client = await refusal(
-      service.issue(context, owner, {
+    await service.issue(context, owner, {
+      email: 'c@example.com',
+      role: 'client_reviewer',
+      clientOrganizationId: 'co-1',
+      projectIds: [P1, P2],
+    });
+
+    expect(attachProjects).toHaveBeenCalledWith({}, context, 'inv-2', [P1, P2]);
+    expect(share).not.toHaveBeenCalled();
+  });
+
+  it('R38 G4: a client admin may not tag projects on a client invitation (403, no write)', async () => {
+    const { service, issue } = harness({ liveProjectIds: [P1] });
+    const clientAdmin: Principal = {
+      ...owner,
+      kind: 'client',
+      role: 'client_admin',
+      clientOrganizationId: 'co-1',
+      hasOrgWideScope: false,
+    } as Principal;
+
+    const error = await refusal(
+      service.issue(context, clientAdmin, {
         email: 'c@example.com',
-        role: 'client_member',
+        role: 'client_reviewer',
         clientOrganizationId: 'co-1',
         projectIds: [P1],
       }),
     );
+
+    expect(error.status).toBe(403);
+    expect(error.details).toEqual([{ field: 'projectIds', message: 'project_not_manageable' }]);
+    expect(issue).not.toHaveBeenCalled();
+  });
+
+  it('R38 G4: on acceptance shares each tagged project with the client company once', async () => {
+    const { service, share } = harness({
+      clientOrganizationId: 'co-1',
+      projectIds: [P1, P2],
+      alreadyShared: [P2],
+    });
+
+    await service.accept(TOKEN, USER, CORR);
+
+    expect(share).toHaveBeenCalledTimes(1);
+    expect(share).toHaveBeenCalledWith({}, expect.anything(), {
+      projectId: P1,
+      clientOrganizationId: 'co-1',
+    });
+  });
+
+  it('refuses a note over 500 characters (400)', async () => {
+    const { service } = harness();
+
     const long = await refusal(
       service.issue(context, owner, {
         email: 'o@example.com',
@@ -410,7 +491,6 @@ describe('A1: "Add to projects" and "Personal note" on an invitation', () => {
       }),
     );
 
-    expect(client.status).toBe(400);
     expect(long.status).toBe(400);
   });
 

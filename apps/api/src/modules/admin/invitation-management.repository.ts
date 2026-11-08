@@ -1,7 +1,13 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { invitationPendingKeys, invitations, users } from '../../common/database/schema.js';
+import {
+  invitationPendingKeys,
+  invitationProjects,
+  invitations,
+  projects,
+  users,
+} from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -30,6 +36,13 @@ export interface PendingInvitationRow {
   readonly invitedByEmail: string;
   readonly expiresAt: Date;
   readonly createdAt: string;
+}
+
+/** R38 G4: one project a pending invitation is tagged with, by name. */
+export interface PendingInvitationProjectRow {
+  readonly invitationId: string;
+  readonly projectId: string;
+  readonly projectName: string;
 }
 
 /** The status of one invitation the acting tenant owns — the revoke transition reads it. */
@@ -81,6 +94,41 @@ export class InvitationManagementRepository {
       expiresAt: row.expiresAt,
       createdAt: row.createdAt.toISOString(),
     }));
+  }
+
+  /**
+   * R38 G4: the projects the given invitations are tagged with, by name, in name order. Both sides of
+   * the join carry the tenant predicate; an archived project is still listed, because it is still on
+   * the invitation (acceptance skips it).
+   */
+  async listProjectsFor(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    invitationIds: readonly string[],
+  ): Promise<readonly PendingInvitationProjectRow[]> {
+    if (invitationIds.length === 0) return [];
+    return tenantDrizzle(runner)
+      .select({
+        invitationId: invitationProjects.invitationId,
+        projectId: projects.id,
+        projectName: projects.name,
+      })
+      .from(invitationProjects)
+      .innerJoin(
+        projects,
+        and(
+          eq(projects.organizationId, invitationProjects.organizationId),
+          eq(projects.id, invitationProjects.projectId),
+        ),
+      )
+      .where(
+        and(
+          eq(invitationProjects.organizationId, context.organizationId),
+          eq(projects.organizationId, context.organizationId),
+          inArray(invitationProjects.invitationId, [...invitationIds]),
+        ),
+      )
+      .orderBy(asc(projects.name), asc(projects.id));
   }
 
   /**

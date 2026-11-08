@@ -12,6 +12,8 @@ import { describeInternalRole } from '../../lib/roles';
 import { useCustomRoles } from '../people/ChangeRoleDialog';
 import type { CustomRoleOption } from '../people/ChangeRoleDialog';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { invitationProjectNames } from '../people/PendingInvitations';
 import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface AdminInvitationsViewProps {
@@ -43,6 +45,7 @@ export function AdminInvitationsView({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tr = useTOr();
   const queryKey = ['admin-invitations', organizationSlug];
 
   const invitations = useQuery({
@@ -114,6 +117,12 @@ export function AdminInvitationsView({
                 <span>
                   {t('AdminInvitationsView.expiresPrefix')} {formatMoment(invitation.expiresAt)}
                 </span>
+                {invitationProjectNames(invitation) !== '' ? (
+                  <span className="tm-muted">
+                    {tr('AdminInvitationsView.projectsPrefix', 'Projects:')}{' '}
+                    {invitationProjectNames(invitation)}
+                  </span>
+                ) : null}
                 {invitation.isExpired ? (
                   <Badge>{t('AdminInvitationsView.expiredBadge')}</Badge>
                 ) : null}

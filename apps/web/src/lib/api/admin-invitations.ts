@@ -23,6 +23,8 @@ export interface AdminInvitationsView {
     readonly expiresAt: string;
     readonly createdAt: string;
     readonly isExpired: boolean;
+    /** R38 G4: the projects the invitation is tagged with (shared or joined on acceptance). */
+    readonly projects: readonly { readonly id: string; readonly name: string }[];
   }[];
 }
 

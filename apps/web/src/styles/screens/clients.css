@@ -320,6 +320,64 @@
   gap: var(--s3);
 }
 
+/* R38 G4 (Figma "R38 G4-invite-projects"): projects to share — search, chosen chips, checkbox list. */
+.cl-projects {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.cl-projects__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cl-projects__chip {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--s1) var(--s3);
+  border: var(--b-quiet) solid var(--lime-500);
+  border-radius: var(--r-capsule);
+  background: var(--lime-100);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  cursor: pointer;
+}
+
+.cl-projects__chip:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.cl-projects__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  max-block-size: 12rem;
+  overflow-y: auto;
+  padding: var(--s3) var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+}
+
+.cl-projects__empty,
+.cl-projects__hint {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
 /* ---------- 2026-10-31 live-test fixes ---------- */
 
 .cl-item {
@@ -396,4 +454,19 @@
   .cl-dialog {
     padding: var(--s6);
   }
+}
+
+/* ---------- R38 G5-views: list / grid switcher ---------- */
+
+.cl-tabs .cl-view-switcher {
+  margin-inline-start: auto;
+}
+
+.cl-screen[data-layout='grid'][data-view='organizations'] .cl-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.cl-row--card {
+  flex-direction: column;
+  align-items: flex-start;
 }

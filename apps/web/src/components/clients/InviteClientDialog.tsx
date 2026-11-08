@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button, Checkbox, Field, InlineAlert, Select } from '@tmanage/ui';
-import { addProjectShare, createClientOrganization } from '../../lib/api/clients';
+import { Button, Checkbox, Field, InlineAlert } from '@tmanage/ui';
+import { createClientOrganization } from '../../lib/api/clients';
 import type { ClientOrganization } from '../../lib/api/clients';
 import { issueInvitation } from '../../lib/api/invitations';
 import type { IssuedInvitation } from '../../lib/api/invitations';
@@ -11,6 +11,7 @@ import { listProjects } from '../../lib/api/projects';
 import type { ApiClient } from '../../lib/api/client';
 import { describePeopleError } from '../screens/peopleShared';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import type { MessageKey } from '../../lib/i18n/t';
 
 /** The Clients keys arrive with the i18n-Q1 fragment; cast until it is merged into en.json. */
@@ -45,9 +46,11 @@ type ClientRole = 'client_reviewer' | 'client_admin';
  * **Invite a client** (Q1, Figma t5-b 370:3886 EN / 370:4207 AR).
  *
  * Email, the client company (an existing name, or a new one typed in — created first with
- * `POST client-organizations`), the role as two single-choice checkboxes, and the project to share.
- * Sending issues `POST /invitations {email, role, clientOrganizationId}` and then shares the chosen
- * project with that company (`POST projects/:id/clients`). The personal note (optional, at most 500
+ * `POST client-organizations`), the role as two single-choice checkboxes, and the projects to share.
+ * R38 G4 (Figma "R38 G4-invite-projects"): the projects are a searchable multi-select whose ids travel
+ * on the invitation (`projectIds`); the API shares each one with the company when the person accepts,
+ * not before. Sending issues `POST /invitations {email, role, clientOrganizationId, projectIds}`. The
+ * personal note (optional, at most 500
  * characters) travels with the invitation as `note` — the 2026-10-31 live test found it drawn as a
  * disabled "coming soon" field although the invitation API already carries it (A1).
  */
@@ -60,22 +63,35 @@ export function InviteClientDialog({
   initialCompanyName = '',
 }: InviteClientDialogProps) {
   const t = useClientsT();
+  const tr = useTOr();
   const titleId = useId();
   const listId = useId();
+  const projectsHintId = useId();
 
   const [email, setEmail] = useState('');
   const [companyName, setCompanyName] = useState(initialCompanyName);
   const [note, setNote] = useState('');
   const [role, setRole] = useState<ClientRole>('client_reviewer');
-  const [projectId, setProjectId] = useState('');
+  const [projectIds, setProjectIds] = useState<readonly string[]>([]);
+  const [projectQuery, setProjectQuery] = useState('');
 
   const projects = useQuery({
     queryKey: ['clients', organizationSlug, 'projects'],
     queryFn: () => listProjects(api, organizationSlug),
   });
-  const projectList = (Array.isArray(projects.data) ? projects.data : []).filter(
-    (project) => project.archivedAt === null,
+  const projectList = useMemo(
+    () =>
+      (Array.isArray(projects.data) ? projects.data : []).filter(
+        (project) => project.archivedAt === null,
+      ),
+    [projects.data],
   );
+  const shownProjects = filterProjects(projectList, projectQuery);
+  const chosenProjects = projectList.filter((project) => projectIds.includes(project.id));
+  const toggleProject = (id: string) =>
+    setProjectIds((current) =>
+      current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
+    );
 
   const send = useMutation({
     mutationFn: async () => {
@@ -90,11 +106,9 @@ export function InviteClientDialog({
         email: email.trim(),
         role,
         clientOrganizationId: companyId,
+        ...(projectIds.length > 0 ? { projectIds } : {}),
         ...(note.trim() !== '' ? { note: note.trim() } : {}),
       });
-      if (projectId !== '') {
-        await addProjectShare(api, organizationSlug, projectId, companyId);
-      }
       return issued;
     },
     onSuccess: (issued) => onIssued(issued),
@@ -163,19 +177,67 @@ export function InviteClientDialog({
             />
           </fieldset>
 
-          <Select
-            label={t('Clients.projectsLabel')}
-            value={projectId}
-            onChange={(event) => setProjectId(event.target.value)}
-            disabled={projects.isPending}
-          >
-            <option value="">{t('Clients.projectsNone')}</option>
-            {projectList.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </Select>
+          <fieldset className="tm-fieldset cl-projects" aria-describedby={projectsHintId}>
+            <legend className="tm-field__label">
+              {tr('Clients.projectsOptionalLabel', 'Projects to share (optional)')}
+            </legend>
+            <Field
+              label={tr('Clients.projectsSearchLabel', 'Search projects')}
+              type="search"
+              autoComplete="off"
+              placeholder={tr('Clients.projectsSearchPlaceholder', 'Type a project name')}
+              value={projectQuery}
+              onChange={(event) => setProjectQuery(event.target.value)}
+              disabled={projects.isPending}
+            />
+            {chosenProjects.length > 0 ? (
+              <ul
+                className="cl-projects__chips"
+                aria-label={tr('Clients.projectsChosen', 'Chosen projects')}
+              >
+                {chosenProjects.map((project) => (
+                  <li key={project.id}>
+                    <button
+                      type="button"
+                      className="cl-projects__chip"
+                      aria-label={tr('Clients.projectsRemove', 'Remove {name}').replace(
+                        '{name}',
+                        project.name,
+                      )}
+                      onClick={() => toggleProject(project.id)}
+                    >
+                      {project.name}
+                      <span aria-hidden="true"> ×</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="cl-projects__list">
+              {shownProjects.length === 0 ? (
+                <p className="cl-projects__empty">
+                  {projectList.length === 0
+                    ? t('Clients.projectsNone')
+                    : tr('Clients.projectsNoMatch', 'No project matches that search.')}
+                </p>
+              ) : (
+                shownProjects.map((project) => (
+                  <Checkbox
+                    key={project.id}
+                    label={project.name}
+                    checked={projectIds.includes(project.id)}
+                    onChange={() => toggleProject(project.id)}
+                  />
+                ))
+              )}
+            </div>
+            <p id={projectsHintId} className="cl-projects__hint">
+              {tr(
+                'Clients.projectsHint',
+                'Each chosen project is shared with the client company when they accept.',
+              )}
+            </p>
+          </fieldset>
 
           <Field
             label={t('Clients.noteLabel')}
@@ -210,6 +272,17 @@ export function InviteClientDialog({
       </div>
     </div>
   );
+}
+
+/** R38 G4: the projects whose name contains the search, case- and accent-insensitively. */
+export function filterProjects<T extends { readonly name: string }>(
+  projects: readonly T[],
+  query: string,
+): readonly T[] {
+  const fold = (value: string) => value.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase();
+  const needle = fold(query.trim());
+  if (needle === '') return projects;
+  return projects.filter((project) => fold(project.name).includes(needle));
 }
 
 /**

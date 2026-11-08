@@ -16,6 +16,7 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { ClientMembershipsRepository } from '../clients/client-memberships.repository.js';
+import { ProjectClientsRepository } from '../clients/project-clients.repository.js';
 import { MembershipsRepository } from './memberships.repository.js';
 import { StaffClientRowsRepository } from './membership-resolver.repository.js';
 import { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
@@ -334,6 +335,8 @@ export class InvitationsService {
     private readonly policies: PoliciesRepository = new PoliciesRepository(),
     /** Wave 11 Q4 (M05): the client rows internal acceptance ends. */
     private readonly staffClientRows: StaffClientRowsRepository = new StaffClientRowsRepository(),
+    /** R38 G4: the project shares a client invitation's projects become on acceptance. */
+    private readonly projectShares: ProjectClientsRepository = new ProjectClientsRepository(),
   ) {}
 
   async list(
@@ -366,7 +369,10 @@ export class InvitationsService {
       readonly email: string;
       readonly role: string;
       readonly clientOrganizationId?: string | null;
-      /** A1: projects the invitee joins on acceptance. Internal invitations only. */
+      /**
+       * A1: projects the invitee joins on acceptance. R38 G4: on a client invitation, the projects
+       * shared with the client organization when the invitee accepts.
+       */
       readonly projectIds?: readonly string[];
       /** A1: the inviter's personal note. */
       readonly note?: string | null;
@@ -390,17 +396,18 @@ export class InvitationsService {
     await this.requireNotUnclaimedPlatformAdmin(context, email);
 
     const projectIds = [...new Set(input.projectIds ?? [])];
-    if (projectIds.length > 0 && clientOrganizationId !== null) {
-      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
-        { field: 'projectIds', message: 'a client invitation cannot add projects' },
-      ]);
-    }
     if (projectIds.length > MAX_INVITATION_PROJECTS) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
         { field: 'projectIds', message: `at most ${MAX_INVITATION_PROJECTS} projects` },
       ]);
     }
-    requireProjectAuthority(principal, context, projectIds, 'invitation.issue');
+    requireProjectAuthorityFor(
+      principal,
+      context,
+      clientOrganizationId,
+      projectIds,
+      'invitation.issue',
+    );
     const trimmedNote = typeof input.note === 'string' ? input.note.trim() : '';
     if (trimmedNote.length > MAX_INVITATION_NOTE_LENGTH) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
@@ -518,7 +525,13 @@ export class InvitationsService {
         await this.requireUnderIssueLimit(tx, context, previous.clientOrganizationId);
         // F05: the projects carried over must be ones the re-issuer may add people to.
         const carriedProjects = await this.invitations.projectIdsFor(tx, context, previous.id);
-        requireProjectAuthority(principal, context, carriedProjects, 'invitation.reissue');
+        requireProjectAuthorityFor(
+          principal,
+          context,
+          previous.clientOrganizationId,
+          carriedProjects,
+          'invitation.reissue',
+        );
 
         const revoked = await this.invitations.revoke(tx, context, invitationId);
         await this.audit?.record(tx, context, {
@@ -830,6 +843,15 @@ export class InvitationsService {
       'active',
     );
 
+    // R38 G4: the projects tagged at issue are shared with the client company now, in the same
+    // transaction as the membership — a client reaches a project only through `project_clients`.
+    const shared = await this.shareInvitationProjects(
+      tx,
+      context,
+      accepted.id,
+      accepted.clientOrganizationId,
+    );
+
     await this.audit?.record(tx, context, {
       action: 'invitation.accepted',
       objectId: accepted.id,
@@ -838,6 +860,7 @@ export class InvitationsService {
         role: accepted.role,
         destination: 'client_organization',
         client_organization_id: accepted.clientOrganizationId,
+        ...(shared > 0 ? { project_count: String(shared) } : {}),
       },
     });
 
@@ -1113,6 +1136,35 @@ export class InvitationsService {
         'invitation.issue_rate_limited',
       );
     }
+  }
+
+  /**
+   * R38 G4: share each live project a client invitation carries with its client organization.
+   * Idempotent per project (an existing share is kept, not duplicated); each new share is audited
+   * as `project.client_linked`, exactly as the project's own Clients tab records one. Returns how
+   * many shares were created.
+   */
+  private async shareInvitationProjects(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    invitationId: string,
+    clientOrganizationId: string,
+  ): Promise<number> {
+    const projectIds = await this.invitations.projectIdsFor(tx, context, invitationId);
+    let created = 0;
+    for (const projectId of projectIds) {
+      const input = { projectId, clientOrganizationId };
+      if (await this.projectShares.find(tx, context, input)) continue;
+      const share = await this.projectShares.share(tx, context, input);
+      created += 1;
+      await this.audit?.record(tx, context, {
+        action: 'project.client_linked',
+        objectId: share.id,
+        result: 'allowed',
+        metadata: { project_id: projectId, client_organization_id: clientOrganizationId },
+      });
+    }
+    return created;
   }
 
   /**
@@ -1500,6 +1552,46 @@ function requireProjectAuthority(
         MESSAGES.forbidden,
         [{ field: 'projectIds', message: 'project_not_manageable' }],
         `${action}:project_authority:${verdict.code}`,
+      );
+    }
+  }
+}
+
+/**
+ * R38 G4: tagging a client invitation with projects shares those projects with the client company
+ * on acceptance, so it needs what sharing needs: an internal principal allowed `project.manage` on
+ * **each** project (the project Clients tab's own check). A client admin inviting a colleague may
+ * not tag projects at all. 403 before any write, naming no project. Internal invitations keep F05.
+ */
+export function requireProjectAuthorityFor(
+  principal: Principal,
+  context: TenantContext,
+  clientOrganizationId: string | null,
+  projectIds: readonly string[],
+  action: string,
+): void {
+  if (clientOrganizationId === null) {
+    requireProjectAuthority(principal, context, projectIds, action);
+    return;
+  }
+  for (const projectId of projectIds) {
+    const verdict = authorize({
+      principal,
+      capability: 'project.manage',
+      resource: {
+        organizationId: context.organizationId,
+        projectId,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    });
+    if (principal.kind !== 'internal' || !verdict.allowed) {
+      throw new ApiError(
+        403,
+        'forbidden',
+        MESSAGES.forbidden,
+        [{ field: 'projectIds', message: 'project_not_manageable' }],
+        `${action}:client_project_authority:${verdict.allowed ? 'client_principal' : verdict.code}`,
       );
     }
   }
