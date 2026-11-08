@@ -41,6 +41,7 @@ import type {
   InvitationsService,
   IssuedInvitationView,
 } from './invitations.service.js';
+import { INVITATION_ALREADY_PENDING, invitationAlreadyPending } from './invitations.service.js';
 
 /** The registration body: the token, the new account's name and its first password. */
 interface RegisterBody {
@@ -432,8 +433,8 @@ export function withoutTokenForBoundCaller(
   return rest;
 }
 
-/** B11: the detail token a duplicate invitation is refused with. */
-export const INVITATION_ALREADY_PENDING = 'invitation_already_pending';
+/** B11: the detail token a duplicate invitation is refused with (defined beside the service's 409). */
+export { INVITATION_ALREADY_PENDING };
 
 /**
  * Refuse (409) an address that already holds an open invitation here — internal or client.
@@ -451,13 +452,7 @@ export async function requireNoOpenInvitation(
     repository.findPendingForEmail(runner, context, email),
   );
   if (open.length === 0) return;
-  throw new ApiError(
-    409,
-    'conflict',
-    'That address already has a pending invitation. Revoke it or change its role instead.',
-    [{ field: 'email', message: INVITATION_ALREADY_PENDING }],
-    INVITATION_ALREADY_PENDING,
-  );
+  throw invitationAlreadyPending();
 }
 
 function isStatus(value: string): value is InvitationStatus {

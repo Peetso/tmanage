@@ -1,7 +1,7 @@
 import { and, asc, eq } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { invitations, users } from '../../common/database/schema.js';
+import { invitationPendingKeys, invitations, users } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -131,6 +131,17 @@ export class InvitationManagementRepository {
           eq(invitations.status, 'pending'),
         ),
       );
+    // B11 (0319): a revoked invitation no longer holds its address, so it can be invited again.
+    if (result[0].affectedRows > 0) {
+      await tenantDrizzle(runner)
+        .delete(invitationPendingKeys)
+        .where(
+          and(
+            eq(invitationPendingKeys.organizationId, context.organizationId),
+            eq(invitationPendingKeys.invitationId, invitationId),
+          ),
+        );
+    }
     return result[0].affectedRows;
   }
 }

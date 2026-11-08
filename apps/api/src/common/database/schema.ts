@@ -13181,3 +13181,29 @@ export const workItemAssignees = mysqlTable(
 export type WorkItemAssigneeRow = typeof workItemAssignees.$inferSelect;
 
 Object.assign(TABLES, { work_item_assignees: workItemAssignees });
+
+// ---- R34 · B11 one open invitation per address (0319) ----
+/**
+ * B11 (0319). The claim an open invitation holds on its address: one row per (organization,
+ * address), inserted with the invitation in one transaction, so a second concurrent issue fails
+ * on `uq_ipk_email` instead of passing a read-then-insert check. Deleted on accept, revoke and the
+ * API's expiry sweep; a key whose invitation is no longer pending and in date (the worker's sweep
+ * cannot delete) is reclaimed by the next issue for that address. TENANT.
+ */
+export const invitationPendingKeys = mysqlTable(
+  'invitation_pending_keys',
+  {
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    emailNormalized: varchar('email_normalized', { length: 320 }).notNull(),
+    invitationId: char('invitation_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.invitationId] }),
+    uniqueIndex('uq_ipk_email').on(table.organizationId, table.emailNormalized),
+  ],
+);
+
+export type InvitationPendingKeyRow = typeof invitationPendingKeys.$inferSelect;
+
+Object.assign(TABLES, { invitation_pending_keys: invitationPendingKeys });

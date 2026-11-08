@@ -1,8 +1,10 @@
 import { and, asc, desc, eq, gt, inArray, sql } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
   clientOrganizations,
+  invitationPendingKeys,
   invitationProjects,
   invitations,
   organizations,
@@ -16,6 +18,7 @@ import type {
   TenantContext,
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
+import { isDuplicateKey } from './invitee-accounts.repository.js';
 
 /**
  * Invitations — TEN-003's storage half.
@@ -70,6 +73,22 @@ export class InvitationNotPendingError extends Error {
     this.name = 'InvitationNotPendingError';
   }
 }
+
+/**
+ * B11: the address already holds an open invitation in this organization. Raised by `issue` when
+ * the claim on `invitation_pending_keys` is taken — including by a concurrent issue that committed
+ * first — and answered by the service with the 409 `invitation_already_pending`.
+ */
+export class InvitationAlreadyPendingError extends Error {
+  constructor() {
+    // No address in the message: an email is personal data and messages end up in logs.
+    super('The address already has an open invitation in this organization');
+    this.name = 'InvitationAlreadyPendingError';
+  }
+}
+
+/** The unique key on `invitation_pending_keys` that refuses a second open invitation (0319). */
+const PENDING_KEY_CONSTRAINT = 'uq_ipk_email';
 
 export interface IssueInvitationInput {
   readonly email: string;
@@ -236,6 +255,8 @@ export class InvitationsRepository {
   ): Promise<InvitationRow> {
     const id = uuidv7();
 
+    await this.reclaimStalePendingKey(runner, context, input.email);
+
     await tenantDrizzle(runner)
       .insert(invitations)
       .values({
@@ -254,7 +275,111 @@ export class InvitationsRepository {
         updatedAt: sql`current_timestamp(3)`,
       });
 
+    // B11: the claim on the address, in the caller's transaction. Two racing issues both get
+    // here; the second insert waits on the first's lock on `uq_ipk_email` and, once that commits,
+    // fails as a duplicate, so a read-then-insert race can no longer let both through.
+    try {
+      await tenantDrizzle(runner)
+        .insert(invitationPendingKeys)
+        .values({
+          organizationId: context.organizationId,
+          emailNormalized: input.email,
+          invitationId: id,
+          createdAt: sql`current_timestamp(3)`,
+        });
+    } catch (error) {
+      if (isDuplicateKey(error, PENDING_KEY_CONSTRAINT)) throw new InvitationAlreadyPendingError();
+      throw error;
+    }
+
     return this.requireById(runner, context, id);
+  }
+
+  /**
+   * B11: free the address's claim when the invitation holding it is no longer open — accepted,
+   * revoked, expired by the worker's sweep (which holds no DELETE) or simply past its date. A key
+   * whose invitation is still pending and in date is left alone, and `issue`'s insert then fails
+   * on it. The DELETE names the invitation id it read, so a key another transaction has just
+   * replaced is not removed: that DELETE waits for the other commit, then matches nothing.
+   */
+  private async reclaimStalePendingKey(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    email: string,
+  ): Promise<void> {
+    const db = tenantDrizzle(runner);
+    const held = await db
+      .select({ invitationId: invitationPendingKeys.invitationId })
+      .from(invitationPendingKeys)
+      .where(
+        and(
+          eq(invitationPendingKeys.organizationId, context.organizationId),
+          eq(invitationPendingKeys.emailNormalized, email),
+        ),
+      )
+      .limit(1);
+    const holder = held[0]?.invitationId;
+    if (holder === undefined) return;
+
+    const open = await db
+      .select({ id: invitations.id })
+      .from(invitations)
+      .where(
+        and(
+          eq(invitations.organizationId, context.organizationId),
+          eq(invitations.id, holder),
+          eq(invitations.status, 'pending'),
+          NOT_YET_EXPIRED,
+        ),
+      )
+      .limit(1);
+    if (open.length > 0) return;
+
+    await db
+      .delete(invitationPendingKeys)
+      .where(
+        and(
+          eq(invitationPendingKeys.organizationId, context.organizationId),
+          eq(invitationPendingKeys.emailNormalized, email),
+          eq(invitationPendingKeys.invitationId, holder),
+        ),
+      );
+  }
+
+  /** B11: drop the address claims of invitations that have just left `pending`. */
+  async releasePendingKeys(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    invitationIds: readonly string[],
+  ): Promise<void> {
+    if (invitationIds.length === 0) return;
+    await tenantDrizzle(runner)
+      .delete(invitationPendingKeys)
+      .where(
+        and(
+          eq(invitationPendingKeys.organizationId, context.organizationId),
+          inArray(invitationPendingKeys.invitationId, [...invitationIds]),
+        ),
+      );
+  }
+
+  /** The ids of this tenant's pending invitations that also match `predicate`. */
+  private async pendingIdsWhere(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    predicate: SQL,
+  ): Promise<readonly string[]> {
+    const rows = await tenantDrizzle(runner)
+      .select({ id: invitations.id })
+      .from(invitations)
+      .where(
+        and(
+          eq(invitations.organizationId, context.organizationId),
+          eq(invitations.status, 'pending'),
+          predicate,
+        ),
+      );
+    return rows.map((row) => row.id);
   }
 
   /**
@@ -327,6 +452,7 @@ export class InvitationsRepository {
       throw new InvitationNotPendingError(invitationId, current.status);
     }
 
+    await this.releasePendingKeys(runner, context, [invitationId]);
     return this.requireById(runner, context, invitationId);
   }
 
@@ -357,6 +483,7 @@ export class InvitationsRepository {
       throw new InvitationNotPendingError(invitationId, current.status);
     }
 
+    await this.releasePendingKeys(runner, context, [invitationId]);
     return this.requireById(runner, context, invitationId);
   }
 
@@ -369,6 +496,11 @@ export class InvitationsRepository {
    * invitations still work.
    */
   async expireOverdue(runner: TenantQueryRunner, context: TenantContext): Promise<number> {
+    const overdue = await this.pendingIdsWhere(
+      runner,
+      context,
+      sql`${invitations.expiresAt} <= current_timestamp(3)`,
+    );
     const result = await tenantDrizzle(runner)
       .update(invitations)
       .set({ status: 'expired', updatedAt: sql`current_timestamp(3)` })
@@ -380,6 +512,7 @@ export class InvitationsRepository {
         ),
       );
 
+    await this.releasePendingKeys(runner, context, overdue);
     return result[0].affectedRows;
   }
 
@@ -393,6 +526,11 @@ export class InvitationsRepository {
     context: TenantContext,
     userId: string,
   ): Promise<number> {
+    const issued = await this.pendingIdsWhere(
+      runner,
+      context,
+      eq(invitations.invitedByUserId, userId),
+    );
     const result = await tenantDrizzle(runner)
       .update(invitations)
       .set({
@@ -407,6 +545,7 @@ export class InvitationsRepository {
           eq(invitations.status, 'pending'),
         ),
       );
+    await this.releasePendingKeys(runner, context, issued);
     return result[0].affectedRows;
   }
 

@@ -2337,3 +2337,11 @@ GRANT SELECT ON `tmanage`.`work_item_client_audience`                        TO 
 -- tell the supervisors when the item is marked done.
 GRANT SELECT, INSERT, DELETE ON `tmanage`.`work_item_assignees`              TO 'tmanage_app'@'%';
 GRANT SELECT ON `tmanage`.`work_item_assignees`                              TO 'tmanage_worker'@'%';
+
+-- ---- R34 · B11 one open invitation per address ----
+-- 0319 `invitation_pending_keys` (tenant): the claim an open invitation holds on its address; its
+-- UNIQUE key is what refuses a second concurrent invitation. The app inserts it with the
+-- invitation and deletes it on accept, revoke and the expiry sweep (SELECT, INSERT, DELETE; DELETE
+-- also serves the company erasure). Never rewritten, so no UPDATE. Nothing for the worker: its
+-- sweep holds no DELETE anywhere, and the next issue for the address reclaims a stale key.
+GRANT SELECT, INSERT, DELETE ON `tmanage`.`invitation_pending_keys`          TO 'tmanage_app'@'%';

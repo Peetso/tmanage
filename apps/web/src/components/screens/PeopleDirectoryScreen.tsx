@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { CLIENT_ROLES } from '@tmanage/domain';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import {
   ChangeRoleDialog,
@@ -34,6 +35,7 @@ import { useOrganizationName, useOrganizationRole } from '../../lib/use-organiza
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { describePeopleError } from './peopleShared';
+import { invitationRoleName } from './AdminInvitationsView';
 import '../../styles/screens/people.css';
 
 export interface PeopleDirectoryScreenProps {
@@ -129,6 +131,18 @@ export function PeopleDirectoryScreen({
   // F1: a member holding a custom role shows that role's name, not its id — for every viewer.
   const customRoles = useCustomRoles(api, organizationSlug, myRole !== undefined);
   const chip = useRoleChipLabel(customRoles.data);
+  // B11 / D3: a pending invitation can carry a client role, which the members' chip map does not
+  // know, so it read "Custom role". Where the chip falls back, name the role with the Admin >
+  // Invitations helper instead (a client role in this locale, a custom role by its own name).
+  const customRoleFallback = tr('PeopleDirectoryScreen.role.custom', 'Custom role');
+  const invitationChip = (role: string): string => {
+    const label = chip(role);
+    if (label !== customRoleFallback) return label;
+    const named = invitationRoleName(role, customRoles.data, customRoleFallback);
+    return (CLIENT_ROLES as readonly string[]).includes(role)
+      ? tr(`PermissionEditor.role.${role}`, named)
+      : named;
+  };
   // A viewer whose own custom role grants `org.manage` may invite and manage members (the API's
   // gate for those routes), but still not change roles.
   const myCustomRole = customRoles.data?.find((entry) => entry.id === myRole);
@@ -331,7 +345,7 @@ export function PeopleDirectoryScreen({
         {canManage && people.isSuccess ? (
           <PendingInvitationsSection
             invitations={pending}
-            roleLabel={chip}
+            roleLabel={invitationChip}
             busyId={resend.isPending ? (resend.variables?.id ?? null) : null}
             onChangeRole={(invitation) => setDialog({ kind: 'invite-role', invitation })}
             onResend={(invitation) => {
@@ -397,7 +411,7 @@ export function PeopleDirectoryScreen({
           api={api}
           organizationSlug={organizationSlug}
           invitation={dialog.invitation}
-          roleLabel={chip(dialog.invitation.role)}
+          roleLabel={invitationChip(dialog.invitation.role)}
           onClose={(revoked) => {
             setDialog(null);
             if (revoked) {
@@ -418,7 +432,7 @@ export function PeopleDirectoryScreen({
           organizationSlug={organizationSlug}
           organizationName={workspace}
           invitation={dialog.invitation}
-          roleLabel={chip(dialog.invitation.role)}
+          roleLabel={invitationChip(dialog.invitation.role)}
           onClose={(issued) => {
             if (!issued) {
               setDialog(null);
@@ -430,7 +444,7 @@ export function PeopleDirectoryScreen({
               setAnnouncement(
                 fill(
                   tr('PendingInvitations.roleChanged', 'New invitation sent to {email} as {role}.'),
-                  { email: issued.invitation.email, role: chip(issued.invitation.role) },
+                  { email: issued.invitation.email, role: invitationChip(issued.invitation.role) },
                 ),
               );
             } else {

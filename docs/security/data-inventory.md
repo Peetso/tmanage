@@ -21,14 +21,14 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 
 ## Totals
 
-Counted by hand on 2026-11-02 (56-28, R19-f; R21-f adds the three inbound e-mail tables; R22 adds `org_secrets` and `einvoice_chain_checks`; R32 C25 adds `work_item_client_audience`; R33 C26 adds `work_item_assignees`).
+Counted by hand on 2026-11-02 (56-28, R19-f; R21-f adds the three inbound e-mail tables; R22 adds `org_secrets` and `einvoice_chain_checks`; R32 C25 adds `work_item_client_audience`; R33 C26 adds `work_item_assignees`; R34 B11 adds `invitation_pending_keys`).
 
-- Tables: 333 (100 % of `TABLES` once R19-b's `finance_exports` lands; `data-inventory.doc.test.ts` checks it without a database).
-- `delete`: 255
+- Tables: 334 (100 % of `TABLES` once R19-b's `finance_exports` lands; `data-inventory.doc.test.ts` checks it without a database).
+- `delete`: 256
 - `pseudonymise`: 4
 - `keep-fiscal-redacted`: 11
 - `none-no-personal-data`: 63
-- Today `enforced`: 225, `gap`: 45, `n/a`: 62.
+- Today `enforced`: 226, `gap`: 45, `n/a`: 62.
 
 ## Planned tables
 
@@ -165,6 +165,7 @@ Not a table today — row reserved. Each gets a full inventory row in the slice 
 | `integration_channel_links`       | `webhook_url_enc`, `created_by`                                                                        | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
 | `integration_channel_posts`       | -                                                                                                      | `none-no-personal-data` | n/a      | H3    | No personal field. Deleted with the company anyway (H3).                                                                                                                                                                                                                    |
 | `integration_connections`         | `created_by`                                                                                           | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
+| `invitation_pending_keys`         | `email_normalized`                                                                                     | `delete`                | enforced | B11   | The address an open invitation holds (one per company). Deleted on accept, revoke and expiry, with the invitation and with the company (B11).                                                                                                                               |
 | `invitation_projects`             | -                                                                                                      | `none-no-personal-data` | n/a      | H3    | No personal field. Deleted with the company anyway (H3).                                                                                                                                                                                                                    |
 | `invitations`                     | `email`, `note`, `token_hash`, `invited_by_user_id`, `accepted_by_user_id`                             | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
 | `invoice_line_items`              | -                                                                                                      | `none-no-personal-data` | n/a      | H3    | No personal field. Deleted with the company anyway (H3). Fiscal record: deleted today with the company; a fiscal retention decision (33-LEGAL §7) is open.                                                                                                                  |

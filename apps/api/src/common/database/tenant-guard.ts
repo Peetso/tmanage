@@ -1291,6 +1291,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0318. The doers and supervisors of a work item (the owner stays the lead doer). Written by the
   // people routes and the owner change on the work-item update; read by My Day and workload.
   work_item_assignees: 'organization_id',
+  // ---- R34 · B11 ----
+  // 0319. The claim an open invitation holds on its address (one per organization and address).
+  // Written and deleted by the invitation issue, accept, revoke and expiry paths.
+  invitation_pending_keys: 'organization_id',
 });
 
 /**

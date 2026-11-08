@@ -23,6 +23,7 @@ import { customRoleCapabilities } from './member-role.controller.js';
 import { assertClientRoleWithinCeiling } from './client-role-ceiling.js';
 import type { ClientCeilingOf } from './client-role-ceiling.js';
 import {
+  InvitationAlreadyPendingError,
   InvitationNotFoundError,
   InvitationNotPendingError,
   InvitationsRepository,
@@ -94,6 +95,24 @@ import {
  * noticed. `ID-002`'s sign-in path made the same choice for the same reason, and the audit
  * trail keeps the precision the response drops.
  */
+
+/** B11: the detail token a duplicate invitation is refused with. */
+export const INVITATION_ALREADY_PENDING = 'invitation_already_pending';
+
+/**
+ * B11: the one 409 every "this address already has an open invitation" refusal answers with —
+ * the controller's early read, the service's in-transaction read, and the unique key on
+ * `invitation_pending_keys` that a concurrent issue trips (`InvitationAlreadyPendingError`).
+ */
+export function invitationAlreadyPending(): ApiError {
+  return new ApiError(
+    409,
+    'conflict',
+    'That address already has a pending invitation. Revoke it or change its role instead.',
+    [{ field: 'email', message: INVITATION_ALREADY_PENDING }],
+    INVITATION_ALREADY_PENDING,
+  );
+}
 
 /** `22-SCREEN-BY-SCREEN` §3 ON-06 sends a link; the link is useless after this long. */
 const DEFAULT_TTL_DAYS = 14;
@@ -393,62 +412,61 @@ export class InvitationsService {
     const { token, tokenHash } = issueInvitationToken();
     const expiresAt = this.expiryFrom(now);
 
-    const { row, mailFacts } = await this.database.transaction(context, async (tx) => {
-      if (customRole) await this.requireGrantableCustomRole(tx, context, principal, input.role);
-      await this.requireInvitePolicy(tx, context, email, input.role, clientOrganizationId);
-      await this.requireUnderIssueLimit(tx, context, clientOrganizationId);
-      const existing = await this.invitations.findPendingForEmail(
-        tx,
-        context,
-        email,
-        clientOrganizationId,
-      );
-      if (existing.length > 0) {
-        throw new ApiError(409, 'conflict', 'That address already has a pending invitation', [
-          { field: 'email', message: 'already invited; revoke the existing invitation first' },
-        ]);
-      }
+    // `writing` turns a lost race on the address claim into the same 409 as the read below.
+    const { row, mailFacts } = await this.writing(() =>
+      this.database.transaction(context, async (tx) => {
+        if (customRole) await this.requireGrantableCustomRole(tx, context, principal, input.role);
+        await this.requireInvitePolicy(tx, context, email, input.role, clientOrganizationId);
+        await this.requireUnderIssueLimit(tx, context, clientOrganizationId);
+        const existing = await this.invitations.findPendingForEmail(
+          tx,
+          context,
+          email,
+          clientOrganizationId,
+        );
+        if (existing.length > 0) throw invitationAlreadyPending();
 
-      if (projectIds.length > 0) {
-        // A foreign, unknown or archived project is one 400 naming the field, never which id.
-        const live = await this.invitations.liveProjectIds(tx, context, projectIds);
-        if (live.length !== projectIds.length) {
-          throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
-            { field: 'projectIds', message: 'every project must be a live project here' },
-          ]);
+        if (projectIds.length > 0) {
+          // A foreign, unknown or archived project is one 400 naming the field, never which id.
+          const live = await this.invitations.liveProjectIds(tx, context, projectIds);
+          if (live.length !== projectIds.length) {
+            throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+              { field: 'projectIds', message: 'every project must be a live project here' },
+            ]);
+          }
         }
-      }
 
-      const issued = await this.invitations.issue(tx, context, {
-        email,
-        role: input.role,
-        clientOrganizationId,
-        tokenHash,
-        expiresAt,
-        invitedByUserId: context.userId,
-        note,
-      });
-      await this.invitations.attachProjects(tx, context, issued.id, projectIds);
+        const issued = await this.invitations.issue(tx, context, {
+          email,
+          role: input.role,
+          clientOrganizationId,
+          tokenHash,
+          expiresAt,
+          invitedByUserId: context.userId,
+          note,
+        });
+        await this.invitations.attachProjects(tx, context, issued.id, projectIds);
 
-      await this.audit?.record(tx, context, {
-        action: 'invitation.issued',
-        objectId: issued.id,
-        result: 'allowed',
-        metadata: {
-          role: issued.role,
-          // How many projects, never the note: prose is not audit metadata.
-          ...(projectIds.length > 0 ? { project_count: String(projectIds.length) } : {}),
-          // Which kind of invitation, never the address. An email is personal data and §12's
-          // metadata rule is identifiers and classifications — see `isSafeAuditMetadata`.
-          destination: clientOrganizationId === null ? 'organization' : 'client_organization',
-          ...(clientOrganizationId === null
-            ? {}
-            : { client_organization_id: clientOrganizationId }),
-        },
-      });
+        await this.audit?.record(tx, context, {
+          action: 'invitation.issued',
+          objectId: issued.id,
+          result: 'allowed',
+          metadata: {
+            role: issued.role,
+            // How many projects, never the note: prose is not audit metadata.
+            ...(projectIds.length > 0 ? { project_count: String(projectIds.length) } : {}),
+            // Which kind of invitation, never the address. An email is personal data and §12's
+            // metadata rule is identifiers and classifications — see `isSafeAuditMetadata`.
+            destination: clientOrganizationId === null ? 'organization' : 'client_organization',
+            ...(clientOrganizationId === null
+              ? {}
+              : { client_organization_id: clientOrganizationId }),
+          },
+        });
 
-      return { row: issued, mailFacts: await this.mailFactsFor(tx, context, issued.id) };
-    });
+        return { row: issued, mailFacts: await this.mailFactsFor(tx, context, issued.id) };
+      }),
+    );
 
     const delivery = await this.deliverInvitationEmail(context, row, mailFacts, token);
     return { invitation: toView(row), token, delivery };
@@ -1296,6 +1314,7 @@ export class InvitationsService {
       if (error instanceof InvitationNotFoundError) {
         throw new ApiError(404, 'not_found', MESSAGES.notFound);
       }
+      if (error instanceof InvitationAlreadyPendingError) throw invitationAlreadyPending();
       if (error instanceof InvitationNotPendingError) {
         // 409 rather than 404: this caller already knows the invitation exists — they listed
         // it — so nothing is leaked by saying it is no longer pending, and "it changed under

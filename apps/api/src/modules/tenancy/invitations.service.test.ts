@@ -6,6 +6,7 @@ import type { CredentialsRepository } from '../identity/credentials.repository.j
 import type { ClientMembershipsRepository } from '../clients/client-memberships.repository.js';
 import { InviteeAccountExistsError } from './invitee-accounts.repository.js';
 import type { InviteeAccountsRepository } from './invitee-accounts.repository.js';
+import { InvitationAlreadyPendingError } from './invitations.repository.js';
 import type { InvitationsRepository } from './invitations.repository.js';
 import type { MembershipsRepository } from './memberships.repository.js';
 import type { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
@@ -18,6 +19,7 @@ import { requireMayGrantRole } from './role-grant-ceiling.js';
 import {
   ACCOUNT_EXISTS_MESSAGE,
   ALREADY_MEMBER_MESSAGE,
+  INVITATION_ALREADY_PENDING,
   InvitationsService,
   projectRoleForInvitation,
   requireOwnerToGrantOwner,
@@ -410,6 +412,20 @@ describe('A1: "Add to projects" and "Personal note" on an invitation', () => {
 
     expect(client.status).toBe(400);
     expect(long.status).toBe(400);
+  });
+
+  it('B11: a concurrent issue that loses the address claim is the named 409', async () => {
+    const { service, issue } = harness();
+    issue.mockRejectedValueOnce(new InvitationAlreadyPendingError());
+
+    const error = await refusal(
+      service.issue(context, owner, { email: 'o@example.com', role: 'member' }),
+    );
+
+    expect(error).toMatchObject({
+      status: 409,
+      details: [{ field: 'email', message: INVITATION_ALREADY_PENDING }],
+    });
   });
 });
 
