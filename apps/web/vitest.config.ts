@@ -43,5 +43,14 @@ export default defineConfig({
      * still fails the case — this is the ceiling the walk happens under.
      */
     testTimeout: 90_000,
+    /**
+     * R50 L1 (2026-11-08), speed only. Worker threads start faster than forked processes on
+     * Windows. `isolate` stays on: a trial with it off failed 32 cases because module mocks,
+     * the locale and `navigator` leak between files. The optimiser pre-bundles the client
+     * dependencies (React, Tiptap, Testing Library) so each file imports a few bundles
+     * instead of thousands of small modules.
+     */
+    pool: 'threads',
+    deps: { optimizer: { client: { enabled: true } } },
   },
 });

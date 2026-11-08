@@ -10,16 +10,21 @@ import { defineConfig } from 'vitest/config';
  */
 export default defineConfig({
   test: {
-    // One private MariaDB 11.8 server per file (scripts/db/mariadb-server.mjs); against
-    // TMANAGE_TEST_DATABASE_URL, parallel files would race on the same database. `fileParallelism` is a root-level option, so it applies to `unit` too —
-    // an acceptable cost given how few unit files there are.
-    fileParallelism: false,
     projects: [
       {
         test: {
           name: 'unit',
           environment: 'node',
           include: ['src/**/*.test.ts'],
+          // R50 L1 (2026-11-08): unit files run in parallel worker threads. The old root-level
+          // `fileParallelism: false` (meant for `database`) ran all ~650 unit files one by
+          // one, and import time, not test time, was the whole cost. Threads start faster
+          // than forks on Windows; each file keeps its own module graph (isolate stays on).
+          pool: 'threads',
+          // With every core busy, first-call lazy loads (the HTML sanitiser, the XML parser,
+          // proof-of-work hashing) missed vitest's 5 s default while passing alone. The
+          // ceiling, not any assertion, is what moved.
+          testTimeout: 30_000,
         },
       },
       {
@@ -27,6 +32,10 @@ export default defineConfig({
           name: 'database',
           environment: 'node',
           include: ['test/**/*.db.test.ts'],
+          // One private MariaDB 11.8 server per file (scripts/db/mariadb-server.mjs); against
+          // TMANAGE_TEST_DATABASE_URL, parallel files would race on the same database. Scoped to
+          // this project so the unit files are not serialised with it.
+          fileParallelism: false,
           // A real server has to start (the first run also extracts the MariaDB runtime
           // into .local/mariadb), initialise, migrate, and seed before the first assertion.
           testTimeout: 60_000,
