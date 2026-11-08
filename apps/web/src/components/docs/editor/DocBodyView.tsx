@@ -8,6 +8,8 @@ import type { Node as PmNode } from '@tiptap/pm/model';
 import { EditorContent, useEditor } from '@tiptap/react';
 
 import { docExtensions } from './schema-extensions';
+import { planReanchor } from './comment-reanchor';
+import type { AnchorState, CommentAnchor } from './comment-reanchor';
 import '../doc-history-panel.css';
 
 export interface DocBodyViewProps {
@@ -16,7 +18,16 @@ export interface DocBodyViewProps {
   onCommentClick?: (anchorId: string) => void;
   /** R5: the anchor whose mark is highlighted (`.is-active`) and scrolled into view. */
   activeAnchorId?: string | null;
+  /**
+   * 53-11: the comment threads on this document. A thread whose mark an edit removed is re-drawn on
+   * the nearest matching text (`moved`) or reported `lost`; the rail shows which.
+   */
+  anchors?: readonly CommentAnchor[];
+  /** 53-11: each anchor's state once the body is laid out. */
+  onAnchorStates?: (states: Readonly<Record<string, AnchorState>>) => void;
 }
+
+const NO_ANCHORS: readonly CommentAnchor[] = [];
 
 const activeKey = new PluginKey<string | null>('tm-active-comment');
 
@@ -24,7 +35,10 @@ const activeKey = new PluginKey<string | null>('tm-active-comment');
  * `.is-active` on every range of the active comment mark, as a ProseMirror decoration — the DOM
  * ProseMirror owns is never edited by hand, so a re-render cannot drop or fight the class.
  */
-function activeCommentDecorations(read: () => string | null) {
+function activeCommentDecorations(
+  read: () => string | null,
+  readAnchors: () => readonly CommentAnchor[],
+) {
   return Extension.create({
     name: 'tmActiveComment',
     addProseMirrorPlugins() {
@@ -34,8 +48,22 @@ function activeCommentDecorations(read: () => string | null) {
           props: {
             decorations(state) {
               const active = read();
-              if (!active) return null;
               const found: Decoration[] = [];
+              // 53-11: a thread whose mark was edited away is re-drawn as a mark on the nearest
+              // text — the same `mark[data-comment]` element, so click and scroll work unchanged.
+              for (const range of planReanchor(state.doc, readAnchors()).ranges) {
+                found.push(
+                  Decoration.inline(range.from, range.to, {
+                    nodeName: 'mark',
+                    'data-comment': range.anchorId,
+                    class:
+                      range.anchorId === active
+                        ? 'tm-comment-reanchored is-active'
+                        : 'tm-comment-reanchored',
+                  }),
+                );
+              }
+              if (!active) return DecorationSet.create(state.doc, found);
               state.doc.descendants((node: PmNode, pos: number) => {
                 if (!node.isText) return;
                 const hit = node.marks.some(
@@ -59,11 +87,25 @@ function activeCommentDecorations(read: () => string | null) {
  * (`unicode-bidi: plaintext` in doc-history-panel.css — the CSS form of `dir="auto"` per block),
  * so an Arabic paragraph in an English document aligns to its own start.
  */
-export function DocBodyView({ html, onCommentClick, activeAnchorId = null }: DocBodyViewProps) {
+export function DocBodyView({
+  html,
+  onCommentClick,
+  activeAnchorId = null,
+  anchors = NO_ANCHORS,
+  onAnchorStates,
+}: DocBodyViewProps) {
   const activeRef = useRef<string | null>(activeAnchorId);
   activeRef.current = activeAnchorId;
+  const anchorsRef = useRef<readonly CommentAnchor[]>(anchors);
+  anchorsRef.current = anchors;
   const extensions = useMemo(
-    () => [...docExtensions(), activeCommentDecorations(() => activeRef.current)],
+    () => [
+      ...docExtensions(),
+      activeCommentDecorations(
+        () => activeRef.current,
+        () => anchorsRef.current,
+      ),
+    ],
     [],
   );
   const editor = useEditor(
@@ -88,6 +130,15 @@ export function DocBodyView({ html, onCommentClick, activeAnchorId = null }: Doc
     ).find((element) => element.getAttribute('data-comment') === activeAnchorId);
     mark?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
   }, [editor, activeAnchorId]);
+
+  // 53-11: redraw the re-anchored marks and tell the rail each thread's state.
+  const statesRef = useRef(onAnchorStates);
+  statesRef.current = onAnchorStates;
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    editor.view.dispatch(editor.state.tr.setMeta(activeKey, activeRef.current));
+    statesRef.current?.(planReanchor(editor.state.doc, anchors).states);
+  }, [editor, anchors]);
 
   // Mark → rail: a pointer click on an anchor raises its id. Keyboard users reach the same thread
   // from the rail's quote button, which is a real button; the marks themselves stay plain text.

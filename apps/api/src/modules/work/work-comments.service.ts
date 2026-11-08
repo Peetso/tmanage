@@ -1,4 +1,4 @@
-import { authorize } from '@tmanage/domain';
+import { authorize, extractMentionedUserIds } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type {
@@ -10,6 +10,9 @@ import type { WorkItemCommentRow, WorkItemRow } from '../../common/database/sche
 import type { WorkItemsRepository } from './work-items.repository.js';
 import { AuditEventsRepository } from '../audit/audit-events.repository.js';
 import { WorkCommentsRepository } from './work-comments.repository.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
+import { ReviewMentionCandidatesRepository } from '../files/review-mention-candidates.repository.js';
+import type { MentionCandidateRow } from '../files/review-mention-candidates.repository.js';
 
 /**
  * x147's application service — a work item's comments / activity (Work module 7).
@@ -48,13 +51,86 @@ export interface AddCommentInput {
   readonly body: string;
 }
 
+/** 53-11: one person a work-item comment may @mention — somebody who can see the item. */
+export interface WorkMentionCandidateView {
+  readonly userId: string;
+  readonly displayName: string;
+  /** The token to put in the body (`@<userId>`), the form the mention notice reads. */
+  readonly mention: string;
+}
+
+/** The most people one comment can notify; more ids in a body are ignored. */
+const MAX_NOTIFIED_MENTIONS = 20;
+const MAX_CANDIDATES = 25;
+
 export class WorkCommentsService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly workItems: WorkItemsRepository,
     private readonly comments: WorkCommentsRepository = new WorkCommentsRepository(),
     private readonly audit: AuditEventsRepository = new AuditEventsRepository(),
+    /** 53-11: optional so a suite can construct the service without the outbox. */
+    private readonly outbox?: OutboxEventsRepository,
+    private readonly people: Pick<
+      ReviewMentionCandidatesRepository,
+      'search'
+    > = new ReviewMentionCandidatesRepository(),
   ) {}
+
+  /**
+   * 53-11: the people a comment on this item may @mention — active internal members on the item's
+   * project, plus members with organization-wide scope; the caller excluded. A caller who cannot
+   * read the item gets the same 404 as the list. Comments are internal, so client contacts never
+   * appear.
+   */
+  async mentionCandidates(
+    context: TenantContext,
+    principal: Principal,
+    workItemId: string,
+    query: string,
+    limit = 10,
+  ): Promise<readonly WorkMentionCandidateView[]> {
+    const prefix = query.trim().replace(/^@/u, '');
+    if (prefix.length > 100) {
+      throw new ApiError(400, 'validation_failed', 'The request is invalid', [
+        { field: 'q', message: 'must be 100 characters or fewer' },
+      ]);
+    }
+    const capped = Math.min(Math.max(1, Math.trunc(limit)), MAX_CANDIDATES);
+    const rows = await this.database.read(context, async (runner) => {
+      const parent = await this.readableParent(runner, context, principal, workItemId);
+      return this.visiblePeople(runner, context, parent, { prefix, limit: capped + 1 });
+    });
+    return dedupe(rows)
+      .filter((row) => row.userId !== principal.userId)
+      .slice(0, capped)
+      .map((row) => ({
+        userId: row.userId,
+        displayName: row.displayName,
+        mention: `@${row.userId}`,
+      }));
+  }
+
+  /** Staff who can see the item: on its project, or with organization-wide scope. */
+  private visiblePeople(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    parent: WorkItemRow,
+    input: {
+      readonly prefix: string;
+      readonly limit: number;
+      readonly userIds?: readonly string[];
+    },
+  ): Promise<readonly MentionCandidateRow[]> {
+    return this.people.search(runner, context, {
+      projectId: parent.projectId,
+      prefix: input.prefix,
+      userIds: input.userIds,
+      includeStaff: true,
+      includeClients: false,
+      limit: input.limit,
+    });
+  }
 
   /** The work item's comments, created-at ascending. Behind `work.read` on the parent item. */
   async list(
@@ -95,6 +171,35 @@ export class WorkCommentsService {
       });
       // A comment written through a connected AI app is attributed to the member AND the app: one
       // audit row on the item (the append stamps channel and app), read back by the activity feed.
+      // 53-11: the people this comment @mentions who can see the item are told by the worker
+      // (kind `mention`), which re-checks each one's access at delivery. A mention of somebody
+      // who cannot see the item stays text: no notice, nothing about the item reaches them.
+      const mentioned = extractMentionedUserIds(input.body)
+        .map((id) => id.toLowerCase())
+        .filter((id) => id !== principal.userId.toLowerCase())
+        .slice(0, MAX_NOTIFIED_MENTIONS);
+      if (this.outbox && mentioned.length > 0) {
+        const visible = await this.visiblePeople(tx, context, parent, {
+          prefix: '',
+          userIds: mentioned,
+          limit: MAX_NOTIFIED_MENTIONS * 2,
+        });
+        const allowed = new Set(visible.map((person) => person.userId.toLowerCase()));
+        const mentionedUserIds = mentioned.filter((id) => allowed.has(id));
+        if (mentionedUserIds.length > 0) {
+          await this.outbox.append(tx, context, {
+            type: 'work_item.comment_created.v1',
+            aggregateId: workItemId,
+            payload: {
+              workItemId,
+              commentId: row.id,
+              projectId: parent.projectId,
+              authorUserId: context.userId,
+              mentionedUserIds,
+            },
+          });
+        }
+      }
       if (context.actorChannel !== undefined) {
         await this.audit.append(tx, context, {
           action: 'work_item.commented',
@@ -155,6 +260,17 @@ function resourceOf(row: WorkItemRow) {
         ? ('archived' as const)
         : ('active' as const),
   };
+}
+
+function dedupe(rows: readonly MentionCandidateRow[]): readonly MentionCandidateRow[] {
+  const seen = new Set<string>();
+  const out: MentionCandidateRow[] = [];
+  for (const row of [...rows].sort((a, b) => a.displayName.localeCompare(b.displayName))) {
+    if (seen.has(row.userId)) continue;
+    seen.add(row.userId);
+    out.push(row);
+  }
+  return out;
 }
 
 function toView(row: WorkItemCommentRow): WorkCommentView {

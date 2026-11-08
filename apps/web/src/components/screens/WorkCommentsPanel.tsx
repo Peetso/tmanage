@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { listWorkComments, type WorkComment } from '../../lib/api/work-items';
@@ -17,11 +17,14 @@ import { useTOr } from '../../lib/i18n/use-t-or';
 import { useMembers } from '../../lib/use-members';
 import {
   MentionPicker,
+  decodeMentions,
+  encodeMentions,
   findMentionQuery,
   insertMention,
   memberRoleLabel,
   type MentionOption,
 } from '../chat/MentionPicker';
+import { searchWorkMentionCandidates } from '../../lib/api/work-comment-mentions';
 
 export interface WorkCommentsPanelProps {
   organizationSlug: string;
@@ -71,28 +74,47 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
   const pickerId = useId();
   const [mention, setMention] = useState<{ start: number; query: string } | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  const directory = useMembers(api, organizationSlug, mention?.query ?? '');
-  const needle = (mention?.query ?? '').toLocaleLowerCase();
+  const directory = useMembers(api, organizationSlug, '');
+  // 53-11: the people offered are the server's answer — only those who can see this item — and a
+  // pick is sent as its `@<userId>` token, so the person is notified (kind "mention"). The box
+  // keeps showing "@Name"; `picked` maps each name back to its token at send time.
+  const [picked, setPicked] = useState<ReadonlyMap<string, string>>(() => new Map());
+  const candidates = useQuery({
+    queryKey: ['work-item-mention-candidates', organizationSlug, workItemId, mention?.query ?? ''],
+    queryFn: () =>
+      searchWorkMentionCandidates(
+        api,
+        organizationSlug,
+        workItemId,
+        mention?.query ?? '',
+        MAX_MENTION_OPTIONS,
+      ),
+    enabled: mention !== null,
+    staleTime: 30_000,
+  });
+  const roleOf = useMemo(
+    () => new Map(directory.members.map((member) => [member.userId, member.role])),
+    [directory.members],
+  );
   const mentionOptions: MentionOption[] = mention
-    ? directory.members
-        .filter(
-          (member) =>
-            member.status !== 'suspended' &&
-            member.status !== 'offboarded' &&
-            member.displayName.toLocaleLowerCase().includes(needle),
-        )
-        .slice(0, MAX_MENTION_OPTIONS)
-        .map((member) => {
-          const subtitle = memberRoleLabel(member.role, tOr);
-          return {
-            userId: member.userId,
-            displayName: member.displayName,
-            mention: `@${member.displayName}`,
-            group: 'others' as const,
-            ...(subtitle ? { subtitle } : {}),
-          };
-        })
+    ? (candidates.data ?? []).slice(0, MAX_MENTION_OPTIONS).map((candidate) => {
+        const subtitle = memberRoleLabel(roleOf.get(candidate.userId), tOr);
+        return {
+          userId: candidate.userId,
+          displayName: candidate.displayName,
+          mention: candidate.mention,
+          group: 'others' as const,
+          ...(subtitle ? { subtitle } : {}),
+        };
+      })
     : [];
+  const nameOf = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const member of directory.members)
+      names.set(member.userId.toLowerCase(), member.displayName);
+    for (const [name, token] of picked) names.set(token.slice(1).toLowerCase(), name);
+    return (userId: string) => names.get(userId.toLowerCase());
+  }, [directory.members, picked]);
   const safeActive = Math.min(activeIndex, Math.max(mentionOptions.length - 1, 0));
 
   function refreshMention(text: string, caret: number | null) {
@@ -107,6 +129,7 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
     const caret = box.selectionStart ?? body.length;
     const next = insertMention(body, mention.start, caret, option.displayName);
     setBody(next.text.slice(0, MAX_BODY_LENGTH));
+    setPicked((current) => new Map(current).set(option.displayName, option.mention));
     setMention(null);
     requestAnimationFrame(() => {
       box.focus();
@@ -151,6 +174,7 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
       addCommentOrQueue(api, organizationSlug, workItemId, nextBody),
     onSuccess: () => {
       setBody('');
+      setPicked(new Map());
       setFailure(undefined);
       refresh();
     },
@@ -161,7 +185,7 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
     event.preventDefault();
     const trimmed = body.trim();
     if (trimmed === '') return;
-    add.mutate(trimmed);
+    add.mutate(encodeMentions(trimmed, picked).slice(0, MAX_BODY_LENGTH));
   }
 
   const items: readonly WorkComment[] = comments.data ?? [];
@@ -199,7 +223,9 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
           <ul className="tm-list" aria-label={t('WorkCommentsPanel.listLabel')}>
             {items.map((comment) => (
               <li key={comment.id} className="tm-stack">
-                <p className="tm-prose">{comment.body}</p>
+                <p className="tm-prose" dir="auto">
+                  {decodeMentions(comment.body, nameOf)}
+                </p>
                 <time className="tm-eyebrow" dateTime={comment.createdAt}>
                   {formatWhen(comment.createdAt)}
                 </time>
@@ -213,7 +239,9 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
         <ul className="tm-list">
           {pendingComments.map((write) => (
             <li key={write.id} className="tm-pending-row">
-              <p className="tm-prose">{write.payload.body}</p>
+              <p className="tm-prose" dir="auto">
+                {decodeMentions(write.payload.body, nameOf)}
+              </p>
               <PendingBadge conflict={write.status === 'conflict'} />
             </li>
           ))}
@@ -257,12 +285,21 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
                 activeIndex={safeActive}
                 onPick={pickMention}
                 onHover={setActiveIndex}
-                othersHeading={t('MentionPicker.label')}
+                othersHeading={tOr(
+                  'WorkCommentsPanel.mentionHeading',
+                  'People who can see this task',
+                )}
                 query={mention.query}
               />
             ) : null}
           </div>
-          <span className="tm-field__hint">{t('WorkCommentsPanel.hint')}</span>
+          <span className="tm-field__hint">
+            {t('WorkCommentsPanel.hint')}{' '}
+            {tOr(
+              'WorkCommentsPanel.mentionHint',
+              'Type @ to mention someone. Only people who can see this task are listed, and they get a notification.',
+            )}
+          </span>
         </div>
         <div className="tm-row">
           <Button

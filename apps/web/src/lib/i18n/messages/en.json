@@ -17957,5 +17957,10 @@
   "DevelopersPage.responses": "Responses",
   "DevelopersPage.required": "required",
   "DevelopersPage.none": "None",
-  "DevelopersPage.schemasTitle": "Schemas"
+  "DevelopersPage.schemasTitle": "Schemas",
+  "DocComments.anchorMoved": "Moved to nearest text",
+  "DocComments.anchorLost": "Text removed",
+  "DocComments.anchorLostHint": "The text this comment was on was removed. The discussion stays here.",
+  "WorkCommentsPanel.mentionHeading": "People who can see this task",
+  "WorkCommentsPanel.mentionHint": "Type @ to mention someone. Only people who can see this task are listed, and they get a notification."
 }

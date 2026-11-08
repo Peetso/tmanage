@@ -24,6 +24,7 @@ import {
   planApprovalRequestedNotices,
   planClientActionNotices,
   planPeopleAssignedNotices,
+  planWorkItemMentionNotices,
   planSupervisorDoneNotices,
   planCommentNotices,
   planMeetingChangedNotices,
@@ -170,6 +171,11 @@ export function createWorkerOutboxHandlers(
       // C26/C27: people newly made doers or supervisors of a task are told (in-app and email).
       'work_item.people_assigned.v1': createCollaborationNotices(
         planPeopleAssignedNotices,
+        collaborationMails,
+      ),
+      // 53-11: people @mentioned in a work item's comment who can see the item are told.
+      'work_item.comment_created.v1': createCollaborationNotices(
+        planWorkItemMentionNotices,
         collaborationMails,
       ),
       'work_item.created.v1': automationRunsConsumer,

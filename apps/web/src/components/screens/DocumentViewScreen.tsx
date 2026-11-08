@@ -11,6 +11,8 @@ import { DocumentCommentsPanel } from './DocumentCommentsPanel';
 import { DocumentPublishBar } from '../docs/DocumentAudience';
 import { DocMarkdown } from '../docs/DocMarkdown';
 import { DocBodyView } from '../docs/editor/DocBodyView';
+import type { AnchorState, CommentAnchor } from '../docs/editor/comment-reanchor';
+import { listDocumentComments } from '../../lib/api/document-comments';
 import { DocHistoryPanel, DocVersionPreview } from '../docs/DocHistoryPanel';
 import { tagFor } from '../docs/doc-markdown';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -92,6 +94,21 @@ export function DocumentViewScreen({
 
   // R5: the anchor shared by the body marks and the comments rail, and the history panel state.
   const [activeAnchorId, setActiveAnchorId] = useState<string | null>(null);
+  // 53-11: the rail's own query (same key, one request) feeds the body's re-anchoring, and the
+  // body reports back which threads moved to the nearest text and which lost theirs.
+  const threadComments = useQuery({
+    queryKey: ['document-comments', organizationSlug, documentId],
+    queryFn: () => listDocumentComments(api, organizationSlug, documentId),
+    enabled: document.isSuccess,
+  });
+  const anchors = useMemo<readonly CommentAnchor[]>(() => {
+    const byId = new Map<string, string | null>();
+    for (const row of threadComments.data ?? []) {
+      if (row.anchorId && !byId.get(row.anchorId)) byId.set(row.anchorId, row.anchorQuote);
+    }
+    return [...byId.entries()].map(([anchorId, quote]) => ({ anchorId, quote }));
+  }, [threadComments.data]);
+  const [anchorStates, setAnchorStates] = useState<Readonly<Record<string, AnchorState>>>({});
   const [historyOpen, setHistoryOpen] = useState(false);
   const [previewVersionNo, setPreviewVersionNo] = useState<number | null>(null);
 
@@ -241,6 +258,8 @@ export function DocumentViewScreen({
                       html={data.body}
                       activeAnchorId={activeAnchorId}
                       onCommentClick={setActiveAnchorId}
+                      anchors={anchors}
+                      onAnchorStates={setAnchorStates}
                     />
                   ) : (
                     /* The body's Markdown as headings, lists, bold and safe links (live test
@@ -279,6 +298,7 @@ export function DocumentViewScreen({
               client={api}
               activeAnchorId={activeAnchorId}
               onCommentClick={setActiveAnchorId}
+              anchorStates={anchorStates}
             />
           )}
         </div>

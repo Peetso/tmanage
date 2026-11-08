@@ -134,6 +134,7 @@ export const NOTIFICATION_ROUTES: Readonly<Record<string, NotificationRoute>> = 
   // Mentions
   'message.mentioned.v1': route('mention', MAIL),
   'document.mentioned.v1': route('mention', MAIL),
+  'work_item.mentioned.v1': route('mention', MAIL),
   'review.mentioned.v1': route('mention', MAIL),
   // Account, billing & security — locked on
   'usage.threshold_reached.v1': route('account', MAIL),

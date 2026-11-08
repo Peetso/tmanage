@@ -6,6 +6,7 @@ import {
   Inject,
   Param,
   Post,
+  Query,
   UseInterceptors,
 } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
@@ -14,7 +15,11 @@ import { ApiError } from '../../common/http/errors.js';
 import { IdempotencyReplayInterceptor } from '../../common/http/idempotency-replay.interceptor.js';
 import { WORK_COMMENTS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type { WorkCommentView, WorkCommentsService } from './work-comments.service.js';
+import type {
+  WorkCommentView,
+  WorkCommentsService,
+  WorkMentionCandidateView,
+} from './work-comments.service.js';
 
 /**
  * x147's HTTP surface — a work item's comments / activity (Work module 7).
@@ -50,6 +55,36 @@ export class WorkCommentsController {
     @Param('workItemId') workItemId: string,
   ): Promise<{ readonly comments: readonly WorkCommentView[] }> {
     return { comments: await this.comments.list(context, principal, workItemId) };
+  }
+
+  /**
+   * 53-11: who a comment on this item may @mention — only people who can see the item. Behind
+   * `work.read`, and the same 404 as the list for an item the caller cannot read.
+   */
+  @Get('mention-candidates')
+  @RequireCapability('work.read')
+  async mentionCandidates(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('workItemId') workItemId: string,
+    @Query('q') q?: string,
+    @Query('limit') limit?: string,
+  ): Promise<{ readonly candidates: readonly WorkMentionCandidateView[] }> {
+    const parsed = limit === undefined ? 10 : Number(limit);
+    if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > 25) {
+      throw new ApiError(400, 'validation_failed', 'The request is invalid', [
+        { field: 'limit', message: 'must be a whole number from 1 to 25' },
+      ]);
+    }
+    return {
+      candidates: await this.comments.mentionCandidates(
+        context,
+        principal,
+        workItemId,
+        typeof q === 'string' ? q : '',
+        parsed,
+      ),
+    };
   }
 
   @Post()

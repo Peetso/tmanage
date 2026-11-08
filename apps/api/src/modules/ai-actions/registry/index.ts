@@ -1348,6 +1348,15 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'read',
     scope: 'read',
   },
+  // 53-11: the @ picker on a work item's comments — only people who can see the item.
+  {
+    id: 'work_items.comments.mention_candidates.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/comments/mention-candidates',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
   {
     id: 'conversations.direct.list',
     method: 'GET',

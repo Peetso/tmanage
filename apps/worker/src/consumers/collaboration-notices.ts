@@ -531,6 +531,58 @@ export const planPeopleAssignedNotices: NoticePlanner = async (event, tx, mailer
 };
 
 /**
+ * `work_item.comment_created.v1` → 53-11. Each person a work-item comment @mentions is told
+ * (in-app, kind `mention`, and by email through the same opt-out, mail toggle and quiet hours) —
+ * but only if they are still an active internal member who may read work on the item's project.
+ * The API already narrowed the list to people who can see the item; this re-checks at delivery.
+ */
+export const planWorkItemMentionNotices: NoticePlanner = async (event, tx, mailer) => {
+  const raw = payloadOf(event);
+  const mentioned = idList(raw, 'mentionedUserIds');
+  if (mentioned.length === 0) return [];
+  const workItemId = stringField(raw, 'workItemId', event.id);
+  const commentId = stringField(raw, 'commentId', event.id);
+  const projectId = stringField(raw, 'projectId', event.id);
+  const authorUserId = stringField(raw, 'authorUserId', event.id);
+  const item = await findWorkItemFacts(tx, event.organizationId, workItemId);
+  if (item === null) return []; // Gone: nothing safe to reference.
+
+  const notices: PlannedNotice[] = [];
+  for (const userId of mentioned) {
+    if (userId === authorUserId) continue;
+    const reach = await findInternalReach(tx, event.organizationId, userId, projectId);
+    if (!mayBeTold(reach, 'work.read') || reach === null) continue;
+    notices.push({
+      recipientUserId: userId,
+      optOutKind: 'mention',
+      membershipId: reach.membershipId,
+      inApp: {
+        type: 'work_item.mentioned.v1',
+        objectType: 'work_item',
+        objectId: workItemId,
+        dedupeKey: `work_item.mentioned:${commentId}:${userId}`,
+      },
+      mailKind: 'mention',
+      mail: async () => {
+        if (mailer === null) return null;
+        const org = await organizationOf(tx, event.organizationId);
+        if (org === null) return null;
+        const actor = await findDisplayName(tx, authorUserId);
+        const project = await findProjectName(tx, event.organizationId, projectId);
+        return {
+          organizationName: org.name,
+          ...(actor === null ? {} : { actorName: actor }),
+          subjectTitle: item.title,
+          ...(project === null ? {} : { projectName: project }),
+          link: mailer.linkTo(`/${org.slug}/work/${workItemId}`),
+        };
+      },
+    });
+  }
+  return notices;
+};
+
+/**
  * `work_item.updated.v1` into `internal_review` → C26/C27. A task with supervisors is completed by
  * one of them (the API refuses anyone else's move to done), so a doer's "Mark done" stops in
  * internal review: that is when its supervisors are told, in-app and by email
@@ -861,6 +913,8 @@ export const COLLABORATION_PLANNERS: Readonly<Record<string, NoticePlanner>> = {
   // C27: both now mail, so a quiet-hours resume re-plans them like the others.
   'work_item.people_assigned.v1': planPeopleAssignedNotices,
   'work_item.updated.v1': planSupervisorDoneNotices,
+  // 53-11: @mentions in a work item's comments.
+  'work_item.comment_created.v1': planWorkItemMentionNotices,
 };
 
 // ─── Delivery ──────────────────────────────────────────────────────────────────

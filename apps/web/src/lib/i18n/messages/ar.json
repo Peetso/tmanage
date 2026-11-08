@@ -17957,5 +17957,10 @@
   "DevelopersPage.responses": "الاستجابات",
   "DevelopersPage.required": "مطلوب",
   "DevelopersPage.none": "لا يوجد",
-  "DevelopersPage.schemasTitle": "المخططات"
+  "DevelopersPage.schemasTitle": "المخططات",
+  "DocComments.anchorMoved": "نُقل إلى أقرب نص",
+  "DocComments.anchorLost": "النص محذوف",
+  "DocComments.anchorLostHint": "حُذف النص الذي كان عليه هذا التعليق. يبقى النقاش هنا.",
+  "WorkCommentsPanel.mentionHeading": "الأشخاص الذين يمكنهم رؤية هذه المهمة",
+  "WorkCommentsPanel.mentionHint": "اكتب @ لذكر شخص. تظهر فقط أسماء من يمكنهم رؤية هذه المهمة، ويصلهم إشعار."
 }

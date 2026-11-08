@@ -165,9 +165,20 @@ export class WorkModule {
 
     const commentsService: Provider = {
       provide: WORK_COMMENTS_SERVICE,
-      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
-      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
-        new WorkCommentsService(database, workItems, new WorkCommentsRepository()),
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY, OUTBOX_EVENTS_REPOSITORY],
+      // 53-11: the outbox carries a comment's @mentions to the worker's mention notices.
+      useFactory: (
+        database: TenantDatabase,
+        workItems: WorkItemsRepository,
+        outbox: OutboxEventsRepository,
+      ) =>
+        new WorkCommentsService(
+          database,
+          workItems,
+          new WorkCommentsRepository(),
+          undefined,
+          outbox,
+        ),
     };
 
     // x204. Typed links between work items — a sub-resource of the work item, so it reuses the

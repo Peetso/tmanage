@@ -17,6 +17,8 @@ import type { ApiClient } from '../../lib/api/client';
 import { initialsOf } from '../docs/DocumentAudience';
 import { useT } from '../../lib/i18n/use-t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import type { AnchorState } from '../docs/editor/comment-reanchor';
 import '../docs/doc-history-panel.css';
 
 export interface DocumentCommentsPanelProps {
@@ -27,6 +29,11 @@ export interface DocumentCommentsPanelProps {
   activeAnchorId?: string | null;
   /** R5: a thread was picked in the rail — the body highlights and scrolls to its mark. */
   onCommentClick?: (anchorId: string) => void;
+  /**
+   * 53-11: where each thread's anchor stands after edits — `moved` (re-anchored to the nearest
+   * text) or `lost` (the text was removed; the thread stays here). Absent = still on its mark.
+   */
+  anchorStates?: Readonly<Record<string, AnchorState>>;
 }
 
 /** One anchored thread: the first comment carries the quote and the resolved state. */
@@ -74,7 +81,9 @@ export function DocumentCommentsPanel({
   client,
   activeAnchorId = null,
   onCommentClick,
+  anchorStates = {},
 }: DocumentCommentsPanelProps) {
+  const tOr = useTOr();
   const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
@@ -197,6 +206,7 @@ export function DocumentCommentsPanel({
           {visible.map((thread) => {
             const resolved = Boolean(thread.root.resolvedAt);
             const active = thread.anchorId === activeAnchorId;
+            const anchorState = anchorStates[thread.anchorId];
             return (
               <li
                 key={thread.anchorId}
@@ -210,8 +220,30 @@ export function DocumentCommentsPanel({
                   aria-pressed={active}
                   onClick={() => onCommentClick?.(thread.anchorId)}
                 >
-                  {thread.quote ? `“${thread.quote}”` : t('DocComments.selectedText')}
+                  <span
+                    style={anchorState === 'lost' ? { textDecoration: 'line-through' } : undefined}
+                  >
+                    {thread.quote ? `“${thread.quote}”` : t('DocComments.selectedText')}
+                  </span>
                 </button>
+                {anchorState === 'moved' ? (
+                  <div className="tm-doc-thread__actions">
+                    <Badge mono>{tOr('DocComments.anchorMoved', 'Moved to nearest text')}</Badge>
+                  </div>
+                ) : null}
+                {anchorState === 'lost' ? (
+                  <div className="tm-stack">
+                    <div className="tm-doc-thread__actions">
+                      <Badge mono>{tOr('DocComments.anchorLost', 'Text removed')}</Badge>
+                    </div>
+                    <p className="tm-dx-quiet">
+                      {tOr(
+                        'DocComments.anchorLostHint',
+                        'The text this comment was on was removed. The discussion stays here.',
+                      )}
+                    </p>
+                  </div>
+                ) : null}
                 {thread.comments.map((comment) => (
                   <CommentRow key={comment.id} comment={comment} />
                 ))}

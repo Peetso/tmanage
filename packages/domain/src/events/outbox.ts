@@ -167,6 +167,14 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'document',
     catalog: '§4 comment created — notification, mentions',
   },
+  /**
+   * 53-11: a comment was added to a work item — the people it @mentions who can see the item are
+   * told (kind `mention`). Ids only, never the text.
+   */
+  'work_item.comment_created.v1': {
+    aggregateType: 'work_item',
+    catalog: '§4 comment created — notification, mentions',
+  },
   /** CQ-12 (AUT-01): a document was published to the client — the trigger `document_published`. */
   'document.published.v1': {
     aggregateType: 'document',
@@ -525,6 +533,18 @@ export interface DocumentCommentCreatedV1 {
   readonly mentionedUserIds: readonly string[];
 }
 
+/**
+ * 53-11. `mentionedUserIds` is already narrowed by the API to people who can see the item; the
+ * worker checks each one's access again at delivery.
+ */
+export interface WorkItemCommentCreatedV1 {
+  readonly workItemId: string;
+  readonly commentId: string;
+  readonly projectId: string;
+  readonly authorUserId: string;
+  readonly mentionedUserIds: readonly string[];
+}
+
 /** CQ-12 (AUT-01). */
 export interface DocumentPublishedV1 {
   readonly documentId: string;
@@ -728,6 +748,7 @@ export interface OutboxEventPayloads {
   readonly 'work_item.created.v1': WorkItemCreatedV1;
   readonly 'work_item.client_action_requested.v1': WorkItemClientActionRequestedV1;
   readonly 'document.comment_created.v1': DocumentCommentCreatedV1;
+  readonly 'work_item.comment_created.v1': WorkItemCommentCreatedV1;
   readonly 'document.published.v1': DocumentPublishedV1;
   readonly 'document.renamed.v1': DocumentRenamedV1;
   readonly 'meeting.scheduled.v1': MeetingScheduledV1;

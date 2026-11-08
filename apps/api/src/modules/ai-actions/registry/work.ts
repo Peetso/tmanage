@@ -152,6 +152,17 @@ export const workDetails: readonly AiActionDetail[] = [
     redact: 'standard',
     examples: [{ summary: 'List work item comments', args: { workItemId: 'wi_1' } }],
   }),
+  // 53-11.
+  det({
+    id: 'work_items.comments.mention_candidates.list',
+    title: 'Find people to mention on a work item',
+    description:
+      'People who can see this work item whose name starts with q. Insert the returned mention ' +
+      'token in a comment to notify them.',
+    input: listArgs(['workItemId'], { q: f.shortText(100).optional() }),
+    redact: 'standard',
+    examples: [{ summary: 'Names starting with li', args: { workItemId: 'wi_1', q: 'li' } }],
+  }),
   det({
     id: 'work_items.create',
     title: 'Create work item',
