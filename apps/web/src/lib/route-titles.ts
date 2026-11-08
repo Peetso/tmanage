@@ -258,7 +258,9 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/onboarding/tour': { en: 'Product tour', key: 'RouteTitle.onboardingTour' },
   '/[orgSlug]/people': { en: 'People', key: 'RouteTitle.people' },
   '/[orgSlug]/people/[membershipId]': { en: 'Profile', key: 'RouteTitle.person' },
+  '/[orgSlug]/people/allocations': { en: 'Allocations', key: 'RouteTitle.peopleAllocations' },
   '/[orgSlug]/people/availability': { en: 'Availability', key: 'RouteTitle.peopleAvailability' },
+  '/[orgSlug]/people/capacity': { en: 'Capacity', key: 'RouteTitle.peopleCapacity' },
   '/[orgSlug]/people/capacity/heatmap': {
     en: 'Capacity heatmap',
     key: 'RouteTitle.peopleCapacityHeatmap',
@@ -266,6 +268,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/people/offboarding': { en: 'Offboarding', key: 'RouteTitle.peopleOffboarding' },
   '/[orgSlug]/people/org-chart': { en: 'Org chart', key: 'RouteTitle.peopleOrgChart' },
   '/[orgSlug]/people/teams': { en: 'Teams', key: 'RouteTitle.peopleTeams' },
+  '/[orgSlug]/people/time-off': { en: 'Time off', key: 'RouteTitle.peopleTimeOff' },
   '/[orgSlug]/policies': { en: 'Policies', key: 'RouteTitle.policies' },
   '/[orgSlug]/policies/simulate': { en: 'Policy simulator', key: 'RouteTitle.policiesSimulate' },
   '/[orgSlug]/portal': { en: 'Client portal', key: 'RouteTitle.portal' },

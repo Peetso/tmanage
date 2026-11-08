@@ -19,6 +19,8 @@ import { ContactSuggestionsService } from './contact-suggestions.service.js';
 import { PersonLoadController } from './person-load.controller.js';
 import { PersonLoadRepository } from './person-load.repository.js';
 import { PersonLoadService } from './person-load.service.js';
+import { PeopleOverviewController } from './people-overview.controller.js';
+import { PeopleOverviewRepository } from './people-overview.repository.js';
 
 /**
  * PEOPLE / module 14.
@@ -40,6 +42,9 @@ import { PersonLoadService } from './person-load.service.js';
  * (R20-b, 53-08) One person's weekly load (`GET …/people/:membershipId/load`): a read service over
  * the tenant database, its own read repository and a memberships repository. Allocation confirm
  * (`POST …/allocations/:id/confirm`) audits through the `@Global` `AUDIT_SERVICE`.
+ *
+ * (A13) The org-wide reads behind the capacity, time-off and allocations screens
+ * (`GET …/people/capacity|time-off|allocations`): read-only over the `@Global` `TENANT_DATABASE`.
  */
 @Module({})
 export class PeopleModule {
@@ -59,6 +64,11 @@ export class PeopleModule {
     const directoryRepository: Provider = {
       provide: PeopleDirectoryRepository,
       useValue: new PeopleDirectoryRepository(),
+    };
+
+    const overviewRepository: Provider = {
+      provide: PeopleOverviewRepository,
+      useValue: new PeopleOverviewRepository(),
     };
 
     const contactSuggestionsService: Provider = {
@@ -84,12 +94,14 @@ export class PeopleModule {
         directoryRepository,
         contactSuggestionsService,
         personLoadService,
+        overviewRepository,
       ],
       controllers: [
         PersonAllocationsController,
         PeopleDirectoryController,
         ContactSuggestionsController,
         PersonLoadController,
+        PeopleOverviewController,
       ],
     };
   }

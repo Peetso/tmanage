@@ -1,0 +1,141 @@
+/* People · Capacity, Time off, Allocations (R31 L05 A13, Figma section 513:30129).
+   Tokens only; logical properties so the Arabic layout mirrors without extra rules. */
+
+.ppl-cap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  min-inline-size: 0;
+}
+
+.ppl-cap-tabs {
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.ppl-cap-tabs__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 26px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ppl-cap-tabs__link {
+  display: inline-flex;
+  padding-block-end: 9px;
+  border-block-end: 2px solid transparent;
+  color: var(--ink-500);
+  font-size: var(--t-ui-md);
+  line-height: 19px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.ppl-cap-tabs__link:hover {
+  border-block-end-color: var(--lime-600);
+  color: var(--ink-950);
+}
+
+.ppl-cap-tabs__link[aria-current='page'] {
+  border-block-end-color: var(--ink-950);
+  color: var(--ink-950);
+  font-weight: 600;
+}
+
+.ppl-cap-tabs__link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.ppl-cap__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--s6);
+  align-items: start;
+}
+
+.ppl-cap__main,
+.ppl-cap__aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-inline-size: 0;
+}
+
+.ppl-cap__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s4);
+}
+
+.ppl-cap__metric-value {
+  margin: 0;
+  font-size: var(--t-heading-page);
+  line-height: 1.2;
+  font-weight: 600;
+  color: var(--ink-950);
+  font-variant-numeric: tabular-nums;
+}
+
+.ppl-cap__label {
+  margin: 0;
+  font-size: var(--t-caption);
+  color: var(--ink-500);
+}
+
+.ppl-cap__person {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-950);
+  font-weight: 500;
+}
+
+.ppl-cap__num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ppl-cap__row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s2);
+}
+
+.ppl-cap__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s3);
+  padding: 48px var(--s6);
+  border: var(--b-quiet) dashed var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-50);
+  text-align: center;
+}
+
+.ppl-cap__empty h2 {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.ppl-cap__empty p {
+  max-inline-size: 520px;
+  margin: 0;
+  color: var(--ink-650);
+}
+
+@media (max-width: 1100px) {
+  .ppl-cap__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .ppl-cap__metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

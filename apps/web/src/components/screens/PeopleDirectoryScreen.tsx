@@ -212,15 +212,23 @@ export function PeopleDirectoryScreen({
             <h1 className="ppl-members-header__title">{title}</h1>
             {summary ? <p className="ppl-members-header__summary">{summary}</p> : null}
           </div>
-          {canManage ? (
-            <button
-              type="button"
-              className="tm-button tm-button--ink ppl-members-header__cta"
-              onClick={() => setDialog({ kind: 'invite' })}
+          <div className="ppl-members-header__actions">
+            <Link
+              href={`/${organizationSlug}/people/capacity`}
+              className="tm-button tm-button--outline tm-button--default ppl-members-header__cta"
             >
-              {tr('PeopleDirectoryScreen.inviteMember', 'Invite member')}
-            </button>
-          ) : null}
+              {tr('PeopleCapacityTabs.capacity', 'Capacity')}
+            </Link>
+            {canManage ? (
+              <button
+                type="button"
+                className="tm-button tm-button--ink ppl-members-header__cta"
+                onClick={() => setDialog({ kind: 'invite' })}
+              >
+                {tr('PeopleDirectoryScreen.inviteMember', 'Invite member')}
+              </button>
+            ) : null}
+          </div>
         </header>
 
         <p className="tm-visually-hidden" role="status" aria-live="polite">

@@ -1382,6 +1382,13 @@ button.ppl-member {
   border-radius: var(--r-capsule);
 }
 
+.ppl-members-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
 .ppl-members-loading {
   padding-block: var(--s4);
 }
