@@ -38,8 +38,7 @@ const FILTER_WORDS: Record<InvoiceFilter, readonly [string, string]> = {
  * **Invoices** — the client invoice list (A10b), drawn as the R31 L02 Figma frame: the finance tabs,
  * the state filters, the invoice table and, beside it, the aging card. Reads
  * `GET …/client-invoices` and `GET …/client-invoices/aging` (both `finance.view`); a caller without
- * it sees the API's refusal as a sentence. Read-only: creating and sending invoices stays on the API
- * until the editor screen lands.
+ * it sees the API's refusal as a sentence. "New invoice" opens the editor (R35 L6-52-09).
  */
 export function InvoiceListScreen({
   organizationSlug,
@@ -80,6 +79,14 @@ export function InvoiceListScreen({
       organizationName={organizationName}
       eyebrow={tOr('FinanceIndex.eyebrow', 'Finance')}
       title={tOr('InvoiceList.title', 'Invoices')}
+      actions={
+        <Link
+          className="tm-button tm-button--ink"
+          href={`/${organizationSlug}/finance/invoices/new`}
+        >
+          {tOr('InvoiceList.newInvoice', 'New invoice')}
+        </Link>
+      }
       titleMeta={
         rows.length > 0
           ? `${rows.length} ${tOr('InvoiceList.countWord', 'invoices')} · ${overdue} ${tOr('InvoiceList.overdueWord', 'overdue')}`

@@ -11,7 +11,9 @@ import { useActiveLocale } from '../../../lib/i18n/use-active-locale';
 import { useDisplayFormatters } from '../../../lib/i18n/use-formatters';
 import { useTOr } from '../../../lib/i18n/use-t-or';
 import { FinanceReportSectionTabs } from './FinanceReportSectionTabs';
+import { InvoicePaymentCard, InvoicePrintLink, InvoiceSendCard } from './InvoiceActions';
 import { getClientInvoice } from './InvoiceApi';
+import { invoiceMayTakePayment } from './InvoiceFormRules';
 import { invoiceCapsule, invoiceStateKey } from './InvoiceRules';
 import { InvoiceStateWord, useClientNames } from './InvoiceStateWord';
 import '../../../styles/screens/finance-ledger.css';
@@ -26,8 +28,9 @@ export interface InvoiceDetailScreenProps {
 
 /**
  * **Invoice** — one client invoice (A10b): the lines, the totals, the payments and the credit notes.
- * Reads `GET …/client-invoices/:invoiceId` on `finance.view`. Read-only; the line description is
- * shown in the reader's language when the invoice carries it, else the other one.
+ * Reads `GET …/client-invoices/:invoiceId` on `finance.view`; the line description is shown in the
+ * reader's language when the invoice carries it, else the other one. A draft offers Edit and Send,
+ * a sent or part-paid invoice Record payment (R35 L6-52-09; all `finance.manage` on the API).
  */
 export function InvoiceDetailScreen({
   organizationSlug,
@@ -56,9 +59,19 @@ export function InvoiceDetailScreen({
       title={data?.number ?? tOr('InvoiceDetail.titleFallback', 'Invoice')}
       titleMeta={data ? (clientNames.get(data.clientOrganizationId) ?? undefined) : undefined}
       actions={
-        <Link className="tm-chip" href={`/${organizationSlug}/finance/invoices`}>
-          {tOr('InvoiceDetail.back', 'All invoices')}
-        </Link>
+        <div className="tm-row">
+          <Link className="tm-chip" href={`/${organizationSlug}/finance/invoices`}>
+            {tOr('InvoiceDetail.back', 'All invoices')}
+          </Link>
+          {data?.state === 'draft' ? (
+            <Link
+              className="tm-button tm-button--ink"
+              href={`/${organizationSlug}/finance/invoices/${encodeURIComponent(invoiceId)}/edit`}
+            >
+              {tOr('InvoiceDetail.editDraft', 'Edit draft')}
+            </Link>
+          ) : null}
+        </div>
       }
     >
       <div className="tm-stack">
@@ -243,6 +256,14 @@ export function InvoiceDetailScreen({
                   </div>
                 </dl>
               </section>
+              {data.state === 'draft' ? (
+                <InvoiceSendCard api={api} organizationSlug={organizationSlug} invoice={data} />
+              ) : (
+                <InvoicePrintLink organizationSlug={organizationSlug} invoice={data} />
+              )}
+              {invoiceMayTakePayment(data.state) ? (
+                <InvoicePaymentCard api={api} organizationSlug={organizationSlug} invoice={data} />
+              ) : null}
               {data.voidReason ? (
                 <InlineAlert tone="warning" title={tOr('InvoiceDetail.voidTitle', 'Voided')}>
                   {data.voidReason}

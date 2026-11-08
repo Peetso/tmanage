@@ -1,0 +1,51 @@
+/* R35 L6-52-09 — invoice editor lines, send and payment cards (finance-ledger.css holds the rest). */
+
+.tm-inv-lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-inv-line {
+  display: grid;
+  grid-template-columns:
+    minmax(12rem, 3fr) minmax(4.5rem, 1fr) minmax(6rem, 1fr) minmax(7rem, 1.4fr)
+    minmax(4.5rem, 1fr) minmax(7rem, 1.2fr) auto;
+  align-items: end;
+  gap: var(--s2);
+  padding-block-end: var(--s3);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-inv-line:last-child {
+  border-block-end: none;
+}
+
+.tm-inv-line__total {
+  padding-block-end: var(--s2);
+  text-align: end;
+}
+
+.tm-inv-print-link {
+  color: var(--text-link, var(--ink-950));
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.tm-inv-print-link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (max-width: 900px) {
+  .tm-inv-line {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .tm-inv-line__description {
+    grid-column: 1 / -1;
+  }
+}

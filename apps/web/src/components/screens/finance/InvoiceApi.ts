@@ -26,6 +26,8 @@ export interface ClientInvoiceRow {
 
 export interface ClientInvoiceDocument extends ClientInvoiceRow {
   readonly documentLabel: string;
+  readonly language: string;
+  readonly version: number;
   readonly periodStart: string | null;
   readonly periodEnd: string | null;
   readonly subtotalMinor: number;
@@ -41,11 +43,13 @@ export interface ClientInvoiceDocument extends ClientInvoiceRow {
   readonly voidReason: string | null;
   readonly lines: readonly {
     readonly id: string;
+    readonly sourceType: string;
     readonly descriptionEn: string | null;
     readonly descriptionAr: string | null;
     readonly quantity: number;
     readonly unit: string;
     readonly unitPriceMinor: number;
+    readonly discountBp: number;
     readonly taxBp: number;
     readonly lineGrossMinor: number;
   }[];
@@ -120,4 +124,146 @@ export async function getInvoiceAging(
     path: `${base(organizationSlug)}/aging`,
   });
   return data;
+}
+
+// ---- writes (52-09 editor, send and payment; all `finance.manage`, re-checked by the service) ----
+
+/** One line as the API's `PUT …/client-invoices/:id` takes it; the server recomputes every total. */
+export interface InvoiceLineBody {
+  readonly id: string | null;
+  readonly descriptionEn: string | null;
+  readonly descriptionAr: string | null;
+  readonly quantity: number;
+  readonly unit: string;
+  readonly unitPriceMinor: number;
+  readonly discountBp: number;
+  readonly taxBp: number;
+}
+
+export interface InvoiceCreateBody {
+  readonly clientOrganizationId: string;
+  readonly currency: string | null;
+  readonly issueDate: string | null;
+}
+
+export interface InvoicePatchBody {
+  readonly expectedVersion: number;
+  readonly issueDate?: string;
+  readonly dueDate?: string;
+  readonly lines?: readonly InvoiceLineBody[];
+}
+
+export interface InvoicePullBody {
+  readonly period: { readonly from: string; readonly to: string };
+  readonly include: {
+    readonly time: boolean;
+    readonly expenses: boolean;
+    readonly retainer: boolean;
+  };
+}
+
+export interface InvoicePullResult {
+  readonly invoice: ClientInvoiceDocument;
+  readonly waiting: { readonly minutes: number };
+  readonly unpriced: { readonly minutes: number };
+}
+
+export interface InvoicePaymentBody {
+  readonly paidOn: string;
+  readonly amountMinor: number;
+  readonly method: string;
+  readonly reference: string | null;
+}
+
+export async function createClientInvoice(
+  client: ApiClient,
+  organizationSlug: string,
+  body: InvoiceCreateBody,
+): Promise<ClientInvoiceDocument> {
+  const { data } = await client.request<ClientInvoiceDocument>({
+    method: 'POST',
+    path: base(organizationSlug),
+    body,
+  });
+  return data;
+}
+
+export async function updateClientInvoice(
+  client: ApiClient,
+  organizationSlug: string,
+  invoiceId: string,
+  body: InvoicePatchBody,
+): Promise<ClientInvoiceDocument> {
+  const { data } = await client.request<ClientInvoiceDocument>({
+    method: 'PUT',
+    path: `${base(organizationSlug)}/${encodeURIComponent(invoiceId)}`,
+    body,
+  });
+  return data;
+}
+
+/** Brings approved time, approved expenses and the retainer period onto a draft (idempotent). */
+export async function pullInvoiceLines(
+  client: ApiClient,
+  organizationSlug: string,
+  invoiceId: string,
+  body: InvoicePullBody,
+): Promise<InvoicePullResult> {
+  const { data } = await client.request<InvoicePullResult>({
+    method: 'POST',
+    path: `${base(organizationSlug)}/${encodeURIComponent(invoiceId)}/pull`,
+    body: {
+      period: body.period,
+      include: {
+        time: body.include.time ? 'by_task' : false,
+        expenses: body.include.expenses,
+        retainer: body.include.retainer,
+      },
+    },
+  });
+  return data;
+}
+
+/**
+ * Issues the draft and e-mails each recipient the link to the invoice. The same `idempotencyKey`
+ * makes a retry answer the first send instead of a 409.
+ */
+export async function sendClientInvoice(
+  client: ApiClient,
+  organizationSlug: string,
+  invoiceId: string,
+  body: { readonly to: readonly string[]; readonly message: string | null },
+  idempotencyKey: string,
+): Promise<ClientInvoiceDocument> {
+  const { data } = await client.request<ClientInvoiceDocument>({
+    method: 'POST',
+    path: `${base(organizationSlug)}/${encodeURIComponent(invoiceId)}/send`,
+    body,
+    headers: { 'Idempotency-Key': idempotencyKey },
+  });
+  return data;
+}
+
+export async function recordInvoicePayment(
+  client: ApiClient,
+  organizationSlug: string,
+  invoiceId: string,
+  body: InvoicePaymentBody,
+): Promise<ClientInvoiceDocument> {
+  const { data } = await client.request<ClientInvoiceDocument>({
+    method: 'POST',
+    path: `${base(organizationSlug)}/${encodeURIComponent(invoiceId)}/payments`,
+    body,
+  });
+  return data;
+}
+
+/** The API's HTML print view (A4, AR/EN) — "Save as PDF" from the browser's print dialog. */
+export function invoicePrintUrl(
+  apiOrigin: string,
+  organizationSlug: string,
+  invoiceId: string,
+  language: 'en' | 'ar',
+): string {
+  return `${apiOrigin.replace(/\/+$/u, '')}${base(organizationSlug)}/${encodeURIComponent(invoiceId)}/print?lang=${language}`;
 }

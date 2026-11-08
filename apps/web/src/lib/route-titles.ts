@@ -421,6 +421,11 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/finance/expenses': { en: 'Expenses', key: 'RouteTitle.financeExpenses' },
   '/[orgSlug]/finance/invoices': { en: 'Invoices', key: 'RouteTitle.financeInvoices' },
   '/[orgSlug]/finance/invoices/[invoiceId]': { en: 'Invoice', key: 'RouteTitle.financeInvoice' },
+  '/[orgSlug]/finance/invoices/[invoiceId]/edit': {
+    en: 'Edit invoice',
+    key: 'RouteTitle.financeInvoiceEdit',
+  },
+  '/[orgSlug]/finance/invoices/new': { en: 'New invoice', key: 'RouteTitle.financeInvoiceNew' },
   '/[orgSlug]/finance/period-locks': { en: 'Period locks', key: 'RouteTitle.financePeriodLocks' },
   '/[orgSlug]/finance/profile': { en: 'Finance profile', key: 'RouteTitle.financeProfile' },
   '/[orgSlug]/finance/rates': { en: 'Rate cards', key: 'RouteTitle.financeRates' },

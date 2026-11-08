@@ -7,6 +7,7 @@ import type { CapsuleState } from '@tmanage/ui';
 import { AppShell } from '../../shell/AppShell';
 import { browserApiClient } from '../../../lib/api/browser-client';
 import { listClientOrganizations } from '../../../lib/api/clients';
+import { readFinanceProfile } from '../../../lib/api/finance-core';
 import type { ApiClient } from '../../../lib/api/client';
 import { useDescribeApiError } from '../../../lib/api/describe-error';
 import { useDisplayFormatters } from '../../../lib/i18n/use-formatters';
@@ -14,6 +15,7 @@ import { useTOr } from '../../../lib/i18n/use-t-or';
 import { FinanceReportSectionTabs } from './FinanceReportSectionTabs';
 import { minutesAsHours } from './InvoiceRules';
 import { listRetainerPeriods, listRetainers, transitionRetainer } from './RetainerApi';
+import { RetainerForm } from './RetainerForm';
 import type { RetainerRow } from './RetainerApi';
 import '../../../styles/screens/finance-ledger.css';
 
@@ -40,6 +42,7 @@ const PERIOD_WORDS: Record<string, readonly [string, string]> = {
  * listed per client (`GET …/client-organizations/:id/retainers`, `work.read`), so the screen asks for
  * the company first. Pause and resume are `finance.manage`; the API refuses anyone else and the
  * refusal is shown as a sentence. The amount shows only when the API sends it (`finance.view`).
+ * New retainer and Edit open the retainer form (R35 L6-52-09, `finance.manage`).
  */
 export function RetainerListScreen({
   organizationSlug,
@@ -53,6 +56,8 @@ export function RetainerListScreen({
   const queryClient = useQueryClient();
   const [clientId, setClientId] = useState<string>('');
   const [selected, setSelected] = useState<string | null>(null);
+  /** The open form: `{ retainer: null }` writes a new one, a row edits it. */
+  const [form, setForm] = useState<{ readonly retainer: RetainerRow | null } | null>(null);
 
   const clients = useQuery({
     queryKey: ['finance-client-names', organizationSlug],
@@ -79,7 +84,15 @@ export function RetainerListScreen({
       queryClient.invalidateQueries({ queryKey: ['retainers', organizationSlug, chosen] }),
   });
 
+  const profile = useQuery({
+    queryKey: ['finance-profile', organizationSlug],
+    queryFn: () => readFinanceProfile(api, organizationSlug),
+    retry: false,
+  });
+
   const rows = retainers.data ?? [];
+  const baseCurrency =
+    rows.find((row) => row.currency)?.currency ?? profile.data?.baseCurrency ?? 'SAR';
   const selectedRow = rows.find((row) => row.id === selected) ?? null;
 
   return (
@@ -88,6 +101,13 @@ export function RetainerListScreen({
       organizationName={organizationName}
       eyebrow={tOr('FinanceIndex.eyebrow', 'Finance')}
       title={tOr('RetainerList.title', 'Retainers')}
+      actions={
+        chosen !== '' && form === null ? (
+          <Button type="button" tone="ink" onClick={() => setForm({ retainer: null })}>
+            {tOr('RetainerForm.newTitle', 'New retainer')}
+          </Button>
+        ) : undefined
+      }
     >
       <div className="tm-stack">
         <FinanceReportSectionTabs organizationSlug={organizationSlug} current="retainers" />
@@ -118,6 +138,7 @@ export function RetainerListScreen({
               onChange={(event) => {
                 setClientId(event.target.value);
                 setSelected(null);
+                setForm(null);
               }}
             >
               {activeClients.map((entry) => (
@@ -127,6 +148,26 @@ export function RetainerListScreen({
               ))}
             </Select>
           </div>
+        ) : null}
+
+        {form !== null && chosen !== '' ? (
+          <RetainerForm
+            key={form.retainer?.id ?? 'new'}
+            api={api}
+            organizationSlug={organizationSlug}
+            clientOrganizationId={chosen}
+            retainer={form.retainer}
+            currency={baseCurrency}
+            onDone={(saved) => {
+              setForm(null);
+              if (saved) {
+                setSelected(saved.id);
+                void queryClient.invalidateQueries({
+                  queryKey: ['retainers', organizationSlug, chosen],
+                });
+              }
+            }}
+          />
         ) : null}
 
         {retainers.isPending && chosen !== '' ? (
@@ -218,6 +259,16 @@ export function RetainerListScreen({
                         <RetainerState row={row} />
                       </td>
                       <td className="tm-fin-num">
+                        {row.state !== 'ended' ? (
+                          <Button
+                            type="button"
+                            tone="text"
+                            size="compact"
+                            onClick={() => setForm({ retainer: row })}
+                          >
+                            {tOr('RetainerForm.edit', 'Edit')}
+                          </Button>
+                        ) : null}
                         {row.state === 'active' || row.state === 'paused' ? (
                           <Button
                             type="button"

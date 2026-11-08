@@ -16,6 +16,7 @@ export interface RetainerRow {
   readonly amountPerPeriodMinor?: number | null;
   readonly currency?: string | null;
   readonly rollover: string;
+  readonly rolloverCapMinutes?: number | null;
   readonly billingTiming: string;
   readonly startsOn: string;
   readonly endsOn: string | null;
@@ -71,6 +72,50 @@ export async function transitionRetainer(
   const { data } = await client.request<RetainerRow>({
     method: 'POST',
     path: `${org(organizationSlug)}/retainers/${encodeURIComponent(retainerId)}/${event}`,
+  });
+  return data;
+}
+
+/** The create / edit body (52-06). An edit omits `period`, `billingTiming` and `startsOn`. */
+export interface RetainerBody {
+  readonly name: string;
+  readonly hoursPerPeriod: number | null;
+  readonly amountPerPeriodMinor: number | null;
+  readonly rollover: string;
+  readonly rolloverCapMinutes: number | null;
+  readonly endsOn: string | null;
+  readonly clientVisible: boolean;
+  readonly period?: string;
+  readonly billingTiming?: string;
+  readonly startsOn?: string;
+}
+
+/** `POST …/client-organizations/:id/retainers` on `finance.manage`; the amount is in base currency. */
+export async function createRetainer(
+  client: ApiClient,
+  organizationSlug: string,
+  clientOrganizationId: string,
+  body: RetainerBody,
+): Promise<RetainerRow> {
+  const { data } = await client.request<RetainerRow>({
+    method: 'POST',
+    path: `${org(organizationSlug)}/client-organizations/${encodeURIComponent(clientOrganizationId)}/retainers`,
+    body,
+  });
+  return data;
+}
+
+/** `PUT …/retainers/:id` on `finance.manage`; an ended retainer is refused (409). */
+export async function updateRetainer(
+  client: ApiClient,
+  organizationSlug: string,
+  retainerId: string,
+  body: RetainerBody,
+): Promise<RetainerRow> {
+  const { data } = await client.request<RetainerRow>({
+    method: 'PUT',
+    path: `${org(organizationSlug)}/retainers/${encodeURIComponent(retainerId)}`,
+    body,
   });
   return data;
 }
