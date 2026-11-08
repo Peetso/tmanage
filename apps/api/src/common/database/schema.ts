@@ -9319,6 +9319,8 @@ export const DISPLAY_LOCALES = [
   // `apps/web/src/lib/api/display-preferences.ts` mirrors this set exactly; the `locale` column
   // is `varchar(35)`, so no stored value or migration constrains it beyond this allowlist.
   'ar-EG',
+  // Slice 54-21: Urdu, right-to-left like Arabic; the web allowlist mirrors it.
+  'ur-PK',
 ] as const;
 export type DisplayLocale = (typeof DISPLAY_LOCALES)[number];
 /** Any IANA time zone (R9: every country), checked with `isIanaTimeZone`; `UTC` is the default. */

@@ -77,12 +77,13 @@ describe('DisplayPreferencesView (PREF-02)', () => {
     expect((screen.getByLabelText('Match system') as HTMLInputElement).checked).toBe(false);
   });
 
-  it('R12: offers the eight languages by their own names, betas marked, ja-JP hidden', async () => {
+  it('R12: offers the nine languages by their own names, betas marked, ja-JP hidden', async () => {
     mount();
     const select = await screen.findByLabelText('Language');
     const options = Array.from((select as HTMLSelectElement).options).map((o) => o.textContent);
-    expect(options).toHaveLength(8);
+    expect(options).toHaveLength(9);
     expect(options).toContain('Español · Beta');
+    expect(options).toContain('اردو · Beta');
     expect(screen.queryByRole('option', { name: 'ja-JP' })).toBeNull();
   });
 

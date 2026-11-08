@@ -37,6 +37,8 @@ export function offeredLocaleFor(tag: string | null | undefined): OfferedLocale 
       return 'de-DE';
     case 'zh':
       return rest.some((part) => ['tw', 'hk', 'mo', 'hant'].includes(part)) ? undefined : 'zh-CN';
+    case 'ur':
+      return 'ur-PK';
     default:
       return undefined;
   }

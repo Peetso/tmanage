@@ -137,6 +137,40 @@ html[lang^='zh'] body {
 }
 
 /*
+ * Slice 54-21 — Urdu (ur-PK), right-to-left (Figma "54-21 · Urdu (ur-PK) locale" 577:32841).
+ * Nastaliq where the device has it (Noto Nastaliq Urdu, Jameel Noori Nastaleeq, Windows' Urdu
+ * Typesetting), then the self-hosted Arabic face, which covers the Urdu letters in Naskh. No font
+ * file is shipped for it. Nastaliq sits taller than Naskh, so the leading opens a step past the
+ * Arabic one, and, as for Arabic, letter-spacing never pulls the joined letters apart.
+ */
+:root {
+  --font-urdu:
+    'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Urdu Typesetting', 'Alexandria', system-ui,
+    sans-serif;
+}
+
+:root:lang(ur) {
+  --t-heading-page-line: 64px;
+  --t-heading-section-line: 44px;
+  --t-heading-card-line: 36px;
+  --t-body-lg-line: 32px;
+  --t-body-md-line: 30px;
+  --t-ui-md-line: 28px;
+  --t-ui-sm-line: 26px;
+  --t-caption-line: 24px;
+}
+
+:lang(ur) {
+  font-family: var(--font-urdu);
+  line-height: 1.9;
+}
+
+:lang(ur),
+:lang(ur) * {
+  letter-spacing: 0 !important;
+}
+
+/*
  * Links in running text, as the handoff draws them: quiet ink with a `--line-300` rule beneath
  * that turns lime on hover. `:where()` keeps the specificity at zero, so every class that styles
  * an anchor (`.tm-button`, rail items, chips) wins without having to undo this. The `:hover` sits

@@ -37,6 +37,8 @@ export const DISPLAY_LOCALES = [
   'ja-JP',
   'zh-CN',
   'ar-EG',
+  // Slice 54-21: Urdu, the second right-to-left locale (mirrors the API's `DISPLAY_LOCALES`).
+  'ur-PK',
 ] as const;
 export type DisplayLocale = (typeof DISPLAY_LOCALES)[number];
 

@@ -5,6 +5,7 @@ import fr from './messages/fr.json';
 import ptBR from './messages/pt-BR.json';
 import de from './messages/de.json';
 import zhCN from './messages/zh-CN.json';
+import ur from './messages/ur.json';
 import { catalogNameOf, type CatalogName } from './catalog-status';
 
 /**
@@ -13,7 +14,8 @@ import { catalogNameOf, type CatalogName } from './catalog-status';
  * No i18n library resolves offline from the lockfile, so translation here is a native lookup over
  * hand-kept JSON catalogs: `en.json` is the source of truth for the key set (and the fallback for
  * any locale), `ar.json` its reviewed Arabic mirror, and `es`, `fr`, `pt-BR`, `de`, `zh-CN` the
- * beta catalogs (`catalog-status.ts`), each replaced by its own language worker. `t(locale, key)`
+ * beta catalogs (`catalog-status.ts`), each replaced by its own language worker, and `ur` the
+ * partial Urdu catalog (slice 54-21: core namespaces only, the rest falls back to English). `t(locale, key)`
  * resolves the active locale's catalog, falls back to English for a key that catalog is missing,
  * and finally to the key itself so a never-translated string is still a recognisable string.
  *
@@ -32,11 +34,12 @@ const CATALOGS: Readonly<Record<CatalogName | 'en', Record<string, string>>> = {
   'pt-BR': ptBR,
   de,
   'zh-CN': zhCN,
+  ur,
 };
 
 const EN: Record<string, string> = en;
 
-/** The catalog for a BCP-47 locale: ar, es, fr, pt → pt-BR, de, zh → zh-CN, English otherwise. */
+/** The catalog for a BCP-47 locale: ar, es, fr, pt → pt-BR, de, zh → zh-CN, ur, else English. */
 export function languageOf(locale: string): CatalogName | 'en' {
   return catalogNameOf(locale);
 }

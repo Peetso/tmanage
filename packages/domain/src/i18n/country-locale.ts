@@ -4,7 +4,7 @@
  * `Accept-Language`, otherwise `en-US`. Pure — no I/O.
  */
 export type SuggestedLocale =
-  'en-US' | 'en-GB' | 'es-ES' | 'fr-FR' | 'pt-BR' | 'de-DE' | 'zh-CN' | 'ar-EG';
+  'en-US' | 'en-GB' | 'es-ES' | 'fr-FR' | 'pt-BR' | 'de-DE' | 'zh-CN' | 'ar-EG' | 'ur-PK';
 
 export const DEFAULT_SUGGESTED_LOCALE: SuggestedLocale = 'en-US';
 
@@ -72,6 +72,9 @@ function localeOfTag(tag: string): SuggestedLocale | null {
       return 'zh-CN';
     case 'ar':
       return 'ar-EG';
+    // Slice 54-21: from the browser only — Pakistan is not mapped by country (English is official).
+    case 'ur':
+      return 'ur-PK';
     default:
       return null;
   }

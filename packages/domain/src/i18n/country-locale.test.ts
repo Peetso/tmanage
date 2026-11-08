@@ -18,4 +18,9 @@ describe('R12 country → locale', () => {
     ];
     expect(headers.map(fromHeader)).toEqual(['de-DE', 'zh-CN', 'pt-BR', 'en-GB', null]);
   });
+
+  it('54-21: suggests Urdu from the browser only, never from the country', () => {
+    expect(fromHeader('ur-PK,en;q=0.5')).toBe('ur-PK');
+    expect(localeForCountry('PK')).toBeNull();
+  });
 });
