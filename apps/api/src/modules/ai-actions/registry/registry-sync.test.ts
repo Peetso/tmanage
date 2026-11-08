@@ -150,7 +150,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // R32 (C25 GET work-items/:id/client-audience +1 op): +1, was 1298.
 // R33 (C26 GET people + PUT people/doers + PUT people/supervisors + POST people/watchers, +4
 // ops): +4, was 1299.
-const EXPECTED_ROUTE_COUNT = 1303;
+// C27 (DELETE people/watchers/:userId, +1 op): +1, was 1303.
+const EXPECTED_ROUTE_COUNT = 1304;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

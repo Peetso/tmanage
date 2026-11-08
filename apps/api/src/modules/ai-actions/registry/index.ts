@@ -5421,6 +5421,15 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'write',
     scope: 'write',
   },
+  // C27: take one person off a task's watchers (yourself on work.read, anyone else on work.update).
+  {
+    id: 'work_items.people.watchers.remove',
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/people/watchers/:userId',
+    capability: 'work.read',
+    risk: 'write',
+    scope: 'write',
+  },
   {
     id: 'work_items.bulk_transition.create',
     method: 'POST',

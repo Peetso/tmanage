@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Param, Post, Put } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -58,6 +58,26 @@ export class WorkItemPeopleController {
     @Body() body: { readonly userIds?: unknown } | undefined,
   ): Promise<{ readonly added: number }> {
     return this.people.addWatchers(context, principal, workItemId, userIdList(body));
+  }
+
+  /**
+   * C27: take one person off the watchers. The decorator lets any reader in (anyone may stop
+   * watching themselves); the service asks `work.update` when the person is somebody else.
+   */
+  @Delete('watchers/:userId')
+  @RequireCapability('work.read')
+  async removeWatcher(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('workItemId') workItemId: string,
+    @Param('userId') userId: string,
+  ): Promise<{ readonly removed: boolean }> {
+    if (userId.length === 0 || userId.length > 64) {
+      throw new ApiError(400, 'validation_failed', 'The request is invalid', [
+        { field: 'userId', message: 'must be a user id' },
+      ]);
+    }
+    return this.people.removeWatcher(context, principal, workItemId, userId);
   }
 }
 

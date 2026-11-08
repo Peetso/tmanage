@@ -11,7 +11,7 @@ import type { MemberSummary } from '../../lib/api/members';
 import { memberDisplayName } from '../../lib/members-presentation';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { addDays, dayOf, formatShortDay, todayOf, useA6T } from '../work/DueDatePicker';
-import { initialsOf } from '../work/OwnerPickerDialog';
+import { DoerStack } from '../work/WorkPeopleBlock';
 import './work-core.css';
 
 export type BoardColumn = 'todo' | 'in_progress' | 'in_review' | 'done';
@@ -322,12 +322,16 @@ export function WorkBoardView({
                                 day: formatShortDay(day, locale),
                               })}
                         </span>
-                        {item.ownerUserId !== null ? (
-                          <span className="tm-wk-orb" title={name}>
-                            <span aria-hidden="true">{initialsOf(name)}</span>
-                            <span className="tm-visually-hidden">{name}</span>
-                          </span>
-                        ) : null}
+                        {/* C27: every doer, lead first — three avatars, then "+N". */}
+                        <DoerStack
+                          doerUserIds={item.doerUserIds}
+                          ownerUserId={item.ownerUserId}
+                          nameOf={(id) =>
+                            id === item.ownerUserId
+                              ? name
+                              : memberDisplayName(id, members, membersPending)
+                          }
+                        />
                       </div>
                     </li>
                   );

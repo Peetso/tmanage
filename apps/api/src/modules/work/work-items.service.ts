@@ -42,6 +42,11 @@ import { resolveClientAudience } from './work-item-client-audience.js';
 import { WorkItemClientAudienceRepository } from './work-item-client-audience.repository.js';
 import { WorkItemAssigneesRepository } from './work-item-assignees.repository.js';
 import {
+  doersWithLead,
+  mayCompleteSupervised,
+  SUPERVISOR_APPROVAL_REQUIRED,
+} from './work-item-people.service.js';
+import {
   applyWorkItemPlanning,
   type WorkItemPlanningChange,
   type WorkItemPlanningResult,
@@ -107,6 +112,11 @@ export interface WorkItemView {
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly deletedAt: string | null;
+  /**
+   * C27: everyone who does the item, the lead (owner) first — set on the list read for internal
+   * readers, so a list row or a board card can show a doer avatar stack. Absent elsewhere.
+   */
+  readonly doerUserIds?: readonly string[];
 }
 
 /**
@@ -412,10 +422,28 @@ export class WorkItemsService {
         if (page.length < limit || collected.length >= limit || last === undefined) break;
         after = last.id;
       }
-      return collected.slice(0, limit);
+      const rows = collected.slice(0, limit);
+      // C27: the doer avatar stack on lists and boards. Internal readers only — a client's list
+      // never names who on the studio's side does the work beyond what it already shows.
+      const doers =
+        principal.kind === 'client' || rows.length === 0
+          ? new Map<string, readonly string[]>()
+          : await this.assignees.doersFor(
+              runner,
+              context,
+              rows.map((row) => row.id),
+            );
+      return { rows, doers };
     });
 
-    return readable.map((row) => toView(row, context.correlationId));
+    return readable.rows.map((row) => {
+      const view = toView(row, context.correlationId);
+      if (principal.kind === 'client') return view;
+      return {
+        ...view,
+        doerUserIds: doersWithLead(row.ownerUserId, readable.doers.get(row.id) ?? []),
+      };
+    });
   }
 
   /** Read one work item. Absent, deleted, or unrelated all produce the same 404. */
@@ -833,6 +861,23 @@ export class WorkItemsService {
     try {
       const row = await this.writing(() =>
         this.database.transaction(context, async (tx) => {
+          // C27: a task with supervisors is completed by one of them. A doer's "Mark done" stops
+          // in internal review, where a supervisor approves it (here) or sends it back. Read in
+          // the transaction, tenant-scoped, so a supervisor removed a moment ago cannot approve.
+          if (to === 'done') {
+            const supervisors = (await this.assignees.list(tx, context, workItemId))
+              .filter((row) => row.role === 'supervisor')
+              .map((row) => row.userId);
+            if (!mayCompleteSupervised(supervisors, context.userId)) {
+              throw new ApiError(
+                403,
+                'forbidden',
+                'A supervisor of this task must approve it',
+                undefined,
+                SUPERVISOR_APPROVAL_REQUIRED,
+              );
+            }
+          }
           const moved = await this.workItems.transitionState(
             tx,
             context,
@@ -878,6 +923,8 @@ export class WorkItemsService {
               fromState: before.state,
               toState: moved.state,
               workItemVersion: Number(moved.version),
+              // C27: who moved it, so the supervisors' notice skips the person who acted.
+              actorUserId: context.userId,
             },
           });
 

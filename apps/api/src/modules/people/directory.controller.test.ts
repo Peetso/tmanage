@@ -318,9 +318,11 @@ describe('PeopleDirectoryRepository.rowDetails', () => {
       toDate: '2026-10-31',
     });
 
-    expect(captured).toHaveLength(4);
+    // C27: five statements — the extra one counts open work held through doer rows.
+    expect(captured).toHaveLength(5);
+    expect(captured[2]?.sql).toMatch(/work_item_assignees/i);
     // LAST ACTIVE reads global `sessions` only through this tenant's anchored memberships row.
-    expect(captured[3]?.sql).toMatch(/join\s+`sessions`/i);
+    expect(captured[4]?.sql).toMatch(/join\s+`sessions`/i);
     for (const statement of captured) {
       const analysis = analyzeStatement(statement.sql, statement.params, ORG);
       expect(analysis.violations, analysis.violations.join('\n')).toEqual([]);

@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, gte, inArray, isNull, like, lte, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, gte, inArray, isNull, like, lte, ne, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/mysql-core';
 import { PLATFORM_SUPPORT_ROLE, WORK_ITEM_STATES } from '@tmanage/domain';
 import type { WorkItemState } from '@tmanage/domain';
@@ -10,6 +10,7 @@ import {
   projectMemberships,
   sessions,
   users,
+  workItemAssignees,
   workItems,
 } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
@@ -239,6 +240,41 @@ export class PeopleDirectoryRepository {
       )
       .groupBy(workItems.ownerUserId);
 
+    // C27: an item with several doers counts for each of them, not only the lead owner. Doer rows
+    // whose member already owns the item are skipped so the lead is not counted twice.
+    const doerRows = await db
+      .select({
+        userId: memberships.userId,
+        open: sql<number>`count(*)`,
+        overdue: sql<number>`sum(case when ${workItems.dueAt} < ${window.now} then 1 else 0 end)`,
+      })
+      .from(workItemAssignees)
+      .innerJoin(
+        memberships,
+        and(
+          eq(memberships.organizationId, workItemAssignees.organizationId),
+          eq(memberships.id, workItemAssignees.membershipId),
+        ),
+      )
+      .innerJoin(
+        workItems,
+        and(
+          eq(workItems.organizationId, workItemAssignees.organizationId),
+          eq(workItems.id, workItemAssignees.workItemId),
+        ),
+      )
+      .where(
+        and(
+          eq(workItemAssignees.organizationId, org),
+          eq(workItemAssignees.role, 'doer'),
+          inArray(workItemAssignees.membershipId, membershipIds),
+          inArray(workItems.state, [...OPEN_WORK_STATES]),
+          isNull(workItems.deletedAt),
+          or(isNull(workItems.ownerUserId), ne(workItems.ownerUserId, memberships.userId)),
+        ),
+      )
+      .groupBy(memberships.userId);
+
     const availabilityRows = await db
       .select({
         memberId: memberAvailability.memberId,
@@ -268,16 +304,18 @@ export class PeopleDirectoryRepository {
       .groupBy(memberships.id);
 
     const work = new Map(workRows.map((row) => [row.ownerUserId, row]));
+    const shared = new Map(doerRows.map((row) => [row.userId, row]));
     const activity = new Map(activityRows.map((row) => [row.membershipId, row.lastActiveAt]));
     for (const member of members) {
       const owned = work.get(member.userId);
+      const doing = shared.get(member.userId);
       const declared = availabilityRows.find((row) => row.memberId === member.membershipId);
       details.set(member.membershipId, {
         teams: teamRows
           .filter((row) => row.membershipId === member.membershipId)
           .map((row) => ({ id: row.teamId, name: row.name ?? '' })),
-        openCommitments: Number(owned?.open ?? 0),
-        overdueCommitments: Number(owned?.overdue ?? 0),
+        openCommitments: Number(owned?.open ?? 0) + Number(doing?.open ?? 0),
+        overdueCommitments: Number(owned?.overdue ?? 0) + Number(doing?.overdue ?? 0),
         declared: declared
           ? { kind: declared.kind, startDate: declared.startDate, endDate: declared.endDate }
           : null,

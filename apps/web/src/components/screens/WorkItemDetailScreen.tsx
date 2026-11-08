@@ -20,6 +20,7 @@ import {
   duplicateWorkItem,
   getWorkItem,
   getWorkItemClientAudience,
+  getWorkItemPeople,
   listWorkItemFiles,
   transitionWorkItem,
   updateWorkItem,
@@ -76,7 +77,11 @@ import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { dayOf, DueDatePicker, formatChipDay, formatShortDay, useA6T } from '../work/DueDatePicker';
 import { initialsOf, OwnerPickerDialog, useOwnerCandidates } from '../work/OwnerPickerDialog';
-import { WorkPeopleBlock } from '../work/WorkPeopleBlock';
+import {
+  needsSupervisorApproval,
+  workItemPeopleKey,
+  WorkPeopleBlock,
+} from '../work/WorkPeopleBlock';
 import { EditWorkItemDialog, type WorkItemChanges } from '../work/EditWorkItemDialog';
 import { DeleteWorkItemDialog } from '../work/DeleteWorkItemDialog';
 import { WorkItemActionsMenu, type WorkItemAction } from '../work/WorkItemActionsMenu';
@@ -523,9 +528,17 @@ function WorkItemBody({
     },
   });
 
+  // C27: the same read the people block makes (shared cache). A task with supervisors is done
+  // by one of them: anyone else's "Mark done" stops in internal review and waits for approval.
+  const people = useQuery({
+    queryKey: workItemPeopleKey(organizationSlug, item.id),
+    queryFn: () => getWorkItemPeople(api, organizationSlug, item.id),
+  });
+
   const finish = useMutation({
     mutationFn: async () => {
-      const path = pathToDone(item.state) ?? [];
+      const full = pathToDone(item.state) ?? [];
+      const path = needsSupervisorApproval(people.data) ? full.filter((to) => to !== 'done') : full;
       let current = item;
       for (const to of path) {
         current = await transitionWorkItem(api, organizationSlug, item.id, {
@@ -691,6 +704,8 @@ function WorkItemBody({
         workItemId={item.id}
         projectId={item.projectId}
         projectName={projectName}
+        item={item}
+        onChanged={onChanged}
       />
       {fieldErrors.size > 0 && overlay?.kind !== 'edit' ? (
         <p className="tm-field__error" role="alert">

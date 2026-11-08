@@ -32,6 +32,7 @@ import { OPEN_COMMAND_PALETTE_EVENT } from './CommandPalette';
 import { WorkBoardView } from './WorkBoardView';
 import { PhoneWorkOverview } from '../phone/PhoneWorkOverview';
 import { useA6T } from '../work/DueDatePicker';
+import { DoerStack } from '../work/WorkPeopleBlock';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface WorkListScreenProps {
@@ -863,14 +864,24 @@ export function WorkListScreen({
                             the name is in the accessible text and the tooltip.
                           */}
                               <td className="tm-wk-cell--owner" title={owner}>
-                                <span
-                                  className="tm-wk-avatar"
-                                  aria-hidden="true"
-                                  data-empty={item.ownerUserId === null}
-                                >
-                                  {item.ownerUserId === null ? '?' : initialsOf(owner)}
-                                </span>
-                                <span className="tm-visually-hidden">{owner}</span>
+                                {/* C27: every doer, lead first — three avatars, then "+N". */}
+                                {item.ownerUserId === null &&
+                                (item.doerUserIds?.length ?? 0) === 0 ? (
+                                  <>
+                                    <span className="tm-wk-avatar" aria-hidden="true" data-empty>
+                                      ?
+                                    </span>
+                                    <span className="tm-visually-hidden">{owner}</span>
+                                  </>
+                                ) : (
+                                  <DoerStack
+                                    doerUserIds={item.doerUserIds}
+                                    ownerUserId={item.ownerUserId}
+                                    nameOf={(id) =>
+                                      memberDisplayName(id, directory.members, directory.isPending)
+                                    }
+                                  />
+                                )}
                               </td>
                               <td>
                                 <StateCapsule state={stateCapsule(item.state)}>
@@ -1032,13 +1043,6 @@ function typeName(type: string): string {
 function typeCode(type: string): string {
   if (!activeIsEnglish()) return typeName(type);
   return TYPE_CODE[type.toLowerCase()] ?? type.slice(0, 3).toUpperCase();
-}
-
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
-  return (first + last).toUpperCase() || '?';
 }
 
 /** "18 Aug" — WK-02's committed/forecast cells. A bare date is a calendar day, read in UTC. */

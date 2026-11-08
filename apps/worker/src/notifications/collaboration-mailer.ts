@@ -26,7 +26,10 @@ export type CollaborationMailKind =
   | 'review_comment'
   | 'review_reply'
   | 'review_mention'
-  | 'review_decided';
+  | 'review_decided'
+  // C27 — the people on a task: made a doer or supervisor; a supervised task waits for approval.
+  | 'people_assigned'
+  | 'supervised_done';
 
 export interface CollaborationEmailFacts {
   readonly recipientEmail: string;
@@ -63,6 +66,8 @@ export interface CollaborationEmailFacts {
   readonly pinNumber?: number;
   /** R4 — the recipient is a client person: the link is the portal's, the footer the studio's. */
   readonly portal?: boolean;
+  /** C27 — `people_assigned` only: the role the recipient was given on the task. */
+  readonly assigneeRole?: 'doer' | 'supervisor';
 }
 
 /** Whether a BCP-47 locale asks for Arabic copy. */
@@ -342,11 +347,71 @@ function composeArabicMeetingEmail(
   };
 }
 
+/**
+ * C27 — the two task-people emails, in Arabic for an `ar*` locale and in English otherwise:
+ * "you were made a doer / supervisor of <task>" and "<task> you supervise is waiting for your
+ * approval". Plain text like the other collaboration emails; the task title is all it quotes.
+ */
+function composeWorkPeopleEmail(
+  kind: 'people_assigned' | 'supervised_done',
+  facts: CollaborationEmailFacts,
+): MailMessage {
+  const name = oneLine(facts.recipientName);
+  const actor = oneLine(facts.actorName ?? facts.organizationName);
+  const title = oneLine(facts.subjectTitle);
+  const studio = oneLine(facts.organizationName);
+  const supervisor = facts.assigneeRole === 'supervisor';
+  if (isArabicLocale(facts.locale)) {
+    const where = facts.projectName === undefined ? '' : ` في مشروع ${oneLine(facts.projectName)}`;
+    const subject =
+      kind === 'people_assigned'
+        ? `${RLM}${supervisor ? 'أصبحت مشرفًا على' : 'أُضفت منفذًا في'} المهمة ${title}`
+        : `${RLM}المهمة ${title} في انتظار اعتمادك`;
+    const middle =
+      kind === 'people_assigned'
+        ? `${RLM}${supervisor ? `جعلك ${actor} مشرفًا على المهمة ${title}${where}. ستصلك رسالة عندما تصبح جاهزة لاعتمادك.` : `أضافك ${actor} إلى منفذي المهمة ${title}${where}.`}`
+        : `${RLM}علّم ${actor} المهمة ${title}${where} كمكتملة، وهي في انتظار اعتمادك. يمكنك الاعتماد أو إعادتها للعمل من صفحة المهمة.`;
+    return {
+      to: facts.recipientEmail,
+      subject,
+      text: [
+        `مرحبًا ${name}،`,
+        middle,
+        `افتحها من هنا: ${facts.link}`,
+        `${RLM}تصلك هذه الرسالة بسبب إعدادات الإشعارات لديك في ${studio} على TManage.`,
+      ].join('\n\n'),
+    };
+  }
+  const subject =
+    kind === 'people_assigned'
+      ? `${actor} made you ${supervisor ? 'a supervisor of' : 'a doer on'} ${title}`
+      : `${title} is waiting for your approval`;
+  const middle =
+    kind === 'people_assigned'
+      ? supervisor
+        ? `${actor} made you a supervisor of the task ${title}${inProject(facts)}. You will be told when it is ready for your approval.`
+        : `${actor} added you to the people doing the task ${title}${inProject(facts)}.`
+      : `${actor} marked the task ${title}${inProject(facts)} as done and it is waiting for your approval. You can approve it or send it back from the task page.`;
+  return {
+    to: facts.recipientEmail,
+    subject,
+    text: [
+      `Hello ${name},`,
+      middle,
+      `Open it here: ${facts.link}`,
+      `You are receiving this because of your notification settings in ${studio} on TManage.`,
+    ].join('\n\n'),
+  };
+}
+
 export function composeCollaborationEmail(
   kind: CollaborationMailKind,
   facts: CollaborationEmailFacts,
 ): MailMessage {
   if (kind === 'approval_requested') return composeApprovalRequestedEmail(facts);
+  if (kind === 'people_assigned' || kind === 'supervised_done') {
+    return composeWorkPeopleEmail(kind, facts);
+  }
   if (
     kind === 'review_comment' ||
     kind === 'review_reply' ||

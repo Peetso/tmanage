@@ -27,9 +27,37 @@ export interface WorkItemPeopleView {
   readonly doerUserIds: readonly string[];
   readonly supervisorUserIds: readonly string[];
   readonly watcherUserIds: readonly string[];
+  /** C27: the reader's own user id, so the screen can tell "I supervise this" apart. */
+  readonly viewerUserId: string;
 }
 
 export const MAX_PEOPLE_PER_ROLE = 50;
+
+/** C27: the audit cause of a "Mark done" refused because a supervisor must approve it. */
+export const SUPERVISOR_APPROVAL_REQUIRED = 'supervisor_approval_required';
+
+/**
+ * C27 — who may move a task to `done`. A task with no supervisors: anyone the transition gate
+ * lets through (unchanged). A task with supervisors: only one of them, which is the approval —
+ * the doer's "Mark done" stops in internal review and waits for it.
+ */
+export function mayCompleteSupervised(
+  supervisorUserIds: readonly string[],
+  actorUserId: string,
+): boolean {
+  return supervisorUserIds.length === 0 || supervisorUserIds.includes(actorUserId);
+}
+
+/**
+ * C27 — who may take someone off a task's watchers: anyone may remove themselves (the item must
+ * still be readable); removing another person is `work.update`, the people routes' edit gate.
+ */
+export function watcherRemovalCapability(
+  targetUserId: string,
+  actorUserId: string,
+): 'work.read' | 'work.update' {
+  return targetUserId === actorUserId ? 'work.read' : 'work.update';
+}
 
 /** Dedupe, keep order, cap. A non-list or a bad id is a 400 at the controller, not here. */
 export function normalisePeople(userIds: readonly string[]): readonly string[] {
@@ -126,6 +154,26 @@ export class WorkItemPeopleService {
     });
   }
 
+  /** C27: take one person off the watchers. Idempotent: someone not watching is a no-op. */
+  async removeWatcher(
+    context: TenantContext,
+    principal: Principal,
+    workItemId: string,
+    userId: string,
+  ): Promise<{ readonly removed: boolean }> {
+    return this.database.transaction(context, async (tx) => {
+      const capability = watcherRemovalCapability(userId, context.userId);
+      await this.parent(tx, context, principal, workItemId, capability);
+      const memberId = (await this.assignees.activeMemberships(tx, context, [userId])).get(userId);
+      if (memberId === undefined) return { removed: false };
+      if (!(await this.watchers.findForMember(tx, context, workItemId, memberId))) {
+        return { removed: false };
+      }
+      await this.watchers.deleteForMember(tx, context, workItemId, memberId);
+      return { removed: true };
+    });
+  }
+
   private async viewOf(
     runner: TenantQueryRunner,
     context: TenantContext,
@@ -139,6 +187,7 @@ export class WorkItemPeopleService {
       ),
       supervisorUserIds: rows.filter((r) => r.role === 'supervisor').map((r) => r.userId),
       watcherUserIds: await this.assignees.watcherUserIds(runner, context, row.id),
+      viewerUserId: context.userId,
     };
   }
 

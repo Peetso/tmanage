@@ -389,6 +389,8 @@ export interface WorkItemUpdatedV1 {
   readonly fromState: string;
   readonly toState: string;
   readonly workItemVersion: number;
+  /** C27: who made the move (a user id), so a notice can skip the person who acted. */
+  readonly actorUserId?: string;
 }
 
 /**

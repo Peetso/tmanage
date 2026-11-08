@@ -683,6 +683,17 @@ export const workDetails: readonly AiActionDetail[] = [
       { summary: 'Watch this task', args: { workItemId: 'wi_1', userIds: ['u_4', 'u_5'] } },
     ],
   }),
+  // C27.
+  det({
+    id: 'work_items.people.watchers.remove',
+    title: 'Remove a watcher from a work item',
+    description:
+      'Take one person off the watchers of a work item. Anyone may remove themselves; removing ' +
+      'someone else needs the right to edit the item.',
+    input: listArgs(['workItemId', 'userId']),
+    redact: 'standard',
+    examples: [{ summary: 'Stop someone watching', args: { workItemId: 'wi_1', userId: 'u_4' } }],
+  }),
   det({
     id: 'work.board_columns.create',
     title: 'Create work board columns',

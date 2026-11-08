@@ -37,6 +37,8 @@ export interface WorkItemSummary {
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly deletedAt: string | null;
+  /** C27: everyone who does it, the lead first — sent on the list read for internal readers. */
+  readonly doerUserIds?: readonly string[];
 }
 
 /**
@@ -160,6 +162,8 @@ export interface WorkItemPeople {
   readonly doerUserIds: readonly string[];
   readonly supervisorUserIds: readonly string[];
   readonly watcherUserIds: readonly string[];
+  /** C27: the reader's own user id ("I supervise this"). */
+  readonly viewerUserId?: string;
 }
 
 export type WorkItemPeopleRole = 'doers' | 'supervisors';
@@ -191,6 +195,20 @@ export async function setWorkItemPeople(
     path: `${peoplePath(organizationSlug, workItemId)}/${role}`,
     method: 'PUT',
     body: { userIds },
+  });
+  return data;
+}
+
+/** C27: take one person off the watchers (yourself, or anyone if you may edit the task). */
+export async function removeWorkItemWatcher(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  userId: string,
+): Promise<{ readonly removed: boolean }> {
+  const { data } = await client.request<{ readonly removed: boolean }>({
+    path: `${peoplePath(organizationSlug, workItemId)}/watchers/${encodeURIComponent(userId)}`,
+    method: 'DELETE',
   });
   return data;
 }

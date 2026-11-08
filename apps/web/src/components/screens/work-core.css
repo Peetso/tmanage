@@ -2099,6 +2099,18 @@ button.tm-wk-chip[aria-expanded='true'] {
   color: var(--ink-650);
 }
 
+/* C27 — supervisor approval while a task waits in review (Figma R34 L1-C27, 532:30991). */
+.tm-wk-approval {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+.tm-wk-approval__actions {
+  display: inline-flex;
+  gap: var(--s3);
+}
+
 /* C26 — the people on a task (Figma R33 C26, 531:30917): Doers, Supervisors, Watchers. */
 .tm-wk-people-block {
   display: grid;

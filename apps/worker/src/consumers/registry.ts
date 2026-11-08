@@ -161,13 +161,17 @@ export function createWorkerOutboxHandlers(
     withWebhookStaging({
       // CQ-12 (AUT-01): every trigger event also runs the organization's enabled rules for it,
       // after the event's own consumers, in the same savepoint.
-      // C26: a task marked done also tells its supervisors (in-app).
+      // C26/C27: a task sent for review tells its supervisors it waits for their approval (in-app
+      // and email).
       'work_item.updated.v1': both(
         both(workItemLifecycleConsumer, automationRunsConsumer),
-        createCollaborationNotices(planSupervisorDoneNotices, null),
+        createCollaborationNotices(planSupervisorDoneNotices, collaborationMails),
       ),
-      // C26: people newly made doers or supervisors of a task are told (in-app).
-      'work_item.people_assigned.v1': createCollaborationNotices(planPeopleAssignedNotices, null),
+      // C26/C27: people newly made doers or supervisors of a task are told (in-app and email).
+      'work_item.people_assigned.v1': createCollaborationNotices(
+        planPeopleAssignedNotices,
+        collaborationMails,
+      ),
       'work_item.created.v1': automationRunsConsumer,
       'meeting.scheduled.v1': automationRunsConsumer,
       'document.published.v1': automationRunsConsumer,

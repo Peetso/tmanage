@@ -76,6 +76,43 @@ export class WorkItemAssigneesRepository {
       .orderBy(asc(workItemAssignees.createdAt), asc(workItemAssignees.membershipId));
   }
 
+  /**
+   * C27: the doer rows of several items at once (a list page), by user id, oldest first per item.
+   * The owner is not added here; {@link doersWithLead} puts the lead first.
+   */
+  async doersFor(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    workItemIds: readonly string[],
+  ): Promise<ReadonlyMap<string, readonly string[]>> {
+    if (workItemIds.length === 0) return new Map();
+    const rows = await tenantDrizzle(runner)
+      .select({ workItemId: workItemAssignees.workItemId, userId: memberships.userId })
+      .from(workItemAssignees)
+      .innerJoin(
+        memberships,
+        and(
+          eq(memberships.organizationId, workItemAssignees.organizationId),
+          eq(memberships.id, workItemAssignees.membershipId),
+        ),
+      )
+      .where(
+        and(
+          eq(workItemAssignees.organizationId, context.organizationId),
+          inArray(workItemAssignees.workItemId, [...workItemIds]),
+          eq(workItemAssignees.role, 'doer'),
+        ),
+      )
+      .orderBy(asc(workItemAssignees.createdAt), asc(workItemAssignees.membershipId));
+    const byItem = new Map<string, string[]>();
+    for (const row of rows) {
+      const list = byItem.get(row.workItemId) ?? [];
+      list.push(row.userId);
+      byItem.set(row.workItemId, list);
+    }
+    return byItem;
+  }
+
   /** The item's watchers by user id, oldest first (the watch rows hold membership ids). */
   async watcherUserIds(
     runner: TenantQueryRunner,

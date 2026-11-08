@@ -492,24 +492,35 @@ export const planProjectAddedNotices: NoticePlanner = async (event, tx, mailer) 
  * `work_item.people_assigned.v1` → C26. Each person newly made a doer or supervisor of a work item
  * is told in-app, if they are still an active internal member who may read work on the project.
  * Clients are never named (the people routes accept internal members only) and never told here.
+ * C27: and by email (`people_assigned`), through the same opt-out, mail toggle and quiet hours.
  */
-export const planPeopleAssignedNotices: NoticePlanner = async (event, tx) => {
+export const planPeopleAssignedNotices: NoticePlanner = async (event, tx, mailer) => {
   const raw = payloadOf(event);
   const workItemId = stringField(raw, 'workItemId', event.id);
   const projectId = stringField(raw, 'projectId', event.id);
   const assignedByUserId = stringField(raw, 'assignedByUserId', event.id);
+  const role = raw['role'] === 'supervisor' ? 'supervisor' : 'doer';
   const notices: PlannedNotice[] = [];
   for (const userId of idList(raw, 'userIds')) {
     if (userId === assignedByUserId) continue;
     const reach = await findInternalReach(tx, event.organizationId, userId, projectId);
     if (!mayBeTold(reach, 'work.read') || reach === null) continue;
     notices.push(
-      inAppWorkNotice(
+      workNotice(
         userId,
         reach.membershipId,
         'work_item.people_assigned.v1',
         workItemId,
         `work_item.people_assigned:${event.id}:${userId}`,
+        {
+          tx,
+          event,
+          mailer,
+          kind: 'people_assigned',
+          projectId,
+          actorUserId: assignedByUserId,
+          role,
+        },
       ),
     );
   }
@@ -517,45 +528,78 @@ export const planPeopleAssignedNotices: NoticePlanner = async (event, tx) => {
 };
 
 /**
- * `work_item.updated.v1` into `done` → C26. The item's supervisors are told in-app that the work
- * they oversee was marked done. Any other state tells nobody.
+ * `work_item.updated.v1` into `internal_review` → C26/C27. A task with supervisors is completed by
+ * one of them (the API refuses anyone else's move to done), so a doer's "Mark done" stops in
+ * internal review: that is when its supervisors are told, in-app and by email
+ * (`supervised_done`), that it waits for their approval. The person who made the move is skipped.
+ * Any other state tells nobody.
  */
-export const planSupervisorDoneNotices: NoticePlanner = async (event, tx) => {
+export const planSupervisorDoneNotices: NoticePlanner = async (event, tx, mailer) => {
   const raw = payloadOf(event);
-  if (raw['toState'] !== 'done') return [];
+  if (raw['toState'] !== 'internal_review') return [];
   const workItemId = stringField(raw, 'workItemId', event.id);
   const projectId = stringField(raw, 'projectId', event.id);
+  const actorUserId = typeof raw['actorUserId'] === 'string' ? raw['actorUserId'] : null;
   const notices: PlannedNotice[] = [];
   for (const userId of await listWorkItemSupervisors(tx, event.organizationId, workItemId)) {
+    if (userId === actorUserId) continue;
     const reach = await findInternalReach(tx, event.organizationId, userId, projectId);
     if (!mayBeTold(reach, 'work.read') || reach === null) continue;
     notices.push(
-      inAppWorkNotice(
+      workNotice(
         userId,
         reach.membershipId,
         'work_item.supervised_done.v1',
         workItemId,
         `work_item.supervised_done:${event.id}:${userId}`,
+        { tx, event, mailer, kind: 'supervised_done', projectId, actorUserId, role: 'supervisor' },
       ),
     );
   }
   return notices;
 };
 
-function inAppWorkNotice(
+interface WorkMailContext {
+  readonly tx: WorkerTransaction;
+  readonly event: ClaimedOutboxEvent;
+  readonly mailer: CollaborationMailer | null;
+  readonly kind: 'people_assigned' | 'supervised_done';
+  readonly projectId: string;
+  readonly actorUserId: string | null;
+  readonly role: 'doer' | 'supervisor';
+}
+
+function workNotice(
   userId: string,
   membershipId: string,
   type: string,
   workItemId: string,
   dedupeKey: string,
+  mail: WorkMailContext,
 ): PlannedNotice {
+  const { tx, event, mailer } = mail;
   return {
     recipientUserId: userId,
     optOutKind: null,
     membershipId,
     inApp: { type, objectType: 'work_item', objectId: workItemId, dedupeKey },
-    mailKind: null,
-    mail: () => Promise.resolve(null),
+    mailKind: mailer === null ? null : mail.kind,
+    mail: async () => {
+      if (mailer === null) return null;
+      const org = await organizationOf(tx, event.organizationId);
+      const item = await findWorkItemFacts(tx, event.organizationId, workItemId);
+      if (org === null || item === null) return null;
+      const project = await findProjectName(tx, event.organizationId, mail.projectId);
+      const actor = mail.actorUserId === null ? null : await findDisplayName(tx, mail.actorUserId);
+      return {
+        organizationName: org.name,
+        ...(actor === null ? {} : { actorName: actor }),
+        subjectTitle: item.title,
+        ...(project === null ? {} : { projectName: project }),
+        assigneeRole: mail.role,
+        link: mailer.linkTo(`/${org.slug}/work/${workItemId}`),
+      };
+    },
   };
 }
 
@@ -811,6 +855,9 @@ export const COLLABORATION_PLANNERS: Readonly<Record<string, NoticePlanner>> = {
   'approval.requested.v1': planApprovalRequestedNotices,
   'client_request.message_posted.v1': planRequestMessageNotices,
   'approval.decided.v1': planApprovalDecidedNotices,
+  // C27: both now mail, so a quiet-hours resume re-plans them like the others.
+  'work_item.people_assigned.v1': planPeopleAssignedNotices,
+  'work_item.updated.v1': planSupervisorDoneNotices,
 };
 
 // ─── Delivery ──────────────────────────────────────────────────────────────────

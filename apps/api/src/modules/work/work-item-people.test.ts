@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { userIdList } from './work-item-people.controller.js';
-import { doersWithLead, WorkItemPeopleService } from './work-item-people.service.js';
+import {
+  doersWithLead,
+  mayCompleteSupervised,
+  WorkItemPeopleService,
+} from './work-item-people.service.js';
 import type { WorkItemAssigneesRepository } from './work-item-assignees.repository.js';
 import type { WorkItemsRepository } from './work-items.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -80,5 +84,20 @@ describe('C26 people on a task', () => {
     await service.setRole(context, as('member'), 'wi-1', 'doer', []);
     expect(writes).toEqual(['doer:m-u-b,m-u-a', 'lead:u-b', 'doer:', 'lead:null']);
     expect(doersWithLead('u-a', ['u-c', 'u-a'])).toEqual(['u-a', 'u-c']);
+  });
+
+  it('C27: only a supervisor completes a supervised task; removing another watcher needs edit', async () => {
+    expect(mayCompleteSupervised([], 'u-doer')).toBe(true);
+    expect(mayCompleteSupervised(['u-sup'], 'u-doer')).toBe(false);
+    expect(mayCompleteSupervised(['u-sup'], 'u-sup')).toBe(true);
+    const { service } = harness();
+    // A reader without work.update may take themselves off, never someone else (403, no write).
+    const reader = {
+      ...as('member'),
+      overrides: { allow: [], deny: ['work.update'] },
+    } as Principal;
+    await expect(service.removeWatcher(context, reader, 'wi-1', 'u-other')).rejects.toMatchObject({
+      status: 403,
+    });
   });
 });
