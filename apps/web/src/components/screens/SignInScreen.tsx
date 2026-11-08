@@ -21,6 +21,9 @@ import { isPublicSignupOffered } from '../../lib/public-signup';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { takeGooglePendingMfa } from '../../lib/api/google-auth';
+import { takeSsoPendingMfa } from '../../lib/api/sso';
+import { CompanySignInButton, companySignInError } from './CompanySignInButton';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import {
   GoogleErrorMessage,
   GoogleSignInButton,
@@ -175,6 +178,9 @@ export function SignInScreen({
   const [googleError, setGoogleError] = useState<MessageKey | undefined>(undefined);
   /** Where a Google sign-in that needed a second factor goes afterwards (e.g. the invitation). */
   const [googleReturnTo, setGoogleReturnTo] = useState<string | undefined>(undefined);
+  // 54-14: a company sign-in that came back with a refusal (`?sso_error=`).
+  const tr = useTOr();
+  const [ssoError, setSsoError] = useState<readonly [string, string] | undefined>(undefined);
 
   /**
    * Set as soon as this page starts a sign-in of its own. The already-signed-in check below
@@ -198,7 +204,7 @@ export function SignInScreen({
   useEffect(() => {
     if (!onAlreadySignedIn || !mayHaveSession()) return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get('google') === 'mfa') return;
+    if (params.get('google') === 'mfa' || params.get('sso') === 'mfa') return;
     let cancelled = false;
     void signedInDestination(api, params.get('next')).then((destination) => {
       if (cancelled || attempted.current || destination === undefined) return;
@@ -213,11 +219,20 @@ export function SignInScreen({
   useEffect(() => {
     const search = window.location.search;
     setGoogleError(googleErrorKey(search));
-    if (new URLSearchParams(search).get('google') !== 'mfa') return;
+    setSsoError(companySignInError(search));
+    const params = new URLSearchParams(search);
+    // 54-14: a company sign-in parks its second-factor challenge the same way, on its own route.
+    const take =
+      params.get('google') === 'mfa'
+        ? takeGooglePendingMfa
+        : params.get('sso') === 'mfa'
+          ? takeSsoPendingMfa
+          : null;
+    if (take === null) return;
     let cancelled = false;
     // The challenge was parked in an HttpOnly cookie by the callback; it is taken once, here,
     // and kept in React state like a password sign-in's — never in the URL.
-    takeGooglePendingMfa(api)
+    take(api)
       .then((pending) => {
         if (cancelled || !pending) return;
         setGoogleReturnTo(pending.returnTo);
@@ -335,9 +350,9 @@ export function SignInScreen({
       </div>
 
       {/*
-        57-05 honesty fix: passkeys (56-22) and company SSO (54-14) are not built, so their buttons
-        are not rendered at all. The owning slices add them back with the feature and its proof
-        (`packages/domain/src/legal/public-claims.ts`).
+        57-05 honesty fix: passkeys (56-22) are not built, so their button is not rendered. Company
+        sign-in (54-14) is the button under the work email below; its public claim stays hidden
+        until its proof passes (`packages/domain/src/legal/public-claims.ts`).
       */}
       {googleError ? (
         <InlineAlert tone="danger" live>
@@ -348,6 +363,12 @@ export function SignInScreen({
               <Link href="/sign-up">{t('signIn.createAccount')}</Link>
             </>
           ) : null}
+        </InlineAlert>
+      ) : null}
+
+      {ssoError ? (
+        <InlineAlert tone="danger" live>
+          {tr(ssoError[0], ssoError[1])}
         </InlineAlert>
       ) : null}
 
@@ -384,6 +405,8 @@ export function SignInScreen({
             }}
             required
           />
+          {/* 54-14 (Figma R41 L1 568:33048): company sign-in by the typed work email. */}
+          <CompanySignInButton api={api} email={() => email} />
           <Field
             label={t('SignInScreen.password')}
             type="password"

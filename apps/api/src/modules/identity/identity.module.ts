@@ -42,7 +42,7 @@ import {
   SignInPolicyController,
 } from './sign-in-policy.controller.js';
 import { SignInPolicyService } from './sign-in-policy.service.js';
-import { SignInPolicyGate } from './sign-in-policy.repository.js';
+import { SsoEnforcedSignInPolicyGate } from '../sso/sso-enforcement.js';
 
 /**
  * ID-001's HTTP surface.
@@ -101,8 +101,9 @@ export class IdentityModule {
               maxPerSourceAccount: config.authAbuseMaxPerSourceAccount,
               maxGlobal: config.authAbuseMaxGlobal,
             }),
-            // R18-e (56-25): the organization sign-in policy, checked after the password.
-            signInPolicy: new SignInPolicyGate(database),
+            // R18-e (56-25): the organization sign-in policy, checked after the password; 54-14
+            // adds "require company sign-in" (owners keep the password as break-glass).
+            signInPolicy: new SsoEnforcedSignInPolicyGate(database),
           },
           // D07. The keyring was parsed and validated at boot by `packages/config`, so a
           // malformed `AUTH_MFA_SEED_KEYS` has already stopped the process by the time this

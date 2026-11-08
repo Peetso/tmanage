@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton, Switch } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { SignInPolicyCard, SignInPolicyGrace } from '../admin/SignInPolicyCard';
+import { CompanySignInCard } from '../admin/CompanySignInCard';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { readSecuritySettings, setSecuritySettings } from '../../lib/api/admin-security';
 import { listOrgSessions } from '../../lib/api/admin-sessions';
@@ -220,6 +221,9 @@ export function AdminSecurityScreen({
 
           {/* A16: allowed sign-in methods and two-step by role (Figma R31 L08 A16). */}
           <SignInPolicyCard api={api} organizationSlug={organizationSlug} readOnly={readOnly} />
+
+          {/* 54-14: company sign-in over OpenID Connect (Figma R41 L1 568:33048); owner only. */}
+          <CompanySignInCard api={api} organizationSlug={organizationSlug} />
         </div>
 
         <div className="tm-cc-column">

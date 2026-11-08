@@ -36,7 +36,8 @@ function securityClient(): ApiClient {
         new Response(
           JSON.stringify(String(input).includes('/sign-in-policy') ? signInPolicy : body),
           {
-            status: 200,
+            // 54-14: the company sign-in card is the owner's; this viewer is refused, so it hides.
+            status: String(input).includes('/security/sso') ? 403 : 200,
             headers: { 'content-type': 'application/json' },
           },
         ),

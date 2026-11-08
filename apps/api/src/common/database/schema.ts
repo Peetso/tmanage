@@ -13397,3 +13397,38 @@ export const connectorInstallations = mysqlTable(
 export type ConnectorInstallationRow = typeof connectorInstallations.$inferSelect;
 
 Object.assign(TABLES, { connector_installations: connectorInstallations });
+
+// ---- R41 · 54-14 company sign-in over OpenID Connect (0327) ----
+
+/**
+ * 0327 (54-14). One organization's OpenID Connect provider: issuer, client id, the client secret
+ * as a FieldCipher envelope (purpose `integration_token`, owner = row id), the allowed e-mail
+ * domains (comma-separated, lower case), whether members must use it (`enforce_sso`, the owner
+ * keeps the password as break-glass) and whether an existing account from an allowed domain joins
+ * on first sign-in (`auto_join`). TENANT: keyed `(organization_id, id)`; one row per organization.
+ * The sign-in paths read it only through `bootstrapRead` with a recorded reason.
+ */
+export const ssoConnections = mysqlTable(
+  'sso_connections',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    issuer: varchar('issuer', { length: 500 }).notNull(),
+    clientId: varchar('client_id', { length: 255 }).notNull(),
+    clientSecretEnc: text('client_secret_enc').notNull(),
+    allowedDomains: varchar('allowed_domains', { length: 1000 }).notNull(),
+    enforceSso: boolean('enforce_sso').notNull().default(false),
+    autoJoin: boolean('auto_join').notNull().default(false),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_sso_connections_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_sso_connections_org').on(table.organizationId),
+  ],
+);
+
+export type SsoConnectionRow = typeof ssoConnections.$inferSelect;
+
+Object.assign(TABLES, { sso_connections: ssoConnections });

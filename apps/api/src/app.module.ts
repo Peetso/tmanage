@@ -128,6 +128,7 @@ import { AdminSessionsModule } from './modules/identity/admin-sessions.controlle
 import { MemberNotesModule } from './modules/admin/member-notes.controller.js';
 import { PersonalAccessTokensModule } from './modules/personal-access-tokens/personal-access-tokens.controller.js';
 import { GoogleDriveModule } from './modules/google-drive/google-drive.controller.js';
+import { SsoModule } from './modules/sso/sso.controller.js';
 import { OneDriveModule } from './modules/onedrive/onedrive.controller.js';
 import { FigmaModule } from './modules/figma/figma.module.js';
 import { ConnectorsModule } from './modules/connectors/connectors.module.js';
@@ -1126,6 +1127,9 @@ export class AppModule {
         // Always registered: without GOOGLE_DRIVE_CLIENT_ID/SECRET (or the sign-in client) the
         // routes answer "not configured". Self-contained and file-disjoint.
         GoogleDriveModule.register(),
+        // 0327 (54-14). Company sign-in over OpenID Connect: the owner's settings and the browser
+        // flow. Always registered; with no connection saved, `start` answers 404.
+        SsoModule.register(),
         // 0236. OneDrive as company storage, the second external option. Always registered:
         // without MICROSOFT_CLIENT_ID/SECRET the routes answer "not configured".
         OneDriveModule.register(),

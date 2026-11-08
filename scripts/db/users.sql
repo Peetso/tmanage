@@ -1909,6 +1909,12 @@ GRANT INSERT, DELETE         ON `tmanage`.`support_messages` TO 'tmanage_app'@'%
 -- for the company erasure. SELECT rides the database-wide read.
 GRANT INSERT, DELETE ON `tmanage`.`template_packs` TO 'tmanage_app'@'%';
 
+-- ---- R41 · 54-14 company sign-in (OpenID Connect) ----
+-- 0327 `sso_connections` (tenant): the owner creates, edits (issuer, client, secret envelope,
+-- domains, enforce, auto-join) and removes the organization's one connection; DELETE also serves
+-- the company erasure. SELECT rides the database-wide read. The worker needs no grant.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`sso_connections` TO 'tmanage_app'@'%';
+
 -- ---- R41 · 54-01 connector framework ----
 -- 0328 `connector_installations` (tenant): one row inserted per installed connector (its credential
 -- as a token-vault envelope); uninstall DELETEs it. Never amended. DELETE also for the company

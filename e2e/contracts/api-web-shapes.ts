@@ -3954,3 +3954,21 @@ type _incidentClock = Assert<Exact<ApiIncidentClockView, WebIncidentClockView>>;
 type _incidentClocks = Assert<Exact<ApiIncidentClocksView, WebIncidentClocksView>>;
 type _platformIncident = Assert<Exact<ApiPlatformIncidentView, WebPlatformIncidentView>>;
 type _workspaceIncident = Assert<Exact<ApiWorkspaceIncidentView, WebWorkspaceIncidentView>>;
+
+// ---- R41 · 54-14 company sign-in (OpenID Connect) ----
+// GET/PUT/DELETE …/security/sso (CompanySignInCard), POST /v1/auth/sso/start and /mfa
+// (CompanySignInButton, SignInScreen).
+import type { SsoConnectionView as ApiSsoConnectionView } from '../../apps/api/src/modules/sso/sso.service.js';
+import type {
+  SsoPendingMfaView as ApiSsoPendingMfaView,
+  SsoStartView as ApiSsoStartView,
+} from '../../apps/api/src/modules/sso/sso.controller.js';
+import type {
+  SsoConnectionView as WebSsoConnectionView,
+  SsoPendingMfaView as WebSsoPendingMfaView,
+  SsoStartView as WebSsoStartView,
+} from '../../apps/web/src/lib/api/sso.js';
+
+type _ssoConnection = Assert<Exact<ApiSsoConnectionView, WebSsoConnectionView>>;
+type _ssoStart = Assert<Exact<ApiSsoStartView, WebSsoStartView>>;
+type _ssoPendingMfa = Assert<Exact<ApiSsoPendingMfaView, WebSsoPendingMfaView>>;
