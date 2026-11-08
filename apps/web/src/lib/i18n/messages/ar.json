@@ -18049,5 +18049,11 @@
   "WorkItemCodeLinks.open": "مفتوح",
   "WorkItemCodeLinks.remove": "إزالة",
   "WorkItemCodeLinks.removing": "جارٍ الإزالة",
-  "WorkItemCodeLinks.title": "الشيفرة"
+  "WorkItemCodeLinks.title": "الشيفرة",
+  "DocCollab.membersAria": "يحررون الآن",
+  "DocCollab.editingLive": "{count} يحررون مباشرة",
+  "DocCollab.catchingUp": "جارٍ مزامنة أحدث التغييرات…",
+  "DocCollab.offline": "انقطع الاتصال. ستُرسل تغييراتك عند عودتك إلى الإنترنت.",
+  "DocCollab.viewOnly": "عرض فقط",
+  "DocCollab.viewOnlyHint": "يمكنك قراءة هذا المستند. اطلب من محرر صلاحية التعديل."
 }

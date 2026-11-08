@@ -10,7 +10,11 @@ import { DocTitleEditor, type RenameStatus } from '../docs/DocTitleEditor';
 import { DocShareDialog } from '../docs/DocShareDialog';
 import '../docs/docs-shell.css';
 import { diffLines, initialsFor, isArabic, rtlLine, tagFor } from '../docs/doc-markdown';
+import type { Editor } from '@tiptap/core';
 import { DocEditor } from '../docs/editor/DocEditor';
+import { DocCollabBar, DocViewOnlyBanner } from '../docs/editor/DocCollabBar';
+import { joinCollab } from '../docs/editor/collab-api';
+import { newClientId, useDocCollab } from '../docs/editor/use-doc-collab';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   getDocument,
@@ -99,6 +103,18 @@ export function DocumentEditorScreen({
     queryKey: ['my-profile', organizationSlug],
     queryFn: () => fetchMyProfile(api, organizationSlug),
   });
+  // 53-10: live co-editing. The API answers 404 while its switch is off; the editor then keeps
+  // the single-writer autosave below.
+  const collabJoin = useQuery({
+    queryKey: ['document-collab', organizationSlug, documentId],
+    queryFn: () => joinCollab(api, organizationSlug, documentId),
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: Infinity,
+  });
+  const collab = collabJoin.isSuccess ? collabJoin.data : null;
+  const [collabEditor, setCollabEditor] = useState<Editor | null>(null);
+  const [clientId] = useState(newClientId);
 
   // `null` = not edited yet: the editor shows the stored body. Otherwise the editor's HTML.
   const [draft, setDraft] = useState<string | null>(null);
@@ -206,11 +222,25 @@ export function DocumentEditorScreen({
   // conflict stops it until Reload.
   const { mutate: saveNow } = save;
   useEffect(() => {
-    if (conflict || draft === null || draft.trim() === '' || draft === stored) return undefined;
+    if (collab || conflict || draft === null || draft.trim() === '' || draft === stored)
+      return undefined;
     if (draft === savedDraft) return undefined;
     const timer = setTimeout(() => saveNow(draft), autosaveDelayMs);
     return () => clearTimeout(timer);
-  }, [draft, stored, savedDraft, autosaveDelayMs, saveNow, conflict]);
+  }, [draft, stored, savedDraft, autosaveDelayMs, saveNow, conflict, collab]);
+
+  const live = useDocCollab({
+    editor: collabEditor,
+    api,
+    organizationSlug,
+    documentId,
+    join: collab,
+    clientId,
+    ...(selfId ? { selfUserId: selfId } : {}),
+    onResync: () => {
+      void collabJoin.refetch().then(() => setEditorKey((key) => key + 1));
+    },
+  });
 
   // Presence: "I am editing" now and every 15 s while the editor has focus.
   useEffect(() => {
@@ -523,7 +553,8 @@ export function DocumentEditorScreen({
             </ol>
           </nav>
           <div className="tm-docpage__bar-end">
-            {others.length > 0 ? (
+            {collab ? <DocCollabBar peers={live.peers} status={live.status} /> : null}
+            {!collab && others.length > 0 ? (
               <ul className="tm-docpresence" aria-label={tOr('DocPresence.aria', 'Also editing')}>
                 {others.map((editor) => (
                   <li key={editor.userId} className="tm-docpresence__chip">
@@ -586,7 +617,7 @@ export function DocumentEditorScreen({
           </LoadingRegion>
         ) : null}
 
-        {data ? (
+        {data && !collabJoin.isPending ? (
           <div
             onFocus={() => setFocused(true)}
             onBlur={(event) => {
@@ -596,15 +627,27 @@ export function DocumentEditorScreen({
             }}
           >
             <DocEditor
-              key={editorKey}
-              value={stored}
-              format={format}
+              key={collab ? `collab-${editorKey}-${collab.version}` : editorKey}
+              value={collab?.baseHtml ?? stored}
+              format={collab?.baseHtml ? 'html' : format}
+              {...(collab
+                ? { collab: { version: collab.baseVersion }, onEditor: setCollabEditor }
+                : {})}
               onChange={setDraft}
               onUploadFile={uploadFile}
               api={api}
               organizationSlug={organizationSlug}
               dir={isArabic(locale) ? 'rtl' : 'ltr'}
-              header={header}
+              header={
+                collab?.role === 'viewer' ? (
+                  <>
+                    <DocViewOnlyBanner />
+                    {header}
+                  </>
+                ) : (
+                  header
+                )
+              }
               footer={footer}
             />
           </div>

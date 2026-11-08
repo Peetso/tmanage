@@ -18049,5 +18049,11 @@
   "WorkItemCodeLinks.open": "Open",
   "WorkItemCodeLinks.remove": "Remove",
   "WorkItemCodeLinks.removing": "Removing",
-  "WorkItemCodeLinks.title": "Code"
+  "WorkItemCodeLinks.title": "Code",
+  "DocCollab.membersAria": "Editing now",
+  "DocCollab.editingLive": "{count} editing live",
+  "DocCollab.catchingUp": "Catching up with the latest changes…",
+  "DocCollab.offline": "Connection lost. Your changes will send when you are back online.",
+  "DocCollab.viewOnly": "View only",
+  "DocCollab.viewOnlyHint": "You can read this document. Ask an editor for edit access."
 }

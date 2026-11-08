@@ -485,3 +485,112 @@
   background: var(--success-600);
   content: '';
 }
+
+/* 53-10 live co-editing (Figma 586:33239): member colours, remote cursors, the bar, view only. */
+.tm-collab--c0 {
+  --tm-collab: var(--client-500);
+}
+.tm-collab--c1 {
+  --tm-collab: var(--success-600);
+}
+.tm-collab--c2 {
+  --tm-collab: var(--warning-600);
+}
+.tm-collab--c3 {
+  --tm-collab: var(--lime-600);
+}
+.tm-collab--c4 {
+  --tm-collab: var(--danger-600);
+}
+.tm-collab--c5 {
+  --tm-collab: var(--ink-650);
+}
+.tm-collab__caret {
+  position: relative;
+  display: inline-block;
+  inline-size: 0;
+  block-size: 1.2em;
+  margin-inline: -1px;
+  border-inline-start: 2px solid var(--tm-collab);
+  vertical-align: text-bottom;
+  pointer-events: none;
+}
+.tm-collab__tag {
+  position: absolute;
+  inset-block-end: 100%;
+  inset-inline-start: -2px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--tm-collab);
+  color: var(--paper-0);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.tm-collab__selection {
+  background: color-mix(in srgb, var(--tm-collab) 18%, transparent);
+}
+.tm-collab-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.tm-collab-bar__orbs {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tm-collab-bar__orb {
+  inline-size: 28px;
+  block-size: 28px;
+  box-shadow: 0 0 0 2px var(--tm-collab);
+}
+.tm-collab-bar__orb + .tm-collab-bar__orb {
+  margin-inline-start: -6px;
+}
+.tm-collab-bar__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-650);
+  font-size: 12px;
+  font-weight: 600;
+}
+.tm-collab-bar__dot {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: var(--lime-500);
+}
+.tm-collab-bar__status {
+  color: var(--ink-500);
+  font-size: 12px;
+}
+.tm-collab-bar__sr {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.tm-collab-viewonly {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-block-end: 16px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--lime-100);
+  color: var(--ink-650);
+  font-size: 13px;
+}
+.tm-collab-viewonly__pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font-weight: 600;
+}

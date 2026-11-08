@@ -1,7 +1,8 @@
 'use client';
 
+import type { Editor } from '@tiptap/core';
 import { EditorContent, useEditor } from '@tiptap/react';
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type { ApiClient } from '../../../lib/api/client';
 import { useTOr } from '../../../lib/i18n/use-t-or';
@@ -16,6 +17,7 @@ import {
   workItemSuggestion,
   type MentionItem,
 } from './MentionList';
+import { DocCollab } from './collab-steps';
 import { docExtensions } from './schema-extensions';
 import { LinkForm, SelectionToolbar } from './SelectionToolbar';
 import {
@@ -43,6 +45,10 @@ export interface DocEditorProps {
   /** Drawn on the sheet above the body (title, Draft pill) and below it (alerts, history). */
   readonly header?: ReactNode;
   readonly footer?: ReactNode;
+  /** 53-10: live co-editing from this version on (read once on mount, like `value`). */
+  readonly collab?: { readonly version: number };
+  /** 53-10: the Tiptap editor once created, for the co-editing sync loop. */
+  readonly onEditor?: (editor: Editor | null) => void;
 }
 
 /**
@@ -62,6 +68,8 @@ export function DocEditor({
   onComment,
   header,
   footer,
+  collab,
+  onEditor,
 }: DocEditorProps) {
   const tOr = useTOr();
   const [slash, setSlash] = useState<PopupState<SlashItem> | null>(null);
@@ -85,27 +93,30 @@ export function DocEditor({
   const editor = useEditor({
     immediatelyRender: false,
     textDirection: 'auto',
-    extensions: docExtensions({
-      placeholder: tOr(
-        'DocEditor.placeholder',
-        'Start writing, or type / for headings, tables, images and more.',
-      ),
-      mentionSuggestion: mentionSuggestion(api, organizationSlug, setMention),
-      workItemSuggestion: workItemSuggestion(api, organizationSlug, setWorkItem),
-      slashSuggestion: {
-        items: ({ query }: { query: string }) => [
-          ...filterSlashItems(query, (item) => label.current(item.key, item.english)),
-        ],
-        command: ({ editor: current, range, props }) => {
-          const ctx: SlashContext = {
-            openImage: (mode) => setDialog(mode),
-            openEmbed: () => setDialog('embed'),
-          };
-          (props as SlashItem).run(current, range, ctx);
+    extensions: [
+      ...docExtensions({
+        placeholder: tOr(
+          'DocEditor.placeholder',
+          'Start writing, or type / for headings, tables, images and more.',
+        ),
+        mentionSuggestion: mentionSuggestion(api, organizationSlug, setMention),
+        workItemSuggestion: workItemSuggestion(api, organizationSlug, setWorkItem),
+        slashSuggestion: {
+          items: ({ query }: { query: string }) => [
+            ...filterSlashItems(query, (item) => label.current(item.key, item.english)),
+          ],
+          command: ({ editor: current, range, props }) => {
+            const ctx: SlashContext = {
+              openImage: (mode) => setDialog(mode),
+              openEmbed: () => setDialog('embed'),
+            };
+            (props as SlashItem).run(current, range, ctx);
+          },
+          render: popupRenderer<SlashItem>(setSlash) as never,
         },
-        render: popupRenderer<SlashItem>(setSlash) as never,
-      },
-    }),
+      }),
+      ...(collab ? [DocCollab.configure({ version: collab.version })] : []),
+    ],
     content: initial,
     editorProps: {
       attributes: {
@@ -118,6 +129,13 @@ export function DocEditor({
     },
     onUpdate: ({ editor: current }) => change.current(current.isEmpty ? '' : current.getHTML()),
   });
+
+  const announce = useRef(onEditor);
+  announce.current = onEditor;
+  useEffect(() => {
+    announce.current?.(editor);
+    return () => announce.current?.(null);
+  }, [editor]);
 
   return (
     <div className="tm-doced" dir={dir}>

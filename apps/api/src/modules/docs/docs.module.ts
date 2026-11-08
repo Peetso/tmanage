@@ -28,6 +28,8 @@ import {
   DOCUMENT_PRESENCE_SERVICE,
   DocumentPresenceController,
 } from './document-presence.controller.js';
+import { DocumentCollabService } from './document-collab.service.js';
+import { DOCUMENT_COLLAB_SERVICE, DocumentCollabController } from './document-collab.controller.js';
 import { DocLinksService } from './doc-links.service.js';
 import {
   DOC_LINKS_SERVICE,
@@ -155,6 +157,20 @@ export class DocsModule {
         new DocumentPresenceService(database, documents, new DocumentSharingRepository()),
     };
 
+    // Slice 53-10: live co-editing — an in-memory step authority, so the singleton is the store.
+    // Off unless `TMANAGE_DOC_COLLAB=on`; while off its routes answer 404.
+    const collabService: Provider = {
+      provide: DOCUMENT_COLLAB_SERVICE,
+      inject: [TENANT_DATABASE, DOCUMENTS_SERVICE],
+      useFactory: (database: TenantDatabase, documents: DocumentsService) =>
+        new DocumentCollabService(
+          database,
+          documents,
+          new DocumentSharingRepository(),
+          process.env['TMANAGE_DOC_COLLAB'] === 'on',
+        ),
+    };
+
     return {
       module: DocsModule,
       providers: [
@@ -166,6 +182,7 @@ export class DocsModule {
         reviewsService,
         sharingService,
         presenceService,
+        collabService,
       ],
       exports: [service, commentsService, reviewsService],
       // DOC export (x131): a second controller on the same `documents` base path, serving the
@@ -186,6 +203,7 @@ export class DocsModule {
         RecentDocumentsController,
         DocumentSharingController,
         DocumentPresenceController,
+        DocumentCollabController,
       ],
     };
   }
