@@ -292,6 +292,10 @@ import type { InsightAnnotationView as ApiInsightAnnotationView } from '../../ap
 import type { MetricAlertView as ApiMetricAlertView } from '../../apps/api/src/modules/insights/metric-alerts.service.js';
 import type { MetricAlertStatusView as ApiMetricAlertStatusView } from '../../apps/api/src/modules/insights/metric-alerts.service.js';
 import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps/api/src/modules/insights/workload-forecast.service.js';
+import type {
+  WorkloadHoursView as ApiWorkloadHoursView,
+  WorkloadCapacityView as ApiWorkloadCapacityView,
+} from '../../apps/api/src/modules/insights/workload-hours.service.js';
 import type { InsightDashboardLayoutView as ApiInsightDashboardLayoutView } from '../../apps/api/src/modules/insights/dashboard-layout.controller.js';
 import type { RequestAgingView as ApiRequestAgingView } from '../../apps/api/src/modules/requests/request-aging.controller.js';
 import type { RequestTriageView as ApiRequestTriageView } from '../../apps/api/src/modules/requests/request-triage.controller.js';
@@ -846,6 +850,10 @@ import type { InsightAnnotationView as WebInsightAnnotationView } from '../../ap
 import type { MetricAlertView as WebMetricAlertView } from '../../apps/web/src/lib/api/insights-metric-alerts';
 import type { MetricAlertStatusView as WebMetricAlertStatusView } from '../../apps/web/src/lib/api/insights-metric-alerts';
 import type { WorkloadForecastView as WebWorkloadForecastView } from '../../apps/web/src/lib/api/workload-forecast';
+import type {
+  WorkloadHoursView as WebWorkloadHoursView,
+  WorkloadCapacityView as WebWorkloadCapacityView,
+} from '../../apps/web/src/lib/api/insights-workload-hours';
 import type { InsightDashboardLayoutView as WebInsightDashboardLayoutView } from '../../apps/web/src/lib/api/insight-dashboard-layout';
 import type { RequestAgingView as WebRequestAgingView } from '../../apps/web/src/lib/api/request-aging';
 import type { RequestTriageView as WebRequestTriageView } from '../../apps/web/src/lib/api/request-triage';
@@ -3907,3 +3915,9 @@ type _timelineScheduleFields = Assert<
 type _healthScheduleNullable = Assert<
   [null] extends [NonNullable<ApiProjectHealthView['schedule']>['slipDays']] ? true : false
 >;
+
+// ---- A14 · Insights workload in hours ----
+// GET insights/workload-hours and PUT insights/workload-hours/capacity/:membershipId, read by
+// InsightsWorkloadHoursScreen.
+type _workloadHours = Assert<Exact<ApiWorkloadHoursView, WebWorkloadHoursView>>;
+type _workloadCapacity = Assert<Exact<ApiWorkloadCapacityView, WebWorkloadCapacityView>>;

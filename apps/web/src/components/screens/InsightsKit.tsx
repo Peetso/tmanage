@@ -46,7 +46,7 @@ export function InsightsTabs({
       label: t('InsightsKit.tabApprovalFlow'),
       href: projectId ? `${project}/approval-cycle` : base,
     },
-    { id: 'workload', label: t('InsightsKit.tabWorkload'), href: `${base}/forecast` },
+    { id: 'workload', label: t('InsightsKit.tabWorkload'), href: `${base}/workload` },
     { id: 'adoption', label: t('InsightsKit.tabAdoption'), href: `${base}/adoption` },
   ];
 

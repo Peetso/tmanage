@@ -5,6 +5,9 @@ import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { WorkloadForecastRepository } from './workload-forecast.repository.js';
 import { WorkloadForecastService } from './workload-forecast.service.js';
 import { WorkloadForecastController } from './workload-forecast.controller.js';
+import { WorkloadHoursRepository } from './workload-hours.repository.js';
+import { WorkloadHoursService } from './workload-hours.service.js';
+import { WorkloadHoursController } from './workload-hours.controller.js';
 
 /**
  * x134's wiring — the Insights workload-forecast read.
@@ -25,12 +28,19 @@ export class WorkloadForecastModule {
       useFactory: (database: TenantDatabase) =>
         new WorkloadForecastService(database, new WorkloadForecastRepository()),
     };
+    // A14: workload in hours with owner/admin-editable capacity, on the same insights base path.
+    const hoursService: Provider = {
+      provide: WorkloadHoursService,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new WorkloadHoursService(database, new WorkloadHoursRepository()),
+    };
 
     return {
       module: WorkloadForecastModule,
-      providers: [service],
+      providers: [service, hoursService],
       exports: [service],
-      controllers: [WorkloadForecastController],
+      controllers: [WorkloadForecastController, WorkloadHoursController],
     };
   }
 }
