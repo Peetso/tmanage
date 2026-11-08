@@ -144,7 +144,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // R27 (A21 inbox mark done +1): +1, was 1288.
 // R28 (B10 client company projects +1): +1, was 1289.
 // R28 (B13 audit event changes +1): +1, was 1290.
-const EXPECTED_ROUTE_COUNT = 1292;
+// R31 (A17 workspace incidents +1): +1, was 1292.
+const EXPECTED_ROUTE_COUNT = 1293;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

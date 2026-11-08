@@ -40,6 +40,8 @@ export type ControlCenterSection =
   | 'storage'
   | 'modules'
   | 'security'
+  // A17: incidents that touch this workspace, owner-only.
+  | 'incidents'
   | 'sessions'
   | 'ip-allowlist'
   | 'policies'
@@ -167,6 +169,12 @@ const GROUPS: readonly SectionGroup[] = [
         id: 'security',
         labelKey: 'ControlCenterShell.security',
         href: '/admin/security',
+        capability: 'org.manage',
+      },
+      {
+        id: 'incidents',
+        labelKey: 'Incidents.title',
+        href: '/admin/incidents',
         capability: 'org.manage',
       },
       {

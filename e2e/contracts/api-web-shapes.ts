@@ -3921,3 +3921,22 @@ type _healthScheduleNullable = Assert<
 // InsightsWorkloadHoursScreen.
 type _workloadHours = Assert<Exact<ApiWorkloadHoursView, WebWorkloadHoursView>>;
 type _workloadCapacity = Assert<Exact<ApiWorkloadCapacityView, WebWorkloadCapacityView>>;
+
+// ---- A17 · Incidents (workspace page + platform register) ----
+import type {
+  IncidentClockView as ApiIncidentClockView,
+  IncidentClocksView as ApiIncidentClocksView,
+  PlatformIncidentView as ApiPlatformIncidentView,
+} from '../../apps/api/src/modules/platform-admin/incidents/incidents.service.js';
+import type { WorkspaceIncidentView as ApiWorkspaceIncidentView } from '../../apps/api/src/modules/platform-admin/incidents/workspace-incidents.service.js';
+import type {
+  IncidentClockView as WebIncidentClockView,
+  IncidentClocksView as WebIncidentClocksView,
+  PlatformIncidentView as WebPlatformIncidentView,
+  WorkspaceIncidentView as WebWorkspaceIncidentView,
+} from '../../apps/web/src/lib/api/incidents.js';
+
+type _incidentClock = Assert<Exact<ApiIncidentClockView, WebIncidentClockView>>;
+type _incidentClocks = Assert<Exact<ApiIncidentClocksView, WebIncidentClocksView>>;
+type _platformIncident = Assert<Exact<ApiPlatformIncidentView, WebPlatformIncidentView>>;
+type _workspaceIncident = Assert<Exact<ApiWorkspaceIncidentView, WebWorkspaceIncidentView>>;

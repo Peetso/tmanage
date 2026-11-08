@@ -12,9 +12,14 @@ import { useTOr } from '../../../lib/i18n/use-t-or';
  * and rollouts, and the "Last changed by" line.
  */
 
-export type SettingsPage = 'general' | 'flags' | 'announcements' | 'maintenance' | 'keys';
+export type SettingsPage =
+  'general' | 'flags' | 'announcements' | 'maintenance' | 'keys' | 'incidents';
 
-const PAGES: readonly { id: Exclude<SettingsPage, 'keys'>; href: string; label: MessageKey }[] = [
+const PAGES: readonly {
+  id: Exclude<SettingsPage, 'keys' | 'incidents'>;
+  href: string;
+  label: MessageKey;
+}[] = [
   { id: 'general', href: '/platform/settings', label: 'PlatformSettings.navGeneral' },
   { id: 'flags', href: '/platform/settings/flags', label: 'PlatformSettings.navFlags' },
   {
@@ -43,6 +48,12 @@ export function SettingsSubNav({ active }: { active: SettingsPage }) {
   const pages = [
     ...PAGES.map((page) => ({ ...page, text: t(page.label) })),
     { id: 'keys' as const, href: '/platform/settings/keys', text: tOr('PlatformKeys.nav', 'Keys') },
+    // A17: the incident register sits with the platform settings.
+    {
+      id: 'incidents' as const,
+      href: '/platform/incidents',
+      text: tOr('Incidents.title', 'Incidents'),
+    },
   ];
   return (
     <nav aria-label={t('PlatformSettings.navLabel')} style={NAV}>

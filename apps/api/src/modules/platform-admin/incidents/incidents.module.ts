@@ -6,8 +6,16 @@ import { platformAdminCore } from '../platform-admin-core.module.js';
 import { PLATFORM_INCIDENTS_SERVICE, PlatformIncidentsController } from './incidents.controller.js';
 import { PlatformIncidentsRepository } from './incidents.repository.js';
 import { PlatformIncidentsService } from './incidents.service.js';
+import { WorkspaceIncidentsService } from './workspace-incidents.service.js';
+import {
+  WORKSPACE_INCIDENTS_SERVICE,
+  WorkspaceIncidentsController,
+} from './workspace-incidents.controller.js';
 
-/** 56-13 · incident register — a platform area module (listed in `platform-admin.areas.ts`). */
+/**
+ * 56-13 · incident register, plus the A17 workspace incidents read — a platform area module (listed
+ * in `platform-admin.areas.ts`).
+ */
 @Module({})
 export class PlatformIncidentsModule {
   static register(): DynamicModule {
@@ -21,8 +29,15 @@ export class PlatformIncidentsModule {
           useFactory: (database: TenantDatabase) =>
             new PlatformIncidentsService(new PlatformIncidentsRepository(database)),
         },
+        {
+          provide: WORKSPACE_INCIDENTS_SERVICE,
+          inject: [TENANT_DATABASE],
+          useFactory: (database: TenantDatabase) =>
+            new WorkspaceIncidentsService(new PlatformIncidentsRepository(database)),
+        },
       ],
-      controllers: [PlatformIncidentsController],
+      // A17: the workspace owner's read sits beside the register it reads (tenant route, global guards).
+      controllers: [PlatformIncidentsController, WorkspaceIncidentsController],
     };
   }
 }

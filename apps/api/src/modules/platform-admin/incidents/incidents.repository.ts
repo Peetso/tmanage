@@ -38,6 +38,11 @@ const EDITABLE = `component = ?, status = ?, title = ?, body = ?, started_at = ?
 export const INCIDENTS_SQL = {
   list: `select ${COLUMNS} from incidents i
     order by i.started_at desc, i.created_at desc limit ${MAX_REGISTER_ROWS}`,
+  // A17: the rows a workspace may ever see — published, or announced to customers. The service
+  // keeps only those published or naming the workspace, and maps them to the public fields.
+  forWorkspaces: `select ${COLUMNS} from incidents i
+    where i.published = 1 or i.notified_customers_at is not null
+    order by i.started_at desc, i.created_at desc limit ${MAX_REGISTER_ROWS}`,
   byId: `select ${COLUMNS} from incidents i where i.id = ? limit 1`,
   byIdForUpdate: `select ${COLUMNS} from incidents i where i.id = ? limit 1 for update`,
   insert: `insert into incidents
@@ -175,6 +180,13 @@ export class PlatformIncidentsRepository {
   async list(correlationId: string): Promise<readonly IncidentRecord[]> {
     return this.database.identityRead({ correlationId, tables: ['incidents'] }, async (db) =>
       (await db.query<Row[]>(INCIDENTS_SQL.list)).map(toIncidentRecord),
+    );
+  }
+
+  /** A17 — candidates for a workspace's incidents page (published or customer-notified). */
+  async listForWorkspaces(correlationId: string): Promise<readonly IncidentRecord[]> {
+    return this.database.identityRead({ correlationId, tables: ['incidents'] }, async (db) =>
+      (await db.query<Row[]>(INCIDENTS_SQL.forWorkspaces)).map(toIncidentRecord),
     );
   }
 

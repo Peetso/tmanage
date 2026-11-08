@@ -33,6 +33,8 @@ describe('controlCenterSectionsFor', () => {
       ],
       [
         ['security', '/admin/security'],
+        // A17: workspace incidents sit right after Security.
+        ['incidents', '/admin/incidents'],
         ['audit', '/admin/audit'],
         ['data', '/admin/audit/export'],
         ['storage', '/admin/storage'],

@@ -1720,6 +1720,12 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'POST', path: '/v1/platform/incidents/:id/publish', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/incidents/:id/unpublish', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/incidents/:id/resolve', reason: 'platform_admin' },
+  // R31 · A17 — the workspace owner's incidents read: security information, owner-only.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/admin/incidents/',
+    reason: 'admin_security',
+  },
   // ---- R18-e · 56-25 organization sign-in policy ---- security administration, never an AI op.
   {
     method: 'GET',
