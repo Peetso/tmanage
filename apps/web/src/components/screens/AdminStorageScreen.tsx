@@ -27,7 +27,6 @@ import type { DriveLocation, StorageMode, StorageStatusView } from '../../lib/ap
 import {
   completeOneDriveConnect,
   disconnectOneDrive,
-  getOneDrivePickerSession,
   getOneDriveStatus,
   readOneDriveReturn,
   startOneDriveConnect,
@@ -36,12 +35,13 @@ import {
 import type { OneDriveLocation, OneDriveStatusView } from '../../lib/api/onedrive';
 import type { ApiClient } from '../../lib/api/client';
 import { openDrivePicker } from '../../lib/google-picker';
-import { openOneDrivePicker, reservePickerWindow } from '../../lib/onedrive-picker';
-import { closeIfBlank, oneDriveStatusKey } from '../storage/OneDriveAttachPicker';
+import { oneDriveStatusKey } from '../storage/OneDriveAttachPicker';
+import { OneDriveFolderDialog } from '../storage/OneDriveFolderDialog';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { isFirstTimeStorage } from '../../lib/storage-attach-state';
 import { useOrganizationName } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import '../../styles/screens/storage.css';
 import './admin-label-spacing.css';
 
@@ -77,9 +77,12 @@ export function AdminStorageScreen({
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
+  const tOr = useTOr();
   const locale = useActiveLocale();
   const queryKey = ['storage-status', organizationSlug];
   const [returnError, setReturnError] = useState(false);
+  // R36 F2. Change folder for OneDrive opens TManage's own folder browser (see the dialog).
+  const [choosingOneDriveFolder, setChoosingOneDriveFolder] = useState(false);
   const handledReturn = useRef(false);
 
   const oneDriveKey = oneDriveStatusKey(organizationSlug);
@@ -180,32 +183,17 @@ export function AdminStorageScreen({
     onSuccess: storeOneDrive,
   });
 
-  // The popup is opened inside the click (see the button), so the browser does not block it.
+  // R36 F2. The folder is browsed through the API with the connection's Graph token; File Picker
+  // v8 needed a second Microsoft token that the connect never asked consent for, so it failed.
   const changeOneDriveFolder = useMutation({
-    mutationFn: async (popup: Window | null) => {
-      const session = await getOneDrivePickerSession(api, organizationSlug);
-      // Without a project the API answers the owner only, and always with the picker.
-      if (session.mode !== 'onedrive' || !popup) throw new Error('picker_unavailable');
-      const [folder] = await openOneDrivePicker({
-        popup,
-        session,
-        mode: 'folder',
-        locale,
-        tokenFor: async (resource) => {
-          const next = await getOneDrivePickerSession(api, organizationSlug, { resource });
-          if (next.mode !== 'onedrive') throw new Error('picker_unavailable');
-          return next.accessToken;
-        },
-      });
-      if (!folder) return null;
-      return updateOneDriveSettings(api, organizationSlug, {
+    mutationFn: (folder: { driveId: string; itemId: string }) =>
+      updateOneDriveSettings(api, organizationSlug, {
         location: { kind: 'folder', driveId: folder.driveId, itemId: folder.itemId },
-      });
-    },
+      }),
     onSuccess: (view) => {
-      if (view) storeOneDrive(view);
+      storeOneDrive(view);
+      setChoosingOneDriveFolder(false);
     },
-    onSettled: (_view, _error, popup) => closeIfBlank(popup),
   });
 
   const oneDriveMutations = [
@@ -262,7 +250,10 @@ export function AdminStorageScreen({
           </h2>
           {firstTime ? null : (
             <p className="tm-storage__intro">
-              {t('AdminStorageScreen.introNamed').replace('{name}', organizationName)}
+              {tOr(
+                'AdminStorageScreen.introBoth',
+                'Choose where {name} keeps its files. You can connect Google Drive and OneDrive at the same time; new uploads go to the ticked one, and files already saved stay where they are.',
+              ).replace('{name}', organizationName)}
             </p>
           )}
 
@@ -310,10 +301,21 @@ export function AdminStorageScreen({
                 onUse={() => oneDriveSettings.mutate({ storageMode: 'onedrive' })}
                 onConnect={(libraries) => connectOneDrive.mutate(libraries)}
                 onDisconnect={() => disconnectMicrosoft.mutate()}
-                onChangeFolder={() => changeOneDriveFolder.mutate(reservePickerWindow())}
+                onChangeFolder={() => setChoosingOneDriveFolder(true)}
               />
             ) : null}
           </div>
+
+          {choosingOneDriveFolder && oneDriveView ? (
+            <OneDriveFolderDialog
+              organizationSlug={organizationSlug}
+              client={api}
+              rootLabel={t('OneDriveStorage.myFiles')}
+              busy={changeOneDriveFolder.isPending}
+              onChoose={(folder) => changeOneDriveFolder.mutate(folder)}
+              onClose={() => setChoosingOneDriveFolder(false)}
+            />
+          ) : null}
 
           {firstTime ? (
             <p className="tm-storage__note">
@@ -328,7 +330,7 @@ export function AdminStorageScreen({
 
 interface DriveOptionProps {
   view: StorageStatusView;
-  /** 0236. While OneDrive is connected Google Drive is not offered a connect; see 395:5385. */
+  /** 0236. Only for the one lime call to action; R36 F2: Drive can be connected beside OneDrive. */
   oneDrive: OneDriveStatusView | undefined;
   /** 419:23660: the first-time card, its state and ink button indented under the choice. */
   firstTime: boolean;
@@ -354,7 +356,6 @@ function DriveOption({
   const t = useT();
   const drive = view.googleDrive;
   const connected = view.configured && drive.status === 'connected';
-  const oneDriveConnected = oneDrive?.oneDrive.status === 'connected';
   // One lime call to action on the screen: OneDrive's while it offers a connect (395:5240).
   const oneDriveOffersConnect =
     oneDrive?.configured === true && oneDrive.oneDrive.status === 'not_connected';
@@ -390,19 +391,17 @@ function DriveOption({
           <StateCapsule className="tm-storage__capsule">
             {t('AdminStorageScreen.notConnected')}
           </StateCapsule>
-          {oneDriveConnected ? null : (
-            <div className="tm-storage__actions">
-              <Button
-                tone={oneDriveOffersConnect ? 'outline' : 'lime'}
-                size="feature"
-                loading={busy}
-                onClick={onConnect}
-              >
-                {t('AdminStorageScreen.connect')}
-              </Button>
-            </div>
-          )}
-          {oneDriveOffersConnect || oneDriveConnected ? null : (
+          <div className="tm-storage__actions">
+            <Button
+              tone={oneDriveOffersConnect ? 'outline' : 'lime'}
+              size="feature"
+              loading={busy}
+              onClick={onConnect}
+            >
+              {t('AdminStorageScreen.connect')}
+            </Button>
+          </div>
+          {oneDriveOffersConnect ? null : (
             <p className="tm-storage__caption">{t('AdminStorageScreen.connectNote')}</p>
           )}
         </>
@@ -473,7 +472,10 @@ function DriveOption({
               {t('AdminStorageScreen.disconnect')}
             </Button>
           </div>
-          <p className="tm-storage__caption">{t('AdminStorageScreen.existingFilesNote')}</p>
+          {/* R36 F2. With both connected, "new files go to Drive" is true only while it is ticked. */}
+          {view.storageMode === 'google_drive' ? (
+            <p className="tm-storage__caption">{t('AdminStorageScreen.existingFilesNote')}</p>
+          ) : null}
         </>
       )}
     </div>
@@ -624,7 +626,9 @@ function OneDriveOption({
               {t('OneDriveStorage.disconnect')}
             </Button>
           </div>
-          <p className="tm-storage__caption">{t('OneDriveStorage.existingFilesNote')}</p>
+          {view.storageMode === 'onedrive' ? (
+            <p className="tm-storage__caption">{t('OneDriveStorage.existingFilesNote')}</p>
+          ) : null}
         </>
       )}
     </div>

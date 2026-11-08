@@ -233,6 +233,108 @@ describe('tokens', () => {
   });
 });
 
+describe('R36 F2: Change folder', () => {
+  const folderItem = (
+    id: string,
+    parentId: string | null,
+    driveId = 'drive1',
+    isFolder = true,
+  ) => ({
+    id,
+    driveId,
+    name: parentId === null ? 'root' : `name-${id}`,
+    mimeType: 'application/octet-stream',
+    size: null,
+    webUrl: null,
+    isFolder,
+    parentId,
+  });
+
+  it('lists only the sub-folders of the drive top, read with the Graph token', async () => {
+    const getItem = vi.fn(async () => folderItem('TOP!1', null));
+    const listChildren = vi.fn(async () => ({
+      files: [
+        {
+          id: 'DIR!1',
+          name: 'Clients',
+          mimeType: '',
+          size: null,
+          modifiedTime: null,
+          isFolder: true,
+        },
+        { id: 'FILE!1', name: 'a.pdf', mimeType: '', size: 1, modifiedTime: null, isFolder: false },
+      ],
+      nextPageToken: 'next1',
+    }));
+    const { service, transport } = setup({}, { getItem, listChildren });
+    const view = await service.browseFolders(ctx(), {});
+    expect(getItem).toHaveBeenCalledWith('fresh', { driveId: 'drive1', itemId: 'root' });
+    expect(view).toEqual({
+      driveId: 'drive1',
+      folder: { id: 'TOP!1', name: '', isDriveRoot: true },
+      folders: [{ id: 'DIR!1', name: 'Clients' }],
+      nextPageToken: 'next1',
+    });
+    expect(transport.refreshTokens).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: 'openid profile email offline_access Files.ReadWrite' }),
+    );
+  });
+
+  it('answers 404 for a file or a folder of another drive', async () => {
+    const file = setup(
+      {},
+      { getItem: vi.fn(async () => folderItem('F!123', 'P!123', 'drive1', false)) },
+    );
+    await expect(file.service.browseFolders(ctx(), { folderId: 'F!123' })).rejects.toMatchObject({
+      status: 404,
+    });
+    const other = setup({}, { getItem: vi.fn(async () => folderItem('D!123', 'P!123', 'drive2')) });
+    await expect(other.service.browseFolders(ctx(), { folderId: 'D!123' })).rejects.toMatchObject({
+      status: 404,
+    });
+  });
+
+  it('saves a picked folder as the root and the drive top under the drive name, not "root"', async () => {
+    const getItem = vi.fn(async (_t: string, input: { itemId: string }) =>
+      input.itemId === 'TOP!1' ? folderItem('TOP!1', null) : folderItem(input.itemId, 'TOP!1'),
+    );
+    const getDrive = vi.fn(async () => ({
+      id: 'drive1',
+      name: 'OneDrive',
+      driveType: 'personal',
+      webUrl: null,
+    }));
+    const ensureFolder = vi.fn(async () => 'NEWROOT!1');
+    const { service, current } = setup({}, { getItem, getDrive, ensureFolder });
+    await service.updateSettings(ctx(), {
+      location: { kind: 'folder', driveId: 'drive1', itemId: 'DIR!1' },
+    });
+    expect(ensureFolder).toHaveBeenCalledWith('fresh', {
+      driveId: 'drive1',
+      parentId: 'DIR!1',
+      name: 'TManage',
+    });
+    expect(current()).toMatchObject({ rootFolderId: 'NEWROOT!1', onedriveDriveName: 'name-DIR!1' });
+    await service.updateSettings(ctx(), {
+      location: { kind: 'folder', driveId: 'drive1', itemId: 'TOP!1' },
+    });
+    expect(current()).toMatchObject({ onedriveDriveName: 'OneDrive' });
+  });
+
+  it('a refused picker token is a consent problem: the connection stays connected', async () => {
+    const refreshTokens = vi.fn(async (input: { scope: string }) => {
+      if (input.scope.startsWith('OneDrive.')) throw new OneDriveGrantRevokedError('AADSTS70000');
+      return { accessToken: 'fresh', refreshToken: 'rotated', scope: null };
+    });
+    const { service, current } = setup({}, { refreshTokens });
+    await expect(service.pickerSession(ctx(), principal(true))).rejects.toMatchObject({
+      status: 409,
+      details: [{ field: 'storage', message: 'consent_required' }],
+    });
+    expect(current()).toMatchObject({ status: 'connected' });
+  });
+});
+
 describe('the attach check', () => {
   it('refuses a file whose ancestor Graph hides (fail closed)', async () => {
     const getItem = vi.fn(async (_t: string, input: { itemId: string }) => {

@@ -46,6 +46,7 @@ import {
 import {
   OneDriveService,
   type OneDriveAttachmentView,
+  type OneDriveFolderBrowseView,
   type OneDrivePickerSessionView,
   type OneDriveProjectFilesView,
   type OneDriveSettingsInput,
@@ -63,6 +64,7 @@ import {
  * - `POST   …/integrations/onedrive/complete` — `{code, state}`: exchange, encrypt, save.
  * - `PUT    …/integrations/onedrive/settings` — storage mode and the root location.
  * - `DELETE …/integrations/onedrive` — disconnect (wipe the token).
+ * - `GET    …/integrations/onedrive/folders` — R36 F2: sub-folders for **Change folder** (org.manage).
  * - `GET    …/integrations/onedrive/picker-session` — File Picker v8 token (org-wide callers) or
  *   `scoped` (project-scoped callers, NV10).
  * - `GET    …/integrations/onedrive/projects/:projectId/files` — the server-side project list.
@@ -182,6 +184,26 @@ export class OneDriveStorageController {
   @RequireCapability('org.manage')
   async disconnect(@Ctx() context: TenantContext): Promise<OneDriveStatusView> {
     return this.onedrive.disconnect(context);
+  }
+
+  /** R36 F2. Change folder browses the connected drive here, with no second Microsoft consent. */
+  @Get('folders')
+  @RequireCapability('org.manage')
+  async folders(
+    @Ctx() context: TenantContext,
+    @Query('folderId') folderId?: unknown,
+    @Query('pageToken') pageToken?: unknown,
+  ): Promise<OneDriveFolderBrowseView> {
+    if (folderId !== undefined && !isGraphId(folderId)) {
+      throw invalid('folderId', 'must be a OneDrive folder id');
+    }
+    if (pageToken !== undefined && !isGraphSkipToken(pageToken)) {
+      throw invalid('pageToken', 'must be a OneDrive page token');
+    }
+    return this.onedrive.browseFolders(context, {
+      ...(folderId === undefined ? {} : { folderId }),
+      ...(pageToken === undefined ? {} : { pageToken }),
+    });
   }
 
   @Get('picker-session')

@@ -165,6 +165,30 @@ export async function getOneDrivePickerSession(
   return data;
 }
 
+/** R36 F2. One folder of the connected drive for **Change folder**: its sub-folders only. */
+export interface OneDriveFolderBrowseView {
+  readonly driveId: string;
+  readonly folder: { readonly id: string; readonly name: string; readonly isDriveRoot: boolean };
+  readonly folders: readonly { readonly id: string; readonly name: string }[];
+  readonly nextPageToken: string | null;
+}
+
+/** R36 F2. The sub-folders of `folderId` (the top of the connected drive by default). */
+export async function browseOneDriveFolders(
+  client: ApiClient,
+  organizationSlug: string,
+  input: { readonly folderId?: string; readonly pageToken?: string } = {},
+): Promise<OneDriveFolderBrowseView> {
+  const search = new URLSearchParams();
+  if (input.folderId) search.set('folderId', input.folderId);
+  if (input.pageToken) search.set('pageToken', input.pageToken);
+  const query = search.toString();
+  const { data } = await client.request<OneDriveFolderBrowseView>({
+    path: `${storagePath(organizationSlug)}/folders${query ? `?${query}` : ''}`,
+  });
+  return data;
+}
+
 /** NV10. One page of one of the project's own TManage folders (the project folder by default). */
 export async function getProjectOneDriveFiles(
   client: ApiClient,

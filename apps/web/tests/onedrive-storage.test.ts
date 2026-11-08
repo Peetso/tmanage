@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ApiClient } from '../src/lib/api/client';
 import * as od from '../src/lib/api/onedrive';
 import { buildPickerOptions, pickerUrl, readPickedItems } from '../src/lib/onedrive-picker';
+import { trailAfterOpen, trailBackTo } from '../src/components/storage/OneDriveFolderDialog';
 
 /** OneDrive (0236), browser half: the return fragment, routing, chunked upload and the picker. */
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
@@ -49,6 +50,34 @@ describe('OneDrive storage (web)', () => {
       `bytes ${od.ONEDRIVE_CHUNK_BYTES}-${size - 1}/${size} omit`,
     ]);
     expect(bodies[1]).toEqual({ driveId: 'dr-1', itemId: 'it-1' });
+  });
+
+  it('R36 F2: Change folder browses the API, not the Microsoft picker, and walks the path', async () => {
+    const urls: string[] = [];
+    const client = new ApiClient({
+      baseUrl: 'https://app.example.test',
+      csrfCookieName: 'c',
+      readCsrfToken: () => 't',
+      newCorrelationId: () => 'x',
+      fetch: ((url: string) => {
+        urls.push(String(url));
+        return Promise.resolve(
+          json({ driveId: 'd', folder: { id: 'f', name: 'A', isDriveRoot: false }, folders: [] }),
+        );
+      }) as typeof fetch,
+    });
+    await od.browseOneDriveFolders(client, 'acme', { folderId: 'F!123', pageToken: 'p' });
+    expect(urls[0]).toBe(
+      'https://app.example.test/v1/organizations/acme/integrations/onedrive/folders?folderId=F%21123&pageToken=p',
+    );
+    const top = [{ id: undefined, name: 'My files' }];
+    const deep = trailAfterOpen(trailAfterOpen(top, { id: 'A!1', name: 'A' }), {
+      id: 'B!1',
+      name: 'B',
+    });
+    expect(deep.map((step) => step.name)).toEqual(['My files', 'A', 'B']);
+    expect(trailBackTo(deep, 0)).toEqual(top);
+    expect(trailBackTo(deep, -5)).toEqual(top);
   });
 
   it('builds the v8 picker for both account types and keeps only well-formed picks', () => {

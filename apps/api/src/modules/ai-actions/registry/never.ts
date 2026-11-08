@@ -430,6 +430,11 @@ export const NEVER: readonly NeverEntry[] = [
   },
   {
     method: 'GET',
+    path: '/v1/organizations/:orgSlug/integrations/onedrive/folders',
+    reason: 'storage_connection',
+  },
+  {
+    method: 'GET',
     path: '/v1/organizations/:orgSlug/integrations/onedrive/projects/:projectId/files',
     reason: 'storage_connection',
   },

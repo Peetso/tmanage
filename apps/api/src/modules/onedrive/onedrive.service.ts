@@ -131,6 +131,19 @@ export interface OneDriveProjectFilesView {
   readonly nextPageToken: string | null;
 }
 
+/**
+ * R36 F2. One folder of the connected drive, for **Change folder** on the Storage screen: its
+ * sub-folders only (never files, never a token). Browsed with the connection's own Graph token, so
+ * it needs no second Microsoft consent, unlike File Picker v8.
+ */
+export interface OneDriveFolderBrowseView {
+  readonly driveId: string;
+  /** The folder listed; at the drive's top, its real id and `isDriveRoot: true`. */
+  readonly folder: { readonly id: string; readonly name: string; readonly isDriveRoot: boolean };
+  readonly folders: readonly { readonly id: string; readonly name: string }[];
+  readonly nextPageToken: string | null;
+}
+
 export type OneDriveLocation =
   | { readonly kind: 'my_files' }
   | { readonly kind: 'folder'; readonly driveId: string; readonly itemId: string }
@@ -343,7 +356,13 @@ export class OneDriveService {
         if (!folder.isFolder) throw invalid('location', 'must be a folder');
         patch.rootFolderId = await this.ensureRoot(accessToken, folder.driveId, folder.id);
         patch.onedriveDriveId = folder.driveId;
-        patch.onedriveDriveName = oneDriveFolderName(folder.name, 'OneDrive');
+        // R36 F2. The drive's own top has no parent and is called `root`; show the drive's name.
+        const placeName =
+          folder.parentId === null
+            ? (await this.graph(() => this.deps.transport.getDrive(accessToken, folder.driveId)))
+                .name
+            : folder.name;
+        patch.onedriveDriveName = oneDriveFolderName(placeName, 'OneDrive');
       }
     }
     if (input.storageMode === 'onedrive') this.requireLive(connection);
@@ -451,6 +470,45 @@ export class OneDriveService {
       rootDriveId: live.onedriveDriveId,
       rootItemId: live.rootFolderId,
       librariesEnabled: libraries,
+    };
+  }
+
+  /**
+   * R36 F2. **Change folder**: one page of the sub-folders of `folderId` (the top of the drive the
+   * root lives in by default), read with the connection's Graph token. The org.manage check is the
+   * route's. A folder of another drive or a file answers 404, like an unknown id.
+   */
+  async browseFolders(
+    context: TenantContext,
+    input: { readonly folderId?: string; readonly pageToken?: string },
+  ): Promise<OneDriveFolderBrowseView> {
+    const live = this.requireLive(await this.readConnection(context));
+    const accessToken = await this.token(context, live);
+    const driveId = live.onedriveDriveId;
+    const folder = await this.graph(
+      () => this.deps.transport.getItem(accessToken, { driveId, itemId: input.folderId ?? 'root' }),
+      live.id,
+      context,
+    );
+    if (!folder.isFolder || folder.driveId !== driveId) throw notFound();
+    const page = await this.graph(
+      () =>
+        this.deps.transport.listChildren(accessToken, {
+          driveId,
+          itemId: folder.id,
+          skipToken: input.pageToken ?? null,
+        }),
+      live.id,
+      context,
+    );
+    const isDriveRoot = folder.parentId === null;
+    return {
+      driveId,
+      folder: { id: folder.id, name: isDriveRoot ? '' : folder.name, isDriveRoot },
+      folders: page.files
+        .filter((child) => child.isFolder)
+        .map((child) => ({ id: child.id, name: child.name })),
+      nextPageToken: page.nextPageToken,
     };
   }
 
@@ -740,10 +798,19 @@ export class OneDriveService {
     const config = this.requireConfig();
     const binding = tokenBinding(context.organizationId);
     const refreshToken = this.deps.cipher.decrypt(connection.refreshTokenEnc, binding);
+    // R36 F2. A refusal for the picker's own resource (never consented at connect) says nothing
+    // about the Graph grant: it is a consent problem, and the connection stays connected.
+    const otherResource = scope !== graphScopes(connection);
     const tokens = await this.graph(
-      () => this.deps.transport.refreshTokens({ config, refreshToken, scope }),
-      connection.id,
-      context,
+      () =>
+        this.deps.transport.refreshTokens({ config, refreshToken, scope }).catch((error) => {
+          if (otherResource && error instanceof OneDriveGrantRevokedError) {
+            throw new OneDriveConsentRequiredError('Microsoft refused the picker scope');
+          }
+          throw error;
+        }),
+      otherResource ? undefined : connection.id,
+      otherResource ? undefined : context,
     );
     if (tokens.refreshToken && tokens.refreshToken !== refreshToken) {
       const rotated = this.deps.cipher.encrypt(tokens.refreshToken, binding);
