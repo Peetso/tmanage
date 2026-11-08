@@ -1,7 +1,17 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Post,
+  UseInterceptors,
+} from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
+import { IdempotencyReplayInterceptor } from '../../common/http/idempotency-replay.interceptor.js';
 import { WORK_COMMENTS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import type { WorkCommentView, WorkCommentsService } from './work-comments.service.js';
@@ -45,6 +55,8 @@ export class WorkCommentsController {
   @Post()
   @RequireCapability('work.update')
   @HttpCode(201)
+  // 53-16: an offline replay sends `Idempotency-Key`, so a lost response never writes twice.
+  @UseInterceptors(IdempotencyReplayInterceptor)
   async add(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

@@ -38,6 +38,16 @@ Not a table today — row reserved. Each gets a full inventory row in the slice 
 - `connector_tokens` (51/56-03 token vault): encrypted provider tokens, connecting member -> `delete`.
 - `mail_suppressions` (56-26 bounce/complaint policy): today's table is `email_suppressions` (listed below, hashes only); this name stays reserved in case 56-26 splits it.
 
+## Client-side and process stores
+
+Not tables, so not counted in the totals or by `data-inventory.doc.test.ts`. Added by 53-16 (offline mode).
+
+| Store                                            | Where   | Holds                                                                                                                                                                                                         | Lifetime / clearing                                                                                                         |
+| ------------------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| IndexedDB `tmanage-offline`, store `writes`      | browser | queued offline writes: comment body, status change (target state, item version, facts), checklist tick (item id, label, done), time entry (minutes, day, note), workspace slug, work item id, idempotency key | until sent or resolved; **cleared at every auth-boundary event** (sign-in, sign-out, session ended, any tab)                |
+| Cache Storage `tmanage-data-v1` (service worker) | browser | last-seen GET responses: `/{org}/home`, `/{org}/work`, `/{org}/work/{id}` pages and `/v1/organizations/{org}/home/my-day`, `work-items`, `work-items/{id}`, `.../comments`, `.../checklist`, `.../time-logs`  | network-first refresh; **cleared at every auth-boundary event** (page `caches.delete` + `CLEAR_DATA` message to the worker) |
+| API process memory (`IdempotencyStore`)          | server  | first successful response per (organization, membership, method, path, Idempotency-Key) for work-item comment POST and time-log POST                                                                          | 24 h, max 10 000 entries, lost on restart                                                                                   |
+
 ## Inventory
 
 | Table                             | Personal fields                                                                                                                       | Erasure rule            | Today    | Owner | Notes                                                                                                                                                                                                                                                                       |

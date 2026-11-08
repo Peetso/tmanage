@@ -1,0 +1,84 @@
+/*
+ * 53-16 Offline mode (Figma "R39 L1-53-16-offline", Product page). Tokens only; logical
+ * properties so the Arabic layout mirrors without a second rule.
+ */
+
+.tm-offline-strip {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 80;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s6);
+  background: var(--lime-100);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  color: var(--ink-950);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-offline-strip__message {
+  font-weight: 500;
+}
+
+.tm-offline-strip__count {
+  color: var(--ink-650);
+}
+
+.tm-offline-conflicts {
+  position: fixed;
+  inset-block-end: var(--s6);
+  inset-inline-start: var(--s6);
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  max-inline-size: min(36rem, calc(100vw - var(--s6) * 2));
+}
+
+.tm-offline-conflict {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s5);
+  border: var(--b-quiet) solid var(--danger-600);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  color: var(--ink-950);
+}
+
+.tm-offline-conflict__title {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  font-weight: 600;
+}
+
+.tm-offline-conflict__body {
+  margin: 0;
+  color: var(--ink-650);
+}
+
+.tm-offline-conflict__row {
+  display: flex;
+  gap: var(--s2);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-offline-conflict__label {
+  color: var(--ink-500);
+}
+
+.tm-offline-conflict__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.tm-pending-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}

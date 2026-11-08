@@ -17254,5 +17254,22 @@
   "ViewSwitcher.status.at_risk": "Décision requise",
   "ViewSwitcher.status.watch": "À surveiller",
   "ViewSwitcher.status.on_track": "Dans les temps",
-  "ViewSwitcher.status.archived": "Archivé"
+  "ViewSwitcher.status.archived": "Archivé",
+  "OfflineMode.pending": "En attente",
+  "OfflineMode.notSent": "Non envoyé",
+  "OfflineMode.offline": "Vous êtes hors ligne. Affichage de ce que vous avez vu en dernier.",
+  "OfflineMode.sending": "De nouveau en ligne. Envoi de vos modifications…",
+  "OfflineMode.waitingOne": "1 modification en attente d’envoi",
+  "OfflineMode.waitingMany": "{count} modifications en attente d’envoi",
+  "OfflineMode.conflictTitle": "Cette modification n’a pas pu être envoyée",
+  "OfflineMode.conflictChanged": "Quelqu’un a modifié cet élément pendant que vous étiez hors ligne.",
+  "OfflineMode.conflictGone": "Vous ne pouvez plus modifier cet élément.",
+  "OfflineMode.conflictRefused": "Le serveur n’a pas accepté cette modification.",
+  "OfflineMode.status": "Statut",
+  "OfflineMode.yours": "Le vôtre :",
+  "OfflineMode.now": "Maintenant :",
+  "OfflineMode.keepMine": "Garder la mienne",
+  "OfflineMode.takeTheirs": "Prendre la leur",
+  "OfflineMode.copyText": "Copier mon texte",
+  "OfflineMode.copied": "Copié"
 }

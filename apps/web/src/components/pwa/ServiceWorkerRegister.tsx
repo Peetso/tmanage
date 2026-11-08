@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { OfflineLayer } from './OfflineLayer';
 
 /**
  * Registers the app-shell service worker (`/sw.js`) once the window has loaded.
@@ -12,6 +13,10 @@ import { useEffect } from 'react';
  * prerequisite for the app rendering.
  *
  * Registration is deferred to the `load` event so it never competes with the first paint.
+ *
+ * 53-16: it also mounts the {@link OfflineLayer} — the offline strip, the replay of changes
+ * queued while offline, and the conflict cards — so offline mode lives beside the worker that
+ * serves the last-seen pages.
  */
 export function ServiceWorkerRegister() {
   useEffect(() => {
@@ -34,5 +39,5 @@ export function ServiceWorkerRegister() {
     return () => window.removeEventListener('load', register);
   }, []);
 
-  return null;
+  return <OfflineLayer />;
 }

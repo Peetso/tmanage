@@ -17419,5 +17419,22 @@
   "ViewSwitcher.status.at_risk": "بحاجة إلى قرار",
   "ViewSwitcher.status.watch": "تحت المتابعة",
   "ViewSwitcher.status.on_track": "على المسار",
-  "ViewSwitcher.status.archived": "مؤرشف"
+  "ViewSwitcher.status.archived": "مؤرشف",
+  "OfflineMode.pending": "قيد الانتظار",
+  "OfflineMode.notSent": "لم يُرسَل",
+  "OfflineMode.offline": "أنت غير متصل. نعرض آخر ما شاهدته.",
+  "OfflineMode.sending": "عاد الاتصال. جارٍ إرسال تغييراتك…",
+  "OfflineMode.waitingOne": "تغيير واحد بانتظار الإرسال",
+  "OfflineMode.waitingMany": "{count} تغييرات بانتظار الإرسال",
+  "OfflineMode.conflictTitle": "تعذّر إرسال هذا التغيير",
+  "OfflineMode.conflictChanged": "غيّر شخص آخر هذا العنصر أثناء انقطاعك.",
+  "OfflineMode.conflictGone": "لم يعد بإمكانك تعديل هذا العنصر.",
+  "OfflineMode.conflictRefused": "لم يقبل الخادم هذا التغيير.",
+  "OfflineMode.status": "الحالة",
+  "OfflineMode.yours": "تغييرك:",
+  "OfflineMode.now": "الآن:",
+  "OfflineMode.keepMine": "الاحتفاظ بتغييري",
+  "OfflineMode.takeTheirs": "اعتماد نسختهم",
+  "OfflineMode.copyText": "نسخ نصي",
+  "OfflineMode.copied": "تم النسخ"
 }

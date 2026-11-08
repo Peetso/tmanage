@@ -3,12 +3,10 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Checkbox, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import {
-  addChecklistItem,
-  listChecklist,
-  updateChecklistItem,
-  type WorkChecklistItem,
-} from '../../lib/api/work-items';
+import { addChecklistItem, listChecklist, type WorkChecklistItem } from '../../lib/api/work-items';
+import { tickChecklistOrQueue } from '../../lib/offline/write-or-queue';
+import { usePendingWrites } from '../../lib/offline/use-offline';
+import { PendingBadge } from '../pwa/PendingBadge';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
@@ -60,8 +58,9 @@ export function WorkChecklistPanel({ organizationSlug, workItemId, api }: WorkCh
   });
 
   const toggle = useMutation({
+    // 53-16: offline the tick is queued (Pending badge) and sent when the connection is back.
     mutationFn: (item: WorkChecklistItem) =>
-      updateChecklistItem(api, organizationSlug, workItemId, item.id, { done: !item.done }),
+      tickChecklistOrQueue(api, organizationSlug, workItemId, item, !item.done),
     onSuccess: () => {
       setFailure(undefined);
       refresh();
@@ -76,7 +75,13 @@ export function WorkChecklistPanel({ organizationSlug, workItemId, api }: WorkCh
     add.mutate(trimmed);
   }
 
-  const items = checklist.data ?? [];
+  const pendingTicks = usePendingWrites(organizationSlug, workItemId, 'checklist');
+  // The newest queued tick per item is what the person last chose; show that, not the server's.
+  const queuedTick = new Map(pendingTicks.map((write) => [write.payload.itemId, write]));
+  const items = (checklist.data ?? []).map((item) => {
+    const queued = queuedTick.get(item.id);
+    return queued ? { ...item, done: queued.payload.done } : item;
+  });
   const doneCount = items.filter((item) => item.done).length;
 
   return (
@@ -115,13 +120,16 @@ export function WorkChecklistPanel({ organizationSlug, workItemId, api }: WorkCh
             </p>
             <ul className="tm-list" aria-label={t('WorkChecklistPanel.listLabel')}>
               {items.map((item) => (
-                <li key={item.id}>
+                <li key={item.id} className="tm-pending-row">
                   <Checkbox
                     label={item.label}
                     checked={item.done}
                     disabled={toggle.isPending}
                     onChange={() => toggle.mutate(item)}
                   />
+                  {queuedTick.has(item.id) ? (
+                    <PendingBadge conflict={queuedTick.get(item.id)?.status === 'conflict'} />
+                  ) : null}
                 </li>
               ))}
             </ul>

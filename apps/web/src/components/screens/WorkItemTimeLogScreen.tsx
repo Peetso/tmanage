@@ -7,7 +7,10 @@ import Link from 'next/link';
 import { AppShell } from '../shell/AppShell';
 import './work-core.css';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { addTimeLog, deleteTimeLog, listTimeLogs, type TimeLog } from '../../lib/api/work-items';
+import { deleteTimeLog, listTimeLogs, type TimeLog } from '../../lib/api/work-items';
+import { addTimeLogOrQueue } from '../../lib/offline/write-or-queue';
+import { usePendingWrites } from '../../lib/offline/use-offline';
+import { PendingBadge } from '../pwa/PendingBadge';
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
@@ -59,8 +62,9 @@ export function WorkItemTimeLogScreen({
   const spentOnValid = /^\d{4}-\d{2}-\d{2}$/.test(spentOn);
 
   const add = useMutation({
+    // 53-16: offline the entry is queued (Pending badge) and sent when the connection is back.
     mutationFn: () =>
-      addTimeLog(api, organizationSlug, workItemId, {
+      addTimeLogOrQueue(api, organizationSlug, workItemId, {
         minutes: parsedMinutes,
         spentOn,
         note: note.trim() === '' ? null : note.trim(),
@@ -85,6 +89,7 @@ export function WorkItemTimeLogScreen({
   });
 
   const entries = logs.data?.entries ?? [];
+  const pendingEntries = usePendingWrites(organizationSlug, workItemId, 'time-log');
   const totalMinutes = logs.data?.totalMinutes ?? 0;
   const canAdd = minutesValid && spentOnValid && !add.isPending;
 
@@ -210,6 +215,21 @@ export function WorkItemTimeLogScreen({
                   >
                     {t('WorkItemTimeLogScreen.delete')}
                   </Button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          {pendingEntries.length > 0 ? (
+            <ul className="tm-stack tm-list">
+              {pendingEntries.map((write) => (
+                <li key={write.id} className="tm-pending-row tm-list__item">
+                  <span>
+                    <strong>{formatMinutes(write.payload.minutes)}</strong>{' '}
+                    {t('WorkItemTimeLogScreen.on')} {write.payload.spentOn}
+                    {write.payload.note ? ` — ${write.payload.note}` : ''}
+                  </span>
+                  <PendingBadge conflict={write.status === 'conflict'} />
                 </li>
               ))}
             </ul>

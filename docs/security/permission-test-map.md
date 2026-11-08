@@ -156,6 +156,13 @@ every new capability away from the client roles. 52-23 §10 appended `finance.vi
 
 <!-- 56-04 -->
 
+## 53-16 — idempotent replays on two work-item POSTs
+
+The gates are unchanged (`work.update`); the census rows for both routes stay in the 56-04 table below.
+
+- Work-item comment POST and time-log POST (`/v1/organizations/:orgSlug/work-items/:workItemId/comments` and `.../time-logs`) accept an optional `Idempotency-Key` (16–128 characters, `[A-Za-z0-9_-]`). A replay returns the first result. The key is scoped to organization + membership, so another member or tenant reusing it gets no replay. A key reused with a different body gets 422; a malformed key gets 400.
+- Test: `apps/api/src/common/http/idempotency-replay.interceptor.test.ts`.
+
 ## 56-04 — every signed-in route, and the test that proves its isolation
 
 One row per route the 56-15 census (`apps/api/src/security/route-census.ts`) classifies as `org`,

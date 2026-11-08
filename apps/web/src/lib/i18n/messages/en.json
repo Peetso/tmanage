@@ -17419,5 +17419,22 @@
   "ViewSwitcher.status.at_risk": "Needs a decision",
   "ViewSwitcher.status.watch": "Watch",
   "ViewSwitcher.status.on_track": "On track",
-  "ViewSwitcher.status.archived": "Archived"
+  "ViewSwitcher.status.archived": "Archived",
+  "OfflineMode.pending": "Pending",
+  "OfflineMode.notSent": "Not sent",
+  "OfflineMode.offline": "You are offline. Showing what you last saw.",
+  "OfflineMode.sending": "Back online. Sending your changes…",
+  "OfflineMode.waitingOne": "1 change waiting to send",
+  "OfflineMode.waitingMany": "{count} changes waiting to send",
+  "OfflineMode.conflictTitle": "This change could not be sent",
+  "OfflineMode.conflictChanged": "Someone changed this item while you were offline.",
+  "OfflineMode.conflictGone": "You can no longer change this item.",
+  "OfflineMode.conflictRefused": "The server did not accept this change.",
+  "OfflineMode.status": "Status",
+  "OfflineMode.yours": "Yours:",
+  "OfflineMode.now": "Now:",
+  "OfflineMode.keepMine": "Keep mine",
+  "OfflineMode.takeTheirs": "Take theirs",
+  "OfflineMode.copyText": "Copy my text",
+  "OfflineMode.copied": "Copied"
 }

@@ -17254,5 +17254,22 @@
   "ViewSwitcher.status.at_risk": "需要决策",
   "ViewSwitcher.status.watch": "关注",
   "ViewSwitcher.status.on_track": "按计划进行",
-  "ViewSwitcher.status.archived": "已归档"
+  "ViewSwitcher.status.archived": "已归档",
+  "OfflineMode.pending": "待发送",
+  "OfflineMode.notSent": "未发送",
+  "OfflineMode.offline": "你已离线。正在显示你上次看到的内容。",
+  "OfflineMode.sending": "已恢复联网，正在发送你的更改…",
+  "OfflineMode.waitingOne": "1 项更改等待发送",
+  "OfflineMode.waitingMany": "{count} 项更改等待发送",
+  "OfflineMode.conflictTitle": "此更改无法发送",
+  "OfflineMode.conflictChanged": "你离线期间有人修改了此项。",
+  "OfflineMode.conflictGone": "你已无法修改此项。",
+  "OfflineMode.conflictRefused": "服务器未接受此更改。",
+  "OfflineMode.status": "状态",
+  "OfflineMode.yours": "你的：",
+  "OfflineMode.now": "现在：",
+  "OfflineMode.keepMine": "保留我的",
+  "OfflineMode.takeTheirs": "采用对方的",
+  "OfflineMode.copyText": "复制我的文本",
+  "OfflineMode.copied": "已复制"
 }

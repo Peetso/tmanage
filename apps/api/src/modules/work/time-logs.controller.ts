@@ -1,7 +1,18 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Post,
+  UseInterceptors,
+} from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
+import { IdempotencyReplayInterceptor } from '../../common/http/idempotency-replay.interceptor.js';
 import { WORK_TIME_LOGS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { optionalBoolean, parseManualSpan, utcDay } from '../time/time-rules.js';
@@ -57,6 +68,8 @@ export class WorkTimeLogsController {
   @Post()
   @RequireCapability('work.update')
   @HttpCode(201)
+  // 53-16: an offline replay sends `Idempotency-Key`, so a lost response never writes twice.
+  @UseInterceptors(IdempotencyReplayInterceptor)
   async add(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

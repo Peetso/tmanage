@@ -3,7 +3,10 @@
 import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { addWorkComment, listWorkComments, type WorkComment } from '../../lib/api/work-items';
+import { listWorkComments, type WorkComment } from '../../lib/api/work-items';
+import { addCommentOrQueue } from '../../lib/offline/write-or-queue';
+import { usePendingWrites } from '../../lib/offline/use-offline';
+import { PendingBadge } from '../pwa/PendingBadge';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { useDictation } from '../voice/useDictation';
@@ -142,8 +145,10 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
   }
 
   const add = useMutation({
+    // 53-16: offline (or when the request never arrives) the comment is queued and shown below
+    // with a Pending badge; it is sent, in order, when the connection is back.
     mutationFn: (nextBody: string) =>
-      addWorkComment(api, organizationSlug, workItemId, { body: nextBody }),
+      addCommentOrQueue(api, organizationSlug, workItemId, nextBody),
     onSuccess: () => {
       setBody('');
       setFailure(undefined);
@@ -160,6 +165,7 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
   }
 
   const items: readonly WorkComment[] = comments.data ?? [];
+  const pendingComments = usePendingWrites(organizationSlug, workItemId, 'comment');
 
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-work-comments">
@@ -201,6 +207,17 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
             ))}
           </ul>
         )
+      ) : null}
+
+      {pendingComments.length > 0 ? (
+        <ul className="tm-list">
+          {pendingComments.map((write) => (
+            <li key={write.id} className="tm-pending-row">
+              <p className="tm-prose">{write.payload.body}</p>
+              <PendingBadge conflict={write.status === 'conflict'} />
+            </li>
+          ))}
+        </ul>
       ) : null}
 
       <form className="tm-stack" noValidate onSubmit={submit}>

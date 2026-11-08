@@ -25,6 +25,7 @@ import {
   transitionWorkItem,
   updateWorkItem,
 } from '../../lib/api/work-items';
+import { transitionOrQueue } from '../../lib/offline/write-or-queue';
 import type {
   ItemFile,
   UpdateWorkItemInput,
@@ -1568,11 +1569,8 @@ function MovePanel({
             ? new Date(value).toISOString()
             : value;
       }
-      return transitionWorkItem(api, organizationSlug, item.id, {
-        version: item.version,
-        to,
-        facts: wire,
-      });
+      // 53-16: offline the status change is queued against this version and replayed later.
+      return transitionOrQueue(api, organizationSlug, item, { to, facts: wire });
     },
     onSuccess: (next) => {
       onMoved(next);
