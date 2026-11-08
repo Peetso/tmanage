@@ -277,6 +277,16 @@ function ImportStart({ organizationSlug, api }: { organizationSlug: string; api:
             </button>
           ))}
         </div>
+        {sourceId === 'trello' || sourceId === 'asana' ? (
+          <p className="tm-import-start__lead">
+            <Link href={`/${encodeURIComponent(organizationSlug)}/onboarding/import/from-app`}>
+              {tOr(
+                'ImportStartScreen.fromAppLink',
+                'Or import straight from Trello or Asana with your own token',
+              )}
+            </Link>
+          </p>
+        ) : null}
       </section>
 
       <div className="tm-import-start__body">

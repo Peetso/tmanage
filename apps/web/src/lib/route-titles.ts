@@ -263,6 +263,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/objectives': { en: 'Objectives', key: 'RouteTitle.objectives' },
   '/[orgSlug]/onboarding/import': { en: 'Import', key: 'RouteTitle.onboardingImport' },
   '/[orgSlug]/onboarding/import/[jobId]': { en: 'Import', key: 'RouteTitle.onboardingImport' },
+  '/[orgSlug]/onboarding/import/from-app': { en: 'Import', key: 'RouteTitle.onboardingImport' },
   '/[orgSlug]/onboarding/project': { en: 'Set up a project', key: 'RouteTitle.onboardingProject' },
   '/[orgSlug]/onboarding/team': { en: 'Invite your team', key: 'RouteTitle.onboardingTeam' },
   '/[orgSlug]/onboarding/template': {
@@ -322,6 +323,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     en: 'Baselines',
     key: 'RouteTitle.projectBaselines',
   },
+  '/[orgSlug]/projects/[projectId]/github': { en: 'Settings', key: 'RouteTitle.settings' },
   '/[orgSlug]/projects/[projectId]/deliverables': {
     en: 'Deliverables',
     key: 'RouteTitle.projectDeliverables',

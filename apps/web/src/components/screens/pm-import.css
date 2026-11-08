@@ -1,0 +1,146 @@
+/*
+ * R45 L3 (54-25, 54-10): the Trello / Asana token import and the project GitHub settings, as in
+ * the Figma section "R45 L3": 480-wide paper panels (radius card, padding s6, gap s4) with
+ * paper-50 wells (radius control) for lists of rows. Logical properties, so Arabic mirrors.
+ */
+
+.tm-pmi {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s6);
+}
+
+.tm-pmi__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  inline-size: 100%;
+  max-inline-size: 480px;
+  padding: var(--s6);
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+}
+
+.tm-pmi__title {
+  margin: 0;
+  color: var(--ink-950);
+  font: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+}
+
+.tm-pmi__eyebrow {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 600;
+}
+
+.tm-pmi__muted {
+  margin: 0;
+  color: var(--ink-650);
+}
+
+.tm-pmi__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-pmi__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-pmi__well {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: var(--s3) var(--s4);
+  list-style: none;
+  background: var(--paper-50);
+  border-radius: var(--r-control);
+}
+
+.tm-pmi__map-row,
+.tm-pmi__count {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-inline-size: 0;
+}
+
+.tm-pmi__count {
+  justify-content: space-between;
+}
+
+.tm-pmi__count dt {
+  color: var(--ink-950);
+}
+
+.tm-pmi__count dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.tm-pmi__arrow {
+  color: var(--ink-650);
+}
+
+[dir='rtl'] .tm-pmi__arrow {
+  transform: scaleX(-1);
+}
+
+.tm-pmi__mono {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-pmi__compact-select {
+  min-inline-size: 10rem;
+}
+
+.tm-pmi__link {
+  color: var(--ink-950);
+  text-decoration: underline;
+}
+
+.tm-pmi__repo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  background: var(--paper-50);
+  border-radius: var(--r-control);
+}
+
+.tm-pmi__repo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  min-inline-size: 0;
+}
+
+.tm-pmi__secret {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  background: var(--paper-50);
+  border-radius: var(--r-control);
+  overflow-wrap: anywhere;
+}

@@ -11,6 +11,7 @@ import { AppShell } from '../shell/AppShell';
 import { MemberSelect } from '../MemberSelect';
 import './work-core.css';
 import { WorkCommentsPanel } from './WorkCommentsPanel';
+import { WorkItemCodeLinks } from './WorkItemCodeLinks';
 import { NotScannedDownload } from './NotScannedDownload';
 import { WorkChecklistPanel } from './WorkChecklistPanel';
 import { SendForApprovalDialog } from './SendForApprovalDialog';
@@ -790,6 +791,7 @@ function WorkItemBody({
               onError={handleWriteError}
             />
             <WorkCommentsPanel organizationSlug={organizationSlug} workItemId={item.id} api={api} />
+            <WorkItemCodeLinks organizationSlug={organizationSlug} workItemId={item.id} api={api} />
           </div>
           <FilesCard
             api={api}

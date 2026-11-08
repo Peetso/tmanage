@@ -166,7 +166,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // R44 L2 56-23 mark reviewed + 56-06 blocked files (list, delete now), +3 NEVER: +3, was 1349.
 // R44 L1 52-08 (POST quotes/:quoteId/convert, client money, +1 NEVER): +1, was 1352.
 // R45 L1 53-11 (GET work-items/:workItemId/comments/mention-candidates, work.read): +1, was 1353.
-const EXPECTED_ROUTE_COUNT = 1354;
+// R45 L3 54-25 (Trello / Asana token import: 5 POST/DELETE + 1 GET, +6 NEVER): +6, was 1354.
+const EXPECTED_ROUTE_COUNT = 1360;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

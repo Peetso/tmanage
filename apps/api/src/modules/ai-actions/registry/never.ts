@@ -2053,6 +2053,38 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/security/sso/',
     reason: 'org_security_manage',
   },
+  // R45 L3 (54-25). Trello / Asana import with the owner's own token: the connect route carries a
+  // credential into the vault, the others steer outbound egress with it or bulk-write work items.
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/imports/pm/:source/connect',
+    reason: 'automation_secrets',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/imports/pm/:source/discover',
+    reason: 'automation_secrets',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/imports/pm/:source/preview',
+    reason: 'automation_secrets',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/imports/pm/:source/jobs',
+    reason: 'automation_secrets',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/imports/pm/:source/connection',
+    reason: 'automation_secrets',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/imports/pm/:source/jobs/:jobId',
+    reason: 'automation_secrets',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */
