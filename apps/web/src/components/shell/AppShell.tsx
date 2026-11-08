@@ -33,6 +33,7 @@ import { RunningTimerPill } from '../time/TimerControls';
 import { BetaTag } from './BetaTag';
 import { ThemeSync } from './ThemeSync';
 import { KeyboardShortcutLayer } from './KeyboardShortcutLayer';
+import { NewMenu } from './NewMenu';
 
 export interface AppShellProps {
   /**
@@ -233,7 +234,7 @@ export function AppShell({
         <MaintenanceBanner />
         {/* PREF-02: the member's saved light / dark / system theme on <html data-theme>. */}
         {queryClient ? <ThemeSync organizationSlug={organizationSlug} /> : null}
-        {/* SR-01 command surface: keyboard-driven (Ctrl/Cmd-K) navigation and quick actions. */}
+        {/* SR-01 / 55-06 command palette v2: Ctrl/Cmd-K, grouped navigation, actions, live search. */}
         <CommandPalette organizationSlug={organizationSlug} />
         {/* Slice 55-12: global shortcuts (? g h g p g w c /) and the cheat sheet dialog. */}
         <KeyboardShortcutLayer organizationSlug={organizationSlug} />
@@ -311,6 +312,9 @@ export function AppShell({
                   {actions || queryClient ? (
                     <div className="tm-canvas-header__actions">
                       {actions}
+                      {/* Row 55-05: the global "+ New" menu, filtered by role (needs the query
+                          client for the role read). */}
+                      {queryClient ? <NewMenu organizationSlug={organizationSlug} /> : null}
                       {/* 52-01: the running-timer pill, only while a timer runs (needs the
                           query client). */}
                       {queryClient ? (

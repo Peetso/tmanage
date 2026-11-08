@@ -1,50 +1,91 @@
 'use client';
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { QueryClientContext, useQuery } from '@tanstack/react-query';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchCommands } from '../../lib/api/commands';
 import type { Command } from '../../lib/api/commands';
 import type { ApiClient } from '../../lib/api/client';
+import { search } from '../../lib/api/search';
+import { localeDirection } from '../../lib/i18n/direction';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import {
+  PALETTE_SPECS,
+  filterByPermission,
+  flattenSections,
+  moveActive,
+  parseRecentItems,
+  pushRecentItem,
+  rankPalette,
+  recentItemsKey,
+  resultHref,
+  type PaletteGroupId,
+  type PaletteItem,
+  type RecentItem,
+} from '../shell/command-palette-model';
+import { runPaletteAction } from '../shell/palette-actions';
+import { useShellCapability } from '../shell/use-shell-capability';
+import '../shell/command-palette-v2.css';
 
 /**
  * The window event any control may dispatch to open the palette — the search orb in HOME-01's
- * day capsule uses it. An event rather than a context, so the opener needs no provider.
+ * day capsule and the `/` shortcut use it. An event rather than a context, so the opener needs no
+ * provider.
  */
 export const OPEN_COMMAND_PALETTE_EVENT = 'tm:open-command-palette';
 
 export interface CommandPaletteProps {
   organizationSlug: string;
-  /** Test seam: an explicit client and an initially-open palette. */
+  /** Test seams: an explicit client, an initially-open palette, where a link goes, the debounce. */
   client?: ApiClient;
   initiallyOpen?: boolean;
+  navigate?: (path: string) => void;
+  searchDelayMs?: number;
+}
+
+/** In-app navigation without a router dependency: a real assign so the shell need wire nothing. */
+function assign(path: string): void {
+  if (typeof window !== 'undefined') window.location.assign(path);
+}
+
+/** Ctrl/Cmd-K, read by physical key too, so it works on an Arabic or Urdu keyboard layout. */
+function isPaletteChord(event: KeyboardEvent): boolean {
+  if (!(event.metaKey || event.ctrlKey) || event.altKey) return false;
+  return event.key.toLowerCase() === 'k' || event.code === 'KeyK';
 }
 
 /**
- * **SRCH command palette (x181).**
+ * **Command palette v2 (rows SRCH x181 → 55-06).** Figma "R48 L2" (589:33479).
  *
- * `38-MODULE-MAP` §Search, command & AI: a keyboard-driven command palette over the existing search.
- * Opened with Ctrl/Cmd-K, it lists the commands the API returns for the typed query — a static,
- * allowlisted registry the server matches — plus a "search the workspace for …" entry and the last
- * search this tenant ran. The AI copilot is out of scope (Needs-Peter, external LLM).
+ * Ctrl/Cmd-K (or `/` through the shortcut layer, or the day capsule's search orb) opens a
+ * keyboard-only palette with grouped sections: SEARCH the workspace for the typed text, RECENT
+ * (what was opened from here, and the last search), CREATE (task, project, doc, meeting), ACTIONS
+ * (log time, start timer, switch workspace, language, theme), GO TO (the rail, plus the server's
+ * command registry) and the live hits of the existing search API. Every gated row is filtered by
+ * the person's role; ranking and filtering live in `command-palette-model.ts`.
  *
  * ## Why the dialog is a separate component
  *
  * This outer component is what {@link AppShell} mounts on every internal screen, so it must be cheap
  * and context-free while closed: it uses only `useState` and one document `keydown` listener, and
- * renders **nothing** until opened. The parts that need React Query and the DOM — the fetch, the
- * focus trap, the keyboard list — live in {@link CommandPaletteDialog}, which is mounted only when the
- * palette is open. A screen test that renders the shell therefore never pays for a `QueryClient` or a
- * router it did not set up, because the dialog that would need them is not in the tree.
+ * renders **nothing** until opened. The parts that need React Query and the DOM live in
+ * {@link CommandPaletteDialog}, mounted only while the palette is open.
  */
-export function CommandPalette({ organizationSlug, client, initiallyOpen }: CommandPaletteProps) {
+export function CommandPalette({
+  organizationSlug,
+  client,
+  initiallyOpen,
+  navigate,
+  searchDelayMs,
+}: CommandPaletteProps) {
   const [open, setOpen] = useState<boolean>(initiallyOpen ?? false);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      if (isPaletteChord(event)) {
         event.preventDefault();
         setOpen((value) => !value);
       }
@@ -66,6 +107,8 @@ export function CommandPalette({ organizationSlug, client, initiallyOpen }: Comm
     <CommandPaletteDialog
       organizationSlug={organizationSlug}
       {...(client ? { client } : {})}
+      navigate={navigate ?? assign}
+      searchDelayMs={searchDelayMs ?? 200}
       onClose={() => setOpen(false)}
     />
   );
@@ -74,6 +117,8 @@ export function CommandPalette({ organizationSlug, client, initiallyOpen }: Comm
 interface CommandPaletteDialogProps {
   organizationSlug: string;
   client?: ApiClient;
+  navigate: (path: string) => void;
+  searchDelayMs: number;
   onClose: () => void;
 }
 
@@ -82,74 +127,110 @@ function recentKey(slug: string): string {
   return `tmanage.recent-search.${slug}`;
 }
 
-function readRecentSearch(slug: string): string | null {
+function readStorage(key: string): string | null {
   if (typeof window === 'undefined') return null;
   try {
-    const value = window.localStorage.getItem(recentKey(slug));
-    return value && value.trim() !== '' ? value : null;
+    return window.localStorage.getItem(key);
   } catch {
     return null;
   }
 }
 
-function writeRecentSearch(slug: string, value: string): void {
+function writeStorage(key: string, value: string | null): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(recentKey(slug), value);
+    if (value === null) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, value);
   } catch {
     // A private window or blocked storage is not an error the palette should surface.
   }
 }
 
-function clearRecentSearch(slug: string): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.removeItem(recentKey(slug));
-  } catch {
-    // Ignore — see writeRecentSearch.
-  }
-}
+const GROUP_LABELS: Readonly<Record<PaletteGroupId, readonly [string, string]>> = {
+  search: ['CommandPaletteV2.groupSearch', 'Search'],
+  recent: ['CommandPaletteV2.groupRecent', 'Recent'],
+  create: ['CommandPaletteV2.groupCreate', 'Create'],
+  actions: ['CommandPaletteV2.groupActions', 'Actions'],
+  navigate: ['CommandPaletteV2.groupNavigate', 'Go to'],
+  results: ['CommandPaletteV2.groupResults', 'In the workspace'],
+};
 
-/** In-app navigation without a router dependency: a real assign so the shell need wire nothing. */
-function navigateTo(path: string): void {
-  if (typeof window !== 'undefined') window.location.assign(path);
-}
+const KIND_LABELS: Readonly<Record<string, string>> = {
+  work_item: 'Work item',
+  project: 'Project',
+  document: 'Doc',
+  meeting: 'Meeting',
+  message: 'Message',
+  decision: 'Decision',
+  invoice: 'Invoice',
+  quote: 'Quote',
+  expense: 'Expense',
+  file: 'File',
+};
 
-/** The rows the palette can offer, in the order they render. A discriminated union so activation is exhaustive. */
-type Entry =
-  | { readonly kind: 'search'; readonly id: string; readonly label: string; readonly query: string }
-  | { readonly kind: 'recent'; readonly id: string; readonly label: string; readonly query: string }
-  | {
-      readonly kind: 'command';
-      readonly id: string;
-      readonly label: string;
-      readonly command: Command;
-    };
+const GROUP_ORB: Readonly<Record<PaletteGroupId, string>> = {
+  search: '⌕',
+  recent: '↺',
+  create: '+',
+  actions: '›',
+  navigate: '→',
+  results: '◆',
+};
+
+/** The typed text, settled: live reads wait until typing pauses. */
+function useSettled(value: string, delayMs: number): string {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    if (delayMs <= 0) {
+      setSettled(value);
+      return;
+    }
+    const id = window.setTimeout(() => setSettled(value), delayMs);
+    return () => window.clearTimeout(id);
+  }, [value, delayMs]);
+  return settled;
+}
 
 /**
- * The open palette: a focus-trapped dialog listing the commands the API returns for the typed query,
- * plus a search entry and the recent search. It dispatches only what the server returned — a
- * `navigate` command follows its `href`; an `action` command is routed through a hardcoded `switch`
- * over the closed action-id set. The typed query is only a filter and the seed for a search; it is
- * never a command, an href or an action, so the palette can never run anything the registry did not
- * declare (the no-injection property the API matcher proves).
+ * The open palette: a focus-trapped dialog. It dispatches only what a row declares — an
+ * org-relative `href`, a closed local action, or a server registry action through a closed
+ * `switch`. The typed query is only a filter and the seed for a search; it is never an href or
+ * an action, so the palette can never run anything the registry or this file did not declare.
  */
-function CommandPaletteDialog({ organizationSlug, client, onClose }: CommandPaletteDialogProps) {
+function CommandPaletteDialog({
+  organizationSlug,
+  client,
+  navigate,
+  searchDelayMs,
+  onClose,
+}: CommandPaletteDialogProps) {
   const api = client ?? browserApiClient();
   const t = useT();
+  const tOr = useTOr();
+  const locale = useActiveLocale();
+  const queryClient = useContext(QueryClientContext);
+  const may = useShellCapability(organizationSlug, client);
 
   const [draft, setDraft] = useState<string>('');
   const [activeIndex, setActiveIndex] = useState<number>(0);
-  const [recent, setRecent] = useState<string | null>(() => readRecentSearch(organizationSlug));
+  const [failed, setFailed] = useState(false);
+  const [recentSearch, setRecentSearch] = useState<string | null>(() => {
+    const value = readStorage(recentKey(organizationSlug));
+    return value && value.trim() !== '' ? value : null;
+  });
+  const [recentItems, setRecentItems] = useState<RecentItem[]>(() =>
+    parseRecentItems(readStorage(recentItemsKey(organizationSlug))),
+  );
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
 
   const baseId = useId();
   const query = draft.trim();
+  const settled = useSettled(query, searchDelayMs);
+  const base = `/${encodeURIComponent(organizationSlug)}`;
 
-  // Move focus to the input on mount and restore it to wherever it was on unmount (the focus trap's
-  // bookends). Runs once: the dialog is remounted each time the palette opens.
+  // The focus trap's bookends: focus the input on open, restore the opener's focus on close.
   useEffect(() => {
     restoreFocusRef.current = (document.activeElement as HTMLElement | null) ?? null;
     inputRef.current?.focus();
@@ -157,8 +238,13 @@ function CommandPaletteDialog({ organizationSlug, client, onClose }: CommandPale
   }, []);
 
   const commandsQuery = useQuery({
-    queryKey: ['command-palette', organizationSlug, query],
-    queryFn: () => fetchCommands(api, organizationSlug, query === '' ? {} : { q: query }),
+    queryKey: ['command-palette', organizationSlug, settled],
+    queryFn: () => fetchCommands(api, organizationSlug, settled === '' ? {} : { q: settled }),
+  });
+  const searchQuery = useQuery({
+    queryKey: ['command-palette-search', organizationSlug, settled],
+    queryFn: () => search(api, organizationSlug, { q: settled, limit: 5 }),
+    enabled: settled.length >= 2,
   });
 
   const commands = useMemo<readonly Command[]>(
@@ -166,79 +252,203 @@ function CommandPaletteDialog({ organizationSlug, client, onClose }: CommandPale
     [commandsQuery.data],
   );
 
-  const entries = useMemo<readonly Entry[]>(() => {
-    const rows: Entry[] = [];
+  const rtl = localeDirection(locale) === 'rtl';
+  const darkNow =
+    typeof document !== 'undefined' && document.documentElement.dataset['theme'] === 'dark';
+
+  const items = useMemo<PaletteItem[]>(() => {
+    const rows: PaletteItem[] = [];
     if (query !== '') {
       rows.push({
-        kind: 'search',
-        id: `${baseId}-search`,
+        id: 'search-workspace',
+        group: 'search',
         label: `${t('CommandPalette.searchWorkspacePrefix')}${query}${t('CommandPalette.searchWorkspaceSuffix')}`,
-        query,
+        preMatched: true,
+        run: { type: 'action', action: 'search-workspace' },
       });
     }
-    if (recent && recent !== query) {
+    if (recentSearch && recentSearch !== query) {
       rows.push({
-        kind: 'recent',
-        id: `${baseId}-recent`,
-        label: `${t('CommandPalette.recentSearchPrefix')}${recent}`,
-        query: recent,
+        id: 'recent-search',
+        group: 'recent',
+        label: `${t('CommandPalette.recentSearchPrefix')}${recentSearch}`,
+        keywords: [recentSearch],
+        run: { type: 'href', href: `/search?q=${encodeURIComponent(recentSearch)}` },
       });
     }
+    for (const recent of recentItems) {
+      rows.push({
+        id: `recent-${recent.id}`,
+        group: 'recent',
+        label: recent.label,
+        run: { type: 'href', href: recent.href },
+      });
+    }
+    // The server's registry first (it matched the query itself): navigation not already on the
+    // rail, and its closed action ids.
+    const knownHrefs = new Set(
+      PALETTE_SPECS.flatMap((spec) => (spec.run.type === 'href' ? [spec.run.href] : [])),
+    );
     for (const command of commands) {
+      if (command.kind === 'navigate' && command.href && !knownHrefs.has(command.href)) {
+        rows.push({
+          id: `cmd-${command.id}`,
+          group: 'navigate',
+          label: command.title,
+          preMatched: true,
+          run: { type: 'href', href: command.href },
+        });
+      } else if (command.kind === 'action' && command.action === 'clear-recent-search') {
+        if (recentSearch || recentItems.length > 0) {
+          rows.push({
+            id: `cmd-${command.id}`,
+            group: 'actions',
+            label: command.title,
+            preMatched: true,
+            run: { type: 'command', action: command.action },
+          });
+        }
+      }
+    }
+    for (const spec of filterByPermission(PALETTE_SPECS, may)) {
+      let label = tOr(spec.messageKey, spec.fallback);
+      if (spec.id === 'toggle-language' && rtl) {
+        label = tOr('CommandPaletteV2.switchToEnglish', 'Switch to English');
+      }
+      if (spec.id === 'toggle-theme' && darkNow) {
+        label = tOr('CommandPaletteV2.lightTheme', 'Light theme');
+      }
       rows.push({
-        kind: 'command',
-        id: `${baseId}-cmd-${command.id}`,
-        label: command.title,
-        command,
+        id: spec.id,
+        group: spec.group,
+        label,
+        keywords: [spec.fallback, ...(spec.keywords ?? [])],
+        ...(spec.capability ? { capability: spec.capability } : {}),
+        ...(spec.hint ? { hint: spec.hint } : {}),
+        run: spec.run,
       });
+    }
+    if (settled.length >= 2 && settled === query) {
+      for (const hit of searchQuery.data ?? []) {
+        const href = resultHref(hit);
+        if (href === null) continue;
+        rows.push({
+          id: `hit-${hit.kind}-${hit.id}`,
+          group: 'results',
+          label: hit.title,
+          tag: tOr(`CommandPaletteV2.kind.${hit.kind}`, KIND_LABELS[hit.kind] ?? hit.kind),
+          preMatched: true,
+          run: { type: 'href', href },
+        });
+      }
     }
     return rows;
-  }, [baseId, commands, query, recent, t]);
+  }, [
+    commands,
+    darkNow,
+    may,
+    query,
+    recentItems,
+    recentSearch,
+    rtl,
+    searchQuery.data,
+    settled,
+    t,
+    tOr,
+  ]);
+
+  const sections = useMemo(() => rankPalette(items, query), [items, query]);
+  const flat = useMemo(() => flattenSections(sections), [sections]);
 
   useEffect(() => {
-    setActiveIndex((index) => (entries.length === 0 ? 0 : Math.min(index, entries.length - 1)));
-  }, [entries.length]);
+    setActiveIndex((index) => (flat.length === 0 ? 0 : Math.min(index, flat.length - 1)));
+  }, [flat.length]);
 
-  const goToSearch = useCallback(
-    (searchQuery: string) => {
-      if (searchQuery.trim() === '') return;
-      writeRecentSearch(organizationSlug, searchQuery);
-      navigateTo(
-        `/${encodeURIComponent(organizationSlug)}/search?q=${encodeURIComponent(searchQuery)}`,
-      );
+  const go = useCallback(
+    (path: string) => {
+      navigate(`${base}${path}`);
       onClose();
     },
-    [onClose, organizationSlug],
+    [base, navigate, onClose],
+  );
+
+  const goToSearch = useCallback(
+    (searchText: string) => {
+      if (searchText.trim() === '') return;
+      writeStorage(recentKey(organizationSlug), searchText);
+      go(`/search?q=${encodeURIComponent(searchText)}`);
+    },
+    [go, organizationSlug],
+  );
+
+  const remember = useCallback(
+    (item: PaletteItem, href: string) => {
+      if (item.group === 'recent' || item.group === 'search') return;
+      const next = pushRecentItem(recentItems, { id: item.id, label: item.label, href });
+      writeStorage(recentItemsKey(organizationSlug), JSON.stringify(next));
+      setRecentItems(next);
+    },
+    [organizationSlug, recentItems],
   );
 
   const activate = useCallback(
-    (entry: Entry | undefined) => {
-      if (!entry) return;
-      if (entry.kind === 'search' || entry.kind === 'recent') {
-        goToSearch(entry.query);
+    async (item: PaletteItem | undefined) => {
+      if (!item) return;
+      const run = item.run;
+      if (run.type === 'href') {
+        // `/organizations` (switch workspace) is outside the tenant; every other href is inside it.
+        if (run.href === '/organizations') {
+          navigate(run.href);
+          onClose();
+          return;
+        }
+        remember(item, run.href);
+        go(run.href);
         return;
       }
-      const command = entry.command;
-      if (command.kind === 'navigate' && command.href) {
-        navigateTo(`/${encodeURIComponent(organizationSlug)}${command.href}`);
-        onClose();
+      if (run.type === 'command') {
+        // A server action is dispatched through a closed switch — never from the query text.
+        switch (run.action) {
+          case 'clear-recent-search':
+            writeStorage(recentKey(organizationSlug), null);
+            writeStorage(recentItemsKey(organizationSlug), null);
+            setRecentSearch(null);
+            setRecentItems([]);
+            break;
+          default:
+            break;
+        }
         return;
       }
-      // An action is dispatched through a closed switch — never from the query text.
-      switch (command.action) {
-        case 'open-search':
-          goToSearch(query);
-          break;
-        case 'clear-recent-search':
-          clearRecentSearch(organizationSlug);
-          setRecent(null);
-          break;
-        default:
-          // An unknown action id (impossible from the allowlisted registry) is ignored, never run.
-          break;
+      if (run.action === 'search-workspace') {
+        goToSearch(query);
+        return;
       }
+      setFailed(false);
+      const outcome = await runPaletteAction(run.action, {
+        api,
+        organizationSlug,
+        queryClient: queryClient ?? undefined,
+        navigate,
+        locale,
+        untitledDoc: tOr('DocsSidebar.untitled', 'Untitled doc'),
+      });
+      if (outcome === 'done') onClose();
+      else setFailed(true);
     },
-    [goToSearch, onClose, organizationSlug, query],
+    [
+      api,
+      go,
+      goToSearch,
+      locale,
+      navigate,
+      onClose,
+      organizationSlug,
+      query,
+      queryClient,
+      remember,
+      tOr,
+    ],
   );
 
   const onKeyDown = useCallback(
@@ -248,21 +458,14 @@ function CommandPaletteDialog({ organizationSlug, client, onClose }: CommandPale
         onClose();
         return;
       }
-      if (event.key === 'ArrowDown') {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
-        setActiveIndex((index) => (entries.length === 0 ? 0 : (index + 1) % entries.length));
-        return;
-      }
-      if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        setActiveIndex((index) =>
-          entries.length === 0 ? 0 : (index - 1 + entries.length) % entries.length,
-        );
+        setActiveIndex((index) => moveActive(index, flat.length, event.key as 'ArrowDown'));
         return;
       }
       if (event.key === 'Enter') {
         event.preventDefault();
-        activate(entries[activeIndex]);
+        void activate(flat[activeIndex]);
         return;
       }
       if (event.key === 'Tab') {
@@ -271,10 +474,11 @@ function CommandPaletteDialog({ organizationSlug, client, onClose }: CommandPale
         inputRef.current?.focus();
       }
     },
-    [activate, activeIndex, entries, onClose],
+    [activate, activeIndex, flat, onClose],
   );
 
-  const activeEntry = entries[activeIndex];
+  const optionId = (item: PaletteItem) => `${baseId}-opt-${item.id}`;
+  const activeItem = flat[activeIndex];
   const listId = `${baseId}-list`;
   const titleId = `${baseId}-title`;
 
@@ -292,7 +496,8 @@ function CommandPaletteDialog({ organizationSlug, client, onClose }: CommandPale
             role="combobox"
             aria-expanded="true"
             aria-controls={listId}
-            aria-activedescendant={activeEntry ? activeEntry.id : undefined}
+            aria-autocomplete="list"
+            aria-activedescendant={activeItem ? optionId(activeItem) : undefined}
             aria-label={t('CommandPalette.searchAria')}
             className="tm-command-palette__input"
             placeholder={t('CommandPalette.placeholder')}
@@ -307,48 +512,78 @@ function CommandPaletteDialog({ organizationSlug, client, onClose }: CommandPale
             Esc
           </kbd>
         </div>
-        <ul
+        <div
           id={listId}
           role="listbox"
           aria-label={t('CommandPalette.commandsAria')}
           className="tm-command-palette__list"
         >
-          {entries.length === 0 ? (
-            <li
+          {flat.length === 0 ? (
+            <div
               className="tm-command-palette__empty"
               role="option"
               aria-selected="false"
               aria-disabled="true"
             >
               {t('CommandPalette.noCommands')}
-            </li>
+            </div>
           ) : (
-            entries.map((entry, index) => (
-              // Activation by keyboard is on the input (the aria-activedescendant owner); this click
-              // is the pointer affordance for the same action, so the key-events rule does not apply.
-              // eslint-disable-next-line jsx-a11y/click-events-have-key-events
-              <li
-                key={entry.id}
-                id={entry.id}
-                role="option"
-                aria-selected={index === activeIndex}
-                className="tm-command-palette__option"
-                onClick={() => activate(entry)}
-              >
-                <span className="tm-command-palette__option-orb" aria-hidden="true">
-                  {entry.kind === 'command' ? '›' : '⌕'}
-                </span>
-                <span className="tm-command-palette__option-label">{entry.label}</span>
-                {entry.kind === 'command' ? (
-                  <span className="tm-command-palette__option-section">
-                    {entry.command.section}
-                  </span>
-                ) : null}
-              </li>
-            ))
+            sections.map((section) => {
+              const [labelKey, labelFallback] = GROUP_LABELS[section.group];
+              const groupLabelId = `${baseId}-group-${section.group}`;
+              return (
+                <div
+                  key={section.group}
+                  role="group"
+                  aria-labelledby={groupLabelId}
+                  className="tm-command-palette__group"
+                  data-group={section.group}
+                >
+                  <div id={groupLabelId} className="tm-command-palette__group-label">
+                    {tOr(labelKey, labelFallback)}
+                  </div>
+                  {section.items.map((item) => {
+                    const selected = item === activeItem;
+                    return (
+                      // Activation by keyboard is on the input (the aria-activedescendant owner);
+                      // this click is the pointer affordance for the same action.
+                      // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+                      <div
+                        key={item.id}
+                        id={optionId(item)}
+                        role="option"
+                        tabIndex={-1}
+                        aria-selected={selected}
+                        className="tm-command-palette__option"
+                        onClick={() => void activate(item)}
+                      >
+                        <span className="tm-command-palette__option-orb" aria-hidden="true">
+                          {GROUP_ORB[item.group]}
+                        </span>
+                        <span className="tm-command-palette__option-label">{item.label}</span>
+                        {item.tag ? (
+                          <span className="tm-command-palette__option-section">{item.tag}</span>
+                        ) : item.hint ? (
+                          <kbd className="tm-command-palette__option-hint" dir="ltr">
+                            {item.hint}
+                          </kbd>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })
           )}
-        </ul>
-        <p className="tm-command-palette__foot">{t('CommandPalette.footNote')}</p>
+        </div>
+        {failed ? (
+          <p role="alert" className="tm-command-palette__error">
+            {tOr('CommandPaletteV2.actionFailed', 'That did not work. Try again.')}
+          </p>
+        ) : null}
+        <p className="tm-command-palette__foot">
+          {tOr('CommandPaletteV2.footKeys', '↑↓ move · Enter open · Esc close')}
+        </p>
       </div>
     </div>
   );

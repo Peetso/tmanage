@@ -1,0 +1,108 @@
+/*
+ * Rows 55-06 / 55-05 — the command palette's grouped sections and the shell's "+ New" menu
+ * (Figma "R48 L2", 589:33479). Logical properties throughout, so Arabic and Urdu mirror on their
+ * own; the palette card itself is styled by `.tm-command-palette` in globals.css.
+ */
+
+.tm-command-palette__group {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-command-palette__group-label {
+  margin: 0;
+  padding: var(--s3) 28px 6px;
+  color: var(--line-300);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.tm-command-palette__option-hint {
+  flex: none;
+  color: var(--lime-500);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.tm-command-palette__error {
+  margin: 0;
+  padding: var(--s3) 28px;
+  color: var(--lime-500);
+}
+
+[data-theme='dark'] .tm-command-palette__group-label {
+  color: var(--ink-650);
+}
+
+.tm-new-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.tm-new-menu__button {
+  gap: var(--s2);
+}
+
+.tm-new-menu__plus {
+  font-size: 1.15em;
+  line-height: 1;
+}
+
+.tm-new-menu__panel {
+  position: absolute;
+  inset-block-start: calc(100% + var(--s2));
+  inset-inline-end: 0;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 240px;
+  padding: var(--s2) 0;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  box-shadow: var(--tm-overlay-shadow);
+}
+
+.tm-new-menu__item {
+  min-block-size: 44px;
+  padding: var(--s2) var(--s4);
+  border: 0;
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-body-md);
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-new-menu__item:hover,
+.tm-new-menu__item:focus-visible {
+  background: var(--paper-150);
+  outline: none;
+}
+
+.tm-new-menu__item:focus-visible {
+  box-shadow: inset 3px 0 0 var(--lime-500);
+}
+
+[dir='rtl'] .tm-new-menu__item:focus-visible {
+  box-shadow: inset -3px 0 0 var(--lime-500);
+}
+
+.tm-new-menu__rule {
+  block-size: 1px;
+  margin: var(--s2) 0;
+  background: var(--line-300);
+}
+
+.tm-new-menu__error {
+  margin: 0;
+  padding: var(--s2) var(--s4);
+  color: var(--danger-600);
+  font-size: var(--t-caption);
+}
