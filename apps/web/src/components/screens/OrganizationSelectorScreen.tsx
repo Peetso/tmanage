@@ -10,6 +10,9 @@ import { listOrganizations, type OrganizationSummary } from '../../lib/api/organ
 import type { ApiClient } from '../../lib/api/client';
 import { describeInternalRole } from '../../lib/roles';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { pluralPhrase } from '../../lib/i18n/plural';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/identity.css';
@@ -69,6 +72,8 @@ export function OrganizationSelectorScreen({
   const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
+  const tr = useTOr();
+  const locale = useActiveLocale();
   const [query, setQuery] = useState('');
 
   /**
@@ -135,7 +140,9 @@ export function OrganizationSelectorScreen({
   return (
     <IdentityShell eyebrow={t('OrganizationSelectorScreen.eyebrow')}>
       <div className="tm-id-bare tm-id-orgs tm-stack">
-        <h1 className="tm-identity__title">{heading(organizations.data, accessRemoved)}</h1>
+        <h1 className="tm-identity__title">
+          {heading(organizations.data, accessRemoved, tr, locale)}
+        </h1>
 
         {organizations.isPending ? (
           <LoadingRegion
@@ -289,14 +296,25 @@ function initials(name: string): string {
   return letters.toLocaleUpperCase();
 }
 
+/** The page heading, in the active locale with its plural forms (R34 D2). */
 function heading(
   organizations: readonly OrganizationSummary[] | undefined,
   accessRemoved: boolean,
+  tr: (key: string, english: string) => string,
+  locale: string,
 ): string {
-  if (!organizations) return 'Choose where you are working';
-  if (organizations.length === 0) return accessRemoved ? 'No access' : 'Nowhere to go yet';
-  if (organizations.length === 1) return 'One organization uses your email';
-  return `${organizations.length} organizations use your email`;
+  if (!organizations) {
+    return tr('OrganizationSelectorScreen.headingChoose', 'Choose where you are working');
+  }
+  if (organizations.length === 0) {
+    return accessRemoved
+      ? tr('OrganizationSelectorScreen.headingNoAccess', 'No access')
+      : tr('OrganizationSelectorScreen.headingNowhere', 'Nowhere to go yet');
+  }
+  return pluralPhrase(tr, locale, 'OrganizationSelectorScreen.orgCount', organizations.length, {
+    one: 'One organization uses your email',
+    other: '{count} organizations use your email',
+  });
 }
 
 /**

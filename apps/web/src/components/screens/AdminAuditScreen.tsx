@@ -20,6 +20,9 @@ import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { appLocale } from '../../lib/i18n/app-locale';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { activeIsEnglish } from '../../lib/i18n/compact-time';
+import { pluralPhrase } from '../../lib/i18n/plural';
 
 export interface AdminAuditScreenProps {
   organizationSlug: string;
@@ -62,6 +65,8 @@ export function AdminAuditScreen({
   const t = useT();
 
   const tr = useTOr();
+  const locale = useActiveLocale();
+  const entityLabel = (type: string) => tr(`AuditEntityType.${type}`, humanise(type));
   // 2026-10-31 live test: the filter asked for raw actor/entity UUIDs. It now picks a person by
   // name (Figma "Admin · Audit log · Filter by person (2026-10-31 live-test fix)", 449:21426).
   const [actorInput, setActorInput] = useState('');
@@ -153,8 +158,16 @@ export function AdminAuditScreen({
     return t('AdminAuditScreen.outcomeChange');
   };
 
+  // R34 D1: the header count in the locale's plural form and digits ("٥٠+ حدثًا", not "50+ events").
   const title = events.isSuccess
-    ? `${rows.length}${events.hasNextPage ? '+' : ''} ${rows.length === 1 ? t('AdminAuditScreen.event') : t('AdminAuditScreen.events')}`
+    ? pluralPhrase(
+        tr,
+        locale,
+        'AdminAuditScreen.eventCount',
+        rows.length,
+        { one: '{count} event', other: '{count} events' },
+        `${rows.length.toLocaleString(locale)}${events.hasNextPage ? '+' : ''}`,
+      )
     : t('AdminAuditScreen.title');
 
   return (
@@ -164,7 +177,9 @@ export function AdminAuditScreen({
       section="audit"
       crumbs={[t('AdminAuditScreen.crumbAudit')]}
       title={title}
-      {...(events.isSuccess && rows.length > 0 ? { titleMeta: classBreakdown(rows) } : {})}
+      {...(events.isSuccess && rows.length > 0
+        ? { titleMeta: classBreakdown(rows, entityLabel, tr, locale) }
+        : {})}
       actions={
         // ADM-09 export (x118). A plain download link, not a fetch: the browser requests the CSV
         // with the session cookie and the API's `Content-Disposition: attachment` saves it, so no
@@ -283,7 +298,7 @@ export function AdminAuditScreen({
                 <dt>{t('AdminAuditScreen.detailWho')}</dt>
                 <dd>{actorLabel(selected.actorId)}</dd>
                 <dt>{t('AdminAuditScreen.detailType')}</dt>
-                <dd>{humanise(selected.entityType)}</dd>
+                <dd>{entityLabel(selected.entityType)}</dd>
                 <dt>{t('AdminAuditScreen.detailWhen')}</dt>
                 <dd>{formatMoment(selected.occurredAt)}</dd>
                 <dt>{t('AdminAuditScreen.detailReference')}</dt>
@@ -365,10 +380,11 @@ function AuditRow({
   onSelect: () => void;
 }) {
   const tr = useTOr();
+  const locale = useActiveLocale();
   return (
     <tr data-selected={selected ? 'true' : undefined}>
       <td>
-        <span className="tm-cc-cell-mono">{formatWhen(event.occurredAt)}</span>
+        <span className="tm-cc-cell-mono">{formatWhen(event.occurredAt, locale, tr)}</span>
       </td>
       <td>
         <button
@@ -382,7 +398,9 @@ function AuditRow({
       </td>
       <td>{actor}</td>
       <td className="tm-cc-end">
-        <span className={classPill(event.entityType)}>{humanise(event.entityType)}</span>
+        <span className={classPill(event.entityType)}>
+          {tr(`AuditEntityType.${event.entityType}`, humanise(event.entityType))}
+        </span>
       </td>
     </tr>
   );
@@ -408,6 +426,8 @@ function RefusedRunRows({
   actorLabel: (actorId: string | null) => string;
 }) {
   const t = useT();
+  const tr = useTOr();
+  const locale = useActiveLocale();
   const count = run.events.length;
   const actorIds = new Set(run.events.map((event) => event.actorId));
   const who =
@@ -416,7 +436,9 @@ function RefusedRunRows({
     <>
       <tr data-refused-run="true">
         <td>
-          <span className="tm-cc-cell-mono">{formatWhen(run.events[0]!.occurredAt)}</span>
+          <span className="tm-cc-cell-mono">
+            {formatWhen(run.events[0]!.occurredAt, locale, tr)}
+          </span>
         </td>
         <td>
           <button
@@ -425,7 +447,10 @@ function RefusedRunRows({
             aria-expanded={expanded}
             onClick={onToggle}
           >
-            {count} {t('AdminAuditScreen.refusedAttempts')}
+            {pluralPhrase(tr, locale, 'AdminAuditScreen.refusedCount', count, {
+              one: `{count} ${t('AdminAuditScreen.refusedAttempts')}`,
+              other: `{count} ${t('AdminAuditScreen.refusedAttempts')}`,
+            })}
           </button>
           <span className="tm-cc-cell-sub">
             {expanded ? t('AdminAuditScreen.hideAttempts') : t('AdminAuditScreen.showEachAttempt')}
@@ -523,13 +548,22 @@ function ChangesSection({
 }
 
 /** "41 policy · 108 access · 463 content" — the loaded rows counted by entity type. */
-function classBreakdown(rows: readonly AdminAuditEvent[]): string {
+function classBreakdown(
+  rows: readonly AdminAuditEvent[],
+  entityLabel: (type: string) => string,
+  tr: (key: string, english: string) => string,
+  locale: string,
+): string {
   const counts = new Map<string, number>();
   for (const row of rows) counts.set(row.entityType, (counts.get(row.entityType) ?? 0) + 1);
   return [...counts.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
-    .map(([type, count]) => `${count} ${humanise(type)}`)
+    .map(([type, count]) =>
+      tr('AdminAuditScreen.classCount', '{count} {type}')
+        .replace('{count}', count.toLocaleString(locale))
+        .replace('{type}', entityLabel(type)),
+    )
     .join(' · ');
 }
 
@@ -588,17 +622,30 @@ export function groupDeniedRuns(rows: readonly AdminAuditEvent[]): readonly Audi
   return items;
 }
 
-/** "Today 09:40", "Yest 16:12", "13 Aug 10:04" — ADM-09's timestamp column. */
-function formatWhen(iso: string): string {
+/**
+ * "Today 09:40", "Yest 16:12", "13 Aug 10:04" — ADM-09's timestamp column. English keeps the
+ * frame's en-GB reading; any other locale gets its own month name and digits from `Intl` (R34 D1:
+ * an Arabic screen read "8 NOV").
+ */
+function formatWhen(
+  iso: string,
+  locale: string,
+  tr: (key: string, english: string) => string,
+): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  const time = at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const format = activeIsEnglish(locale) ? 'en-GB' : locale;
+  const time = at.toLocaleTimeString(format, { hour: '2-digit', minute: '2-digit' });
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
-  if (at.toDateString() === today.toDateString()) return `Today ${time}`;
-  if (at.toDateString() === yesterday.toDateString()) return `Yest ${time}`;
-  return `${at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} ${time}`;
+  if (at.toDateString() === today.toDateString()) {
+    return tr('AdminAuditScreen.whenToday', 'Today {time}').replace('{time}', time);
+  }
+  if (at.toDateString() === yesterday.toDateString()) {
+    return tr('AdminAuditScreen.whenYesterday', 'Yest {time}').replace('{time}', time);
+  }
+  return `${at.toLocaleDateString(format, { day: 'numeric', month: 'short' })} ${time}`;
 }
 
 /**
