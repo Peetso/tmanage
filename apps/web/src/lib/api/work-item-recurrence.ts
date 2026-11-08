@@ -124,3 +124,70 @@ export async function generateNextOccurrence(
   });
   return data;
 }
+
+// ---- r46 · 53-09 repeat rules editor ----
+
+/** The v2 body the editor sends (request-side, suffix `Input`). */
+export interface RecurrenceRuleInput {
+  readonly freq: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  readonly interval: number;
+  readonly byWeekday?: readonly string[];
+  readonly byMonthDay?: number | null;
+  readonly bySetPos?: number | null;
+  readonly countLimit?: number | null;
+  readonly endsOn?: string | null;
+  readonly holidayPolicy: 'keep' | 'skip' | 'next_working_day';
+  readonly spawnAheadDays: number;
+  /** Only when editing a saved rule. */
+  readonly scope?: 'all' | 'this_and_future';
+}
+
+/** The next dates of a rule (saved or draft). */
+export interface RecurrencePreview {
+  readonly workItemId: string;
+  readonly occurrences: readonly WorkItemRecurrenceOccurrence[];
+}
+
+/** Save the v2 rule. */
+export async function saveRecurrenceRule(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  input: RecurrenceRuleInput,
+): Promise<WorkItemRecurrence> {
+  const { data } = await client.request<WorkItemRecurrence>({
+    method: 'PUT',
+    path: recurrencePath(organizationSlug, workItemId),
+    body: input,
+  });
+  return data;
+}
+
+/** The next 5 dates of an unsaved rule. Writes nothing. */
+export async function previewRecurrenceDraft(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  input: RecurrenceRuleInput,
+): Promise<RecurrencePreview> {
+  const { data } = await client.request<RecurrencePreview>({
+    method: 'POST',
+    path: `${recurrencePath(organizationSlug, workItemId)}/preview`,
+    body: input,
+  });
+  return data;
+}
+
+/** Pause or resume the series. */
+export async function setRecurrencePaused(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  paused: boolean,
+): Promise<WorkItemRecurrence> {
+  const { data } = await client.request<WorkItemRecurrence>({
+    method: 'POST',
+    path: `${recurrencePath(organizationSlug, workItemId)}/${paused ? 'pause' : 'resume'}`,
+  });
+  return data;
+}

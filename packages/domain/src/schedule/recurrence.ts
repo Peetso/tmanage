@@ -1,6 +1,7 @@
 import {
   addWorkingDays,
   dayNumberOf,
+  defaultWorkingCalendar,
   isIsoDate,
   isWorkingDay,
   isoDateOfDayNumber,
@@ -334,4 +335,64 @@ export function occurrencesOf(
     if (days.length === 0 && k > WORKING_CALENDAR_HORIZON_DAYS) break;
   }
   return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// r46 — editing a series: "this and future" vs "all"
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** How far an edit of a repeating series reaches. */
+export const RECURRENCE_EDIT_SCOPES = ['all', 'this_and_future'] as const;
+export type RecurrenceEditScope = (typeof RECURRENCE_EDIT_SCOPES)[number];
+/** The editor's live preview length. */
+export const RECURRENCE_EDITOR_PREVIEW = 5;
+
+/** `keep` never consults the calendar, so any calendar serves for counting scheduled dates. */
+const KEEP_CALENDAR = defaultWorkingCalendar('UTC');
+
+/** How many scheduled dates of `rule` fall strictly before `date` (holidays not applied). */
+export function scheduledBefore(rule: RecurrenceRule, date: string): number {
+  if (!isIsoDate(date)) fail('fromDate', 'must be a date');
+  if (date <= rule.start) return 0;
+  const open: RecurrenceRule = { ...rule, count: null, until: null };
+  const dayBefore = isoDateOfDayNumber(dayNumberOf(rule.start) - 1);
+  const limit = rule.count ?? RECURRENCE_MAX_COUNT;
+  let n = 0;
+  for (const o of occurrencesOf(open, dayBefore, limit, KEEP_CALENDAR, 'keep')) {
+    if (o.key >= date) break;
+    n += 1;
+  }
+  return Math.min(n, limit);
+}
+
+/**
+ * The rule an edit saves. `all` keeps the series' original anchor (DTSTART), so the cadence is
+ * re-applied from the first date. `this_and_future` re-anchors the edited rule on `fromDate`, and a
+ * COUNT ("end after N times") is what is left of the old series after the dates before `fromDate`,
+ * so an edit half-way never makes a ten-time series run for ten more. Dates already created stay
+ * as they are either way (instances are history).
+ */
+export function ruleForEdit(
+  edited: RecurrenceRule,
+  previous: RecurrenceRule | null,
+  scope: RecurrenceEditScope,
+  fromDate: string,
+): RecurrenceRule {
+  if (!isIsoDate(fromDate)) fail('fromDate', 'must be a date');
+  if (scope === 'all' || previous === null) {
+    const start = previous?.start ?? edited.start;
+    if (edited.until !== null && edited.until < start)
+      fail('until', 'must not be before the start');
+    return { ...edited, start };
+  }
+  if (fromDate < previous.start) fail('fromDate', 'must not be before the series start');
+  if (edited.until !== null && edited.until < fromDate) {
+    fail('until', 'must not be before the edited date');
+  }
+  let count = edited.count;
+  if (count !== null && previous.count !== null && edited.count === previous.count) {
+    count = previous.count - scheduledBefore(previous, fromDate);
+    if (count < 1) fail('count', 'the series has no dates left after this one');
+  }
+  return { ...edited, start: fromDate, count };
 }

@@ -3972,3 +3972,19 @@ import type {
 type _ssoConnection = Assert<Exact<ApiSsoConnectionView, WebSsoConnectionView>>;
 type _ssoStart = Assert<Exact<ApiSsoStartView, WebSsoStartView>>;
 type _ssoPendingMfa = Assert<Exact<ApiSsoPendingMfaView, WebSsoPendingMfaView>>;
+
+// ---- r46 L1 · 53-09 repeat rules editor and 54-11 contacts import ----
+import type { RecurrencePreviewView as ApiRecurrencePreviewView } from '../../apps/api/src/modules/work/item-recurrence.service.js';
+import type { RecurrencePreview as WebRecurrencePreview } from '../../apps/web/src/lib/api/work-item-recurrence.js';
+import type {
+  ContactImportPreviewView as ApiContactImportPreviewView,
+  ContactImportView as ApiContactImportView,
+} from '../../apps/api/src/modules/people/contact-suggestions.service.js';
+import type {
+  ContactImportPreview as WebContactImportPreview,
+  ContactImportResult as WebContactImportResult,
+} from '../../apps/web/src/lib/api/contact-import.js';
+
+type _recurrencePreview = Assert<Exact<ApiRecurrencePreviewView, WebRecurrencePreview>>;
+type _contactImportPreview = Assert<Exact<ApiContactImportPreviewView, WebContactImportPreview>>;
+type _contactImportResult = Assert<Narrows<ApiContactImportView, WebContactImportResult>>;

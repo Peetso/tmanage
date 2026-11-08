@@ -167,7 +167,11 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // R44 L1 52-08 (POST quotes/:quoteId/convert, client money, +1 NEVER): +1, was 1352.
 // R45 L1 53-11 (GET work-items/:workItemId/comments/mention-candidates, work.read): +1, was 1353.
 // R45 L3 54-25 (Trello / Asana token import: 5 POST/DELETE + 1 GET, +6 NEVER): +6, was 1354.
-const EXPECTED_ROUTE_COUNT = 1360;
+// R46 L1 (53-09 POST recurrence/preview draft and 54-11 POST contacts/import-preview, +2 NEVER):
+// +2, was 1360.
+// R46 L2 (54-05/54-06/56-21 channel notices + platform governance, +9 NEVER) and R46 L3 (53-10
+// document collab join/steps/snapshot/cursor, +5 NEVER `session`): +13, was 1362.
+const EXPECTED_ROUTE_COUNT = 1375;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

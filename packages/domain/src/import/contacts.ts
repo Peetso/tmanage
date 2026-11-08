@@ -22,6 +22,8 @@
  *   not decoded: it is skipped and counted (`quoted_printable`).
  */
 
+import { toCsv } from '../export/csv.js';
+
 /** The most records one import reads; the rest are counted as skipped. */
 export const CONTACT_IMPORT_MAX_ROWS = 5_000;
 /** The largest import text, measured in UTF-8 bytes. */
@@ -58,6 +60,26 @@ export interface ContactParseResult {
   readonly reasons: ContactSkipReasons;
 }
 
+/** r46 — what happened to one record of the file (the preview and the error report). */
+export type ContactRecordOutcome = 'ok' | 'missing_email' | 'invalid_email' | 'duplicate';
+
+export interface ContactRecord {
+  /** 1-based: the CSV row (the header is row 1) or the vCard card number. */
+  readonly line: number;
+  readonly displayName: string | null;
+  /** Normalised when valid; the raw cell (cleaned) when invalid; null when missing. */
+  readonly email: string | null;
+  readonly company: string | null;
+  readonly outcome: ContactRecordOutcome;
+}
+
+/** r46 — which CSV column (0-based) holds what. `null` = not in the file. */
+export interface ContactColumnMapping {
+  readonly email: number;
+  readonly name: number | null;
+  readonly company: number | null;
+}
+
 const EMAIL_PATTERN = /^[^\s@"<>(),;:\\[\]]+@[^\s@"<>(),;:\\[\]]+\.[^\s@"<>(),;:\\[\]]{2,}$/;
 // eslint-disable-next-line no-control-regex
 const CONTROL_CHARACTERS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
@@ -84,6 +106,7 @@ function stripBom(text: string): string {
 
 /** Collects records, applying the email rule, the duplicate rule and the cap in one place. */
 class Collector {
+  constructor(private readonly trace: ContactRecord[] | null = null) {}
   readonly contacts: ParsedContact[] = [];
   private readonly seen = new Set<string>();
   private records = 0;
@@ -96,14 +119,29 @@ class Collector {
     quoted_printable: 0,
   };
 
-  add(email: string | null, displayName: string | null, company: string | null): void {
+  add(
+    email: string | null,
+    displayName: string | null,
+    company: string | null,
+    line: number = this.records + 1,
+  ): void {
     this.records += 1;
-    if (this.records > CONTACT_IMPORT_MAX_ROWS) return this.skip('over_limit');
-    if (email === null || email.trim() === '') return this.skip('missing_email');
+    const note = (outcome: ContactRecordOutcome, address: string | null): void => {
+      this.trace?.push({
+        line,
+        displayName: cleanText(displayName),
+        email: address === null ? null : cleanText(address),
+        company: cleanText(company),
+        outcome,
+      });
+    };
+    if (this.records > CONTACT_IMPORT_MAX_ROWS) return this.skip('over_limit', note, email);
+    if (email === null || email.trim() === '') return this.skip('missing_email', note, null);
     const normalised = normaliseContactEmail(email);
-    if (normalised === null) return this.skip('invalid_email');
-    if (this.seen.has(normalised)) return this.skip('duplicate');
+    if (normalised === null) return this.skip('invalid_email', note, email);
+    if (this.seen.has(normalised)) return this.skip('duplicate', note, normalised);
     this.seen.add(normalised);
+    note('ok', normalised);
     this.contacts.push({
       displayName: cleanText(displayName),
       email: normalised,
@@ -111,9 +149,15 @@ class Collector {
     });
   }
 
-  private skip(reason: 'missing_email' | 'invalid_email' | 'duplicate' | 'over_limit'): void {
+  private skip(
+    reason: 'missing_email' | 'invalid_email' | 'duplicate' | 'over_limit',
+    note: (outcome: ContactRecordOutcome, address: string | null) => void,
+    address: string | null,
+  ): void {
     this.skipped += 1;
     this.reasons[reason] += 1;
+    // Past the cap only the count is kept: a 2 MB file must not grow an unbounded trace.
+    if (reason !== 'over_limit') note(reason, address);
   }
 
   result(): ContactParseResult {
@@ -227,16 +271,31 @@ function firstValue(cell: string | undefined): string | null {
  * row is the header. A file with no recognisable email column yields no contacts and counts every
  * data row as `missing_email`.
  */
-export function parseContactsCsv(text: string): ContactParseResult {
-  const collector = new Collector();
-  const rows = splitCsvRows(stripBom(text)).filter((row) => row.some((c) => c.trim() !== ''));
-  const header = rows[0];
+export function parseContactsCsv(
+  text: string,
+  mapping?: ContactColumnMapping,
+  trace: ContactRecord[] | null = null,
+): ContactParseResult {
+  const collector = new Collector(trace);
+  const rows = splitCsvRows(stripBom(text))
+    .map((cells, index) => ({ cells, line: index + 1 }))
+    .filter((row) => row.cells.some((c) => c.trim() !== ''));
+  const header = rows[0]?.cells;
   if (header === undefined) return collector.result();
-  const columns = findColumns(header);
+  const guessed = findColumns(header);
+  const columns: CsvColumns = mapping
+    ? {
+        ...guessed,
+        email: mapping.email,
+        name: mapping.name ?? -1,
+        company: mapping.company ?? -1,
+        ...(mapping.name !== null ? { first: -1, middle: -1, last: -1 } : {}),
+      }
+    : guessed;
   const at = (row: readonly string[], index: number): string | undefined =>
     index === -1 ? undefined : row[index];
 
-  for (const row of rows.slice(1)) {
+  for (const { cells: row, line } of rows.slice(1)) {
     let name = cleanText(at(row, columns.name));
     if (name === null) {
       const parts = [columns.first, columns.middle, columns.last]
@@ -244,9 +303,77 @@ export function parseContactsCsv(text: string): ContactParseResult {
         .filter((part): part is string => part !== null);
       name = parts.length > 0 ? parts.join(' ') : null;
     }
-    collector.add(firstValue(at(row, columns.email)), name, firstValue(at(row, columns.company)));
+    collector.add(
+      firstValue(at(row, columns.email)),
+      name,
+      firstValue(at(row, columns.company)),
+      line,
+    );
   }
   return collector.result();
+}
+
+/** r46 — a CSV's header cells and the mapping the importer would guess for them. */
+export function contactsCsvHeader(text: string): {
+  readonly header: readonly string[];
+  readonly mapping: ContactColumnMapping | null;
+} {
+  const first = splitCsvRows(stripBom(text)).find((row) => row.some((c) => c.trim() !== ''));
+  if (first === undefined) return { header: [], mapping: null };
+  const header = first.map((cell) => cleanText(cell) ?? '');
+  const guessed = findColumns(first);
+  return {
+    header,
+    mapping:
+      guessed.email === -1
+        ? null
+        : {
+            email: guessed.email,
+            name: guessed.name === -1 ? null : guessed.name,
+            company: guessed.company === -1 ? null : guessed.company,
+          },
+  };
+}
+
+/** r46 — whether `mapping` names columns that exist in a `width`-column header. */
+export function isValidContactMapping(
+  mapping: unknown,
+  width: number,
+): mapping is ContactColumnMapping {
+  if (mapping === null || typeof mapping !== 'object') return false;
+  const m = mapping as Record<string, unknown>;
+  const col = (v: unknown, nullable: boolean): boolean =>
+    (nullable && v === null) ||
+    (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < width);
+  return col(m['email'], false) && col(m['name'] ?? null, true) && col(m['company'] ?? null, true);
+}
+
+/** Why a record was not imported, in plain words (the error report's last column). */
+const ERROR_REPORT_REASONS: Record<Exclude<ContactRecordOutcome, 'ok'>, string> = {
+  missing_email: 'No e-mail address',
+  invalid_email: 'Not a valid e-mail address',
+  duplicate: 'Repeated in the file (an earlier row has this e-mail)',
+};
+
+/**
+ * r46 — the downloadable error report: one CSV row per record that was not imported. Cells go
+ * through `toCsv`, so a name like `=HYPERLINK(...)` is neutralised before a spreadsheet opens it.
+ */
+export function contactErrorReportCsv(records: readonly ContactRecord[]): string {
+  const rows = records.flatMap((record) =>
+    record.outcome === 'ok'
+      ? []
+      : [
+          [
+            record.line,
+            record.displayName,
+            record.email,
+            record.company,
+            ERROR_REPORT_REASONS[record.outcome],
+          ],
+        ],
+  );
+  return toCsv(rows, ['Row', 'Name', 'E-mail', 'Company', 'Problem'], { bom: true });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -301,8 +428,8 @@ function components(value: string): string[] {
  * Parse a vCard 3.0 / 4.0 file: one contact per `BEGIN:VCARD … END:VCARD`, from FN (or N when FN
  * is absent), the first EMAIL and the first ORG component. Folded lines are unfolded first.
  */
-export function parseVcard(text: string): ContactParseResult {
-  const collector = new Collector();
+export function parseVcard(text: string, trace: ContactRecord[] | null = null): ContactParseResult {
+  const collector = new Collector(trace);
   const unfolded = stripBom(text)
     .replace(/\r\n|\r/g, '\n')
     .replace(/\n[ \t]/g, '');

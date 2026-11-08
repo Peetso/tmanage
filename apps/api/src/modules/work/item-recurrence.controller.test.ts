@@ -66,6 +66,7 @@ function workItem(over: Partial<WorkItemRow> = {}): WorkItemRow {
 class FakeRecurrenceRepository {
   row: WorkItemRecurrenceRow | null = null;
   writes = 0;
+  lastInput: unknown = null;
 
   async findByItem() {
     return this.row;
@@ -77,6 +78,7 @@ class FakeRecurrenceRepository {
     input: { freq: string; intervalCount: number; untilAt: Date | null },
   ) {
     this.writes += 1;
+    this.lastInput = input;
     const now = new Date();
     this.row = {
       id: 'rec-1',
@@ -207,6 +209,69 @@ describe('WorkItemRecurrenceController', () => {
     const preview = await h.controller.preview(context, member([PROJECT]), WORK_ID, '3');
     expect(preview.occurrences).toHaveLength(3);
     expect(h.recurrence.writes).toBe(1);
+  });
+});
+
+describe('r46 recurrence editor', () => {
+  const NOW = new Date('2026-11-04T08:00:00.000Z'); // a Wednesday
+  function service(row: WorkItemRecurrenceRow | null) {
+    const recurrence = new FakeRecurrenceRepository();
+    recurrence.row = row;
+    const svc = new WorkItemRecurrenceService(
+      {
+        read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
+        transaction: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
+      } as unknown as TenantDatabase,
+      { findById: async () => workItem() } as unknown as WorkItemsRepository,
+      recurrence as unknown as WorkItemRecurrenceRepository,
+      { now: () => NOW },
+    );
+    return { controller: new WorkItemRecurrenceController(svc), recurrence };
+  }
+
+  it('previews the next 5 dates of an unsaved rule and writes nothing', async () => {
+    const { controller, recurrence } = service(null);
+    const preview = await controller.previewDraft(context, member([PROJECT]), WORK_ID, {
+      freq: 'WEEKLY',
+      interval: 2,
+      byWeekday: ['SU', 'WE'],
+      holidayPolicy: 'keep',
+    });
+    expect(preview.occurrences.map((o) => o.date)).toEqual([
+      '2026-11-15',
+      '2026-11-18',
+      '2026-11-29',
+      '2026-12-02',
+      '2026-12-13',
+    ]);
+    expect(recurrence.writes).toBe(0);
+  });
+
+  it('"this and future" re-anchors on the edited date and keeps what is left of COUNT', async () => {
+    const stored = {
+      id: 'rec-1',
+      organizationId: ORG,
+      workItemId: WORK_ID,
+      freq: 'daily',
+      intervalCount: 1,
+      untilAt: null,
+      rrule: 'FREQ=DAILY;COUNT=10',
+      startsOn: '2026-11-01',
+      createdAt: NOW,
+      updatedAt: NOW,
+    } as unknown as WorkItemRecurrenceRow;
+    const { controller, recurrence } = service(stored);
+    await controller.set(context, member([PROJECT]), WORK_ID, {
+      rrule: 'FREQ=DAILY;INTERVAL=2;COUNT=10',
+      scope: 'this_and_future',
+      fromDate: '2026-11-04',
+    });
+    const v2 = (recurrence.lastInput as { v2: { startsOn: string; countLimit: number } }).v2;
+    expect(v2).toMatchObject({ startsOn: '2026-11-04', countLimit: 7 });
+    const status = await statusOf(() =>
+      controller.set(context, member([PROJECT]), WORK_ID, { preset: 'daily', scope: 'some' }),
+    );
+    expect(status).toBe(422);
   });
 });
 

@@ -255,6 +255,12 @@ export function ClientsScreen({
               placeholder={t('Clients.searchPlaceholder')}
             />
           </form>
+          <Link
+            className="tm-button tm-button--outline tm-button--accessible"
+            href={`/${organizationSlug}/clients/import`}
+          >
+            {tOr('ContactsImport.title', 'Import contacts')}
+          </Link>
           <Button tone="ink" size="accessible" onClick={() => setInviting(true)}>
             {t('Clients.inviteClient')}
           </Button>

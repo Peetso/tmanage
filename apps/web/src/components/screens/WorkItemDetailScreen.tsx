@@ -14,6 +14,7 @@ import { WorkCommentsPanel } from './WorkCommentsPanel';
 import { WorkItemCodeLinks } from './WorkItemCodeLinks';
 import { NotScannedDownload } from './NotScannedDownload';
 import { WorkChecklistPanel } from './WorkChecklistPanel';
+import { WorkItemRecurrencePanel } from './WorkItemRecurrencePanel';
 import { SendForApprovalDialog } from './SendForApprovalDialog';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -791,6 +792,11 @@ function WorkItemBody({
               onError={handleWriteError}
             />
             <WorkCommentsPanel organizationSlug={organizationSlug} workItemId={item.id} api={api} />
+            <WorkItemRecurrencePanel
+              organizationSlug={organizationSlug}
+              workItemId={item.id}
+              api={api}
+            />
             <WorkItemCodeLinks organizationSlug={organizationSlug} workItemId={item.id} api={api} />
           </div>
           <FilesCard

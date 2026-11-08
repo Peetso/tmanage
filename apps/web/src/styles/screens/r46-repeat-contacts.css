@@ -1,0 +1,141 @@
+/* R46 L1 · 53-09 repeat rules editor, 54-11 import contacts (Figma 587:33550). Tokens only. */
+
+.tm-r46-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-r46-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.tm-r46-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tm-r46-label {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 600;
+  color: var(--ink-650);
+}
+
+.tm-r46-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s2);
+}
+
+.tm-r46-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+}
+
+.tm-r46-day {
+  inline-size: 36px;
+  block-size: 36px;
+  padding: 0;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-650);
+  font: inherit;
+  font-size: var(--t-caption);
+  cursor: pointer;
+}
+
+.tm-r46-day[aria-pressed='true'] {
+  border-color: var(--ink-950);
+  background: var(--lime-500);
+  color: var(--ink-950);
+  font-weight: 600;
+}
+
+.tm-r46-day:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-r46-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: var(--s4);
+  border-radius: var(--r-compact);
+  background: var(--paper-50);
+  list-style: none;
+}
+
+.tm-r46-preview li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  color: var(--ink-950);
+}
+
+.tm-r46-preview li:first-child {
+  font-weight: 600;
+}
+
+.tm-r46-drop {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s5);
+  border: var(--b-quiet) dashed var(--ink-500);
+  border-radius: var(--r-compact);
+  background: var(--paper-50);
+}
+
+.tm-r46-map {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 300px);
+  align-items: end;
+  gap: var(--s2) var(--s3);
+}
+
+.tm-r46-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+}
+
+.tm-r46-table th,
+.tm-r46-table td {
+  padding: var(--s2);
+  text-align: start;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-r46-table th {
+  color: var(--ink-500);
+  font-weight: 600;
+}
+
+.tm-r46-table td.tm-r46-bad {
+  color: var(--danger-600);
+  font-weight: 500;
+}
+
+.tm-r46-lede {
+  margin: 0;
+  color: var(--ink-650);
+}

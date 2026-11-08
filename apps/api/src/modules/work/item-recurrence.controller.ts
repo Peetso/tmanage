@@ -96,6 +96,19 @@ export class WorkItemRecurrenceController {
     return this.recurrence.preview(context, principal, workItemId, count);
   }
 
+  /** r46: the next 5 dates of an unsaved rule (the editor's live preview). Writes nothing. */
+  @Post('work-items/:workItemId/recurrence/preview')
+  @RequireCapability('work.read')
+  @HttpCode(200)
+  async previewDraft(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('workItemId') workItemId: string,
+    @Body() body: SetRecurrenceInput,
+  ): Promise<RecurrencePreviewView> {
+    return this.recurrence.previewDraft(context, principal, workItemId, body);
+  }
+
   @Post('work-items/:workItemId/recurrence/skip')
   @RequireCapability('work.update')
   @HttpCode(200)

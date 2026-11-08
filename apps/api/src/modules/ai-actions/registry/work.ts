@@ -424,6 +424,9 @@ export const workDetails: readonly AiActionDetail[] = [
       timeZone: f.shortText(64).optional(),
       startsOn: f.iso().optional(),
       endsOn: f.iso().optional(),
+      // r46: how far an edit reaches ('all' | 'this_and_future') and from which date.
+      scope: f.shortText(16).optional(),
+      fromDate: f.iso().optional(),
     }),
     redact: 'standard',
     examples: [{ summary: 'Set work item recurrence', args: { workItemId: 'wi_1' } }],

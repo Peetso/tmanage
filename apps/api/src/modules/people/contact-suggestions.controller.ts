@@ -6,6 +6,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { ContactSuggestionsService } from './contact-suggestions.service.js';
 import type {
+  ContactImportPreviewView,
   ContactImportView,
   ContactSuggestionView,
   ImportContactsBody,
@@ -24,7 +25,9 @@ export const CONTACT_SUGGESTION_CAPABILITIES: readonly Capability[] = [
  * `user_id`; no route takes a user id, and there is no organization-wide listing — the abuse rule
  * against harvesting addresses):
  *
- * - `POST …/contacts/import-file` `{format: 'csv' | 'vcard', text}` → counts, never addresses.
+ * - `POST …/contacts/import-file` `{format: 'csv' | 'vcard', text, mapping?, createClients?}` →
+ *   counts, never addresses. `createClients` also needs `org.manage` (r46).
+ * - `POST …/contacts/import-preview` (r46) → the caller's own file, row by row, before import.
  * - `GET  …/contacts/suggest?q=` → at most 20 of the caller's unexpired suggestions.
  * - `DELETE …/contacts/suggestions` → clear mine.
  *
@@ -50,7 +53,20 @@ export class ContactSuggestionsController {
     @Body() body: ImportContactsBody,
   ): Promise<ContactImportView> {
     requireInviter(principal, context);
-    return this.service.importFile(context, body);
+    return this.service.importFile(context, body, principal);
+  }
+
+  /** r46: what an import of this file would do (rows, duplicates by e-mail, errors). No write. */
+  @Post('import-preview')
+  @RequireCapability('people.view')
+  @HttpCode(200)
+  async preview(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Body() body: ImportContactsBody,
+  ): Promise<ContactImportPreviewView> {
+    requireInviter(principal, context);
+    return this.service.preview(context, body);
   }
 
   @Get('suggest')

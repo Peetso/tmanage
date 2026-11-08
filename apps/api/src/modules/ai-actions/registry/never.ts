@@ -1703,6 +1703,48 @@ export const NEVER: readonly NeverEntry[] = [
     reason: 'invitation',
   },
   { method: 'GET', path: '/v1/organizations/:orgSlug/contacts/suggest', reason: 'invitation' },
+  // r46 L1 (53-09): the repeat editor's live preview of an UNSAVED rule. It writes nothing, but it
+  // is a POST and the read-only catalogue is GET-only; an AI reads a saved rule's dates through
+  // `work_items.recurrence.preview.list` instead.
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/recurrence/preview',
+    reason: 'work_planning',
+  },
+  // r46 L3 (53-10), classified by the L1 committer: the live co-editing wire protocol (join, step
+  // poll/push, snapshot, cursor). It is the open editor's session-bound sync, not an action; an AI
+  // reads and edits a document through the existing `documents.*` ops instead.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/documents/:documentId/collab/',
+    reason: 'session',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/documents/:documentId/collab/steps',
+    reason: 'session',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/documents/:documentId/collab/steps',
+    reason: 'session',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/documents/:documentId/collab/snapshot',
+    reason: 'session',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/documents/:documentId/collab/cursor',
+    reason: 'session',
+  },
+  // r46 L1 (54-11): the row-by-row preview of the same file, before import.
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/contacts/import-preview',
+    reason: 'invitation',
+  },
   {
     method: 'DELETE',
     path: '/v1/organizations/:orgSlug/contacts/suggestions',

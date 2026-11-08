@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { parseContactsCsv, parseVcard } from './contacts.js';
+import {
+  contactErrorReportCsv,
+  contactsCsvHeader,
+  isValidContactMapping,
+  parseContactsCsv,
+  parseVcard,
+} from './contacts.js';
+import type { ContactRecord } from './contacts.js';
 
 describe('54-11 contacts parsers', () => {
   it('reads a Google CSV with a BOM, CRLF, quoted cells and an Arabic name', () => {
     const csv =
-      '﻿Name,E-mail 1 - Value,Organization 1 - Name\r\n"سارة أحمد",Sara@Example.COM ::: x@y.com,"Nile, Co"\r\nNo Mail,,X\r\nDup,sara@example.com,\r\n';
+      '\uFEFFName,E-mail 1 - Value,Organization 1 - Name\r\n"سارة أحمد",Sara@Example.COM ::: x@y.com,"Nile, Co"\r\nNo Mail,,X\r\nDup,sara@example.com,\r\n';
     const result = parseContactsCsv(csv);
     expect(result.contacts).toEqual([
       { displayName: 'سارة أحمد', email: 'sara@example.com', company: 'Nile, Co' },
@@ -40,5 +47,46 @@ describe('54-11 contacts parsers', () => {
       { displayName: 'Mona Nour', email: 'mona@x.io', company: null },
     ]);
     expect(result.reasons.quoted_printable).toBe(1);
+  });
+
+  it('r46: a chosen column mapping wins over the guess; the trace marks duplicates by e-mail', () => {
+    const csv = [
+      'Who,Work mail,Home mail,Firm',
+      'Sara,sara@a.co,s@home.co,Acme',
+      'Sara 2,SARA@A.CO,,Acme',
+      'No,,x@y.co,',
+    ].join('\n');
+    expect(contactsCsvHeader(csv).header).toEqual(['Who', 'Work mail', 'Home mail', 'Firm']);
+    const trace: ContactRecord[] = [];
+    const mapped = parseContactsCsv(csv, { email: 1, name: 0, company: 3 }, trace);
+    expect(mapped.contacts).toEqual([{ displayName: 'Sara', email: 'sara@a.co', company: 'Acme' }]);
+    expect(trace.map((r) => [r.line, r.outcome])).toEqual([
+      [2, 'ok'],
+      [3, 'duplicate'],
+      [4, 'missing_email'],
+    ]);
+    expect(isValidContactMapping({ email: 4, name: null, company: null }, 4)).toBe(false);
+    expect(isValidContactMapping({ email: 2, name: null, company: 3 }, 4)).toBe(true);
+  });
+
+  it('r46: the error report lists only rejected rows and neutralises formulas', () => {
+    const trace: ContactRecord[] = [];
+    const vcf = [
+      'BEGIN:VCARD',
+      'FN:=HYPERLINK("x")',
+      'EMAIL:bad@',
+      'END:VCARD',
+      'BEGIN:VCARD',
+      'EMAIL:a@b.co',
+      'END:VCARD',
+    ].join('\n');
+    parseVcard(vcf, trace);
+    const lines = contactErrorReportCsv(trace)
+      .replace(/^\uFEFF/, '')
+      .trim()
+      .split('\r\n');
+    expect(lines).toHaveLength(2);
+    expect(lines[1]).toContain("'=HYPERLINK");
+    expect(lines[1]).toContain('Not a valid e-mail address');
   });
 });

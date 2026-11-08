@@ -1,4 +1,6 @@
 import {
+  RECURRENCE_EDIT_SCOPES,
+  RECURRENCE_EDITOR_PREVIEW,
   RECURRENCE_HOLIDAY_POLICIES,
   RECURRENCE_MAX_SPAWN_AHEAD_DAYS,
   RECURRENCE_SPAWN_MODES,
@@ -12,6 +14,7 @@ import {
   occurrenceKey,
   occurrencesOf,
   parseRecurrence,
+  ruleForEdit,
   toRRule,
   weekdayOf,
   weekdaysOfMask,
@@ -21,6 +24,7 @@ import type {
   AuditMetadata,
   Occurrence,
   Principal,
+  RecurrenceEditScope,
   RecurrenceFields,
   RecurrenceHolidayPolicy,
   RecurrenceRule,
@@ -187,6 +191,10 @@ export interface SetRecurrenceInput {
   readonly spawnMode?: unknown;
   readonly spawnAheadDays?: unknown;
   readonly holidayPolicy?: unknown;
+  /** r46: how far an edit reaches — `all` (keep the series start) or `this_and_future`. */
+  readonly scope?: unknown;
+  /** r46: the occurrence a `this_and_future` edit starts from (default: today). */
+  readonly fromDate?: unknown;
 }
 
 const V2_KEYS: readonly (keyof SetRecurrenceInput)[] = [
@@ -203,6 +211,8 @@ const V2_KEYS: readonly (keyof SetRecurrenceInput)[] = [
   'spawnMode',
   'spawnAheadDays',
   'holidayPolicy',
+  'scope',
+  'fromDate',
 ];
 
 /**
@@ -325,7 +335,9 @@ export class WorkItemRecurrenceService {
             : {}),
         });
       } else {
-        const { rule, settings } = parseV2(input, calendar, this.now());
+        const parsed = parseV2(input, calendar, this.now());
+        const settings = parsed.settings;
+        const rule = await this.scoped(tx, context, workItemId, input, parsed, calendar);
         row = await this.recurrence.upsert(tx, context, workItemId, {
           freq: rule.freq.toLowerCase(),
           intervalCount: rule.interval,
@@ -367,6 +379,61 @@ export class WorkItemRecurrenceService {
       const calendar = await this.calendars.calendarOf(runner, context);
       return { workItemId, occurrences: this.upcoming(row, calendar, n) };
     });
+  }
+
+  /**
+   * r46 — the next dates of an UNSAVED rule (the editor's live preview), with the same scope rules
+   * a save would apply. Behind `work.read`; writes nothing. 422 on an invalid draft.
+   */
+  async previewDraft(
+    context: TenantContext,
+    principal: Principal,
+    workItemId: string,
+    input: SetRecurrenceInput,
+  ): Promise<RecurrencePreviewView> {
+    return this.database.read(context, async (runner) => {
+      await this.readableParent(runner, context, principal, workItemId);
+      const calendar = await this.calendars.calendarOf(runner, context);
+      const parsed = parseV2(input ?? {}, calendar, this.now());
+      const rule = await this.scoped(runner, context, workItemId, input ?? {}, parsed, calendar);
+      const zone = parsed.settings.timeZone ?? calendar.timeZone;
+      const today = localDateOf(this.now(), zone);
+      const policy = parsed.settings.holidayPolicy as RecurrenceHolidayPolicy;
+      const after = rule.start > today ? previousDay(rule.start) : today;
+      return {
+        workItemId,
+        occurrences: [...occurrencesOf(rule, after, RECURRENCE_EDITOR_PREVIEW, calendar, policy)],
+      };
+    });
+  }
+
+  /** Apply the edit scope to a parsed v2 rule against the stored rule (no scope: as parsed). */
+  private async scoped(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    workItemId: string,
+    input: SetRecurrenceInput,
+    parsed: { rule: RecurrenceRule; settings: V2Settings },
+    calendar: WorkingCalendar,
+  ): Promise<RecurrenceRule> {
+    if (input.scope === undefined || input.scope === null) return parsed.rule;
+    const scope = oneOf(input.scope, RECURRENCE_EDIT_SCOPES, 'all', 'scope') as RecurrenceEditScope;
+    const zone = parsed.settings.timeZone ?? calendar.timeZone;
+    const fromDate =
+      input.fromDate === undefined || input.fromDate === null
+        ? localDateOf(this.now(), zone)
+        : input.fromDate;
+    if (typeof fromDate !== 'string' || !isIsoDate(fromDate)) {
+      throw invalid('fromDate', 'must be a date (YYYY-MM-DD)');
+    }
+    const stored = await this.recurrence.findByItem(runner, context, workItemId);
+    const previous = stored ? ruleOfRow(stored, stored.timeZone ?? zone) : null;
+    try {
+      return ruleForEdit(parsed.rule, previous, scope, fromDate);
+    } catch (error) {
+      if (error instanceof RecurrenceValidationError) throw invalid(error.field, error.message);
+      throw error;
+    }
   }
 
   /** Skip one occurrence ahead of time. Behind `work.update`. A second skip of it is a 409. */
@@ -747,6 +814,13 @@ function parseV2(
     if (error instanceof RecurrenceValidationError) throw invalid(error.field, error.message);
     throw error;
   }
+}
+
+/** The ISO date before `date`. */
+function previousDay(date: string): string {
+  const at = new Date(`${date}T00:00:00.000Z`);
+  at.setUTCDate(at.getUTCDate() - 1);
+  return at.toISOString().slice(0, 10);
 }
 
 function previewCount(raw: unknown): number {
