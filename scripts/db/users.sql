@@ -1882,6 +1882,12 @@ GRANT INSERT, DELETE ON `tmanage`.`public_link_events`         TO 'tmanage_app'@
 -- 0257 `public_link_codes` (tenant): issued (replaced on resend), counted and deleted on success.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`public_link_codes`  TO 'tmanage_app'@'%';
 
+-- ---- 52-18 · account-less approver ----
+-- 0320 `external_approvers` (tenant): inserted on send, decided once (UPDATE); DELETE only for
+-- the company erasure. SELECT rides the database-wide read. The worker needs no grant: the
+-- `approval.decided.v1` payload carries everything its planner reads.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`external_approvers` TO 'tmanage_app'@'%';
+
 -- ---- 52-08 · quotes ----
 -- 0259 `quotes` (tenant): created, edited while draft, sent and decided (UPDATE); DELETE only for
 -- the company erasure. SELECT rides the database-wide read.

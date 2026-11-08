@@ -1140,6 +1140,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   public_links: 'organization_id',
   public_link_events: 'organization_id',
   public_link_codes: 'organization_id',
+  // ---- 52-18 ----
+  // 0320. Tenant-owned: one organization's outside approvers of deliverable versions. Members
+  // reach them through their own context; the outsider's decision writes one row through the
+  // 56-07 link's service context for the link's organization.
+  external_approvers: 'organization_id',
   // ---- 52-08 ----
   // 0259. Tenant-owned: one organization's quotes and their lines. Members reach them through
   // their own context; an outsider reaches one sent quote only through its 56-07 `quote` link,

@@ -73,6 +73,14 @@ import {
   stateCapsule,
 } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import {
+  audienceFailureMessage,
+  clientPickerMode,
+  mayConfirmAudience,
+  tickedClientIds,
+  widenRequest,
+} from '../../lib/work-item-client-audience';
+import type { ProjectClientChoice } from '../../lib/work-item-client-audience';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { dayOf, DueDatePicker, formatChipDay, formatShortDay, useA6T } from '../work/DueDatePicker';
@@ -412,11 +420,11 @@ function WorkItemBody({
     queryFn: () => listWorkActivity(api, organizationSlug, item.id),
   });
 
-  // The client of this project, for "<Client> can see this item" and the delete note.
+  // The client of this project, for "<Client> can see this item" and the delete note. R36 F1: read
+  // for internal items too, so the confirm that widens one can already list the clients to tag.
   const shares = useQuery({
     queryKey: ['project-shares', organizationSlug, item.projectId],
     queryFn: () => listProjectShares(api, organizationSlug, item.projectId),
-    enabled: item.audience !== 'internal' || overlay?.kind === 'edit',
   });
   const clientOptions = useQuery({
     queryKey: ['client-organization-options', organizationSlug],
@@ -426,21 +434,18 @@ function WorkItemBody({
   const clientId = shares.data?.[0]?.clientOrganizationId;
   const clientName = clientOptions.data?.find((option) => option.id === clientId)?.name;
 
-  // C25: on a project shared with more than one client company, a client-facing item can be
-  // limited to some of them ("Which clients can see this?", Figma 529:30880).
-  const projectClients: readonly ProjectClientChoice[] =
-    item.audience === 'internal'
-      ? []
-      : (shares.data ?? []).map((share) => ({
-          id: share.clientOrganizationId,
-          name:
-            clientOptions.data?.find((option) => option.id === share.clientOrganizationId)?.name ??
-            '',
-        }));
+  // C25: a client-facing item can be limited to some of the project's client companies ("Which
+  // clients can see this?", Figma 529:30880). R36 F1: listed for every client-facing audience and
+  // for the confirm that widens an internal item, however many companies the project has.
+  const projectClients: readonly ProjectClientChoice[] = (shares.data ?? []).map((share) => ({
+    id: share.clientOrganizationId,
+    name:
+      clientOptions.data?.find((option) => option.id === share.clientOrganizationId)?.name ?? '',
+  }));
   const clientAudience = useQuery({
     queryKey: ['work-item-client-audience', organizationSlug, item.id],
     queryFn: () => getWorkItemClientAudience(api, organizationSlug, item.id),
-    enabled: projectClients.length > 1,
+    enabled: item.audience !== 'internal' && projectClients.length > 0,
   });
   const tickedClients = tickedClientIds(projectClients, clientAudience.data ?? []);
 
@@ -768,6 +773,7 @@ function WorkItemBody({
               api={api}
               organizationSlug={organizationSlug}
               projectClients={projectClients}
+              clientsLoaded={shares.isSuccess}
               tickedClients={tickedClients}
               onChanged={onChanged}
               onError={handleWriteError}
@@ -1699,12 +1705,18 @@ function MovePanel({
 /**
  * Who can see this item. Widening is confirmed and narrowing is not: audience is the control
  * that decides what a client can ever see, and widening is the direction that discloses.
+ *
+ * R36 F1: the client companies to tag show for every client-facing audience (one company
+ * included) and already in the confirm, so the item is published only to the ones ticked. A
+ * project with no client says so, with the way to add one, and "Client action needed" — which
+ * the API refuses there — is not offered. A refusal is shown in this card, beside the button.
  */
 function AudiencePanel({
   item,
   api,
   organizationSlug,
   projectClients,
+  clientsLoaded,
   tickedClients,
   onChanged,
   onError,
@@ -1712,8 +1724,10 @@ function AudiencePanel({
   item: WorkItemSummary;
   api: ApiClient;
   organizationSlug: string;
-  /** C25: the project's client companies; the picker shows only when there is more than one. */
+  /** C25: the project's client companies. */
   projectClients: readonly ProjectClientChoice[];
+  /** R36 F1: the project's clients have been read, so "no client yet" is the truth. */
+  clientsLoaded: boolean;
   tickedClients: readonly string[];
   onChanged: (next: WorkItemSummary) => void;
   onError: (error: unknown) => void;
@@ -1721,17 +1735,36 @@ function AudiencePanel({
   const t = useT();
   const queryClient = useQueryClient();
   const [pending, setPending] = useState<WorkItemAudience | undefined>(undefined);
+  const [chosen, setChosen] = useState<readonly string[]>([]);
+  const [failure, setFailure] = useState<string | undefined>(undefined);
+
+  function failed(error: unknown) {
+    // A version conflict reloads the item, as every other write on this screen does.
+    if (error instanceof ApiRequestError && error.status === 409) {
+      setFailure(undefined);
+      onError(error);
+      return;
+    }
+    setFailure(audienceFailureMessage(error, t('WorkItemDetailScreen.audienceFailed')));
+  }
+
   const change = useMutation({
     mutationFn: (audience: WorkItemAudience) =>
-      updateWorkItem(api, organizationSlug, item.id, { version: item.version, audience }),
+      updateWorkItem(
+        api,
+        organizationSlug,
+        item.id,
+        widenRequest(item.version, audience, chosen, projectClients.length),
+      ),
     onSuccess: (next) => {
       onChanged(next);
       setPending(undefined);
+      setFailure(undefined);
       void queryClient.invalidateQueries({
         queryKey: ['work-item-client-audience', organizationSlug, item.id],
       });
     },
-    onError,
+    onError: failed,
   });
   const clients = useMutation({
     mutationFn: (clientOrganizationIds: readonly string[]) =>
@@ -1741,12 +1774,19 @@ function AudiencePanel({
       }),
     onSuccess: (next) => {
       onChanged(next);
+      setFailure(undefined);
       void queryClient.invalidateQueries({
         queryKey: ['work-item-client-audience', organizationSlug, item.id],
       });
     },
-    onError,
+    onError: failed,
   });
+
+  const mode = clientPickerMode(item.audience, pending, clientsLoaded, projectClients.length);
+  // In the confirm the boxes are a draft sent with the audience; otherwise each tick saves.
+  const ticked = pending !== undefined ? chosen : tickedClients;
+  const mayConfirm =
+    pending !== undefined && mayConfirmAudience(pending, projectClients.length, chosen.length);
 
   return (
     <section className="tm-wk-card" aria-labelledby="tm-work-audience">
@@ -1761,37 +1801,56 @@ function AudiencePanel({
             size="accessible"
             disabled={audience === item.audience || change.isPending}
             onClick={() => {
-              if (audience === 'internal') change.mutate(audience);
-              else setPending(audience);
+              setFailure(undefined);
+              if (audience === 'internal') {
+                setPending(undefined);
+                change.mutate(audience);
+              } else {
+                // Default: every client the item can already reach (all of them when internal).
+                setChosen(
+                  item.audience === 'internal'
+                    ? projectClients.map((client) => client.id)
+                    : tickedClients,
+                );
+                setPending(audience);
+              }
             }}
           >
             {audienceLabel(audience)}
           </Button>
         ))}
       </div>
-      {item.audience !== 'internal' && projectClients.length > 1 ? (
+      {mode === 'picker' ? (
         <fieldset className="tm-wk-clients" data-testid="work-item-client-picker">
           <legend className="tm-wk-clients__label">{t('WorkItemDetailScreen.whichClients')}</legend>
           {projectClients.map((client) => {
-            const checked = tickedClients.includes(client.id);
+            const checked = ticked.includes(client.id);
+            const next = checked ? ticked.filter((id) => id !== client.id) : [...ticked, client.id];
             return (
               <Checkbox
                 key={client.id}
                 label={client.name}
                 checked={checked}
-                disabled={clients.isPending || (checked && tickedClients.length === 1)}
-                onChange={() =>
-                  clients.mutate(
-                    checked
-                      ? tickedClients.filter((id) => id !== client.id)
-                      : [...tickedClients, client.id],
-                  )
-                }
+                disabled={clients.isPending || change.isPending || (checked && ticked.length === 1)}
+                onChange={() => {
+                  if (pending !== undefined) setChosen(next);
+                  else clients.mutate(next);
+                }}
               />
             );
           })}
           <p className="tm-wk-facts__note">{t('WorkItemDetailScreen.atLeastOneClient')}</p>
         </fieldset>
+      ) : null}
+      {mode === 'no-client' ? (
+        <p className="tm-wk-facts__note" data-testid="work-item-no-client">
+          {pending === 'client_action_required'
+            ? t('WorkItemDetailScreen.noClientForAction')
+            : t('WorkItemDetailScreen.noClientYet')}{' '}
+          <Link href={`/${organizationSlug}/projects/${item.projectId}/members`}>
+            {t('WorkItemDetailScreen.addClientToProject')}
+          </Link>
+        </p>
       ) : null}
       {pending !== undefined ? (
         <InlineAlert tone="client" title={t('WorkItemDetailScreen.showToClientTitle')} live>
@@ -1800,40 +1859,38 @@ function AudiencePanel({
             {audienceLabel(pending).toLowerCase()} {t('WorkItemDetailScreen.inClientPortal')}
           </p>
           <div className="tm-row">
+            {mayConfirm ? (
+              <Button
+                tone="ink"
+                size="accessible"
+                loading={change.isPending}
+                loadingLabel={t('WorkItemDetailScreen.publishing')}
+                onClick={() => {
+                  setFailure(undefined);
+                  change.mutate(pending);
+                }}
+              >
+                {t('WorkItemDetailScreen.showToClient')}
+              </Button>
+            ) : null}
             <Button
-              tone="ink"
+              tone="outline"
               size="accessible"
-              loading={change.isPending}
-              loadingLabel={t('WorkItemDetailScreen.publishing')}
-              onClick={() => change.mutate(pending)}
+              onClick={() => {
+                setPending(undefined);
+                setFailure(undefined);
+              }}
             >
-              {t('WorkItemDetailScreen.showToClient')}
-            </Button>
-            <Button tone="outline" size="accessible" onClick={() => setPending(undefined)}>
               {t('WorkItemDetailScreen.keepInternal')}
             </Button>
           </div>
         </InlineAlert>
       ) : null}
+      {failure !== undefined ? (
+        <InlineAlert tone="danger" title={t('WorkItemDetailScreen.failureTitle')} live>
+          {failure}
+        </InlineAlert>
+      ) : null}
     </section>
   );
-}
-
-/** C25: a client company the project is shared with, as the picker lists it. */
-interface ProjectClientChoice {
-  readonly id: string;
-  readonly name: string;
-}
-
-/**
- * C25: the ticked companies. The API's empty list means "every client of the project", so every
- * box is ticked; a listed company the project is no longer shared with is not shown or counted.
- */
-function tickedClientIds(
-  projectClients: readonly ProjectClientChoice[],
-  listed: readonly string[],
-): readonly string[] {
-  const ids = projectClients.map((client) => client.id);
-  if (listed.length === 0) return ids;
-  return ids.filter((id) => listed.includes(id));
 }

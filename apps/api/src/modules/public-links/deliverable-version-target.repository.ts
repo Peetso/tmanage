@@ -1,6 +1,11 @@
 import { and, eq } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { deliverables, deliverableVersions } from '../../common/database/schema.js';
+import {
+  deliverables,
+  deliverableVersions,
+  fileAssets,
+  fileVersions,
+} from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import type { PublicLinkTargetAdapter, ResolvedTarget } from './public-link-targets.js';
 
@@ -8,7 +13,9 @@ import type { PublicLinkTargetAdapter, ResolvedTarget } from './public-link-targ
  * 56-07 — the approver link's target (52-18 builds its screens and the deliverable-state side
  * effect): one deliverable version. The link binds the version's `content_hash`; the outsider
  * sees the deliverable's title and the version number, nothing else (no project, no note, no
- * other versions). No `onDecision` yet: the decision is recorded on the link only.
+ * other versions). 52-18: the projection also names the attached file (name, type, size — never
+ * its bytes or storage key) so the approver knows what they approve; the approvals module observes
+ * the decision (`PublicLinkTargets.observeDecisions`) to record the external approver.
  */
 export const deliverableVersionTarget: PublicLinkTargetAdapter = {
   targetType: 'deliverable_version',
@@ -26,6 +33,9 @@ export const deliverableVersionTarget: PublicLinkTargetAdapter = {
         versionNo: deliverableVersions.versionNo,
         contentHash: deliverableVersions.contentHash,
         title: deliverables.title,
+        fileName: fileAssets.name,
+        mimeType: fileVersions.declaredMimeType,
+        sizeBytes: fileVersions.sizeBytes,
       })
       .from(deliverableVersions)
       .innerJoin(
@@ -33,6 +43,20 @@ export const deliverableVersionTarget: PublicLinkTargetAdapter = {
         and(
           eq(deliverables.organizationId, deliverableVersions.organizationId),
           eq(deliverables.id, deliverableVersions.deliverableId),
+        ),
+      )
+      .leftJoin(
+        fileAssets,
+        and(
+          eq(fileAssets.organizationId, deliverableVersions.organizationId),
+          eq(fileAssets.id, deliverableVersions.fileAssetId),
+        ),
+      )
+      .leftJoin(
+        fileVersions,
+        and(
+          eq(fileVersions.organizationId, deliverableVersions.organizationId),
+          eq(fileVersions.id, deliverableVersions.fileVersionId),
         ),
       )
       .where(
@@ -47,7 +71,15 @@ export const deliverableVersionTarget: PublicLinkTargetAdapter = {
     return {
       projectId: row.projectId,
       versionHash: row.contentHash,
-      projection: { title: row.title, versionNo: row.versionNo },
+      projection: {
+        title: row.title,
+        versionNo: row.versionNo,
+        hashTail: row.contentHash.slice(-4),
+        file:
+          row.fileName === null
+            ? null
+            : { name: row.fileName, mimeType: row.mimeType, sizeBytes: row.sizeBytes },
+      },
     };
   },
 };

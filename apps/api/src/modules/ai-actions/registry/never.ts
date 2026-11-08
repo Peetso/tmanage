@@ -1155,6 +1155,18 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/public-links/:linkId',
     reason: 'org_security_manage',
   },
+  // 52-18. The account-less approver: sending a deliverable version to an outside e-mail hands an
+  // outsider access (risky, human approval in the spec); the list shows outsiders' details.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/deliverables/:deliverableId/versions/:versionId/external-approvals',
+    reason: 'org_security_manage',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/deliverables/:deliverableId/versions/:versionId/external-approvals',
+    reason: 'org_security_manage',
+  },
   // 52-08. Quotes: client money and the route that issues an outsider's accept link.
   { method: 'GET', path: '/v1/organizations/:orgSlug/quotes/', reason: 'client_quote' },
   { method: 'POST', path: '/v1/organizations/:orgSlug/quotes/', reason: 'client_quote' },

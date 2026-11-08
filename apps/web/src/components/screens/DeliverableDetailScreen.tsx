@@ -26,6 +26,7 @@ import {
   type DeliverablesKey,
 } from './DeliverablesScreen';
 import { SendForApprovalDialog } from './SendForApprovalDialog';
+import { ExternalApproversPanel } from './approvals/ExternalApproversPanel';
 import { useT } from '../../lib/i18n/use-t';
 
 export interface DeliverableDetailScreenProps {
@@ -222,6 +223,15 @@ export function DeliverableDetailScreen({
                   </div>
                 </form>
               </section>
+              {latestVersion(detail.data) ? (
+                <ExternalApproversPanel
+                  api={api}
+                  organizationSlug={organizationSlug}
+                  deliverableId={deliverableId}
+                  versionId={latestVersion(detail.data)!.id}
+                  versionNo={latestVersion(detail.data)!.versionNo ?? null}
+                />
+              ) : null}
             </div>
           </div>
         )}
@@ -345,4 +355,12 @@ function latestVersionId(
   return (
     [...detail.versions].sort((a, b) => (b.versionNo ?? 0) - (a.versionNo ?? 0))[0]?.id ?? null
   );
+}
+
+/** 52-18: the newest version, the one an outside approver is asked about. */
+function latestVersion(
+  detail: { readonly versions: readonly DeliverableVersionView[] } | undefined,
+): DeliverableVersionView | null {
+  if (!detail || detail.versions.length === 0) return null;
+  return [...detail.versions].sort((a, b) => (b.versionNo ?? 0) - (a.versionNo ?? 0))[0] ?? null;
 }

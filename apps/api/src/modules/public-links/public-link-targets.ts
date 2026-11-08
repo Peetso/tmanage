@@ -46,6 +46,33 @@ export interface ResolvedTarget {
   readonly projection: PublicLinkProjection;
 }
 
+/**
+ * 52-18 — what the outsider said and where from, handed to a decision's side effect. `verified`
+ * is true only when the decision passed the e-mail code check in this same transaction.
+ */
+export interface PublicLinkDecisionDetail {
+  readonly comment: string | null;
+  readonly typedName: string | null;
+  readonly verified: boolean;
+  readonly ipHash: string | null;
+  readonly userAgent: string | null;
+  readonly decidedAt: Date;
+}
+
+/**
+ * 52-18 — a consumer's extra side effect of a decision on a target type it does not own (the
+ * approvals module records the external approver and notifies the sender for
+ * `deliverable_version`). Runs in the decision's transaction after `onDecision`; throwing rolls
+ * the decision back.
+ */
+export type PublicLinkDecisionObserver = (
+  runner: TenantQueryRunner,
+  context: TenantContext,
+  link: PublicLinkRow,
+  decision: string,
+  detail: PublicLinkDecisionDetail,
+) => Promise<void>;
+
 export interface PublicLinkTargetAdapter {
   /** Stored in `public_links.target_type`; at most 32 characters. */
   readonly targetType: string;
@@ -72,11 +99,13 @@ export interface PublicLinkTargetAdapter {
     context: TenantContext,
     link: PublicLinkRow,
     decision: string,
+    detail?: PublicLinkDecisionDetail,
   ): Promise<void>;
 }
 
 export class PublicLinkTargets {
   private readonly adapters = new Map<string, PublicLinkTargetAdapter>();
+  private readonly observers = new Map<string, PublicLinkDecisionObserver[]>();
 
   register(adapter: PublicLinkTargetAdapter): void {
     if (adapter.targetType.length === 0 || adapter.targetType.length > 32) {
@@ -90,6 +119,17 @@ export class PublicLinkTargets {
 
   get(targetType: unknown): PublicLinkTargetAdapter | null {
     return typeof targetType === 'string' ? (this.adapters.get(targetType) ?? null) : null;
+  }
+
+  /** 52-18: add a decision side effect for a target type (registered or not yet). */
+  observeDecisions(targetType: string, observer: PublicLinkDecisionObserver): void {
+    const list = this.observers.get(targetType) ?? [];
+    list.push(observer);
+    this.observers.set(targetType, list);
+  }
+
+  decisionObservers(targetType: string): readonly PublicLinkDecisionObserver[] {
+    return this.observers.get(targetType) ?? [];
   }
 }
 

@@ -1,11 +1,20 @@
-import { Module } from '@nestjs/common';
-import type { DynamicModule, Provider } from '@nestjs/common';
+import { Inject, Injectable, Module, Optional } from '@nestjs/common';
+import type { DynamicModule, OnModuleInit, Provider } from '@nestjs/common';
+import type { Mailer } from '@tmanage/mail';
+import type { ApiConfig } from '../../common/http/api-config.js';
 import {
+  API_CONFIG,
   APPROVALS_SERVICE,
   AUDIT_SERVICE,
+  MAILER,
   OUTBOX_EVENTS_REPOSITORY,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
+import { PUBLIC_LINKS_SERVICE } from '../public-links/public-links.controller.js';
+import { PUBLIC_LINK_TARGETS } from '../public-links/public-link-targets.js';
+import type { PublicLinkTargets } from '../public-links/public-link-targets.js';
+import { PublicLinksRepository } from '../public-links/public-links.repository.js';
+import type { PublicLinksService } from '../public-links/public-links.service.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
@@ -27,6 +36,32 @@ import { ApprovalStepsController } from './steps.controller.js';
 import { DeliverablesRepository } from './deliverables.repository.js';
 import { DeliverablesService } from './deliverables.service.js';
 import { DELIVERABLES_SERVICE, DeliverablesController } from './deliverables.controller.js';
+import {
+  EXTERNAL_APPROVALS_SERVICE,
+  ExternalApprovalsController,
+} from './external-approvals.controller.js';
+import { ExternalApprovalsService } from './external-approvals.service.js';
+import { ExternalApproversRepository } from './external-approvers.repository.js';
+
+/**
+ * 52-18 — at start-up, hook the external approver record onto the 56-07 `deliverable_version`
+ * link target: the outsider's decision then records, notifies and audits in its own transaction.
+ */
+@Injectable()
+class ExternalApprovalDecisionRegistrar implements OnModuleInit {
+  constructor(
+    @Optional()
+    @Inject(PUBLIC_LINK_TARGETS)
+    private readonly targets: PublicLinkTargets | undefined,
+    @Inject(EXTERNAL_APPROVALS_SERVICE) private readonly service: ExternalApprovalsService,
+  ) {}
+
+  onModuleInit(): void {
+    this.targets?.observeDecisions('deliverable_version', (tx, context, link, decision, detail) =>
+      this.service.recordDecision(tx, context, link, decision, detail),
+    );
+  }
+}
 
 /**
  * FR-05's wiring.
@@ -105,15 +140,59 @@ export class ApprovalsModule {
         ),
     };
 
+    // 52-18 — the account-less approver: sends through the global 56-07 link service, mails the
+    // `/a/<token>` link on the global mailer (optional: with none the sender copies the link).
+    const externalApprovalsService: Provider = {
+      provide: EXTERNAL_APPROVALS_SERVICE,
+      inject: [
+        TENANT_DATABASE,
+        OUTBOX_EVENTS_REPOSITORY,
+        PUBLIC_LINKS_SERVICE,
+        API_CONFIG,
+        { token: AUDIT_SERVICE, optional: true },
+        { token: MAILER, optional: true },
+      ],
+      useFactory: (
+        database: TenantDatabase,
+        outbox: OutboxEventsRepository,
+        links: PublicLinksService,
+        config: ApiConfig,
+        audit?: AuditService,
+        mailer?: Mailer | null,
+      ) => {
+        const linkStore = new PublicLinksRepository();
+        return new ExternalApprovalsService({
+          database,
+          approvers: new ExternalApproversRepository(),
+          versions: new DeliverableVersionsRepository(),
+          deliverables: new DeliverablesRepository(),
+          links,
+          outbox,
+          audit: audit ?? null,
+          mailer: mailer ?? null,
+          organizationName: (tx, context) => linkStore.organizationName(tx, context),
+          webPublicUrl: config.webPublicUrl ?? '',
+        });
+      },
+    };
+
     return {
       module: ApprovalsModule,
-      providers: [service, delegationService, stepsService, deliverablesService],
+      providers: [
+        service,
+        delegationService,
+        stepsService,
+        deliverablesService,
+        externalApprovalsService,
+        ExternalApprovalDecisionRegistrar,
+      ],
       exports: [service, stepsService],
       controllers: [
         ApprovalsController,
         ApprovalDelegationController,
         ApprovalStepsController,
         DeliverablesController,
+        ExternalApprovalsController,
       ],
     };
   }

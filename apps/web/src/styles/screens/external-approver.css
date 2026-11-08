@@ -1,0 +1,105 @@
+/* 52-18 — the account-less approver page (`/a/<token>`), R35 L3-52-18 Figma frame. */
+
+.tm-approver {
+  min-block-size: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s5);
+  padding: 64px var(--s4) 48px;
+}
+
+.tm-approver__card {
+  position: relative;
+  overflow: hidden;
+  inline-size: 100%;
+  max-inline-size: 760px;
+}
+
+.tm-approver__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-heading-page);
+  font-weight: 600;
+}
+
+.tm-approver__muted {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-approver__facts {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+}
+
+.tm-approver__facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.tm-approver__facts dt {
+  color: var(--ink-500);
+}
+
+.tm-approver__facts dd {
+  margin: 0;
+  text-align: end;
+}
+
+.tm-approver__notice {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-approver__code {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s3);
+}
+
+/* A deterrent, not DRM: the masked address and the opening time across the card. */
+.tm-approver__watermark {
+  position: absolute;
+  inset-block-start: 40%;
+  inset-inline-start: 10%;
+  transform: rotate(-20deg);
+  font-family: var(--font-mono);
+  font-size: 28px;
+  color: var(--ink-950);
+  opacity: 0.07;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
+.tm-approver__footer {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-approver-panel__list {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-approver-panel__list > li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+@media (max-width: 900px) {
+  .tm-approver {
+    padding-block-start: var(--s5);
+  }
+}

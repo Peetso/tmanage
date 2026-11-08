@@ -48,6 +48,7 @@ export const CODES_PER_HOUR = 5;
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
 const MAX_COMMENT = 1_000;
+const MAX_TYPED_NAME = 120;
 const MAX_EMAIL = 320;
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 const LANGUAGES = ['en', 'ar'] as const;
@@ -103,6 +104,8 @@ export type OutsiderLinkView =
       readonly codeRequiredFor: readonly string[];
       readonly versionHash: string | null;
       readonly projection: PublicLinkProjection;
+      /** 52-18: the audience e-mail masked (`s•••@client.com`) for the watermark; never in full. */
+      readonly audienceHint: string | null;
     };
 
 /** What the request tells us about the outsider; only hashes and a capped user agent are kept. */
@@ -300,6 +303,7 @@ export class PublicLinksService {
           : (adapter.decisionsRequiringCode ?? []),
         versionHash: link.versionHash,
         projection: target.projection,
+        audienceHint: maskEmail(link.audienceEmail),
       };
     });
   }
@@ -376,14 +380,31 @@ export class PublicLinksService {
       }
       const comment = typeof raw['comment'] === 'string' ? raw['comment'].trim() : '';
       if (comment.length > MAX_COMMENT) return fail(invalid('comment', `is over ${MAX_COMMENT}`));
-      if (link.requireCode || (adapter.decisionsRequiringCode ?? []).includes(decision)) {
+      const typedName = typeof raw['name'] === 'string' ? raw['name'].trim() : '';
+      if (typedName.length > MAX_TYPED_NAME) {
+        return fail(invalid('name', `is over ${MAX_TYPED_NAME}`));
+      }
+      const codeNeeded =
+        link.requireCode || (adapter.decisionsRequiringCode ?? []).includes(decision);
+      if (codeNeeded) {
         const refused = await this.checkCode(tx, context, link, raw['code'], at, meta);
         if (refused !== null) return fail(refused);
       }
       if (!(await this.store.decide(tx, context, link.id, decision, at))) {
         return fail(unusable('decided'));
       }
-      await adapter.onDecision?.(tx, context, link, decision);
+      const detail = {
+        comment: comment === '' ? null : comment,
+        typedName: typedName === '' ? null : typedName,
+        verified: codeNeeded,
+        ipHash: this.options.secrets.ipHash(meta.ip),
+        userAgent: meta.userAgent?.slice(0, 255) ?? null,
+        decidedAt: at,
+      };
+      await adapter.onDecision?.(tx, context, link, decision, detail);
+      for (const observe of this.options.targets.decisionObservers(link.targetType)) {
+        await observe(tx, context, link, decision, detail);
+      }
       await this.event(
         tx,
         context,
@@ -524,6 +545,14 @@ function allows(
       lifecycle: 'active',
     },
   }).allowed;
+}
+
+/** `sara@client.com` → `s•••@client.com`; the domain stays so the approver recognises it. */
+export function maskEmail(email: string | null): string | null {
+  if (email === null) return null;
+  const at = email.lastIndexOf('@');
+  if (at < 1) return null;
+  return `${email.slice(0, 1)}•••${email.slice(at)}`;
 }
 
 export function linkStatus(row: PublicLinkRow, at: Date): LinkStatus {

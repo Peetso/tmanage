@@ -13207,3 +13207,52 @@ export const invitationPendingKeys = mysqlTable(
 export type InvitationPendingKeyRow = typeof invitationPendingKeys.$inferSelect;
 
 Object.assign(TABLES, { invitation_pending_keys: invitationPendingKeys });
+
+// ---- 52-18 · account-less approver ----
+
+/**
+ * 0320 (52-18). The outside approver of one deliverable version: who was asked (e-mail, optional
+ * name, the sender's message), by whom, for which `content_hash`, through which 56-07 `approval`
+ * link (`public_link_id`, unique per organization), and the one decision (`approve |
+ * request_changes`, checked in `approvals/external-approvals.service.ts`) with its comment, typed
+ * name, `email_verified`, the peppered IP hash and the user agent. TENANT: keyed
+ * `(organization_id, id)`.
+ */
+export const externalApprovers = mysqlTable(
+  'external_approvers',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    publicLinkId: char('public_link_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    deliverableId: char('deliverable_id', { length: 36 }).notNull(),
+    deliverableVersionId: char('deliverable_version_id', { length: 36 }).notNull(),
+    contentHash: char('content_hash', { length: 64 }).notNull(),
+    email: varchar('email', { length: 320 }).notNull(),
+    displayName: varchar('display_name', { length: 120 }),
+    message: varchar('message', { length: 1000 }),
+    language: varchar('language', { length: 5 }).notNull().default('en'),
+    requestedByUserId: char('requested_by_user_id', { length: 36 }).notNull(),
+    requestedAt: datetime('requested_at', { mode: 'date', fsp: 3 }).notNull(),
+    decision: varchar('decision', { length: 16 }),
+    decisionComment: varchar('decision_comment', { length: 1000 }),
+    typedName: varchar('typed_name', { length: 120 }),
+    emailVerified: boolean('email_verified').notNull().default(false),
+    decidedAt: datetime('decided_at', { mode: 'date', fsp: 3 }),
+    decidedIpHash: char('decided_ip_hash', { length: 64 }),
+    decidedUserAgent: varchar('decided_user_agent', { length: 255 }),
+  },
+  (table) => [
+    uniqueIndex('uq_external_approvers_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_external_approvers_org_link').on(table.organizationId, table.publicLinkId),
+    index('ix_external_approvers_version').on(
+      table.organizationId,
+      table.deliverableVersionId,
+      table.requestedAt,
+    ),
+  ],
+);
+
+export type ExternalApproverRow = typeof externalApprovers.$inferSelect;
+
+Object.assign(TABLES, { external_approvers: externalApprovers });
