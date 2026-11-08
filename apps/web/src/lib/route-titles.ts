@@ -100,12 +100,14 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     key: 'RouteTitle.adminWebhookDeliveries',
   },
   '/[orgSlug]/admin/feature-flags': { en: 'Feature flags', key: 'RouteTitle.adminFeatureFlags' },
+  '/[orgSlug]/admin/file-safety': { en: 'Blocked files', key: 'BlockedFiles.title' },
   '/[orgSlug]/admin/incidents': { en: 'Incidents', key: 'RouteTitle.adminIncidents' },
   '/[orgSlug]/admin/ip-allowlist': { en: 'IP allowlist', key: 'RouteTitle.adminIpAllowlist' },
   '/[orgSlug]/admin/privacy': { en: 'Privacy', key: 'RouteTitle.adminPrivacy' },
   '/[orgSlug]/admin/roles': { en: 'Roles', key: 'RouteTitle.adminRoles' },
   '/[orgSlug]/admin/roles/edit': { en: 'Edit role', key: 'RouteTitle.adminRoleEdit' },
   '/[orgSlug]/admin/security': { en: 'Security', key: 'RouteTitle.adminSecurity' },
+  '/[orgSlug]/admin/security-signals': { en: 'Security signals', key: 'SecuritySignals.title' },
   '/[orgSlug]/admin/sessions': { en: 'Sessions', key: 'RouteTitle.adminSessions' },
   '/[orgSlug]/admin/sessions/[sessionId]/trail': {
     en: 'Session sign-in trail',
@@ -461,6 +463,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/platform/activity/access': { en: 'Access log', key: 'RouteTitle.platformActivityAccess' },
   '/platform/activity/ease-scoreboard': { en: 'Ease scoreboard', key: 'EaseScoreboard.title' },
   '/platform/activity/exports': { en: 'Exports', key: 'RouteTitle.platformActivityExports' },
+  '/platform/activity/growth': { en: 'Growth', key: 'PlatformGrowth.title' },
   '/platform/activity/platform': {
     en: 'Platform admins activity',
     key: 'RouteTitle.platformActivityAdmins',
