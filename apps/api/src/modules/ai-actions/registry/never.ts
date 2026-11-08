@@ -1271,6 +1271,23 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/platform/alerts/', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/alerts/:ruleKey', reason: 'platform_admin' },
   { method: 'GET', path: '/v1/platform/security-signals/', reason: 'platform_admin' },
+  // R44 L2 (0332): an owner marks a signal reviewed; 56-06 the blocked-files queue and its
+  // delete-now. Security triage an AI must not drive.
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/admin/security/events/:signalId/reviewed',
+    reason: 'org_security_manage',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/admin/file-safety/blocked/',
+    reason: 'org_security_manage',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/admin/file-safety/blocked/:fileId/delete',
+    reason: 'org_security_manage',
+  },
   // 56-21b. The monthly platform access review and its evidence row: super admins only.
   { method: 'GET', path: '/v1/platform/team/access-review/', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/team/access-review/record', reason: 'platform_admin' },

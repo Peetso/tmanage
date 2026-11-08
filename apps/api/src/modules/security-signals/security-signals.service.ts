@@ -46,6 +46,8 @@ export interface SignalView {
   readonly firstSeen: string;
   readonly lastSeen: string;
   readonly notifyStatus: string;
+  /** 0332 (R44 L2). ISO time an owner marked it reviewed; null = not reviewed. */
+  readonly reviewedAt: string | null;
 }
 
 export interface SignalPage {
@@ -64,6 +66,8 @@ export interface AlertRuleView extends SignalRule {
 export interface SignalQuery {
   readonly kind?: string | undefined;
   readonly from?: string | undefined;
+  /** `true` | `false` — only reviewed / only not reviewed. */
+  readonly reviewed?: string | undefined;
   readonly cursor?: string | undefined;
   readonly limit?: string | undefined;
 }
@@ -80,6 +84,13 @@ export function parseSignalQuery(query: SignalQuery): SignalFilter {
     from = new Date(query.from);
     if (Number.isNaN(from.getTime())) throw invalid('from', 'an ISO 8601 date-time');
   }
+  let reviewed: boolean | undefined;
+  if (query.reviewed !== undefined && query.reviewed !== '') {
+    if (query.reviewed !== 'true' && query.reviewed !== 'false') {
+      throw invalid('reviewed', 'true | false');
+    }
+    reviewed = query.reviewed === 'true';
+  }
   const cursor = query.cursor === undefined || query.cursor === '' ? undefined : query.cursor;
   if (cursor !== undefined && !ID_SHAPE.test(cursor)) throw invalid('cursor', 'a signal id');
   const limit = query.limit === undefined ? DEFAULT_PAGE : Number(query.limit);
@@ -89,6 +100,7 @@ export function parseSignalQuery(query: SignalQuery): SignalFilter {
   return {
     ...(kind === undefined ? {} : { ruleKey: kind }),
     ...(from === undefined ? {} : { from }),
+    ...(reviewed === undefined ? {} : { reviewed }),
     ...(cursor === undefined ? {} : { before: cursor }),
     limit,
   };
@@ -109,6 +121,7 @@ export function toSignalView(record: SignalRecord): SignalView {
     firstSeen: record.firstSeen.toISOString(),
     lastSeen: record.lastSeen.toISOString(),
     notifyStatus: record.notifyStatus,
+    reviewedAt: record.reviewedAt?.toISOString() ?? null,
   };
 }
 
@@ -158,6 +171,25 @@ export class SecuritySignalsService {
       limit: filter.limit + 1,
     });
     return page(rows, filter.limit);
+  }
+
+  /**
+   * 0332 (R44 L2). An owner marks one of the organization's own signals reviewed
+   * (`org.security.manage`, org-wide scope). Write-once; a second call returns the row unchanged.
+   * An id that is not this organization's signal is a 404, never a 403.
+   */
+  async markReviewed(
+    context: TenantContext,
+    principal: Principal,
+    signalId: string,
+  ): Promise<SignalView> {
+    if (!hasCapability(principal.role, 'org.security.manage') || !principal.hasOrgWideScope) {
+      throw new ApiError(403, 'forbidden', MESSAGES.forbidden);
+    }
+    if (!ID_SHAPE.test(signalId)) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    const saved = await this.store.markReviewed(context, signalId, this.now());
+    if (saved === null) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    return toSignalView(saved);
   }
 
   async platformSignals(

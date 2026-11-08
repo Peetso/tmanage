@@ -1,4 +1,16 @@
-import { Body, Controller, Get, Inject, Param, Put, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Post,
+  Put,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import {
@@ -19,6 +31,7 @@ import type {
   AlertRuleView,
   SecuritySignalsService,
   SignalPage,
+  SignalView,
 } from './security-signals.service.js';
 
 /**
@@ -39,8 +52,27 @@ export class OrganizationSecurityEventsController {
     @Query('from') from: string | undefined,
     @Query('cursor') cursor: string | undefined,
     @Query('limit') limit: string | undefined,
+    @Query('reviewed') reviewed: string | undefined,
   ): Promise<SignalPage> {
-    return this.service.organizationEvents(context, principal, { kind, from, cursor, limit });
+    return this.service.organizationEvents(context, principal, {
+      kind,
+      from,
+      cursor,
+      limit,
+      reviewed,
+    });
+  }
+
+  /** 0332 (R44 L2) — `POST events/:signalId/reviewed` (`org.security.manage`), write-once. */
+  @Post('events/:signalId/reviewed')
+  @RequireCapability('org.security.manage')
+  @HttpCode(200)
+  markReviewed(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('signalId') signalId: string,
+  ): Promise<SignalView> {
+    return this.service.markReviewed(context, principal, signalId);
   }
 }
 

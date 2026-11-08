@@ -11499,6 +11499,9 @@ export const securitySignals = mysqlTable(
     notifyStatus: varchar('notify_status', { length: 16 }).notNull().default('pending'),
     notifiedAt: datetime('notified_at', { mode: 'date', fsp: 3 }),
     detailsJson: text('details_json'),
+    /** 0332 (R44 L2). When an owner marked the signal reviewed, and who; NULL = not reviewed. */
+    reviewedAt: datetime('reviewed_at', { mode: 'date', fsp: 3 }),
+    reviewedByUserId: char('reviewed_by_user_id', { length: 36 }),
   },
   (table) => [
     uniqueIndex('uq_security_signals_dedupe').on(
@@ -11511,6 +11514,7 @@ export const securitySignals = mysqlTable(
     index('ix_security_signals_org_seen').on(table.organizationId, table.lastSeen),
     index('ix_security_signals_notify').on(table.notifyStatus, table.firstSeen),
     index('ix_security_signals_seen').on(table.lastSeen),
+    index('ix_security_signals_org_reviewed').on(table.organizationId, table.reviewedAt),
   ],
 );
 export type SecuritySignalRow = typeof securitySignals.$inferSelect;

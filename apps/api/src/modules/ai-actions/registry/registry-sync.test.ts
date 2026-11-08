@@ -163,7 +163,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // R42 L1 56-22 (passkeys: 2 public sign-in + 6 own-account routes) and L3 54-15 (SAML ACS +
 // metadata), +10 NEVER: +10, was 1334.
 // R43 L1 55-14 (client portal magic-link sign-in: 5 public routes, +5 NEVER): +5, was 1344.
-const EXPECTED_ROUTE_COUNT = 1349;
+// R44 L2 56-23 mark reviewed + 56-06 blocked files (list, delete now), +3 NEVER: +3, was 1349.
+const EXPECTED_ROUTE_COUNT = 1352;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

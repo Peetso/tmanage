@@ -11,15 +11,23 @@ const AT = new Date('2026-10-31T12:00:00.000Z');
 const row: Repo.SignalRecord = {
   ...{ id: '0190a000-0000-7000-8000-0000000000aa', organizationId: ORG, ruleKey: 'mass_export' },
   ...{ severity: 'high', subjectType: 'user', subjectId: ORG, hasSource: true, count: 4 },
-  ...{ windowStart: AT, firstSeen: AT, lastSeen: AT, notifyStatus: 'sent' },
+  ...{ windowStart: AT, firstSeen: AT, lastSeen: AT, notifyStatus: 'sent', reviewedAt: null },
 };
 const rule: Repo.AlertRuleRecord = {
   ...{ ruleKey: 'mass_export', enabled: true, thresholdJson: '{"count":3,"windowMinutes":60}' },
   ...{ cooldownMinutes: 120, lastFiredAt: null, updatedAt: AT },
 };
 const audits: unknown[] = [];
+const filters: Repo.SignalFilter[] = [];
 const store: Repo.SecuritySignalsStore = {
-  listForOrganization: (context) => Promise.resolve(context.organizationId === ORG ? [row] : []),
+  listForOrganization: (context, filter) => {
+    filters.push(filter);
+    return Promise.resolve(context.organizationId === ORG ? [row] : []);
+  },
+  markReviewed: (context, id, at) =>
+    Promise.resolve(
+      context.organizationId === ORG && id === row.id ? { ...row, reviewedAt: at } : null,
+    ),
   listAll: () => Promise.resolve([row]),
   listRules: () => Promise.resolve([rule]),
   updateRuleAudited: (_key, change) => {
@@ -86,5 +94,26 @@ describe('security signals service', () => {
     expect((await service.rules(req)).some((r) => r.key === 'einvoice_chain_break')).toBe(true);
     const view = toSignalView({ ...row, ruleKey: 'einvoice_chain_break' });
     expect(view.label.en).toBe(chain?.label.en);
+  });
+
+  it('R44 L2: an owner marks an own signal reviewed; others get 403 / 404', async () => {
+    const saved = await service.markReviewed(context, owner, row.id);
+    expect(saved.reviewedAt).toBe(AT.toISOString());
+    const other = '0190a000-0000-7000-8000-0000000000bb';
+    await expect(service.markReviewed(context, owner, other)).rejects.toMatchObject({
+      status: 404,
+    });
+    const admin = { role: 'member', hasOrgWideScope: true } as unknown as Principal;
+    await expect(service.markReviewed(context, admin, row.id)).rejects.toMatchObject({
+      status: 403,
+    });
+  });
+
+  it('R44 L2: filters on reviewed=true|false and refuses any other value', async () => {
+    await service.organizationEvents(context, owner, { reviewed: 'false' });
+    expect(filters.at(-1)).toMatchObject({ reviewed: false });
+    await expect(
+      service.organizationEvents(context, owner, { reviewed: 'yes' }),
+    ).rejects.toMatchObject({ status: 400 });
   });
 });

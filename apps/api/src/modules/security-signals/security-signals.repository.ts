@@ -33,11 +33,15 @@ export interface SignalRecord {
   readonly firstSeen: Date;
   readonly lastSeen: Date;
   readonly notifyStatus: string;
+  /** 0332 (R44 L2). When an owner marked it reviewed; null = not reviewed. */
+  readonly reviewedAt: Date | null;
 }
 
 export interface SignalFilter {
   readonly ruleKey?: string;
   readonly from?: Date;
+  /** `true` only reviewed, `false` only not reviewed, absent both. */
+  readonly reviewed?: boolean;
   readonly before?: string;
   readonly limit: number;
 }
@@ -70,6 +74,15 @@ export interface SecuritySignalsStore {
     correlationId: string,
   ): Promise<readonly SignalRecord[]>;
   listRules(correlationId: string): Promise<readonly AlertRuleRecord[]>;
+  /**
+   * 0332. Stamp `reviewed_at`/`reviewed_by_user_id` on one of the caller's own signals, once.
+   * Returns the row after the write, or null when no signal of this organization has that id.
+   */
+  markReviewed(
+    context: TenantContext,
+    signalId: string,
+    reviewedAt: Date,
+  ): Promise<SignalRecord | null>;
   updateRuleAudited(
     ruleKey: string,
     change: (row: AlertRuleRecord) => {
@@ -81,7 +94,7 @@ export interface SecuritySignalsStore {
 }
 
 const SIGNAL_COLUMNS = `id, organization_id, rule_key, severity, subject_type, subject_id,
-  source_hash is not null as has_source, count, window_start, first_seen, last_seen, notify_status`;
+  source_hash is not null as has_source, count, window_start, first_seen, last_seen, notify_status, reviewed_at`;
 const RULE_COLUMNS = `rule_key, enabled, threshold_json, cooldown_minutes, last_fired_at, updated_at`;
 const PLATFORM_READ_REASON =
   'platform security signal triage: platform admins read every organization and platform signal';
@@ -104,6 +117,10 @@ function toSignal(row: RowDataPacket): SignalRecord {
     firstSeen: toDate(row['first_seen']),
     lastSeen: toDate(row['last_seen']),
     notifyStatus: String(row['notify_status']),
+    reviewedAt:
+      row['reviewed_at'] === null || row['reviewed_at'] === undefined
+        ? null
+        : toDate(row['reviewed_at']),
   };
 }
 
@@ -133,6 +150,9 @@ function filters(filter: SignalFilter): { sql: string; params: SqlParameter[] } 
     parts.push('last_seen >= ?');
     params.push(filter.from);
   }
+  if (filter.reviewed !== undefined) {
+    parts.push(filter.reviewed ? 'reviewed_at is not null' : 'reviewed_at is null');
+  }
   if (filter.before !== undefined) {
     parts.push('id < ?');
     params.push(filter.before);
@@ -155,6 +175,26 @@ export class SecuritySignalsRepository implements SecuritySignalsStore {
         [context.organizationId, ...extra.params, filter.limit],
       );
       return rows.map(toSignal);
+    });
+  }
+
+  async markReviewed(
+    context: TenantContext,
+    signalId: string,
+    reviewedAt: Date,
+  ): Promise<SignalRecord | null> {
+    return this.database.transaction(context, async (runner) => {
+      // Write-once: an already-reviewed signal keeps its first reviewer and time.
+      await runner.query(
+        `update security_signals set reviewed_at = ?, reviewed_by_user_id = ?
+          where organization_id = ? and id = ? and reviewed_at is null`,
+        [reviewedAt, context.userId, context.organizationId, signalId],
+      );
+      const rows = await runner.query<RowDataPacket[]>(
+        `select ${SIGNAL_COLUMNS} from security_signals where organization_id = ? and id = ?`,
+        [context.organizationId, signalId],
+      );
+      return rows[0] === undefined ? null : toSignal(rows[0]);
     });
   }
 

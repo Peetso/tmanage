@@ -1,0 +1,104 @@
+/* R44 L2 · 56-06 Blocked files, 56-23 Security signals, 57-09 Growth (Figma 578:32859). Tokens only. */
+
+.tm-r44-lede {
+  margin: 0;
+  color: var(--ink-650);
+}
+
+.tm-r44-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-r44-note,
+.tm-r44-sub {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 17px;
+  letter-spacing: 0.04em;
+  color: var(--ink-650);
+}
+
+.tm-r44-kpis .tm-cc-metric__value {
+  font-size: 36px;
+  line-height: 40px;
+}
+
+/* Sign-ups bar chart: one column per period, the newest in the accent. */
+.tm-r44-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s2);
+  block-size: 160px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-r44-bars__col {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s1);
+  block-size: 100%;
+}
+
+.tm-r44-bars__bar {
+  inline-size: 100%;
+  max-inline-size: 28px;
+  min-block-size: 2px;
+  border-radius: var(--r-micro);
+  background: var(--lime-100);
+}
+
+.tm-r44-bars__bar--now {
+  background: var(--lime-500);
+}
+
+.tm-r44-bars__label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 17px;
+  color: var(--ink-650);
+}
+
+.tm-r44-funnel {
+  display: grid;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-r44-funnel__step {
+  display: grid;
+  grid-template-columns: minmax(0, 9rem) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--ink-650);
+}
+
+.tm-r44-funnel .tm-cc-bar__fill {
+  background: var(--lime-500);
+}
+
+/* Retention heat cells: four steps of the accent, by quarter of the rate. */
+.tm-r44-heat {
+  display: inline-block;
+  min-inline-size: 4rem;
+  padding: 2px var(--s2);
+  border-radius: var(--r-micro);
+  text-align: center;
+  color: var(--ink-950);
+  background: var(--lime-100);
+}
+
+.tm-r44-heat[data-level='3'],
+.tm-r44-heat[data-level='4'] {
+  background: var(--lime-500);
+}

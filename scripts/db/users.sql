@@ -1985,7 +1985,9 @@ GRANT SELECT, INSERT ON `tmanage`.`platform_audit_anchors`     TO 'tmanage_worke
 -- `last_fired_at`. Detector sources are SELECT only. NOT `authentication_events`: the relay never
 -- reads the security log (least-privilege.db.test.ts) — `credential_stuffing` is skipped until
 -- that is decided otherwise (see lane-56-23.md).
-GRANT DELETE ON `tmanage`.`security_signals`                    TO 'tmanage_app'@'%';
+-- 0332 (R44 L2): UPDATE so an owner can mark a signal reviewed (`reviewed_at`, `reviewed_by_user_id`;
+-- the repository's one UPDATE names those two columns and the caller's own organization).
+GRANT UPDATE, DELETE ON `tmanage`.`security_signals`            TO 'tmanage_app'@'%';
 GRANT UPDATE ON `tmanage`.`platform_alert_rules`                TO 'tmanage_app'@'%';
 GRANT SELECT, INSERT, UPDATE ON `tmanage`.`security_signals`    TO 'tmanage_worker'@'%';
 GRANT SELECT, UPDATE ON `tmanage`.`platform_alert_rules`        TO 'tmanage_worker'@'%';

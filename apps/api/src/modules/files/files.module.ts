@@ -107,6 +107,7 @@ import { UsageReconciler } from './usage-reconciler.js';
 import { QuarantineCleanupJob } from './quarantine-cleanup.js';
 import { UsageService } from './usage.service.js';
 import { UsageController } from './usage.controller.js';
+import { BlockedFilesController } from './blocked-files.controller.js';
 import { UploadSessionsController } from './upload-sessions.controller.js';
 import { PortalUploadSessionsController } from './portal-upload-sessions.controller.js';
 import { UploadPartsController } from './upload-parts.controller.js';
@@ -641,6 +642,8 @@ export class FilesModule {
         FileFoldersController,
         FileCommentsController,
         AttachmentVersionsController,
+        // 56-06 (R44 L2) — the owner's blocked-files queue: list and delete now.
+        BlockedFilesController,
       ],
     };
   }
