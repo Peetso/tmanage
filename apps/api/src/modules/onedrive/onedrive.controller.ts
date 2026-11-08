@@ -29,6 +29,11 @@ import { API_CONFIG, AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/to
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
+import {
+  parseConnectReturnTo,
+  storageReturnScreen,
+} from '../platform-admin/connect-setup/connect-return.js';
+import { providerErrorReason } from '../platform-admin/connect-setup/connect-setup.js';
 import { createSeedCipher } from '../identity/seed-cipher.js';
 import { expireCookie, readCookie, serializeCookie } from '../identity/session-token.js';
 import {
@@ -60,7 +65,9 @@ import {
  * - `POST   …/integrations/onedrive/connect` — `{url}` for Microsoft's consent screen
  *   (`{libraries: true}` asks for SharePoint libraries too); sets the signed flow cookie.
  * - `GET    /v1/integrations/onedrive/callback` — Microsoft's redirect; forwards `code` and
- *   `state` in the URL fragment to the Storage screen, which completes under its own session.
+ *   `state` in the URL fragment to the Storage screen (or Connected apps, R38, when the connect
+ *   started there), which completes under its own session; a provider error we explain travels
+ *   on as `reason` (R37).
  * - `POST   …/integrations/onedrive/complete` — `{code, state}`: exchange, encrypt, save.
  * - `PUT    …/integrations/onedrive/settings` — storage mode and the root location.
  * - `DELETE …/integrations/onedrive` — disconnect (wipe the token).
@@ -123,19 +130,25 @@ export class OneDriveStorageController {
   connect(
     @Ctx() context: TenantContext,
     @Param('orgSlug') orgSlug: string,
-    @Body() body: { readonly libraries?: unknown } | undefined,
+    @Body() body: { readonly libraries?: unknown; readonly returnTo?: unknown } | undefined,
     @Res({ passthrough: true }) reply: ReplyLike,
   ): { readonly url: string } {
     if (!SLUG_PATTERN.test(orgSlug)) throw invalid('orgSlug', 'is not a workspace address');
     if (body?.libraries !== undefined && typeof body.libraries !== 'boolean') {
       throw invalid('libraries', 'must be true or false');
     }
+    const returnTo = parseConnectReturnTo(body?.returnTo);
+    if (returnTo === 'invalid') throw invalid('returnTo', 'must be connected-apps');
     const { url, flow } = this.onedrive.startConnect(context, orgSlug, {
       libraries: body?.libraries === true,
     });
+    const sealed = sealOneDriveFlow(
+      returnTo ? { ...flow, returnTo } : flow,
+      this.options.sessionSecret,
+    );
     reply.header(
       'set-cookie',
-      serializeCookie(ONEDRIVE_FLOW_COOKIE, sealOneDriveFlow(flow, this.options.sessionSecret), {
+      serializeCookie(ONEDRIVE_FLOW_COOKIE, sealed, {
         path: ONEDRIVE_COOKIE_PATH,
         maxAgeSeconds: ONEDRIVE_FLOW_TTL_SECONDS,
         // `Lax`: the cookie must survive the top-level return from Microsoft.
@@ -327,9 +340,10 @@ export class OneDriveCallbackController {
     @Query('code') code: unknown,
     @Query('state') state: unknown,
     @Req() request: RequestLike,
+    @Query('error') error?: unknown,
   ): { readonly url: string; readonly statusCode: number } {
     return {
-      url: oneDriveCallbackTarget(this.options, cookieHeader(request), code, state),
+      url: oneDriveCallbackTarget(this.options, cookieHeader(request), code, state, error),
       statusCode: 302,
     };
   }
@@ -341,13 +355,16 @@ export function oneDriveCallbackTarget(
   cookies: string | undefined,
   code: unknown,
   state: unknown,
+  error?: unknown,
 ): string {
   const base = options.webPublicUrl.replace(/\/+$/, '');
   const flow = openOneDriveFlow(readCookie(cookies, ONEDRIVE_FLOW_COOKIE), options.sessionSecret);
   if (!flow || !SLUG_PATTERN.test(flow.organizationSlug)) return `${base}/`;
-  const screen = `${base}/${flow.organizationSlug}/admin/storage`;
+  const screen = storageReturnScreen(base, flow.organizationSlug, flow.returnTo);
   if (typeof code !== 'string' || typeof state !== 'string' || code.length > 4096) {
-    return `${screen}#onedrive=error`;
+    // R37 parity: a provider error we explain travels on as `reason`, so the card can say why.
+    const reason = providerErrorReason(error);
+    return reason ? `${screen}#onedrive=error&reason=${reason}` : `${screen}#onedrive=error`;
   }
   const fragment = new URLSearchParams({ onedrive: 'complete', code, state });
   return `${screen}#${fragment.toString()}`;

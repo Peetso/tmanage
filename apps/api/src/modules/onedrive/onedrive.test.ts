@@ -6,6 +6,7 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import type { StorageConnectionRow } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { createSeedCipher } from '../identity/seed-cipher.js';
+import { parseConnectReturnTo } from '../platform-admin/connect-setup/connect-return.js';
 import { oneDriveCallbackTarget, parseOneDriveSettings } from './onedrive.controller.js';
 import {
   ONEDRIVE_FLOW_COOKIE,
@@ -172,6 +173,38 @@ describe('configuration and the flow cookie', () => {
       'https://app.example.com/acme/admin/storage#onedrive=complete&code=c&state=s',
     );
     expect(oneDriveCallbackTarget(options, undefined, 'c', 's')).toBe('https://app.example.com/');
+  });
+
+  it('R38: returns to Connected apps when started there, forwarding an explained error', () => {
+    const flow = newOneDriveFlow({
+      organizationId: ORG,
+      organizationSlug: 'acme',
+      userId: 'u',
+      libraries: false,
+    });
+    const sealed = sealOneDriveFlow({ ...flow, returnTo: 'connected_apps' }, SECRET);
+    const cookie = `${ONEDRIVE_FLOW_COOKIE}=${sealed}`;
+    const options = { sessionSecret: SECRET, webPublicUrl: 'https://app.example.com' };
+    const screen = 'https://app.example.com/acme/settings/connected-apps';
+    expect(oneDriveCallbackTarget(options, cookie, 'c', 's')).toBe(
+      `${screen}#onedrive=complete&code=c&state=s`,
+    );
+    expect(oneDriveCallbackTarget(options, cookie, undefined, undefined, 'access_denied')).toBe(
+      `${screen}#onedrive=error&reason=access_denied`,
+    );
+    // An unexplained or injected error value never reaches the address bar.
+    expect(oneDriveCallbackTarget(options, cookie, undefined, undefined, '<x>&y=1')).toBe(
+      `${screen}#onedrive=error`,
+    );
+    // A cookie claiming an unknown return screen is refused as a whole.
+    const odd = sealOneDriveFlow({ ...flow, returnTo: 'elsewhere' as never }, SECRET);
+    expect(openOneDriveFlow(odd, SECRET)).toBeUndefined();
+  });
+
+  it('R38: accepts only connected-apps as a connect returnTo', () => {
+    expect(parseConnectReturnTo(undefined)).toBeUndefined();
+    expect(parseConnectReturnTo('connected-apps')).toBe('connected_apps');
+    expect(parseConnectReturnTo('https://evil.example')).toBe('invalid');
   });
 });
 

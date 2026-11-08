@@ -90,15 +90,19 @@ export async function getStorageStatus(
   return data;
 }
 
-/** Start connecting; the browser then goes to Google's consent screen at `url`. */
+/**
+ * Start connecting; the browser then goes to Google's consent screen at `url`. With
+ * `returnTo: 'connected-apps'` (R38) Google's return lands on Connected apps, not Storage.
+ */
 export async function startDriveConnect(
   client: ApiClient,
   organizationSlug: string,
+  input: { readonly returnTo?: 'connected-apps' } = {},
 ): Promise<{ readonly url: string }> {
   const { data } = await client.request<{ url: string }>({
     method: 'POST',
     path: `${storagePath(organizationSlug)}/connect`,
-    body: {},
+    body: input.returnTo ? { returnTo: input.returnTo } : {},
   });
   return data;
 }

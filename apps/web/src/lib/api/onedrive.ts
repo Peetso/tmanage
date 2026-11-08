@@ -95,16 +95,22 @@ export async function getOneDriveStatus(
   return data;
 }
 
-/** Start connecting; `libraries` also asks for SharePoint document libraries. */
+/**
+ * Start connecting; `libraries` also asks for SharePoint document libraries, and
+ * `returnTo: 'connected-apps'` (R38) brings Microsoft's return to Connected apps, not Storage.
+ */
 export async function startOneDriveConnect(
   client: ApiClient,
   organizationSlug: string,
-  input: { readonly libraries?: boolean } = {},
+  input: { readonly libraries?: boolean; readonly returnTo?: 'connected-apps' } = {},
 ): Promise<{ readonly url: string }> {
   const { data } = await client.request<{ url: string }>({
     method: 'POST',
     path: `${storagePath(organizationSlug)}/connect`,
-    body: input.libraries ? { libraries: true } : {},
+    body: {
+      ...(input.libraries ? { libraries: true } : {}),
+      ...(input.returnTo ? { returnTo: input.returnTo } : {}),
+    },
   });
   return data;
 }

@@ -1,5 +1,9 @@
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { constantTimeEquals } from '../identity/session-token.js';
+import {
+  isStoredReturnTo,
+  type ConnectReturnTo,
+} from '../platform-admin/connect-setup/connect-return.js';
 
 /**
  * OneDrive as company storage — the protocol half (Microsoft identity platform and Graph). Nothing
@@ -78,6 +82,8 @@ export interface OneDriveFlow {
   readonly verifier: string;
   /** Whether this connect asks for SharePoint libraries (`Files.ReadWrite.All`). */
   readonly libraries: boolean;
+  /** R38: set when the connect started from Connected apps, so it returns there. */
+  readonly returnTo?: ConnectReturnTo;
   /** Unix seconds. */
   readonly expiresAt: number;
 }
@@ -126,6 +132,7 @@ export function openOneDriveFlow(
       typeof flow.organizationSlug !== 'string' ||
       typeof flow.userId !== 'string' ||
       typeof flow.libraries !== 'boolean' ||
+      !isStoredReturnTo(flow.returnTo) ||
       typeof flow.expiresAt !== 'number' ||
       flow.expiresAt < nowSeconds
     ) {

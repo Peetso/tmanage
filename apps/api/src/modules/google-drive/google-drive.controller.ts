@@ -29,6 +29,11 @@ import { API_CONFIG, AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/to
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
+import {
+  parseConnectReturnTo,
+  storageReturnScreen,
+} from '../platform-admin/connect-setup/connect-return.js';
+import { providerErrorReason } from '../platform-admin/connect-setup/connect-setup.js';
 import { createSeedCipher } from '../identity/seed-cipher.js';
 import { expireCookie, readCookie, serializeCookie } from '../identity/session-token.js';
 import {
@@ -128,12 +133,19 @@ export class GoogleDriveStorageController {
     @Ctx() context: TenantContext,
     @Param('orgSlug') orgSlug: string,
     @Res({ passthrough: true }) reply: ReplyLike,
+    @Body() body?: { readonly returnTo?: unknown },
   ): { readonly url: string } {
     if (!SLUG_PATTERN.test(orgSlug)) throw invalid('orgSlug', 'is not a workspace address');
+    const returnTo = parseConnectReturnTo(body?.returnTo);
+    if (returnTo === 'invalid') throw invalid('returnTo', 'must be connected-apps');
     const { url, flow } = this.drive.startConnect(context, orgSlug);
+    const sealed = sealDriveFlow(
+      returnTo ? { ...flow, returnTo } : flow,
+      this.options.sessionSecret,
+    );
     reply.header(
       'set-cookie',
-      serializeCookie(DRIVE_FLOW_COOKIE, sealDriveFlow(flow, this.options.sessionSecret), {
+      serializeCookie(DRIVE_FLOW_COOKIE, sealed, {
         path: DRIVE_COOKIE_PATH,
         maxAgeSeconds: DRIVE_FLOW_TTL_SECONDS,
         // `Lax`: the cookie must survive the top-level return from Google.
@@ -306,9 +318,10 @@ export class GoogleDriveCallbackController {
     @Query('code') code: unknown,
     @Query('state') state: unknown,
     @Req() request: RequestLike,
+    @Query('error') error?: unknown,
   ): { readonly url: string; readonly statusCode: number } {
     return {
-      url: callbackTarget(this.options, cookieHeader(request), code, state),
+      url: callbackTarget(this.options, cookieHeader(request), code, state, error),
       statusCode: 302,
     };
   }
@@ -320,13 +333,16 @@ export function callbackTarget(
   cookies: string | undefined,
   code: unknown,
   state: unknown,
+  error?: unknown,
 ): string {
   const base = options.webPublicUrl.replace(/\/+$/, '');
   const flow = openDriveFlow(readCookie(cookies, DRIVE_FLOW_COOKIE), options.sessionSecret);
   if (!flow || !SLUG_PATTERN.test(flow.organizationSlug)) return `${base}/`;
-  const screen = `${base}/${flow.organizationSlug}/admin/storage`;
+  const screen = storageReturnScreen(base, flow.organizationSlug, flow.returnTo);
   if (typeof code !== 'string' || typeof state !== 'string' || code.length > 2048) {
-    return `${screen}#drive=error`;
+    // R37 parity: a provider error we explain travels on as `reason`, so the card can say why.
+    const reason = providerErrorReason(error);
+    return reason ? `${screen}#drive=error&reason=${reason}` : `${screen}#drive=error`;
   }
   const fragment = new URLSearchParams({ drive: 'complete', code, state });
   return `${screen}#${fragment.toString()}`;

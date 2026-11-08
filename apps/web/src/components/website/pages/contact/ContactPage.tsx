@@ -28,7 +28,7 @@ export const OTHER_WAYS: readonly OtherWay[] = [
   {
     titleKey: 'ContactPage.salesTitle',
     bodyKey: 'ContactPage.salesCardBody',
-    href: 'mailto:sales@tmanage.app',
+    href: 'mailto:tm-support@peetrix.com',
   },
   { titleKey: 'ContactPage.supportTitle', bodyKey: 'ContactPage.supportCardBody', href: '/faq' },
   {

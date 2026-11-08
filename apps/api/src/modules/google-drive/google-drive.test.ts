@@ -196,6 +196,14 @@ describe('the signed flow cookie', () => {
     );
     expect(callbackTarget(options, cookie, undefined, 'x')).toMatch(/#drive=error$/);
   });
+
+  it('R38: a connect started on Connected apps returns there, with an explained reason', () => {
+    const cookie = `${DRIVE_FLOW_COOKIE}=${sealDriveFlow({ ...flow, returnTo: 'connected_apps' }, SECRET)}`;
+    const options = { sessionSecret: SECRET, webPublicUrl: 'https://tmanage.example.com/' };
+    expect(callbackTarget(options, cookie, undefined, undefined, 'access_denied')).toBe(
+      'https://tmanage.example.com/north/settings/connected-apps#drive=error&reason=access_denied',
+    );
+  });
 });
 
 describe('connecting', () => {

@@ -15,8 +15,18 @@ import {
   type CalendarProviderId,
 } from '../../lib/api/calendar-connections';
 import { getConnectSetup } from '../../lib/api/connect-setup';
-import { getStorageStatus, startDriveConnect } from '../../lib/api/google-drive';
-import { getOneDriveStatus, startOneDriveConnect } from '../../lib/api/onedrive';
+import {
+  completeDriveConnect,
+  getStorageStatus,
+  readDriveReturn,
+  startDriveConnect,
+} from '../../lib/api/google-drive';
+import {
+  completeOneDriveConnect,
+  getOneDriveStatus,
+  readOneDriveReturn,
+  startOneDriveConnect,
+} from '../../lib/api/onedrive';
 import { fetchPlatformMe } from '../../lib/api/platform-admin';
 import { fillTemplate } from '../../lib/ai-approval-presentation';
 import {
@@ -94,6 +104,37 @@ const CALENDAR_OF: Partial<Record<AppId, CalendarProviderId>> = {
 type Outcome =
   | { readonly kind: 'success'; readonly app: AppId }
   | { readonly kind: 'failure'; readonly app: AppId; readonly why: ConnectExplanation };
+
+/**
+ * R38 · the provider's return to this screen, for any of the four apps: a calendar
+ * (`#gcal=…`, `#mscal=…`) or company storage started from here (`#drive=…`, `#onedrive=…`).
+ */
+export function readConnectAppsReturn(hash: string):
+  | {
+      readonly kind: 'complete';
+      readonly app: AppId;
+      readonly code: string;
+      readonly state: string;
+    }
+  | { readonly kind: 'error'; readonly app: AppId }
+  | null {
+  const calendar = readCalendarReturn(hash);
+  if (calendar) {
+    const app = appOfCalendar(calendar.provider);
+    return calendar.kind === 'complete'
+      ? { kind: 'complete', app, code: calendar.code, state: calendar.state }
+      : { kind: 'error', app };
+  }
+  const drive = readDriveReturn(hash);
+  if (drive) return { ...drive, app: 'google_drive' };
+  const oneDrive = readOneDriveReturn(hash);
+  if (oneDrive) return { ...oneDrive, app: 'onedrive' };
+  return null;
+}
+
+function providerOf(app: AppId): ConnectProvider {
+  return app === 'google_calendar' || app === 'google_drive' ? 'google' : 'microsoft';
+}
 
 /** `#gcal=error&reason=…` → the provider's reason, if the API forwarded one. */
 function reasonFrom(hash: string): string | null {
@@ -219,8 +260,11 @@ export function ConnectAppsCards({
     mutationFn: async (app: AppId) => {
       const calendar = CALENDAR_OF[app];
       if (calendar) return startCalendarConnect(api, organizationSlug, calendar);
-      if (app === 'google_drive') return startDriveConnect(api, organizationSlug);
-      return startOneDriveConnect(api, organizationSlug);
+      // R38: a storage connect started here comes back here, not to the Storage screen.
+      if (app === 'google_drive') {
+        return startDriveConnect(api, organizationSlug, { returnTo: 'connected-apps' });
+      }
+      return startOneDriveConnect(api, organizationSlug, { returnTo: 'connected-apps' });
     },
     onMutate: () => {
       setActionFailed(false);
@@ -237,17 +281,22 @@ export function ConnectAppsCards({
     onError: () => setActionFailed(true),
   });
   const complete = useMutation({
-    mutationFn: (input: { provider: CalendarProviderId; code: string; state: string }) =>
-      completeCalendarConnect(api, organizationSlug, input.provider, input),
+    mutationFn: async (input: { app: AppId; code: string; state: string }): Promise<unknown> => {
+      const body = { code: input.code, state: input.state };
+      const calendar = CALENDAR_OF[input.app];
+      if (calendar) return completeCalendarConnect(api, organizationSlug, calendar, body);
+      if (input.app === 'google_drive') return completeDriveConnect(api, organizationSlug, body);
+      return completeOneDriveConnect(api, organizationSlug, body);
+    },
     onSuccess: (_result, input) => {
-      setOutcome({ kind: 'success', app: appOfCalendar(input.provider) });
+      setOutcome({ kind: 'success', app: input.app });
       refresh();
     },
     onError: (_error, input) =>
       setOutcome({
         kind: 'failure',
-        app: appOfCalendar(input.provider),
-        why: explainConnectFailure(input.provider, null),
+        app: input.app,
+        why: explainConnectFailure(providerOf(input.app), null),
       }),
   });
 
@@ -256,7 +305,7 @@ export function ConnectAppsCards({
   useEffect(() => {
     if (handled.current) return;
     const hash = globalThis.location?.hash ?? '';
-    const back = readCalendarReturn(hash);
+    const back = readConnectAppsReturn(hash);
     if (!back) return;
     handled.current = true;
     globalThis.history?.replaceState(null, '', globalThis.location.pathname);
@@ -264,9 +313,10 @@ export function ConnectAppsCards({
       complete.mutate(back);
       return;
     }
-    const why = explainConnectFailure(back.provider, reasonFrom(hash));
-    setOutcome({ kind: 'failure', app: appOfCalendar(back.provider), why });
-    if (why.needsSetup) setBlocked((current) => ({ ...current, [back.provider]: why }));
+    const provider = providerOf(back.app);
+    const why = explainConnectFailure(provider, reasonFrom(hash));
+    setOutcome({ kind: 'failure', app: back.app, why });
+    if (why.needsSetup) setBlocked((current) => ({ ...current, [provider]: why }));
   }, [complete]);
 
   const busy = connect.isPending || disconnect.isPending || complete.isPending;
