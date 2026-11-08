@@ -64,6 +64,7 @@ describe('the handler registry', () => {
       'usage.threshold_reached.v1',
       'work_item.blocked.v1',
       'work_item.client_action_requested.v1',
+      'work_item.comment_created.v1',
       'work_item.created.v1',
       'work_item.people_assigned.v1',
       'work_item.updated.v1',

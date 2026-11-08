@@ -162,7 +162,7 @@ export const PUBLIC_CLAIMS: readonly PublicClaim[] = Object.freeze([
     proofIds: ['E2E-52-23'],
     status: 'hidden',
     owner: '52-26',
-    phrases: { en: [/e-signature/iu, /electronic signature/iu], ar: [/توقيع إلكتروني/u] },
+    phrases: { en: [/\be-signature/iu, /electronic signature/iu], ar: [/توقيع إلكتروني/u] },
     plannedKeys: [],
   },
   {

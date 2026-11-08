@@ -87,6 +87,8 @@
   "WorkCommentsPanel.hint": "اس کام آئٹم کے بارے میں ایک اندرونی نوٹ۔ یہ سرگرمی کے آخر میں شامل ہوتا ہے۔",
   "WorkCommentsPanel.adding": "شامل ہو رہا ہے",
   "WorkCommentsPanel.add": "تبصرہ شامل کریں",
+  "WorkCommentsPanel.mentionHeading": "وہ لوگ جو یہ کام دیکھ سکتے ہیں",
+  "WorkCommentsPanel.mentionHint": "کسی کا ذکر کرنے کے لیے @ لکھیں۔ صرف وہ لوگ دکھائے جاتے ہیں جو یہ کام دیکھ سکتے ہیں، اور انہیں اطلاع ملتی ہے۔",
   "SignInScreen.accessibility": "رسائی پذیری",
   "SignInScreen.clientReviewersNote": "کلائنٹ جائزہ کار عموماً دعوت نامے یا پورٹل لنک کے ذریعے آتے ہیں — اپنی رسائی ترتیب دینے کے لیے وہ لنک کھولیں۔",
   "SignInScreen.couldNotSignIn": "آپ کو سائن ان نہیں کیا جا سکا",
