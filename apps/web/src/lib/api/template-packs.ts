@@ -6,10 +6,27 @@ import type { ApiClient } from './client';
  * `POST …/projects/templates/packs/:packKey/install` installs one, creating its project templates.
  */
 
+/** 55-02. The roles a starter pack is meant for (the API's `PACK_ROLES`). */
+export const PACK_ROLES = [
+  'agency_owner',
+  'project_manager',
+  'designer',
+  'developer',
+  'marketing',
+  'accounting',
+] as const;
+export type PackRole = (typeof PACK_ROLES)[number];
+
 export interface TemplatePackView {
   readonly key: string;
   readonly name: string;
   readonly description: string;
+  /** 55-02. Who the pack is for. */
+  readonly roles: readonly PackRole[];
+  /** 54-23. `ar` for an Arabic pack, shown with an "Arabic" badge. */
+  readonly language: 'en' | 'ar';
+  /** 54-23. The working week the pack's dates assume. */
+  readonly workWeek: 'mon_fri' | 'sun_thu';
   readonly templateNames: readonly string[];
   readonly docs: readonly string[];
   readonly automations: readonly string[];

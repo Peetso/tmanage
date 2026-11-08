@@ -101,3 +101,12 @@
   font-weight: 600;
   color: var(--ink-950);
 }
+
+/* 55-02 / 54-23 (Figma "R50 L2 · 55-02 Starter packs by role + 54-23 Arabic agency packs"). */
+.tm-packs__roles {
+  flex-wrap: wrap;
+}
+
+.tm-packs__tag {
+  display: flex;
+}

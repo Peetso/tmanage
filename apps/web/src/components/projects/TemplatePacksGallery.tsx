@@ -4,11 +4,15 @@ import { useId, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, InlineAlert } from '@tmanage/ui';
 import {
+  PACK_ROLES,
   installTemplatePack,
   listTemplatePacks,
+  type PackRole,
   type TemplatePackInstallResult,
   type TemplatePackView,
 } from '../../lib/api/template-packs';
+import { filterTemplatePacks } from '../../lib/onboarding/template-pack-filter';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import type { ApiClient } from '../../lib/api/client';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { useTOr } from '../../lib/i18n/use-t-or';
@@ -35,7 +39,56 @@ export function packMeta(pack: TemplatePackView, tOr: TOr): string {
       'TemplatePacks.automations',
       '{n} automations',
     ),
+    ...(pack.workWeek === 'sun_thu'
+      ? [tOr('TemplatePacks.workWeek.sun_thu', 'Sunday to Thursday week')]
+      : []),
   ].join(' · ');
+}
+
+const ROLE_LABEL: Readonly<Record<PackRole, string>> = {
+  agency_owner: 'Agency owner',
+  project_manager: 'Project manager',
+  designer: 'Designer',
+  developer: 'Developer',
+  marketing: 'Marketing',
+  accounting: 'Accounting',
+};
+
+export interface PackRoleFilterProps {
+  readonly value: PackRole | null;
+  readonly onChange: (role: PackRole | null) => void;
+  /** The group's accessible name. */
+  readonly label: string;
+}
+
+/**
+ * 55-02. The role chips above the packs (Figma section "R50 L2 · 55-02 Starter packs by role"):
+ * "All roles" and one chip per role; the pressed chip is the filter. Shared with the onboarding
+ * wizard's starter-pack step.
+ */
+export function PackRoleFilter({ value, onChange, label }: PackRoleFilterProps) {
+  const tOr = useTOr();
+  const options: readonly (readonly [PackRole | null, string])[] = [
+    [null, tOr('TemplatePacks.role.all', 'All roles')],
+    ...PACK_ROLES.map(
+      (role) => [role, tOr(`TemplatePacks.role.${role}`, ROLE_LABEL[role])] as const,
+    ),
+  ];
+  return (
+    <div className="tm-chip-row tm-packs__roles" role="group" aria-label={label}>
+      {options.map(([role, text]) => (
+        <button
+          key={role ?? 'all'}
+          type="button"
+          className={value === role ? 'tm-chip tm-chip--active' : 'tm-chip'}
+          aria-pressed={value === role}
+          onClick={() => onChange(role)}
+        >
+          {text}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function packName(pack: TemplatePackView, tOr: TOr): string {
@@ -51,7 +104,8 @@ export interface TemplatePacksGalleryProps {
  * **Template packs gallery** (54-22, Figma section "R40 L1-54-22-template-packs" on the Product
  * page): the built-in packs as cards (name, description, "3 project templates · 2 docs · 2
  * automations", Install pack / Installed), and an install confirm listing the templates the pack
- * adds. Installing refreshes the organization's template list. Authorization is the API's
+ * adds. 55-02 / 54-23 (Figma "R50 L2"): role chips filter the packs, and an Arabic pack carries an
+ * "Arabic" badge and its Sunday-to-Thursday week; in Arabic the Arabic packs come first. Installing refreshes the organization's template list. Authorization is the API's
  * (`project.manage`); a refusal is shown as the API's sentence.
  */
 export function TemplatePacksGallery({ api, organizationSlug }: TemplatePacksGalleryProps) {
@@ -60,6 +114,8 @@ export function TemplatePacksGallery({ api, organizationSlug }: TemplatePacksGal
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState<TemplatePackView | null>(null);
   const [done, setDone] = useState<TemplatePackInstallResult | null>(null);
+  const [role, setRole] = useState<PackRole | null>(null);
+  const locale = useActiveLocale();
 
   const packs = useQuery({
     queryKey: ['template-packs', organizationSlug],
@@ -106,14 +162,27 @@ export function TemplatePacksGallery({ api, organizationSlug }: TemplatePacksGal
         </InlineAlert>
       ) : null}
 
+      <PackRoleFilter
+        value={role}
+        onChange={setRole}
+        label={tOr('TemplatePacks.roleFilter', 'Show packs for a role')}
+      />
+
       <ul className="tm-packs__grid">
-        {(packs.data ?? []).map((pack) => (
+        {filterTemplatePacks(packs.data ?? [], role, locale).map((pack) => (
           <li
             key={pack.key}
             className={`tm-packs__card${pack.installed ? ' tm-packs__card--installed' : ''}`}
           >
-            <h3 className="tm-packs__name">{packName(pack, tOr)}</h3>
-            <p className="tm-packs__desc">
+            {pack.language === 'ar' ? (
+              <span className="tm-packs__tag">
+                <Badge>{tOr('TemplatePacks.arabic', 'Arabic')}</Badge>
+              </span>
+            ) : null}
+            <h3 className="tm-packs__name" dir="auto">
+              {packName(pack, tOr)}
+            </h3>
+            <p className="tm-packs__desc" dir="auto">
               {tOr(`TemplatePacks.pack.${pack.key}.description`, pack.description)}
             </p>
             <p className="tm-packs__meta">{packMeta(pack, tOr)}</p>

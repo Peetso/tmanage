@@ -30,7 +30,14 @@ import { setOrgSetting } from '../../lib/api/org-settings';
 import { issueInvitation } from '../../lib/api/invitations';
 import { getStorageStatus, startDriveConnect } from '../../lib/api/google-drive';
 import { getOneDriveStatus, startOneDriveConnect } from '../../lib/api/onedrive';
-import { installTemplatePack, listTemplatePacks } from '../../lib/api/template-packs';
+import {
+  installTemplatePack,
+  listTemplatePacks,
+  type PackRole,
+} from '../../lib/api/template-packs';
+import { filterTemplatePacks } from '../../lib/onboarding/template-pack-filter';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { PackRoleFilter } from '../projects/TemplatePacksGallery';
 import { instantiateProjectTemplate, listProjectTemplates } from '../../lib/api/project-templates';
 import { listWorkspaces } from '../../lib/api/projects';
 import { INVITABLE_ROLES } from '../../lib/roles';
@@ -72,7 +79,8 @@ const WORK_TYPES = [
  *
  * Six steps after sign-up: company name and logo, work type, invite teammates, connect storage
  * (Google Drive or OneDrive through the existing connect flow), a sample project from a template
- * pack, and Finish to My Day. Every step but Finish can be skipped, "Skip setup" leaves at any
+ * pack (55-02: filtered by the person's role; 54-23: Arabic agency packs first in Arabic, Figma
+ * section "R50 L2"), and Finish to My Day. Every step but Finish can be skipped, "Skip setup" leaves at any
  * time, and the position is stored per company (`onboarding_wizard`) so a reload or a return from
  * the storage provider resumes where it was. The layout uses logical properties, so Arabic mirrors.
  */
@@ -457,14 +465,20 @@ function SampleProjectStep(props: StepPanelProps) {
     queryFn: () => listTemplatePacks(api, organizationSlug),
   });
   const [choice, setChoice] = useState<string | null>(null);
-  const selected = packs.data?.find((pack) => pack.key === (choice ?? packs.data?.[0]?.key));
+  const [role, setRole] = useState<PackRole | null>(null);
+  const locale = useActiveLocale();
+  const tOr = useTOr();
+  const tPack = (key: string, field: 'name' | 'description', fallback: string) =>
+    tOr(`TemplatePacks.pack.${key}.${field}`, fallback);
+  const shown = filterTemplatePacks(packs.data ?? [], role, locale);
+  const selected = shown.find((pack) => pack.key === choice) ?? shown[0];
   return (
     <StepFrame
       props={props}
       title={t('sample.title', 'Start with a sample project')}
       description={t(
-        'sample.desc',
-        'Pick a starter pack. We create one project from it so you can look around.',
+        'sample.descByRole',
+        'Pick your role, then a starter pack. We create one project from it so you can look around.',
       )}
       continueLabel={t('sample.create', 'Create sample project')}
       canContinue={selected !== undefined}
@@ -489,18 +503,30 @@ function SampleProjectStep(props: StepPanelProps) {
           {t('sample.unavailable', 'Starter packs are not available right now. Skip this step.')}
         </InlineAlert>
       ) : (
-        <RadioGroup legend={t('sample.legend', 'Starter pack')}>
-          {(packs.data ?? []).map((pack) => (
-            <Radio
-              key={pack.key}
-              value={pack.key}
-              label={pack.name}
-              hint={pack.description}
-              checked={selected?.key === pack.key}
-              onChange={() => setChoice(pack.key)}
-            />
-          ))}
-        </RadioGroup>
+        <>
+          <p className="tm-obw__label">{t('sample.roleLegend', 'Your role')}</p>
+          <PackRoleFilter
+            value={role}
+            onChange={setRole}
+            label={t('sample.roleLegend', 'Your role')}
+          />
+          <RadioGroup legend={t('sample.legend', 'Starter pack')}>
+            {shown.map((pack) => (
+              <Radio
+                key={pack.key}
+                value={pack.key}
+                label={
+                  pack.language === 'ar'
+                    ? `${tPack(pack.key, 'name', pack.name)} · ${tOr('TemplatePacks.arabic', 'Arabic')}`
+                    : tPack(pack.key, 'name', pack.name)
+                }
+                hint={tPack(pack.key, 'description', pack.description)}
+                checked={selected?.key === pack.key}
+                onChange={() => setChoice(pack.key)}
+              />
+            ))}
+          </RadioGroup>
+        </>
       )}
     </StepFrame>
   );
@@ -539,6 +565,7 @@ const WIZARD_CSS = `
 .tm-obw__eyebrow { margin: 0; font-size: var(--t-caption); line-height: var(--t-caption-line); color: var(--ink-500); }
 .tm-obw__title { margin: 0; font-size: 28px; line-height: 34px; font-weight: 700; }
 .tm-obw__desc { margin: 0; font-size: 15px; line-height: 22px; color: var(--ink-650); }
+.tm-obw__label { margin: 0; font-size: var(--t-ui-md); font-weight: 600; color: var(--ink-950); }
 .tm-obw__content { display: flex; flex-direction: column; gap: 12px; padding-block-start: 8px; }
 .tm-obw__options { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
 .tm-obw__option { display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: var(--paper-0); border: var(--b-quiet) solid var(--line-300); border-radius: var(--r-control); }

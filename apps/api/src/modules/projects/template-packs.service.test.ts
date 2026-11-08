@@ -77,6 +77,14 @@ describe('TemplatePacksService (54-22)', () => {
     expect(packs.find((pack) => pack.key === 'agency-client-launch')?.installed).toBe(false);
   });
 
+  it('narrows the gallery to one role and carries language and work week (55-02, 54-23)', async () => {
+    const { service } = build();
+    const packs = await service.list(context, principal('owner'), 'marketing');
+    expect(packs.map((pack) => pack.key)).toEqual(['starter-marketing', 'ar-agency-gulf']);
+    expect(packs[1]).toMatchObject({ language: 'ar', workWeek: 'sun_thu' });
+    expect(packs.every((pack) => pack.roles.includes('marketing'))).toBe(true);
+  });
+
   it('installs a pack by creating its templates, skipping names already in use', async () => {
     const { service, created, installs } = build(['Brand sprint']);
     const result = await service.install(context, principal('owner'), 'agency-client-launch');

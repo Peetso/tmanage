@@ -8,11 +8,11 @@ import {
 } from './templates.repository.js';
 import { TemplatePacksRepository } from './template-packs.repository.js';
 import {
-  TEMPLATE_PACKS,
   findTemplatePack,
   packTemplateDescription,
+  templatePacksForRole,
 } from './template-packs.catalog.js';
-import type { TemplatePack } from './template-packs.catalog.js';
+import type { PackRole, PackWorkWeek, TemplatePack } from './template-packs.catalog.js';
 
 /** 54-22. The DI token of {@link TemplatePacksService}. */
 export const TEMPLATE_PACKS_SERVICE = Symbol.for('tmanage.TemplatePacksService');
@@ -22,6 +22,12 @@ export interface TemplatePackView {
   readonly key: string;
   readonly name: string;
   readonly description: string;
+  /** 55-02. The roles the pack is meant for. */
+  readonly roles: readonly PackRole[];
+  /** 54-23. `ar` for an Arabic pack. */
+  readonly language: 'en' | 'ar';
+  /** 54-23. The working week the pack's dates assume. */
+  readonly workWeek: PackWorkWeek;
   readonly templateNames: readonly string[];
   readonly docs: readonly string[];
   readonly automations: readonly string[];
@@ -43,6 +49,9 @@ function toView(pack: TemplatePack, installedAt: Date | null): TemplatePackView 
     key: pack.key,
     name: pack.name,
     description: pack.description,
+    roles: pack.roles,
+    language: pack.language,
+    workWeek: pack.workWeek,
     templateNames: pack.templates.map((template) => template.name),
     docs: pack.docs,
     automations: pack.automations,
@@ -83,13 +92,18 @@ export class TemplatePacksService {
     }
   }
 
-  async list(context: TenantContext, principal: Principal): Promise<readonly TemplatePackView[]> {
+  /** The gallery; `role` (55-02) narrows it to the packs meant for that role. */
+  async list(
+    context: TenantContext,
+    principal: Principal,
+    role: PackRole | null = null,
+  ): Promise<readonly TemplatePackView[]> {
     this.requireManage(context, principal);
     const installed = await this.database.read(context, (runner) =>
       this.packs.listInstalled(runner, context),
     );
     const byKey = new Map(installed.map((row) => [row.packKey, row.installedAt]));
-    return TEMPLATE_PACKS.map((pack) => toView(pack, byKey.get(pack.key) ?? null));
+    return templatePacksForRole(role).map((pack) => toView(pack, byKey.get(pack.key) ?? null));
   }
 
   async install(
