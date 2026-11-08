@@ -27,6 +27,11 @@ import {
 } from '@tmanage/domain';
 import { DISPLAY_LOCALES } from '../../common/database/schema.js';
 import { DEFAULT_PRESETS, isFileTypePreset, presetsToCsv } from '../files/file-safety.js';
+import {
+  emptyWizardState,
+  serializeWizardState,
+  validateWizardStateValue,
+} from '../onboarding/onboarding-wizard.state.js';
 
 /** The fixed set of settings this slice ships. A key outside this set is never writable. */
 export const ORG_SETTING_KEYS = [
@@ -57,6 +62,9 @@ export const ORG_SETTING_KEYS = [
   'ui_mode_locked_roles',
   // 53-15: the kinds whose e-mail a member cannot turn off (csv of notification kinds, '' = none).
   'notification_forced_email_kinds',
+  // 55-01 (R48 L1): the onboarding wizard's progress for the company (`onboarding/` module). Its
+  // own `org.manage` routes write it; the validator accepts only a canonical wizard state.
+  'onboarding_wizard',
 ] as const;
 
 export type OrgSettingKey = (typeof ORG_SETTING_KEYS)[number];
@@ -291,6 +299,11 @@ const SPECS: Readonly<Record<OrgSettingKey, OrgSettingSpec>> = Object.freeze({
   ui_mode_locked_roles: { default: '', validate: lockedRolesValue },
   // 53-15. No kind is forced until an admin names one; the matrix then locks its e-mail on.
   notification_forced_email_kinds: { default: '', validate: forcedEmailKindsValue },
+  // 55-01. A company starts with a fresh wizard; only a canonical wizard state is storable.
+  onboarding_wizard: {
+    default: serializeWizardState(emptyWizardState()),
+    validate: validateWizardStateValue,
+  },
 });
 
 /** The on/off keys the A11 routes read through {@link isSettingOn}. */

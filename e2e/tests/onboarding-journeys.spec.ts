@@ -72,15 +72,15 @@ test.describe.serial('the onboarding journeys', () => {
   }) => {
     const founder = await openAs(browser, world().northstar.owner.id);
 
-    // ON-01: found the organization. Success lands on ON-02, whose slug is in the URL —
+    // ON-01: found the organization. Success lands on the 55-01 wizard, whose slug is in the URL —
     // the proof the founder's owner membership resolved on the very next request.
     await founder.page.goto('/onboarding/organization');
     await founder.page.getByLabel('Organization name').fill(ORG_NAME);
     await expect(founder.page.getByLabel('Workspace web link')).toHaveValue(ORG_SLUG);
     await founder.page.getByRole('button', { name: 'Create organization' }).click();
-    await founder.page.waitForURL(`**/${ORG_SLUG}/onboarding/template`);
+    await founder.page.waitForURL(`**/${ORG_SLUG}/onboarding`);
 
-    // ON-02 stores nothing and its forward button is disabled — navigate past it.
+    // The wizard and ON-02 store nothing this journey needs — navigate past them.
     await founder.page.goto(`/${ORG_SLUG}/onboarding/project`);
     await founder.page.getByLabel('Project name').fill('Autumn Brand Film');
     await founder.page.getByLabel('Target date').fill('2026-10-15');

@@ -14,9 +14,8 @@ export default function CreateOrganizationPage() {
   return (
     <CreateOrganizationScreen
       signedInAs=""
-      // Straight on to the next step of the sequence rather than to a home screen
-      // that does not exist yet.
-      onCreated={(slug) => router.push(`/${slug}/onboarding/template`)}
+      // 55-01: straight on to the three-minute onboarding wizard.
+      onCreated={(slug) => router.push(`/${slug}/onboarding`)}
     />
   );
 }

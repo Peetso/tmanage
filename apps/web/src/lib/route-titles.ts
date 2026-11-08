@@ -262,6 +262,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/insights/targets': { en: 'Targets', key: 'RouteTitle.insightsTargets' },
   '/[orgSlug]/notifications': { en: 'Notifications', key: 'RouteTitle.notifications' },
   '/[orgSlug]/objectives': { en: 'Objectives', key: 'RouteTitle.objectives' },
+  '/[orgSlug]/onboarding': { en: 'Set up TManage', key: 'RouteTitle.setup' },
   '/[orgSlug]/onboarding/import': { en: 'Import', key: 'RouteTitle.onboardingImport' },
   '/[orgSlug]/onboarding/import/[jobId]': { en: 'Import', key: 'RouteTitle.onboardingImport' },
   '/[orgSlug]/onboarding/import/from-app': { en: 'Import', key: 'RouteTitle.onboardingImport' },
