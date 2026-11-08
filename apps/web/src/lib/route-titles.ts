@@ -109,6 +109,10 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/admin/roles/edit': { en: 'Edit role', key: 'RouteTitle.adminRoleEdit' },
   '/[orgSlug]/admin/security': { en: 'Security', key: 'RouteTitle.adminSecurity' },
   '/[orgSlug]/admin/security-signals': { en: 'Security signals', key: 'SecuritySignals.title' },
+  '/[orgSlug]/admin/working-calendar': {
+    en: 'Working calendar',
+    key: 'RouteTitle.adminWorkingCalendar',
+  },
   '/[orgSlug]/admin/sessions': { en: 'Sessions', key: 'RouteTitle.adminSessions' },
   '/[orgSlug]/admin/sessions/[sessionId]/trail': {
     en: 'Session sign-in trail',
@@ -341,6 +345,10 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/projects/[projectId]/milestones': {
     en: 'Milestones',
     key: 'RouteTitle.projectMilestones',
+  },
+  '/[orgSlug]/projects/[projectId]/iterations': {
+    en: 'Iterations',
+    key: 'RouteTitle.projectIterations',
   },
   '/[orgSlug]/projects/[projectId]/objectives': {
     en: 'Project objectives',

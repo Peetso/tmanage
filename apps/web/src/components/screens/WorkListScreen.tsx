@@ -14,6 +14,7 @@ import { listProjects } from '../../lib/api/projects';
 import { listWorkItems, MAX_WORK_ITEM_PAGE, updateWorkItem } from '../../lib/api/work-items';
 import type { WorkItemAudience, WorkItemSummary } from '../../lib/api/work-items';
 import { workItemKeys } from '../../lib/query-keys';
+import { projectWorkTopic, useWorkLiveRefresh } from '../../lib/use-work-live-refresh';
 import {
   audienceLabel,
   formatInstant,
@@ -36,6 +37,9 @@ import { DoerStack } from '../work/WorkPeopleBlock';
 import { WorkViewSwitcher } from '../views/WorkViewSwitcher';
 import { useViewPreference } from '../views/use-view-preference';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+
+/** 53-01: the most project topics one list view follows live. */
+const LIVE_PROJECT_LIMIT = 50;
 
 export interface WorkListScreenProps {
   organizationSlug: string;
@@ -177,6 +181,25 @@ export function WorkListScreen({
   const projects = useQuery({
     queryKey: ['projects', organizationSlug],
     queryFn: () => listProjects(api, organizationSlug),
+  });
+
+  // 53-01: the list and the board refetch when work in the shown project(s) changes elsewhere.
+  // Every project (bounded) when none is picked, so the "all work" view stays live too.
+  const liveTopics = useMemo(
+    () =>
+      projectId !== ''
+        ? [projectWorkTopic(projectId)]
+        : (projects.data ?? []).slice(0, LIVE_PROJECT_LIMIT).map((p) => projectWorkTopic(p.id)),
+    [projectId, projects.data],
+  );
+  useWorkLiveRefresh({
+    api,
+    organizationSlug,
+    topics: liveTopics,
+    // A suite injects its own client and drives no socket; the live layer is the browser's.
+    enabled: client === undefined,
+    onChange: () =>
+      void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) }),
   });
 
   // D16. One directory for every row's owner, resolved through one map rather than a fetch per

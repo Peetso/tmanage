@@ -35,6 +35,8 @@ export type ControlCenterSection =
   | 'offboarding'
   | 'templates'
   | 'fields'
+  // 53-02: the company working calendar (working days, hours, holidays).
+  | 'working-calendar'
   | 'automations'
   | 'integrations'
   | 'connected-apps'
@@ -139,6 +141,12 @@ const GROUPS: readonly SectionGroup[] = [
       {
         id: 'fields',
         labelKey: ccKey('ControlCenter.fieldsAndStatuses'),
+        capability: 'org.manage',
+      },
+      {
+        id: 'working-calendar',
+        labelKey: ccKey('ControlCenter.workingCalendar'),
+        href: '/admin/working-calendar',
         capability: 'org.manage',
       },
       // AUT-04: the rule library, not Webhooks. Webhooks sit under Integrations, as in the design.

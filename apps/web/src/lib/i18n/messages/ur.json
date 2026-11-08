@@ -797,5 +797,6 @@
   "CommandPaletteV2.kind.invoice": "انوائس",
   "CommandPaletteV2.kind.quote": "کوٹیشن",
   "CommandPaletteV2.kind.expense": "خرچ",
-  "CommandPaletteV2.kind.file": "فائل"
+  "CommandPaletteV2.kind.file": "فائل",
+  "ProjectTabs.iterations": "دورانیے"
 }

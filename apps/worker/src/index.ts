@@ -185,6 +185,12 @@ export { createRealtimeServer } from './realtime/server.js';
 export type { RealtimeServer, RealtimeServerOptions } from './realtime/server.js';
 export { createMessageFanOut } from './realtime/fan-out.js';
 export { createDirectMessageFanOut } from './realtime/fan-out.js';
+// 53-01 — work events to project and personal topics.
+export {
+  createWorkFanOut,
+  withWorkFanOut,
+  WORK_FRAME_EVENT_TYPES,
+} from './realtime/work-fan-out.js';
 // R7 slice 5 — link previews on `message.created.v1` (SSRF-guarded unfurl, after commit).
 export {
   createLinkPreviewConsumer,

@@ -1,0 +1,154 @@
+/* R48 L3 · 53-21 iterations, 53-02 working calendar (Figma 590:33375). Tokens only. */
+
+.tm-r48-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-r48-eyebrow {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.tm-r48-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-r48-head > h2,
+.tm-r48-head > h3 {
+  margin: 0;
+}
+
+.tm-r48-muted {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: 0.8125rem;
+}
+
+.tm-r48-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-r48-iteration {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  width: 100%;
+  padding: var(--s3);
+  border: 0;
+  border-radius: var(--r-compact);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-r48-iteration[aria-current='true'] {
+  background: var(--lime-100);
+}
+
+.tm-r48-iteration:focus-visible {
+  outline: 2px solid var(--ink-950);
+  outline-offset: 2px;
+}
+
+.tm-r48-chart {
+  display: block;
+  width: 100%;
+  max-width: 28rem;
+  height: 7.5rem;
+}
+
+.tm-r48-chart__scope {
+  fill: var(--lime-100);
+}
+
+.tm-r48-chart__done {
+  fill: var(--lime-500);
+}
+
+.tm-r48-legend {
+  display: flex;
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-650);
+  font-size: 0.75rem;
+}
+
+.tm-r48-legend > li {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.tm-r48-swatch {
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+}
+
+.tm-r48-swatch--scope {
+  background: var(--lime-100);
+}
+
+.tm-r48-swatch--done {
+  background: var(--lime-500);
+}
+
+.tm-r48-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) 0;
+  border-bottom: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-r48-row__title {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.tm-r48-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s3);
+}
+
+.tm-r48-actions > .tm-field {
+  flex: 1 1 14rem;
+}
+
+.tm-r48-days {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tm-r48-date {
+  font-family: var(--font-mono, monospace);
+  color: var(--ink-650);
+  font-size: 0.8125rem;
+}

@@ -765,6 +765,20 @@ export class WorkItemsService {
           });
         }
 
+        // 53-01: a field edit (or a move between projects) frames boards, lists and My Day live.
+        // Ids only; its own type, so `work_item.updated.v1` keeps meaning a state change for the
+        // automation and webhook consumers.
+        await this.outbox?.append(tx, context, {
+          type: 'work_item.changed.v1',
+          aggregateId: updated.id,
+          payload: {
+            workItemId: updated.id,
+            projectId: updated.projectId,
+            previousProjectId: moving ? before.projectId : null,
+            workItemVersion: Number(updated.version),
+          },
+        });
+
         return updated;
       }),
     );

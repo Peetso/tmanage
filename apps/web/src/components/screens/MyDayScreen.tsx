@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { AppShell, DayPulseBar } from '../shell/AppShell';
 import type { DayPulseItem } from '../shell/AppShell';
@@ -33,6 +33,7 @@ import { useT } from '../../lib/i18n/use-t';
 import { translateOr } from '../../lib/i18n/compact-time';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { fill } from '../../lib/privacy-presentation';
+import { MY_WORK_TOPIC, useWorkLiveRefresh } from '../../lib/use-work-live-refresh';
 import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/home.css';
 
@@ -73,6 +74,18 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
   const describeSavedError = useDescribeApiError(SAVED_ERROR_LINES);
   const describeSummaryError = useDescribeApiError(SUMMARY_ERROR_LINES);
   const [filter, setFilter] = useState<CardFilter>('all');
+
+  // 53-01: My Day refetches when the person's own work changes elsewhere (created, moved,
+  // edited, commented, assigned), over the personal `me` topic.
+  const queryClient = useQueryClient();
+  useWorkLiveRefresh({
+    api,
+    organizationSlug,
+    topics: [MY_WORK_TOPIC],
+    // A suite injects its own client and drives no socket; the live layer is the browser's.
+    enabled: client === undefined,
+    onChange: () => void queryClient.invalidateQueries({ queryKey: ['home'] }),
+  });
 
   const myDay = useQuery({
     queryKey: ['home', 'my-day', organizationSlug],

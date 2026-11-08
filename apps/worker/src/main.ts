@@ -49,6 +49,7 @@ import { CollaborationMailer } from './notifications/collaboration-mailer.js';
 import { PrivacyMailer } from './notifications/privacy-mailer.js';
 import { createRealtimeServer } from './realtime/server.js';
 import { createDirectMessageFanOut, createMessageFanOut } from './realtime/fan-out.js';
+import { createWorkFanOut, withWorkFanOut } from './realtime/work-fan-out.js';
 import { withLinkPreviews } from './consumers/link-previews.js';
 import { createInvitationSweepStore } from './common/database/invitations-sweep-store.js';
 import { sweepOverdueInvitations } from './invitations/invitation-sweep.js';
@@ -753,14 +754,19 @@ async function main(): Promise<void> {
   const directNotices = handlers['direct_message.created.v1'];
   const directFanOut = realtime ? createDirectMessageFanOut(realtime.hub) : undefined;
   const loopHandlers =
-    fanOut === undefined || directFanOut === undefined
+    fanOut === undefined || directFanOut === undefined || realtime === undefined
       ? handlers
-      : {
-          ...handlers,
-          'message.created.v1': mentions === undefined ? fanOut : both(mentions, fanOut),
-          'direct_message.created.v1':
-            directNotices === undefined ? directFanOut : both(directNotices, directFanOut),
-        };
+      : // 53-01: work events frame boards, lists and My Day, after their own consumers.
+        withWorkFanOut(
+          {
+            ...handlers,
+            'message.created.v1': mentions === undefined ? fanOut : both(mentions, fanOut),
+            'direct_message.created.v1':
+              directNotices === undefined ? directFanOut : both(directNotices, directFanOut),
+          },
+          createWorkFanOut(realtime.hub),
+          both,
+        );
 
   // x31. Two loops, one process, one `AbortSignal`: the notice queue drains beside the outbox
   // rather than behind it, so a backlog of events cannot delay a security receipt and a notice

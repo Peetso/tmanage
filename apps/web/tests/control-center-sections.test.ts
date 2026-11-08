@@ -27,6 +27,7 @@ describe('controlCenterSectionsFor', () => {
       [
         ['templates', '/projects/templates'],
         ['fields', null],
+        ['working-calendar', '/admin/working-calendar'],
         ['automations', '/automations'],
         ['integrations', '/automations/apps'],
         ['connected-apps', '/settings/connected-apps'],

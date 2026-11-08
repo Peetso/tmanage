@@ -174,6 +174,13 @@ export class WorkCommentsService {
       // 53-11: the people this comment @mentions who can see the item are told by the worker
       // (kind `mention`), which re-checks each one's access at delivery. A mention of somebody
       // who cannot see the item stays text: no notice, nothing about the item reaches them.
+      // 53-01: every comment frames the item's project and people live (ids only). The mention
+      // event below stays the notice trigger; this one carries no recipients.
+      await this.outbox?.append(tx, context, {
+        type: 'work_item.commented.v1',
+        aggregateId: workItemId,
+        payload: { workItemId, commentId: row.id, projectId: parent.projectId },
+      });
       const mentioned = extractMentionedUserIds(input.body)
         .map((id) => id.toLowerCase())
         .filter((id) => id !== principal.userId.toLowerCase())

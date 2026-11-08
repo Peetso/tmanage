@@ -110,9 +110,9 @@ describe('work item comment @mentions (53-11)', () => {
     await controller.add(context, member([PROJECT]), WORK_ID, {
       body: `@${LINA} and @${OUTSIDER} please check; cc @${ME}`,
     });
-    expect(events).toHaveLength(1);
-    expect(events[0]?.type).toBe('work_item.comment_created.v1');
-    expect(events[0]?.payload).toMatchObject({
+    const notices = events.filter((e) => e.type === 'work_item.comment_created.v1');
+    expect(notices).toHaveLength(1);
+    expect(notices[0]?.payload).toMatchObject({
       workItemId: WORK_ID,
       commentId: 'comment-1',
       projectId: PROJECT,
@@ -127,7 +127,19 @@ describe('work item comment @mentions (53-11)', () => {
     const { controller, events } = harness();
     await controller.add(context, member([PROJECT]), WORK_ID, { body: `@${OUTSIDER} hi` });
     await controller.add(context, member([PROJECT]), WORK_ID, { body: 'no mentions at all' });
-    expect(events).toHaveLength(0);
+    expect(events.filter((e) => e.type === 'work_item.comment_created.v1')).toHaveLength(0);
+  });
+
+  it('53-01: frames every comment live with ids only, mentions or not', async () => {
+    const { controller, events } = harness();
+    await controller.add(context, member([PROJECT]), WORK_ID, { body: 'no mentions at all' });
+    expect(events).toEqual([
+      {
+        type: 'work_item.commented.v1',
+        aggregateId: WORK_ID,
+        payload: { workItemId: WORK_ID, commentId: 'comment-1', projectId: PROJECT },
+      },
+    ]);
   });
 
   it('offers the people who can see the item as @<userId> tokens, the caller excluded', async () => {

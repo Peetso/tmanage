@@ -7,7 +7,7 @@ import { useTOr } from '../../lib/i18n/use-t-or';
 import '../../styles/screens/projects.css';
 
 export type ProjectTabId =
-  'overview' | 'plan' | 'milestones' | 'work' | 'team' | 'risks' | 'objectives';
+  'overview' | 'plan' | 'milestones' | 'work' | 'iterations' | 'team' | 'risks' | 'objectives';
 
 export interface ProjectTabsProps {
   organizationSlug: string;
@@ -41,6 +41,12 @@ export function ProjectTabs({ organizationSlug, projectId, current, end }: Proje
       id: 'work',
       label: t('ProjectTabs.work'),
       href: `/${organizationSlug}/work?project=${encodeURIComponent(projectId ?? '')}`,
+    },
+    // 53-21: the project's iterations (light sprints).
+    {
+      id: 'iterations',
+      label: tOr('ProjectTabs.iterations', 'Iterations'),
+      href: `${base}/iterations`,
     },
     { id: 'team', label: t('ProjectTabs.team'), href: `${base}/members` },
     { id: 'risks', label: t('ProjectTabs.risks'), href: `${base}/risks` },

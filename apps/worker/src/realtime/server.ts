@@ -9,6 +9,11 @@ import type { WorkerTransaction } from '../common/database/worker-database.js';
 import { checkConversationSubscription } from '../common/database/realtime-store.js';
 import type { SubscriptionVerdict } from '../common/database/realtime-store.js';
 import { checkDirectConversationSubscription } from '../common/database/direct-message-store.js';
+import {
+  checkWorkTopicSubscription,
+  hubTopicFor,
+  isWorkTopic,
+} from '../common/database/work-topic-store.js';
 import { acceptTyping, RealtimeHub, TYPING_TTL_MS } from './hub.js';
 
 /**
@@ -42,6 +47,15 @@ async function checkSubscription(
     readonly conversationId: string;
   },
 ): Promise<SubscriptionVerdict> {
+  // 53-01: a work topic (`project:<id>`, `me`, or the `user:<id>` key `me` resolved to) is checked
+  // by the work rule, never by the channel one.
+  if (isWorkTopic(input.conversationId) || input.conversationId.startsWith('user:')) {
+    return checkWorkTopicSubscription(tx, {
+      organizationId: input.organizationId,
+      userId: input.userId,
+      topic: input.conversationId,
+    });
+  }
   const channel = await checkConversationSubscription(tx, input);
   if (channel.allowed) return channel;
   return checkDirectConversationSubscription(tx, input);
@@ -410,7 +424,14 @@ export async function createRealtimeServer(
             socket.send(JSON.stringify({ type: 'refused', conversationId: frame.conversationId }));
             return;
           }
-          if (!subscriptions.has(frame.conversationId)) {
+          // 53-01: `me` subscribes to the socket's own user topic; every other id is its own key.
+          const hubKey = hubTopicFor(frame.conversationId, claims.userId);
+          if (isWorkTopic(frame.conversationId) && !subscriptions.has(hubKey)) {
+            const offWork = hub.subscribe(claims.organizationId, hubKey, (event) => {
+              socket.send(JSON.stringify(event));
+            });
+            subscriptions.set(hubKey, offWork);
+          } else if (!subscriptions.has(frame.conversationId)) {
             const offEvents = hub.subscribe(
               claims.organizationId,
               frame.conversationId,

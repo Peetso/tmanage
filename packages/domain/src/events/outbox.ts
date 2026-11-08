@@ -175,6 +175,19 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'work_item',
     catalog: '§4 comment created — notification, mentions',
   },
+  /**
+   * 53-01: a work item's fields changed (or it moved to another project). Ids only; it frames
+   * boards, lists and My Day live. `work_item.updated.v1` keeps meaning a state change.
+   */
+  'work_item.changed.v1': {
+    aggregateType: 'work_item',
+    catalog: '§4 work item edited — realtime board/list/My Day refresh',
+  },
+  /** 53-01: a comment was added to a work item, mentions or not. Ids only; realtime refresh. */
+  'work_item.commented.v1': {
+    aggregateType: 'work_item',
+    catalog: '§4 work item commented — realtime board/list/My Day refresh',
+  },
   /** CQ-12 (AUT-01): a document was published to the client — the trigger `document_published`. */
   'document.published.v1': {
     aggregateType: 'document',
@@ -518,6 +531,21 @@ export interface WorkItemCreatedV1 {
   readonly state: string;
 }
 
+/** 53-01: ids only; `previousProjectId` is set when the item moved between projects. */
+export interface WorkItemChangedV1 {
+  readonly workItemId: string;
+  readonly projectId: string;
+  readonly previousProjectId: string | null;
+  readonly workItemVersion: number;
+}
+
+/** 53-01: ids only — the comment text stays on the row. */
+export interface WorkItemCommentedV1 {
+  readonly workItemId: string;
+  readonly commentId: string;
+  readonly projectId: string;
+}
+
 /** CQ-12 (APR-03): the item that now waits on the client. */
 export interface WorkItemClientActionRequestedV1 {
   readonly workItemId: string;
@@ -747,6 +775,8 @@ export interface OutboxEventPayloads {
   readonly 'file.purged.v1': FilePurgedV1;
   readonly 'work_item.created.v1': WorkItemCreatedV1;
   readonly 'work_item.client_action_requested.v1': WorkItemClientActionRequestedV1;
+  readonly 'work_item.changed.v1': WorkItemChangedV1;
+  readonly 'work_item.commented.v1': WorkItemCommentedV1;
   readonly 'document.comment_created.v1': DocumentCommentCreatedV1;
   readonly 'work_item.comment_created.v1': WorkItemCommentCreatedV1;
   readonly 'document.published.v1': DocumentPublishedV1;

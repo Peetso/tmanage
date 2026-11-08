@@ -94,10 +94,19 @@ export function withRealtimeFanOut(worker, handlers, hub) {
   const directFanOut = worker.createDirectMessageFanOut(hub);
   const mentions = handlers['message.created.v1'];
   const directNotices = handlers['direct_message.created.v1'];
-  return {
+  const withMessages = {
     ...handlers,
     'message.created.v1': mentions === undefined ? fanOut : worker.both(mentions, fanOut),
     'direct_message.created.v1':
       directNotices === undefined ? directFanOut : worker.both(directNotices, directFanOut),
   };
+  // 53-01: work events (created, moved, edited, commented, assigned) frame the project's and the
+  // people's topics, after their own consumers. Absent on an older worker build: messages only.
+  if (
+    typeof worker.createWorkFanOut !== 'function' ||
+    typeof worker.withWorkFanOut !== 'function'
+  ) {
+    return withMessages;
+  }
+  return worker.withWorkFanOut(withMessages, worker.createWorkFanOut(hub), worker.both);
 }

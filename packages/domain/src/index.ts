@@ -239,6 +239,8 @@ export type {
   WorkItemBlockedV1,
   WorkItemClientActionRequestedV1,
   WorkItemCreatedV1,
+  WorkItemChangedV1,
+  WorkItemCommentedV1,
   WorkItemUpdatedV1,
 } from './events/outbox.js';
 
