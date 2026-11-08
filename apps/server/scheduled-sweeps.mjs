@@ -97,6 +97,14 @@ export function workerSweepJobs(worker, database, env = process.env) {
         `due-soon: ${String(result.rules)} rule(s), fired for ${String(result.fired)} work item(s)`,
       changed: (result) => result.fired > 0,
     },
+    {
+      // 55-24 `--sweep-getting-started`: first-week nudges, at most one a day per member (the
+      // notice's dedupe key carries the day, so a sweep every minute sends nothing twice).
+      name: 'getting-started',
+      run: () => worker.sweepGettingStartedNudges(worker.createGettingStartedNudgeStore(database)),
+      describe: (result) => `getting-started: sent ${String(result.sent)} nudge(s)`,
+      changed: (result) => result.sent > 0,
+    },
     // ---- platform-admin v2 · PA-05 ----
     {
       // `--sweep-support-sessions`: ends expired Support sessions and takes their hidden

@@ -200,6 +200,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // ---- R33 C26 ---- +1: the supervisor done notice reads `work_item_assignees`.
     // ---- R35 53-15 ---- +3: the notification matrix and the digest sweep read `user_preferences`,
     // `org_settings` and `pref_digest`.
+    // ---- R49 L1 55-24 ---- +2: the getting-started nudges read `client_organizations` and
+    // `oauth_grants` (the checklist's "add a client" and "try the AI assistant" signals).
     expect(reads).toHaveLength(
       26 +
         15 +
@@ -228,7 +230,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
         3 +
         1 +
         1 +
-        3,
+        3 +
+        2,
     );
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });

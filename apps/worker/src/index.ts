@@ -62,6 +62,10 @@ export { createRequestDeferSweepStore } from './common/database/request-defer-st
 export { DUE_SOON_TRIGGER, dueInDaysOf, sweepDueSoon } from './jobs/due-soon-sweeper.js';
 export type { DueSoonSweepResult } from './jobs/due-soon-sweeper.js';
 export { createDueSoonSweepStore } from './common/database/due-soon-store.js';
+// 55-24: first-week getting-started nudges.
+export { sweepGettingStartedNudges } from './jobs/getting-started-nudges.js';
+export type { NudgeSweepResult } from './jobs/getting-started-nudges.js';
+export { createGettingStartedNudgeStore } from './common/database/getting-started-nudge-store.js';
 // R14-a — the outbound webhook delivery sweep, exported so the single Hostinger app
 // (`apps/server`) delivers staged attempts on the same loop the standalone worker runs.
 export {

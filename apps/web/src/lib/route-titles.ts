@@ -396,6 +396,10 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     key: 'RouteTitle.settingsInboundMail',
   },
   '/[orgSlug]/settings/my-data': { en: 'My data', key: 'RouteTitle.settingsMyData' },
+  '/[orgSlug]/settings/organization': {
+    en: 'Organization policy',
+    key: 'RouteTitle.settingsOrganization',
+  },
   '/[orgSlug]/settings/quiet-hours': { en: 'Quiet hours', key: 'RouteTitle.settingsQuietHours' },
   '/[orgSlug]/settings/security': { en: 'Security', key: 'RouteTitle.settingsSecurity' },
   '/[orgSlug]/settings/sign-in-security': {

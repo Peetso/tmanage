@@ -24,6 +24,7 @@ import { WorkspaceSuspendedGate } from '../platform/WorkspaceSuspendedGate';
 import { MembershipGoneGate } from './MembershipGoneGate';
 // ---- platform-admin v2 · PA-05 ----
 import { ShellBanners } from './ShellBanners';
+import { GettingStartedLauncher } from '../onboarding/GettingStartedCard';
 import { SupportSessionEndedGate } from '../platform/support/SupportSessionEndedGate';
 import { AccountMenu } from './AccountMenu';
 import { AiPanelLauncher } from '../ai-panel/AiPanelLauncher';
@@ -319,6 +320,10 @@ export function AppShell({
                           query client). */}
                       {queryClient ? (
                         <RunningTimerPill organizationSlug={organizationSlug} />
+                      ) : null}
+                      {/* Row 55-11: the getting-started checklist, until dismissed or done. */}
+                      {queryClient ? (
+                        <GettingStartedLauncher organizationSlug={organizationSlug} />
                       ) : null}
                       {/* Row 55-16: the Help centre article for this screen. */}
                       <HelpContextLink />

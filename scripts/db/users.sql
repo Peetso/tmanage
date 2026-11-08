@@ -2406,3 +2406,10 @@ GRANT SELECT, INSERT, DELETE ON `tmanage`.`invitation_pending_keys`          TO 
 -- DELETE on either. SELECT is the database-wide read. The worker holds nothing here.
 GRANT INSERT ON `tmanage`.`platform_owner_notices`                          TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`platform_action_approvals`               TO 'tmanage_app'@'%';
+
+-- ---- R49 L1 · 55-24 first-week getting-started nudges ----
+-- `--sweep-getting-started` reads the same company signals the API's checklist uses. The worker
+-- already reads memberships, projects, invitations, storage_connections, org_working_calendars,
+-- notification_preferences and user_preferences and INSERTs notifications; these two are new.
+GRANT SELECT ON `tmanage`.`client_organizations` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`oauth_grants`         TO 'tmanage_worker'@'%';

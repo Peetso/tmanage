@@ -58,6 +58,8 @@ import { createEmailSuppressionLookup } from './common/database/email-suppressio
 import { sweepDeferredRequests } from './jobs/request-defer-sweeper.js';
 import { createDueSoonSweepStore } from './common/database/due-soon-store.js';
 import { sweepDueSoon } from './jobs/due-soon-sweeper.js';
+import { createGettingStartedNudgeStore } from './common/database/getting-started-nudge-store.js';
+import { sweepGettingStartedNudges } from './jobs/getting-started-nudges.js';
 // ---- platform-admin v2 · PA-03 ---- the content purge.
 import { PURGE_HOOKS, runPurge } from './jobs/purge-sweeper.js';
 // ---- platform-admin v2 · PA-05 ---- the Support-session expiry sweep.
@@ -438,6 +440,22 @@ async function main(): Promise<void> {
         `[worker] due-soon sweep: ${String(result.rules)} rule(s), ` +
           `fired for ${String(result.fired)} work item(s), ` +
           `delivered ${String(result.delivered)} weekend-held run(s)`,
+      );
+    } finally {
+      await database.end();
+    }
+    return;
+  }
+
+  // 55-24: first-week getting-started nudges — at most one in-app notice per member per day.
+  if (command.kind === 'sweep-getting-started') {
+    try {
+      const result = await sweepGettingStartedNudges(createGettingStartedNudgeStore(database));
+      process.stdout.write(`${JSON.stringify(result)}
+`);
+      console.warn(
+        `[worker] getting-started sweep: ${String(result.candidates)} member(s), ` +
+          `sent ${String(result.sent)} nudge(s)`,
       );
     } finally {
       await database.end();

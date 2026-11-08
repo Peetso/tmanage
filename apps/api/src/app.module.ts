@@ -42,6 +42,7 @@ import { HomePulseModule } from './modules/home/home-pulse.module.js';
 import { HomeWidgetPrefsModule } from './modules/home/widget-prefs.module.js';
 import { HomeQuickLinksModule } from './modules/home/quick-links.module.js';
 import { OnboardingModule } from './modules/onboarding/onboarding.module.js';
+import { GettingStartedModule } from './modules/getting-started/getting-started.module.js';
 import { WorkViewsModule } from './modules/work-views/work-views.module.js';
 import { OrgWorkloadModule } from './modules/work-views/org-workload.module.js';
 import { RequestsModule } from './modules/requests/requests.module.js';
@@ -415,6 +416,8 @@ export class AppModule {
         HomeQuickLinksModule.register(),
         // 55-01 (R48 L1): the onboarding wizard's resumable per-company state, behind `org.manage`.
         OnboardingModule.register(),
+        // 55-11 / 55-22 (R49 L1): the getting-started checklist and the owner's Setup health.
+        GettingStartedModule.register(),
         // WK-04. The Work views read layer — a read-only composition of the work + work-graph
         // reads (timeline). After `WorkModule` by subject, though it depends only on the
         // database and never on the work service, so it does not couple to that module's wiring.
