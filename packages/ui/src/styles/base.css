@@ -35,10 +35,40 @@ body {
  * forbids negative tracking, and 40-DESIGN-SYSTEM §3 repeats it: "Do not apply negative
  * tracking to Arabic."
  */
+/*
+ * The type scale's leading, per the Figma "Arabic/Doc" text styles (file ZdUCRiqBiT7s3u08HA28RO):
+ * the sizes and the SemiBold/Regular split stay the Latin scale's, the lines open up because
+ * Alexandria's ascenders and dots need the room. Every rule that reads `var(--t-*-line)` gets
+ * the Arabic leading with no per-screen override. Display XL and Metric keep the Latin values
+ * (no Arabic style draws them; the metric is digits).
+ */
+:root:lang(ar) {
+  --t-display-lg-line: 82px;
+  --t-heading-page-line: 53px;
+  --t-heading-section-line: 35px;
+  --t-heading-card-line: 29px;
+  --t-body-lg-line: 25px;
+  --t-body-md-line: 22px;
+  --t-ui-md-line: 21px;
+  --t-ui-sm-line: 19px;
+  --t-caption-line: 18px;
+}
+
 :lang(ar) {
   font-family: var(--font-arabic);
-  line-height: 1.34;
-  letter-spacing: 0;
+  /* Only reached by an element nothing else sets a line-height on: the Doc styles' ratio, ~1.47. */
+  line-height: 1.47;
+}
+
+/*
+ * No tracking on Arabic, ever. Letter-spacing pulls the joined letters of a word apart, and the
+ * eyebrow and mono-label rules (`letter-spacing: 0.14em`, and the -0.02em headings) are class
+ * rules that out-rank and out-order the `:lang(ar)` reset, so a plain declaration lost on every
+ * one of them. `!important` is the one way a base-layer invariant beats ~200 component rules.
+ */
+:lang(ar),
+:lang(ar) * {
+  letter-spacing: 0 !important;
 }
 
 /*
@@ -52,6 +82,17 @@ body {
  */
 :root {
   --font-mono: 'Geist Mono', ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+
+/*
+ * Geist Mono has no Arabic glyphs (its two subsets are Latin), so an Arabic word in a mono label
+ * fell through ui-monospace to the platform's Courier New Arabic. Under Arabic the stack names
+ * Alexandria next: Latin letters and digits stay Geist Mono, Arabic letters draw in the Arabic
+ * face, as the design's Arabic labels do (Alexandria, never a mono).
+ */
+:root:lang(ar) {
+  --font-mono:
+    'Geist Mono', 'Alexandria', ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace;
 }
 
 code,

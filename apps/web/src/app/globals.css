@@ -55,6 +55,37 @@
     U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
+/*
+ * Alexandria, self-hosted (SIL OFL 1.1; `src/fonts/Alexandria-OFL.txt`) — the Arabic face
+ * `--font-arabic` names. Until R36 it was never packaged, so Arabic fell to whatever the machine
+ * had: Segoe UI or Tahoma for most members, and for anyone with Alexandria installed only the
+ * static Regular and SemiBold, so 500 snapped to 400 and 700 was faux-bold. The family name is
+ * the token's own ('Alexandria'), so this face also wins over a locally installed copy.
+ *
+ * One variable file, declared twice to carry the design's weight mapping. The Figma "Arabic/Doc"
+ * styles set every text style that is Manrope Medium (500: UI MD, UI SM, Caption) in Alexandria
+ * Regular (400), because Alexandria at the same number reads a step heavier; SemiBold stays
+ * SemiBold. The screens ask for 500 in ~750 rules, so the mapping lives here: no face covers
+ * 401–599, CSS font matching picks the nearest lighter face for a 500 request, and a variable face
+ * renders a request outside its descriptor range at the range's edge — 500 draws at wght 400,
+ * while 100–400 and 600–900 draw at their own weight.
+ */
+@font-face {
+  font-family: 'Alexandria';
+  font-style: normal;
+  font-weight: 100 400;
+  font-display: swap;
+  src: url('../fonts/Alexandria-Variable.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Alexandria';
+  font-style: normal;
+  font-weight: 600 900;
+  font-display: swap;
+  src: url('../fonts/Alexandria-Variable.ttf') format('truetype');
+}
+
 :root {
   --tm-inverted-ground: var(--line-700);
   --tm-inverted-ink: var(--paper-50);

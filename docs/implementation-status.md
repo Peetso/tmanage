@@ -10416,7 +10416,9 @@ These are open, recorded rather than hidden, and none of them should be closed b
    unregressed: apps/web has no stories, and that remains open.
 7. **The contrast checks remain arithmetic.** They cannot prove what a browser renders.
 8. **Arabic is unreachable.** `dir` is `ltr` on `<html>`, and the Arabic face the tokens name
-   (Alexandria) is not in the export at all — the artboards load it from Google Fonts. Every
+   (Alexandria) was not in the export — the artboards load it from Google Fonts. Since R36 F3
+   `--font-arabic` (Alexandria 5.100, OFL) is self-hosted from apps/web/src/fonts, declared as
+   two weight-range faces (100–400, 600–900) in apps/web/src/app/globals.css. Every
    offset in `globals.css` is a logical property and a test enforces that, so the switch is a
    value change rather than a rewrite, but it has never been rendered.
 9. **Geist Mono is not packaged either**, for the same reason. Monospaced text falls back to
@@ -11927,8 +11929,8 @@ renders `aria-busy` and `disabled` correctly, and the dark toolbar global reache
 - **Fonts are not packaged _by this package_, and that is now deliberate rather than
   outstanding.** `apps/web` packages Manrope with its OFL licence beside it (ADR-0005); a
   design-system package that shipped a `@font-face` would force the URL on every consumer.
-  `--font-arabic` (Alexandria) and `--font-mono` (Geist Mono) are still unpackaged and fall
-  back to `system-ui` and the platform monospace — neither is in the export at all.
+  `--font-arabic` (Alexandria 5.100, OFL) is self-hosted from apps/web/src/fonts since R36 F3,
+  declared as two weight-range faces (100–400, 600–900) in apps/web/src/app/globals.css.
 - **`Select`, `Combobox`, `Checkbox`, `Radio`, `Switch`, date/time, `Tooltip` and `Toast` are
   not built.** The design inventory marks them **specified** rather than **built**, and the
   shell, planning, collaboration, delivery and administration families are compositions that

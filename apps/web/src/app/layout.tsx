@@ -131,7 +131,8 @@ const LOCALE_BOOT_SCRIPT = localeBootScript();
  * `metadata` above). Its text must therefore stay exactly `localeBootScript()`, which the proxy
  * hashes. The CSS throughout uses logical
  * properties, so that switch is a value change rather than a rewrite. The Arabic face the tokens
- * name (Alexandria) is still not packaged — recorded as open in `docs/implementation-status.md`.
+ * name (Alexandria) is self-hosted by `@font-face` in `globals.css` (R36), not here: it needs two
+ * weight-range faces to carry the design's 500 → 400 mapping, which `localFont` cannot declare.
  */
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const html = await serverHtmlAttributes();
