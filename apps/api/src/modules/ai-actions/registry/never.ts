@@ -92,6 +92,10 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/auth/google/callback', reason: 'google_auth' },
   { method: 'POST', path: '/v1/auth/google/mfa', reason: 'google_auth' },
   { method: 'POST', path: '/v1/auth/google/start', reason: 'google_auth' },
+  // 54-14. Company sign-in (OpenID Connect): public start, callback and second-factor step.
+  { method: 'POST', path: '/v1/auth/sso/start', reason: 'auth' },
+  { method: 'GET', path: '/v1/auth/sso/callback', reason: 'auth' },
+  { method: 'POST', path: '/v1/auth/sso/mfa', reason: 'auth' },
   { method: 'POST', path: '/v1/auth/mfa', reason: 'auth' },
   { method: 'POST', path: '/v1/auth/password', reason: 'auth' },
   { method: 'POST', path: '/v1/auth/password/set', reason: 'auth' },
@@ -1992,6 +1996,22 @@ export const NEVER: readonly NeverEntry[] = [
     method: 'DELETE',
     path: '/v1/organizations/:orgSlug/connectors/:connectorKey',
     reason: 'connector_installation',
+  },
+  // 54-14. Company sign-in settings: owner-only read, save and remove of the OIDC connection.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/security/sso/',
+    reason: 'org_security_manage',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/security/sso/',
+    reason: 'org_security_manage',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/security/sso/',
+    reason: 'org_security_manage',
   },
 ];
 

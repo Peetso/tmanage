@@ -159,7 +159,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // R40 L2 53-13 (AI meeting note drafts: list + submit ops, review NEVER): +3, was 1319.
 // R40 L1 54-22 (GET + POST projects/templates/packs, +2 ops, classified by L2): +2, was 1322.
 // R41 L2 54-01 (connector framework: list, status, install, uninstall, +4 NEVER): +4, was 1324.
-const EXPECTED_ROUTE_COUNT = 1328;
+// R41 L1 54-14 (company sign-in: 3 owner settings + 3 public sign-in routes, +6 NEVER): +6, was 1328.
+const EXPECTED_ROUTE_COUNT = 1334;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).
