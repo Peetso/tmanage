@@ -365,6 +365,60 @@ export interface MeetingNoteView {
   readonly authorUserId: string;
   /** An ISO-8601 instant on the wire. */
   readonly createdAt: string;
+  /** 53-13. `mcp` when the note began as a draft from the member's own AI. */
+  readonly source: 'human' | 'mcp';
+  /** 53-13. The assistant that drafted it, else null. */
+  readonly assistantName: string | null;
+}
+
+/** 53-13. A draft note from the member's own AI, waiting for Save or Discard. */
+export interface MeetingNoteDraftView {
+  readonly id: string;
+  readonly meetingId: string;
+  readonly kind: 'note' | 'decision';
+  readonly body: string;
+  readonly authorUserId: string;
+  readonly source: 'mcp';
+  readonly assistantName: string;
+  /** An ISO-8601 instant on the wire. */
+  readonly submittedAt: string;
+}
+
+export async function listMeetingNoteDrafts(
+  client: ApiClient,
+  organizationSlug: string,
+  meetingId: string,
+): Promise<{ readonly drafts: readonly MeetingNoteDraftView[] }> {
+  const { data } = await client.request<{ readonly drafts: readonly MeetingNoteDraftView[] }>({
+    path: `${meetingPath(organizationSlug, meetingId)}/note-drafts`,
+  });
+  return data;
+}
+
+export type MeetingNoteDraftReview =
+  | {
+      readonly decision: 'save';
+      readonly kind: MeetingNoteDraftView['kind'];
+      readonly body: string;
+    }
+  | { readonly decision: 'discard' };
+
+export async function reviewMeetingNoteDraft(
+  client: ApiClient,
+  organizationSlug: string,
+  meetingId: string,
+  noteId: string,
+  review: MeetingNoteDraftReview,
+): Promise<{ readonly decision: 'save' | 'discard'; readonly note: MeetingNoteView | null }> {
+  const { data } = await client.request<{
+    readonly decision: 'save' | 'discard';
+    readonly note: MeetingNoteView | null;
+  }>({
+    method: 'POST',
+    path: `${meetingPath(organizationSlug, meetingId)}/note-drafts/${encodeURIComponent(noteId)}/review`,
+    body: review,
+  });
+  return data;
 }
 
 export async function listMeetingNotes(

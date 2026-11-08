@@ -17522,5 +17522,16 @@
   "TemplatePacks.pack.monthly-retainer.name": "Monthly retainer",
   "TemplatePacks.pack.monthly-retainer.description": "A repeating month of client work with a report at the end.",
   "TemplatePacks.pack.product-sprint-kit.name": "Product sprint kit",
-  "TemplatePacks.pack.product-sprint-kit.description": "Discovery, a two-week build sprint and a release checklist."
+  "TemplatePacks.pack.product-sprint-kit.description": "Discovery, a two-week build sprint and a release checklist.",
+  "MeetingNoteDrafts.regionAria": "Drafts from your AI assistant",
+  "MeetingNoteDrafts.heading": "Drafts from your AI assistant",
+  "MeetingNoteDrafts.hint": "Your assistant sent this draft over the TManage connector. It is not a note until you save it.",
+  "MeetingNoteDrafts.draft": "Draft",
+  "MeetingNoteDrafts.viaMcp": "via MCP",
+  "MeetingNoteDrafts.kindAria": "Note or decision",
+  "MeetingNoteDrafts.bodyLabel": "Draft text",
+  "MeetingNoteDrafts.save": "Save note",
+  "MeetingNoteDrafts.discard": "Discard",
+  "MeetingNoteDrafts.errorTitle": "The draft could not be updated",
+  "MeetingNoteDrafts.reviewedFrom": "Saved after review · from"
 }

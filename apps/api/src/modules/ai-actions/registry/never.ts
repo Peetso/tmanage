@@ -30,6 +30,13 @@ import { routeKey } from './types.js';
 export const NEVER: readonly NeverEntry[] = [
   { method: 'DELETE', path: '/mcp/', reason: 'mcp_endpoint' },
   { method: 'GET', path: '/mcp/', reason: 'mcp_endpoint' },
+  // 53-13. Saving or discarding an AI-drafted meeting note is the human review itself: an AI
+  // principal must never approve its own draft.
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/meetings/:meetingId/note-drafts/:noteId/review',
+    reason: 'mcp_endpoint',
+  },
   { method: 'POST', path: '/mcp/', reason: 'mcp_endpoint' },
   // S13. The connector's own discovery/distribution surface — public, tenant-less, served before
   // any sign-in; never an AI-driven tool (architecture B3). Added with slice S13.

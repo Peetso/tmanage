@@ -12,6 +12,7 @@ import type { MeetingAttendeesRepository } from './meeting-attendees.repository.
 import type { MembershipsRepository } from '../tenancy/memberships.repository.js';
 import { MeetingNotesRepository } from './meeting-notes.repository.js';
 import type {
+  CreateMeetingNoteDraftInput,
   CreateMeetingNoteInput,
   ListMeetingNotesOptions,
 } from './meeting-notes.repository.js';
@@ -102,6 +103,10 @@ export interface MeetingNoteView {
   readonly authorUserId: string;
   /** An ISO-8601 instant on the wire. */
   readonly createdAt: string;
+  /** 53-13. `mcp` when the note began as a draft from the member's own AI and was reviewed. */
+  readonly source: 'human' | 'mcp';
+  /** 53-13. The assistant that drafted it (`source='mcp'`), else null. */
+  readonly assistantName: string | null;
 }
 
 function toNoteView(row: MeetingNoteRow): MeetingNoteView {
@@ -112,6 +117,38 @@ function toNoteView(row: MeetingNoteRow): MeetingNoteView {
     body: row.body,
     authorUserId: row.authorUserId,
     createdAt: row.createdAt.toISOString(),
+    source: row.source ?? 'human',
+    assistantName: row.assistantName ?? null,
+  };
+}
+
+/**
+ * 53-13. A draft note from the member's own AI, waiting for a person to Save or Discard it. The
+ * provenance (assistant, submitted time) is what the reviewer sees before deciding.
+ */
+export interface MeetingNoteDraftView {
+  readonly id: string;
+  readonly meetingId: string;
+  readonly kind: 'note' | 'decision';
+  readonly body: string;
+  /** The member whose connector token the assistant used. */
+  readonly authorUserId: string;
+  readonly source: 'mcp';
+  readonly assistantName: string;
+  /** An ISO-8601 instant on the wire. */
+  readonly submittedAt: string;
+}
+
+function toDraftView(row: MeetingNoteRow): MeetingNoteDraftView {
+  return {
+    id: row.id,
+    meetingId: row.meetingId,
+    kind: row.kind,
+    body: row.body,
+    authorUserId: row.authorUserId,
+    source: 'mcp',
+    assistantName: row.assistantName ?? '',
+    submittedAt: (row.submittedAt ?? row.createdAt).toISOString(),
   };
 }
 
@@ -845,6 +882,92 @@ export class MeetingsService {
 
     return toNoteView(row);
   }
+
+  /**
+   * 53-13. The member's own assistant submits a draft note over MCP. Same gate as a capture (the
+   * meeting resolved tenant-scoped, then the write relation), but the row lands `pending` with
+   * its provenance and is not part of the meeting's record until a person saves it.
+   */
+  async submitNoteDraft(
+    context: TenantContext,
+    principal: Principal,
+    input: Omit<CreateMeetingNoteDraftInput, 'authorUserId'>,
+  ): Promise<MeetingNoteDraftView> {
+    await this.resolveMeetingFor(context, principal, input.meetingId, 'work.create');
+    const row = await this.database.transaction(context, (tx) =>
+      this.notes.createDraft(tx, context, { ...input, authorUserId: context.userId }),
+    );
+    return toDraftView(row);
+  }
+
+  /** 53-13. The drafts waiting for review on one meeting (readers of the meeting see them). */
+  async listNoteDrafts(
+    context: TenantContext,
+    principal: Principal,
+    meetingId: string,
+  ): Promise<readonly MeetingNoteDraftView[]> {
+    await this.resolveMeetingFor(context, principal, meetingId, 'work.read');
+    const rows = await this.database.read(context, (runner) =>
+      this.notes.list(runner, context, { meetingId, status: 'pending' }),
+    );
+    return rows.map(toDraftView);
+  }
+
+  /**
+   * 53-13. A person reviews a draft: `save` turns it into a normal note with the text and kind
+   * they settled on (they become its reviewer); `discard` removes it. Either way the draft must
+   * still be pending and belong to this meeting, else 404 — a second Save is not a second note.
+   * The route is NEVER-classified, so no AI token can approve its own draft.
+   */
+  async reviewNoteDraft(
+    context: TenantContext,
+    principal: Principal,
+    input: ReviewMeetingNoteDraftInput,
+  ): Promise<MeetingNoteView | null> {
+    await this.resolveMeetingFor(context, principal, input.meetingId, 'work.create');
+    return this.database.transaction(context, async (tx) => {
+      const draft = await this.notes.findById(tx, context, input.noteId);
+      if (!draft || draft.meetingId !== input.meetingId || draft.status !== 'pending') {
+        throw new ApiError(
+          404,
+          'not_found',
+          MESSAGES.notFound,
+          undefined,
+          'note_draft_not_pending',
+        );
+      }
+      if (input.decision === 'discard') {
+        await this.notes.discardDraft(tx, context, input.noteId);
+        return null;
+      }
+      const saved = await this.notes.saveDraft(tx, context, input.noteId, {
+        kind: input.kind ?? draft.kind,
+        body: input.body ?? draft.body,
+        reviewedByUserId: context.userId,
+      });
+      if (!saved) {
+        throw new ApiError(
+          404,
+          'not_found',
+          MESSAGES.notFound,
+          undefined,
+          'note_draft_not_pending',
+        );
+      }
+      const row = await this.notes.findById(tx, context, input.noteId);
+      if (!row) throw new Error(`meeting_note ${input.noteId} vanished after save`);
+      return toNoteView(row);
+    });
+  }
+}
+
+/** 53-13. A reviewer's decision on a pending draft; `kind`/`body` are the edited values on save. */
+export interface ReviewMeetingNoteDraftInput {
+  readonly meetingId: string;
+  readonly noteId: string;
+  readonly decision: 'save' | 'discard';
+  readonly kind?: 'note' | 'decision';
+  readonly body?: string;
 }
 
 /** Audit gap 8: a recorded end must be strictly after the start (no CHECK constraint on MariaDB). */

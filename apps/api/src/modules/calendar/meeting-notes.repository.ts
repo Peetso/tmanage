@@ -46,6 +46,32 @@ export interface ListMeetingNotesOptions {
   /** Keyset pagination. Cursors are ids, and the sort is `id` (UUIDv7 ≈ creation order). */
   readonly after?: string;
   readonly limit?: number;
+  /**
+   * 53-13. `saved` (the default) is the meeting's record; `pending` is the review queue of drafts
+   * the customer's own AI submitted over MCP. A pending draft is never part of the record.
+   */
+  readonly status?: MeetingNoteStatus;
+}
+
+/** 53-13 (0326). A note is `saved`; an assistant's draft stays `pending` until a person saves it. */
+export type MeetingNoteStatus = 'saved' | 'pending';
+
+/** 53-13. A draft submitted by the member's own assistant over the MCP connector. */
+export interface CreateMeetingNoteDraftInput {
+  readonly meetingId: string;
+  readonly kind: MeetingNoteKind;
+  readonly body: string;
+  /** The member whose token the assistant used — the service passes `context.userId`. */
+  readonly authorUserId: string;
+  /** The assistant's own name (e.g. `Claude`), shown to the reviewer as provenance. */
+  readonly assistantName: string;
+}
+
+/** 53-13. What the reviewer settled on when saving a draft. */
+export interface SaveMeetingNoteDraftInput {
+  readonly kind: MeetingNoteKind;
+  readonly body: string;
+  readonly reviewedByUserId: string;
 }
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -75,6 +101,7 @@ export class MeetingNotesRepository {
     const predicates = [
       eq(meetingNotes.organizationId, context.organizationId),
       eq(meetingNotes.meetingId, options.meetingId),
+      eq(meetingNotes.status, options.status ?? 'saved'),
     ];
     if (options.after) predicates.push(gt(meetingNotes.id, options.after));
 
@@ -144,4 +171,87 @@ export class MeetingNotesRepository {
     }
     return created;
   }
+  /**
+   * 53-13. Land a draft from the customer's own AI as `pending`, with its provenance. It is not
+   * part of the meeting's record (the default `list` reads `saved` only) until a person saves it.
+   */
+  async createDraft(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    input: CreateMeetingNoteDraftInput,
+  ): Promise<MeetingNoteRow> {
+    const db = tenantDrizzle(runner);
+    const id = uuidv7();
+    await db.insert(meetingNotes).values({
+      id,
+      organizationId: context.organizationId,
+      meetingId: input.meetingId,
+      kind: input.kind,
+      body: input.body,
+      authorUserId: input.authorUserId,
+      createdAt: sql`current_timestamp(3)`,
+      status: 'pending',
+      source: 'mcp',
+      assistantName: input.assistantName,
+      submittedAt: sql`current_timestamp(3)`,
+    });
+    const created = await this.findById(runner, context, id);
+    if (!created) throw new Error(`meeting_note ${id} was not found immediately after insert`);
+    return created;
+  }
+
+  /**
+   * 53-13. Save a pending draft as a normal note with the reviewer's text. Guarded on
+   * `status='pending'`, so a draft already saved or discarded changes nothing (returns false);
+   * 0326's trigger refuses any change to a saved note besides.
+   */
+  async saveDraft(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    noteId: string,
+    input: SaveMeetingNoteDraftInput,
+  ): Promise<boolean> {
+    const db = tenantDrizzle(runner);
+    const [result] = await db
+      .update(meetingNotes)
+      .set({
+        kind: input.kind,
+        body: input.body,
+        status: 'saved',
+        reviewedByUserId: input.reviewedByUserId,
+        reviewedAt: sql`current_timestamp(3)`,
+      })
+      .where(
+        and(
+          eq(meetingNotes.organizationId, context.organizationId),
+          eq(meetingNotes.id, noteId),
+          eq(meetingNotes.status, 'pending'),
+        ),
+      );
+    return affectedRows(result) > 0;
+  }
+
+  /** 53-13. Discard a pending draft: the row is removed; a saved note is never deleted here. */
+  async discardDraft(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    noteId: string,
+  ): Promise<boolean> {
+    const db = tenantDrizzle(runner);
+    const [result] = await db
+      .delete(meetingNotes)
+      .where(
+        and(
+          eq(meetingNotes.organizationId, context.organizationId),
+          eq(meetingNotes.id, noteId),
+          eq(meetingNotes.status, 'pending'),
+        ),
+      );
+    return affectedRows(result) > 0;
+  }
+}
+
+function affectedRows(result: unknown): number {
+  const value = (result as { affectedRows?: unknown } | undefined)?.affectedRows;
+  return typeof value === 'number' ? value : 0;
 }

@@ -1048,6 +1048,9 @@ export const portalAccessLog = mysqlTable(
 );
 
 export const MEETING_NOTE_KINDS = ['note', 'decision'] as const;
+/** 0326 (53-13): a draft from the customer's AI is `pending` until a person saves it. */
+export const MEETING_NOTE_STATUSES = ['saved', 'pending'] as const;
+export const MEETING_NOTE_SOURCES = ['human', 'mcp'] as const;
 
 /**
  * CAL-01 / MTG-01 second slice (x105). A meeting's captured note or decision — a `kind`, a
@@ -1070,10 +1073,24 @@ export const meetingNotes = mysqlTable(
     body: text('body').notNull(),
     authorUserId: char('author_user_id', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** 0326 (53-13): `pending` = an assistant's draft awaiting a person's review. */
+    status: mysqlEnum('status', MEETING_NOTE_STATUSES).notNull().default('saved'),
+    /** 0326: `mcp` when the customer's own AI submitted it over the connector. */
+    source: mysqlEnum('source', MEETING_NOTE_SOURCES).notNull().default('human'),
+    assistantName: varchar('assistant_name', { length: 120 }),
+    submittedAt: datetime('submitted_at', { mode: 'date', fsp: 3 }),
+    reviewedByUserId: char('reviewed_by_user_id', { length: 36 }),
+    reviewedAt: datetime('reviewed_at', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_meeting_notes_org_id').on(table.organizationId, table.id),
     index('ix_meeting_notes_org_meeting').on(table.organizationId, table.meetingId, table.id),
+    index('ix_meeting_notes_org_meeting_status').on(
+      table.organizationId,
+      table.meetingId,
+      table.status,
+      table.id,
+    ),
   ],
 );
 

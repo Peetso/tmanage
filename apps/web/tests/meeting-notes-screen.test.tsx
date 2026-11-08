@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ApiClient } from '../src/lib/api/client';
 import { MeetingNotesScreen } from '../src/components/screens/MeetingNotesScreen';
@@ -92,5 +92,53 @@ describe('MeetingNotesScreen', () => {
   it('renders the API refusal rather than a blank page', async () => {
     mount({ error: { code: 'forbidden', message: 'No access.', correlationId: 'c' } }, 403);
     await waitFor(() => expect(screen.getByText('No access.')).toBeTruthy());
+  });
+
+  it('shows an AI draft for review and saves it with the edits (53-13)', async () => {
+    const calls: { url: string; method: string; body: unknown }[] = [];
+    let saved = false;
+    const client = new ApiClient({
+      baseUrl: 'https://api.example.test',
+      csrfCookieName: 'tm_session_csrf',
+      fetch: ((url: string, init?: RequestInit) => {
+        const method = init?.method ?? 'GET';
+        calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : null });
+        const draft = { id: 'd1', meetingId: 'meeting-1', kind: 'note', body: 'Launch moves', authorUserId: 'u1', source: 'mcp', assistantName: 'Claude', submittedAt: '2026-11-08T10:42:00.000Z' }; // prettier-ignore
+        if (method === 'POST') saved = true;
+        const body = url.endsWith('/note-drafts')
+          ? { drafts: saved ? [] : [draft] }
+          : url.endsWith('/review')
+            ? { decision: 'save', note: null }
+            : { notes: [] };
+        return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } })); // prettier-ignore
+      }) as typeof globalThis.fetch,
+      readCsrfToken: () => undefined,
+      newCorrelationId: () => 'c',
+    });
+    const query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={query}>
+        <MeetingNotesScreen
+          organizationSlug="northstar"
+          organizationName="N"
+          meetingId="meeting-1"
+          client={client}
+        />
+      </QueryClientProvider>,
+    );
+    const region = await screen.findByRole('region', { name: 'Drafts from your AI assistant' });
+    expect(within(region).getByText(/Claude/)).toBeTruthy();
+    fireEvent.change(within(region).getByLabelText('Draft text'), {
+      target: { value: 'Launch moves to 20 Nov' },
+    });
+    fireEvent.click(within(region).getByRole('button', { name: 'Decision' }));
+    fireEvent.click(within(region).getByRole('button', { name: 'Save note' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('region', { name: 'Drafts from your AI assistant' })).toBeNull(),
+    );
+    expect(calls.find((c) => c.method === 'POST')).toMatchObject({
+      url: expect.stringContaining('/note-drafts/d1/review'),
+      body: { decision: 'save', kind: 'decision', body: 'Launch moves to 20 Nov' },
+    });
   });
 });

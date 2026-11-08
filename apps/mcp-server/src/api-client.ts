@@ -104,6 +104,24 @@ export interface CreateWorkItemInput {
   readonly dueAt?: string | null;
 }
 
+/** 53-13. A draft meeting note waiting for a person to review it in TManage. */
+export interface MeetingNoteDraft {
+  readonly id: string;
+  readonly meetingId: string;
+  readonly kind: 'note' | 'decision';
+  readonly body: string;
+  readonly authorUserId: string;
+  readonly source: 'mcp';
+  readonly assistantName: string;
+  readonly submittedAt: string;
+}
+
+export interface SubmitMeetingNoteDraftInput {
+  readonly body: string;
+  readonly kind?: 'note' | 'decision';
+  readonly assistantName?: string;
+}
+
 /** The capabilities the tool handlers rely on. One method per TManage endpoint they reach. */
 export interface TManageApiClient {
   listOrganizations(): Promise<readonly OrganizationSummary[]>;
@@ -125,6 +143,12 @@ export interface TManageApiClient {
   listProjects(orgSlug: string): Promise<readonly Project[]>;
   createWorkItem(orgSlug: string, input: CreateWorkItemInput): Promise<WorkItem>;
   addComment(orgSlug: string, workItemId: string, body: string): Promise<WorkComment>;
+  /** 53-13. Submit a draft note for a meeting; it stays pending until a person saves it. */
+  submitMeetingNoteDraft(
+    orgSlug: string,
+    meetingId: string,
+    input: SubmitMeetingNoteDraftInput,
+  ): Promise<MeetingNoteDraft>;
 }
 
 /** A non-2xx response from the API, carrying the status and the server's error code if any. */
@@ -278,6 +302,14 @@ export function createHttpApiClient(options: HttpApiClientOptions): TManageApiCl
         'POST',
         orgPath(orgSlug, `/work-items/${segment(workItemId)}/comments`),
         { body },
+      );
+    },
+
+    async submitMeetingNoteDraft(orgSlug, meetingId, input) {
+      return request<MeetingNoteDraft>(
+        'POST',
+        orgPath(orgSlug, `/meetings/${segment(meetingId)}/note-drafts`),
+        input,
       );
     },
   };

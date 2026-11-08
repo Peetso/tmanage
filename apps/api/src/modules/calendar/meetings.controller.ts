@@ -20,6 +20,7 @@ import type {
   MeetingAttendeeInput,
   MeetingGuestEntry,
   MeetingGuestInput,
+  MeetingNoteDraftView,
   MeetingNoteView,
   MeetingOverviewView,
   MeetingView,
@@ -80,6 +81,25 @@ interface CreateMeetingNoteBody {
   readonly kind?: unknown;
   readonly body?: unknown;
 }
+
+/** 53-13. A draft from the member's own AI over MCP; `kind` defaults to `note`. */
+interface SubmitMeetingNoteDraftBody {
+  readonly kind?: unknown;
+  readonly body?: unknown;
+  readonly assistantName?: unknown;
+}
+
+/** 53-13. A person's review of a draft. */
+interface ReviewMeetingNoteDraftBody {
+  readonly decision?: unknown;
+  readonly kind?: unknown;
+  readonly body?: unknown;
+}
+
+/** `meeting_notes.assistant_name` is `VARCHAR(120)`. */
+const MAX_ASSISTANT_NAME_LENGTH = 120;
+/** Shown when a connector does not say which assistant it is. */
+const DEFAULT_ASSISTANT_NAME = 'AI assistant';
 
 @Controller('v1/organizations/:orgSlug/meetings')
 export class MeetingsController {
@@ -417,6 +437,106 @@ export class MeetingsController {
       body: noteBody,
     });
   }
+
+  /**
+   * 53-13. The member's own assistant submits a draft note over the MCP connector. It lands
+   * pending with its provenance; a person must Save or Discard it in TManage.
+   */
+  @Post(':meetingId/note-drafts')
+  @RequireCapability('meeting.write')
+  @HttpCode(201)
+  async submitNoteDraft(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('meetingId') meetingId: string,
+    @Body() body: SubmitMeetingNoteDraftBody,
+  ): Promise<MeetingNoteDraftView> {
+    const kind = body?.kind === undefined ? 'note' : parseKind(body.kind);
+    const noteBody = parseNoteBody(body?.body);
+    const rawName = typeof body?.assistantName === 'string' ? body.assistantName.trim() : '';
+    const details = [
+      ...(kind ? [] : [{ field: 'kind', message: "must be 'note' or 'decision'" }]),
+      ...(noteBody.ok ? [] : [{ field: 'body', message: noteBody.message }]),
+      ...(body?.assistantName !== undefined && typeof body.assistantName !== 'string'
+        ? [{ field: 'assistantName', message: 'must be a string' }]
+        : []),
+    ];
+    if (details.length > 0 || !kind || !noteBody.ok) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
+    }
+    return this.meetings.submitNoteDraft(context, principal, {
+      meetingId,
+      kind,
+      body: noteBody.value,
+      assistantName: (rawName || DEFAULT_ASSISTANT_NAME).slice(0, MAX_ASSISTANT_NAME_LENGTH),
+    });
+  }
+
+  /** 53-13. The drafts waiting for review on one meeting. */
+  @Get(':meetingId/note-drafts')
+  @RequireCapability('meeting.read')
+  async listNoteDrafts(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('meetingId') meetingId: string,
+  ): Promise<{ readonly drafts: readonly MeetingNoteDraftView[] }> {
+    return { drafts: await this.meetings.listNoteDrafts(context, principal, meetingId) };
+  }
+
+  /**
+   * 53-13. A person Saves (with their edits) or Discards a draft. Classified NEVER in the AI
+   * registry, so a connector token is refused here: the assistant can never approve its own draft.
+   */
+  @Post(':meetingId/note-drafts/:noteId/review')
+  @RequireCapability('meeting.write')
+  async reviewNoteDraft(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('meetingId') meetingId: string,
+    @Param('noteId') noteId: string,
+    @Body() body: ReviewMeetingNoteDraftBody,
+  ): Promise<{ readonly decision: 'save' | 'discard'; readonly note: MeetingNoteView | null }> {
+    const decision =
+      body?.decision === 'save' || body?.decision === 'discard' ? body.decision : undefined;
+    const kind = body?.kind === undefined ? undefined : parseKind(body.kind);
+    const noteBody = body?.body === undefined ? undefined : parseNoteBody(body.body);
+    const details = [
+      ...(decision ? [] : [{ field: 'decision', message: "must be 'save' or 'discard'" }]),
+      ...(body?.kind !== undefined && !kind
+        ? [{ field: 'kind', message: "must be 'note' or 'decision'" }]
+        : []),
+      ...(noteBody && !noteBody.ok ? [{ field: 'body', message: noteBody.message }] : []),
+    ];
+    if (details.length > 0 || !decision) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
+    }
+    const note = await this.meetings.reviewNoteDraft(context, principal, {
+      meetingId,
+      noteId,
+      decision,
+      ...(kind ? { kind } : {}),
+      ...(noteBody?.ok ? { body: noteBody.value } : {}),
+    });
+    return { decision, note };
+  }
+}
+
+function parseKind(value: unknown): MeetingNoteKind | undefined {
+  return typeof value === 'string' && (NOTE_KINDS as readonly string[]).includes(value)
+    ? (value as MeetingNoteKind)
+    : undefined;
+}
+
+function parseNoteBody(
+  value: unknown,
+):
+  { readonly ok: true; readonly value: string } | { readonly ok: false; readonly message: string } {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text) return { ok: false, message: 'must be a non-empty string' };
+  if (text.length > MAX_NOTE_BODY_LENGTH) {
+    return { ok: false, message: `must be ${MAX_NOTE_BODY_LENGTH} characters or fewer` };
+  }
+  return { ok: true, value: text };
 }
 
 /**

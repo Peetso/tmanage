@@ -869,6 +869,25 @@ export const projectsDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'List project templates', args: {} }],
   }),
   det({
+    id: 'projects.templates.packs.install.create',
+    title: 'Install a project template pack',
+    description:
+      'Install a built-in template pack: adds its project templates, skipping names already in use.',
+    input: bodyArgs(['packKey'], {}),
+    redact: 'standard',
+    examples: [
+      { summary: 'Install a project template pack', args: { packKey: 'monthly-retainer' } },
+    ],
+  }),
+  det({
+    id: 'projects.templates.packs.list',
+    title: 'List project template packs',
+    description: 'List the built-in project template packs and whether each is installed.',
+    input: listArgs(),
+    redact: 'standard',
+    examples: [{ summary: 'List project template packs', args: {} }],
+  }),
+  det({
     id: 'projects.updates.comments.create',
     title: 'Create project updates comments',
     description: 'Create project updates comments. Notifies the people involved.',

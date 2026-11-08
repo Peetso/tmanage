@@ -99,6 +99,16 @@ function stubClient(overrides: Partial<TManageApiClient> = {}): TManageApiClient
       body,
       createdAt: 'now',
     }),
+    submitMeetingNoteDraft: async (_o, meetingId, input) => ({
+      id: 'd1',
+      meetingId,
+      kind: input.kind ?? 'note',
+      body: input.body,
+      authorUserId: 'u1',
+      source: 'mcp',
+      assistantName: input.assistantName ?? 'AI assistant',
+      submittedAt: 'now',
+    }),
   };
   return { ...base, ...overrides };
 }
@@ -110,6 +120,7 @@ describe('TManage MCP tools', () => {
       [
         'add_comment',
         'create_work_item',
+        'draft_meeting_notes',
         'get_document',
         'get_project',
         'get_work_item',
@@ -148,6 +159,38 @@ describe('TManage MCP tools', () => {
     const result = await tools.get('create_work_item')!({ project_id: 'p1', title: 'New' });
     expect(result.content[0]!.text).toContain('w9');
     expect(result.content[0]!.text).toContain('"title": "New"');
+  });
+
+  it('draft_meeting_notes submits a pending draft with provenance and says it is not saved', async () => {
+    let seen: { meetingId: string; input: unknown } | undefined;
+    const tools = collectTools(
+      stubClient({
+        submitMeetingNoteDraft: async (_o, meetingId, input) => {
+          seen = { meetingId, input };
+          return {
+            id: 'd1',
+            meetingId,
+            kind: 'decision',
+            body: input.body,
+            authorUserId: 'u1',
+            source: 'mcp',
+            assistantName: 'Claude',
+            submittedAt: 'now',
+          };
+        },
+      }),
+    );
+    const result = await tools.get('draft_meeting_notes')!({
+      meeting_id: 'm1',
+      body: 'Launch moves',
+      kind: 'decision',
+      assistant_name: 'Claude',
+    });
+    expect(seen).toEqual({
+      meetingId: 'm1',
+      input: { body: 'Launch moves', kind: 'decision', assistantName: 'Claude' },
+    });
+    expect(result.content[0]!.text).toContain('not saved until a person saves it');
   });
 
   it('surfaces an API error as a non-throwing tool error', async () => {

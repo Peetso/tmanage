@@ -3112,6 +3112,24 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'write',
     scope: 'write',
   },
+  // 53-13. The member's own AI drafts a meeting note; it lands pending and a person reviews it
+  // (the review route is NEVER, so the assistant can never approve its own draft).
+  {
+    id: 'meetings.note_drafts.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/meetings/:meetingId/note-drafts',
+    capability: 'meeting.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'meetings.note_drafts.submit',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/meetings/:meetingId/note-drafts',
+    capability: 'meeting.write',
+    risk: 'write',
+    scope: 'write',
+  },
   {
     id: 'meetings.rsvp.list',
     method: 'GET',
@@ -4635,6 +4653,22 @@ export const OPS: readonly AiActionOp[] = [
     id: 'projects.templates.instantiate.create',
     method: 'POST',
     path: '/v1/organizations/:orgSlug/projects/templates/:templateId/instantiate',
+    capability: 'project.manage',
+    risk: 'write',
+    scope: 'write',
+  },
+  {
+    id: 'projects.templates.packs.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/projects/templates/packs/',
+    capability: 'project.manage',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'projects.templates.packs.install.create',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/projects/templates/packs/:packKey/install',
     capability: 'project.manage',
     risk: 'write',
     scope: 'write',

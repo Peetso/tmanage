@@ -299,6 +299,33 @@ export const calendarDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'Add', args: { meetingId: 'mtg_1', body: 'Discussed scope' } }],
   }),
   det({
+    id: 'meetings.note_drafts.list',
+    title: 'List meeting note drafts',
+    description: 'Draft notes from an AI assistant still waiting for a person to review them.',
+    input: pathOnly('meetingId'),
+    redact: 'standard',
+    examples: [{ summary: 'Drafts', args: { meetingId: 'mtg_1' } }],
+  }),
+  det({
+    id: 'meetings.note_drafts.submit',
+    title: 'Draft meeting notes for review',
+    description:
+      'Submit a draft note or decision for a meeting. It is not saved until a person reviews ' +
+      'it in TManage and chooses Save or Discard.',
+    input: bodyArgs(['meetingId'], {
+      body: f.text(8_000),
+      kind: z.enum(['note', 'decision']).optional(),
+      assistantName: f.text(120).optional(),
+    }),
+    redact: 'standard',
+    examples: [
+      {
+        summary: 'Draft',
+        args: { meetingId: 'mtg_1', body: 'Launch moves to 20 Nov', assistantName: 'Claude' },
+      },
+    ],
+  }),
+  det({
     id: 'meetings.rsvp.list',
     title: 'List meeting RSVPs',
     description: 'Who has RSVPed to a meeting.',

@@ -174,6 +174,7 @@ import type { PasswordResetRequestedView as WebPasswordResetRequestedView } from
 import type { InvitationView as ApiInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { MeetingNoteView as ApiMeetingNoteView } from '../../apps/api/src/modules/calendar/meetings.service.js';
+import type { MeetingNoteDraftView as ApiMeetingNoteDraftView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MeetingView as ApiMeetingView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MeetingOverviewView as ApiMeetingOverviewView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type {
@@ -693,6 +694,7 @@ import type {
   IssuedInvitation as WebIssuedInvitation,
 } from '../../apps/web/src/lib/api/invitations';
 import type { MeetingNoteView as WebMeetingNoteView } from '../../apps/web/src/lib/api/meetings';
+import type { MeetingNoteDraftView as WebMeetingNoteDraftView } from '../../apps/web/src/lib/api/meetings';
 import type { MeetingView as WebMeetingView } from '../../apps/web/src/lib/api/meetings';
 import type { MeetingOverviewView as WebMeetingOverviewView } from '../../apps/web/src/lib/api/meetings';
 import type {
@@ -1347,6 +1349,9 @@ type _personAllocation = Assert<Exact<ApiPersonAllocationView, WebPersonAllocati
  * read screen and its `apps/web` shape, so the exemption was retired and the view is paired Exact.
  */
 type _meetingNote = Assert<Exact<ApiMeetingNoteView, WebMeetingNoteView>>;
+
+/** 53-13. `MeetingNoteDraftView` (`GET`/`POST …/meetings/:id/note-drafts`) — the review queue. */
+type _meetingNoteDraft = Assert<Exact<ApiMeetingNoteDraftView, WebMeetingNoteDraftView>>;
 
 /**
  * DOC-02/DOC-03 (x112). `DocumentVersionView` (`GET`/`POST …/documents/:id/versions[/:n]`,

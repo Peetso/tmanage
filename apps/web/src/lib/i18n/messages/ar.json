@@ -17522,5 +17522,16 @@
   "TemplatePacks.pack.monthly-retainer.name": "عقد شهري",
   "TemplatePacks.pack.monthly-retainer.description": "شهر متكرر من عمل العميل مع تقرير في نهايته.",
   "TemplatePacks.pack.product-sprint-kit.name": "عُدّة سباق المنتج",
-  "TemplatePacks.pack.product-sprint-kit.description": "الاستكشاف وسباق بناء لأسبوعين وقائمة تحقق للإصدار."
+  "TemplatePacks.pack.product-sprint-kit.description": "الاستكشاف وسباق بناء لأسبوعين وقائمة تحقق للإصدار.",
+  "MeetingNoteDrafts.regionAria": "مسودات من مساعدك الذكي",
+  "MeetingNoteDrafts.heading": "مسودات من مساعدك الذكي",
+  "MeetingNoteDrafts.hint": "أرسل مساعدك هذه المسودة عبر موصل TManage. لن تصبح ملاحظة حتى تحفظها.",
+  "MeetingNoteDrafts.draft": "مسودة",
+  "MeetingNoteDrafts.viaMcp": "عبر MCP",
+  "MeetingNoteDrafts.kindAria": "ملاحظة أو قرار",
+  "MeetingNoteDrafts.bodyLabel": "نص المسودة",
+  "MeetingNoteDrafts.save": "حفظ الملاحظة",
+  "MeetingNoteDrafts.discard": "تجاهل",
+  "MeetingNoteDrafts.errorTitle": "تعذّر تحديث المسودة",
+  "MeetingNoteDrafts.reviewedFrom": "حُفظت بعد المراجعة · من"
 }

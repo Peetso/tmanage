@@ -271,4 +271,50 @@ export function registerTools(server: McpServer, client: TManageApiClient): void
       }
     },
   );
+
+  server.registerTool(
+    'draft_meeting_notes',
+    {
+      title: 'Draft meeting notes for review',
+      description:
+        'Submit a draft note or decision for a TManage calendar meeting. The draft is NOT saved: ' +
+        'it waits on the meeting’s Notes page until a person reviews it, edits it if needed, and ' +
+        'chooses Save or Discard. Use one call per note or decision.',
+      inputSchema: {
+        meeting_id: z.string().min(1).describe('The meeting the notes are for.'),
+        body: z.string().min(1).max(8000).describe('The draft note or decision text.'),
+        kind: z.enum(['note', 'decision']).optional().describe('Default "note".'),
+        assistant_name: z
+          .string()
+          .max(120)
+          .optional()
+          .describe('Your assistant name, shown to the reviewer (defaults to the MCP client).'),
+      },
+    },
+    async (args) => {
+      try {
+        const orgSlug = await client.resolveOrgSlug();
+        const assistantName = args.assistant_name ?? connectedClientName(server);
+        const draft = await client.submitMeetingNoteDraft(orgSlug, args.meeting_id, {
+          body: args.body,
+          ...(args.kind !== undefined ? { kind: args.kind } : {}),
+          ...(assistantName !== undefined ? { assistantName } : {}),
+        });
+        return ok(
+          `Draft ${draft.id} is waiting for review in TManage — it is not saved until a person saves it.`,
+          { orgSlug, draft },
+        );
+      } catch (error) {
+        return fail(error);
+      }
+    },
+  );
+}
+
+/** The connected MCP client's own name (`initialize` clientInfo), when the transport has one. */
+function connectedClientName(server: McpServer): string | undefined {
+  const low = (server as { server?: { getClientVersion?: () => { name?: string } | undefined } })
+    .server;
+  const name = low?.getClientVersion?.()?.name;
+  return typeof name === 'string' && name.trim() !== '' ? name.trim().slice(0, 120) : undefined;
 }

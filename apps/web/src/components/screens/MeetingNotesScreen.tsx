@@ -15,6 +15,7 @@ import type { ApiClient } from '../../lib/api/client';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useT } from '../../lib/i18n/use-t';
 import { MeetingBackLink, MeetingHeaderActions } from './MeetingsScreen';
+import { MeetingNoteDraftsPanel } from './MeetingNoteDraftsPanel';
 import '../../styles/screens/calendar.css';
 
 export interface MeetingNotesScreenProps {
@@ -42,8 +43,9 @@ export interface MeetingNotesScreenProps {
  * - **A decision is visually distinct from a note.** Each row carries a {@link StateCapsule} whose
  *   word, colour *and* shape differ (`◆ Decision` versus `■ Note`), so the distinction survives
  *   the high-contrast theme and a screen reader alike — it is never colour alone.
- * - **Authoring and the decision approval/lock lifecycle are not here.** The write side and a
- *   decision's status are x105-b; this screen only reads.
+ * - **Drafts from the member's own AI wait above the list (53-13).** A draft submitted over the
+ *   MCP connector is reviewed here — edited, then Saved or Discarded — before it becomes a note;
+ *   a saved draft shows which assistant drafted it.
  *
  * A meeting id is required: notes are per-meeting by definition, and the API resolves the meeting
  * tenant-scoped before the relation check, so an unknown or cross-tenant id comes back 404 and the
@@ -110,6 +112,14 @@ export function MeetingNotesScreen({
             </InlineAlert>
           ) : null}
 
+          {meetingId !== '' && !notFound && !notes.isError ? (
+            <MeetingNoteDraftsPanel
+              api={api}
+              organizationSlug={organizationSlug}
+              meetingId={meetingId}
+            />
+          ) : null}
+
           {meetingId !== '' && notes.isPending ? (
             <LoadingRegion label={t('MeetingNotesScreen.loadingLabel')}>
               <Skeleton height="var(--row)" />
@@ -152,6 +162,11 @@ export function MeetingNotesScreen({
                       <time className="tm-cal-item__meta" dateTime={note.createdAt}>
                         {formatInstant(note.createdAt)}
                       </time>
+                      {note.source === 'mcp' ? (
+                        <span className="tm-cal-item__meta tm-cal-item__meta--from">
+                          · {t('MeetingNoteDrafts.reviewedFrom')} {note.assistantName}
+                        </span>
+                      ) : null}
                     </div>
                     <span className="tm-cal-item__end">
                       <StateCapsule state={kindCapsule(note.kind)}>

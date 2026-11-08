@@ -542,7 +542,10 @@ GRANT INSERT, UPDATE         ON `tmanage`.`documents`        TO 'tmanage_app'@'%
 -- captured note is an append-only record. When a decision-lifecycle surface lands (x105-b),
 -- UPDATE is added with the code that writes it, per this file's rule that a grant names a
 -- statement that exists (the same treatment `meetings` and `documents` have above).
-GRANT INSERT                 ON `tmanage`.`meeting_notes`    TO 'tmanage_app'@'%';
+-- 53-13 (0326): a draft from the customer's own AI lands `pending`; a person saves it (UPDATE,
+-- pending rows only — 0326's trigger still refuses any change to a saved note) or discards it
+-- (DELETE of the pending row; nothing references a draft).
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`meeting_notes`    TO 'tmanage_app'@'%';
 -- CAL-01 / MTG-01 attendees + RSVP (x126). An attendee is invited (INSERT) and their RSVP is
 -- changed in place (UPDATE) — this slice ships invite/list/RSVP — so INSERT and UPDATE and **no
 -- DELETE**: there is no un-invite endpoint, least privilege, and 0042's trigger pins

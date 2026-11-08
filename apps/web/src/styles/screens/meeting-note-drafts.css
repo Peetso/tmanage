@@ -1,0 +1,52 @@
+/* 53-13: drafts from the member's own AI, reviewed before they are saved (Figma 566:32285). */
+
+.tm-note-drafts {
+  background: var(--lime-100);
+}
+
+.tm-note-drafts__hint {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  color: var(--ink-650);
+  text-wrap: pretty;
+}
+
+.tm-note-draft {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-inline-size: 0;
+  padding: var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-note-draft__top,
+.tm-note-draft__kinds,
+.tm-note-draft__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-note-draft__kinds {
+  gap: var(--s2);
+}
+
+.tm-note-draft__prov {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  font-size: var(--t-caption);
+  color: var(--ink-500);
+}
+
+.tm-note-draft__body {
+  min-block-size: 96px;
+  resize: vertical;
+}
+
+.tm-cal-item__meta--from {
+  margin-inline-start: var(--s2);
+}
