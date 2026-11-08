@@ -6,6 +6,7 @@ import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { workItems } from '../../common/database/schema.js';
 import type { WorkItemRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+import { clientAudienceVisible } from './work-item-client-audience.repository.js';
 
 /**
  * Work items — WORK-001's storage half, and the child-of-a-tenant-parent ADR-0001 uses as
@@ -201,6 +202,9 @@ export class WorkItemsRepository {
     }
     if (!options.includeDeleted) predicates.push(isNull(workItems.deletedAt));
     if (options.after) predicates.push(gt(workItems.id, options.after));
+    // C25: a client principal reads only items not narrowed away from their client company.
+    const visible = clientAudienceVisible(context);
+    if (visible) predicates.push(visible);
 
     return tenantDrizzle(runner)
       .select()
@@ -297,7 +301,11 @@ export class WorkItemsRepository {
       .select()
       .from(workItems)
       .where(
-        and(eq(workItems.organizationId, context.organizationId), eq(workItems.id, workItemId)),
+        and(
+          eq(workItems.organizationId, context.organizationId),
+          eq(workItems.id, workItemId),
+          clientAudienceVisible(context), // C25: absent for a client company not listed
+        ),
       )
       .limit(1);
     return rows[0] ?? null;
@@ -324,6 +332,7 @@ export class WorkItemsRepository {
         and(
           eq(workItems.organizationId, context.organizationId),
           inArray(workItems.id, [...workItemIds]),
+          clientAudienceVisible(context), // C25
         ),
       );
   }

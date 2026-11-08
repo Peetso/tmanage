@@ -11,6 +11,7 @@ import {
 } from '../../common/database/schema.js';
 import type { WorkBlockerRow, WorkItemDependencyRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+import { clientAudienceVisible } from './work-item-client-audience.repository.js';
 import { unwrapQueryError } from '../../common/database/query-error.js';
 
 /**
@@ -362,6 +363,7 @@ export class WorkGraphRepository {
         and(
           eq(workItemDependencies.organizationId, context.organizationId),
           eq(workItemDependencies.workItemId, workItemId),
+          clientAudienceVisible(context), // C25: a narrowed predecessor is not disclosed
         ),
       )
       .orderBy(asc(workItemDependencies.id));
@@ -406,6 +408,7 @@ export class WorkGraphRepository {
         and(
           eq(workItemDependencies.organizationId, context.organizationId),
           inArray(workItemDependencies.workItemId, workItemIds),
+          clientAudienceVisible(context), // C25: a narrowed predecessor is not disclosed
         ),
       )
       .orderBy(asc(workItemDependencies.workItemId), asc(workItemDependencies.id));

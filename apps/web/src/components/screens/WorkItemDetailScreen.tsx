@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { workItemStateMachine } from '@tmanage/domain';
 import type { WorkItemState } from '@tmanage/domain';
-import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { Button, Checkbox, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { MemberSelect } from '../MemberSelect';
 import './work-core.css';
@@ -19,6 +19,7 @@ import {
   detachWorkItemFile,
   duplicateWorkItem,
   getWorkItem,
+  getWorkItemClientAudience,
   listWorkItemFiles,
   transitionWorkItem,
   updateWorkItem,
@@ -419,6 +420,24 @@ function WorkItemBody({
   const clientId = shares.data?.[0]?.clientOrganizationId;
   const clientName = clientOptions.data?.find((option) => option.id === clientId)?.name;
 
+  // C25: on a project shared with more than one client company, a client-facing item can be
+  // limited to some of them ("Which clients can see this?", Figma 529:30880).
+  const projectClients: readonly ProjectClientChoice[] =
+    item.audience === 'internal'
+      ? []
+      : (shares.data ?? []).map((share) => ({
+          id: share.clientOrganizationId,
+          name:
+            clientOptions.data?.find((option) => option.id === share.clientOrganizationId)?.name ??
+            '',
+        }));
+  const clientAudience = useQuery({
+    queryKey: ['work-item-client-audience', organizationSlug, item.id],
+    queryFn: () => getWorkItemClientAudience(api, organizationSlug, item.id),
+    enabled: projectClients.length > 1,
+  });
+  const tickedClients = tickedClientIds(projectClients, clientAudience.data ?? []);
+
   // Deliverable-backed files: a file of this item that is a version of one of the project's
   // deliverables. Only those carry a version history, a reviewer and "Upload new version".
   const attached = files.data ?? [];
@@ -588,6 +607,13 @@ function WorkItemBody({
               : ta('WorkDetail.clientCanSee')}
           </span>
         ) : null}
+        {projectClients.length > 1 && tickedClients.length < projectClients.length ? (
+          <span className="tm-wk-pill" data-tone="client" data-testid="work-item-client-count">
+            {t('WorkItemDetailScreen.clientCount')
+              .replace('{count}', String(tickedClients.length))
+              .replace('{total}', String(projectClients.length))}
+          </span>
+        ) : null}
       </div>
 
       <div className="tm-wk-fact-chips" role="group" aria-label={ta('WorkDetail.factsLabel')}>
@@ -717,6 +743,8 @@ function WorkItemBody({
               item={item}
               api={api}
               organizationSlug={organizationSlug}
+              projectClients={projectClients}
+              tickedClients={tickedClients}
               onChanged={onChanged}
               onError={handleWriteError}
             />
@@ -1652,16 +1680,22 @@ function AudiencePanel({
   item,
   api,
   organizationSlug,
+  projectClients,
+  tickedClients,
   onChanged,
   onError,
 }: {
   item: WorkItemSummary;
   api: ApiClient;
   organizationSlug: string;
+  /** C25: the project's client companies; the picker shows only when there is more than one. */
+  projectClients: readonly ProjectClientChoice[];
+  tickedClients: readonly string[];
   onChanged: (next: WorkItemSummary) => void;
   onError: (error: unknown) => void;
 }) {
   const t = useT();
+  const queryClient = useQueryClient();
   const [pending, setPending] = useState<WorkItemAudience | undefined>(undefined);
   const change = useMutation({
     mutationFn: (audience: WorkItemAudience) =>
@@ -1669,6 +1703,23 @@ function AudiencePanel({
     onSuccess: (next) => {
       onChanged(next);
       setPending(undefined);
+      void queryClient.invalidateQueries({
+        queryKey: ['work-item-client-audience', organizationSlug, item.id],
+      });
+    },
+    onError,
+  });
+  const clients = useMutation({
+    mutationFn: (clientOrganizationIds: readonly string[]) =>
+      updateWorkItem(api, organizationSlug, item.id, {
+        version: item.version,
+        clientOrganizationIds,
+      }),
+    onSuccess: (next) => {
+      onChanged(next);
+      void queryClient.invalidateQueries({
+        queryKey: ['work-item-client-audience', organizationSlug, item.id],
+      });
     },
     onError,
   });
@@ -1694,6 +1745,30 @@ function AudiencePanel({
           </Button>
         ))}
       </div>
+      {item.audience !== 'internal' && projectClients.length > 1 ? (
+        <fieldset className="tm-wk-clients" data-testid="work-item-client-picker">
+          <legend className="tm-wk-clients__label">{t('WorkItemDetailScreen.whichClients')}</legend>
+          {projectClients.map((client) => {
+            const checked = tickedClients.includes(client.id);
+            return (
+              <Checkbox
+                key={client.id}
+                label={client.name}
+                checked={checked}
+                disabled={clients.isPending || (checked && tickedClients.length === 1)}
+                onChange={() =>
+                  clients.mutate(
+                    checked
+                      ? tickedClients.filter((id) => id !== client.id)
+                      : [...tickedClients, client.id],
+                  )
+                }
+              />
+            );
+          })}
+          <p className="tm-wk-facts__note">{t('WorkItemDetailScreen.atLeastOneClient')}</p>
+        </fieldset>
+      ) : null}
       {pending !== undefined ? (
         <InlineAlert tone="client" title={t('WorkItemDetailScreen.showToClientTitle')} live>
           <p className="tm-prose">
@@ -1718,4 +1793,23 @@ function AudiencePanel({
       ) : null}
     </section>
   );
+}
+
+/** C25: a client company the project is shared with, as the picker lists it. */
+interface ProjectClientChoice {
+  readonly id: string;
+  readonly name: string;
+}
+
+/**
+ * C25: the ticked companies. The API's empty list means "every client of the project", so every
+ * box is ticked; a listed company the project is no longer shared with is not shown or counted.
+ */
+function tickedClientIds(
+  projectClients: readonly ProjectClientChoice[],
+  listed: readonly string[],
+): readonly string[] {
+  const ids = projectClients.map((client) => client.id);
+  if (listed.length === 0) return ids;
+  return ids.filter((id) => listed.includes(id));
 }

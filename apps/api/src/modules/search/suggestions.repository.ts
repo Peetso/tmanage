@@ -2,6 +2,7 @@ import { and, asc, desc, eq, isNull, like } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { documents, projects, workItems } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+import { clientAudienceVisible } from '../work/work-item-client-audience.repository.js';
 
 /**
  * SRCH typeahead / suggestions (x289). The read side of the prefix typeahead — a tenant-scoped
@@ -85,6 +86,7 @@ export class SuggestionsRepository {
           eq(projects.organizationId, org),
           isNull(workItems.deletedAt),
           like(workItems.title, pattern),
+          clientAudienceVisible(context), // C25
         ),
       )
       .orderBy(desc(workItems.updatedAt), asc(workItems.title), asc(workItems.id))

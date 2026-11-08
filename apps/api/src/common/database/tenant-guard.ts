@@ -1283,6 +1283,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0313. An organization's envelope-encrypted secrets (the ZATCA signing certificate). Written
   // behind org.security.manage + step-up; decrypted only by the finance signing service.
   org_secrets: 'organization_id',
+  // ---- R32 · C25 ----
+  // 0317. The client companies a client-facing work item is narrowed to (no rows = all of the
+  // project's clients). Written by the work-item update; read by every client work-item read.
+  work_item_client_audience: 'organization_id',
 });
 
 /**

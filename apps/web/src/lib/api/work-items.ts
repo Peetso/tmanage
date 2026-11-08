@@ -122,6 +122,8 @@ export interface UpdateWorkItemInput {
   readonly audience?: WorkItemAudience;
   readonly startAt?: string | null;
   readonly dueAt?: string | null;
+  /** C25: the client companies that may see a client-facing item; all ticked = all. */
+  readonly clientOrganizationIds?: readonly string[];
 }
 
 export async function updateWorkItem(
@@ -136,6 +138,21 @@ export async function updateWorkItem(
     body: input,
   });
   return data;
+}
+
+/**
+ * C25: `GET work-items/:id/client-audience` — the client companies a client-facing item is
+ * limited to. An empty list means every client company the project is shared with.
+ */
+export async function getWorkItemClientAudience(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+): Promise<readonly string[]> {
+  const { data } = await client.request<{ clientOrganizationIds: readonly string[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/client-audience`,
+  });
+  return data.clientOrganizationIds;
 }
 
 /**

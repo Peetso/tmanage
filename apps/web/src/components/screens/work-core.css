@@ -2079,3 +2079,22 @@ button.tm-wk-chip[aria-expanded='true'] {
   flex-direction: column;
   gap: var(--s2);
 }
+
+/* C25: "Which clients can see this?" under the audience choice (Figma 529:30880). */
+.tm-wk-clients {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: var(--s4) 0 0;
+  padding: var(--s4) 0 0;
+  border: 0;
+  border-top: 1px solid var(--line-300);
+}
+
+.tm-wk-clients__label {
+  padding: 0;
+  margin-bottom: var(--s1);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}

@@ -85,6 +85,8 @@ interface UpdateWorkItemBody {
   /** 53-21: story points (null | 0..100) and the iteration (null = backlog). */
   readonly points?: unknown;
   readonly iterationId?: unknown;
+  /** C25: the client companies that may see a client-facing item; all ticked = all. */
+  readonly clientOrganizationIds?: unknown;
 }
 
 interface TransitionBody {
@@ -243,6 +245,11 @@ export class WorkItemsController {
     }
 
     const planning = parsePlanningFields(body, details); // 53-21
+    const clientOrganizationIds = optionalIdList(
+      body?.clientOrganizationIds,
+      'clientOrganizationIds',
+      details,
+    );
     if (details.length > 0 || version === undefined) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
     }
@@ -258,7 +265,22 @@ export class WorkItemsController {
       ...(ownerUserId === undefined ? {} : { ownerUserId }),
       ...(startAt === undefined ? {} : { startAt }),
       ...(dueAt === undefined ? {} : { dueAt }),
+      ...(clientOrganizationIds === undefined ? {} : { clientOrganizationIds }),
     });
+  }
+
+  /**
+   * C25: the client companies a client-facing item is narrowed to (`[]` = every client of the
+   * project). Internal callers only; a client gets the same 404 as for an item they cannot read.
+   */
+  @Get(':workItemId/client-audience')
+  @RequireCapability('work.read')
+  async clientAudience(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('workItemId') workItemId: string,
+  ): Promise<{ readonly clientOrganizationIds: readonly string[] }> {
+    return this.workItems.clientAudienceOf(context, principal, workItemId);
   }
 
   /**
@@ -475,6 +497,24 @@ function optionalDescription(
     return undefined;
   }
   return value === '' ? null : value;
+}
+
+/** C25: a list of ids — at most 100, each a non-empty string of at most 64 characters. */
+function optionalIdList(
+  raw: unknown,
+  field: string,
+  details: { field: string; message: string }[],
+): readonly string[] | undefined {
+  if (raw === undefined) return undefined;
+  if (
+    !Array.isArray(raw) ||
+    raw.length > 100 ||
+    raw.some((id) => typeof id !== 'string' || id.length === 0 || id.length > 64)
+  ) {
+    details.push({ field, message: 'must be a list of at most 100 ids' });
+    return undefined;
+  }
+  return raw as string[];
 }
 
 function optionalAudience(

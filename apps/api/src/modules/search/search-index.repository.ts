@@ -11,6 +11,7 @@ import {
   workItems,
 } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+import { clientAudienceVisible } from '../work/work-item-client-audience.repository.js';
 
 /**
  * SRCH (COL-04). The read side of global search.
@@ -146,6 +147,9 @@ export class SearchIndexRepository {
         predicates.push(inArray(workItems.audience, [...audiences]));
       }
       if (updatedSince) predicates.push(gte(workItems.updatedAt, updatedSince));
+      // C25: a client never finds an item narrowed away from their client company.
+      const visible = clientAudienceVisible(context);
+      if (visible) predicates.push(visible);
       const rows = await db
         .select({
           projectId: workItems.projectId,

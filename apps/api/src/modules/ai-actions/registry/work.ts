@@ -77,6 +77,17 @@ export const workDetails: readonly AiActionDetail[] = [
     redact: 'standard',
     examples: [{ summary: 'List work item blockers', args: { workItemId: 'wi_1' } }],
   }),
+  // R32 C25.
+  det({
+    id: 'work_items.client_audience.list',
+    title: 'Which clients can see a work item',
+    description:
+      'The client companies a client-facing work item is limited to. An empty list means every ' +
+      'client company the project is shared with.',
+    input: listArgs(['workItemId']),
+    redact: 'standard',
+    examples: [{ summary: 'Who can see this task', args: { workItemId: 'wi_1' } }],
+  }),
   det({
     id: 'work_items.bulk_transition.create',
     title: 'Create work item bulk transition',
@@ -591,6 +602,8 @@ export const workDetails: readonly AiActionDetail[] = [
       audience: z.enum(['internal', 'client_visible', 'client_action_required']).optional(),
       startAt: f.iso().optional(),
       dueAt: f.iso().optional(),
+      // C25: limit a client-facing item to some of the project's client companies.
+      clientOrganizationIds: z.array(f.id()).max(100).optional(),
     }),
     redact: 'standard',
     examples: [

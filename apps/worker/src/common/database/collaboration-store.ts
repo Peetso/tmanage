@@ -314,6 +314,8 @@ export async function findProjectOwnerId(
 export interface ClientActionCandidate {
   readonly userId: string;
   readonly role: string;
+  /** C25: the person's client company, so a narrowed work item reaches only the listed ones. */
+  readonly clientOrganizationId?: string;
 }
 
 /**
@@ -325,8 +327,10 @@ export async function listProjectClientPeople(
   organizationId: string,
   projectId: string,
 ): Promise<readonly ClientActionCandidate[]> {
-  const rows = await tx.query<readonly { user_id: string; role: string }[]>(
-    `SELECT DISTINCT cm.user_id, cm.role
+  const rows = await tx.query<
+    readonly { user_id: string; role: string; client_organization_id?: string }[]
+  >(
+    `SELECT DISTINCT cm.user_id, cm.role, cm.client_organization_id
        FROM client_memberships cm
        JOIN project_clients pc
          ON pc.organization_id = cm.organization_id
@@ -337,7 +341,30 @@ export async function listProjectClientPeople(
         AND (cm.expires_at IS NULL OR cm.expires_at > NOW(3))`,
     [organizationId, projectId],
   );
-  return rows.map((row) => ({ userId: row.user_id, role: row.role }));
+  return rows.map((row) => ({
+    userId: row.user_id,
+    role: row.role,
+    ...(row.client_organization_id === undefined
+      ? {}
+      : { clientOrganizationId: row.client_organization_id }),
+  }));
+}
+
+/**
+ * C25 (0317): the client companies a work item is narrowed to. Empty means every client company
+ * the project is shared with — the meaning of every item written before 0317.
+ */
+export async function listWorkItemClientAudience(
+  tx: WorkerTransaction,
+  organizationId: string,
+  workItemId: string,
+): Promise<readonly string[]> {
+  const rows = await tx.query<readonly { client_organization_id: string }[]>(
+    `SELECT client_organization_id FROM work_item_client_audience
+      WHERE organization_id = ? AND work_item_id = ?`,
+    [organizationId, workItemId],
+  );
+  return rows.map((row) => row.client_organization_id);
 }
 
 /** An enabled automation rule, as the runner needs it. */

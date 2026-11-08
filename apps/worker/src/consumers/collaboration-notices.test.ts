@@ -138,6 +138,39 @@ describe('planClientActionNotices (APR-03)', () => {
     expect(notices.map((notice) => notice.recipientUserId)).toEqual(['rami']);
     expect(notices[0]?.inApp).toBeNull();
   });
+
+  it('C25: an item narrowed to one client company never emails another company’s people', async () => {
+    const { tx } = fakeTx((sql) => {
+      if (sql.includes('FROM work_items')) {
+        return [
+          {
+            title: 'Logo',
+            project_id: 'proj-1',
+            owner_user_id: null,
+            audience: 'client_action_required',
+          },
+        ];
+      }
+      if (sql.includes('FROM client_memberships')) {
+        return [
+          { user_id: 'rami', role: 'client_reviewer', client_organization_id: 'atlas' },
+          { user_id: 'noor', role: 'client_reviewer', client_organization_id: 'northwind' },
+        ];
+      }
+      if (sql.includes('FROM work_item_client_audience'))
+        return [{ client_organization_id: 'atlas' }];
+      return [];
+    });
+    const notices = await planClientActionNotices(
+      event('work_item.client_action_requested.v1', { workItemId: 'wi-1', projectId: 'proj-1' }),
+      tx,
+      new CollaborationMailer(
+        { send: () => Promise.resolve('sent' as const) },
+        'https://app.example',
+      ),
+    );
+    expect(notices.map((notice) => notice.recipientUserId)).toEqual(['rami']);
+  });
 });
 
 describe('automation runs (AUT-01)', () => {

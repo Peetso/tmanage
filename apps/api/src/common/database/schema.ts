@@ -13121,3 +13121,30 @@ export const orgSecrets = mysqlTable(
 export type OrgSecretRow = typeof orgSecrets.$inferSelect;
 
 Object.assign(TABLES, { org_secrets: orgSecrets });
+
+// ---- R32 · C25 which clients can see a client-facing task (0317) ----
+/**
+ * C25 (0317). The client companies a client-facing work item is narrowed to. No rows = every
+ * client company the project is shared with (every item written before 0317). Rows are replaced
+ * as a set by `PATCH work-items/:id` (`clientOrganizationIds`) and deleted when the item goes back
+ * to `internal`. A client principal's work-item reads filter on it in SQL. TENANT.
+ */
+export const workItemClientAudience = mysqlTable(
+  'work_item_client_audience',
+  {
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    clientOrganizationId: char('client_organization_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.organizationId, table.workItemId, table.clientOrganizationId],
+    }),
+    index('ix_wica_client').on(table.organizationId, table.clientOrganizationId, table.workItemId),
+  ],
+);
+
+export type WorkItemClientAudienceRow = typeof workItemClientAudience.$inferSelect;
+
+Object.assign(TABLES, { work_item_client_audience: workItemClientAudience });

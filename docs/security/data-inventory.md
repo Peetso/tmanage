@@ -21,13 +21,13 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 
 ## Totals
 
-Counted by hand on 2026-11-02 (56-28, R19-f; R21-f adds the three inbound e-mail tables; R22 adds `org_secrets` and `einvoice_chain_checks`).
+Counted by hand on 2026-11-02 (56-28, R19-f; R21-f adds the three inbound e-mail tables; R22 adds `org_secrets` and `einvoice_chain_checks`; R32 C25 adds `work_item_client_audience`).
 
-- Tables: 331 (100 % of `TABLES` once R19-b's `finance_exports` lands; `data-inventory.doc.test.ts` checks it without a database).
+- Tables: 332 (100 % of `TABLES` once R19-b's `finance_exports` lands; `data-inventory.doc.test.ts` checks it without a database).
 - `delete`: 254
 - `pseudonymise`: 4
 - `keep-fiscal-redacted`: 11
-- `none-no-personal-data`: 62
+- `none-no-personal-data`: 63
 - Today `enforced`: 224, `gap`: 45, `n/a`: 62.
 
 ## Planned tables
@@ -352,6 +352,7 @@ Not a table today — row reserved. Each gets a full inventory row in the slice 
 | `work_checklist_templates`        | `created_by`                                                                                           | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
 | `work_forms`                      | `created_by`                                                                                           | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
 | `work_item_checklist_items`       | -                                                                                                      | `none-no-personal-data` | n/a      | H3    | No personal field. Deleted with the company anyway (H3).                                                                                                                                                                                                                    |
+| `work_item_client_audience`       | -                                                                                                      | `none-no-personal-data` | n/a      | C25   | Which client companies may see a client-facing task (company ids only). Deleted with the work item and with the company (C25).                                                                                                                                              |
 | `work_item_code_links`            | `actor_login`                                                                                          | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
 | `work_item_comments`              | `author_membership_id`, `body`, `deleted_by_user_id`                                                   | `delete`                | enforced | H3    | Emptied by the company erasure (`CompanyErasure`, privacy-erasure.repository.ts).                                                                                                                                                                                           |
 | `work_item_custom_fields`         | -                                                                                                      | `none-no-personal-data` | n/a      | H3    | No personal field. Deleted with the company anyway (H3).                                                                                                                                                                                                                    |

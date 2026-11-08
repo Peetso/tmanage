@@ -2318,3 +2318,13 @@ GRANT SELECT ON `tmanage`.`client_credit_notes`                             TO '
 -- rotation job stamps with the new key id.
 GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`org_secrets`             TO 'tmanage_app'@'%';
 GRANT SELECT, UPDATE ON `tmanage`.`org_secrets`                             TO 'tmanage_worker'@'%';
+
+-- ---- R32 · C25 which clients can see a client-facing task ----
+-- 0317 `work_item_client_audience` (tenant): the client companies a client-facing work item is
+-- narrowed to; no rows = every client of the project. The app replaces the set on the work-item
+-- update and deletes it when the item goes back to `internal` (SELECT, INSERT, DELETE; DELETE also
+-- serves the company erasure). Rows are never rewritten, so no UPDATE. Every client work-item read
+-- filters on it. The worker reads it (SELECT) so the "client action needed" email reaches only the
+-- listed companies' people.
+GRANT SELECT, INSERT, DELETE ON `tmanage`.`work_item_client_audience`        TO 'tmanage_app'@'%';
+GRANT SELECT ON `tmanage`.`work_item_client_audience`                        TO 'tmanage_worker'@'%';

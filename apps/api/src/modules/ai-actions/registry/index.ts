@@ -5053,6 +5053,15 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'read',
     scope: 'read',
   },
+  // R32 C25: which of the project's client companies may see a client-facing item.
+  {
+    id: 'work_items.client_audience.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/client-audience',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
   {
     id: 'work_items.checklist.list',
     method: 'GET',

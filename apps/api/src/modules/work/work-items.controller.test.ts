@@ -11,6 +11,7 @@ import type { ObjectiveWorkLinksRepository } from '../projects/objective-work-li
 import type { WorkItemFilesRepository } from './item-files.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { WorkItemRow } from '../../common/database/schema.js';
+import type { WorkItemClientAudienceRepository } from './work-item-client-audience.repository.js';
 
 /**
  * A6 — the work item's description and the move to another project, proved database-free over
@@ -149,6 +150,11 @@ function harness() {
     memberships,
     objectiveLinks,
     itemFiles,
+    // C25: a move clears the item's client list; nothing is stored here.
+    {
+      list: async () => [],
+      replace: async () => undefined,
+    } as unknown as WorkItemClientAudienceRepository,
   );
   return {
     controller: new WorkItemsController(service),

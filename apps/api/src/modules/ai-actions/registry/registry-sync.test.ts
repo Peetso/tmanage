@@ -147,7 +147,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // R31 (A17 workspace incidents +1): +1, was 1292.
 // R31 (A13 people overview capacity/time-off/allocations +3 ops, A14 workload-hours read + capacity
 // PUT +2 ops): +5, was 1293.
-const EXPECTED_ROUTE_COUNT = 1298;
+// R32 (C25 GET work-items/:id/client-audience +1 op): +1, was 1298.
+const EXPECTED_ROUTE_COUNT = 1299;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

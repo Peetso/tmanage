@@ -38,6 +38,8 @@ import type { PredecessorHealthRow } from './work-graph.repository.js';
 import type { TypedDependencyInput } from './work-graph.repository.js';
 import { findCycle } from '@tmanage/domain';
 import { requestScheduleRecompute } from './schedule-stats.service.js';
+import { resolveClientAudience } from './work-item-client-audience.js';
+import { WorkItemClientAudienceRepository } from './work-item-client-audience.repository.js';
 import {
   applyWorkItemPlanning,
   type WorkItemPlanningChange,
@@ -353,6 +355,8 @@ export class WorkItemsService {
      * transaction. Stateless, so a default is safe, and appended last.
      */
     private readonly itemFiles: WorkItemFilesRepository = new WorkItemFilesRepository(),
+    /** C25 (0317): which of the project's client companies may see the item. Stateless. */
+    private readonly clientAudience: WorkItemClientAudienceRepository = new WorkItemClientAudienceRepository(),
   ) {}
 
   /**
@@ -541,6 +545,8 @@ export class WorkItemsService {
     requested: UpdateWorkItemInput & {
       /** 52-04: `true` / `false`, or `null` to inherit the project's `billable_default`. */
       readonly billable?: boolean | null;
+      /** C25: the client companies that may see a client-facing item (all ticked = all). */
+      readonly clientOrganizationIds?: readonly string[];
     } & WorkItemPlanningChange, // 53-21: points, iterationId
   ): Promise<WorkItemView & { readonly billable?: boolean | null } & WorkItemPlanningChange> {
     const before = await this.readForWrite(context, principal, workItemId, 'work.update');
@@ -581,6 +587,35 @@ export class WorkItemsService {
       input.audience !== before.audience &&
       input.audience !== 'internal';
 
+    // C25: narrowing a client-facing item to some of the project's client companies is a
+    // publication decision too, so it needs `deliverable.publish` like widening does. Back to
+    // `internal` (or into another project, whose clients are different) clears the list.
+    const clientIds = requested.clientOrganizationIds;
+    let nextClientAudience: readonly string[] | null = null;
+    if (clientIds !== undefined) {
+      if (audienceAfter === 'internal') {
+        throw new ApiError(422, 'validation_failed', 'An internal item has no client audience', [
+          { field: 'clientOrganizationIds', message: 'only a client-facing item can be narrowed' },
+        ]);
+      }
+      this.requirePublish(principal, context, targetProjectId);
+      const shares = await this.database.read(context, (runner) =>
+        this.projectClients.list(runner, context, { projectId: targetProjectId, limit: 200 }),
+      );
+      const resolved = resolveClientAudience(
+        clientIds,
+        shares.map((share) => share.clientOrganizationId),
+      );
+      if (!resolved.ok) {
+        throw new ApiError(422, 'validation_failed', 'The client list is invalid', [
+          { field: 'clientOrganizationIds', message: resolved.message },
+        ]);
+      }
+      nextClientAudience = resolved.stored;
+    } else if ((audienceAfter === 'internal' && before.audience !== 'internal') || moving) {
+      nextClientAudience = [];
+    }
+
     let planning: WorkItemPlanningResult | null = null; // 53-21
     const row = await this.writing(() =>
       this.database.transaction(context, async (tx) => {
@@ -599,6 +634,28 @@ export class WorkItemsService {
           // so neither list keeps disclosing the other project's titles or file names.
           await this.objectiveLinks.deleteForWorkItem(tx, context, workItemId);
           await this.itemFiles.detachOutsideProject(tx, context, workItemId, targetProjectId);
+        }
+
+        const listed = nextClientAudience;
+        if (listed !== null) {
+          const was = await this.clientAudience.list(tx, context, workItemId);
+          await this.clientAudience.replace(tx, context, workItemId, listed);
+          const changed = was.length !== listed.length || was.some((id) => !listed.includes(id));
+          if (changed && input.audience === undefined) {
+            await this.audit?.record(tx, context, {
+              action: 'work_item.audience_changed',
+              objectId: updated.id,
+              result: 'allowed',
+              metadata: {
+                project_id: updated.projectId,
+                audience_before: before.audience,
+                audience_after: updated.audience,
+                clients_listed_before: was.length,
+                clients_listed_after: listed.length,
+                widened: was.length > 0 && (listed.length === 0 || listed.length > was.length),
+              },
+            });
+          }
         }
 
         if (input.audience !== undefined && input.audience !== before.audience) {
@@ -664,6 +721,34 @@ export class WorkItemsService {
       ...((planning as WorkItemPlanningResult | null) ?? {}),
     };
     return requested.billable === undefined ? view : { ...view, billable: requested.billable };
+  }
+
+  /**
+   * C25: the client companies a client-facing item is narrowed to — `[]` when every client of
+   * the project may see it. Internal principals only: a client is never told who else can see
+   * an item, so a client asking is answered exactly as for an item they cannot read (404).
+   */
+  async clientAudienceOf(
+    context: TenantContext,
+    principal: Principal,
+    workItemId: string,
+  ): Promise<{ readonly clientOrganizationIds: readonly string[] }> {
+    const row =
+      principal.kind === 'client'
+        ? null
+        : await this.database.read(context, (runner) =>
+            this.workItems.findById(runner, context, workItemId),
+          );
+    if (!row || row.deletedAt !== null || !this.mayRead(principal, row)) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
+    const ids =
+      row.audience === 'internal'
+        ? []
+        : await this.database.read(context, (runner) =>
+            this.clientAudience.list(runner, context, workItemId),
+          );
+    return { clientOrganizationIds: ids };
   }
 
   /**

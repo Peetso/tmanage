@@ -30,6 +30,7 @@ import {
   isConversationMember,
   isNotificationKindEnabled,
   listProjectClientPeople,
+  listWorkItemClientAudience,
 } from '../common/database/collaboration-store.js';
 import type { InternalReach } from '../common/database/collaboration-store.js';
 import type { ClaimedOutboxEvent } from '../common/database/outbox-store.js';
@@ -501,8 +502,15 @@ export const planClientActionNotices: NoticePlanner = async (event, tx, mailer) 
   if (item === null || item.audience !== 'client_action_required') return [];
 
   const people = await listProjectClientPeople(tx, event.organizationId, projectId);
+  // C25: an item narrowed to some of the project's client companies asks only their people.
+  const listed = await listWorkItemClientAudience(tx, event.organizationId, workItemId);
   return people
     .filter((person) => mayClientDecide(person.role))
+    .filter(
+      (person) =>
+        listed.length === 0 ||
+        (person.clientOrganizationId !== undefined && listed.includes(person.clientOrganizationId)),
+    )
     .map((person): PlannedNotice => ({
       recipientUserId: person.userId,
       optOutKind: null,
