@@ -171,7 +171,7 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // +2, was 1360.
 // R46 L2 (54-05/54-06/56-21 channel notices + platform governance, +9 NEVER) and R46 L3 (53-10
 // document collab join/steps/snapshot/cursor, +5 NEVER `session`): +13, was 1362.
-const EXPECTED_ROUTE_COUNT = 1375;
+const EXPECTED_ROUTE_COUNT = 1378;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).
