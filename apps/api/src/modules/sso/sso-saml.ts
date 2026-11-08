@@ -13,6 +13,7 @@ import {
   childElements,
   descendants,
   exclusiveCanonicalize,
+  hasCommentOrInstruction,
   parseStrictXml,
   type XmlElement,
 } from './saml-xml.js';
@@ -483,6 +484,8 @@ export function verifySamlResponse(input: {
     reject(assertions.length === 0 ? 'malformed' : 'wrapped');
   }
   const assertion = direct[0]!;
+  // 56-10s: a comment or PI inside the assertion is invisible to the digest but splits its text.
+  if (hasCommentOrInstruction(assertion)) reject('malformed');
 
   // Status and the Response's own claims, when present.
   const status = only(root, NS.protocol, 'Status', 'malformed');

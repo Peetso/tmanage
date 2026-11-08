@@ -118,6 +118,22 @@ export function descendants(root: XmlElement): XmlElement[] {
   return out;
 }
 
+/**
+ * 56-10s — whether the subtree holds a comment or a processing instruction. Exclusive C14N drops
+ * comments, so one inserted into a signed value (`user@evil.com<!---->.good.com`) leaves the digest
+ * intact while splitting the text a reader sees; the verifier refuses such an assertion outright.
+ */
+export function hasCommentOrInstruction(root: XmlElement): boolean {
+  const walk = (node: XmlNode): boolean =>
+    Array.from(node.childNodes).some(
+      (child) =>
+        child.nodeType === COMMENT ||
+        child.nodeType === PROCESSING_INSTRUCTION ||
+        (isElement(child) && walk(child)),
+    );
+  return walk(root);
+}
+
 const escapeText = (value: string): string =>
   value
     .replace(/&/gu, '&amp;')
