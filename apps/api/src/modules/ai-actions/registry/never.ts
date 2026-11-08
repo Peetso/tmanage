@@ -1165,6 +1165,12 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/public/links/:token/', reason: 'public_site' },
   { method: 'POST', path: '/v1/public/links/:token/code', reason: 'public_site' },
   { method: 'POST', path: '/v1/public/links/:token/decision', reason: 'public_site' },
+  // 55-14. Client portal magic-link sign-in: anonymous request, code, preview, consume, not-you.
+  { method: 'POST', path: '/v1/public/portal-sign-in/', reason: 'auth' },
+  { method: 'POST', path: '/v1/public/portal-sign-in/code', reason: 'auth' },
+  { method: 'GET', path: '/v1/public/portal-sign-in/links/:token', reason: 'auth' },
+  { method: 'POST', path: '/v1/public/portal-sign-in/links/:token/consume', reason: 'auth' },
+  { method: 'POST', path: '/v1/public/portal-sign-in/links/:token/not-you', reason: 'auth' },
   {
     method: 'GET',
     path: '/v1/organizations/:orgSlug/public-links/',
