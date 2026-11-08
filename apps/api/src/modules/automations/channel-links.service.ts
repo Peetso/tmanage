@@ -83,10 +83,14 @@ export function isChannelLinkKind(value: unknown): value is ChannelLinkKind {
   return typeof value === 'string' && (CHANNEL_LINK_KINDS as readonly string[]).includes(value);
 }
 
-/** Whether `host` is an incoming-webhook host of `kind`. */
+/**
+ * Whether `host` is an incoming-webhook host of `kind`. Teams: a tenant's `*.webhook.office.com`,
+ * the classic connector host `outlook.office.com` (exact, R46 L2), or a Workflows trigger.
+ */
 export function channelHostAllowed(kind: ChannelLinkKind, host: string): boolean {
   const name = host.toLowerCase().replace(/\.$/u, '');
   if (kind === 'slack') return name === 'hooks.slack.com';
+  if (name === 'outlook.office.com') return true;
   return ['.webhook.office.com', '.logic.azure.com', '.powerautomate.com'].some((suffix) =>
     name.endsWith(suffix),
   );

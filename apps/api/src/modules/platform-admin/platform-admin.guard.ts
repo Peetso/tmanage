@@ -1,4 +1,4 @@
-import { createParamDecorator, Inject, Injectable, SetMetadata } from '@nestjs/common';
+import { createParamDecorator, Inject, Injectable, Optional, SetMetadata } from '@nestjs/common';
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PLATFORM_PERMISSIONS } from '@tmanage/domain';
@@ -86,6 +86,27 @@ export const CurrentPlatformAdmin = createParamDecorator(
   },
 );
 
+/** The actor the guard proved for this request, if it ran (56-21: the two-person guard reads it). */
+export function platformActorOf(request: object): PlatformAdminActor | undefined {
+  return ACTORS.get(request);
+}
+
+/**
+ * 56-21 — two-step sign-in is required for platform staff. `PLATFORM_STAFF_TWO_STEP` = `required`
+ * or `optional` decides; unset, it is required in production and optional elsewhere (the seeded
+ * local and journey accounts have no second factor).
+ */
+export const PLATFORM_STAFF_TWO_STEP = Symbol.for('tmanage.PlatformStaffTwoStep');
+
+export function platformTwoStepRequired(
+  env: Readonly<Record<string, string | undefined>>,
+): boolean {
+  const raw = (env['PLATFORM_STAFF_TWO_STEP'] ?? '').trim().toLowerCase();
+  if (raw === 'required') return true;
+  if (raw === 'optional') return false;
+  return env['NODE_ENV'] === 'production';
+}
+
 /** Whether an actor holds a key — `false` for an actor built without permissions. */
 export function actorHas(actor: PlatformAdminActor, permission: PlatformPermission): boolean {
   return (actor.permissions ?? []).includes(permission);
@@ -116,6 +137,9 @@ export class PlatformAdminGuard implements CanActivate {
     @Inject(Reflector) private readonly reflector: Reflector,
     @Inject(PLATFORM_ADMIN_ALLOWLIST) private readonly allowlist: readonly string[],
     @Inject(PLATFORM_ADMIN_LOOKUP) private readonly lookup: PlatformAdminLookup,
+    @Optional()
+    @Inject(PLATFORM_STAFF_TWO_STEP)
+    private readonly twoStepRequired: boolean = platformTwoStepRequired(process.env),
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -173,6 +197,17 @@ export class PlatformAdminGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
+    // 56-21: platform staff must have two-step sign-in. `me` and `step-up` stay open so the
+    // screen can say what is missing; everything else is refused until it is turned on.
+    if (!exempt && this.twoStepRequired && !account.mfaEnabled) {
+      throw new ApiError(
+        403,
+        'two_step_required',
+        'Turn on two-step sign-in to use Platform admin.',
+        undefined,
+        'platform_admin_two_step_required',
+      );
+    }
     if (!exempt && !stepUp) {
       throw new ApiError(
         403,

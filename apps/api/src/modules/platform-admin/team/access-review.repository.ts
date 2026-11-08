@@ -39,6 +39,8 @@ export interface AccessReviewStore {
   monthSupport(from: Date, to: Date, correlationId: string): Promise<readonly MonthSupportRow[]>;
   users(userIds: readonly string[], correlationId: string): Promise<readonly ReviewUserRow[]>;
   recordReview(audit: PlatformAuditInput, correlationId: string): Promise<void>;
+  /** 56-21 (R46): the user ids already confirmed for a review period (`2026-Q4`, `2026-10`). */
+  confirmations?(period: string, correlationId: string): Promise<readonly string[]>;
 }
 
 const LIMIT = 500;
@@ -60,6 +62,12 @@ const SQL = {
         and f.confirmed_at is not null and f.disabled_at is null) as two_step
     from users u where u.id in (${Array.from({ length: n }, () => '?').join(', ')})`,
 } as const;
+
+/** 56-21 (R46): who was confirmed for one period — the confirm rows' target ids. */
+export const CONFIRMATIONS_SQL = `select distinct e.target_id as user_id
+  from platform_admin_audit_events e
+  where e.action = 'platform.access_review_confirmed' and e.target_label = ?
+  limit ${String(LIMIT)}`;
 
 const num = (value: unknown): number => {
   const parsed = Number(value ?? 0);
@@ -121,6 +129,16 @@ export class AccessReviewRepository implements AccessReviewStore {
       async (tx) => {
         await insertPlatformAudit(tx, audit);
       },
+    );
+  }
+
+  async confirmations(period: string, correlationId: string): Promise<readonly string[]> {
+    return this.database.identityRead(
+      { correlationId, tables: ['platform_admin_audit_events'] },
+      async (db) =>
+        (await db.query<Row[]>(CONFIRMATIONS_SQL, [period]))
+          .map((row) => String(row['user_id'] ?? ''))
+          .filter((id) => id !== ''),
     );
   }
 }

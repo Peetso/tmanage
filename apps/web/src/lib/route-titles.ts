@@ -374,6 +374,11 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     en: 'Connected apps',
     key: 'RouteTitle.settingsConnectedApps',
   },
+  // R46 L2 · 54-05/54-06
+  '/[orgSlug]/settings/channel-notices': {
+    en: 'Slack and Teams notices',
+    key: 'RouteTitle.settingsChannelNotices',
+  },
   '/[orgSlug]/settings/digest': { en: 'Email digest', key: 'RouteTitle.settingsDigest' },
   '/[orgSlug]/settings/display': { en: 'Display', key: 'RouteTitle.settingsDisplay' },
   '/[orgSlug]/settings/inbound-mail': {
@@ -521,6 +526,13 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/platform/settings/maintenance': { en: 'Maintenance', key: 'RouteTitle.platformMaintenance' },
   '/platform/team': { en: 'Platform team', key: 'RouteTitle.platformTeam' },
   '/platform/team/presets': { en: 'Permission presets', key: 'RouteTitle.platformTeamPresets' },
+  // R46 L2 · 56-21
+  '/platform/approvals': { en: 'Approvals', key: 'RouteTitle.platformApprovals' },
+  '/platform/owner-notices': { en: 'Owner notices', key: 'RouteTitle.platformOwnerNotices' },
+  '/platform/team/access-review': {
+    en: 'Access review',
+    key: 'RouteTitle.platformAccessReview',
+  },
   '/': PAGE_OWNS_TITLE,
   // The Arabic public pages set their Arabic titles themselves (`public-locale-routes.ts`).
   '/ar/[[...path]]': PAGE_OWNS_TITLE,

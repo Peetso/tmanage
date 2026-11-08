@@ -65,6 +65,20 @@ describe('channel links (R15-c)', () => {
     expect(checkChannelUrl('teams', SLACK).ok).toBe(false);
   });
 
+  it('accepts the classic Teams host outlook.office.com exactly, never a look-alike (R46)', () => {
+    expect(
+      checkChannelUrl('teams', 'https://outlook.office.com/webhook/abc/IncomingWebhook/x').ok,
+    ).toBe(true);
+    expect(checkChannelUrl('teams', 'https://outlook.office.com.evil.example/webhook/x').ok).toBe(
+      false,
+    );
+    expect(checkChannelUrl('teams', 'https://evil-outlook.office.com/webhook/x').ok).toBe(false);
+    expect(checkChannelUrl('slack', 'https://outlook.office.com/webhook/x').ok).toBe(false);
+    expect(
+      checkChannelUrl('teams', 'https://hooks.slack.com.webhook.office.com.evil.io/x').ok,
+    ).toBe(false);
+  });
+
   it('refuses a URL that resolves to a private address', async () => {
     const body = { webhookUrl: SLACK, events: ['work.created'] };
     expect(await status(harness('10.0.0.5').service.create(context, 'slack', body))).toBe(400);

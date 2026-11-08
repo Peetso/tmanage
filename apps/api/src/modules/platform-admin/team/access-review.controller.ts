@@ -36,8 +36,21 @@ export class PlatformAccessReviewController {
     @CurrentPlatformAdmin() actor: PlatformAdminActor,
     @Query('month') month: string | undefined,
     @Req() request: object,
+    @Query('quarter') quarter?: string,
   ) {
-    return this.service.review(actor, { month }, platformRequestContext(request));
+    return this.service.review(actor, { month, quarter }, platformRequestContext(request));
+  }
+
+  /** 56-21 (R46 L2): confirm one person's access for a quarter (or month). */
+  @Post('confirm')
+  @RequirePlatformPermission('platform.team.manage')
+  @HttpCode(201)
+  confirm(
+    @CurrentPlatformAdmin() actor: PlatformAdminActor,
+    @Body() body: { period?: unknown; userId?: unknown; reason?: unknown },
+    @Req() request: object,
+  ) {
+    return this.service.confirm(actor, body ?? {}, platformRequestContext(request));
   }
 
   @Post('record')

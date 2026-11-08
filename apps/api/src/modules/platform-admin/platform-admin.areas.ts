@@ -26,6 +26,8 @@ import { PlatformIncidentsModule } from './incidents/incidents.module.js';
 import { PlatformConnectSetupModule } from './connect-setup/connect-setup.controller.js';
 // ---- R39 · 55-17 · support inbox ----
 import { PlatformSupportThreadsModule } from '../support/support.module.js';
+// ---- R46 L2 · 56-21 · two-person approvals + owner notices ----
+import { PlatformGovernanceModule } from './governance/governance.module.js';
 
 /**
  * Every Platform admin area, one Nest module each (platform-admin v2, PA-02 split). Each area
@@ -63,4 +65,6 @@ export const PLATFORM_AREA_MODULES: DynamicModule[] = [
   PlatformConnectSetupModule.register(),
   // ---- R39 · 55-17 · support inbox: list, reply, status across organizations ----
   PlatformSupportThreadsModule.register(),
+  // ---- R46 L2 · 56-21 · two-person approvals + owner notices ----
+  PlatformGovernanceModule.register(),
 ];

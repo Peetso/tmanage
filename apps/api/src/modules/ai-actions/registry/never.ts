@@ -1296,6 +1296,15 @@ export const NEVER: readonly NeverEntry[] = [
   // 56-21b. The monthly platform access review and its evidence row: super admins only.
   { method: 'GET', path: '/v1/platform/team/access-review/', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/team/access-review/record', reason: 'platform_admin' },
+  // 56-21 (R46 L2). Quarterly confirm, the two-person approvals and owner notices: platform only.
+  { method: 'POST', path: '/v1/platform/team/access-review/confirm', reason: 'platform_admin' },
+  { method: 'GET', path: '/v1/platform/approvals', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/approvals', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/approvals/policy', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/approvals/:id/approve', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/approvals/:id/reject', reason: 'platform_admin' },
+  { method: 'GET', path: '/v1/platform/owner-notices', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/owner-notices', reason: 'platform_admin' },
   // 52-01. The running timer and presence moved to ops in R18-b (`finance-time.ts`, `time.*`).
   // R7 slice 6. Chat presence (the tab's own heartbeat, who is online), the "show last seen"
   // privacy toggle and per-message receipts: session-bound live state of the person at the

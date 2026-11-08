@@ -18,6 +18,11 @@ import { platformRequestContext } from '../platform-admin.access.js';
 import { CurrentPlatformAdmin, PlatformAdminGuard } from '../platform-admin.guard.js';
 import type { PlatformAdminActor } from '../platform-admin.guard.js';
 import { RequirePlatformPermission } from '../require-platform-permission.decorator.js';
+// 56-21 (R46 L2): the two-person rule on the risky lifecycle routes (a no-op while it is off).
+import {
+  RequireTwoPersonApproval,
+  TwoPersonApprovalGuard,
+} from '../governance/two-person.guard.js';
 import type {
   PlatformOrganizationLifecycleService,
   TransferInput,
@@ -280,6 +285,8 @@ export class PlatformOrganizationsController {
 
   @Post('organizations/:organizationId/suspension')
   @RequirePlatformPermission('platform.orgs.lifecycle')
+  @RequireTwoPersonApproval('company.suspend')
+  @UseGuards(TwoPersonApprovalGuard)
   @HttpCode(200)
   suspendOrg(
     @CurrentPlatformAdmin() actor: PlatformAdminActor,
@@ -304,6 +311,8 @@ export class PlatformOrganizationsController {
 
   @Post('organizations/:organizationId/ownership-transfer')
   @RequirePlatformPermission('platform.orgs.lifecycle')
+  @RequireTwoPersonApproval('company.transfer_ownership')
+  @UseGuards(TwoPersonApprovalGuard)
   @HttpCode(200)
   transfer(
     @CurrentPlatformAdmin() actor: PlatformAdminActor,
@@ -316,6 +325,8 @@ export class PlatformOrganizationsController {
 
   @Post('organizations/:organizationId/deletion')
   @RequirePlatformPermission('platform.orgs.lifecycle')
+  @RequireTwoPersonApproval('company.delete')
+  @UseGuards(TwoPersonApprovalGuard)
   @HttpCode(200)
   remove(
     @CurrentPlatformAdmin() actor: PlatformAdminActor,
@@ -402,6 +413,8 @@ export class PlatformOrganizationsController {
 
   @Post('companies/:organizationId/suspension')
   @RequirePlatformPermission('platform.orgs.lifecycle')
+  @RequireTwoPersonApproval('company.suspend')
+  @UseGuards(TwoPersonApprovalGuard)
   @HttpCode(200)
   suspend(
     @CurrentPlatformAdmin() actor: PlatformAdminActor,

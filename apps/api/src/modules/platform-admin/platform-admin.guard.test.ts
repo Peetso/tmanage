@@ -8,7 +8,11 @@ import { ensureRequestState } from '../../common/http/request-state.js';
 import { PlatformOrganizationsController } from './organizations/organizations.controller.js';
 import { parsePlatformAdminEmails } from './platform-admin.access.js';
 import { PlatformAdminController } from './platform-admin.controller.js';
-import { CurrentPlatformAdmin, PlatformAdminGuard } from './platform-admin.guard.js';
+import {
+  CurrentPlatformAdmin,
+  PlatformAdminGuard,
+  platformTwoStepRequired,
+} from './platform-admin.guard.js';
 import type { PlatformAdminActor, PlatformAdminLookup } from './platform-admin.guard.js';
 import type { PlatformAdminAccount } from './platform-admin.repository.js';
 import type { PlatformAdminRecord } from './platform-admins.repository.js';
@@ -39,6 +43,8 @@ interface Attempt {
   anyActive?: boolean;
   /** Leave the optional v2 lookup methods out (an older, env-only lookup). */
   legacyLookup?: boolean;
+  /** 56-21: the two-step rule for platform staff (undefined = the environment default). */
+  twoStep?: boolean;
 }
 
 type Outcome = { status: number; code: string | undefined; details?: unknown } | PlatformAdminActor;
@@ -78,6 +84,7 @@ async function attempt(o: Attempt): Promise<Outcome> {
     new Reflector(),
     parsePlatformAdminEmails(o.allowlist),
     lookup,
+    ...(o.twoStep === undefined ? [] : [o.twoStep]),
   );
   const request = { headers: {} };
   const state = ensureRequestState(request);
@@ -230,5 +237,29 @@ describe('PlatformAdminGuard', () => {
       status: 403,
       code: 'platform_permission_missing',
     });
+  });
+});
+
+describe('56-21 two-step sign-in for platform staff', () => {
+  it('refuses a stepped-up admin without two-step when the rule is on, but still answers me', async () => {
+    const base = { allowlist: 'peter@example.com', account: { mfaEnabled: false }, stepUp: true };
+    expect(await attempt({ ...base, twoStep: true })).toEqual({
+      status: 403,
+      code: 'two_step_required',
+    });
+    expect(admitted(await attempt({ ...base, twoStep: true, route: 'me' }))).toBe(true);
+    expect(admitted(await attempt({ ...base, twoStep: false }))).toBe(true);
+    expect(admitted(await attempt({ ...base, account: { mfaEnabled: true }, twoStep: true }))).toBe(
+      true,
+    );
+  });
+
+  it('is required in production unless PLATFORM_STAFF_TWO_STEP says otherwise', () => {
+    expect(platformTwoStepRequired({ NODE_ENV: 'production' })).toBe(true);
+    expect(platformTwoStepRequired({ NODE_ENV: 'test' })).toBe(false);
+    expect(
+      platformTwoStepRequired({ NODE_ENV: 'production', PLATFORM_STAFF_TWO_STEP: 'optional' }),
+    ).toBe(false);
+    expect(platformTwoStepRequired({ PLATFORM_STAFF_TWO_STEP: 'Required' })).toBe(true);
   });
 });

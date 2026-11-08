@@ -120,6 +120,14 @@ export const PLATFORM_AUDIT_ACTIONS = [
   // ---- R39 · 55-17 · support inbox ----
   'platform.support_replied',
   'platform.support_status_changed',
+  // ---- R46 L2 · 56-21 platform governance ----
+  'platform.owner_notice_sent',
+  'platform.two_person_policy_changed',
+  'platform.approval_requested',
+  'platform.approval_approved',
+  'platform.approval_rejected',
+  'platform.approval_used',
+  'platform.access_review_confirmed',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];

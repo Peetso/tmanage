@@ -2398,3 +2398,11 @@ GRANT SELECT ON `tmanage`.`work_item_assignees`                              TO 
 -- also serves the company erasure). Never rewritten, so no UPDATE. Nothing for the worker: its
 -- sweep holds no DELETE anywhere, and the next issue for the address reclaims a stale key.
 GRANT SELECT, INSERT, DELETE ON `tmanage`.`invitation_pending_keys`          TO 'tmanage_app'@'%';
+
+-- ---- R46 L2 · 56-21 platform governance ----
+-- 0334 `platform_owner_notices` (global): a notice a platform admin sent to a company owner;
+-- INSERT only, the row is the evidence and is never rewritten. `platform_action_approvals`
+-- (global): the two-person rule; INSERT (ask) and UPDATE (approve, reject, use, expire). No
+-- DELETE on either. SELECT is the database-wide read. The worker holds nothing here.
+GRANT INSERT ON `tmanage`.`platform_owner_notices`                          TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`platform_action_approvals`               TO 'tmanage_app'@'%';

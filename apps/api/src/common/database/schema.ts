@@ -13514,3 +13514,63 @@ export const userPasskeys = mysqlTable(
 export type UserPasskeyRow = typeof userPasskeys.$inferSelect;
 
 Object.assign(TABLES, { user_passkeys: userPasskeys });
+
+// ---- R46 L2 · 56-21 platform governance (0334) ----
+
+/**
+ * 0334 (56-21). One notice a platform admin sent to a company owner. GLOBAL (`NON_TENANT_TABLES`):
+ * it is the operators' record. The owner is a user id; the address is read at send time.
+ */
+export const platformOwnerNotices = mysqlTable(
+  'platform_owner_notices',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    ownerUserId: char('owner_user_id', { length: 36 }),
+    subject: varchar('subject', { length: 190 }).notNull(),
+    body: text('body').notNull(),
+    severity: varchar('severity', { length: 16 }).notNull().default('info'),
+    delivery: varchar('delivery', { length: 16 }).notNull().default('queued'),
+    sentBy: char('sent_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    index('ix_pon_org').on(table.organizationId, table.createdAt),
+    index('ix_pon_created').on(table.createdAt),
+  ],
+);
+
+/**
+ * 0334 (56-21). The two-person rule for risky platform actions: asked by one admin, approved or
+ * rejected by a different one, used once by the asker. GLOBAL (`NON_TENANT_TABLES`).
+ */
+export const platformActionApprovals = mysqlTable(
+  'platform_action_approvals',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    action: varchar('action', { length: 64 }).notNull(),
+    targetId: char('target_id', { length: 36 }).notNull(),
+    targetLabel: varchar('target_label', { length: 190 }),
+    reason: varchar('reason', { length: 500 }).notNull(),
+    status: varchar('status', { length: 16 }).notNull().default('pending'),
+    requestedBy: char('requested_by', { length: 36 }).notNull(),
+    requestedAt: datetime('requested_at', { mode: 'date', fsp: 3 }).notNull(),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+    decidedBy: char('decided_by', { length: 36 }),
+    decidedAt: datetime('decided_at', { mode: 'date', fsp: 3 }),
+    decisionNote: varchar('decision_note', { length: 500 }),
+    usedAt: datetime('used_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    index('ix_paa_status').on(table.status, table.requestedAt),
+    index('ix_paa_target').on(table.action, table.targetId, table.status),
+  ],
+);
+
+export type PlatformOwnerNoticeRow = typeof platformOwnerNotices.$inferSelect;
+export type PlatformActionApprovalRow = typeof platformActionApprovals.$inferSelect;
+
+Object.assign(TABLES, {
+  platform_owner_notices: platformOwnerNotices,
+  platform_action_approvals: platformActionApprovals,
+});

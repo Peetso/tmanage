@@ -1488,6 +1488,12 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // durations only (no organization id, no actor hash). Written by the worker's growth job, read
   // by platform admins through `identityRead(['platform_growth_rollups'])`.
   'platform_growth_rollups',
+  // ---- R46 L2 · 56-21 ----
+  // 0334. Owner notices a platform admin sent, and the two-person approvals for risky platform
+  // actions. GLOBAL: the operators' records; a row names an organization but is read on the
+  // platform path before any tenant exists. Reached only through `identityRead/Transaction`.
+  'platform_owner_notices',
+  'platform_action_approvals',
 ]);
 
 export function isTenantTable(name: string): boolean {
