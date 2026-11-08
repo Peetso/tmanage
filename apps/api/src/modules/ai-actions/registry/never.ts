@@ -1208,6 +1208,11 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/quotes/:quoteId/send',
     reason: 'client_quote',
   },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/quotes/:quoteId/convert',
+    reason: 'client_quote',
+  },
   // 56-17. The anonymous vulnerability report door and the confidential platform triage.
   { method: 'POST', path: '/v1/public/security-reports/', reason: 'public_site' },
   { method: 'GET', path: '/v1/platform/security-reports/', reason: 'platform_admin' },

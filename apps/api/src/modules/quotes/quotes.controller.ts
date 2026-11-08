@@ -2,12 +2,18 @@ import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query } from
 import type { Principal } from '@tmanage/domain';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
-import type { QuoteDetail, QuotesService, QuoteView, SentQuote } from './quotes.service.js';
+import type {
+  ConvertedQuote,
+  QuoteDetail,
+  QuotesService,
+  QuoteView,
+  SentQuote,
+} from './quotes.service.js';
 
 export const QUOTES_SERVICE = Symbol.for('tmanage.QuotesService');
 
 /**
- * 52-08 — `/v1/organizations/:orgSlug/quotes`: create, list, get, update a draft, send. The route
+ * 52-08 — `/v1/organizations/:orgSlug/quotes`: create, list, get, update a draft, send, convert. The route
  * guard asks `project.manage`; {@link QuotesService} authorizes again at organization scope and
  * loads the quote tenant-scoped (another organization's id is a 404). The outsider side has no
  * route here: it is the 56-07 link (`/v1/public/links/:token`) with the `quote` target adapter.
@@ -68,5 +74,18 @@ export class QuotesController {
     @Body() body: unknown,
   ): Promise<SentQuote> {
     return this.service.send(context, principal, quoteId, body);
+  }
+
+  /** 52-08 — an accepted quote becomes a project; a second call returns the same project. */
+  @Post(':quoteId/convert')
+  @RequireCapability('project.manage')
+  @HttpCode(200)
+  convert(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('quoteId') quoteId: string,
+    @Body() body: unknown,
+  ): Promise<ConvertedQuote> {
+    return this.service.convert(context, principal, quoteId, body);
   }
 }

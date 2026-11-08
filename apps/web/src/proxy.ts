@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { NextResponse, type NextRequest } from 'next/server';
-import { nonceFromBytes, policyHeaders, resolveCspMode } from './lib/csp';
+import { isEmbeddablePath, nonceFromBytes, policyHeaders, resolveCspMode } from './lib/csp';
 import { localeBootScript } from './lib/i18n/locale-boot';
 import { createPrerenderedScriptHashes, sha256Source } from './lib/prerendered-script-hashes';
 
@@ -49,6 +49,7 @@ export function proxy(request: NextRequest): NextResponse {
     development,
     scriptHashes: [BOOT_SCRIPT_HASH, ...(pageHashes ?? [])],
     prerendered: pageHashes !== undefined,
+    embeddable: isEmbeddablePath(request.nextUrl.pathname),
   });
 
   const requestHeaders = new Headers(request.headers);

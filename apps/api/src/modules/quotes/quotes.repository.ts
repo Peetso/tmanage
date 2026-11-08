@@ -137,6 +137,36 @@ export class QuotesRepository {
   }
 
   /**
+   * 0331. Link an accepted quote to the project it became — once: `false` when the quote is not
+   * `accepted` or already names a project (the caller holds the row lock, so this is the backstop).
+   */
+  async markConverted(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    quoteId: string,
+    projectId: string,
+    at: Date,
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(quotes)
+      .set({
+        convertedProjectId: projectId,
+        convertedAt: at,
+        updatedAt: at,
+        version: sql`${quotes.version} + 1`,
+      })
+      .where(
+        and(
+          eq(quotes.organizationId, context.organizationId),
+          eq(quotes.id, quoteId),
+          eq(quotes.status, 'accepted'),
+          isNull(quotes.convertedProjectId),
+        ),
+      );
+    return result[0].affectedRows > 0;
+  }
+
+  /**
    * The one terminal move of a sent quote, bound to the hash the link was issued under. `false`
    * when the quote is no longer `sent` or its content is not the content the link showed.
    */

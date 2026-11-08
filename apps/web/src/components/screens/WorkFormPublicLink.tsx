@@ -7,6 +7,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { publishWorkForm, unpublishWorkForm, type WorkFormSummary } from '../../lib/api/work-forms';
 import { useT } from '../../lib/i18n/use-t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { WorkFormShareExtras } from './WorkFormShareExtras';
 import '../../styles/screens/work-forms-public.css';
 
 export interface WorkFormPublicLinkProps {
@@ -102,6 +103,7 @@ export function WorkFormPublicLink({ api, organizationSlug, form }: WorkFormPubl
               {t('WorkFormsPublic.stop')}
             </Button>
           </div>
+          <WorkFormShareExtras url={url} formName={form.name} />
         </>
       ) : (
         <>

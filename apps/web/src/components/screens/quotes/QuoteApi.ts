@@ -2,7 +2,7 @@ import type { ApiClient } from '../../../lib/api/client';
 
 /**
  * Quotes (52-08): `GET|POST …/quotes`, `GET|PUT …/quotes/:id`, `POST …/quotes/:id/send`, all on
- * `project.manage`; and the outsider side, the 56-07 link `GET|POST /v1/public/links/:token…`
+ * `project.manage`, and `POST …/quotes/:id/convert` (52-08 convert to project); and the outsider side, the 56-07 link `GET|POST /v1/public/links/:token…`
  * with no session. Money is integer minor units; a quantity is a number with at most two decimals.
  * The shapes mirror the API's `QuoteView`, `QuoteDetail`, `SentQuote` and `OutsiderLinkView`.
  */
@@ -25,6 +25,8 @@ export interface QuoteRow {
   readonly totalMinor: number;
   readonly sentAt: string | null;
   readonly decidedAt: string | null;
+  /** 0331. The project this accepted quote became (absent from an older API: treated as none). */
+  readonly convertedProjectId?: string | null;
   readonly version: number;
 }
 
@@ -95,6 +97,26 @@ export async function getQuote(
 ): Promise<QuoteDocument> {
   const { data } = await client.request<QuoteDocument>({
     path: `${base(organizationSlug)}/${encodeURIComponent(quoteId)}`,
+  });
+  return data;
+}
+
+/** `POST …/quotes/:id/convert`. Mirrors the API's `ConvertedQuote`; a second call returns the same project. */
+export interface ConvertedQuote {
+  readonly quote: QuoteRow;
+  readonly projectId: string;
+  readonly created: boolean;
+}
+
+export async function convertQuote(
+  client: ApiClient,
+  organizationSlug: string,
+  quoteId: string,
+): Promise<ConvertedQuote> {
+  const { data } = await client.request<ConvertedQuote>({
+    method: 'POST',
+    path: `${base(organizationSlug)}/${encodeURIComponent(quoteId)}/convert`,
+    body: {},
   });
   return data;
 }

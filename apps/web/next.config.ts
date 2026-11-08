@@ -91,7 +91,6 @@ const config: NextConfig = {
           // Public-link pages switch to `no-referrer` when 56-07 adds them (no route yet): a
           // share token in the URL must never leave in a Referer header.
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'X-Frame-Options', value: 'DENY' },
           {
             // No screen needs a camera or a location. The microphone is this origin's only, for
             // voice capture (55-20); no embedded frame may ask for it.
@@ -109,6 +108,12 @@ const config: NextConfig = {
           // Still no cross-origin page can keep a handle on a TManage window.
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
         ],
+      },
+      // Clickjacking, legacy browsers: every page but the embeddable public form (52-20, whose
+      // `frame-ancestors 'self' https:` comes from `src/proxy.ts`) is DENY.
+      {
+        source: '/((?!f/[^/]+/?$).*)',
+        headers: [{ key: 'X-Frame-Options', value: 'DENY' }],
       },
       // S9: the AI-app consent page decides what an outside app may do, so it is never framed
       // (threat model B2, clickjacking — the enforced `frame-ancestors 'none'` comes from

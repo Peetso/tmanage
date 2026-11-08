@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { PublicLinkRow, QuoteRow } from '../../common/database/schema.js';
+import type { Principal } from '@tmanage/domain';
+import type { PublicLinkRow, QuoteLineRow, QuoteRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import { computeTotals, contentHash, validateQuote } from './quote-content.js';
+import { conversionPlan } from './quote-conversion.js';
 import { quoteTarget } from './quote-target.js';
+import type { QuotesRepository } from './quotes.repository.js';
+import { QuotesService } from './quotes.service.js';
 
 const now = new Date('2026-10-30T10:00:00.000Z');
 const runner = {} as TenantQueryRunner;
@@ -74,5 +78,116 @@ describe('52-08 quotes', () => {
     );
     repository.decide.mockResolvedValueOnce(false);
     await expect(target.onDecision?.(runner, context, link, 'decline')).rejects.toThrow();
+  });
+});
+
+describe('52-08 quotes · convert to project', () => {
+  const owner = {
+    userId: 'u-1',
+    organizationId: 'org-1',
+    kind: 'internal',
+    role: 'owner',
+    membershipId: 'm-1',
+    membershipStatus: 'active',
+    clientOrganizationId: null,
+    projectIds: [],
+    hasOrgWideScope: true,
+  } as unknown as Principal;
+  const accepted = {
+    ...quote,
+    status: 'accepted',
+    sentAt: now,
+    sentLinkId: null,
+    decidedAt: now,
+    convertedProjectId: null,
+    convertedAt: null,
+    version: 3,
+    createdAt: now,
+    updatedAt: now,
+  } as QuoteRow;
+  const lines = [
+    { position: 1, description: 'Design' },
+    { position: 0, description: 'Discovery' },
+  ] as QuoteLineRow[];
+
+  function harness(row: QuoteRow) {
+    const repository = {
+      find: vi.fn().mockResolvedValue(row),
+      lines: vi.fn().mockResolvedValue(lines),
+      clientExists: vi.fn().mockResolvedValue(false),
+      markConverted: vi.fn().mockResolvedValue(true),
+    };
+    const projects = {
+      requireMayCreate: vi.fn().mockResolvedValue(undefined),
+      createInTransaction: vi.fn().mockResolvedValue({ id: 'p-1' }),
+    };
+    const conversion = {
+      workspaceFor: vi.fn().mockResolvedValue('w-1'),
+      shareWithClient: vi.fn(),
+      addMilestone: vi.fn(),
+      addWorkItem: vi.fn(),
+    };
+    const audit = { record: vi.fn() };
+    const database = {
+      read: (_c: TenantContext, fn: (r: TenantQueryRunner) => unknown) => fn(runner),
+      transaction: (_c: TenantContext, fn: (r: TenantQueryRunner) => unknown) => fn(runner),
+    };
+    const service = new QuotesService({
+      database: database as never,
+      repository: repository as unknown as QuotesRepository,
+      audit,
+      links: { createInTransaction: vi.fn() },
+      projects: projects as never,
+      conversion,
+      now: () => now,
+    });
+    return { service, repository, projects, conversion, audit };
+  }
+
+  it('plans the project from the quote: its name, one milestone, one work item per line in order', () => {
+    const plan = conversionPlan(accepted, lines);
+    expect(plan.projectName).toBe('Q-0001 · Website');
+    expect(plan.milestoneTitle).toBe(plan.projectName);
+    expect(plan.workItemTitles).toEqual(['Discovery', 'Design']);
+  });
+
+  it('creates the project, the milestone and the work items and links the quote back', async () => {
+    const h = harness(accepted);
+    const result = await h.service.convert(
+      context,
+      owner,
+      '0190f1e2-0000-7000-8000-000000000001',
+      {},
+    );
+    expect(result).toMatchObject({ projectId: 'p-1', created: true });
+    expect(result.quote.convertedProjectId).toBe('p-1');
+    expect(h.projects.createInTransaction).toHaveBeenCalledWith(runner, context, {
+      workspaceId: 'w-1',
+      name: 'Q-0001 · Website',
+    });
+    expect(h.conversion.addMilestone).toHaveBeenCalledTimes(1);
+    expect(h.conversion.addWorkItem.mock.calls.map((c) => c[3])).toEqual(['Discovery', 'Design']);
+    expect(h.repository.markConverted).toHaveBeenCalledWith(runner, context, 'q-1', 'p-1', now);
+    expect(h.audit.record.mock.calls.at(-1)?.[2]).toMatchObject({ action: 'quote.converted' });
+  });
+
+  it('is idempotent: a converted quote opens its project and creates nothing', async () => {
+    const h = harness({ ...accepted, convertedProjectId: 'p-9' });
+    const result = await h.service.convert(
+      context,
+      owner,
+      '0190f1e2-0000-7000-8000-000000000001',
+      {},
+    );
+    expect(result).toMatchObject({ projectId: 'p-9', created: false });
+    expect(h.projects.createInTransaction).not.toHaveBeenCalled();
+  });
+
+  it('refuses a quote that is not accepted', async () => {
+    const h = harness({ ...accepted, status: 'sent' });
+    await expect(
+      h.service.convert(context, owner, '0190f1e2-0000-7000-8000-000000000001', {}),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(h.projects.createInTransaction).not.toHaveBeenCalled();
   });
 });

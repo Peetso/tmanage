@@ -1054,6 +1054,10 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'quote',
     clause: '§12 52-08 — a client declined a quote through its link',
   },
+  'quote.converted': {
+    objectType: 'quote',
+    clause: '§12 52-08 — an accepted quote was turned into a project (lines became work items)',
+  },
   // ---- 52-23 · money foundations ----
   'finance_profile.updated': {
     objectType: 'finance_profile',
@@ -1779,6 +1783,7 @@ const AUDIT_ACTION_LABELS = {
   'quote.sent': 'Sent a quote',
   'quote.accepted': 'A quote was accepted',
   'quote.declined': 'A quote was declined',
+  'quote.converted': 'Turned a quote into a project',
   'finance_profile.updated': 'Changed the finance settings',
   'tax_rate.created': 'Added a tax rate',
   'tax_rate.updated': 'Changed a tax rate',

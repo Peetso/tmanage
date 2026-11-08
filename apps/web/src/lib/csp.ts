@@ -99,6 +99,21 @@ export interface CspInput {
    * without `'strict-dynamic'` — under which each of its ~17 chunk scripts was a violation.
    */
   readonly prerendered?: boolean;
+  /**
+   * 52-20. A public form page (`/f/:slug`) may be framed by the owner's own website (the embed
+   * snippet), so its `frame-ancestors` is `'self' https:` instead of `'none'`. Every other page —
+   * the consent and AI-approve pages included — stays unframeable.
+   */
+  readonly embeddable?: boolean;
+}
+
+/** 52-20. Only the public form page is embeddable. */
+export function isEmbeddablePath(pathname: string): boolean {
+  return /^\/f\/[^/]+\/?$/u.test(pathname);
+}
+
+function frameAncestors(input: { readonly embeddable?: boolean }): string {
+  return input.embeddable === true ? "frame-ancestors 'self' https:" : "frame-ancestors 'none'";
 }
 
 /**
@@ -150,7 +165,7 @@ export function buildContentSecurityPolicy(input: CspInput): string {
     ['object-src', "'none'"],
     ['base-uri', "'self'"],
     ['form-action', "'self'", ...PICKER_FORMS],
-    ['frame-ancestors', "'none'"],
+    [frameAncestors(input)],
     ['report-uri', CSP_REPORT_PATH],
   ];
   return directives.map((parts) => parts.join(' ')).join('; ');
@@ -176,7 +191,7 @@ export function policyHeaders(input: CspInput & { readonly mode: CspMode }): Pol
     input.mode === 'enforce' ? 'content-security-policy' : 'content-security-policy-report-only';
   const response: (readonly [string, string])[] = [[name, policy]];
   if (input.mode === 'report-only') {
-    response.push(['content-security-policy', "frame-ancestors 'none'"]);
+    response.push(['content-security-policy', frameAncestors(input)]);
   }
   response.push(['content-security-policy-report-only', TRUSTED_TYPES_REPORT_ONLY]);
   return { request: { 'x-nonce': input.nonce, [name]: policy }, response };

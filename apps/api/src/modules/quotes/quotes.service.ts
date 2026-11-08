@@ -9,6 +9,7 @@ import type {
 } from '../../common/database/tenant-context.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { AuditService } from '../audit/audit.service.js';
+import type { ProjectsService } from '../projects/projects.service.js';
 import type { PublicLinksService } from '../public-links/public-links.service.js';
 import {
   computeTotals,
@@ -19,6 +20,8 @@ import {
   validateQuote,
 } from './quote-content.js';
 import type { QuoteInput } from './quote-content.js';
+import { conversionPlan } from './quote-conversion.js';
+import type { QuoteConversionWriter } from './quote-conversion.js';
 import { QUOTE_TARGET_TYPE } from './quote-target.js';
 import type { QuotesRepository } from './quotes.repository.js';
 
@@ -54,6 +57,9 @@ export interface QuoteView {
   readonly sentAt: string | null;
   readonly sentLinkId: string | null;
   readonly decidedAt: string | null;
+  /** 0331. The project this accepted quote became; `null` until "Convert to project". */
+  readonly convertedProjectId: string | null;
+  readonly convertedAt: string | null;
   readonly version: number;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -80,11 +86,21 @@ export interface SentQuote {
   readonly link: { readonly id: string; readonly token: string; readonly expiresAt: string };
 }
 
+export interface ConvertedQuote {
+  readonly quote: QuoteView;
+  readonly projectId: string;
+  /** `false` when the quote had already been converted: the existing project is returned. */
+  readonly created: boolean;
+}
+
 export interface QuotesServiceOptions {
   readonly database: Pick<TenantDatabase, 'transaction' | 'read'>;
   readonly repository: QuotesRepository;
   readonly audit: Pick<AuditService, 'record'>;
   readonly links: Pick<PublicLinksService, 'createInTransaction'>;
+  /** 52-08 convert: the one project-create path, and the plan writes. */
+  readonly projects?: Pick<ProjectsService, 'requireMayCreate' | 'createInTransaction'>;
+  readonly conversion?: QuoteConversionWriter;
   readonly now?: () => Date;
 }
 
@@ -155,6 +171,8 @@ export class QuotesService {
         sentAt: null,
         sentLinkId: null,
         decidedAt: null,
+        convertedProjectId: null,
+        convertedAt: null,
         createdByUserId: context.userId,
         version: 1,
         createdAt: at,
@@ -279,6 +297,98 @@ export class QuotesService {
     });
   }
 
+  /**
+   * "Convert to project" on an ACCEPTED quote: one transaction creates the project through the
+   * shared create path (creator row and audit included), shares it with the quote's client, adds a
+   * milestone named after the quote and one work item per line, and links the quote to it. The
+   * quote row is locked first, so a second convert — even a concurrent double click — finds the
+   * link and returns the existing project instead of making another.
+   */
+  async convert(
+    context: TenantContext,
+    principal: Principal,
+    quoteId: string,
+    body: unknown,
+  ): Promise<ConvertedQuote> {
+    this.require(principal, context);
+    const { projects, conversion } = this.options;
+    if (projects === undefined || conversion === undefined) {
+      throw new ApiError(500, 'internal_error', MESSAGES.internal);
+    }
+    const raw = (body ?? {}) as Record<string, unknown>;
+    const requested = raw['workspaceId'] ?? null;
+    if (requested !== null && (typeof requested !== 'string' || !isUuid(requested))) {
+      throw invalid('workspaceId', 'must be a workspace id');
+    }
+    const seen = await this.options.database.read(context, (r) =>
+      this.load(r, context, quoteId, false),
+    );
+    if (seen.convertedProjectId !== null) return already(seen);
+    if (seen.status !== 'accepted') {
+      throw new ApiError(409, 'conflict', 'Only an accepted quote can become a project.');
+    }
+    await projects.requireMayCreate(context, principal);
+
+    return this.options.database.transaction(context, async (tx) => {
+      const at = this.now();
+      const quote = await this.load(tx, context, quoteId, true);
+      if (quote.convertedProjectId !== null) return already(quote);
+      if (quote.status !== 'accepted') {
+        throw new ApiError(409, 'conflict', 'Only an accepted quote can become a project.');
+      }
+      const workspaceId = await conversion.workspaceFor(tx, context, requested);
+      if (workspaceId === null)
+        throw invalid('workspaceId', 'is not a workspace of this organization');
+      const plan = conversionPlan(
+        quote,
+        await this.options.repository.lines(tx, context, quote.id),
+      );
+      const project = await projects.createInTransaction(tx, context, {
+        workspaceId,
+        name: plan.projectName,
+      });
+      if (
+        quote.clientOrganizationId !== null &&
+        (await this.options.repository.clientExists(tx, context, quote.clientOrganizationId))
+      ) {
+        const shareId = await conversion.shareWithClient(
+          tx,
+          context,
+          project.id,
+          quote.clientOrganizationId,
+        );
+        await this.options.audit.record(tx, context, {
+          action: 'project.client_linked',
+          result: 'allowed',
+          objectId: shareId,
+          metadata: { project_id: project.id, client_organization_id: quote.clientOrganizationId },
+        });
+      }
+      await conversion.addMilestone(tx, context, project.id, plan.milestoneTitle, quote.number);
+      for (const title of plan.workItemTitles) {
+        await conversion.addWorkItem(tx, context, project.id, title);
+      }
+      if (!(await this.options.repository.markConverted(tx, context, quote.id, project.id, at))) {
+        throw new ApiError(409, 'conflict', 'This quote was changed by someone else.');
+      }
+      await this.options.audit.record(tx, context, {
+        action: 'quote.converted',
+        result: 'allowed',
+        objectId: quote.id,
+        actorUserId: context.userId,
+        metadata: { project_id: project.id, work_items: plan.workItemTitles.length },
+      });
+      const converted: QuoteRow = {
+        ...quote,
+        convertedProjectId: project.id,
+        convertedAt: at,
+        version: quote.version + 1,
+        updatedAt: at,
+      };
+      return { quote: toView(converted), projectId: project.id, created: true };
+    });
+  }
+
   // ── internals ──────────────────────────────────────────────────────────────
 
   private async load(
@@ -341,6 +451,10 @@ export class QuotesService {
   }
 }
 
+function already(quote: QuoteRow): ConvertedQuote {
+  return { quote: toView(quote), projectId: quote.convertedProjectId ?? '', created: false };
+}
+
 function iso(at: Date | null): string | null {
   return at === null ? null : at.toISOString();
 }
@@ -364,6 +478,8 @@ export function toView(row: QuoteRow): QuoteView {
     sentAt: iso(row.sentAt),
     sentLinkId: row.sentLinkId,
     decidedAt: iso(row.decidedAt),
+    convertedProjectId: row.convertedProjectId,
+    convertedAt: iso(row.convertedAt),
     version: row.version,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

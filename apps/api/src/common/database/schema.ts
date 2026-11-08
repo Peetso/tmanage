@@ -11148,6 +11148,9 @@ export const quotes = mysqlTable(
     sentAt: datetime('sent_at', { mode: 'date', fsp: 3 }),
     sentLinkId: char('sent_link_id', { length: 36 }),
     decidedAt: datetime('decided_at', { mode: 'date', fsp: 3 }),
+    /** 0331. The project an accepted quote became; written once, by "Convert to project". */
+    convertedProjectId: char('converted_project_id', { length: 36 }),
+    convertedAt: datetime('converted_at', { mode: 'date', fsp: 3 }),
     createdByUserId: char('created_by_user_id', { length: 36 }),
     version: int('version').notNull().default(1),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),

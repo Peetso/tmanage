@@ -17903,5 +17903,21 @@
   "PlatformGrowth.colPeople": "People",
   "PlatformGrowth.weekShort": "W",
   "PlatformGrowth.emptyTitle": "No growth figures yet",
-  "PlatformGrowth.emptyBody": "The nightly job has not produced figures for this period yet."
+  "PlatformGrowth.emptyBody": "The nightly job has not produced figures for this period yet.",
+  "Quotes.convertTitle": "Project",
+  "Quotes.convertBody": "The client accepted this quote. Turn it into a project: each line becomes a work item.",
+  "Quotes.convert": "Convert to project",
+  "Quotes.converting": "Creating the project",
+  "Quotes.convertFailed": "The project was not created",
+  "Quotes.convertedBody": "This quote is now a project. Its lines are the project’s first work items.",
+  "Quotes.openProject": "Open project",
+  "WorkFormsPublic.qrLabel": "QR code of the form link",
+  "WorkFormsPublic.qrTitle": "QR code",
+  "WorkFormsPublic.qrBody": "Print it or show it on a screen. Scanning it opens this form.",
+  "WorkFormsPublic.qrDownload": "Download SVG",
+  "WorkFormsPublic.embedTitle": "Embed on your website",
+  "WorkFormsPublic.embedLabel": "Embed code",
+  "WorkFormsPublic.embedNote": "The form runs in a sandbox: it can show itself and send answers, nothing else. If your site sets a Content-Security-Policy, add this address to its frame-src allow-list:",
+  "WorkFormsPublic.embedCopy": "Copy code",
+  "WorkFormsPublic.embedCopied": "Code copied"
 }

@@ -17903,5 +17903,21 @@
   "PlatformGrowth.colPeople": "الأشخاص",
   "PlatformGrowth.weekShort": "أ",
   "PlatformGrowth.emptyTitle": "لا أرقام نمو بعد",
-  "PlatformGrowth.emptyBody": "لم تُنتج المهمة الليلية أرقاماً لهذه المدة بعد."
+  "PlatformGrowth.emptyBody": "لم تُنتج المهمة الليلية أرقاماً لهذه المدة بعد.",
+  "Quotes.convertTitle": "المشروع",
+  "Quotes.convertBody": "وافق العميل على عرض السعر هذا. حوّله إلى مشروع: يصبح كل بند مهمة عمل.",
+  "Quotes.convert": "تحويل إلى مشروع",
+  "Quotes.converting": "جارٍ إنشاء المشروع",
+  "Quotes.convertFailed": "لم يُنشأ المشروع",
+  "Quotes.convertedBody": "أصبح عرض السعر هذا مشروعًا. بنوده هي أولى مهام المشروع.",
+  "Quotes.openProject": "فتح المشروع",
+  "WorkFormsPublic.qrLabel": "رمز QR لرابط النموذج",
+  "WorkFormsPublic.qrTitle": "رمز QR",
+  "WorkFormsPublic.qrBody": "اطبعه أو اعرضه على شاشة. مسحه يفتح هذا النموذج.",
+  "WorkFormsPublic.qrDownload": "تنزيل SVG",
+  "WorkFormsPublic.embedTitle": "التضمين في موقعك",
+  "WorkFormsPublic.embedLabel": "رمز التضمين",
+  "WorkFormsPublic.embedNote": "يعمل النموذج داخل بيئة معزولة: يمكنه عرض نفسه وإرسال الإجابات فقط. إذا كان موقعك يضبط Content-Security-Policy فأضف هذا العنوان إلى قائمة السماح frame-src:",
+  "WorkFormsPublic.embedCopy": "نسخ الرمز",
+  "WorkFormsPublic.embedCopied": "تم نسخ الرمز"
 }

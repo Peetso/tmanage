@@ -22,6 +22,7 @@ import { useDescribeApiError } from '../../../lib/api/describe-error';
 import { useDisplayFormatters } from '../../../lib/i18n/use-formatters';
 import { useTOr } from '../../../lib/i18n/use-t-or';
 import { getQuote, saveQuote, sendQuote, type QuoteDocument } from './QuoteApi';
+import { QuoteConvertCard } from './QuoteConvertCard';
 import { STATUS_WORDS } from './QuoteListScreen';
 import {
   EMPTY_LINE,
@@ -573,6 +574,9 @@ export function QuoteEditorScreen({
               </div>
             ) : null}
           </section>
+          {quote.data?.status === 'accepted' ? (
+            <QuoteConvertCard api={api} organizationSlug={organizationSlug} quote={quote.data} />
+          ) : null}
         </div>
       </div>
     </AppShell>

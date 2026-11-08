@@ -7,6 +7,9 @@ import { PUBLIC_LINKS_SERVICE } from '../public-links/public-links.controller.js
 import { PUBLIC_LINK_TARGETS } from '../public-links/public-link-targets.js';
 import type { PublicLinkTargets } from '../public-links/public-link-targets.js';
 import type { PublicLinksService } from '../public-links/public-links.service.js';
+import { ProjectsRepository } from '../projects/projects.repository.js';
+import { ProjectsService } from '../projects/projects.service.js';
+import { repositoryConversionWriter } from './quote-conversion.js';
 import { quoteTarget } from './quote-target.js';
 import { QUOTES_SERVICE, QuotesController } from './quotes.controller.js';
 import { QuotesRepository } from './quotes.repository.js';
@@ -40,7 +43,15 @@ export class QuotesModule {
       provide: QUOTES_SERVICE,
       inject: [TENANT_DATABASE, AUDIT_SERVICE, PUBLIC_LINKS_SERVICE],
       useFactory: (database: TenantDatabase, audit: AuditService, links: PublicLinksService) =>
-        new QuotesService({ database, repository: new QuotesRepository(), audit, links }),
+        new QuotesService({
+          database,
+          repository: new QuotesRepository(),
+          audit,
+          links,
+          // The shared project-create path, built as ProjectTemplatesModule builds it.
+          projects: new ProjectsService(database, new ProjectsRepository(), audit),
+          conversion: repositoryConversionWriter(),
+        }),
     };
     return {
       module: QuotesModule,

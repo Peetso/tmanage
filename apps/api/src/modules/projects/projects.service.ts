@@ -1,7 +1,11 @@
 import { authorize, PROJECT_CREATOR_ROLE } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
-import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type {
+  TenantContext,
+  TenantDatabase,
+  TenantQueryRunner,
+} from '../../common/database/tenant-context.js';
 import { ProjectsRepository } from './projects.repository.js';
 import { ProjectMembershipsRepository } from './project-memberships.repository.js';
 import type { CreateProjectInput, ListProjectsOptions } from './projects.repository.js';
@@ -226,47 +230,62 @@ export class ProjectsService {
   ): Promise<ProjectView> {
     await this.requireMayCreate(context, principal);
 
+    const row = await this.database.transaction(context, (tx) =>
+      this.createInTransaction(tx, context, input),
+    );
+
+    return toView(row);
+  }
+
+  /**
+   * 52-08. The body of {@link create} inside a caller's transaction, for a command that writes more
+   * than the project in one unit of work ("Convert to project" on a quote). The caller MUST have run
+   * {@link requireMayCreate} first; this writes the project, the creator's manager row and both audit
+   * rows exactly as {@link create} does.
+   */
+  async createInTransaction(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    input: CreateProjectInput,
+  ): Promise<ProjectRow> {
     const withOwner: CreateProjectInput = {
       ...input,
       ownerUserId: input.ownerUserId ?? context.userId,
     };
+    const created = await this.projects.create(tx, context, withOwner);
 
-    const row = await this.database.transaction(context, async (tx) => {
-      const created = await this.projects.create(tx, context, withOwner);
-
-      const creator = await this.memberships.add(tx, context, {
-        projectId: created.id,
-        userId: context.userId,
-        role: PROJECT_CREATOR_ROLE,
-      });
-      await this.audit?.record(tx, context, {
-        action: 'project_membership.granted',
-        result: 'allowed',
-        objectId: creator.id,
-        metadata: {
-          project_id: creator.projectId,
-          target_user_id: creator.userId,
-          granted_role: creator.role,
-        },
-      });
-
-      await this.audit?.record(tx, context, {
-        action: 'project.created',
-        objectId: created.id,
-        result: 'allowed',
-        metadata: {
-          workspace_id: created.workspaceId,
-          owner_user_id: created.ownerUserId,
-          // Whether a target date was set, not the date itself. A date is a fact about the
-          // work rather than an identifier, and §12's rule for metadata is identifiers and
-          // classifications only.
-          has_forecast_date: created.forecastAt !== null,
-        },
-      });
-
-      return created;
+    const creator = await this.memberships.add(tx, context, {
+      projectId: created.id,
+      userId: context.userId,
+      role: PROJECT_CREATOR_ROLE,
+    });
+    await this.audit?.record(tx, context, {
+      action: 'project_membership.granted',
+      result: 'allowed',
+      objectId: creator.id,
+      metadata: {
+        project_id: creator.projectId,
+        target_user_id: creator.userId,
+        granted_role: creator.role,
+      },
     });
 
-    return toView(row);
+    await this.audit?.record(tx, context, {
+      action: 'project.created',
+      objectId: created.id,
+      result: 'allowed',
+      metadata: {
+        workspace_id: created.workspaceId,
+        owner_user_id: created.ownerUserId,
+        // Whether a target date was set, not the date itself. A date is a fact about the
+        // work rather than an identifier, and §12's rule for metadata is identifiers and
+        // classifications only.
+        has_forecast_date: created.forecastAt !== null,
+      },
+    });
+
+    return created;
   }
 }
+
+export { toView as toProjectView };
