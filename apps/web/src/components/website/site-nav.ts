@@ -231,7 +231,7 @@ export const RESOURCES_MENU: WebMegaMenu = {
         {
           label: 'SiteNav.helpCenter',
           hint: 'SiteNav.helpCenterHint',
-          href: '/faq',
+          href: '/help',
           icon: 'help',
         },
         { label: 'SiteNav.status', hint: 'SiteNav.statusHint', href: '/status', icon: 'pulse' },
@@ -324,7 +324,7 @@ export const FOOTER_COLUMNS: readonly WebFooterColumn[] = [
       { label: 'SiteNav.blog', href: '/resources#blog' },
       { label: 'SiteNav.guides', href: '/resources#guides' },
       { label: 'SiteNav.templates', href: '/resources#templates' },
-      { label: 'SiteNav.helpCenter', href: '/faq' },
+      { label: 'SiteNav.helpCenter', href: '/help' },
       { label: 'SiteNav.status', href: '/status' },
     ],
   },

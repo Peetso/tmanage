@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { ALL_RESOURCES } from '../../components/website/pages/resources/resources-data';
+import { HELP_ARTICLES } from '../../content/help/help-articles';
 import type { DisplayLocale } from '../api/display-preferences';
 import { PAGE_OWNS_TITLE, ROUTE_TITLES, TITLE_SUFFIX } from '../route-titles';
 import { siteDescription } from './locale-html';
@@ -72,10 +73,17 @@ export const ARTICLE_PATHS: readonly string[] = ALL_RESOURCES.map(
   (item) => `/resources/${item.slug}`,
 );
 
+/** The Help centre (row 55-16) and its articles, each with an Arabic twin under `/ar/help`. */
+export const HELP_PATHS: readonly string[] = [
+  '/help',
+  ...HELP_ARTICLES.map((article) => `/help/${article.slug}`),
+];
+
 const WITH_TWIN: ReadonlySet<string> = new Set<string>([
   ...PUBLIC_LOCALIZED_PATHS,
   ...ARABIC_AUTH_PATHS,
   ...ARTICLE_PATHS,
+  ...HELP_PATHS,
 ]);
 
 /**

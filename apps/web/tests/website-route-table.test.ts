@@ -53,6 +53,12 @@ const ROUTES: Record<string, RouteRow> = {
     title: 'Download',
   },
   '/faq': { component: 'MarketingFaqScreen', from: 'screens/MarketingFaqScreen', title: 'FAQ' },
+  '/help': { component: 'HelpPage', from: 'website/pages/help/HelpPage', title: 'Help centre' },
+  '/help/[slug]': {
+    component: 'HelpArticlePage',
+    from: 'website/pages/help/HelpArticlePage',
+    title: null,
+  },
   '/features/communication': {
     component: 'FeaturesCommunicationPage',
     from: 'website/pages/features-communication/FeaturesCommunicationPage',

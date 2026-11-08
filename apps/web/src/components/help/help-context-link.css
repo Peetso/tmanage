@@ -1,0 +1,24 @@
+/* Row 55-16 — the round "?" help link in the canvas header (Figma R35 L2-55-16). Tokens only. */
+.tm-help-context-link {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--s8);
+  block-size: var(--s8);
+  border: var(--b-quiet) solid var(--ink-500);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.tm-help-context-link:hover {
+  background: var(--paper-150);
+}
+
+.tm-help-context-link:focus-visible {
+  outline: var(--b-structural) solid var(--focus-ring);
+  outline-offset: var(--s1);
+}

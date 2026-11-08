@@ -32,6 +32,7 @@ const CURRENT_BY_PREFIX: readonly [string, string][] = [
   ['/pricing', 'pricing'],
   ['/resources', 'resources'],
   ['/faq', 'resources'],
+  ['/help', 'resources'],
   ['/status', 'resources'],
 ];
 

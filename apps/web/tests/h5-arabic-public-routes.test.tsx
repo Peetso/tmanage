@@ -21,6 +21,7 @@ import {
   arabicPublicMetadata,
   arabicPublicTitle,
   englishPublicPath,
+  HELP_PATHS,
   isArabicPublicPath,
   languageSwitchTarget,
   localizeHref,
@@ -73,7 +74,10 @@ afterEach(() => {
 describe('the Arabic route table', () => {
   it('covers every static public page, and only those', () => {
     const english = pageRoutes(WEBSITE)
-      .filter((route) => route !== '/website-kit' && !route.includes('['))
+      // The Help centre (55-16) has its own Arabic routes under app/ar/(site)/help.
+      .filter(
+        (route) => route !== '/website-kit' && !route.includes('[') && !HELP_PATHS.includes(route),
+      )
       .sort();
     expect([...PUBLIC_LOCALIZED_PATHS].sort()).toEqual(english);
     expect(Object.keys(ARABIC_PAGES).sort()).toEqual(english);

@@ -35,6 +35,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/customers': { en: 'Customers & stories', key: 'WebsiteTitle.customers' },
   '/download': { en: 'Download', key: 'WebsiteTitle.download' },
   '/faq': { en: 'FAQ', key: 'WebsiteTitle.faq' },
+  '/help': { en: 'Help centre', key: 'WebsiteTitle.help' },
   '/features/communication': { en: 'Chat & calendar', key: 'WebsiteTitle.featuresCommunication' },
   '/features/insights': { en: 'Insights & automations', key: 'WebsiteTitle.featuresInsights' },
   '/features/knowledge': {
@@ -495,9 +496,12 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/': PAGE_OWNS_TITLE,
   // The Arabic public pages set their Arabic titles themselves (`public-locale-routes.ts`).
   '/ar/[[...path]]': PAGE_OWNS_TITLE,
+  '/ar/help': PAGE_OWNS_TITLE,
+  '/ar/help/[slug]': PAGE_OWNS_TITLE,
   '/ar/resources/[slug]': PAGE_OWNS_TITLE,
   '/ar/sign-in': PAGE_OWNS_TITLE,
   '/ar/sign-up': PAGE_OWNS_TITLE,
+  '/help/[slug]': PAGE_OWNS_TITLE,
   '/resources/[slug]': PAGE_OWNS_TITLE,
   '/website-kit': PAGE_OWNS_TITLE,
 };

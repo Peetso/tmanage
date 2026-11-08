@@ -26,6 +26,7 @@ import { ShellBanners } from './ShellBanners';
 import { SupportSessionEndedGate } from '../platform/support/SupportSessionEndedGate';
 import { AccountMenu } from './AccountMenu';
 import { AiPanelLauncher } from '../ai-panel/AiPanelLauncher';
+import { HelpContextLink } from '../help/HelpContextLink';
 import { BetaTag } from './BetaTag';
 import { ThemeSync } from './ThemeSync';
 
@@ -304,6 +305,8 @@ export function AppShell({
                   {actions || queryClient ? (
                     <div className="tm-canvas-header__actions">
                       {actions}
+                      {/* Row 55-16: the Help centre article for this screen. */}
+                      <HelpContextLink />
                       {/* "Let AI do the job" (Figma 400:5399): needs the query client. */}
                       {queryClient ? <AiPanelLauncher organizationSlug={organizationSlug} /> : null}
                     </div>
