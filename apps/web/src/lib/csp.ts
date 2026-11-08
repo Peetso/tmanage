@@ -1,5 +1,5 @@
 /**
- * The browser security policy (56-01) — the pure half. `src/proxy.ts` calls this on every page
+ * The browser security policy (56-01, enforced by default in production since r47 L2) — the pure half. `src/proxy.ts` calls this on every page
  * request with a fresh nonce; nothing here reads the request, the clock or the environment, so the
  * whole policy is unit-tested (`tests/csp.test.ts`).
  *
@@ -29,6 +29,9 @@
  *   under `'strict-dynamic'` every one was reported. Still never `'unsafe-inline'`.
  * - `worker-src 'self'`. With `strict-dynamic`, `'self'` in `script-src` is ignored, and the
  *   service worker (`/sw.js`) falls back to `script-src`; it needs its own directive.
+ * - `require-trusted-types-for 'script'` with `trusted-types default nextjs nextjs#bundler`: the
+ *   `default` policy (`lib/trusted-types-boot.ts`, the first inline script of every page) is the
+ *   one gate in front of `innerHTML`, `DOMParser`, script URLs and `eval`.
  *
  * When the browser reaches the API on another origin (development and the e2e harness:
  * `NEXT_PUBLIC_API_BASE_URL=http://localhost:3101`), that origin — and its `ws`/`wss` twin for the
@@ -36,22 +39,60 @@
  * same-origin and nothing is added.
  */
 
-/** Report-only first: the 7-day live soak (docs/runbooks/csp-enforcement.md), then `enforce`. */
+/** `enforce` blocks; `report-only` only reports (the soak, docs/runbooks/csp-enforcement.md). */
 export type CspMode = 'report-only' | 'enforce';
 
-/** `CSP_MODE`: exactly `enforce` enforces; anything else (unset, a typo) stays report-only. */
-export function resolveCspMode(value: string | undefined): CspMode {
-  return value?.trim().toLowerCase() === 'enforce' ? 'enforce' : 'report-only';
+/**
+ * `CSP_MODE`. A production build ENFORCES unless the value is exactly `report` (or the older
+ * `report-only`); `enforce` always enforces. Anywhere else (`next dev`, the e2e harness, tests)
+ * the default is report-only, so a developer's console is not a wall of blocked scripts. A typo
+ * in production therefore enforces: the safe side.
+ */
+export function resolveCspMode(value: string | undefined, production: boolean): CspMode {
+  const word = value?.trim().toLowerCase();
+  if (word === 'enforce') return 'enforce';
+  if (word === 'report' || word === 'report-only') return 'report-only';
+  return production ? 'enforce' : 'report-only';
 }
 
 /** Where browsers POST violation reports — answered by `apps/server/csp-report.mjs`. */
 export const CSP_REPORT_PATH = '/csp-report';
 
+/** The Reporting API group name `report-to` names; `Reporting-Endpoints` maps it to the path. */
+export const CSP_REPORT_GROUP = 'csp-endpoint';
+
 /**
- * Trusted Types, report-only in this train by design: it names every DOM sink that receives a raw
- * string, so the enforcing step can be planned from real reports rather than guessed.
+ * The Trusted Types policies a page may create: `default` (installed first thing by
+ * `lib/trusted-types-boot.ts`, the only gate in front of every DOM sink) and Next's own two
+ * (`nextjs` for its client, `nextjs#bundler` for webpack chunk URLs). Any other name throws.
  */
-export const TRUSTED_TYPES_REPORT_ONLY = `require-trusted-types-for 'script'; report-uri ${CSP_REPORT_PATH}`;
+export const TRUSTED_TYPE_POLICIES = ['default', 'nextjs', 'nextjs#bundler'] as const;
+
+/**
+ * Two years, the HSTS preload list's recommended age, with `includeSubDomains; preload`. Sent on
+ * HTTPS responses only ({@link hstsHeaderRules}, `apps/server/boot-guards.mjs`): over plain http
+ * the header means nothing and is left off.
+ */
+export const HSTS_VALUE = 'max-age=63072000; includeSubDomains; preload';
+
+/**
+ * `next.config.ts` header rules for HSTS: only when the request reached us over HTTPS, which the
+ * TLS-terminating front (Hostinger, the single-process server) states in `X-Forwarded-Proto`.
+ * Next anchors `value` as a whole-string regex; a proxy chain may send `https, http`.
+ */
+export function hstsHeaderRules(): {
+  source: string;
+  has: { type: 'header'; key: string; value: string }[];
+  headers: { key: string; value: string }[];
+}[] {
+  return [
+    {
+      source: '/:path*',
+      has: [{ type: 'header', key: 'x-forwarded-proto', value: 'https(?:\\s*,.*)?' }],
+      headers: [{ key: 'Strict-Transport-Security', value: HSTS_VALUE }],
+    },
+  ];
+}
 
 /** Avatars and file thumbnails from the two storage providers people connect (Drive, OneDrive). */
 const IMAGE_ORIGINS = ['https://*.googleusercontent.com', 'https://*.sharepoint.com'];
@@ -166,7 +207,12 @@ export function buildContentSecurityPolicy(input: CspInput): string {
     ['base-uri', "'self'"],
     ['form-action', "'self'", ...PICKER_FORMS],
     [frameAncestors(input)],
+    // Trusted Types, in the same policy (so enforced with it): every string reaching a script
+    // sink goes through the `default` policy, which admits only the app's own sanitised values.
+    ['require-trusted-types-for', "'script'"],
+    ['trusted-types', ...TRUSTED_TYPE_POLICIES],
     ['report-uri', CSP_REPORT_PATH],
+    ['report-to', CSP_REPORT_GROUP],
   ];
   return directives.map((parts) => parts.join(' ')).join('; ');
 }
@@ -183,7 +229,8 @@ export interface PolicyHeaders {
  *
  * Report-only mode still ENFORCES `frame-ancestors 'none'` (S9/S10, clickjacking: the consent and
  * AI-approve pages must never be framed) — it moved here from `next.config.ts` so there is one
- * writer of `Content-Security-Policy` and the two can never race.
+ * writer of `Content-Security-Policy` and the two can never race. `Reporting-Endpoints` names the
+ * receiver for `report-to` (Chromium); `report-uri` stays for the browsers without it.
  */
 export function policyHeaders(input: CspInput & { readonly mode: CspMode }): PolicyHeaders {
   const policy = buildContentSecurityPolicy(input);
@@ -193,6 +240,6 @@ export function policyHeaders(input: CspInput & { readonly mode: CspMode }): Pol
   if (input.mode === 'report-only') {
     response.push(['content-security-policy', frameAncestors(input)]);
   }
-  response.push(['content-security-policy-report-only', TRUSTED_TYPES_REPORT_ONLY]);
+  response.push(['reporting-endpoints', `${CSP_REPORT_GROUP}="${CSP_REPORT_PATH}"`]);
   return { request: { 'x-nonce': input.nonce, [name]: policy }, response };
 }

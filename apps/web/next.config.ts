@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next';
 import { validatePublicConfigForBuild } from './src/lib/public-config';
+import { hstsHeaderRules } from './src/lib/csp';
 import { staticAssetHeaderRules } from './src/lib/static-headers';
 
 /**
@@ -14,11 +15,11 @@ import { staticAssetHeaderRules } from './src/lib/static-headers';
  * framework itself cannot be skipped by a route that forgot to opt in.
  *
  * The Content-Security-Policy is NOT here (56-01): it carries a per-request nonce, so it is
- * set by `src/proxy.ts` (policy in `src/lib/csp.ts`, report-only until `CSP_MODE=enforce`,
+ * set by `src/proxy.ts` (policy in `src/lib/csp.ts`, enforced in production unless `CSP_MODE=report`,
  * see `docs/runbooks/csp-enforcement.md`). That includes the enforced `frame-ancestors 'none'`
  * the consent and AI-approve pages used to get from this file — one writer per header name.
- * HSTS and COOP are set here too so `next dev` (the e2e stack) shows them; the single-process
- * server adds the same values when a response arrives without them (`apps/server/boot-guards.mjs`).
+ * HSTS (HTTPS requests only) and COOP are set here too; the single-process server adds the same
+ * values when a response arrives without them (`apps/server/boot-guards.mjs`).
  *
  * ## The public configuration is validated here, at load
  *
@@ -97,18 +98,15 @@ const config: NextConfig = {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(self), geolocation=(), interest-cohort=()',
           },
-          // Same value as `apps/server/boot-guards.mjs` HSTS_VALUE (preload-eligible; the list
-          // submission is optional, docs/runbooks/csp-enforcement.md). Ignored over plain http.
-          {
-            key: 'Strict-Transport-Security',
-            value: 'max-age=31536000; includeSubDomains; preload',
-          },
           // `same-origin-allow-popups`, not `same-origin`: the OneDrive picker is a popup this
           // page opens and talks to over postMessage; plain `same-origin` severs that opener.
           // Still no cross-origin page can keep a handle on a TManage window.
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
         ],
       },
+      // HSTS (two years, preload) on HTTPS responses only — `hstsHeaderRules()` in
+      // `src/lib/csp.ts`, the same value as `apps/server/boot-guards.mjs` HSTS_VALUE.
+      ...hstsHeaderRules(),
       // Clickjacking, legacy browsers: every page but the embeddable public form (52-20, whose
       // `frame-ancestors 'self' https:` comes from `src/proxy.ts`) is DENY.
       {

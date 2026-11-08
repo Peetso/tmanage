@@ -95,11 +95,26 @@ export function isApiPath(url) {
 }
 
 /**
- * One year, the minimum the HSTS preload list accepts, with `preload` (56-01). Submitting the host
- * to hstspreload.org is an optional, separate step (docs/runbooks/csp-enforcement.md). Same value
- * as `apps/web/next.config.ts`, which sets it first; this is the fallback for a response without.
+ * Two years with `includeSubDomains; preload` (56-01, r47 L2) — what the HSTS preload list asks
+ * for. Submitting the host to hstspreload.org is an optional, separate step
+ * (docs/runbooks/csp-enforcement.md). Same value as `HSTS_VALUE` in `apps/web/src/lib/csp.ts`,
+ * which `next.config.ts` sets first; this is the fallback for a response without. HTTPS only.
  */
-export const HSTS_VALUE = 'max-age=31536000; includeSubDomains; preload';
+export const HSTS_VALUE = 'max-age=63072000; includeSubDomains; preload';
+
+/**
+ * Whether the browser reached us over HTTPS: a TLS socket, or the TLS-terminating front saying
+ * so in `X-Forwarded-Proto` (first hop). A forged `https` from a plain-http client only earns it
+ * an HSTS header its browser ignores over http, so the header needs no proxy trust check.
+ */
+export function isHttpsRequest(headers, encrypted = false) {
+  if (encrypted) return true;
+  const proto = String(headers?.['x-forwarded-proto'] ?? '')
+    .split(',')[0]
+    .trim()
+    .toLowerCase();
+  return proto === 'https';
+}
 
 /**
  * Same value as `apps/web/next.config.ts` — `-allow-popups` because the OneDrive picker is a popup
@@ -124,12 +139,12 @@ export const CSP_FALLBACK_REPORT_ONLY = [
 ].join('; ');
 
 /**
- * Headers to add to a web response: HSTS on every one; on HTML, COOP and — only when the web app
- * set no CSP of either kind — the fallback above. A header the web server already set is kept.
+ * Headers to add to a web response: HSTS on every HTTPS one; on HTML, COOP and — only when the web
+ * app set no CSP of either kind — the fallback above. A header the web server already set is kept.
  */
-export function webSecurityHeaders(upstreamHeaders) {
+export function webSecurityHeaders(upstreamHeaders, https = true) {
   const added = {};
-  if (!('strict-transport-security' in upstreamHeaders)) {
+  if (https && !('strict-transport-security' in upstreamHeaders)) {
     added['strict-transport-security'] = HSTS_VALUE;
   }
   const type = String(upstreamHeaders['content-type'] ?? '');

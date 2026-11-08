@@ -330,7 +330,8 @@ async function main() {
 
     // 9. The HTTP journey.
     const before = stderr.length;
-    const home = await hit('/');
+    // `X-Forwarded-Proto: https`, as Hostinger's TLS front sends it: HSTS is HTTPS-only (r47 L2).
+    const home = await hit('/', { headers: { 'x-forwarded-proto': 'https' } });
     check('GET / renders', home.status >= 200 && home.status < 400, `status ${home.status}`);
     if (home.status >= 400) {
       const body = (await home.text())
@@ -378,10 +379,13 @@ async function main() {
       `status ${dev.status}`,
     );
     const hsts = home.headers.get('strict-transport-security') ?? '';
-    const csp = home.headers.get('content-security-policy-report-only') ?? '';
+    // Enforced by default in production; report-only when the host sets CSP_MODE=report.
+    const csp = `${home.headers.get('content-security-policy') ?? ''} ${
+      home.headers.get('content-security-policy-report-only') ?? ''
+    }`;
     check(
-      'GET / carries HSTS (1y, includeSubDomains) and a report-only CSP',
-      /max-age=31536000/.test(hsts) && /includeSubDomains/.test(hsts) && /default-src/.test(csp),
+      'GET / carries HSTS (2y, includeSubDomains, preload) and the nonce CSP',
+      /max-age=63072000/.test(hsts) && /includeSubDomains/.test(hsts) && /default-src/.test(csp),
       hsts,
     );
     const maintenance = await hit('/public/site/maintenance');
@@ -556,7 +560,7 @@ function writeReport(passed, summary) {
     '127.0.0.1); NEXT_PUBLIC_* baked at bundle build (same-origin), none needed in the panel.',
     'Security review fixes covered above: NODE_ENV forced/asserted production + dev sign-in',
     'needs ALLOW_DEV_SIGN_IN (refused in production); /public/site/* routed + contact limiter;',
-    'HSTS + report-only CSP; no *.map, no db/users.sql in the zip.',
+    'HSTS + nonce CSP; no *.map, no db/users.sql in the zip.',
     'Run: unpacked outside the repo, `node server.mjs`, private MariaDB 11.8 (log-bin on), every',
     'process stopped afterwards. Not proven: the real hPanel, SMTP delivery, S3 uploads.',
     '',

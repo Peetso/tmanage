@@ -1,5 +1,15 @@
 # Runbook — browser security policy: soak, enforce, roll back (56-01)
 
+> **r47 L2 (2026-11-08) supersedes the defaults below.** A production build now ENFORCES by
+> default; `CSP_MODE=report` (or `report-only`) is the roll-back to report-only, `next dev` stays
+> report-only unless `enforce`. Trusted Types is inside the page policy (enforced with it), with a
+> `default` policy from `apps/web/src/lib/trusted-types-boot.ts`; `trusted-types default nextjs
+nextjs#bundler`. Reports go to `report-uri /csp-report` and `report-to csp-endpoint`
+> (`Reporting-Endpoints`). HSTS is `max-age=63072000; includeSubDomains; preload`, on HTTPS
+> (`X-Forwarded-Proto: https`) only. Prerendered pages' inline-script hashes are computed at build
+> time into `.next/csp-script-hashes.json` (`apps/web/scripts/write-csp-hashes.mjs`); the B18 live
+> check compares the served `script-src` against that file.
+
 What ships in 56-01:
 
 | Header                                              | Where it is set                                                      | Value                                                                                             |

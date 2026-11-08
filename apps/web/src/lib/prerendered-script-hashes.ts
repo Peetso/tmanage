@@ -11,10 +11,48 @@ import { inlineScriptBodies } from './csp';
  * those paths `src/proxy.ts` sends `script-src 'self'` plus the SHA-256 of each inline script of
  * the exact HTML on disk (`<distDir>/server/app/<route>.html`).
  *
+ * The hashes are computed AT BUILD TIME (r47 L2): `scripts/write-csp-hashes.mjs` runs after
+ * `next build` and writes `<distDir>/csp-script-hashes.json`, which this reads once per process.
+ * A build without that file (an older build, a bare `next build`) falls back to hashing the HTML
+ * on first request, as before.
+ *
  * Only `page` routes that never revalidate are used: their HTML cannot change while the process
  * runs, so each file is read and hashed once. Anything unreadable — no manifest (`next dev`), a
  * missing file — answers `undefined`, and the request keeps the nonce policy.
  */
+
+/** Written by `scripts/write-csp-hashes.mjs` into the dist dir. */
+export const HASH_MANIFEST_FILE = 'csp-script-hashes.json';
+
+interface HashManifest {
+  readonly version?: number;
+  readonly routes?: Record<string, unknown>;
+}
+
+/** The build-time manifest as a map, or `undefined` when there is none (or it is malformed). */
+function readHashManifest(
+  distDir: string,
+  read: ReadText,
+): ReadonlyMap<string, readonly string[]> | undefined {
+  let parsed: HashManifest;
+  try {
+    parsed = JSON.parse(read(join(distDir, HASH_MANIFEST_FILE))) as HashManifest;
+  } catch {
+    return undefined;
+  }
+  if (parsed.version !== 1 || typeof parsed.routes !== 'object' || parsed.routes === null) {
+    return undefined;
+  }
+  const routes = new Map<string, readonly string[]>();
+  for (const [route, hashes] of Object.entries(parsed.routes)) {
+    if (!Array.isArray(hashes)) continue;
+    const valid = hashes.filter(
+      (hash): hash is string => typeof hash === 'string' && /^sha256-[A-Za-z0-9+/]+=*$/.test(hash),
+    );
+    routes.set(route, valid);
+  }
+  return routes;
+}
 
 type ReadText = (path: string) => string;
 
@@ -34,6 +72,7 @@ export function createPrerenderedScriptHashes(
   distDir: string,
   read: ReadText = (path) => readFileSync(path, 'utf8'),
 ): (pathname: string) => readonly string[] | undefined {
+  let built: ReadonlyMap<string, readonly string[]> | null | undefined;
   let routes: Set<string> | undefined;
   const hashes = new Map<string, readonly string[] | undefined>();
 
@@ -56,6 +95,8 @@ export function createPrerenderedScriptHashes(
   };
 
   return (pathname) => {
+    if (built === undefined) built = readHashManifest(distDir, read) ?? null;
+    if (built !== null) return built.get(pathname);
     if (!staticRoutes().has(pathname)) return undefined;
     if (hashes.has(pathname)) return hashes.get(pathname);
     let found: readonly string[] | undefined;

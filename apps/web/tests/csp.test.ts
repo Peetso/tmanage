@@ -2,11 +2,13 @@ import { basename } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   buildContentSecurityPolicy,
+  HSTS_VALUE,
+  hstsHeaderRules,
   inlineScriptBodies,
+  isEmbeddablePath,
   nonceFromBytes,
   policyHeaders,
   resolveCspMode,
-  TRUSTED_TYPES_REPORT_ONLY,
 } from '../src/lib/csp';
 import { createPrerenderedScriptHashes, sha256Source } from '../src/lib/prerendered-script-hashes';
 
@@ -61,26 +63,68 @@ describe('the browser security policy', () => {
     ).not.toContain('localhost');
   });
 
-  it('report-only by default; enforce only on the exact word; Trusted Types always report-only', () => {
-    expect(resolveCspMode(undefined)).toBe('report-only');
-    expect(resolveCspMode('enforced')).toBe('report-only');
-    expect(resolveCspMode(' Enforce ')).toBe('enforce');
+  it('enforces by default in production; report-only only on CSP_MODE=report (or in dev)', () => {
+    expect(resolveCspMode(undefined, true)).toBe('enforce');
+    expect(resolveCspMode('reprot', true)).toBe('enforce');
+    expect(resolveCspMode(' Report ', true)).toBe('report-only');
+    expect(resolveCspMode('report-only', true)).toBe('report-only');
+    expect(resolveCspMode(undefined, false)).toBe('report-only');
+    expect(resolveCspMode('enforce', false)).toBe('enforce');
+  });
 
+  it('report mode: whole policy report-only, frame-ancestors still enforced, Reporting-Endpoints', () => {
     const soak = policyHeaders({ nonce: 'n', mode: 'report-only', development: false });
     expect(soak.request['x-nonce']).toBe('n');
     expect(soak.request['content-security-policy-report-only']).toContain("'nonce-n'");
     expect(soak.response).toContainEqual(['content-security-policy', "frame-ancestors 'none'"]);
-    expect(soak.response).toContainEqual([
-      'content-security-policy-report-only',
-      TRUSTED_TYPES_REPORT_ONLY,
-    ]);
+    expect(soak.response).toContainEqual(['reporting-endpoints', 'csp-endpoint="/csp-report"']);
+  });
 
+  it('enforce mode: one enforced policy carrying Trusted Types and both report channels', () => {
     const enforced = policyHeaders({ nonce: 'n', mode: 'enforce', development: false });
-    expect(enforced.request['content-security-policy']).toContain("'nonce-n'");
+    const policy = enforced.request['content-security-policy'] ?? '';
+    expect(policy).toContain("'nonce-n'");
+    expect(directive(policy, 'require-trusted-types-for')).toBe(
+      "require-trusted-types-for 'script'",
+    );
+    expect(directive(policy, 'trusted-types')).toBe('trusted-types default nextjs nextjs#bundler');
+    expect(policy).toContain('report-uri /csp-report');
+    expect(policy).toContain('report-to csp-endpoint');
+    expect(directive(policy, 'style-src')).toBe("style-src 'self' 'unsafe-inline'");
+    expect(directive(policy, 'script-src')).not.toContain('unsafe-inline');
     expect(enforced.response.map(([name]) => name)).toEqual([
       'content-security-policy',
-      'content-security-policy-report-only',
+      'reporting-endpoints',
     ]);
+  });
+
+  it('frame-ancestors none on every route but the public form embed /f/[slug]', () => {
+    for (const path of ['/', '/sign-in', '/connect/x', '/acme/ai/approve/1', '/f/a/b', '/f']) {
+      expect(isEmbeddablePath(path), path).toBe(false);
+    }
+    expect(isEmbeddablePath('/f/contact-us')).toBe(true);
+    const form = policyHeaders({
+      nonce: 'n',
+      mode: 'enforce',
+      development: false,
+      embeddable: true,
+    });
+    expect(form.request['content-security-policy']).toContain("frame-ancestors 'self' https:");
+    const page = policyHeaders({ nonce: 'n', mode: 'report-only', development: false });
+    expect(page.response).toContainEqual(['content-security-policy', "frame-ancestors 'none'"]);
+  });
+
+  it('HSTS: two years, includeSubDomains, preload, only on X-Forwarded-Proto https', () => {
+    expect(HSTS_VALUE).toBe('max-age=63072000; includeSubDomains; preload');
+    const [rule] = hstsHeaderRules();
+    expect(rule?.headers).toEqual([{ key: 'Strict-Transport-Security', value: HSTS_VALUE }]);
+    const condition = rule?.has[0];
+    expect(condition?.key).toBe('x-forwarded-proto');
+    // Next matches `has` values as `^value$`.
+    const matches = (value: string) => new RegExp(`^${condition?.value ?? ''}$`).test(value);
+    expect(matches('https')).toBe(true);
+    expect(matches('https, http')).toBe(true);
+    expect(matches('http')).toBe(false);
   });
 
   it('B18: a prerendered page gets self plus its inline-script hashes, no nonce, no unsafe-inline', () => {

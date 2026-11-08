@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { NextResponse, type NextRequest } from 'next/server';
 import { isEmbeddablePath, nonceFromBytes, policyHeaders, resolveCspMode } from './lib/csp';
-import { localeBootScript } from './lib/i18n/locale-boot';
+import { bootScripts } from './lib/boot-scripts';
 import { createPrerenderedScriptHashes, sha256Source } from './lib/prerendered-script-hashes';
 
 /**
@@ -11,9 +11,10 @@ import { createPrerenderedScriptHashes, sha256Source } from './lib/prerendered-s
  * request's CSP header — Next reads the nonce back out of that header and stamps it on each script
  * it renders — and the same policy goes on the RESPONSE. The policy itself is `lib/csp.ts`.
  *
- * `CSP_MODE=enforce` enforces; the default is report-only, for the 7-day live soak described in
- * `docs/runbooks/csp-enforcement.md`. Read per request, so the flip is an environment change and a
- * restart, not a rebuild.
+ * A production build ENFORCES by default; `CSP_MODE=report` turns it back to report-only (the soak
+ * described in `docs/runbooks/csp-enforcement.md`). `next dev` stays report-only unless
+ * `CSP_MODE=enforce`. Read per request, so the flip is an environment change and a restart, not a
+ * rebuild.
  *
  * The matcher leaves out what is not a page: the API (`/v1`, answered by the API itself in
  * production), the report receiver, Next's static assets and image optimiser, and any path with a
@@ -25,11 +26,15 @@ import { createPrerenderedScriptHashes, sha256Source } from './lib/prerendered-s
  * `next dev` (the e2e harness) renders every page per request and cannot show this; the live
  * report-only soak can (B18: ~17 `script-src-elem` reports per page). In production such a path
  * gets the hash policy instead (`lib/prerendered-script-hashes.ts`): `'self'` plus the SHA-256 of
- * each inline script of the very HTML Next serves for it.
+ * each inline script of the very HTML Next serves for it, computed at build time
+ * (`scripts/write-csp-hashes.mjs`).
  */
 
-/** The locale boot script never changes within a build, so its hash is computed once. */
-const BOOT_SCRIPT_HASH = sha256Source(localeBootScript());
+/**
+ * The two boot scripts (Trusted Types default policy, locale) never change within a process, so
+ * their hashes are computed once — from the same function the root layout renders.
+ */
+const BOOT_SCRIPT_HASHES = bootScripts(process.env.NODE_ENV !== 'production').map(sha256Source);
 
 /** `next start` runs with the web app as its working directory; the dist dir as next.config.ts. */
 const prerenderedHashes = createPrerenderedScriptHashes(
@@ -43,11 +48,11 @@ export function proxy(request: NextRequest): NextResponse {
   const pageHashes = development ? undefined : prerenderedHashes(request.nextUrl.pathname);
   const headers = policyHeaders({
     nonce,
-    mode: resolveCspMode(process.env['CSP_MODE']),
+    mode: resolveCspMode(process.env['CSP_MODE'], !development),
     host: request.headers.get('host') ?? undefined,
     apiBaseUrl: process.env['NEXT_PUBLIC_API_BASE_URL'],
     development,
-    scriptHashes: [BOOT_SCRIPT_HASH, ...(pageHashes ?? [])],
+    scriptHashes: [...BOOT_SCRIPT_HASHES, ...(pageHashes ?? [])],
     prerendered: pageHashes !== undefined,
     embeddable: isEmbeddablePath(request.nextUrl.pathname),
   });
@@ -55,8 +60,8 @@ export function proxy(request: NextRequest): NextResponse {
   const requestHeaders = new Headers(request.headers);
   for (const [name, value] of Object.entries(headers.request)) requestHeaders.set(name, value);
   const response = NextResponse.next({ request: { headers: requestHeaders } });
-  // `append`: the report-only header carries two policies (the page's and Trusted Types'); a
-  // comma-joined value is the standard way to send several policies in one header.
+  // `append`: in report-only mode `content-security-policy` carries the enforced frame-ancestors
+  // stand-in; appending never overwrites a header Next or next.config.ts already set.
   for (const [name, value] of headers.response) response.headers.append(name, value);
   return response;
 }

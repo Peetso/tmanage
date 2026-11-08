@@ -11,7 +11,7 @@ import { RouteDocumentTitle } from '../components/providers/RouteDocumentTitle';
 import { ServiceWorkerRegister } from '../components/pwa/ServiceWorkerRegister';
 import { UpdateToast } from '../components/pwa/UpdateToast';
 import { LocaleHintToast } from '../components/shell/LocaleHintToast';
-import { localeBootScript } from '../lib/i18n/locale-boot';
+import { bootScripts } from '../lib/boot-scripts';
 import { SITE_DESCRIPTION_EN } from '../lib/i18n/locale-html';
 import { serverHtmlAttributes } from '../lib/i18n/server-html-attributes';
 
@@ -103,8 +103,11 @@ export const viewport: Viewport = {
   themeColor: '#090a09',
 };
 
-/** Serialised once per server process; the same bytes in every static page. */
-const LOCALE_BOOT_SCRIPT = localeBootScript();
+/**
+ * Serialised once per server process; the same bytes in every static page. The Trusted Types
+ * default policy first, then the locale boot (`lib/boot-scripts.ts`).
+ */
+const BOOT_SCRIPTS = bootScripts(process.env.NODE_ENV !== 'production');
 
 /**
  * The document.
@@ -126,9 +129,9 @@ const LOCALE_BOOT_SCRIPT = localeBootScript();
  * before the first paint; `LocaleDirectionProvider` (mounted just inside `<body>`) keeps them in
  * step whenever a member changes locale, so `ar-EG` reads right-to-left on reload and without one.
  * `suppressHydrationWarning` covers only `<html>`'s own attributes, which that script changes by
- * design. The script-src CSP (56-01, `src/proxy.ts`) allows this one inline script by its SHA-256,
+ * design. The script-src CSP (56-01, `src/proxy.ts`) allows these two inline scripts by SHA-256,
  * not by the per-request nonce: reading `headers()` here would make every route dynamic (see
- * `metadata` above). Its text must therefore stay exactly `localeBootScript()`, which the proxy
+ * `metadata` above). Their text must therefore stay exactly `bootScripts()`, which the proxy
  * hashes. The CSS throughout uses logical
  * properties, so that switch is a value change rather than a rewrite. The Arabic face the tokens
  * name (Alexandria) is self-hosted by `@font-face` in `globals.css` (R36), not here: it needs two
@@ -146,7 +149,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       suppressHydrationWarning
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: LOCALE_BOOT_SCRIPT }} />
+        {BOOT_SCRIPTS.map((script, index) => (
+          <script key={index} dangerouslySetInnerHTML={{ __html: script }} />
+        ))}
       </head>
       <body>
         <QueryProvider>

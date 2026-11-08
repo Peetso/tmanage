@@ -5,6 +5,7 @@ import {
   COOP_VALUE,
   CSP_FALLBACK_REPORT_ONLY,
   HSTS_VALUE,
+  isHttpsRequest,
   isApiPath,
   resolveNodeEnv,
   webSecurityHeaders,
@@ -96,7 +97,7 @@ test('the AI connector OAuth discovery and authorization endpoints go to the API
 test('HSTS with preload on every web response; COOP and the CSP fallback on HTML only', () => {
   const html = webSecurityHeaders({ 'content-type': 'text/html; charset=utf-8' });
   assert.equal(html['strict-transport-security'], HSTS_VALUE);
-  assert.ok(Number(/max-age=(\d+)/.exec(HSTS_VALUE)[1]) >= 31_536_000);
+  assert.equal(Number(/max-age=(\d+)/.exec(HSTS_VALUE)[1]), 63_072_000);
   assert.match(HSTS_VALUE, /includeSubDomains; preload$/);
   assert.equal(html['cross-origin-opener-policy'], COOP_VALUE);
   assert.equal(html['content-security-policy-report-only'], CSP_FALLBACK_REPORT_ONLY);
@@ -104,6 +105,17 @@ test('HSTS with preload on every web response; COOP and the CSP fallback on HTML
 
   const js = webSecurityHeaders({ 'content-type': 'application/javascript' });
   assert.deepEqual(js, { 'strict-transport-security': HSTS_VALUE });
+});
+
+test('HSTS only on HTTPS: a TLS socket or X-Forwarded-Proto https (first hop)', () => {
+  assert.equal(isHttpsRequest({ 'x-forwarded-proto': 'https' }), true);
+  assert.equal(isHttpsRequest({ 'x-forwarded-proto': 'HTTPS, http' }), true);
+  assert.equal(isHttpsRequest({ 'x-forwarded-proto': 'http' }), false);
+  assert.equal(isHttpsRequest({}, true), true);
+  assert.equal(isHttpsRequest({}), false);
+  const plain = webSecurityHeaders({ 'content-type': 'text/html' }, false);
+  assert.equal('strict-transport-security' in plain, false);
+  assert.equal(plain['cross-origin-opener-policy'], COOP_VALUE);
 });
 
 test("the web app's own nonce CSP (either header) and HSTS/COOP are kept, never overwritten", () => {

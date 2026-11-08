@@ -8,12 +8,13 @@ import { API_URL } from '../setup/stack.js';
  *
  * For each family (public home, Arabic home, sign-in, a signed-in org page, the client portal, the
  * AI approve page) the HTML response must carry: a CSP whose `script-src` holds a nonce and never
- * `'unsafe-inline'`, the Trusted Types report-only policy, HSTS with `preload`, COOP, and the
- * Permissions-Policy that admits only this origin's microphone. And the page must render without
- * a single CSP violation outside Trusted Types (which is report-only in this train by design).
+ * `'unsafe-inline'`, `require-trusted-types-for 'script'` in that same policy, COOP, and the
+ * Permissions-Policy that admits only this origin's microphone; HSTS (two years, preload) only
+ * when the request says it came over HTTPS. And the page must render without a single CSP
+ * violation (under enforce, Trusted Types included: the default policy must admit every sink).
  *
  * The harness inherits `CSP_MODE`, so the same spec runs both ways:
- *   pnpm test:e2e                     — report-only (the default): header `…-Report-Only`
+ *   pnpm test:e2e                     — report-only (the dev default): header `…-Report-Only`
  *   CSP_MODE=enforce pnpm test:e2e    — the regression wall: the WHOLE suite green under the
  *                                       enforcing policy before live may flip (runbook).
  * `next dev` renders every page per request, so this cannot see the prerendered-page gap the
@@ -66,7 +67,7 @@ const FAMILIES = [
 
 test.describe('SEC-08 browser security policy', () => {
   for (const family of FAMILIES) {
-    test(`${family.name}: nonce CSP, Trusted Types, HSTS preload, COOP, no violations`, async ({
+    test(`${family.name}: nonce CSP, Trusted Types, HTTPS-only HSTS, COOP, no violations`, async ({
       browser,
     }) => {
       const context = await browser.newContext();
@@ -84,11 +85,15 @@ test.describe('SEC-08 browser security policy', () => {
         expect(scriptSrc).toContain("'strict-dynamic'");
         expect(scriptSrc).not.toContain("'unsafe-inline'");
         expect(policy).toContain("frame-ancestors 'none'");
-        expect(await header('content-security-policy-report-only')).toContain(
-          "require-trusted-types-for 'script'",
-        );
-        expect(await header('strict-transport-security')).toMatch(
-          /max-age=31536000; includeSubDomains; preload/,
+        expect(policy).toContain("require-trusted-types-for 'script'");
+        expect(policy).toContain('trusted-types default nextjs nextjs#bundler');
+        // Plain http here: HSTS is for HTTPS responses only.
+        expect(await header('strict-transport-security')).toBe('');
+        const viaHttps = await context.request.get(response!.url(), {
+          headers: { 'x-forwarded-proto': 'https' },
+        });
+        expect(viaHttps.headers()['strict-transport-security']).toBe(
+          'max-age=63072000; includeSubDomains; preload',
         );
         expect(await header('cross-origin-opener-policy')).toBe('same-origin-allow-popups');
         expect(await header('permissions-policy')).toBe(
@@ -102,7 +107,7 @@ test.describe('SEC-08 browser security policy', () => {
           () => (window as unknown as { __cspViolations: string[] }).__cspViolations,
         );
         expect(
-          violations.filter((line) => !line.includes('require-trusted-types-for')),
+          violations.filter((line) => ENFORCE || !line.includes('require-trusted-types-for')),
           family.name,
         ).toEqual([]);
       } finally {
