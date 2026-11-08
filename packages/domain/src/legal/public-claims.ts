@@ -85,8 +85,15 @@ export const PUBLIC_CLAIMS: readonly PublicClaim[] = Object.freeze([
   {
     id: 'scim',
     textKey: 'PricingPage.compareRowScim',
-    proofIds: ['SEC56-10b'],
-    status: 'hidden',
+    proofIds: [
+      'SEC56-10b',
+      'apps/api/src/modules/scim/scim.test.ts',
+      'apps/web/tests/scim-provisioning.test.tsx',
+    ],
+    // Built in 51b96339 (SCIM 2.0 provisioning, SCIM attack proofs).
+    status: 'shipped',
+    verifiedAt: '2026-11-08',
+    proofRunRef: 'R49 integrator unit run: apps/api/src/modules/scim/scim.test.ts (51b96339)',
     owner: '54-16',
     phrases: { en: [/\bSCIM\b/u], ar: [/\bSCIM\b/u] },
     plannedKeys: SSO_PLANNED_KEYS,
