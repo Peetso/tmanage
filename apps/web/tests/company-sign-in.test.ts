@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { companySignInError } from '../src/components/screens/CompanySignInButton';
-import { splitDomains } from '../src/lib/api/sso';
+import { splitDomains, ssoSettingsBody } from '../src/lib/api/sso';
 
 describe('54-14 company sign-in (web)', () => {
   it('maps the callback refusal codes to a sentence and unknown codes to the generic one', () => {
@@ -15,5 +15,36 @@ describe('54-14 company sign-in (web)', () => {
       'northstar.example',
       'ops.northstar.example',
     ]);
+  });
+
+  it('sends only the chosen protocol and never an empty certificate (54-15)', () => {
+    const saml = {
+      idpMetadataXml: '',
+      idpEntityId: ' https://idp.example ',
+      idpSsoUrl: 'https://idp.example/sso',
+      idpCertificate: ' ',
+    };
+    const input = {
+      protocol: 'saml' as const,
+      saml,
+      issuer: 'x',
+      clientId: 'y',
+      clientSecret: 'z',
+      allowedDomains: ['a.example'],
+      enforce: false,
+      autoJoin: false,
+    };
+    expect(ssoSettingsBody(input)).toEqual({
+      protocol: 'saml',
+      allowedDomains: ['a.example'],
+      enforce: false,
+      autoJoin: false,
+      idpEntityId: 'https://idp.example',
+      idpSsoUrl: 'https://idp.example/sso',
+    });
+    expect(ssoSettingsBody({ ...input, saml: { ...saml, idpMetadataXml: '<md/>' } })).toMatchObject(
+      { idpMetadataXml: '<md/>' },
+    );
+    expect(ssoSettingsBody({ ...input, protocol: 'oidc' })).not.toHaveProperty('idpEntityId');
   });
 });

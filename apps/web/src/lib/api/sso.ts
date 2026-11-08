@@ -6,6 +6,10 @@ import { ApiRequestError } from './errors';
  *
  * - The owner's settings: `GET`/`PUT`/`DELETE …/security/sso`. The client secret is sent once and
  *   never read back (`hasClientSecret` says one is stored).
+ * - 54-15: the connection speaks OpenID Connect or SAML 2.0 (`protocol`). For SAML the owner
+ *   pastes the IdP metadata XML or its entity ID, sign-in URL and signing certificate; the view
+ *   gives back the SP entity ID and the ACS URL for the IdP. The certificate is never read back,
+ *   only its fingerprint and expiry.
  * - Sign-in: `POST /v1/auth/sso/start {email}` answers the provider's URL, or 404 when no company
  *   sign-in is set up for that address. State, nonce and the PKCE verifier stay in an HttpOnly
  *   cookie the API sets; nothing here sees them.
@@ -23,9 +27,27 @@ export interface SsoConnectionView {
   readonly redirectUri: string;
   readonly secretStorageReady: boolean;
   readonly updatedAt: string | null;
+  readonly protocol: SsoProtocol;
+  readonly samlEntityId: string;
+  readonly samlSsoUrl: string;
+  readonly samlCertificate: { readonly fingerprint: string; readonly expiresAt: string } | null;
+  readonly spEntityId: string;
+  readonly acsUrl: string;
+}
+
+export type SsoProtocol = 'oidc' | 'saml';
+
+/** The SAML half of the settings; empty metadata and certificate keep what is stored. */
+export interface SsoSamlInput {
+  readonly idpMetadataXml: string;
+  readonly idpEntityId: string;
+  readonly idpSsoUrl: string;
+  readonly idpCertificate: string;
 }
 
 export interface SsoSettingsInput {
+  readonly protocol: SsoProtocol;
+  readonly saml: SsoSamlInput;
   readonly issuer: string;
   readonly clientId: string;
   /** Empty = keep the stored secret. */
@@ -73,16 +95,35 @@ export async function saveSsoConnection(
   const { data } = await client.request<SsoConnectionView>({
     method: 'PUT',
     path: path(organizationSlug),
-    body: {
-      issuer: input.issuer,
-      clientId: input.clientId,
-      ...(input.clientSecret.trim() === '' ? {} : { clientSecret: input.clientSecret }),
-      allowedDomains: [...input.allowedDomains],
-      enforce: input.enforce,
-      autoJoin: input.autoJoin,
-    },
+    body: ssoSettingsBody(input),
   });
   return data;
+}
+
+/** The PUT body: only the chosen protocol's fields, and no empty secret or certificate. */
+export function ssoSettingsBody(input: SsoSettingsInput): Record<string, unknown> {
+  const common = {
+    protocol: input.protocol,
+    allowedDomains: [...input.allowedDomains],
+    enforce: input.enforce,
+    autoJoin: input.autoJoin,
+  };
+  if (input.protocol === 'saml') {
+    const { idpMetadataXml, idpEntityId, idpSsoUrl, idpCertificate } = input.saml;
+    if (idpMetadataXml.trim() !== '') return { ...common, idpMetadataXml };
+    return {
+      ...common,
+      idpEntityId: idpEntityId.trim(),
+      idpSsoUrl: idpSsoUrl.trim(),
+      ...(idpCertificate.trim() === '' ? {} : { idpCertificate }),
+    };
+  }
+  return {
+    ...common,
+    issuer: input.issuer,
+    clientId: input.clientId,
+    ...(input.clientSecret.trim() === '' ? {} : { clientSecret: input.clientSecret }),
+  };
 }
 
 export async function removeSsoConnection(

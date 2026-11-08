@@ -25,7 +25,14 @@ export interface SsoConnectionInput {
   readonly allowedDomains: readonly string[];
   readonly enforceSso: boolean;
   readonly autoJoin: boolean;
+  /** 0330 (54-15). For `saml`, the OIDC fields are empty strings. */
+  readonly protocol: SsoProtocol;
+  readonly samlEntityId: string | null;
+  readonly samlSsoUrl: string | null;
+  readonly samlCertificate: string | null;
 }
+
+export type SsoProtocol = 'oidc' | 'saml';
 
 /** What the sign-in paths need of a connection. */
 export interface SsoSignInConnection {
@@ -37,6 +44,10 @@ export interface SsoSignInConnection {
   readonly clientSecretEnc: string;
   readonly allowedDomains: string;
   readonly autoJoin: boolean;
+  readonly protocol: SsoProtocol;
+  readonly samlEntityId: string;
+  readonly samlSsoUrl: string;
+  readonly samlCertificate: string;
 }
 
 /** One active membership of a person, with its organization's policy and SSO enforcement. */
@@ -60,11 +71,15 @@ function signInConnectionOf(row: Record<string, unknown>): SsoSignInConnection {
     clientSecretEnc: String(row['client_secret_enc']),
     allowedDomains: String(row['allowed_domains']),
     autoJoin: truthy(row['auto_join']),
+    protocol: row['protocol'] === 'saml' ? 'saml' : 'oidc',
+    samlEntityId: String(row['saml_entity_id'] ?? ''),
+    samlSsoUrl: String(row['saml_sso_url'] ?? ''),
+    samlCertificate: String(row['saml_certificate'] ?? ''),
   };
 }
 
 const SIGN_IN_COLUMNS = `s.id, s.organization_id, o.slug, s.issuer, s.client_id, s.client_secret_enc,
-  s.allowed_domains, s.auto_join`;
+  s.allowed_domains, s.auto_join, s.protocol, s.saml_entity_id, s.saml_sso_url, s.saml_certificate`;
 
 export class SsoConnectionsRepository {
   async find(runner: TenantQueryRunner, context: TenantContext): Promise<SsoConnectionRow | null> {
@@ -93,6 +108,10 @@ export class SsoConnectionsRepository {
         allowedDomains: input.allowedDomains.join(','),
         enforceSso: input.enforceSso,
         autoJoin: input.autoJoin,
+        protocol: input.protocol,
+        samlEntityId: input.samlEntityId,
+        samlSsoUrl: input.samlSsoUrl,
+        samlCertificate: input.samlCertificate,
         createdBy: context.userId,
         createdAt: sql`current_timestamp(3)`,
         updatedAt: sql`current_timestamp(3)`,
@@ -114,6 +133,10 @@ export class SsoConnectionsRepository {
         allowedDomains: input.allowedDomains.join(','),
         enforceSso: input.enforceSso,
         autoJoin: input.autoJoin,
+        protocol: input.protocol,
+        samlEntityId: input.samlEntityId,
+        samlSsoUrl: input.samlSsoUrl,
+        samlCertificate: input.samlCertificate,
         updatedAt: sql`current_timestamp(3)`,
       })
       .where(

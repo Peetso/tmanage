@@ -7,6 +7,7 @@ import {
   type TenantContext,
   type TenantDatabase,
 } from '../../common/database/tenant-context.js';
+import type { SsoConnectionRow } from '../../common/database/schema.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { PendingMfa } from '../google-auth/google-oidc.js';
@@ -22,8 +23,24 @@ import {
   SSO_BOOTSTRAP_REASON,
   SsoConnectionsRepository,
   type SsoConnectionInput,
+  type SsoProtocol,
   type SsoSignInConnection,
 } from './sso-connections.repository.js';
+import { SsoSamlRequestsRepository } from './sso-saml-requests.repository.js';
+import {
+  SAML_ACS_PATH,
+  SAML_METADATA_PATH,
+  SamlRejectedError,
+  certificateInfo,
+  newSamlFlow,
+  normalizeCertificate,
+  normalizeSsoUrl,
+  parseIdpMetadata,
+  samlAuthnRequestUrl,
+  verifySamlResponse,
+  type SamlCertificateInfo,
+  type SamlFlow,
+} from './sso-saml.js';
 import type { SsoEnforcedSignInPolicyGate } from './sso-enforcement.js';
 import {
   SSO_CALLBACK_PATH,
@@ -75,6 +92,14 @@ export interface SsoConnectionView {
   /** False when this server has no FIELD_CIPHER_KEYS: the secret cannot be stored. */
   readonly secretStorageReady: boolean;
   readonly updatedAt: string | null;
+  /** 54-15: which protocol the connection speaks, and the SAML half. */
+  readonly protocol: SsoProtocol;
+  readonly samlEntityId: string;
+  readonly samlSsoUrl: string;
+  readonly samlCertificate: SamlCertificateInfo | null;
+  /** What the owner gives a SAML IdP: the SP entity ID (also its metadata URL) and the ACS. */
+  readonly spEntityId: string;
+  readonly acsUrl: string;
 }
 
 export type SsoRefusal =
@@ -105,8 +130,14 @@ export interface SsoServiceDeps {
   readonly repository?: SsoConnectionsRepository;
   readonly memberships?: MembershipsRepository;
   readonly identities?: UserIdentitiesRepository;
+  readonly samlRequests?: SsoSamlRequestsRepository;
   readonly now?: () => number;
 }
+
+/** Where `start` sends the browser, with the flow to seal in the protocol's cookie. */
+export type SsoStart =
+  | { readonly url: string; readonly flow: SsoFlow; readonly samlFlow?: undefined }
+  | { readonly url: string; readonly samlFlow: SamlFlow; readonly flow?: undefined };
 
 function invalid(field: string, message: string): ApiError {
   return new ApiError(400, 'validation_failed', 'The request body is invalid', [
@@ -114,29 +145,68 @@ function invalid(field: string, message: string): ApiError {
   ]);
 }
 
-/** The settings body, checked. `clientSecret` undefined = keep the stored one. */
-export function parseSsoSettings(body: unknown): {
-  issuer: string;
-  clientId: string;
-  clientSecret: string | undefined;
-  allowedDomains: string[];
-  enforce: boolean;
-  autoJoin: boolean;
+/** The settings body, checked. A missing secret or certificate = keep the stored one. */
+export type ParsedSsoSettings = {
+  readonly allowedDomains: string[];
+  readonly enforce: boolean;
+  readonly autoJoin: boolean;
+} & (
+  | {
+      readonly protocol: 'oidc';
+      readonly issuer: string;
+      readonly clientId: string;
+      readonly clientSecret: string | undefined;
+    }
+  | {
+      readonly protocol: 'saml';
+      readonly samlEntityId: string;
+      readonly samlSsoUrl: string;
+      readonly samlCertificate: string | undefined;
+    }
+);
+
+function parseSamlSettings(input: Record<string, unknown>): {
+  samlEntityId: string;
+  samlSsoUrl: string;
+  samlCertificate: string | undefined;
 } {
-  const input = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
-  const issuer = normalizeIssuer(input['issuer']);
-  if (!issuer) throw invalid('issuer', 'must be an https URL without a query');
-  const clientId = typeof input['clientId'] === 'string' ? input['clientId'].trim() : '';
-  if (clientId === '' || clientId.length > 255 || /[\s]/u.test(clientId)) {
-    throw invalid('clientId', 'must be 1 to 255 characters without spaces');
+  const metadata = input['idpMetadataXml'];
+  if (typeof metadata === 'string' && metadata.trim() !== '') {
+    const parsed = metadata.length <= 200_000 ? parseIdpMetadata(metadata) : null;
+    if (!parsed) {
+      throw invalid(
+        'idpMetadataXml',
+        'must be IdP metadata with an entity ID, an HTTP-Redirect sign-in URL and a certificate',
+      );
+    }
+    return {
+      samlEntityId: parsed.entityId,
+      samlSsoUrl: parsed.ssoUrl,
+      samlCertificate: parsed.certificate,
+    };
   }
-  const rawSecret = input['clientSecret'];
-  let clientSecret: string | undefined;
-  if (typeof rawSecret === 'string' && rawSecret.trim() !== '') {
-    if (rawSecret.length > 2000) throw invalid('clientSecret', 'is too long');
-    clientSecret = rawSecret.trim();
-  } else if (rawSecret !== undefined && rawSecret !== null && rawSecret !== '') {
-    throw invalid('clientSecret', 'must be text');
+  const entityId = typeof input['idpEntityId'] === 'string' ? input['idpEntityId'].trim() : '';
+  if (entityId === '' || entityId.length > 500 || /\s/u.test(entityId)) {
+    throw invalid('idpEntityId', 'must be 1 to 500 characters without spaces');
+  }
+  const ssoUrl = normalizeSsoUrl(input['idpSsoUrl']);
+  if (!ssoUrl) throw invalid('idpSsoUrl', 'must be an https URL');
+  const rawCertificate = input['idpCertificate'];
+  let samlCertificate: string | undefined;
+  if (typeof rawCertificate === 'string' && rawCertificate.trim() !== '') {
+    samlCertificate = normalizeCertificate(rawCertificate) ?? undefined;
+    if (!samlCertificate) {
+      throw invalid('idpCertificate', 'must be an X.509 certificate with an RSA key of 2048 bits');
+    }
+  }
+  return { samlEntityId: entityId, samlSsoUrl: ssoUrl, samlCertificate };
+}
+
+export function parseSsoSettings(body: unknown): ParsedSsoSettings {
+  const input = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
+  const protocol = input['protocol'] ?? 'oidc';
+  if (protocol !== 'oidc' && protocol !== 'saml') {
+    throw invalid('protocol', 'must be oidc or saml');
   }
   const rawDomains = input['allowedDomains'];
   if (!Array.isArray(rawDomains) || rawDomains.length === 0 || rawDomains.length > MAX_DOMAINS) {
@@ -151,14 +221,24 @@ export function parseSsoSettings(body: unknown): {
   if (typeof input['enforce'] !== 'boolean' || typeof input['autoJoin'] !== 'boolean') {
     throw invalid('enforce', 'enforce and autoJoin must be true or false');
   }
-  return {
-    issuer,
-    clientId,
-    clientSecret,
-    allowedDomains,
-    enforce: input['enforce'],
-    autoJoin: input['autoJoin'],
-  };
+  const common = { allowedDomains, enforce: input['enforce'], autoJoin: input['autoJoin'] };
+  if (protocol === 'saml') return { ...common, protocol, ...parseSamlSettings(input) };
+
+  const issuer = normalizeIssuer(input['issuer']);
+  if (!issuer) throw invalid('issuer', 'must be an https URL without a query');
+  const clientId = typeof input['clientId'] === 'string' ? input['clientId'].trim() : '';
+  if (clientId === '' || clientId.length > 255 || /[\s]/u.test(clientId)) {
+    throw invalid('clientId', 'must be 1 to 255 characters without spaces');
+  }
+  const rawSecret = input['clientSecret'];
+  let clientSecret: string | undefined;
+  if (typeof rawSecret === 'string' && rawSecret.trim() !== '') {
+    if (rawSecret.length > 2000) throw invalid('clientSecret', 'is too long');
+    clientSecret = rawSecret.trim();
+  } else if (rawSecret !== undefined && rawSecret !== null && rawSecret !== '') {
+    throw invalid('clientSecret', 'must be text');
+  }
+  return { ...common, protocol, issuer, clientId, clientSecret };
 }
 
 function requireOwner(principal: Principal): void {
@@ -171,17 +251,32 @@ export class SsoService {
   private readonly repository: SsoConnectionsRepository;
   private readonly memberships: MembershipsRepository;
   private readonly identities: UserIdentitiesRepository;
+  private readonly samlRequests: SsoSamlRequestsRepository;
   private readonly now: () => number;
 
   constructor(private readonly deps: SsoServiceDeps) {
     this.repository = deps.repository ?? new SsoConnectionsRepository();
     this.memberships = deps.memberships ?? new MembershipsRepository();
     this.identities = deps.identities ?? new UserIdentitiesRepository();
+    this.samlRequests = deps.samlRequests ?? new SsoSamlRequestsRepository();
     this.now = deps.now ?? Date.now;
   }
 
   redirectUri(): string {
-    return `${this.deps.webPublicUrl.replace(/\/+$/u, '')}${SSO_CALLBACK_PATH}`;
+    return `${this.publicBase()}${SSO_CALLBACK_PATH}`;
+  }
+
+  /** The SP entity ID, which is also where the SP metadata is served. */
+  spEntityId(): string {
+    return `${this.publicBase()}${SAML_METADATA_PATH}`;
+  }
+
+  acsUrl(): string {
+    return `${this.publicBase()}${SAML_ACS_PATH}`;
+  }
+
+  private publicBase(): string {
+    return this.deps.webPublicUrl.replace(/\/+$/u, '');
   }
 
   // ── Settings ───────────────────────────────────────────────────────────────
@@ -195,13 +290,19 @@ export class SsoService {
       configured: row !== null,
       issuer: row?.issuer ?? '',
       clientId: row?.clientId ?? '',
-      hasClientSecret: row !== null,
+      hasClientSecret: row !== null && row.clientSecretEnc !== '',
       allowedDomains: row ? parseDomainList(row.allowedDomains) : [],
       enforce: row?.enforceSso ?? false,
       autoJoin: row?.autoJoin ?? false,
       redirectUri: this.redirectUri(),
       secretStorageReady: this.deps.cipher.enabled,
       updatedAt: row ? row.updatedAt.toISOString() : null,
+      protocol: row?.protocol === 'saml' ? 'saml' : 'oidc',
+      samlEntityId: row?.samlEntityId ?? '',
+      samlSsoUrl: row?.samlSsoUrl ?? '',
+      samlCertificate: row?.samlCertificate ? certificateInfo(row.samlCertificate) : null,
+      spEntityId: this.spEntityId(),
+      acsUrl: this.acsUrl(),
     };
   }
 
@@ -212,27 +313,14 @@ export class SsoService {
   ): Promise<SsoConnectionView> {
     requireOwner(principal);
     const settings = parseSsoSettings(body);
-    if (!this.deps.cipher.enabled) {
+    if (settings.protocol === 'oidc' && !this.deps.cipher.enabled) {
       throw new ApiError(409, 'conflict', 'Secret storage is not set up on this server.');
     }
     await this.deps.database.transaction(context, async (tx) => {
       const existing = await this.repository.find(tx, context);
-      if (!existing && settings.clientSecret === undefined) {
-        throw invalid('clientSecret', 'is required for a new connection');
-      }
       const id = existing?.id ?? uuidv7();
-      const clientSecretEnc =
-        settings.clientSecret === undefined
-          ? (existing?.clientSecretEnc ?? '')
-          : this.deps.cipher.encrypt(settings.clientSecret, { purpose: SSO_PURPOSE, ownerId: id });
-      const input: SsoConnectionInput = {
-        issuer: settings.issuer,
-        clientId: settings.clientId,
-        clientSecretEnc,
-        allowedDomains: settings.allowedDomains,
-        enforceSso: settings.enforce,
-        autoJoin: settings.autoJoin,
-      };
+      const input = this.connectionInput(settings, existing, id);
+      const secretReplaced = settings.protocol === 'oidc' && settings.clientSecret !== undefined;
       if (existing) await this.repository.update(tx, context, id, input);
       else await this.repository.insert(tx, context, id, input);
       await this.deps.audit?.record(tx, context, {
@@ -245,11 +333,54 @@ export class SsoService {
           sso_enforce: settings.enforce,
           sso_auto_join: settings.autoJoin,
           sso_domain_count: settings.allowedDomains.length,
-          sso_secret_replaced: settings.clientSecret !== undefined,
+          sso_secret_replaced: secretReplaced,
+          sso_protocol: settings.protocol,
         },
       });
     });
     return this.read(context, principal);
+  }
+
+  /** The row to write; a protocol switch clears the other protocol's fields. */
+  private connectionInput(
+    settings: ParsedSsoSettings,
+    existing: SsoConnectionRow | null,
+    id: string,
+  ): SsoConnectionInput {
+    const common = {
+      allowedDomains: settings.allowedDomains,
+      enforceSso: settings.enforce,
+      autoJoin: settings.autoJoin,
+    };
+    if (settings.protocol === 'saml') {
+      const samlCertificate = settings.samlCertificate ?? existing?.samlCertificate ?? null;
+      if (!samlCertificate) throw invalid('idpCertificate', 'is required for a new connection');
+      return {
+        ...common,
+        protocol: 'saml',
+        issuer: '',
+        clientId: '',
+        clientSecretEnc: '',
+        samlEntityId: settings.samlEntityId,
+        samlSsoUrl: settings.samlSsoUrl,
+        samlCertificate,
+      };
+    }
+    const clientSecretEnc =
+      settings.clientSecret === undefined
+        ? (existing?.clientSecretEnc ?? '')
+        : this.deps.cipher.encrypt(settings.clientSecret, { purpose: SSO_PURPOSE, ownerId: id });
+    if (clientSecretEnc === '') throw invalid('clientSecret', 'is required for a new connection');
+    return {
+      ...common,
+      protocol: 'oidc',
+      issuer: settings.issuer,
+      clientId: settings.clientId,
+      clientSecretEnc,
+      samlEntityId: null,
+      samlSsoUrl: null,
+      samlCertificate: null,
+    };
   }
 
   async remove(context: TenantContext, principal: Principal): Promise<SsoConnectionView> {
@@ -272,10 +403,7 @@ export class SsoService {
   // ── Sign-in ────────────────────────────────────────────────────────────────
 
   /** The provider's authorization URL for this address and the flow to seal in the cookie. */
-  async start(
-    email: unknown,
-    correlationId: string,
-  ): Promise<{ readonly url: string; readonly flow: SsoFlow } | null> {
+  async start(email: unknown, correlationId: string): Promise<SsoStart | null> {
     const domain = emailDomain(email);
     if (domain === null) return null;
     const candidates = await this.bootstrap(correlationId, (db) =>
@@ -285,6 +413,7 @@ export class SsoService {
     // Two organizations listing one domain is ambiguous: refuse rather than guess.
     if (matches.length !== 1) return null;
     const connection = matches[0]!;
+    if (connection.protocol === 'saml') return this.startSaml(connection, correlationId);
     const metadata = await this.deps.transport.discover(connection.issuer);
     const flow = newSsoFlow(connection.organizationId, Math.floor(this.now() / 1000));
     return {
@@ -311,7 +440,7 @@ export class SsoService {
     const connection = await this.bootstrap(correlationId, (db) =>
       this.repository.findByOrganization(db, flow.organizationId),
     );
-    if (!connection) return null;
+    if (!connection || connection.protocol !== 'oidc') return null;
     const clientSecret = this.deps.cipher.decrypt(connection.clientSecretEnc, {
       purpose: SSO_PURPOSE,
       ownerId: connection.id,
@@ -339,6 +468,81 @@ export class SsoService {
       nowSeconds: Math.floor(this.now() / 1000),
     });
     return { claims, connection };
+  }
+
+  /** 54-15: remember a new AuthnRequest ID and send the browser to the IdP with it. */
+  private async startSaml(
+    connection: SsoSignInConnection,
+    correlationId: string,
+  ): Promise<SsoStart> {
+    const nowMs = this.now();
+    const samlFlow = newSamlFlow(connection.organizationId, Math.floor(nowMs / 1000));
+    const service = this.samlContext(connection.organizationId, correlationId);
+    await this.deps.database.transaction(service, (tx) =>
+      this.samlRequests.rememberRequest(
+        tx,
+        service,
+        samlFlow.requestId,
+        new Date(nowMs),
+        new Date(samlFlow.expiresAt * 1000),
+      ),
+    );
+    return {
+      samlFlow,
+      url: samlAuthnRequestUrl({
+        ssoUrl: connection.samlSsoUrl,
+        spEntityId: this.spEntityId(),
+        acsUrl: this.acsUrl(),
+        flow: samlFlow,
+        issueInstant: new Date(nowMs),
+      }),
+    };
+  }
+
+  /**
+   * 54-15: verify the Response posted to the ACS, then consume its request ID and remember its
+   * Assertion ID in one transaction. Throws {@link SamlRejectedError}; null when the
+   * organization's connection is gone or is no longer SAML.
+   */
+  async verifySaml(
+    flow: SamlFlow,
+    samlResponse: unknown,
+    correlationId: string,
+  ): Promise<{ readonly claims: SsoClaims; readonly connection: SsoSignInConnection } | null> {
+    const connection = await this.bootstrap(correlationId, (db) =>
+      this.repository.findByOrganization(db, flow.organizationId),
+    );
+    if (!connection || connection.protocol !== 'saml' || connection.samlCertificate === '') {
+      return null;
+    }
+    const nowMs = this.now();
+    const verified = verifySamlResponse({
+      samlResponse,
+      idpEntityId: connection.samlEntityId,
+      certificate: connection.samlCertificate,
+      spEntityId: this.spEntityId(),
+      acsUrl: this.acsUrl(),
+      requestId: flow.requestId,
+      nowMs,
+    });
+    const service = this.samlContext(connection.organizationId, correlationId);
+    const now = new Date(nowMs);
+    const fresh = await this.deps.database.transaction(service, async (tx) => {
+      if (!(await this.samlRequests.consumeRequest(tx, service, flow.requestId, now))) return false;
+      return this.samlRequests.rememberAssertion(
+        tx,
+        service,
+        verified.assertionId,
+        now,
+        verified.rememberUntil,
+      );
+    });
+    if (!fresh) throw new SamlRejectedError('replayed');
+    return { claims: verified.claims, connection };
+  }
+
+  private samlContext(organizationId: string, correlationId: string): TenantContext {
+    return createServiceContext({ organizationId, correlationId, policyVersion: 'sso-saml' });
   }
 
   /** What a verified identity may do in the connection's organization. */
@@ -469,4 +673,4 @@ export class SsoService {
   }
 }
 
-export { SsoTokenRejectedError };
+export { SamlRejectedError, SsoTokenRejectedError };

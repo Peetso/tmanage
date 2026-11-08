@@ -1915,6 +1915,13 @@ GRANT INSERT, DELETE ON `tmanage`.`template_packs` TO 'tmanage_app'@'%';
 -- the company erasure. SELECT rides the database-wide read. The worker needs no grant.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`sso_connections` TO 'tmanage_app'@'%';
 
+-- ---- R42 · 54-15 company sign-in (SAML 2.0) ----
+-- 0330 `sso_saml_requests` (tenant): one row inserted per AuthnRequest sent and per Assertion
+-- accepted; the request row is UPDATEd once (consumed_at) when its Response arrives; expired rows
+-- are DELETEd by the next sign-in, and DELETE also serves the company erasure. SELECT rides the
+-- database-wide read. The worker needs no grant.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`sso_saml_requests` TO 'tmanage_app'@'%';
+
 -- ---- R41 · 54-01 connector framework ----
 -- 0328 `connector_installations` (tenant): one row inserted per installed connector (its credential
 -- as a token-vault envelope); uninstall DELETEs it. Never amended. DELETE also for the company

@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   Inject,
   Module,
@@ -44,7 +45,16 @@ import {
   sealSsoFlow,
   ssoStateMatches,
 } from './sso-oidc.js';
-import { SsoService, type SsoConnectionView } from './sso.service.js';
+import {
+  SAML_FLOW_COOKIE,
+  SAML_FLOW_TTL_SECONDS,
+  SamlRejectedError,
+  openSamlFlow,
+  samlRelayStateMatches,
+  samlSpMetadata,
+  sealSamlFlow,
+} from './sso-saml.js';
+import { SsoService, type SsoConnectionView, type SsoOutcome } from './sso.service.js';
 import { createSsoTransport, type SsoTransport } from './sso-transport.js';
 
 /** DI tokens, co-located with the slice (ADR-0003). */
@@ -140,6 +150,9 @@ export class SsoSettingsController {
  *   exchange with the verifier, ID token checks, then the membership rule. Every failure
  *   redirects to `/sign-in?sso_error=<code>`; nothing secret goes in a URL.
  * - `POST /v1/auth/sso/mfa` — the parked second-factor challenge, handed over once.
+ * - 54-15: `POST /v1/auth/sso/saml/acs` (the IdP's HTTP-POST Response) and
+ *   `GET /v1/auth/sso/saml/metadata` (the SP metadata). `start` answers the IdP URL with the
+ *   AuthnRequest when the organization's connection speaks SAML.
  */
 @Controller('v1/auth/sso')
 export class SsoSignInController {
@@ -174,6 +187,24 @@ export class SsoSignInController {
       throw new ApiError(409, 'conflict', 'The company sign-in provider could not be reached.');
     }
     if (!started) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    if (started.samlFlow) {
+      reply.header(
+        'set-cookie',
+        serializeCookie(
+          SAML_FLOW_COOKIE,
+          sealSamlFlow(started.samlFlow, this.options.sessionSecret),
+          {
+            path: SSO_COOKIE_PATH,
+            maxAgeSeconds: SAML_FLOW_TTL_SECONDS,
+            // The IdP answers with a cross-site POST, which a Lax cookie does not ride. Plain-HTTP
+            // development cannot set None, so there the ACS refuses for want of the cookie.
+            sameSite: this.options.secureCookies ? 'None' : 'Lax',
+            secure: this.options.secureCookies,
+          },
+        ),
+      );
+      return { url: started.url };
+    }
     reply.header(
       'set-cookie',
       serializeCookie(SSO_FLOW_COOKIE, sealSsoFlow(started.flow, this.options.sessionSecret), {
@@ -185,6 +216,66 @@ export class SsoSignInController {
       }),
     );
     return { url: started.url };
+  }
+
+  /**
+   * 54-15 — the SAML Assertion Consumer Service (HTTP-POST binding). The RelayState must match
+   * the signed flow cookie before the Response is looked at; then the full verification
+   * (`verifySamlResponse`), the one-time request and Assertion IDs, and the same membership,
+   * policy and second-factor rules as the OIDC callback. Every failure is a 303 to
+   * `/sign-in?sso_error=<code>`.
+   */
+  @Post('saml/acs')
+  @Public()
+  @Redirect('/sign-in', 303)
+  async samlAcs(
+    @Body() body: Record<string, unknown> | undefined,
+    @Req() request: RequestLike,
+    @Res({ passthrough: true }) reply: ReplyLike,
+  ): Promise<{ url: string; statusCode: number }> {
+    const correlationId = requireRequestState(request).correlationId;
+    const cookies: string[] = [this.expireSaml()];
+    const finish = (url: string) => {
+      reply.header('set-cookie', cookies);
+      return { url, statusCode: 303 };
+    };
+    const fail = (code: string) => finish(`/sign-in?sso_error=${encodeURIComponent(code)}`);
+    const context = {
+      ip: request.ip ?? null,
+      userAgent: headerOf(request, 'user-agent') ?? null,
+      correlationId,
+    };
+    if (!this.admit(clientAddressKey(request.ip))) return fail('failed');
+    const flow = openSamlFlow(
+      readCookie(headerOf(request, 'cookie'), SAML_FLOW_COOKIE),
+      this.options.sessionSecret,
+      Math.floor(Date.now() / 1000),
+    );
+    if (!flow || !samlRelayStateMatches(flow, body?.['RelayState'])) {
+      await this.service.record(context, null, 'failed', 'sso_bad_state');
+      return fail('state');
+    }
+    try {
+      const verified = await this.service.verifySaml(flow, body?.['SAMLResponse'], correlationId);
+      if (!verified) return fail('not_set_up');
+      const outcome = await this.service.complete(verified.connection, verified.claims, context);
+      return await this.land(outcome, context, cookies, finish, fail);
+    } catch (error) {
+      if (error instanceof SamlRejectedError) {
+        await this.service.record(context, null, 'failed', `saml_${error.reason}`);
+        return fail('token');
+      }
+      console.error('[sso] saml acs failed', error instanceof Error ? error.name : 'unknown');
+      return fail('failed');
+    }
+  }
+
+  /** 54-15 — the SP metadata an owner gives the IdP (also the SP entity ID). */
+  @Get('saml/metadata')
+  @Public()
+  @Header('content-type', 'application/samlmetadata+xml; charset=utf-8')
+  samlMetadata(): string {
+    return samlSpMetadata({ entityId: this.service.spEntityId(), acsUrl: this.service.acsUrl() });
   }
 
   @Get('callback')
@@ -222,29 +313,7 @@ export class SsoSignInController {
       const verified = await this.service.verify(flow, query['code'], correlationId);
       if (!verified) return fail('not_set_up');
       const outcome = await this.service.complete(verified.connection, verified.claims, context);
-      if (outcome.kind === 'refused') return fail(outcome.reason);
-      if (outcome.kind === 'mfa') {
-        cookies.push(
-          serializeCookie(
-            SSO_MFA_COOKIE,
-            sealPendingMfa(outcome.pending, this.options.sessionSecret),
-            {
-              path: SSO_COOKIE_PATH,
-              maxAgeSeconds: 300,
-              sameSite: 'Lax',
-              secure: this.options.secureCookies,
-            },
-          ),
-        );
-        return finish('/sign-in?sso=mfa');
-      }
-      const established = await this.sessions.start({
-        userId: outcome.userId,
-        userAgent: context.userAgent,
-        correlationId,
-      });
-      cookies.push(...established.cookies);
-      return finish(outcome.returnTo);
+      return await this.land(outcome, context, cookies, finish, fail);
     } catch (error) {
       if (error instanceof SsoTokenRejectedError) {
         await this.service.record(context, null, 'failed', `sso_${error.reason}`);
@@ -269,6 +338,47 @@ export class SsoSignInController {
     reply.header('set-cookie', this.expire(SSO_MFA_COOKIE));
     if (!pending) throw new ApiError(404, 'not_found', MESSAGES.notFound);
     return { status: 'mfa_required', ...pending };
+  }
+
+  /** The outcome of either protocol: a refusal, the parked second factor, or a session. */
+  private async land<T>(
+    outcome: SsoOutcome,
+    context: { readonly userAgent: string | null; readonly correlationId: string },
+    cookies: string[],
+    finish: (url: string) => T,
+    fail: (code: string) => T,
+  ): Promise<T> {
+    if (outcome.kind === 'refused') return fail(outcome.reason);
+    if (outcome.kind === 'mfa') {
+      cookies.push(
+        serializeCookie(
+          SSO_MFA_COOKIE,
+          sealPendingMfa(outcome.pending, this.options.sessionSecret),
+          {
+            path: SSO_COOKIE_PATH,
+            maxAgeSeconds: 300,
+            sameSite: 'Lax',
+            secure: this.options.secureCookies,
+          },
+        ),
+      );
+      return finish('/sign-in?sso=mfa');
+    }
+    const established = await this.sessions.start({
+      userId: outcome.userId,
+      userAgent: context.userAgent,
+      correlationId: context.correlationId,
+    });
+    cookies.push(...established.cookies);
+    return finish(outcome.returnTo);
+  }
+
+  private expireSaml(): string {
+    return expireCookie(SAML_FLOW_COOKIE, {
+      path: SSO_COOKIE_PATH,
+      sameSite: this.options.secureCookies ? 'None' : 'Lax',
+      secure: this.options.secureCookies,
+    });
   }
 
   private expire(name: string): string {

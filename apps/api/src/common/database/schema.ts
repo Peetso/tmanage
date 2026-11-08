@@ -13419,6 +13419,11 @@ export const ssoConnections = mysqlTable(
     allowedDomains: varchar('allowed_domains', { length: 1000 }).notNull(),
     enforceSso: boolean('enforce_sso').notNull().default(false),
     autoJoin: boolean('auto_join').notNull().default(false),
+    // 0330 (54-15): `oidc` or `saml`; the SAML IdP's entity ID, HTTP-Redirect URL, certificate.
+    protocol: varchar('protocol', { length: 8 }).notNull().default('oidc'),
+    samlEntityId: varchar('saml_entity_id', { length: 500 }),
+    samlSsoUrl: varchar('saml_sso_url', { length: 1000 }),
+    samlCertificate: text('saml_certificate'),
     createdBy: char('created_by', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
@@ -13432,3 +13437,33 @@ export const ssoConnections = mysqlTable(
 export type SsoConnectionRow = typeof ssoConnections.$inferSelect;
 
 Object.assign(TABLES, { sso_connections: ssoConnections });
+
+// ---- R42 · 54-15 company sign-in over SAML 2.0 (0330) ----
+
+/**
+ * 0330 (54-15). One-time SAML values of one organization: `kind = 'request'` is an AuthnRequest ID
+ * waiting for its Response (`consumed_at` set once it is answered), `kind = 'assertion'` is the ID
+ * of an accepted Assertion kept until its validity ends (the replay cache). TENANT: keyed
+ * `(organization_id, id)`; `(organization_id, kind, saml_id)` is unique, the replay backstop.
+ */
+export const ssoSamlRequests = mysqlTable(
+  'sso_saml_requests',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    kind: varchar('kind', { length: 16 }).notNull(),
+    samlId: varchar('saml_id', { length: 255 }).notNull(),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+    consumedAt: datetime('consumed_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_sso_saml_requests_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_sso_saml_requests_value').on(table.organizationId, table.kind, table.samlId),
+    index('ix_sso_saml_requests_expiry').on(table.organizationId, table.expiresAt),
+  ],
+);
+
+export type SsoSamlRequestRow = typeof ssoSamlRequests.$inferSelect;
+
+Object.assign(TABLES, { sso_saml_requests: ssoSamlRequests });

@@ -1320,6 +1320,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0327. Tenant-owned: one organization's OpenID Connect provider. The owner writes it through
   // their own context; the sign-in paths read it only through `bootstrapRead` with a reason.
   sso_connections: 'organization_id',
+  // ---- R42 · 54-15 ----
+  // 0330. Tenant-owned: one organization's SAML request IDs and accepted Assertion IDs (replay
+  // cache). Written and read only through a service context bound to the flow cookie's org.
+  sso_saml_requests: 'organization_id',
 });
 
 /**
