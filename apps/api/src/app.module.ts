@@ -73,6 +73,7 @@ import { ThreadRepliesModule } from './modules/conversations/thread-replies.modu
 import { ConversationReadStateModule } from './modules/conversations/read-state.module.js';
 import { PresenceModule } from './modules/presence/presence.module.js';
 import { PrivacyPreferencesModule } from './modules/preferences/privacy-prefs.module.js';
+import { CoachMarksModule } from './modules/preferences/coach-marks.module.js';
 import { ConversationMuteModule } from './modules/conversations/conversation-mute.module.js';
 import { ConversationSearchModule } from './modules/conversations/conversation-search.module.js';
 import { MyMentionsModule } from './modules/conversations/my-mentions.controller.js';
@@ -580,6 +581,8 @@ export class AppModule {
         // R7 slice 6: presence heartbeat / online-last-seen, and its privacy toggle.
         PresenceModule.register(),
         PrivacyPreferencesModule.register(),
+        // R49 L2 (55-09): first-visit tour state, kept in the caller's own prefs_json.
+        CoachMarksModule.register(),
         // CH-06 composer attachments (x275). Its own module beside `ConversationsModule` so the
         // sibling chat slices stay file-disjoint (each registers here rather than all editing
         // `conversations.module.ts`). Its `MessageAttachmentsModule` is exported from the controller

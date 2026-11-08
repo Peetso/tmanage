@@ -31,6 +31,9 @@ import { appLocale } from '../../lib/i18n/app-locale';
 import { useT } from '../../lib/i18n/use-t';
 import { OPEN_COMMAND_PALETTE_EVENT } from './CommandPalette';
 import { WorkBoardView } from './WorkBoardView';
+import { CoachMarkTour } from '../help/CoachMarkTour';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import { PhoneWorkOverview } from '../phone/PhoneWorkOverview';
 import { useA6T } from '../work/DueDatePicker';
 import { DoerStack } from '../work/WorkPeopleBlock';
@@ -153,6 +156,7 @@ export function WorkListScreen({
     initialView,
   );
   const api = client ?? browserApiClient();
+  const tOr = useTOr();
   const canCreateProjects = useCanCreateProjects(organizationSlug, client);
   const queries = useQueryClient();
 
@@ -620,11 +624,26 @@ export function WorkListScreen({
           ) : null}
 
           {!workItems.isPending && !workItems.isError && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title={t('WorkListScreen.emptyTitle')}>
-              {projectId === '' && states.length === 0
-                ? t('WorkListScreen.emptyNoneOrg')
-                : t('WorkListScreen.emptyNoMatch')}
-            </InlineAlert>
+            projectId === '' && states.length === 0 ? (
+              <TeachingEmptyState
+                title={t('WorkListScreen.emptyTitle')}
+                explanation={t('WorkListScreen.emptyNoneOrg')}
+                action={
+                  <Link
+                    className="tm-button tm-button--lime tm-button--compact"
+                    href={`/${organizationSlug}/capture`}
+                  >
+                    {tOr('EmptyStates.newTask', 'New task')}
+                  </Link>
+                }
+                helpSlug="create-and-assign-tasks"
+                helpLabel={tOr('EmptyStates.howTasksWork', 'How tasks work')}
+              />
+            ) : (
+              <InlineAlert tone="neutral" title={t('WorkListScreen.emptyTitle')}>
+                {t('WorkListScreen.emptyNoMatch')}
+              </InlineAlert>
+            )
           ) : null}
 
           {bulkReport !== undefined ? (
@@ -995,6 +1014,13 @@ export function WorkListScreen({
             : ''
         }
       />
+      {view === 'board' ? (
+        <CoachMarkTour
+          organizationSlug={organizationSlug}
+          tour="work_board"
+          {...(client ? { client } : {})}
+        />
+      ) : null}
     </AppShell>
   );
 }

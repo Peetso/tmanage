@@ -25,6 +25,8 @@ import { ViewSwitcher } from '../views/ViewSwitcher';
 import { useViewPreference } from '../views/use-view-preference';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import '../../styles/screens/portfolio.css';
+import { CoachMarkTour } from '../help/CoachMarkTour';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import '../../styles/screens/portfolio-planning.css';
 
 type Translate = ReturnType<typeof useT>;
@@ -191,9 +193,22 @@ export function ProjectPortfolioScreen({
       ) : null}
 
       {!portfolio.isPending && !portfolio.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title={t('ProjectPortfolioScreen.noProjectsTitle')}>
-          {t('ProjectPortfolioScreen.noProjectsBody')}
-        </InlineAlert>
+        <TeachingEmptyState
+          title={t('ProjectPortfolioScreen.noProjectsTitle')}
+          explanation={tOr(
+            'EmptyStates.projectsLine',
+            'Projects hold your tasks, files and client updates in one place.',
+          )}
+          action={
+            <NewProjectLink
+              organizationSlug={organizationSlug}
+              tone="lime"
+              {...(client ? { client } : {})}
+            />
+          }
+          helpSlug="start-a-project"
+          helpLabel={tOr('EmptyStates.howProjectsWork', 'How projects work')}
+        />
       ) : null}
 
       {hasRows ? (
@@ -275,6 +290,11 @@ export function ProjectPortfolioScreen({
           />
         </div>
       ) : null}
+      <CoachMarkTour
+        organizationSlug={organizationSlug}
+        tour="projects"
+        {...(client ? { client } : {})}
+      />
     </AppShell>
   );
 }

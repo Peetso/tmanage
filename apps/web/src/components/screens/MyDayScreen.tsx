@@ -36,6 +36,9 @@ import { fill } from '../../lib/privacy-presentation';
 import { MY_WORK_TOPIC, useWorkLiveRefresh } from '../../lib/use-work-live-refresh';
 import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/home.css';
+import { CoachMarkTour } from '../help/CoachMarkTour';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
+import { useTOr } from '../../lib/i18n/use-t-or';
 
 export interface MyDayScreenProps {
   organizationSlug: string;
@@ -68,6 +71,7 @@ type CardFilter = 'all' | 'overdue' | 'due_soon';
 export function MyDayScreen({ organizationSlug, organizationName, client }: MyDayScreenProps) {
   const api = client ?? browserApiClient();
   const t = useT();
+  const tOr = useTOr();
   const locale = useActiveLocale();
   const describeError = useDescribeApiError(WORK_ERROR_LINES);
   const describeWaitingError = useDescribeApiError(WAITING_ERROR_LINES);
@@ -283,10 +287,20 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
             ) : null}
 
             {!myDay.isPending && !myDay.isError && items.length === 0 ? (
-              <div className="tm-card tm-card--empty tm-home-empty">
-                <h3 className="tm-card__title">{t('MyDayScreen.nothingNeedsYouTitle')}</h3>
-                <p className="tm-card__meta">{t('MyDayScreen.nothingNeedsYouBody')}</p>
-              </div>
+              <TeachingEmptyState
+                title={t('MyDayScreen.nothingNeedsYouTitle')}
+                explanation={t('MyDayScreen.nothingNeedsYouBody')}
+                action={
+                  <Link
+                    className="tm-button tm-button--lime tm-button--compact"
+                    href={`/${organizationSlug}/capture`}
+                  >
+                    {tOr('EmptyStates.newTask', 'New task')}
+                  </Link>
+                }
+                helpSlug="create-and-assign-tasks"
+                helpLabel={tOr('EmptyStates.howTasksWork', 'How tasks work')}
+              />
             ) : null}
 
             {items.length > 0 && cards.length === 0 ? (
@@ -484,6 +498,11 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
           <HomeRecentItemsView organizationSlug={organizationSlug} client={client} />
         </div>
       </div>
+      <CoachMarkTour
+        organizationSlug={organizationSlug}
+        tour="my_day"
+        {...(client ? { client } : {})}
+      />
     </AppShell>
   );
 }

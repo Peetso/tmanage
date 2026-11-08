@@ -1313,6 +1313,9 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/organizations/:orgSlug/presence/', reason: 'session' },
   { method: 'GET', path: '/v1/organizations/:orgSlug/me/privacy-preferences/', reason: 'session' },
   { method: 'PUT', path: '/v1/organizations/:orgSlug/me/privacy-preferences/', reason: 'session' },
+  // R49 L2 (55-09): which first-visit tours a member has seen — UI state, not an AI action.
+  { method: 'GET', path: '/v1/organizations/:orgSlug/me/coach-marks/', reason: 'session' },
+  { method: 'PUT', path: '/v1/organizations/:orgSlug/me/coach-marks/', reason: 'session' },
   {
     method: 'GET',
     path: '/v1/organizations/:orgSlug/conversations/:conversationId/messages/:messageId/receipts',
