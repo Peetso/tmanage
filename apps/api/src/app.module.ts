@@ -133,6 +133,7 @@ import { MemberNotesModule } from './modules/admin/member-notes.controller.js';
 import { PersonalAccessTokensModule } from './modules/personal-access-tokens/personal-access-tokens.controller.js';
 import { GoogleDriveModule } from './modules/google-drive/google-drive.controller.js';
 import { SsoModule } from './modules/sso/sso.controller.js';
+import { ScimModule } from './modules/scim/scim.controller.js';
 import { PasskeysModule } from './modules/identity/passkeys/passkeys.controller.js';
 import { OneDriveModule } from './modules/onedrive/onedrive.controller.js';
 import { FigmaModule } from './modules/figma/figma.module.js';
@@ -1145,6 +1146,8 @@ export class AppModule {
         // 0327 (54-14). Company sign-in over OpenID Connect: the owner's settings and the browser
         // flow. Always registered; with no connection saved, `start` answers 404.
         SsoModule.register(),
+        // 54-16: SCIM 2.0 provisioning (keys beside company sign-in).
+        ScimModule.register(),
         // 0329 (56-22). Passkeys (WebAuthn on node:crypto), the security-page device list and the
         // security score. Always registered; nothing in the environment is required.
         PasskeysModule.register(),

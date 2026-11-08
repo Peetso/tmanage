@@ -75,6 +75,11 @@ import type { SsoTransport } from './sso-transport.js';
  */
 
 export const SSO_SIGN_IN_ACTION = 'sso_sign_in';
+
+/** The OIDC state's row in `sso_saml_requests` (kind `request`), apart from SAML request IDs. */
+export function oidcStateId(state: string): string {
+  return `oidc:${state}`;
+}
 const MAX_DOMAINS = 20;
 const SSO_PURPOSE = 'integration_token' as const;
 
@@ -415,7 +420,20 @@ export class SsoService {
     const connection = matches[0]!;
     if (connection.protocol === 'saml') return this.startSaml(connection, correlationId);
     const metadata = await this.deps.transport.discover(connection.issuer);
-    const flow = newSsoFlow(connection.organizationId, Math.floor(this.now() / 1000));
+    const nowMs = this.now();
+    const flow = newSsoFlow(connection.organizationId, Math.floor(nowMs / 1000));
+    // 56-10o: the state is one-time on the server too, so a callback replayed with a copied flow
+    // cookie (state and nonce) inside its ten minutes is refused before any code exchange.
+    const service = this.samlContext(connection.organizationId, correlationId);
+    await this.deps.database.transaction(service, (tx) =>
+      this.samlRequests.rememberRequest(
+        tx,
+        service,
+        oidcStateId(flow.state),
+        new Date(nowMs),
+        new Date(flow.expiresAt * 1000),
+      ),
+    );
     return {
       flow,
       url: ssoAuthorizationUrl({
@@ -441,6 +459,11 @@ export class SsoService {
       this.repository.findByOrganization(db, flow.organizationId),
     );
     if (!connection || connection.protocol !== 'oidc') return null;
+    const service = this.samlContext(connection.organizationId, correlationId);
+    const fresh = await this.deps.database.transaction(service, (tx) =>
+      this.samlRequests.consumeRequest(tx, service, oidcStateId(flow.state), new Date(this.now())),
+    );
+    if (!fresh) throw new SsoTokenRejectedError('replayed');
     const clientSecret = this.deps.cipher.decrypt(connection.clientSecretEnc, {
       purpose: SSO_PURPOSE,
       ownerId: connection.id,

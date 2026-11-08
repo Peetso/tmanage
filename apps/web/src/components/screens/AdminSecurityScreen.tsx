@@ -7,6 +7,7 @@ import { Button, InlineAlert, LoadingRegion, Skeleton, Switch } from '@tmanage/u
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { SignInPolicyCard, SignInPolicyGrace } from '../admin/SignInPolicyCard';
 import { CompanySignInCard } from '../admin/CompanySignInCard';
+import { ScimProvisioningCard } from '../admin/ScimProvisioningCard';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { readSecuritySettings, setSecuritySettings } from '../../lib/api/admin-security';
 import { listOrgSessions } from '../../lib/api/admin-sessions';
@@ -224,6 +225,9 @@ export function AdminSecurityScreen({
 
           {/* 54-14: company sign-in over OpenID Connect (Figma R41 L1 568:33048); owner only. */}
           <CompanySignInCard api={api} organizationSlug={organizationSlug} />
+
+          {/* 54-16: SCIM provisioning keys beside company sign-in (Figma R49 L3 592:34040). */}
+          <ScimProvisioningCard api={api} organizationSlug={organizationSlug} />
         </div>
 
         <div className="tm-cc-column">

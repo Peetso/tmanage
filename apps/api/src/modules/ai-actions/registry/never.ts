@@ -99,6 +99,22 @@ export const NEVER: readonly NeverEntry[] = [
   // 54-15. Company sign-in (SAML 2.0): public reply URL (ACS) and service-provider metadata.
   { method: 'POST', path: '/v1/auth/sso/saml/acs', reason: 'auth' },
   { method: 'GET', path: '/v1/auth/sso/saml/metadata', reason: 'auth' },
+  // 54-16. SCIM 2.0 service provider: the identity provider's bearer key, never a member session.
+  { method: 'GET', path: '/v1/scim/v2/ServiceProviderConfig', reason: 'public_intake' },
+  { method: 'GET', path: '/v1/scim/v2/ResourceTypes', reason: 'public_intake' },
+  { method: 'GET', path: '/v1/scim/v2/Schemas', reason: 'public_intake' },
+  { method: 'GET', path: '/v1/scim/v2/Users', reason: 'public_intake' },
+  { method: 'GET', path: '/v1/scim/v2/Users/:id', reason: 'public_intake' },
+  { method: 'POST', path: '/v1/scim/v2/Users', reason: 'public_intake' },
+  { method: 'PUT', path: '/v1/scim/v2/Users/:id', reason: 'public_intake' },
+  { method: 'PATCH', path: '/v1/scim/v2/Users/:id', reason: 'public_intake' },
+  { method: 'DELETE', path: '/v1/scim/v2/Users/:id', reason: 'public_intake' },
+  { method: 'GET', path: '/v1/scim/v2/Groups', reason: 'public_intake' },
+  { method: 'GET', path: '/v1/scim/v2/Groups/:id', reason: 'public_intake' },
+  { method: 'POST', path: '/v1/scim/v2/Groups', reason: 'public_intake' },
+  { method: 'PUT', path: '/v1/scim/v2/Groups/:id', reason: 'public_intake' },
+  { method: 'PATCH', path: '/v1/scim/v2/Groups/:id', reason: 'public_intake' },
+  { method: 'DELETE', path: '/v1/scim/v2/Groups/:id', reason: 'public_intake' },
   // 56-22. Passkeys: public sign-in challenge and sign-in, own passkeys, score and devices.
   { method: 'POST', path: '/v1/auth/passkey/options', reason: 'auth' },
   { method: 'POST', path: '/v1/auth/passkey/', reason: 'auth' },
@@ -2105,6 +2121,22 @@ export const NEVER: readonly NeverEntry[] = [
   {
     method: 'DELETE',
     path: '/v1/organizations/:orgSlug/security/sso/',
+    reason: 'org_security_manage',
+  },
+  // 54-16. SCIM provisioning keys beside company sign-in: owner-only list, create and revoke.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/security/scim/',
+    reason: 'org_security_manage',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/security/scim/keys',
+    reason: 'org_security_manage',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/security/scim/keys/:keyId',
     reason: 'org_security_manage',
   },
   // R45 L3 (54-25). Trello / Asana import with the owner's own token: the connect route carries a

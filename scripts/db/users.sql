@@ -2407,6 +2407,12 @@ GRANT SELECT, INSERT, DELETE ON `tmanage`.`invitation_pending_keys`          TO 
 GRANT INSERT ON `tmanage`.`platform_owner_notices`                          TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`platform_action_approvals`               TO 'tmanage_app'@'%';
 
+-- ---- R49 · 54-16 SCIM 2.0 provisioning ----
+-- 0337 `scim_tokens` (tenant): the owner INSERTs a key (its hash only) and revokes it with an
+-- UPDATE (`revoked_at`); each SCIM request UPDATEs `last_used_at` at most once a minute. DELETE
+-- serves the company erasure only. SELECT rides the database-wide read. The worker needs no grant.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`scim_tokens` TO 'tmanage_app'@'%';
+
 -- ---- R49 L1 · 55-24 first-week getting-started nudges ----
 -- `--sweep-getting-started` reads the same company signals the API's checklist uses. The worker
 -- already reads memberships, projects, invitations, storage_connections, org_working_calendars,

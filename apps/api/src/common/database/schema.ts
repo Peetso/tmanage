@@ -13574,3 +13574,36 @@ Object.assign(TABLES, {
   platform_owner_notices: platformOwnerNotices,
   platform_action_approvals: platformActionApprovals,
 });
+
+// ---- R49 · 54-16 SCIM 2.0 provisioning (0337) ----
+
+/**
+ * 0337 (54-16). One organization's SCIM bearer keys: only the SHA-256 hex of the key is stored
+ * (`token_hash`, unique across organizations), with a display prefix, who created it, when it was
+ * last used and when it was revoked. TENANT: keyed `(organization_id, id)`. The SCIM routes find a
+ * key by its hash on `bootstrapRead(['scim_tokens', 'sso_connections'])` and then act only under a
+ * service context for the key's organization.
+ */
+export const scimTokens = mysqlTable(
+  'scim_tokens',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 120 }).notNull(),
+    tokenHash: char('token_hash', { length: 64 }).notNull(),
+    tokenPrefix: varchar('token_prefix', { length: 32 }).notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    lastUsedAt: datetime('last_used_at', { mode: 'date', fsp: 3 }),
+    revokedAt: datetime('revoked_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_scim_tokens_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_scim_tokens_hash').on(table.tokenHash),
+    index('ix_scim_tokens_org').on(table.organizationId, table.revokedAt),
+  ],
+);
+
+export type ScimTokenRow = typeof scimTokens.$inferSelect;
+
+Object.assign(TABLES, { scim_tokens: scimTokens });

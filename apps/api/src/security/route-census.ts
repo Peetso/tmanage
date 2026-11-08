@@ -48,6 +48,38 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'POST /v1/auth/sso/saml/acs':
     'pending named budget: SAML reply URL, signed flow cookie and RelayState',
   'GET /v1/auth/sso/saml/metadata': 'public service-provider metadata, no secrets',
+  // 54-16 SCIM 2.0: the provider's hashed bearer key names the organization; per-address and
+  // per-key in-controller limiters (600 and 300 a minute); an unknown or revoked key is a 401.
+  'GET /v1/scim/v2/ServiceProviderConfig':
+    'pending named budget: SCIM bearer key (hashed, per org); in-controller limiters',
+  'GET /v1/scim/v2/ResourceTypes':
+    'pending named budget: SCIM bearer key (hashed, per org); in-controller limiters',
+  'GET /v1/scim/v2/Schemas':
+    'pending named budget: SCIM bearer key (hashed, per org); in-controller limiters',
+  'GET /v1/scim/v2/Users':
+    'pending named budget: SCIM bearer key (hashed, per org); in-controller limiters',
+  'GET /v1/scim/v2/Users/:id':
+    'pending named budget: SCIM bearer key (hashed, per org); in-controller limiters',
+  'POST /v1/scim/v2/Users':
+    'pending named budget: SCIM bearer key (hashed, per org); in-controller limiters',
+  'PUT /v1/scim/v2/Users/:id':
+    'pending named budget: SCIM bearer key (hashed, per org); in-controller limiters',
+  'PATCH /v1/scim/v2/Users/:id':
+    'pending named budget: SCIM bearer key (hashed, per org); in-controller limiters',
+  'DELETE /v1/scim/v2/Users/:id':
+    'pending named budget: SCIM bearer key (hashed, per org); in-controller limiters',
+  'GET /v1/scim/v2/Groups':
+    'pending named budget: SCIM bearer key (hashed, per org); in-controller limiters',
+  'GET /v1/scim/v2/Groups/:id':
+    'pending named budget: SCIM bearer key (hashed, per org); in-controller limiters',
+  'POST /v1/scim/v2/Groups':
+    'pending named budget: SCIM bearer key (hashed, per org); in-controller limiters',
+  'PUT /v1/scim/v2/Groups/:id':
+    'pending named budget: SCIM bearer key (hashed, per org); in-controller limiters',
+  'PATCH /v1/scim/v2/Groups/:id':
+    'pending named budget: SCIM bearer key (hashed, per org); in-controller limiters',
+  'DELETE /v1/scim/v2/Groups/:id':
+    'pending named budget: SCIM bearer key (hashed, per org); in-controller limiters',
   // 56-22 passkey sign-in: per-address limiter (60 per 10 minutes), signed single-use challenge.
   'POST /v1/auth/passkey/options':
     'pending named budget: in-controller per-address limiter; signed challenge, no I/O',

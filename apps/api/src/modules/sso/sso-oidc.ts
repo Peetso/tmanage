@@ -72,7 +72,9 @@ export type SsoTokenRejection =
   | 'issued_in_future'
   | 'bad_nonce'
   | 'email_unverified'
-  | 'no_subject';
+  | 'no_subject'
+  /** 56-10o: the flow's state was already used once (a replayed callback). */
+  | 'replayed';
 
 export class SsoTokenRejectedError extends Error {
   override name = 'SsoTokenRejectedError';
@@ -250,11 +252,19 @@ export function verifySsoIdToken(input: {
   }
 
   if (header['alg'] !== 'RS256') throw new SsoTokenRejectedError('unsupported_algorithm');
-  const key = input.keys.find(
+  // 56-10o kid confusion: only RSA signing keys count (an `enc` key or one pinned to another
+  // algorithm never verifies), a kid must name exactly one of them, and a kid-less token is
+  // accepted only when the issuer publishes a single signing key.
+  const signingKeys = input.keys.filter(
     (candidate) =>
       candidate.kty === 'RSA' &&
-      (header['kid'] === undefined ? input.keys.length === 1 : candidate.kid === header['kid']),
+      (candidate['use'] === undefined || candidate['use'] === 'sig') &&
+      (candidate.alg === undefined || candidate.alg === 'RS256'),
   );
+  const kid = header['kid'];
+  if (kid !== undefined && typeof kid !== 'string') throw new SsoTokenRejectedError('unknown_key');
+  const named = kid === undefined ? signingKeys : signingKeys.filter((c) => c.kid === kid);
+  const key = named.length === 1 ? named[0] : undefined;
   if (!key) throw new SsoTokenRejectedError('unknown_key');
   let valid = false;
   try {
@@ -271,10 +281,14 @@ export function verifySsoIdToken(input: {
 
   if (payload['iss'] !== input.issuer) throw new SsoTokenRejectedError('wrong_issuer');
   const aud = payload['aud'];
+  const azp = payload['azp'];
   const audienceOk = Array.isArray(aud)
-    ? aud.includes(input.clientId) && (aud.length === 1 || payload['azp'] === input.clientId)
+    ? aud.includes(input.clientId) && (aud.length === 1 || azp === input.clientId)
     : aud === input.clientId;
-  if (!audienceOk) throw new SsoTokenRejectedError('wrong_audience');
+  // 56-10o: an `azp` naming another client is a token issued to that client (OIDC Core §2).
+  if (!audienceOk || (azp !== undefined && azp !== input.clientId)) {
+    throw new SsoTokenRejectedError('wrong_audience');
+  }
 
   const exp = payload['exp'];
   if (typeof exp !== 'number' || exp + CLOCK_SKEW_SECONDS < now) {
@@ -282,6 +296,10 @@ export function verifySsoIdToken(input: {
   }
   const iat = payload['iat'];
   if (typeof iat !== 'number' || iat - CLOCK_SKEW_SECONDS > now) {
+    throw new SsoTokenRejectedError('issued_in_future');
+  }
+  const nbf = payload['nbf'];
+  if (nbf !== undefined && (typeof nbf !== 'number' || nbf - CLOCK_SKEW_SECONDS > now)) {
     throw new SsoTokenRejectedError('issued_in_future');
   }
   const nonce = payload['nonce'];

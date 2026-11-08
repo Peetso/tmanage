@@ -1324,6 +1324,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0330. Tenant-owned: one organization's SAML request IDs and accepted Assertion IDs (replay
   // cache). Written and read only through a service context bound to the flow cookie's org.
   sso_saml_requests: 'organization_id',
+  // ---- R49 · 54-16 ----
+  // 0337. Tenant-owned: one organization's SCIM bearer keys (hash only). The owner writes them through
+  // their own context; the SCIM routes find a key by hash only through `bootstrapRead` with a reason.
+  scim_tokens: 'organization_id',
 });
 
 /**

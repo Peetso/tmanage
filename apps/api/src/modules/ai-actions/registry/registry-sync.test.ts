@@ -173,7 +173,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // document collab join/steps/snapshot/cursor, +5 NEVER `session`): +13, was 1362.
 // R49 L1 55-11/55-22 (getting-started: GET, steps/:step/complete, dismiss, setup-health):
 // +4, was 1380.
-const EXPECTED_ROUTE_COUNT = 1384;
+// R49 L3 54-16 (SCIM 2.0: 15 /v1/scim/v2 routes + 3 security/scim key routes, +18 NEVER):
+// +18, was 1384.
+const EXPECTED_ROUTE_COUNT = 1402;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).
