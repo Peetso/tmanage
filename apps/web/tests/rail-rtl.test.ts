@@ -13,4 +13,10 @@ describe('C11 the nav rail mirrors in Arabic', () => {
     );
     expect(GLOBALS_CSS).not.toMatch(/\[dir='rtl'\]\s*\.tm-(app__frame|rail|app__body)\s*\{/);
   });
+
+  it('gives the canvas the full gutter on the rail side in Arabic, desktop only', () => {
+    expect(GLOBALS_CSS).toMatch(
+      /@media \(min-width: 56\.2rem\) \{\s*\.tm-app__body:where\(:dir\(rtl\)\) \{\s*padding-inline-start: var\(--s8\);/,
+    );
+  });
 });
