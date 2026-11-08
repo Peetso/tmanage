@@ -96,6 +96,18 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'POST', path: '/v1/auth/sso/start', reason: 'auth' },
   { method: 'GET', path: '/v1/auth/sso/callback', reason: 'auth' },
   { method: 'POST', path: '/v1/auth/sso/mfa', reason: 'auth' },
+  // 54-15. Company sign-in (SAML 2.0): public reply URL (ACS) and service-provider metadata.
+  { method: 'POST', path: '/v1/auth/sso/saml/acs', reason: 'auth' },
+  { method: 'GET', path: '/v1/auth/sso/saml/metadata', reason: 'auth' },
+  // 56-22. Passkeys: public sign-in challenge and sign-in, own passkeys, score and devices.
+  { method: 'POST', path: '/v1/auth/passkey/options', reason: 'auth' },
+  { method: 'POST', path: '/v1/auth/passkey/', reason: 'auth' },
+  { method: 'GET', path: '/v1/auth/passkeys', reason: 'auth' },
+  { method: 'POST', path: '/v1/auth/passkeys/options', reason: 'auth' },
+  { method: 'POST', path: '/v1/auth/passkeys', reason: 'auth' },
+  { method: 'DELETE', path: '/v1/auth/passkeys/:passkeyId', reason: 'auth' },
+  { method: 'GET', path: '/v1/auth/security-score', reason: 'auth' },
+  { method: 'GET', path: '/v1/auth/security-devices', reason: 'auth' },
   { method: 'POST', path: '/v1/auth/mfa', reason: 'auth' },
   { method: 'POST', path: '/v1/auth/password', reason: 'auth' },
   { method: 'POST', path: '/v1/auth/password/set', reason: 'auth' },

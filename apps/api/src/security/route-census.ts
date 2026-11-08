@@ -45,6 +45,9 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'POST /v1/auth/sso/start': 'pending named budget: starts a redirect, signed state cookie',
   'GET /v1/auth/sso/callback': 'OIDC callback: signed single-use state and nonce',
   'POST /v1/auth/sso/mfa': 'pending named budget: needs the pending-MFA cookie',
+  'POST /v1/auth/sso/saml/acs':
+    'pending named budget: SAML reply URL, signed flow cookie and RelayState',
+  'GET /v1/auth/sso/saml/metadata': 'public service-provider metadata, no secrets',
   // 56-22 passkey sign-in: per-address limiter (60 per 10 minutes), signed single-use challenge.
   'POST /v1/auth/passkey/options':
     'pending named budget: in-controller per-address limiter; signed challenge, no I/O',

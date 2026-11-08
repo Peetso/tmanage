@@ -368,6 +368,10 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/settings/my-data': { en: 'My data', key: 'RouteTitle.settingsMyData' },
   '/[orgSlug]/settings/quiet-hours': { en: 'Quiet hours', key: 'RouteTitle.settingsQuietHours' },
   '/[orgSlug]/settings/security': { en: 'Security', key: 'RouteTitle.settingsSecurity' },
+  '/[orgSlug]/settings/sign-in-security': {
+    en: 'Sign-in security',
+    key: 'RouteTitle.settingsSignInSecurity',
+  },
   '/[orgSlug]/settings/startup': { en: 'Startup', key: 'RouteTitle.settingsStartup' },
   '/[orgSlug]/settings/two-step': {
     en: 'Two-step verification',
