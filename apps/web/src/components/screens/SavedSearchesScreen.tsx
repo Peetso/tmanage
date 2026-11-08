@@ -38,6 +38,10 @@ const KIND_LABEL: Readonly<Record<SearchResultKind, string>> = {
   message: 'Message',
   decision: 'Decision',
   project: 'Project',
+  invoice: 'Invoice',
+  quote: 'Quote',
+  expense: 'Expense',
+  file: 'File',
 };
 
 /** "13 Aug" in English; the active locale's month names and digits elsewhere (C1). */

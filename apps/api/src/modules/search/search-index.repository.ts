@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNull, like, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, or } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
   conversationMemberships,
@@ -11,7 +11,13 @@ import {
   workItems,
 } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+import type { FileAssetRow } from '../../common/database/schema.js';
 import { clientAudienceVisible } from '../work/work-item-client-audience.repository.js';
+import { searchFinanceAndFiles } from './search-finance-files.repository.js';
+import type { SearchReachScope } from './search-finance-files.repository.js';
+import { textMatcher } from './search-text-match.repository.js';
+
+export { likePattern } from './search-normalise.js';
 
 /**
  * SRCH (COL-04). The read side of global search.
@@ -44,12 +50,22 @@ import { clientAudienceVisible } from '../work/work-item-client-audience.reposit
 
 /** The source kinds global search surfaces. */
 export type SearchIndexTargetKind =
-  'work_item' | 'document' | 'meeting' | 'message' | 'decision' | 'project';
+  | 'work_item'
+  | 'document'
+  | 'meeting'
+  | 'message'
+  | 'decision'
+  | 'project'
+  | 'invoice'
+  | 'quote'
+  | 'expense'
+  | 'file';
 
 /** A hit — only what the service needs to authorise and project it. */
 export interface SearchIndexHitRow {
   readonly organizationId: string;
-  readonly projectId: string;
+  /** The hit's project; null for an invoice, quote or expense that names none (53-17). */
+  readonly projectId: string | null;
   readonly targetKind: SearchIndexTargetKind;
   readonly targetId: string;
   readonly title: string;
@@ -66,6 +82,14 @@ export interface SearchIndexHitRow {
    * `ConversationsService.mayReach` applies to every direct read. Absent for every other kind.
    */
   readonly conversationId?: string;
+  /** 53-17: an invoice's or file's client organization, for the client-projection rule. */
+  readonly clientOrganizationId?: string | null;
+  /** 53-17: an invoice's or quote's state (a client never sees a draft or void invoice). */
+  readonly state?: string;
+  /** 53-17: an expense's submitter, for the "own expense" read. */
+  readonly ownerMembershipId?: string;
+  /** 53-17: a file hit's asset row, for the purpose policy and the client relation. */
+  readonly asset?: FileAssetRow;
 }
 
 /** The three audiences a source row can carry (the AUDIENCE facet's values). */
@@ -85,6 +109,13 @@ export interface SearchRankedOptions {
   readonly audiences?: readonly SearchAudience[];
   /** TIME facet (SR-02): keep only rows changed at or after this instant. Omitted = all time. */
   readonly updatedSince?: Date;
+  /** 53-17 TYPE facet: only these kinds are scanned. Omitted = every kind. */
+  readonly kinds?: readonly SearchIndexTargetKind[];
+  /**
+   * 53-17: what the service decided about the caller, used to skip or narrow the finance and file
+   * scans. Omitted = those four kinds are not scanned at all (the safe default).
+   */
+  readonly reach?: SearchReachScope;
 }
 
 /**
@@ -105,12 +136,6 @@ export interface SearchIndexEntry {
 /** The longest substring of a message body we surface as its title. */
 const MESSAGE_TITLE_LENGTH = 140;
 
-/** Escape the LIKE metacharacters so a query is matched literally (MySQL/MariaDB default escape). */
-export function likePattern(query: string): string {
-  const escaped = query.replace(/[\\%_]/g, (char) => `\\${char}`);
-  return `%${escaped}%`;
-}
-
 export class SearchIndexRepository {
   /**
    * Find this tenant's rows matching the query across the six source kinds, newest first.
@@ -127,20 +152,23 @@ export class SearchIndexRepository {
   ): Promise<readonly SearchIndexHitRow[]> {
     const db = tenantDrizzle(runner);
     const org = context.organizationId;
-    const pattern = likePattern(options.query);
-    const { limit, projectId, updatedSince, audiences } = options;
+    // 53-17: the query and the stored text are folded the same way (Arabic letter forms, marks).
+    const matcher = textMatcher(options.query);
+    const { limit, projectId, updatedSince, audiences, kinds } = options;
+    const wants = (kind: SearchIndexTargetKind): boolean => !kinds || kinds.includes(kind);
 
     // A kind that only ever carries `internal` is scanned only when the audience facet admits it.
-    const wantsInternal = !audiences || audiences.includes('internal');
+    const admitsInternal = !audiences || audiences.includes('internal');
+    const wantsInternal = (kind: SearchIndexTargetKind): boolean => admitsInternal && wants(kind);
 
     const hits: SearchIndexHitRow[] = [];
 
     // ── Work items (the one kind with a real audience) ───────────────────────
-    {
+    if (wants('work_item')) {
       const predicates = [
         eq(workItems.organizationId, org),
         isNull(workItems.deletedAt),
-        like(workItems.title, pattern),
+        matcher.matches(workItems.title),
       ];
       if (projectId) predicates.push(eq(workItems.projectId, projectId));
       if (audiences && audiences.length > 0) {
@@ -176,10 +204,10 @@ export class SearchIndexRepository {
     }
 
     // ── Documents (internal by construction for search, as the original index treated them) ──
-    if (wantsInternal) {
+    if (wantsInternal('document')) {
       const predicates = [
         eq(documents.organizationId, org),
-        or(like(documents.title, pattern), like(documents.body, pattern)),
+        or(matcher.matches(documents.title), matcher.matches(documents.body)),
       ];
       if (projectId) predicates.push(eq(documents.projectId, projectId));
       if (updatedSince) predicates.push(gte(documents.updatedAt, updatedSince));
@@ -208,10 +236,10 @@ export class SearchIndexRepository {
     }
 
     // ── Meetings ─────────────────────────────────────────────────────────────
-    if (wantsInternal) {
+    if (wantsInternal('meeting')) {
       const predicates = [
         eq(meetings.organizationId, org),
-        or(like(meetings.title, pattern), like(meetings.agendaNote, pattern)),
+        or(matcher.matches(meetings.title), matcher.matches(meetings.agendaNote)),
       ];
       if (projectId) predicates.push(eq(meetings.projectId, projectId));
       if (updatedSince) predicates.push(gte(meetings.updatedAt, updatedSince));
@@ -240,10 +268,10 @@ export class SearchIndexRepository {
     }
 
     // ── Decisions (recency is `decided_at`; the register's own sort column) ──
-    if (wantsInternal) {
+    if (wantsInternal('decision')) {
       const predicates = [
         eq(decisions.organizationId, org),
-        or(like(decisions.title, pattern), like(decisions.statement, pattern)),
+        or(matcher.matches(decisions.title), matcher.matches(decisions.statement)),
       ];
       if (projectId) predicates.push(eq(decisions.projectId, projectId));
       if (updatedSince) predicates.push(gte(decisions.decidedAt, updatedSince));
@@ -272,11 +300,11 @@ export class SearchIndexRepository {
     }
 
     // ── Projects (the project is its own relation subject: project_id = its id) ──
-    if (wantsInternal) {
+    if (wantsInternal('project')) {
       const predicates = [
         eq(projects.organizationId, org),
         isNull(projects.archivedAt),
-        like(projects.name, pattern),
+        matcher.matches(projects.name),
       ];
       if (projectId) predicates.push(eq(projects.id, projectId));
       if (updatedSince) predicates.push(gte(projects.updatedAt, updatedSince));
@@ -305,11 +333,11 @@ export class SearchIndexRepository {
 
     // ── Messages (project resolved from the channel, in a second tenant-scoped read — no join,
     //    so the guard sees a single tenant table per statement) ───────────────
-    if (wantsInternal) {
+    if (wantsInternal('message')) {
       const messagePredicates = [
         eq(messages.organizationId, org),
         isNull(messages.deletedAt),
-        like(messages.body, pattern),
+        matcher.matches(messages.body),
       ];
       if (updatedSince) messagePredicates.push(gte(messages.updatedAt, updatedSince));
       const messageRows = await db
@@ -350,6 +378,39 @@ export class SearchIndexRepository {
             conversationId: row.conversationId,
           });
         }
+      }
+    }
+
+    // ── 53-17: client invoices, quotes, expenses and files ───────────────────
+    if (options.reach) {
+      const more = await searchFinanceAndFiles(db, {
+        organizationId: org,
+        matcher,
+        limit,
+        scope: options.reach,
+        wants,
+        ...(projectId === undefined ? {} : { projectId }),
+        ...(audiences === undefined ? {} : { audiences }),
+        ...(updatedSince === undefined ? {} : { updatedSince }),
+      });
+      for (const row of more) {
+        hits.push({
+          organizationId: org,
+          projectId: row.projectId,
+          targetKind: row.kind,
+          targetId: row.id,
+          title: row.title,
+          audience: row.audience,
+          updatedAt: row.updatedAt,
+          ...(row.clientOrganizationId === undefined
+            ? {}
+            : { clientOrganizationId: row.clientOrganizationId }),
+          ...(row.state === undefined ? {} : { state: row.state }),
+          ...(row.ownerMembershipId === undefined
+            ? {}
+            : { ownerMembershipId: row.ownerMembershipId }),
+          ...(row.asset === undefined ? {} : { asset: row.asset }),
+        });
       }
     }
 

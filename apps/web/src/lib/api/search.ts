@@ -5,14 +5,23 @@ import type { ApiClient } from './client';
  *
  * A single read the API serves at `GET .../search?q=&projectId?=&limit?=&audience?=&since?=`,
  * behind the `search.use`
- * capability. No write, no request body: the inputs are query parameters. Every hit the API
+ * capability (`kinds?=` narrows by result type, 53-17). No write, no request body: the inputs are query parameters. Every hit the API
  * returns is one the caller may read — the server relation-gates each row with `work.read`, so the
  * client renders what it is given without a second permission check.
  */
 
 /** The kinds a hit can be. Kept in lockstep with the API's `SearchResultKind`. */
 export type SearchResultKind =
-  'work_item' | 'document' | 'meeting' | 'message' | 'decision' | 'project';
+  | 'work_item'
+  | 'document'
+  | 'meeting'
+  | 'message'
+  | 'decision'
+  | 'project'
+  | 'invoice'
+  | 'quote'
+  | 'expense'
+  | 'file';
 
 /** SR-02 AUDIENCE facet values — the API's `SearchAudience`. */
 export type SearchAudience = 'internal' | 'client_visible' | 'client_action_required';
@@ -29,7 +38,8 @@ export interface SearchResult {
   readonly kind: SearchResultKind;
   readonly id: string;
   readonly title: string;
-  readonly projectId: string;
+  /** Null for an invoice, quote or expense that names no project (53-17). */
+  readonly projectId: string | null;
   readonly snippet: string | null;
   readonly audience: SearchAudience;
   /** ISO-8601 instant of the source row's last change. */
@@ -44,6 +54,8 @@ export interface SearchQuery {
   readonly audiences?: readonly SearchAudience[];
   /** Only hits changed within the window; omitted or `all` = no bound. */
   readonly since?: SearchTimeWindow;
+  /** 53-17 TYPE facet: only hits of these kinds; omitted = every kind. */
+  readonly kinds?: readonly SearchResultKind[];
 }
 
 export async function search(
@@ -59,6 +71,9 @@ export async function search(
     parameters.set('audience', query.audiences.join(','));
   }
   if (query.since !== undefined && query.since !== 'all') parameters.set('since', query.since);
+  if (query.kinds !== undefined && query.kinds.length > 0) {
+    parameters.set('kinds', query.kinds.join(','));
+  }
 
   const { data } = await client.request<{ results: readonly SearchResult[] }>({
     path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/search?${parameters.toString()}`,

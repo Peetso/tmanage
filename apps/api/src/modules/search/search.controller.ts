@@ -4,14 +4,21 @@ import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/deco
 import { ApiError } from '../../common/http/errors.js';
 import { SEARCH_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import type { SearchResultView, SearchService, SearchTimeWindow } from './search.service.js';
+import { SEARCH_RESULT_KINDS } from './search.service.js';
+import type {
+  SearchResultKind,
+  SearchResultView,
+  SearchService,
+  SearchTimeWindow,
+} from './search.service.js';
 import type { SearchAudience } from './search-index.repository.js';
 import { SavedSearchesRepository } from './saved-searches.repository.js';
 import { RECENT_LIMIT } from './saved-searches.service.js';
 
 /**
- * SRCH-01 (x111). Global tenant-scoped search: one read endpoint returning a unified result set
- * over work items, documents and meetings.
+ * SRCH-01 (x111), 53-17. Global tenant-scoped search: one read endpoint returning a unified result
+ * set over work, docs, meetings, decisions, projects, chat messages, invoices, quotes, expenses and
+ * files, each hit permission-filtered by the service.
  *
  * Like every tenant-scoped controller here, it never reads `organizationId` from the query, a
  * header, or its own `:orgSlug` segment: it receives the `TenantContext` that `TenantContextGuard`
@@ -46,6 +53,30 @@ export function parseAudiences(raw: string | undefined): readonly SearchAudience
     ]);
   }
   return [...new Set(values as SearchAudience[])];
+}
+
+/**
+ * 53-17 TYPE facet: a comma-separated subset of the result kinds (`kinds=invoice,file`). Unknown
+ * values are a 400; duplicates collapse. It only narrows — every hit is still permission-checked.
+ */
+export function parseKinds(raw: string | undefined): readonly SearchResultKind[] | undefined {
+  if (raw === undefined) return undefined;
+  const values = raw
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value !== '');
+  const invalid = values.filter(
+    (value) => !SEARCH_RESULT_KINDS.includes(value as SearchResultKind),
+  );
+  if (values.length === 0 || invalid.length > 0) {
+    throw new ApiError(400, 'validation_failed', 'kinds is invalid', [
+      {
+        field: 'kinds',
+        message: `must be a comma-separated subset of ${SEARCH_RESULT_KINDS.join(', ')}`,
+      },
+    ]);
+  }
+  return [...new Set(values as SearchResultKind[])];
 }
 
 /** SR-02 TIME facet: `7d`, `30d` or `all`. */
@@ -85,6 +116,7 @@ export class SearchController {
     @Query('limit') limit?: string,
     @Query('audience') audience?: string,
     @Query('since') since?: string,
+    @Query('kinds') kinds?: string,
   ): Promise<{ readonly results: readonly SearchResultView[] }> {
     const query = typeof q === 'string' ? q.trim() : '';
     if (query === '') {
@@ -113,11 +145,13 @@ export class SearchController {
 
     const audiences = parseAudiences(audience);
     const window = parseTimeWindow(since);
+    const kindFilter = parseKinds(kinds);
 
     const results = await this.search.search(context, principal, {
       q: query,
       ...(audiences === undefined ? {} : { audiences }),
       ...(window === undefined ? {} : { since: window }),
+      ...(kindFilter === undefined ? {} : { kinds: kindFilter }),
       ...(projectId === undefined ? {} : { projectId }),
       ...(parsedLimit === undefined ? {} : { limit: parsedLimit }),
     });

@@ -183,4 +183,45 @@ describe('SearchScreen', () => {
       urls.slice(0, before).filter((url) => url.includes('/search')).length + 1,
     );
   });
+  it('links invoice and file hits, and runs a TYPE capsule as a kinds= server filter (53-17)', async () => {
+    const user = userEvent.setup();
+    const urls: string[] = [];
+    const finance = [
+      {
+        kind: 'invoice',
+        id: 'i1',
+        title: 'INV-0042',
+        projectId: null,
+        snippet: null,
+        audience: 'client_visible',
+        updatedAt: AT,
+      },
+      {
+        kind: 'file',
+        id: 'f1',
+        title: 'فاتورة.pdf',
+        projectId: 'p1',
+        snippet: null,
+        audience: 'internal',
+        updatedAt: AT,
+      },
+    ];
+    render(screenOver(finance, 'فاتوره', urls));
+    const list = await screen.findByRole('list', { name: /search results/i });
+    expect(within(list).getByRole('link', { name: 'INV-0042' })).toHaveAttribute(
+      'href',
+      '/acme/finance/invoices/i1',
+    );
+    expect(within(list).getByRole('link', { name: 'فاتورة.pdf' })).toHaveAttribute(
+      'href',
+      '/acme/files/f1',
+    );
+
+    // The TYPE capsules: All, the six workspace kinds, then Invoices (index 7).
+    const typeGroup = screen.getByRole('group', { name: /type/i });
+    await user.click(within(typeGroup).getAllByRole('button')[7] as HTMLElement);
+    await waitFor(() =>
+      expect(urls.filter((url) => url.includes('/search')).at(-1)).toContain('kinds=invoice'),
+    );
+  });
 });

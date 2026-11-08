@@ -1,10 +1,15 @@
-import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
+import { FileClientRelation } from '../files/file-client-relation.js';
+import { mayReadHit, reachScope } from './search-permission.js';
 import { SearchIndexRepository } from './search-index.repository.js';
-import type { SearchAudience, SearchIndexHitRow } from './search-index.repository.js';
+import type {
+  SearchAudience,
+  SearchIndexHitRow,
+  SearchIndexTargetKind,
+} from './search-index.repository.js';
 
 /**
  * SRCH-01 (x111), ranked by SRCH ranking (x148). The application service for global search — one
@@ -31,20 +36,37 @@ import type { SearchAudience, SearchIndexHitRow } from './search-index.repositor
  * `limit` defaults to 20 and is capped at 50 (the x93/x98 bounded-list precedent); the repository
  * bounds the read and the service bounds the filtered set again.
  *
- * All six source kinds are searched live from their source tables (COL-04): work items, documents,
- * meetings, decisions, projects and channel messages. Body/snippet excerpts and an AI answer are
+ * Ten source kinds are searched live from their source tables (COL-04, 53-17): work items,
+ * documents, meetings, decisions, projects, channel messages, client invoices, quotes, expenses and
+ * files. Each hit is judged by `mayReadHit` (`search-permission.ts`) with the rule its own module
+ * applies, so a client principal sees only its projection and an internal caller only what its
+ * role reaches. Arabic text is folded on both sides of the match (`search-normalise.ts`). Body/snippet excerpts and an AI answer are
  * still deferred — `snippet` stays part of the contract so it can be filled without a reshape.
  */
 
-export type SearchResultKind =
-  'work_item' | 'document' | 'meeting' | 'message' | 'decision' | 'project';
+export type SearchResultKind = SearchIndexTargetKind;
+
+/** Every kind, in the order the Search screen's TYPE facet lists them (53-17). */
+export const SEARCH_RESULT_KINDS: readonly SearchResultKind[] = [
+  'work_item',
+  'document',
+  'meeting',
+  'message',
+  'decision',
+  'project',
+  'invoice',
+  'quote',
+  'expense',
+  'file',
+];
 
 /** What a caller is allowed to see of one hit. `organizationId` is deliberately absent. */
 export interface SearchResultView {
   readonly kind: SearchResultKind;
   readonly id: string;
   readonly title: string;
-  readonly projectId: string;
+  /** Null for an invoice, quote or expense that names no project (53-17). */
+  readonly projectId: string | null;
   /**
    * A short contextual excerpt. Null this slice: a body excerpt needs the snippet extraction
    * deferred to NS-13. The field is part of the contract now so the client can render an excerpt
@@ -79,6 +101,8 @@ export interface SearchOptions {
   readonly audiences?: readonly SearchAudience[];
   /** SR-02 TIME facet: only hits changed within the window. */
   readonly since?: SearchTimeWindow;
+  /** 53-17 TYPE facet: only hits of these kinds. A narrowing filter, like the audience facet. */
+  readonly kinds?: readonly SearchResultKind[];
 }
 
 /** The lower bound on `updated_at` a time window implies, or undefined for all time. */
@@ -109,6 +133,8 @@ export class SearchService {
     private readonly projects: ProjectsRepository = new ProjectsRepository(),
     /** The clock the TIME facet measures its window from; injectable for tests. */
     private readonly now: () => Date = () => new Date(),
+    /** 53-17: the files module's client relation, asked for a client's file hits only. */
+    private readonly fileRelation: FileClientRelation = new FileClientRelation(),
   ) {}
 
   /**
@@ -133,6 +159,8 @@ export class SearchService {
       ...(projectId === undefined ? {} : { projectId }),
       ...(options.audiences === undefined ? {} : { audiences: options.audiences }),
       ...(updatedSince === undefined ? {} : { updatedSince }),
+      ...(options.kinds === undefined ? {} : { kinds: options.kinds }),
+      reach: reachScope(principal),
     };
 
     const hits = await this.database.read(context, async (runner) => {
@@ -146,10 +174,21 @@ export class SearchService {
 
       const ranked = await this.repository.searchRanked(runner, context, rankedOptions);
 
+      // 53-17: a client reaches a file only through the files relation (request row, published
+      // deliverable, version chain) — the same answer the download gate gets, asked per hit.
+      const fileReach = new Map<string, SearchAudience | null>();
+      if (principal.kind !== 'internal') {
+        for (const hit of ranked) {
+          if (hit.targetKind !== 'file' || hit.asset === undefined) continue;
+          const reach = await this.fileRelation.reach(runner, context, principal, hit.asset);
+          fileReach.set(hit.asset.id, reach === null ? null : reach.audience);
+        }
+      }
+
       // F22: channel membership narrows a message hit for every caller without org-wide scope,
       // exactly as `ConversationsService.mayReach` narrows the channel's own reads — a project
       // member removed from (or never added to) a channel must not read its text here either.
-      if (principal.hasOrgWideScope) return { ranked, memberOf: null };
+      if (principal.hasOrgWideScope) return { ranked, memberOf: null, fileReach };
       const channelIds = [
         ...new Set(
           ranked.flatMap((hit) =>
@@ -168,7 +207,7 @@ export class SearchService {
               principal.userId,
               channelIds,
             );
-      return { ranked, memberOf };
+      return { ranked, memberOf, fileReach };
     });
 
     const results: SearchResultView[] = [];
@@ -176,44 +215,9 @@ export class SearchService {
       if (hit.targetKind === 'message' && hits.memberOf !== null) {
         if (hit.conversationId === undefined || !hits.memberOf.has(hit.conversationId)) continue;
       }
-      if (this.mayRead(principal, hit)) results.push(toView(hit));
+      if (mayReadHit(principal, hit, { fileReach: hits.fileReach })) results.push(toView(hit));
     }
     return results.slice(0, limit);
-  }
-
-  /**
-   * Whether this principal may read the hit, judged against the hit's own project and audience —
-   * the single relation rule (`authorize()`), so a search can never surface a row the row's own
-   * direct read would refuse.
-   *
-   * F22: a channel message is the channel's content, so its hit needs the channel's own read
-   * capability, `conversation.read` (as `ConversationsService.mayReach` asks it, on an internal
-   * resource), not `work.read` — a custom role granted `work.read` without the chat capability
-   * must not read channel text through search. Every other kind keeps `work.read`.
-   */
-  private mayRead(principal: Principal, hit: SearchIndexHitRow): boolean {
-    if (hit.targetKind === 'message') {
-      return authorize({
-        principal,
-        capability: 'conversation.read',
-        resource: {
-          organizationId: hit.organizationId,
-          projectId: hit.projectId,
-          audience: 'internal',
-          lifecycle: 'active',
-        },
-      }).allowed;
-    }
-    return authorize({
-      principal,
-      capability: 'work.read',
-      resource: {
-        organizationId: hit.organizationId,
-        projectId: hit.projectId,
-        audience: hit.audience,
-        lifecycle: 'active',
-      },
-    }).allowed;
   }
 }
 

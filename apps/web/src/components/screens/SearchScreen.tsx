@@ -11,7 +11,12 @@ import { appLocale } from '../../lib/i18n/app-locale';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { search } from '../../lib/api/search';
 import { listProjects } from '../../lib/api/projects';
-import type { SearchAudience, SearchResultKind, SearchTimeWindow } from '../../lib/api/search';
+import type {
+  SearchAudience,
+  SearchResult,
+  SearchResultKind,
+  SearchTimeWindow,
+} from '../../lib/api/search';
 import { getResolvedFeatureFlags } from '../../lib/api/admin-feature-flags';
 import type { ApiClient } from '../../lib/api/client';
 import { useDescribeApiError } from '../../lib/api/describe-error';
@@ -33,7 +38,14 @@ const KIND_ORDER: readonly SearchResultKind[] = [
   'message',
   'decision',
   'project',
+  'invoice',
+  'quote',
+  'expense',
+  'file',
 ];
+
+/** How many hits one search asks for — the API's cap, so every kind's count is meaningful. */
+const SEARCH_LIMIT = 50;
 
 /** The AUDIENCE facet rows (SR-02), each with the glyph the design pairs it with. */
 const AUDIENCE_ORDER: readonly SearchAudience[] = [
@@ -58,7 +70,12 @@ const TIME_ORDER: readonly SearchTimeWindow[] = ['7d', '30d', 'all'];
  *   you" note states that rule; it does not invent a count the API does not return.
  * - **Order is the server's ranking** — relevance, then recency — so the list is rendered in the
  *   exact order the API returns. The TYPE facet only hides kinds; it never re-sorts.
- * - **Only work items link to a detail page**, because only work items have one today.
+ * - **Every kind with a detail page links to it** — work, projects, docs, invoices, quotes, files;
+ *   an expense opens the expenses list. Meetings, decisions and messages stay plain titles.
+ * - **Ten kinds (53-17)**: the six workspace kinds plus invoices, quotes, expenses and files. A TYPE
+ *   capsule re-runs the search with `kinds=`; the capsule counts come from the mixed page.
+ * - **Arabic is folded on the server** (hamza/alef forms, taa marbuta, ya forms, marks, tatweel),
+ *   so the screen sends the query exactly as typed.
  * - **Body/snippet matching is not here yet** — `snippet` is null until snippet extraction lands;
  *   the card draws the excerpt line only when there is one.
  * - **AUDIENCE and TIME facets are server filters.** Changing one re-runs the search with
@@ -88,6 +105,10 @@ export function SearchScreen({
     message: t('SearchScreen.kindMessage'),
     decision: t('SearchScreen.kindDecision'),
     project: t('SearchScreen.kindProject'),
+    invoice: t('SearchScreen.kindInvoice'),
+    quote: t('SearchScreen.kindQuote'),
+    expense: t('SearchScreen.kindExpense'),
+    file: t('SearchScreen.kindFile'),
   };
   const KIND_FACET: Readonly<Record<SearchResultKind, string>> = {
     work_item: t('SearchScreen.facetWork'),
@@ -96,6 +117,10 @@ export function SearchScreen({
     message: t('SearchScreen.facetMessages'),
     decision: t('SearchScreen.facetDecisions'),
     project: t('SearchScreen.facetProjects'),
+    invoice: t('SearchScreen.facetInvoices'),
+    quote: t('SearchScreen.facetQuotes'),
+    expense: t('SearchScreen.facetExpenses'),
+    file: t('SearchScreen.facetFiles'),
   };
   const AUDIENCE_FACET: Readonly<Record<SearchAudience, string>> = {
     internal: t('SearchScreen.audienceInternal'),
@@ -130,10 +155,26 @@ export function SearchScreen({
     queryFn: () =>
       search(api, organizationSlug, {
         q: query,
+        limit: SEARCH_LIMIT,
         ...(audienceFilter === undefined ? {} : { audiences: audienceFilter }),
         since,
       }),
     enabled: query !== '' && !noAudience,
+  });
+
+  // 53-17: a TYPE capsule is a server filter too, so the list is filled from that kind alone
+  // rather than thinned from the mixed page. Until it answers, the mixed page is thinned instead.
+  const narrowed = useQuery({
+    queryKey: ['search', organizationSlug, query, audienceFilter ?? 'any', since, kind],
+    queryFn: () =>
+      search(api, organizationSlug, {
+        q: query,
+        limit: SEARCH_LIMIT,
+        ...(audienceFilter === undefined ? {} : { audiences: audienceFilter }),
+        since,
+        kinds: kind === 'all' ? [] : [kind],
+      }),
+    enabled: query !== '' && !noAudience && kind !== 'all',
   });
 
   function toggleAudience(value: SearchAudience) {
@@ -161,12 +202,43 @@ export function SearchScreen({
     enabled: query !== '',
   });
   const projectNames = new Map((projects.data ?? []).map((project) => [project.id, project.name]));
+  const projectNameOf = (hit: SearchResult): string | undefined =>
+    hit.projectId === null ? undefined : projectNames.get(hit.projectId);
 
   const hits = results.data ?? [];
   const total = hits.length;
   const askQuery = (query !== '' ? query : draft).trim();
-  const shown = kind === 'all' ? hits : hits.filter((hit) => hit.kind === kind);
+  const shown = kind === 'all' ? hits : (narrowed.data ?? hits.filter((hit) => hit.kind === kind));
   const org = encodeURIComponent(organizationSlug);
+
+  /** Where a hit opens, or null for a kind with no detail page of its own. */
+  function hrefFor(hit: SearchResult): string | null {
+    const id = encodeURIComponent(hit.id);
+    switch (hit.kind) {
+      case 'work_item':
+        return `/${org}/work/${id}`;
+      case 'project':
+        return `/${org}/projects/${id}`;
+      case 'document':
+        return `/${org}/docs/${id}`;
+      case 'invoice':
+        return `/${org}/finance/invoices/${id}`;
+      case 'quote':
+        return `/${org}/quotes/${id}`;
+      case 'expense':
+        return `/${org}/finance/expenses`;
+      case 'file':
+        return `/${org}/files/${id}`;
+      default:
+        return null;
+    }
+  }
+
+  /** A draft invoice has no number yet; it is named as a draft rather than left blank. */
+  function titleFor(hit: SearchResult): string {
+    if (hit.title !== '') return hit.title;
+    return hit.kind === 'invoice' ? t('SearchScreen.untitledInvoice') : shortRef(hit.id);
+  }
   const settled = query !== '' && !noAudience && !results.isPending && !results.isError;
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -366,29 +438,12 @@ export function SearchScreen({
                   <li key={`${hit.kind}:${hit.id}`} className="tm-sa-hit">
                     <div className="tm-sa-hit__head">
                       <span className="tm-sa-badge">{KIND_LABEL[hit.kind]}</span>
-                      {hit.kind === 'work_item' ? (
-                        <Link
-                          href={`/${organizationSlug}/work/${hit.id}`}
-                          className="tm-sa-hit__title"
-                        >
-                          {hit.title}
-                        </Link>
-                      ) : hit.kind === 'project' ? (
-                        <Link
-                          href={`/${organizationSlug}/projects/${hit.id}`}
-                          className="tm-sa-hit__title"
-                        >
-                          {hit.title}
-                        </Link>
-                      ) : hit.kind === 'document' ? (
-                        <Link
-                          href={`/${organizationSlug}/docs/${hit.id}`}
-                          className="tm-sa-hit__title"
-                        >
-                          {hit.title}
+                      {hrefFor(hit) !== null ? (
+                        <Link href={hrefFor(hit) ?? ''} className="tm-sa-hit__title">
+                          {titleFor(hit)}
                         </Link>
                       ) : (
-                        <span className="tm-sa-hit__title">{hit.title}</span>
+                        <span className="tm-sa-hit__title">{titleFor(hit)}</span>
                       )}
                       <span
                         className={`tm-sa-audience tm-sa-audience--${hit.audience}`}
@@ -402,13 +457,12 @@ export function SearchScreen({
                     </div>
                     {hit.snippet ? <p className="tm-sa-hit__body">{hit.snippet}</p> : null}
                     <p className="tm-sa-hit__meta">
-                      {projectNames.has(hit.projectId) ? (
+                      {projectNameOf(hit) !== undefined ? (
                         <>
-                          {t('SearchScreen.projectMetaPrefix')}{' '}
-                          {projectNames.get(hit.projectId)}{' '}
+                          {t('SearchScreen.projectMetaPrefix')} {projectNameOf(hit)}{' '}
                         </>
                       ) : null}
-                      {projectNames.has(hit.projectId)
+                      {projectNameOf(hit) !== undefined
                         ? t('SearchScreen.updatedMeta')
                         : t('SearchScreen.updatedMeta').replace(/^·\s*/, '')}{' '}
                       {shortDate(hit.updatedAt)}
