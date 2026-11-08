@@ -40,6 +40,8 @@ import { DoerStack } from '../work/WorkPeopleBlock';
 import { WorkViewSwitcher } from '../views/WorkViewSwitcher';
 import { useViewPreference } from '../views/use-view-preference';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { useUndoEntries } from '../../lib/undo/use-undo';
+import { heldKeys, undoKey } from '../../lib/undo/undo-queue';
 
 /** 53-01: the most project topics one list view follows live. */
 const LIVE_PROJECT_LIMIT = 50;
@@ -267,7 +269,12 @@ export function WorkListScreen({
     return names;
   }, [projects.data]);
 
-  const loadedRows = useMemo(() => workItems.data?.pages.flat() ?? [], [workItems.data]);
+  // 55-23: an item whose delete is held behind an Undo toast is already gone from the list.
+  const heldUndo = useUndoEntries();
+  const loadedRows = useMemo(() => {
+    const held = heldKeys(heldUndo);
+    return (workItems.data?.pages.flat() ?? []).filter((row) => !held.has(undoKey('work', row.id)));
+  }, [workItems.data, heldUndo]);
 
   const rows = useMemo(() => {
     if (sortKey === 'loaded') return loadedRows;

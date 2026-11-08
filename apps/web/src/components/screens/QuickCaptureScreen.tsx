@@ -35,6 +35,8 @@ import { parseQuickDate, quickDateInstant } from '../../lib/quick-date';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/home.css';
+import { MoreOptions, useMyUserId } from '../forms/MoreOptions';
+import { useTOr } from '../../lib/i18n/use-t-or';
 
 /**
  * **Quick capture (modules 22 Desktop companion / 23 Mobile companion, 38-MODULE-MAP rows 22–23).**
@@ -174,6 +176,8 @@ export function QuickCaptureScreen({
 }: QuickCaptureScreenProps) {
   const errorMessage = useDescribeApiError(OFFLINE_LINES);
   const api = client ?? browserApiClient();
+  const tOr = useTOr();
+  const myUserId = useMyUserId(api, organizationSlug);
   const queryClient = useQueryClient();
   const t = useT();
   const ta = useA6T();
@@ -487,55 +491,64 @@ export function QuickCaptureScreen({
               </Select>
             )}
 
-            <CaptureLabelPicker
-              labels={labels.data ?? []}
-              selected={selectedLabels}
-              onToggle={toggleLabel}
-              onCreate={(name) => createLabel.mutate(name)}
-              creating={createLabel.isPending}
-              createError={createLabel.isError ? errorMessage(createLabel.error) : null}
-              disabled={capture.isPending}
-            />
-
-            {noStorage ? (
-              <NoStorageAttach
-                organizationSlug={organizationSlug}
-                client={api}
-                state={attachState}
-              />
-            ) : (
-              <CaptureAttachmentPicker
-                files={files}
-                onAdd={(picked) => setFiles((current) => [...current, ...picked])}
-                onRemove={(index) =>
-                  setFiles((current) => current.filter((_, position) => position !== index))
-                }
+            {/* 55-08: title, owner, date and project first; labels, files and the note sit behind
+                "More options", remembered per person. */}
+            <MoreOptions
+              form="task"
+              userId={myUserId}
+              hint={tOr('MoreOptions.taskHint', 'Labels, files, note')}
+              forceOpen={files.length > 0 || visibleUploads.length > 0}
+            >
+              <CaptureLabelPicker
+                labels={labels.data ?? []}
+                selected={selectedLabels}
+                onToggle={toggleLabel}
+                onCreate={(name) => createLabel.mutate(name)}
+                creating={createLabel.isPending}
+                createError={createLabel.isError ? errorMessage(createLabel.error) : null}
                 disabled={capture.isPending}
               />
-            )}
 
-            {visibleUploads.length > 0 ? (
-              <ul className="tm-upload-list">
-                {visibleUploads.map((row) => (
-                  <UploadProgressItem
-                    key={row.id}
-                    row={row}
-                    onCancel={uploads.cancel}
-                    onRetry={uploads.retry}
-                    onRemove={(gone) => uploads.remove(gone.id)}
-                  />
-                ))}
-              </ul>
-            ) : null}
+              {noStorage ? (
+                <NoStorageAttach
+                  organizationSlug={organizationSlug}
+                  client={api}
+                  state={attachState}
+                />
+              ) : (
+                <CaptureAttachmentPicker
+                  files={files}
+                  onAdd={(picked) => setFiles((current) => [...current, ...picked])}
+                  onRemove={(index) =>
+                    setFiles((current) => current.filter((_, position) => position !== index))
+                  }
+                  disabled={capture.isPending}
+                />
+              )}
 
-            <Field
-              className="tm-capture__note"
-              label={t('QuickCaptureScreen.noteLabel')}
-              hint={t('QuickCaptureScreen.noteHint')}
-              value={note}
-              maxLength={2000}
-              onChange={(event) => setNote(event.target.value)}
-            />
+              {visibleUploads.length > 0 ? (
+                <ul className="tm-upload-list">
+                  {visibleUploads.map((row) => (
+                    <UploadProgressItem
+                      key={row.id}
+                      row={row}
+                      onCancel={uploads.cancel}
+                      onRetry={uploads.retry}
+                      onRemove={(gone) => uploads.remove(gone.id)}
+                    />
+                  ))}
+                </ul>
+              ) : null}
+
+              <Field
+                className="tm-capture__note"
+                label={t('QuickCaptureScreen.noteLabel')}
+                hint={t('QuickCaptureScreen.noteHint')}
+                value={note}
+                maxLength={2000}
+                onChange={(event) => setNote(event.target.value)}
+              />
+            </MoreOptions>
 
             {formError ? (
               <InlineAlert tone="danger" title={t('QuickCaptureScreen.checkCapture')}>

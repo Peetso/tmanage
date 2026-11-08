@@ -46,6 +46,8 @@ import { readMeetingDefaults } from './meeting-defaults';
 import { TimeZoneSelect } from '../TimeZoneSelect';
 import { guessTimeZone } from '../../lib/time-zones';
 import './meetings.css';
+import { MoreOptions, useMyUserId } from '../forms/MoreOptions';
+import { useTOr } from '../../lib/i18n/use-t-or';
 
 export interface MeetingFormProps {
   organizationSlug: string;
@@ -121,6 +123,8 @@ export function MeetingForm({
   const router = useRouter();
   const queries = useQueryClient();
   const editing = meetingId !== undefined;
+  const tOr = useTOr();
+  const myUserId = useMyUserId(api, organizationSlug);
 
   const existing = useQuery({
     queryKey: ['meeting-overview', organizationSlug, meetingId ?? ''],
@@ -715,140 +719,151 @@ export function MeetingForm({
             setCanSee={setCanSee}
           />
 
-          <section className="tm-mtg-card" aria-labelledby="tm-mf-reminders">
-            <h2 id="tm-mf-reminders" className="tm-mtg-card__title">
-              {t('MeetingForm.reminders')}
-            </h2>
-            {reminders.map((reminder, index) => (
-              <div key={index} className="tm-mtg-reminder">
-                <select
-                  className="tm-mtg-input tm-mtg-input--sm"
-                  aria-label={t('MeetingForm.reminderMethod')}
-                  value={reminder.method}
-                  onChange={(event) =>
-                    setReminders((current) =>
-                      current.map((r, i) =>
-                        i === index ? { ...r, method: event.target.value as 'popup' | 'email' } : r,
-                      ),
-                    )
-                  }
-                >
-                  <option value="popup">{t('MeetingForm.notification')}</option>
-                  <option value="email">{t('MeetingForm.email')}</option>
-                </select>
-                <input
-                  type="number"
-                  min={0}
-                  className="tm-mtg-input tm-mtg-input--sm tm-mtg-input--num"
-                  aria-label={t('MeetingForm.reminderAmount')}
-                  value={reminder.amount}
-                  onChange={(event) =>
-                    setReminders((current) =>
-                      current.map((r, i) =>
-                        i === index ? { ...r, amount: Number(event.target.value) || 0 } : r,
-                      ),
-                    )
-                  }
-                />
-                <select
-                  className="tm-mtg-input tm-mtg-input--sm"
-                  aria-label={t('MeetingForm.reminderUnit')}
-                  value={reminder.unit}
-                  onChange={(event) =>
-                    setReminders((current) =>
-                      current.map((r, i) =>
-                        i === index ? { ...r, unit: event.target.value as ReminderUnit } : r,
-                      ),
-                    )
-                  }
-                >
-                  {(['minutes', 'hours', 'days', 'weeks'] as const).map((unit) => (
-                    <option key={unit} value={unit}>
-                      {t(UNIT_KEYS[unit])}
-                    </option>
-                  ))}
-                </select>
-                <span className="tm-mtg-quiet">{t('MeetingForm.before')}</span>
+          {/* 55-08: reminders and the calendar details are secondary when scheduling; an edit
+              opens with them in view. */}
+          <MoreOptions
+            form="meeting"
+            userId={myUserId}
+            hint={tOr('MoreOptions.meetingHint', 'Reminders, show me as, visibility, colour')}
+            forceOpen={editing}
+          >
+            <section className="tm-mtg-card" aria-labelledby="tm-mf-reminders">
+              <h2 id="tm-mf-reminders" className="tm-mtg-card__title">
+                {t('MeetingForm.reminders')}
+              </h2>
+              {reminders.map((reminder, index) => (
+                <div key={index} className="tm-mtg-reminder">
+                  <select
+                    className="tm-mtg-input tm-mtg-input--sm"
+                    aria-label={t('MeetingForm.reminderMethod')}
+                    value={reminder.method}
+                    onChange={(event) =>
+                      setReminders((current) =>
+                        current.map((r, i) =>
+                          i === index
+                            ? { ...r, method: event.target.value as 'popup' | 'email' }
+                            : r,
+                        ),
+                      )
+                    }
+                  >
+                    <option value="popup">{t('MeetingForm.notification')}</option>
+                    <option value="email">{t('MeetingForm.email')}</option>
+                  </select>
+                  <input
+                    type="number"
+                    min={0}
+                    className="tm-mtg-input tm-mtg-input--sm tm-mtg-input--num"
+                    aria-label={t('MeetingForm.reminderAmount')}
+                    value={reminder.amount}
+                    onChange={(event) =>
+                      setReminders((current) =>
+                        current.map((r, i) =>
+                          i === index ? { ...r, amount: Number(event.target.value) || 0 } : r,
+                        ),
+                      )
+                    }
+                  />
+                  <select
+                    className="tm-mtg-input tm-mtg-input--sm"
+                    aria-label={t('MeetingForm.reminderUnit')}
+                    value={reminder.unit}
+                    onChange={(event) =>
+                      setReminders((current) =>
+                        current.map((r, i) =>
+                          i === index ? { ...r, unit: event.target.value as ReminderUnit } : r,
+                        ),
+                      )
+                    }
+                  >
+                    {(['minutes', 'hours', 'days', 'weeks'] as const).map((unit) => (
+                      <option key={unit} value={unit}>
+                        {t(UNIT_KEYS[unit])}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="tm-mtg-quiet">{t('MeetingForm.before')}</span>
+                  <button
+                    type="button"
+                    className="tm-mtg-x"
+                    aria-label={t('MeetingForm.removeReminder')}
+                    onClick={() => setReminders((current) => current.filter((_, i) => i !== index))}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {reminders.length < MAX_REMINDERS ? (
                 <button
                   type="button"
-                  className="tm-mtg-x"
-                  aria-label={t('MeetingForm.removeReminder')}
-                  onClick={() => setReminders((current) => current.filter((_, i) => i !== index))}
+                  className="tm-mtg-textlink"
+                  onClick={() =>
+                    setReminders((current) => [
+                      ...current,
+                      { method: 'popup', amount: 30, unit: 'minutes' },
+                    ])
+                  }
                 >
-                  ×
+                  + {t('MeetingForm.addReminder')}
                 </button>
-              </div>
-            ))}
-            {reminders.length < MAX_REMINDERS ? (
-              <button
-                type="button"
-                className="tm-mtg-textlink"
-                onClick={() =>
-                  setReminders((current) => [
-                    ...current,
-                    { method: 'popup', amount: 30, unit: 'minutes' },
-                  ])
-                }
-              >
-                + {t('MeetingForm.addReminder')}
-              </button>
-            ) : (
-              <p className="tm-mtg-hint">{t('MeetingForm.maxReminders')}</p>
-            )}
-          </section>
+              ) : (
+                <p className="tm-mtg-hint">{t('MeetingForm.maxReminders')}</p>
+              )}
+            </section>
 
-          <section className="tm-mtg-card" aria-labelledby="tm-mf-details">
-            <h2 id="tm-mf-details" className="tm-mtg-card__title">
-              {t('MeetingForm.details')}
-            </h2>
-            <Segment
-              label={t('MeetingForm.showMeAs')}
-              value={showAs}
-              options={[
-                ['busy', t('MeetingForm.busy')],
-                ['free', t('MeetingForm.free')],
-              ]}
-              onChange={setShowAs}
-            />
-            <Segment
-              label={t('MeetingForm.visibility')}
-              value={visibility}
-              options={[
-                ['default', t('MeetingForm.visDefault')],
-                ['public', t('MeetingForm.visPublic')],
-                ['private', t('MeetingForm.visPrivate')],
-              ]}
-              onChange={setVisibility}
-            />
-            <div className="tm-mtg-field">
-              <span className="tm-mtg-label" id="tm-mf-colour">
-                {t('MeetingForm.colour')}
-              </span>
-              <div className="tm-mtg-swatches" role="radiogroup" aria-labelledby="tm-mf-colour">
-                {MEETING_COLOURS.map((colour) => (
-                  <button
-                    key={colour.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={colorId === colour.id}
-                    aria-label={fillTemplate(t('MeetingForm.colourNamed'), { n: colour.id })}
-                    className="tm-mtg-swatch"
-                    style={{ backgroundColor: colour.hex }}
-                    onClick={() => setColorId(colorId === colour.id ? null : colour.id)}
-                  />
-                ))}
+            <section className="tm-mtg-card" aria-labelledby="tm-mf-details">
+              <h2 id="tm-mf-details" className="tm-mtg-card__title">
+                {t('MeetingForm.details')}
+              </h2>
+              <Segment
+                label={t('MeetingForm.showMeAs')}
+                value={showAs}
+                options={[
+                  ['busy', t('MeetingForm.busy')],
+                  ['free', t('MeetingForm.free')],
+                ]}
+                onChange={setShowAs}
+              />
+              <Segment
+                label={t('MeetingForm.visibility')}
+                value={visibility}
+                options={[
+                  ['default', t('MeetingForm.visDefault')],
+                  ['public', t('MeetingForm.visPublic')],
+                  ['private', t('MeetingForm.visPrivate')],
+                ]}
+                onChange={setVisibility}
+              />
+              <div className="tm-mtg-field">
+                <span className="tm-mtg-label" id="tm-mf-colour">
+                  {t('MeetingForm.colour')}
+                </span>
+                <div className="tm-mtg-swatches" role="radiogroup" aria-labelledby="tm-mf-colour">
+                  {MEETING_COLOURS.map((colour) => (
+                    <button
+                      key={colour.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={colorId === colour.id}
+                      aria-label={fillTemplate(t('MeetingForm.colourNamed'), { n: colour.id })}
+                      className="tm-mtg-swatch"
+                      style={{ backgroundColor: colour.hex }}
+                      onClick={() => setColorId(colorId === colour.id ? null : colour.id)}
+                    />
+                  ))}
+                </div>
+                <p className="tm-mtg-hint">{t('MeetingForm.colourOutlook')}</p>
               </div>
-              <p className="tm-mtg-hint">{t('MeetingForm.colourOutlook')}</p>
-            </div>
-            <div className="tm-mtg-field">
-              <span className="tm-mtg-label">{t('MeetingForm.calendar')}</span>
-              <p className="tm-mtg-input tm-mtg-input--static">
-                {primary
-                  ? `${calendarName(primary.provider)} · ${primary.accountEmail ?? ''}`
-                  : t('MeetingForm.tmanageOnly')}
-              </p>
-            </div>
-          </section>
+              <div className="tm-mtg-field">
+                <span className="tm-mtg-label">{t('MeetingForm.calendar')}</span>
+                <p className="tm-mtg-input tm-mtg-input--static">
+                  {primary
+                    ? `${calendarName(primary.provider)} · ${primary.accountEmail ?? ''}`
+                    : t('MeetingForm.tmanageOnly')}
+                </p>
+              </div>
+            </section>
+          </MoreOptions>
         </div>
       </div>
 

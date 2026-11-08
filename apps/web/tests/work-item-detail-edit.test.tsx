@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { WorkItemDetailScreen } from '../src/components/screens/WorkItemDetailScreen';
 import { ApiClient } from '../src/lib/api/client';
 import { translate, type MessageKey } from '../src/lib/i18n/t';
+import { undoQueue } from '../src/lib/undo/use-undo';
 
 /**
  * A6 (on P9) — the work item detail's owner picker, date picker, edit dialog, actions menu and
@@ -266,7 +267,12 @@ describe('A6 work item detail', () => {
       within(dialog).getByRole('button', { name: L('DeleteWorkItem.confirm') }),
     );
     await waitFor(() => expect(onDeleted).toHaveBeenCalledTimes(1));
-    expect(calls.find((call) => call.method === 'DELETE')?.url).toMatch(/\/work-items\/wi-1$/);
+    // 55-23: the DELETE is held behind the Undo toast; nothing is sent until the hold ends.
+    expect(calls.find((call) => call.method === 'DELETE')).toBeUndefined();
+    undoQueue.flushAll();
+    await waitFor(() =>
+      expect(calls.find((call) => call.method === 'DELETE')?.url).toMatch(/\/work-items\/wi-1$/),
+    );
   });
 
   it('has no client note when deleting an internal item', async () => {

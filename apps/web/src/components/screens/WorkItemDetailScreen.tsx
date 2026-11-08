@@ -86,6 +86,10 @@ import {
 } from '../../lib/work-item-client-audience';
 import type { ProjectClientChoice } from '../../lib/work-item-client-audience';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { useUndo } from '../../lib/undo/use-undo';
+import { undoKey } from '../../lib/undo/undo-queue';
+import { AccessExplainer } from '../access/AccessExplainer';
 import type { MessageKey } from '../../lib/i18n/t';
 import { dayOf, DueDatePicker, formatChipDay, formatShortDay, useA6T } from '../work/DueDatePicker';
 import { initialsOf, OwnerPickerDialog, useOwnerCandidates } from '../work/OwnerPickerDialog';
@@ -413,6 +417,7 @@ function WorkItemBody({
 }: WorkItemBodyProps) {
   const t = useT();
   const ta = useA6T();
+  const tOr = useTOr();
   const locale = useActiveLocale();
   const queries = useQueryClient();
   const [overlay, setOverlay] = useState<Overlay>(null);
@@ -590,14 +595,25 @@ function WorkItemBody({
     onError: (error) => setFailure(describe(error, ta)),
   });
 
-  const remove = useMutation({
-    mutationFn: () => deleteWorkItem(api, organizationSlug, item.id),
-    onSuccess: () => onDeleted(),
-    onError: (error) => {
-      setOverlay(null);
-      setFailure(describe(error, ta));
-    },
-  });
+  // 55-23: the delete is held behind an Undo toast for a few seconds; the item leaves at once
+  // and Undo brings the person straight back to it. Nothing reaches the server until the hold ends.
+  const undo = useUndo();
+  function confirmDelete() {
+    setOverlay(null);
+    undo.schedule({
+      key: undoKey('work', item.id),
+      message: tOr('Undo.workDeleted', 'Item deleted'),
+      commit: () => deleteWorkItem(api, organizationSlug, item.id),
+      onCommitted: () => {
+        void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
+      },
+      onFailed: () => {
+        void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
+      },
+      onUndo: () => onOpenItem(item.id),
+    });
+    onDeleted();
+  }
 
   function act(action: HeaderAction) {
     setFieldErrors(new Map());
@@ -612,7 +628,12 @@ function WorkItemBody({
         setFailure(ta('WorkDetail.ownerFirst'));
         setOverlay({ kind: 'owner' });
       } else {
-        finish.mutate();
+        // 55-23: "Mark done" is held behind an Undo toast like a delete.
+        undo.schedule({
+          key: `${undoKey('work', item.id)}:done`,
+          message: tOr('Undo.workCompleted', 'Marked done'),
+          commit: () => finish.mutateAsync(),
+        });
       }
     }
   }
@@ -646,6 +667,17 @@ function WorkItemBody({
               .replace('{total}', String(projectClients.length))}
           </span>
         ) : null}
+      </div>
+      {/* 55-23: "Why can I see this?" — role, project and audience in plain words. */}
+      <div className="tm-wk-detail__access">
+        <AccessExplainer
+          api={api}
+          organizationSlug={organizationSlug}
+          audience={item.audience}
+          projectName={projectName}
+          ownerUserId={item.ownerUserId}
+          editCapability="work.update"
+        />
       </div>
 
       <div className="tm-wk-fact-chips" role="group" aria-label={ta('WorkDetail.factsLabel')}>
@@ -896,8 +928,8 @@ function WorkItemBody({
           fileCount={fileCount}
           clientVisible={item.audience !== 'internal'}
           {...(clientName === undefined ? {} : { clientName })}
-          deleting={remove.isPending}
-          onConfirm={() => remove.mutate()}
+          deleting={false}
+          onConfirm={confirmDelete}
           onClose={() => setOverlay(null)}
         />
       ) : null}

@@ -28,6 +28,8 @@ import {
 import { listOrganizations } from '../../lib/api/organizations';
 import { useProjectClientT } from '../projects/ShareWithClientDialog';
 import { appLocale } from '../../lib/i18n/app-locale';
+import { MoreOptions, useMyUserId } from '../forms/MoreOptions';
+import { useTOr } from '../../lib/i18n/use-t-or';
 
 /** The picker's two rows that are not a client company. */
 const CLIENT_INTERNAL = '__internal';
@@ -99,6 +101,9 @@ export function FirstProjectScreen({
   const t = useT();
   const tc = useProjectClientT();
   const api = client ?? browserApiClient();
+  const tOr = useTOr();
+  // Only the everyday form has a disclosure to remember; onboarding asks nothing extra.
+  const myUserId = useMyUserId(api, organizationSlug, mode === 'new');
 
   const [name, setName] = useState('');
   const [audience, setAudience] = useState<'client' | 'internal'>('client');
@@ -236,6 +241,71 @@ export function FirstProjectScreen({
     }
   }
 
+  // 55-08: owner, target date and audience. In the everyday "New project" form they sit behind
+  // "More options"; the first project (onboarding) keeps every field in view.
+  const secondary = (
+    <>
+      <div className="tm-ob-grid-2">
+        {/*
+          A statement rather than a picker.
+          `22` §3 lists an owner field, and there is no endpoint that lists the people in an
+          organization, and no ticket builds one. A select with one invented name in it would
+          look like a choice and be a fiction; the API defaults the owner to the person
+          creating the project, and this says so.
+        */}
+        <div className="tm-field">
+          <span className="tm-field__label">{t('FirstProjectScreen.ownerLabel')}</span>
+          <div className="tm-ob-project__owner">
+            <span className="tm-ob-avatar" aria-hidden="true">
+              {/* No identity yet: one letter of "You", not "YO" (live test 2026-10-31). */}
+              {signedInAs && signedInAs !== 'You'
+                ? initialsOf(signedInAs)
+                : t('FirstProjectScreen.you').charAt(0).toUpperCase()}
+            </span>
+            <span className="tm-ob-project__owner-name">
+              {signedInAs || t('FirstProjectScreen.you')}
+            </span>
+          </div>
+          <span className="tm-field__hint">
+            {mode === 'new'
+              ? t('FirstProjectScreen.ownerHintNew')
+              : t('FirstProjectScreen.ownerHintFirst')}
+          </span>
+        </div>
+
+        <Field
+          label={t('FirstProjectScreen.targetDateLabel')}
+          name="targetDate"
+          type="date"
+          value={targetDate}
+          onChange={(event) => setTargetDate(event.target.value)}
+          dir="ltr"
+          hint={t('FirstProjectScreen.targetDateHint')}
+          {...(dateProblem === undefined ? {} : { error: dateProblem })}
+        />
+      </div>
+
+      <div className="tm-field">
+        <span className="tm-field__label">{t('FirstProjectScreen.defaultAudienceLabel')}</span>
+        <div className="tm-ob-project__audience">
+          <span className="tm-ob-project__square" aria-hidden="true">
+            ■
+          </span>
+          <span>
+            <strong>{t('FirstProjectScreen.defaultAudienceValue')}</strong>
+            <span className="tm-ob-project__audience-detail">
+              {' '}
+              {t('FirstProjectScreen.defaultAudienceDetail')}
+            </span>
+          </span>
+          <span className="tm-ob-project__fixed" aria-hidden="true">
+            {t('FirstProjectScreen.fixed')}
+          </span>
+        </div>
+      </div>
+    </>
+  );
+
   const body = (
     <>
       <OnboardingScreenStyles />
@@ -360,64 +430,18 @@ export function FirstProjectScreen({
             </fieldset>
           )}
 
-          <div className="tm-ob-grid-2">
-            {/*
-              A statement rather than a picker.
-              `22` §3 lists an owner field, and there is no endpoint that lists the people in an
-              organization, and no ticket builds one. A select with one invented name in it would
-              look like a choice and be a fiction; the API defaults the owner to the person
-              creating the project, and this says so.
-            */}
-            <div className="tm-field">
-              <span className="tm-field__label">{t('FirstProjectScreen.ownerLabel')}</span>
-              <div className="tm-ob-project__owner">
-                <span className="tm-ob-avatar" aria-hidden="true">
-                  {/* No identity yet: one letter of "You", not "YO" (live test 2026-10-31). */}
-                  {signedInAs && signedInAs !== 'You'
-                    ? initialsOf(signedInAs)
-                    : t('FirstProjectScreen.you').charAt(0).toUpperCase()}
-                </span>
-                <span className="tm-ob-project__owner-name">
-                  {signedInAs || t('FirstProjectScreen.you')}
-                </span>
-              </div>
-              <span className="tm-field__hint">
-                {mode === 'new'
-                  ? t('FirstProjectScreen.ownerHintNew')
-                  : t('FirstProjectScreen.ownerHintFirst')}
-              </span>
-            </div>
-
-            <Field
-              label={t('FirstProjectScreen.targetDateLabel')}
-              name="targetDate"
-              type="date"
-              value={targetDate}
-              onChange={(event) => setTargetDate(event.target.value)}
-              dir="ltr"
-              hint={t('FirstProjectScreen.targetDateHint')}
-              {...(dateProblem === undefined ? {} : { error: dateProblem })}
-            />
-          </div>
-
-          <div className="tm-field">
-            <span className="tm-field__label">{t('FirstProjectScreen.defaultAudienceLabel')}</span>
-            <div className="tm-ob-project__audience">
-              <span className="tm-ob-project__square" aria-hidden="true">
-                ■
-              </span>
-              <span>
-                <strong>{t('FirstProjectScreen.defaultAudienceValue')}</strong>
-                <span className="tm-ob-project__audience-detail">
-                  {' '}
-                  {t('FirstProjectScreen.defaultAudienceDetail')}
-                </span>
-              </span>
-              <span className="tm-ob-project__fixed" aria-hidden="true">
-                {t('FirstProjectScreen.fixed')}
-              </span>
-            </div>
-          </div>
+          {mode === 'new' ? (
+            <MoreOptions
+              form="project"
+              userId={myUserId}
+              hint={tOr('MoreOptions.projectHint', 'Owner, target date, audience')}
+              forceOpen={dateProblem !== undefined}
+            >
+              {secondary}
+            </MoreOptions>
+          ) : (
+            secondary
+          )}
 
           <hr className="tm-ob-rule" />
 

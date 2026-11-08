@@ -13,6 +13,7 @@ import { describePeopleError } from '../screens/peopleShared';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import type { MessageKey } from '../../lib/i18n/t';
+import { MoreOptions, useMyUserId } from '../forms/MoreOptions';
 
 /** The Clients keys arrive with the i18n-Q1 fragment; cast until it is merged into en.json. */
 export type ClientsKey = `Clients.${string}`;
@@ -64,6 +65,7 @@ export function InviteClientDialog({
 }: InviteClientDialogProps) {
   const t = useClientsT();
   const tr = useTOr();
+  const myUserId = useMyUserId(api, organizationSlug);
   const titleId = useId();
   const listId = useId();
   const projectsHintId = useId();
@@ -163,20 +165,6 @@ export function InviteClientDialog({
             ))}
           </datalist>
 
-          <fieldset className="tm-fieldset cl-dialog__roles">
-            <legend className="tm-field__label">{t('Clients.roleLabel')}</legend>
-            <Checkbox
-              label={t('Clients.roleReviewerOption')}
-              checked={role === 'client_reviewer'}
-              onChange={() => setRole('client_reviewer')}
-            />
-            <Checkbox
-              label={t('Clients.roleAdminOption')}
-              checked={role === 'client_admin'}
-              onChange={() => setRole('client_admin')}
-            />
-          </fieldset>
-
           <fieldset className="tm-fieldset cl-projects" aria-describedby={projectsHintId}>
             <legend className="tm-field__label">
               {tr('Clients.projectsOptionalLabel', 'Projects to share (optional)')}
@@ -239,13 +227,35 @@ export function InviteClientDialog({
             </p>
           </fieldset>
 
-          <Field
-            label={t('Clients.noteLabel')}
-            placeholder={t('Clients.notePlaceholder')}
-            value={note}
-            maxLength={500}
-            onChange={(event) => setNote(event.target.value)}
-          />
+          {/* 55-08: email, company and projects first; the role (reviewer by default) and the
+              personal note sit behind "More options". */}
+          <MoreOptions
+            form="client"
+            userId={myUserId}
+            hint={tr('MoreOptions.clientHint', 'Role, personal note')}
+          >
+            <fieldset className="tm-fieldset cl-dialog__roles">
+              <legend className="tm-field__label">{t('Clients.roleLabel')}</legend>
+              <Checkbox
+                label={t('Clients.roleReviewerOption')}
+                checked={role === 'client_reviewer'}
+                onChange={() => setRole('client_reviewer')}
+              />
+              <Checkbox
+                label={t('Clients.roleAdminOption')}
+                checked={role === 'client_admin'}
+                onChange={() => setRole('client_admin')}
+              />
+            </fieldset>
+
+            <Field
+              label={t('Clients.noteLabel')}
+              placeholder={t('Clients.notePlaceholder')}
+              value={note}
+              maxLength={500}
+              onChange={(event) => setNote(event.target.value)}
+            />
+          </MoreOptions>
 
           {send.isError ? (
             <InlineAlert tone="danger" title={t('Clients.sendFailed')} live>

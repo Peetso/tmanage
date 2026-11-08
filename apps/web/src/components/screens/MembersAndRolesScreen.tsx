@@ -28,6 +28,9 @@ import { describeInternalRole } from '../../lib/roles';
 import type { ApiClient } from '../../lib/api/client';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { useUndo } from '../../lib/undo/use-undo';
+import { undoKey } from '../../lib/undo/undo-queue';
 
 export interface MembersAndRolesScreenProps {
   organizationSlug: string;
@@ -74,6 +77,8 @@ export function MembersAndRolesScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tOr = useTOr();
+  const undo = useUndo();
   const tc = useProjectClientT();
   const membersKey = ['project-members', projectId];
   const sharesKey = ['project-clients', organizationSlug, projectId];
@@ -211,46 +216,57 @@ export function MembersAndRolesScreen({
                 <InlineAlert tone="neutral">{t('MembersAndRolesScreen.emptyMembers')}</InlineAlert>
               ) : (
                 <ul className="tm-prj-people">
-                  {members.data.map((member) => {
-                    const name = names.get(member.userId) ?? member.userId;
-                    return (
-                      <li key={member.projectMembershipId}>
-                        <Avatar name={name} decorative />
-                        <span className="tm-prj-people__who">
-                          <span className="tm-prj-people__name">{name}</span>
-                          <span className="tm-prj-people__role">
-                            {describeInternalRole(member.role).label} ·{' '}
-                            {t('MembersAndRolesScreen.onProjectSuffix')}
+                  {members.data
+                    .filter(
+                      (member) =>
+                        !undo.isPending(undoKey('project-member', member.projectMembershipId)),
+                    )
+                    .map((member) => {
+                      const name = names.get(member.userId) ?? member.userId;
+                      return (
+                        <li key={member.projectMembershipId}>
+                          <Avatar name={name} decorative />
+                          <span className="tm-prj-people__who">
+                            <span className="tm-prj-people__name">{name}</span>
+                            <span className="tm-prj-people__role">
+                              {describeInternalRole(member.role).label} ·{' '}
+                              {t('MembersAndRolesScreen.onProjectSuffix')}
+                            </span>
                           </span>
-                        </span>
-                        <span className="tm-prj-people__end">
-                          <Select
-                            label={`${t('MembersAndRolesScreen.roleForPrefix')} ${name}`}
-                            name={`role-${member.projectMembershipId}`}
-                            value={member.role}
-                            onChange={(event) =>
-                              changeRole.mutate({ member, role: event.target.value })
-                            }
-                          >
-                            {roleChoices(member.role).map((role) => (
-                              <option key={role} value={role}>
-                                {describeInternalRole(role).label}
-                              </option>
-                            ))}
-                          </Select>
-                          <Button
-                            tone="outline"
-                            size="compact"
-                            onClick={() => remove.mutate(member)}
-                            loading={remove.isPending}
-                            loadingLabel={t('MembersAndRolesScreen.removingLabel')}
-                          >
-                            {t('MembersAndRolesScreen.remove')}
-                          </Button>
-                        </span>
-                      </li>
-                    );
-                  })}
+                          <span className="tm-prj-people__end">
+                            <Select
+                              label={`${t('MembersAndRolesScreen.roleForPrefix')} ${name}`}
+                              name={`role-${member.projectMembershipId}`}
+                              value={member.role}
+                              onChange={(event) =>
+                                changeRole.mutate({ member, role: event.target.value })
+                              }
+                            >
+                              {roleChoices(member.role).map((role) => (
+                                <option key={role} value={role}>
+                                  {describeInternalRole(role).label}
+                                </option>
+                              ))}
+                            </Select>
+                            <Button
+                              tone="outline"
+                              size="compact"
+                              onClick={() =>
+                                undo.schedule({
+                                  key: undoKey('project-member', member.projectMembershipId),
+                                  message: tOr('Undo.memberRemoved', 'Removed from the project'),
+                                  commit: () => remove.mutateAsync(member),
+                                })
+                              }
+                              loading={remove.isPending}
+                              loadingLabel={t('MembersAndRolesScreen.removingLabel')}
+                            >
+                              {t('MembersAndRolesScreen.remove')}
+                            </Button>
+                          </span>
+                        </li>
+                      );
+                    })}
                 </ul>
               )
             ) : null}

@@ -13,6 +13,9 @@ import {
 } from '../../lib/api/file-folders';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { useUndo } from '../../lib/undo/use-undo';
+import { undoKey } from '../../lib/undo/undo-queue';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface FileFoldersViewProps {
@@ -45,6 +48,8 @@ export function FileFoldersView({
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
+  const tOr = useTOr();
+  const undo = useUndo();
   const queryKey = ['file-folders', organizationSlug, projectId] as const;
 
   const [name, setName] = useState('');
@@ -75,7 +80,10 @@ export function FileFoldersView({
     onError: (error) => setFailure(describe(error)),
   });
 
-  const rows = folders.data ?? [];
+  // 55-23: a folder whose delete is held behind an Undo toast is already gone from the list.
+  const rows = (folders.data ?? []).filter(
+    (folder) => !undo.isPending(undoKey('file-folder', folder.id)),
+  );
   const canCreate = name.trim() !== '' && !create.isPending;
 
   return (
@@ -158,7 +166,13 @@ export function FileFoldersView({
                     size="accessible"
                     loading={remove.isPending}
                     loadingLabel={t('FileFoldersView.removing')}
-                    onClick={() => remove.mutate(folder)}
+                    onClick={() =>
+                      undo.schedule({
+                        key: undoKey('file-folder', folder.id),
+                        message: tOr('Undo.folderDeleted', 'Folder deleted'),
+                        commit: () => remove.mutateAsync(folder),
+                      })
+                    }
                   >
                     {t('FileFoldersView.delete')}
                   </Button>

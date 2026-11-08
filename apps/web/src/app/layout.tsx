@@ -11,6 +11,7 @@ import { RouteDocumentTitle } from '../components/providers/RouteDocumentTitle';
 import { ServiceWorkerRegister } from '../components/pwa/ServiceWorkerRegister';
 import { UpdateToast } from '../components/pwa/UpdateToast';
 import { LocaleHintToast } from '../components/shell/LocaleHintToast';
+import { UndoToastHost } from '../components/undo/UndoToastHost';
 import { bootScripts } from '../lib/boot-scripts';
 import { SITE_DESCRIPTION_EN } from '../lib/i18n/locale-html';
 import { serverHtmlAttributes } from '../lib/i18n/server-html-attributes';
@@ -167,6 +168,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <UpdateToast />
         {/* R12 R2: the first-visit language guess, applied once and announced (Change · Keep). */}
         <LocaleHintToast />
+        {/* 55-23: the Undo toasts for held delete / archive / move / complete actions. */}
+        <UndoToastHost />
       </body>
     </html>
   );

@@ -148,6 +148,12 @@ function renderCapture(w: ReturnType<typeof world>, initialProjectId?: string) {
   );
 }
 
+/** 55-08: labels, files and the note sit behind "More options"; open it when it is closed. */
+async function openMoreOptions(user: ReturnType<typeof userEvent.setup>) {
+  const toggle = await screen.findByRole('button', { name: /More options|Fewer options/ });
+  if (toggle.getAttribute('aria-expanded') !== 'true') await user.click(toggle);
+}
+
 describe('New work capsule', () => {
   it('opens on the project the person came from, and requires a project', async () => {
     renderCapture(world(), 'proj-b');
@@ -169,6 +175,7 @@ describe('New work capsule', () => {
     renderCapture(w, 'proj-b');
 
     await user.type(await screen.findByLabelText(/^Title/), 'Check the hero copy');
+    await openMoreOptions(user);
     await user.click(await screen.findByRole('button', { name: 'Copy review' }));
     expect(screen.getByRole('button', { name: 'Copy review' })).toHaveAttribute(
       'aria-pressed',
@@ -214,6 +221,7 @@ describe('New work capsule', () => {
     const user = userEvent.setup();
     const w = world();
     renderCapture(w);
+    await openMoreOptions(user);
     await user.click(await screen.findByRole('button', { name: '+ New label' }));
     await user.type(screen.getByLabelText('New label name'), 'Launch{Enter}');
     const created = await screen.findByRole('button', { name: 'Launch' });

@@ -35,6 +35,7 @@ import {
 import { minutesAsHours } from './InvoiceRules';
 import '../../../styles/screens/finance-ledger.css';
 import '../../../styles/screens/finance-invoice-editor.css';
+import { MoreOptions, useMyUserId } from '../../forms/MoreOptions';
 
 export interface InvoiceEditorScreenProps {
   organizationSlug: string;
@@ -88,6 +89,7 @@ export function InvoiceEditorScreen({
 }: InvoiceEditorScreenProps) {
   const api = client ?? browserApiClient();
   const tOr = useTOr();
+  const myUserId = useMyUserId(api, organizationSlug);
   const describe = useDescribeApiError();
   const arabic = useActiveLocale().startsWith('ar');
   const { money } = useDisplayFormatters();
@@ -228,6 +230,33 @@ export function InvoiceEditorScreen({
       ? tOr('InvoiceEditor.newTitle', 'New invoice')
       : (loaded?.number ?? tOr('InvoiceEditor.editTitle', 'Edit draft'));
 
+  // 55-08: a new invoice asks for client, currency and lines first; the dates default (today,
+  // and the client's payment terms) and sit behind "More options".
+  const dateFields = (
+    <>
+      <Field
+        label={tOr('InvoiceEditor.issueDate', 'Issue date')}
+        type="date"
+        value={issueDate}
+        onChange={(event) => {
+          setIssueDate(event.target.value);
+          setDirty(true);
+        }}
+      />
+      <Field
+        label={tOr('InvoiceEditor.dueDate', 'Due date')}
+        type="date"
+        value={dueDate}
+        hint={tOr('InvoiceEditor.dueDateHint', 'From the client’s payment terms')}
+        error={problem === 'dueDate' ? tOr(...PROBLEM_WORDS['dueDate']!) : undefined}
+        onChange={(event) => {
+          setDueDate(event.target.value);
+          setDirty(true);
+        }}
+      />
+    </>
+  );
+
   return (
     <AppShell
       organizationSlug={organizationSlug}
@@ -334,27 +363,18 @@ export function InvoiceEditorScreen({
                       readOnly
                     />
                   )}
-                  <Field
-                    label={tOr('InvoiceEditor.issueDate', 'Issue date')}
-                    type="date"
-                    value={issueDate}
-                    onChange={(event) => {
-                      setIssueDate(event.target.value);
-                      setDirty(true);
-                    }}
-                  />
-                  <Field
-                    label={tOr('InvoiceEditor.dueDate', 'Due date')}
-                    type="date"
-                    value={dueDate}
-                    hint={tOr('InvoiceEditor.dueDateHint', 'From the client’s payment terms')}
-                    error={problem === 'dueDate' ? tOr(...PROBLEM_WORDS['dueDate']!) : undefined}
-                    onChange={(event) => {
-                      setDueDate(event.target.value);
-                      setDirty(true);
-                    }}
-                  />
+                  {invoiceId === null ? null : dateFields}
                 </div>
+                {invoiceId === null ? (
+                  <MoreOptions
+                    form="invoice"
+                    userId={myUserId}
+                    hint={tOr('MoreOptions.invoiceHint', 'Issue date, due date')}
+                    forceOpen={problem === 'dueDate'}
+                  >
+                    <div className="tm-fin-form">{dateFields}</div>
+                  </MoreOptions>
+                ) : null}
               </section>
 
               <section className="tm-card tm-stack" aria-labelledby="tm-inv-lines">

@@ -1,0 +1,162 @@
+/*
+ * 55-08 / 55-23 (Figma R50 L3, Product page 594:34380): the Undo toast region, the
+ * "More options" disclosure in create forms and the "Why can I see this?" popover.
+ * Logical properties only, so the Arabic layout mirrors itself.
+ */
+
+/* The update toast owns the inline-end corner; held actions stack at the inline start. */
+.tm-toast-region.tm-undo-region {
+  inset-inline-end: auto;
+  inset-inline-start: var(--s6);
+}
+
+.tm-undo-toast__message {
+  font-weight: 500;
+}
+
+.tm-undo-toast__seconds {
+  color: var(--ink-650);
+  font-variant-numeric: tabular-nums;
+}
+
+.tm-more-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-more-options__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-950);
+  font: inherit;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.tm-more-options__toggle:focus-visible {
+  outline: 2px solid var(--ink-950);
+  outline-offset: 2px;
+}
+
+.tm-more-options__chevron {
+  display: inline-block;
+  transition: transform 120ms ease;
+}
+
+[dir='rtl'] .tm-more-options__chevron {
+  transform: scaleX(-1);
+}
+
+.tm-more-options[data-open='true'] .tm-more-options__chevron {
+  transform: rotate(90deg);
+}
+
+.tm-more-options__hint {
+  color: var(--ink-650);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  text-decoration: none;
+}
+
+.tm-more-options__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-more-options__body[hidden] {
+  display: none;
+}
+
+.tm-access-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s4);
+}
+
+.tm-access {
+  position: relative;
+  display: inline-block;
+}
+
+.tm-access__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.tm-access__trigger:focus-visible {
+  outline: 2px solid var(--ink-950);
+  outline-offset: 2px;
+}
+
+.tm-access__popover {
+  position: absolute;
+  z-index: 40;
+  inset-block-start: calc(100% + var(--s2));
+  inset-inline-start: 0;
+  inline-size: min(22rem, 90vw);
+  padding: var(--s5);
+  border: 1px solid var(--line-700);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+}
+
+.tm-access__title {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0 0 var(--s3);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.tm-access__reasons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-access__reasons li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  color: var(--ink-800);
+}
+
+.tm-access__reasons li::before {
+  content: '';
+  flex: none;
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 50%;
+  background: var(--lime-500);
+  transform: translateY(-2px);
+}
+
+.tm-access__foot {
+  margin: var(--s3) 0 0;
+  color: var(--ink-650);
+  font-size: 0.8125rem;
+}
