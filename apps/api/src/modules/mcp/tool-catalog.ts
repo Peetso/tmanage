@@ -35,10 +35,13 @@ import type { AiActionDetail } from '../ai-actions/registry/detail.js';
 import { waveADetails } from '../ai-actions/registry/wave-a.js';
 import { waveBDetails } from '../ai-actions/registry/wave-b.js';
 import { waveCDetails } from '../ai-actions/registry/wave-c.js';
+import { mcpReadGapDetails } from '../ai-actions/registry/mcp-read-gaps.js';
 
-/** Every op detail across the three registry waves, indexed by op id. */
+/** Every op detail across the three registry waves plus the 52-22 read gaps, indexed by op id. */
 export const allDetailsById: ReadonlyMap<string, AiActionDetail> = new Map(
-  [...waveADetails, ...waveBDetails, ...waveCDetails].map((d) => [d.id, d] as const),
+  [...waveADetails, ...waveBDetails, ...waveCDetails, ...mcpReadGapDetails].map(
+    (d) => [d.id, d] as const,
+  ),
 );
 
 /**

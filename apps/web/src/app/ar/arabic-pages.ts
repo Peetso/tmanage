@@ -5,6 +5,7 @@ import ChangelogRoute from '../(website)/changelog/page';
 import ClientPortalRoute from '../(website)/client-portal/page';
 import ContactRoute from '../(website)/contact/page';
 import CustomersRoute from '../(website)/customers/page';
+import DevelopersRoute from '../(website)/developers/page';
 import DownloadRoute from '../(website)/download/page';
 import FaqRoute from '../(website)/faq/page';
 import FeaturesCommunicationRoute from '../(website)/features/communication/page';
@@ -39,6 +40,7 @@ export const ARABIC_PAGES: Readonly<Record<PublicLocalizedPath, ComponentType>> 
   '/client-portal': ClientPortalRoute,
   '/contact': ContactRoute,
   '/customers': CustomersRoute,
+  '/developers': DevelopersRoute,
   '/download': DownloadRoute,
   '/faq': FaqRoute,
   '/features/communication': FeaturesCommunicationRoute,
