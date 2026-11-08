@@ -333,6 +333,8 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'PUT', path: '/v1/platform/settings/public-signup', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/settings/ai-access', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/step-up', reason: 'platform_admin' },
+  // R37: the owner's guided connect-app setup (platform.settings.edit).
+  { method: 'GET', path: '/v1/platform/connect-setup/', reason: 'platform_admin' },
   { method: 'GET', path: '/v1/public/sign-up/', reason: 'signup' },
   { method: 'POST', path: '/v1/public/sign-up/', reason: 'signup' },
   { method: 'GET', path: '/v1/public/site/changelog', reason: 'public_site' },

@@ -163,6 +163,7 @@ import type { HomePulseView as ApiHomePulseView } from '../../apps/api/src/modul
 import type { SavedContextView as ApiSavedContextView } from '../../apps/api/src/modules/home/home.service.js';
 import type { HomePinView as ApiHomePinView } from '../../apps/api/src/modules/home/home-pins.controller.js';
 import type { NotificationKindPrefView as ApiNotificationKindPrefView } from '../../apps/api/src/modules/notifications/notification-kind-prefs.controller.js';
+import type { NotificationMatrixView as ApiNotificationMatrixView } from '../../apps/api/src/modules/notifications/notification-matrix.controller.js';
 import type { OnboardingTourView as ApiOnboardingTourView } from '../../apps/api/src/modules/home/onboarding-tour.controller.js';
 import type { UserPreferencesView as ApiUserPreferencesView } from '../../apps/api/src/modules/preferences/preferences.controller.js';
 import type { HomeWidgetPrefsView as ApiHomeWidgetPrefsView } from '../../apps/api/src/modules/home/widget-prefs.controller.js';
@@ -539,6 +540,7 @@ import type { SavedContext as WebSavedContext } from '../../apps/web/src/lib/api
 import type { HomePinView as WebHomePinView } from '../../apps/web/src/lib/api/home';
 import type { HomeWidgetPrefsView as WebHomeWidgetPrefsView } from '../../apps/web/src/lib/api/home-widget-prefs';
 import type { NotificationKindPrefView as WebNotificationKindPrefView } from '../../apps/web/src/lib/api/notification-kind-prefs';
+import type { NotificationMatrixView as WebNotificationMatrixView } from '../../apps/web/src/lib/api/notification-matrix';
 import type { OrgSettingsView as WebOrgSettingsView } from '../../apps/web/src/lib/api/org-settings';
 import type { OrganizationProfileView as WebOrganizationProfileView } from '../../apps/web/src/lib/api/organizations';
 import type { OrganizationLogoView as WebOrganizationLogoView } from '../../apps/web/src/lib/api/organization-logo';
@@ -2584,6 +2586,13 @@ type _homePins = Assert<Exact<ApiHomePinView, WebHomePinView>>;
 type _notificationKindPrefs = Assert<
   Exact<ApiNotificationKindPrefView, WebNotificationKindPrefView>
 >;
+
+/**
+ * 53-15 notification matrix. `NotificationMatrixView` (`GET/PUT …/me/notification-matrix`) — the
+ * member's kind × channel matrix; the row is inlined on both sides, so this pair covers it. The
+ * `NotificationKindPrefs` screen reads exactly this response.
+ */
+type _notificationMatrix = Assert<Exact<ApiNotificationMatrixView, WebNotificationMatrixView>>;
 
 /**
  * Organization settings / policy (x153). `OrgSettingsView` (`GET/PUT …/settings`, response) — the

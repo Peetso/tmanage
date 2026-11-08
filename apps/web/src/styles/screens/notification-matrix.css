@@ -1,0 +1,59 @@
+/* 53-15 notification matrix (Figma "R35 L4-53-15") — additions to PREF-03's table. */
+
+.tm-notif-matrix .tm-prefs-table__label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-notif-matrix__badge {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--lime-100);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+/* A locked or unavailable cell reads faded, not "in progress". */
+.tm-notif-matrix .tm-prefs-check:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.tm-notif-matrix__account {
+  background: var(--paper-50);
+}
+
+.tm-notif-matrix__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tm-notif-matrix__chip {
+  padding: 4px 10px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: 999px;
+  background: var(--paper-0);
+  font: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--ink-950);
+  cursor: pointer;
+}
+
+.tm-notif-matrix__chip[aria-pressed='true'] {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  color: var(--paper-0);
+}
+
+.tm-notif-matrix__chip:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}

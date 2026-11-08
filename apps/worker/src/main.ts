@@ -99,6 +99,10 @@ import { createFinanceFactsStore } from './common/database/finance-facts-store.j
 import { runFinanceFactsLoop } from './jobs/finance-facts-rebuild.js';
 import { createEinvoiceChainStore } from './common/database/einvoice-chain-store.js';
 import { runEinvoiceChainLoop } from './jobs/einvoice-chain-reconciler.js';
+// ---- 53-15 ---- the notification digest e-mail, every 15 minutes (claims one send per window).
+import { createNotificationDigestStore } from './common/database/notification-digest-store.js';
+import { runNotificationDigestLoop } from './jobs/notification-digest.js';
+import { DigestMailer } from './notifications/digest-mailer.js';
 
 /**
  * The worker process entry point.
@@ -675,6 +679,12 @@ async function main(): Promise<void> {
     env.GEOIP_RETENTION_DAYS,
     controller.signal,
   );
+  // ---- 53-15 ---- the daily / weekly notification digest.
+  const notificationDigest = runNotificationDigestLoop(
+    createNotificationDigestStore(database),
+    new DigestMailer(notice('digest'), env.WEB_PUBLIC_URL),
+    controller.signal,
+  );
   // ---- R13-s2 ---- outbound webhooks: due attempts every 10 s, one in flight per endpoint,
   // through the delivery-time egress guard. Keyless, every attempt is cancelled as needs_rotation.
   const webhookOwnHosts = [env.API_PUBLIC_URL, env.WEB_PUBLIC_URL].flatMap((raw) => {
@@ -816,6 +826,8 @@ async function main(): Promise<void> {
     await securityReportPurge;
     // ---- R12 ----
     await ipLookupSweep;
+    // ---- 53-15 ----
+    await notificationDigest;
     // ---- R13-s2 ----
     await webhookDeliveries;
     // ---- R13 slice 5 ----

@@ -51,6 +51,29 @@ export const preferencesDetails: readonly AiActionDetail[] = [
     redact: 'config',
     examples: [{ summary: 'Read', args: {} }],
   }),
+  // 53-15: the member's own kind × channel matrix; one cell per set.
+  det({
+    id: 'me.notification_matrix.list',
+    title: 'Notification matrix',
+    description: 'Your notification kinds by channel (in-app, e-mail, digest).',
+    input: noArgs(),
+    redact: 'config',
+    examples: [{ summary: 'Read', args: {} }],
+  }),
+  det({
+    id: 'me.notification_matrix.set',
+    title: 'Set a notification matrix cell',
+    description: 'Turn one kind of notification on or off for one channel.',
+    input: bodyArgs([], {
+      kind: f.id(40),
+      channel: f.id(16),
+      enabled: f.bool(),
+    }),
+    redact: 'config',
+    examples: [
+      { summary: 'Digest files', args: { kind: 'file', channel: 'digest', enabled: true } },
+    ],
+  }),
   det({
     id: 'me.mentions.list',
     title: 'Your mentions',

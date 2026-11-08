@@ -256,6 +256,8 @@ export type {
   QuietHoursBypassPredicate,
   QuietHoursPreferences,
 } from './notifications/quiet-hours.js';
+// 53-15 — notification routing: every type → kind and channels; the kind × channel matrix
+export * from './notifications/routing.js';
 
 // Public legal documents — x188, rendered server-side by the web and served by the API
 export { LEGAL_DOCUMENTS } from './legal/legal-content.js';

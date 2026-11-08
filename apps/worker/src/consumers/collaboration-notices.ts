@@ -1,11 +1,15 @@
 import {
+  MATRIX_KINDS,
+  decideDelivery,
   eventTypeBypassesQuietHours,
   hasCapability,
   isClientRole,
   isInQuietHours,
+  matrixKindOf,
   quietHoursResumeAt,
 } from '@tmanage/domain';
-import type { Capability } from '@tmanage/domain';
+import type { Capability, DeliveryDecision, NaturalNotificationKind } from '@tmanage/domain';
+import { findMemberMatrixCell } from '../common/database/notification-matrix-store.js';
 import type { WorkerTransaction } from '../common/database/worker-database.js';
 import { roleHolds } from '../common/database/principal-role.js';
 import {
@@ -28,7 +32,6 @@ import {
   findProjectName,
   findWorkItemFacts,
   isConversationMember,
-  isNotificationKindEnabled,
   listProjectClientPeople,
   listWorkItemClientAudience,
   listWorkItemSupervisors,
@@ -899,6 +902,28 @@ async function stageMail(input: {
   });
 }
 
+/**
+ * 53-15 — route one notice through the member's matrix: the notice's opt-out kind, or the kind its
+ * type belongs to (so every type obeys the per-kind switch, not only the ones that named a kind),
+ * then the member's In-app / E-mail cell. A client recipient (no membership) and an account notice
+ * keep the unconditional path; the digest picks the inbox row up later when its cell asks for it.
+ */
+export async function routeNotice(
+  tx: WorkerTransaction,
+  event: ClaimedOutboxEvent,
+  notice: PlannedNotice,
+): Promise<DeliveryDecision> {
+  const type = notice.inApp?.type ?? event.type;
+  const named = notice.optOutKind;
+  const kind: NaturalNotificationKind | null =
+    named !== null && (MATRIX_KINDS as readonly string[]).includes(named)
+      ? (named as NaturalNotificationKind)
+      : matrixKindOf(type);
+  if (notice.membershipId === null || kind === null) return decideDelivery(type, null);
+  const cell = await findMemberMatrixCell(tx, event.organizationId, notice.membershipId, kind);
+  return decideDelivery(type, cell);
+}
+
 /** The original-delivery handler for one event type: plan, then opt-out, in-app, email. */
 export function createCollaborationNotices(
   planner: NoticePlanner,
@@ -908,18 +933,8 @@ export function createCollaborationNotices(
   return async (event, tx, effects) => {
     const notices = await planner(event, tx, mails);
     for (const notice of notices) {
-      if (
-        notice.optOutKind !== null &&
-        notice.membershipId !== null &&
-        !(await isNotificationKindEnabled(
-          tx,
-          event.organizationId,
-          notice.membershipId,
-          notice.optOutKind,
-        ))
-      ) {
-        continue; // The person turned this kind off: neither inbox nor email.
-      }
+      const route = await routeNotice(tx, event, notice);
+      if (!route.inApp) continue; // The person turned this kind off: neither inbox nor email.
       if (notice.inApp !== null) {
         await insertNotification(tx, {
           organizationId: event.organizationId,
@@ -927,7 +942,7 @@ export function createCollaborationNotices(
           ...notice.inApp,
         });
       }
-      if (mails !== null) {
+      if (mails !== null && route.email) {
         await stageMail({
           event,
           tx,
@@ -965,18 +980,7 @@ export function createCollaborationMailResume(
     const notices = await planner(original, tx, mailer);
     for (const notice of notices) {
       if (notice.recipientUserId !== recipientUserId) continue;
-      if (
-        notice.optOutKind !== null &&
-        notice.membershipId !== null &&
-        !(await isNotificationKindEnabled(
-          tx,
-          event.organizationId,
-          notice.membershipId,
-          notice.optOutKind,
-        ))
-      ) {
-        continue;
-      }
+      if (!(await routeNotice(tx, original, notice)).email) continue;
       await stageMail({ event, tx, effects, mailer, notice, deferForQuietHours: false });
     }
   };

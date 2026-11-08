@@ -54,6 +54,7 @@ import { InboxSavedFiltersModule } from './modules/inbox/inbox-saved-filters.mod
 import { NotificationPreferencesModule } from './modules/notifications/notification-preferences.module.js';
 import { NotificationsFeedModule } from './modules/notifications/notifications-feed.module.js';
 import { NotificationKindPrefsModule } from './modules/notifications/notification-kind-prefs.module.js';
+import { NotificationMatrixModule } from './modules/notifications/notification-matrix.module.js';
 import { A11yPreferencesModule } from './modules/preferences/a11y-preferences.module.js';
 import { DisplayPreferencesModule } from './modules/preferences/display-prefs.module.js';
 import { QuietHoursModule } from './modules/preferences/quiet-hours.module.js';
@@ -466,6 +467,7 @@ export class AppModule {
         // A module of its own so it stays file-disjoint from that slice; depends on nothing but the
         // `@Global` database, so its position here is by subject, not by need.
         NotificationKindPrefsModule.register(),
+        NotificationMatrixModule.register(),
         // A11Y-183 (x183, module 20). The caller's own accessibility settings (GET/PUT
         // /me/accessibility). Like NOTIF-001's preferences it resolves no tenant object and depends
         // on nothing but the database; file-disjoint from the sibling preferences slice (x182).

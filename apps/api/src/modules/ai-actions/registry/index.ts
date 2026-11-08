@@ -2833,6 +2833,23 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'read',
     scope: 'read',
   },
+  // 53-15: the member's own kind × channel notification matrix (In-app / E-mail / Digest).
+  {
+    id: 'me.notification_matrix.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/me/notification-matrix/',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'me.notification_matrix.set',
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/me/notification-matrix/',
+    capability: 'work.read',
+    risk: 'write',
+    scope: 'write',
+  },
   {
     id: 'me.mentions.list',
     method: 'GET',

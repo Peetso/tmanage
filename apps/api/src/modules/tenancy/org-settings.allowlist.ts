@@ -18,7 +18,13 @@
  * later reader will parse.
  */
 
-import { ASSIGNABLE_INTERNAL_ROLES, CLIENT_ROLES, NOTIFICATION_PROFILES } from '@tmanage/domain';
+import {
+  ASSIGNABLE_INTERNAL_ROLES,
+  CLIENT_ROLES,
+  MATRIX_KINDS,
+  NOTIFICATION_PROFILES,
+  parseForcedEmailKinds,
+} from '@tmanage/domain';
 import { DISPLAY_LOCALES } from '../../common/database/schema.js';
 import { DEFAULT_PRESETS, isFileTypePreset, presetsToCsv } from '../files/file-safety.js';
 
@@ -49,6 +55,8 @@ export const ORG_SETTING_KEYS = [
   // the internal roles that may not leave it. Both are `org.manage` keys on the generic PUT.
   'default_ui_mode',
   'ui_mode_locked_roles',
+  // 53-15: the kinds whose e-mail a member cannot turn off (csv of notification kinds, '' = none).
+  'notification_forced_email_kinds',
 ] as const;
 
 export type OrgSettingKey = (typeof ORG_SETTING_KEYS)[number];
@@ -129,6 +137,19 @@ function lockedRolesValue(raw: string): OrgSettingValidation {
 export function parseLockedRoles(stored: string | undefined): readonly string[] {
   const names = (stored ?? '').split(',').map((name) => name.trim());
   return LOCKABLE_ROLES.filter((role) => names.includes(role));
+}
+
+/** 53-15. Validate a csv of notification kinds, stored de-duplicated in matrix order; `''` = none. */
+function forcedEmailKindsValue(raw: string): OrgSettingValidation {
+  const names = raw
+    .split(',')
+    .map((name) => name.trim().toLowerCase())
+    .filter((name) => name !== '');
+  const kinds: readonly string[] = MATRIX_KINDS;
+  if (!names.every((name) => kinds.includes(name))) {
+    return { ok: false, message: 'Choose from the offered notification kinds.' };
+  }
+  return { ok: true, value: parseForcedEmailKinds(names.join(',')).join(',') };
 }
 
 /** A validator for a key whose value must be one of a closed list. */
@@ -268,6 +289,8 @@ const SPECS: Readonly<Record<OrgSettingKey, OrgSettingSpec>> = Object.freeze({
   default_ui_mode: { default: 'simple', validate: oneOf(UI_MODES, 'Choose simple or power.') },
   // 55-04. No role is locked until an admin names one.
   ui_mode_locked_roles: { default: '', validate: lockedRolesValue },
+  // 53-15. No kind is forced until an admin names one; the matrix then locks its e-mail on.
+  notification_forced_email_kinds: { default: '', validate: forcedEmailKindsValue },
 });
 
 /** The on/off keys the A11 routes read through {@link isSettingOn}. */

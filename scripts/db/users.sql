@@ -1603,6 +1603,12 @@ GRANT SELECT ON `tmanage`.`documents`                TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`meetings`                 TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`workflow_templates`       TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`workflow_runs`            TO 'tmanage_worker'@'%';
+-- 53-15: the notification matrix (E-mail / Digest cells in user_preferences.prefs_json,
+-- notification_profile + notification_forced_email_kinds in org_settings) and the digest sweep
+-- (cadence in pref_digest). Read only.
+GRANT SELECT ON `tmanage`.`user_preferences`         TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`org_settings`             TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`pref_digest`              TO 'tmanage_worker'@'%';
 -- C1: a rule fires only when its saved conditions match (`automation-conditions-store.ts`), and
 -- the due-soon sweep reads its own claims where it writes them (`due-soon-store.ts`).
 GRANT SELECT ON `tmanage`.`workflow_conditions`      TO 'tmanage_worker'@'%';

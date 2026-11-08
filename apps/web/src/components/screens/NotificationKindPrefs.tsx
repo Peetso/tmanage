@@ -5,11 +5,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
+import type { NotificationKind } from '../../lib/api/notification-kind-prefs';
 import {
-  getNotificationKindPrefs,
-  setNotificationKindPref,
-  type NotificationKind,
-} from '../../lib/api/notification-kind-prefs';
+  FORCED_EMAIL_SETTING_KEY,
+  forcedEmailValue,
+  getNotificationMatrix,
+  setNotificationMatrixCell,
+  type NotificationMatrixChannel,
+} from '../../lib/api/notification-matrix';
+import { setOrgSetting } from '../../lib/api/org-settings';
 import { getQuietHours } from '../../lib/api/quiet-hours';
 import {
   effectiveQuietHours,
@@ -22,6 +26,7 @@ import { useTOr } from '../../lib/i18n/use-t-or';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/preferences.css';
+import '../../styles/screens/notification-matrix.css';
 
 export interface NotificationKindPrefsProps {
   organizationSlug: string;
@@ -54,6 +59,25 @@ const KIND_LABEL_KEYS: Readonly<Record<NotificationKind, { label: MessageKey; hi
     },
   };
 
+/** The matrix columns, in reading order (the row mirrors in RTL through the flex direction). */
+const CHANNELS: readonly {
+  readonly channel: NotificationMatrixChannel;
+  readonly key: string;
+  readonly english: string;
+}[] = [
+  { channel: 'in_app', key: 'NotificationKindPrefs.channelInApp', english: 'In-app' },
+  { channel: 'email', key: 'NotificationKindPrefs.channelEmail', english: 'Email' },
+  { channel: 'digest', key: 'NotificationKindPrefs.channelDigest', english: 'Digest' },
+];
+
+const KIND_ORDER: readonly NotificationKind[] = [
+  'client_request',
+  'work_item',
+  'message',
+  'file',
+  'mention',
+];
+
 /** Indexed by `dayOfWeek` (0 = Sunday), the same keys the digest screen uses. */
 const WEEKDAY_KEYS: readonly MessageKey[] = [
   'DigestPreferenceScreen.daySunday',
@@ -66,17 +90,16 @@ const WEEKDAY_KEYS: readonly MessageKey[] = [
 ];
 
 /**
- * **Notifications (PREF-03; per-kind notification opt-out, x152).**
+ * **Notifications (PREF-03; 53-15 notification matrix).**
  *
- * PREF-03's frame: "What reaches you, and how" — a per-event table on the left, the quiet-hours and
- * daily-summary cards on the right. A faithful reader of the API's membership-scoped per-kind
- * settings: it reads `GET .../notification-preferences/kinds` (behind `work.read`, the acting
- * member's own) and shows one switch per kind. Flipping a switch is the action itself —
- * `PUT .../kinds/:kind` — and the whole set re-renders from the response. The two side cards read
- * the member's quiet hours and digest cadence and link to the screens that edit them.
- *
- * The API stores one on/off per kind, so the table has one channel column; the design's separate
- * email and push columns wait for per-channel settings.
+ * PREF-03's frame: "What reaches you, and how" — the kind × channel matrix on the left (Figma
+ * "R35 L4-53-15"), the quiet-hours and daily-summary cards on the right. The table reads
+ * `GET .../me/notification-matrix` (behind `work.read`, the acting member's own): rows are the five
+ * kinds, columns In-app / E-mail / Digest. Each tick is one `PUT` and the whole matrix re-renders from
+ * the response. In-app is the kind's master switch (off greys its other cells); a kind the company
+ * forces shows "Required by your company" with In-app and E-mail locked; the account & security row
+ * is always on and never digested. A member holding `org.manage` also sees the company rule card,
+ * which writes `notification_forced_email_kinds` through the settings PUT. Push waits for its keys.
  */
 export function NotificationKindPrefs({
   organizationSlug,
@@ -88,11 +111,11 @@ export function NotificationKindPrefs({
   const t = useT();
   const tOr = useTOr();
   const queryClient = useQueryClient();
-  const queryKey = ['notification-kind-prefs', organizationSlug];
+  const queryKey = ['notification-matrix', organizationSlug];
 
   const prefs = useQuery({
     queryKey,
-    queryFn: () => getNotificationKindPrefs(api, organizationSlug),
+    queryFn: () => getNotificationMatrix(api, organizationSlug),
   });
 
   const quietHours = useQuery({
@@ -114,15 +137,35 @@ export function NotificationKindPrefs({
     retry: false,
   });
 
-  const setKind = useMutation({
-    mutationFn: ({ kind, enabled }: { kind: NotificationKind; enabled: boolean }) =>
-      setNotificationKindPref(api, organizationSlug, kind, { enabled }),
+  const setCell = useMutation({
+    mutationFn: (input: {
+      kind: NotificationKind;
+      channel: NotificationMatrixChannel;
+      enabled: boolean;
+    }) => setNotificationMatrixCell(api, organizationSlug, input),
     onSuccess: (data) => {
       queryClient.setQueryData(queryKey, data);
+      void queryClient.invalidateQueries({
+        queryKey: ['notification-kind-prefs', organizationSlug],
+      });
     },
   });
 
-  const kinds = prefs.data?.kinds ?? [];
+  const setForced = useMutation({
+    mutationFn: (kinds: readonly NotificationKind[]) =>
+      setOrgSetting(
+        api,
+        organizationSlug,
+        FORCED_EMAIL_SETTING_KEY,
+        forcedEmailValue(kinds, KIND_ORDER),
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey });
+    },
+  });
+
+  const rows = prefs.data?.rows ?? [];
+  const forcedKinds = prefs.data?.forcedEmailKinds ?? [];
   const quiet =
     quietHours.data && !notification.isPending
       ? effectiveQuietHours(quietHours.data, notification.data)
@@ -149,9 +192,9 @@ export function NotificationKindPrefs({
             </InlineAlert>
           ) : null}
 
-          {setKind.isError ? (
+          {setCell.isError ? (
             <InlineAlert tone="danger" title={t('NotificationKindPrefs.saveError')} live>
-              {describeError(setKind.error)}
+              {describeError(setCell.error)}
             </InlineAlert>
           ) : null}
 
@@ -164,49 +207,119 @@ export function NotificationKindPrefs({
 
           {!prefs.isPending && !prefs.isError ? (
             <>
-              <div className="tm-prefs-table">
+              <div className="tm-prefs-table tm-notif-matrix">
                 <div className="tm-prefs-table__head" aria-hidden="true">
                   <span className="tm-prefs-table__event">
                     {t('NotificationKindPrefs.whenThisHappens')}
                   </span>
-                  <span className="tm-prefs-table__channel">
-                    {t('NotificationKindPrefs.notifyMe')}
-                  </span>
+                  {CHANNELS.map(({ channel, key, english }) => (
+                    <span className="tm-prefs-table__channel" key={channel}>
+                      {tOr(key, english)}
+                    </span>
+                  ))}
                 </div>
-                {kinds.map(({ kind, enabled }) => {
-                  const id = `tm-notif-kind-${kind}`;
+                {rows.map((row) => {
+                  const id = `tm-notif-kind-${row.kind}`;
+                  const label = t(KIND_LABEL_KEYS[row.kind].label);
+                  const value: Record<NotificationMatrixChannel, boolean> = {
+                    in_app: row.inApp,
+                    email: row.email,
+                    digest: row.digest,
+                  };
                   return (
-                    <div className="tm-prefs-table__row" key={kind}>
+                    <div
+                      className="tm-prefs-table__row"
+                      key={row.kind}
+                      role="group"
+                      aria-labelledby={id}
+                    >
                       <span className="tm-prefs-table__event">
-                        <label className="tm-prefs-table__label" htmlFor={id}>
-                          {t(KIND_LABEL_KEYS[kind].label)}
-                        </label>
+                        <span className="tm-prefs-table__label" id={id}>
+                          {label}
+                          {row.forcedEmail ? (
+                            <span className="tm-notif-matrix__badge">
+                              {tOr('NotificationKindPrefs.forcedBadge', 'Required by your company')}
+                            </span>
+                          ) : null}
+                        </span>
                         <span className="tm-prefs-table__hint" id={`${id}-hint`}>
-                          {t(KIND_LABEL_KEYS[kind].hint)}
+                          {t(KIND_LABEL_KEYS[row.kind].hint)}
                         </span>
                       </span>
-                      <span className="tm-prefs-table__channel">
-                        <input
-                          id={id}
-                          type="checkbox"
-                          role="switch"
-                          className="tm-prefs-check"
-                          checked={enabled}
-                          disabled={setKind.isPending}
-                          aria-describedby={`${id}-hint`}
-                          onChange={(event) =>
-                            setKind.mutate({ kind, enabled: event.target.checked })
-                          }
-                        />
-                      </span>
+                      {CHANNELS.map(({ channel, key, english }) => {
+                        const locked = row.forcedEmail && channel !== 'digest';
+                        const unavailable =
+                          (channel === 'email' && !row.available.email) ||
+                          (channel === 'digest' && !row.available.digest);
+                        const muted = channel !== 'in_app' && !row.inApp;
+                        return (
+                          <span className="tm-prefs-table__channel" key={channel}>
+                            <input
+                              type="checkbox"
+                              className="tm-prefs-check"
+                              checked={value[channel] && !unavailable}
+                              disabled={setCell.isPending || locked || unavailable || muted}
+                              aria-label={`${label}: ${tOr(key, english)}`}
+                              aria-describedby={`${id}-hint`}
+                              onChange={(event) =>
+                                setCell.mutate({
+                                  kind: row.kind,
+                                  channel,
+                                  enabled: event.target.checked,
+                                })
+                              }
+                            />
+                          </span>
+                        );
+                      })}
                     </div>
                   );
                 })}
+                <div
+                  className="tm-prefs-table__row tm-notif-matrix__account"
+                  role="group"
+                  aria-labelledby="tm-notif-account"
+                >
+                  <span className="tm-prefs-table__event">
+                    <span className="tm-prefs-table__label" id="tm-notif-account">
+                      {tOr('NotificationKindPrefs.kindAccountLabel', 'Account, billing & security')}
+                    </span>
+                    <span className="tm-prefs-table__hint">
+                      {tOr(
+                        'NotificationKindPrefs.kindAccountHint',
+                        'Always on — sign-in alerts, storage limits, privacy notices',
+                      )}
+                    </span>
+                  </span>
+                  <span className="tm-prefs-table__channel">
+                    <input
+                      type="checkbox"
+                      className="tm-prefs-check"
+                      checked
+                      disabled
+                      readOnly
+                      aria-label={tOr('NotificationKindPrefs.channelInApp', 'In-app')}
+                    />
+                  </span>
+                  <span className="tm-prefs-table__channel">
+                    <input
+                      type="checkbox"
+                      className="tm-prefs-check"
+                      checked
+                      disabled
+                      readOnly
+                      aria-label={tOr('NotificationKindPrefs.channelEmail', 'Email')}
+                    />
+                  </span>
+                  <span className="tm-prefs-table__channel" aria-hidden="true">
+                    —
+                  </span>
+                </div>
               </div>
               <p className="tm-prefs-legend">
                 <span className="tm-prefs-legend__item">
                   <span className="tm-prefs-legend__swatch" aria-hidden="true" />
-                  {t('NotificationKindPrefs.legend')}
+                  {tOr('NotificationKindPrefs.matrixLegend', 'Tick = on · Faded = locked')}
                 </span>
               </p>
             </>
@@ -214,6 +327,49 @@ export function NotificationKindPrefs({
         </section>
 
         <div className="tm-prefs__side">
+          {prefs.data?.canManageCompany ? (
+            <section
+              className="tm-prefs-card tm-prefs-card--tight"
+              aria-labelledby="tm-company-card"
+            >
+              <h2 id="tm-company-card" className="tm-prefs-card__title">
+                {tOr('NotificationKindPrefs.companyRuleTitle', 'Company rule')}
+              </h2>
+              <p className="tm-prefs-card__body">
+                {tOr(
+                  'NotificationKindPrefs.companyRuleBody',
+                  'Keep e-mail on for these kinds for everyone in the company.',
+                )}
+              </p>
+              <div className="tm-notif-matrix__chips">
+                {KIND_ORDER.map((kind) => {
+                  const on = forcedKinds.includes(kind);
+                  return (
+                    <button
+                      key={kind}
+                      type="button"
+                      className="tm-notif-matrix__chip"
+                      aria-pressed={on}
+                      disabled={setForced.isPending}
+                      onClick={() =>
+                        setForced.mutate(
+                          on ? forcedKinds.filter((k) => k !== kind) : [...forcedKinds, kind],
+                        )
+                      }
+                    >
+                      {t(KIND_LABEL_KEYS[kind].label)}
+                    </button>
+                  );
+                })}
+              </div>
+              {setForced.isError ? (
+                <InlineAlert tone="danger" title={t('NotificationKindPrefs.saveError')} live>
+                  {describeError(setForced.error)}
+                </InlineAlert>
+              ) : null}
+            </section>
+          ) : null}
+
           <section className="tm-prefs-card tm-prefs-card--tight" aria-labelledby="tm-quiet-card">
             <h2 id="tm-quiet-card" className="tm-prefs-card__title">
               {t('NotificationKindPrefs.quietHours')}
@@ -242,7 +398,12 @@ export function NotificationKindPrefs({
             <p className="tm-prefs-card__lead">
               {describeDigest(t, tOr, digest.data, digest.isPending)}
             </p>
-            <p className="tm-prefs-card__note">{t('NotificationKindPrefs.summaryNote')}</p>
+            <p className="tm-prefs-card__note">
+              {tOr(
+                'NotificationKindPrefs.matrixSummaryNote',
+                'Only the kinds with Digest ticked, and only what you have not read yet.',
+              )}
+            </p>
             <div className="tm-prefs-card__foot">
               <Link className="tm-prefs-capsule" href={`/${organizationSlug}/settings/digest`}>
                 {t('NotificationKindPrefs.changeSummary')}
