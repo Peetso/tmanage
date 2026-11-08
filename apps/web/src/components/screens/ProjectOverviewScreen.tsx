@@ -13,6 +13,7 @@ import {
   StateCapsule,
 } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { BudgetBurnPanel } from '../projects/BudgetBurnPanel';
 import { ProjectTabs } from '../projects/ProjectTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getProject } from '../../lib/api/projects';
@@ -477,6 +478,9 @@ export function ProjectOverviewScreen({
                 </>
               )}
             </section>
+
+            {/* 52-05: the budget burn panel (Figma 574:32611). */}
+            <BudgetBurnPanel api={api} organizationSlug={organizationSlug} projectId={projectId} />
 
             <UpdateComposer
               api={api}

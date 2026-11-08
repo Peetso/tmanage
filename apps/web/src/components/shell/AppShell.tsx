@@ -29,6 +29,7 @@ import { AccountMenu } from './AccountMenu';
 import { AiPanelLauncher } from '../ai-panel/AiPanelLauncher';
 import { HelpContextLink } from '../help/HelpContextLink';
 import { SupportLauncher } from '../support/SupportLauncher';
+import { RunningTimerPill } from '../time/TimerControls';
 import { BetaTag } from './BetaTag';
 import { ThemeSync } from './ThemeSync';
 import { KeyboardShortcutLayer } from './KeyboardShortcutLayer';
@@ -310,6 +311,11 @@ export function AppShell({
                   {actions || queryClient ? (
                     <div className="tm-canvas-header__actions">
                       {actions}
+                      {/* 52-01: the running-timer pill, only while a timer runs (needs the
+                          query client). */}
+                      {queryClient ? (
+                        <RunningTimerPill organizationSlug={organizationSlug} />
+                      ) : null}
                       {/* Row 55-16: the Help centre article for this screen. */}
                       <HelpContextLink />
                       {/* Row 55-17: the help menu with "Contact support" (needs the query client). */}

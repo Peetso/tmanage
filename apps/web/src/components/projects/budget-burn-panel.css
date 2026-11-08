@@ -1,0 +1,130 @@
+/* 52-05 budget burn panel — Figma 574:32611 (R43 L2). Logical properties only, so Arabic mirrors. */
+
+.tm-burn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-burn__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-burn__status {
+  display: inline-flex;
+  align-items: center;
+  padding-block: 2px;
+  padding-inline: var(--s2);
+  border-radius: var(--r-capsule);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tm-burn__status--ok {
+  background: var(--paper-150);
+  color: var(--ink-800);
+}
+
+.tm-burn__status--risk {
+  background: var(--lime-100);
+  color: var(--ink-800);
+}
+
+.tm-burn__status--over {
+  background: var(--danger-600);
+  color: var(--paper-0);
+}
+
+.tm-burn__figures {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+}
+
+.tm-burn__percent {
+  font-size: 40px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.tm-burn__used {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  font-weight: 500;
+}
+
+.tm-burn__money {
+  color: var(--ink-650);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.tm-burn__bar {
+  block-size: 8px;
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  overflow: hidden;
+}
+
+.tm-burn__bar > span {
+  display: block;
+  block-size: 100%;
+  border-radius: var(--r-capsule);
+  background: var(--ink-800);
+}
+
+.tm-burn__bar--at_risk > span {
+  background: var(--warning-600);
+}
+
+.tm-burn__bar--over > span {
+  background: var(--danger-600);
+}
+
+.tm-burn__chart {
+  inline-size: 100%;
+  block-size: 140px;
+  border-radius: var(--r-control);
+  background: var(--paper-150);
+}
+
+/* The chart reads in time order, so it mirrors with the page in Arabic. */
+[dir='rtl'] .tm-burn__chart {
+  transform: scaleX(-1);
+}
+
+.tm-burn__line {
+  fill: none;
+  stroke: var(--ink-800);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.tm-burn__budget-line {
+  stroke: var(--line-700);
+  stroke-width: 1;
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.tm-burn__forecast-line {
+  stroke: var(--warning-600);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.tm-burn__axis {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: 11px;
+}
+
+.tm-burn__forecast {
+  margin: 0;
+  color: var(--ink-650);
+}

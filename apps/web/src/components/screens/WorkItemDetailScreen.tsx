@@ -6,6 +6,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import { workItemStateMachine } from '@tmanage/domain';
 import type { WorkItemState } from '@tmanage/domain';
 import { Button, Checkbox, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { WorkItemTimerButton } from '../time/TimerControls';
 import { AppShell } from '../shell/AppShell';
 import { MemberSelect } from '../MemberSelect';
 import './work-core.css';
@@ -262,12 +263,21 @@ export function WorkItemDetailScreen({
       title={item.data?.title ?? t('WorkItemDetailScreen.fallbackTitle')}
       actions={
         item.data ? (
-          <HeaderActions
-            item={item.data}
-            onAction={(action) =>
-              window.dispatchEvent(new CustomEvent(ACTION_EVENT, { detail: action }))
-            }
-          />
+          <>
+            {/* 52-01: the start/stop timer (Figma 574:32611). */}
+            <WorkItemTimerButton
+              organizationSlug={organizationSlug}
+              workItemId={workItemId}
+              workItemTitle={item.data.title}
+              client={api}
+            />
+            <HeaderActions
+              item={item.data}
+              onAction={(action) =>
+                window.dispatchEvent(new CustomEvent(ACTION_EVENT, { detail: action }))
+              }
+            />
+          </>
         ) : undefined
       }
     >
