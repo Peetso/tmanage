@@ -12,6 +12,7 @@ import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
 import { connectorSentence } from '../../lib/work-activity-presentation';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { appLocale } from '../../lib/i18n/app-locale';
 import { getUnfurlCard, unfurlSiteName } from '../../lib/api/unfurl';
@@ -123,6 +124,7 @@ export function WorkItemActivityFeed({
   const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
+  const tr = useTOr();
 
   const activity = useQuery({
     queryKey: ['work-item-activity', organizationSlug, workItemId],
@@ -153,6 +155,9 @@ export function WorkItemActivityFeed({
           </Link>
           <Link href={`/${organizationSlug}/work/${workItemId}/activity`} aria-current="page">
             {t('WorkItemActivityFeed.activity')}
+          </Link>
+          <Link href={`/${organizationSlug}/work/${workItemId}/links`}>
+            {tr('WorkItemLinks.tab', 'Links')}
           </Link>
           <Link href={`/${organizationSlug}/work/${workItemId}/time-logs`}>
             {t('WorkItemActivityFeed.time')}

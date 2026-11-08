@@ -14,6 +14,7 @@ import { PendingBadge } from '../pwa/PendingBadge';
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 
 export interface WorkItemTimeLogScreenProps {
   organizationSlug: string;
@@ -41,6 +42,7 @@ export function WorkItemTimeLogScreen({
 }: WorkItemTimeLogScreenProps) {
   const describeError = useDescribeApiError(OFFLINE_LINES);
   const t = useT();
+  const tr = useTOr();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
 
@@ -109,6 +111,9 @@ export function WorkItemTimeLogScreen({
           </Link>
           <Link href={`/${organizationSlug}/work/${workItemId}/activity`}>
             {t('WorkItemTimeLogScreen.activity')}
+          </Link>
+          <Link href={`/${organizationSlug}/work/${workItemId}/links`}>
+            {tr('WorkItemLinks.tab', 'Links')}
           </Link>
           <Link href={`/${organizationSlug}/work/${workItemId}/time-logs`} aria-current="page">
             {t('WorkItemTimeLogScreen.time')}

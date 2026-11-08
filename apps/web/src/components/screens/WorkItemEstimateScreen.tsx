@@ -15,6 +15,7 @@ import {
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 
 export interface WorkItemEstimateScreenProps {
   organizationSlug: string;
@@ -44,6 +45,7 @@ export function WorkItemEstimateScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tr = useTOr();
 
   const estimate = useQuery({
     queryKey: ['work-item-estimate', organizationSlug, workItemId],
@@ -98,6 +100,9 @@ export function WorkItemEstimateScreen({
           </Link>
           <Link href={`/${organizationSlug}/work/${workItemId}/activity`}>
             {t('WorkItemEstimateScreen.activity')}
+          </Link>
+          <Link href={`/${organizationSlug}/work/${workItemId}/links`}>
+            {tr('WorkItemLinks.tab', 'Links')}
           </Link>
           <Link href={`/${organizationSlug}/work/${workItemId}/time-logs`}>
             {t('WorkItemEstimateScreen.time')}

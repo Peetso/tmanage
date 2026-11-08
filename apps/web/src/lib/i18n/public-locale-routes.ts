@@ -46,6 +46,7 @@ export const PUBLIC_LOCALIZED_PATHS = [
   '/resources',
   '/security',
   '/security/data-location',
+  '/security/disclosure',
   '/solutions/agencies',
   '/solutions/consultancies',
   '/solutions/in-house',

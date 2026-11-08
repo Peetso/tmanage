@@ -2,7 +2,17 @@
 
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
+import {
+  Button,
+  Field,
+  InlineAlert,
+  LoadingRegion,
+  Select,
+  Skeleton,
+  StateCapsule,
+} from '@tmanage/ui';
+import type { WorkItemState } from '@tmanage/domain';
+import Link from 'next/link';
 import {
   addItemLink,
   listItemLinks,
@@ -12,6 +22,9 @@ import {
 } from '../../lib/api/work-items';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { stateCapsule, stateLabel } from '../../lib/work-item-presentation';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface WorkItemDependenciesScreenProps {
@@ -20,14 +33,22 @@ export interface WorkItemDependenciesScreenProps {
   api: ApiClient;
 }
 
+/** 56-07: the relationship words, in the active language (Figma 575:32674 EN, 575:32881 AR). */
 const LINK_TYPES: readonly { readonly value: WorkItemLinkType; readonly label: string }[] = [
   { value: 'blocks', label: 'Blocks' },
   { value: 'blocked_by', label: 'Blocked by' },
   { value: 'relates', label: 'Relates to' },
 ];
 
-function labelForType(type: WorkItemLinkType): string {
-  return LINK_TYPES.find((option) => option.value === type)?.label ?? type;
+/**
+ * 56-07: the linked item as typed or pasted. A person copies an item's address from the browser
+ * far more often than its bare id, so a pasted `/…/work/<id>` link (absolute or not, with or
+ * without a trailing path or query) is reduced to the id; anything else is taken as the id itself.
+ */
+export function linkedItemIdFrom(input: string): string {
+  const trimmed = input.trim();
+  const match = /\/work\/([^/?#\s]+)/.exec(trimmed);
+  return match ? decodeURIComponent(match[1]!) : trimmed;
 }
 
 /**
@@ -49,6 +70,13 @@ export function WorkItemDependenciesScreen({
 }: WorkItemDependenciesScreenProps) {
   const describe = useDescribeApiError();
   const t = useT();
+  const tr = useTOr();
+  const locale = useActiveLocale();
+  const typeLabel = (type: WorkItemLinkType) =>
+    tr(
+      `WorkItemLinks.type.${type}`,
+      LINK_TYPES.find((option) => option.value === type)?.label ?? type,
+    );
   const queries = useQueryClient();
   const queryKey = ['work-item-links', organizationSlug, workItemId] as const;
   const [toWorkItemId, setToWorkItemId] = useState('');
@@ -86,7 +114,7 @@ export function WorkItemDependenciesScreen({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const trimmed = toWorkItemId.trim();
+    const trimmed = linkedItemIdFrom(toWorkItemId);
     if (trimmed === '') return;
     add.mutate({ toWorkItemId: trimmed, linkType });
   }
@@ -96,7 +124,7 @@ export function WorkItemDependenciesScreen({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-work-links">
       <h2 id="tm-work-links" className="tm-eyebrow">
-        {t('WorkItemDependenciesScreen.heading')}
+        {tr('WorkItemLinks.heading', 'Links')}
       </h2>
 
       {links.isPending ? (
@@ -125,13 +153,18 @@ export function WorkItemDependenciesScreen({
           <ul className="tm-list" aria-label={t('WorkItemDependenciesScreen.listLabel')}>
             {items.map((link) => (
               <li key={link.id} className="tm-row tm-row--between">
-                <span className="tm-prose">
-                  <strong>{labelForType(link.linkType)}</strong> {link.toWorkItemTitle}{' '}
-                  <span className="tm-muted">({link.toWorkItemState})</span>
+                <span className="tm-row tm-row--wrap">
+                  <strong>{typeLabel(link.linkType)}</strong>
+                  <Link href={`/${organizationSlug}/work/${encodeURIComponent(link.toWorkItemId)}`}>
+                    {link.toWorkItemTitle}
+                  </Link>
+                  <StateCapsule state={stateCapsule(link.toWorkItemState as WorkItemState)}>
+                    {stateLabel(link.toWorkItemState as WorkItemState, locale)}
+                  </StateCapsule>
                 </span>
                 <Button
-                  tone="text"
-                  size="accessible"
+                  tone="outline"
+                  size="compact"
                   loading={remove.isPending}
                   loadingLabel={t('WorkItemDependenciesScreen.removing')}
                   onClick={() => remove.mutate(link)}
@@ -154,16 +187,16 @@ export function WorkItemDependenciesScreen({
         >
           {LINK_TYPES.map((option) => (
             <option key={option.value} value={option.value}>
-              {option.label}
+              {typeLabel(option.value)}
             </option>
           ))}
         </Select>
         <Field
-          label={t('WorkItemDependenciesScreen.linkedId')}
+          label={tr('WorkItemLinks.linkedItem', 'Linked item')}
           name="toWorkItemId"
           value={toWorkItemId}
           onChange={(event) => setToWorkItemId(event.target.value)}
-          hint={t('WorkItemDependenciesScreen.linkedIdHint')}
+          hint={tr('WorkItemLinks.linkedItemHint', 'Paste the item’s link or ID')}
         />
         <div className="tm-row">
           <Button

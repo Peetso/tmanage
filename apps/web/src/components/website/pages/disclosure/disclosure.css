@@ -1,0 +1,109 @@
+/*
+ * 56-17 — "Report a security problem" (Figma 575:32613 EN / 575:32761 AR).
+ * TManage tokens only; logical properties so the Arabic twin mirrors.
+ */
+
+.tm-disc {
+  background: var(--paper-50);
+}
+
+.tm-disc__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  max-inline-size: 760px;
+  padding-block: var(--s16, 64px);
+}
+
+.tm-disc-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-disc-hero__eyebrow {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 600;
+  color: var(--ink-500);
+}
+
+.tm-disc-hero__title {
+  margin: 0;
+  font-size: var(--t-display-lg);
+  line-height: var(--t-display-lg-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-disc-hero__lede {
+  margin: 0;
+  font-size: var(--t-body-lg);
+  line-height: var(--t-body-lg-line);
+  color: var(--ink-650);
+}
+
+.tm-disc-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s6);
+  background: var(--paper-0);
+  border: 1px solid var(--line-300);
+  border-radius: var(--r-card);
+}
+
+.tm-disc-card__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-disc-card__body,
+.tm-disc-card__list {
+  margin: 0;
+  color: var(--ink-650);
+}
+
+.tm-disc-card__list {
+  padding-inline-start: var(--s5);
+}
+
+.tm-disc-card__note {
+  margin: 0;
+  color: var(--ink-500);
+}
+
+.tm-disc-card__email {
+  font-weight: 600;
+  color: var(--ink-950);
+  unicode-bidi: isolate;
+}
+
+.tm-disc-times {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  inline-size: 100%;
+  margin: 0;
+}
+
+.tm-disc-times__row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s4);
+}
+
+.tm-disc-times__row dt {
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-disc-times__row dd {
+  margin: 0;
+  color: var(--ink-650);
+}

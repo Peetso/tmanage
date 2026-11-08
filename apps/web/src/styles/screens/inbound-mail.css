@@ -1,0 +1,67 @@
+/*
+ * 54-12 — Inbound mail settings (Figma 575:32722 EN / 575:32929 AR).
+ * TManage tokens only; logical properties so the Arabic twin mirrors.
+ */
+
+.tm-inmail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  max-inline-size: 760px;
+}
+
+.tm-inmail__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-inmail__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.tm-inmail__address {
+  font-family: var(--font-mono);
+  color: var(--ink-950);
+  overflow-wrap: anywhere;
+}
+
+.tm-inmail__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.tm-inmail__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-inmail__mail {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.tm-inmail__subject {
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-inmail__from {
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-500);
+  text-align: start;
+}

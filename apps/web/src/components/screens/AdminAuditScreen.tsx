@@ -5,6 +5,11 @@ import type { FormEvent } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
+import {
+  AuditIntegrityButton,
+  AuditIntegrityResult,
+  useAuditIntegrityCheck,
+} from '../admin/AuditIntegrityCheck';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import {
   auditExportUrl,
@@ -62,6 +67,8 @@ export function AdminAuditScreen({
 }: AdminAuditScreenProps) {
   const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
+  // 56-11: the on-demand chain check; button in the header, verdict above the list.
+  const integrity = useAuditIntegrityCheck(api, organizationSlug);
   const t = useT();
 
   const tr = useTOr();
@@ -181,25 +188,27 @@ export function AdminAuditScreen({
         ? { titleMeta: classBreakdown(rows, entityLabel, tr, locale) }
         : {})}
       actions={
-        // ADM-09 export (x118). A plain download link, not a fetch: the browser requests the CSV
-        // with the session cookie and the API's `Content-Disposition: attachment` saves it, so no
-        // bytes are proxied through the app. It is gated on `audit.export` — a stronger grant than
-        // the `audit.read` this screen reads with — so a caller without it receives the API's
-        // refusal. The href carries the applied filters, so an export matches what is on screen.
-        <a
-          className="tm-button tm-button--ink tm-button--compact"
-          href={auditExportUrl(apiBaseUrl(), organizationSlug, {
-            ...(applied.actorId === '' ? {} : { actorId: applied.actorId }),
-            ...(applied.entityId === '' ? {} : { entityId: applied.entityId }),
-          })}
-          download="audit-events.csv"
-        >
-          {t('AdminAuditScreen.exportCsv')}
-        </a>
+        <>
+          <AuditIntegrityButton check={integrity} />
+          {/* ADM-09 export (x118). A plain download link, not a fetch: the browser requests the
+              CSV with the session cookie and the API's `Content-Disposition: attachment` saves it.
+              Gated on `audit.export`; the href carries the applied filters. */}
+          <a
+            className="tm-button tm-button--ink tm-button--compact"
+            href={auditExportUrl(apiBaseUrl(), organizationSlug, {
+              ...(applied.actorId === '' ? {} : { actorId: applied.actorId }),
+              ...(applied.entityId === '' ? {} : { entityId: applied.entityId }),
+            })}
+            download="audit-events.csv"
+          >
+            {t('AdminAuditScreen.exportCsv')}
+          </a>
+        </>
       }
     >
       <div className="tm-cc-split tm-cc-split--stretch">
         <div className="tm-cc-column">
+          <AuditIntegrityResult check={integrity} />
           {events.isPending ? (
             <LoadingRegion
               label={t('AdminAuditScreen.loading')}

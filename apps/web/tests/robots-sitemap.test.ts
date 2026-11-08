@@ -20,8 +20,9 @@ describe('robots.txt and sitemap.xml (live 307 to /robots.txt/home, 2026-10-26)'
         'https://tmanage.peetrix.com/ar/pricing',
       ]),
     );
-    // 24 website pages (51-10a /download, 54-17 /security/data-location), 12 library articles,
+    // 25 website pages (51-10a /download, 54-17 /security/data-location, 56-17
+    // /security/disclosure), 12 library articles,
     // sign-in and sign-up, the Help centre and its 14 articles (55-16) — each in English and Arabic.
-    expect(urls.length).toBe(106);
+    expect(urls.length).toBe(108);
   });
 });

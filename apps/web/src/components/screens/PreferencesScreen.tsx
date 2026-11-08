@@ -32,6 +32,7 @@ import { activeLocale } from '../../lib/i18n/locale-store';
 import { TimeZoneSelect } from '../TimeZoneSelect';
 import { PrivacyPrefs } from '../preferences/PrivacyPrefs';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/preferences.css';
 
@@ -52,9 +53,17 @@ export type PreferencesSection =
   | 'keyboard'
   | 'ai-assistant'
   // D5 (Figma F5 phone): the person's own data export and account deletion.
-  | 'my-data';
+  | 'my-data'
+  // 56-22 / R43 (Figma 575:32761): passkeys, devices and the security score.
+  | 'sign-in-security';
 
-const SECTIONS: readonly { id: PreferencesSection; labelKey: MessageKey; href: string }[] = [
+const SECTIONS: readonly {
+  id: PreferencesSection;
+  labelKey: MessageKey;
+  href: string;
+  /** English until the key reaches the catalogs (i18n fragment). */
+  fallback?: string;
+}[] = [
   { id: 'profile', labelKey: 'PreferencesScreen.sectionProfile', href: '/preferences' },
   { id: 'appearance', labelKey: 'PreferencesScreen.sectionAppearance', href: '/settings/display' },
   {
@@ -84,6 +93,12 @@ const SECTIONS: readonly { id: PreferencesSection; labelKey: MessageKey; href: s
     labelKey: 'PreferencesScreen.sectionMyData' as string as MessageKey,
     href: '/settings/my-data',
   },
+  {
+    id: 'sign-in-security',
+    labelKey: 'PreferencesScreen.sectionSignInSecurity',
+    href: '/settings/sign-in-security',
+    fallback: 'Sign-in security',
+  },
 ];
 
 /** PREF-01's left column: the person's own settings, one link per section. */
@@ -96,6 +111,7 @@ export function PreferencesNav({
 }) {
   const headingId = useId();
   const t = useT();
+  const tr = useTOr();
   return (
     <div>
       <h2 id={headingId} className="tm-prefs-nav__heading">
@@ -111,7 +127,7 @@ export function PreferencesNav({
               className="tm-prefs-nav__link"
               {...(section.id === current ? { 'aria-current': 'page' as const } : {})}
             >
-              {t(section.labelKey)}
+              {section.fallback ? tr(section.labelKey, section.fallback) : t(section.labelKey)}
             </Link>
           </li>
         ))}
