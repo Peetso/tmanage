@@ -1,0 +1,165 @@
+/*
+ * Slice 55-12 — the keyboard shortcut cheat sheet (Figma `R42 L2-55-12-keyboard`) and the shell's
+ * WCAG 2.2 AA guards. Logical properties only, so the Arabic frame mirrors without an override.
+ */
+
+.tm-shortcuts__layer {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: var(--s6);
+}
+
+.tm-shortcuts__scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--tm-scrim, rgb(0 0 0 / 0.32));
+}
+
+.tm-shortcuts {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  inline-size: min(560px, 100%);
+  max-block-size: calc(100vh - var(--s12));
+  overflow-y: auto;
+  padding: var(--s8);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-sheet);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.12);
+}
+
+.tm-shortcuts__header {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+}
+
+.tm-shortcuts__title {
+  flex: 1;
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+}
+
+.tm-shortcuts__close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 36px;
+  block-size: 36px;
+  padding: 0;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-50);
+  color: var(--ink-950);
+  cursor: pointer;
+}
+
+.tm-shortcuts__intro {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-shortcuts__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-shortcuts__section-title {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+:root[dir='rtl'] .tm-shortcuts__section-title,
+[dir='rtl'] .tm-shortcuts__section-title {
+  font-family: inherit;
+  letter-spacing: normal;
+}
+
+.tm-shortcuts__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-shortcuts__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  min-block-size: 40px;
+  padding-block: var(--s2);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-shortcuts__label {
+  flex: 1;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+.tm-shortcuts__keys {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-shortcuts__joiner {
+  font-size: var(--t-ui-sm);
+  color: var(--ink-500);
+}
+
+.tm-shortcuts__key {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: 28px;
+  min-block-size: 28px;
+  padding: var(--s1) var(--s2);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-150);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: 1;
+  color: var(--ink-950);
+  direction: ltr;
+}
+
+/*
+ * WCAG 2.2 — 2.4.11 Focus Not Obscured (Minimum): when focus moves by keyboard the scroller keeps
+ * the focused control clear of the page edge and the sticky rail; the phone dock's own end padding
+ * already lives in `globals.css`.
+ */
+:root:has(.tm-app) {
+  scroll-padding-block-start: var(--s6);
+}
+
+.tm-app :focus-visible {
+  scroll-margin-block: var(--s6);
+}
+
+/*
+ * WCAG 2.2 — 2.5.8 Target Size (Minimum): every control of the shell chrome is at least 24 × 24 CSS
+ * pixels, whatever its glyph or label measures.
+ */
+.tm-app
+  :where(.tm-rail, .tm-mobile-nav, .tm-canvas-header__actions, .tm-day-pulse, .tm-app__topbar)
+  :where(a, button, [role='button'], summary) {
+  min-inline-size: 24px;
+  min-block-size: 24px;
+}

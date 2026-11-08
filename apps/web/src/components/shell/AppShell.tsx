@@ -31,6 +31,7 @@ import { HelpContextLink } from '../help/HelpContextLink';
 import { SupportLauncher } from '../support/SupportLauncher';
 import { BetaTag } from './BetaTag';
 import { ThemeSync } from './ThemeSync';
+import { KeyboardShortcutLayer } from './KeyboardShortcutLayer';
 
 export interface AppShellProps {
   /**
@@ -233,6 +234,8 @@ export function AppShell({
         {queryClient ? <ThemeSync organizationSlug={organizationSlug} /> : null}
         {/* SR-01 command surface: keyboard-driven (Ctrl/Cmd-K) navigation and quick actions. */}
         <CommandPalette organizationSlug={organizationSlug} />
+        {/* Slice 55-12: global shortcuts (? g h g p g w c /) and the cheat sheet dialog. */}
+        <KeyboardShortcutLayer organizationSlug={organizationSlug} />
         {/* Desktop companion: mirrors new inbox notices as local notifications once opted in. */}
         <InboxNotificationBridge organizationSlug={organizationSlug} />
 

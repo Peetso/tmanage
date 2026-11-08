@@ -1,0 +1,83 @@
+/*
+ * Slice 55-12 — the board card's Move button and "Move to" menu (WCAG 2.2 — 2.5.7 Dragging
+ * Movements; Figma `R42 L2-55-12-keyboard`). Above the card's stretched title link so it is
+ * clickable, at least 24px tall (2.5.8), logical properties so Arabic mirrors.
+ */
+
+.tm-wk-move {
+  /* Static on purpose: the menu positions against the card tile, spanning its width. */
+  position: static;
+}
+
+.tm-wk-move__button {
+  position: relative;
+  z-index: 1;
+  min-block-size: 28px;
+  min-inline-size: 24px;
+  padding: var(--s1) var(--s3);
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  cursor: pointer;
+}
+
+.tm-wk-move__button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.tm-wk-move__menu {
+  position: absolute;
+  z-index: 3;
+  inset-inline: var(--s4);
+  inset-block-start: calc(100% - var(--s2));
+  padding: var(--s2) var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+}
+
+.tm-wk-move__heading {
+  margin: 0 0 var(--s1);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-500);
+}
+
+.tm-wk-move__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-wk-move__item {
+  inline-size: 100%;
+  min-block-size: 32px;
+  padding-inline: var(--s2);
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-md);
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-wk-move__item:hover:not(:disabled),
+.tm-wk-move__item:focus-visible {
+  background: var(--lime-100);
+}
+
+.tm-wk-move__item:disabled {
+  color: var(--ink-500);
+  cursor: default;
+}

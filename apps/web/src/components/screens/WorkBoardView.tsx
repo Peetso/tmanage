@@ -1,6 +1,13 @@
 'use client';
 
-import { useMemo, useState, type DragEvent } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
 import Link from 'next/link';
 import { InlineAlert } from '@tmanage/ui';
 import { workItemStateMachine, type WorkItemState } from '@tmanage/domain';
@@ -10,9 +17,11 @@ import { ApiRequestError } from '../../lib/api/errors';
 import type { MemberSummary } from '../../lib/api/members';
 import { memberDisplayName } from '../../lib/members-presentation';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import { addDays, dayOf, formatShortDay, todayOf, useA6T } from '../work/DueDatePicker';
 import { DoerStack } from '../work/WorkPeopleBlock';
 import './work-core.css';
+import './work-board-move.css';
 
 export type BoardColumn = 'todo' | 'in_progress' | 'in_review' | 'done';
 
@@ -178,6 +187,11 @@ export function WorkBoardView({
     setDragging(null);
     const item = items.find((candidate) => candidate.id === id);
     if (!item) return;
+    moveToColumn(item, column);
+  }
+
+  /** A drop or a pick from a card's Move menu (WCAG 2.5.7: dragging is never the only way). */
+  function moveToColumn(item: WorkItemSummary, column: BoardColumn) {
     const target = dropTarget(item.state, column);
     if (target === null) return;
     const path = dragPath(item.state, target, item.ownerUserId !== null);
@@ -332,6 +346,14 @@ export function WorkBoardView({
                               : memberDisplayName(id, members, membersPending)
                           }
                         />
+                        {api ? (
+                          <BoardMoveMenu
+                            title={item.title}
+                            current={column.id}
+                            disabled={moving}
+                            onMove={(target) => moveToColumn(item, target)}
+                          />
+                        ) : null}
                       </div>
                     </li>
                   );
@@ -342,5 +364,89 @@ export function WorkBoardView({
         })}
       </div>
     </section>
+  );
+}
+
+/**
+ * The keyboard and pointer alternative to dragging a card (WCAG 2.2 — 2.5.7 Dragging Movements;
+ * Figma `R42 L2-55-12-keyboard`, "Move" button and "Move to" menu). A button opens the list of
+ * columns; the current one is marked and disabled, Escape closes and returns focus to the button.
+ */
+export function BoardMoveMenu({
+  title,
+  current,
+  disabled,
+  onMove,
+}: {
+  readonly title: string;
+  readonly current: BoardColumn;
+  readonly disabled?: boolean;
+  readonly onMove: (column: BoardColumn) => void;
+}) {
+  const t = useA6T();
+  const tOr = useTOr();
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+
+  useEffect(() => {
+    if (open) listRef.current?.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus();
+  }, [open]);
+
+  function close() {
+    setOpen(false);
+    buttonRef.current?.focus();
+  }
+
+  function onKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (event.key === 'Escape' && open) {
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    }
+  }
+
+  return (
+    <div className="tm-wk-move">
+      <button
+        ref={buttonRef}
+        type="button"
+        className="tm-wk-move__button"
+        aria-expanded={open}
+        aria-label={tOr('WorkBoard.moveLabel', 'Move {title}').replace('{title}', title)}
+        disabled={disabled}
+        onKeyDown={onKeyDown}
+        onClick={() => setOpen((value) => !value)}
+      >
+        {tOr('WorkBoard.move', 'Move')}
+      </button>
+      {open ? (
+        <div className="tm-wk-move__menu">
+          <p className="tm-wk-move__heading">{tOr('WorkBoard.moveTo', 'Move to')}</p>
+          <ul ref={listRef} className="tm-wk-move__list">
+            {COLUMNS.map((column) => {
+              const here = column.id === current;
+              return (
+                <li key={column.id}>
+                  <button
+                    type="button"
+                    className="tm-wk-move__item"
+                    disabled={here}
+                    onKeyDown={onKeyDown}
+                    onClick={() => {
+                      close();
+                      onMove(column.id);
+                    }}
+                  >
+                    {t(column.key)}
+                    {here ? ` · ${tOr('WorkBoard.moveCurrent', 'current')}` : ''}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+    </div>
   );
 }
