@@ -12,8 +12,8 @@
  * "Deliverables" do not exist internally, and an internal destination that leaked into the
  * portal would be a tenancy failure rendered as a link.
  *
- * The glyphs are decorative. Every item carries a real label, which is the accessible name;
- * the glyph is `aria-hidden` wherever it is rendered.
+ * The icons are decorative. Every item carries a real label, which is the accessible name;
+ * the icon is `aria-hidden` wherever it is rendered.
  *
  * Every `href` is a suffix. Both shells prefix it with the organization's slug, because every
  * screen is tenant-scoped (`/{slug}/inbox`, `/{slug}/portal`); an item rendered bare would
@@ -35,17 +35,17 @@ export interface NavigationItem {
   /** The message-catalog key for {@link label}, so every shell can render it in the member's locale. */
   readonly messageKey: MessageKey;
   readonly href: string;
-  readonly glyph: string;
   /**
-   * The 24px line icon the phone tab bar draws (Figma 405:6575) below 768px. The glyph stays the
-   * rail's and the wider dock's, so desktop is unchanged.
+   * The 24px line icon that means this page (R38 G3, Figma "R38 G3-icons"): drawn by the rail,
+   * the dock, the More sheet and the portal, so every surface shows the same picture for a page.
    */
-  readonly phoneIcon?: PhoneIconName;
+  readonly icon: PhoneIconName;
 }
 
 /**
- * The internal orbital rail. Order is the export's, top to bottom. Labels and glyphs follow
- * HOME-01: Home is "My Day" there, and the glyphs are the rail's own (◉ ✉ ◌ ▤ ◫ ◔).
+ * The internal orbital rail. Order is the export's, top to bottom. Labels follow HOME-01: Home
+ * is "My Day" there, drawn as a sun. R38 G3 replaced the old abstract symbols with icons that
+ * mean the page.
  */
 export const INTERNAL_NAVIGATION: readonly NavigationItem[] = [
   {
@@ -53,39 +53,53 @@ export const INTERNAL_NAVIGATION: readonly NavigationItem[] = [
     label: 'My Day',
     messageKey: 'nav.home',
     href: '/home',
-    glyph: '◉',
-    phoneIcon: 'home',
+    icon: 'sun',
   },
   {
     id: 'inbox',
     label: 'Inbox',
     messageKey: 'nav.inbox',
     href: '/inbox',
-    glyph: '✉',
-    phoneIcon: 'inbox',
+    icon: 'inbox',
   },
   {
     id: 'chat',
     label: 'Chat',
     messageKey: 'nav.chat',
     href: '/chat',
-    glyph: '◌',
-    phoneIcon: 'chat',
+    icon: 'messages',
   },
   {
     id: 'work',
     label: 'Work',
     messageKey: 'nav.work',
     href: '/work',
-    glyph: '▤',
-    phoneIcon: 'work',
+    icon: 'squareCheck',
   },
-  { id: 'calendar', label: 'Calendar', messageKey: 'nav.calendar', href: '/calendar', glyph: '◷' },
-  { id: 'docs', label: 'Docs', messageKey: 'nav.docs', href: '/docs', glyph: '◫' },
-  { id: 'clients', label: 'Clients', messageKey: 'nav.clients', href: '/clients', glyph: '◇' },
-  { id: 'people', label: 'People', messageKey: 'nav.people', href: '/people', glyph: '◎' },
-  { id: 'insights', label: 'Insights', messageKey: 'nav.insights', href: '/insights', glyph: '◔' },
-  { id: 'finance', label: 'Finance', messageKey: 'nav.finance', href: '/finance', glyph: '¤' },
+  {
+    id: 'calendar',
+    label: 'Calendar',
+    messageKey: 'nav.calendar',
+    href: '/calendar',
+    icon: 'calendar',
+  },
+  { id: 'docs', label: 'Docs', messageKey: 'nav.docs', href: '/docs', icon: 'file' },
+  {
+    id: 'clients',
+    label: 'Clients',
+    messageKey: 'nav.clients',
+    href: '/clients',
+    icon: 'handshake',
+  },
+  { id: 'people', label: 'People', messageKey: 'nav.people', href: '/people', icon: 'users' },
+  {
+    id: 'insights',
+    label: 'Insights',
+    messageKey: 'nav.insights',
+    href: '/insights',
+    icon: 'barChart',
+  },
+  { id: 'finance', label: 'Finance', messageKey: 'nav.finance', href: '/finance', icon: 'receipt' },
 ];
 
 /**
@@ -99,7 +113,7 @@ export const CONTROL_CENTER_NAVIGATION: NavigationItem = {
   label: 'Control',
   messageKey: 'nav.control',
   href: '/admin',
-  glyph: '⚙',
+  icon: 'sliders',
 };
 
 /**
@@ -129,8 +143,7 @@ export const MOBILE_MORE_ITEM: NavigationItem = {
   label: 'More',
   messageKey: 'shell.mobile.more' as MessageKey,
   href: '',
-  glyph: '⋯',
-  phoneIcon: 'more',
+  icon: 'more',
 };
 
 /** The five tab-bar slots, in order: four destinations and the More disclosure. */
@@ -144,68 +157,80 @@ export interface MoreSheetItem extends NavigationItem {
   readonly absolute?: boolean;
 }
 
-const more = (id: string, label: string, href: string, glyph: string, absolute = false) =>
+const more = (id: string, label: string, href: string, icon: PhoneIconName, absolute = false) =>
   ({
     id,
     label,
     messageKey: `MoreSheet.${id}` as MessageKey,
     href,
-    glyph,
+    icon,
     ...(absolute ? { absolute } : {}),
   }) satisfies MoreSheetItem;
 
 /** ph-more's WORKSPACE grid, in the frame's order. */
 export const MORE_WORKSPACE_NAVIGATION: readonly MoreSheetItem[] = [
-  more('projects', 'Projects', '/projects/portfolio', '▦'),
-  more('clients', 'Clients', '/clients', '◎'),
-  more('requests', 'Requests', '/work/requests', '◷'),
-  more('calendar', 'Calendar', '/calendar', '▣'),
-  more('docs', 'Docs & decisions', '/docs', '◫'),
-  more('files', 'Files & approvals', '/inbox', '⇧'),
-  more('people', 'People', '/people', '◍'),
-  more('insights', 'Insights', '/insights', '◔'),
+  more('projects', 'Projects', '/projects/portfolio', 'folderKanban'),
+  more('clients', 'Clients', '/clients', 'handshake'),
+  more('requests', 'Requests', '/work/requests', 'clipboardList'),
+  more('calendar', 'Calendar', '/calendar', 'calendar'),
+  more('docs', 'Docs & decisions', '/docs', 'file'),
+  more('files', 'Files & approvals', '/inbox', 'files'),
+  more('people', 'People', '/people', 'users'),
+  more('insights', 'Insights', '/insights', 'barChart'),
 ];
 
 /** ph-more's TOOLS & ACCOUNT row. Help is the public help centre, not an org route. */
 export const MORE_TOOLS_NAVIGATION: readonly MoreSheetItem[] = [
-  more('automations', 'Automations', '/automations', '⟳'),
-  more('search', 'Search', '/search', '⌕'),
-  more('settings', 'Settings', '/settings', '⚙'),
-  more('help', 'Help', '/faq', '?', true),
+  more('automations', 'Automations', '/automations', 'zap'),
+  more('search', 'Search', '/search', 'search'),
+  more('settings', 'Settings', '/settings', 'settings'),
+  more('help', 'Help', '/faq', 'help', true),
 ];
 
 /** The client portal. A separate space, not a filtered view of the one above. */
 export const CLIENT_NAVIGATION: readonly NavigationItem[] = [
-  { id: 'overview', label: 'Overview', messageKey: 'nav.overview', href: '/portal', glyph: '◉' },
+  {
+    id: 'overview',
+    label: 'Overview',
+    messageKey: 'nav.overview',
+    href: '/portal',
+    icon: 'layoutDashboard',
+  },
   {
     id: 'actions',
     label: 'My Actions',
     messageKey: 'nav.actions',
     href: '/portal/actions',
-    glyph: '◍',
+    icon: 'squareCheck',
   },
   {
     id: 'deliverables',
     label: 'Deliverables',
     messageKey: 'nav.deliverables',
     href: '/portal/deliverables',
-    glyph: '▦',
+    icon: 'package',
   },
   {
     id: 'timeline',
     label: 'Timeline',
     messageKey: 'nav.timeline',
     href: '/portal/timeline',
-    glyph: '▥',
+    icon: 'gantt',
   },
   {
     id: 'updates',
     label: 'Updates',
     messageKey: 'nav.updates',
     href: '/portal/updates',
-    glyph: '▤',
+    icon: 'megaphone',
   },
-  { id: 'risks', label: 'Risks', messageKey: 'nav.risks', href: '/portal/risks', glyph: '◭' },
-  { id: 'files', label: 'Files', messageKey: 'nav.files', href: '/portal/files', glyph: '▧' },
-  { id: 'people', label: 'People', messageKey: 'nav.people', href: '/portal/people', glyph: '◎' },
+  { id: 'risks', label: 'Risks', messageKey: 'nav.risks', href: '/portal/risks', icon: 'alert' },
+  { id: 'files', label: 'Files', messageKey: 'nav.files', href: '/portal/files', icon: 'files' },
+  {
+    id: 'people',
+    label: 'People',
+    messageKey: 'nav.people',
+    href: '/portal/people',
+    icon: 'users',
+  },
 ];

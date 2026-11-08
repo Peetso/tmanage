@@ -7,6 +7,7 @@ import { QueryClient, QueryClientContext, useQuery } from '@tanstack/react-query
 import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import type { Capability } from '@tmanage/domain';
 import { Wordmark } from '../brand/Wordmark';
+import { NavIcon, type PhoneIconName } from '../icons/phone';
 import { BetaTag } from '../shell/BetaTag';
 import { MaintenanceBanner } from '../screens/MaintenanceBanner';
 import { CommandPalette } from '../screens/CommandPalette';
@@ -227,6 +228,38 @@ const GROUPS: readonly SectionGroup[] = [
 ];
 
 /**
+ * R38 G3 (Figma "R38 G3-icons"): each menu entry leads with the line icon that means its page, so
+ * Security reads as a shield and Billing as a card. Keyed by entry id; an entry without one is
+ * drawn with its word alone.
+ */
+export const SECTION_ICONS: Partial<Record<ControlCenterSection, PhoneIconName>> = {
+  overview: 'layoutDashboard',
+  members: 'users',
+  roles: 'key',
+  'client-organizations': 'handshake',
+  invitations: 'userPlus',
+  templates: 'layoutTemplate',
+  fields: 'tag',
+  automations: 'zap',
+  integrations: 'puzzle',
+  'connected-apps': 'plug',
+  security: 'shield',
+  incidents: 'alert',
+  audit: 'listChecks',
+  data: 'database',
+  storage: 'cloud',
+  privacy: 'lock',
+  organization: 'building',
+  billing: 'creditCard',
+  finance: 'receipt',
+};
+
+function SectionIcon({ id }: { id: ControlCenterSection }) {
+  const icon = SECTION_ICONS[id];
+  return icon ? <NavIcon name={icon} size={16} className="tm-cc-sections__icon" /> : null;
+}
+
+/**
  * Sub-pages the frame's menu does not list are reached from their parent page; the parent stays
  * marked while one is open, so the menu always says where the person is.
  */
@@ -288,6 +321,7 @@ function SectionItem({
     return (
       <li>
         <span className="tm-cc-sections__item tm-cc-sections__item--static">
+          <SectionIcon id={item.id} />
           {t(item.labelKey)}
         </span>
       </li>
@@ -303,6 +337,7 @@ function SectionItem({
         prefetch={false}
         {...(current ? { 'aria-current': 'page' as const } : {})}
       >
+        <SectionIcon id={item.id} />
         {t(item.labelKey)}
         {item.id === 'storage' ? (
           <StorageProviderBadge organizationSlug={organizationSlug} />

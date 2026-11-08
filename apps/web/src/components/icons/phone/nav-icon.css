@@ -1,0 +1,10 @@
+/* R38 G3: a menu entry's line icon (NavIcon). Decorative, sized by its `width`/`height`. */
+.tm-nav-icon {
+  display: block;
+  flex: none;
+}
+
+/* Arrows, chevrons, send and sign-out point along the reading direction: mirror them in RTL. */
+.tm-nav-icon[data-mirror='rtl']:dir(rtl) {
+  transform: scaleX(-1);
+}

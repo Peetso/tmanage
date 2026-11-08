@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { QueryClientContext } from '@tanstack/react-query';
 import { Badge, LiveAnnouncer, SkipLink, StatusDot } from '@tmanage/ui';
 import { Wordmark } from '../brand/Wordmark';
+import { NavIcon } from '../icons/phone';
 import { CLIENT_NAVIGATION } from './navigation';
 import { usePortalPreview } from '../../lib/portal-preview';
 import type { MessageKey } from '../../lib/i18n/t';
@@ -178,7 +179,7 @@ export function ClientPortalShell({
                       {...(current ? { 'aria-current': 'page' as const } : {})}
                     >
                       <span className="tm-portal__nav-glyph" aria-hidden="true">
-                        {item.glyph}
+                        <NavIcon name={item.icon} size={16} />
                       </span>
                       {t(item.messageKey)}
                     </Link>

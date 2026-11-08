@@ -10,7 +10,8 @@ describe('phone shell (Figma 405:6575)', () => {
     const icons = [...nav.querySelectorAll('svg.tm-phone-icon')].map((svg) =>
       svg.getAttribute('data-icon'),
     );
-    expect(icons).toEqual(['home', 'inbox', 'chat', 'work', 'more']);
+    // R38 G3: the tabs draw the icon that means the page (My Day is a sun, Work a checked box).
+    expect(icons).toEqual(['sun', 'inbox', 'messages', 'squareCheck', 'more']);
     const capture = screen.getByRole('link', { name: 'Quick capture' });
     expect(capture.querySelector('svg')).toHaveAttribute('data-icon', 'plus');
     render(<PhoneHeaderActions organizationSlug="northstar" initials="OA" />);

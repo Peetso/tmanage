@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { QueryClientContext, useQuery } from '@tanstack/react-query';
 import { Badge } from '@tmanage/ui';
+import { NavIcon, type PhoneIconName } from '../icons/phone';
 import { browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
 import { listPortalProjects, listPortalWorkItems, type PortalProject } from '../../lib/api/portal';
@@ -47,7 +48,8 @@ interface PortalMenuEntry {
   readonly key: string;
   readonly english: string;
   readonly href: string;
-  readonly glyph: string;
+  /** The line icon that means the destination (R38 G3). */
+  readonly icon: PhoneIconName;
   /** The `CLIENT_NAVIGATION` ids this entry is current for. */
   readonly current: readonly string[];
 }
@@ -59,7 +61,7 @@ export const PORTAL_MENU_ENTRIES: readonly PortalMenuEntry[] = [
     key: 'PortalMenu.home',
     english: 'Home',
     href: '/portal',
-    glyph: '⌂',
+    icon: 'home',
     current: ['overview'],
   },
   {
@@ -67,7 +69,7 @@ export const PORTAL_MENU_ENTRIES: readonly PortalMenuEntry[] = [
     key: 'PortalMenu.approvals',
     english: 'Approvals',
     href: '/portal/actions',
-    glyph: '◈',
+    icon: 'badgeCheck',
     current: ['actions', 'deliverables'],
   },
   {
@@ -75,7 +77,7 @@ export const PORTAL_MENU_ENTRIES: readonly PortalMenuEntry[] = [
     key: 'PortalMenu.requests',
     english: 'Requests',
     href: '/portal/requests',
-    glyph: '◷',
+    icon: 'clipboardList',
     current: ['requests'],
   },
   {
@@ -83,7 +85,7 @@ export const PORTAL_MENU_ENTRIES: readonly PortalMenuEntry[] = [
     key: 'PortalMenu.files',
     english: 'Files',
     href: '/portal/files',
-    glyph: '⇧',
+    icon: 'files',
     current: ['files'],
   },
   {
@@ -91,7 +93,7 @@ export const PORTAL_MENU_ENTRIES: readonly PortalMenuEntry[] = [
     key: 'PortalMenu.messages',
     english: 'Messages',
     href: '/portal/inbox',
-    glyph: '✉',
+    icon: 'mail',
     current: ['inbox', 'updates'],
   },
   {
@@ -100,7 +102,7 @@ export const PORTAL_MENU_ENTRIES: readonly PortalMenuEntry[] = [
     key: 'PortalMenu.chat',
     english: 'Chat',
     href: '/portal/chat',
-    glyph: '◌',
+    icon: 'messages',
     current: ['chat'],
   },
 ];
@@ -280,7 +282,7 @@ function PortalMenuCard({
                 onClick={() => onClose(false)}
               >
                 <span className="tm-portal-menu__glyph" aria-hidden="true">
-                  {entry.glyph}
+                  <NavIcon name={entry.icon} size={16} />
                 </span>
                 <span className="tm-portal-menu__label">{tOr(entry.key, entry.english)}</span>
                 {entry.id === 'approvals' && queryClient ? (
@@ -305,7 +307,7 @@ function PortalMenuCard({
             onClick={() => setLanguagesOpen((value) => !value)}
           >
             <span className="tm-portal-menu__glyph" aria-hidden="true">
-              ◑
+              <NavIcon name="languages" size={16} />
             </span>
             <span className="tm-portal-menu__label">{tOr('LanguagePicker.label', 'Language')}</span>
           </button>
@@ -325,7 +327,7 @@ function PortalMenuCard({
                   }}
                 >
                   <span className="tm-portal-menu__glyph" aria-hidden="true">
-                    {value === locale ? '✓' : ''}
+                    {value === locale ? <NavIcon name="check" size={16} /> : null}
                   </span>
                   <span className="tm-portal-menu__label">{localeNativeName(value)}</span>
                   {isBetaLocale(value) ? <Badge>{tOr('LanguagePicker.beta', 'Beta')}</Badge> : null}
@@ -343,7 +345,7 @@ function PortalMenuCard({
             }}
           >
             <span className="tm-portal-menu__glyph" aria-hidden="true">
-              ⎋
+              <NavIcon name="logOut" size={16} />
             </span>
             <span className="tm-portal-menu__label">
               {signingOut

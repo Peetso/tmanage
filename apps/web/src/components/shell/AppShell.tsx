@@ -7,6 +7,7 @@ import { QueryClientContext, useQuery } from '@tanstack/react-query';
 import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import { Wordmark } from '../brand/Wordmark';
 import { CONTROL_CENTER_NAVIGATION, INTERNAL_NAVIGATION } from './navigation';
+import { NavIcon } from '../icons/phone';
 import { MobilePrimaryNav } from './MobilePrimaryNav';
 import { PhoneHeaderActions } from './PhoneHeaderActions';
 import { MaintenanceBanner } from '../screens/MaintenanceBanner';
@@ -139,7 +140,7 @@ function ControlCenterOrb({
       {...(current ? { 'aria-current': 'page' as const } : {})}
     >
       <span className="tm-rail__orb" aria-hidden="true">
-        {CONTROL_CENTER_NAVIGATION.glyph}
+        <NavIcon name={CONTROL_CENTER_NAVIGATION.icon} />
       </span>
       <span className="tm-rail__label">{t(CONTROL_CENTER_NAVIGATION.messageKey)}</span>
     </Link>
@@ -254,7 +255,7 @@ export function AppShell({
                       {...(current ? { 'aria-current': 'page' as const } : {})}
                     >
                       <span className="tm-rail__orb" aria-hidden="true">
-                        {item.glyph}
+                        <NavIcon name={item.icon} />
                       </span>
                       <span className="tm-rail__label">{t(item.messageKey)}</span>
                     </Link>

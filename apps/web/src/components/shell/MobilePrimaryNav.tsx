@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { QueryClientContext, useQuery } from '@tanstack/react-query';
 import { MOBILE_DESTINATIONS, MOBILE_MORE_ITEM } from './navigation';
 import { MoreSheet, OrbBadge } from './MoreSheet';
-import { PhoneIcon } from '../icons/phone';
+import { NavIcon, PhoneIcon } from '../icons/phone';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listInbox } from '../../lib/api/inbox';
 import { useIsMobile } from '../../lib/hooks/useIsMobile';
@@ -109,9 +109,9 @@ export function MobilePrimaryNav({
                 >
                   <span className="tm-mobile-nav__orb">
                     <span className="tm-mobile-nav__glyph" aria-hidden="true">
-                      {item.glyph}
+                      <NavIcon name={item.icon} />
                     </span>
-                    {item.phoneIcon ? <PhoneIcon name={item.phoneIcon} /> : null}
+                    <PhoneIcon name={item.icon} />
                     {isInbox ? inboxBadge : null}
                   </span>
                   <span className="tm-mobile-nav__label">{t(item.messageKey)}</span>
@@ -131,8 +131,10 @@ export function MobilePrimaryNav({
               onClick={() => setMoreOpen((open) => !open)}
             >
               <span className="tm-mobile-nav__orb" aria-hidden="true">
-                <span className="tm-mobile-nav__glyph">{MOBILE_MORE_ITEM.glyph}</span>
-                <PhoneIcon name="more" />
+                <span className="tm-mobile-nav__glyph">
+                  <NavIcon name={MOBILE_MORE_ITEM.icon} />
+                </span>
+                <PhoneIcon name={MOBILE_MORE_ITEM.icon} />
               </span>
               <span className="tm-mobile-nav__label">
                 {tOr(MOBILE_MORE_ITEM.messageKey, MOBILE_MORE_ITEM.label)}

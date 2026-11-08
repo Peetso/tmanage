@@ -3,6 +3,7 @@
 import { useContext, useEffect, useId, useRef } from 'react';
 import Link from 'next/link';
 import { QueryClientContext, useQuery } from '@tanstack/react-query';
+import { NavIcon } from '../icons/phone';
 import { MORE_TOOLS_NAVIGATION, MORE_WORKSPACE_NAVIGATION, type MoreSheetItem } from './navigation';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listClientRequestRecords } from '../../lib/api/client-requests';
@@ -135,7 +136,9 @@ export function MoreSheet({ id, organizationSlug, onClose, requestsCount }: More
           {...(isRequests && requestsBadge ? { 'aria-describedby': requestsBadgeId } : {})}
         >
           <span className="tm-more__orb">
-            <span aria-hidden="true">{item.glyph}</span>
+            <span aria-hidden="true">
+              <NavIcon name={item.icon} />
+            </span>
             {isRequests ? requestsBadge : null}
           </span>
           <span className="tm-more__label">{tOr(item.messageKey, item.label)}</span>

@@ -131,6 +131,16 @@
   cursor: default;
 }
 
+/* R38 G3: the entry's line icon, before the word (after it in Arabic, by logical margin). */
+.tm-cc-sections__icon {
+  margin-inline-end: var(--s2);
+  color: var(--ink-650);
+}
+
+.tm-cc-sections__item[aria-current='page'] .tm-cc-sections__icon {
+  color: currentColor;
+}
+
 /* 0236 (Figma 395:5683): the Storage entry's provider badge, at the entry's far end. */
 .tm-cc-sections__badge {
   margin-inline-start: auto;
