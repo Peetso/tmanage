@@ -13367,3 +13367,33 @@ export const templatePacks = mysqlTable(
 export type TemplatePackRow = typeof templatePacks.$inferSelect;
 
 Object.assign(TABLES, { template_packs: templatePacks });
+
+// ---- R41 · 54-01 connector framework (0328) ----
+
+/**
+ * 0328 (54-01). One registered connector a workspace has installed. The registry lives in code
+ * (`connectors/connectors.catalog.ts`); this row records the install and, for an API-key
+ * connector, the token vault's envelope of the key (`credential_enc`, never plaintext) with its
+ * last four characters. TENANT: keyed `(organization_id, id)`; `(organization_id, connector_key)`
+ * is unique, so a connector installs once.
+ */
+export const connectorInstallations = mysqlTable(
+  'connector_installations',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    connectorKey: varchar('connector_key', { length: 64 }).notNull(),
+    credentialEnc: text('credential_enc'),
+    credentialHint: varchar('credential_hint', { length: 8 }),
+    installedBy: char('installed_by', { length: 36 }).notNull(),
+    installedAt: datetime('installed_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_connector_installations_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_connector_installations_org_key').on(table.organizationId, table.connectorKey),
+  ],
+);
+
+export type ConnectorInstallationRow = typeof connectorInstallations.$inferSelect;
+
+Object.assign(TABLES, { connector_installations: connectorInstallations });

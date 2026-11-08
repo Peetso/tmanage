@@ -130,6 +130,7 @@ import { PersonalAccessTokensModule } from './modules/personal-access-tokens/per
 import { GoogleDriveModule } from './modules/google-drive/google-drive.controller.js';
 import { OneDriveModule } from './modules/onedrive/onedrive.controller.js';
 import { FigmaModule } from './modules/figma/figma.module.js';
+import { ConnectorsModule } from './modules/connectors/connectors.module.js';
 import { GoogleCalendarModule } from './modules/google-calendar/google-calendar.controller.js';
 import { MicrosoftCalendarModule } from './modules/microsoft-calendar/microsoft-calendar.controller.js';
 import { McpEndpointModule } from './modules/mcp/mcp-endpoint.controller.js';
@@ -1131,6 +1132,8 @@ export class AppModule {
         // R4 slice 13. Figma links in the proofing viewer: each member's own personal access token,
         // links and frame snapshots. Always registered; nothing in the environment is required.
         FigmaModule.register(),
+        // 54-01. The connector framework over the token vault (owner/admin install/uninstall).
+        ConnectorsModule.register(),
         // 0237. Each person's own Google Calendar + Meet for meetings. Global: it provides the
         // calendar port the meetings services push through. Without a Google client in the
         // environment the routes answer "not configured" and meetings stay TManage-only.

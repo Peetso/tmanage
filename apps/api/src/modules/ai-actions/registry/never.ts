@@ -1971,6 +1971,27 @@ export const NEVER: readonly NeverEntry[] = [
     method: 'POST',
     path: '/v1/platform/support/threads/:threadId/status',
     reason: 'platform_admin',
+  }, // 54-01. The connector framework: registry state, install (a credential into the vault) and
+  // uninstall, owner/admin only.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/connectors/',
+    reason: 'connector_installation',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/connectors/:connectorKey',
+    reason: 'connector_installation',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/connectors/:connectorKey/install',
+    reason: 'connector_installation',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/connectors/:connectorKey',
+    reason: 'connector_installation',
   },
 ];
 

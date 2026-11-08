@@ -1909,6 +1909,12 @@ GRANT INSERT, DELETE         ON `tmanage`.`support_messages` TO 'tmanage_app'@'%
 -- for the company erasure. SELECT rides the database-wide read.
 GRANT INSERT, DELETE ON `tmanage`.`template_packs` TO 'tmanage_app'@'%';
 
+-- ---- R41 · 54-01 connector framework ----
+-- 0328 `connector_installations` (tenant): one row inserted per installed connector (its credential
+-- as a token-vault envelope); uninstall DELETEs it. Never amended. DELETE also for the company
+-- erasure. SELECT rides the database-wide read.
+GRANT INSERT, DELETE ON `tmanage`.`connector_installations` TO 'tmanage_app'@'%';
+
 -- ---- 52-08 · quotes ----
 -- 0259 `quotes` (tenant): created, edited while draft, sent and decided (UPDATE); DELETE only for
 -- the company erasure. SELECT rides the database-wide read.

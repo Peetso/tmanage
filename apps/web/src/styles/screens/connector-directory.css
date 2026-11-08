@@ -1,0 +1,136 @@
+/*
+ * 54-01 Connected apps v2 > Connectors — Figma R41 L2-54-01 (EN 568:33186, AR 568:33302; install
+ * card EN 568:33286, AR 568:33402). Tokens only; logical properties so the Arabic frame mirrors
+ * through the document direction.
+ */
+
+.tm-connectors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  color: var(--ink-950);
+}
+
+/* Heading/Section. */
+.tm-connectors__title {
+  margin: 0;
+  font-size: var(--t-heading-section);
+  line-height: var(--t-heading-section-line);
+  font-weight: 600;
+}
+
+/* Body/MD, secondary. */
+.tm-connectors__hint,
+.tm-connectors__install-body {
+  margin: 0;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+.tm-connectors__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+
+.tm-connectors__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s4) var(--s6);
+}
+
+.tm-connectors__row + .tm-connectors__row {
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-connectors__monogram {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 40px;
+  block-size: 40px;
+  background: var(--lime-100);
+  border-radius: var(--r-compact);
+  font-size: var(--t-ui-md);
+  font-weight: 600;
+}
+
+.tm-connectors__identity {
+  display: flex;
+  flex: 1 1 0;
+  min-inline-size: 0;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+/* UI/MD. */
+.tm-connectors__name {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 600;
+}
+
+/* UI/SM, secondary. */
+.tm-connectors__what {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+/* The text-tone action: "Manage" goes to the built-in connection's own card. */
+.tm-connectors__manage {
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-control);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 600;
+  color: var(--ink-950);
+  text-decoration: none;
+}
+
+.tm-connectors__manage:hover {
+  background: var(--paper-150);
+}
+
+/* The install card (API key). */
+.tm-connectors__install {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  max-inline-size: 560px;
+  padding: var(--s6);
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+}
+
+.tm-connectors__install-title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+}
+
+.tm-connectors__install-access {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-500);
+}
+
+.tm-connectors__install-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s2);
+}

@@ -1312,6 +1312,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0325. Tenant-owned: which built-in template packs one organization has installed. Written by
   // the pack install (one row per pack); read by the template-packs gallery.
   template_packs: 'organization_id',
+  // ---- R41 · 54-01 ----
+  // 0328. Tenant-owned: which registered connectors one organization has installed, with the
+  // token vault's envelope of an API-key connector's credential. Written by install/uninstall.
+  connector_installations: 'organization_id',
 });
 
 /**

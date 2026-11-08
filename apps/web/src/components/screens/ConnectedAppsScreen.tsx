@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { ConnectAppsCards } from './ConnectAppsCards';
+import { ConnectorDirectory } from './ConnectorDirectory';
 import { FigmaConnectCard } from './FigmaConnectCard';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -23,9 +24,12 @@ import {
   scopeLabelKey,
 } from '../../lib/connected-apps-presentation';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
-import { useOrganizationName } from '../../lib/use-organization-names';
+import { useOrganizationName, useOrganizationRole } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/connected-apps.css';
+
+/** The built-in connection cards, which a built-in connector's "Manage" scrolls to. */
+const CONNECT_CARDS_ID = 'connect-apps';
 
 export interface ConnectedAppsScreenProps {
   organizationSlug: string;
@@ -54,6 +58,12 @@ export function ConnectedAppsScreen({
   const t = useT();
   const locale = useActiveLocale();
   const queryKey = ['connected-apps', organizationSlug];
+  // 54-01: the connector directory is owner/admin only (`org.manage`), as its routes are.
+  const role = useOrganizationRole(organizationSlug);
+  const managesCompany =
+    role.known &&
+    (['owner', 'org_admin', 'admin'].includes(role.role ?? '') ||
+      (role.capabilities ?? []).includes('org.manage'));
 
   const view = useQuery({ queryKey, queryFn: () => getConnectedApps(api, organizationSlug) });
 
@@ -84,7 +94,17 @@ export function ConnectedAppsScreen({
     >
       <div className="tm-connected">
         {/* R37: the one-click app cards (calendars, company storage) come first. */}
-        <ConnectAppsCards api={api} organizationSlug={organizationSlug} />
+        <div id={CONNECT_CARDS_ID}>
+          <ConnectAppsCards api={api} organizationSlug={organizationSlug} />
+        </div>
+        {/* 54-01 Connected apps v2: every registered connector with its install state. */}
+        {managesCompany ? (
+          <ConnectorDirectory
+            api={api}
+            organizationSlug={organizationSlug}
+            builtInAnchor={CONNECT_CARDS_ID}
+          />
+        ) : null}
         {view.isPending ? (
           <LoadingRegion label={t('ConnectedApps.loading')}>
             <Skeleton height="320px" radius="var(--r-card)" />

@@ -106,6 +106,9 @@ export const NEVER_REASONS = [
   // 55-17. In-app support conversations with the TManage platform team: a person-to-team channel
   // (the member's own message, the context they saw) that an AI must not write on their behalf.
   'support_conversation',
+  // 54-01. The connector framework: installing a connector stores a third-party credential in the
+  // token vault; listing and uninstalling are owner/admin settings no AI op may drive.
+  'connector_installation',
 ] as const;
 export type NeverReason = (typeof NEVER_REASONS)[number];
 
