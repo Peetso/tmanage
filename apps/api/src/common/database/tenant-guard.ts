@@ -1352,6 +1352,9 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   'user_mfa_factors',
   'user_recovery_codes',
   'authentication_events',
+  // 56-22 (0329). Passkeys: a person's WebAuthn credentials, read on the public sign-in path
+  // before any tenant exists — global for the reason the other credentials are.
+  'user_passkeys',
   // D05d. The notice queue that tells an account holder their credentials changed. Global
   // for the same reason the credentials are: the change it describes is not a fact about
   // one tenant, and it is written on the identity path, before any tenant exists. It is

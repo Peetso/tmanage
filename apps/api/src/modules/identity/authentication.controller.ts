@@ -36,6 +36,7 @@ import { countRecentAttemptsByIp } from './credentials.repository.js';
 import { IP_INTELLIGENCE } from './geo/geo.module.js';
 import type { IpIntelligenceService } from './geo/ip-intelligence.service.js';
 import { parseClientSignals, scoreAutomation } from './geo/automation-signal.js';
+import { notifyIfNewDevice } from './passkeys/new-device-notice.js';
 
 /**
  * `D05`. The header a credential-changing request carries its re-authentication token in.
@@ -332,6 +333,15 @@ export class AuthenticationController {
       // R12 (0280): `sessions.sign_in_event_id` = this request's succeeded sign-in row.
       linkSignInEvent: true,
     });
+    // 56-22. "A new device signed in" on the credential-notice outbox; best effort, never throws.
+    if (this.database) {
+      await notifyIfNewDevice(this.database, {
+        userId,
+        sessionId: established.sessionId,
+        userAgent: typeof userAgent === 'string' ? userAgent : null,
+        correlationId,
+      });
+    }
     reply.header('set-cookie', established.cookies);
     return {
       status: 'authenticated',

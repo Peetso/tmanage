@@ -58,6 +58,10 @@ const CHANGED_BY_ACTION: Readonly<Record<string, string>> = {
   mfa_factor_enrolled: 'A two-factor authentication method was added to your account.',
   mfa_factor_disabled: 'A two-factor authentication method was removed from your account.',
   recovery_codes_issued: 'A new set of recovery codes was issued for your account.',
+  // 56-22. Passkeys and the new-device sign-in notice.
+  passkey_added: 'A passkey was added to your account.',
+  passkey_removed: 'A passkey was removed from your account.',
+  new_device_sign_in: 'Your account was signed in to from a device it has not used before.',
 };
 
 /** The subject line per action — short, and specific enough to read in a notification bar. */
@@ -66,6 +70,9 @@ const SUBJECT_BY_ACTION: Readonly<Record<string, string>> = {
   mfa_factor_enrolled: 'Two-factor authentication was added to your TManage account',
   mfa_factor_disabled: 'Two-factor authentication was removed from your TManage account',
   recovery_codes_issued: 'New TManage recovery codes were issued',
+  passkey_added: 'A passkey was added to your TManage account',
+  passkey_removed: 'A passkey was removed from your TManage account',
+  new_device_sign_in: 'New device signed in to your TManage account',
 };
 
 /**

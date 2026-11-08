@@ -13467,3 +13467,41 @@ export const ssoSamlRequests = mysqlTable(
 export type SsoSamlRequestRow = typeof ssoSamlRequests.$inferSelect;
 
 Object.assign(TABLES, { sso_saml_requests: ssoSamlRequests });
+
+// ---- R42 · 56-22 passkeys (0329) ----
+
+/**
+ * 0329 (56-22). A person's passkeys (WebAuthn credentials): only public material — the credential
+ * id (and its SHA-256 for the unique lookup), the public key as base64url SPKI with its COSE
+ * algorithm, the authenticator's sign counter and the issue time of the last challenge answered
+ * (single-use challenges). GLOBAL like `user_mfa_factors`; soft-removed via `removed_at`.
+ */
+export const userPasskeys = mysqlTable(
+  'user_passkeys',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    credentialId: text('credential_id').notNull(),
+    credentialIdHash: char('credential_id_hash', { length: 64 }).notNull(),
+    publicKey: text('public_key').notNull(),
+    alg: smallint('alg').notNull(),
+    signCount: bigint('sign_count', { mode: 'number', unsigned: true }).notNull().default(0),
+    lastChallengeAt: bigint('last_challenge_at', { mode: 'number', unsigned: true })
+      .notNull()
+      .default(0),
+    name: varchar('name', { length: 100 }).notNull(),
+    transports: varchar('transports', { length: 200 }),
+    backedUp: boolean('backed_up').notNull().default(false),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    lastUsedAt: datetime('last_used_at', { mode: 'date', fsp: 3 }),
+    removedAt: datetime('removed_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_user_passkeys_credential').on(table.credentialIdHash),
+    index('ix_user_passkeys_user').on(table.userId, table.removedAt),
+  ],
+);
+
+export type UserPasskeyRow = typeof userPasskeys.$inferSelect;
+
+Object.assign(TABLES, { user_passkeys: userPasskeys });

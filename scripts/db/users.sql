@@ -1211,6 +1211,11 @@ GRANT INSERT, UPDATE ON `tmanage`.`password_reset_tokens` TO 'tmanage_app'@'%';
 -- UPDATE (`last_used_at` on each sign-in). No DELETE: unlinking is not built, and a person's
 -- removal cascades from `users`. The worker holds nothing here.
 GRANT INSERT, UPDATE ON `tmanage`.`user_identities`      TO 'tmanage_app'@'%';
+-- 0329 passkeys (56-22). INSERT (a passkey is registered), UPDATE (sign counter, last challenge,
+-- last use on each sign-in; soft removal via `removed_at`). No DELETE: a removed passkey stays as
+-- evidence like the other credential tables; a person's own deletion cascades from `users`. The
+-- worker holds nothing here.
+GRANT INSERT, UPDATE ON `tmanage`.`user_passkeys`        TO 'tmanage_app'@'%';
 -- 0206 platform admin (the TManage operator, /platform). Step-ups: INSERT only — a confirmation
 -- expires, it is never amended. The platform audit log: INSERT only, append-only like
 -- `audit_events`. Settings: INSERT and UPDATE (the one switch is an upsert). No DELETE anywhere,

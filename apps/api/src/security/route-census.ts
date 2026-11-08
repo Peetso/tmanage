@@ -45,6 +45,11 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'POST /v1/auth/sso/start': 'pending named budget: starts a redirect, signed state cookie',
   'GET /v1/auth/sso/callback': 'OIDC callback: signed single-use state and nonce',
   'POST /v1/auth/sso/mfa': 'pending named budget: needs the pending-MFA cookie',
+  // 56-22 passkey sign-in: per-address limiter (60 per 10 minutes), signed single-use challenge.
+  'POST /v1/auth/passkey/options':
+    'pending named budget: in-controller per-address limiter; signed challenge, no I/O',
+  'POST /v1/auth/passkey/':
+    'pending named budget: in-controller per-address limiter; single-use challenge, WebAuthn assertion',
   'GET /v1/integrations/google-calendar/callback': 'OAuth callback: single-use state',
   'GET /v1/integrations/google-drive/callback': 'OAuth callback: single-use state',
   'GET /v1/integrations/microsoft-calendar/callback': 'OAuth callback: single-use state',
@@ -112,6 +117,12 @@ export const SESSION_ONLY_ROUTES: Readonly<Record<string, string>> = {
   'GET /v1/auth/factors': 'own second factors',
   'GET /v1/auth/security-activity': 'own sign-in history',
   'DELETE /v1/auth/factors/:factorId': 'own second factor',
+  'GET /v1/auth/passkeys': 'own passkeys',
+  'POST /v1/auth/passkeys/options': 'own passkey registration challenge',
+  'POST /v1/auth/passkeys': 'own passkey (fresh proof)',
+  'DELETE /v1/auth/passkeys/:passkeyId': 'own passkey (fresh proof, else 404)',
+  'GET /v1/auth/security-score': 'own security score',
+  'GET /v1/auth/security-devices': 'own devices',
   'POST /v1/auth/recovery-codes': 'own recovery codes',
   'DELETE /v1/sessions/current': 'own session',
   'GET /v1/sessions/current/devices': 'own devices',

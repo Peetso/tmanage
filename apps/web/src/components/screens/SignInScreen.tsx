@@ -23,6 +23,7 @@ import type { MessageKey } from '../../lib/i18n/t';
 import { takeGooglePendingMfa } from '../../lib/api/google-auth';
 import { takeSsoPendingMfa } from '../../lib/api/sso';
 import { CompanySignInButton, companySignInError } from './CompanySignInButton';
+import { PasskeySignInButton } from './PasskeySignInButton';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import {
   GoogleErrorMessage,
@@ -404,6 +405,14 @@ export function SignInScreen({
               setFailure(undefined);
             }}
             required
+          />
+          {/* 56-22 (Figma R42 L1 573:32517): passkey sign-in, no email needed. */}
+          <PasskeySignInButton
+            api={api}
+            onSignedIn={() => {
+              attempted.current = true;
+              signedIn();
+            }}
           />
           {/* 54-14 (Figma R41 L1 568:33048): company sign-in by the typed work email. */}
           <CompanySignInButton api={api} email={() => email} />

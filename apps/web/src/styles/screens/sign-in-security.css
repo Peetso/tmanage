@@ -1,0 +1,122 @@
+/*
+ * Sign-in security (56-22) — Figma R42 L1 section 572:32481 (EN 572:32482, AR 572:32562).
+ * Security score, passkeys and signed-in devices. TManage tokens only; logical properties so the
+ * Arabic page mirrors on its own. Builds on the `.tm-sec` cards of access-security.css.
+ */
+
+.tm-sis-score {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s4);
+}
+
+.tm-sis-score__value {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s1);
+  margin: 0;
+  font-size: 40px;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-sis-score__of {
+  font-size: var(--t-ui-md);
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+.tm-sis-checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-sis-check {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-950);
+}
+
+.tm-sis-check__label {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-sis-check__mark {
+  font-weight: 600;
+  color: var(--success-600);
+}
+
+.tm-sis-check__mark--open {
+  color: var(--warning-600);
+}
+
+.tm-sis-check__fix {
+  font-size: var(--t-ui-sm);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-sis-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-sis-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.tm-sis-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-inline-size: 0;
+}
+
+.tm-sis-row__name {
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  font-weight: 600;
+  color: var(--ink-950);
+  unicode-bidi: plaintext;
+}
+
+.tm-sis-row__meta {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-sis-pill {
+  padding: var(--s1) 10px;
+  border-radius: var(--r-capsule);
+  background: var(--lime-100);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-950);
+  white-space: nowrap;
+}
+
+.tm-sis-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
