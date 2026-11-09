@@ -132,7 +132,12 @@ describe('MessageAttachmentsService file resolution', () => {
   it('FIX4: a verified file no scanner judged is attachable without a scanner, but not under Block with one', async () => {
     const files = {
       findById: async () =>
-        ({ id: FILE, organizationId: ORG, status: 'scanning', projectId: null }) as FileAssetRow,
+        ({
+          id: FILE,
+          organizationId: ORG,
+          status: 'scanning',
+          projectId: null,
+        }) as unknown as FileAssetRow,
       findLatestVersion: async () =>
         ({
           detectedMimeType: 'text/csv',

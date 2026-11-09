@@ -75,10 +75,10 @@ async function refusal(promise: Promise<unknown>): Promise<ApiError> {
 }
 
 describe('56-06 file safety settings', () => {
-  it('reads the defaults: every preset but archives, the plan cap, scanned-only with a scanner', async () => {
+  it('reads the defaults: every preset (archives on since FIX5), the plan cap, scanned-only with a scanner', async () => {
     const view = await build({ kind: 'engine' }).controller.read(context, principal('owner'));
     expect(view).toMatchObject({
-      presets: ['documents', 'images', 'design', 'video'],
+      presets: ['documents', 'images', 'design', 'video', 'archives'],
       requireScanForClients: true,
       scannerPresent: true,
     });
@@ -115,7 +115,7 @@ describe('56-06 file safety settings', () => {
       {
         action: 'org.file_safety_changed',
         metadata: {
-          presets_before: ['documents', 'images', 'design', 'video'],
+          presets_before: ['documents', 'images', 'design', 'video', 'archives'],
           presets_after: ['documents', 'archives'],
           require_scan_before: true,
           require_scan_after: false,

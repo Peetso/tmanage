@@ -27,8 +27,8 @@ import { CONTRACT_MAX_SIZE_BYTES } from './upload-input.js';
  * 3. **Size** — the caller's cap (the plan's, never above the contract's 5 GiB); a client is
  *    capped at 100 MB whatever the plan says.
  * 4. **Type** — the extension (or, with no known extension, the declared type) must fall in one
- *    of the organization's enabled presets. Archives are a preset of their own and OFF by
- *    default (`archive_off`).
+ *    of the organization's enabled presets. Archives are a preset of their own, ON by default
+ *    since FIX5 (an organization that switched them off is refused with `archive_off`).
  * 5. **Channel** — a public form admits images and PDF only; inbound mail admits images, PDF and
  *    macro-free OOXML; neither ever admits an archive, whatever the presets say
  *    (56 §11.6: archives and Office never from anonymous visitors).
@@ -41,12 +41,19 @@ import { CONTRACT_MAX_SIZE_BYTES } from './upload-input.js';
 export const FILE_TYPE_PRESETS = ['documents', 'images', 'design', 'video', 'archives'] as const;
 export type FileTypePreset = (typeof FILE_TYPE_PRESETS)[number];
 
-/** Every preset but archives: a new organization never accepts an archive until it opts in. */
+/**
+ * Every preset, archives included. FIX5 item 3 (live check fd145807, B-N3): agencies send ZIPs
+ * all the time and no screen could switch archives on, so every ZIP was refused. A ZIP is still
+ * opened for a `vbaProject.bin` (macro Office), never accepted from a public form or inbound mail
+ * (rule 5), and opens in the listing viewer. An organization that saved a preset list without
+ * archives keeps its choice.
+ */
 export const DEFAULT_PRESETS: readonly FileTypePreset[] = [
   'documents',
   'images',
   'design',
   'video',
+  'archives',
 ];
 
 /** The door a file arrives through. */
@@ -157,7 +164,7 @@ const BY_EXTENSION: Readonly<Record<string, TypeEntry>> = {
   wav: { preset: 'video', mime: 'audio/wav' },
   ogg: { preset: 'video', mime: 'audio/ogg' },
   flac: { preset: 'video', mime: 'audio/flac' },
-  // archives — OFF by default
+  // archives — ON by default since FIX5 item 3
   zip: { preset: 'archives', mime: 'application/zip' },
   '7z': { preset: 'archives', mime: 'application/x-7z-compressed' },
   rar: { preset: 'archives', mime: 'application/vnd.rar' },

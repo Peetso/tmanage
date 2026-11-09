@@ -28,6 +28,7 @@ import { clearDraft, getDraft, postMessage, saveDraft } from '../../../lib/api/c
 import type { MessageSummary, PostMessageInput, ReplyMeta } from '../../../lib/api/conversations';
 import { ApiRequestError, NetworkError } from '../../../lib/api/errors';
 import { attachMessageFile } from '../../../lib/api/message-attachments';
+import { deleteFile } from '../../../lib/api/file-delete';
 import {
   ATTACHMENT_ACCEPT,
   MAX_ATTACHMENTS,
@@ -60,7 +61,60 @@ export class FilesNotAttachedError extends Error {
   }
 }
 
+/**
+ * FIX5 item 3 (B-N3). The API refused one of the message's files before any byte moved (a 422
+ * `file_not_allowed` with a reason token). Nothing was sent: the files already uploaded for this
+ * message were removed again, the text stays in the box, and the refused file leaves the list.
+ */
+export class FileRefusedError extends Error {
+  constructor(
+    readonly fileName: string,
+    readonly reason: string,
+  ) {
+    super(`file_not_allowed:${reason}`);
+    this.name = 'FileRefusedError';
+  }
+}
+
+/**
+ * The refusal reason token from the upload session's 422 (`file_not_allowed`, whose one detail is
+ * `{ field: 'reason', message: <token> }`), or `null` for any other error. The web client keeps
+ * only the generic codes, so the status and the detail decide.
+ */
+export function refusalReason(error: unknown): string | null {
+  if (!(error instanceof ApiRequestError) || error.status !== 422) return null;
+  const token = error.details.find((detail) => detail.field === 'reason')?.message;
+  if (token !== undefined && Object.hasOwn(REFUSAL_ENGLISH, token)) return token;
+  return token !== undefined || error.message === 'This file cannot be uploaded'
+    ? 'type_not_allowed'
+    : null;
+}
+
+const REFUSAL_ENGLISH: Readonly<Record<string, string>> = {
+  executable: '“{name}” is a program, and programs cannot be shared in TManage.',
+  macro_office:
+    '“{name}” contains macros, which TManage does not accept. Save it without macros (for example as .docx or .xlsx) and attach it again.',
+  archive_off:
+    '“{name}” is an archive, and archives (ZIP, 7z, RAR) are turned off for this workspace.',
+  double_extension:
+    '“{name}” has two file types in its name, which TManage refuses for safety. Rename it and attach it again.',
+  type_not_allowed: '“{name}” is a file type this workspace does not accept.',
+  too_large: '“{name}” is larger than this workspace allows.',
+  channel_forbids: '“{name}” cannot be shared here.',
+};
+
 function describeError(error: unknown, t: Translate, tOr: TranslateOr): string {
+  if (error instanceof FileRefusedError) {
+    const reason = REFUSAL_ENGLISH[error.reason] ? error.reason : 'type_not_allowed';
+    const why = tOr(`ChatMessages.refused.${reason}`, REFUSAL_ENGLISH[reason] as string).replace(
+      '{name}',
+      error.fileName,
+    );
+    return `${why} ${tOr(
+      'ChatMessages.refused.nothingSent',
+      'Nothing was sent; your message and the other files are still here.',
+    )}`;
+  }
   if (error instanceof UploadFailedError) {
     const name = error.fileName;
     const english: Record<UploadFailedError['reason'], string> = {
@@ -366,15 +420,26 @@ export function Composer({
       const fileIds: string[] = [];
       if (files.length > 0 && typeof attachProjectId === 'string') {
         for (const file of files) {
-          fileIds.push(
-            // Wait for the safety scan: a file still being checked cannot be linked (404).
-            await uploadProjectFile(
-              api,
-              organizationSlug,
-              { projectId: attachProjectId, file },
-              { untilReady: true },
-            ),
-          );
+          try {
+            fileIds.push(
+              // Wait for the safety scan: a file still being checked cannot be linked (404).
+              await uploadProjectFile(
+                api,
+                organizationSlug,
+                { projectId: attachProjectId, file },
+                { untilReady: true },
+              ),
+            );
+          } catch (error) {
+            // FIX5 item 3 (B-N3): one file failed, so the message is not sent. The files already
+            // uploaded for it are removed again (no orphans on Files, no duplicates on a retry).
+            await Promise.all(
+              fileIds.map((id) => deleteFile(api, organizationSlug, id).catch(() => undefined)),
+            );
+            const reason = refusalReason(error);
+            if (reason !== null) throw new FileRefusedError(file.name, reason);
+            throw error;
+          }
         }
       }
       const posted = await postMessage(api, organizationSlug, conversationId, {
@@ -396,6 +461,11 @@ export function Composer({
       return posted;
     },
     onError: (error) => {
+      if (error instanceof FileRefusedError) {
+        // The text and the other files stay; only the refused file leaves the list.
+        setPendingFiles((files) => files.filter((file) => file.name !== error.fileName));
+        return;
+      }
       if (!(error instanceof FilesNotAttachedError)) return;
       // The text is posted: clear it so it is not sent twice, keep only the files not added.
       if (persistDraft) clearedOnSendRef.current = true;

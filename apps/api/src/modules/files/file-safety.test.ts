@@ -64,7 +64,7 @@ describe('classifyUpload — the corpus', () => {
     ['budget.docm', `${OOXML}.wordprocessingml.document`, ZIP, 'macro_office'],
     ['budget.xlsx', 'application/vnd.ms-excel.sheet.macroEnabled.12', ZIP, 'macro_office'],
     ['budget.docx', `${OOXML}.wordprocessingml.document`, ZIP_VBA, 'macro_office'],
-    ['bundle.zip', 'application/zip', ZIP, 'archive_off'],
+    ['bundle.zip', 'application/zip', ZIP, 'ok'],
     ['page.html', 'text/html', Buffer.alloc(0), 'ok'],
     ['legacy.doc', 'application/msword', Buffer.alloc(0), 'type_not_allowed'],
     ['plan.dwg', 'image/vnd.dwg', Buffer.from('AC1027', 'latin1'), 'ok'],
@@ -80,12 +80,16 @@ describe('classifyUpload — the corpus', () => {
     expect(reason(classify(name, type, head))).toBe(expected);
   });
 
-  it('admits a zip once archives are switched on, and normalises the name it returns', () => {
-    const presets: FileTypePreset[] = [...DEFAULT_PRESETS, 'archives'];
-    expect(classify('bundle.zip', 'application/zip', ZIP, { presets })).toMatchObject({
+  it('admits a zip by default (FIX5 item 3), refuses it once archives are switched off, and normalises the name it returns', () => {
+    expect(DEFAULT_PRESETS).toContain('archives');
+    expect(classify('bundle.zip', 'application/zip', ZIP)).toMatchObject({
       ok: true,
       family: 'archives',
     });
+    const withoutArchives: FileTypePreset[] = DEFAULT_PRESETS.filter((p) => p !== 'archives');
+    expect(
+      reason(classify('bundle.zip', 'application/zip', ZIP, { presets: withoutArchives })),
+    ).toBe('archive_off');
     expect(classify('‮plan.pdf. ', 'application/pdf', PDF)).toMatchObject({
       ok: true,
       normalizedName: 'plan.pdf',
