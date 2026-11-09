@@ -57,6 +57,6 @@ describe('the welcome email quotes nothing the sign-up typed (F36a)', () => {
       link: 'https://app.example/nile',
       locale: 'ar',
     });
-    expect(arabic.subject).toBe('مرحبًا بك في TManage');
+    expect(arabic.subject).toBe('أهلًا بك في TManage');
   });
 });

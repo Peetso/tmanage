@@ -425,6 +425,6 @@ describe('Versions, compare, carry-forward and decisions (R4 slice 11)', () => {
     const { client } = fakeApi();
     renderViewer(client);
     await screen.findByRole('img', { name: 'homepage-concept-v2.png' });
-    expect(await screen.findByRole('button', { name: 'اطلب تعديلات' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'طلب تعديلات' })).toBeInTheDocument();
   });
 });

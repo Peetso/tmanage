@@ -90,7 +90,7 @@ describe('Arabic names keep working (RLM is stripped silently, the name passes)'
       link: 'https://app.tmanage.example/invitations/tok123',
       locale: 'ar-EG',
     });
-    expect(message.text).toContain(`${rlm}أنت مدعو للانضمام إلى شركة النور على TManage`);
+    expect(message.text).toContain(`${rlm}دعوة للانضمام إلى شركة النور على TManage`);
     expect(message.text).not.toContain(`${rlm}${rlm}`);
     expect(message.text).not.toContain(`إلى ${rlm}`);
   });

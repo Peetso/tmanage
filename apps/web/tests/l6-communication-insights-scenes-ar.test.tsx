@@ -64,7 +64,7 @@ describe('L6 Features scenes in Arabic', () => {
     expect(text).not.toMatch(/FeaturesInsightsScenes\./);
     expect(text.match(/[A-Za-z]{2,}/g) ?? []).toEqual([]);
     expect(container.textContent).not.toContain('Where delivery is losing time');
-    expect(container.textContent).toContain('أين يفقد التسليم وقته');
+    expect(container.textContent).toContain('أين يضيع وقت التسليم');
     // A line that opens with a Latin name starts with U+200F so it stays right-aligned.
     const pulseTitle = container.querySelector('.tm-web-fi-scene--pulse .tm-web-fi-card__title');
     expect(pulseTitle?.textContent?.startsWith(RLM)).toBe(true);
@@ -83,7 +83,7 @@ describe('L6 Features scenes in Arabic', () => {
     expect(text).not.toMatch(/FeaturesCommunicationScenes\./);
     expect(text.match(/[A-Za-z]{2,}/g) ?? []).toEqual([]);
     expect(container.textContent).not.toContain('Turn into');
-    expect(container.textContent).toContain('حوّلها إلى');
+    expect(container.textContent).toContain('تحويل إلى');
   });
 
   it('English stays as designed', () => {

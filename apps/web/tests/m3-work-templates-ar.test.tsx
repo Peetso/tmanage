@@ -45,7 +45,7 @@ describe('M3 · Work templates in Arabic', () => {
       fireEvent.click(preview!);
     }
     expect(latinWords(band)).toEqual([]);
-    expect(band.textContent).toContain('تدقيق المحتوى والمخططات الهيكلية');
+    expect(band.textContent).toContain('مراجعة المحتوى والمخططات الأولية');
     const caption = band.querySelector('.tm-fw-scene > figcaption');
     expect(caption?.textContent).toMatch(/^قالب إعادة إطلاق موقع: /);
   });

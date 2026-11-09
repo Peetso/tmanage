@@ -263,9 +263,7 @@ describe('OfficeXlsxStage (V-25 Excel)', () => {
     );
     const grid = await screen.findByRole('grid');
     expect(grid.closest('[dir]')?.getAttribute('dir')).toBe('ltr');
-    expect(
-      screen.getByText('التنسيق تقريبي — نزّل الملف الأصلي للحصول على النسخة الدقيقة.'),
-    ).toBeTruthy();
+    expect(screen.getByText('التنسيق تقريبي — نزّل الملف الأصلي لترى شكله الدقيق.')).toBeTruthy();
   });
 });
 

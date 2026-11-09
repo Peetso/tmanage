@@ -58,6 +58,6 @@ describe('P1 getting in, Arabic', () => {
     ).toBeInTheDocument();
     const invited = screen.getByText(/Northstar Studio/);
     expect(invited.textContent?.startsWith(RLM)).toBe(true);
-    expect(screen.getByLabelText(/^البريد الإلكتروني للعمل/)).toHaveAttribute('dir', 'ltr');
+    expect(screen.getByLabelText(/^بريد العمل/)).toHaveAttribute('dir', 'ltr');
   });
 });

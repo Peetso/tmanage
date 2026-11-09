@@ -258,7 +258,7 @@ describe('/ar/sign-up', () => {
       expect(screen.getByRole('button', { name: 'إنشاء مساحة عملي' })).toBeEnabled(),
     );
     await user.type(screen.getByLabelText(/^الاسم الكامل/), 'منى عادل');
-    await user.type(screen.getByLabelText(/^البريد الإلكتروني للعمل/), 'mona@example.com');
+    await user.type(screen.getByLabelText(/^بريد العمل/), 'mona@example.com');
     await user.type(screen.getByLabelText(/^اسم المؤسسة/), 'استوديو النيل');
     await user.type(screen.getByLabelText(/^كلمة المرور/), 'violet-harbour-lantern-41');
     await user.click(screen.getByLabelText(/أوافق على الشروط/));

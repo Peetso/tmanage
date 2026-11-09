@@ -80,14 +80,16 @@ describe('ClientPortalShell in Arabic', () => {
     renderPortal();
     expect(screen.getByText('يقدّمها Harbor & Pine Studio')).toBeInTheDocument();
     expect(screen.queryByText(/Delivered by/)).toBeNull();
-    expect(screen.getByText('بوابة العملاء')).toBeInTheDocument();
+    expect(screen.getByText('بوابة العميل')).toBeInTheDocument();
     expect(screen.queryByText('Client portal')).toBeNull();
   });
 
   it('localizes the preview bar', () => {
     renderPortal(true);
-    expect(screen.getByText('معاينة العميل')).toBeInTheDocument();
-    expect(screen.getByText('هذا ما يراه Meridian Health. لا شيء هنا داخلي.')).toBeInTheDocument();
+    expect(screen.getByText('معاينة كما يراها العميل')).toBeInTheDocument();
+    expect(
+      screen.getByText('هذا ما يراه Meridian Health بالضبط، ولا يوجد هنا أي شيء داخلي.'),
+    ).toBeInTheDocument();
   });
 
   it('drops the "delivered by" line while the organization name is unknown', () => {

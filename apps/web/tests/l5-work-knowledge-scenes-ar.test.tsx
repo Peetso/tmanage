@@ -90,7 +90,7 @@ describe('L5 · Work and Knowledge scenes in Arabic', () => {
     expect(container.querySelectorAll('.tm-fk-scene__body').length).toBeGreaterThan(5);
     expect(strayLatin(container, '.tm-fk-scene__body')).toEqual([]);
     expect(strayLatin(container, '.tm-fk-scene > figcaption')).toEqual([]);
-    expect(container.textContent).toContain('لم تعد هذه الموافقة سارية');
+    expect(container.textContent).toContain('هذا الاعتماد لم يعد ساريًا');
   });
 
   it('the keyboard-move sentence on the board is in both catalogs', () => {

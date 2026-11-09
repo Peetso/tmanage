@@ -204,7 +204,7 @@ ${message.html ?? ''}`;
     expect(message.html).toContain('Alexandria');
     expect(message.text).toContain('دورك: عضو في الفريق.');
     expect(message.text).toContain('13 سبتمبر 2026 (UTC)');
-    expect(message.text).toContain(`${rlm}أنت مدعو للانضمام إلى Northstar Studio على TManage`);
+    expect(message.text).toContain(`${rlm}دعوة للانضمام إلى Northstar Studio على TManage`);
     expect(message.subject).toContain('دعاك');
   });
 
