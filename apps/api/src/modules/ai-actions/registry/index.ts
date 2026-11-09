@@ -1678,6 +1678,31 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'read',
     scope: 'read',
   },
+  // FIX3 item 6: archive, bring back and delete a doc.
+  {
+    id: 'documents.archive',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/documents/:documentId/archive',
+    capability: 'doc.write',
+    risk: 'confirm',
+    scope: 'manage',
+  },
+  {
+    id: 'documents.unarchive',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/documents/:documentId/unarchive',
+    capability: 'doc.write',
+    risk: 'confirm',
+    scope: 'manage',
+  },
+  {
+    id: 'documents.delete',
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/documents/:documentId',
+    capability: 'doc.delete',
+    risk: 'confirm',
+    scope: 'manage',
+  },
   // B4: rename a document (title only, optimistic on `expectedUpdatedAt`).
   {
     id: 'documents.update',
@@ -4287,6 +4312,15 @@ export const OPS: readonly AiActionOp[] = [
     capability: 'file.delete',
     risk: 'confirm',
     scope: 'manage',
+  },
+  // FIX3 item 11: the Files hub's per-project list of ready files.
+  {
+    id: 'projects.files.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/files',
+    capability: 'file.download',
+    risk: 'read',
+    scope: 'read',
   },
   {
     id: 'projects.folders.files.list',

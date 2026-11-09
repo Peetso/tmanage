@@ -338,6 +338,14 @@ export const projectsDetails: readonly AiActionDetail[] = [
     ],
   }),
   det({
+    id: 'projects.files.list',
+    title: 'List project files',
+    description: 'The ready files of a project, newest first.',
+    input: listArgs(['projectId']),
+    redact: 'standard',
+    examples: [{ summary: 'List project files', args: { projectId: 'proj_1' } }],
+  }),
+  det({
     id: 'projects.folders.files.list',
     title: 'List project folders files',
     description: 'List project folders files. Confirm-class: needs your approval before it runs.',

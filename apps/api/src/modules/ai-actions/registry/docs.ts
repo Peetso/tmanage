@@ -160,6 +160,33 @@ export const docsDetails: readonly AiActionDetail[] = [
     ],
   }),
   det({
+    id: 'documents.archive',
+    title: 'Archive a document',
+    description:
+      'Move a document to the archive. It leaves the docs list and can be brought back. Confirm-class: needs your approval before it runs.',
+    input: pathOnly('documentId'),
+    redact: 'standard',
+    examples: [{ summary: 'Archive', args: { documentId: 'doc_9' } }],
+  }),
+  det({
+    id: 'documents.unarchive',
+    title: 'Bring back an archived document',
+    description:
+      'Return an archived document to the docs list. Confirm-class: needs your approval before it runs.',
+    input: pathOnly('documentId'),
+    redact: 'standard',
+    examples: [{ summary: 'Bring back', args: { documentId: 'doc_9' } }],
+  }),
+  det({
+    id: 'documents.delete',
+    title: 'Delete a document',
+    description:
+      'Delete a document for everyone in the workspace. Confirm-class: needs your approval before it runs.',
+    input: pathOnly('documentId'),
+    redact: 'standard',
+    examples: [{ summary: 'Delete', args: { documentId: 'doc_9' } }],
+  }),
+  det({
     id: 'documents.backlinks.list',
     title: 'List document backlinks',
     description: 'The documents that link to this one.',

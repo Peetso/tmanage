@@ -166,6 +166,15 @@ export const calendarDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'Cancel', args: { meetingId: 'mtg_1' } }],
   }),
   det({
+    id: 'meetings.delete',
+    title: 'Remove a cancelled meeting',
+    description:
+      'Remove a cancelled meeting from the calendar. Only a cancelled meeting can be removed. Confirm-class.',
+    input: pathOnly('meetingId'),
+    redact: 'standard',
+    examples: [{ summary: 'Remove', args: { meetingId: 'mtg_1' } }],
+  }),
+  det({
     id: 'meetings.sync',
     title: 'Sync a meeting with the calendar',
     description: 'Send a meeting to its organizer’s calendar again and read the answers back.',
