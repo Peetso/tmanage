@@ -1,51 +1,50 @@
-import { createHash, createHmac, randomBytes } from 'node:crypto';
-import { constantTimeEquals } from '../identity/session-token.js';
+import {
+  flowExpiry,
+  oauthCallbackTarget,
+  openOAuthFlow,
+  randomFlowToken,
+  sealOAuthFlow,
+  type OAuthFlowBase,
+} from '../../common/http/oauth-flow.js';
 
 /**
- * FIX5 one-click connectors — the flow cookie and the provider's return, shared by GitHub, Slack
- * and Microsoft Teams. The shape is Figma's (`figma-oauth.ts`) with the PKCE verifier of the
- * Microsoft calendar flow (`microsoft-calendar.graph.ts`):
+ * FIX5 one-click Connect for GitHub (owner/admin). The cookie, state, owner and callback checks are
+ * the shared sign-in helper's (`common/http/oauth-flow.ts`, which Figma uses too); this file only
+ * names the provider, its cookie and its PKCE verifier:
  *
- * 1. `POST …/app-connect/:provider/start` (owner/admin) answers the provider's consent address and
- *    sets a signed, short-lived flow cookie on `/v1`: state, PKCE verifier, workspace, member.
- * 2. The provider redirects to `GET /v1/integrations/<provider>/callback`, which only forwards
- *    `code` and `state` in the URL fragment to the Integrations page (never into a log or a
- *    Referer).
- * 3. The page posts them to `…/app-connect/:provider/complete`, which checks the state against the
+ * 1. `POST …/app-connect/github/start` answers GitHub's consent address and sets the signed flow
+ *    cookie on `/v1`: state, PKCE verifier, workspace, member.
+ * 2. GitHub redirects to `GET /v1/integrations/github/callback`, which only forwards `code` and
+ *    `state` in the URL fragment to the Integrations page. The app does not log them and the
+ *    fragment keeps them out of a Referer, but the hosting proxy's access log may record the
+ *    callback URL with its query string; the code is single-use, lives about 10 minutes and is
+ *    bound to the PKCE verifier in the HttpOnly cookie.
+ * 3. The page posts them to `…/app-connect/github/complete`, which checks the state against the
  *    cookie under the member's own session, exchanges the code and stores the token encrypted.
+ *
+ * Slack and Microsoft Teams were removed (FIX5, Peter 2026-11-10): their routes answer 404.
  */
 
-export const APP_CONNECT_PROVIDERS = ['github', 'slack', 'teams'] as const;
+export const APP_CONNECT_PROVIDERS = ['github'] as const;
 export type AppConnectProvider = (typeof APP_CONNECT_PROVIDERS)[number];
 
 export function isAppConnectProvider(value: unknown): value is AppConnectProvider {
   return typeof value === 'string' && (APP_CONNECT_PROVIDERS as readonly string[]).includes(value);
 }
 
-export const APP_CONNECT_COOKIE_PATH = '/v1';
-export const APP_CONNECT_FLOW_TTL_SECONDS = 600;
-
 export function appConnectCookieName(provider: AppConnectProvider): string {
   return `tm_${provider}_flow`;
 }
 
-/** The callback each provider app is registered with (Peter's registration uses exactly these). */
+/** The callback the provider app is registered with (Peter's registration uses exactly this). */
 export function appConnectCallbackPath(provider: AppConnectProvider): string {
   return `/v1/integrations/${provider}/callback`;
 }
 
-export interface AppConnectFlow {
+export interface AppConnectFlow extends OAuthFlowBase {
   readonly provider: AppConnectProvider;
-  readonly organizationId: string;
-  readonly organizationSlug: string;
-  readonly membershipId: string;
-  readonly state: string;
   readonly verifier: string;
-  /** Unix seconds. */
-  readonly expiresAt: number;
 }
-
-const random = (bytes = 32) => randomBytes(bytes).toString('base64url');
 
 export function newAppConnectFlow(
   owner: {
@@ -58,31 +57,21 @@ export function newAppConnectFlow(
 ): AppConnectFlow {
   return {
     ...owner,
-    state: random(),
-    verifier: random(),
-    expiresAt: nowSeconds + APP_CONNECT_FLOW_TTL_SECONDS,
+    state: randomFlowToken(),
+    verifier: randomFlowToken(),
+    expiresAt: flowExpiry(nowSeconds),
   };
 }
 
-/** The S256 challenge of a verifier. */
-export function pkceChallenge(verifier: string): string {
-  return createHash('sha256').update(verifier).digest('base64url');
-}
-
-function sign(provider: AppConnectProvider, payload: string, secret: string): string {
-  return createHmac('sha256', secret)
-    .update(`app-connect.${provider}.v1.${payload}`)
-    .digest('base64url');
-}
+const purpose = (provider: AppConnectProvider) => `app-connect.${provider}.v1`;
 
 export function sealAppConnectFlow(flow: AppConnectFlow, secret: string): string {
-  const payload = Buffer.from(JSON.stringify(flow), 'utf8').toString('base64url');
-  return `${payload}.${sign(flow.provider, payload, secret)}`;
+  return sealOAuthFlow(flow, purpose(flow.provider), secret);
 }
 
 /**
  * The flow, or `undefined` for a missing, forged, malformed, expired or other-provider cookie.
- * The signature is keyed by `provider`, so GitHub's cookie never opens as Slack's.
+ * The signature is keyed by `provider`.
  */
 export function openAppConnectFlow(
   provider: AppConnectProvider,
@@ -90,37 +79,11 @@ export function openAppConnectFlow(
   secret: string,
   nowSeconds: number = Math.floor(Date.now() / 1000),
 ): AppConnectFlow | undefined {
-  if (!raw) return undefined;
-  const [payload, signature, extra] = raw.split('.');
-  if (!payload || !signature || extra !== undefined) return undefined;
-  if (!constantTimeEquals(signature, sign(provider, payload, secret))) return undefined;
-  try {
-    const flow = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as AppConnectFlow;
-    const strings = [
-      flow.state,
-      flow.verifier,
-      flow.organizationId,
-      flow.organizationSlug,
-      flow.membershipId,
-    ];
-    if (strings.some((s) => typeof s !== 'string') || typeof flow.expiresAt !== 'number') {
-      return undefined;
-    }
-    if (flow.provider !== provider || flow.expiresAt < nowSeconds) return undefined;
-    return flow;
-  } catch {
-    return undefined;
-  }
-}
-
-export function appConnectStateMatches(flow: AppConnectFlow, returned: unknown): boolean {
-  return typeof returned === 'string' && constantTimeEquals(flow.state, returned);
-}
-
-const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
-
-export function isWorkspaceSlug(value: unknown): value is string {
-  return typeof value === 'string' && SLUG_PATTERN.test(value);
+  const flow = openOAuthFlow<AppConnectFlow>(raw, purpose(provider), secret, {
+    strings: ['verifier'],
+    nowSeconds,
+  });
+  return flow !== undefined && flow.provider === provider ? flow : undefined;
 }
 
 /**
@@ -133,22 +96,13 @@ export function appConnectCallbackTarget(
   flowCookie: string | undefined,
   query: { readonly code?: unknown; readonly state?: unknown; readonly error?: unknown },
 ): string {
-  const base = options.webPublicUrl.replace(/\/+$/, '');
-  const flow = openAppConnectFlow(provider, flowCookie, options.sessionSecret);
-  if (!flow || !isWorkspaceSlug(flow.organizationSlug)) return `${base}/`;
-  const screen = `${base}/${flow.organizationSlug}/automations/apps`;
-  const { code, state } = query;
-  if (
-    query.error !== undefined ||
-    typeof code !== 'string' ||
-    typeof state !== 'string' ||
-    code === '' ||
-    code.length > 4096 ||
-    state.length > 512
-  ) {
-    return `${screen}#${provider}=error`;
-  }
-  return `${screen}#${new URLSearchParams({ [provider]: 'complete', code, state }).toString()}`;
+  return oauthCallbackTarget({
+    provider,
+    webPublicUrl: options.webPublicUrl,
+    flow: openAppConnectFlow(provider, flowCookie, options.sessionSecret),
+    page: 'automations/apps',
+    query,
+  });
 }
 
 /** Every provider call gives up after this long (they run inside a request). */

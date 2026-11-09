@@ -1,5 +1,14 @@
-import { createHmac, randomBytes } from 'node:crypto';
-import { constantTimeEquals } from '../identity/session-token.js';
+import {
+  OAUTH_FLOW_COOKIE_PATH,
+  OAUTH_FLOW_TTL_SECONDS,
+  flowExpiry,
+  oauthCallbackTarget,
+  oauthStateMatches,
+  openOAuthFlow,
+  randomFlowToken,
+  sealOAuthFlow,
+  type OAuthFlowBase,
+} from '../../common/http/oauth-flow.js';
 
 /**
  * FIX4 item 6 — **Connect Figma in one click** (Peter's rule: "Connect, the provider authorizes,
@@ -10,9 +19,13 @@ import { constantTimeEquals } from '../identity/session-token.js';
  * 1. `POST …/figma/connection/start` answers Figma's consent address and sets a signed, short-lived
  *    flow cookie (state, organization, membership) on `/v1`.
  * 2. Figma redirects to `GET /v1/integrations/figma/callback`, which only forwards `code` and
- *    `state` in the URL fragment to the Integrations page (never to a server log or a Referer).
+ *    `state` in the URL fragment to the Integrations page (so not into a Referer, and the app does
+ *    not log them; the hosting proxy's access log may record the callback URL — the code is
+ *    single-use, short-lived and useless without the state cookie and the client secret).
  * 3. The page posts them to `…/figma/connection/complete`, which checks the state against the
  *    cookie, exchanges the code under the member's own session, and stores the token encrypted.
+ *
+ * The cookie, state and callback checks are the shared helper's (`common/http/oauth-flow.ts`).
  *
  * The stored secret is `oauth:<access token>` so the REST client sends it as a bearer token; a
  * pasted personal access token is stored bare and sent as `X-Figma-Token`.
@@ -22,9 +35,9 @@ export const FIGMA_AUTHORIZE_URL = 'https://www.figma.com/oauth';
 export const FIGMA_TOKEN_URL = 'https://api.figma.com/v1/oauth/token';
 export const FIGMA_OAUTH_SCOPES = 'current_user:read file_content:read file_metadata:read';
 export const FIGMA_CALLBACK_PATH = '/v1/integrations/figma/callback';
-export const FIGMA_COOKIE_PATH = '/v1';
+export const FIGMA_COOKIE_PATH = OAUTH_FLOW_COOKIE_PATH;
 export const FIGMA_FLOW_COOKIE = 'tm_figma_flow';
-export const FIGMA_FLOW_TTL_SECONDS = 600;
+export const FIGMA_FLOW_TTL_SECONDS = OAUTH_FLOW_TTL_SECONDS;
 export const FIGMA_OAUTH_TIMEOUT_MS = 10_000;
 /** The prefix that marks a stored OAuth access token (sent as `Authorization: Bearer`). */
 export const FIGMA_OAUTH_TOKEN_PREFIX = 'oauth:';
@@ -51,14 +64,8 @@ export function figmaReturnTo(value: unknown): FigmaReturnTo {
   return value === 'connected-apps' ? 'connected-apps' : 'integrations';
 }
 
-export interface FigmaFlow {
-  readonly organizationId: string;
-  readonly organizationSlug: string;
-  readonly membershipId: string;
+export interface FigmaFlow extends OAuthFlowBase {
   readonly returnTo: FigmaReturnTo;
-  readonly state: string;
-  /** Unix seconds. */
-  readonly expiresAt: number;
 }
 
 export function newFigmaFlow(
@@ -73,18 +80,13 @@ export function newFigmaFlow(
   return {
     ...owner,
     returnTo: owner.returnTo ?? 'integrations',
-    state: randomBytes(32).toString('base64url'),
-    expiresAt: nowSeconds + FIGMA_FLOW_TTL_SECONDS,
+    state: randomFlowToken(),
+    expiresAt: flowExpiry(nowSeconds),
   };
 }
 
-function sign(payload: string, secret: string): string {
-  return createHmac('sha256', secret).update(`${FLOW_PURPOSE}.${payload}`).digest('base64url');
-}
-
 export function sealFigmaFlow(flow: FigmaFlow, secret: string): string {
-  const payload = Buffer.from(JSON.stringify(flow), 'utf8').toString('base64url');
-  return `${payload}.${sign(payload, secret)}`;
+  return sealOAuthFlow(flow, FLOW_PURPOSE, secret);
 }
 
 /** The flow, or `undefined` for a missing, forged, malformed or expired cookie. */
@@ -93,25 +95,12 @@ export function openFigmaFlow(
   secret: string,
   nowSeconds: number = Math.floor(Date.now() / 1000),
 ): FigmaFlow | undefined {
-  if (!raw) return undefined;
-  const [payload, signature, extra] = raw.split('.');
-  if (!payload || !signature || extra !== undefined) return undefined;
-  if (!constantTimeEquals(signature, sign(payload, secret))) return undefined;
-  try {
-    const flow = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as FigmaFlow;
-    const strings = [flow.state, flow.organizationId, flow.organizationSlug, flow.membershipId];
-    if (strings.some((s) => typeof s !== 'string') || typeof flow.expiresAt !== 'number') {
-      return undefined;
-    }
-    if (flow.expiresAt < nowSeconds) return undefined;
-    return { ...flow, returnTo: figmaReturnTo(flow.returnTo) };
-  } catch {
-    return undefined;
-  }
+  const flow = openOAuthFlow<FigmaFlow>(raw, FLOW_PURPOSE, secret, { nowSeconds });
+  return flow === undefined ? undefined : { ...flow, returnTo: figmaReturnTo(flow.returnTo) };
 }
 
 export function figmaStateMatches(flow: FigmaFlow, returned: unknown): boolean {
-  return typeof returned === 'string' && constantTimeEquals(flow.state, returned);
+  return oauthStateMatches(flow, returned);
 }
 
 export function figmaAuthorizeUrl(input: {
@@ -175,22 +164,20 @@ export async function exchangeFigmaCode(
   return { accessToken };
 }
 
-const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
-
 /** Where Figma's redirect sends the browser on: the Integrations page, code in the fragment. */
 export function figmaCallbackTarget(
   options: { readonly sessionSecret: string; readonly webPublicUrl: string },
   flowCookie: string | undefined,
   code: unknown,
   state: unknown,
+  error?: unknown,
 ): string {
-  const base = options.webPublicUrl.replace(/\/+$/, '');
   const flow = openFigmaFlow(flowCookie, options.sessionSecret);
-  if (!flow || !SLUG_PATTERN.test(flow.organizationSlug)) return `${base}/`;
-  const page = flow.returnTo === 'connected-apps' ? 'settings/connected-apps' : 'automations/apps';
-  const screen = `${base}/${flow.organizationSlug}/${page}`;
-  if (typeof code !== 'string' || typeof state !== 'string' || code.length > 4096) {
-    return `${screen}#figma=error`;
-  }
-  return `${screen}#${new URLSearchParams({ figma: 'complete', code, state }).toString()}`;
+  return oauthCallbackTarget({
+    provider: 'figma',
+    webPublicUrl: options.webPublicUrl,
+    flow,
+    page: flow?.returnTo === 'connected-apps' ? 'settings/connected-apps' : 'automations/apps',
+    query: { code, state, error },
+  });
 }

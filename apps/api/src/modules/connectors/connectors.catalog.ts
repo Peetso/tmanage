@@ -82,7 +82,7 @@ export const CONNECTORS: readonly ConnectorDefinition[] = [
     key: 'github',
     name: 'GitHub',
     authType: 'api-key',
-    scopes: ['repo:read'],
+    scopes: ['read:user'],
     capabilities: ['links.unfurl'],
     scope: 'organization',
     managed: 'framework',

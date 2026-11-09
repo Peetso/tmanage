@@ -3,22 +3,26 @@ import {
   AppConnectUnavailableError,
   defaultFetch,
   jsonBody,
-  pkceChallenge,
   providerCall,
   type FetchLike,
 } from './app-connect.flow.js';
+import { pkceChallenge } from '../../common/http/oauth-flow.js';
 
 /**
  * FIX5 — GitHub one-click Connect (a GitHub **OAuth App**, `GITHUB_CLIENT_ID` +
- * `GITHUB_CLIENT_SECRET`). Scopes `read:user repo`: who connected, and read access to issues and
- * pull requests so they can be linked to tasks. GitHub OAuth App tokens do not expire and carry no
- * refresh token; Disconnect revokes the token at GitHub (`DELETE /applications/{id}/token`).
+ * `GITHUB_CLIENT_SECRET`). Scope `read:user` only: who connected, nothing in their repositories.
+ * Nothing reads repository data with this token yet; on an OAuth App `repo` would grant full
+ * read *and write* control of every private repository, so it is not requested (security review
+ * 2026-11-10, M1). When an issue / pull-request linker ships it should use a GitHub App with
+ * read-only, per-repository permissions instead. GitHub OAuth App tokens do not expire and carry
+ * no refresh token; Disconnect, and a second Connect, revoke the token at GitHub
+ * (`DELETE /applications/{id}/token`).
  */
 
 export const GITHUB_AUTHORIZE_URL = 'https://github.com/login/oauth/authorize';
 export const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
 export const GITHUB_API = 'https://api.github.com';
-export const GITHUB_SCOPES = 'read:user repo';
+export const GITHUB_SCOPES = 'read:user';
 
 export interface GitHubOAuthConfig {
   readonly clientId: string;

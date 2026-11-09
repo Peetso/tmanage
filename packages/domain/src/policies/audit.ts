@@ -1227,6 +1227,19 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'github_repo_hook',
     clause: '§12 54-10 — a GitHub repository webhook secret was rotated',
   },
+  /**
+   * FIX5. An owner or admin connected GitHub in one click (an org-wide OAuth token into the
+   * vault) or disconnected it. Metadata: the provider and whether a stored token was replaced —
+   * never the token, its hint or the account.
+   */
+  'github_connection.connected': {
+    objectType: 'connector_installation',
+    clause: '§12 — a stored org-wide third-party credential was added or replaced',
+  },
+  'github_connection.disconnected': {
+    objectType: 'connector_installation',
+    clause: '§12 — a stored org-wide third-party credential was removed',
+  },
   'project.work_key_prefix_set': {
     objectType: 'project',
     clause: '§12 54-10 — a project work-key prefix was set',
@@ -1829,6 +1842,8 @@ const AUDIT_ACTION_LABELS = {
   'github_hook.created': 'Connected a GitHub repository',
   'github_hook.removed': 'Removed a GitHub repository',
   'github_hook.secret_rotated': 'Rotated a GitHub webhook secret',
+  'github_connection.connected': 'Connected GitHub',
+  'github_connection.disconnected': 'Disconnected GitHub',
   'project.work_key_prefix_set': 'Set a project work-key prefix',
   'work_item.code_link_removed': 'Removed a code link from a work item',
   'timesheet.entries_edited': 'Edited time on a timesheet',

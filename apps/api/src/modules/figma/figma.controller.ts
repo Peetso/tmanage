@@ -23,11 +23,16 @@ import {
   RequireCapability,
 } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
-import { expireCookie, readCookie, serializeCookie } from '../identity/session-token.js';
 import {
-  FIGMA_COOKIE_PATH,
+  expiredFlowCookie,
+  flowCookie,
+  isWorkspaceSlug,
+  readFlowCookie,
+  type CookieReply,
+  type CookieRequest,
+} from '../../common/http/oauth-flow.js';
+import {
   FIGMA_FLOW_COOKIE,
-  FIGMA_FLOW_TTL_SECONDS,
   figmaCallbackTarget,
   figmaReturnTo,
   openFigmaFlow,
@@ -80,21 +85,6 @@ export interface FigmaHttpOptions {
   readonly webPublicUrl: string;
 }
 
-interface CookieRequest {
-  readonly headers: Record<string, string | string[] | undefined>;
-}
-
-interface CookieReply {
-  header(name: string, value: string | readonly string[]): unknown;
-}
-
-function cookieHeader(request: CookieRequest): string | undefined {
-  const raw = request.headers['cookie'];
-  return Array.isArray(raw) ? raw.join('; ') : raw;
-}
-
-const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
-
 @Controller('v1/organizations/:orgSlug/figma')
 export class FigmaController {
   constructor(
@@ -116,7 +106,7 @@ export class FigmaController {
     @Body() body: { readonly returnTo?: unknown } | undefined,
     @Res({ passthrough: true }) reply: CookieReply,
   ): { readonly url: string } {
-    if (!SLUG_PATTERN.test(orgSlug)) {
+    if (!isWorkspaceSlug(orgSlug)) {
       throw new ApiError(400, 'validation_failed', 'The request is invalid', [
         { field: 'orgSlug', message: 'is not a workspace address' },
       ]);
@@ -129,13 +119,11 @@ export class FigmaController {
     );
     reply.header(
       'set-cookie',
-      serializeCookie(FIGMA_FLOW_COOKIE, sealFigmaFlow(flow, this.options.sessionSecret), {
-        path: FIGMA_COOKIE_PATH,
-        maxAgeSeconds: FIGMA_FLOW_TTL_SECONDS,
-        // `Lax`: the cookie must survive the top-level return from Figma.
-        sameSite: 'Lax',
-        secure: this.options.secureCookies,
-      }),
+      flowCookie(
+        FIGMA_FLOW_COOKIE,
+        sealFigmaFlow(flow, this.options.sessionSecret),
+        this.options.secureCookies,
+      ),
     );
     return { url };
   }
@@ -152,18 +140,11 @@ export class FigmaController {
     @Res({ passthrough: true }) reply: CookieReply,
   ): Promise<FigmaConnectionView> {
     const flow = openFigmaFlow(
-      readCookie(cookieHeader(request), FIGMA_FLOW_COOKIE),
+      readFlowCookie(request, FIGMA_FLOW_COOKIE),
       this.options.sessionSecret,
     );
     // The flow is single-use whatever happens next.
-    reply.header(
-      'set-cookie',
-      expireCookie(FIGMA_FLOW_COOKIE, {
-        path: FIGMA_COOKIE_PATH,
-        sameSite: 'Lax',
-        secure: this.options.secureCookies,
-      }),
-    );
+    reply.header('set-cookie', expiredFlowCookie(FIGMA_FLOW_COOKIE, this.options.secureCookies));
     return this.figma.completeConnect(context, principal, flow, {
       code: body?.code,
       state: body?.state,
@@ -313,14 +294,16 @@ export class FigmaCallbackController {
   callback(
     @Query('code') code: unknown,
     @Query('state') state: unknown,
+    @Query('error') error: unknown,
     @Req() request: CookieRequest,
   ): { readonly url: string; readonly statusCode: number } {
     return {
       url: figmaCallbackTarget(
         this.options,
-        readCookie(cookieHeader(request), FIGMA_FLOW_COOKIE),
+        readFlowCookie(request, FIGMA_FLOW_COOKIE),
         code,
         state,
+        error,
       ),
       statusCode: 302,
     };

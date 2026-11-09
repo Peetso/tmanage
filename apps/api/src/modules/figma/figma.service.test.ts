@@ -280,6 +280,7 @@ describe('FigmaService · one-click Connect (FIX4 item 6)', () => {
     organizationId: ORG,
     organizationSlug: 'acme',
     membershipId,
+    returnTo: 'integrations' as const,
     state,
     expiresAt: Math.floor(Date.now() / 1000) + 600,
   });

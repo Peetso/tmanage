@@ -14,13 +14,13 @@ import type { AuditService } from '../audit/audit.service.js';
 import type { SeedCipher } from '../identity/seed-cipher.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { FigmaAccess, clientMayRead } from './figma-access.js';
+import { oauthFlowIsOwnersAndMatches } from '../../common/http/oauth-flow.js';
 import {
   FIGMA_CALLBACK_PATH,
   FIGMA_OAUTH_TOKEN_PREFIX,
   FigmaOAuthRefusedError,
   exchangeFigmaCode,
   figmaAuthorizeUrl,
-  figmaStateMatches,
   newFigmaFlow,
   type FigmaFlow,
   type FigmaOAuthConfig,
@@ -435,17 +435,10 @@ export class FigmaService {
         'not_configured',
       );
     }
-    const code = typeof input.code === 'string' ? input.code : '';
-    if (
-      !flow ||
-      flow.organizationId !== context.organizationId ||
-      flow.membershipId !== context.membershipId ||
-      !figmaStateMatches(flow, input.state) ||
-      code === '' ||
-      code.length > 4096
-    ) {
+    if (!oauthFlowIsOwnersAndMatches(flow, context, input)) {
       throw invalid('state', 'the Figma sign-in expired; press Connect again');
     }
+    const code = input.code as string;
     let accessToken: string;
     try {
       ({ accessToken } = await (this.deps.exchange ?? exchangeFigmaCode)({
@@ -469,6 +462,8 @@ export class FigmaService {
       }
       throw this.figmaFailure(error);
     }
+    // Figma offers apps no endpoint to revoke an OAuth token (nor a pasted personal token), so a
+    // replaced token is only forgotten here; the person can remove TManage in Figma's settings.
     const tokenCiphertext = this.deps.cipher.encrypt(
       stored,
       figmaTokenBinding(context.organizationId, context.membershipId),
