@@ -91,6 +91,7 @@ interface EditMessageBody {
 }
 
 interface ConvertMessageBody {
+  readonly projectId?: unknown;
   readonly title?: unknown;
   readonly type?: unknown;
   readonly ownerUserId?: unknown;
@@ -379,6 +380,9 @@ export class ConversationsController {
       typeof body?.ownerUserId === 'string' && body.ownerUserId !== ''
         ? body.ownerUserId
         : undefined;
+    // FIX2: the project to file on when the conversation has none (a DM, a group).
+    const projectId =
+      typeof body?.projectId === 'string' && body.projectId !== '' ? body.projectId : undefined;
 
     if (details.length > 0) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
@@ -390,6 +394,7 @@ export class ConversationsController {
       conversationId,
       messageId,
       {
+        ...(projectId === undefined ? {} : { projectId }),
         ...(title === undefined ? {} : { title }),
         ...(type === undefined ? {} : { type }),
         ...(ownerUserId === undefined ? {} : { ownerUserId }),

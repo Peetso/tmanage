@@ -6,7 +6,7 @@ import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ApiClient } from '../../lib/api/client';
 import { createDocument, listRecentDocuments } from '../../lib/api/documents';
-import { listProjects } from '../../lib/api/projects';
+import { ensureProjectForNewContent } from '../../lib/api/projects';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import './docs-shell.css';
 
@@ -29,8 +29,13 @@ export function useCreateBlankDocument(
     mutationFn: async () => {
       let target = projectId ?? '';
       if (target === '') {
-        const projects = await listProjects(api, organizationSlug);
-        target = projects[0]?.id ?? '';
+        // FIX2: a brand-new workspace has no project yet; make "General" rather than fail.
+        const project = await ensureProjectForNewContent(
+          api,
+          organizationSlug,
+          tOr('DocsSidebar.firstProjectName', 'General'),
+        );
+        target = project?.id ?? '';
       }
       if (target === '') throw new Error(tOr('DocsSidebar.noProject', 'Create a project first.'));
       return createDocument(api, organizationSlug, {

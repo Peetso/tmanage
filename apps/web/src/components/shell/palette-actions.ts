@@ -1,12 +1,13 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { ApiClient } from '../../lib/api/client';
+import { ApiRequestError } from '../../lib/api/errors';
 import {
   getDisplayPreferences,
   toDisplayPreferencesUpdate,
   updateDisplayPreferences,
 } from '../../lib/api/display-preferences';
 import { createDocument } from '../../lib/api/documents';
-import { listProjects } from '../../lib/api/projects';
+import { ensureProjectForNewContent } from '../../lib/api/projects';
 import { startTimer } from '../../lib/api/time-timer';
 import type { DisplayLocale } from '../../lib/api/display-preferences';
 import { localeDirection } from '../../lib/i18n/direction';
@@ -28,6 +29,8 @@ export interface PaletteActionContext {
   readonly locale: string;
   /** Labels for the things an action creates. */
   readonly untitledDoc: string;
+  /** FIX2: the name of the project made for a first doc in a workspace with no project yet. */
+  readonly firstProjectName?: string;
 }
 
 /** What happened: `done`, or a failure the caller reports (the palette stays open on one). */
@@ -71,8 +74,12 @@ export async function runPaletteAction(
   switch (action) {
     case 'create-doc': {
       try {
-        const projects = await listProjects(api, organizationSlug);
-        const projectId = projects[0]?.id;
+        const project = await ensureProjectForNewContent(
+          api,
+          organizationSlug,
+          context.firstProjectName ?? 'General',
+        );
+        const projectId = project?.id;
         if (!projectId) return 'no-project';
         const document = await createDocument(api, organizationSlug, {
           projectId,
@@ -80,8 +87,9 @@ export async function runPaletteAction(
         });
         navigate(`${base}/docs/${encodeURIComponent(document.id)}/edit`);
         return 'done';
-      } catch {
-        return 'failed';
+      } catch (error) {
+        // A member who may not create the first project is told why, not "try again".
+        return error instanceof ApiRequestError && error.status === 403 ? 'no-project' : 'failed';
       }
     }
     case 'start-timer': {

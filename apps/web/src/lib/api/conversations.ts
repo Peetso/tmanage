@@ -250,6 +250,8 @@ export async function moderateMessage(
 }
 
 export interface ConvertMessageInput {
+  /** FIX2: the project to file on when the conversation is outside a project (DM, group). */
+  readonly projectId?: string;
   readonly title?: string;
   readonly type?: string;
   readonly audience?: 'internal' | 'client_visible' | 'client_action_required';

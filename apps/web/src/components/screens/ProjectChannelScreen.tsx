@@ -27,7 +27,8 @@ import { PhoneIcon } from '../icons/phone';
 import { directKeys, fetchDirectConversations } from '../../lib/api/direct-conversations';
 import '../../styles/phone/chat.css';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
-import { getProject } from '../../lib/api/projects';
+import { ensureProjectForNewContent, getProject, listProjects } from '../../lib/api/projects';
+import { DueDatePicker, formatChipDay } from '../work/DueDatePicker';
 import { listProjectMembers } from '../../lib/api/project-members';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
@@ -74,7 +75,7 @@ import { MessageInfoReceipts } from '../chat/status/MessageInfoReceipts';
 import { useChannelLiveFeed } from '../../lib/use-channel-live-feed';
 import type { LiveSocketFactory } from '../../lib/use-channel-live-feed';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
-import { audienceLabel } from '../../lib/work-item-presentation';
+import { audienceLabel, dayToInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { workItemKeys } from '../../lib/query-keys';
 import { useT } from '../../lib/i18n/use-t';
@@ -229,7 +230,8 @@ export function ProjectChannelScreen({
   const project = useQuery({
     queryKey: ['project', organizationSlug, conversation.data?.projectId],
     queryFn: () => getProject(api, organizationSlug, conversation.data?.projectId ?? ''),
-    enabled: conversation.data !== undefined,
+    // FIX2: a group or a direct conversation has no project; asking for `/projects/` 404s.
+    enabled: conversation.data !== undefined && conversation.data.projectId != null,
   });
 
   /*
@@ -312,7 +314,7 @@ export function ProjectChannelScreen({
   const projectMembers = useQuery({
     queryKey: ['project-members', organizationSlug, projectId],
     queryFn: () => listProjectMembers(api, organizationSlug, projectId ?? ''),
-    enabled: projectId !== undefined,
+    enabled: projectId != null,
   });
   const projectMemberIds = useMemo(
     () =>
@@ -499,7 +501,13 @@ export function ProjectChannelScreen({
       }
       description={
         <>
-          {t('ProjectChannelScreen.projectChannelDesc')} · {countsLine}
+          {/* FIX2: a group or a direct chat is not a project channel; say what it is. */}
+          {conversation.data?.kind === 'group'
+            ? tOr('ProjectChannelScreen.groupDesc', 'Group chat')
+            : conversation.data?.kind === 'direct'
+              ? tOr('ProjectChannelScreen.directDesc', 'Direct message')
+              : t('ProjectChannelScreen.projectChannelDesc')}{' '}
+          · {countsLine}
           {/* R7 slice 6: a direct conversation shows the other person's presence. */}
           {conversation.data?.kind === 'direct' && directPeer !== undefined ? (
             <>
@@ -546,6 +554,7 @@ export function ProjectChannelScreen({
             message={convertTarget}
             authorName={nameOf(convertTarget.authorUserId)}
             projectName={project.data?.name}
+            channelProjectId={conversation.data?.projectId ?? null}
             onDone={() => {
               void queries.invalidateQueries({
                 queryKey: workItemKeys.all(organizationSlug),
@@ -2111,6 +2120,7 @@ function ConvertDialog({
   message,
   authorName,
   projectName,
+  channelProjectId,
   onDone,
   onClose,
 }: {
@@ -2120,25 +2130,56 @@ function ConvertDialog({
   message: MessageSummary;
   authorName: string;
   projectName: string | undefined;
+  /** FIX2: `null` for a direct message or a group: the dialog then asks for the project. */
+  channelProjectId: string | null;
   onDone: () => void;
   onClose: () => void;
 }) {
   const t = useT();
+  const tOr = useTOr();
+  const locale = useActiveLocale();
   const defaultTitle = (message.body ?? '').split('\n')[0]?.trim() ?? '';
   const [title, setTitle] = useState(defaultTitle);
   const [type, setType] = useState('task');
   const [audience, setAudience] = useState<WorkAudience>('internal');
-  const [dueAt, setDueAt] = useState('');
+  // FIX2: a calendar day from the app's date picker (Today, Tomorrow, Next Monday, or a day on
+  // the month grid), never a typed ISO instant (the API refused a bare day).
+  const [dueDay, setDueDay] = useState('');
+  const [dueOpen, setDueOpen] = useState(false);
+  const [pickedProjectId, setPickedProjectId] = useState('');
   const [result, setResult] = useState<ConvertMessageResult | undefined>(undefined);
+  const needsProject = channelProjectId === null;
+
+  const projects = useQuery({
+    queryKey: ['projects', organizationSlug, 'convert-picker'],
+    queryFn: () => listProjects(api, organizationSlug),
+    enabled: needsProject,
+  });
+  const activeProjects = (projects.data ?? []).filter((row) => !row.archivedAt);
+  const firstProjectName = tOr('DocsSidebar.firstProjectName', 'General');
+  // FIX2: a workspace with no project yet offers to make "General" (pre-picked), not a dead end.
+  const NEW_PROJECT = '__new__';
+  const projectChoice =
+    pickedProjectId === '' && projects.isSuccess && activeProjects.length === 0
+      ? NEW_PROJECT
+      : pickedProjectId;
 
   const convert = useMutation({
-    mutationFn: () =>
-      convertMessageToWork(api, organizationSlug, conversationId, message.id, {
+    mutationFn: async () => {
+      const dueAt = dueDay === '' ? null : dayToInstant(dueDay);
+      let projectId = projectChoice;
+      if (needsProject && projectChoice === NEW_PROJECT) {
+        const made = await ensureProjectForNewContent(api, organizationSlug, firstProjectName);
+        projectId = made?.id ?? '';
+      }
+      return convertMessageToWork(api, organizationSlug, conversationId, message.id, {
+        ...(needsProject && projectId !== '' ? { projectId } : {}),
         ...(title.trim() === '' ? {} : { title: title.trim() }),
         ...(type.trim() === '' ? {} : { type: type.trim() }),
         audience,
-        ...(dueAt.trim() === '' ? {} : { dueAt: dueAt.trim() }),
-      }),
+        ...(dueAt === null ? {} : { dueAt }),
+      });
+    },
     onSuccess: (conversion) => {
       setResult(conversion);
       onDone();
@@ -2252,18 +2293,83 @@ function ConvertDialog({
         </div>
 
         <div className="tm-field">
-          <label className="tm-field__label" htmlFor="tm-convert-due">
+          <span className="tm-field__label" id="tm-convert-due-label">
             {t('ProjectChannelScreen.dueLabel')}
-          </label>
-          <input
-            id="tm-convert-due"
-            className="tm-field__control"
-            value={dueAt}
-            onChange={(event) => setDueAt(event.target.value)}
-            placeholder="2026-09-30T17:00:00Z"
-          />
+          </span>
+          <div className="tm-wk-popover-anchor" data-align="end">
+            <button
+              type="button"
+              id="tm-convert-due"
+              className="tm-field__control tm-chat-convert__due"
+              aria-labelledby="tm-convert-due-label tm-convert-due"
+              aria-haspopup="dialog"
+              aria-expanded={dueOpen}
+              onClick={() => setDueOpen((open) => !open)}
+            >
+              {dueDay === ''
+                ? tOr('ProjectChannelScreen.pickDueDate', 'Pick a date')
+                : formatChipDay(dueDay, locale)}
+              <span aria-hidden="true"> ▾</span>
+            </button>
+            {dueOpen ? (
+              <DueDatePicker
+                heading={t('ProjectChannelScreen.dueLabel')}
+                value={dueDay}
+                onSet={(day) => {
+                  setDueDay(day ?? '');
+                  setDueOpen(false);
+                }}
+                onClose={() => setDueOpen(false)}
+              />
+            ) : null}
+          </div>
         </div>
       </div>
+
+      {needsProject ? (
+        <div className="tm-field">
+          <label className="tm-field__label" htmlFor="tm-convert-project">
+            {tOr('ProjectChannelScreen.projectLabel', 'Project')}
+          </label>
+          <select
+            id="tm-convert-project"
+            className="tm-field__control"
+            value={projectChoice}
+            required
+            onChange={(event) => setPickedProjectId(event.target.value)}
+          >
+            <option value="" disabled>
+              {projects.isPending
+                ? tOr('ProjectChannelScreen.projectLoading', 'Loading projects…')
+                : tOr('ProjectChannelScreen.projectPlaceholder', 'Choose a project')}
+            </option>
+            {activeProjects.map((row) => (
+              <option key={row.id} value={row.id}>
+                {row.name}
+              </option>
+            ))}
+            {projects.isSuccess && activeProjects.length === 0 ? (
+              <option value={NEW_PROJECT}>
+                {tOr('ProjectChannelScreen.projectNew', 'New project: {name}').replace(
+                  '{name}',
+                  firstProjectName,
+                )}
+              </option>
+            ) : null}
+          </select>
+          <span className="tm-field__hint">
+            {projects.isSuccess && activeProjects.length === 0
+              ? tOr(
+                  'ProjectChannelScreen.projectNone',
+                  'You have no projects yet, so TManage will make one for this work. You can rename it later.',
+                )
+              : tOr(
+                  'ProjectChannelScreen.projectHint',
+                  'This chat is not in a project, so choose where the work goes. Every work item lives in a project.',
+                )}
+          </span>
+        </div>
+      ) : null}
 
       <fieldset className="tm-chat-audience-picker">
         <legend>{t('ProjectChannelScreen.audienceLegend')}</legend>
@@ -2281,18 +2387,20 @@ function ConvertDialog({
         ))}
       </fieldset>
 
-      <div className="tm-chat-warning">
-        <span className="tm-chat-warning__orb" aria-hidden="true">
-          !
-        </span>
-        <p>
-          <strong>
-            {t('ProjectChannelScreen.filedOn')}{' '}
-            {projectName ?? t('ProjectChannelScreen.thisChannelsProject')}
-          </strong>
-          {t('ProjectChannelScreen.filedNote')}
-        </p>
-      </div>
+      {needsProject ? null : (
+        <div className="tm-chat-warning">
+          <span className="tm-chat-warning__orb" aria-hidden="true">
+            !
+          </span>
+          <p>
+            <strong>
+              {t('ProjectChannelScreen.filedOn')}{' '}
+              {projectName ?? t('ProjectChannelScreen.thisChannelsProject')}
+            </strong>
+            {t('ProjectChannelScreen.filedNote')}
+          </p>
+        </div>
+      )}
 
       {audience !== 'internal' ? (
         <InlineAlert tone="client" title={t('ProjectChannelScreen.visibleToClientTitle')} live>
@@ -2319,6 +2427,7 @@ function ConvertDialog({
           tone="ink"
           size="accessible"
           loading={convert.isPending}
+          disabled={needsProject && projectChoice === ''}
           loadingLabel={t('ProjectChannelScreen.creating')}
         >
           {t('ProjectChannelScreen.createWorkItem')}

@@ -296,6 +296,12 @@ export interface MessageRevisionView {
  * sharing never inherits internal visibility automatically" said as a default.
  */
 export interface ConvertMessageCommand {
+  /**
+   * FIX2: where the work is filed when the conversation belongs to no project (a direct message,
+   * a group, a workspace channel). A project channel always files on its own project; a different
+   * id here is refused rather than silently ignored.
+   */
+  readonly projectId?: string;
   readonly title?: string;
   readonly type?: string;
   readonly ownerUserId?: string;
@@ -854,7 +860,7 @@ export class ConversationsService {
     command: ConvertMessageCommand = {},
   ): Promise<ConvertMessageResultView> {
     const conversation = await this.loadReadable(context, principal, conversationId);
-    const projectId = this.requireChannelProject(conversation);
+    const projectId = this.conversionProject(conversation, command.projectId);
 
     const message = await this.database.read(context, (runner) =>
       this.conversations.findMessageById(runner, context, messageId),
@@ -874,7 +880,7 @@ export class ConversationsService {
       capability: 'work.create',
       resource: {
         organizationId: context.organizationId,
-        projectId: conversation.projectId,
+        projectId,
         audience: 'internal',
         lifecycle: 'active',
       },
@@ -892,6 +898,10 @@ export class ConversationsService {
     const project = await this.database.read(context, (runner) =>
       this.projects.findById(runner, context, projectId),
     );
+    if (!project && conversation.projectId === null) {
+      // FIX2: a picked project that is not in this tenant.
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
     if (!project || project.archivedAt !== null) {
       // The channel outlived its project's active life. Nothing new is filed into an
       // archived project; the same answer WorkItemsService.create gives.
@@ -1231,6 +1241,29 @@ export class ConversationsService {
   }
 
   /** R7: the project of a project channel; a 422 for a group or a direct conversation. */
+  /**
+   * FIX2: the project a conversion files on. A project channel files on its own project (a
+   * different `requested` id is a 422, never silently ignored). A conversation with no project —
+   * a direct message, a group — files on the project the person picked; work always lives in a
+   * project, so none picked is a 422 naming `projectId`, which the dialog answers with its picker.
+   */
+  private conversionProject(row: ConversationRow, requested: string | undefined): string {
+    if (row.projectId !== null) {
+      if (requested !== undefined && requested !== row.projectId) {
+        throw new ApiError(422, 'validation_failed', 'The request body is invalid', [
+          { field: 'projectId', message: "must be this channel's own project" },
+        ]);
+      }
+      return row.projectId;
+    }
+    if (requested === undefined) {
+      throw new ApiError(422, 'validation_failed', 'Pick the project this work belongs to', [
+        { field: 'projectId', message: 'is required for a conversation outside a project' },
+      ]);
+    }
+    return requested;
+  }
+
   private requireChannelProject(row: ConversationRow): string {
     if (row.projectId === null) {
       throw new ApiError(

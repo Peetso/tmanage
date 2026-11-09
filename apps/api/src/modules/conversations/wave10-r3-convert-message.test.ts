@@ -237,3 +237,61 @@ describe('wave10 R3 F26: converting into a client audience needs deliverable.pub
     expect(created).toHaveLength(1);
   });
 });
+
+describe('FIX2: converting a message from a conversation outside any project', () => {
+  function directHarness() {
+    const built = harness();
+    // The same service, with the conversation re-read as a direct message (no project).
+    const direct = { ...conversation, projectId: null, kind: 'direct' } as ConversationRow;
+    const internals = built.service as unknown as {
+      conversations: { findById: (r: unknown, c: unknown, id: string) => Promise<unknown> };
+    };
+    internals.conversations.findById = async (_r, _c, id) => (id === CHANNEL ? direct : null);
+    return built;
+  }
+
+  it('no project picked: 422 naming projectId, nothing written', async () => {
+    const { service, created } = directHarness();
+    const error = await refusal(
+      service.convertMessageToWork(CONTEXT, principal('member'), CHANNEL, MESSAGE),
+    );
+    expect(error.status).toBe(422);
+    expect(error.details?.[0]?.field).toBe('projectId');
+    expect(created).toHaveLength(0);
+  });
+
+  it('a picked project the caller works on: created on that project', async () => {
+    const { service, created } = directHarness();
+    const result = await service.convertMessageToWork(
+      CONTEXT,
+      principal('member'),
+      CHANNEL,
+      MESSAGE,
+      { projectId: PROJECT_A, dueAt: new Date('2026-11-10T12:00:00.000Z') },
+    );
+    expect(result.created).toBe(true);
+    expect(created).toHaveLength(1);
+  });
+
+  it('a picked project the caller is not on: 403, nothing written', async () => {
+    const { service, created } = directHarness();
+    const error = await refusal(
+      service.convertMessageToWork(CONTEXT, principal('member'), CHANNEL, MESSAGE, {
+        projectId: PROJECT_B,
+      }),
+    );
+    expect(error.status).toBe(403);
+    expect(created).toHaveLength(0);
+  });
+
+  it('a project channel refuses a different picked project', async () => {
+    const { service, created } = harness();
+    const error = await refusal(
+      service.convertMessageToWork(CONTEXT, principal('member'), CHANNEL, MESSAGE, {
+        projectId: PROJECT_B,
+      }),
+    );
+    expect(error.status).toBe(422);
+    expect(created).toHaveLength(0);
+  });
+});

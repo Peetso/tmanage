@@ -1176,6 +1176,13 @@ button.tm-wk-chip[aria-expanded='true'] {
   position: relative;
 }
 
+/* FIX2: a picker opened from the inline end of a narrow pane (the chat's convert lens) opens
+   towards the start, so it stays on screen. */
+.tm-wk-popover-anchor[data-align='end'] > .tm-wk-datepicker {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+}
+
 .tm-wk-menu {
   position: absolute;
   inset-block-start: calc(100% + var(--s2));

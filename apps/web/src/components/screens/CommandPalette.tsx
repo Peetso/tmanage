@@ -213,7 +213,7 @@ function CommandPaletteDialog({
 
   const [draft, setDraft] = useState<string>('');
   const [activeIndex, setActiveIndex] = useState<number>(0);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<false | 'failed' | 'no-project'>(false);
   const [recentSearch, setRecentSearch] = useState<string | null>(() => {
     const value = readStorage(recentKey(organizationSlug));
     return value && value.trim() !== '' ? value : null;
@@ -432,9 +432,10 @@ function CommandPaletteDialog({
         navigate,
         locale,
         untitledDoc: tOr('DocsSidebar.untitled', 'Untitled doc'),
+        firstProjectName: tOr('DocsSidebar.firstProjectName', 'General'),
       });
       if (outcome === 'done') onClose();
-      else setFailed(true);
+      else setFailed(outcome);
     },
     [
       api,
@@ -578,7 +579,12 @@ function CommandPaletteDialog({
         </div>
         {failed ? (
           <p role="alert" className="tm-command-palette__error">
-            {tOr('CommandPaletteV2.actionFailed', 'That did not work. Try again.')}
+            {failed === 'no-project'
+              ? tOr(
+                  'CommandPaletteV2.noProjectForDoc',
+                  'Docs live in a project, and you cannot create one here. Ask an owner to add you to a project.',
+                )
+              : tOr('CommandPaletteV2.actionFailed', 'That did not work. Try again.')}
           </p>
         ) : null}
         <p className="tm-command-palette__foot">

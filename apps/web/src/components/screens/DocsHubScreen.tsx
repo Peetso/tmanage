@@ -150,7 +150,7 @@ export function DocsHubScreen({
         ) : null}
 
         {createBlank.isError ? (
-          <InlineAlert tone="danger" title={t('DocsHubScreen.loadDocsError')} live>
+          <InlineAlert tone="danger" title={t('DocsSidebar.createError')} live>
             {describeError(createBlank.error)}
           </InlineAlert>
         ) : null}

@@ -46,7 +46,7 @@ export function NewMenu({ organizationSlug, client, navigate = assign }: NewMenu
   const may = useShellCapability(organizationSlug, client);
   const [open, setOpen] = useState(false);
   const [focusIndex, setFocusIndex] = useState(0);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<false | 'failed' | 'no-project'>(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const menuId = useId();
@@ -98,9 +98,10 @@ export function NewMenu({ organizationSlug, client, navigate = assign }: NewMenu
       navigate,
       locale,
       untitledDoc: tOr('DocsSidebar.untitled', 'Untitled doc'),
+      firstProjectName: tOr('DocsSidebar.firstProjectName', 'General'),
     });
     if (outcome === 'done') close(true);
-    else setFailed(true);
+    else setFailed(outcome);
   };
 
   const onButtonKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
@@ -179,7 +180,12 @@ export function NewMenu({ organizationSlug, client, navigate = assign }: NewMenu
           {time.map((item, index) => renderItem(item, create.length + index))}
           {failed ? (
             <p role="alert" className="tm-new-menu__error">
-              {tOr('CommandPaletteV2.actionFailed', 'That did not work. Try again.')}
+              {failed === 'no-project'
+                ? tOr(
+                    'CommandPaletteV2.noProjectForDoc',
+                    'Docs live in a project, and you cannot create one here. Ask an owner to add you to a project.',
+                  )
+                : tOr('CommandPaletteV2.actionFailed', 'That did not work. Try again.')}
             </p>
           ) : null}
         </div>

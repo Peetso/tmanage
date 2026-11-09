@@ -85,3 +85,25 @@ export async function listProjects(
   });
   return data.projects;
 }
+
+/**
+ * FIX2 (Peter, 2026-11-09: "New doc" said "That did not work" in a workspace with no project yet).
+ * A document and a work item always live in a project, so a one-click "New doc" in a brand-new
+ * workspace needs one. This returns the first active project the caller can see, and when there
+ * is none, creates a project called `fallbackName` in the first workspace — the caller's own
+ * rights still apply: a member who may not create projects gets the API's refusal, not a project.
+ * Returns `null` only when the organisation has no workspace at all.
+ */
+export async function ensureProjectForNewContent(
+  client: ApiClient,
+  organizationSlug: string,
+  fallbackName: string,
+): Promise<ProjectSummary | null> {
+  const projects = await listProjects(client, organizationSlug);
+  const active = projects.find((project) => !project.archivedAt);
+  if (active) return active;
+  const workspaces = await listWorkspaces(client, organizationSlug);
+  const workspace = workspaces[0];
+  if (!workspace) return null;
+  return createProject(client, organizationSlug, { workspaceId: workspace.id, name: fallbackName });
+}
