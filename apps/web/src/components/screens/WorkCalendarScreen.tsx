@@ -8,7 +8,7 @@ import type { WorkItemState } from '@tmanage/domain';
 import { WorkViewsShell } from '../work/WorkViewsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
-import { getWorkCalendar } from '../../lib/api/work-views';
+import { getWorkCalendar, getWorkCalendarAll } from '../../lib/api/work-views';
 import type { WorkCalendarDayRow } from '../../lib/api/work-views';
 import { isOverdue, stateLabel } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
@@ -85,14 +85,30 @@ export function WorkCalendarScreen({
     queryFn: () => listProjects(api, organizationSlug),
   });
 
-  // The calendar is per project: with none chosen, the first project the caller can see.
-  const chosenProjectId = projectId !== '' ? projectId : (projects.data?.[0]?.id ?? '');
+  // FIX3 item 10: no project chosen is "All work" — every project the caller can see — and the
+  // view never switches to one project on its own.
+  const chosenProjectId = projectId;
+  const allProjectIds = useMemo(
+    () => (projects.data ?? []).map((project) => project.id),
+    [projects.data],
+  );
+  const scopeReady = chosenProjectId !== '' || allProjectIds.length > 0;
 
   const calendar = useQuery({
-    queryKey: ['work-calendar', organizationSlug, chosenProjectId, range.from, range.to],
-    queryFn: () => getWorkCalendar(api, organizationSlug, chosenProjectId, range),
+    queryKey: [
+      'work-calendar',
+      organizationSlug,
+      chosenProjectId,
+      allProjectIds.join(','),
+      range.from,
+      range.to,
+    ],
+    queryFn: () =>
+      chosenProjectId === ''
+        ? getWorkCalendarAll(api, organizationSlug, allProjectIds, range)
+        : getWorkCalendar(api, organizationSlug, chosenProjectId, range),
     // An invalid range is explained on screen and never sent: the API would only refuse it.
-    enabled: chosenProjectId !== '' && rangeProblem === null,
+    enabled: scopeReady && rangeProblem === null,
   });
 
   const itemsByDay = useMemo(() => {
@@ -108,7 +124,7 @@ export function WorkCalendarScreen({
   const onThisMonth = range.from === thisMonth.from && range.to === thisMonth.to;
   const noProjects = projects.isSuccess && projects.data.length === 0;
   const empty =
-    chosenProjectId !== '' &&
+    scopeReady &&
     rangeProblem === null &&
     calendar.isSuccess &&
     (calendar.data.days ?? []).length === 0;
@@ -141,9 +157,7 @@ export function WorkCalendarScreen({
             disabled={projects.isPending || noProjects}
             onChange={(event) => setProjectId(event.target.value)}
           >
-            {chosenProjectId === '' ? (
-              <option value="">{t('WorkCalendarScreen.chooseProject')}</option>
-            ) : null}
+            <option value="">{t('WorkListScreen.viewAllWork')}</option>
             {(projects.data ?? []).map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
@@ -233,7 +247,7 @@ export function WorkCalendarScreen({
         </InlineAlert>
       ) : null}
 
-      {rangeProblem !== null ? null : chosenProjectId !== '' && calendar.isPending ? (
+      {rangeProblem !== null ? null : scopeReady && calendar.isPending ? (
         <LoadingRegion label={t('WorkCalendarScreen.loading')}>
           <Skeleton height="30px" />
           <Skeleton height="480px" />

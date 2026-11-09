@@ -440,3 +440,74 @@ export async function updateSavedView(
   });
   return data;
 }
+
+/*
+ * FIX3 item 10 (live check a6f66e47): Timeline, Calendar and Workload stay on "All work" until the
+ * person picks a project. Their reads are per project, so "All work" reads every project the caller
+ * can see and joins the answers here (`projectId: ''` marks the joined view). A studio has a
+ * handful of projects in the beta, so one read per project is the honest cost.
+ */
+
+/**
+ * Every project's timeline bars, joined. Phases and milestones belong to one project's plan (and
+ * a milestone move names its project), so the joined view draws the work items only.
+ */
+export async function getWorkTimelineAll(
+  client: ApiClient,
+  organizationSlug: string,
+  projectIds: readonly string[],
+): Promise<WorkTimelineView> {
+  const views = await Promise.all(
+    projectIds.map((projectId) => getWorkTimeline(client, organizationSlug, projectId)),
+  );
+  return { projectId: '', items: views.flatMap((view) => view.items) };
+}
+
+/** Every project's workload, one row per person with their counts summed. */
+export async function getWorkWorkloadAll(
+  client: ApiClient,
+  organizationSlug: string,
+  projectIds: readonly string[],
+): Promise<WorkloadView> {
+  const views = await Promise.all(
+    projectIds.map((projectId) => getWorkWorkload(client, organizationSlug, projectId)),
+  );
+  const byOwner = new Map<string | null, WorkloadAssignee>();
+  for (const group of views.flatMap((view) => view.groups)) {
+    const seen = byOwner.get(group.ownerUserId);
+    byOwner.set(
+      group.ownerUserId,
+      seen
+        ? {
+            ownerUserId: group.ownerUserId,
+            openItemCount: seen.openItemCount + group.openItemCount,
+            scheduledItemCount: seen.scheduledItemCount + group.scheduledItemCount,
+          }
+        : group,
+    );
+  }
+  return { projectId: '', groups: [...byOwner.values()] };
+}
+
+/** Every project's calendar for one range, one cell per day. */
+export async function getWorkCalendarAll(
+  client: ApiClient,
+  organizationSlug: string,
+  projectIds: readonly string[],
+  range: WorkCalendarRangeInput,
+): Promise<WorkCalendarView> {
+  const views = await Promise.all(
+    projectIds.map((projectId) => getWorkCalendar(client, organizationSlug, projectId, range)),
+  );
+  const byDate = new Map<string, WorkCalendarItem[]>();
+  for (const day of views.flatMap((view) => view.days)) {
+    byDate.set(day.date, [...(byDate.get(day.date) ?? []), ...day.items]);
+  }
+  return {
+    projectId: '',
+    range: { from: range.from, to: range.to },
+    days: [...byDate.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([date, items]) => ({ date, items })),
+  };
+}

@@ -6,7 +6,7 @@ import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { WorkViewsShell } from '../work/WorkViewsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
-import { getWorkWorkload } from '../../lib/api/work-views';
+import { getWorkWorkload, getWorkWorkloadAll } from '../../lib/api/work-views';
 import type { WorkloadRow } from '../../lib/api/work-views';
 import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
@@ -55,13 +55,22 @@ export function WorkWorkloadScreen({
     queryFn: () => listProjects(api, organizationSlug),
   });
 
-  // A workload is per project: with none chosen, the first project the caller can see.
-  const chosenProjectId = projectId !== '' ? projectId : (projects.data?.[0]?.id ?? '');
+  // FIX3 item 10: no project chosen is "All work" — every project the caller can see — and the
+  // view never switches to one project on its own.
+  const chosenProjectId = projectId;
+  const allProjectIds = useMemo(
+    () => (projects.data ?? []).map((project) => project.id),
+    [projects.data],
+  );
+  const scopeReady = chosenProjectId !== '' || allProjectIds.length > 0;
 
   const workload = useQuery({
-    queryKey: ['work-workload', organizationSlug, chosenProjectId],
-    queryFn: () => getWorkWorkload(api, organizationSlug, chosenProjectId),
-    enabled: chosenProjectId !== '',
+    queryKey: ['work-workload', organizationSlug, chosenProjectId, allProjectIds.join(',')],
+    queryFn: () =>
+      chosenProjectId === ''
+        ? getWorkWorkloadAll(api, organizationSlug, allProjectIds)
+        : getWorkWorkload(api, organizationSlug, chosenProjectId),
+    enabled: scopeReady,
   });
 
   const rows = useMemo(() => workload.data?.groups ?? [], [workload.data]);
@@ -88,9 +97,7 @@ export function WorkWorkloadScreen({
             disabled={projects.isPending || noProjects}
             onChange={(event) => setProjectId(event.target.value)}
           >
-            {chosenProjectId === '' ? (
-              <option value="">{t('WorkWorkloadScreen.chooseProject')}</option>
-            ) : null}
+            <option value="">{t('WorkListScreen.viewAllWork')}</option>
             {(projects.data ?? []).map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
@@ -113,7 +120,7 @@ export function WorkWorkloadScreen({
         </InlineAlert>
       ) : null}
 
-      {chosenProjectId !== '' && workload.isPending ? (
+      {scopeReady && workload.isPending ? (
         <LoadingRegion label={t('WorkWorkloadScreen.loading')}>
           <Skeleton height="60px" />
           <Skeleton height="60px" />
@@ -121,7 +128,7 @@ export function WorkWorkloadScreen({
         </LoadingRegion>
       ) : null}
 
-      {chosenProjectId !== '' && workload.isSuccess && rows.length === 0 ? (
+      {scopeReady && workload.isSuccess && rows.length === 0 ? (
         <div className="wp-empty">
           <h2 className="wp-empty__title">{t('WorkWorkloadScreen.emptyTitle')}</h2>
           <p className="wp-empty__body">{t('WorkWorkloadScreen.emptyBody')}</p>

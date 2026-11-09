@@ -14,6 +14,7 @@ import {
   getTimelineBaseline,
   getTimelineCriticalPath,
   getWorkTimeline,
+  getWorkTimelineAll,
   moveTimelineMilestone,
   previewTimelineMove,
   removeTimelineDependency,
@@ -142,17 +143,26 @@ export function WorkTimelineScreen({
     queryFn: () => listProjects(api, organizationSlug),
   });
 
-  // A timeline is per project: with none chosen, the first project the caller can see.
-  const chosenProjectId = projectId !== '' ? projectId : (projects.data?.[0]?.id ?? '');
+  // FIX3 item 10: no project chosen is "All work" — every project the caller can see — and the
+  // view never switches to one project on its own.
+  const chosenProjectId = projectId;
+  const allProjectIds = useMemo(
+    () => (projects.data ?? []).map((project) => project.id),
+    [projects.data],
+  );
+  const scopeReady = chosenProjectId !== '' || allProjectIds.length > 0;
 
   const timelineKey = useMemo(
-    () => ['work-timeline', organizationSlug, chosenProjectId],
-    [organizationSlug, chosenProjectId],
+    () => ['work-timeline', organizationSlug, chosenProjectId, allProjectIds.join(',')],
+    [organizationSlug, chosenProjectId, allProjectIds],
   );
   const timeline = useQuery({
     queryKey: timelineKey,
-    queryFn: () => getWorkTimeline(api, organizationSlug, chosenProjectId),
-    enabled: chosenProjectId !== '',
+    queryFn: () =>
+      chosenProjectId === ''
+        ? getWorkTimelineAll(api, organizationSlug, allProjectIds)
+        : getWorkTimeline(api, organizationSlug, chosenProjectId),
+    enabled: scopeReady,
   });
   const baseline = useQuery({
     queryKey: ['work-timeline-baseline', organizationSlug, chosenProjectId],
@@ -520,21 +530,24 @@ export function WorkTimelineScreen({
               setSelectedId(null);
             }}
           >
-            {chosenProjectId === '' ? (
-              <option value="">{t('WorkTimelineScreen.chooseProject')}</option>
-            ) : null}
+            <option value="">{t('WorkListScreen.viewAllWork')}</option>
             {(projects.data ?? []).map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
               </option>
             ))}
           </select>
-          {toggle(showBaseline, tOr('WorkTimelineScreen.baseline', 'Baseline'), () =>
-            setShowBaseline((current) => !current),
-          )}
-          {toggle(showCritical, tOr('WorkTimelineScreen.criticalPath', 'Critical path'), () =>
-            setShowCritical((current) => !current),
-          )}
+          {/* A baseline and a critical path are one project's plan: offered once one is chosen. */}
+          {chosenProjectId === ''
+            ? null
+            : toggle(showBaseline, tOr('WorkTimelineScreen.baseline', 'Baseline'), () =>
+                setShowBaseline((current) => !current),
+              )}
+          {chosenProjectId === ''
+            ? null
+            : toggle(showCritical, tOr('WorkTimelineScreen.criticalPath', 'Critical path'), () =>
+                setShowCritical((current) => !current),
+              )}
           {toggle(linkMode, tOr('WorkTimelineScreen.linkTasks', 'Link tasks'), () => {
             setLinkMode((current) => !current);
             setLinkFrom(null);
@@ -619,7 +632,7 @@ export function WorkTimelineScreen({
         </p>
       ) : null}
 
-      {chosenProjectId !== '' && timeline.isPending ? (
+      {scopeReady && timeline.isPending ? (
         <LoadingRegion label={t('WorkTimelineScreen.loading')}>
           <Skeleton height="38px" />
           <Skeleton height="40px" />
@@ -628,7 +641,7 @@ export function WorkTimelineScreen({
         </LoadingRegion>
       ) : null}
 
-      {chosenProjectId !== '' && timeline.isSuccess && rows.length === 0 ? (
+      {scopeReady && timeline.isSuccess && rows.length === 0 ? (
         <div className="wp-empty">
           <h2 className="wp-empty__title">{t('WorkTimelineScreen.emptyTitle')}</h2>
           <p className="wp-empty__body">{t('WorkTimelineScreen.emptyBody')}</p>
