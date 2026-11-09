@@ -112,18 +112,34 @@ function hex(value: string | null): string | null {
   return value && /^[0-9a-f]{6}$/i.test(value) ? `#${value.toUpperCase()}` : null;
 }
 
-/** A colour element's colour: `srgbClr`, `sysClr` or a theme `schemeClr`. */
+/**
+ * A colour element's own `<a:alpha val="…"/>` (thousandths of a percent) applied to its colour:
+ * a 10 % tint stays a tint, rather than becoming a solid block that hides text of the same colour.
+ */
+function withAlpha(element: Element, colour: string | null): string | null {
+  const alphaElement = child(element, 'alpha');
+  if (!colour || !alphaElement) return colour;
+  const raw = Number(attr(alphaElement, 'val'));
+  if (!Number.isFinite(raw) || raw >= 100000) return colour;
+  const alpha = Math.max(0, raw) / 100000;
+  const value = colour.slice(1);
+  const [r, g, b] = [0, 2, 4].map((at) => parseInt(value.slice(at, at + 2), 16));
+  return `rgba(${r}, ${g}, ${b}, ${Math.round(alpha * 1000) / 1000})`;
+}
+
+/** A colour element's colour: `srgbClr`, `sysClr` or a theme `schemeClr`, with its alpha. */
 function colourOf(holder: Element | null, theme: Theme): string | null {
   if (!holder) return null;
   const srgb = child(holder, 'srgbClr');
-  if (srgb) return hex(attr(srgb, 'val'));
+  if (srgb) return withAlpha(srgb, hex(attr(srgb, 'val')));
   const sys = child(holder, 'sysClr');
-  if (sys) return hex(attr(sys, 'lastClr'));
+  if (sys) return withAlpha(sys, hex(attr(sys, 'lastClr')));
   const scheme = child(holder, 'schemeClr');
   if (scheme) {
     const name = attr(scheme, 'val') ?? '';
     const alias: Record<string, string> = { tx1: 'dk1', tx2: 'dk2', bg1: 'lt1', bg2: 'lt2' };
-    return theme.get(alias[name] ?? name) ?? null;
+    const base = theme.get(alias[name] ?? name) ?? null;
+    return base && base.startsWith('#') ? withAlpha(scheme, base) : base;
   }
   return null;
 }

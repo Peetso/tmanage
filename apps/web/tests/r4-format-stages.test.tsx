@@ -283,6 +283,19 @@ describe('PowerPoint reader and stage (V-25 PowerPoint)', () => {
     expect(deck.media.get('ppt/media/image1.png')).toMatch(/^blob:/);
   });
 
+  it('keeps a shape fill’s alpha, so a 10 % tint does not hide text of the same colour (FIX5)', async () => {
+    const files = deckFiles();
+    files['ppt/slides/slide2.xml'] =
+      `<p:sld xmlns:p="${NS_P}" xmlns:a="${NS_A}"><p:cSld><p:spTree>` +
+      `<p:sp><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="3048000" cy="342900"/></a:xfrm><a:solidFill><a:srgbClr val="FFC21A"><a:alpha val="10000"/></a:srgbClr></a:solidFill></p:spPr>` +
+      `<p:txBody><a:p><a:r><a:rPr><a:solidFill><a:srgbClr val="FFC21A"/></a:solidFill></a:rPr><a:t>01 · WHY VARIABLES FIRST</a:t></a:r></a:p></p:txBody></p:sp>` +
+      `</p:spTree></p:cSld></p:sld>`;
+    const deck = await readDeck(await packageBytes(files));
+    const [chip] = deck.slides[1]!.shapes;
+    expect(chip).toMatchObject({ kind: 'text', fill: 'rgba(255, 194, 26, 0.1)' });
+    expect(chip?.kind === 'text' && chip.paragraphs[0]?.runs[0]?.color).toBe('#FFC21A');
+  });
+
   it('shows one slide with its pins, the counter, and a strip with open counts', async () => {
     const data = await packageBytes(deckFiles());
     const onSlideChange = vi.fn();
