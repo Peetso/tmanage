@@ -312,7 +312,12 @@ function MediaViewerModal({
       onPointerDown={stopAtViewer}
       onMouseDown={stopAtViewer}
       onContextMenu={stopAtViewer}
-      onKeyDown={stopAtViewer}
+      onKeyDown={(event) => {
+        // The bubble's handlers never see a key from the viewer, so Escape is answered here
+        // (stopping it in the React tree also keeps it from the document listener below).
+        if (event.key === 'Escape') onClose();
+        event.stopPropagation();
+      }}
     >
       {/* The scrim closes the viewer on a click; keyboard users close it with Escape. */}
       <button

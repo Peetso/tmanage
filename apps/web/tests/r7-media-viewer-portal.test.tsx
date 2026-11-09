@@ -66,5 +66,9 @@ describe.each([
     expect(onBubbleClick).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(screen.queryByTestId('chat-media-viewer')).toBeNull();
+    // Escape from inside the viewer closes it too (FIX5 walkthrough: it did not).
+    fireEvent.click(screen.getByRole('button', { name: /calendar\.xlsx/u }));
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(screen.queryByTestId('chat-media-viewer')).toBeNull();
   });
 });
