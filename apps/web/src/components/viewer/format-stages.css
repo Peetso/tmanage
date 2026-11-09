@@ -771,7 +771,7 @@
   border: var(--b-structural) solid var(--ink-950);
   border-radius: 50%;
   background: var(--lime-500);
-  color: var(--ink-950);
+  color: var(--tm-on-lime);
   font: inherit;
   font-size: var(--t-caption);
   font-weight: 600;

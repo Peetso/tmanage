@@ -102,7 +102,7 @@
 
 .tm-mtg-btn--lime {
   background: var(--lime-500);
-  color: var(--ink-950);
+  color: var(--tm-on-lime);
 }
 
 .tm-mtg-btn--ink {
@@ -501,7 +501,7 @@
   padding: 5px 10px;
   border-radius: var(--r-capsule);
   background: var(--lime-500);
-  color: var(--ink-950);
+  color: var(--tm-on-lime);
 }
 
 .tm-mtg-week__allday {
@@ -528,7 +528,7 @@
   padding: 5px 10px;
   border-radius: 8px;
   background: var(--lime-500);
-  color: var(--ink-950);
+  color: var(--tm-on-lime);
   font-size: 12px;
   font-weight: 600;
   text-decoration: none;
@@ -691,7 +691,7 @@
 .tm-mtg-month__cell[data-outside] .tm-mtg-month__date[data-today] {
   /* Figma 415:20283: today is ink on a lime pill, also when it falls outside the shown month. */
   background: var(--lime-500);
-  color: var(--ink-950);
+  color: var(--tm-on-lime);
   font-weight: 600;
 }
 
@@ -712,7 +712,7 @@
 
 .tm-mtg-chiplink[data-tone='allday'] {
   background: var(--lime-500);
-  color: var(--ink-950);
+  color: var(--tm-on-lime);
   font-weight: 600;
 }
 
@@ -963,7 +963,7 @@
 .tm-mtg-invite__answers button[aria-pressed='true'] {
   border-color: var(--lime-500);
   background: var(--lime-500);
-  color: var(--ink-950);
+  color: var(--tm-on-lime);
 }
 
 .tm-mtg-dot {
@@ -1462,7 +1462,7 @@
   padding: 32px 36px;
   border-radius: 28px;
   background: var(--lime-500);
-  color: var(--ink-950);
+  color: var(--tm-on-lime);
 }
 
 .tm-mtg-hero-lime[data-cancelled] {

@@ -83,6 +83,7 @@
     block-size: 4px;
     border-radius: var(--r-capsule);
     background: var(--lime-500);
+    color: var(--tm-on-lime);
   }
 
   .tm-phone-home__metric-value {

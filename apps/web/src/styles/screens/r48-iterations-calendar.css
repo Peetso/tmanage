@@ -111,6 +111,7 @@
 
 .tm-r48-swatch--done {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-r48-row {

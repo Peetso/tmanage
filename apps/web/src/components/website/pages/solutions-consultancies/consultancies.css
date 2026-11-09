@@ -285,6 +285,7 @@
 .is-now .tm-consult-story__dot {
   border-color: var(--ink-950);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .is-next .tm-consult-story__dot {
@@ -454,6 +455,7 @@
 
 .tm-consult-detail__audit > span.is-lime::before {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-consult-detail__audit b {
@@ -568,6 +570,7 @@
 
 .tm-consult-health__bar i.is-current {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-consult-health__draft {

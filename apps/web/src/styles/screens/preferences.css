@@ -421,6 +421,7 @@ select.tm-prefs-field__control {
   inset-inline-start: 20px;
   border-color: transparent;
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-prefs-switch:focus-visible {
@@ -742,6 +743,7 @@ select.tm-prefs-field__control {
 
 .tm-prefs-dot--lime {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-prefs-dot--client {

@@ -336,6 +336,7 @@
 
 .tm-web-fi-bars__bar--now {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-web-fi-bars__label {
@@ -377,6 +378,7 @@
 
 .tm-web-fi-stage__fill--lime {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-web-fi-stage__fill--danger {

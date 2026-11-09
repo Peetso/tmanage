@@ -44,6 +44,7 @@
 .wp-gantt__bar.wp-gantt__bar--done {
   border: var(--b-quiet) solid var(--lime-600);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .wp-cal__item.wp-cal__item--done {

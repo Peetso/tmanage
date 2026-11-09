@@ -67,6 +67,7 @@
   block-size: 9px;
   border-radius: var(--r-capsule);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 [dir='rtl'] .tm-consent__mark::after {
@@ -169,7 +170,7 @@
 
 .tm-consent__badge--verified {
   background: var(--lime-500);
-  color: var(--ink-950);
+  color: var(--tm-on-lime);
 }
 
 .tm-consent__badge--unverified {
@@ -321,6 +322,7 @@
 .tm-consent__switch:checked {
   border-color: var(--lime-500);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-consent__switch:checked::before {

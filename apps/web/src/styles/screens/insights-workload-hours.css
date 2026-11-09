@@ -28,6 +28,7 @@
   block-size: 100%;
   border-radius: var(--r-capsule);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-ins-hours__load[data-over] .tm-ins-hours__fill {

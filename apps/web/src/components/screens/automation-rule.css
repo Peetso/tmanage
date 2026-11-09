@@ -171,6 +171,7 @@
 /* The design's switch: an ink track with a lime thumb when on. */
 .tm-aur-switch:checked::before {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-aur-info {

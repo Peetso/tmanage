@@ -1141,6 +1141,7 @@
 
 .tm-status-dot--live .tm-status-dot__mark {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
   box-shadow: 0 0 0 var(--b-quiet) var(--ink-950);
 }
 
@@ -1804,7 +1805,7 @@ a.tm-chip {
   block-size: 52px;
   border-radius: var(--r-capsule);
   background: var(--lime-500);
-  color: var(--tm-ink-absolute);
+  color: var(--tm-on-lime);
   font-family: var(--font-mono);
   font-size: 19px;
   text-decoration: none;
@@ -1940,6 +1941,7 @@ a.tm-chip {
   inset-inline-start: -2px;
   border: var(--b-structural) solid var(--ink-950);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-work-story > li[data-state='next']::before {

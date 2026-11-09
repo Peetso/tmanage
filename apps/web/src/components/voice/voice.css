@@ -69,6 +69,7 @@
   block-size: 100%;
   border-radius: var(--r-capsule);
   background: var(--lime-600);
+  color: var(--tm-on-lime);
   transform-origin: center;
   animation: tm-mic-bar 900ms var(--ease) infinite;
 }

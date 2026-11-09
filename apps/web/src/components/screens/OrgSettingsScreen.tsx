@@ -45,6 +45,7 @@ import {
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { DownloadScanPolicyCard } from './DownloadScanPolicyCard';
 import { DataLocationCard } from './DataLocationCard';
+import { BrandColourCard } from '../brand/BrandColourCard';
 import './org-settings.css';
 
 export interface OrgSettingsScreenProps {
@@ -570,6 +571,14 @@ export function OrgSettingsScreen({
           </>
         ) : null}
       </section>
+
+      {mayManage === true ? (
+        <BrandColourCard
+          organizationSlug={organizationSlug}
+          client={api}
+          isOwner={role === 'owner'}
+        />
+      ) : null}
 
       <DataLocationCard organizationName={organizationName} client={api} />
 

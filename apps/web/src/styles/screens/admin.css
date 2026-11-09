@@ -194,6 +194,7 @@
   block-size: 22px;
   border-radius: var(--r-capsule);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-cc-card__title {
@@ -698,6 +699,7 @@
 
 .tm-cc-card--ink .tm-cc-bar__fill {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 /* ── Person orb (ADM-12 "KN") ──────────────────────────────────────────────────────── */

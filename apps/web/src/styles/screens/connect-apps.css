@@ -172,6 +172,7 @@
 
 .tm-connect-guide__step[data-fix='true'] .tm-connect-guide__number {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-connect-guide__body {

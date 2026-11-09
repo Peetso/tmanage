@@ -294,6 +294,7 @@
   block-size: var(--s3);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-pp-toast {

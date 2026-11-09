@@ -152,6 +152,7 @@
   block-size: 6px;
   border-radius: 50%;
   background: var(--lime-500);
+  color: var(--tm-on-lime);
   transform: translateY(-2px);
 }
 

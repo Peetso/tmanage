@@ -969,6 +969,7 @@ button.ppl-member {
 
 .ppl-swatch--today {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .ppl-swatch--over {

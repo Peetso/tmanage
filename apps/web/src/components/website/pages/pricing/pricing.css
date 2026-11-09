@@ -76,6 +76,7 @@
 
 .tm-pricing-toggle__item[aria-pressed='true']::after {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-pricing-toggle__item:focus-visible {

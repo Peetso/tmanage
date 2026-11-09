@@ -213,6 +213,7 @@
   block-size: var(--s2);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-fw-rail__item {
@@ -300,6 +301,7 @@
   block-size: var(--s5);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
   flex: none;
 }
 
@@ -800,6 +802,7 @@
 
 .tm-fw-story li.is-now::before {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
   box-shadow: 0 0 0 var(--b-quiet) var(--ink-950);
 }
 
@@ -1235,6 +1238,7 @@
 .tm-fw-mark--current {
   border-color: var(--ink-950);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-fw-mark--risk {
@@ -1290,6 +1294,7 @@
 
 .tm-fw-tpl__phase--launch {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-fw-tpl__steps {
@@ -1326,6 +1331,7 @@
 
 .tm-fw-tpl__dot--launch {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
   box-shadow: 0 0 0 var(--b-quiet) var(--ink-950);
 }
 

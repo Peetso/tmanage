@@ -36,6 +36,7 @@
 
 .tm-timer-button--running:hover {
   background: var(--lime-600);
+  color: var(--tm-on-lime);
 }
 
 .tm-timer-button:focus-visible,

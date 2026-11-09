@@ -100,6 +100,7 @@
   block-size: calc(var(--s5) / 2);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
   flex: none;
 }
 
@@ -127,6 +128,7 @@
   block-size: var(--s2);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
   flex: none;
 }
 
@@ -214,6 +216,7 @@ a.tm-web-orb--outline:hover {
 
 .tm-web-play:hover .tm-web-play__orb {
   background: var(--lime-600);
+  color: var(--tm-on-lime);
 }
 
 .tm-web-arrow-link {
@@ -385,6 +388,7 @@ a.tm-web-orb--outline:hover {
 .tm-web-nav__link.tm-web-nav__link--accent[aria-current='page'] {
   box-shadow: none;
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-web-nav__chevron {
@@ -899,6 +903,7 @@ a.tm-web-orb--outline:hover {
   block-size: var(--s1);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-web-stat__figure {

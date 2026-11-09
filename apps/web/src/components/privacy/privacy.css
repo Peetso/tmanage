@@ -116,6 +116,7 @@
   inset-inline-start: 0;
   border-radius: var(--r-capsule);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .prv-actions {

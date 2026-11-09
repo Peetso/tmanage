@@ -346,6 +346,7 @@
 
 .tm-hs-dot--lime {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-hs-dot--warn {
@@ -1814,6 +1815,7 @@
   block-size: var(--b-expressive);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-home-tabs__tab:hover {

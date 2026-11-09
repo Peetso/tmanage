@@ -66,6 +66,7 @@
   border: 1px solid var(--ink-950);
   border-radius: 50%;
   background: var(--lime-500);
+  color: var(--tm-on-lime);
   cursor: crosshair;
   opacity: 0;
 }
@@ -160,6 +161,7 @@
 
 .wte-diamond--moving {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
   outline: 2px solid var(--ink-950);
 }
 

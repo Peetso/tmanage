@@ -97,6 +97,7 @@
 
 .tm-connected__switch:checked {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
   border-color: var(--lime-500);
 }
 
@@ -207,7 +208,7 @@
 
 .tm-connected__badge--verified {
   background: var(--lime-500);
-  color: var(--ink-950);
+  color: var(--tm-on-lime);
 }
 
 .tm-connected__badge--unverified {

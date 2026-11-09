@@ -394,7 +394,7 @@ a.tm-aut-rowtitle:hover {
 .tm-aut-state--live {
   border-color: var(--lime-500);
   background: var(--lime-500);
-  color: var(--tm-ink-absolute);
+  color: var(--tm-on-lime);
   font-weight: 600;
 }
 
@@ -521,6 +521,7 @@ a.tm-aut-rowtitle:hover {
   block-size: 22px;
   border-radius: var(--r-capsule);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
   flex: none;
 }
 
@@ -623,6 +624,7 @@ a.tm-aut-rowtitle:hover {
   flex: none;
   transform: translateY(-1px);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-aut-facts--numbered {
@@ -871,7 +873,7 @@ a.tm-aut-rowtitle:hover {
 .tm-aut-flow > li.is-current .tm-aut-flow__num {
   border: var(--b-expressive) solid var(--tm-ink-absolute);
   background: var(--lime-500);
-  color: var(--tm-ink-absolute);
+  color: var(--tm-on-lime);
 }
 
 .tm-aut-flow > li.is-add .tm-aut-flow__num {
@@ -1204,6 +1206,7 @@ a.tm-aut-rowtitle:hover {
 /* Schedules: the On switch (lime when on, as on the rule settings page) and the quiet Remove. */
 .tm-aut-switch:checked::before {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-aut-textbtn {

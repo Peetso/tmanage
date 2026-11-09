@@ -88,6 +88,7 @@
 
 .tm-wk-rail__item[aria-pressed='true'] .tm-wk-rail__dot {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
   border-color: var(--tm-ink-absolute);
 }
 
@@ -918,6 +919,7 @@ button.tm-wk-chip[aria-expanded='true'] {
   inset-inline-start: 2px;
   inset-block-start: 2px;
   background: var(--lime-500);
+  color: var(--tm-on-lime);
   box-shadow: 0 0 0 var(--b-structural) var(--tm-ink-absolute);
 }
 
@@ -1890,7 +1892,7 @@ button.tm-wk-chip[aria-expanded='true'] {
 
 .tm-wk-datepicker__grid button[aria-pressed='true'] {
   background: var(--lime-500);
-  color: var(--ink-950);
+  color: var(--tm-on-lime);
 }
 
 .tm-wk-datepicker__grid button:disabled {

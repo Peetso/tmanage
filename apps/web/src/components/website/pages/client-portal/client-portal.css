@@ -337,6 +337,7 @@ ol.tm-cp-three {
 
 .tm-cp-stage--current .tm-cp-stage__bar {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-cp-stage__label {

@@ -99,6 +99,7 @@
   border: var(--b-quiet) solid var(--ink-950);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 /* ── Headline metrics (72px Manrope) ───────────────────────────────────────── */
@@ -530,6 +531,7 @@
 
 .tm-ins-bars__fill[data-tone='lime'] {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
   border-inline-end: 2px solid var(--ink-950);
 }
 
@@ -586,6 +588,7 @@
 .tm-ins-pulse__seg[data-state='current'] {
   border-color: var(--ink-950);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-ins-pulse__seg[data-state='unknown'] {

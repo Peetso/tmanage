@@ -58,6 +58,7 @@
 
 .tm-r44-bars__bar--now {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-r44-bars__label {
@@ -85,6 +86,7 @@
 
 .tm-r44-funnel .tm-cc-bar__fill {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 /* Retention heat cells: four steps of the accent, by quarter of the rate. */
@@ -101,4 +103,5 @@
 .tm-r44-heat[data-level='3'],
 .tm-r44-heat[data-level='4'] {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }

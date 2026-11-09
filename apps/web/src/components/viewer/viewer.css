@@ -274,7 +274,7 @@
   border: var(--b-expressive) solid var(--ink-950);
   border-radius: 50% 50% 50% 0;
   background: var(--lime-500);
-  color: var(--ink-950);
+  color: var(--tm-on-lime);
   font: inherit;
   font-size: var(--t-caption);
   font-weight: 600;
@@ -768,7 +768,7 @@
   border: var(--b-expressive) solid var(--ink-950);
   border-radius: 50% 50% 50% 0;
   background: var(--lime-500);
-  color: var(--ink-950);
+  color: var(--tm-on-lime);
   font-size: var(--t-caption);
   font-weight: 600;
   line-height: 1;
@@ -1024,7 +1024,7 @@
   border: var(--b-quiet) solid var(--ink-950);
   border-radius: 50%;
   background: var(--lime-500);
-  color: var(--ink-950);
+  color: var(--tm-on-lime);
   font-size: 10px;
   font-weight: 600;
 }
@@ -1354,7 +1354,7 @@
 .tm-viewer-draw-bar__done {
   padding: var(--s2) 14px;
   background: var(--lime-500);
-  color: var(--ink-950);
+  color: var(--tm-on-lime);
   font-weight: 600;
 }
 

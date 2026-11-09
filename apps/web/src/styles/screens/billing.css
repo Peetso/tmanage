@@ -176,6 +176,7 @@
   block-size: 22px;
   border-radius: var(--r-capsule);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-bil-eyebrow--bare::before {
@@ -695,6 +696,7 @@
   block-size: 9px;
   flex: none;
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-bil-points li[data-tone='warning']::before {

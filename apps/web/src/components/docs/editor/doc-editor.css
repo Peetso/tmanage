@@ -297,6 +297,7 @@
   inset-inline-end: -2px;
   inline-size: 4px;
   background: var(--lime-500);
+  color: var(--tm-on-lime);
   pointer-events: none;
 }
 
@@ -563,6 +564,7 @@
   block-size: 8px;
   border-radius: 50%;
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 .tm-collab-bar__status {
   color: var(--ink-500);

@@ -295,6 +295,7 @@
 
 .tm-media-timeline__played {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-media-timeline__playhead {
@@ -333,7 +334,7 @@
   border: var(--b-expressive) solid var(--ink-950);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
-  color: var(--ink-950);
+  color: var(--tm-on-lime);
   font-family: var(--font-mono);
   font-size: var(--t-caption);
   line-height: var(--t-caption-line);
@@ -429,6 +430,7 @@
   inline-size: 2px;
   margin-left: -1px;
   background: var(--lime-500);
+  color: var(--tm-on-lime);
   pointer-events: none;
 }
 
@@ -528,6 +530,7 @@
   border: var(--b-expressive) solid var(--ink-950);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
   font-family: var(--font-mono);
   font-size: var(--t-caption);
   font-weight: 500;

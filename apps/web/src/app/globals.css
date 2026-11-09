@@ -652,7 +652,7 @@ html[lang^='zh'] body {
   border-color: var(--lime-500);
   border-style: solid;
   background: var(--lime-500);
-  color: var(--tm-ink-absolute);
+  color: var(--tm-on-lime);
   font-weight: 600;
   padding-inline-end: var(--s6);
 }
@@ -990,7 +990,7 @@ html[lang^='zh'] body {
   padding-inline: var(--s4) 9px;
   border-radius: var(--r-capsule);
   background: var(--lime-500);
-  color: var(--tm-ink-absolute);
+  color: var(--tm-on-lime);
   font-size: var(--t-ui-sm);
   line-height: var(--t-ui-sm-line);
   font-weight: 600;
@@ -1994,7 +1994,7 @@ html[lang^='zh'] body {
   padding-inline: 4px;
   border-radius: var(--r-capsule);
   background: var(--lime-500);
-  color: var(--tm-ink-absolute);
+  color: var(--tm-on-lime);
   font-size: 10px;
   line-height: 1;
   font-weight: 700;
@@ -2400,6 +2400,7 @@ html[lang^='zh'] body {
   block-size: 10px;
   border-radius: var(--r-capsule);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-command-palette__input {
@@ -2477,7 +2478,7 @@ html[lang^='zh'] body {
 .tm-command-palette__option[aria-selected='true'] .tm-command-palette__option-orb {
   border-color: var(--lime-500);
   background: var(--lime-500);
-  color: var(--tm-ink-absolute);
+  color: var(--tm-on-lime);
 }
 
 .tm-command-palette__option-label {
@@ -2868,7 +2869,7 @@ html[lang^='zh'] body {
     padding-inline: 5px;
     border-radius: var(--r-capsule);
     background: var(--lime-500);
-    color: var(--tm-ink-absolute);
+    color: var(--tm-on-lime);
     font-size: 11px;
     font-weight: 700;
   }

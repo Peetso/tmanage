@@ -63,7 +63,7 @@
 .tm-r46-day[aria-pressed='true'] {
   border-color: var(--ink-950);
   background: var(--lime-500);
-  color: var(--ink-950);
+  color: var(--tm-on-lime);
   font-weight: 600;
 }
 

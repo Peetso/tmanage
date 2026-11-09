@@ -138,6 +138,7 @@
 /* The "on" thumb is lime in this frame: the switch shows a setting that is live for everyone. */
 .tm-orgset-switch .tm-switch:checked::before {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 /* ── Time and defaults (C6): the pre-A11 settings as plain fields, two per row ─────── */

@@ -349,6 +349,7 @@
   padding: var(--s1) var(--s3);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
+  color: var(--tm-on-lime);
   font-family: var(--font-mono);
   font-size: var(--t-caption);
   line-height: var(--t-caption-line);
@@ -367,6 +368,7 @@
   display: block;
   block-size: 100%;
   background: var(--lime-500);
+  color: var(--tm-on-lime);
   transition: inline-size 120ms linear;
 }
 

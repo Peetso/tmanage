@@ -43,6 +43,7 @@
 
 .tm-plans-tabs__tab[aria-pressed='true']::after {
   background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-plans-tabs__tab:focus-visible {

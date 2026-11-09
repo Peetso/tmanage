@@ -1,0 +1,90 @@
+/* Brand colour card (Peter 2026-11-09). TManage tokens only; logical properties for RTL. */
+.tm-brandcolour {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  max-inline-size: 720px;
+  margin-block-start: var(--s5);
+  padding: var(--s10);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-feature);
+  background: var(--paper-0);
+  color: var(--ink-950);
+}
+
+.tm-brandcolour__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+}
+
+.tm-brandcolour__intro {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-brandcolour__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-brandcolour__label {
+  font-size: var(--t-ui-sm);
+  font-weight: 500;
+}
+
+.tm-brandcolour__picker {
+  inline-size: 48px;
+  block-size: 40px;
+  padding: 2px;
+  border: var(--b-structural) solid var(--line-700);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  cursor: pointer;
+}
+
+.tm-brandcolour__hex {
+  inline-size: 120px;
+  min-block-size: 40px;
+  padding: 0 var(--s3);
+  border: var(--b-structural) solid var(--line-700);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font-family: var(--font-mono);
+  font-size: var(--t-ui-md);
+}
+
+.tm-brandcolour__preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-brandcolour__swatch {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 36px;
+  padding: 0 var(--s4);
+  border-radius: var(--r-capsule);
+  font-size: var(--t-ui-sm);
+  font-weight: 600;
+}
+
+.tm-brandcolour__ratio,
+.tm-brandcolour__saved {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  color: var(--ink-650);
+}
+
+.tm-brandcolour__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
