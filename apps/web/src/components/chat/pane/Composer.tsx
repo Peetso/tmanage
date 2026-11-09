@@ -433,9 +433,13 @@ export function Composer({
           } catch (error) {
             // FIX5 item 3 (B-N3): one file failed, so the message is not sent. The files already
             // uploaded for it are removed again (no orphans on Files, no duplicates on a retry).
-            await Promise.all(
-              fileIds.map((id) => deleteFile(api, organizationSlug, id).catch(() => undefined)),
-            );
+            // One at a time, each tried twice: parallel deletes contend on the audit chain and
+            // one of them could fail and leave its file behind.
+            for (const id of fileIds) {
+              await deleteFile(api, organizationSlug, id).catch(() =>
+                deleteFile(api, organizationSlug, id).catch(() => undefined),
+              );
+            }
             const reason = refusalReason(error);
             if (reason !== null) throw new FileRefusedError(file.name, reason);
             throw error;
