@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState, type DragEvent } from 'react';
 import Link from 'next/link';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { WORK_ITEM_STATES } from '@tmanage/domain';
@@ -29,6 +29,8 @@ import { activeIsEnglish, compactUnit, translateOr } from '../../lib/i18n/compac
 import { appLocale } from '../../lib/i18n/app-locale';
 import { useT } from '../../lib/i18n/use-t';
 import { WorkBoardView } from './WorkBoardView';
+import { ApiRequestError } from '../../lib/api/errors';
+import { byRank, rankForDrop, useWorkDragPermissions } from '../../lib/work-drag';
 import { CoachMarkTour } from '../help/CoachMarkTour';
 import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { useTOr } from '../../lib/i18n/use-t-or';
@@ -160,6 +162,13 @@ export function WorkListScreen({
   const [states, setStates] = useState<readonly WorkItemState[]>(initialStates);
   const [sortKey, setSortKey] = useState<SortKey>('loaded');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  // FIX3 item C: a row dragged to a new place shows there at once (its new rank), until the
+  // list is re-read; a refused move is rolled back with `reorderError`.
+  const [rankOverrides, setRankOverrides] = useState<ReadonlyMap<string, number>>(() => new Map());
+  const [reorderError, setReorderError] = useState<{ title: string; reason: string } | null>(null);
+  const [draggingRow, setDraggingRow] = useState<string | null>(null);
+  const [overRow, setOverRow] = useState<string | null>(null);
+  const dragRights = useWorkDragPermissions(api, organizationSlug);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [pendingBulk, setPendingBulk] = useState<WorkItemAudience | undefined>(undefined);
   const [bulkReport, setBulkReport] = useState<
@@ -270,12 +279,62 @@ export function WorkListScreen({
     return (workItems.data?.pages.flat() ?? []).filter((row) => !held.has(undoKey('work', row.id)));
   }, [workItems.data, heldUndo]);
 
+  useEffect(() => {
+    setRankOverrides(new Map());
+  }, [loadedRows]);
+
   const rows = useMemo(() => {
-    if (sortKey === 'loaded') return loadedRows;
+    if (sortKey === 'loaded') {
+      // The hand-made order: what people dragged, else when the item was made.
+      return byRank(
+        loadedRows.map((row) => {
+          const rank = rankOverrides.get(row.id);
+          return rank === undefined ? row : { ...row, rank };
+        }),
+      );
+    }
     const sorted = [...loadedRows].sort((left, right) => compareBy(sortKey, left, right));
     if (sortDirection === 'desc') sorted.reverse();
     return sorted;
-  }, [loadedRows, sortKey, sortDirection]);
+  }, [loadedRows, sortKey, sortDirection, rankOverrides]);
+
+  const canReorder = dragRights.canUpdate && sortKey === 'loaded';
+
+  /** Put `item` just before `beforeId` (or last) in the hand-made order; optimistic. */
+  async function reorder(item: WorkItemSummary, beforeId: string | null) {
+    const rank = rankForDrop(rows, item.id, beforeId);
+    if (rank === null) return;
+    setReorderError(null);
+    setRankOverrides((current) => new Map(current).set(item.id, rank));
+    try {
+      await updateWorkItem(api, organizationSlug, item.id, { version: item.version, rank });
+    } catch (error) {
+      setRankOverrides((current) => {
+        const next = new Map(current);
+        next.delete(item.id);
+        return next;
+      });
+      setReorderError({
+        title: item.title,
+        reason:
+          error instanceof ApiRequestError
+            ? error.message
+            : tOr('WorkBoard.moveFailed', 'Check your connection and try again.'),
+      });
+    } finally {
+      void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
+    }
+  }
+
+  /** The keyboard path: one place up or down. */
+  function nudgeRow(item: WorkItemSummary, step: -1 | 1) {
+    const index = rows.findIndex((row) => row.id === item.id);
+    if (index === -1) return;
+    if (step === -1 && index === 0) return;
+    if (step === 1 && index === rows.length - 1) return;
+    const beforeId = step === -1 ? (rows[index - 1]?.id ?? null) : (rows[index + 2]?.id ?? null);
+    void reorder(item, beforeId);
+  }
 
   const selectedRows = rows.filter((row) => selected.has(row.id));
   const allVisibleSelected = rows.length > 0 && rows.every((row) => selected.has(row.id));
@@ -406,6 +465,7 @@ export function WorkListScreen({
               membersPending={directory.isPending}
               now={now}
               api={api}
+              dragRights={dragRights}
               onMoved={() =>
                 void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) })
               }
@@ -518,6 +578,17 @@ export function WorkListScreen({
             )
           ) : null}
 
+          {reorderError ? (
+            <InlineAlert
+              tone="danger"
+              title={tOr('WorkBoard.moveNotAllowed', 'Move not allowed')}
+              live
+            >
+              {tOr('WorkBoard.moveNotAllowedBody', '“{title}” was not moved. {reason}')
+                .replace('{title}', reorderError.title)
+                .replace('{reason}', reorderError.reason)}
+            </InlineAlert>
+          ) : null}
           {bulkReport !== undefined ? (
             <InlineAlert
               tone={bulkReport.failed.length === 0 ? 'neutral' : 'warning'}
@@ -747,7 +818,49 @@ export function WorkListScreen({
                           const overdue = isOverdue(item, now);
                           const fresh = freshness(item.updatedAt, now);
                           return (
-                            <tr key={item.id} data-selected={selected.has(item.id)}>
+                            <tr
+                              key={item.id}
+                              data-selected={selected.has(item.id)}
+                              data-dragging={draggingRow === item.id || undefined}
+                              data-drop-before={
+                                (overRow === item.id &&
+                                  draggingRow !== null &&
+                                  draggingRow !== item.id) ||
+                                undefined
+                              }
+                              {...(canReorder
+                                ? {
+                                    draggable: true,
+                                    onDragStart: (event: DragEvent<HTMLTableRowElement>) => {
+                                      event.dataTransfer.setData('text/plain', item.id);
+                                      event.dataTransfer.effectAllowed = 'move';
+                                      setDraggingRow(item.id);
+                                      setReorderError(null);
+                                    },
+                                    onDragOver: (event: DragEvent<HTMLTableRowElement>) => {
+                                      if (draggingRow === null) return;
+                                      event.preventDefault();
+                                      event.dataTransfer.dropEffect = 'move';
+                                      if (overRow !== item.id) setOverRow(item.id);
+                                    },
+                                    onDrop: (event: DragEvent<HTMLTableRowElement>) => {
+                                      event.preventDefault();
+                                      const id =
+                                        event.dataTransfer.getData('text/plain') || draggingRow;
+                                      setDraggingRow(null);
+                                      setOverRow(null);
+                                      const moving = rows.find((row) => row.id === id);
+                                      if (moving && moving.id !== item.id) {
+                                        void reorder(moving, item.id);
+                                      }
+                                    },
+                                    onDragEnd: () => {
+                                      setDraggingRow(null);
+                                      setOverRow(null);
+                                    },
+                                  }
+                                : {})}
+                            >
                               <td>
                                 <input
                                   className="tm-choice__input"
@@ -756,6 +869,28 @@ export function WorkListScreen({
                                   checked={selected.has(item.id)}
                                   onChange={() => toggleRow(item.id)}
                                 />
+                                {canReorder ? (
+                                  <button
+                                    type="button"
+                                    className="tm-wk-row-handle"
+                                    aria-label={tOr(
+                                      'WorkListScreen.reorderHandle',
+                                      'Move {title}: up and down arrow keys',
+                                    ).replace('{title}', item.title)}
+                                    title={tOr(
+                                      'WorkListScreen.reorderHint',
+                                      'Drag to reorder, or use the up and down arrow keys',
+                                    )}
+                                    onKeyDown={(event) => {
+                                      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                                        event.preventDefault();
+                                        nudgeRow(item, event.key === 'ArrowUp' ? -1 : 1);
+                                      }
+                                    }}
+                                  >
+                                    <span aria-hidden="true">⠿</span>
+                                  </button>
+                                ) : null}
                               </td>
                               <td className="tm-wk-cell--type">
                                 <abbr className="tm-wk-table__type" title={typeName(item.type)}>

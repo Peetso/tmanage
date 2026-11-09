@@ -26,7 +26,10 @@ const ITEM = {
   dependencies: [],
 };
 
-function harness(moves: readonly { id: string }[]) {
+function harness(
+  moves: readonly { id: string }[],
+  capabilities: readonly string[] = ['work.update'],
+) {
   const calls: Call[] = [];
   const client = new ApiClient({
     baseUrl: 'https://api.example.test',
@@ -45,9 +48,11 @@ function harness(moves: readonly { id: string }[]) {
             crossProjectIds: [],
             unscheduled: [],
           }
-        : url.includes('/work-views/timeline/')
-          ? { projectId: PROJECT, items: [ITEM], phases: [], milestones: [] }
-          : { projects: [{ id: PROJECT, name: 'Brand refresh' }] };
+        : url.endsWith('/me')
+          ? { membershipId: 'm-1', userId: 'u-1', kind: 'internal', role: 'member', capabilities }
+          : url.includes('/work-views/timeline/')
+            ? { projectId: PROJECT, items: [ITEM], phases: [], milestones: [] }
+            : { projects: [{ id: PROJECT, name: 'Brand refresh' }] };
       return Promise.resolve(
         new Response(JSON.stringify(body), {
           status: 200,
@@ -101,5 +106,14 @@ describe('53-03 editable timeline', () => {
     expect(calls.some((c) => c.url.endsWith('/cascade-apply'))).toBe(false);
     fireEvent.click(apply);
     await waitFor(() => expect(calls.some((c) => c.url.endsWith('/cascade-apply'))).toBe(true));
+  });
+
+  it('FIX3 item C: someone who may not edit work cannot move a bar', async () => {
+    const calls = harness([], ['work.read']);
+    const bar = await screen.findByRole('button', { name: /Logo concepts,/ });
+    await waitFor(() => expect(calls.some((c) => c.url.endsWith('/me'))).toBe(true));
+    fireEvent.keyDown(bar, { key: 'ArrowRight' });
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    expect(calls.filter((c) => c.method === 'POST')).toEqual([]);
   });
 });

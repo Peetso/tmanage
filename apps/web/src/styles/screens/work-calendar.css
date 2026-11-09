@@ -76,3 +76,17 @@
     padding: 4px 10px;
   }
 }
+
+/* FIX3 item C: drag an item to another day. */
+.wp-cal td[data-drop-over] {
+  outline: var(--b-structural) dashed var(--ink-800);
+  outline-offset: -2px;
+}
+
+.wp-cal__item[draggable='true'] {
+  cursor: grab;
+}
+
+.wp-cal__item[data-dragging] {
+  opacity: 0.6;
+}

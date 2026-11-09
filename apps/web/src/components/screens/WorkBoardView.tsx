@@ -11,7 +11,7 @@ import {
 import Link from 'next/link';
 import { InlineAlert } from '@tmanage/ui';
 import { workItemStateMachine, type WorkItemState } from '@tmanage/domain';
-import { transitionWorkItem, type WorkItemSummary } from '../../lib/api/work-items';
+import { transitionWorkItem, updateWorkItem, type WorkItemSummary } from '../../lib/api/work-items';
 import type { ApiClient } from '../../lib/api/client';
 import { ApiRequestError } from '../../lib/api/errors';
 import type { MemberSummary } from '../../lib/api/members';
@@ -20,6 +20,7 @@ import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { addDays, dayOf, formatShortDay, todayOf, useA6T } from '../work/DueDatePicker';
 import { DoerStack } from '../work/WorkPeopleBlock';
+import { byRank, rankForDrop, type WorkDragPermissions } from '../../lib/work-drag';
 import './work-core.css';
 import './work-board-move.css';
 
@@ -126,6 +127,11 @@ export interface WorkBoardViewProps {
   readonly api?: ApiClient;
   /** Called after a drop has moved a card, so the list behind the board is re-read. */
   readonly onMoved?: () => void;
+  /**
+   * FIX3 item C: what the caller may do (`useWorkDragPermissions`). A client or a viewer gets
+   * neither, and the board is then read-only. Omitted, a board with an `api` may do both.
+   */
+  readonly dragRights?: WorkDragPermissions;
 }
 
 /**
@@ -144,18 +150,63 @@ export function WorkBoardView({
   now,
   api,
   onMoved,
+  dragRights,
 }: WorkBoardViewProps) {
   const t = useA6T();
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<BoardColumn | null>(null);
+  const [overCard, setOverCard] = useState<string | null>(null);
   const [refused, setRefused] = useState<{ title: string; reason: string } | null>(null);
+  // FIX3 item C: what a drop changed, shown at once, and dropped again when the list is re-read
+  // (success) or when the API refuses (rollback).
+  const [overrides, setOverrides] = useState<
+    ReadonlyMap<string, { readonly state?: WorkItemState; readonly rank?: number }>
+  >(() => new Map());
+  const rights = dragRights ?? { canUpdate: true, canTransition: true };
+  const canMove = api !== undefined && rights.canTransition;
+  const canReorder = api !== undefined && rights.canUpdate;
+  const canDrag = canMove || canReorder;
 
   const [moving, setMoving] = useState(false);
 
-  /** Sends a drop as the lifecycle's own transitions, one step at a time. */
-  async function moveItem(item: WorkItemSummary, path: readonly WorkItemState[]) {
+  useEffect(() => {
+    setOverrides(new Map());
+  }, [items]);
+
+  const view = useMemo(
+    () =>
+      items.map((item) => {
+        const change = overrides.get(item.id);
+        return change ? { ...item, ...change } : item;
+      }),
+    [items, overrides],
+  );
+
+  function override(id: string, change: { state?: WorkItemState; rank?: number } | null) {
+    setOverrides((current) => {
+      const next = new Map(current);
+      if (change === null) next.delete(id);
+      else next.set(id, { ...next.get(id), ...change });
+      return next;
+    });
+  }
+
+  /**
+   * Sends a drop: the lifecycle's own transitions one step at a time, then the card's new place
+   * in its column. Optimistic — the card shows where it was dropped at once — and rolled back
+   * with a message when the API refuses.
+   */
+  async function moveItem(
+    item: WorkItemSummary,
+    path: readonly WorkItemState[],
+    rank: number | null = null,
+  ) {
     if (!api) return;
     setMoving(true);
+    override(item.id, {
+      ...(path.length > 0 ? { state: path[path.length - 1] as WorkItemState } : {}),
+      ...(rank === null ? {} : { rank }),
+    });
     try {
       let current = item;
       for (const to of path) {
@@ -168,8 +219,12 @@ export function WorkBoardView({
               : {},
         });
       }
+      if (rank !== null) {
+        await updateWorkItem(api, organizationSlug, item.id, { version: current.version, rank });
+      }
       setRefused(null);
     } catch (error) {
+      override(item.id, null);
       setRefused({
         title: item.title,
         reason: error instanceof ApiRequestError ? error.message : t('WorkBoard.moveFailed'),
@@ -180,20 +235,43 @@ export function WorkBoardView({
     }
   }
 
-  function drop(event: DragEvent<HTMLElement>, column: BoardColumn) {
+  function drop(event: DragEvent<HTMLElement>, column: BoardColumn, beforeId: string | null) {
     event.preventDefault();
+    event.stopPropagation();
     setOver(null);
+    setOverCard(null);
     const id = event.dataTransfer.getData('text/plain') || dragging;
     setDragging(null);
-    const item = items.find((candidate) => candidate.id === id);
-    if (!item) return;
-    moveToColumn(item, column);
+    const item = view.find((candidate) => candidate.id === id);
+    if (!item || beforeId === item.id) return;
+    placeInColumn(item, column, beforeId);
   }
 
-  /** A drop or a pick from a card's Move menu (WCAG 2.5.7: dragging is never the only way). */
-  function moveToColumn(item: WorkItemSummary, column: BoardColumn) {
+  /** A column's cards in their hand-made order — every card, whatever the filters show. */
+  function columnCards(column: BoardColumn): WorkItemSummary[] {
+    return byRank(view.filter((candidate) => columnOf(candidate.state) === column));
+  }
+
+  /**
+   * A drop on a column — before the card `beforeId`, or at the end — or a pick from a card's
+   * Move menu (WCAG 2.5.7: dragging is never the only way). Another column changes the status;
+   * a place inside the column changes the order.
+   */
+  function placeInColumn(item: WorkItemSummary, column: BoardColumn, beforeId: string | null) {
     const target = dropTarget(item.state, column);
-    if (target === null) return;
+    const ordered = columnCards(column);
+    if (target === null) {
+      const rank = canReorder ? rankForDrop(ordered, item.id, beforeId) : null;
+      if (rank !== null) void moveItem(item, [], rank);
+      return;
+    }
+    if (!canMove) {
+      setRefused({ title: item.title, reason: t('WorkBoard.moveNeedsDetail') });
+      return;
+    }
+    // Dropped on a card of another column: it also takes that place in the order.
+    const rank =
+      canReorder && beforeId !== null ? rankForDrop([...ordered, item], item.id, beforeId) : null;
     const path = dragPath(item.state, target, item.ownerUserId !== null);
     if (path === null || path.length === 0) {
       setRefused({
@@ -205,7 +283,25 @@ export function WorkBoardView({
       });
       return;
     }
-    void moveItem(item, path);
+    void moveItem(item, path, rank);
+  }
+
+  function moveToColumn(item: WorkItemSummary, column: BoardColumn) {
+    placeInColumn(item, column, null);
+  }
+
+  /** The keyboard path for the order: one place up or down inside the column. */
+  function nudge(item: WorkItemSummary, column: BoardColumn, step: -1 | 1) {
+    const ordered = columnCards(column);
+    const index = ordered.findIndex((candidate) => candidate.id === item.id);
+    if (index === -1) return;
+    // Up: before the card above. Down: before the card two below (or last).
+    const beforeId =
+      step === -1 ? (ordered[index - 1]?.id ?? null) : (ordered[index + 2]?.id ?? null);
+    if (step === -1 && index === 0) return;
+    if (step === 1 && index === ordered.length - 1) return;
+    const rank = rankForDrop(ordered, item.id, beforeId);
+    if (rank !== null) void moveItem(item, [], rank);
   }
   const locale = useActiveLocale();
   const today = todayOf(now ?? new Date());
@@ -221,7 +317,7 @@ export function WorkBoardView({
       .sort((left, right) => left.name.localeCompare(right.name));
   }, [items, members, membersPending]);
 
-  const shown = items.filter(
+  const shown = view.filter(
     (item) => (owner === '' || item.ownerUserId === owner) && matchesDue(item, due, today),
   );
 
@@ -259,7 +355,7 @@ export function WorkBoardView({
 
       <div className="tm-wk-board" aria-busy={moving || undefined}>
         {COLUMNS.map((column) => {
-          const cards = shown.filter((item) => columnOf(item.state) === column.id);
+          const cards = byRank(shown.filter((item) => columnOf(item.state) === column.id));
           const headingId = `tm-wk-board-${column.id}`;
           return (
             <section
@@ -267,7 +363,7 @@ export function WorkBoardView({
               className="tm-wk-board__column"
               aria-labelledby={headingId}
               data-drop-over={over === column.id || undefined}
-              {...(api
+              {...(canDrag
                 ? {
                     onDragOver: (event: DragEvent<HTMLElement>) => {
                       if (dragging === null) return;
@@ -280,7 +376,7 @@ export function WorkBoardView({
                         setOver((current) => (current === column.id ? null : current));
                       }
                     },
-                    onDrop: (event: DragEvent<HTMLElement>) => drop(event, column.id),
+                    onDrop: (event: DragEvent<HTMLElement>) => drop(event, column.id, null),
                   }
                 : {})}
             >
@@ -289,7 +385,7 @@ export function WorkBoardView({
                 <span className="tm-wk-count">{cards.length}</span>
               </h2>
               <ul className="tm-wk-board__cards">
-                {cards.map((item) => {
+                {cards.map((item, index) => {
                   const name =
                     item.ownerUserId === null
                       ? ''
@@ -301,8 +397,12 @@ export function WorkBoardView({
                       key={item.id}
                       className="tm-wk-card-tile"
                       data-dragging={dragging === item.id || undefined}
+                      data-drop-before={
+                        (overCard === item.id && dragging !== null && dragging !== item.id) ||
+                        undefined
+                      }
                       data-done={item.state === 'done' || undefined}
-                      {...(api
+                      {...(canDrag
                         ? {
                             draggable: true,
                             onDragStart: (event: DragEvent<HTMLLIElement>) => {
@@ -311,9 +411,19 @@ export function WorkBoardView({
                               setDragging(item.id);
                               setRefused(null);
                             },
+                            // FIX3 item C: a drop on a card puts the dragged one just before it.
+                            onDragOver: (event: DragEvent<HTMLLIElement>) => {
+                              if (dragging === null) return;
+                              event.preventDefault();
+                              event.dataTransfer.dropEffect = 'move';
+                              if (overCard !== item.id) setOverCard(item.id);
+                            },
+                            onDrop: (event: DragEvent<HTMLLIElement>) =>
+                              drop(event, column.id, item.id),
                             onDragEnd: () => {
                               setDragging(null);
                               setOver(null);
+                              setOverCard(null);
                             },
                           }
                         : {})}
@@ -347,12 +457,18 @@ export function WorkBoardView({
                               : memberDisplayName(id, members, membersPending)
                           }
                         />
-                        {api ? (
+                        {canDrag ? (
                           <BoardMoveMenu
                             title={item.title}
                             current={column.id}
                             disabled={moving}
                             onMove={(target) => moveToColumn(item, target)}
+                            {...(canReorder && index > 0
+                              ? { onUp: () => nudge(item, column.id, -1) }
+                              : {})}
+                            {...(canReorder && index < cards.length - 1
+                              ? { onDown: () => nudge(item, column.id, 1) }
+                              : {})}
                           />
                         ) : null}
                       </div>
@@ -378,11 +494,17 @@ export function BoardMoveMenu({
   current,
   disabled,
   onMove,
+  onUp,
+  onDown,
 }: {
   readonly title: string;
   readonly current: BoardColumn;
   readonly disabled?: boolean;
   readonly onMove: (column: BoardColumn) => void;
+  /** FIX3 item C: the keyboard path for the hand-made order — one place up in the column. */
+  readonly onUp?: () => void;
+  /** One place down in the column. */
+  readonly onDown?: () => void;
 }) {
   const t = useA6T();
   const tOr = useTOr();
@@ -445,6 +567,36 @@ export function BoardMoveMenu({
                 </li>
               );
             })}
+            {onUp ? (
+              <li>
+                <button
+                  type="button"
+                  className="tm-wk-move__item"
+                  onKeyDown={onKeyDown}
+                  onClick={() => {
+                    close();
+                    onUp();
+                  }}
+                >
+                  {tOr('WorkBoard.moveUp', 'Up one place')}
+                </button>
+              </li>
+            ) : null}
+            {onDown ? (
+              <li>
+                <button
+                  type="button"
+                  className="tm-wk-move__item"
+                  onKeyDown={onKeyDown}
+                  onClick={() => {
+                    close();
+                    onDown();
+                  }}
+                >
+                  {tOr('WorkBoard.moveDown', 'Down one place')}
+                </button>
+              </li>
+            ) : null}
           </ul>
         </div>
       ) : null}

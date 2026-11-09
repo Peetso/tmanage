@@ -47,6 +47,7 @@ import {
   stepForKey,
 } from './work-timeline-edit';
 import type { EditMode } from './work-timeline-edit';
+import { useWorkDragPermissions } from '../../lib/work-drag';
 import '../../styles/screens/work-planning.css';
 import '../../styles/screens/work-timeline-edit.css';
 
@@ -116,6 +117,9 @@ export function WorkTimelineScreen({
   const rtl = displayLocaleDirection(useActiveLocale()) === 'rtl';
   const queryClient = useQueryClient();
   const api = useMemo(() => client ?? browserApiClient(), [client]);
+  // FIX3 item C: only someone who may edit work moves or resizes a bar; a viewer or a client
+  // can still select and read it.
+  const { canUpdate: canDrag } = useWorkDragPermissions(api, organizationSlug);
   const now = useMemo(() => nowProp ?? new Date(), [nowProp]);
   const [projectId, setProjectId] = useState<string>(initialProjectId ?? '');
   const [listView, setListView] = useState(false);
@@ -305,7 +309,7 @@ export function WorkTimelineScreen({
   /** A keyboard or button step: accumulate, then save once the steps stop. */
   const nudge = useCallback(
     (row: WorkTimelineRow, mode: EditMode, days: number) => {
-      if (row.startAt === null && row.dueAt === null) return;
+      if (!canDrag || (row.startAt === null && row.dueAt === null)) return;
       const current = draftRef.current;
       const total =
         current && current.id === row.id && current.mode === mode ? current.days + days : days;
@@ -319,7 +323,7 @@ export function WorkTimelineScreen({
         else setDraft(null);
       }, KEY_SAVE_DELAY_MS);
     },
-    [commitMove],
+    [commitMove, canDrag],
   );
 
   const link = useCallback(
@@ -404,7 +408,7 @@ export function WorkTimelineScreen({
     event.currentTarget.setPointerCapture?.(event.pointerId);
     const element = event.currentTarget;
     const move = (moveEvent: PointerEvent) => {
-      if (linking) return;
+      if (linking || !canDrag) return;
       days = daysForTravel(moveEvent.clientX - originX, width, chart.totalDays, rtl);
       setDraft(days === 0 ? null : { id: row.id, mode, days });
     };
@@ -412,6 +416,7 @@ export function WorkTimelineScreen({
       element.removeEventListener('pointermove', move);
       element.removeEventListener('pointerup', up);
       if (linking) {
+        if (!canDrag) return;
         const over = document
           .elementFromPoint(upEvent.clientX, upEvent.clientY)
           ?.closest<HTMLElement>('[data-bar-id]');

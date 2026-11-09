@@ -1,15 +1,19 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type DragEvent } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import type { WorkItemState } from '@tmanage/domain';
 import { WorkViewsShell } from '../work/WorkViewsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
 import { getWorkCalendar, getWorkCalendarAll } from '../../lib/api/work-views';
-import type { WorkCalendarDayRow } from '../../lib/api/work-views';
+import type { WorkCalendarDayRow, WorkCalendarView } from '../../lib/api/work-views';
+import { getWorkItem, updateWorkItem } from '../../lib/api/work-items';
+import { ApiRequestError } from '../../lib/api/errors';
+import { datesForDayDrop, useWorkDragPermissions } from '../../lib/work-drag';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import { isOverdue, stateLabel } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import {
@@ -79,6 +83,13 @@ export function WorkCalendarScreen({
     initialCalendarRange(initialFrom, initialTo, now),
   );
   const rangeProblem = calendarRangeProblem(range);
+  const tOr = useTOr();
+  const queryClient = useQueryClient();
+  const { canUpdate: canDrag } = useWorkDragPermissions(api, organizationSlug);
+  // FIX3 item C: drag an item to another day to move its dates.
+  const [dragging, setDragging] = useState<{ id: string; fromDay: string } | null>(null);
+  const [overDay, setOverDay] = useState<string | null>(null);
+  const [moveError, setMoveError] = useState<{ title: string; reason: string } | null>(null);
 
   const projects = useQuery({
     queryKey: ['projects', organizationSlug],
@@ -94,15 +105,16 @@ export function WorkCalendarScreen({
   );
   const scopeReady = chosenProjectId !== '' || allProjectIds.length > 0;
 
+  const calendarKey = [
+    'work-calendar',
+    organizationSlug,
+    chosenProjectId,
+    allProjectIds.join(','),
+    range.from,
+    range.to,
+  ];
   const calendar = useQuery({
-    queryKey: [
-      'work-calendar',
-      organizationSlug,
-      chosenProjectId,
-      allProjectIds.join(','),
-      range.from,
-      range.to,
-    ],
+    queryKey: calendarKey,
     queryFn: () =>
       chosenProjectId === ''
         ? getWorkCalendarAll(api, organizationSlug, allProjectIds, range)
@@ -130,6 +142,56 @@ export function WorkCalendarScreen({
     (calendar.data.days ?? []).length === 0;
 
   // Every move goes through here, so the page can mirror a valid range into the URL.
+  /**
+   * A drop on another day: shown there at once (the calendar's cached read is rewritten), then
+   * saved as a PATCH of the item's dates with its current version. A refusal puts the item back
+   * and says why.
+   */
+  async function dropOnDay(itemId: string, fromDay: string, toDay: string) {
+    const previous = queryClient.getQueryData<WorkCalendarView>(calendarKey);
+    const moving = previous?.days
+      .find((day) => day.date === fromDay)
+      ?.items.find((entry) => entry.id === itemId);
+    if (!previous || !moving) return;
+    const dates = datesForDayDrop(moving, fromDay, toDay);
+    if (dates === null) return;
+    setMoveError(null);
+    const moved = { ...moving, ...dates };
+    const days = previous.days
+      .map((day) =>
+        day.date === fromDay
+          ? { ...day, items: day.items.filter((entry) => entry.id !== itemId) }
+          : day,
+      )
+      .filter((day) => day.items.length > 0 || day.date === toDay);
+    const target = days.find((day) => day.date === toDay);
+    const nextDays = target
+      ? days.map((day) => (day.date === toDay ? { ...day, items: [...day.items, moved] } : day))
+      : [...days, { date: toDay, items: [moved] }].sort((left, right) =>
+          left.date.localeCompare(right.date),
+        );
+    queryClient.setQueryData<WorkCalendarView>(calendarKey, { ...previous, days: nextDays });
+    try {
+      const current = await getWorkItem(api, organizationSlug, itemId);
+      await updateWorkItem(api, organizationSlug, itemId, {
+        version: current.version,
+        startAt: dates.startAt,
+        dueAt: dates.dueAt,
+      });
+    } catch (error) {
+      queryClient.setQueryData<WorkCalendarView>(calendarKey, previous);
+      setMoveError({
+        title: moving.title,
+        reason:
+          error instanceof ApiRequestError
+            ? error.message
+            : tOr('WorkBoard.moveFailed', 'Check your connection and try again.'),
+      });
+    } finally {
+      void queryClient.invalidateQueries({ queryKey: ['work-calendar', organizationSlug] });
+    }
+  }
+
   const moveTo = (next: CalendarRange) => {
     setRange(next);
     if (calendarRangeProblem(next) !== null) return;
@@ -241,6 +303,14 @@ export function WorkCalendarScreen({
         </div>
       ) : null}
 
+      {moveError ? (
+        <InlineAlert tone="danger" title={tOr('WorkBoard.moveNotAllowed', 'Move not allowed')} live>
+          {tOr('WorkBoard.moveNotAllowedBody', '“{title}” was not moved. {reason}')
+            .replace('{title}', moveError.title)
+            .replace('{reason}', moveError.reason)}
+        </InlineAlert>
+      ) : null}
+
       {calendar.isError ? (
         <InlineAlert tone="danger" title={t('WorkCalendarScreen.calendarError')} live>
           {describeError(calendar.error)}
@@ -284,6 +354,24 @@ export function WorkCalendarScreen({
                           .filter(Boolean)
                           .join(' ')}
                         aria-current={isToday ? 'date' : undefined}
+                        data-drop-over={(overDay === cell.key && dragging !== null) || undefined}
+                        {...(canDrag
+                          ? {
+                              onDragOver: (event: DragEvent<HTMLTableCellElement>) => {
+                                if (dragging === null) return;
+                                event.preventDefault();
+                                event.dataTransfer.dropEffect = 'move';
+                                if (overDay !== cell.key) setOverDay(cell.key);
+                              },
+                              onDrop: (event: DragEvent<HTMLTableCellElement>) => {
+                                event.preventDefault();
+                                const from = dragging;
+                                setDragging(null);
+                                setOverDay(null);
+                                if (from) void dropOnDay(from.id, from.fromDay, cell.key);
+                              },
+                            }
+                          : {})}
                       >
                         <div className="wp-cal__cell">
                           <span className="wp-cal__day">
@@ -305,6 +393,22 @@ export function WorkCalendarScreen({
                               className={`wp-cal__item ${itemClass(item, now)}`}
                               title={`${item.title} · ${stateLabel(item.state)}`}
                               aria-label={`${item.title}, ${stateLabel(item.state)}`}
+                              data-dragging={dragging?.id === item.id || undefined}
+                              {...(canDrag
+                                ? {
+                                    draggable: true,
+                                    onDragStart: (event: DragEvent<HTMLAnchorElement>) => {
+                                      event.dataTransfer.setData('text/plain', item.id);
+                                      event.dataTransfer.effectAllowed = 'move';
+                                      setDragging({ id: item.id, fromDay: cell.key });
+                                      setMoveError(null);
+                                    },
+                                    onDragEnd: () => {
+                                      setDragging(null);
+                                      setOverDay(null);
+                                    },
+                                  }
+                                : {})}
                             >
                               {item.title}
                             </Link>

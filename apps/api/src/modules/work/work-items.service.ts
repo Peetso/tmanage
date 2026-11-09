@@ -117,6 +117,11 @@ export interface WorkItemView {
    * readers, so a list row or a board card can show a doer avatar stack. Absent elsewhere.
    */
   readonly doerUserIds?: readonly string[];
+  /**
+   * 0340 (FIX3 item C): the hand-made Board/List order, `null` when never dragged (the web then
+   * sorts by creation time). Optional in the type for the same reason as `description`.
+   */
+  readonly rank?: number | null;
 }
 
 /**
@@ -153,6 +158,7 @@ export function toWorkItemView(row: WorkItemRow, correlationId: string): WorkIte
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
+    rank: row.boardRank ?? null,
   };
 }
 

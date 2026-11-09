@@ -369,3 +369,39 @@ describe('53-04 typed dependencies', () => {
     });
   });
 });
+
+describe('FIX3 item C: the hand-made order (rank) for Board and List drags', () => {
+  it('stores a dragged rank, answers it on the view and clears it with null', async () => {
+    const { controller, updates } = harness();
+    const created = await controller.create(context, principal, {
+      projectId: PROJECT,
+      title: 'Moodboard',
+    });
+    expect(created.rank).toBeNull();
+    const ranked = await controller.update(context, principal, created.id, {
+      version: created.version,
+      rank: 1_762_000_000_500.5,
+    });
+    expect(updates[0]).toEqual({ boardRank: 1_762_000_000_500.5 });
+    expect(ranked.rank).toBe(1_762_000_000_500.5);
+    const cleared = await controller.update(context, principal, created.id, {
+      version: ranked.version,
+      rank: null,
+    });
+    expect(cleared.rank).toBeNull();
+  });
+
+  it('refuses a rank that is not a finite number with 400 and writes nothing', async () => {
+    const { controller, updates } = harness();
+    const created = await controller.create(context, principal, {
+      projectId: PROJECT,
+      title: 'Sitemap',
+    });
+    for (const rank of ['1', Number.NaN, Number.POSITIVE_INFINITY, {}]) {
+      await expect(
+        controller.update(context, principal, created.id, { version: created.version, rank }),
+      ).rejects.toMatchObject({ status: 400 });
+    }
+    expect(updates).toEqual([]);
+  });
+});

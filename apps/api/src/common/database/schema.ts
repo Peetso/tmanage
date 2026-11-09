@@ -6,6 +6,7 @@ import {
   date,
   decimal,
   datetime,
+  double,
   index,
   json,
   mediumtext,
@@ -3013,6 +3014,8 @@ export const workItems = mysqlTable(
     deletedByUserId: char('deleted_by_user_id', { length: 36 }),
     deletedReason: varchar('deleted_reason', { length: 500 }),
     purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
+    /** 0340 (FIX3 item C): the hand-made Board/List order; `NULL` sorts by creation time. */
+    boardRank: double('board_rank'),
   },
   (table) => [
     uniqueIndex('uq_work_items_org_id').on(table.organizationId, table.id),
@@ -10164,11 +10167,13 @@ export type WorkspaceRow = typeof workspaces.$inferSelect;
 export type ProjectRow = typeof projects.$inferSelect;
 export type NewProjectRow = typeof projects.$inferInsert;
 /**
- * A6 (0219): `description` is optional in the row type only, so the hand-built test rows that
+ * A6 (0219): `description` (and 0340's `boardRank`) is optional in the row type only, so the hand-built test rows that
  * predate the column keep compiling; a row read from the database always carries it.
  */
-export type WorkItemRow = Omit<typeof workItems.$inferSelect, 'description'> & {
+export type WorkItemRow = Omit<typeof workItems.$inferSelect, 'description' | 'boardRank'> & {
   description?: string | null;
+  /** 0340: optional for the same reason as `description`. */
+  boardRank?: number | null;
 };
 export type NewWorkItemRow = typeof workItems.$inferInsert;
 export type WorkItemChecklistItemRow = typeof workItemChecklistItems.$inferSelect;

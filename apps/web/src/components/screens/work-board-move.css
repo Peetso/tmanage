@@ -81,3 +81,34 @@
   color: var(--ink-500);
   cursor: default;
 }
+
+/* FIX3 item C: where a dragged card will land — a bar just above the card it goes before. */
+.tm-wk-card-tile[data-drop-before] {
+  box-shadow: 0 calc(-1 * var(--s1)) 0 0 var(--ink-800);
+}
+
+/* FIX3 item C: the List's drag handle (also the keyboard path: up and down arrows). */
+.tm-wk-row-handle {
+  min-block-size: 24px;
+  min-inline-size: 24px;
+  margin-inline-start: var(--s1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-compact);
+  background: transparent;
+  color: var(--ink-500);
+  cursor: grab;
+  font: inherit;
+}
+
+.tm-wk-row-handle:focus-visible {
+  outline: var(--b-structural) solid var(--ink-950);
+}
+
+.tm-wk-table tr[data-dragging] {
+  opacity: 0.6;
+}
+
+.tm-wk-table tr[data-drop-before] > * {
+  box-shadow: inset 0 var(--b-structural) 0 0 var(--ink-800);
+}

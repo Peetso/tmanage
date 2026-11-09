@@ -39,6 +39,8 @@ export interface WorkItemSummary {
   readonly deletedAt: string | null;
   /** C27: everyone who does it, the lead first — sent on the list read for internal readers. */
   readonly doerUserIds?: readonly string[];
+  /** 0340 (FIX3 item C): the hand-made Board/List order; `null` sorts by creation time. */
+  readonly rank?: number | null;
 }
 
 /**
@@ -126,6 +128,8 @@ export interface UpdateWorkItemInput {
   readonly dueAt?: string | null;
   /** C25: the client companies that may see a client-facing item; all ticked = all. */
   readonly clientOrganizationIds?: readonly string[];
+  /** 0340 (FIX3 item C): the hand-made order, set by a drag; `null` returns to creation order. */
+  readonly rank?: number | null;
 }
 
 export async function updateWorkItem(

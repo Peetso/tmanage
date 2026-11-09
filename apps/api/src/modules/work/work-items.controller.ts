@@ -87,6 +87,8 @@ interface UpdateWorkItemBody {
   readonly iterationId?: unknown;
   /** C25: the client companies that may see a client-facing item; all ticked = all. */
   readonly clientOrganizationIds?: unknown;
+  /** 0340 (FIX3 item C): the hand-made Board/List order; a finite number, or `null`. */
+  readonly rank?: unknown;
 }
 
 interface TransitionBody {
@@ -232,6 +234,7 @@ export class WorkItemsController {
     const audience = optionalAudience(body?.audience, details);
     const startAt = optionalInstant(body?.startAt, 'startAt', details);
     const dueAt = optionalInstant(body?.dueAt, 'dueAt', details);
+    const rank = optionalRank(body?.rank, details);
     const ownerUserId =
       body?.ownerUserId === null
         ? null
@@ -265,6 +268,7 @@ export class WorkItemsController {
       ...(ownerUserId === undefined ? {} : { ownerUserId }),
       ...(startAt === undefined ? {} : { startAt }),
       ...(dueAt === undefined ? {} : { dueAt }),
+      ...(rank === undefined ? {} : { boardRank: rank }),
       ...(clientOrganizationIds === undefined ? {} : { clientOrganizationIds }),
     });
   }
@@ -539,6 +543,23 @@ function optionalAudience(
  *
  * `null` is accepted and means "clear this", which is distinct from omitting the field.
  */
+/**
+ * 0340 (FIX3 item C): a sort key for the hand-made order — any finite number (the web uses the
+ * millisecond scale of `createdAt`), or `null` to fall back to creation order.
+ */
+function optionalRank(
+  raw: unknown,
+  details: { field: string; message: string }[],
+): number | null | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === null) return null;
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) {
+    details.push({ field: 'rank', message: 'must be a finite number or null' });
+    return undefined;
+  }
+  return raw;
+}
+
 function optionalInstant(
   raw: unknown,
   field: string,

@@ -129,6 +129,8 @@ export interface UpdateWorkItemInput {
   readonly audience?: Audience;
   readonly startAt?: Date | null;
   readonly dueAt?: Date | null;
+  /** 0340 (FIX3 item C): the hand-made Board/List order; `null` returns to creation order. */
+  readonly boardRank?: number | null;
 }
 
 export interface ListWorkItemsOptions {
@@ -416,6 +418,7 @@ export class WorkItemsRepository {
     if (input.audience !== undefined) changes['audience'] = input.audience;
     if (input.startAt !== undefined) changes['startAt'] = input.startAt;
     if (input.dueAt !== undefined) changes['dueAt'] = input.dueAt;
+    if (input.boardRank !== undefined) changes['boardRank'] = input.boardRank;
 
     const result = await tenantDrizzle(runner)
       .update(workItems)
