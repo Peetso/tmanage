@@ -41,6 +41,9 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'GET /v1/auth/google/': 'read: is Google sign-in configured',
   'POST /v1/auth/google/start': 'pending named budget: starts a redirect, writes a state row',
   'GET /v1/auth/google/callback': 'OAuth callback: single-use state',
+  // FIX5 (app connect): GitHub returns the browser here; it only redirects to the web app's
+  // complete page with the code and state, which the signed-in complete route then checks.
+  'GET /v1/integrations/github/callback': 'OAuth callback: redirect only, state checked later',
   'POST /v1/auth/google/mfa': 'pending named budget: needs the pending-MFA cookie',
   'POST /v1/auth/sso/start': 'pending named budget: starts a redirect, signed state cookie',
   'GET /v1/auth/sso/callback': 'OIDC callback: signed single-use state and nonce',

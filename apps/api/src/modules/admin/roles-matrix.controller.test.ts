@@ -62,7 +62,7 @@ describe('RolesMatrixController', () => {
     const { controller: c } = controller();
     const view = await c.read(context, principal('org_admin'));
     expect(view.matrix).toBe(MATRIX);
-    expect(view.areas).toHaveLength(18);
+    expect(view.areas).toHaveLength(19);
     const ids = view.roles.map((role) => role.id);
     expect(ids).toContain('owner');
     expect(ids).toContain('client_reviewer');
