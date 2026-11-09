@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { InlineAlert } from '@tmanage/ui';
 import { SettingsShell } from '../admin/SettingsShell';
@@ -120,27 +119,6 @@ export function CalendarConnectionsScreen({
       eyebrow={t('CalendarConnections.eyebrow').toUpperCase()}
     >
       <div className="tm-mtg tm-mtg-settings">
-        <nav className="tm-mtg-settings__nav" aria-label={t('CalendarConnections.navAria')}>
-          <Link href={`/${organizationSlug}/preferences`}>
-            {t('CalendarConnections.navProfile')}
-          </Link>
-          <Link href={`/${organizationSlug}/settings/digest`}>
-            {t('CalendarConnections.navNotifications')}
-          </Link>
-          <Link href={`/${organizationSlug}/settings/display`}>
-            {t('CalendarConnections.navLanguage')}
-          </Link>
-          <Link href={`/${organizationSlug}/settings/calendar-connections`} aria-current="page">
-            {t('CalendarConnections.title')}
-          </Link>
-          <Link href={`/${organizationSlug}/settings/connected-apps`}>
-            {t('CalendarConnections.navConnectedApps')}
-          </Link>
-          <Link href={`/${organizationSlug}/settings/security`}>
-            {t('CalendarConnections.navSecurity')}
-          </Link>
-        </nav>
-
         <div className="tm-mtg-settings__main">
           <p className="tm-mtg-lede">{t('CalendarConnections.lede')}</p>
           {returnError ? (

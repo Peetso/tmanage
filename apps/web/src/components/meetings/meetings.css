@@ -1624,7 +1624,7 @@
 
 .tm-mtg-settings {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--s5);
   align-items: start;
 }
