@@ -1,5 +1,5 @@
 import type { ApiClient } from './client';
-import { NetworkError } from './errors';
+import { ApiRequestError, NetworkError } from './errors';
 import { uploadToDrive, type DriveAttachmentView, type StorageStatusView } from './google-drive';
 import {
   uploadToOneDrive,
@@ -238,6 +238,50 @@ export interface UploadAttachmentOptions {
   readonly onProgress?: (sentBytes: number) => void;
   /** The row's Cancel: aborts whatever step is running and ends in `UploadCancelledError`. */
   readonly signal?: AbortSignal;
+  /**
+   * FIX3 item 1. Answer only once the file is `ready` (verified and scanned), so a caller that
+   * links it at once — a chat message, an image in a doc — is not refused with a 404 because
+   * the scan has not run yet. Off by default: a work item takes a file that is still checking.
+   */
+  readonly untilReady?: boolean;
+  /** How long to wait between readiness checks and part retries. Injectable for tests. */
+  readonly sleep?: (ms: number) => Promise<void>;
+}
+
+/** How long `untilReady` waits for the scan before giving up (the scan normally takes seconds). */
+export const UPLOAD_READY_TIMEOUT_MS = 120_000;
+
+/** Part statuses that are the host being busy, not a refusal: the part is sent again. */
+const TRANSIENT_PART_STATUSES: ReadonlySet<number> = new Set([429, 502, 503, 504]);
+
+/** How many times one part is sent before the upload fails. */
+export const PART_ATTEMPTS = 4;
+
+/** Why an upload did not end in a usable file, so a screen can say so in its own words. */
+export type UploadFailureReason = 'busy' | 'rejected' | 'still_checking' | 'refused';
+
+/** FIX3 item 1. An upload that did not end in a usable file; nothing was posted with it. */
+export class UploadFailedError extends Error {
+  constructor(
+    readonly reason: UploadFailureReason,
+    readonly fileName: string,
+  ) {
+    // The English sentence, for screens that show a thrown error's message as it is.
+    super(
+      reason === 'busy'
+        ? `TManage was busy and “${fileName}” could not be uploaded. Try again in a moment.`
+        : reason === 'rejected'
+          ? `“${fileName}” did not pass the safety check.`
+          : reason === 'still_checking'
+            ? `“${fileName}” is still being checked. Try again in a minute.`
+            : `“${fileName}” could not be uploaded.`,
+    );
+    this.name = 'UploadFailedError';
+  }
+}
+
+function defaultSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** The upload was cancelled by the person, not stopped by a fault; the screen drops its row. */
@@ -454,6 +498,7 @@ async function runUpload(
     deadline(transferTimeoutMs(body instanceof Blob ? body.size : 0)),
   );
   const step = (ms: number) => anySignal(deadline(ms), deps.signal);
+  const sleep = deps.sleep ?? defaultSleep;
 
   const { data: session } = await client
     .request<UploadSessionReply>({
@@ -478,33 +523,57 @@ async function runUpload(
       const start = (target.partNumber - 1) * session.partSizeBytes;
       const chunk = file.slice(start, start + session.partSizeBytes);
       let response: Response;
-      try {
-        response = await send(target.url, {
-          method: 'PUT',
-          headers: { 'content-type': 'application/octet-stream' },
-          body: chunk,
-          // The part token authorises the PUT; the session cookie must not travel with it.
-          credentials: 'omit',
-        });
-      } catch (cause) {
-        if (deps.signal?.aborted) throw new UploadCancelledError();
-        throw new NetworkError(`“${file.name}” did not reach TManage.`, cause);
+      // FIX3 item 1 (live a6f66e47): the shared host answers 503 now and then under load. A busy
+      // answer is sent again after a short wait; any other refusal ends the upload at once.
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          response = await send(target.url, {
+            method: 'PUT',
+            headers: { 'content-type': 'application/octet-stream' },
+            body: chunk,
+            // The part token authorises the PUT; the session cookie must not travel with it.
+            credentials: 'omit',
+          });
+        } catch (cause) {
+          if (deps.signal?.aborted) throw new UploadCancelledError();
+          if (attempt < PART_ATTEMPTS) {
+            await sleep(attempt * 1_000);
+            continue;
+          }
+          throw new NetworkError(`“${file.name}” did not reach TManage.`, cause);
+        }
+        if (!TRANSIENT_PART_STATUSES.has(response.status) || attempt >= PART_ATTEMPTS) break;
+        await sleep(attempt * 1_000);
       }
       const etag = response.headers.get('etag');
       if (!response.ok || !etag) {
-        throw new Error(`“${file.name}” could not be uploaded (part ${target.partNumber}).`);
+        throw new UploadFailedError(
+          TRANSIENT_PART_STATUSES.has(response.status) ? 'busy' : 'refused',
+          file.name,
+        );
       }
       parts.push({ partNumber: target.partNumber, etag });
     }
 
+    const completePath = `${sessionsPath}/${encodeURIComponent(session.id)}/complete`;
     const { data: asset } = await client.request<UploadedAssetReply>({
       method: 'POST',
-      path: `${sessionsPath}/${encodeURIComponent(session.id)}/complete`,
+      path: completePath,
       body: { parts },
       signal: step(UPLOAD_COMPLETE_TIMEOUT_MS),
     });
+    if (deps.untilReady) {
+      await waitUntilReady(client, completePath, parts, asset.status, file.name, deps, sleep);
+    }
     return asset.id;
   } catch (error) {
+    // A file the scan refused, or one still being checked, is past its session: nothing to cancel.
+    if (
+      error instanceof UploadFailedError &&
+      (error.reason === 'rejected' || error.reason === 'still_checking')
+    ) {
+      throw error;
+    }
     await client
       .request<unknown>({
         method: 'POST',
@@ -513,6 +582,57 @@ async function runUpload(
       })
       .catch(() => undefined);
     throw cancelledOr(error, deps.signal);
+  }
+}
+
+/** States the scan can still move on from; anything else that is not `ready` is final. */
+const CHECKING_STATES: ReadonlySet<string> = new Set([
+  'created',
+  'uploading',
+  'uploaded',
+  'verifying',
+  'scanning',
+]);
+
+/**
+ * FIX3 item 1. Wait for the verifier and the scanner (they run seconds after `complete`) by
+ * replaying `complete`: on a completed session it is idempotent and answers the asset's current
+ * state. `ready` returns; `rejected` (or any other final state) and the deadline throw.
+ */
+async function waitUntilReady(
+  client: ApiClient,
+  completePath: string,
+  parts: readonly { partNumber: number; etag: string }[],
+  firstStatus: string,
+  fileName: string,
+  deps: UploadAttachmentOptions,
+  sleep: (ms: number) => Promise<void>,
+): Promise<void> {
+  const started = Date.now();
+  let status = firstStatus;
+  for (let poll = 0; ; poll += 1) {
+    if (status === 'ready') return;
+    if (!CHECKING_STATES.has(status)) throw new UploadFailedError('rejected', fileName);
+    if (Date.now() - started > UPLOAD_READY_TIMEOUT_MS || poll >= 80) {
+      throw new UploadFailedError('still_checking', fileName);
+    }
+    if (deps.signal?.aborted) throw new UploadCancelledError();
+    await sleep(Math.min(500 + poll * 500, 3_000));
+    try {
+      const { data } = await client.request<UploadedAssetReply>({
+        method: 'POST',
+        path: completePath,
+        body: { parts },
+        signal: anySignal((deps.deadline ?? defaultDeadline)(UPLOAD_STEP_TIMEOUT_MS), deps.signal),
+      });
+      status = data.status;
+    } catch (error) {
+      if (deps.signal?.aborted) throw new UploadCancelledError();
+      // A busy answer while waiting is not the file's fault: keep waiting until the deadline.
+      if (error instanceof NetworkError) continue;
+      if (error instanceof ApiRequestError && error.status >= 500) continue;
+      throw error;
+    }
   }
 }
 

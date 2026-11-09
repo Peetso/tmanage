@@ -33,6 +33,7 @@ import {
   MAX_ATTACHMENTS,
   attachmentProblem,
   formatBytes,
+  UploadFailedError,
   uploadProjectFile,
 } from '../../../lib/api/uploads';
 import { composeMessage } from '../../../lib/rich-composer';
@@ -46,8 +47,41 @@ import { ReplyQuote } from './ReplyQuote';
 import './pane.css';
 
 type Translate = ReturnType<typeof useT>;
+type TranslateOr = (key: string, english: string) => string;
 
-function describeError(error: unknown, t: Translate): string {
+/**
+ * FIX3 item 1. The message went out, but a file could not be linked to it. The text is in the
+ * transcript, so the composer clears it and keeps the files for another try — never silent.
+ */
+export class FilesNotAttachedError extends Error {
+  constructor(readonly fileNames: readonly string[]) {
+    super('files_not_attached');
+    this.name = 'FilesNotAttachedError';
+  }
+}
+
+function describeError(error: unknown, t: Translate, tOr: TranslateOr): string {
+  if (error instanceof UploadFailedError) {
+    const name = error.fileName;
+    const english: Record<UploadFailedError['reason'], string> = {
+      busy: 'TManage was busy and “{name}” did not upload. Nothing was sent — try again in a moment.',
+      rejected: '“{name}” did not pass the safety check, so it cannot be shared. Nothing was sent.',
+      still_checking:
+        '“{name}” is still being checked for safety. Nothing was sent — try again in a minute.',
+      refused:
+        '“{name}” could not be uploaded. Nothing was sent. If this keeps happening, ask your workspace owner to check Control › Storage.',
+    };
+    return tOr(`ChatMessages.upload.${error.reason}`, english[error.reason]).replace(
+      '{name}',
+      name,
+    );
+  }
+  if (error instanceof FilesNotAttachedError) {
+    return tOr(
+      'ChatMessages.upload.notAttached',
+      'Your message was sent, but “{name}” was not added to it. Send again to share the file.',
+    ).replace('{name}', error.fileNames.join('”, “'));
+  }
   if (error instanceof ApiRequestError) return error.message;
   if (error instanceof NetworkError) return t('ProjectChannelScreen.apiError');
   return t('ProjectChannelScreen.genericError');
@@ -333,7 +367,13 @@ export function Composer({
       if (files.length > 0 && typeof attachProjectId === 'string') {
         for (const file of files) {
           fileIds.push(
-            await uploadProjectFile(api, organizationSlug, { projectId: attachProjectId, file }),
+            // Wait for the safety scan: a file still being checked cannot be linked (404).
+            await uploadProjectFile(
+              api,
+              organizationSlug,
+              { projectId: attachProjectId, file },
+              { untilReady: true },
+            ),
           );
         }
       }
@@ -344,10 +384,26 @@ export function Composer({
           ? {}
           : { meta: { ...replyMetaFor(replyTo.message) } }),
       });
-      for (const fileId of fileIds) {
-        await attachMessageFile(api, organizationSlug, conversationId, posted.id, fileId);
+      const missing: string[] = [];
+      for (const [index, fileId] of fileIds.entries()) {
+        try {
+          await attachMessageFile(api, organizationSlug, conversationId, posted.id, fileId);
+        } catch {
+          missing.push(files[index]?.name ?? '');
+        }
       }
+      if (missing.length > 0) throw new FilesNotAttachedError(missing);
       return posted;
+    },
+    onError: (error) => {
+      if (!(error instanceof FilesNotAttachedError)) return;
+      // The text is posted: clear it so it is not sent twice, keep only the files not added.
+      if (persistDraft) clearedOnSendRef.current = true;
+      setDraft('');
+      setAttemptId(undefined);
+      setPendingFiles((files) => files.filter((file) => error.fileNames.includes(file.name)));
+      if (persistDraft) void clearDraft(api, organizationSlug, conversationId).catch(() => {});
+      void queries.invalidateQueries({ queryKey: ['messages', organizationSlug, conversationId] });
     },
     onSuccess: () => {
       onCancelReply?.();
@@ -451,6 +507,8 @@ export function Composer({
     setPendingFiles((files) => files.filter((_, at) => at !== index));
     setFileProblem(undefined);
     setAttemptId(undefined);
+    // The failed send was about these files; with one removed its banner no longer applies.
+    if (send.isError) send.reset();
   }
 
   const dropProps = canAttach
@@ -702,7 +760,7 @@ export function Composer({
 
       {send.isError ? (
         <InlineAlert tone="danger" title={t('ProjectChannelScreen.notSent')} live>
-          {describeError(send.error, t)}{' '}
+          {describeError(send.error, t, tOr)}{' '}
           {send.error instanceof NetworkError ? t('ProjectChannelScreen.textStillHere') : ''}
         </InlineAlert>
       ) : null}

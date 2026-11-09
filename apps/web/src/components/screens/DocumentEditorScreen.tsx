@@ -289,7 +289,14 @@ export function DocumentEditorScreen({
 
   async function uploadFile(file: File) {
     if (!data) throw new Error('The document is not loaded.');
-    const id = await uploadProjectFile(api, organizationSlug, { projectId: data.projectId, file });
+    // FIX3 item 5 (D1): the image is shown at once, so wait until the scan has made it servable;
+    // before that its content answers 404 and the <img> stays broken until a reload.
+    const id = await uploadProjectFile(
+      api,
+      organizationSlug,
+      { projectId: data.projectId, file },
+      { untilReady: true },
+    );
     return {
       id,
       src: `/v1/organizations/${encodeURIComponent(organizationSlug)}/files/${encodeURIComponent(id)}/content`,

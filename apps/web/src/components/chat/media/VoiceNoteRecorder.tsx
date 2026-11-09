@@ -141,7 +141,13 @@ export function VoiceNoteRecorder({
         );
         const name = `voice-note-${new Date().toISOString().replace(/[:.]/gu, '-')}.${ext}`;
         const file = Object.assign(new Blob([blob], { type }), { name });
-        const fileId = await uploadProjectFile(api, organizationSlug, { projectId, file });
+        // FIX3 item 1: a file is linkable only once scanned; linking earlier answers 404.
+        const fileId = await uploadProjectFile(
+          api,
+          organizationSlug,
+          { projectId, file },
+          { untilReady: true },
+        );
         const message = await postMessage(api, organizationSlug, conversationId, {
           body: tOr('ChatVoice.messageBody', 'Voice note'),
           kind: 'voice',
