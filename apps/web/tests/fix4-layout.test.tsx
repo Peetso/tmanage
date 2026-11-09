@@ -52,5 +52,9 @@ describe('FIX4 item 6: the date picker stays on screen', () => {
     const panel = openPickerWithFieldAt(middle - 20, middle + 20, window.innerHeight);
     expect(panel.style.maxBlockSize).not.toBe('');
     expect(panel.style.overflowY).toBe('auto');
+    // Pinned inside the window, not hanging off its top edge (local walkthrough, 2026-11-09).
+    expect(panel).toHaveAttribute('data-side', 'pinned');
+    expect(panel.style.position).toBe('fixed');
+    expect(parseFloat(panel.style.insetBlockStart)).toBeGreaterThanOrEqual(8);
   });
 });

@@ -231,28 +231,41 @@ export function DueDatePicker({ heading, value, now, min, onSet, onClose }: DueD
   }, [onClose]);
 
   // FIX4 item 6 (C2): the month grid was cut off at the bottom of the screen. The panel opens
-  // upwards when there is more room above its field, and scrolls inside itself when neither side
-  // has room for all of it.
-  const [placement, setPlacement] = useState<{ side: 'below' | 'above'; max: number | null }>({
-    side: 'below',
-    max: null,
-  });
+  // below or above the box it is positioned against, whichever has room for all of it. When
+  // neither has (a short window, or a picker anchored to a whole form card), it is pinned inside
+  // the window and scrolls inside itself.
+  type Placement =
+    | { readonly side: 'below' | 'above' }
+    | {
+        readonly side: 'pinned';
+        readonly top: number;
+        readonly left: number;
+        readonly max: number;
+      };
+  const [placement, setPlacement] = useState<Placement>({ side: 'below' });
   useLayoutEffect(() => {
     const place = () => {
       const node = panel.current;
-      const field = node?.parentElement;
-      if (!node || !field) return;
+      const anchor = (node?.offsetParent as HTMLElement | null) ?? node?.parentElement;
+      if (!node || !anchor) return;
       const margin = 8;
       const gap = 8;
-      const box = field.getBoundingClientRect();
+      const box = anchor.getBoundingClientRect();
       const height = node.scrollHeight;
       const below = window.innerHeight - box.bottom - gap - margin;
       const above = box.top - gap - margin;
-      const side = height <= below || below >= above ? 'below' : 'above';
-      const room = side === 'below' ? below : above;
-      const max = height > room ? Math.max(room, 160) : null;
+      let next: Placement;
+      if (height <= below) next = { side: 'below' };
+      else if (height <= above) next = { side: 'above' };
+      else {
+        const width = node.offsetWidth;
+        const left = Math.min(Math.max(box.left, margin), window.innerWidth - width - margin);
+        const max = window.innerHeight - 2 * margin;
+        const top = Math.max(margin, Math.min(box.top, window.innerHeight - margin - height));
+        next = { side: 'pinned', top, left: Math.max(margin, left), max };
+      }
       setPlacement((current) =>
-        current.side === side && current.max === max ? current : { side, max },
+        JSON.stringify(current) === JSON.stringify(next) ? current : next,
       );
     };
     place();
@@ -303,7 +316,17 @@ export function DueDatePicker({ heading, value, now, min, onSet, onClose }: DueD
       data-testid="due-date-picker"
       data-side={placement.side}
       style={
-        placement.max === null ? undefined : { maxBlockSize: placement.max, overflowY: 'auto' }
+        placement.side === 'pinned'
+          ? {
+              position: 'fixed',
+              insetBlockStart: placement.top,
+              insetBlockEnd: 'auto',
+              left: placement.left,
+              right: 'auto',
+              maxBlockSize: placement.max,
+              overflowY: 'auto',
+            }
+          : undefined
       }
     >
       <p id={titleId} className="tm-wk-datepicker__title">
