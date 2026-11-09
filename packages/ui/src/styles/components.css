@@ -666,6 +666,18 @@
   opacity: 1;
 }
 
+/*
+ * FIX3 item 8 (live W3): a closed bubble sat beside its trigger, up to 280px wide, so triggers
+ * near the right edge pushed every Work page's scroll width past the screen and drew a sideways
+ * scrollbar. Closed, it is parked on the viewport (a fixed box adds no scrollable overflow); open,
+ * the anchored placement sets its own fixed position.
+ */
+.tm-tooltip__bubble:not([data-open]) {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+}
+
 /* FIX2 hover help: plain sentence styling whatever the trigger's own type is. */
 .tm-tooltip__bubble {
   white-space: normal;
