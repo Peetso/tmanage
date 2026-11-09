@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LimeButton, OutlineButton, TextButton } from '@tmanage/ui';
@@ -156,6 +156,26 @@ export function GettingStartedCard({ organizationSlug, client }: GettingStartedC
   );
 }
 
+/** Keeps the popover at least this far from either edge of the window. */
+const VIEWPORT_GUTTER = 16;
+
+/**
+ * FIX5 item 6a (B-N6): how far to slide a popover along the inline axis so it stays inside the
+ * window. `left` is its physical left edge with no shift applied; the result is a physical
+ * translateX in pixels (positive moves it right), the same in LTR and RTL. A popover wider than
+ * the window is pinned to the left gutter.
+ */
+export function inlineShiftIntoViewport(
+  left: number,
+  width: number,
+  viewportWidth: number,
+  gutter = VIEWPORT_GUTTER,
+): number {
+  const maxLeft = Math.max(gutter, viewportWidth - gutter - width);
+  const target = Math.min(Math.max(left, gutter), maxLeft);
+  return target - left;
+}
+
 /**
  * **55-11 — the shell's entry to the checklist**: a "Getting started 2/6" capsule in the canvas
  * header that opens the card in a popover. Hidden once the member dismisses or finishes it.
@@ -166,10 +186,30 @@ export function GettingStartedLauncher({ organizationSlug, client }: GettingStar
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const wrapper = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   const checklist = useQuery({
     queryKey: gettingStartedQueryKey(organizationSlug),
     queryFn: () => getGettingStarted(api, organizationSlug),
   });
+
+  // FIX5 item 6a (B-N6): the panel hangs off the capsule's inline end, which is fine on My Day but
+  // runs off the left edge where the capsule sits near the start of the header (a doc in Read
+  // mode). Measure it once open, and on every resize, and slide it back inside the window.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const node = panel.current;
+      if (!node) return;
+      node.style.transform = '';
+      const rect = node.getBoundingClientRect();
+      const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+      const shift = inlineShiftIntoViewport(rect.left, rect.width, viewportWidth);
+      node.style.transform = shift === 0 ? '' : `translateX(${String(shift)}px)`;
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -203,7 +243,7 @@ export function GettingStartedLauncher({ organizationSlug, client }: GettingStar
         {tOr('GettingStarted.title', 'Getting started')} {view.completedCount}/{view.totalCount}
       </LimeButton>
       {open ? (
-        <div id={panelId} className="tm-gs-launch__panel">
+        <div id={panelId} ref={panel} className="tm-gs-launch__panel">
           <GettingStartedCard organizationSlug={organizationSlug} client={api} />
         </div>
       ) : null}

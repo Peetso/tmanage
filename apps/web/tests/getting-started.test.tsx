@@ -4,6 +4,8 @@ import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import {
   GettingStartedCard,
+  GettingStartedLauncher,
+  inlineShiftIntoViewport,
   shouldOfferChecklist,
 } from '../src/components/onboarding/GettingStartedCard';
 import { ApiClient } from '../src/lib/api/client';
@@ -97,6 +99,46 @@ describe('GettingStartedCard (55-11)', () => {
     expect(shouldOfferChecklist(checklist({ dismissed: true }))).toBe(false);
     expect(shouldOfferChecklist(checklist({ completedCount: 6 }))).toBe(false);
     expect(shouldOfferChecklist(undefined)).toBe(false);
+  });
+});
+
+describe('GettingStartedLauncher popover stays in the window (FIX5 item 6a, B-N6)', () => {
+  it('slides a popover that starts off the left edge back inside, and one off the right edge too', () => {
+    // 440px panel hanging off a capsule near the left edge: starts at -300 -> pinned at 16.
+    expect(inlineShiftIntoViewport(-300, 440, 1280)).toBe(316);
+    // Already inside: no shift.
+    expect(inlineShiftIntoViewport(600, 440, 1280)).toBe(0);
+    // RTL: the panel hangs off the capsule's left, so it can run off the right edge.
+    expect(inlineShiftIntoViewport(1000, 440, 1280)).toBe(1280 - 16 - 440 - 1000);
+    // Wider than the window: pinned to the left gutter.
+    expect(inlineShiftIntoViewport(-50, 500, 400)).toBe(66);
+  });
+
+  it('applies the shift to the open panel', async () => {
+    const { client } = clientWith(() => ({ status: 200, body: checklist() }));
+    const original = HTMLElement.prototype.getBoundingClientRect;
+    HTMLElement.prototype.getBoundingClientRect = function rect(this: HTMLElement) {
+      const left = this.classList.contains('tm-gs-launch__panel') ? -300 : 0;
+      return {
+        left,
+        right: left + 440,
+        width: 440,
+        top: 0,
+        bottom: 400,
+        height: 400,
+        x: left,
+        y: 0,
+        toJSON: () => ({}),
+      } as DOMRect;
+    };
+    try {
+      wrap(<GettingStartedLauncher organizationSlug="northstar" client={client} />);
+      fireEvent.click(await screen.findByRole('button', { name: /Getting started 2\/6/ }));
+      const panel = document.querySelector<HTMLElement>('.tm-gs-launch__panel');
+      expect(panel?.style.transform).toBe('translateX(316px)');
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = original;
+    }
   });
 });
 
