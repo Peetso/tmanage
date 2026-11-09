@@ -89,6 +89,7 @@ function harness(initial: FileAssetRow = fileRow(), restoreWindowOpen = true) {
       row = { ...row, deletedAt: null } as FileAssetRow;
       return true;
     },
+    deliverableBoundIds: async () => new Set<string>(),
   } as unknown as FileAssetsRepository;
   const projects = {
     findById: async (_r: unknown, _c: unknown, id: string) =>
@@ -175,7 +176,13 @@ describe('file delete (FIX5 item 5)', () => {
 
   it('never removes a deliverable’s file, nor lets a client remove one', () => {
     const deliverable = fileRow({ purpose: 'deliverable' } as Partial<FileAssetRow>);
+    // A deliverable version names it (or the caller does not know): it stays.
     expect(mayDeleteFile(owner, deliverable, false)).toBe(false);
+    expect(mayDeleteFile(owner, deliverable, false, true)).toBe(false);
+    // A project upload (chat, work item, doc) that no deliverable version names: deletable.
+    expect(mayDeleteFile(owner, deliverable, false, false)).toBe(true);
+    expect(mayDeleteFile(uploader, deliverable, false, false)).toBe(true);
+    expect(mayDeleteFile(otherMember, deliverable, false, false)).toBe(false);
     expect(mayDeleteFile({ ...uploader, kind: 'client' }, fileRow(), false)).toBe(false);
     expect(mayDeleteFile(uploader, fileRow(), false)).toBe(true);
     expect(mayDeleteFile(otherMember, fileRow(), false)).toBe(false);

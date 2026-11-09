@@ -23,16 +23,22 @@ import type { FileAssetsRepository } from './file-assets.repository.js';
  *   manager of the file's project (the role ceiling and the project scope are `authorize()`'s).
  *
  * Anyone else who can see the file gets 403; a caller who cannot see it gets the same 404 an
- * unknown id gives. A deliverable's file is not deleted from here: it belongs to a deliverable
- * version (and may be what a client approved), so it follows the deliverable's own lifecycle.
+ * unknown id gives. A file a deliverable version points at is not deleted from here: it may be
+ * what a client approved, so it follows the deliverable's own lifecycle. The `deliverable` purpose
+ * on its own does not mean that: every internal project upload (chat, work items, docs) uses it,
+ * so only a file named by a `deliverable_versions` row is held back.
  * Restore follows the same rule. Both are idempotent: deleting a deleted file, or restoring a
  * file that is not deleted, changes nothing and still answers success.
  */
 
 export const FILE_DELETE_SERVICE = Symbol.for('tmanage.FileDeleteService');
 
-/** The uploads a person can delete from Files: chat, request and doc attachments. */
+/**
+ * The uploads a person can delete from Files: project uploads (chat, work items, docs, which use
+ * the `deliverable` purpose), and request and doc attachments.
+ */
 export const DELETABLE_FILE_PURPOSES: readonly UploadPurpose[] = [
+  'deliverable',
   'message_attachment',
   'request_attachment',
   'request_message',
@@ -57,15 +63,19 @@ function fileResource(file: DeletableFile, projectArchived: boolean) {
 
 /**
  * May this principal delete (and restore) this file? The one rule the routes, the Files hub's
- * `canDelete` and the viewer's `capabilities.canDelete` share.
+ * `canDelete` and the viewer's `capabilities.canDelete` share. `boundToDeliverable` says whether a
+ * deliverable version names the file; a caller that does not know passes nothing, which refuses
+ * a `deliverable`-purpose file rather than risk deleting what a client approved.
  */
 export function mayDeleteFile(
   principal: Principal,
   file: DeletableFile,
   projectArchived: boolean,
+  boundToDeliverable = true,
 ): boolean {
   if (principal.kind !== 'internal') return false;
   if (!DELETABLE_FILE_PURPOSES.includes(file.purpose)) return false;
+  if (file.purpose === 'deliverable' && boundToDeliverable) return false;
   const resource = fileResource(file, projectArchived);
   if (authorize({ principal, capability: 'file.delete', resource }).allowed) return true;
   return (
@@ -134,13 +144,16 @@ export class FileDeleteService {
     const project = await this.projects.findById(runner, context, asset.projectId);
     if (!project) throw new ApiError(404, 'not_found', MESSAGES.notFound);
     const archived = project.archivedAt !== null;
+    const bound = (await this.assets.deliverableBoundIds(runner, context, [asset.id])).has(
+      asset.id,
+    );
     const readable = authorize({
       principal,
       capability: 'file.download',
       resource: fileResource(asset, archived),
     }).allowed;
     if (!readable) throw new ApiError(404, 'not_found', MESSAGES.notFound);
-    if (!mayDeleteFile(principal, asset, archived)) {
+    if (!mayDeleteFile(principal, asset, archived, bound)) {
       throw new ApiError(
         403,
         'forbidden',

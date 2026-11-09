@@ -71,6 +71,7 @@ function harness(
       limits.push(limit);
       return rows;
     },
+    deliverableBoundIds: async () => new Set<string>(),
   } as unknown as FileAssetsRepository;
   const projects = {
     findById: async (_r: unknown, _c: unknown, id: string) =>

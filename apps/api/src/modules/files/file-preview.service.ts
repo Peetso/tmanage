@@ -398,16 +398,20 @@ export class FilePreviewService {
     const mimeType = version?.detectedMimeType ?? null;
     const kind = viewerKindFor(mimeType);
 
-    const { rows, chain, decisionContext } = await this.database.read(context, async (runner) => ({
-      rows: version ? await this.previews.listForVersion(runner, context, version.id) : [],
-      chain: await this.chainFor(runner, context, principal, asset),
-      decisionContext: await this.decisionContextFor(
-        runner,
-        context,
-        asset,
-        input.deliverableVersionId,
-      ),
-    }));
+    const { rows, chain, decisionContext, bound } = await this.database.read(
+      context,
+      async (runner) => ({
+        rows: version ? await this.previews.listForVersion(runner, context, version.id) : [],
+        chain: await this.chainFor(runner, context, principal, asset),
+        decisionContext: await this.decisionContextFor(
+          runner,
+          context,
+          asset,
+          input.deliverableVersionId,
+        ),
+        bound: (await this.assets.deliverableBoundIds(runner, context, [asset.id])).has(asset.id),
+      }),
+    );
 
     const servable = access.state === 'servable';
     const status = manifestStatusFor({
@@ -445,7 +449,7 @@ export class FilePreviewService {
       office: servable ? officeViewFrom(rows) : null,
       versions: chain,
       decisionContext,
-      capabilities: this.capabilitiesFor(principal, resolved, rows),
+      capabilities: this.capabilitiesFor(principal, resolved, rows, bound),
     };
   }
 
@@ -556,6 +560,7 @@ export class FilePreviewService {
     principal: Principal,
     resolved: ResolvedFile,
     rows: readonly FilePreview[],
+    boundToDeliverable: boolean,
   ): PreviewCapabilitiesView {
     const active = resolved.project.archivedAt === null;
     const canComment = active && this.allowed(principal, resolved, 'file.upload');
@@ -569,7 +574,7 @@ export class FilePreviewService {
       canUploadVersion,
       canDownload: resolved.access.state === 'servable',
       canRetry: canUploadVersion && rows.some((row) => row.status === 'failed'),
-      canDelete: mayDeleteFile(principal, resolved.asset, !active),
+      canDelete: mayDeleteFile(principal, resolved.asset, !active, boundToDeliverable),
     };
   }
 

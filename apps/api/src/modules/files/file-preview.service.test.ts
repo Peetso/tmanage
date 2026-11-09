@@ -148,6 +148,7 @@ function build(world: World = {}) {
     findWithLatestVersion: async (_r: unknown, _c: unknown, id: string) =>
       id === theAsset.id ? { asset: theAsset, version: theVersion } : null,
     findById: async (_r: unknown, _c: unknown, id: string) => byId.get(id) ?? null,
+    deliverableBoundIds: async () => new Set<string>(),
   } as unknown as FileAssetsRepository;
   const projects = {
     findById: async () => ({ id: PROJECT, archivedAt: world.archived ? new Date() : null }),

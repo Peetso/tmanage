@@ -123,6 +123,11 @@ export class FileFoldersService {
         projectId,
         PROJECT_FILES_LIMIT,
       );
+      const bound = await this.assets.deliverableBoundIds(
+        runner,
+        context,
+        rows.map(({ asset }) => asset.id),
+      );
       const effective = await effectiveDownloadScanPolicyOn(
         runner,
         context,
@@ -145,7 +150,7 @@ export class FileFoldersService {
           versionNo: version?.versionNo ?? null,
           updatedAt: asset.updatedAt.toISOString(),
           scanStatus,
-          canDelete: mayDeleteFile(principal, asset, archived),
+          canDelete: mayDeleteFile(principal, asset, archived, bound.has(asset.id)),
         }));
     });
   }

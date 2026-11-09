@@ -16,7 +16,12 @@ import { RESTORE_VALUES, softDeleteValues } from '../../common/database/content-
 import { uploadStateMachine, uuidv7 } from '@tmanage/domain';
 import type { Audience, UploadState } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { clientRequests, fileAssets, fileVersions } from '../../common/database/schema.js';
+import {
+  clientRequests,
+  deliverableVersions,
+  fileAssets,
+  fileVersions,
+} from '../../common/database/schema.js';
 import type { FileAssetRow, FileVersionRow, UploadPurpose } from '../../common/database/schema.js';
 import type {
   BootstrapQueryRunner,
@@ -129,6 +134,28 @@ export class FileAssetsRepository {
       )
       .limit(1);
     return rows[0] ?? null;
+  }
+
+  /**
+   * FIX5 item 5. Of these file ids, the ones a deliverable version names: those files follow the
+   * deliverable's lifecycle and are not deleted from Files or the viewer.
+   */
+  async deliverableBoundIds(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    fileAssetIds: readonly string[],
+  ): Promise<ReadonlySet<string>> {
+    if (fileAssetIds.length === 0) return new Set();
+    const rows = await tenantDrizzle(runner)
+      .selectDistinct({ id: deliverableVersions.fileAssetId })
+      .from(deliverableVersions)
+      .where(
+        and(
+          eq(deliverableVersions.organizationId, context.organizationId),
+          inArray(deliverableVersions.fileAssetId, [...fileAssetIds]),
+        ),
+      );
+    return new Set(rows.flatMap((row) => (row.id === null ? [] : [row.id])));
   }
 
   async requireById(
