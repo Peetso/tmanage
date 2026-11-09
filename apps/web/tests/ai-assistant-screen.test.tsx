@@ -112,7 +112,10 @@ describe('AiAssistantScreen', () => {
     const { calls, container } = mount(() => ({ status: 200, body: { tokens: [] } }));
     await waitFor(() => expect(screen.getByText('Not connected')).toBeTruthy());
     expect(screen.queryByRole('button', { name: 'Create key' })).toBeNull();
-    expect(container.querySelectorAll('a[href="/northstar/settings/security"]').length).toBe(2);
+    // The page's own link plus the settings menu's "Access tokens" entry (FIX2 item 4).
+    expect(
+      container.querySelectorAll('a[href="/northstar/settings/security"]').length,
+    ).toBeGreaterThanOrEqual(2);
     expect(calls.every((call) => call.method === 'GET')).toBe(true);
   });
 

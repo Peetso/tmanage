@@ -4,8 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
-import { PreferencesNav } from './PreferencesScreen';
+import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { connectorAddress, deploymentAddress } from '../../lib/ai-connector-address';
 import { useOrganizationName } from '../../lib/use-organization-names';
@@ -92,13 +91,13 @@ export function AiAssistantScreen({
   const status = connectionStatus(active);
 
   return (
-    <AppShell
+    <SettingsShell
+      section="ai-assistant"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       eyebrow={t('AiAssistantScreen.eyebrow')}
       title={t('AiAssistantScreen.title')}
       description={t('AiAssistantScreen.description')}
-      contextRail={<PreferencesNav organizationSlug={organizationSlug} current="ai-assistant" />}
     >
       <div className="tm-prefs tm-ai">
         <div className="tm-prefs__main">
@@ -269,7 +268,7 @@ export function AiAssistantScreen({
           </section>
         </div>
       </div>
-    </AppShell>
+    </SettingsShell>
   );
 }
 

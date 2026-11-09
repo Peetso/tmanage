@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getDigestPreference, updateDigestPreference } from '../../lib/api/digest';
 import type { DigestCadence, DigestPrefView } from '../../lib/api/digest';
@@ -115,7 +115,8 @@ export function DigestPreferenceScreen({
   const dayLabel = dayLabelKey ? t(dayLabelKey) : '';
 
   return (
-    <AppShell
+    <SettingsShell
+      section="digest"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       eyebrow={t('DigestPreferenceScreen.eyebrow')}
@@ -266,6 +267,6 @@ export function DigestPreferenceScreen({
           </aside>
         </div>
       )}
-    </AppShell>
+    </SettingsShell>
   );
 }

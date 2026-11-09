@@ -4,7 +4,7 @@ import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import '../../styles/screens/automations.css';
 import './automation-rule.css';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -129,7 +129,8 @@ export function AutomationTemplateEditScreen({
   const backHref = `/${organizationSlug}/automations`;
 
   return (
-    <AppShell
+    <SettingsShell
+      section="automations"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
@@ -210,7 +211,7 @@ export function AutomationTemplateEditScreen({
           />
         ) : null}
       </div>
-    </AppShell>
+    </SettingsShell>
   );
 }
 

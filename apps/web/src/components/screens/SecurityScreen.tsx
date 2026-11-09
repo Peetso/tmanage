@@ -11,7 +11,7 @@ import {
   StateCapsule,
   type CapsuleState,
 } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import type { MessageKey } from '../../lib/i18n/t';
@@ -93,7 +93,8 @@ export function SecurityScreen({
   const visible = (tokens.data ?? []).filter((token) => token.revokedAt === null);
 
   return (
-    <AppShell
+    <SettingsShell
+      section="access-tokens"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       eyebrow={t('AccessTokens.eyebrow')}
@@ -198,7 +199,7 @@ export function SecurityScreen({
           </div>
         </Dialog>
       ) : null}
-    </AppShell>
+    </SettingsShell>
   );
 }
 

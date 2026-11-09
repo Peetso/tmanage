@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   fetchBillingProfile,
@@ -127,7 +127,8 @@ export function BillingProfileScreen({
   };
 
   return (
-    <AppShell
+    <SettingsShell
+      section="billing"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
@@ -256,7 +257,7 @@ export function BillingProfileScreen({
           </form>
         ) : null}
       </div>
-    </AppShell>
+    </SettingsShell>
   );
 }
 

@@ -50,10 +50,22 @@ export function WorkViewSwitcher({
     calendar: tOr('ViewSwitcher.calendar', 'Calendar'),
     workload: tOr('ViewSwitcher.workload', 'Workload'),
   };
+  const tips: Record<WorkView, string> = {
+    list: tOr('ViewSwitcher.listTip', 'Every work item in rows you can sort, filter and group.'),
+    board: tOr('ViewSwitcher.boardTip', 'Cards in columns by status; drag a card to move it on.'),
+    timeline: tOr('ViewSwitcher.timelineTip', 'Work on a time line, from start date to due date.'),
+    calendar: tOr('ViewSwitcher.calendarTip', 'Work on a month calendar by due date.'),
+    workload: tOr('ViewSwitcher.workloadTip', 'How busy each person is, day by day.'),
+  };
   const options: ViewOption<WorkView>[] = WORK_VIEWS.map((id) =>
     onLocalChange && (id === 'list' || id === 'board')
-      ? { id, label: labels[id] }
-      : { id, label: labels[id], href: workViewHref(organizationSlug, id, projectId) },
+      ? { id, label: labels[id], tip: tips[id] }
+      : {
+          id,
+          label: labels[id],
+          tip: tips[id],
+          href: workViewHref(organizationSlug, id, projectId),
+        },
   );
   return (
     <ViewSwitcher

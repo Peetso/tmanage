@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { AutomationSectionTabs } from './AutomationSectionTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -148,7 +148,8 @@ export function AutomationRunHistoryScreen({
   const loaded = !runs.isPending && !runs.isError;
 
   return (
-    <AppShell
+    <SettingsShell
+      section="automations"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
@@ -417,7 +418,7 @@ export function AutomationRunHistoryScreen({
           </aside>
         </div>
       </div>
-    </AppShell>
+    </SettingsShell>
   );
 }
 

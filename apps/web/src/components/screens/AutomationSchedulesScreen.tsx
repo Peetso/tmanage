@@ -3,7 +3,7 @@
 import { Fragment, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Checkbox, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { AutomationSectionTabs } from './AutomationSectionTabs';
 import { listWorkflowTemplates } from '../../lib/api/automations';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -148,7 +148,8 @@ export function AutomationSchedulesScreen({
   const onCount = rows.filter((schedule) => schedule.enabled).length;
 
   return (
-    <AppShell
+    <SettingsShell
+      section="automations"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
@@ -509,7 +510,7 @@ export function AutomationSchedulesScreen({
           </div>
         </div>
       </div>
-    </AppShell>
+    </SettingsShell>
   );
 }
 

@@ -6,8 +6,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { WORK_ITEM_STATES } from '@tmanage/domain';
 import type { WorkItemState } from '@tmanage/domain';
 import { Announce, Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
-import { useCanCreateProjects } from '../projects/NewProjectLink';
+import { WorkViewsShell, WORK_STATE_VIEWS, sameStates } from '../work/WorkViewsShell';
 import './work-core.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
@@ -29,15 +28,12 @@ import type { MessageKey } from '../../lib/i18n/t';
 import { activeIsEnglish, compactUnit, translateOr } from '../../lib/i18n/compact-time';
 import { appLocale } from '../../lib/i18n/app-locale';
 import { useT } from '../../lib/i18n/use-t';
-import { OPEN_COMMAND_PALETTE_EVENT } from './CommandPalette';
 import { WorkBoardView } from './WorkBoardView';
 import { CoachMarkTour } from '../help/CoachMarkTour';
 import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { PhoneWorkOverview } from '../phone/PhoneWorkOverview';
-import { useA6T } from '../work/DueDatePicker';
 import { DoerStack } from '../work/WorkPeopleBlock';
-import { WorkViewSwitcher } from '../views/WorkViewSwitcher';
 import { useViewPreference } from '../views/use-view-preference';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { useUndoEntries } from '../../lib/undo/use-undo';
@@ -149,7 +145,6 @@ export function WorkListScreen({
 }: WorkListScreenProps) {
   const describeError = useDescribeApiError();
   const t = useT();
-  const ta = useA6T();
   // R38 G5-views: a `?view=` in the address wins; otherwise the last view chosen on this page.
   const [view, setView] = useViewPreference<'list' | 'board'>(
     `work:${organizationSlug}`,
@@ -159,7 +154,6 @@ export function WorkListScreen({
   );
   const api = client ?? browserApiClient();
   const tOr = useTOr();
-  const canCreateProjects = useCanCreateProjects(organizationSlug, client);
   const queries = useQueryClient();
 
   const [projectId, setProjectId] = useState<string>(initialProjectId ?? '');
@@ -372,156 +366,27 @@ export function WorkListScreen({
     setSelected(new Set());
   }
 
-  // The board's search field (Figma 376:17319) and WK-02's search glyph: both views open the
-  // command palette's search. The list had only the phone overview's trigger, which is hidden
-  // (0×0) on a desktop screen (2026-10-31 live test).
-  const searchTrigger = (
-    <button
-      type="button"
-      className="tm-wk-search"
-      data-kind="trigger"
-      onClick={() => window.dispatchEvent(new Event(OPEN_COMMAND_PALETTE_EVENT))}
-    >
-      <span className="tm-wk-search__icon" aria-hidden="true">
-        ⌕
-      </span>
-      <span className="tm-wk-search__placeholder">{ta('WorkBoard.search')}</span>
-      <kbd className="tm-wk-search__key" aria-hidden="true">
-        ⌘K
-      </kbd>
-    </button>
-  );
-
   return (
-    <AppShell
+    <WorkViewsShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      activeNavigationId="work"
-      eyebrow={view === 'board' ? (selectedProjectName ?? undefined) : t('WorkListScreen.eyebrow')}
+      {...(client ? { client } : {})}
+      view={view}
+      projectId={projectId}
+      onChooseProject={chooseProject}
+      states={states}
+      onChooseStates={chooseStates}
+      onLocalViewChange={setView}
       title={
-        view === 'board'
-          ? ta('WorkBoard.title')
-          : (selectedProjectName ??
-            (activeView ? t(activeView.labelKey) : t('WorkListScreen.filteredWork')))
+        selectedProjectName ??
+        (activeView ? t(activeView.labelKey) : t('WorkListScreen.filteredWork'))
       }
       titleMeta={
         view === 'board' || workItems.isPending
           ? undefined
           : `${countLabel} ${itemWord} · ${blockedCount} ${t('WorkListScreen.metaBlocked')} · ${clientWaitingCount} ${t('WorkListScreen.metaClientWaiting')}`
       }
-      actions={
-        view === 'board' ? (
-          <>
-            {searchTrigger}
-            <Link
-              href={`/${organizationSlug}/capture${projectId === '' ? '' : `?project=${encodeURIComponent(projectId)}`}`}
-              className="tm-wk-pill-button"
-              data-tone="ink"
-            >
-              {ta('WorkBoard.newWorkItem')}
-            </Link>
-          </>
-        ) : (
-          <>
-            {searchTrigger}
-            <Link
-              href={`/${organizationSlug}/capture${projectId === '' ? '' : `?project=${encodeURIComponent(projectId)}`}`}
-              className="tm-wk-new"
-            >
-              <span className="tm-wk-new__orb" aria-hidden="true">
-                +
-              </span>
-              {t('WorkListScreen.newWork')}
-            </Link>
-          </>
-        )
-      }
-      contextRail={
-        <div className="tm-wk-rail">
-          <div className="tm-wk-rail__group">
-            <h2 className="tm-wk-rail__heading" id="tm-work-views">
-              {t('WorkListScreen.railViews')}
-            </h2>
-            <ul className="tm-wk-rail__group" aria-labelledby="tm-work-views">
-              {STATE_VIEWS.map((view) => (
-                <li key={view.label}>
-                  <button
-                    type="button"
-                    className="tm-wk-rail__item"
-                    data-kind="view"
-                    aria-pressed={activeView?.label === view.label}
-                    disabled={projects.isPending}
-                    onClick={() => chooseStates(view.states)}
-                  >
-                    {t(view.labelKey)}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="tm-wk-rail__group">
-            <h2 className="tm-wk-rail__heading" id="tm-work-projects">
-              {t('WorkListScreen.railProjects')}
-            </h2>
-            <ul className="tm-wk-rail__group" aria-labelledby="tm-work-projects">
-              {(projects.data ?? []).map((project) => (
-                <li key={project.id}>
-                  <button
-                    type="button"
-                    className="tm-wk-rail__item"
-                    data-kind="project"
-                    aria-pressed={projectId === project.id}
-                    onClick={() => chooseProject(projectId === project.id ? '' : project.id)}
-                  >
-                    <span className="tm-wk-rail__dot" aria-hidden="true" />
-                    <span className="tm-wk-rail__text">{project.name}</span>
-                  </button>
-                </li>
-              ))}
-              {canCreateProjects ? (
-                <li>
-                  <Link className="tm-wk-rail__item" href={`/${organizationSlug}/projects/new`}>
-                    <span className="tm-wk-rail__text">{t('WorkListScreen.railNewProject')}</span>
-                  </Link>
-                </li>
-              ) : null}
-            </ul>
-          </div>
-
-          <div className="tm-wk-rail__group">
-            <h2 className="tm-wk-rail__heading" id="tm-work-more">
-              {t('WorkListScreen.railMore')}
-            </h2>
-            <ul className="tm-wk-rail__group" aria-labelledby="tm-work-more">
-              {/*
-                The way into `REQ-01 Request inbox`: the design's breadcrumb reads
-                "WORK · REQUESTS", so it lives under Work rather than on the rail.
-              */}
-              <li>
-                <Link className="tm-wk-rail__item" href={`/${organizationSlug}/work/requests`}>
-                  {t('WorkListScreen.clientRequests')}
-                </Link>
-              </li>
-              <li>
-                <Link className="tm-wk-rail__item" href={`/${organizationSlug}/work/saved-views`}>
-                  {t('WorkListScreen.savedViews')}
-                </Link>
-              </li>
-            </ul>
-          </div>
-        </div>
-      }
     >
-      <div className="tm-view-bar tm-wk-view-bar">
-        <WorkViewSwitcher
-          organizationSlug={organizationSlug}
-          projectId={projectId}
-          current={view}
-          onLocalChange={setView}
-        />
-      </div>
-
       {view === 'board' ? (
         <>
           {workItems.isError ? (
@@ -1028,7 +893,7 @@ export function WorkListScreen({
           {...(client ? { client } : {})}
         />
       ) : null}
-    </AppShell>
+    </WorkViewsShell>
   );
 }
 
@@ -1046,30 +911,7 @@ const STATE_FILTER_LABEL: Record<WorkItemState, MessageKey> = {
 /** The views the Work list draws in place; Timeline, Calendar and Workload are their own pages. */
 const LOCAL_WORK_VIEWS = ['list', 'board'] as const;
 
-/** The rail's views: each is a real server-side state filter, named the way people ask for it. */
-const STATE_VIEWS: readonly {
-  label: string;
-  labelKey: MessageKey;
-  states: readonly WorkItemState[];
-}[] = [
-  { label: 'All work', labelKey: 'WorkListScreen.viewAllWork', states: [] },
-  {
-    label: 'All open work',
-    labelKey: 'WorkListScreen.viewAllOpen',
-    states: WORK_ITEM_STATES.filter((state) => state !== 'done' && state !== 'archived'),
-  },
-  { label: 'Blocked work', labelKey: 'WorkListScreen.viewBlocked', states: ['blocked'] },
-  {
-    label: 'In internal review',
-    labelKey: 'WorkListScreen.viewInternalReview',
-    states: ['internal_review'],
-  },
-  { label: 'Done', labelKey: 'WorkListScreen.viewDone', states: ['done'] },
-];
-
-function sameStates(left: readonly WorkItemState[], right: readonly WorkItemState[]): boolean {
-  return left.length === right.length && left.every((state) => right.includes(state));
-}
+const STATE_VIEWS = WORK_STATE_VIEWS;
 
 const AUDIENCE_GLYPH: Record<WorkItemAudience, string> = {
   internal: '■',

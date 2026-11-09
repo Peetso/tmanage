@@ -21,6 +21,8 @@ import { useOrganizationName, useOrganizationRole } from '../../lib/use-organiza
 import { roleMayUse } from '../../lib/role-capability';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { HelpTip } from '../help/HelpTip';
 import '../../styles/screens/admin.css';
 import './control-center.css';
 import { ThemeSync } from '../shell/ThemeSync';
@@ -56,7 +58,24 @@ export type ControlCenterSection =
   | 'organization'
   | 'billing'
   // A10b: the finance home, after Billing in the last group.
-  | 'finance';
+  | 'finance'
+  // FIX2 item 4: the personal settings, so every settings page has the same menu.
+  | 'settings-home'
+  | 'preferences'
+  | 'notifications'
+  | 'display'
+  | 'accessibility'
+  | 'quiet-hours'
+  | 'digest'
+  | 'startup'
+  | 'my-data'
+  | 'sign-in-security'
+  | 'two-step'
+  | 'access-tokens'
+  | 'calendar-connections'
+  | 'ai-assistant'
+  | 'inbound-mail'
+  | 'channel-notices';
 
 /**
  * The P11 keys, written to the wave's i18n fragment (`i18n-P11.*.json`) and merged into the
@@ -100,6 +119,99 @@ interface SectionGroup {
  * Trust, with Organization and Billing closing the Trust list. Order and labels are the frame's.
  */
 const GROUPS: readonly SectionGroup[] = [
+  /*
+   * FIX2 item 4 (Peter, 2026-11-09: "some settings pages have a side menu and some do not").
+   * Every settings page — the person's own and the company's — is drawn in this one frame, so the
+   * menu opens with the person's own settings (open to every member), then the company groups.
+   */
+  {
+    labelKey: 'SettingsHome.group.you' as MessageKey,
+    items: [
+      { id: 'settings-home', labelKey: 'RouteTitle.settings' as MessageKey, href: '/settings' },
+      { id: 'preferences', labelKey: 'RouteTitle.preferences' as MessageKey, href: '/preferences' },
+      {
+        id: 'notifications',
+        labelKey: 'RouteTitle.inboxNotificationPreferences' as MessageKey,
+        href: '/inbox/notification-preferences',
+      },
+      {
+        id: 'display',
+        labelKey: 'SettingsHome.link.display' as MessageKey,
+        href: '/settings/display',
+      },
+      {
+        id: 'accessibility',
+        labelKey: 'SettingsHome.link.accessibility' as MessageKey,
+        href: '/settings/accessibility',
+      },
+      {
+        id: 'quiet-hours',
+        labelKey: 'RouteTitle.settingsQuietHours' as MessageKey,
+        href: '/settings/quiet-hours',
+      },
+      {
+        id: 'digest',
+        labelKey: 'SettingsHome.link.digest' as MessageKey,
+        href: '/settings/digest',
+      },
+      {
+        id: 'startup',
+        labelKey: 'RouteTitle.settingsStartup' as MessageKey,
+        href: '/settings/startup',
+      },
+      {
+        id: 'my-data',
+        labelKey: 'SettingsHome.link.myData' as MessageKey,
+        href: '/settings/my-data',
+      },
+    ],
+  },
+  {
+    labelKey: 'SettingsHome.group.security' as MessageKey,
+    items: [
+      {
+        id: 'sign-in-security',
+        labelKey: 'RouteTitle.settingsSignInSecurity' as MessageKey,
+        href: '/settings/sign-in-security',
+      },
+      {
+        id: 'two-step',
+        labelKey: 'RouteTitle.settingsTwoStep' as MessageKey,
+        href: '/settings/two-step',
+      },
+      {
+        id: 'access-tokens',
+        labelKey: 'SettingsHome.link.accessTokens' as MessageKey,
+        href: '/settings/security',
+      },
+    ],
+  },
+  {
+    labelKey: 'SettingsHome.group.connections' as MessageKey,
+    items: [
+      {
+        id: 'calendar-connections',
+        labelKey: 'SettingsHome.link.calendarConnections' as MessageKey,
+        href: '/settings/calendar-connections',
+      },
+      {
+        id: 'ai-assistant',
+        labelKey: 'SettingsHome.link.aiAssistant' as MessageKey,
+        href: '/settings/ai-assistant',
+      },
+      {
+        id: 'inbound-mail',
+        labelKey: 'SettingsHome.link.inboundMail' as MessageKey,
+        href: '/settings/inbound-mail',
+      },
+      {
+        id: 'channel-notices',
+        labelKey: 'RouteTitle.settingsChannelNotices' as MessageKey,
+        href: '/settings/channel-notices',
+        capability: 'org.manage',
+      },
+    ],
+  },
   {
     labelKey: 'ControlCenterShell.groupPeople',
     items: [
@@ -216,7 +328,7 @@ const GROUPS: readonly SectionGroup[] = [
       {
         id: 'organization',
         labelKey: 'ControlCenterShell.organization',
-        href: '/settings',
+        href: '/settings/organization',
         capability: 'org.manage',
       },
       {
@@ -260,6 +372,22 @@ export const SECTION_ICONS: Partial<Record<ControlCenterSection, PhoneIconName>>
   organization: 'building',
   billing: 'creditCard',
   finance: 'receipt',
+  'settings-home': 'settings',
+  preferences: 'sliders',
+  notifications: 'bell',
+  display: 'sun',
+  accessibility: 'eye',
+  'quiet-hours': 'clock',
+  digest: 'mail',
+  startup: 'home',
+  'my-data': 'database',
+  'sign-in-security': 'shield',
+  'two-step': 'key',
+  'access-tokens': 'key',
+  'calendar-connections': 'calendar',
+  'ai-assistant': 'zap',
+  'inbound-mail': 'inbox',
+  'channel-notices': 'messages',
 };
 
 function SectionIcon({ id }: { id: ControlCenterSection }) {
@@ -325,6 +453,7 @@ function SectionItem({
   current: boolean;
 }) {
   const t = useT();
+  const tOr = useTOr();
   if (item.href === undefined) {
     return (
       <li>
@@ -335,22 +464,30 @@ function SectionItem({
       </li>
     );
   }
+  const tip = tOr(`ControlCenterHelp.${item.id}`, '');
+  const link = (
+    <Link
+      href={`/${organizationSlug}${item.href}`}
+      className="tm-cc-sections__item"
+      // 2026-10-31 live test: viewport prefetch of all ~20 Control center links at once drew
+      // HTTP 503s from the shared host (13 of 19 RSC prefetches). Fetch a section on click.
+      prefetch={false}
+      {...(current ? { 'aria-current': 'page' as const } : {})}
+    >
+      <SectionIcon id={item.id} />
+      {t(item.labelKey)}
+      {item.id === 'storage' ? <StorageProviderBadge organizationSlug={organizationSlug} /> : null}
+    </Link>
+  );
   return (
     <li>
-      <Link
-        href={`/${organizationSlug}${item.href}`}
-        className="tm-cc-sections__item"
-        // 2026-10-31 live test: viewport prefetch of all ~20 Control center links at once drew
-        // HTTP 503s from the shared host (13 of 19 RSC prefetches). Fetch a section on click.
-        prefetch={false}
-        {...(current ? { 'aria-current': 'page' as const } : {})}
-      >
-        <SectionIcon id={item.id} />
-        {t(item.labelKey)}
-        {item.id === 'storage' ? (
-          <StorageProviderBadge organizationSlug={organizationSlug} />
-        ) : null}
-      </Link>
+      {tip === '' ? (
+        link
+      ) : (
+        <HelpTip tip={tip} placement="end" block>
+          {link}
+        </HelpTip>
+      )}
     </li>
   );
 }

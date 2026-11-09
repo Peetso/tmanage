@@ -4,7 +4,7 @@ import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { AutomationSectionTabs } from './AutomationSectionTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -129,7 +129,8 @@ export function AutomationTemplatesScreen({
       : rows.filter((template) => (stateFilter === 'live' ? template.enabled : !template.enabled));
 
   return (
-    <AppShell
+    <SettingsShell
+      section="automations"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
@@ -424,7 +425,7 @@ export function AutomationTemplatesScreen({
           )}
         </div>
       </div>
-    </AppShell>
+    </SettingsShell>
   );
 }
 

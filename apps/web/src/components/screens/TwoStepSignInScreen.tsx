@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { Dialog, errorMessage } from './SecurityScreen';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
@@ -205,7 +205,8 @@ export function TwoStepSignInScreen({
   }
 
   return (
-    <AppShell
+    <SettingsShell
+      section="two-step"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       eyebrow={t('TwoStep.eyebrow')}
@@ -245,7 +246,7 @@ export function TwoStepSignInScreen({
           </div>
         </Dialog>
       ) : null}
-    </AppShell>
+    </SettingsShell>
   );
 }
 

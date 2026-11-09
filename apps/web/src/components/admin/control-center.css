@@ -292,3 +292,22 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* FIX2 item 4: settings pages written against the app shell, drawn in this frame. */
+.tm-settings-topbar,
+.tm-settings-aside {
+  margin-block-end: var(--s4);
+}
+
+.tm-settings-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: var(--s6);
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .tm-settings-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

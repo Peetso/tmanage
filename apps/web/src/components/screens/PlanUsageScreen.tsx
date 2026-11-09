@@ -5,8 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { ControlCenterSections } from '../admin/ControlCenterShell';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { PlanChangeDialog } from '../billing/PlanChangeDialog';
 import { BetaBillingPanel, useBetaBillingHeading } from '../billing/BetaBillingPanel';
 import { dayMonth, fill, gb, money, planName, planUsageText } from '../billing/plan-usage-format';
@@ -72,11 +71,11 @@ export function PlanUsageScreen({
   );
 
   return (
-    <AppShell
+    <SettingsShell
+      section="billing"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      contextRail={<ControlCenterSections organizationSlug={organizationSlug} section="billing" />}
       title={beta ? betaHeading.title : tr('PlanUsage.title')}
       description={beta ? betaHeading.description : tr('PlanUsage.lede')}
     >
@@ -125,7 +124,7 @@ export function PlanUsageScreen({
           onClose={closeDialog}
         />
       ) : null}
-    </AppShell>
+    </SettingsShell>
   );
 }
 

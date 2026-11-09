@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   assignCostCenterProject,
@@ -74,7 +74,8 @@ export function CostCentersView({
   const canCreate = code.trim() !== '' && name.trim() !== '' && !create.isPending;
 
   return (
-    <AppShell
+    <SettingsShell
+      section="billing"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
@@ -173,7 +174,7 @@ export function CostCentersView({
           ))}
         </section>
       </div>
-    </AppShell>
+    </SettingsShell>
   );
 }
 

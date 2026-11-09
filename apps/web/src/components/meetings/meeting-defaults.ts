@@ -48,3 +48,31 @@ export function writeMeetingDefaults(defaults: MeetingDefaults): void {
     // Private mode or blocked storage: the defaults just do not stick.
   }
 }
+
+/** The video call each calendar makes: Google Calendar makes Meet links, Outlook makes Teams. */
+export function conferenceFor(provider: 'google' | 'microsoft'): 'google_meet' | 'teams' {
+  return provider === 'microsoft' ? 'teams' : 'google_meet';
+}
+
+/**
+ * The defaults as they apply now, given the calendars that are connected. A saved calendar that
+ * is no longer connected gives way to the first connected one, and the video call follows the
+ * calendar: a Meet default with Outlook as the destination (or Teams with Google) cannot be met,
+ * so it becomes the destination's own video call. "No video call" is always kept.
+ */
+export function effectiveMeetingDefaults(
+  defaults: MeetingDefaults,
+  connected: readonly ('google' | 'microsoft')[],
+): MeetingDefaults {
+  const provider =
+    defaults.provider !== null && connected.includes(defaults.provider)
+      ? defaults.provider
+      : (connected[0] ?? null);
+  const conference =
+    defaults.conference === 'none'
+      ? 'none'
+      : provider === null
+        ? defaults.conference
+        : conferenceFor(provider);
+  return { ...defaults, provider, conference };
+}

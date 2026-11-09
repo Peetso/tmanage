@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { useT } from '../../lib/i18n/use-t';
 import {
@@ -103,7 +103,8 @@ export function PurchaseOrdersView({
   const canCreate = poNumber.trim() !== '' && amountValid && !create.isPending;
 
   return (
-    <AppShell
+    <SettingsShell
+      section="billing"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
@@ -277,6 +278,6 @@ export function PurchaseOrdersView({
           ) : null}
         </section>
       </div>
-    </AppShell>
+    </SettingsShell>
   );
 }

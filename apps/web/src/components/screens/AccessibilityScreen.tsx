@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   A11Y_FONT_SCALES,
@@ -121,7 +121,8 @@ export function AccessibilityScreen({
   });
 
   return (
-    <AppShell
+    <SettingsShell
+      section="accessibility"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       eyebrow={t('AccessibilityScreen.eyebrow')}
@@ -247,6 +248,6 @@ export function AccessibilityScreen({
           </aside>
         </div>
       )}
-    </AppShell>
+    </SettingsShell>
   );
 }

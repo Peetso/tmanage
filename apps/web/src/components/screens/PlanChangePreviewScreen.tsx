@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Button, Field, InlineAlert } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchPlanChangePreview } from '../../lib/api/plan-preview';
 import type { PlanChangePreviewView } from '../../lib/api/plan-preview';
@@ -64,7 +64,8 @@ export function PlanChangePreviewScreen({
   };
 
   return (
-    <AppShell
+    <SettingsShell
+      section="billing"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
@@ -190,7 +191,7 @@ export function PlanChangePreviewScreen({
           </section>
         </div>
       </form>
-    </AppShell>
+    </SettingsShell>
   );
 }
 

@@ -4,8 +4,7 @@ import { useId, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
-import { PreferencesNav } from './PreferencesScreen';
+import { SettingsShell } from '../admin/SettingsShell';
 import { Dialog, errorMessage } from './SecurityScreen';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { appLocale } from '../../lib/i18n/app-locale';
@@ -122,14 +121,12 @@ export function SignInSecurityScreen({
     !(run.error instanceof ApiRequestError && run.error.code === 'reauthentication_required');
 
   return (
-    <AppShell
+    <SettingsShell
+      section="sign-in-security"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       eyebrow={tr(`${K}.eyebrow`, 'Security')}
       title={tr(`${K}.title`, 'Sign-in security')}
-      contextRail={
-        <PreferencesNav organizationSlug={organizationSlug} current="sign-in-security" />
-      }
     >
       <div className="tm-sec">
         {showError ? (
@@ -335,7 +332,7 @@ export function SignInSecurityScreen({
           />
         </Dialog>
       ) : null}
-    </AppShell>
+    </SettingsShell>
   );
 }
 

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   getShortcutMap,
@@ -188,7 +188,8 @@ export function KeyboardShortcutsScreen({
   );
 
   return (
-    <AppShell
+    <SettingsShell
+      section="preferences"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       eyebrow={t('KeyboardShortcutsScreen.eyebrow')}
@@ -286,6 +287,6 @@ export function KeyboardShortcutsScreen({
           </div>
         </div>
       )}
-    </AppShell>
+    </SettingsShell>
   );
 }

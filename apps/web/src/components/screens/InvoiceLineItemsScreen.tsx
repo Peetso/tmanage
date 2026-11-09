@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton, StatusDot } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listInvoiceLines } from '../../lib/api/invoice-line-items';
 import { useDescribeApiError } from '../../lib/api/describe-error';
@@ -51,7 +51,8 @@ export function InvoiceLineItemsScreen({
   const data = lines.data;
 
   return (
-    <AppShell
+    <SettingsShell
+      section="billing"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
@@ -135,7 +136,7 @@ export function InvoiceLineItemsScreen({
           </section>
         ) : null}
       </div>
-    </AppShell>
+    </SettingsShell>
   );
 }
 

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { BetaBillingPanel, useBetaBillingHeading } from '../billing/BetaBillingPanel';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
@@ -171,7 +171,8 @@ export function SubscriptionScreen({
   );
 
   return (
-    <AppShell
+    <SettingsShell
+      section="billing"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
@@ -217,7 +218,7 @@ export function SubscriptionScreen({
           />
         ) : null}
       </div>
-    </AppShell>
+    </SettingsShell>
   );
 }
 

@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { InlineAlert } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
 import { ApiRequestError } from '../../lib/api/errors';
@@ -23,11 +23,23 @@ import { useT } from '../../lib/i18n/use-t';
 import { calendarName, initialsOf } from './MeetingBits';
 import { useCalendarAccounts, type CalendarAccount } from './use-meetings-data';
 import {
+  conferenceFor,
+  effectiveMeetingDefaults,
   readMeetingDefaults,
   writeMeetingDefaults,
   type MeetingDefaults,
 } from './meeting-defaults';
 import './meetings.css';
+
+/**
+ * After a connect or disconnect: the person's own connections and the owners' team card both
+ * read the connection rows, so both are refetched — or a disconnected calendar still shows as
+ * Connected in "Your team's calendars" (FIX2, live 2026-11-09).
+ */
+export function refreshCalendarQueries(queries: QueryClient, organizationSlug: string): void {
+  void queries.invalidateQueries({ queryKey: ['calendar-connection', organizationSlug] });
+  void queries.invalidateQueries({ queryKey: ['calendar-team', organizationSlug] });
+}
 
 export interface CalendarConnectionsScreenProps {
   organizationSlug: string;
@@ -64,8 +76,7 @@ export function CalendarConnectionsScreen({
       (role.capabilities ?? []).includes('org.manage'));
   const [returnError, setReturnError] = useState<CalendarProviderId | null>(null);
 
-  const refresh = () =>
-    void queries.invalidateQueries({ queryKey: ['calendar-connection', organizationSlug] });
+  const refresh = () => refreshCalendarQueries(queries, organizationSlug);
 
   const connect = useMutation({
     mutationFn: (provider: CalendarProviderId) =>
@@ -99,7 +110,8 @@ export function CalendarConnectionsScreen({
   }, [complete]);
 
   return (
-    <AppShell
+    <SettingsShell
+      section="calendar-connections"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="settings"
@@ -163,7 +175,7 @@ export function CalendarConnectionsScreen({
           {isOwner ? <TeamCalendars api={api} organizationSlug={organizationSlug} /> : null}
         </div>
       </div>
-    </AppShell>
+    </SettingsShell>
   );
 }
 
@@ -271,28 +283,40 @@ const STATUS_KEYS = {
 function Defaults({ accounts }: { accounts: readonly CalendarAccount[] }) {
   const t = useT();
   const connected = accounts.filter((a) => a.status === 'connected');
-  const [defaults, setDefaults] = useState<MeetingDefaults>(() => readMeetingDefaults());
+  const connectedProviders = connected.map((a) => a.provider);
+  const [stored, setStored] = useState<MeetingDefaults>(() => readMeetingDefaults());
+  // The video call always matches the calendar new meetings go to (Outlook makes Teams calls,
+  // Google Calendar makes Meet links), including after a calendar is disconnected.
+  const defaults = effectiveMeetingDefaults(stored, connectedProviders);
   const update = (next: MeetingDefaults) => {
-    setDefaults(next);
-    writeMeetingDefaults(next);
+    const applied = effectiveMeetingDefaults(next, connectedProviders);
+    setStored(applied);
+    writeMeetingDefaults(applied);
   };
+  const conferenceKey = `${defaults.provider ?? ''}:${defaults.conference ?? ''}`;
+  const storedKey = `${stored.provider ?? ''}:${stored.conference ?? ''}`;
+  useEffect(() => {
+    // Keep the saved defaults (read by the New meeting form) in step with what is shown.
+    if (connected.length > 0 && conferenceKey !== storedKey) writeMeetingDefaults(defaults);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conferenceKey, storedKey, connected.length]);
   const conferenceOptions: (readonly ['google_meet' | 'teams' | 'none', string, string])[] = [
-    ...accounts.map(
-      (a) =>
-        [
-          a.provider === 'microsoft' ? ('teams' as const) : ('google_meet' as const),
-          a.provider === 'microsoft' ? 'Microsoft Teams' : 'Google Meet',
-          t(
-            a.provider === 'microsoft'
-              ? 'CalendarConnections.madeFromMs'
-              : 'CalendarConnections.madeFromGoogle',
-          ),
-        ] as const,
-    ),
+    ...(defaults.provider === null
+      ? []
+      : [
+          [
+            conferenceFor(defaults.provider),
+            defaults.provider === 'microsoft' ? 'Microsoft Teams' : 'Google Meet',
+            t(
+              defaults.provider === 'microsoft'
+                ? 'CalendarConnections.madeFromMs'
+                : 'CalendarConnections.madeFromGoogle',
+            ),
+          ] as const,
+        ]),
     ['none', t('MeetingsHub.noVideo'), t('CalendarConnections.addPerMeeting')],
   ];
-  const conference =
-    defaults.conference ?? (connected[0]?.provider === 'microsoft' ? 'teams' : 'google_meet');
+  const conference = defaults.conference ?? 'none';
   return (
     <section className="tm-mtg-card" aria-labelledby="tm-cc-defaults">
       <h2 id="tm-cc-defaults" className="tm-mtg-card__title">
@@ -305,13 +329,16 @@ function Defaults({ accounts }: { accounts: readonly CalendarAccount[] }) {
         <select
           id="tm-cc-calendar"
           className="tm-mtg-input"
-          value={defaults.provider ?? connected[0]?.provider ?? ''}
-          onChange={(event) =>
+          value={defaults.provider ?? ''}
+          onChange={(event) => {
+            const provider = event.target.value === 'microsoft' ? 'microsoft' : 'google';
+            // A new destination brings its own video call (unless "No video call" was chosen).
             update({
               ...defaults,
-              provider: event.target.value === 'microsoft' ? 'microsoft' : 'google',
-            })
-          }
+              provider,
+              conference: defaults.conference === 'none' ? 'none' : conferenceFor(provider),
+            });
+          }}
         >
           {connected.map((a) => (
             <option key={a.provider} value={a.provider}>

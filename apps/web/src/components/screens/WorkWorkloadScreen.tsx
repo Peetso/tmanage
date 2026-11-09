@@ -3,8 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { WorkViewSwitcher } from '../views/WorkViewSwitcher';
-import { AppShell } from '../shell/AppShell';
+import { WorkViewsShell } from '../work/WorkViewsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
 import { getWorkWorkload } from '../../lib/api/work-views';
@@ -58,7 +57,6 @@ export function WorkWorkloadScreen({
 
   // A workload is per project: with none chosen, the first project the caller can see.
   const chosenProjectId = projectId !== '' ? projectId : (projects.data?.[0]?.id ?? '');
-  const projectName = projects.data?.find((project) => project.id === chosenProjectId)?.name;
 
   const workload = useQuery({
     queryKey: ['work-workload', organizationSlug, chosenProjectId],
@@ -71,23 +69,15 @@ export function WorkWorkloadScreen({
   const noProjects = projects.isSuccess && projects.data.length === 0;
 
   return (
-    <AppShell
+    <WorkViewsShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      activeNavigationId="work"
-      title={t('WorkWorkloadScreen.title')}
-      eyebrow={
-        projectName
-          ? `${t('WorkWorkloadScreen.workload')} · ${projectName}`
-          : t('WorkWorkloadScreen.workload')
-      }
-      actions={
-        <div className="wp-toolbar">
-          <WorkViewSwitcher
-            organizationSlug={organizationSlug}
-            projectId={chosenProjectId}
-            current="workload"
-          />
+      {...(client ? { client } : {})}
+      view="workload"
+      projectId={chosenProjectId}
+      onChooseProject={setProjectId}
+      toolbar={
+        <>
           <label className="tm-visually-hidden" htmlFor="tm-workload-project">
             {t('WorkWorkloadScreen.showWorkloadFor')}
           </label>
@@ -107,7 +97,7 @@ export function WorkWorkloadScreen({
               </option>
             ))}
           </select>
-        </div>
+        </>
       }
     >
       {noProjects ? (
@@ -189,7 +179,7 @@ export function WorkWorkloadScreen({
           <p className="wp-load__legend">{t('WorkWorkloadScreen.legend')}</p>
         </div>
       ) : null}
-    </AppShell>
+    </WorkViewsShell>
   );
 }
 

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import type { NotificationKind } from '../../lib/api/notification-kind-prefs';
 import {
@@ -172,7 +172,8 @@ export function NotificationKindPrefs({
       : undefined;
 
   return (
-    <AppShell
+    <SettingsShell
+      section="notifications"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="inbox"
@@ -412,7 +413,7 @@ export function NotificationKindPrefs({
           </section>
         </div>
       </div>
-    </AppShell>
+    </SettingsShell>
   );
 }
 

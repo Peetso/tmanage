@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getCostCenterReport } from '../../lib/api/cost-center-report';
 import type { CostCenterReportRow } from '../../lib/api/cost-center-report';
@@ -47,7 +47,8 @@ export function CostCenterReportView({
   const rows = report.data ?? [];
 
   return (
-    <AppShell
+    <SettingsShell
+      section="billing"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
@@ -109,7 +110,7 @@ export function CostCenterReportView({
           ) : null}
         </section>
       </div>
-    </AppShell>
+    </SettingsShell>
   );
 }
 

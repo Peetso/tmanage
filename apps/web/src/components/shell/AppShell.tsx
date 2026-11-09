@@ -18,6 +18,8 @@ import { listOrganizations } from '../../lib/api/organizations';
 import { useOrganizationName } from '../../lib/use-organization-names';
 import { roleMayUse } from '../../lib/role-capability';
 import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
+import { HelpTip } from '../help/HelpTip';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { PlatformAdminLink } from '../platform/PlatformAdminLink';
 import { WorkspaceSuspendedGate } from '../platform/WorkspaceSuspendedGate';
@@ -139,16 +141,18 @@ function ControlCenterOrb({
     (CONTROL_CENTER_ROLES.has(role) || roleMayUse(role, membership?.capabilities, 'org.manage'));
   if (!mayControl) return null;
   return (
-    <Link
-      href={`/${organizationSlug}${CONTROL_CENTER_NAVIGATION.href}`}
-      className="tm-rail__item"
-      {...(current ? { 'aria-current': 'page' as const } : {})}
-    >
-      <span className="tm-rail__orb" aria-hidden="true">
-        <NavIcon name={CONTROL_CENTER_NAVIGATION.icon} />
-      </span>
-      <span className="tm-rail__label">{t(CONTROL_CENTER_NAVIGATION.messageKey)}</span>
-    </Link>
+    <HelpTip tip={t('NavHelp.admin' as MessageKey)} placement="end" block>
+      <Link
+        href={`/${organizationSlug}${CONTROL_CENTER_NAVIGATION.href}`}
+        className="tm-rail__item"
+        {...(current ? { 'aria-current': 'page' as const } : {})}
+      >
+        <span className="tm-rail__orb" aria-hidden="true">
+          <NavIcon name={CONTROL_CENTER_NAVIGATION.icon} />
+        </span>
+        <span className="tm-rail__label">{t(CONTROL_CENTER_NAVIGATION.messageKey)}</span>
+      </Link>
+    </HelpTip>
   );
 }
 
@@ -256,16 +260,18 @@ export function AppShell({
                 const current = item.id === activeNavigationId;
                 return (
                   <li key={item.id}>
-                    <Link
-                      href={`/${organizationSlug}${item.href}`}
-                      className="tm-rail__item"
-                      {...(current ? { 'aria-current': 'page' as const } : {})}
-                    >
-                      <span className="tm-rail__orb" aria-hidden="true">
-                        <NavIcon name={item.icon} />
-                      </span>
-                      <span className="tm-rail__label">{t(item.messageKey)}</span>
-                    </Link>
+                    <HelpTip tip={t(`NavHelp.${item.id}` as MessageKey)} placement="end" block>
+                      <Link
+                        href={`/${organizationSlug}${item.href}`}
+                        className="tm-rail__item"
+                        {...(current ? { 'aria-current': 'page' as const } : {})}
+                      >
+                        <span className="tm-rail__orb" aria-hidden="true">
+                          <NavIcon name={item.icon} />
+                        </span>
+                        <span className="tm-rail__label">{t(item.messageKey)}</span>
+                      </Link>
+                    </HelpTip>
                   </li>
                 );
               })}

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Field, InlineAlert } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { apiBaseUrl } from '../../lib/api/browser-client';
 import { usageExportUrl, MAX_USAGE_EXPORT_WINDOW_DAYS } from '../../lib/api/billing-usage-export';
 import { useT } from '../../lib/i18n/use-t';
@@ -78,7 +78,8 @@ export function UsageExportScreen({
   }, [ready, baseUrl, organizationSlug, fromDay, toDay]);
 
   return (
-    <AppShell
+    <SettingsShell
+      section="billing"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
@@ -136,6 +137,6 @@ export function UsageExportScreen({
           <p className="tm-bil-card__foot">{t('UsageExportScreen.onlyOwners')}</p>
         </section>
       </div>
-    </AppShell>
+    </SettingsShell>
   );
 }

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton, StatusDot } from '@tmanage/ui';
 import type { StatusTone } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getInvoice, listInvoices, MAX_INVOICES_PAGE } from '../../lib/api/invoices';
 import type { InvoiceStatus, InvoiceSummary } from '../../lib/api/invoices';
@@ -81,7 +81,8 @@ export function BillingInvoicesScreen({
       : undefined;
 
   return (
-    <AppShell
+    <SettingsShell
+      section="billing"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
@@ -355,7 +356,7 @@ export function BillingInvoicesScreen({
           </div>
         </div>
       ) : null}
-    </AppShell>
+    </SettingsShell>
   );
 }
 

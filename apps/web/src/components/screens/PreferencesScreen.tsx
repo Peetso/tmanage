@@ -12,7 +12,7 @@ import {
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Avatar, Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   getLanguageAndTimezone,
@@ -416,11 +416,11 @@ export function PreferencesScreen({
     : false;
 
   return (
-    <AppShell
+    <SettingsShell
+      section="preferences"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       title={t('Profile.title')}
-      contextRail={<PreferencesNav organizationSlug={organizationSlug} current="profile" />}
     >
       <div className="tm-prefs">
         <form
@@ -587,7 +587,7 @@ export function PreferencesScreen({
           ) : null}
         </form>
       </div>
-    </AppShell>
+    </SettingsShell>
   );
 }
 

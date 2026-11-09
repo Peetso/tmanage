@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
 import { useDescribeApiError } from '../../lib/api/describe-error';
@@ -105,7 +105,8 @@ export function InboundMailSettingsScreen({
   const current = address.data ?? null;
 
   return (
-    <AppShell
+    <SettingsShell
+      section="inbound-mail"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       eyebrow={tr(`${K}.eyebrow`, 'Settings')}
@@ -252,6 +253,6 @@ export function InboundMailSettingsScreen({
           ) : null}
         </section>
       </div>
-    </AppShell>
+    </SettingsShell>
   );
 }

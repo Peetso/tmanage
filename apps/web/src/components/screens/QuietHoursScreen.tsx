@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
@@ -168,7 +168,8 @@ export function QuietHoursScreen({
   });
 
   return (
-    <AppShell
+    <SettingsShell
+      section="quiet-hours"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       eyebrow={t('QuietHoursScreen.eyebrow')}
@@ -329,6 +330,6 @@ export function QuietHoursScreen({
           </aside>
         </div>
       )}
-    </AppShell>
+    </SettingsShell>
   );
 }

@@ -3,7 +3,7 @@
 import { useId } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { GettingStartedCard } from '../onboarding/GettingStartedCard';
 import { browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
@@ -135,7 +135,8 @@ export function SettingsHomeScreen({
   });
 
   return (
-    <AppShell
+    <SettingsShell
+      section="settings-home"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="settings"
@@ -203,7 +204,7 @@ export function SettingsHomeScreen({
           ) : null}
         </div>
       </div>
-    </AppShell>
+    </SettingsShell>
   );
 }
 

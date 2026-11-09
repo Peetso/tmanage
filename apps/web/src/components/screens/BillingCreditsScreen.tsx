@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listBillingCredits, postBillingCredit } from '../../lib/api/billing-credits';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -69,7 +69,8 @@ export function BillingCreditsScreen({
     minorUnits !== null && minorUnits !== 0 && reason.trim() !== '' && !post.isPending;
 
   return (
-    <AppShell
+    <SettingsShell
+      section="billing"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
@@ -183,7 +184,7 @@ export function BillingCreditsScreen({
           ) : null}
         </section>
       </div>
-    </AppShell>
+    </SettingsShell>
   );
 }
 

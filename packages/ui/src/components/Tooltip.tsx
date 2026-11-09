@@ -1,4 +1,14 @@
-import { cloneElement, isValidElement, useEffect, useId, useState, type ReactElement } from 'react';
+import {
+  cloneElement,
+  isValidElement,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactElement,
+} from 'react';
 
 export interface TooltipProps {
   /** The supplementary sentence. Text only — a tooltip that needs structure is a popover. */
@@ -18,6 +28,20 @@ export interface TooltipProps {
    * hover, and for nothing else — an always-open tooltip on a real screen is a caption.
    */
   defaultOpen?: boolean;
+  /**
+   * Hover intent: the pointer must rest this long before the bubble shows (FIX2 hover help uses
+   * about 600 ms, so passing over a row of icons does not flash a bubble per icon). Keyboard
+   * focus always shows it at once. 0 (the default) opens on hover immediately.
+   */
+  delayMs?: number;
+  /** Extra class on the wrapper (`tm-tooltip--block` for a full-width trigger). */
+  className?: string;
+  /**
+   * Where the bubble shows. `'top'` (the default) sits above the trigger; `'end'` sits beside it
+   * (after it in reading order, so on the left in Arabic) and is placed in the viewport, so a
+   * scrolling navigation rail does not clip it.
+   */
+  placement?: 'top' | 'end';
 }
 
 /**
@@ -35,9 +59,42 @@ export interface TooltipProps {
  * mechanism, not from watching visibility change. Keyboard focus shows it because
  * hover-only affordances exclude keyboards.
  */
-export function Tooltip({ content, children, defaultOpen = false }: TooltipProps) {
+export function Tooltip({
+  content,
+  children,
+  defaultOpen = false,
+  delayMs = 0,
+  className,
+  placement = 'top',
+}: TooltipProps) {
   const id = useId();
   const [open, setOpen] = useState(defaultOpen);
+  const wrapper = useRef<HTMLSpanElement | null>(null);
+  const [beside, setBeside] = useState<CSSProperties | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (!open || placement !== 'end' || wrapper.current === null) {
+      return;
+    }
+    const rect = wrapper.current.getBoundingClientRect();
+    const rtl = getComputedStyle(wrapper.current).direction === 'rtl';
+    setBeside({
+      position: 'fixed',
+      insetBlockStart: `${rect.top + rect.height / 2}px`,
+      insetBlockEnd: 'auto',
+      transform: 'translateY(-50%)',
+      ...(rtl
+        ? { right: `${window.innerWidth - rect.left + 8}px`, left: 'auto' }
+        : { left: `${rect.right + 8}px`, right: 'auto' }),
+    });
+  }, [open, placement]);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancel = () => {
+    if (timer.current !== null) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+  };
+  useEffect(() => cancel, []);
 
   useEffect(() => {
     if (!open) {
@@ -67,6 +124,7 @@ export function Tooltip({ content, children, defaultOpen = false }: TooltipProps
     },
     onBlur: (event: unknown) => {
       child.props.onBlur?.(event);
+      cancel();
       setOpen(false);
     },
   });
@@ -75,12 +133,26 @@ export function Tooltip({ content, children, defaultOpen = false }: TooltipProps
     // Pointer listeners on a wrapper: the trigger keeps its own handlers, and the hover
     // area includes the bubble itself, which is what "hoverable" means.
     <span
-      className="tm-tooltip"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
+      ref={wrapper}
+      className={className ? `tm-tooltip ${className}` : 'tm-tooltip'}
+      onMouseEnter={() => {
+        cancel();
+        if (delayMs <= 0) setOpen(true);
+        else timer.current = setTimeout(() => setOpen(true), delayMs);
+      }}
+      onMouseLeave={() => {
+        cancel();
+        setOpen(false);
+      }}
     >
       {trigger}
-      <span role="tooltip" id={id} className="tm-tooltip__bubble" data-open={open || undefined}>
+      <span
+        role="tooltip"
+        id={id}
+        className="tm-tooltip__bubble"
+        data-open={open || undefined}
+        {...(placement === 'end' && beside ? { style: beside } : {})}
+      >
         {content}
       </span>
     </span>

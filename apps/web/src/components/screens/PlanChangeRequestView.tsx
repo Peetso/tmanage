@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   cancelPlanChangeRequest,
@@ -114,7 +114,8 @@ export function PlanChangeRequestView({
   const pending = rows.find((request) => request.status === 'pending') ?? null;
 
   return (
-    <AppShell
+    <SettingsShell
+      section="billing"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
@@ -325,7 +326,7 @@ export function PlanChangeRequestView({
           </section>
         </div>
       </form>
-    </AppShell>
+    </SettingsShell>
   );
 }
 

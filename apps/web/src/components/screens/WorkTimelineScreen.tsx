@@ -5,7 +5,7 @@ import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerE
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { WorkViewsShell } from '../work/WorkViewsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
 import {
@@ -144,7 +144,6 @@ export function WorkTimelineScreen({
 
   // A timeline is per project: with none chosen, the first project the caller can see.
   const chosenProjectId = projectId !== '' ? projectId : (projects.data?.[0]?.id ?? '');
-  const projectName = projects.data?.find((project) => project.id === chosenProjectId)?.name;
 
   const timelineKey = useMemo(
     () => ['work-timeline', organizationSlug, chosenProjectId],
@@ -496,36 +495,18 @@ export function WorkTimelineScreen({
   );
 
   return (
-    <AppShell
+    <WorkViewsShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      activeNavigationId="work"
-      title={t('WorkTimelineScreen.title')}
-      eyebrow={
-        projectName
-          ? `${projectName} · ${t('WorkTimelineScreen.timeline')}`
-          : t('WorkTimelineScreen.timeline')
-      }
-      actions={
-        <div className="wp-toolbar">
-          <nav className="wp-segmented" aria-label={t('WorkTimelineScreen.workViews')}>
-            <Link href={`/${organizationSlug}/work`}>{t('WorkTimelineScreen.list')}</Link>
-            <span aria-current="page">{t('WorkTimelineScreen.timeline')}</span>
-            <Link
-              href={`/${organizationSlug}/work/calendar${
-                chosenProjectId === '' ? '' : `?project=${encodeURIComponent(chosenProjectId)}`
-              }`}
-            >
-              {t('WorkTimelineScreen.calendar')}
-            </Link>
-            <Link
-              href={`/${organizationSlug}/work/workload${
-                chosenProjectId === '' ? '' : `?project=${encodeURIComponent(chosenProjectId)}`
-              }`}
-            >
-              {t('WorkTimelineScreen.workload')}
-            </Link>
-          </nav>
+      {...(client ? { client } : {})}
+      view="timeline"
+      projectId={chosenProjectId}
+      onChooseProject={(next) => {
+        setProjectId(next);
+        setSelectedId(null);
+      }}
+      toolbar={
+        <>
           <label className="tm-visually-hidden" htmlFor="tm-timeline-project">
             {t('WorkTimelineScreen.showTimelineFor')}
           </label>
@@ -561,7 +542,7 @@ export function WorkTimelineScreen({
           {toggle(listView, t('WorkTimelineScreen.accessibleList'), () =>
             setListView((current) => !current),
           )}
-        </div>
+        </>
       }
     >
       {projects.isError ? (
@@ -1133,7 +1114,7 @@ export function WorkTimelineScreen({
           </table>
         </div>
       ) : null}
-    </AppShell>
+    </WorkViewsShell>
   );
 }
 

@@ -4,7 +4,7 @@ import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import '../../styles/screens/automations.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -136,7 +136,8 @@ export function IntegrationDirectoryScreen({
     : t('IntegrationDirectoryScreen.titleFallback');
 
   return (
-    <AppShell
+    <SettingsShell
+      section="integrations"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
@@ -467,7 +468,7 @@ export function IntegrationDirectoryScreen({
           </section>
         </div>
       </div>
-    </AppShell>
+    </SettingsShell>
   );
 }
 

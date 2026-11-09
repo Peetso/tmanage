@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getStartupPref, updateStartupPref, LANDING_KEYS } from '../../lib/api/startup-prefs';
@@ -71,7 +71,8 @@ export function StartupLandingView({
   });
 
   return (
-    <AppShell
+    <SettingsShell
+      section="startup"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       eyebrow={t('StartupLandingView.eyebrow')}
@@ -161,6 +162,6 @@ export function StartupLandingView({
           </aside>
         </div>
       )}
-    </AppShell>
+    </SettingsShell>
   );
 }

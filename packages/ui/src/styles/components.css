@@ -626,6 +626,17 @@
   display: inline-flex;
 }
 
+/* A full-width trigger (a rail row, a card): the wrapper keeps the row's width. */
+.tm-tooltip--block {
+  display: flex;
+  inline-size: 100%;
+}
+
+.tm-tooltip--block > :first-child {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
 /*
  * Hidden, not unmounted: the trigger's `aria-describedby` points here permanently, so
  * the element must exist whether or not it is drawn.
@@ -635,7 +646,7 @@
   inset-block-end: calc(100% + var(--s2));
   inset-inline-start: 0;
   z-index: 50;
-  max-inline-size: var(--lens);
+  max-inline-size: min(var(--lens), 280px);
   width: max-content;
   padding: var(--s2) var(--s3);
   border-radius: var(--r-micro);
@@ -653,6 +664,16 @@
 .tm-tooltip__bubble[data-open] {
   visibility: visible;
   opacity: 1;
+}
+
+/* FIX2 hover help: plain sentence styling whatever the trigger's own type is. */
+.tm-tooltip__bubble {
+  white-space: normal;
+  font-weight: 400;
+  text-align: start;
+  text-transform: none;
+  letter-spacing: normal;
+  box-shadow: var(--shadow-pop, 0 6px 20px rgb(0 0 0 / 18%));
 }
 
 /* ── Toast ────────────────────────────────────────────────────────────────────── */

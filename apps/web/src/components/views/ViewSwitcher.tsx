@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useRef } from 'react';
-import type { KeyboardEvent } from 'react';
+import type { KeyboardEvent, ReactElement } from 'react';
+import { HelpTip } from '../help/HelpTip';
 import './view-switcher.css';
 
 export interface ViewOption<V extends string> {
@@ -10,6 +11,8 @@ export interface ViewOption<V extends string> {
   readonly label: string;
   /** A view that lives on its own page (Work's Timeline, Calendar): choosing it navigates there. */
   readonly href?: string;
+  /** FIX2 hover help: one plain sentence on what this view shows. */
+  readonly tip?: string;
 }
 
 export interface ViewSwitcherProps<V extends string> {
@@ -93,8 +96,16 @@ export function ViewSwitcher<V extends string>({
     >
       {options.map((option) => {
         const checked = option.id === value;
+        const withTip = (control: ReactElement) =>
+          option.tip ? (
+            <HelpTip key={option.id} tip={option.tip}>
+              {control}
+            </HelpTip>
+          ) : (
+            control
+          );
         if (option.href !== undefined && !checked) {
-          return (
+          return withTip(
             <Link
               key={option.id}
               href={option.href}
@@ -105,10 +116,10 @@ export function ViewSwitcher<V extends string>({
               data-view={option.id}
             >
               {option.label}
-            </Link>
+            </Link>,
           );
         }
-        return (
+        return withTip(
           <button
             key={option.id}
             type="button"
@@ -120,7 +131,7 @@ export function ViewSwitcher<V extends string>({
             onClick={() => onChange(option.id)}
           >
             {option.label}
-          </button>
+          </button>,
         );
       })}
     </div>

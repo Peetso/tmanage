@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   DISPLAY_DATE_FORMATS,
@@ -279,7 +279,8 @@ export function DisplayPreferencesView({
   const sampleDates = useMemo(() => sampleDays(dateFormat), [dateFormat]);
 
   return (
-    <AppShell
+    <SettingsShell
+      section="display"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       eyebrow={tr('DisplayPreferencesView.eyebrow')}
@@ -585,7 +586,7 @@ export function DisplayPreferencesView({
           </aside>
         </div>
       )}
-    </AppShell>
+    </SettingsShell>
   );
 }
 

@@ -1,0 +1,16 @@
+/*
+ * FIX2 item 3 — the one toolbar row every Work view draws under the view capsules: the view's own
+ * controls (project, dates, filters, toggles), start-aligned, with the spacing the list's filter
+ * chips use, so List, Board, Timeline, Calendar and Workload line up the same way.
+ */
+.tm-wk-viewtools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  margin-block-end: var(--s4);
+}
+
+.tm-wk-viewtools > .wp-toolbar {
+  display: contents;
+}

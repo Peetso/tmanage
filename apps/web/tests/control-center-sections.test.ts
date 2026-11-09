@@ -11,12 +11,18 @@ function ids(role: string | undefined | null): string[] {
 describe('controlCenterSectionsFor', () => {
   it('draws the OPS-1 groups in the frame order, with the existing routes', () => {
     const { groups, foot } = controlCenterSectionsFor('owner');
+    // FIX2 item 4: the person's own settings open the menu, so every settings page shares it.
     expect(groups.map((group) => group.labelKey)).toEqual([
+      'SettingsHome.group.you',
+      'SettingsHome.group.security',
+      'SettingsHome.group.connections',
       'ControlCenterShell.groupPeople',
       'ControlCenterShell.groupWorkSetup',
       'ControlCenterShell.groupTrust',
     ]);
-    expect(groups.map((group) => group.items.map((item) => [item.id, item.href ?? null]))).toEqual([
+    expect(
+      groups.slice(3).map((group) => group.items.map((item) => [item.id, item.href ?? null])),
+    ).toEqual([
       [
         ['overview', '/admin'],
         ['members', '/people'],
@@ -41,7 +47,7 @@ describe('controlCenterSectionsFor', () => {
         ['storage', '/admin/storage'],
         // D5 (Figma F5): Privacy sits between Data and retention and Organization.
         ['privacy', '/admin/privacy'],
-        ['organization', '/settings'],
+        ['organization', '/settings/organization'],
         ['billing', '/billing'],
         // A10b: the finance home closes the last group.
         ['finance', '/finance'],
@@ -52,8 +58,25 @@ describe('controlCenterSectionsFor', () => {
   });
 
   it('hides the pages a member would be refused, and everything gated while the role is unknown', () => {
-    expect(ids('member')).toEqual(['members', 'connected-apps', 'audit']);
-    expect(ids(undefined)).toEqual(['members']);
+    const own = [
+      'settings-home',
+      'preferences',
+      'notifications',
+      'display',
+      'accessibility',
+      'quiet-hours',
+      'digest',
+      'startup',
+      'my-data',
+      'sign-in-security',
+      'two-step',
+      'access-tokens',
+      'calendar-connections',
+      'ai-assistant',
+      'inbound-mail',
+    ];
+    expect(ids('member')).toEqual([...own, 'members', 'connected-apps', 'audit']);
+    expect(ids(undefined)).toEqual([...own, 'members']);
   });
 
   it('keeps the parent entry marked on sub-pages the frame does not list', () => {

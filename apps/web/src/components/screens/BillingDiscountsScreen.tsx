@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   createBillingDiscount,
@@ -86,7 +86,8 @@ export function BillingDiscountsScreen({
   const canCreate = label.trim() !== '' && amountValue !== null && !create.isPending;
 
   return (
-    <AppShell
+    <SettingsShell
+      section="billing"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
@@ -259,7 +260,7 @@ export function BillingDiscountsScreen({
           ) : null}
         </section>
       </div>
-    </AppShell>
+    </SettingsShell>
   );
 }
 

@@ -3,8 +3,7 @@
 import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton, StatusDot } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
-import { PreferencesNav } from './PreferencesScreen';
+import { SettingsShell } from '../admin/SettingsShell';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
 import { ApiRequestError } from '../../lib/api/errors';
@@ -119,7 +118,8 @@ export function MyDataScreen({
   const today = now();
 
   return (
-    <AppShell
+    <SettingsShell
+      section="my-data"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       eyebrow={tr('MyDataScreen.eyebrow', 'Profile')}
@@ -128,7 +128,6 @@ export function MyDataScreen({
         'MyDataScreen.description',
         'Get a copy of your personal data, or delete your account.',
       )}
-      contextRail={<PreferencesNav organizationSlug={organizationSlug} current="my-data" />}
     >
       {mine.isPending ? (
         <LoadingRegion label={tr('MyDataScreen.loading', 'Loading your data settings')}>
@@ -284,6 +283,6 @@ export function MyDataScreen({
           onClose={stepUp.cancel}
         />
       ) : null}
-    </AppShell>
+    </SettingsShell>
   );
 }

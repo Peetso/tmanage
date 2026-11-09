@@ -5,8 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import type { WorkItemState } from '@tmanage/domain';
-import { WorkViewSwitcher } from '../views/WorkViewSwitcher';
-import { AppShell } from '../shell/AppShell';
+import { WorkViewsShell } from '../work/WorkViewsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
 import { getWorkCalendar } from '../../lib/api/work-views';
@@ -122,24 +121,16 @@ export function WorkCalendarScreen({
   };
 
   return (
-    <AppShell
+    <WorkViewsShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      activeNavigationId="work"
-      title={title}
-      eyebrow={t('WorkCalendarScreen.eyebrow')}
-      actions={
-        <div className="wp-toolbar">
-          {/*
-            CQ-07 (WRK-08): the same view switcher the other work views carry, so the calendar is
-            not the one view with no way back to the list / timeline / workload. Each link keeps
-            the chosen project.
-          */}
-          <WorkViewSwitcher
-            organizationSlug={organizationSlug}
-            projectId={chosenProjectId}
-            current="calendar"
-          />
+      {...(client ? { client } : {})}
+      view="calendar"
+      projectId={chosenProjectId}
+      onChooseProject={setProjectId}
+      titleMeta={title}
+      toolbar={
+        <>
           <label className="tm-visually-hidden" htmlFor="tm-calendar-project">
             {t('WorkCalendarScreen.showCalendarFor')}
           </label>
@@ -212,7 +203,7 @@ export function WorkCalendarScreen({
           >
             <span aria-hidden="true">&#8250;</span>
           </button>
-        </div>
+        </>
       }
     >
       {rangeProblem !== null ? (
@@ -329,7 +320,7 @@ export function WorkCalendarScreen({
           </p>
         </div>
       ) : null}
-    </AppShell>
+    </WorkViewsShell>
   );
 }
 
