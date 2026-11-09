@@ -70,6 +70,8 @@ export interface DocumentView {
    * names this person when another writer's rename makes the caller's rename a 409.
    */
   readonly titleUpdatedByUserId?: string;
+  /** FIX3 item 6 (0338). When the doc was archived — present only while it is archived. */
+  readonly archivedAt?: string;
 }
 
 /**
@@ -88,8 +90,12 @@ function toView(row: DocumentRow): DocumentView {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     ...(row.titleUpdatedByUserId ? { titleUpdatedByUserId: row.titleUpdatedByUserId } : {}),
+    ...(row.archivedAt ? { archivedAt: row.archivedAt.toISOString() } : {}),
   };
 }
+
+/** FIX3 item 6: how long a doc deleted from the doc itself can be restored (the platform's window). */
+export const DOCUMENT_RESTORE_DAYS = 30;
 
 /**
  * DOC-02/DOC-03 (x112). What a caller is allowed to see of one document version. `organizationId`
@@ -213,6 +219,7 @@ export class DocumentsService {
 
     const permitted =
       row !== null &&
+      !row.deletedAt &&
       authorize({
         principal,
         capability: 'work.read',
@@ -306,6 +313,7 @@ export class DocumentsService {
 
     const permitted =
       row !== null &&
+      !row.deletedAt &&
       authorize({
         principal,
         capability,
@@ -479,6 +487,54 @@ export class DocumentsService {
       return this.documents.requireById(tx, context, documentId);
     });
     return toView(row);
+  }
+
+  /**
+   * FIX3 item 6. Archive a document, or bring it back. The same permission as editing it — `doc.write`
+   * on the route, then the `work.create` relation check (unknown, deleted or not-a-member is 404).
+   * Idempotent; the audit row carries ids only.
+   */
+  async setArchived(
+    context: TenantContext,
+    principal: Principal,
+    documentId: string,
+    archived: boolean,
+  ): Promise<DocumentView> {
+    const current = await this.requireActionable(context, principal, documentId, 'work.create');
+    if (Boolean(current.archivedAt) === archived) return toView(current);
+    const row = await this.database.transaction(context, async (tx) => {
+      await this.documents.setArchived(tx, context, documentId, archived);
+      await this.audit?.record(tx, context, {
+        action: archived ? 'document.archived' : 'document.unarchived',
+        objectId: documentId,
+        result: 'allowed',
+        metadata: { project_id: current.projectId },
+      });
+      return this.documents.requireById(tx, context, documentId);
+    });
+    return toView(row);
+  }
+
+  /**
+   * FIX3 item 6. Delete a document: `doc.delete` on the route, then the `work.create` relation check.
+   * A soft delete with the platform's restore window ({@link DOCUMENT_RESTORE_DAYS}); the doc leaves
+   * every list and its link answers 404. Idempotent for a doc already gone (404 like any unknown id).
+   */
+  async softDelete(
+    context: TenantContext,
+    principal: Principal,
+    documentId: string,
+  ): Promise<void> {
+    const current = await this.requireActionable(context, principal, documentId, 'work.create');
+    await this.database.transaction(context, async (tx) => {
+      await this.documents.softDelete(tx, context, documentId, DOCUMENT_RESTORE_DAYS);
+      await this.audit?.record(tx, context, {
+        action: 'document.deleted',
+        objectId: documentId,
+        result: 'allowed',
+        metadata: { project_id: current.projectId },
+      });
+    });
   }
 
   // ── DOC-04/ADM-06 (x119) — document templates ──────────────────────────────

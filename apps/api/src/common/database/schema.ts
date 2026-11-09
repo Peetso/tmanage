@@ -568,6 +568,9 @@ export const documents = mysqlTable(
     deletedByUserId: char('deleted_by_user_id', { length: 36 }),
     deletedReason: varchar('deleted_reason', { length: 500 }),
     purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
+    /** 0338 (FIX3 item 6): archived — out of the Docs lists, still opens from a link. */
+    archivedAt: datetime('archived_at', { mode: 'date', fsp: 3 }),
+    archivedByUserId: char('archived_by_user_id', { length: 36 }),
   },
   (table) => [
     uniqueIndex('uq_documents_org_id').on(table.organizationId, table.id),

@@ -1,4 +1,15 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -412,6 +423,45 @@ export class DocumentsController {
       documentId,
       requireVersionNo(body?.versionNo),
     );
+  }
+
+  /** FIX3 item 6. Archive: out of the Docs lists, still opens from a link. `doc.write`. */
+  @Post(':documentId/archive')
+  @RequireCapability('doc.write')
+  @HttpCode(200)
+  async archive(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('documentId') documentId: string,
+  ): Promise<DocumentView> {
+    requireDocumentId(documentId);
+    return this.documents.setArchived(context, principal, documentId, true);
+  }
+
+  /** FIX3 item 6. Bring an archived doc back into the lists. `doc.write`. */
+  @Post(':documentId/unarchive')
+  @RequireCapability('doc.write')
+  @HttpCode(200)
+  async unarchive(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('documentId') documentId: string,
+  ): Promise<DocumentView> {
+    requireDocumentId(documentId);
+    return this.documents.setArchived(context, principal, documentId, false);
+  }
+
+  /** FIX3 item 6. Delete (soft, with a restore window). `doc.delete`. */
+  @Delete(':documentId')
+  @RequireCapability('doc.delete')
+  @HttpCode(204)
+  async remove(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('documentId') documentId: string,
+  ): Promise<void> {
+    requireDocumentId(documentId);
+    await this.documents.softDelete(context, principal, documentId);
   }
 }
 

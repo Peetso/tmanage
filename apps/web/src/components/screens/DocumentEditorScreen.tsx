@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { DocumentLifecycleActions } from '../docs/DocumentLifecycleActions';
 import { DocsSidebar } from '../docs/DocsSidebar';
 import { DocTitleEditor, type RenameStatus } from '../docs/DocTitleEditor';
 import { DocShareDialog } from '../docs/DocShareDialog';
@@ -578,6 +579,13 @@ export function DocumentEditorScreen({
               {renaming ? <span className="tm-doctitle__spinner" aria-hidden="true" /> : null}
               {savedLabel}
             </span>
+            {data ? (
+              <DocumentLifecycleActions
+                organizationSlug={organizationSlug}
+                client={api}
+                document={data}
+              />
+            ) : null}
             {/* Live test 2026-10-31: Share opens the share dialog (Figma 446:35464). */}
             <button
               type="button"

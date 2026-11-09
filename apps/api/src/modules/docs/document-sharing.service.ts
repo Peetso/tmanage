@@ -114,13 +114,18 @@ export class DocumentSharingService {
   async recent(
     context: TenantContext,
     principal: Principal,
-    filter: { readonly projectId?: string; readonly favourites?: boolean } = {},
+    filter: {
+      readonly projectId?: string;
+      readonly favourites?: boolean;
+      readonly archived?: boolean;
+    } = {},
   ): Promise<RecentDocumentsView> {
     const scanned = await this.database.read(context, (runner) =>
       this.sharing.recent(runner, context, {
         ...(filter.projectId ? { projectId: filter.projectId } : {}),
         // A favourite is always the caller's own: the membership comes from the context.
         ...(filter.favourites ? { favouritesOf: context.membershipId } : {}),
+        archived: filter.archived === true,
       }),
     );
     const readable = scanned.filter((row) =>

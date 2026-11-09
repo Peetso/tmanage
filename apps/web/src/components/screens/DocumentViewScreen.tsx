@@ -7,6 +7,7 @@ import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import '../../styles/screens/docs.css';
 import { DocumentExportButton } from './DocumentExportButton';
+import { DocumentLifecycleActions } from '../docs/DocumentLifecycleActions';
 import { DocumentCommentsPanel } from './DocumentCommentsPanel';
 import { DocumentPublishBar } from '../docs/DocumentAudience';
 import { DocMarkdown } from '../docs/DocMarkdown';
@@ -167,6 +168,11 @@ export function DocumentViewScreen({
               {/* DOC export (x131): a Markdown download of the current version, shown once the
                   document has loaded so the control never links to an id the caller cannot read. */}
               <DocumentExportButton organizationSlug={organizationSlug} documentId={documentId} />
+              <DocumentLifecycleActions
+                organizationSlug={organizationSlug}
+                client={api}
+                document={data}
+              />
               <Button
                 tone="outline"
                 aria-pressed={historyOpen}
@@ -205,6 +211,18 @@ export function DocumentViewScreen({
       {document.isError && !notFound ? (
         <InlineAlert tone="danger" title={t('DocumentViewScreen.loadError')} live>
           {describeError(document.error)}
+        </InlineAlert>
+      ) : null}
+
+      {data?.archivedAt ? (
+        <InlineAlert
+          tone="neutral"
+          title={tOr('DocLifecycle.archivedTitle', 'This doc is archived')}
+        >
+          {tOr(
+            'DocLifecycle.archivedBody',
+            'It is out of the Docs lists. Choose Bring back to put it back.',
+          )}
         </InlineAlert>
       ) : null}
 

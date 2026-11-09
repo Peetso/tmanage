@@ -22,7 +22,10 @@ export const DOCUMENT_SHARING_SERVICE = Symbol.for('tmanage.DocumentSharingServi
 export class RecentDocumentsController {
   constructor(@Inject(DOCUMENT_SHARING_SERVICE) private readonly sharing: DocumentSharingService) {}
 
-  /** `?projectId=` narrows to one project; `?scope=favourites` to the caller's own bookmarks. */
+  /**
+   * `?projectId=` narrows to one project; `?scope=favourites` to the caller's own bookmarks;
+   * `?scope=archived` lists archived docs only (FIX3 item 6).
+   */
   @Get()
   @RequireCapability('doc.read')
   async list(
@@ -31,14 +34,16 @@ export class RecentDocumentsController {
     @Query('projectId') projectId?: string,
     @Query('scope') scope?: string,
   ): Promise<RecentDocumentsView> {
-    if (scope !== undefined && scope !== 'favourites') {
+    if (scope !== undefined && scope !== 'favourites' && scope !== 'archived') {
       throw new ApiError(400, 'validation_failed', 'scope is invalid', [
-        { field: 'scope', message: 'must be "favourites" when present' },
+        { field: 'scope', message: 'must be "favourites" or "archived" when present' },
       ]);
     }
     return this.sharing.recent(context, principal, {
       ...(typeof projectId === 'string' && projectId !== '' ? { projectId } : {}),
       ...(scope === 'favourites' ? { favourites: true } : {}),
+      // FIX3 item 6: the hub's "Archived" list; every other list leaves archived docs out.
+      ...(scope === 'archived' ? { archived: true } : {}),
     });
   }
 }

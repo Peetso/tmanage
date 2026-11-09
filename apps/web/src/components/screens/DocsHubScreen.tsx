@@ -27,7 +27,7 @@ export interface DocsHubScreenProps {
   client?: ApiClient;
 }
 
-type HubTab = 'recent' | 'project' | 'favourites';
+type HubTab = 'recent' | 'project' | 'favourites' | 'archived';
 
 /**
  * **DOC-01 Docs hub.**
@@ -72,9 +72,11 @@ export function DocsHubScreen({
       ? { kind: 'recent' }
       : tab === 'favourites'
         ? { kind: 'favourites' }
-        : projectId !== ''
-          ? { kind: 'project', projectId }
-          : null;
+        : tab === 'archived'
+          ? { kind: 'archived' }
+          : projectId !== ''
+            ? { kind: 'project', projectId }
+            : null;
 
   const documents = useQuery({
     queryKey: ['recent-documents', organizationSlug, tab, tab === 'project' ? projectId : ''],
@@ -130,6 +132,7 @@ export function DocsHubScreen({
             {t('DocsHubScreen.templates')}
           </Link>
           {tabButton('favourites', t('DocsHubScreen.tabFavourites'))}
+          {tabButton('archived', tOr('DocsHubScreen.tabArchived', 'Archived'))}
           <span className="tm-dx-chips__sep" aria-hidden="true" />
           <Link className="tm-chip" href={`/${organizationSlug}/docs/collections`}>
             {t('DocsHubScreen.collections')}
@@ -193,12 +196,19 @@ export function DocsHubScreen({
             <p className="tm-dx-empty__title">
               {tab === 'favourites'
                 ? t('DocsHubScreen.noFavouritesTitle')
-                : t('DocsHubScreen.noDocsTitle')}
+                : tab === 'archived'
+                  ? tOr('DocsHubScreen.noArchivedTitle', 'No archived docs')
+                  : t('DocsHubScreen.noDocsTitle')}
             </p>
             <p className="tm-dx-empty__body">
               {tab === 'favourites'
                 ? t('DocsHubScreen.noFavouritesBody')
-                : t('DocsHubScreen.noDocsBody')}
+                : tab === 'archived'
+                  ? tOr(
+                      'DocsHubScreen.noArchivedBody',
+                      'A doc you archive leaves the lists and waits here. Open it to bring it back.',
+                    )
+                  : t('DocsHubScreen.noDocsBody')}
             </p>
           </div>
         ) : null}

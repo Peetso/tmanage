@@ -192,4 +192,58 @@ export class DocumentsRepository {
       );
     return result[0].affectedRows > 0;
   }
+
+  /**
+   * FIX3 item 6. Archive or bring back a document. `updated_at` is kept as it was: archiving is not
+   * an edit, and an editor holding the doc open must not get a rename conflict from it.
+   */
+  async setArchived(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    documentId: string,
+    archived: boolean,
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .update(documents)
+      .set({
+        archivedAt: archived ? sql`current_timestamp(3)` : null,
+        archivedByUserId: archived ? context.userId : null,
+        updatedAt: sql`updated_at`,
+      })
+      .where(
+        and(
+          eq(documents.organizationId, context.organizationId),
+          eq(documents.id, documentId),
+          isNull(documents.deletedAt),
+        ),
+      );
+  }
+
+  /**
+   * FIX3 item 6. The doc's own Delete: the 0245 soft delete, with the platform's 30-day restore
+   * window (`purge_after`). Idempotent — an already-deleted doc is left as it was.
+   */
+  async softDelete(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    documentId: string,
+    restoreDays: number,
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .update(documents)
+      .set({
+        deletedAt: sql`current_timestamp(3)`,
+        deletedByUserId: context.userId,
+        deletedReason: 'Deleted from the doc',
+        purgeAfter: sql`date_add(current_timestamp(3), interval ${restoreDays} day)`,
+        updatedAt: sql`updated_at`,
+      })
+      .where(
+        and(
+          eq(documents.organizationId, context.organizationId),
+          eq(documents.id, documentId),
+          isNull(documents.deletedAt),
+        ),
+      );
+  }
 }

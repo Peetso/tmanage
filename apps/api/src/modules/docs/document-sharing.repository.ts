@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { CLIENT_ROLES } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
@@ -64,6 +64,8 @@ export interface PersonRow {
 export interface RecentFilter {
   readonly projectId?: string;
   readonly favouritesOf?: string;
+  /** FIX3 item 6: archived docs only when true; otherwise archived docs are left out. */
+  readonly archived?: boolean;
 }
 
 /** The window "Recent" scans before the relation filter; the page shows at most 50 of it. */
@@ -85,6 +87,7 @@ export class DocumentSharingRepository {
       eq(projects.organizationId, context.organizationId),
       // PA-03 (0245): a soft-deleted document leaves the list.
       isNull(documents.deletedAt),
+      filter.archived ? isNotNull(documents.archivedAt) : isNull(documents.archivedAt),
       ...(filter.projectId ? [eq(documents.projectId, filter.projectId)] : []),
     ];
     let query = tenantDrizzle(runner)

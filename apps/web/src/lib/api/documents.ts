@@ -39,6 +39,31 @@ export interface DocumentView {
   readonly updatedAt: string;
   /** F2 (0227). Who last renamed it — present only once it has been renamed. */
   readonly titleUpdatedByUserId?: string;
+  /** FIX3 item 6 (0338). When the doc was archived — present only while it is archived. */
+  readonly archivedAt?: string;
+}
+
+/** FIX3 item 6. Archive a doc (out of the Docs lists, still opens from a link), or bring it back. */
+export async function setDocumentArchived(
+  client: ApiClient,
+  organizationSlug: string,
+  documentId: string,
+  archived: boolean,
+): Promise<DocumentView> {
+  const { data } = await client.request<DocumentView>({
+    method: 'POST',
+    path: `${base(organizationSlug, documentId)}/${archived ? 'archive' : 'unarchive'}`,
+  });
+  return data;
+}
+
+/** FIX3 item 6. Delete a doc (`doc.delete`). Soft: TManage support can restore it for 30 days. */
+export async function deleteDocument(
+  client: ApiClient,
+  organizationSlug: string,
+  documentId: string,
+): Promise<void> {
+  await client.request<void>({ method: 'DELETE', path: base(organizationSlug, documentId) });
 }
 
 /**
@@ -268,7 +293,8 @@ export interface RecentDocumentsResult {
 export type DocumentListScope =
   | { readonly kind: 'recent' }
   | { readonly kind: 'project'; readonly projectId: string }
-  | { readonly kind: 'favourites' };
+  | { readonly kind: 'favourites' }
+  | { readonly kind: 'archived' };
 
 export async function listRecentDocuments(
   client: ApiClient,
@@ -280,7 +306,9 @@ export async function listRecentDocuments(
       ? `?projectId=${encodeURIComponent(scope.projectId)}`
       : scope.kind === 'favourites'
         ? '?scope=favourites'
-        : '';
+        : scope.kind === 'archived'
+          ? '?scope=archived'
+          : '';
   const { data } = await client.request<RecentDocumentsResult>({
     path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/recent-documents${query}`,
   });

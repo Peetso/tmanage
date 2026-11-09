@@ -786,6 +786,15 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'document',
     clause: '§12 — a document title is how the whole project finds it; renaming it is a trail',
   },
+  /** FIX3 item 6. A document was archived out of the Docs lists, or brought back (ids only). */
+  'document.archived': {
+    objectType: 'document',
+    clause: '§12 — archiving hides a document from the whole project; it is a trail',
+  },
+  'document.unarchived': {
+    objectType: 'document',
+    clause: '§12 — bringing an archived document back is a trail',
+  },
   /** C1. A condition was removed from an automation rule (ids, field and operator — never the value). */
   'workflow_condition.deleted': {
     objectType: 'workflow_condition',
@@ -1726,6 +1735,8 @@ const AUDIT_ACTION_LABELS = {
   'member.password_reset_sent': 'Sent a member a password reset',
   'member.profile_updated': 'Updated their own profile',
   'document.renamed': 'Renamed a document',
+  'document.archived': 'Archived a document',
+  'document.unarchived': 'Brought back an archived document',
   'workflow_condition.deleted': 'Removed a condition from an automation rule',
   'privacy_export.requested': 'Asked for a data export',
   'privacy_export.ready': 'A data export was ready to download',
