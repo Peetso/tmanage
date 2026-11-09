@@ -21,7 +21,6 @@ import type { ConnectionHealthView } from './connection-health.controller.js';
  * from this map has no required key, so a connection to it is never flagged for missing config.
  */
 const REQUIRED_CONFIG_KEYS: Readonly<Record<string, readonly string[]>> = Object.freeze({
-  slack: Object.freeze(['channel']),
   'google-calendar': Object.freeze(['calendarId']),
   github: Object.freeze(['repository']),
   zapier: Object.freeze(['hookPath']),

@@ -75,8 +75,7 @@ export type ControlCenterSection =
   | 'access-tokens'
   | 'calendar-connections'
   | 'ai-assistant'
-  | 'inbound-mail'
-  | 'channel-notices';
+  | 'inbound-mail';
 
 /**
  * The P11 keys, written to the wave's i18n fragment (`i18n-P11.*.json`) and merged into the
@@ -204,12 +203,6 @@ const GROUPS: readonly SectionGroup[] = [
         id: 'inbound-mail',
         labelKey: 'SettingsHome.link.inboundMail' as MessageKey,
         href: '/settings/inbound-mail',
-      },
-      {
-        id: 'channel-notices',
-        labelKey: 'RouteTitle.settingsChannelNotices' as MessageKey,
-        href: '/settings/channel-notices',
-        capability: 'org.manage',
       },
     ],
   },
@@ -388,7 +381,6 @@ export const SECTION_ICONS: Partial<Record<ControlCenterSection, PhoneIconName>>
   'calendar-connections': 'calendar',
   'ai-assistant': 'zap',
   'inbound-mail': 'inbox',
-  'channel-notices': 'messages',
 };
 
 function SectionIcon({ id }: { id: ControlCenterSection }) {

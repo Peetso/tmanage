@@ -180,7 +180,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // FIX5 item 5 (B-N5): delete a file and restore it (DELETE files/:fileId, POST .../restore): +2.
 // FIX5 one-click connectors: app-connect status/start/complete/disconnect/channels (6) and the
 // GitHub, Slack and Teams callbacks (3): +9.
-const EXPECTED_ROUTE_COUNT = 1421;
+// FIX5 Slack/Teams removed: app-connect channels (2), the Slack and Teams callbacks (2) and the
+// R15-c pasted channel-link routes (5) are no longer registered: -9.
+const EXPECTED_ROUTE_COUNT = 1412;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

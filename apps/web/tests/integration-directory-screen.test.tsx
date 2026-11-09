@@ -138,12 +138,12 @@ function mount(world: World = {}) {
         },
       ];
     }
-    if (path.endsWith('/automations/apps/slack/connections') && method === 'POST') {
+    if (path.endsWith('/automations/apps/zapier/connections') && method === 'POST') {
       return [
         201,
         {
           id: 'conn-1',
-          appId: 'slack',
+          appId: 'zapier',
           label: 'Ops workspace',
           status: 'pending',
           config: {},
@@ -157,10 +157,10 @@ function mount(world: World = {}) {
         {
           apps: [
             {
-              id: 'slack',
-              name: 'Slack',
-              category: 'messaging',
-              capabilities: ['notify'],
+              id: 'zapier',
+              name: 'Zapier',
+              category: 'automation',
+              capabilities: ['trigger'],
               connections: [],
             },
           ],
@@ -233,8 +233,6 @@ describe('Integrations cards (feedback 2026-11-09 item 6)', () => {
       'Outlook Calendar',
       'Figma',
       'GitHub',
-      'Slack',
-      'Microsoft Teams',
       'Zapier',
     ]) {
       expect(card(name).querySelector('.tm-brand-logo')).not.toBeNull();
@@ -308,9 +306,11 @@ describe('Integrations cards (feedback 2026-11-09 item 6)', () => {
   it('sends apps connected elsewhere to their page, and marks Zapier as coming soon', async () => {
     mount();
     await screen.findByRole('button', { name: 'Connect Google Drive' });
-    expect(screen.getByRole('link', { name: 'Connect Slack' }).getAttribute('href')).toBe(
-      '/northstar-studio/settings/channel-notices',
-    );
+    // Slack and Microsoft Teams were removed (Peter, 2026-11-10): no card offers them.
+    expect(screen.queryByText('Slack')).toBeNull();
+    expect(screen.queryByText('Microsoft Teams')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Connect (Slack|Microsoft Teams)/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Connect (Slack|Microsoft Teams)/ })).toBeNull();
     // FIX5 item 6c: GitHub and Jira's key flow is for owners and admins; a member is told so
     // instead of a link to a section that is not on their page.
     for (const name of ['GitHub', 'Jira']) {
@@ -383,14 +383,14 @@ describe('Integrations cards (feedback 2026-11-09 item 6)', () => {
     details.open = true;
     fireEvent(details, new Event('toggle'));
     const select = await screen.findByLabelText('App');
-    fireEvent.change(select, { target: { value: 'slack' } });
+    fireEvent.change(select, { target: { value: 'zapier' } });
     fireEvent.change(screen.getByLabelText(/Connection label/), {
       target: { value: 'Ops workspace' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Record connection' }));
     expect(await screen.findByText('Connection recorded')).toBeTruthy();
     const post = calls.find(
-      (call) => call.method === 'POST' && call.path.endsWith('/apps/slack/connections'),
+      (call) => call.method === 'POST' && call.path.endsWith('/apps/zapier/connections'),
     );
     expect(JSON.parse(post?.body ?? '{}')).toEqual({ label: 'Ops workspace', config: {} });
   });

@@ -5,7 +5,7 @@ import type { BrandId } from '../brand/BrandLogo';
  *
  * - `oauth`: TManage has the provider's sign-in. "Connect" starts it: the API returns the
  *   provider's consent address and the browser goes there in the same click.
- * - `page`: connected another way (an access token, an API key, a channel link). "Set up" opens the
+ * - `page`: connected another way (an access token or an API key). "Set up" opens the
  *   page that does it.
  * - `soon`: no flow yet. The card says so; nothing pretends to connect it.
  *
@@ -20,8 +20,6 @@ export type IntegrationCardId =
   | 'figma'
   | 'github'
   | 'jira'
-  | 'slack'
-  | 'teams'
   | 'zapier';
 
 export interface IntegrationCard {
@@ -35,7 +33,7 @@ export interface IntegrationCard {
   /** For `page` cards: where it is set up, after `/{org}`. For `oauth` cards: where it is managed. */
   readonly path?: string;
   /**
-   * FIX5: the older way to connect (a pasted token or webhook), after `/{org}`. Members, and owners
+   * FIX5: the older way to connect (a pasted token), after `/{org}`. Members, and owners
    * on a server without the provider's sign-in, are sent here.
    */
   readonly advancedPath?: string;
@@ -108,7 +106,7 @@ export const INTEGRATION_CARDS: readonly IntegrationCard[] = [
     flow: 'oauth',
     scope: 'company',
     whatKey: 'IntegrationDirectoryScreen.what.github',
-    what: 'Show code changes next to the work they belong to.',
+    what: "Connect your company's GitHub account to TManage.",
     // FIX5: one-click Connect (GitHub OAuth App); the access-token form stays under Advanced.
     path: '/automations/apps#tm-app-connect-github',
     advancedPath: '/automations/apps#tm-int-keys',
@@ -123,28 +121,6 @@ export const INTEGRATION_CARDS: readonly IntegrationCard[] = [
     what: 'Bring Jira issues into TManage and keep them in step.',
     path: '/automations/apps#tm-int-keys',
     keyConnector: 'jira',
-  },
-  {
-    id: 'slack',
-    brand: 'slack',
-    flow: 'oauth',
-    scope: 'company',
-    whatKey: 'IntegrationDirectoryScreen.what.slack',
-    what: 'Post TManage notices to a Slack channel.',
-    // FIX5: "Add to Slack", then a channel picker; the pasted webhook stays under Advanced.
-    path: '/automations/apps#tm-app-connect-slack',
-    advancedPath: '/settings/channel-notices',
-  },
-  {
-    id: 'teams',
-    brand: 'teams',
-    flow: 'oauth',
-    scope: 'company',
-    whatKey: 'IntegrationDirectoryScreen.what.teams',
-    what: 'Post TManage notices to a Microsoft Teams channel.',
-    // FIX5: Microsoft sign-in, then a team and channel picker; the webhook stays under Advanced.
-    path: '/automations/apps#tm-app-connect-teams',
-    advancedPath: '/settings/channel-notices',
   },
   {
     id: 'zapier',

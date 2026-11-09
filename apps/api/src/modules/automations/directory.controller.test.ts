@@ -90,20 +90,23 @@ describe('IntegrationDirectoryController', () => {
     const seed: IntegrationConnectionRow = {
       id: 'conn-seed',
       organizationId: ORG,
-      appId: 'slack',
+      appId: 'zapier',
       label: 'Ops workspace',
       status: 'connected',
-      configJson: { channel: 'general' },
+      configJson: { hookPath: 'general' },
       createdBy: USER,
       createdAt: new Date('2026-09-27T10:00:00.000Z'),
     };
     const { controller } = controllerWith([seed]);
 
     const { apps } = await controller.directory(context, principal('owner'));
-    const slack = apps.find((app) => app.id === 'slack');
-    expect(slack?.connections).toHaveLength(1);
-    expect(slack?.connections[0]?.label).toBe('Ops workspace');
-    expect(slack?.connections[0]).not.toHaveProperty('organizationId');
+    const zapier = apps.find((app) => app.id === 'zapier');
+    expect(zapier?.connections).toHaveLength(1);
+    expect(zapier?.connections[0]?.label).toBe('Ops workspace');
+    expect(zapier?.connections[0]).not.toHaveProperty('organizationId');
+    // Slack and Microsoft Teams were removed from the catalog (2026-11-10).
+    expect(apps.map((app) => app.id)).not.toContain('slack');
+    expect(apps.map((app) => app.id)).not.toContain('teams');
     // Apps with no connection are still listed, with an empty list.
     expect(apps.find((app) => app.id === 'github')?.connections).toEqual([]);
   });
@@ -125,13 +128,18 @@ describe('IntegrationDirectoryController', () => {
     await expect(
       controller.connect(context, principal('owner'), 'not-a-real-app', { label: 'x' }),
     ).rejects.toMatchObject({ status: 404 });
+    for (const removed of ['slack', 'teams']) {
+      await expect(
+        controller.connect(context, principal('owner'), removed, { label: 'x' }),
+      ).rejects.toMatchObject({ status: 404 });
+    }
     expect(createCalls).toEqual([]);
   });
 
   it('rejects a secret-shaped config key with 400 and writes nothing', async () => {
     const { controller, createCalls } = controllerWith();
     await expect(
-      controller.connect(context, principal('owner'), 'slack', {
+      controller.connect(context, principal('owner'), 'zapier', {
         label: 'Ops',
         config: { api_token: 'xoxb-should-never-persist' },
       }),
@@ -152,7 +160,7 @@ describe('IntegrationDirectoryController', () => {
       },
     );
     await expect(
-      controller.connect(context, principal('workspace_admin'), 'slack', { label: 'Ops' }),
+      controller.connect(context, principal('workspace_admin'), 'zapier', { label: 'Ops' }),
     ).rejects.toMatchObject({ status: 403 });
     expect(createCalls).toEqual([]);
   });

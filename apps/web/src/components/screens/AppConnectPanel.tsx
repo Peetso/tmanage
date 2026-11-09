@@ -7,29 +7,24 @@ import { Button, InlineAlert } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
 import {
   APP_CONNECT_PROVIDERS,
-  addAppConnectChannel,
   completeAppConnect,
   disconnectAppConnect,
   getAppConnect,
-  listAppConnectChannels,
   readAppConnectReturn,
   type AppConnectProvider,
   type AppConnectView,
 } from '../../lib/api/app-connect';
-import { channelLinksQueryKey } from '../../lib/api/channel-links';
 import { useTOr } from '../../lib/i18n/use-t-or';
-import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
 /**
- * FIX5 — the rest of one-click Connect for GitHub, Slack and Microsoft Teams, on the Integrations
- * page under the cards (owners and admins only; the page decides).
+ * FIX5 — the rest of one-click Connect for GitHub, on the Integrations page under the cards
+ * (owners and admins only; the page decides). Slack and Microsoft Teams were removed (Peter,
+ * 2026-11-10).
  *
- * - Finishes the provider's return (`#slack=complete&code=…&state=…`) under the owner's session.
- * - Slack: notices start in the channel picked on Slack's own screen; "Add a channel" posts to one
- *   more. Teams: pick a team, then a channel.
- * - Disconnect: the provider forgets TManage's access and the bot channels stop.
- * - **Advanced** keeps the older ways: a GitHub access token, a pasted Slack / Teams webhook.
+ * - Finishes the provider's return (`#github=complete&code=…&state=…`) under the owner's session.
+ * - Disconnect: GitHub forgets TManage's access.
+ * - **Advanced** keeps the older way: a GitHub access token.
  */
 
 export const appConnectKey = (slug: string, provider: AppConnectProvider) =>
@@ -37,8 +32,6 @@ export const appConnectKey = (slug: string, provider: AppConnectProvider) =>
 
 const NAMES: Readonly<Record<AppConnectProvider, string>> = {
   github: 'GitHub',
-  slack: 'Slack',
-  teams: 'Microsoft Teams',
 };
 
 const K = 'AppConnect';
@@ -72,12 +65,8 @@ export function AppConnectPanel({
   const describeError = useDescribeApiError();
   const queries = useQueryClient();
   const github = useAppConnectStatus(api, organizationSlug, 'github', true);
-  const slack = useAppConnectStatus(api, organizationSlug, 'slack', true);
-  const teams = useAppConnectStatus(api, organizationSlug, 'teams', true);
   const views: Readonly<Record<AppConnectProvider, AppConnectView | undefined>> = {
     github: github.data,
-    slack: slack.data,
-    teams: teams.data,
   };
   const [outcome, setOutcome] = useState<{
     readonly provider: AppConnectProvider;
@@ -94,10 +83,9 @@ export function AppConnectPanel({
         code: back.code,
         state: back.state,
       }),
-    onSuccess: async (view) => {
+    onSuccess: (view) => {
       queries.setQueryData(appConnectKey(organizationSlug, view.provider), view);
       setOutcome({ provider: view.provider, ok: true });
-      await queries.invalidateQueries({ queryKey: channelLinksQueryKey(organizationSlug) });
     },
     onError: (_error, back) => setOutcome({ provider: back.provider, ok: false }),
   });
@@ -119,17 +107,7 @@ export function AppConnectPanel({
     <section className="tm-aut-col" aria-labelledby="tm-app-connect-heading">
       {outcome?.ok === true ? (
         <InlineAlert tone="success" live>
-          {outcome.provider === 'teams'
-            ? tr(
-                `${K}.successTeams`,
-                'Microsoft Teams is connected. Pick the channel for your notices below.',
-              )
-            : outcome.provider === 'slack'
-              ? tr(
-                  `${K}.successSlack`,
-                  'Slack is connected. Notices now go to the channel you picked.',
-                )
-              : tr(`${K}.success`, '{app} is connected.').replace('{app}', NAMES[outcome.provider])}
+          {tr(`${K}.success`, '{app} is connected.').replace('{app}', NAMES[outcome.provider])}
         </InlineAlert>
       ) : outcome?.ok === false ? (
         <InlineAlert
@@ -173,13 +151,13 @@ export function AppConnectPanel({
 
       <details className="tm-int-advanced">
         <summary className="tm-int-advanced__summary">
-          {tr(`${K}.advanced`, 'Other ways to connect GitHub, Slack and Teams')}
+          {tr(`${K}.advanced`, 'Another way to connect GitHub')}
         </summary>
         <div className="tm-int-advanced__body tm-stack">
           <p className="tm-int-card__hint">
             {tr(
               `${K}.advancedHint`,
-              'Most companies only need Connect. If you already have a GitHub access token, or a Slack or Teams webhook link, you can still use it.',
+              'Most companies only need Connect. If you already have a GitHub access token, you can still use it.',
             )}
           </p>
           <ul className="tm-aut-list">
@@ -202,18 +180,6 @@ export function AppConnectPanel({
                     {tr(`${K}.open`, 'Open')}
                   </Link>
                 )}
-              </div>
-            </li>
-            <li>
-              <div className="tm-aut-list__main">
-                <span className="tm-aut-rowtitle">
-                  {tr(`${K}.advancedWebhook`, 'Slack or Teams with a webhook link')}
-                </span>
-              </div>
-              <div className="tm-aut-list__end">
-                <Link href={`/${organizationSlug}/settings/channel-notices`} className="tm-aut-btn">
-                  {tr(`${K}.open`, 'Open')}
-                </Link>
               </div>
             </li>
           </ul>
@@ -242,7 +208,6 @@ function ConnectedRow({
     onSuccess: async (next) => {
       queries.setQueryData(appConnectKey(organizationSlug, view.provider), next);
       setConfirming(false);
-      await queries.invalidateQueries({ queryKey: channelLinksQueryKey(organizationSlug) });
       await queries.invalidateQueries({ queryKey: ['connectors', organizationSlug] });
     },
   });
@@ -264,15 +229,6 @@ function ConnectedRow({
         </span>
       </div>
 
-      {view.provider === 'slack' || view.provider === 'teams' ? (
-        <ChannelPicker
-          api={api}
-          organizationSlug={organizationSlug}
-          provider={view.provider}
-          current={view.channel}
-        />
-      ) : null}
-
       {disconnect.isError ? (
         <InlineAlert tone="danger" live>
           {describeError(disconnect.error)}
@@ -283,15 +239,10 @@ function ConnectedRow({
         {confirming ? (
           <>
             <span className="tm-aut-rowsub">
-              {view.provider === 'github'
-                ? tr(
-                    `${K}.disconnectConfirmGithub`,
-                    'TManage will stop reading your GitHub issues and pull requests.',
-                  )
-                : tr(
-                    `${K}.disconnectConfirmChannels`,
-                    'Notices stop going to {app}. Channels you linked with a webhook keep working.',
-                  ).replace('{app}', name)}
+              {tr(
+                `${K}.disconnectConfirmGithub`,
+                'TManage forgets its access to your GitHub account. Repository webhooks keep working.',
+              )}
             </span>
             <Button
               tone="outline"
@@ -316,155 +267,5 @@ function ConnectedRow({
         )}
       </div>
     </li>
-  );
-}
-
-function ChannelPicker({
-  api,
-  organizationSlug,
-  provider,
-  current,
-}: {
-  api: ApiClient;
-  organizationSlug: string;
-  provider: 'slack' | 'teams';
-  current: string | null;
-}) {
-  const tr = useTOr();
-  const locale = useActiveLocale();
-  const describeError = useDescribeApiError();
-  const queries = useQueryClient();
-  const [teamId, setTeamId] = useState('');
-  const [channelId, setChannelId] = useState('');
-  const [added, setAdded] = useState<string | null>(null);
-
-  const teams = useQuery({
-    queryKey: ['app-connect-teams', organizationSlug],
-    queryFn: () => listAppConnectChannels(api, organizationSlug, 'teams'),
-    enabled: provider === 'teams',
-    retry: false,
-  });
-  const channels = useQuery({
-    queryKey: ['app-connect-channels', organizationSlug, provider, teamId],
-    queryFn: () =>
-      listAppConnectChannels(
-        api,
-        organizationSlug,
-        provider,
-        provider === 'teams' ? teamId : undefined,
-      ),
-    enabled: provider === 'slack' || teamId !== '',
-    retry: false,
-  });
-  const add = useMutation({
-    mutationFn: () =>
-      addAppConnectChannel(api, organizationSlug, provider, {
-        channelId,
-        ...(provider === 'teams' ? { teamId } : {}),
-        locale: locale.startsWith('ar') ? 'ar' : 'en',
-      }),
-    onSuccess: async (link) => {
-      setAdded(link.label ?? '');
-      setChannelId('');
-      await queries.invalidateQueries({ queryKey: channelLinksQueryKey(organizationSlug) });
-    },
-  });
-
-  const failure = teams.error ?? channels.error ?? add.error;
-  const teamOptions = teams.data?.teams ?? [];
-  const channelOptions = channels.data?.channels ?? [];
-  const teamSelect = `tm-app-connect-${provider}-team`;
-  const channelSelect = `tm-app-connect-${provider}-channel`;
-
-  return (
-    <div className="tm-stack">
-      {provider === 'slack' && current ? (
-        <p className="tm-int-card__hint">
-          {tr(`${K}.slackCurrent`, 'Notices go to #{channel}.').replace('{channel}', current)}
-        </p>
-      ) : null}
-      {added !== null ? (
-        <InlineAlert tone="success" live>
-          {tr(`${K}.channelAdded`, 'Notices now also go to {channel}.').replace('{channel}', added)}
-        </InlineAlert>
-      ) : null}
-      {failure ? (
-        <InlineAlert tone="danger" live>
-          {describeError(failure)}
-        </InlineAlert>
-      ) : null}
-
-      {provider === 'teams' ? (
-        <div className="tm-field">
-          <label className="tm-field__label" htmlFor={teamSelect}>
-            {tr(`${K}.team`, 'Team')}
-          </label>
-          <select
-            id={teamSelect}
-            className="tm-field__control"
-            value={teamId}
-            disabled={teams.isPending}
-            onChange={(event) => {
-              setTeamId(event.target.value);
-              setChannelId('');
-            }}
-          >
-            <option value="">{tr(`${K}.chooseTeam`, 'Choose a team')}</option>
-            {teamOptions.map((team) => (
-              <option key={team.id} value={team.id}>
-                {team.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : null}
-
-      {provider === 'slack' || teamId !== '' ? (
-        <div className="tm-field">
-          <label className="tm-field__label" htmlFor={channelSelect}>
-            {provider === 'slack'
-              ? tr(`${K}.addChannelLabel`, 'Also post to')
-              : tr(`${K}.channel`, 'Channel')}
-          </label>
-          <select
-            id={channelSelect}
-            className="tm-field__control"
-            value={channelId}
-            disabled={channels.isPending}
-            onChange={(event) => setChannelId(event.target.value)}
-          >
-            <option value="">{tr(`${K}.chooseChannel`, 'Choose a channel')}</option>
-            {channelOptions.map((channel) => (
-              <option key={channel.id} value={channel.id}>
-                {provider === 'slack' ? `#${channel.name}` : channel.name}
-              </option>
-            ))}
-          </select>
-          {provider === 'slack' ? (
-            <p className="tm-field__hint">
-              {tr(
-                `${K}.slackInviteHint`,
-                'If notices do not arrive in a channel, type /invite @TManage in it.',
-              )}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-
-      <div className="tm-aut-actions">
-        <Button
-          tone="lime"
-          disabled={channelId === '' || add.isPending}
-          loading={add.isPending}
-          loadingLabel={tr(`${K}.adding`, 'Adding…')}
-          onClick={() => add.mutate()}
-        >
-          {tr(`${K}.postHere`, 'Post notices here')}
-        </Button>
-        <Link href={`/${organizationSlug}/settings/channel-notices`} className="tm-aut-btn">
-          {tr(`${K}.chooseNotices`, 'Choose which notices')}
-        </Link>
-      </div>
-    </div>
   );
 }

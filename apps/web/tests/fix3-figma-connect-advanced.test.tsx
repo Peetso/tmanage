@@ -45,9 +45,9 @@ describe('FIX3 item 9: Figma connects from one Connect button', () => {
   });
 });
 
-describe('FIX3 item 9: official marks for Microsoft apps and Slack', () => {
+describe('FIX3 item 9: official marks for Microsoft apps', () => {
   it('draws the vendored art file, never a lettered tile', () => {
-    for (const brand of ['onedrive', 'outlook', 'teams', 'slack'] as const) {
+    for (const brand of ['onedrive', 'outlook'] as const) {
       const { container, unmount } = render(<BrandLogo brand={brand} />);
       const image = container.querySelector('img');
       expect(image?.getAttribute('src')).toBe(`/brand/apps/${brand}.svg`);

@@ -1,13 +1,12 @@
 import type { ApiClient } from './client';
-import type { ChannelLinkView } from './channel-links';
 
 /**
- * FIX5 — one-click Connect for GitHub, Slack and Microsoft Teams (owner/admin). Mirrors the API's
+ * FIX5 — one-click Connect for GitHub (owner/admin). Mirrors the API's
  * `app-connect` module. No token ever reaches the browser: a view says whether the provider's app
  * is set up on this server, whether this workspace is connected, and the account's name.
  */
 
-export const APP_CONNECT_PROVIDERS = ['github', 'slack', 'teams'] as const;
+export const APP_CONNECT_PROVIDERS = ['github'] as const;
 export type AppConnectProvider = (typeof APP_CONNECT_PROVIDERS)[number];
 
 export interface AppConnectView {
@@ -15,15 +14,8 @@ export interface AppConnectView {
   /** The server has this provider's app registered. `false` → "Not set up yet". */
   readonly setUp: boolean;
   readonly connected: boolean;
-  /** GitHub login, Slack workspace or Microsoft account. */
+  /** The GitHub login. */
   readonly account: string | null;
-  /** Slack: the channel chosen on Slack's own screen. */
-  readonly channel: string | null;
-}
-
-export interface AppConnectOption {
-  readonly id: string;
-  readonly name: string;
 }
 
 const path = (slug: string, provider: AppConnectProvider) =>
@@ -76,38 +68,6 @@ export async function disconnectAppConnect(
   const { data } = await client.request<AppConnectView>({
     method: 'DELETE',
     path: path(slug, provider),
-  });
-  return data;
-}
-
-/** Slack: its channels. Teams: your teams, or with `teamId` that team's channels. */
-export async function listAppConnectChannels(
-  client: ApiClient,
-  slug: string,
-  provider: 'slack' | 'teams',
-  teamId?: string,
-): Promise<{
-  readonly teams?: readonly AppConnectOption[];
-  readonly channels?: readonly AppConnectOption[];
-}> {
-  const query = teamId ? `?teamId=${encodeURIComponent(teamId)}` : '';
-  const { data } = await client.request<{
-    readonly teams?: readonly AppConnectOption[];
-    readonly channels?: readonly AppConnectOption[];
-  }>({ method: 'GET', path: `${path(slug, provider)}/channels${query}` });
-  return data;
-}
-
-export async function addAppConnectChannel(
-  client: ApiClient,
-  slug: string,
-  provider: 'slack' | 'teams',
-  body: { readonly channelId: string; readonly teamId?: string; readonly locale?: 'en' | 'ar' },
-): Promise<ChannelLinkView> {
-  const { data } = await client.request<ChannelLinkView>({
-    method: 'POST',
-    path: `${path(slug, provider)}/channels`,
-    body,
   });
   return data;
 }

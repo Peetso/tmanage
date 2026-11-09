@@ -129,6 +129,12 @@ export interface ChannelPostDeps {
   readonly microsoft?: MicrosoftApp | null;
   /** FIX5: test seam for the bot posts (Slack / Graph). */
   readonly botFetch?: BotFetch;
+  /**
+   * FIX5 (2026-11-10): Slack and Microsoft Teams were removed. When set, every due post is
+   * cancelled (`slack_teams_removed`) without reading its link's secret or calling anybody, so
+   * rows staged before the removal drain quietly and nothing is posted with a stored token.
+   */
+  readonly retired?: boolean;
 }
 
 function stateOf(payload: Record<string, unknown>): string | null {
@@ -162,6 +168,9 @@ async function attemptOutcome(
   organizationId: string,
   post: DuePost,
 ): Promise<PostOutcome> {
+  if (deps.retired === true) {
+    return { status: 'cancelled', responseCode: null, error: 'slack_teams_removed' };
+  }
   const link = await deps.store.loadLink(organizationId, post.linkId);
   if (link === null || link.status !== 'active') {
     return { status: 'cancelled', responseCode: null, error: 'link_not_active' };
@@ -318,7 +327,10 @@ export async function runChannelPostSweepLoop(
   }
 }
 
-/** The pass's dependencies from one worker pool and the env (standalone worker and `apps/server`). */
+/**
+ * The pass's dependencies from one worker pool and the env (standalone worker and `apps/server`).
+ * Since Slack and Teams were removed the pass only cancels leftover staged posts.
+ */
 export function createChannelPostDeps(
   database: WorkerDatabase,
   env: {
@@ -336,5 +348,7 @@ export function createChannelPostDeps(
     ownHosts: webhookOwnHosts([env.API_PUBLIC_URL, env.WEB_PUBLIC_URL]),
     webBaseUrl: env.WEB_PUBLIC_URL ?? null,
     microsoft: microsoftAppFrom(env),
+    // Slack and Teams were removed (2026-11-10): drain what is left, post nothing.
+    retired: true,
   };
 }

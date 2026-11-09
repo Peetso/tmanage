@@ -23,8 +23,6 @@ export type BrandId =
   | 'google-calendar'
   | 'onedrive'
   | 'outlook'
-  | 'teams'
-  | 'slack'
   | 'figma'
   | 'github'
   | 'jira'
@@ -71,8 +69,6 @@ const MARKS: Readonly<Record<BrandId, Mark | ArtFile>> = {
   },
   onedrive: { src: '/brand/apps/onedrive.svg', padded: true },
   outlook: { src: '/brand/apps/outlook.svg', padded: true },
-  teams: { src: '/brand/apps/teams.svg', padded: true },
-  slack: { src: '/brand/apps/slack.svg' },
 };
 
 /** The product's own name; never translated. */
@@ -81,8 +77,6 @@ export const BRAND_NAMES: Readonly<Record<BrandId, string>> = {
   'google-calendar': 'Google Calendar',
   onedrive: 'OneDrive',
   outlook: 'Outlook Calendar',
-  teams: 'Microsoft Teams',
-  slack: 'Slack',
   figma: 'Figma',
   github: 'GitHub',
   jira: 'Jira',

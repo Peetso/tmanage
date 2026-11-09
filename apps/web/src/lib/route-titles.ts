@@ -385,11 +385,6 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     en: 'Connected apps',
     key: 'RouteTitle.settingsConnectedApps',
   },
-  // R46 L2 · 54-05/54-06
-  '/[orgSlug]/settings/channel-notices': {
-    en: 'Slack and Teams notices',
-    key: 'RouteTitle.settingsChannelNotices',
-  },
   '/[orgSlug]/settings/digest': { en: 'Email digest', key: 'RouteTitle.settingsDigest' },
   '/[orgSlug]/settings/display': { en: 'Display', key: 'RouteTitle.settingsDisplay' },
   '/[orgSlug]/settings/inbound-mail': {

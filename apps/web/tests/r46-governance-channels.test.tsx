@@ -3,22 +3,19 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 import { ApiClient } from '../src/lib/api/client';
-import { channelUrlLooksRight } from '../src/lib/api/channel-links';
-import type { ChannelLinkView } from '../src/lib/api/channel-links';
 import type { PlatformMeView } from '../src/lib/api/platform-admin';
 import { recentQuarters } from '../src/lib/api/platform-governance';
 import type {
   PlatformAccessReviewView,
   PlatformApprovalsView,
 } from '../src/lib/api/platform-governance';
-import { ChannelNoticesScreen } from '../src/components/screens/ChannelNoticesScreen';
 import {
   PlatformAccessReviewScreen,
   PlatformApprovalsScreen,
   PlatformOwnerNoticesScreen,
 } from '../src/components/platform/governance/PlatformGovernanceScreens';
 
-/** R46 L2 — Slack/Teams channel notices (54-05/54-06) and platform governance (56-21). */
+/** R46 L2 — platform governance (56-21). The Slack/Teams channel notices were removed (FIX5). */
 
 type Answer = { status: number; body: unknown };
 
@@ -89,90 +86,6 @@ function me(overrides: Partial<PlatformMeView> = {}): PlatformMeView {
     ...overrides,
   };
 }
-
-const LINK: ChannelLinkView = {
-  id: 'l-1',
-  kind: 'slack',
-  connectionId: 'c-1',
-  projectId: null,
-  label: null,
-  urlHost: 'hooks.slack.com',
-  events: ['work.created'],
-  locale: 'en',
-  status: 'active',
-  failureStreak: 0,
-  pausedReason: null,
-  lastPostedAt: null,
-  createdAt: '2026-11-08T10:00:00.000Z',
-};
-
-describe('54-05/54-06 channel URL allow-list (web pre-check)', () => {
-  it('accepts only https Slack and Teams incoming-webhook hosts', () => {
-    expect(channelUrlLooksRight('slack', 'https://hooks.slack.com/services/T/B/X')).toBe(true);
-    expect(channelUrlLooksRight('slack', 'http://hooks.slack.com/services/T/B/X')).toBe(false);
-    expect(channelUrlLooksRight('slack', 'https://hooks.slack.com.evil.io/x')).toBe(false);
-    expect(channelUrlLooksRight('teams', 'https://acme.webhook.office.com/webhookb2/x')).toBe(true);
-    expect(channelUrlLooksRight('teams', 'https://outlook.office.com/webhook/x')).toBe(true);
-    expect(channelUrlLooksRight('teams', 'https://evil-outlook.office.com/webhook/x')).toBe(false);
-    expect(channelUrlLooksRight('teams', 'https://user:pw@acme.webhook.office.com/x')).toBe(false);
-  });
-});
-
-describe('Slack and Teams notices screen', () => {
-  const base = '/v1/organizations/northstar/integrations';
-
-  it('shows a linked channel by host only and refuses a wrong URL without calling the API', async () => {
-    const { client, calls } = recording({
-      [`GET ${base}/channel-links`]: { status: 200, body: { links: [LINK] } },
-      '/v1/organizations/northstar/projects': { status: 200, body: { projects: [] } },
-    });
-    wrap(
-      <ChannelNoticesScreen
-        organizationSlug="northstar"
-        organizationName="Northstar"
-        client={client}
-      />,
-    );
-    const row = await screen.findByTestId('channel-link');
-    expect(within(row).getByText('hooks.slack.com')).toBeTruthy();
-    fireEvent.change(screen.getByLabelText(/Incoming-webhook URL/u), {
-      target: { value: 'https://evil.example/x' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Add channel' }));
-    expect(
-      await screen.findByText('This is not a Slack or Teams incoming-webhook URL.'),
-    ).toBeTruthy();
-    expect(calls.some((call) => call.method === 'POST')).toBe(false);
-  });
-
-  it('posts a valid Teams URL with the picked notices to the Teams route', async () => {
-    const { client, calls } = recording({
-      [`GET ${base}/channel-links`]: { status: 200, body: { links: [] } },
-      [`POST ${base}/teams/channel-links`]: { status: 201, body: { ...LINK, kind: 'teams' } },
-      '/v1/organizations/northstar/projects': { status: 200, body: { projects: [] } },
-    });
-    wrap(
-      <ChannelNoticesScreen
-        organizationSlug="northstar"
-        organizationName="Northstar"
-        client={client}
-      />,
-    );
-    fireEvent.click(await screen.findByRole('radio', { name: 'Microsoft Teams' }));
-    fireEvent.change(screen.getByLabelText(/Incoming-webhook URL/u), {
-      target: { value: 'https://acme.webhook.office.com/webhookb2/abc' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Add channel' }));
-    await screen.findByText('No channel is linked yet.');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    const post = calls.find((call) => call.method === 'POST');
-    expect(post?.path).toBe(`${base}/teams/channel-links`);
-    expect(post?.body).toMatchObject({
-      projectId: null,
-      events: ['work.created', 'work.completed', 'approval.decided'],
-    });
-  });
-});
 
 const APPROVALS: PlatformApprovalsView = {
   policy: { enabled: true },

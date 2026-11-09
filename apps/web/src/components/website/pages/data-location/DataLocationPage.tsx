@@ -50,7 +50,7 @@ const LOCATION_ROWS: readonly Row[] = [
   [
     'connectors',
     'Connectors',
-    'Only the vendors you connect: Slack, Meta (WhatsApp), Figma, GitHub, Microsoft, Google',
+    'Only the vendors you connect: Meta (WhatsApp), Figma, GitHub, Microsoft, Google',
     'Each one is your choice',
   ],
 ];
@@ -67,7 +67,7 @@ const SUBPROCESSOR_ROWS: readonly Row[] = [
   ],
   [
     'connectors',
-    'Slack · Meta · Figma · GitHub',
+    'Meta · Figma · GitHub',
     'Only the connectors you turn on',
     'Each vendor’s region',
   ],

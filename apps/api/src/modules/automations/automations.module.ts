@@ -26,7 +26,6 @@ import { AutomationVariablesController } from './variables.controller.js';
 import { AutomationTemplateTagsRepository } from './template-tags.repository.js';
 import { AutomationTemplateTagsService } from './template-tags.service.js';
 import { AutomationTemplateTagsController } from './template-tags.controller.js';
-import { ChannelLinksController } from './channel-links.controller.js';
 import {
   GithubHooksController,
   GithubInboundController,
@@ -103,9 +102,9 @@ export class AutomationsModule {
         WorkflowConditionsController,
         AutomationVariablesController,
         AutomationTemplateTagsController,
-        // R15-c (54-05 / 54-06 Phase 0): pasted Slack / Teams channel links. Its dependencies
-        // (cipher, audit writer, egress settings) default inside the service from the environment.
-        ChannelLinksController,
+        // R15-c pasted Slack / Teams channel links (ChannelLinksController) are no longer
+        // registered: Slack and Teams were removed on 2026-11-10 and those routes answer 404.
+        // The table and its rows are left alone; the worker no longer stages or posts notices.
         // R16-e (54-10 GitHub Phase 0): pasted repository webhooks (org.manage) and the public
         // inbound delivery route. Dependencies default inside the service from the environment.
         GithubHooksController,

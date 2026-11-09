@@ -1695,33 +1695,6 @@ export const NEVER: readonly NeverEntry[] = [
   },
   // R16-a (52-02 / 52-03). Timesheets moved to ops in R18-b (`time.timesheets.*`; approve,
   // request-changes and the CSV export are confirm-class).
-  // ---- R15-c · 54-05 / 54-06 Phase 0 ---- a pasted channel webhook URL is a bearer credential and
-  // a link steers outbound egress: never an AI tool, the same reason as the webhook routes.
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/integrations/:kind/channel-links',
-    reason: 'automation_secrets',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/integrations/channel-links',
-    reason: 'automation_secrets',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/integrations/channel-links/:id',
-    reason: 'automation_secrets',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/integrations/channel-links/:id/test',
-    reason: 'automation_secrets',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/integrations/channel-links/:id/resume',
-    reason: 'automation_secrets',
-  },
   // ---- R15-a · 52-04 rates and R16-c · 52-07 expenses ---- moved to ops in R18-b
   // (`finance.rate_cards.*`, `finance.rates.*`, `finance.cost_rates.*`, `finance.expenses.*`).
   // ---- R16-f · 54-11 Phase 0 ---- a person's imported address book (third parties' personal
@@ -2118,7 +2091,7 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/connectors/:connectorKey',
     reason: 'connector_installation',
   },
-  // FIX5. One-click Connect for GitHub, Slack and Teams: OAuth tokens into the vault.
+  // FIX5. One-click Connect for GitHub: OAuth tokens into the vault (Slack, Teams removed 11-10).
   {
     method: 'GET',
     path: '/v1/organizations/:orgSlug/app-connect/:provider',
@@ -2141,27 +2114,7 @@ export const NEVER: readonly NeverEntry[] = [
   },
   {
     method: 'GET',
-    path: '/v1/organizations/:orgSlug/app-connect/:provider/channels',
-    reason: 'connector_installation',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/app-connect/:provider/channels',
-    reason: 'connector_installation',
-  },
-  {
-    method: 'GET',
     path: '/v1/integrations/github/callback',
-    reason: 'connector_installation',
-  },
-  {
-    method: 'GET',
-    path: '/v1/integrations/slack/callback',
-    reason: 'connector_installation',
-  },
-  {
-    method: 'GET',
-    path: '/v1/integrations/teams/callback',
     reason: 'connector_installation',
   },
   // 54-14. Company sign-in settings: owner-only read, save and remove of the OIDC connection.

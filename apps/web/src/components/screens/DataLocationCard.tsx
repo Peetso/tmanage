@@ -65,7 +65,7 @@ const PROCESSORS: readonly (readonly [string, string, string, boolean])[] = [
   ['hostinger', 'Hostinger', 'Hosting, database, email and backups', true],
   ['google', 'Google', 'Drive files, only if you connect it', false],
   ['microsoft', 'Microsoft', 'OneDrive files, only if you connect it', false],
-  ['connectors', 'Slack · Meta · Figma · GitHub', 'Only the connectors you turn on', false],
+  ['connectors', 'Meta · Figma · GitHub', 'Only the connectors you turn on', false],
 ];
 
 /**

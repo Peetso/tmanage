@@ -39,10 +39,10 @@ function row(overrides: Partial<IntegrationConnectionRow> = {}): IntegrationConn
   return {
     id: 'conn-01',
     organizationId: ORG,
-    appId: 'slack',
+    appId: 'zapier',
     label: 'Ops workspace',
     status: 'connected',
-    configJson: { channel: 'general' },
+    configJson: { hookPath: 'general' },
     createdBy: USER,
     createdAt: new Date('2026-09-27T10:00:00.000Z'),
     ...overrides,
@@ -81,12 +81,14 @@ describe('ConnectionHealthController', () => {
     const verdict = await controller.connectionHealth(context, principal('owner'), 'conn-02');
     expect(verdict.healthy).toBe(false);
     expect(verdict.issues).toContain('missing_config');
-    expect(verdict.missingConfigKeys).toEqual(['channel']);
+    expect(verdict.missingConfigKeys).toEqual(['hookPath']);
   });
 
   it('never echoes a stored config value in the verdict', async () => {
     const secretish = 'general-super-private-value';
-    const controller = controllerWith([row({ id: 'conn-03', configJson: { channel: secretish } })]);
+    const controller = controllerWith([
+      row({ id: 'conn-03', configJson: { hookPath: secretish } }),
+    ]);
     const verdict = await controller.connectionHealth(context, principal('owner'), 'conn-03');
     expect(JSON.stringify(verdict)).not.toContain(secretish);
   });

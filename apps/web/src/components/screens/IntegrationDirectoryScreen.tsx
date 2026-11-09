@@ -78,7 +78,7 @@ const KEY = 'IntegrationDirectoryScreen';
  * (Google Drive, OneDrive, Google Calendar, Outlook Calendar) "Connect" asks the API for the
  * provider's consent address and sends the browser there in the same click; the provider returns to
  * Connected apps, which finishes the connection. Apps connected another way (Figma's access token,
- * GitHub's key, Slack and Teams channel links) say "Set up" and open the page that does it. An app
+ * GitHub's or Jira's key) say "Set up" and open the page that does it. An app
  * with no flow yet says "Coming soon": no form pretends to connect it.
  *
  * The catalog's hand-recorded connections (a label and one non-secret setting, never a credential)
@@ -143,10 +143,8 @@ export function IntegrationDirectoryScreen({
     queryFn: () => getFigmaConnection(api, organizationSlug),
     retry: false,
   });
-  // FIX5: GitHub, Slack and Teams connect in one click (owners and admins; members keep the old way).
+  // FIX5: GitHub connects in one click (owners and admins; members keep the old way).
   const github = useAppConnectStatus(api, organizationSlug, 'github', managesCompany);
-  const slack = useAppConnectStatus(api, organizationSlug, 'slack', managesCompany);
-  const teams = useAppConnectStatus(api, organizationSlug, 'teams', managesCompany);
   // FIX5 item 6c: the key apps' own state, for their cards (same query key as the key panel).
   const connectors = useQuery({
     queryKey: ['connectors', organizationSlug],
@@ -214,12 +212,10 @@ export function IntegrationDirectoryScreen({
         return keyInstalled('jira')
           ? { kind: 'connected', account: null }
           : { kind: 'ready', broken: false };
-      case 'github':
-      case 'slack':
-      case 'teams': {
-        const read = id === 'github' ? github : id === 'slack' ? slack : teams;
+      case 'github': {
+        const read = github;
         if (!managesCompany) return { kind: 'ready', broken: false };
-        if (id === 'github' && keyInstalled('github')) return { kind: 'connected', account: null };
+        if (keyInstalled('github')) return { kind: 'connected', account: null };
         if (read.isPending) return { kind: 'loading' };
         if (read.isError || !read.data?.setUp) return { kind: 'not_set_up' };
         return read.data.connected
@@ -255,9 +251,7 @@ export function IntegrationDirectoryScreen({
   const connect = useMutation({
     mutationFn: (id: IntegrationCardId): Promise<{ readonly url: string }> => {
       if (id === 'figma') return startFigmaConnect(api, organizationSlug);
-      if (id === 'github' || id === 'slack' || id === 'teams') {
-        return startAppConnect(api, organizationSlug, id);
-      }
+      if (id === 'github') return startAppConnect(api, organizationSlug, id);
       // Storage started here comes back to Connected apps, which finishes the hand-over (R38);
       // the calendars always come back there.
       if (id === 'google-drive') {
@@ -390,7 +384,7 @@ export function IntegrationDirectoryScreen({
             {shown.map((card) => (
               <IntegrationCardItem
                 key={card.id}
-                // FIX5: members connect GitHub, Slack and Teams the older way, as before.
+                // FIX5: members connect GitHub the older way, as before.
                 card={
                   !managesCompany && card.advancedPath
                     ? { ...card, flow: 'page', path: card.advancedPath }

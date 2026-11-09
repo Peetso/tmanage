@@ -80,22 +80,6 @@ export const INTEGRATIONS: readonly Integration[] = [
     group: 'today',
   },
   {
-    id: 'slack',
-    name: 'Slack',
-    lineKey: `${K}lineSlack`,
-    line: 'Post updates to a Slack channel with your own link.',
-    group: 'own-account',
-    shipped: false,
-  },
-  {
-    id: 'microsoft-teams',
-    name: 'Microsoft Teams',
-    lineKey: `${K}lineTeams`,
-    line: 'Post updates to a Teams channel with your own link.',
-    group: 'own-account',
-    shipped: false,
-  },
-  {
     id: 'whatsapp',
     name: 'WhatsApp',
     lineKey: `${K}lineWhatsApp`,

@@ -26,17 +26,12 @@ export interface IntegrationCatalogApp {
 }
 
 /**
- * The catalog itself — a small, fixed set spanning the categories the module map names. Frozen so no
+ * The catalog itself — a small, fixed set spanning the categories the module map names. Slack and
+ * Microsoft Teams were removed on 2026-11-10: a stored connection to them reads as `unknown_app`. Frozen so no
  * consumer can add to or reorder it at runtime; the ids are stable opaque handles a stored connection
  * references.
  */
 const CATALOG: readonly IntegrationCatalogApp[] = Object.freeze([
-  Object.freeze({
-    id: 'slack',
-    name: 'Slack',
-    category: 'messaging',
-    capabilities: Object.freeze(['notify', 'channel-post']),
-  }),
   Object.freeze({
     id: 'google-calendar',
     name: 'Google Calendar',
@@ -54,12 +49,6 @@ const CATALOG: readonly IntegrationCatalogApp[] = Object.freeze([
     name: 'Zapier',
     category: 'automation',
     capabilities: Object.freeze(['trigger', 'action']),
-  }),
-  Object.freeze({
-    id: 'teams',
-    name: 'Microsoft Teams',
-    category: 'messaging',
-    capabilities: Object.freeze(['notify', 'channel-post']),
   }),
 ]) as readonly IntegrationCatalogApp[];
 

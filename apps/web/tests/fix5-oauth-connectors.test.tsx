@@ -7,13 +7,10 @@ import { readAppConnectReturn } from '../src/lib/api/app-connect';
 import { ApiClient } from '../src/lib/api/client';
 
 /**
- * FIX5 — one-click Connect for GitHub, Slack and Teams: the provider's return is finished on the
- * Integrations page, Teams gets a team and channel picker, Disconnect asks once and then goes.
+ * FIX5 — one-click Connect for GitHub: the provider's return is finished on the Integrations page,
+ * Disconnect asks once and then goes. Slack and Microsoft Teams were removed (Peter, 2026-11-10).
  * No real provider is called: the API is a stand-in that answers by path.
  */
-
-const TEAM = '11111111-2222-3333-4444-555555555555';
-const CHANNEL = '19:abc@thread.tacv2';
 
 type Answer = (body: unknown) => unknown;
 
@@ -57,99 +54,74 @@ const view = (provider: string, connected: boolean, extra: Record<string, unknow
   setUp: true,
   connected,
   account: null,
-  channel: null,
   ...extra,
 });
 
 afterEach(() => globalThis.history.replaceState(null, '', '/'));
 
 describe('FIX5 one-click connectors', () => {
-  it('reads each provider’s return from the fragment', () => {
+  it('reads GitHub’s return from the fragment, and no other provider’s', () => {
     expect(readAppConnectReturn('#github=complete&code=c1&state=s1')).toEqual({
       provider: 'github',
       kind: 'complete',
       code: 'c1',
       state: 's1',
     });
-    expect(readAppConnectReturn('#teams=error')).toEqual({ provider: 'teams', kind: 'error' });
-    expect(readAppConnectReturn('#slack=complete&code=c1')).toEqual({
-      provider: 'slack',
+    expect(readAppConnectReturn('#github=error')).toEqual({ provider: 'github', kind: 'error' });
+    expect(readAppConnectReturn('#github=complete&code=c1')).toEqual({
+      provider: 'github',
       kind: 'error',
     });
+    expect(readAppConnectReturn('#slack=complete&code=c&state=s')).toBeNull();
+    expect(readAppConnectReturn('#teams=error')).toBeNull();
     expect(readAppConnectReturn('#figma=complete&code=c&state=s')).toBeNull();
   });
 
-  it('connects GitHub, Slack and Teams in one click, with the old way kept for Advanced', () => {
-    for (const id of ['github', 'slack', 'teams'] as const) {
-      const card = INTEGRATION_CARDS.find((c) => c.id === id);
-      expect(card?.flow).toBe('oauth');
-      expect(card?.advancedPath).toBeTruthy();
-    }
+  it('connects GitHub in one click, with the old way kept for Advanced; no Slack or Teams card', () => {
+    const card = INTEGRATION_CARDS.find((c) => c.id === 'github');
+    expect(card?.flow).toBe('oauth');
+    expect(card?.advancedPath).toBeTruthy();
+    expect(card?.what).not.toMatch(/issue|pull request/i);
+    const ids: readonly string[] = INTEGRATION_CARDS.map((c) => c.id);
+    expect(ids).not.toContain('slack');
+    expect(ids).not.toContain('teams');
   });
 
-  it('finishes Slack’s return and says where notices go', async () => {
+  it('finishes GitHub’s return under the owner’s session', async () => {
     globalThis.history.replaceState(
       null,
       '',
-      '/acme/automations/apps#slack=complete&code=c1&state=s1',
+      '/acme/automations/apps#github=complete&code=c1&state=s1',
     );
     const calls = mount({
       [`GET ${base}/github`]: () => view('github', false),
-      [`GET ${base}/slack`]: () => view('slack', false),
-      [`GET ${base}/teams`]: () => view('teams', false),
-      [`POST ${base}/slack/complete`]: () =>
-        view('slack', true, { account: 'Peetrix', channel: 'general' }),
-      [`GET ${base}/slack/channels`]: () => ({ channels: [{ id: 'C0GENERAL', name: 'general' }] }),
+      [`POST ${base}/github/complete`]: () => view('github', true, { account: 'peter' }),
     });
-    expect(
-      await screen.findByText('Slack is connected. Notices now go to the channel you picked.'),
-    ).toBeTruthy();
-    expect(calls.find((c) => c.path === `${base}/slack/complete`)?.body).toEqual({
+    expect(await screen.findByText('GitHub is connected.')).toBeTruthy();
+    expect(calls.find((c) => c.path === `${base}/github/complete`)?.body).toEqual({
       code: 'c1',
       state: 's1',
     });
-    expect(await screen.findByText('Notices go to #general.')).toBeTruthy();
     expect(globalThis.location.hash).toBe('');
+    expect(calls.some((c) => c.path.includes('/slack') || c.path.includes('/teams'))).toBe(false);
   });
 
-  it('picks a Teams team and channel, then posts notices there', async () => {
-    const calls = mount({
-      [`GET ${base}/github`]: () => view('github', false),
-      [`GET ${base}/slack`]: () => view('slack', false),
-      [`GET ${base}/teams`]: () => view('teams', true, { account: 'Peter' }),
-      [`GET ${base}/teams/channels`]: () => ({ teams: [{ id: TEAM, name: 'Studio' }] }),
-      [`GET ${base}/teams/channels?teamId=${TEAM}`]: () => ({
-        channels: [{ id: CHANNEL, name: 'General' }],
-      }),
-      [`POST ${base}/teams/channels`]: () => ({ id: 'l1', label: 'Studio › General' }),
-    });
-    const team = (await screen.findByLabelText('Team')) as HTMLSelectElement;
-    await screen.findByRole('option', { name: 'Studio' });
-    fireEvent.change(team, { target: { value: TEAM } });
-    const channel = (await screen.findByLabelText('Channel')) as HTMLSelectElement;
-    await screen.findByRole('option', { name: 'General' });
-    fireEvent.change(channel, { target: { value: CHANNEL } });
-    fireEvent.click(screen.getByRole('button', { name: 'Post notices here' }));
-    expect(await screen.findByText('Notices now also go to Studio › General.')).toBeTruthy();
-    expect(
-      calls.find((c) => c.method === 'POST' && c.path === `${base}/teams/channels`)?.body,
-    ).toEqual({
-      channelId: CHANNEL,
-      teamId: TEAM,
-      locale: 'en',
-    });
+  it('offers no Slack or Teams webhook path under Advanced', async () => {
+    mount({ [`GET ${base}/github`]: () => view('github', false) });
+    expect(await screen.findByText('Another way to connect GitHub')).toBeTruthy();
+    expect(screen.queryByText(/Slack|Teams/)).toBeNull();
   });
 
   it('asks once before Disconnect, then disconnects', async () => {
     const calls = mount({
       [`GET ${base}/github`]: () => view('github', true, { account: 'peter' }),
-      [`GET ${base}/slack`]: () => view('slack', false),
-      [`GET ${base}/teams`]: () => view('teams', false),
       [`DELETE ${base}/github`]: () => view('github', false),
     });
     fireEvent.click(await screen.findByRole('button', { name: 'Disconnect GitHub' }));
     expect(
-      screen.getByText('TManage will stop reading your GitHub issues and pull requests.'),
+      screen.getByText(
+        'TManage forgets its access to your GitHub account. Repository webhooks keep working.',
+      ),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Yes, disconnect' }));
     await waitFor(() =>
