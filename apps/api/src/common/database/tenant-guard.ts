@@ -1756,6 +1756,8 @@ interface TableRef {
   readonly tenantColumn: 'organization_id' | 'id';
   /** Paren depth of the declaration, used to resolve unqualified columns to the right scope. */
   readonly depth: number;
+  /** FIX4: token index of the declaration, to tell sibling subqueries at one depth apart. */
+  readonly index?: number;
 }
 
 export interface GuardAnalysis {
@@ -1864,7 +1866,7 @@ export function analyzeStatement(
 
       const tenantColumn = TENANT_TABLES[table];
       if (tenantColumn !== undefined) {
-        refs.push({ table, alias, tenantColumn, depth: head.depth });
+        refs.push({ table, alias, tenantColumn, depth: head.depth, index: j });
       }
 
       // Comma-joined table lists: `from projects p, work_items w`.
@@ -1915,6 +1917,13 @@ export function analyzeStatement(
     for (let i = from; i <= to && i < tokens.length; i += 1) excluded.add(i);
   };
 
+  // FIX4: a scalar subquery in a projection (`select exists(select 1 from t where
+  // t.organization_id = ?) as x`) carries its own FROM and WHERE. Its WHERE is a real predicate
+  // for its own tables, so it is carved out of the outer projection's exclusion; its own
+  // projection is excluded by its own pass of this loop. Such a predicate may only anchor a
+  // table declared inside that same subquery (`projectionSubquery`, checked in analyzeAnchors),
+  // so a correlated `outer.organization_id = ?` inside it never scopes the outer rows.
+  const projectionSubquery = new Map<number, number>();
   for (let i = 0; i < tokens.length; i += 1) {
     const token = tokens[i] as Token;
     if (token.kind !== 'word' || token.value !== 'select') continue;
@@ -1922,9 +1931,30 @@ export function analyzeStatement(
     while (j < tokens.length) {
       const t = tokens[j] as Token;
       if (t.kind === 'word' && t.value === 'from' && t.depth === token.depth) break;
+      if (t.kind === 'word' && t.value === 'select' && t.depth > token.depth) {
+        // A nested SELECT: exclude up to its FROM, keep the rest of it, resume after its `)`.
+        const innerDepth = t.depth;
+        let k = j + 1;
+        while (k < tokens.length) {
+          const u = tokens[k] as Token;
+          if (u.kind === 'word' && u.value === 'from' && u.depth === innerDepth) break;
+          if (u.kind === 'punct' && u.value === ')' && u.depth <= innerDepth) break;
+          k += 1;
+        }
+        excludeRange(j, k - 1);
+        let end = k;
+        while (end < tokens.length) {
+          const u = tokens[end] as Token;
+          if (u.kind === 'punct' && u.value === ')' && u.depth <= innerDepth) break;
+          if (!projectionSubquery.has(end)) projectionSubquery.set(end, innerDepth);
+          end += 1;
+        }
+        j = end;
+        continue;
+      }
+      excluded.add(j);
       j += 1;
     }
-    excludeRange(i + 1, j - 1);
   }
 
   // UPDATE … SET … : assignments are excluded, and assigning the tenant column is a
@@ -2003,7 +2033,9 @@ export function analyzeStatement(
     // inspecting the written tenant key. Only the SELECT half is anchor-checked.
     const readRefs = kind === 'insert' || kind === 'replace' ? refs.slice(1) : refs;
     if (readRefs.length > 0) {
-      violations.push(...analyzeAnchors(tokens, readRefs, params, organizationId, excluded));
+      violations.push(
+        ...analyzeAnchors(tokens, readRefs, params, organizationId, excluded, projectionSubquery),
+      );
     }
   }
 
@@ -2034,7 +2066,13 @@ function resolveOwner(
   }
 
   const depth = (tokens[index] as Token).depth;
-  const sameDepth = refs.filter((r) => r.depth === depth);
+  let sameDepth = refs.filter((r) => r.depth === depth);
+  if (sameDepth.length > 1 && depth > 0) {
+    // FIX4: sibling subqueries share a depth (`exists(select … from a …) or exists(select … from
+    // b …)`). Only the tables declared inside this column's own parentheses are in its scope.
+    const [start, end] = parenGroup(tokens, index, depth);
+    sameDepth = sameDepth.filter((r) => r.index !== undefined && r.index > start && r.index < end);
+  }
   if (sameDepth.length === 1) return sameDepth[0];
   if (sameDepth.length > 1) return undefined;
 
@@ -2046,12 +2084,35 @@ function resolveOwner(
   return candidates.length === 1 ? candidates[0] : undefined;
 }
 
+/** The `(` … `)` token indices that enclose `index` at `depth` (parens carry their inner depth). */
+function parenGroup(tokens: readonly Token[], index: number, depth: number): [number, number] {
+  let start = -1;
+  for (let i = index; i >= 0; i -= 1) {
+    const t = tokens[i] as Token;
+    if (t.kind === 'punct' && t.value === '(' && t.depth === depth) {
+      start = i;
+      break;
+    }
+  }
+  let end = tokens.length;
+  for (let i = index; i < tokens.length; i += 1) {
+    const t = tokens[i] as Token;
+    if (t.kind === 'punct' && t.value === ')' && t.depth === depth) {
+      end = i;
+      break;
+    }
+  }
+  return [start, end];
+}
+
 function analyzeAnchors(
   tokens: readonly Token[],
   refs: readonly TableRef[],
   params: readonly unknown[],
   organizationId: string,
   excluded: ReadonlySet<number>,
+  /** FIX4: token index -> depth of the projection subquery it sits in. */
+  projectionSubquery: ReadonlyMap<number, number> = new Map(),
 ): string[] {
   const violations: string[] = [];
   const groups = new Groups();
@@ -2065,6 +2126,9 @@ function analyzeAnchors(
 
     const owner = resolveOwner(refs, tokens, i);
     if (!owner || owner.tenantColumn !== token.value) continue;
+    // FIX4: inside a projection subquery only that subquery's own tables can be anchored.
+    const subqueryDepth = projectionSubquery.get(i);
+    if (subqueryDepth !== undefined && owner.depth < subqueryDepth) continue;
 
     const operator = tokens[i + 1];
     if (!operator || operator.kind !== 'punct') {
@@ -2267,6 +2331,19 @@ function analyzeInsert(
 
   for (let i = valuesIndex + 1; i < tokens.length; i += 1) {
     const t = tokens[i] as Token;
+    // FIX4: the value tuples end where `ON DUPLICATE KEY UPDATE` begins. Without this stop a
+    // call such as `json_merge_patch(prefs_json, ?)` in the update arm was read as one more
+    // value tuple, and its second argument as the tenant column's value, so every
+    // user_preferences upsert (tours, getting started, privacy, notification matrix) was refused.
+    // The update arm is checked on its own above (it may never assign the tenant key).
+    if (
+      tupleStart === -1 &&
+      t.kind === 'word' &&
+      t.value === 'on' &&
+      tokens[i + 1]?.value === 'duplicate'
+    ) {
+      break;
+    }
     if (t.kind === 'punct' && t.value === '(' && tupleStart === -1) {
       tupleStart = i;
       tupleDepth = t.depth;

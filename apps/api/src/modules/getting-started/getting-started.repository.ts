@@ -65,19 +65,23 @@ export class GettingStartedRepository {
   async readSignals(runner: TenantQueryRunner, context: TenantContext): Promise<ChecklistSignals> {
     const org = context.organizationId;
     const rows = await runner.execute<QueryRows>(
+      // FIX4: every subquery names its table by alias, so the tenant guard can bind each one to
+      // the active organization (unqualified sibling subqueries were ambiguous to it: a 500).
       `select
-         exists(select 1 from invitations where organization_id = ? and client_organization_id is null)
-           or (select count(*) from memberships
-                where organization_id = ? and status = 'active') > 1
+         exists(select 1 from invitations inv
+                 where inv.organization_id = ? and inv.client_organization_id is null)
+           or (select count(*) from memberships mem
+                where mem.organization_id = ? and mem.status = 'active') > 1
            as invite_teammate,
-         exists(select 1 from projects where organization_id = ?) as create_project,
-         exists(select 1 from client_organizations where organization_id = ?) as add_client,
-         exists(select 1 from storage_connections
-                 where organization_id = ? and status = 'connected') as connect_storage,
-         exists(select 1 from org_working_calendars
-                 where organization_id = ? and scope = 'org') as set_working_hours,
-         exists(select 1 from oauth_grants
-                 where organization_id = ? and user_id = ? and revoked_at is null) as try_ai_assistant`,
+         exists(select 1 from projects prj where prj.organization_id = ?) as create_project,
+         exists(select 1 from client_organizations cli where cli.organization_id = ?) as add_client,
+         exists(select 1 from storage_connections sto
+                 where sto.organization_id = ? and sto.status = 'connected') as connect_storage,
+         exists(select 1 from org_working_calendars cal
+                 where cal.organization_id = ? and cal.scope = 'org') as set_working_hours,
+         exists(select 1 from oauth_grants grt
+                 where grt.organization_id = ? and grt.user_id = ? and grt.revoked_at is null)
+           as try_ai_assistant`,
       [org, org, org, org, org, org, org, context.userId],
     );
     const row: Readonly<Record<string, unknown>> = rows[0] ?? {};
@@ -97,16 +101,16 @@ export class GettingStartedRepository {
     const org = context.organizationId;
     const rows = await runner.execute<QueryRows>(
       `select
-         exists(select 1 from storage_connections
-                 where organization_id = ? and status = 'connected') as storage_connected,
-         (select json_unquote(json_extract(policy_json, '$."security.require_two_step_roles"'))
-            from org_policies where organization_id = ? limit 1) as two_step_roles,
-         exists(select 1 from admin_export_requests
-                 where organization_id = ? and status = 'completed'
-                   and requested_at >= current_timestamp(3) - interval ${String(BACKUP_FRESH_DAYS)} day)
+         exists(select 1 from storage_connections sto
+                 where sto.organization_id = ? and sto.status = 'connected') as storage_connected,
+         (select json_unquote(json_extract(pol.policy_json, '$."security.require_two_step_roles"'))
+            from org_policies pol where pol.organization_id = ? limit 1) as two_step_roles,
+         exists(select 1 from admin_export_requests exp_req
+                 where exp_req.organization_id = ? and exp_req.status = 'completed'
+                   and exp_req.requested_at >= current_timestamp(3) - interval ${String(BACKUP_FRESH_DAYS)} day)
            as recent_export,
-         exists(select 1 from inbound_email_addresses
-                 where organization_id = ? and status = 'active') as mail_in_active`,
+         exists(select 1 from inbound_email_addresses mail
+                 where mail.organization_id = ? and mail.status = 'active') as mail_in_active`,
       [org, org, org, org],
     );
     const row: Readonly<Record<string, unknown>> = rows[0] ?? {};

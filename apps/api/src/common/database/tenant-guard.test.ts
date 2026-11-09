@@ -233,6 +233,40 @@ describe('INSERT', () => {
     );
   });
 
+  it('FIX4: accepts an upsert whose update arm calls a function with a bound value', () => {
+    accepts(
+      `insert into user_preferences
+         (id, organization_id, membership_id, prefs_json, created_at, updated_at)
+       values (?, ?, ?, ?, current_timestamp(3), current_timestamp(3))
+       on duplicate key update prefs_json = json_merge_patch(prefs_json, ?),
+                               updated_at = current_timestamp(3)`,
+      ['u1', ORG, 'm1', '{}', '{"coachMarks":{}}'],
+    );
+    rejects(
+      `insert into user_preferences (id, organization_id, membership_id, prefs_json)
+       values (?, ?, ?, ?) on duplicate key update prefs_json = json_merge_patch(prefs_json, ?)`,
+      ['u1', TWIN, 'm1', '{}', ORG],
+    );
+  });
+
+  it('FIX4: scalar subqueries in a projection are scoped by their own predicates', () => {
+    accepts('select exists(select 1 from projects where organization_id = ?) as a', [ORG]);
+    accepts(
+      `select exists(select 1 from projects where organization_id = ?)
+           or (select count(*) from memberships where organization_id = ? and status = ?) > 1 as a,
+         exists(select 1 from work_items where organization_id = ?) as b`,
+      [ORG, ORG, 'active', ORG],
+    );
+    // An unscoped or wrongly scoped subquery is still refused.
+    rejects('select exists(select 1 from projects) as a');
+    rejects('select exists(select 1 from projects where organization_id = ?) as a', [TWIN]);
+    // A correlated predicate inside a projection subquery never scopes the outer rows.
+    rejects(
+      'select (select count(*) from work_items w where projects.organization_id = ?) as n from projects',
+      [ORG],
+    );
+  });
+
   it('rejects an ON DUPLICATE KEY UPDATE that rewrites the tenant key', () => {
     rejects(
       `insert into work_items (id, organization_id, project_id, title) values (?, ?, ?, ?)
