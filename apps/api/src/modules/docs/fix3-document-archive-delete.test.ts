@@ -114,7 +114,7 @@ describe('documents: archive and delete (FIX3 item 6)', () => {
     expect(row.current.deletedAt).toBeNull();
   });
 
-  it('deletes with the restore window, and the doc is 404 from then on', async () => {
+  it('a deleted doc keeps a restore window and answers 404 afterwards', async () => {
     const { service, audits, restoreWindows } = harness();
     await service.softDelete(context, member([PROJECT]), DOC);
     expect(restoreWindows).toEqual([DOCUMENT_RESTORE_DAYS]);
