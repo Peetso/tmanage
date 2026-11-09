@@ -18607,5 +18607,6 @@
   "WorkBoard.moveDown": "Descer uma posição",
   "WorkBoard.moveUp": "Subir uma posição",
   "WorkListScreen.reorderHandle": "Mover {title}: setas para cima e para baixo",
-  "WorkListScreen.reorderHint": "Arraste para reordenar ou use as setas para cima e para baixo"
+  "WorkListScreen.reorderHint": "Arraste para reordenar ou use as setas para cima e para baixo",
+  "RouteTitle.files": "Arquivos"
 }

@@ -18777,5 +18777,6 @@
   "WorkBoard.moveUp": "طلّعها خطوة لفوق",
   "WorkBoard.moveDown": "نزّلها خطوة لتحت",
   "WorkListScreen.reorderHandle": "غيّر مكان {title}: استخدم سهمي فوق وتحت",
-  "WorkListScreen.reorderHint": "اسحب عشان تغيّر الترتيب، أو استخدم سهمي فوق وتحت"
+  "WorkListScreen.reorderHint": "اسحب عشان تغيّر الترتيب، أو استخدم سهمي فوق وتحت",
+  "RouteTitle.files": "الملفات"
 }

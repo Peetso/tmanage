@@ -18607,5 +18607,6 @@
   "WorkBoard.moveDown": "Eine Position nach unten",
   "WorkBoard.moveUp": "Eine Position nach oben",
   "WorkListScreen.reorderHandle": "{title} verschieben: Pfeiltasten nach oben und unten",
-  "WorkListScreen.reorderHint": "Zum Umsortieren ziehen oder die Pfeiltasten nach oben und unten verwenden"
+  "WorkListScreen.reorderHint": "Zum Umsortieren ziehen oder die Pfeiltasten nach oben und unten verwenden",
+  "RouteTitle.files": "Dateien"
 }

@@ -18609,5 +18609,6 @@
   "WorkBoard.moveDown": "Bajar un puesto",
   "WorkBoard.moveUp": "Subir un puesto",
   "WorkListScreen.reorderHandle": "Mover {title}: flechas arriba y abajo",
-  "WorkListScreen.reorderHint": "Arrastra para reordenar o usa las flechas arriba y abajo"
+  "WorkListScreen.reorderHint": "Arrastra para reordenar o usa las flechas arriba y abajo",
+  "RouteTitle.files": "Archivos"
 }

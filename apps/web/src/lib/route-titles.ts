@@ -217,6 +217,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/docs': { en: 'Docs', key: 'RouteTitle.docs' },
   '/[orgSlug]/docs/[documentId]': { en: 'Document', key: 'RouteTitle.document' },
   '/[orgSlug]/figma/[linkId]': { en: 'Figma review', key: 'RouteTitle.figmaReview' },
+  '/[orgSlug]/files': { en: 'Files', key: 'RouteTitle.files' },
   '/[orgSlug]/files/[fileId]': { en: 'File review', key: 'RouteTitle.fileReview' },
   '/[orgSlug]/docs/[documentId]/print': { en: 'Print document', key: 'RouteTitle.documentPrint' },
   '/[orgSlug]/docs/[documentId]/edit': { en: 'Edit document', key: 'RouteTitle.documentEdit' },

@@ -18607,5 +18607,6 @@
   "WorkBoard.moveDown": "下移一位",
   "WorkBoard.moveUp": "上移一位",
   "WorkListScreen.reorderHandle": "移动 {title}：使用上下方向键",
-  "WorkListScreen.reorderHint": "拖动以重新排序，或使用上下方向键"
+  "WorkListScreen.reorderHint": "拖动以重新排序，或使用上下方向键",
+  "RouteTitle.files": "文件"
 }

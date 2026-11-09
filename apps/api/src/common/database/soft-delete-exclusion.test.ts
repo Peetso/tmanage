@@ -88,6 +88,8 @@ const LIST_READS: Readonly<Record<string, readonly string[]>> = {
   'files/file-assets.repository.ts': [
     'listClientVisibleForDeliverable',
     'listRequestAttachmentsForProject',
+    // FIX3 item 11: the Files hub's per-project list.
+    'listReadyForProject',
   ],
   'files/comments.repository.ts': ['listForFile'],
   'clients/update-comments.repository.ts': ['listForUpdate'],

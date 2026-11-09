@@ -18607,5 +18607,6 @@
   "WorkBoard.moveDown": "Descendre d’un cran",
   "WorkBoard.moveUp": "Monter d’un cran",
   "WorkListScreen.reorderHandle": "Déplacer {title} : flèches haut et bas",
-  "WorkListScreen.reorderHint": "Faites glisser pour réorganiser, ou utilisez les flèches haut et bas"
+  "WorkListScreen.reorderHint": "Faites glisser pour réorganiser, ou utilisez les flèches haut et bas",
+  "RouteTitle.files": "Fichiers"
 }
