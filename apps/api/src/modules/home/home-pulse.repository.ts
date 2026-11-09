@@ -69,6 +69,9 @@ export class HomePulseRepository {
           eq(meetings.organizationId, context.organizationId),
           gte(meetings.startsAt, from),
           lt(meetings.startsAt, to),
+          // FIX3 item 2 (live M1): a cancelled or removed meeting is not on today's agenda.
+          isNull(meetings.cancelledAt),
+          isNull(meetings.deletedAt),
         ),
       )
       .orderBy(asc(meetings.startsAt), asc(meetings.id));
