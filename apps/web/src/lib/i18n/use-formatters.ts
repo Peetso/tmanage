@@ -1,11 +1,14 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
+import { displayFormat } from './display-format';
 import {
   formatDateTime,
   formatDay,
   formatMoneyMinor,
   formatNumber,
+  formatRelative,
+  formatTime,
   type FormatContext,
 } from './format';
 import { useActiveLocale } from './use-active-locale';
@@ -16,6 +19,10 @@ export interface DisplayFormatters {
   number(value: number, options?: Intl.NumberFormatOptions): string;
   day(iso: string, options?: Intl.DateTimeFormatOptions): string;
   dateTime(iso: string, options?: Intl.DateTimeFormatOptions): string;
+  /** FIX5 item 6b: a time of day ("16:59", "4:59 م" with Latin digits when saved so). */
+  time(iso: string, options?: Intl.DateTimeFormatOptions): string;
+  /** FIX5 item 6b: a relative phrase ("8 minutes ago", "قبل 8 دقائق"). */
+  relative(value: number, unit: Intl.RelativeTimeFormatUnit): string;
 }
 
 /**
@@ -26,6 +33,12 @@ export interface DisplayFormatters {
  */
 export function useDisplayFormatters(): DisplayFormatters {
   const locale = useActiveLocale();
+  // FIX5 item 6b (B-N7): re-derive when the saved digits or date layout arrive or change.
+  const saved = useSyncExternalStore(
+    (onChange) => displayFormat.subscribe(onChange),
+    () => displayFormat.get(),
+    () => displayFormat.get(),
+  );
   return useMemo(() => {
     const ctx: FormatContext = { locale };
     return {
@@ -34,6 +47,10 @@ export function useDisplayFormatters(): DisplayFormatters {
       day: (iso, options) => (options ? formatDay(iso, ctx, options) : formatDay(iso, ctx)),
       dateTime: (iso, options) =>
         options ? formatDateTime(iso, ctx, options) : formatDateTime(iso, ctx),
+      time: (iso, options) => (options ? formatTime(iso, ctx, options) : formatTime(iso, ctx)),
+      relative: (value, unit) => formatRelative(value, unit, ctx),
     };
-  }, [locale]);
+    // `saved` is read by the wrappers through the store; it is listed so they re-bind on a change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locale, saved]);
 }

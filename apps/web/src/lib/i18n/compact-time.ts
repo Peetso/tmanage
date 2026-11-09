@@ -1,3 +1,4 @@
+import { shapeDigits, withNumerals } from './display-format';
 import { activeLocale } from './locale-store';
 import { translate, type MessageKey } from './t';
 
@@ -26,17 +27,23 @@ function isEnglish(locale: string): boolean {
   return locale.toLowerCase().startsWith('en');
 }
 
-/** `14m` in English, `١٤ د` in Arabic — one compact age cell. */
+/** `14m` in English, `14 دقيقة` in Arabic — one compact age cell. */
 export function compactUnit(
   value: number,
   unit: CompactUnit,
   locale: string = activeLocale.get(),
 ): string {
-  if (isEnglish(locale)) return `${value}${EN_SUFFIX[unit]}`;
+  if (isEnglish(locale)) return shapeDigits(`${value}${EN_SUFFIX[unit]}`);
   try {
-    return new Intl.NumberFormat(locale, { style: 'unit', unit, unitDisplay: 'narrow' }).format(
-      value,
-    );
+    // FIX5 item 6b (B-N7): the saved digit shapes, not the locale's default ones. Arabic and Urdu
+    // narrow units are a single letter ("8 د", "7 ي") that readers could not decode, so those two
+    // spell the unit out ("8 دقائق", "7 أيام", "دقيقة"), which Intl also inflects for the count.
+    const spelled = /^(ar|ur)(-|$)/iu.test(locale);
+    return new Intl.NumberFormat(withNumerals(locale), {
+      style: 'unit',
+      unit,
+      unitDisplay: spelled ? 'long' : 'narrow',
+    }).format(value);
   } catch {
     return `${value}${EN_SUFFIX[unit]}`;
   }
@@ -49,7 +56,10 @@ export function relativeAgo(
   locale: string = activeLocale.get(),
 ): string {
   try {
-    return new Intl.RelativeTimeFormat(locale, { numeric: 'always' }).format(-value, unit);
+    return new Intl.RelativeTimeFormat(withNumerals(locale), { numeric: 'always' }).format(
+      -value,
+      unit,
+    );
   } catch {
     return `${value} ${unit}`;
   }

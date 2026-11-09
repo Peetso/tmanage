@@ -14,6 +14,7 @@ import type { InboxBundle, InboxItem, InboxMode, InboxUsageNotice } from '../../
 import type { ApiClient } from '../../lib/api/client';
 import { compactUnit, translateOr } from '../../lib/i18n/compact-time';
 import { activeLocale } from '../../lib/i18n/locale-store';
+import { withNumerals } from '../../lib/i18n/display-format';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { markBundleDone, snoozeBundle, unsnoozeBundle } from '../../lib/api/inbox-snooze';
@@ -981,7 +982,10 @@ function shortAgo(value: string, now: Date): string {
   if (hours < 48) return compactUnit(hours, 'hour');
   const days = Math.floor(hours / 24);
   if (days < 7) return compactUnit(days, 'day');
-  return new Intl.DateTimeFormat(activeLocale.get(), { day: 'numeric', month: 'short' }).format(at);
+  return new Intl.DateTimeFormat(withNumerals(activeLocale.get()), {
+    day: 'numeric',
+    month: 'short',
+  }).format(at);
 }
 
 /** The rail's own glyph for what the bundle is about: work, client, storage, or (CQ-12) the rest. */

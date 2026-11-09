@@ -11,6 +11,7 @@ import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { withNumerals } from '../../lib/i18n/display-format';
 import type { MessageKey } from '../../lib/i18n/t';
 
 export interface HomePinnedSectionProps {
@@ -122,7 +123,7 @@ function shortDay(value: string, locale: string): string {
   const tag = locale.toLowerCase().startsWith('ar') ? 'ar-u-nu-latn' : 'en-GB';
   return Number.isNaN(parsed.getTime())
     ? value
-    : parsed.toLocaleDateString(tag, { day: 'numeric', month: 'short' });
+    : parsed.toLocaleDateString(withNumerals(tag), { day: 'numeric', month: 'short' });
 }
 
 /** The short kind word in the meta line ("Work", "عمل") — never the raw kind key. */

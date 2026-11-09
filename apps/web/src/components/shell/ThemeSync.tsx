@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getDisplayPreferences } from '../../lib/api/display-preferences';
+import { displayFormat } from '../../lib/i18n/display-format';
 import { activeLocale } from '../../lib/i18n/locale-store';
 import { applyDensity, applyTheme } from '../../lib/theme';
 
@@ -35,5 +36,11 @@ export function ThemeSync({ organizationSlug }: { organizationSlug: string }) {
   useEffect(() => {
     if (locale) activeLocale.set(locale);
   }, [locale]);
+  // FIX5 item 6b (B-N7): the saved digits and date layout, for every shared formatter.
+  const numerals = preferences.data?.numerals;
+  const dateFormat = preferences.data?.dateFormat;
+  useEffect(() => {
+    if (numerals || dateFormat) displayFormat.set({ numerals, dateFormat });
+  }, [numerals, dateFormat]);
   return null;
 }

@@ -15,6 +15,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { withNumerals } from '../../lib/i18n/display-format';
 import type { MessageKey } from '../../lib/i18n/t';
 
 export interface HomeRecentItemsViewProps {
@@ -105,7 +106,11 @@ export function HomeRecentItemsView({ organizationSlug, client }: HomeRecentItem
                     {href ? <Link href={href}>{title}</Link> : <span>{title}</span>}
                   </span>
                   <span className="tm-home-saved__meta">
-                    {tOr(...recentKind(item.objectType))} · {t('HomeRecentItemsView.viewedPrefix')}{' '}
+                    {tOr(...recentKind(item.objectType))} ·{' '}
+                    {/* FIX5 item 6b: "مهمة" is feminine, so a task reads "فُتحت في", not "فُتح في". */}
+                    {item.objectType === 'work'
+                      ? tOr('HomeRecentItemsView.viewedPrefixWork', 'viewed')
+                      : t('HomeRecentItemsView.viewedPrefix')}{' '}
                     {shortDay(item.viewedAt, locale)}
                   </span>
                 </span>
@@ -181,7 +186,7 @@ function shortDay(value: string, locale: string): string {
   const tag = locale.toLowerCase().startsWith('ar') ? 'ar-u-nu-latn' : 'en-GB';
   return Number.isNaN(parsed.getTime())
     ? value
-    : parsed.toLocaleDateString(tag, { day: 'numeric', month: 'short' });
+    : parsed.toLocaleDateString(withNumerals(tag), { day: 'numeric', month: 'short' });
 }
 
 function recentGlyph(objectType: RecentItemObjectType): string {

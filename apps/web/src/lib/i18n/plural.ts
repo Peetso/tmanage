@@ -1,3 +1,5 @@
+import { withNumerals } from './display-format';
+
 /**
  * A count in the locale's plural form (R34 D1/D2). The catalogs keep one key per CLDR category
  * under a base — `<base>.zero|one|two|few|many|other` — because Arabic has six forms and English
@@ -10,7 +12,7 @@ export function pluralPhrase(
   base: string,
   count: number,
   english: { readonly one: string; readonly other: string },
-  display: string = count.toLocaleString(locale),
+  display: string = count.toLocaleString(withNumerals(locale)),
 ): string {
   const category = new Intl.PluralRules(locale).select(count);
   const fallback = category === 'one' ? english.one : english.other;

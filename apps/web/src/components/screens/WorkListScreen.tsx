@@ -26,6 +26,7 @@ import { useMembers } from '../../lib/use-members';
 import type { ApiClient } from '../../lib/api/client';
 import type { MessageKey } from '../../lib/i18n/t';
 import { activeIsEnglish, compactUnit, translateOr } from '../../lib/i18n/compact-time';
+import { withNumerals } from '../../lib/i18n/display-format';
 import { appLocale } from '../../lib/i18n/app-locale';
 import { countNoun } from '../../lib/i18n/plural';
 import { useT } from '../../lib/i18n/use-t';
@@ -1088,7 +1089,7 @@ function shortDay(value: string): string {
   if (Number.isNaN(parsed.getTime())) return value;
   // The active locale's month names and digits, so a row never mixes digit systems (C1).
   const tag = activeIsEnglish() ? 'en-GB' : appLocale();
-  return new Intl.DateTimeFormat(tag, {
+  return new Intl.DateTimeFormat(withNumerals(tag), {
     day: 'numeric',
     month: 'short',
     ...(bare ? { timeZone: 'UTC' } : {}),
@@ -1097,7 +1098,8 @@ function shortDay(value: string): string {
 
 /** A count in the active locale's digits, matching the age and date cells beside it (C1). */
 function localCount(value: number): string {
-  return new Intl.NumberFormat(appLocale()).format(value);
+  // FIX5 item 6b (B-N7): the saved digit shapes ("8 مهام" with Latin digits when saved so).
+  return new Intl.NumberFormat(withNumerals(appLocale())).format(value);
 }
 
 /** The list separator before a count: the Arabic comma outside English (C1). */

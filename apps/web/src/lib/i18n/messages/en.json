@@ -4869,6 +4869,7 @@
   "HomeRecentItemsView.emptyBody": "Work, projects, documents and meetings you open are kept here, newest first, so you can return to them from any screen.",
   "HomeRecentItemsView.listLabel": "Recently viewed",
   "HomeRecentItemsView.viewedPrefix": "viewed",
+  "HomeRecentItemsView.viewedPrefixWork": "viewed",
   "HomeRecentItemsView.workLabel": "Recently viewed work item",
   "HomeRecentItemsView.projectLabel": "Recently viewed project",
   "HomeRecentItemsView.documentLabel": "Recently viewed document",

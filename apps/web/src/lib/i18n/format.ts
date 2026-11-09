@@ -1,4 +1,5 @@
 import type { DisplayLocale } from '../api/display-preferences';
+import { numericDay, withNumerals } from './display-format';
 
 /**
  * i18n (NFR-02, I18N-01/04/08) — locale- and timezone-aware `Intl` formatting.
@@ -25,6 +26,18 @@ export interface FormatContext {
   readonly timeZone?: string;
 }
 
+/**
+ * FIX5 item 6b (B-N7): a "standard" date request — a `dateStyle` of short or medium with no
+ * hand-picked fields — is where the member's saved date layout (ISO, US, EU) applies. A caller
+ * that asks for named parts (`{ day, month: 'short' }`) or a long/full style keeps its own layout
+ * and only gets the saved digits.
+ */
+function standardDateStyle(options: Intl.DateTimeFormatOptions): boolean {
+  const { dateStyle, year, month, day, weekday, era } = options;
+  if (year ?? month ?? day ?? weekday ?? era) return false;
+  return dateStyle === 'short' || dateStyle === 'medium';
+}
+
 function withTimeZone(
   options: Intl.DateTimeFormatOptions,
   timeZone: string | undefined,
@@ -39,7 +52,7 @@ export function formatMoneyMinor(
   ctx: FormatContext,
 ): string {
   try {
-    return new Intl.NumberFormat(ctx.locale, { style: 'currency', currency }).format(
+    return new Intl.NumberFormat(withNumerals(ctx.locale), { style: 'currency', currency }).format(
       amountMinor / 100,
     );
   } catch {
@@ -54,7 +67,7 @@ export function formatNumber(
   ctx: FormatContext,
   options?: Intl.NumberFormatOptions,
 ): string {
-  return new Intl.NumberFormat(ctx.locale, options).format(value);
+  return new Intl.NumberFormat(withNumerals(ctx.locale), options).format(value);
 }
 
 /** Format an ISO instant as a calendar day in the active locale. Unparseable input is returned verbatim. */
@@ -65,7 +78,28 @@ export function formatDay(
 ): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(ctx.locale, withTimeZone(options, ctx.timeZone)).format(at);
+  if (standardDateStyle(options)) {
+    const saved = numericDay(at, options.timeZone ?? ctx.timeZone);
+    if (saved !== undefined) return saved;
+  }
+  return new Intl.DateTimeFormat(
+    withNumerals(ctx.locale),
+    withTimeZone(options, ctx.timeZone),
+  ).format(at);
+}
+
+/** Format an ISO instant as a time of day in the active locale, with the saved digits. */
+export function formatTime(
+  iso: string,
+  ctx: FormatContext,
+  options: Intl.DateTimeFormatOptions = { timeStyle: 'short' },
+): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return iso;
+  return new Intl.DateTimeFormat(
+    withNumerals(ctx.locale),
+    withTimeZone(options, ctx.timeZone),
+  ).format(at);
 }
 
 /** Format an ISO instant as a date and time in the active locale and timezone. */
@@ -76,5 +110,34 @@ export function formatDateTime(
 ): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(ctx.locale, withTimeZone(options, ctx.timeZone)).format(at);
+  if (standardDateStyle(options)) {
+    const zone = options.timeZone ?? ctx.timeZone;
+    const saved = numericDay(at, zone);
+    if (saved !== undefined) {
+      if (options.timeStyle === undefined) return saved;
+      const time = new Intl.DateTimeFormat(
+        withNumerals(ctx.locale),
+        withTimeZone({ timeStyle: options.timeStyle }, zone),
+      ).format(at);
+      return `${saved} ${time}`;
+    }
+  }
+  return new Intl.DateTimeFormat(
+    withNumerals(ctx.locale),
+    withTimeZone(options, ctx.timeZone),
+  ).format(at);
+}
+
+/** A relative phrase ("قبل ٨ دقائق", "8 minutes ago") in the active locale, with the saved digits. */
+export function formatRelative(
+  value: number,
+  unit: Intl.RelativeTimeFormatUnit,
+  ctx: FormatContext,
+  options: Intl.RelativeTimeFormatOptions = { numeric: 'always' },
+): string {
+  try {
+    return new Intl.RelativeTimeFormat(withNumerals(ctx.locale), options).format(value, unit);
+  } catch {
+    return `${String(value)} ${unit}`;
+  }
 }

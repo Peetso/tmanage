@@ -31,6 +31,7 @@ import { formatDay, stateCapsule, stateLabel } from '../../lib/work-item-present
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { translateOr } from '../../lib/i18n/compact-time';
+import { withNumerals } from '../../lib/i18n/display-format';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { countNoun } from '../../lib/i18n/plural';
 import { fill } from '../../lib/privacy-presentation';
@@ -684,7 +685,7 @@ function useDayPulseItems(
       } else state = 'later';
       return {
         id: slot.id,
-        time: new Date(slot.start).toLocaleTimeString('en-GB', {
+        time: new Date(slot.start).toLocaleTimeString(withNumerals('en-GB'), {
           hour: '2-digit',
           minute: '2-digit',
           hour12: false,
@@ -809,7 +810,7 @@ function shortDay(value: string | null, locale: string): string {
   if (value === null) return '—';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return formatDay(value);
-  return parsed.toLocaleDateString(isArabic(locale) ? 'ar-u-nu-latn' : 'en-GB', {
+  return parsed.toLocaleDateString(withNumerals(isArabic(locale) ? 'ar-u-nu-latn' : 'en-GB'), {
     day: 'numeric',
     month: 'short',
   });
@@ -819,7 +820,7 @@ function shortDay(value: string | null, locale: string): string {
 function longDay(value: string, locale: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return formatDay(value);
-  return parsed.toLocaleDateString(isArabic(locale) ? 'ar-u-nu-latn' : 'en-GB', {
+  return parsed.toLocaleDateString(withNumerals(isArabic(locale) ? 'ar-u-nu-latn' : 'en-GB'), {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
