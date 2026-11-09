@@ -1119,7 +1119,8 @@ export function WorkTimelineScreen({
 }
 
 function barClass(row: WorkTimelineRow, late: boolean): string {
-  if (row.state === 'done') return '';
+  // Peter 2026-11-09: Done work shows in the brand colour on every Work view.
+  if (row.state === 'done') return 'wp-gantt__bar--done';
   if (late) return 'wp-gantt__bar--late';
   return 'wp-gantt__bar--open';
 }

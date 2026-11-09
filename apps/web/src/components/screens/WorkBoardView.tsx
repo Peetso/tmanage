@@ -301,6 +301,7 @@ export function WorkBoardView({
                       key={item.id}
                       className="tm-wk-card-tile"
                       data-dragging={dragging === item.id || undefined}
+                      data-done={item.state === 'done' || undefined}
                       {...(api
                         ? {
                             draggable: true,

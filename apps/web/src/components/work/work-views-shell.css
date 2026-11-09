@@ -14,3 +14,40 @@
 .tm-wk-viewtools > .wp-toolbar {
   display: contents;
 }
+
+/*
+ * Peter 2026-11-09: work whose state is Done shows in the TManage brand colour (the lime accent,
+ * or the company's own colour when the owner has set one) on List, Board, Timeline and Calendar.
+ * Done still carries its own word and its ✓ shape, so it never relies on colour alone.
+ */
+.tm-wk-table .tm-state-capsule--done,
+.wp-rows .tm-state-capsule--done {
+  border-color: var(--lime-600);
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+.tm-wk-table .tm-state-capsule--done .tm-state-capsule__glyph,
+.wp-rows .tm-state-capsule--done .tm-state-capsule__glyph {
+  color: var(--tm-on-lime);
+}
+
+.tm-wk-card-tile[data-done] {
+  border-color: var(--lime-600);
+  box-shadow: inset 4px 0 0 var(--lime-500);
+}
+
+[dir='rtl'] .tm-wk-card-tile[data-done] {
+  box-shadow: inset -4px 0 0 var(--lime-500);
+}
+
+.wp-gantt__bar.wp-gantt__bar--done {
+  border: var(--b-quiet) solid var(--lime-600);
+  background: var(--lime-500);
+}
+
+.wp-cal__item.wp-cal__item--done {
+  border-color: var(--lime-600);
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
