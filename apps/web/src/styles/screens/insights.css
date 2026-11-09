@@ -165,7 +165,7 @@
 .tm-ins-badge[data-tone='lime'] {
   border-color: var(--lime-500);
   background: var(--lime-500);
-  color: var(--tm-ink-absolute, #090a09);
+  color: var(--tm-on-lime, #090a09);
 }
 
 .tm-ins-metric__label {
@@ -443,7 +443,7 @@
 
 .tm-ins-table a:hover {
   text-decoration: underline;
-  text-decoration-color: var(--lime-600);
+  text-decoration-color: var(--tm-accent-on-ink-deep, var(--lime-600));
   text-underline-offset: 0.2em;
 }
 
@@ -723,7 +723,7 @@
 .tm-ins-funnel__step[data-tone='lime'] .tm-ins-funnel__pill {
   border: var(--b-quiet) solid var(--ink-950);
   background: var(--lime-500);
-  color: var(--tm-ink-absolute, #090a09);
+  color: var(--tm-on-lime, #090a09);
 }
 
 .tm-ins-funnel__step[data-tone='quiet'] .tm-ins-funnel__pill {

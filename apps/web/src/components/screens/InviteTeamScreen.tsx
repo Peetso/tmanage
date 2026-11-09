@@ -493,7 +493,7 @@ const TEAM_CSS = `
 .tm-ob-team__withholds, .tm-ob-team__note { margin: 0; font-size: var(--t-caption); line-height: var(--t-caption-line); color: #a7aca0; }
 .tm-ob-team__withholds { color: #f5f6f0; }
 .tm-ob-team__night .tm-ob-actions { margin-block-start: 10px; }
-.tm-ob-team__night .tm-button--lime:disabled { opacity: 0.55; background: var(--lime-500); color: var(--tm-ink-absolute); }
+.tm-ob-team__night .tm-button--lime:disabled { opacity: 0.55; background: var(--lime-500); color: var(--tm-on-lime); }
 .tm-ob-team__skip {
   display: inline-flex; align-items: center; min-block-size: 48px; padding: 0 18px; border-radius: var(--r-capsule);
   background: #242720; color: #f5f6f0; font-size: var(--t-caption); line-height: var(--t-caption-line);

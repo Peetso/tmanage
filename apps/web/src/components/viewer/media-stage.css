@@ -347,7 +347,7 @@
   block-size: 32px;
   border-width: 3px;
   background: var(--ink-950);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-media-marker--resolved {

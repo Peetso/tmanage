@@ -268,7 +268,7 @@
 }
 
 .tm-pricing-plan--ink .tm-pricing-plan__check {
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 /* ── Compared with Basecamp ──────────────────────────────────────────────── */

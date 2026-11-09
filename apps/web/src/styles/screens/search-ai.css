@@ -126,7 +126,7 @@
 
 .tm-sa-link:hover {
   color: var(--ink-950);
-  text-decoration-color: var(--lime-600);
+  text-decoration-color: var(--tm-accent-on-ink-deep, var(--lime-600));
 }
 
 .tm-sa-empty {
@@ -411,7 +411,7 @@ a.tm-sa-hit__title:hover {
 .tm-sa-check__input:checked + .tm-sa-check__box {
   border-color: var(--ink-950);
   background: var(--ink-950);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-sa-check__input:focus-visible + .tm-sa-check__box {
@@ -883,7 +883,7 @@ a.tm-sa-hit__title:hover {
   border: 0;
   border-radius: var(--r-capsule);
   background: var(--tm-ink-absolute);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font: inherit;
   font-size: var(--t-ui-md);
   line-height: 1;

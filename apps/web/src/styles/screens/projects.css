@@ -312,7 +312,7 @@
   block-size: 24px;
   border: var(--b-quiet) solid var(--lime-500);
   border-radius: var(--r-capsule);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-family: var(--font-mono);
   font-size: 11px;
 }

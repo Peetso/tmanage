@@ -22,7 +22,7 @@
 
 .tm-command-palette__option-hint {
   flex: none;
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.14em;
@@ -32,7 +32,7 @@
 .tm-command-palette__error {
   margin: 0;
   padding: var(--s3) 28px;
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 [data-theme='dark'] .tm-command-palette__group-label {

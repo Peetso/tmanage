@@ -837,7 +837,7 @@
 }
 
 .tm-fw-deps__label.tm-fw-mono {
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-fw-deps__plus {
@@ -1109,7 +1109,7 @@
 }
 
 .tm-fw-ink__copy .tm-web-eyebrow {
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-fw-ink .tm-fw-ink__title {

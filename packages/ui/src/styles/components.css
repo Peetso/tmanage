@@ -28,6 +28,13 @@
    * lime is 1.20:1. `tests/contrast.test.ts` asserts all three.
    */
   --tm-on-lime: var(--tm-ink-absolute);
+  /*
+   * FIX4 item 5: the accent drawn as a glyph or word on the always-dark surfaces. It is the lime
+   * itself here; a company brand colour that would vanish on ink replaces it with a lighter tone
+   * (`apps/web/src/lib/brand-accent.ts`). Every accent-coloured foreground reads these two.
+   */
+  --tm-accent-on-ink: var(--lime-500);
+  --tm-accent-on-ink-deep: var(--lime-600);
 
   /*
    * The three semantic colours are used as *text* by the design artifacts — a danger
@@ -125,7 +132,7 @@
   margin-inline-start: calc(var(--s5) * -1 + 6px);
   border-radius: var(--r-capsule);
   background: var(--ink-800);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-family: var(--font-mono);
   font-size: var(--t-ui-md);
   line-height: 1;

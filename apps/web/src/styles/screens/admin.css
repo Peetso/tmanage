@@ -181,11 +181,11 @@
 }
 
 .tm-cc-card--ink .tm-cc-eyebrow {
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 [data-theme='dark'] .tm-cc-card--ink .tm-cc-eyebrow {
-  color: var(--lime-600);
+  color: var(--tm-accent-on-ink-deep, var(--lime-600));
 }
 
 .tm-cc-orb {
@@ -772,7 +772,7 @@
 
 .tm-cc-row-button:hover {
   text-decoration: underline;
-  text-decoration-color: var(--lime-600);
+  text-decoration-color: var(--tm-accent-on-ink-deep, var(--lime-600));
   text-underline-offset: 0.2em;
 }
 

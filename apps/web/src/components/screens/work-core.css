@@ -121,7 +121,7 @@
   block-size: 28px;
   border-radius: var(--r-capsule);
   background: var(--ink-800);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-family: var(--font-mono);
   font-size: var(--t-ui-sm);
 }
@@ -153,7 +153,7 @@
 
 [data-theme='dark'] .tm-wk-new:hover .tm-wk-new__orb {
   background: var(--tm-ink-absolute);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 /* ── Filter capsules ──────────────────────────────────────────────────────────── */
@@ -394,7 +394,7 @@
   block-size: 22px;
   border-radius: var(--r-capsule);
   background: var(--tm-ink-absolute);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-family: var(--font-mono);
   font-size: 11px;
 }

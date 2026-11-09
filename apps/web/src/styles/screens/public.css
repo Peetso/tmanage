@@ -1462,7 +1462,7 @@
 
 .tm-pub-card a.tm-pub-card__title:hover {
   text-decoration: underline;
-  text-decoration-color: var(--lime-600);
+  text-decoration-color: var(--tm-accent-on-ink-deep, var(--lime-600));
 }
 
 .tm-pub-tags {

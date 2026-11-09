@@ -98,7 +98,7 @@
 
   .tm-phone-chat__banner .tm-phone-icon {
     flex: none;
-    color: var(--lime-500);
+    color: var(--tm-accent-on-ink, var(--lime-500));
   }
 
   .tm-phone-chat__day {
@@ -213,7 +213,7 @@
     block-size: var(--orb-navigation);
     border-radius: var(--r-capsule);
     background: var(--tm-ink-absolute);
-    color: var(--lime-500);
+    color: var(--tm-accent-on-ink, var(--lime-500));
   }
 
   .tm-chat-channel--phone .tm-chat-file__name {

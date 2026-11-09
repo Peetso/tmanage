@@ -80,7 +80,7 @@
 }
 
 .tm-r48-chart__done {
-  fill: var(--lime-500);
+  fill: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-r48-legend {

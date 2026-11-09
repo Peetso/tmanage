@@ -780,7 +780,7 @@
 
 .tm-xlsx__marker[data-state='selected'] {
   background: var(--ink-950);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-xlsx__marker[data-state='resolved'] {

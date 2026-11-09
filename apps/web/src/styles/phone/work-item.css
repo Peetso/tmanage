@@ -180,7 +180,7 @@
 
   .tm-wk-detail .tm-wk-file:first-child .tm-wk-badge {
     background: var(--tm-ink-absolute);
-    color: var(--lime-500);
+    color: var(--tm-accent-on-ink, var(--lime-500));
   }
 
   .tm-wk-detail .tm-wk-file:nth-child(2) .tm-wk-badge {

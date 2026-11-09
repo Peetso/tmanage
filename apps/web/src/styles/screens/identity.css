@@ -266,7 +266,7 @@
 
 .tm-id-step--ink {
   background: var(--tm-ink-absolute, var(--ink-950));
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-id-step--warning {
@@ -315,7 +315,7 @@
   block-size: 22px;
   border-radius: var(--r-capsule);
   background: var(--ink-800);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 1;
@@ -539,7 +539,7 @@
 
 .tm-id-fallback:has(input:checked) .tm-id-fallback__glyph {
   background: var(--tm-ink-absolute, var(--ink-950));
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-id-fallback:has(input:focus-visible) .tm-id-fallback__glyph {
@@ -660,7 +660,7 @@
   border: var(--b-structural) solid var(--tm-ink-absolute, #090a09);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
-  color: var(--tm-ink-absolute, #090a09);
+  color: var(--tm-on-lime, #090a09);
   font-size: 11px;
   line-height: 15px;
   font-weight: 600;
@@ -755,7 +755,7 @@
   block-size: 48px;
   border-radius: var(--r-capsule);
   background: var(--tm-ink-absolute, var(--ink-950));
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-size: 16px;
   font-weight: 600;
   line-height: 1;
@@ -815,7 +815,7 @@
   block-size: 36px;
   border-radius: var(--r-capsule);
   background: var(--tm-ink-absolute, var(--ink-950));
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-family: var(--font-mono);
   font-size: 14px;
   line-height: 1;

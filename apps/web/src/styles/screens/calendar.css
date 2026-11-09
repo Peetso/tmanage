@@ -267,7 +267,7 @@
   font-size: var(--t-caption);
   line-height: 1;
   font-weight: 500;
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-cal-track__slot {
@@ -787,7 +787,7 @@
   font-size: 9px;
   line-height: 1;
   font-weight: 600;
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-cal-orb--empty {

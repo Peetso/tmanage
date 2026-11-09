@@ -48,7 +48,7 @@
 }
 
 .tm-connected__owner-eyebrow {
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 /* Heading/Card. */

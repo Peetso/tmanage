@@ -47,7 +47,7 @@
 
   .tm-phone-home__eyebrow {
     margin: 0;
-    color: var(--lime-500);
+    color: var(--tm-accent-on-ink, var(--lime-500));
     font-family: var(--font-mono);
     font-size: var(--t-caption);
     font-weight: 500;
@@ -135,7 +135,7 @@
     block-size: var(--orb-compact);
     border-radius: var(--r-capsule);
     background: var(--tm-ink-absolute);
-    color: var(--lime-500);
+    color: var(--tm-accent-on-ink, var(--lime-500));
   }
 
   .tm-phone-home__next-title {

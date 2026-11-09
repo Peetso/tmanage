@@ -334,7 +334,7 @@
 
 a.tm-aut-rowtitle:hover {
   text-decoration: underline;
-  text-decoration-color: var(--lime-600);
+  text-decoration-color: var(--tm-accent-on-ink-deep, var(--lime-600));
   text-underline-offset: 3px;
 }
 
@@ -509,7 +509,7 @@ a.tm-aut-rowtitle:hover {
 }
 
 .tm-card--ink .tm-aut-eyebrow {
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-aut-eyebrow--danger {
@@ -860,7 +860,7 @@ a.tm-aut-rowtitle:hover {
   block-size: 44px;
   border-radius: var(--r-capsule);
   background: var(--tm-ink-absolute);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-size: var(--t-ui-md);
   font-weight: 600;
 }

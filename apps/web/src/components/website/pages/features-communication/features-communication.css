@@ -553,7 +553,7 @@
   margin-block: var(--s3);
   border-radius: var(--r-capsule);
   background: var(--web-ink);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-wc-flow .tm-web-object {
@@ -636,7 +636,7 @@
   block-size: var(--orb-compact);
   border-radius: var(--r-capsule);
   background: var(--web-ink);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-size: var(--t-ui-md);
 }
 

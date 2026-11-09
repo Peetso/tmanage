@@ -105,7 +105,7 @@
   block-size: 18px;
   border: 1.5px solid var(--lime-500);
   border-radius: var(--r-capsule);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 600;
@@ -201,7 +201,7 @@
 .tm-card--lime .tm-home-orb {
   border-color: var(--tm-ink-absolute);
   background: var(--tm-ink-absolute);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-home-card .tm-card__title {
@@ -529,7 +529,7 @@
 .tm-home-saved__item[data-kind='doc'] .tm-home-orb {
   border-color: var(--tm-ink-absolute);
   background: var(--tm-ink-absolute);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-home-saved__empty {
@@ -779,7 +779,7 @@
   block-size: 18px;
   border: 1.5px solid var(--lime-500);
   border-radius: var(--r-capsule);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-size: 8px;
 }
 

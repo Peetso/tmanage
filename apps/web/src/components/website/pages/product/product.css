@@ -172,7 +172,7 @@
 }
 
 .tm-pp-mono--on-ink {
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-pp-row {
@@ -458,7 +458,7 @@
   block-size: var(--orb-compact);
   border-radius: var(--r-micro);
   background: var(--tm-ink-absolute);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   flex: none;
 }
 

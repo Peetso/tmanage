@@ -52,7 +52,7 @@
 }
 
 .tm-content-area--active .tm-cc-cell-mono {
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-content-area:focus-visible,

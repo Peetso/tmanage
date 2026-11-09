@@ -203,7 +203,7 @@ const TOUR_CSS = `
 .tm-tour__next--done { box-shadow: none; }
 .tm-tour__next-orb {
   flex-shrink: 0; display: grid; place-items: center; inline-size: 48px; block-size: 48px;
-  border-radius: var(--r-capsule); background: var(--lime-500); color: var(--tm-ink-absolute);
+  border-radius: var(--r-capsule); background: var(--lime-500); color: var(--tm-on-lime);
   font: 500 18px/1 var(--font-mono);
 }
 .tm-tour__next-title { margin: 0; font-size: 17px; line-height: 23px; font-weight: 600; }
@@ -233,8 +233,8 @@ const TOUR_CSS = `
   border: var(--b-structural) solid var(--line-300); border-radius: var(--r-capsule);
   font: 600 10px/1 var(--font-mono); color: var(--ink-650);
 }
-.tm-tour__step[data-state='done'] .tm-tour__glyph { border-color: var(--tm-ink-absolute); background: var(--tm-ink-absolute); color: var(--lime-500); }
-.tm-tour__step[data-state='current'] .tm-tour__glyph { border-color: var(--lime-500); background: var(--lime-500); color: var(--tm-ink-absolute); }
+.tm-tour__step[data-state='done'] .tm-tour__glyph { border-color: var(--tm-ink-absolute); background: var(--tm-ink-absolute); color: var(--tm-accent-on-ink, var(--lime-500)); }
+.tm-tour__step[data-state='current'] .tm-tour__glyph { border-color: var(--lime-500); background: var(--lime-500); color: var(--tm-on-lime); }
 .tm-tour__label { flex: 1; min-inline-size: 0; font-size: var(--t-ui-md); line-height: 21px; color: var(--ink-800); }
 .tm-tour__step[data-state='done'] .tm-tour__label { color: var(--ink-650); }
 .tm-tour__done { padding-inline: 12px; font-family: var(--font-mono); font-size: 11px; line-height: 15px; text-transform: uppercase; color: var(--ink-500); }

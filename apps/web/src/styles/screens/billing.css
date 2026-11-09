@@ -167,7 +167,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-bil-eyebrow--lime::before {
@@ -721,7 +721,7 @@
 }
 
 .tm-card--ink .tm-bil-eyebrow {
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-card--ink .tm-field__label,

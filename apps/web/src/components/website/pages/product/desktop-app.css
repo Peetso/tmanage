@@ -156,7 +156,7 @@
   inline-size: 200px;
   max-inline-size: 100%;
   block-size: auto;
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-dl-window__name {

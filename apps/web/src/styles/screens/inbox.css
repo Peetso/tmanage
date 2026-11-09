@@ -26,7 +26,7 @@
   padding: 6px 14px;
   border-radius: var(--r-capsule);
   background: var(--tm-ink-absolute);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-size: var(--t-caption);
   line-height: var(--t-caption-line);
   font-weight: 600;
@@ -678,7 +678,7 @@
   block-size: var(--s6);
   border-radius: var(--r-capsule);
   background: var(--ink-800);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-family: var(--font-mono);
   font-size: 10px;
   line-height: 1;
@@ -920,7 +920,7 @@
 .tm-inbox-confirm__undo {
   border: 0;
   background: transparent;
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font: inherit;
   font-weight: 600;
   cursor: pointer;

@@ -124,7 +124,7 @@
 }
 
 .tm-fk-ink .tm-web-eyebrow--ink {
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-fk-ink .tm-web-eyebrow__dot {

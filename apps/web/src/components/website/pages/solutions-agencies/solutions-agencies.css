@@ -270,7 +270,7 @@
   block-size: var(--s6);
   border-radius: var(--r-capsule);
   background: var(--web-ink);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-web-ag-portal__org {

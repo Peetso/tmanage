@@ -233,7 +233,7 @@
   }
 
   .tm-phone-card--feature .tm-phone-eyebrow {
-    color: var(--lime-500);
+    color: var(--tm-accent-on-ink, var(--lime-500));
   }
 
   .tm-phone-card--accent .tm-phone-eyebrow {

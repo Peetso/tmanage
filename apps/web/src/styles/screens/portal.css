@@ -478,7 +478,7 @@
 }
 
 .tm-pt-ink__big--lime {
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-pt-ink__rule {
@@ -767,7 +767,7 @@
   font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1;
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-pt-step__text {

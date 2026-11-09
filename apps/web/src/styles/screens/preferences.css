@@ -240,7 +240,7 @@
 }
 
 .tm-prefs-card--ink .tm-prefs-eyebrow {
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 [data-theme='dark'] .tm-prefs-card--ink .tm-prefs-eyebrow {

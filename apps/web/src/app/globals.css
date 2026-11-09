@@ -188,7 +188,7 @@ html[lang^='zh'] body {
 
 :where(a:hover) {
   color: var(--ink-950);
-  text-decoration-color: var(--lime-600);
+  text-decoration-color: var(--tm-accent-on-ink-deep, var(--lime-600));
 }
 
 /* On an inverted or toned ground a link takes the ground's own ink. */
@@ -240,7 +240,7 @@ html[lang^='zh'] body {
  * ink/absolute disc in both themes, so the mark is always lime on black.
  */
 [data-theme='dark'] .tm-mark {
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 /* ── Shared screen furniture ────────────────────────────────────────────── */
@@ -670,7 +670,7 @@ html[lang^='zh'] body {
 .tm-onboarding__step[data-state='current'] .tm-onboarding__step-index {
   border-color: var(--tm-ink-absolute);
   background: var(--tm-ink-absolute);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-onboarding__step-count {
@@ -766,7 +766,7 @@ html[lang^='zh'] body {
   block-size: var(--orb-navigation);
   border-radius: var(--r-capsule);
   background: var(--tm-ink-absolute);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-rail__brand .tm-mark--icon {
@@ -934,7 +934,7 @@ html[lang^='zh'] body {
   block-size: 36px;
   border-radius: var(--r-capsule);
   background: var(--tm-inverted-raised);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-family: var(--font-mono);
   font-size: var(--t-caption);
 }
@@ -1022,7 +1022,7 @@ html[lang^='zh'] body {
   block-size: 26px;
   border-radius: var(--r-capsule);
   background: var(--tm-ink-absolute);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-size: 10px;
   font-weight: 600;
 }
@@ -1253,7 +1253,7 @@ html[lang^='zh'] body {
   block-size: 44px;
   border-radius: var(--r-capsule);
   background: var(--tm-ink-absolute);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-portal__client {
@@ -1477,7 +1477,7 @@ html[lang^='zh'] body {
 
 .tm-table a:hover {
   text-decoration: underline;
-  text-decoration-color: var(--lime-600);
+  text-decoration-color: var(--tm-accent-on-ink-deep, var(--lime-600));
   text-underline-offset: 0.2em;
 }
 
@@ -1513,7 +1513,7 @@ html[lang^='zh'] body {
 .tm-table__sort:hover {
   color: var(--ink-950);
   text-decoration-style: solid;
-  text-decoration-color: var(--lime-600);
+  text-decoration-color: var(--tm-accent-on-ink-deep, var(--lime-600));
 }
 
 /*
@@ -1767,7 +1767,7 @@ html[lang^='zh'] body {
   block-size: 36px;
   border-radius: var(--r-capsule);
   background: var(--tm-ink-absolute);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-state-screen__mark .tm-mark--icon {
@@ -1865,7 +1865,7 @@ html[lang^='zh'] body {
 
 .tm-maintenance-banner--down {
   background: var(--tm-ink-absolute);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-maintenance-banner__body {
@@ -2197,7 +2197,7 @@ html[lang^='zh'] body {
     block-size: 56px;
     border-radius: var(--r-capsule);
     background: var(--tm-ink-absolute);
-    color: var(--lime-500);
+    color: var(--tm-accent-on-ink, var(--lime-500));
     font-size: 24px;
     line-height: 1;
     font-weight: 500;
@@ -2415,7 +2415,7 @@ html[lang^='zh'] body {
   font-size: var(--t-heading-section);
   line-height: var(--t-heading-section-line);
   font-weight: 500;
-  caret-color: var(--lime-500);
+  caret-color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-command-palette__input::placeholder {
@@ -2492,7 +2492,7 @@ html[lang^='zh'] body {
 
 .tm-command-palette__option-section {
   flex: none;
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.14em;
@@ -2763,7 +2763,7 @@ html[lang^='zh'] body {
   }
 
   .tm-portal-menu__caret {
-    color: var(--lime-500);
+    color: var(--tm-accent-on-ink, var(--lime-500));
     font-size: 8px;
   }
 

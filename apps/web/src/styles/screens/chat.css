@@ -87,7 +87,7 @@
 .tm-chat-icon--ink {
   border-color: var(--ink-950);
   background: var(--ink-950);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-chat-icon:disabled {
@@ -267,7 +267,7 @@
   block-size: 28px;
   border-radius: var(--r-capsule);
   background: var(--ink-800);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-family: var(--font-mono);
 }
 
@@ -447,7 +447,7 @@
   box-sizing: border-box;
   border-radius: var(--r-capsule);
   background: var(--ink-950);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-size: 10px;
   line-height: 1;
   font-weight: 600;
@@ -687,7 +687,7 @@
   block-size: 18px;
   border: 1.5px solid var(--lime-500);
   border-radius: var(--r-capsule);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-family: var(--font-mono);
   font-size: 8px;
   line-height: 1;
@@ -1297,7 +1297,7 @@
   block-size: 32px;
   border-radius: var(--r-capsule);
   background: var(--tm-ink-absolute);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-family: var(--font-mono);
   font-size: 13px;
 }

@@ -202,7 +202,7 @@
 
 .tm-dx-table__title a:hover {
   text-decoration: underline;
-  text-decoration-color: var(--lime-600);
+  text-decoration-color: var(--tm-accent-on-ink-deep, var(--lime-600));
   text-underline-offset: 3px;
 }
 
@@ -706,7 +706,7 @@
   block-size: 26px;
   border-radius: var(--r-capsule);
   background: var(--ink-800);
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   font-family: var(--font-mono);
   font-size: var(--t-caption);
   line-height: 1;
@@ -984,7 +984,7 @@
 .tm-dx-sheet__body a {
   color: var(--ink-950);
   text-decoration: underline;
-  text-decoration-color: var(--lime-600);
+  text-decoration-color: var(--tm-accent-on-ink-deep, var(--lime-600));
   text-underline-offset: 3px;
   overflow-wrap: anywhere;
 }

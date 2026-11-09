@@ -107,7 +107,7 @@
 /* R8 (Figma 453:776): on ink, and anywhere in dark theme, the brand name is lime. */
 .tm-web-brand--ink,
 [data-theme='dark'] .tm-web-brand {
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-web-eyebrow {
@@ -249,7 +249,7 @@ a.tm-web-orb--outline:hover {
 }
 
 .tm-web-arrow-link--lime {
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-web-button {
@@ -526,7 +526,7 @@ a.tm-web-orb--outline:hover {
   line-height: var(--t-caption-line);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
 .tm-web-featured__title {
@@ -550,7 +550,7 @@ a.tm-web-orb--outline:hover {
   font-size: var(--t-body-md);
   line-height: var(--t-body-md-line);
   font-weight: 500;
-  color: var(--lime-500);
+  color: var(--tm-accent-on-ink, var(--lime-500));
   text-decoration: none;
 }
 
@@ -581,7 +581,7 @@ a.tm-web-orb--outline:hover {
 
 .tm-web-accordion__summary:hover {
   text-decoration: underline;
-  text-decoration-color: var(--lime-600);
+  text-decoration-color: var(--tm-accent-on-ink-deep, var(--lime-600));
   text-underline-offset: 0.3em;
 }
 
