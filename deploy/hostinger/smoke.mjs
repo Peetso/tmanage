@@ -515,7 +515,7 @@ async function browserSignIn(email, password) {
     await page.goto(`${ORIGIN}/sign-in`);
     await page.getByLabel('Work email').fill(email);
     await page.getByLabel('Password').fill(password);
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
     await page.waitForURL('**/organizations', { timeout: 30_000 });
     await page.getByText('Northstar Studio').first().waitFor({ timeout: 30_000 });
     return { ok: true, detail: 'signed in on /sign-in, /organizations lists Northstar Studio' };
