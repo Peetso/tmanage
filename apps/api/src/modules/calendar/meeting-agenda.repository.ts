@@ -63,6 +63,9 @@ export class MeetingAgendaRepository {
           lt(meetings.startsAt, window.toExclusive),
           // PA-03 (0245): a soft-deleted meeting leaves the list.
           isNull(meetings.deletedAt),
+          // FIX2 (live 2026-11-09): a cancelled meeting leaves the calendar grid, the agenda and
+          // the day capsule above My Day; its page still opens by id for the record.
+          isNull(meetings.cancelledAt),
         ),
       )
       .orderBy(asc(meetings.startsAt), asc(meetings.id))

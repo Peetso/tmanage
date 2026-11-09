@@ -78,6 +78,8 @@ export function MeetingPageScreen({
     onSuccess: () => {
       void queries.invalidateQueries({ queryKey: overviewKey });
       void queries.invalidateQueries({ queryKey: ['meetings', organizationSlug] });
+      // The day capsule above My Day reads the calendar grid: drop the cancelled meeting there too.
+      void queries.invalidateQueries({ queryKey: ['calendar-grid', organizationSlug] });
     },
   });
   const [confirming, setConfirming] = useState(false);

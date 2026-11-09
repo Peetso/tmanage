@@ -326,6 +326,7 @@ export function MeetingForm({
     onSuccess: (meeting) => {
       void queries.invalidateQueries({ queryKey: ['meetings', organizationSlug] });
       void queries.invalidateQueries({ queryKey: ['meeting-overview', organizationSlug] });
+      void queries.invalidateQueries({ queryKey: ['calendar-grid', organizationSlug] });
       router.push(
         `/${organizationSlug}/calendar/meetings/${encodeURIComponent(meeting.id)}?saved=1`,
       );
