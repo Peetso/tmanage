@@ -242,7 +242,9 @@ describe('Integrations cards (feedback 2026-11-09 item 6)', () => {
         .getByRole('link', { name: 'Manage Google Drive' })
         .getAttribute('href'),
     ).toBe('/northstar-studio/admin/storage');
-    expect(screen.getByRole('heading', { level: 1, name: 'One connected' })).toBeTruthy();
+    // FIX3 item 10: headed with its menu name; the count opens the lede.
+    expect(screen.getByRole('heading', { level: 1, name: 'Integrations' })).toBeTruthy();
+    expect(screen.getByText(/^One connected\./)).toBeTruthy();
   });
 
   it('sends apps connected elsewhere to their page, and marks Zapier as coming soon', async () => {

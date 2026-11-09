@@ -284,7 +284,8 @@ export function DisplayPreferencesView({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       eyebrow={tr('DisplayPreferencesView.eyebrow')}
-      title={tr('DisplayPreferencesView.title')}
+      // FIX3 item 10: headed with its menu name.
+      title={t('SettingsHome.link.display' as MessageKey)}
       actions={
         <span className="tm-prefs-header-note">{tr('DisplayPreferencesView.headerNote')}</span>
       }

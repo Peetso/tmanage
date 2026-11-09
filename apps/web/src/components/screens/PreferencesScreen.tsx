@@ -420,7 +420,8 @@ export function PreferencesScreen({
       section="preferences"
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title={t('Profile.title')}
+      // FIX3 item 10: headed with its menu name (the menu says Preferences).
+      title={translate('RouteTitle.preferences')}
     >
       <div className="tm-prefs">
         <form

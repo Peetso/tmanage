@@ -207,8 +207,9 @@ export function IntegrationDirectoryScreen({
       organizationName={organizationName}
       activeNavigationId="admin"
       eyebrow={t('IntegrationDirectoryScreen.eyebrow')}
-      title={title}
-      description={t('ConnectApps.lede')}
+      // FIX3 item 10: headed with its menu name; the connected count opens the lede.
+      title={t('ControlCenterShell.integrations')}
+      description={`${title}. ${t('ConnectApps.lede')}`}
       actions={
         <Link href={`/${organizationSlug}/admin/audit`} className="tm-aut-btn">
           {t('IntegrationDirectoryScreen.auditAccess')}

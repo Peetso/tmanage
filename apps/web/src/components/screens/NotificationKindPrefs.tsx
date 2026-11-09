@@ -178,7 +178,8 @@ export function NotificationKindPrefs({
       organizationName={organizationName}
       activeNavigationId="inbox"
       eyebrow={t('NotificationKindPrefs.eyebrow')}
-      title={t('NotificationKindPrefs.title')}
+      // FIX3 item 10: headed with its menu name.
+      title={t('RouteTitle.inboxNotificationPreferences')}
       description={t('NotificationKindPrefs.description')}
     >
       <div className="tm-prefs tm-prefs--notifications">

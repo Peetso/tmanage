@@ -135,7 +135,9 @@ export function AutomationTemplatesScreen({
       organizationName={organizationName}
       activeNavigationId="admin"
       eyebrow={t('AutomationTemplatesScreen.eyebrow')}
-      title={t('AutomationTemplatesScreen.title')}
+      // FIX3 item 10: headed with its menu name; the old headline is the lede.
+      title={t('ControlCenterShell.automations')}
+      description={t('AutomationTemplatesScreen.title')}
       actions={
         <>
           <Link href={`/${organizationSlug}/automations/runs`} className="tm-aut-btn">
