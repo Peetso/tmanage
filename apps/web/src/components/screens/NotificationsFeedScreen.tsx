@@ -307,9 +307,19 @@ const TYPE_LABEL_KEYS: Record<string, MessageKey> = {
   'review.changes_requested.v1': 'NotificationsFeedScreen.typeReviewChangesRequested',
 };
 
+/** Fix 2026-11-09: labels whose keys arrive through an i18n fragment (English until the merge). */
+const TYPE_LABEL_FALLBACKS: Record<string, { readonly key: string; readonly english: string }> = {
+  'meeting.attendee_responded.v1': {
+    key: 'NotificationsFeedScreen.typeMeetingAttendeeResponded',
+    english: 'Meeting answer from a calendar',
+  },
+};
+
 function describeType(type: string, t: (key: MessageKey) => string): string {
   const key = TYPE_LABEL_KEYS[type];
   if (key) return t(key);
+  const fallback = TYPE_LABEL_FALLBACKS[type];
+  if (fallback) return translateOr(fallback.key, fallback.english);
   // Humanise `some.event.v1` → "Some event": drop a trailing version, split on dots.
   const withoutVersion = type.replace(/\.v\d+$/, '');
   const words = withoutVersion.replace(/[._]/g, ' ').trim();

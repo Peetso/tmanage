@@ -14,6 +14,9 @@ import type { ApiClient } from './client';
 /** The three answers an attendee can give. */
 export type AttendeeRsvp = 'invited' | 'accepted' | 'declined';
 
+/** What a roster row may show: also `tentative` ("Maybe"), which arrives from Google / Outlook. */
+export type AttendeeAnswer = AttendeeRsvp | 'tentative';
+
 /**
  * One attendee, as the screen reads it. Paired `Exact` with the API's `MeetingAttendeeView` in the
  * contracts gate (`e2e/contracts/api-web-shapes.ts`): rename or retype a field on either side and
@@ -25,7 +28,7 @@ export interface MeetingAttendeeView {
   readonly id: string;
   readonly meetingId: string;
   readonly userId: string;
-  readonly rsvp: AttendeeRsvp;
+  readonly rsvp: AttendeeAnswer;
   /** An ISO-8601 instant on the wire. */
   readonly createdAt: string;
 }
@@ -47,7 +50,7 @@ export interface MeetingClientAttendeeView {
   readonly displayName: string;
   readonly clientOrganizationId: string;
   readonly clientOrganizationName: string;
-  readonly rsvp: AttendeeRsvp;
+  readonly rsvp: AttendeeAnswer;
   readonly createdAt: string;
 }
 

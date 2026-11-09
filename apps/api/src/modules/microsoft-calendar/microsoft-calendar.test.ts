@@ -329,6 +329,7 @@ describe('MicrosoftCalendarService', () => {
     const patchLink = vi.fn();
     const setRosterRsvp = vi.fn();
     const meetingUpdate = vi.fn();
+    const append = vi.fn();
     const database = {
       read: (_c: unknown, f: (r: unknown) => unknown) => f({}),
       transaction: (_c: unknown, f: (r: unknown) => unknown) => f({}),
@@ -392,9 +393,11 @@ describe('MicrosoftCalendarService', () => {
         patchLink,
         setRosterRsvp,
       } as never,
+      rsvps: { findByMember: async () => null, insert: vi.fn(), updateResponse: vi.fn() } as never,
+      outbox: { append } as never,
       log: () => undefined,
     });
-    return { svc, update, saveLink, patchLink, setRosterRsvp, meetingUpdate };
+    return { svc, update, saveLink, patchLink, setRosterRsvp, meetingUpdate, append };
   }
 
   it('creates a Teams meeting idempotently and stores the rotated refresh token', async () => {
@@ -530,14 +533,26 @@ describe('MicrosoftCalendarService', () => {
       optional: false,
       rsvp: 'invited',
     };
-    const { svc, update, setRosterRsvp } = service({
+    const { svc, update, setRosterRsvp, append } = service({
       links: { microsoft: link },
       transport: { delta, getEvent },
       roster: [entry],
     });
-    await svc.pullConnection(context, 'conn_1');
+    await expect(svc.pullConnection(context, 'conn_1')).resolves.toBe('ok');
     expect(getEvent).toHaveBeenCalledOnce();
     expect(setRosterRsvp).toHaveBeenCalledWith({}, context, entry, 'mtg_1', 'accepted');
+    // Fix 2026-11-09: the organizer is told, in the same transaction, that the guest answered.
+    expect(append).toHaveBeenCalledWith({}, context, {
+      type: 'meeting.attendee_responded.v1',
+      aggregateId: 'mtg_1',
+      payload: expect.objectContaining({
+        attendeeKind: 'guest',
+        attendeeId: 'g1',
+        attendeeUserId: null,
+        response: 'accepted',
+        provider: 'microsoft',
+      }),
+    });
     expect(update).toHaveBeenCalledWith(
       {},
       context,

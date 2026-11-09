@@ -220,6 +220,7 @@ export type {
   FileReadyV1,
   FileRejectedV1,
   MeetingAttendeeInvitedV1,
+  MeetingAttendeeRespondedV1,
   MeetingChangedV1,
   MeetingScheduledV1,
   MessageConvertedV1,

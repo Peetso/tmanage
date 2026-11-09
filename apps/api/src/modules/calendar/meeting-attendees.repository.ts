@@ -26,16 +26,11 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
 export type AttendeeRsvp = 'invited' | 'accepted' | 'declined';
 
 /**
- * 0237. What the column may hold: `tentative` arrives from Google ("maybe") and Outlook. The roster
- * views keep the three-value wire vocabulary until the meeting screens are redesigned (slice C);
- * {@link rosterRsvp} shows a tentative answer there as not yet answered, and the meeting overview
- * carries the real value.
+ * 0237. What the column may hold: `tentative` arrives from Google ("maybe") and Outlook. Fix
+ * 2026-11-09: the roster views carry it as it is (it used to read as "not answered yet", so a
+ * Maybe given in Google never showed); a TManage PATCH still sets only the three values.
  */
 export type StoredAttendeeRsvp = AttendeeRsvp | 'tentative';
-
-export function rosterRsvp(stored: StoredAttendeeRsvp): AttendeeRsvp {
-  return stored === 'tentative' ? 'invited' : stored;
-}
 
 /**
  * An attendee joined to the member's `user_id` — what a read returns. The stored identity is the

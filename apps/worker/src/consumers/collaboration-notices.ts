@@ -55,6 +55,7 @@ import type {
  * | `document.comment_created.v1`          | the people mentioned, the author    | yes    | yes   |
  * | `meeting.attendee_invited.v1`          | the invitee (a member or a client)  | yes    | yes   |
  * | `meeting.changed.v1` (BK5)             | the attendees when it changed       | yes    | yes   |
+ * | `meeting.attendee_responded.v1`        | the organizer (answer from calendar)| yes    | no    |
  * | `project.member_added.v1`              | the person added                    | yes    | yes   |
  * | `work_item.client_action_requested.v1` | client people who may decide        | portal | yes   |
  * | `approval.requested.v1` (NT1)          | the picked client deciders          | yes    | yes   |
@@ -450,6 +451,50 @@ export const planMeetingChangedNotices: NoticePlanner = async (event, tx, mailer
     });
   }
   return notices;
+};
+
+/**
+ * `meeting.attendee_responded.v1` → fix 2026-11-09. Someone answered the meeting in Google Calendar
+ * or Outlook and the calendar pull wrote it: the meeting's organizer (read from the meeting row
+ * now, not from the payload) is told in the inbox. Never when the organizer answered themselves;
+ * never once the organizer no longer reaches the project with `work.read`. In-app only (no mail
+ * template); the per-kind switch applies through the routing table's `work_item` row.
+ */
+export const planMeetingResponseNotices: NoticePlanner = async (event, tx) => {
+  const raw = payloadOf(event);
+  const meetingId = stringField(raw, 'meetingId', event.id);
+  const attendeeId = stringField(raw, 'attendeeId', event.id);
+  const response = stringField(raw, 'response', event.id);
+  if (!['accepted', 'declined', 'tentative'].includes(response)) return [];
+  const attendeeUserId = typeof raw['attendeeUserId'] === 'string' ? raw['attendeeUserId'] : null;
+  const meeting = await findMeetingFacts(tx, event.organizationId, meetingId);
+  if (meeting === null) return []; // Gone: nothing safe to reference.
+  const organizerUserId = meeting.createdByUserId;
+  if (attendeeUserId === organizerUserId) return [];
+
+  const reach = await findInternalReach(
+    tx,
+    event.organizationId,
+    organizerUserId,
+    meeting.projectId,
+  );
+  if (!mayBeTold(reach, 'work.read') || reach === null) return [];
+  return [
+    {
+      recipientUserId: organizerUserId,
+      optOutKind: null,
+      membershipId: reach.membershipId,
+      inApp: {
+        type: 'meeting.attendee_responded.v1',
+        objectType: 'meeting',
+        objectId: meetingId,
+        // The event id: each answer that changed is news once; a redelivery is not.
+        dedupeKey: `meeting.responded:${attendeeId}:${event.id}`,
+      },
+      mailKind: null,
+      mail: async () => null,
+    },
+  ];
 };
 
 /** `project.member_added.v1` → the person put on the project. */
@@ -905,6 +950,7 @@ export const COLLABORATION_PLANNERS: Readonly<Record<string, NoticePlanner>> = {
   'document.comment_created.v1': planCommentNotices,
   'meeting.attendee_invited.v1': planMeetingInviteNotices,
   'meeting.changed.v1': planMeetingChangedNotices,
+  'meeting.attendee_responded.v1': planMeetingResponseNotices,
   'project.member_added.v1': planProjectAddedNotices,
   'work_item.client_action_requested.v1': planClientActionNotices,
   'approval.requested.v1': planApprovalRequestedNotices,

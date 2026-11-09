@@ -13,6 +13,10 @@ import type { CalendarSyncPort } from '../calendar/calendar-sync.port.js';
 import type { StoredAttendeeRsvp } from '../calendar/meeting-attendees.repository.js';
 import { parseReminders } from '../calendar/meeting-options.js';
 import { pushProviderFor } from '../calendar/calendar-provider.js';
+import { applyProviderAnswers } from '../calendar/provider-answers.js';
+import type { ApplyProviderAnswersDeps } from '../calendar/provider-answers.js';
+import { MeetingRsvpRepository } from '../calendar/rsvp.repository.js';
+import { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import {
   CalendarEventNotFoundError,
   CalendarGrantRevokedError,
@@ -31,7 +35,7 @@ import {
   type MeetingSnapshot,
 } from './google-calendar.google.js';
 import { GoogleCalendarRepository } from './google-calendar.repository.js';
-import type { CalendarProviderAdapter } from './calendar-sync.job.js';
+import type { CalendarProviderAdapter, PullOutcome } from './calendar-sync.job.js';
 
 /**
  * Google Calendar + Meet for meetings (0237) — the application service.
@@ -88,6 +92,10 @@ export interface GoogleCalendarServiceDeps {
   readonly connections?: GoogleCalendarRepository;
   readonly meetings?: MeetingsRepository;
   readonly calendar?: MeetingCalendarRepository;
+  /** Fix 2026-11-09: a member's answer from Google also lands in `meeting_rsvps`. */
+  readonly rsvps?: MeetingRsvpRepository;
+  /** Fix 2026-11-09: the organizer is told of an answer (`meeting.attendee_responded.v1`). */
+  readonly outbox?: OutboxEventsRepository | null;
   readonly now?: () => Date;
   readonly log?: (line: string) => void;
   /**
@@ -127,6 +135,7 @@ export class GoogleCalendarService implements CalendarSyncPort, CalendarProvider
   private readonly connections: GoogleCalendarRepository;
   private readonly meetings: MeetingsRepository;
   private readonly calendar: MeetingCalendarRepository;
+  private readonly answerDeps: ApplyProviderAnswersDeps;
   private readonly now: () => Date;
   private readonly log: (line: string) => void;
   private readonly tokens = new Map<string, { token: string; expiresAt: number }>();
@@ -135,6 +144,11 @@ export class GoogleCalendarService implements CalendarSyncPort, CalendarProvider
     this.connections = deps.connections ?? new GoogleCalendarRepository();
     this.meetings = deps.meetings ?? new MeetingsRepository();
     this.calendar = deps.calendar ?? new MeetingCalendarRepository();
+    this.answerDeps = {
+      calendar: this.calendar,
+      rsvps: deps.rsvps ?? new MeetingRsvpRepository(),
+      outbox: deps.outbox === undefined ? new OutboxEventsRepository() : deps.outbox,
+    };
     this.now = deps.now ?? (() => new Date());
     this.log = deps.log ?? ((line) => console.warn(line));
   }
@@ -493,12 +507,14 @@ export class GoogleCalendarService implements CalendarSyncPort, CalendarProvider
    * 30-day window the first time, or after Google expired the token), applied to the meetings this
    * connection organizes. Events TManage does not know are ignored.
    */
-  async pullConnection(context: TenantContext, connectionId: string): Promise<void> {
-    if (!this.deps.config) return;
+  async pullConnection(context: TenantContext, connectionId: string): Promise<PullOutcome> {
+    if (!this.deps.config) return 'skipped';
     const connection = await this.deps.database.read(context, (runner) =>
       this.connections.findById(runner, context, connectionId),
     );
-    if (!connection || connection.status !== 'connected' || !connection.refreshTokenEnc) return;
+    if (!connection || connection.status !== 'connected' || !connection.refreshTokenEnc) {
+      return 'skipped';
+    }
     const live = connection as Live;
     try {
       const accessToken = await this.accessToken(context, live);
@@ -518,8 +534,10 @@ export class GoogleCalendarService implements CalendarSyncPort, CalendarProvider
           lastErrorCode: null,
         }),
       );
+      return 'ok';
     } catch (error) {
       await this.recordFailure(context, live, error);
+      return 'failed';
     }
   }
 
@@ -568,16 +586,18 @@ export class GoogleCalendarService implements CalendarSyncPort, CalendarProvider
         });
         return;
       }
-      const roster = await this.calendar.roster(tx, context, meeting.id);
-      const byEmail = new Map(roster.map((entry) => [entry.email, entry]));
-      for (const attendee of event.attendees) {
-        const entry = byEmail.get(attendee.email);
-        const rsvp = rsvpFromGoogle(attendee.responseStatus);
-        // The organizer's own row stays as TManage set it (Google reports the organizer too).
-        if (entry && entry.rsvp !== rsvp && entry.userId !== meeting.createdByUserId) {
-          await this.calendar.setRosterRsvp(tx, context, entry, meeting.id, rsvp);
-        }
-      }
+      // Fix 2026-11-09: every answer, the organizer's own "Maybe" included, onto the roster and
+      // `meeting_rsvps`, and the organizer told of someone else's (`provider-answers.ts`).
+      await applyProviderAnswers(tx, context, this.answerDeps, {
+        meeting,
+        roster: await this.calendar.roster(tx, context, meeting.id),
+        answers: event.attendees.map((attendee) => ({
+          email: attendee.email,
+          rsvp: rsvpFromGoogle(attendee.responseStatus),
+          self: attendee.self,
+        })),
+        provider: GOOGLE,
+      });
       // Edits made in Google win when Google's copy is newer than TManage's.
       if (event.updated && event.updated.getTime() > meeting.updatedAt.getTime()) {
         const patch = editsFrom(meeting, event);

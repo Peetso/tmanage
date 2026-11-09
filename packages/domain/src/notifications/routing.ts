@@ -110,6 +110,8 @@ export const NOTIFICATION_ROUTES: Readonly<Record<string, NotificationRoute>> = 
   'recurrence.paused': route('work_item', IN_APP),
   'project.member_added.v1': route('work_item', MAIL),
   'meeting.attendee_invited.v1': route('work_item', MAIL),
+  // Fix 2026-11-09: an answer given in Google Calendar / Outlook — the organizer's inbox only.
+  'meeting.attendee_responded.v1': route('work_item', IN_APP),
   'meeting.changed.v1': route('work_item', MAIL),
   'timesheet.submitted': route('work_item', IN_APP),
   'timesheet.approved': route('work_item', IN_APP),

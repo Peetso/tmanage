@@ -35,6 +35,8 @@ export interface RosterEntry {
   readonly id: string;
   /** `null` for a guest. */
   readonly userId: string | null;
+  /** The member's membership (the `meeting_rsvps` key); `null` for a client or a guest. */
+  readonly membershipId: string | null;
   readonly displayName: string | null;
   readonly email: string;
   readonly optional: boolean;
@@ -92,6 +94,7 @@ export class MeetingCalendarRepository {
       .select({
         id: meetingAttendees.id,
         userId: memberships.userId,
+        membershipId: memberships.id,
         displayName: users.displayName,
         email: users.email,
         optional: meetingAttendees.optional,
@@ -143,11 +146,17 @@ export class MeetingCalendarRepository {
     const guests = await this.listGuests(runner, context, meetingId);
     return [
       ...members.map((m) => ({ kind: 'member' as const, ...m, email: m.email.toLowerCase() })),
-      ...clients.map((c) => ({ kind: 'client' as const, ...c, email: c.email.toLowerCase() })),
+      ...clients.map((c) => ({
+        kind: 'client' as const,
+        ...c,
+        membershipId: null,
+        email: c.email.toLowerCase(),
+      })),
       ...guests.map((g) => ({
         kind: 'guest' as const,
         id: g.id,
         userId: null,
+        membershipId: null,
         displayName: g.displayName,
         email: g.email,
         optional: g.optional,

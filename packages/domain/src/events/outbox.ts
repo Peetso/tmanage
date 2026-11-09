@@ -208,6 +208,14 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'meeting',
     catalog: '§4 meeting invite — notification, email',
   },
+  /**
+   * Fix 2026-11-09: an attendee answered the meeting from Google Calendar or Outlook (the calendar
+   * pull wrote the answer onto the roster) — the organizer is told in the inbox.
+   */
+  'meeting.attendee_responded.v1': {
+    aggregateType: 'meeting',
+    catalog: '§4 meeting answer from the calendar — notification',
+  },
   /** BK5: a meeting's title, date or time changed — the attendees at that moment are told. */
   'meeting.changed.v1': {
     aggregateType: 'meeting',
@@ -603,6 +611,22 @@ export interface MeetingAttendeeInvitedV1 {
   readonly clientOrganizationId?: string;
 }
 
+/**
+ * Fix 2026-11-09: one attendee's answer, as the calendar provider reported it. Ids and the answer
+ * only — never the attendee's email address. `attendeeUserId` is `null` for an email-only guest;
+ * the worker reads the organizer from the meeting row and re-checks their reach.
+ */
+export interface MeetingAttendeeRespondedV1 {
+  readonly meetingId: string;
+  readonly projectId: string;
+  readonly attendeeKind: 'member' | 'client' | 'guest';
+  /** The roster row (attendee, client attendee or guest id). */
+  readonly attendeeId: string;
+  readonly attendeeUserId: string | null;
+  readonly response: 'accepted' | 'declined' | 'tentative';
+  readonly provider: 'google' | 'microsoft';
+}
+
 /** BK5: who was attending when the meeting changed, and what changed. */
 export interface MeetingChangedV1 {
   readonly meetingId: string;
@@ -783,6 +807,7 @@ export interface OutboxEventPayloads {
   readonly 'document.renamed.v1': DocumentRenamedV1;
   readonly 'meeting.scheduled.v1': MeetingScheduledV1;
   readonly 'meeting.attendee_invited.v1': MeetingAttendeeInvitedV1;
+  readonly 'meeting.attendee_responded.v1': MeetingAttendeeRespondedV1;
   readonly 'meeting.changed.v1': MeetingChangedV1;
   readonly 'project.member_added.v1': ProjectMemberAddedV1;
   readonly 'approval.requested.v1': ApprovalRequestedV1;

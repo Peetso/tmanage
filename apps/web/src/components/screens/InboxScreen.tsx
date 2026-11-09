@@ -748,10 +748,23 @@ const WHY_KEYS: Record<string, MessageKey> = {
   'review.changes_requested.v1': 'InboxScreen.whyReviewChangesRequested',
 };
 
+/**
+ * Fix 2026-11-09: types whose keys reach the catalogs through an i18n fragment — said through
+ * `translateOr` (English until the merge) so the typed map above stays `MessageKey`-only.
+ */
+const WHY_FALLBACKS: Record<string, { readonly key: string; readonly english: string }> = {
+  'meeting.attendee_responded.v1': {
+    key: 'InboxScreen.whyMeetingResponded',
+    english: 'Someone answered from their calendar',
+  },
+};
+
 /** An event type said in words, falling back to the raw type for one this build does not know. */
 function whyText(type: string, t: Translate): string {
   const key = WHY_KEYS[type];
-  return key ? t(key) : type;
+  if (key) return t(key);
+  const fallback = WHY_FALLBACKS[type];
+  return fallback ? translateOr(fallback.key, fallback.english) : type;
 }
 
 /** What each kind of bundle is called on screen. */
@@ -1021,6 +1034,14 @@ function reasonOf(bundle: InboxBundle, t: Translate): string {
   }
   if (bundle.types.includes('project.member_added.v1')) {
     reasons.push(t('InboxScreen.reasonAdded'));
+  }
+  if (bundle.types.includes('meeting.attendee_responded.v1')) {
+    reasons.push(
+      translateOr(
+        'InboxScreen.reasonMeetingResponded',
+        'You organize this meeting, and an attendee answered it in Google Calendar or Outlook.',
+      ),
+    );
   }
   if (bundle.types.includes('automation.notified.v1')) {
     reasons.push(t('InboxScreen.reasonAutomation'));

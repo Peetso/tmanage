@@ -29,6 +29,7 @@ import {
   planCommentNotices,
   planMeetingChangedNotices,
   planMeetingInviteNotices,
+  planMeetingResponseNotices,
   planMentionNotices,
   planProjectAddedNotices,
   planRequestMessageNotices,
@@ -205,6 +206,11 @@ export function createWorkerOutboxHandlers(
       // BK5: a meeting's title/date/time changed — the attendees at that moment are told.
       'meeting.changed.v1': createCollaborationNotices(
         planMeetingChangedNotices,
+        collaborationMails,
+      ),
+      // Fix 2026-11-09: an answer given in Google Calendar / Outlook — the organizer is told.
+      'meeting.attendee_responded.v1': createCollaborationNotices(
+        planMeetingResponseNotices,
         collaborationMails,
       ),
       'project.member_added.v1': createCollaborationNotices(

@@ -6,10 +6,10 @@ import { GoogleCalendarRepository } from './google-calendar.repository.js';
 
 /**
  * 0237 — the calendar pull, run inside the API process (the Hostinger app is one Node process and
- * has no cron), in the `FileScanJob` shape. Every {@link CalendarSyncJobOptions.intervalMs} it
- * visits each connected calendar connection under its organization's service context and lets
- * that provider's adapter apply the changes (Google `events.list?syncToken`; slice B adds the
- * Graph `calendarView/delta` adapter). Push notifications (Google watch channels, Graph
+ * has no cron), in the `FileScanJob` shape. Every {@link CalendarSyncJobOptions.intervalMs} (a
+ * minute) it visits each connected calendar connection under its organization's service context
+ * and lets that provider's adapter apply the changes (Google `events.list?syncToken`; slice B adds
+ * the Graph `calendarView/delta` adapter). Push notifications (Google watch channels, Graph
  * subscriptions) are deferred: they expire within days and need this job to renew them anyway.
  *
  * Off unless the deployment runs background work in this process (`WORKER_INPROCESS=1`, or
@@ -17,21 +17,34 @@ import { GoogleCalendarRepository } from './google-calendar.repository.js';
  */
 export const CALENDAR_SYNC_JOB = Symbol.for('tmanage.CalendarSyncJob');
 
+/** What one connection's pull came to: `failed` starts (or extends) that connection's backoff. */
+export type PullOutcome = 'ok' | 'failed' | 'skipped';
+
 export interface CalendarProviderAdapter {
   /** `google` or `microsoft` — the `calendar_connections.provider` it handles. */
   readonly provider: string;
-  pullConnection(context: TenantContext, connectionId: string): Promise<void>;
+  pullConnection(context: TenantContext, connectionId: string): Promise<PullOutcome | void>;
 }
 
 export interface CalendarSyncJobOptions {
   readonly bootDelayMs: number;
   readonly intervalMs: number;
+  /** The longest a failing connection waits before it is tried again. */
+  readonly maxBackoffMs?: number;
   readonly log: (line: string) => void;
+  readonly now?: () => number;
 }
 
+/**
+ * Fix 2026-11-09: an answer given in Google or Outlook shows in TManage within about a minute
+ * (was five, after a 30-second boot delay). A pull with a sync token / delta link is one cheap
+ * request per connection; a connection that fails waits twice as long each time (up to
+ * {@link CalendarSyncJobOptions.maxBackoffMs}), so a broken one is never hammered every minute.
+ */
 export const DEFAULT_CALENDAR_SYNC_JOB_OPTIONS: CalendarSyncJobOptions = {
-  bootDelayMs: 30_000,
-  intervalMs: 5 * 60_000,
+  bootDelayMs: 10_000,
+  intervalMs: 60_000,
+  maxBackoffMs: 30 * 60_000,
   log: (line) => console.warn(line),
 };
 
@@ -50,6 +63,8 @@ export class CalendarSyncJob implements OnApplicationBootstrap, OnModuleDestroy 
   private pending: NodeJS.Timeout | null = null;
   private interval: NodeJS.Timeout | null = null;
   private stopped = false;
+  /** Per connection id: consecutive failures and the earliest time it is tried again. */
+  private readonly backoff = new Map<string, { failures: number; nextAt: number }>();
 
   constructor(
     private readonly database: TenantDatabase,
@@ -115,12 +130,31 @@ export class CalendarSyncJob implements OnApplicationBootstrap, OnModuleDestroy 
         correlationId,
         policyVersion: CALENDAR_SYNC_POLICY_VERSION,
       });
+      const now = this.clock();
+      const waiting = this.backoff.get(ref.id);
+      if (waiting && now < waiting.nextAt) continue;
+      let outcome: PullOutcome | void;
       try {
-        await adapter.pullConnection(context, ref.id);
+        outcome = await adapter.pullConnection(context, ref.id);
       } catch (error) {
         // One connection's failure never stops the pass for the others.
         this.options.log(`[calendar-sync] connection ${ref.id} failed: ${String(error)}`);
+        outcome = 'failed';
       }
+      if (outcome === 'failed') this.recordFailure(ref.id, now);
+      else this.backoff.delete(ref.id);
     }
+  }
+
+  private clock(): number {
+    return this.options.now ? this.options.now() : Date.now();
+  }
+
+  /** The next attempt after `failures` in a row: interval × 2^failures, capped. */
+  private recordFailure(connectionId: string, now: number): void {
+    const failures = (this.backoff.get(connectionId)?.failures ?? 0) + 1;
+    const cap = this.options.maxBackoffMs ?? 30 * 60_000;
+    const wait = Math.min(this.options.intervalMs * 2 ** failures, cap);
+    this.backoff.set(connectionId, { failures, nextAt: now + wait });
   }
 }

@@ -3,11 +3,12 @@ import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { MeetingsRepository } from './meetings.repository.js';
-import { MeetingAttendeesRepository, rosterRsvp } from './meeting-attendees.repository.js';
+import { MeetingAttendeesRepository } from './meeting-attendees.repository.js';
 import type {
   AttendeeRsvp,
   AttendeeWithUser,
   ListAttendeesOptions,
+  StoredAttendeeRsvp,
 } from './meeting-attendees.repository.js';
 import { MembershipsRepository } from '../tenancy/memberships.repository.js';
 import type { CalendarSyncPort } from './calendar-sync.port.js';
@@ -55,8 +56,8 @@ export interface MeetingAttendeeView {
   readonly id: string;
   readonly meetingId: string;
   readonly userId: string;
-  /** `invited`, `accepted` or `declined`. */
-  readonly rsvp: AttendeeRsvp;
+  /** `invited`, `accepted`, `declined` or (from Google / Outlook) `tentative`. */
+  readonly rsvp: StoredAttendeeRsvp;
   /** An ISO-8601 instant on the wire. */
   readonly createdAt: string;
 }
@@ -66,7 +67,7 @@ function toView(row: AttendeeWithUser): MeetingAttendeeView {
     id: row.id,
     meetingId: row.meetingId,
     userId: row.userId,
-    rsvp: rosterRsvp(row.rsvp),
+    rsvp: row.rsvp,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -82,7 +83,7 @@ export interface MeetingClientAttendeeView {
   readonly displayName: string;
   readonly clientOrganizationId: string;
   readonly clientOrganizationName: string;
-  readonly rsvp: AttendeeRsvp;
+  readonly rsvp: StoredAttendeeRsvp;
   readonly createdAt: string;
 }
 
@@ -102,7 +103,7 @@ function toClientView(row: ClientAttendeeWithPerson): MeetingClientAttendeeView 
     displayName: row.displayName,
     clientOrganizationId: row.clientOrganizationId,
     clientOrganizationName: row.clientOrganizationName,
-    rsvp: rosterRsvp(row.rsvp),
+    rsvp: row.rsvp,
     createdAt: row.createdAt.toISOString(),
   };
 }

@@ -9,7 +9,7 @@ import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listMembers } from '../../lib/api/members';
 import { inviteMeetingAttendee, listMeetingAttendees } from '../../lib/api/meeting-attendees';
-import type { AttendeeRsvp } from '../../lib/api/meeting-attendees';
+import type { AttendeeAnswer } from '../../lib/api/meeting-attendees';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import type { MessageKey } from '../../lib/i18n/t';
@@ -25,10 +25,12 @@ export interface MeetingAttendeesScreenProps {
   client?: ApiClient;
 }
 
-const RSVP_LABEL_KEYS: Readonly<Record<AttendeeRsvp, MessageKey>> = {
+const RSVP_LABEL_KEYS: Readonly<Record<AttendeeAnswer, MessageKey>> = {
   invited: 'MeetingAttendeesScreen.rsvpInvited',
   accepted: 'MeetingAttendeesScreen.rsvpAccepted',
   declined: 'MeetingAttendeesScreen.rsvpDeclined',
+  // Fix 2026-11-09: a "Maybe" given in Google Calendar / Outlook shows as Maybe, not as no answer.
+  tentative: 'MeetingRsvpScreen.responseMaybe',
 };
 
 /**
@@ -270,7 +272,7 @@ export function MeetingAttendeesScreen({
   );
 }
 
-function rsvpCapsule(rsvp: AttendeeRsvp): CapsuleState {
+function rsvpCapsule(rsvp: AttendeeAnswer): CapsuleState {
   if (rsvp === 'accepted') return 'done';
   if (rsvp === 'declined') return 'blocked';
   return 'waiting';
