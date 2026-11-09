@@ -428,6 +428,7 @@ export type {
 // Rates — 52-04 (R15-a)
 export * from './money/rates.js';
 export * from './integrations/channel-messages.js';
+export * from './integrations/channel-bot.js';
 
 // Budget burn — 52-05 (R16-b)
 export * from './money/burn.js';

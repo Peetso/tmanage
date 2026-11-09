@@ -24,7 +24,7 @@ function harness(address = '34.1.2.3', lastTest: Date | null = null) {
     insert: (_r: never, _c: never, input: Record<string, unknown>) => {
       stored = {
         ...input,
-        externalChannelLabel: null,
+        externalChannelLabel: input['label'] ?? null,
         eventsJson: JSON.stringify(input['events']),
         status: 'active',
         failureStreak: 0,
@@ -93,6 +93,19 @@ describe('channel links (R15-c)', () => {
     });
     expect(view.urlHost).toBe('hooks.slack.com');
     expect(JSON.stringify([view, h.audits])).not.toContain('XXXXSECRET');
+  });
+
+  it('FIX5: a bot link keeps channel and token encrypted, shows only the API host', async () => {
+    const h = harness();
+    const view = await h.service.createBotLink(
+      context,
+      { provider: 'slack', channelId: 'C0GENERAL', botToken: 'xoxb-SECRETBOT' },
+      { label: '#general' },
+    );
+    expect(view.urlHost).toBe('slack.com');
+    expect(view.label).toBe('#general');
+    expect(view.events.length).toBeGreaterThan(0);
+    expect(JSON.stringify([view, h.audits])).not.toContain('SECRETBOT');
   });
 
   it('throttles test posts to one a minute per link', async () => {

@@ -2118,6 +2118,52 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/connectors/:connectorKey',
     reason: 'connector_installation',
   },
+  // FIX5. One-click Connect for GitHub, Slack and Teams: OAuth tokens into the vault.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/app-connect/:provider',
+    reason: 'connector_installation',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/app-connect/:provider/start',
+    reason: 'connector_installation',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/app-connect/:provider/complete',
+    reason: 'connector_installation',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/app-connect/:provider',
+    reason: 'connector_installation',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/app-connect/:provider/channels',
+    reason: 'connector_installation',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/app-connect/:provider/channels',
+    reason: 'connector_installation',
+  },
+  {
+    method: 'GET',
+    path: '/v1/integrations/github/callback',
+    reason: 'connector_installation',
+  },
+  {
+    method: 'GET',
+    path: '/v1/integrations/slack/callback',
+    reason: 'connector_installation',
+  },
+  {
+    method: 'GET',
+    path: '/v1/integrations/teams/callback',
+    reason: 'connector_installation',
+  },
   // 54-14. Company sign-in settings: owner-only read, save and remove of the OIDC connection.
   {
     method: 'GET',

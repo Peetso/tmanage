@@ -168,6 +168,25 @@ export class ChannelLinksRepository {
     return result[0].affectedRows;
   }
 
+  /** FIX5. Every link of `kind` posting through host `urlHost` (the bot links of one provider). */
+  async removeByHost(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    kind: ChannelLinkKind,
+    urlHost: string,
+  ): Promise<number> {
+    const result = await tenantDrizzle(runner)
+      .delete(integrationChannelLinks)
+      .where(
+        and(
+          eq(integrationChannelLinks.organizationId, context.organizationId),
+          eq(integrationChannelLinks.kind, kind),
+          eq(integrationChannelLinks.urlHost, urlHost),
+        ),
+      );
+    return result[0].affectedRows;
+  }
+
   /** Back to `active` with the breaker's streak cleared. */
   async resume(
     runner: TenantQueryRunner,

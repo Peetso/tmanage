@@ -1,5 +1,13 @@
 import { createHash } from 'node:crypto';
-import { CHANNEL_TEST_KIND, isChannelLocale, uuidv7 } from '@tmanage/domain';
+import {
+  CHANNEL_BOT_HOSTS,
+  CHANNEL_TEST_KIND,
+  encodeChannelBot,
+  isChannelBotSecret,
+  isChannelLocale,
+  uuidv7,
+} from '@tmanage/domain';
+import type { ChannelBotDescriptor } from '@tmanage/domain';
 import { createFieldCipher, loadFieldCipherKeyring } from '@tmanage/domain/field-cipher';
 import type { FieldCipher } from '@tmanage/domain/field-cipher';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
@@ -302,6 +310,121 @@ export class ChannelLinksService {
     return toChannelLinkView(row);
   }
 
+  /**
+   * FIX5 one-click connectors. A channel picked after Connect: the link stores the bot descriptor
+   * (channel + token, {@link encodeChannelBot}) where a webhook link stores its URL, encrypted the
+   * same way. Events default to every notice kind; the owner narrows them on Channel notices.
+   */
+  async createBotLink(
+    context: TenantContext,
+    descriptor: ChannelBotDescriptor,
+    body: { readonly label: string; readonly events?: unknown; readonly locale?: unknown },
+  ): Promise<ChannelLinkView> {
+    const kind: ChannelLinkKind = descriptor.provider;
+    const events =
+      body.events === undefined ? [...WEBHOOK_EVENT_KINDS] : (body.events as unknown[]);
+    if (
+      !Array.isArray(events) ||
+      events.length === 0 ||
+      events.length > WEBHOOK_EVENT_KINDS.length ||
+      !events.every(isWebhookEventKind)
+    ) {
+      throw invalid([
+        {
+          field: 'events',
+          message: `must be a non-empty array of ${WEBHOOK_EVENT_KINDS.join(', ')}`,
+        },
+      ]);
+    }
+    const locale = body.locale ?? 'en';
+    if (!isChannelLocale(locale))
+      throw invalid([{ field: 'locale', message: "must be 'en' or 'ar'" }]);
+    if (!this.cipher.enabled) {
+      throw new ApiError(
+        409,
+        'conflict',
+        'Channel notices need encryption keys on this server',
+        undefined,
+        'channel_links_unavailable',
+      );
+    }
+    const label = body.label.trim().slice(0, MAX_LABEL_LENGTH) || KIND_NAMES[kind];
+    const channelKey =
+      descriptor.provider === 'slack'
+        ? `bot:slack:${descriptor.channelId}`
+        : `bot:teams:${descriptor.teamId}:${descriptor.channelId}`;
+    const channelId = createHash('sha256').update(channelKey, 'utf8').digest('hex');
+    const host = CHANNEL_BOT_HOSTS[kind];
+    const id = uuidv7();
+    const now = this.now();
+    const row = await this.database.transaction(context, async (runner) => {
+      const connection =
+        (await this.links.findConnection(runner, context, kind)) ??
+        (await this.connections.create(runner, context, {
+          appId: kind,
+          label: KIND_NAMES[kind],
+          status: 'connected',
+          config: { label: KIND_NAMES[kind], locale },
+          createdBy: context.userId,
+        }));
+      if (await this.links.findDuplicate(runner, context, connection.id, channelId, null)) {
+        throw new ApiError(
+          409,
+          'conflict',
+          'This channel is already linked',
+          undefined,
+          'channel_link_exists',
+        );
+      }
+      const kinds = [...new Set(events as string[])];
+      const created = await this.links.insert(
+        runner,
+        context,
+        {
+          id,
+          connectionId: connection.id,
+          kind,
+          projectId: null,
+          externalChannelId: channelId,
+          label,
+          webhookUrlEnc: this.cipher.encrypt(encodeChannelBot(descriptor), {
+            purpose: 'integration_token',
+            ownerId: id,
+          }),
+          urlHost: host,
+          events: kinds,
+          locale,
+          createdBy: context.userId,
+        },
+        now,
+      );
+      await this.audit.append(runner, context, {
+        action: 'channel_link.created',
+        result: 'allowed',
+        objectId: id,
+        metadata: { kind, url_host: host, event_count: kinds.length, project_scoped: false },
+      });
+      return created;
+    });
+    return toChannelLinkView(row);
+  }
+
+  /** FIX5. Disconnect drops every bot link of the provider; pasted webhook links stay. */
+  async removeBotLinks(context: TenantContext, kind: ChannelLinkKind): Promise<number> {
+    return this.database.transaction(context, async (runner) => {
+      const removed = await this.links.removeByHost(runner, context, kind, CHANNEL_BOT_HOSTS[kind]);
+      if (removed > 0) {
+        await this.audit.append(runner, context, {
+          action: 'channel_link.removed',
+          result: 'allowed',
+          objectId: null,
+          metadata: { kind, url_host: CHANNEL_BOT_HOSTS[kind], count: removed },
+        });
+      }
+      return removed;
+    });
+  }
+
   async remove(context: TenantContext, id: string): Promise<void> {
     const removed = await this.database.transaction(context, async (runner) => {
       const existing = await this.links.findById(runner, context, id);
@@ -369,7 +492,8 @@ export class ChannelLinksService {
         'channel_link_unreadable',
       );
     }
-    await this.requireReachable(url);
+    // FIX5: a bot link posts to the provider's fixed API host, not to a pasted URL.
+    if (!isChannelBotSecret(url)) await this.requireReachable(url);
     const row = await this.database.transaction(context, async (runner) => {
       const resumed = await this.links.resume(runner, context, id, this.now());
       await this.audit.append(runner, context, {

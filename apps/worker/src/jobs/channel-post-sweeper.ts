@@ -1,5 +1,14 @@
-import { CHANNEL_TEST_KIND, isChannelLocale, renderChannelNotice } from '@tmanage/domain';
+import {
+  CHANNEL_TEST_KIND,
+  encodeChannelBot,
+  isChannelBotSecret,
+  isChannelLocale,
+  parseChannelBot,
+  renderChannelNotice,
+} from '@tmanage/domain';
 import type { ChannelNoticeEvent } from '@tmanage/domain';
+import { microsoftAppFrom, postThroughBot } from './channel-bot-post.js';
+import type { BotFetch, MicrosoftApp } from './channel-bot-post.js';
 import {
   createFieldCipher,
   loadFieldCipherKeyring,
@@ -96,6 +105,8 @@ export interface ChannelPostStore {
   loadLink(organizationId: string, linkId: string): Promise<LinkForPost | null>;
   loadEvent(organizationId: string, eventId: string): Promise<{ readonly payload: unknown } | null>;
   orgSlug(organizationId: string): Promise<string | null>;
+  /** FIX5: write a bot link's refreshed (encrypted) descriptor back. */
+  saveLinkSecret(organizationId: string, linkId: string, secretEnc: string): Promise<void>;
   /** Settle the row and the link's breaker in one transaction; returns what was decided. */
   finish(
     organizationId: string,
@@ -114,6 +125,10 @@ export interface ChannelPostDeps {
   readonly resolve?: WebhookResolver;
   readonly post?: WebhookPoster;
   readonly now?: () => Date;
+  /** FIX5: the Microsoft app, for refreshing a Teams bot link's token; null when not set up. */
+  readonly microsoft?: MicrosoftApp | null;
+  /** FIX5: test seam for the bot posts (Slack / Graph). */
+  readonly botFetch?: BotFetch;
 }
 
 function stateOf(payload: Record<string, unknown>): string | null {
@@ -169,21 +184,46 @@ async function attemptOutcome(
       payload = event.payload as Record<string, unknown>;
     }
   }
-  const egress = await checkEgress(url, deps.ownHosts, deps.resolve);
-  if (!egress.ok) return { status: egress.status, responseCode: null, error: egress.reason };
-
   const notice: ChannelNoticeEvent = {
     kind: post.outboxEventId === null ? CHANNEL_TEST_KIND : post.eventKind,
     state: stateOf(payload),
     link: deepLinkFor(deps.webBaseUrl, await deps.store.orgSlug(organizationId), payload),
   };
-  const body = JSON.stringify(
-    renderChannelNotice(
-      link.kind === 'teams' ? 'teams' : 'slack',
-      notice,
-      isChannelLocale(post.locale) ? post.locale : 'en',
-    ),
+  const rendered = renderChannelNotice(
+    link.kind === 'teams' ? 'teams' : 'slack',
+    notice,
+    isChannelLocale(post.locale) ? post.locale : 'en',
   );
+
+  // FIX5: a link made through one-click Connect posts through the provider's API as the bot.
+  if (isChannelBotSecret(url)) {
+    const descriptor = parseChannelBot(url);
+    if (descriptor === null || descriptor.provider !== link.kind) {
+      return { status: 'failed_permanent', responseCode: null, error: 'bot_unreadable' };
+    }
+    return postThroughBot(
+      {
+        fetch: deps.botFetch,
+        microsoft: deps.microsoft ?? null,
+        now: deps.now ? () => (deps.now as () => Date)().getTime() : undefined,
+        saveDescriptor: (fresh) =>
+          deps.store.saveLinkSecret(
+            organizationId,
+            link.id,
+            deps.cipher.encrypt(encodeChannelBot(fresh), {
+              purpose: 'integration_token',
+              ownerId: link.id,
+            }),
+          ),
+      },
+      descriptor,
+      rendered,
+    );
+  }
+
+  const egress = await checkEgress(url, deps.ownHosts, deps.resolve);
+  if (!egress.ok) return { status: egress.status, responseCode: null, error: egress.reason };
+  const body = JSON.stringify(rendered);
   try {
     const answer = await (deps.post ?? nodePoster)(egress.url, egress.address, {}, body);
     const ok = answer.statusCode >= 200 && answer.statusCode < 300;
@@ -285,6 +325,9 @@ export function createChannelPostDeps(
     readonly API_PUBLIC_URL?: string | undefined;
     readonly WEB_PUBLIC_URL?: string | undefined;
     readonly FIELD_CIPHER_KEYS?: string | undefined;
+    readonly MICROSOFT_CLIENT_ID?: string | undefined;
+    readonly MICROSOFT_CLIENT_SECRET?: string | undefined;
+    readonly MICROSOFT_TENANT?: string | undefined;
   },
 ): ChannelPostDeps {
   return {
@@ -292,5 +335,6 @@ export function createChannelPostDeps(
     cipher: createFieldCipher(loadFieldCipherKeyring(env)),
     ownHosts: webhookOwnHosts([env.API_PUBLIC_URL, env.WEB_PUBLIC_URL]),
     webBaseUrl: env.WEB_PUBLIC_URL ?? null,
+    microsoft: microsoftAppFrom(env),
   };
 }

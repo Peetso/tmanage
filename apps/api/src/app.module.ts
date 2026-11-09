@@ -138,6 +138,7 @@ import { PasskeysModule } from './modules/identity/passkeys/passkeys.controller.
 import { OneDriveModule } from './modules/onedrive/onedrive.controller.js';
 import { FigmaModule } from './modules/figma/figma.module.js';
 import { ConnectorsModule } from './modules/connectors/connectors.module.js';
+import { AppConnectModule } from './modules/app-connect/app-connect.module.js';
 import { GoogleCalendarModule } from './modules/google-calendar/google-calendar.controller.js';
 import { MicrosoftCalendarModule } from './modules/microsoft-calendar/microsoft-calendar.controller.js';
 import { McpEndpointModule } from './modules/mcp/mcp-endpoint.controller.js';
@@ -1159,6 +1160,8 @@ export class AppModule {
         FigmaModule.register(),
         // 54-01. The connector framework over the token vault (owner/admin install/uninstall).
         ConnectorsModule.register(),
+        // FIX5. One-click Connect for GitHub, Slack and Microsoft Teams (owner/admin).
+        AppConnectModule.register(),
         // 0237. Each person's own Google Calendar + Meet for meetings. Global: it provides the
         // calendar port the meetings services push through. Without a Google client in the
         // environment the routes answer "not configured" and meetings stay TManage-only.

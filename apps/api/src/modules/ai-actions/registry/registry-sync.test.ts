@@ -177,7 +177,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // +18, was 1384.
 // FIX3 (live check a6f66e47): remove a cancelled meeting (DELETE meetings/:meetingId): +1.
 // FIX3 items 6 and 11: archive / unarchive / delete a doc, and the Files hub's project list: +4.
-const EXPECTED_ROUTE_COUNT = 1410;
+// FIX5 one-click connectors: app-connect status/start/complete/disconnect/channels (6) and the
+// GitHub, Slack and Teams callbacks (3): +9.
+const EXPECTED_ROUTE_COUNT = 1419;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

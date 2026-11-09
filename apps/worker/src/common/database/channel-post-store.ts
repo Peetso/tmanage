@@ -155,6 +155,13 @@ export function createChannelPostStore(database: WorkerDatabase): ChannelPostSto
         );
         return rows[0]?.slug ?? null;
       }),
+    saveLinkSecret: (organizationId, linkId, secretEnc) =>
+      database.transaction(async (tx) => {
+        await tx.query(
+          'UPDATE integration_channel_links SET webhook_url_enc = ? WHERE organization_id = ? AND id = ?',
+          [secretEnc, organizationId, linkId],
+        );
+      }),
     finish: (organizationId, post, outcome, now) =>
       database.transaction(async (tx) => {
         let streakAfter = 0;
