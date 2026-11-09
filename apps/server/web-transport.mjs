@@ -320,11 +320,64 @@ export function serveDownload(req, res, download, dir) {
 }
 
 /** `downloadsDir`: the bundle's downloads folder (server.mjs), or undefined where there is none. */
-export function createPublicHandler(state, proxyToWeb, downloadsDir = undefined) {
-  return (req, res) => {
+/**
+ * FIX4 item 1a (live fe6b42bb: part PUTs answered 503). LiteSpeed starts a fresh instance of this
+ * app after a deploy, after an idle stop, or beside a busy one, and routes requests to it at once.
+ * An instance takes ~20 s to become ready (migrations check, Nest, the web child: 17:30:55 to
+ * 17:31:16 on the live log), and until now it answered EVERY request in that window with 503
+ * "starting" — an upload part, a message send, anything. A request that is not the liveness probe
+ * now waits for readiness (up to {@link STARTUP_HOLD_MS}) and is then served as usual; only a
+ * request still waiting at the end, or one over {@link STARTUP_HOLD_MAX} waiting at once, gets the
+ * 503. The body is not read while it waits (the socket applies back-pressure), so a held upload
+ * part reaches the API intact. `/healthz` still answers 503 at once: the monitor must see a
+ * starting instance as starting.
+ */
+export const STARTUP_HOLD_MS = 30_000;
+export const STARTUP_HOLD_MAX = 200;
+const STARTUP_POLL_MS = 100;
+
+export function createPublicHandler(
+  state,
+  proxyToWeb,
+  downloadsDir = undefined,
+  hold = { ms: STARTUP_HOLD_MS, max: STARTUP_HOLD_MAX },
+) {
+  let held = 0;
+  const handle = (req, res) => {
     const ready = state.ready;
     if (!ready) {
-      answerStarting(res);
+      const path = (req.url ?? '').split('?')[0];
+      if (path === '/healthz' || hold.ms <= 0 || held >= hold.max) {
+        answerStarting(res);
+        return;
+      }
+      held += 1;
+      const started = Date.now();
+      let gone = false;
+      const onClose = () => {
+        gone = true;
+      };
+      req.once('close', onClose);
+      const wait = () => {
+        if (gone) {
+          held -= 1;
+          return;
+        }
+        if (state.ready) {
+          held -= 1;
+          req.off('close', onClose);
+          handle(req, res);
+          return;
+        }
+        if (Date.now() - started >= hold.ms) {
+          held -= 1;
+          req.off('close', onClose);
+          answerStarting(res);
+          return;
+        }
+        setTimeout(wait, STARTUP_POLL_MS);
+      };
+      setTimeout(wait, STARTUP_POLL_MS);
       return;
     }
     if ((req.url ?? '').split('?')[0] === '/healthz') {
@@ -349,4 +402,5 @@ export function createPublicHandler(state, proxyToWeb, downloadsDir = undefined)
     }
     proxyToWeb(req, res);
   };
+  return handle;
 }

@@ -41,6 +41,19 @@ function get(server, path) {
   });
 }
 
+function put(server, path, body) {
+  const { port } = server.address();
+  return new Promise((done, fail) => {
+    const req = request({ host: '127.0.0.1', port, path, method: 'PUT' }, (res) => {
+      let text = '';
+      res.on('data', (chunk) => (text += chunk));
+      res.on('end', () => done({ status: res.statusCode, body: text }));
+    });
+    req.on('error', fail);
+    req.end(body);
+  });
+}
+
 function listen(handler) {
   const server = createServer(handler);
   return new Promise((done) => server.listen(0, '127.0.0.1', () => done(server)));
@@ -49,11 +62,17 @@ function listen(handler) {
 test('until ready, every path (healthz and /v1 included) answers 503 starting with Retry-After', async () => {
   const routed = [];
   const state = { ready: undefined };
+  // With the startup hold off, the old behaviour: every path answers 503 at once.
   const server = await listen(
-    createPublicHandler(state, (_req, res) => {
-      routed.push('web');
-      res.end('web');
-    }),
+    createPublicHandler(
+      state,
+      (_req, res) => {
+        routed.push('web');
+        res.end('web');
+      },
+      undefined,
+      { ms: 0, max: 0 },
+    ),
   );
   try {
     for (const path of ['/', '/healthz', '/healthz?x=1', '/v1/auth/password', '/sign-in']) {
@@ -475,5 +494,45 @@ test('the desktop installer is served from the downloads folder as octet-stream;
     served.close();
     missing.close();
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('FIX4: while starting, an API request waits for readiness and keeps its body; healthz does not', async () => {
+  const state = { ready: undefined };
+  const server = await listen(
+    createPublicHandler(state, (_req, res) => res.end('web'), undefined, { ms: 5_000, max: 10 }),
+  );
+  try {
+    assert.equal((await get(server, '/healthz')).status, 503);
+    const pending = put(server, '/v1/uploads/abc/parts/1', 'part-bytes');
+    await new Promise((done) => setTimeout(done, 300));
+    state.ready = {
+      fastify: {
+        routing: (req, res) => {
+          let body = '';
+          req.on('data', (chunk) => (body += chunk));
+          req.on('end', () => res.end(`api:${body}`));
+        },
+      },
+    };
+    const answered = await pending;
+    assert.equal(answered.status, 200);
+    assert.equal(answered.body, 'api:part-bytes');
+  } finally {
+    server.close();
+  }
+});
+
+test('FIX4: a request still waiting when the hold ends gets 503 starting', async () => {
+  const state = { ready: undefined };
+  const server = await listen(
+    createPublicHandler(state, (_req, res) => res.end('web'), undefined, { ms: 300, max: 10 }),
+  );
+  try {
+    const res = await get(server, '/v1/auth/password');
+    assert.equal(res.status, 503);
+    assert.equal(res.body, STARTING_BODY);
+  } finally {
+    server.close();
   }
 });
