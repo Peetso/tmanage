@@ -61,9 +61,12 @@ export function useAppConnectStatus(
 export function AppConnectPanel({
   api,
   organizationSlug,
+  onGithubKey,
 }: {
   api: ApiClient;
   organizationSlug: string;
+  /** FIX5 item 6c: opens GitHub's key panel on this page (it is no longer listed as a row). */
+  onGithubKey?: () => void;
 }) {
   const tr = useTOr();
   const describeError = useDescribeApiError();
@@ -187,12 +190,18 @@ export function AppConnectPanel({
                 </span>
               </div>
               <div className="tm-aut-list__end">
-                <Link
-                  href={`/${organizationSlug}/automations/apps#tm-int-keys`}
-                  className="tm-aut-btn"
-                >
-                  {tr(`${K}.open`, 'Open')}
-                </Link>
+                {onGithubKey ? (
+                  <button type="button" className="tm-aut-btn" onClick={onGithubKey}>
+                    {tr(`${K}.open`, 'Open')}
+                  </button>
+                ) : (
+                  <Link
+                    href={`/${organizationSlug}/automations/apps#tm-int-keys`}
+                    className="tm-aut-btn"
+                  >
+                    {tr(`${K}.open`, 'Open')}
+                  </Link>
+                )}
               </div>
             </li>
             <li>

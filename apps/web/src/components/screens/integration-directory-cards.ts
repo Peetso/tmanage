@@ -39,6 +39,15 @@ export interface IntegrationCard {
    * on a server without the provider's sign-in, are sent here.
    */
   readonly advancedPath?: string;
+  /**
+   * FIX5 item 6c (B-N8): the connector registry key of an app that (also) connects with a pasted
+   * key. Its card is the one place the app is listed: Connect or Manage opens the key panel on
+   * this page for owners and admins.
+   */
+  readonly keyConnector?: 'github' | 'jira';
+  /** A scope line of its own, when the generic company / calendar wording would be wrong. */
+  readonly scopeKey?: string;
+  readonly scopeText?: string;
 }
 
 export const INTEGRATION_CARDS: readonly IntegrationCard[] = [
@@ -82,7 +91,11 @@ export const INTEGRATION_CARDS: readonly IntegrationCard[] = [
     id: 'figma',
     brand: 'figma',
     flow: 'page',
-    scope: 'company',
+    // FIX5 item 6c: a Figma connection is the member's own (the API keys it by membership), as its
+    // panel says ("Only you use this connection"), so the card must not say "whole company".
+    scope: 'personal',
+    scopeKey: 'IntegrationDirectoryScreen.scopePersonalFigma',
+    scopeText: 'Just for you: your own Figma account',
     whatKey: 'IntegrationDirectoryScreen.what.figma',
     what: 'Show Figma frames on work items and reviews, always up to date.',
     // FIX4 item 6: one-click Connect when the server has Figma's sign-in; otherwise the key form
@@ -99,6 +112,7 @@ export const INTEGRATION_CARDS: readonly IntegrationCard[] = [
     // FIX5: one-click Connect (GitHub OAuth App); the access-token form stays under Advanced.
     path: '/automations/apps#tm-app-connect-github',
     advancedPath: '/automations/apps#tm-int-keys',
+    keyConnector: 'github',
   },
   {
     id: 'jira',
@@ -108,6 +122,7 @@ export const INTEGRATION_CARDS: readonly IntegrationCard[] = [
     whatKey: 'IntegrationDirectoryScreen.what.jira',
     what: 'Bring Jira issues into TManage and keep them in step.',
     path: '/automations/apps#tm-int-keys',
+    keyConnector: 'jira',
   },
   {
     id: 'slack',

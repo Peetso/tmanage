@@ -20,6 +20,8 @@ interface World {
   driveStart?: number;
   /** FIX4 item 6: the server has Figma's own sign-in. */
   figmaOneClick?: boolean;
+  /** FIX5 item 6c: the caller is the company owner (seeds the shell's organization list). */
+  owner?: boolean;
 }
 
 function mount(world: World = {}) {
@@ -94,6 +96,31 @@ function mount(world: World = {}) {
     if (path.endsWith('/integrations/microsoft-calendar')) {
       return [404, { error: { code: 'not_found', message: 'no', correlationId: 'c' } }];
     }
+    if (path.endsWith('/connectors')) {
+      return [
+        200,
+        {
+          connectors: ['github', 'jira'].map((key) => ({
+            key,
+            name: key === 'github' ? 'GitHub' : 'Jira',
+            authType: 'api-key',
+            scopes: ['read'],
+            capabilities: [],
+            scope: 'organization',
+            managed: 'framework',
+            state: 'not_installed',
+            credentialHint: null,
+            installedAt: null,
+          })),
+        },
+      ];
+    }
+    if (path.includes('/app-connect/')) {
+      return [
+        200,
+        { provider: 'github', setUp: true, connected: false, account: null, channel: null },
+      ];
+    }
     if (path.endsWith('/figma/connection/start')) {
       return [200, { url: 'https://www.figma.com/oauth?client_id=x&state=s' }];
     }
@@ -162,6 +189,21 @@ function mount(world: World = {}) {
   });
   const navigate = vi.fn();
   const query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  if (world.owner) {
+    query.setQueryData(
+      ['shell', 'organizations'],
+      [
+        {
+          id: 'org-1',
+          slug: 'northstar-studio',
+          name: 'Northstar Studio',
+          audience: 'internal',
+          role: 'owner',
+          clientOrganizationName: null,
+        },
+      ],
+    );
+  }
   render(
     <QueryClientProvider client={query}>
       <IntegrationDirectoryScreen
@@ -269,17 +311,35 @@ describe('Integrations cards (feedback 2026-11-09 item 6)', () => {
     expect(screen.getByRole('link', { name: 'Connect Slack' }).getAttribute('href')).toBe(
       '/northstar-studio/settings/channel-notices',
     );
-    // FIX4 item 6: Figma, GitHub and Jira are connected on this page, not on Connected apps.
-    expect(screen.getByRole('link', { name: 'Connect GitHub' }).getAttribute('href')).toBe(
-      '/northstar-studio/automations/apps#tm-int-keys',
-    );
-    expect(screen.getByRole('link', { name: 'Connect Jira' }).getAttribute('href')).toBe(
-      '/northstar-studio/automations/apps#tm-int-keys',
-    );
+    // FIX5 item 6c: GitHub and Jira's key flow is for owners and admins; a member is told so
+    // instead of a link to a section that is not on their page.
+    for (const name of ['GitHub', 'Jira']) {
+      expect(
+        within(card(name)).getByText('An owner or admin connects this for the company.'),
+      ).toBeTruthy();
+      expect(within(card(name)).queryByRole('link')).toBeNull();
+    }
     const zapier = card('Zapier');
     expect(within(zapier).getByText('Coming soon')).toBeTruthy();
     expect(within(zapier).queryByRole('button')).toBeNull();
     expect(within(zapier).queryByRole('link')).toBeNull();
+  });
+
+  it('FIX5 item 6c: lists GitHub and Jira once; Jira’s Connect opens its key panel here', async () => {
+    mount({ owner: true });
+    const jira = await screen.findByRole('button', { name: 'Connect Jira' });
+    await waitFor(() => expect(jira).toBeEnabled());
+    // One heading per app on the page: no second "Apps that connect with a key" list.
+    expect(screen.getAllByRole('heading', { name: 'Jira' })).toHaveLength(1);
+    expect(screen.getAllByRole('heading', { name: 'GitHub' })).toHaveLength(1);
+    expect(screen.queryByText('Apps that connect with a key')).toBeNull();
+    fireEvent.click(jira);
+    expect(await screen.findByRole('form', { name: 'Connect Jira with a key' })).toBeTruthy();
+    expect(screen.getAllByRole('heading', { name: 'Jira' })).toHaveLength(1);
+    // The subtitle no longer promises one click for every app.
+    expect(screen.getByText(/Jira asks once for a key/)).toBeTruthy();
+    // The Figma card says what its panel says: the connection is the member's own.
+    expect(within(card('Figma')).getByText('Just for you: your own Figma account')).toBeTruthy();
   });
 
   it('FIX4 item 6: Figma connects in one click when the server has its sign-in', async () => {

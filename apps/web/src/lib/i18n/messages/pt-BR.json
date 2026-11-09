@@ -1,4 +1,9 @@
 {
+  "IntegrationDirectoryScreen.lede": "Conecte os apps que sua equipe já usa. A maioria com um clique; o Jira pede uma vez uma chave do app. Você pode desconectar quando quiser.",
+  "IntegrationDirectoryScreen.scopePersonalFigma": "Só para você: sua própria conta do Figma",
+  "IntegrationDirectoryScreen.askAdmin": "Um proprietário ou administrador conecta isto para a empresa toda.",
+  "ConnectorDirectory.keyPanelTitle": "Conectar {app} com uma chave",
+  "ConnectorDirectory.done": "Concluído",
   "displayPreferences.title": "Preferências de exibição",
   "displayPreferences.description": "Tema, densidade, idioma, fuso horário e formato de data — salvos na sua conta para este estúdio.",
   "displayPreferences.sectionDisplay": "Exibição",

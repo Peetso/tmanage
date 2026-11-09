@@ -23,7 +23,7 @@ function connector(partial: Partial<ConnectorView>): ConnectorView {
   };
 }
 
-function mount(connectors: readonly ConnectorView[]) {
+function mount(connectors: readonly ConnectorView[], only = 'jira') {
   const calls: { method: string; url: string; body: string | undefined }[] = [];
   const client = new ApiClient({
     baseUrl: 'https://api.example.test',
@@ -50,15 +50,14 @@ function mount(connectors: readonly ConnectorView[]) {
   const query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={query}>
-      <ConnectorDirectory api={client} organizationSlug="northstar" />
+      <ConnectorDirectory api={client} organizationSlug="northstar" only={only} />
     </QueryClientProvider>,
   );
   return calls;
 }
 
-describe('ConnectorDirectory (54-01)', () => {
-  // FIX4 item 6: the built-in connections are cards on Integrations; only key apps are listed.
-  it('lists only the apps that connect with a key, each with Connect', async () => {
+describe('ConnectorDirectory (54-01; FIX5 item 6c: one app, opened from its card)', () => {
+  it('shows only the app it was opened for, with its key form already open', async () => {
     mount([
       connector({
         key: 'google_drive',
@@ -67,22 +66,27 @@ describe('ConnectorDirectory (54-01)', () => {
         managed: 'built-in',
         state: 'connected',
       }),
+      connector({ key: 'github', name: 'GitHub' }),
       connector({}),
     ]);
-    expect(await screen.findByRole('button', { name: 'Connect Jira' })).toBeTruthy();
-    expect(screen.queryByText('Google Drive')).toBeNull();
+    expect(
+      await screen.findByRole('heading', { level: 2, name: 'Connect Jira with a key' }),
+    ).toBeTruthy();
+    expect(screen.getByRole('form', { name: 'Connect Jira with a key' })).toBeTruthy();
     expect(screen.getByText('Not connected')).toBeTruthy();
+    expect(screen.queryByText('Google Drive')).toBeNull();
+    expect(screen.queryByText('GitHub')).toBeNull();
   });
 
   it('connects with the pasted key and shows Connected', async () => {
     const calls = mount([connector({})]);
-    fireEvent.click(await screen.findByRole('button', { name: 'Connect Jira' }));
-    const form = screen.getByRole('form', { name: 'Connect Jira' });
+    const form = await screen.findByRole('form', { name: 'Connect Jira with a key' });
     fireEvent.change(within(form).getByLabelText('Key'), {
       target: { value: 'jira-token-abcd1234' },
     });
     fireEvent.click(within(form).getByRole('button', { name: 'Connect' }));
     await waitFor(() => expect(screen.getByText('Connected')).toBeTruthy());
+    expect(screen.queryByRole('form')).toBeNull();
     const post = calls.find((call) => call.method === 'POST');
     expect(post?.url).toBe(
       'https://api.example.test/v1/organizations/northstar/connectors/jira/install',

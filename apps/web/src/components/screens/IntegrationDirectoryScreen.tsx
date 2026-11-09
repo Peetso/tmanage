@@ -34,6 +34,7 @@ import {
   startFigmaConnect,
 } from '../../lib/api/figma';
 import { startAppConnect } from '../../lib/api/app-connect';
+import { listConnectors } from '../../lib/api/connectors';
 import { AppConnectPanel, useAppConnectStatus } from './AppConnectPanel';
 import { ConnectorDirectory } from './ConnectorDirectory';
 import { FigmaConnectCard } from './FigmaConnectCard';
@@ -105,6 +106,14 @@ export function IntegrationDirectoryScreen({
   // Figma without one-click sign-in on this server: the key form, opened from its card.
   const [figmaKeyOpen, setFigmaKeyOpen] = useState(false);
   const [figmaOutcome, setFigmaOutcome] = useState<'success' | 'failure' | null>(null);
+  // FIX5 item 6c (B-N8): the app whose key panel is open, from its card (each app is listed once).
+  const [keyApp, setKeyApp] = useState<'github' | 'jira' | null>(null);
+  const openKeyPanel = (app: 'github' | 'jira') => {
+    setKeyApp(app);
+    requestAnimationFrame(() =>
+      globalThis.document?.getElementById('tm-int-keys')?.scrollIntoView?.({ block: 'start' }),
+    );
+  };
 
   // Same query keys as the Storage screen, Connected apps and the Control Center badge.
   const drive = useQuery({
@@ -138,6 +147,19 @@ export function IntegrationDirectoryScreen({
   const github = useAppConnectStatus(api, organizationSlug, 'github', managesCompany);
   const slack = useAppConnectStatus(api, organizationSlug, 'slack', managesCompany);
   const teams = useAppConnectStatus(api, organizationSlug, 'teams', managesCompany);
+  // FIX5 item 6c: the key apps' own state, for their cards (same query key as the key panel).
+  const connectors = useQuery({
+    queryKey: ['connectors', organizationSlug],
+    queryFn: () => listConnectors(api, organizationSlug),
+    enabled: managesCompany,
+    retry: false,
+  });
+  const keyInstalled = (key: string) =>
+    connectors.data?.some(
+      (connector) =>
+        connector.key === key &&
+        (connector.state === 'installed' || connector.state === 'connected'),
+    ) === true;
 
   // Starts the API refused because the provider's sign-in is not set up on this server.
   const [refused, setRefused] = useState<ReadonlySet<IntegrationCardId>>(() => new Set());
@@ -186,11 +208,18 @@ export function IntegrationDirectoryScreen({
         return figma.data?.status === 'connected'
           ? { kind: 'connected', account: figma.data.handle }
           : { kind: 'ready', broken: figma.data?.status === 'error' };
+      case 'jira':
+        if (!managesCompany) return { kind: 'ready', broken: false };
+        if (connectors.isPending) return { kind: 'loading' };
+        return keyInstalled('jira')
+          ? { kind: 'connected', account: null }
+          : { kind: 'ready', broken: false };
       case 'github':
       case 'slack':
       case 'teams': {
         const read = id === 'github' ? github : id === 'slack' ? slack : teams;
         if (!managesCompany) return { kind: 'ready', broken: false };
+        if (id === 'github' && keyInstalled('github')) return { kind: 'connected', account: null };
         if (read.isPending) return { kind: 'loading' };
         if (read.isError || !read.data?.setUp) return { kind: 'not_set_up' };
         return read.data.connected
@@ -271,7 +300,11 @@ export function IntegrationDirectoryScreen({
       eyebrow={t('IntegrationDirectoryScreen.eyebrow')}
       // FIX3 item 10: headed with its menu name; the connected count opens the lede.
       title={t('ControlCenterShell.integrations')}
-      description={`${title}. ${t('ConnectApps.lede')}`}
+      // FIX5 item 6c: not "One click" for every app; Jira asks for a key.
+      description={`${title}. ${tr(
+        `${KEY}.lede`,
+        'Connect the apps your team already uses. Most take one click; Jira asks once for a key from the app. You can disconnect any time.',
+      )}`}
       actions={
         <Link href={`/${organizationSlug}/admin/audit`} className="tm-aut-btn">
           {t('IntegrationDirectoryScreen.auditAccess')}
@@ -368,6 +401,10 @@ export function IntegrationDirectoryScreen({
                 connecting={connect.isPending && connect.variables === card.id}
                 busy={connect.isPending}
                 figmaOneClick={figma.data?.oneClick === true}
+                keyInstalled={card.keyConnector ? keyInstalled(card.keyConnector) : false}
+                {...(managesCompany && card.keyConnector
+                  ? { onKeyConnect: () => openKeyPanel(card.keyConnector!) }
+                  : {})}
                 onConnect={() => connect.mutate(card.id)}
                 onFigmaKey={() => {
                   setFigmaKeyOpen(true);
@@ -393,10 +430,22 @@ export function IntegrationDirectoryScreen({
           ) : null}
         </div>
 
-        {managesCompany ? <AppConnectPanel api={api} organizationSlug={organizationSlug} /> : null}
-
         {managesCompany ? (
-          <ConnectorDirectory api={api} organizationSlug={organizationSlug} />
+          <AppConnectPanel
+            api={api}
+            organizationSlug={organizationSlug}
+            onGithubKey={() => openKeyPanel('github')}
+          />
+        ) : null}
+
+        {managesCompany && keyApp ? (
+          <ConnectorDirectory
+            key={keyApp}
+            api={api}
+            organizationSlug={organizationSlug}
+            only={keyApp}
+            onDone={() => setKeyApp(null)}
+          />
         ) : null}
 
         <section className="tm-aut-col" aria-labelledby="tm-int-more">
@@ -463,8 +512,10 @@ function IntegrationCardItem({
   connecting,
   busy,
   figmaOneClick = false,
+  keyInstalled = false,
   onConnect,
   onFigmaKey,
+  onKeyConnect,
 }: {
   card: IntegrationCard;
   status: CardStatus;
@@ -476,6 +527,10 @@ function IntegrationCardItem({
   onConnect: () => void;
   /** FIX4 item 6: Figma without one-click sign-in opens the key form on this page. */
   onFigmaKey?: () => void;
+  /** FIX5 item 6c: the app is connected with a pasted key (its Manage opens the key panel). */
+  keyInstalled?: boolean;
+  /** FIX5 item 6c: owners and admins open this app's key panel from its card. */
+  onKeyConnect?: () => void;
 }) {
   const t = useT();
   const tr = useTOr();
@@ -511,6 +566,15 @@ function IntegrationCardItem({
         >
           {t('IntegrationDirectoryScreen.manage')}
         </button>
+      ) : onKeyConnect && (keyInstalled || card.flow === 'page') ? (
+        <button
+          type="button"
+          className="tm-aut-btn"
+          aria-label={tr(`${KEY}.manageLabel`, 'Manage {app}').replace('{app}', name)}
+          onClick={onKeyConnect}
+        >
+          {t('IntegrationDirectoryScreen.manage')}
+        </button>
       ) : href ? (
         <Link
           href={href}
@@ -530,6 +594,24 @@ function IntegrationCardItem({
         {t('ConnectApps.connect')}
       </Button>
     );
+  } else if (card.flow === 'page' && onKeyConnect) {
+    // FIX5 item 6c (B-N8): Jira's Connect opens its key panel here; it is not listed twice.
+    action = (
+      <Button
+        tone="lime"
+        aria-label={t('ConnectApps.connectLabel').replace('{app}', name)}
+        onClick={onKeyConnect}
+      >
+        {t('ConnectApps.connect')}
+      </Button>
+    );
+  } else if (card.flow === 'page' && card.keyConnector) {
+    // Only owners and admins connect a key app; a member is told so instead of a dead link.
+    action = (
+      <p className="tm-int-card__hint">
+        {tr(`${KEY}.askAdmin`, 'An owner or admin connects this for the company.')}
+      </p>
+    );
   } else if (card.flow === 'page' && card.id !== 'figma') {
     action = href ? (
       <Link
@@ -546,7 +628,11 @@ function IntegrationCardItem({
     state = (
       <StateCapsule state="waiting">{tr('AppConnect.notSetUp', 'Not set up yet')}</StateCapsule>
     );
-    action = card.advancedPath ? (
+    action = onKeyConnect ? (
+      <button type="button" className="tm-aut-btn" onClick={onKeyConnect}>
+        {tr('AppConnect.otherWay', 'Connect another way')}
+      </button>
+    ) : card.advancedPath ? (
       <Link href={`/${organizationSlug}${card.advancedPath}`} className="tm-aut-btn">
         {tr('AppConnect.otherWay', 'Connect another way')}
       </Link>
@@ -592,9 +678,11 @@ function IntegrationCardItem({
       </h3>
       <p className="tm-int-card__what">{tr(card.whatKey, card.what)}</p>
       <p className="tm-int-card__scope">
-        {card.scope === 'personal'
-          ? tr(`${KEY}.scopePersonal`, 'Just for you: your own calendar')
-          : tr(`${KEY}.scopeCompany`, 'For the whole company')}
+        {card.scopeKey && card.scopeText
+          ? tr(card.scopeKey, card.scopeText)
+          : card.scope === 'personal'
+            ? tr(`${KEY}.scopePersonal`, 'Just for you: your own calendar')
+            : tr(`${KEY}.scopeCompany`, 'For the whole company')}
       </p>
       {action ? <div className="tm-int-card__foot">{action}</div> : null}
     </li>

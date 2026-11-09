@@ -1,4 +1,9 @@
 {
+  "IntegrationDirectoryScreen.lede": "连接你的团队已经在用的应用。大多数一键即可连接；Jira 需要你提供一次应用里的密钥。你可以随时断开连接。",
+  "IntegrationDirectoryScreen.scopePersonalFigma": "仅限你本人：你自己的 Figma 账号",
+  "IntegrationDirectoryScreen.askAdmin": "由所有者或管理员为整个公司连接。",
+  "ConnectorDirectory.keyPanelTitle": "用密钥连接 {app}",
+  "ConnectorDirectory.done": "完成",
   "displayPreferences.title": "显示偏好",
   "displayPreferences.description": "主题、密度、语言区域、时区和日期格式——保存到你在此工作室的账户中。",
   "displayPreferences.sectionDisplay": "显示",
