@@ -17,6 +17,8 @@
 .tm-int-card {
   display: flex;
   flex-direction: column;
+  /* FIX4 item 6 (I4): a long "Connected as" value must not widen the card past its column. */
+  min-inline-size: 0;
   gap: var(--s2);
   min-block-size: 220px;
   padding: 22px;
@@ -31,6 +33,10 @@
   justify-content: space-between;
   gap: var(--s2);
   margin-block-end: var(--s2);
+}
+
+.tm-int-card__head > :first-child {
+  flex-shrink: 0;
 }
 
 .tm-int-card__name {

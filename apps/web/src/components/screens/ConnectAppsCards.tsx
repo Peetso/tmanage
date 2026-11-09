@@ -367,10 +367,13 @@ export function ConnectAppsCards({
               <p className="tm-connect-apps__what">{t(app.whatKey)}</p>
               {card === null ? null : card.connected ? (
                 <div className="tm-connect-apps__actions">
-                  <StateCapsule state="done">
+                  <StateCapsule state="done" className="tm-state-capsule--fit">
                     {card.email ? (
                       <>
-                        {t('ConnectApps.connectedAs')} <bdi dir="ltr">{card.email}</bdi>
+                        {t('ConnectApps.connectedAs')}{' '}
+                        <bdi dir="ltr" className="tm-state-capsule__value" title={card.email}>
+                          {card.email}
+                        </bdi>
                       </>
                     ) : (
                       t('ConnectApps.connected')

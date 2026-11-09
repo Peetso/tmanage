@@ -1,6 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useT } from '../../lib/i18n/use-t';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import type { MessageKey } from '../../lib/i18n/t';
@@ -221,6 +230,36 @@ export function DueDatePicker({ heading, value, now, min, onSet, onClose }: DueD
     return () => document.removeEventListener('mousedown', onPointer);
   }, [onClose]);
 
+  // FIX4 item 6 (C2): the month grid was cut off at the bottom of the screen. The panel opens
+  // upwards when there is more room above its field, and scrolls inside itself when neither side
+  // has room for all of it.
+  const [placement, setPlacement] = useState<{ side: 'below' | 'above'; max: number | null }>({
+    side: 'below',
+    max: null,
+  });
+  useLayoutEffect(() => {
+    const place = () => {
+      const node = panel.current;
+      const field = node?.parentElement;
+      if (!node || !field) return;
+      const margin = 8;
+      const gap = 8;
+      const box = field.getBoundingClientRect();
+      const height = node.scrollHeight;
+      const below = window.innerHeight - box.bottom - gap - margin;
+      const above = box.top - gap - margin;
+      const side = height <= below || below >= above ? 'below' : 'above';
+      const room = side === 'below' ? below : above;
+      const max = height > room ? Math.max(room, 160) : null;
+      setPlacement((current) =>
+        current.side === side && current.max === max ? current : { side, max },
+      );
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [view.year, view.month]);
+
   const todayDate = parseDay(today);
   const daysToMonday = todayDate === null ? 7 : (8 - todayDate.getUTCDay()) % 7 || 7;
   const quick = [
@@ -262,6 +301,8 @@ export function DueDatePicker({ heading, value, now, min, onSet, onClose }: DueD
       aria-labelledby={titleId}
       className="tm-wk-datepicker"
       data-testid="due-date-picker"
+      data-side={placement.side}
+      style={placement.max === null ? undefined : { maxBlockSize: placement.max, overflowY: 'auto' }}
     >
       <p id={titleId} className="tm-wk-datepicker__title">
         {heading}

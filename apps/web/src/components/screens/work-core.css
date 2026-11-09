@@ -1178,6 +1178,12 @@ button.tm-wk-chip[aria-expanded='true'] {
   position: relative;
 }
 
+/* FIX4 item 6 (C2): with no room below its field the picker opens upwards. */
+.tm-wk-datepicker[data-side='above'] {
+  inset-block-start: auto;
+  inset-block-end: calc(100% + var(--s2));
+}
+
 /* FIX2: a picker opened from the inline end of a narrow pane (the chat's convert lens) opens
    towards the start, so it stays on screen. */
 .tm-wk-popover-anchor[data-align='end'] > .tm-wk-datepicker {

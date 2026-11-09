@@ -1232,6 +1232,22 @@
 }
 
 /* Lime marks the current/live state only — never success, never selection. */
+/*
+ * FIX4 item 6 (I4): a capsule that carries a long value ("Connected as name@company…") stays
+ * inside its card: it shrinks to the space it has and the value ends in an ellipsis. Put the
+ * value in `<bdi class="tm-state-capsule__value">`.
+ */
+.tm-state-capsule--fit {
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.tm-state-capsule--fit .tm-state-capsule__value {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .tm-state-capsule--current {
   background: var(--lime-500);
   color: var(--tm-on-lime);

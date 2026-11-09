@@ -372,10 +372,13 @@ function IntegrationCardItem({
     state = <StateCapsule state="future">{tr(`${KEY}.comingSoon`, 'Coming soon')}</StateCapsule>;
   } else if (status.kind === 'connected') {
     state = (
-      <StateCapsule state="done">
+      <StateCapsule state="done" className="tm-state-capsule--fit">
         {status.account ? (
           <>
-            {t('ConnectApps.connectedAs')} <bdi dir="ltr">{status.account}</bdi>
+            {t('ConnectApps.connectedAs')}{' '}
+            <bdi dir="ltr" className="tm-state-capsule__value" title={status.account}>
+              {status.account}
+            </bdi>
           </>
         ) : (
           t('ConnectApps.connected')
