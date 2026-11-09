@@ -118,10 +118,29 @@ describe('work item lifecycle (23-ERD §5)', () => {
       ok: false,
       reason: 'illegal_transition',
     });
-    expect(workItemStateMachine.transition('backlog', 'in_progress')).toMatchObject({
+    expect(workItemStateMachine.transition('backlog', 'done', {})).toMatchObject({
       ok: false,
       reason: 'illegal_transition',
     });
+  });
+
+  it('FIX4 item 7: allows every move a team makes in one step, back to the backlog included', () => {
+    for (const from of ['ready', 'in_progress', 'internal_review'] as const) {
+      expect(workItemStateMachine.transition(from, 'backlog').ok).toBe(true);
+    }
+    expect(workItemStateMachine.transition('backlog', 'in_progress').ok).toBe(true);
+    expect(workItemStateMachine.transition('internal_review', 'ready').ok).toBe(true);
+    expect(workItemStateMachine.transition('blocked', 'backlog', {}).ok).toBe(false);
+    expect(
+      workItemStateMachine.transition('blocked', 'backlog', { blockerResolution: 'Not needed' }).ok,
+    ).toBe(true);
+    expect(workItemStateMachine.transition('done', 'backlog', {}).ok).toBe(false);
+    expect(
+      workItemStateMachine.transition('done', 'backlog', { reopenReason: 'Next sprint' }).ok,
+    ).toBe(true);
+    for (const from of ['ready', 'in_progress', 'internal_review'] as const) {
+      expect(workItemStateMachine.transition(from, 'archived').ok).toBe(true);
+    }
   });
 
   it('leaves the archive only by a restore to the backlog', () => {

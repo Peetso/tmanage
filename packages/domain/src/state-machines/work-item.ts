@@ -68,6 +68,41 @@ const definition: StateMachineDefinition<WorkItemState> = {
       to: 'backlog',
       note: 'Restore from archive (2026-10-31 live test). The item starts over, not completed.',
     },
+    // FIX4 item 7 (live check fe6b42bb, B12): every move a team makes in practice is one step.
+    // Work can start straight from the backlog, go back to it from any open state, and be sent
+    // back from review; a blocked or done item can go back to the queue with the same reason the
+    // spec asks for when it returns to work. Done still comes only through review (§5's gate).
+    { from: 'backlog', to: 'in_progress', note: 'FIX4: start straight from the backlog.' },
+    { from: 'in_progress', to: 'backlog', note: 'FIX4: put it back in the backlog.' },
+    { from: 'internal_review', to: 'ready', note: 'FIX4: sent back from review to the queue.' },
+    { from: 'internal_review', to: 'backlog', note: 'FIX4: sent back to the backlog.' },
+    {
+      from: 'blocked',
+      to: 'ready',
+      requires: ['blockerResolution'],
+      note: 'FIX4: unblocked, but not picked up again yet.',
+    },
+    {
+      from: 'blocked',
+      to: 'backlog',
+      requires: ['blockerResolution'],
+      note: 'FIX4: unblocked and put back in the backlog.',
+    },
+    {
+      from: 'done',
+      to: 'ready',
+      requires: ['reopenReason'],
+      note: 'FIX4: reopened into the queue rather than straight into work.',
+    },
+    {
+      from: 'done',
+      to: 'backlog',
+      requires: ['reopenReason'],
+      note: 'FIX4: reopened into the backlog.',
+    },
+    { from: 'ready', to: 'archived', note: 'FIX4: archive work that will not be done.' },
+    { from: 'in_progress', to: 'archived', note: 'FIX4: archive work that will not be done.' },
+    { from: 'internal_review', to: 'archived', note: 'FIX4: archive work that will not be done.' },
   ],
 };
 

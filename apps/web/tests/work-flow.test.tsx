@@ -584,12 +584,14 @@ describe('TM-13 the work item detail', () => {
     renderDetail(() => json(workItem({ state: 'in_progress' })));
 
     await screen.findByLabelText('Move to');
-    // §5 from in_progress: ready, blocked, internal_review. Nothing else.
+    // §5 from in_progress: ready, blocked, internal_review; FIX4 item 7 adds backlog and archive.
+    // Done still only through review.
     expect(screen.getByRole('option', { name: 'Ready' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Blocked' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Internal review' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Backlog' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Archived' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Done' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: 'Archived' })).not.toBeInTheDocument();
   });
 
   it('asks for exactly the facts the chosen move requires', async () => {

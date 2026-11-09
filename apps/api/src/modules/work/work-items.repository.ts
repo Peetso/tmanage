@@ -501,7 +501,8 @@ export class WorkItemsRepository {
         ...(to === 'done' && completion
           ? { ownerUserId: completion.ownerUserId, completedAt: completion.completedAt }
           : {}),
-        ...(from === 'done' && to === 'in_progress' ? { completedAt: null } : {}),
+        // FIX4 item 7: a reopen into the queue or the backlog is not completed either.
+        ...(from === 'done' && to !== 'archived' ? { completedAt: null } : {}),
         // A restored item starts over in the backlog; it is no longer completed.
         ...(from === 'archived' && to === 'backlog' ? { completedAt: null } : {}),
       })

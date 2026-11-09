@@ -115,7 +115,9 @@ describe('A6 board view', () => {
 
 describe('board drag and drop (WK-03, 2026-10-31 live test)', () => {
   it('finds the steps a drop makes, and refuses the ones that need a reason', () => {
-    expect(dragPath('backlog', 'in_progress', false)).toEqual(['ready', 'in_progress']);
+    // FIX4 item 7: starting straight from the backlog is one step (one request, one entry).
+    expect(dragPath('backlog', 'in_progress', false)).toEqual(['in_progress']);
+    expect(dragPath('in_progress', 'backlog', false)).toEqual(['backlog']);
     expect(dragPath('in_progress', 'done', true)).toEqual(['internal_review', 'done']);
     expect(dragPath('in_progress', 'done', false)).toBeNull();
     expect(dragPath('blocked', 'internal_review', true)).toBeNull();
@@ -157,7 +159,44 @@ describe('board drag and drop (WK-03, 2026-10-31 live test)', () => {
     fireEvent.dragOver(target, { dataTransfer });
     fireEvent.drop(target, { dataTransfer });
     await waitFor(() => expect(onMoved).toHaveBeenCalled());
-    expect(request.mock.calls.map(([call]) => call.body.to)).toEqual(['ready', 'in_progress']);
+    expect(request.mock.calls.map(([call]) => call.body.to)).toEqual(['in_progress']);
+  });
+
+  it('FIX4 item 7: the Move menu puts a card back in the backlog, and To do makes it ready', async () => {
+    const request = vi.fn(async ({ body }: { body: { version: number; to: string } }) => ({
+      data: item('Hero', { state: body.to as WorkItemSummary['state'], version: body.version + 1 }),
+    }));
+    const onMoved = vi.fn();
+    const { rerender } = render(
+      <WorkBoardView
+        organizationSlug="northstar"
+        items={[item('Hero', { state: 'in_progress' })]}
+        members={MEMBERS}
+        membersPending={false}
+        api={{ request } as unknown as ApiClient}
+        onMoved={onMoved}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /Move Hero/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Backlog' }));
+    await waitFor(() => expect(onMoved).toHaveBeenCalledTimes(1));
+    expect(request.mock.calls.map(([call]) => call.body.to)).toEqual(['backlog']);
+
+    rerender(
+      <WorkBoardView
+        organizationSlug="northstar"
+        items={[item('Hero', { state: 'backlog', version: 2 })]}
+        members={MEMBERS}
+        membersPending={false}
+        api={{ request } as unknown as ApiClient}
+        onMoved={onMoved}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /Move Hero/ }));
+    expect(screen.getByRole('button', { name: /Backlog/ })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: L('WorkBoard.todo') }));
+    await waitFor(() => expect(onMoved).toHaveBeenCalledTimes(2));
+    expect(request.mock.calls.map(([call]) => call.body.to)).toEqual(['backlog', 'ready']);
   });
 });
 

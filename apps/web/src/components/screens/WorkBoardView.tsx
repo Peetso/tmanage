@@ -290,6 +290,20 @@ export function WorkBoardView({
     placeInColumn(item, column, null);
   }
 
+  /**
+   * FIX4 item 7 (B12): a state the columns do not tell apart — Backlog shares To do with Ready —
+   * picked from the Move menu.
+   */
+  function moveToState(item: WorkItemSummary, target: WorkItemState) {
+    if (item.state === target) return;
+    const path = dragPath(item.state, target, item.ownerUserId !== null);
+    if (path === null || path.length === 0) {
+      setRefused({ title: item.title, reason: t('WorkBoard.moveNeedsDetail') });
+      return;
+    }
+    void moveItem(item, path);
+  }
+
   /** The keyboard path for the order: one place up or down inside the column. */
   function nudge(item: WorkItemSummary, column: BoardColumn, step: -1 | 1) {
     const ordered = columnCards(column);
@@ -462,7 +476,17 @@ export function WorkBoardView({
                             title={item.title}
                             current={column.id}
                             disabled={moving}
-                            onMove={(target) => moveToColumn(item, target)}
+                            onMove={(target) =>
+                              target === 'todo' && item.state === 'backlog'
+                                ? moveToState(item, 'ready')
+                                : moveToColumn(item, target)
+                            }
+                            {...(canMove
+                              ? {
+                                  inBacklog: item.state === 'backlog',
+                                  onBacklog: () => moveToState(item, 'backlog'),
+                                }
+                              : {})}
                             {...(canReorder && index > 0
                               ? { onUp: () => nudge(item, column.id, -1) }
                               : {})}
@@ -494,6 +518,8 @@ export function BoardMoveMenu({
   current,
   disabled,
   onMove,
+  inBacklog = false,
+  onBacklog,
   onUp,
   onDown,
 }: {
@@ -501,6 +527,10 @@ export function BoardMoveMenu({
   readonly current: BoardColumn;
   readonly disabled?: boolean;
   readonly onMove: (column: BoardColumn) => void;
+  /** FIX4 item 7: the card is in the backlog (the To do column also holds Ready work). */
+  readonly inBacklog?: boolean;
+  /** FIX4 item 7: put the card back in the backlog. */
+  readonly onBacklog?: () => void;
   /** FIX3 item C: the keyboard path for the hand-made order — one place up in the column. */
   readonly onUp?: () => void;
   /** One place down in the column. */
@@ -547,8 +577,25 @@ export function BoardMoveMenu({
         <div className="tm-wk-move__menu">
           <p className="tm-wk-move__heading">{tOr('WorkBoard.moveTo', 'Move to')}</p>
           <ul ref={listRef} className="tm-wk-move__list">
+            {onBacklog ? (
+              <li>
+                <button
+                  type="button"
+                  className="tm-wk-move__item"
+                  disabled={inBacklog}
+                  onKeyDown={onKeyDown}
+                  onClick={() => {
+                    close();
+                    onBacklog();
+                  }}
+                >
+                  {t('WorkListScreen.stateBacklog')}
+                  {inBacklog ? ` · ${tOr('WorkBoard.moveCurrent', 'current')}` : ''}
+                </button>
+              </li>
+            ) : null}
             {COLUMNS.map((column) => {
-              const here = column.id === current;
+              const here = column.id === current && !(onBacklog && inBacklog);
               return (
                 <li key={column.id}>
                   <button
