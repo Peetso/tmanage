@@ -5,8 +5,11 @@ export interface CoachMarkStep {
   readonly key: string;
   readonly title: string;
   readonly body: string;
-  /** A CSS selector for the element the step is about; the step still shows if it is absent. */
-  readonly target?: string;
+  /**
+   * The element the step is anchored to: a CSS selector, or several tried in order (the first one
+   * on the page wins). None on the page: the step is a centred dialog.
+   */
+  readonly target?: string | readonly string[];
 }
 
 /**
@@ -19,13 +22,13 @@ export const COACH_MARK_STEPS: Readonly<Record<CoachMarkTour, readonly CoachMark
       key: 'CoachMarks.myDay.ranked',
       title: 'Your day, ranked',
       body: 'Work that needs you today is at the top. Overdue items come first.',
-      target: '.tm-home-cards',
+      target: ['.tm-home-cards', 'section[aria-labelledby="tm-my-day-personal"]'],
     },
     {
       key: 'CoachMarks.myDay.waiting',
       title: 'Waiting on you',
       body: 'Approvals and replies other people need from you collect here.',
-      target: '#tm-my-day-waiting',
+      target: 'section[aria-labelledby="tm-my-day-waiting"]',
     },
     {
       key: 'CoachMarks.help',

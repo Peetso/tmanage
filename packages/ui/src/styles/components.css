@@ -676,6 +676,54 @@
   box-shadow: var(--shadow-pop, 0 6px 20px rgb(0 0 0 / 18%));
 }
 
+/*
+ * Anchored placement: once open, the bubble is placed in the viewport against its trigger
+ * (flip + shift, see anchored-position.ts) and `data-side` names the side it landed on. The
+ * arrow is a rotated square on the edge that faces the trigger; its offset along that edge is
+ * set inline so it points at the trigger's centre.
+ */
+.tm-tooltip__bubble::before {
+  /* Hover bridge over the gap to the trigger, so moving onto the bubble keeps it open. */
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--s2));
+}
+
+.tm-tooltip__arrow {
+  position: absolute;
+  inline-size: var(--s2);
+  block-size: var(--s2);
+  background: inherit;
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.tm-tooltip__bubble[data-side='top'] .tm-tooltip__arrow,
+.tm-tooltip__bubble[data-side='bottom'] .tm-tooltip__arrow {
+  margin-left: calc(var(--s2) / -2);
+}
+
+.tm-tooltip__bubble[data-side='left'] .tm-tooltip__arrow,
+.tm-tooltip__bubble[data-side='right'] .tm-tooltip__arrow {
+  margin-top: calc(var(--s2) / -2);
+}
+
+.tm-tooltip__bubble[data-side='top'] .tm-tooltip__arrow {
+  bottom: calc(var(--s2) / -2);
+}
+
+.tm-tooltip__bubble[data-side='bottom'] .tm-tooltip__arrow {
+  top: calc(var(--s2) / -2);
+}
+
+.tm-tooltip__bubble[data-side='left'] .tm-tooltip__arrow {
+  right: calc(var(--s2) / -2);
+}
+
+.tm-tooltip__bubble[data-side='right'] .tm-tooltip__arrow {
+  left: calc(var(--s2) / -2);
+}
+
 /* ── Toast ────────────────────────────────────────────────────────────────────── */
 
 /*

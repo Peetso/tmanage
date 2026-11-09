@@ -3,12 +3,12 @@ import {
   isValidElement,
   useEffect,
   useId,
-  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
   type ReactElement,
 } from 'react';
+import { useAnchoredPosition, type AnchoredSide } from './anchored-position.js';
 
 export interface TooltipProps {
   /** The supplementary sentence. Text only — a tooltip that needs structure is a popover. */
@@ -37,9 +37,11 @@ export interface TooltipProps {
   /** Extra class on the wrapper (`tm-tooltip--block` for a full-width trigger). */
   className?: string;
   /**
-   * Where the bubble shows. `'top'` (the default) sits above the trigger; `'end'` sits beside it
-   * (after it in reading order, so on the left in Arabic) and is placed in the viewport, so a
-   * scrolling navigation rail does not clip it.
+   * Where the bubble prefers to show. `'top'` (the default) sits above the trigger and flips below
+   * it when there is no room; `'end'` sits beside it (after it in reading order, so on the left in
+   * Arabic) and flips to the other side, then above or below. Either way the bubble is placed in
+   * the viewport (`position: fixed`), shifts so it never leaves the screen, and its arrow points at
+   * the trigger, so a scrolling rail or a screen edge never clips it.
    */
   placement?: 'top' | 'end';
 }
@@ -59,6 +61,11 @@ export interface TooltipProps {
  * mechanism, not from watching visibility change. Keyboard focus shows it because
  * hover-only affordances exclude keyboards.
  */
+const PLACEMENTS: Record<'top' | 'end', readonly AnchoredSide[]> = {
+  top: ['top', 'bottom'],
+  end: ['end', 'start', 'bottom', 'top'],
+};
+
 export function Tooltip({
   content,
   children,
@@ -69,24 +76,27 @@ export function Tooltip({
 }: TooltipProps) {
   const id = useId();
   const [open, setOpen] = useState(defaultOpen);
-  const wrapper = useRef<HTMLSpanElement | null>(null);
-  const [beside, setBeside] = useState<CSSProperties | undefined>(undefined);
-  useLayoutEffect(() => {
-    if (!open || placement !== 'end' || wrapper.current === null) {
-      return;
-    }
-    const rect = wrapper.current.getBoundingClientRect();
-    const rtl = getComputedStyle(wrapper.current).direction === 'rtl';
-    setBeside({
-      position: 'fixed',
-      insetBlockStart: `${rect.top + rect.height / 2}px`,
-      insetBlockEnd: 'auto',
-      transform: 'translateY(-50%)',
-      ...(rtl
-        ? { right: `${window.innerWidth - rect.left + 8}px`, left: 'auto' }
-        : { left: `${rect.right + 8}px`, right: 'auto' }),
-    });
-  }, [open, placement]);
+  const [wrapper, setWrapper] = useState<HTMLSpanElement | null>(null);
+  const [bubble, setBubble] = useState<HTMLSpanElement | null>(null);
+  const position = useAnchoredPosition(wrapper, bubble, open, {
+    placements: PLACEMENTS[placement],
+    offset: 8,
+  });
+  const bubbleStyle: CSSProperties | undefined = position
+    ? {
+        position: 'fixed',
+        top: `${position.y}px`,
+        left: `${position.x}px`,
+        right: 'auto',
+        bottom: 'auto',
+      }
+    : undefined;
+  const vertical = position?.physicalSide === 'top' || position?.physicalSide === 'bottom';
+  const arrowStyle: CSSProperties | undefined = position
+    ? vertical
+      ? { left: `${position.arrow}px` }
+      : { top: `${position.arrow}px` }
+    : undefined;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancel = () => {
     if (timer.current !== null) {
@@ -133,7 +143,7 @@ export function Tooltip({
     // Pointer listeners on a wrapper: the trigger keeps its own handlers, and the hover
     // area includes the bubble itself, which is what "hoverable" means.
     <span
-      ref={wrapper}
+      ref={setWrapper}
       className={className ? `tm-tooltip ${className}` : 'tm-tooltip'}
       onMouseEnter={() => {
         cancel();
@@ -147,13 +157,18 @@ export function Tooltip({
     >
       {trigger}
       <span
+        ref={setBubble}
         role="tooltip"
         id={id}
         className="tm-tooltip__bubble"
         data-open={open || undefined}
-        {...(placement === 'end' && beside ? { style: beside } : {})}
+        data-side={position?.physicalSide}
+        {...(bubbleStyle ? { style: bubbleStyle } : {})}
       >
         {content}
+        {position ? (
+          <span className="tm-tooltip__arrow" aria-hidden="true" style={arrowStyle} />
+        ) : null}
       </span>
     </span>
   );

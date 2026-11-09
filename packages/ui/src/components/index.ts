@@ -26,6 +26,17 @@ export {
 } from './DateField.js';
 export { Tooltip, type TooltipProps } from './Tooltip.js';
 export {
+  computeAnchoredPosition,
+  toPhysicalSide,
+  useAnchoredPosition,
+  type AnchoredPosition,
+  type AnchoredPositionInput,
+  type AnchoredSide,
+  type AnchorRect,
+  type PhysicalSide,
+  type UseAnchoredPositionOptions,
+} from './anchored-position.js';
+export {
   Toast,
   ToastRegion,
   type ToastProps,

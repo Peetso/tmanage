@@ -1,18 +1,132 @@
 /* Rows 55-09 / 55-10 — coach-mark card and teaching empty state (Figma R49 L2 592:33601). Tokens only. */
+/*
+ * 2026-11-09 — each step is anchored next to the element it describes, never a corner card.
+ * The layer holds a click-blocking scrim, a spotlight (a box sized to the target whose huge
+ * spread shadow dims everything else, plus a lime ring), and the step card, which the component
+ * places against the target (flip + shift; `data-side` names the side it landed on).
+ */
+.tm-coach-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+.tm-coach-scrim {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+}
+
+/* No target on the page: the scrim itself dims, and the card is a centred dialog. */
+.tm-coach-layer:not([data-anchored]) .tm-coach-scrim {
+  background: color-mix(in srgb, var(--ink-950) 55%, transparent);
+}
+
+.tm-coach-spotlight {
+  position: fixed;
+  border-radius: var(--r-control);
+  outline: var(--b-structural) solid var(--lime-500);
+  outline-offset: 0;
+  box-shadow: 0 0 0 200vmax color-mix(in srgb, var(--ink-950) 55%, transparent);
+  pointer-events: none;
+  transition:
+    top var(--t-micro) var(--ease),
+    left var(--t-micro) var(--ease),
+    width var(--t-micro) var(--ease),
+    height var(--t-micro) var(--ease);
+}
+
 .tm-coach {
   position: fixed;
-  inset-block-end: var(--s8);
-  inset-inline-end: var(--s8);
-  z-index: 40;
   display: grid;
   gap: var(--s4);
-  inline-size: min(420px, calc(100vw - 2 * var(--s4)));
+  inline-size: min(380px, calc(100vw - 2 * var(--s4)));
   padding: var(--s6);
   border: var(--b-quiet) solid var(--focus-ring);
   border-radius: var(--r-card);
   background: var(--paper-0);
   color: var(--ink-950);
-  box-shadow: 0 var(--s2) var(--s6) color-mix(in srgb, var(--ink-950) 12%, transparent);
+  box-shadow: 0 var(--s2) var(--s6) color-mix(in srgb, var(--ink-950) 18%, transparent);
+}
+
+/* Until the first measurement the anchored card is laid out but not drawn. */
+.tm-coach:not([data-placed]) {
+  visibility: hidden;
+}
+
+.tm-coach:focus {
+  outline: none;
+}
+
+.tm-coach--center {
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  transform: translate(-50%, -50%);
+}
+
+[dir='rtl'] .tm-coach--center {
+  transform: translate(50%, -50%);
+}
+
+.tm-coach__primary {
+  display: contents;
+}
+
+/*
+ * The arrow: a rotated square on the card edge facing the target, bordered on the two sides
+ * that face out so it reads as part of the card's outline. The card is placed in physical
+ * viewport pixels, so the arrow is too (the side is already mirrored for Arabic).
+ */
+.tm-coach__arrow {
+  position: absolute;
+  inline-size: var(--s3);
+  block-size: var(--s3);
+  background: var(--paper-0);
+  border: 0 solid var(--focus-ring);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.tm-coach[data-side='top'] .tm-coach__arrow,
+.tm-coach[data-side='bottom'] .tm-coach__arrow {
+  margin-left: calc(var(--s3) / -2);
+}
+
+.tm-coach[data-side='left'] .tm-coach__arrow,
+.tm-coach[data-side='right'] .tm-coach__arrow {
+  margin-top: calc(var(--s3) / -2);
+}
+
+/* Card below the target: arrow on its top edge. */
+.tm-coach[data-side='bottom'] .tm-coach__arrow {
+  top: calc(var(--s3) / -2 - var(--b-quiet) / 2);
+  border-top-width: var(--b-quiet);
+  border-left-width: var(--b-quiet);
+}
+
+.tm-coach[data-side='top'] .tm-coach__arrow {
+  bottom: calc(var(--s3) / -2 - var(--b-quiet) / 2);
+  border-bottom-width: var(--b-quiet);
+  border-right-width: var(--b-quiet);
+}
+
+/* Card right of the target: arrow on its left edge. */
+.tm-coach[data-side='right'] .tm-coach__arrow {
+  left: calc(var(--s3) / -2 - var(--b-quiet) / 2);
+  border-bottom-width: var(--b-quiet);
+  border-left-width: var(--b-quiet);
+}
+
+.tm-coach[data-side='left'] .tm-coach__arrow {
+  right: calc(var(--s3) / -2 - var(--b-quiet) / 2);
+  border-top-width: var(--b-quiet);
+  border-right-width: var(--b-quiet);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-coach-spotlight {
+    transition: none;
+  }
 }
 
 .tm-coach__step {
@@ -70,9 +184,9 @@
   outline-offset: var(--s1);
 }
 
+/* The spotlight draws the ring; the target itself only lifts above nothing (kept for tests/hooks). */
 [data-coach-active] {
-  outline: var(--b-structural) solid var(--lime-500);
-  outline-offset: var(--s1);
+  scroll-margin: var(--s16);
 }
 
 .tm-teach-empty {
