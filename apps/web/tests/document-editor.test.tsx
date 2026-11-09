@@ -221,6 +221,100 @@ describe('DocumentEditorScreen — the blank new doc', () => {
     expect(reads()).toBe(before + 1);
   });
 
+  it('FIX4 item 4 (D2): a save that meets a restarting server (503) is sent again', async () => {
+    const calls: Call[] = [];
+    let failures = 1;
+    const restarting = (call: Call): Response => {
+      if (call.method === 'POST' && call.url.endsWith('/versions') && failures > 0) {
+        failures -= 1;
+        return json({ error: { code: 'unavailable', message: 'Starting' } }, 503);
+      }
+      return handler(call);
+    };
+    render(screenOver(restarting, calls));
+    const ed = await bodyEditor();
+    act(() => {
+      ed.commands.insertContent('Typed after the rename');
+    });
+    const posts = () => calls.filter((c) => c.method === 'POST' && c.url.endsWith('/versions'));
+    await waitFor(() => expect(posts()).toHaveLength(2), { timeout: 4000 });
+    expect(posts()[1]?.body).toEqual({
+      body: '<p dir="auto">Typed after the rename</p>',
+      format: 'html',
+    });
+    await waitFor(() => expect(screen.queryByText('Could not save')).toBeNull());
+  });
+
+  it('FIX4 item 4 (D2): typing during a save waits for it and names the version it made', async () => {
+    const calls: Call[] = [];
+    let release: (() => void) | null = null;
+    let versionNo = 0;
+    const slow = new ApiClient({
+      baseUrl: 'https://api.example.test',
+      csrfCookieName: 'tm_session_csrf',
+      fetch: ((input: RequestInfo | URL, init?: RequestInit) => {
+        const call = {
+          url: String(input),
+          method: (init?.method ?? 'GET').toUpperCase(),
+          body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined,
+        };
+        calls.push(call);
+        if (call.method === 'POST' && call.url.endsWith('/versions')) {
+          versionNo += 1;
+          const reply = json({
+            id: `v${versionNo}`,
+            documentId: DOCUMENT_ID,
+            versionNo,
+            body: 'x',
+            bodyFormat: 'html',
+            editedByUserId: 'user-1',
+            createdAt: new Date().toISOString(),
+          });
+          if (versionNo === 1) {
+            return new Promise<Response>((resolve) => {
+              release = () => resolve(reply);
+            });
+          }
+          return Promise.resolve(reply);
+        }
+        return Promise.resolve(handler(call));
+      }) as typeof globalThis.fetch,
+      readCsrfToken: () => 'csrf-token',
+      newCorrelationId: () => 'correlation-fixed',
+    });
+    render(
+      withQuery(
+        <DocumentEditorScreen
+          organizationSlug="acme"
+          organizationName="Acme"
+          documentId={DOCUMENT_ID}
+          client={slow}
+          autosaveDelayMs={20}
+        />,
+      ),
+    );
+    const ed = await bodyEditor();
+    act(() => {
+      ed.commands.insertContent('First');
+    });
+    const posts = () => calls.filter((c) => c.method === 'POST' && c.url.endsWith('/versions'));
+    await waitFor(() => expect(posts()).toHaveLength(1));
+    act(() => {
+      ed.commands.insertContent(' and more');
+    });
+    // The first save is still in flight: no second save may start on the old version.
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(posts()).toHaveLength(1);
+    act(() => release?.());
+    await waitFor(() => expect(posts()).toHaveLength(2));
+    expect(posts()[1]?.body).toEqual({
+      body: '<p dir="auto">First and more</p>',
+      format: 'html',
+      expectedVersionNo: 1,
+    });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('"/tab" then Enter inserts a table', async () => {
     render(editor());
     const ed = await bodyEditor();

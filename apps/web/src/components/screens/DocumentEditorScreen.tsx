@@ -31,7 +31,12 @@ import {
 } from '../../lib/api/documents';
 import { ApiRequestError } from '../../lib/api/errors';
 import { fetchMyProfile } from '../../lib/api/member-profile';
-import { uploadProjectFile } from '../../lib/api/uploads';
+import {
+  isTransientStatus,
+  PART_ATTEMPTS,
+  retryDelayMs,
+  uploadProjectFile,
+} from '../../lib/api/uploads';
 import { listProjects } from '../../lib/api/projects';
 import type { ApiClient } from '../../lib/api/client';
 import { useTOr } from '../../lib/i18n/use-t-or';
@@ -129,6 +134,11 @@ export function DocumentEditorScreen({
   // The last body this editor saved: the server's sanitised copy may differ in markup, and that
   // must not read as a new edit (a save loop).
   const [savedDraft, setSavedDraft] = useState<string | null>(null);
+  // FIX4 item 4 (D2): saves that failed in a row for a passing reason (a starting server, a dropped
+  // connection). The autosave tries the same draft again after a growing pause.
+  const [saveFailures, setSaveFailures] = useState(0);
+  // A draft the server refused for good (not a conflict): it is not sent again until it changes.
+  const [refusedDraft, setRefusedDraft] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [shareOpen, setShareOpen] = useState(false);
@@ -166,14 +176,18 @@ export function DocumentEditorScreen({
       }),
     onSuccess: async (saved, html) => {
       setSavedDraft(html);
+      setSaveFailures(0);
+      setRefusedDraft(null);
       setBaseVersionNo(saved.versionNo);
       setSelfId(saved.editedByUserId);
       setSavedAt(Date.now());
       setNow(Date.now());
       await invalidate();
     },
-    onError: (error) => {
+    onError: (error, html) => {
       if (error instanceof ApiRequestError && error.status === 409) setConflict('banner');
+      else if (isTransientSaveError(error)) setSaveFailures((count) => count + 1);
+      else setRefusedDraft(html);
     },
   });
 
@@ -221,14 +235,51 @@ export function DocumentEditorScreen({
 
   // Autosave: a pause in typing saves the draft once, if it differs from what is stored. A
   // conflict stops it until Reload.
-  const { mutate: saveNow } = save;
+  //
+  // FIX4 item 4 (D2): body text typed right after a rename was lost. Two causes, both fixed here:
+  // 1. A second save started while the first was still in flight named the old version, so it
+  //    answered 409 and the conflict banner's Reload dropped the draft. Saves now run one at a
+  //    time: the next waits for the one in flight and names the version it produced.
+  // 2. A save that failed for a passing reason (the server restarting after a deploy) was never
+  //    tried again unless the person typed more. It is now retried with a growing pause.
+  const { mutate: saveNow, isPending: saving } = save;
   useEffect(() => {
-    if (collab || conflict || draft === null || draft.trim() === '' || draft === stored)
+    if (collab || conflict || saving || draft === null || draft.trim() === '' || draft === stored)
       return undefined;
-    if (draft === savedDraft) return undefined;
-    const timer = setTimeout(() => saveNow(draft), autosaveDelayMs);
+    if (draft === savedDraft || draft === refusedDraft) return undefined;
+    if (saveFailures >= PART_ATTEMPTS) return undefined;
+    const delay = saveFailures > 0 ? retryDelayMs(saveFailures) : autosaveDelayMs;
+    const timer = setTimeout(() => saveNow(draft), delay);
     return () => clearTimeout(timer);
-  }, [draft, stored, savedDraft, autosaveDelayMs, saveNow, conflict, collab]);
+  }, [
+    draft,
+    stored,
+    savedDraft,
+    refusedDraft,
+    saveFailures,
+    saving,
+    autosaveDelayMs,
+    saveNow,
+    conflict,
+    collab,
+  ]);
+
+  // A new draft starts a fresh run of retries.
+  useEffect(() => {
+    setSaveFailures(0);
+  }, [draft]);
+
+  // Leaving the page with typing that is not saved yet asks first.
+  const unsaved =
+    !collab && draft !== null && draft.trim() !== '' && draft !== stored && draft !== savedDraft;
+  useEffect(() => {
+    if (!unsaved) return undefined;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [unsaved]);
 
   const live = useDocCollab({
     editor: collabEditor,
@@ -706,4 +757,10 @@ function formatClock(iso: string, locale: string): string {
     minute: '2-digit',
     hour12: false,
   }).format(at);
+}
+
+/** A save failure worth trying again: no answer at all, a timeout, rate limit or a server error. */
+function isTransientSaveError(error: unknown): boolean {
+  if (error instanceof ApiRequestError) return isTransientStatus(error.status);
+  return error instanceof TypeError;
 }
