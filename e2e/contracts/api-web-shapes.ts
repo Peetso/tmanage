@@ -399,7 +399,7 @@ import type { BoardColumnView as ApiBoardColumnView } from '../../apps/api/src/m
 import type {
   FileFolderView as ApiFileFolderView,
   FileFolderPlacementView as ApiFileFolderPlacementView,
-  ProjectFileView as ApiProjectFileView,
+  ProjectFileView as ApiFilesHubProjectFileView,
 } from '../../apps/api/src/modules/files/folders.service.js';
 import type { FileCommentView as ApiFileCommentView } from '../../apps/api/src/modules/files/comments.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
@@ -2144,7 +2144,7 @@ type _boardColumn = Assert<Exact<ApiBoardColumnView, WebBoardColumn>>;
 type _fileFolder = Assert<Exact<ApiFileFolderView, WebFileFolder>>;
 type _fileFolderPlacement = Assert<Exact<ApiFileFolderPlacementView, WebFileFolderPlacement>>;
 /** FIX3 item 11 (FIL-01 Files hub): `GET …/projects/:projectId/files` rows. */
-type _projectFile = Assert<Exact<ApiProjectFileView, WebProjectFile>>;
+type _projectFile = Assert<Exact<ApiFilesHubProjectFileView, WebProjectFile>>;
 
 /**
  * x333. File comments (Files module). `FileCommentView` ↔ `FileComment` — one comment on a file
