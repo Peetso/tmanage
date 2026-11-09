@@ -39,6 +39,52 @@ export const MAX_ATTACHMENT_BYTES = 104_857_600;
 export const MAX_ATTACHMENTS = 10;
 
 /**
+ * Source code, data and drawing exchange files that are plain UTF-8 text: they are declared as
+ * `text/plain` (the browser reports `video/mp2t` for `.ts`, `application/json` for `.json` …) and
+ * the viewer picks the highlighter, table or drawing from the name. `.js` and `.sh` are not here:
+ * the API refuses them as executables, whatever they are declared as.
+ */
+const PLAIN_TEXT_EXTENSIONS = [
+  'ts',
+  'tsx',
+  'mts',
+  'cts',
+  'jsx',
+  'cjs',
+  'py',
+  'css',
+  'scss',
+  'less',
+  'json',
+  'sql',
+  'markdown',
+  'yaml',
+  'yml',
+  'toml',
+  'ini',
+  'env',
+  'log',
+  'php',
+  'go',
+  'java',
+  'kt',
+  'kts',
+  'c',
+  'h',
+  'cpp',
+  'hpp',
+  'cc',
+  'cs',
+  'rb',
+  'rs',
+  'swift',
+  'dart',
+  'graphql',
+  'dxf',
+  'ifc',
+] as const;
+
+/**
  * The media types the verifier admits (decision F5, `content-signature.ts`), keyed by extension
  * so a file whose browser-reported type is empty (common for `.md` and `.csv`) still declares one.
  */
@@ -75,6 +121,14 @@ const TYPE_BY_EXTENSION: Readonly<Record<string, string>> = {
   ogg: 'audio/ogg',
   oga: 'audio/ogg',
   flac: 'audio/flac',
+  // Peter, 2026-11-09 (viewer item 8): web pages, CAD and BIM.
+  html: 'text/html',
+  htm: 'text/html',
+  dwg: 'image/vnd.dwg',
+  skp: 'application/vnd.sketchup.skp',
+  rvt: 'application/vnd.autodesk.revit',
+  rfa: 'application/vnd.autodesk.revit',
+  ...Object.fromEntries(PLAIN_TEXT_EXTENSIONS.map((extension) => [extension, 'text/plain'])),
 };
 
 const ADMITTED_TYPES: ReadonlySet<string> = new Set(Object.values(TYPE_BY_EXTENSION));
@@ -99,7 +153,7 @@ export const ATTACHMENT_ACCEPT = [
 export const ATTACHMENT_KINDS_LABEL =
   'PDF, images (PNG, JPEG, GIF, WebP, SVG, HEIC, TIFF), Photoshop, Illustrator, EPS, ' +
   'video (MP4, MOV), audio (MP3, WAV, M4A, OGG, FLAC), Word, Excel, PowerPoint, ZIP, text, ' +
-  'CSV or Markdown';
+  'CSV, Markdown, HTML, code, DWG, DXF, SketchUp, Revit or IFC';
 
 /** The minimal file facts these checks read — `File` has them, and a test can fake them. */
 export interface AttachmentFileInput {

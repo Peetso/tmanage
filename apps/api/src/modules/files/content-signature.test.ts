@@ -62,7 +62,13 @@ describe('normalizeMediaType and the allowlist', () => {
     ]) {
       expect(isAllowedMediaType(type), type).toBe(true);
     }
-    for (const type of ['text/html', 'application/xhtml+xml', 'application/octet-stream']) {
+    for (const type of [
+      'application/xhtml+xml',
+      'application/octet-stream',
+      'application/msword',
+      'application/vnd.ms-excel',
+      'application/vnd.ms-powerpoint',
+    ]) {
       expect(isAllowedMediaType(type), type).toBe(false);
     }
   });
@@ -138,8 +144,22 @@ describe('judgeContentType — the signature at offset zero', () => {
 });
 
 describe('judgeContentType — active content is refused first, whatever the label', () => {
-  it('refuses HTML declared as itself as type_not_allowed', () => {
-    expect(judge('text/html', HTML)).toEqual({ ok: false, rejectionCode: 'type_not_allowed' });
+  it('admits HTML declared as itself only (Peter, 2026-11-09) and records text/html', () => {
+    expect(judge('text/html', HTML)).toEqual({
+      ok: true,
+      detectedMimeType: 'text/html',
+      detectedType: 'html',
+    });
+    // Reversal: drop `textual` from the HTML family and a binary page is admitted.
+    const binary = Buffer.from('<html>\u0000</html>');
+    expect(judge('text/html', binary)).toEqual({ ok: false, rejectionCode: 'type_mismatch' });
+    // Under any other label it is still refused for what it is.
+    for (const declared of ['text/plain', 'text/markdown', 'image/png', 'application/pdf']) {
+      expect(judge(declared, HTML), declared).toEqual({
+        ok: false,
+        rejectionCode: 'type_not_allowed',
+      });
+    }
   });
 
   it('refuses SVG declared as image/png as type_not_allowed — for what it is, not for the disagreement', () => {
@@ -327,10 +347,8 @@ describe('R4 SVG — the one markup family, admitted only as itself', () => {
     expect(
       judge('image/svg+xml', svgWith('<svg><foreignObject><html><script/></html></foreignObject>')),
     ).toEqual({ ok: false, rejectionCode: 'type_not_allowed' });
-    expect(judge('text/html', svgWith('<svg/>'))).toEqual({
-      ok: false,
-      rejectionCode: 'type_not_allowed',
-    });
+    // Declared as a web page it is one (shown sandboxed, never as an image).
+    expect(judge('text/html', svgWith('<svg/>'))).toMatchObject({ ok: true, detectedType: 'html' });
   });
 
   it('refuses SVG-labelled bytes that are not an SVG document as a mismatch', () => {
@@ -390,5 +408,55 @@ describe('the textual rule is a whole-object rule', () => {
 
   it('refuses a text label on binary bytes as type_mismatch', () => {
     expect(judge('text/plain', PNG)).toEqual({ ok: false, rejectionCode: 'type_mismatch' });
+  });
+});
+
+describe('judgeContentType — CAD and BIM (Peter, 2026-11-09)', () => {
+  const DWG = Buffer.from('AC1032\u0000\u0000\u0000\u0000\u0000\u0000', 'latin1');
+  const SKP = Buffer.concat([
+    Buffer.from([0xff, 0xfe, 0xff, 0x0e]),
+    Buffer.from('SketchUp Model', 'utf16le'),
+  ]);
+  const CFB = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0, 0]);
+
+  it('admits a DWG, a SketchUp model and a Revit file by their own signatures', () => {
+    expect(judge('image/vnd.dwg', DWG)).toEqual({
+      ok: true,
+      detectedMimeType: 'image/vnd.dwg',
+      detectedType: 'dwg',
+    });
+    expect(judge('application/acad', Buffer.from('AC1009', 'latin1'))).toMatchObject({
+      ok: true,
+      detectedType: 'dwg',
+    });
+    expect(judge('application/vnd.sketchup.skp', SKP)).toMatchObject({
+      ok: true,
+      detectedMimeType: 'application/vnd.sketchup.skp',
+    });
+    expect(judge('application/vnd.autodesk.revit', CFB)).toMatchObject({
+      ok: true,
+      detectedType: 'rvt',
+    });
+  });
+
+  it('refuses each one when the bytes are something else', () => {
+    expect(judge('image/vnd.dwg', PDF)).toEqual({ ok: false, rejectionCode: 'type_mismatch' });
+    expect(judge('image/vnd.dwg', Buffer.from('AC10xx', 'latin1'))).toEqual({
+      ok: false,
+      rejectionCode: 'type_mismatch',
+    });
+    expect(judge('application/vnd.sketchup.skp', CFB)).toEqual({
+      ok: false,
+      rejectionCode: 'type_mismatch',
+    });
+    expect(judge('application/vnd.autodesk.revit', ZIP)).toEqual({
+      ok: false,
+      rejectionCode: 'type_mismatch',
+    });
+    // A legacy Word file is the same container, and stays refused (macros no check can see).
+    expect(judge('application/msword', CFB)).toEqual({
+      ok: false,
+      rejectionCode: 'type_not_allowed',
+    });
   });
 });

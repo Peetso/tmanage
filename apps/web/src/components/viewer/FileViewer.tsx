@@ -43,6 +43,8 @@ import { CompareStage } from './CompareStage';
 import { DecisionRail } from './DecisionRail';
 import type { DrawSettings } from './DrawLayer';
 import { DrawToolbar } from './DrawToolbar';
+import { DesktopFileStage, TextFileStage } from './FileTextStages';
+import { desktopFormatFor, textViewFor } from './file-formats';
 import { ImageStage } from './ImageStage';
 import { MediaCodecNotice } from './MediaCodecNotice';
 import { OfficeDocxStage } from './OfficeDocxStage';
@@ -135,6 +137,8 @@ export type StageKind =
   | 'office_pptx'
   | 'office_xlsx'
   | 'zip'
+  | 'text'
+  | 'desktop'
   | 'unsupported'
   | 'none';
 
@@ -197,6 +201,21 @@ export function stageFor(manifest: FilePreviewManifest): {
     return { stage: manifest.kind, state: null, src: manifest.originalUrl };
   }
   if (manifest.kind === 'zip' && manifest.zip) return { stage: 'zip', state: null, src: null };
+  // Peter, 2026-11-09 (item 8): source code, CSV, Markdown, HTML and DXF are drawn from the
+  // original's text; an IFC model (text too) and DWG / SketchUp / Revit get the desktop card.
+  const name = manifest.file.name;
+  const mimeType = manifest.version?.mimeType ?? null;
+  if (manifest.kind === 'text' && manifest.originalUrl) {
+    return textViewFor(name, mimeType)
+      ? { stage: 'text', state: null, src: manifest.originalUrl }
+      : { stage: 'desktop', state: null, src: manifest.originalUrl };
+  }
+  if (manifest.kind === 'unsupported' && !manifest.embeddedPreview && manifest.originalUrl) {
+    const format = desktopFormatFor(name, mimeType);
+    if (format !== 'eps' && format !== 'other') {
+      return { stage: 'desktop', state: null, src: manifest.originalUrl };
+    }
+  }
   if (manifest.kind === 'unsupported') {
     // An EPS with a small picture saved inside: that picture, labelled as such.
     const page = manifest.embeddedPreview ? previewPages(manifest)[0] : undefined;
@@ -766,6 +785,27 @@ export function FileViewer({
               }
             : {})}
           {...(downloadOriginal ? { onDownload: downloadOriginal } : {})}
+        />
+      ) : plan.stage === 'text' ? (
+        <TextFileStage
+          src={plan.src ? absolute(plan.src) : null}
+          fileName={manifest.file.name}
+          mimeType={manifest.version?.mimeType ?? null}
+          view={
+            textViewFor(manifest.file.name, manifest.version?.mimeType ?? null) ?? {
+              view: 'code',
+              language: 'plain',
+            }
+          }
+          onDownload={downloadOriginal}
+        />
+      ) : plan.stage === 'desktop' ? (
+        <DesktopFileStage
+          src={plan.src ? absolute(plan.src) : null}
+          fileName={manifest.file.name}
+          mimeType={manifest.version?.mimeType ?? null}
+          sizeBytes={manifest.version?.sizeBytes ?? null}
+          onDownload={downloadOriginal}
         />
       ) : plan.stage === 'zip' && manifest.zip ? (
         <ZipList zip={manifest.zip} sizeBytes={manifest.version?.sizeBytes ?? null} />

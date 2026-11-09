@@ -107,7 +107,11 @@ export type DetectedTypeToken =
   | 'pptx'
   | 'text_plain'
   | 'text_csv'
-  | 'text_markdown';
+  | 'text_markdown'
+  | 'html'
+  | 'dwg'
+  | 'skp'
+  | 'rvt';
 
 const OOXML = 'application/vnd.openxmlformats-officedocument';
 
@@ -146,6 +150,10 @@ export const MIME_BY_TOKEN: Readonly<Record<DetectedTypeToken, string>> = {
   text_plain: 'text/plain',
   text_csv: 'text/csv',
   text_markdown: 'text/markdown',
+  html: 'text/html',
+  dwg: 'image/vnd.dwg',
+  skp: 'application/vnd.sketchup.skp',
+  rvt: 'application/vnd.autodesk.revit',
 };
 
 interface Family {
@@ -160,6 +168,11 @@ interface Family {
    * type declared as one of its members. Its own `matches` is the narrower check.
    */
   readonly markup?: boolean;
+  /**
+   * `true` for HTML only (Peter, 2026-11-09): the family *is* a web page, so the "names HTML"
+   * refusal that keeps a page out of the SVG family does not apply to it.
+   */
+  readonly page?: boolean;
 }
 
 const startsWith = (head: Buffer, bytes: readonly number[], offset = 0): boolean =>
@@ -262,9 +275,10 @@ function opensAsSvg(head: Buffer): boolean {
 }
 
 /**
- * Decision F5, widened by R4: the allowlist. HTML stays absent on purpose — it is active
- * content in a browser (`27` SEC-06) and is refused whatever it was declared as. SVG is
- * admitted only as itself (see the header). Widening is one edit here.
+ * Decision F5, widened by R4 and by Peter's viewer item (2026-11-09): the allowlist. HTML is
+ * active content in a browser (`27` SEC-06): it is admitted only declared as `text/html`, and
+ * refused under every other label. SVG is admitted only as itself (see the header). Widening
+ * is one edit here.
  */
 export const FAMILIES: readonly Family[] = [
   {
@@ -378,6 +392,43 @@ export const FAMILIES: readonly Family[] = [
     matches: (head) => startsWith(head, [0x50, 0x4b, 0x03, 0x04]),
   },
   {
+    // Peter, 2026-11-09 (viewer item 8): an agency's web page, admitted only as itself. Like SVG
+    // it is markup, so it skips the markup refusal; the whole object must still be UTF-8 text.
+    // It is never rendered on the API origin: the original is an attachment under
+    // `sandbox; default-src 'none'` and `nosniff` (download-response.ts), and the viewer draws it
+    // in a script-less `sandbox=""` frame from a blob it builds itself.
+    members: { 'text/html': 'html' },
+    matches: () => true,
+    textual: true,
+    markup: true,
+    page: true,
+  },
+  {
+    // AutoCAD drawings: `AC1` and three release digits (`AC1009` … `AC1032`) at offset zero.
+    members: {
+      'image/vnd.dwg': 'dwg',
+      'application/acad': 'dwg',
+      'application/x-acad': 'dwg',
+      'application/dwg': 'dwg',
+      'application/x-dwg': 'dwg',
+      'image/x-dwg': 'dwg',
+    },
+    matches: (head) => /^AC1\d{3}$/.test(head.toString('latin1', 0, 6)),
+  },
+  {
+    // SketchUp models: `FF FE FF 0E`, then "SketchUp Model" in UTF-16LE.
+    members: { 'application/vnd.sketchup.skp': 'skp', 'application/x-sketchup': 'skp' },
+    matches: (head) =>
+      startsWith(head, [0xff, 0xfe, 0xff, 0x0e]) && head.toString('utf16le', 4, 20) === 'SketchUp',
+  },
+  {
+    // Revit projects and families are OLE compound files. Only Revit is admitted on this
+    // signature: a legacy Word / Excel / PowerPoint file shares it and may carry macros that no
+    // check here can see, so those stay refused.
+    members: { 'application/vnd.autodesk.revit': 'rvt', 'application/x-revit': 'rvt' },
+    matches: (head) => startsWith(head, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]),
+  },
+  {
     members: {
       'text/plain': 'text_plain',
       'text/csv': 'text_csv',
@@ -483,7 +534,7 @@ export function judgeContentType(
   // A zero-byte object is nothing: no signature, and no text to admit.
   if (head.length === 0) return { ok: false, rejectionCode: 'type_mismatch' };
   // An HTML page under an SVG label is refused for what it is, like any other markup.
-  if (family.markup === true && namesHtml(head)) {
+  if (family.markup === true && family.page !== true && namesHtml(head)) {
     return { ok: false, rejectionCode: 'type_not_allowed' };
   }
   const consistent = (family.textual !== true || textual.ok()) && family.matches(head);

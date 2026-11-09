@@ -24,6 +24,11 @@
  *   `onedrive.live.com` or the tenant's `*.sharepoint.com`. Without these the pickers break.
  *   `frame-src` also names Figma's embed host (R4 slice 13): the viewer's "Live" mode shows a
  *   Figma frame in an iframe. Nothing else from Figma is allowed (snapshots come from our API).
+ *   And `blob:` (Peter, 2026-11-09): the viewer previews an uploaded web page in an
+ *   `<iframe sandbox="">` whose `src` is a blob the page itself made from the file's text. Only
+ *   this origin's scripts can mint such a URL; the empty sandbox gives the frame an opaque origin
+ *   with no script, forms, popups or top navigation, and a blob document inherits this policy.
+ *   `data:` stays out, and `srcdoc` is never used (the Trusted Types policy refuses it).
  * - Prerendered pages (B18) get `script-src 'self'` plus the SHA-256 of each inline script of
  *   their HTML instead of the nonce: built with no request, their scripts carry no nonce, and
  *   under `'strict-dynamic'` every one was reported. Still never `'unsafe-inline'`.
@@ -201,7 +206,7 @@ export function buildContentSecurityPolicy(input: CspInput): string {
       ...PICKER_CONNECT,
     ],
     ['font-src', "'self'"],
-    ['frame-src', "'self'", ...PICKER_FRAMES, ...FIGMA_FRAMES],
+    ['frame-src', "'self'", 'blob:', ...PICKER_FRAMES, ...FIGMA_FRAMES],
     ['worker-src', "'self'"],
     ['object-src', "'none'"],
     ['base-uri', "'self'"],

@@ -43,6 +43,16 @@ export interface UnsupportedStageProps {
   readonly reason: UnsupportedReason;
   /** Saves the original (the shell's download door); absent while the file may not be served. */
   readonly onDownload?: () => void;
+  /**
+   * Peter, 2026-11-09 (viewer item 8) — the desktop-format card: a sentence of its own, the
+   * file's type in words, the apps that open it, the name among the facts, and the preview
+   * picture the file carries (shown in place of the type tile).
+   */
+  readonly bodyText?: string;
+  readonly typeName?: string;
+  readonly opensWith?: string;
+  readonly showName?: boolean;
+  readonly thumbnail?: { readonly src: string; readonly alt: string; readonly chip: string } | null;
 }
 
 /** Which reason a manifest's state stands for (EPS without a preview, size caps, …). */
@@ -57,27 +67,41 @@ export function UnsupportedStage({
   uploadedBy,
   reason,
   onDownload,
+  bodyText,
+  typeName,
+  opensWith,
+  showName = false,
+  thumbnail = null,
 }: UnsupportedStageProps) {
   const t = useT();
   const titleId = useId();
   const label = extensionLabel(fileName);
   const typeKey = mimeType ? TYPE_NAMES[mimeType] : undefined;
   const facts = [
+    showName ? fileName : null,
     sizeBytes !== null && sizeBytes > 0 ? formatSize(sizeBytes) : null,
-    typeKey ? t(typeKey) : null,
+    typeName ?? (typeKey ? t(typeKey) : null),
     uploadedBy ? t('ViewerFormats.unsupported.uploadedBy').replace('{name}', uploadedBy) : null,
   ].filter((fact): fact is string => Boolean(fact));
 
   return (
     <div className="tm-format-empty" role="group" aria-labelledby={titleId}>
-      <span className="tm-format-empty__tile" aria-hidden="true">
-        <FormatIcon name="file" className="tm-format-empty__glyph" />
-        {label ? <span className="tm-format-empty__type">{label}</span> : null}
-      </span>
+      {thumbnail ? (
+        <figure className="tm-format-empty__thumb">
+          <img src={thumbnail.src} alt={thumbnail.alt} />
+          <figcaption className="tm-format-chip">{thumbnail.chip}</figcaption>
+        </figure>
+      ) : (
+        <span className="tm-format-empty__tile" aria-hidden="true">
+          <FormatIcon name="file" className="tm-format-empty__glyph" />
+          {label ? <span className="tm-format-empty__type">{label}</span> : null}
+        </span>
+      )}
       <h2 id={titleId} className="tm-format-empty__title">
         {t('ViewerFormats.unsupported.title')}
       </h2>
-      <p className="tm-format-empty__body">{t(BODY[reason])}</p>
+      <p className="tm-format-empty__body">{bodyText ?? t(BODY[reason])}</p>
+      {opensWith ? <p className="tm-format-empty__apps">{opensWith}</p> : null}
       {onDownload ? (
         <Button tone="ink" onClick={onDownload}>
           <FormatIcon name="download" />

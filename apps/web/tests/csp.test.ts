@@ -48,6 +48,19 @@ describe('the browser security policy', () => {
     expect(directive(policy, 'img-src')).not.toContain('figma');
   });
 
+  it('lets the viewer frame a blob it made (sandboxed HTML preview) but never a data: URL', () => {
+    const policy = buildContentSecurityPolicy({
+      nonce: 'abc123==',
+      host: 'tmanage.peetrix.com',
+      development: false,
+    });
+    const frames = directive(policy, 'frame-src');
+    expect(frames).toContain('blob:');
+    expect(frames).not.toContain('data:');
+    expect(directive(policy, 'script-src')).not.toContain('blob:');
+    expect(directive(policy, 'object-src')).toBe("object-src 'none'");
+  });
+
   it('admits a cross-origin API (dev, e2e) and refuses a Host header that is not a host', () => {
     const policy = buildContentSecurityPolicy({
       nonce: 'n',

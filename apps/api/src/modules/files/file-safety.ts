@@ -120,6 +120,9 @@ const BY_EXTENSION: Readonly<Record<string, TypeEntry>> = {
   txt: { preset: 'documents', mime: 'text/plain' },
   md: { preset: 'documents', mime: 'text/markdown' },
   csv: { preset: 'documents', mime: 'text/csv' },
+  // Peter, 2026-11-09: a web page (shown in a script-less sandbox, downloaded as an attachment).
+  html: { preset: 'documents', mime: 'text/html' },
+  htm: { preset: 'documents', mime: 'text/html' },
   // images
   jpg: { preset: 'images', mime: 'image/jpeg', anonymousSafe: true },
   jpeg: { preset: 'images', mime: 'image/jpeg', anonymousSafe: true },
@@ -138,6 +141,13 @@ const BY_EXTENSION: Readonly<Record<string, TypeEntry>> = {
   tiff: { preset: 'design', mime: 'image/tiff' },
   sketch: { preset: 'design', mime: 'application/x-sketch' },
   fig: { preset: 'design', mime: 'application/x-figma' },
+  // CAD and BIM (Peter, 2026-11-09). DXF and IFC are text and arrive as `text/plain`.
+  dwg: { preset: 'design', mime: 'image/vnd.dwg' },
+  dxf: { preset: 'design', mime: 'text/plain' },
+  ifc: { preset: 'design', mime: 'text/plain' },
+  skp: { preset: 'design', mime: 'application/vnd.sketchup.skp' },
+  rvt: { preset: 'design', mime: 'application/vnd.autodesk.revit' },
+  rfa: { preset: 'design', mime: 'application/vnd.autodesk.revit' },
   // video and audio
   mp4: { preset: 'video', mime: 'video/mp4' },
   mov: { preset: 'video', mime: 'video/quicktime' },

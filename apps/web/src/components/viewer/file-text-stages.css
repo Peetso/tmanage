@@ -1,0 +1,241 @@
+/* Peter, 2026-11-09 (viewer item 8): code, CSV, HTML and DXF views. Tokens only. */
+
+.tm-filetext {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-inline-size: 0;
+}
+
+/* ── Code ── */
+.tm-code {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-inline-size: 0;
+}
+
+.tm-code__pre {
+  margin: 0;
+  max-block-size: calc(100dvh - 300px);
+  min-block-size: 360px;
+  overflow: auto;
+  padding: var(--s3) 0;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: 1.6;
+  tab-size: 2;
+  text-align: left;
+}
+
+.tm-code__pre:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-code__line {
+  display: flex;
+}
+
+.tm-code__no {
+  flex: none;
+  inline-size: 4.5em;
+  padding-inline-end: var(--s3);
+  color: var(--ink-500);
+  text-align: right;
+  user-select: none;
+}
+
+.tm-code__text {
+  flex: 1;
+  padding-inline-end: var(--s4);
+  white-space: pre;
+}
+
+.tm-code__tok[data-token='comment'] {
+  color: var(--ink-500);
+  font-style: italic;
+}
+
+.tm-code__tok[data-token='string'] {
+  color: var(--success-600);
+}
+
+.tm-code__tok[data-token='number'] {
+  color: var(--warning-600);
+}
+
+.tm-code__tok[data-token='keyword'],
+.tm-code__tok[data-token='heading'] {
+  color: var(--ink-950);
+  font-weight: 600;
+}
+
+.tm-code__tok[data-token='tag'] {
+  color: var(--danger-600);
+}
+
+.tm-code__tok[data-token='attr'],
+.tm-code__tok[data-token='key'] {
+  color: var(--client-500);
+}
+
+/* ── CSV (reuses the Excel grid) ── */
+.tm-csv thead .tm-xlsx__col {
+  color: var(--ink-950);
+  font-family: inherit;
+  font-weight: 600;
+}
+
+.tm-csv__cell {
+  cursor: default;
+}
+
+/* ── HTML ── */
+.tm-htmlview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-htmlview__tabs {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: var(--s1);
+  padding: var(--s1);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-150);
+}
+
+.tm-htmlview__tab {
+  padding: var(--s1) var(--s4);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--ink-800);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  cursor: pointer;
+}
+
+.tm-htmlview__tab[aria-selected='true'] {
+  background: var(--ink-950);
+  color: var(--paper-0);
+}
+
+.tm-htmlview__tab:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-htmlview__note {
+  margin: 0 0 var(--s3);
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-htmlview__frame {
+  display: block;
+  inline-size: 100%;
+  block-size: calc(100dvh - 340px);
+  min-block-size: 420px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+/* ── DXF ── */
+.tm-dxf {
+  display: flex;
+  flex-direction: column;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  overflow: hidden;
+}
+
+.tm-dxf__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+}
+
+.tm-dxf__zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.tm-dxf__fit {
+  min-inline-size: 56px;
+  padding: var(--s1) var(--s2);
+  border: 0;
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+
+.tm-dxf__skipped {
+  margin: 0;
+  padding: var(--s2) var(--s3);
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+}
+
+.tm-dxf__scroll {
+  block-size: calc(100dvh - 340px);
+  min-block-size: 420px;
+  overflow: auto;
+  color: var(--ink-950);
+}
+
+.tm-dxf__scroll:focus-visible {
+  outline: none;
+  box-shadow: inset var(--focus-ring);
+}
+
+.tm-dxf__svg {
+  display: block;
+  min-inline-size: 100%;
+  min-block-size: 100%;
+}
+
+/* ── Desktop formats: the saved preview in the info card ── */
+.tm-format-empty__thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+}
+
+.tm-format-empty__thumb img {
+  inline-size: min(100%, 320px);
+  block-size: auto;
+  max-block-size: 300px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  object-fit: contain;
+}
+
+.tm-format-empty__apps {
+  max-inline-size: 460px;
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-ui-sm);
+  font-weight: 500;
+}
