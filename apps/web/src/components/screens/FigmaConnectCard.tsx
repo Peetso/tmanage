@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, StateCapsule } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
@@ -12,6 +12,7 @@ import {
   type FigmaConnection,
 } from '../../lib/api/figma';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import '../viewer/figma-stage.css';
 import { BrandLogo } from '../brand/BrandLogo';
 
@@ -29,7 +30,11 @@ export function FigmaConnectCard({
   readonly organizationSlug: string;
 }) {
   const t = useT();
+  const tOr = useTOr();
   const id = useId();
+  // FIX3 item 9 (live I2): the token is an advanced path, closed until Connect opens it.
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const tokenRef = useRef<HTMLDivElement | null>(null);
   const queryClient = useQueryClient();
   const queryKey = ['figma-connection', organizationSlug];
   const [token, setToken] = useState('');
@@ -90,6 +95,20 @@ export function FigmaConnectCard({
           >
             {t('Figma.connect.disconnect')}
           </Button>
+        ) : view ? (
+          <Button
+            tone="ink"
+            aria-expanded={advancedOpen}
+            aria-controls={`${id}-advanced`}
+            onClick={() => {
+              setAdvancedOpen(true);
+              requestAnimationFrame(() =>
+                tokenRef.current?.querySelector<HTMLInputElement>('input')?.focus(),
+              );
+            }}
+          >
+            {tOr('Figma.connect.connectButton', 'Connect')}
+          </Button>
         ) : null}
       </div>
 
@@ -106,49 +125,65 @@ export function FigmaConnectCard({
       ) : null}
 
       {view && !connected ? (
-        <form
-          className="tm-figma-connect__form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (token.trim() !== '') connect.mutate();
-          }}
+        <details
+          id={`${id}-advanced`}
+          className="tm-figma-connect__advanced"
+          open={advancedOpen}
+          onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
         >
-          <ol className="tm-figma-connect__steps">
-            <li>{t('Figma.connect.step1')}</li>
-            <li>{t('Figma.connect.step2')}</li>
-            <li>{t('Figma.connect.step3')}</li>
-          </ol>
-          <Field
-            label={t('Figma.connect.tokenLabel')}
-            hint={t('Figma.connect.tokenHint')}
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            dir="ltr"
-            value={token}
-            {...(refused ? { error: t('Figma.connect.refused') } : {})}
-            onChange={(event) => {
-              setToken(event.target.value);
-              connect.reset();
+          <summary>{tOr('Figma.connect.advanced', 'Advanced')}</summary>
+          <p className="tm-connected__meta">
+            {tOr(
+              'Figma.connect.advancedWhy',
+              'Figma sign-in is not switched on for this workspace yet, so Figma connects with a key you copy from your Figma settings. It takes a minute.',
+            )}
+          </p>
+          <form
+            className="tm-figma-connect__form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (token.trim() !== '') connect.mutate();
             }}
-          />
-          {connect.isError && !refused ? (
-            <InlineAlert tone="danger" live>
-              {t('Figma.connect.saveError')}
-            </InlineAlert>
-          ) : null}
-          <div>
-            <Button
-              type="submit"
-              tone="ink"
-              disabled={token.trim() === ''}
-              loading={connect.isPending}
-              loadingLabel={t('Figma.connect.connecting')}
-            >
-              {t('Figma.connect.submit')}
-            </Button>
-          </div>
-        </form>
+          >
+            <ol className="tm-figma-connect__steps">
+              <li>{t('Figma.connect.step1')}</li>
+              <li>{t('Figma.connect.step2')}</li>
+              <li>{t('Figma.connect.step3')}</li>
+            </ol>
+            <div ref={tokenRef}>
+              <Field
+                label={t('Figma.connect.tokenLabel')}
+                hint={t('Figma.connect.tokenHint')}
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                dir="ltr"
+                value={token}
+                {...(refused ? { error: t('Figma.connect.refused') } : {})}
+                onChange={(event) => {
+                  setToken(event.target.value);
+                  connect.reset();
+                }}
+              />
+            </div>
+            {connect.isError && !refused ? (
+              <InlineAlert tone="danger" live>
+                {t('Figma.connect.saveError')}
+              </InlineAlert>
+            ) : null}
+            <div>
+              <Button
+                type="submit"
+                tone="ink"
+                disabled={token.trim() === ''}
+                loading={connect.isPending}
+                loadingLabel={t('Figma.connect.connecting')}
+              >
+                {t('Figma.connect.submit')}
+              </Button>
+            </div>
+          </form>
+        </details>
       ) : null}
     </section>
   );

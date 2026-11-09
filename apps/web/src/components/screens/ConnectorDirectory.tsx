@@ -2,7 +2,7 @@
 
 import { useId, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Badge, Button, Field, InlineAlert, StateCapsule } from '@tmanage/ui';
+import { Button, Field, InlineAlert, StateCapsule } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
 import {
   installConnector,
@@ -124,13 +124,8 @@ export function ConnectorDirectory({
                     </h3>
                     {what ? <p className="tm-connectors__what">{t(what)}</p> : null}
                   </div>
-                  <Badge>
-                    {t(
-                      connector.authType === 'oauth2'
-                        ? 'ConnectorDirectory.auth.oauth2'
-                        : 'ConnectorDirectory.auth.apiKey',
-                    )}
-                  </Badge>
+                  {/* FIX3 item 9 (live I2): no "API key" / "OAuth sign-in" chip — how an app
+                    signs in is not something a person should have to read. */}
                   <StateCapsule state={state.on ? 'done' : 'neutral'}>{t(state.key)}</StateCapsule>
                   {connector.managed === 'built-in' ? (
                     <a className="tm-connectors__manage" href={`#${builtInAnchor}`}>

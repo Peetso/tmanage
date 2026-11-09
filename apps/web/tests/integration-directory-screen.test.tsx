@@ -250,10 +250,10 @@ describe('Integrations cards (feedback 2026-11-09 item 6)', () => {
   it('sends apps connected elsewhere to their page, and marks Zapier as coming soon', async () => {
     mount();
     await screen.findByRole('button', { name: 'Connect Google Drive' });
-    expect(screen.getByRole('link', { name: 'Set up Slack' }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: 'Connect Slack' }).getAttribute('href')).toBe(
       '/northstar-studio/settings/channel-notices',
     );
-    expect(screen.getByRole('link', { name: 'Set up Figma' }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: 'Connect Figma' }).getAttribute('href')).toBe(
       '/northstar-studio/settings/connected-apps#tm-figma-connect',
     );
     const zapier = card('Zapier');
@@ -294,7 +294,7 @@ describe('BrandLogo', () => {
     );
     expect(container.textContent).toBe('OneDrive');
     expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
-    expect(hasBrandMark('onedrive')).toBe(false);
+    expect(hasBrandMark('onedrive')).toBe(true);
     expect(hasBrandMark('figma')).toBe(true);
   });
 

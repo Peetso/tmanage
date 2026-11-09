@@ -396,9 +396,10 @@ function IntegrationCardItem({
       <Link
         href={href}
         className="tm-aut-btn tm-aut-btn--ink"
-        aria-label={tr(`${KEY}.setUpLabel`, 'Set up {app}').replace('{app}', name)}
+        aria-label={tr(`${KEY}.connectLabel`, 'Connect {app}').replace('{app}', name)}
       >
-        {t('IntegrationDirectoryScreen.setUp')}
+        {/* FIX3 item 9 (live I2): every app card says Connect; the page it opens does the rest. */}
+        {tr(`${KEY}.connect`, 'Connect')}
       </Link>
     ) : null;
   } else if (status.kind === 'unavailable') {

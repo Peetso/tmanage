@@ -1,0 +1,12 @@
+Official app marks, vendored unchanged (FIX3 item 9). Trademarks belong to their owners; used only
+to name the app on its Connect card, at full colour, unaltered, with clear space (BrandLogo tile).
+
+onedrive.svg, outlook.svg, teams.svg
+  Microsoft Fluent UI product brand icons (48px), Microsoft's own CDN:
+  https://res-1.cdn.office.net/files/fabric-cdn-prod_20230815.002/assets/brand-icons/product/svg/{onedrive,outlook,teams}_48x1.svg
+  Fetched 2026-11-09.
+
+slack.svg
+  The Slack mark as served by slack.com's own site and media kit (https://slack.com/media-kit):
+  https://a.slack-edge.com/1f40066/marketing/img/nav/logo.svg
+  Fetched 2026-11-09. Slack brand terms: https://slack.com/terms-of-service/slack-brand

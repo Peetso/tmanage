@@ -21,6 +21,12 @@
   block-size: 50%;
 }
 
+/* Microsoft's product icons keep their own clear space inside the box (FIX3 item 9). */
+.tm-brand-logo__mark--padded {
+  inline-size: 64%;
+  block-size: 64%;
+}
+
 .tm-brand-logo--20 {
   inline-size: 20px;
   block-size: 20px;
