@@ -715,6 +715,53 @@ export class FileAssetsRepository {
   }
 
   /**
+   * FIX3 item 11 (FIL-01 Files hub). One project's ready files, each with its **latest** version,
+   * newest change first — the hub's list for an internal member. Only the purposes a person works
+   * with (deliverables, docs' files, chat and request attachments); an organization logo or an
+   * expense receipt is not project work. Never a deleted, quarantined or still-checking file
+   * (`status = 'ready'`). The caller has already authorized the project.
+   */
+  async listReadyForProject(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+    limit: number,
+  ): Promise<readonly { readonly asset: FileAssetRow; readonly version: FileVersionRow | null }[]> {
+    const rows = await tenantDrizzle(runner)
+      .select({ asset: fileAssets, version: fileVersions })
+      .from(fileAssets)
+      .leftJoin(
+        fileVersions,
+        and(
+          eq(fileVersions.organizationId, fileAssets.organizationId),
+          eq(fileVersions.fileAssetId, fileAssets.id),
+          eq(
+            fileVersions.versionNo,
+            sql`(select max(l.version_no) from file_versions l where l.organization_id = ${fileAssets.organizationId} and l.file_asset_id = ${fileAssets.id})`,
+          ),
+        ),
+      )
+      .where(
+        and(
+          eq(fileAssets.organizationId, context.organizationId),
+          eq(fileAssets.projectId, projectId),
+          inArray(fileAssets.purpose, [
+            'deliverable',
+            'document',
+            'message_attachment',
+            'request_attachment',
+            'request_message',
+          ]),
+          isNull(fileAssets.deletedAt),
+          eq(fileAssets.status, 'ready'),
+        ),
+      )
+      .orderBy(desc(fileAssets.updatedAt), desc(fileAssets.id))
+      .limit(limit);
+    return rows.map((row) => ({ asset: row.asset, version: row.version ?? null }));
+  }
+
+  /**
    * Append the asset's next version. The number is allocated from the asset's own rows
    * inside the caller's transaction, and `uq_file_versions_org_asset_no` refuses a duplicate
    * if two completions ever reach here for one asset at once.

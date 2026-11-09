@@ -84,6 +84,8 @@ export const INTERNAL_NAVIGATION: readonly NavigationItem[] = [
     icon: 'calendar',
   },
   { id: 'docs', label: 'Docs', messageKey: 'nav.docs', href: '/docs', icon: 'file' },
+  // FIX3 item 11: FIL-01 Files hub, as the design's rail has it (after Docs).
+  { id: 'files', label: 'Files', messageKey: 'nav.files', href: '/files', icon: 'files' },
   {
     id: 'clients',
     label: 'Clients',

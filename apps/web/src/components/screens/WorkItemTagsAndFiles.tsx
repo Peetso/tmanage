@@ -74,14 +74,12 @@ export function WorkItemTagsAndFiles({
           <ul className="tm-capture-extra__chips tm-capture-extra__list tm-work-files">
             {files.data.map((file) =>
               file.availability === 'ready' ? (
-                // Ready: a download link, as before. A link to the scan route is offered only
-                // once the file is servable, so clicking never lands on a raw-JSON refusal.
+                // Ready: opens the file in its viewer (FIX3 item 11), where it can also be
+                // downloaded. Offered only once the file is servable, never a raw-JSON refusal.
                 <li key={file.id}>
                   <a
                     className="tm-chip tm-chip--compact"
-                    href={`${base}/v1/organizations/${encodeURIComponent(organizationSlug)}/files/${encodeURIComponent(file.fileAssetId)}/content`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    href={`/${organizationSlug}/files/${encodeURIComponent(file.fileAssetId)}`}
                   >
                     <span className="tm-capture-extra__file-name" title={file.fileName}>
                       {file.fileName}

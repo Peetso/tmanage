@@ -181,6 +181,13 @@ function RailFoot({
   );
 }
 
+/** A rail entry's hover help; its English name until a new entry's line reaches the catalogs. */
+function navHelp(t: (key: MessageKey) => string, id: string, label: string): string {
+  const key = `NavHelp.${id}` as MessageKey;
+  const line = t(key);
+  return line === key ? label : line;
+}
+
 /**
  * The internal shell: orbital rail, page header, canvas, optional context rail and lens.
  *
@@ -260,7 +267,7 @@ export function AppShell({
                 const current = item.id === activeNavigationId;
                 return (
                   <li key={item.id}>
-                    <HelpTip tip={t(`NavHelp.${item.id}` as MessageKey)} placement="end" block>
+                    <HelpTip tip={navHelp(t, item.id, item.label)} placement="end" block>
                       <Link
                         href={`/${organizationSlug}${item.href}`}
                         className="tm-rail__item"

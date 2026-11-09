@@ -52,6 +52,22 @@ export interface FileFolderPlacementView {
   readonly folderId: string | null;
 }
 
+/** FIX3 item 11 (FIL-01). One row of the Files hub: a ready file of one project. */
+export interface ProjectFileView {
+  readonly id: string;
+  readonly projectId: string;
+  readonly name: string;
+  readonly mimeType: string | null;
+  readonly sizeBytes: number | null;
+  readonly audience: string;
+  readonly purpose: string;
+  readonly versionNo: number | null;
+  readonly updatedAt: string;
+}
+
+/** FIX3 item 11: the hub shows the newest files; more than this is a search, not a list. */
+export const PROJECT_FILES_LIMIT = 200;
+
 export class FileFoldersService {
   constructor(
     private readonly database: TenantDatabase,
@@ -70,6 +86,40 @@ export class FileFoldersService {
       await this.readableProject(runner, context, principal, projectId);
       const rows = await this.folders.listFolders(runner, context, projectId);
       return rows.map(toFolderView);
+    });
+  }
+
+  /**
+   * FIX3 item 11 (FIL-01 Files hub). A project's ready files for an internal member, newest change
+   * first, so every file is reachable from one place and opens in its viewer. Behind
+   * `file.download` on the resolved project; a client principal is refused (404) — clients see
+   * their files through the portal, whose relation rules this list does not apply.
+   */
+  async listProjectFiles(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+  ): Promise<readonly ProjectFileView[]> {
+    if (principal.kind !== 'internal') throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    return this.database.read(context, async (runner) => {
+      await this.readableProject(runner, context, principal, projectId);
+      const rows = await this.assets.listReadyForProject(
+        runner,
+        context,
+        projectId,
+        PROJECT_FILES_LIMIT,
+      );
+      return rows.map(({ asset, version }) => ({
+        id: asset.id,
+        projectId: asset.projectId,
+        name: asset.name,
+        mimeType: version?.detectedMimeType ?? null,
+        sizeBytes: version?.sizeBytes ?? null,
+        audience: asset.audience,
+        purpose: asset.purpose,
+        versionNo: version?.versionNo ?? null,
+        updatedAt: asset.updatedAt.toISOString(),
+      }));
     });
   }
 

@@ -24,6 +24,31 @@ export interface FileFolderPlacement {
   readonly folderId: string | null;
 }
 
+/** FIX3 item 11 (FIL-01 Files hub). One ready file of a project — Exact with `ProjectFileView`. */
+export interface ProjectFile {
+  readonly id: string;
+  readonly projectId: string;
+  readonly name: string;
+  readonly mimeType: string | null;
+  readonly sizeBytes: number | null;
+  readonly audience: string;
+  readonly purpose: string;
+  readonly versionNo: number | null;
+  readonly updatedAt: string;
+}
+
+/** FIX3 item 11. A project's ready files, newest change first (internal members only). */
+export async function listProjectFiles(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+): Promise<readonly ProjectFile[]> {
+  const { data } = await client.request<{ files: readonly ProjectFile[] }>({
+    path: `${orgBase(organizationSlug)}/projects/${encodeURIComponent(projectId)}/files`,
+  });
+  return data.files;
+}
+
 /** The fields a create sends. Request-side (suffix `Input`), so the contracts gate ignores it. */
 export interface CreateFolderInput {
   readonly name: string;

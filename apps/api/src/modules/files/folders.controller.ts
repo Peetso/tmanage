@@ -8,6 +8,7 @@ import type {
   FileFolderPlacementView,
   FileFolderView,
   FileFoldersService,
+  ProjectFileView,
 } from './folders.service.js';
 
 /**
@@ -41,6 +42,17 @@ export class FileFoldersController {
     @Param('projectId') projectId: string,
   ): Promise<{ readonly folders: readonly FileFolderView[] }> {
     return { folders: await this.folders.listFolders(context, principal, projectId) };
+  }
+
+  /** FIX3 item 11 (FIL-01 Files hub): the project's ready files, newest change first. */
+  @Get('projects/:projectId/files')
+  @RequireCapability('file.download')
+  async files(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+  ): Promise<{ readonly files: readonly ProjectFileView[] }> {
+    return { files: await this.folders.listProjectFiles(context, principal, projectId) };
   }
 
   @Get('projects/:projectId/folders/:folderId/files')
