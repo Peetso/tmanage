@@ -40,6 +40,32 @@ describe('isTypingTarget', () => {
   });
 });
 
+describe('B-N2 (live check fd145807): no single-key shortcut while a doc is being written', () => {
+  it('stays quiet in a writing surface, and on the page itself while one is open', () => {
+    const navigate = vi.fn();
+    render(<KeyboardShortcutLayer organizationSlug="northstar" navigate={navigate} />);
+    const surface = document.createElement('div');
+    surface.setAttribute('data-tm-typing-surface', '');
+    const toolbarButton = document.createElement('button');
+    surface.append(toolbarButton);
+    const main = document.createElement('main');
+    main.tabIndex = -1;
+    document.body.append(surface, main);
+    // Focus fell on <main> (a click missed the editor): "g h" is typing, not "go home".
+    press('g', {}, main);
+    press('h', {}, main);
+    press('c', {}, document.body);
+    press('g', {}, toolbarButton);
+    press('h', {}, toolbarButton);
+    expect(navigate).not.toHaveBeenCalled();
+    surface.remove();
+    press('g', {}, main);
+    press('h', {}, main);
+    expect(navigate).toHaveBeenCalledWith('/northstar/home');
+    main.remove();
+  });
+});
+
 describe('ShortcutMatcher', () => {
   it('completes g sequences within the timeout and drops stale ones', () => {
     const m = new ShortcutMatcher();

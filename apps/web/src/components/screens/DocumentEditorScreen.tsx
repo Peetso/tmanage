@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
@@ -16,6 +16,14 @@ import { DocEditor } from '../docs/editor/DocEditor';
 import { DocCollabBar, DocViewOnlyBanner } from '../docs/editor/DocCollabBar';
 import { joinCollab } from '../docs/editor/collab-api';
 import { newClientId, useDocCollab } from '../docs/editor/use-doc-collab';
+import {
+  backupToRestore,
+  clearDraftBackup,
+  draftKey,
+  flushDraft,
+  readDraftBackup,
+  writeDraftBackup,
+} from '../docs/editor/unsaved-draft';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   getDocument,
@@ -28,6 +36,7 @@ import {
   setDocumentAudience,
   touchDocumentPresence,
   type DocumentBodyFormat,
+  type DocumentVersionSummary,
 } from '../../lib/api/documents';
 import { ApiRequestError } from '../../lib/api/errors';
 import { fetchMyProfile } from '../../lib/api/member-profile';
@@ -166,15 +175,27 @@ export function DocumentEditorScreen({
     ]);
   };
 
+  // B-N2: the save in flight, so leaving the page can save the newest body after it.
+  const inflight = useRef<{
+    readonly html: string;
+    readonly promise: Promise<DocumentVersionSummary>;
+  } | null>(null);
+  const backupKey = draftKey(organizationSlug, documentId);
   const save = useMutation({
-    mutationFn: (html: string) =>
-      saveDocumentVersion(api, organizationSlug, documentId, html, {
+    mutationFn: (html: string) => {
+      const promise = saveDocumentVersion(api, organizationSlug, documentId, html, {
         format: 'html',
         ...(baseVersionNo !== null && baseVersionNo > 0
           ? { expectedVersionNo: baseVersionNo }
           : {}),
-      }),
+      });
+      inflight.current = { html, promise };
+      return promise.finally(() => {
+        if (inflight.current?.promise === promise) inflight.current = null;
+      });
+    },
     onSuccess: async (saved, html) => {
+      if (latest.current.draft === html) clearDraftBackup(backupKey);
       setSavedDraft(html);
       setSaveFailures(0);
       setRefusedDraft(null);
@@ -233,6 +254,28 @@ export function DocumentEditorScreen({
     if (baseVersionNo === null && newestNo !== undefined) setBaseVersionNo(newestNo);
   }, [baseVersionNo, newestNo]);
 
+  // B-N2: a body typed here and never saved (a closed tab, a failed last save) is opened again,
+  // when nobody has saved a newer version since. `undefined` until that is decided; the editor
+  // waits for it, because it reads its body once.
+  const [restored, setRestored] = useState<string | null | undefined>(undefined);
+  const historyKnown = newestNo !== undefined || versions.isError;
+  useEffect(() => {
+    if (restored !== undefined || !data || collabJoin.isPending) return;
+    if (collab || !historyKnown) {
+      if (collab) setRestored(null);
+      return;
+    }
+    const backup = readDraftBackup(backupKey);
+    const pick = backupToRestore(backup, stored, newestNo ?? 0);
+    if (pick === null) {
+      if (backup !== null) clearDraftBackup(backupKey);
+      setRestored(null);
+      return;
+    }
+    setRestored(pick.html);
+    setDraft(pick.html);
+  }, [restored, data, collab, collabJoin.isPending, historyKnown, backupKey, stored, newestNo]);
+
   // Autosave: a pause in typing saves the draft once, if it differs from what is stored. A
   // conflict stops it until Reload.
   //
@@ -272,6 +315,36 @@ export function DocumentEditorScreen({
   // Leaving the page with typing that is not saved yet asks first.
   const unsaved =
     !collab && draft !== null && draft.trim() !== '' && draft !== stored && draft !== savedDraft;
+  // B-N2: leaving the doc never loses the body. A copy waits in this browser until it is saved,
+  // and leaving the page inside the app (a link, the sidebar, a shortcut) saves it at once.
+  const latest = useRef({ unsaved, draft, baseVersionNo, api });
+  latest.current = { unsaved, draft, baseVersionNo, api };
+  useEffect(() => {
+    if (unsaved && draft !== null) writeDraftBackup(backupKey, { html: draft, baseVersionNo });
+  }, [unsaved, draft, baseVersionNo, backupKey]);
+  useEffect(
+    () => () => {
+      const leaving = latest.current;
+      if (!leaving.unsaved || leaving.draft === null) return;
+      void flushDraft(leaving.draft, leaving.baseVersionNo, inflight.current, (html, expected) =>
+        saveDocumentVersion(leaving.api, organizationSlug, documentId, html, {
+          format: 'html',
+          ...(expected !== null && expected > 0 ? { expectedVersionNo: expected } : {}),
+        }),
+      )
+        .then(() => {
+          clearDraftBackup(backupKey);
+          void queryClient.invalidateQueries({
+            queryKey: ['document', organizationSlug, documentId],
+          });
+        })
+        .catch(() => undefined);
+    },
+    // Runs once, when the page is left; the newest values are read from `latest`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [organizationSlug, documentId],
+  );
+
   useEffect(() => {
     if (!unsaved) return undefined;
     const warn = (event: BeforeUnloadEvent) => {
@@ -685,7 +758,7 @@ export function DocumentEditorScreen({
           </LoadingRegion>
         ) : null}
 
-        {data && !collabJoin.isPending ? (
+        {data && !collabJoin.isPending && restored !== undefined ? (
           <div
             onFocus={() => setFocused(true)}
             onBlur={(event) => {
@@ -696,8 +769,8 @@ export function DocumentEditorScreen({
           >
             <DocEditor
               key={collab ? `collab-${editorKey}-${collab.version}` : editorKey}
-              value={collab?.baseHtml ?? stored}
-              format={collab?.baseHtml ? 'html' : format}
+              value={collab?.baseHtml ?? restored ?? stored}
+              format={collab?.baseHtml || restored ? 'html' : format}
               {...(collab
                 ? { collab: { version: collab.baseVersion }, onEditor: setCollabEditor }
                 : {})}

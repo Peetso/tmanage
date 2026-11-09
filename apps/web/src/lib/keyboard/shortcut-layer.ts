@@ -170,9 +170,38 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   if (element.isContentEditable) return true;
   return (
     element.closest(
-      '[contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"], [role="searchbox"]',
+      `[contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"], [role="searchbox"], [${TYPING_SURFACE_ATTRIBUTE}]`,
     ) !== null
   );
+}
+
+/**
+ * Marks a writing surface (the doc editor's sheet, its toolbar): a letter pressed anywhere inside it
+ * is typing, never a page shortcut.
+ */
+export const TYPING_SURFACE_ATTRIBUTE = 'data-tm-typing-surface';
+
+/**
+ * B-N2 (live check fd145807): whether a single-key shortcut must stay quiet. Besides a key typed in
+ * a field, that is a key that reaches the page itself (`<body>` or `<main tabindex=-1>`) while a
+ * writing surface is open: focus is on its way into the editor, or a click just missed it, and
+ * the person is still typing. A shortcut there jumped to My Day and the doc text was lost.
+ */
+export function isQuietForShortcuts(
+  target: EventTarget | null,
+  doc: Pick<Document, 'querySelector' | 'body'> | null = typeof document === 'undefined'
+    ? null
+    : document,
+): boolean {
+  if (isTypingTarget(target)) return true;
+  if (doc === null) return false;
+  const element = target as HTMLElement | null;
+  const onPage =
+    element === null ||
+    element === doc.body ||
+    (typeof element.tagName === 'string' && element.tagName === 'MAIN') ||
+    (typeof element.tagName === 'string' && element.tagName === 'HTML');
+  return onPage && doc.querySelector(`[${TYPING_SURFACE_ATTRIBUTE}]`) !== null;
 }
 
 /**

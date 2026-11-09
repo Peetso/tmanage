@@ -124,13 +124,20 @@
 
 /* ── The sheet ───────────────────────────────────────────────────────────── */
 
+/* The header slot adds no box of its own: the title and meta lay out as before. */
+.tm-doced__header {
+  display: contents;
+}
+
 .tm-doced__content {
   inline-size: 100%;
 }
 
+/* B-N2: the space above the first line is the body's own padding (it was a margin, a dead zone
+   where a click focused the page instead of the editor). */
 .tm-doced__body {
-  min-block-size: 280px;
-  margin-block-start: 16px;
+  min-block-size: 296px;
+  padding-block-start: 16px;
   color: var(--ink-950);
   font-size: 16px;
   line-height: 1.6;

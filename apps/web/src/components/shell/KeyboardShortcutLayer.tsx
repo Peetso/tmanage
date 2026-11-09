@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { OPEN_COMMAND_PALETTE_EVENT } from '../screens/CommandPalette';
 import {
   ShortcutMatcher,
-  isTypingTarget,
+  isQuietForShortcuts,
   keyToken,
   type ShortcutAction,
 } from '../../lib/keyboard/shortcut-layer';
@@ -90,7 +90,7 @@ export function KeyboardShortcutLayer({
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.defaultPrevented || event.repeat) return;
-      if (isTypingTarget(event.target)) {
+      if (isQuietForShortcuts(event.target)) {
         matcher.current.reset();
         return;
       }

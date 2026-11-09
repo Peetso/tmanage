@@ -3,7 +3,7 @@ import type { Editor } from '@tiptap/core';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DocumentEditorScreen } from '../src/components/screens/DocumentEditorScreen';
 import { DocsHubScreen } from '../src/components/screens/DocsHubScreen';
 import { diffLines } from '../src/components/docs/doc-markdown';
@@ -19,6 +19,11 @@ import { expectNoAxeViolations } from './axe';
  * "/" inserts blocks; presence shows who else is editing; the docs column lists recent documents;
  * and the hub's "New doc" creates a blank document.
  */
+
+// B-N2: the editor keeps an unsaved body in localStorage; every test starts without one.
+beforeEach(() => {
+  window.localStorage.clear();
+});
 
 vi.mock('../src/lib/api/uploads', async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -438,6 +443,80 @@ describe('DocumentEditorScreen — the blank new doc', () => {
       { kind: 'added', lines: ['d'] },
     ]);
     expect(diffLines('same', 'same')).toEqual([]);
+  });
+});
+
+describe('B-N2 (live check fd145807): the body is never lost after a rename', () => {
+  it('a click on the sheet that misses the body puts the caret in the body', async () => {
+    const { container } = render(editor());
+    const ed = await bodyEditor();
+    const sheet = container.querySelector('.tm-doced__sheet') as HTMLElement;
+    fireEvent.mouseDown(sheet, { button: 0, clientX: 10, clientY: 10 });
+    await waitFor(() => expect(ed.isFocused).toBe(true));
+    expect(container.querySelector('[data-tm-typing-surface]')).not.toBeNull();
+  });
+
+  it('a click on the title still renames, not focuses the body', async () => {
+    render(editor());
+    const ed = await bodyEditor();
+    const title = await screen.findByRole('button', { name: 'Atlas launch plan' });
+    fireEvent.mouseDown(title, { button: 0 });
+    fireEvent.mouseDown(title.parentElement as HTMLElement, { button: 0 });
+    expect(ed.isFocused).toBe(false);
+  });
+
+  it('leaving the page saves a body that the pause had not saved yet', async () => {
+    const calls: Call[] = [];
+    const { unmount } = render(
+      withQuery(
+        <DocumentEditorScreen
+          organizationSlug="acme"
+          organizationName="Acme"
+          documentId={DOCUMENT_ID}
+          client={clientOver(handler, calls)}
+          autosaveDelayMs={60_000}
+        />,
+      ),
+    );
+    const ed = await bodyEditor();
+    act(() => {
+      ed.commands.insertContent('Typed, then the page was left');
+    });
+    expect(window.localStorage.getItem(`tm-doc-draft:acme:${DOCUMENT_ID}`)).toContain(
+      'Typed, then the page was left',
+    );
+    unmount();
+    await waitFor(() =>
+      expect(calls.find((c) => c.method === 'POST' && c.url.endsWith('/versions'))?.body).toEqual({
+        body: '<p dir="auto">Typed, then the page was left</p>',
+        format: 'html',
+      }),
+    );
+  });
+
+  it('reopening the doc brings back a body that was never saved', async () => {
+    window.localStorage.setItem(
+      `tm-doc-draft:acme:${DOCUMENT_ID}`,
+      JSON.stringify({ html: '<p>Kept in this browser</p>', baseVersionNo: 0, savedAt: 1 }),
+    );
+    const calls: Call[] = [];
+    render(editor(calls));
+    const ed = await bodyEditor();
+    expect(ed.getText()).toBe('Kept in this browser');
+    await waitFor(() =>
+      expect(calls.some((c) => c.method === 'POST' && c.url.endsWith('/versions'))).toBe(true),
+    );
+  });
+
+  it('a copy typed on an older version is dropped, not restored over newer work', async () => {
+    window.localStorage.setItem(
+      `tm-doc-draft:acme:${DOCUMENT_ID}`,
+      JSON.stringify({ html: '<p>Old copy</p>', baseVersionNo: 3, savedAt: 1 }),
+    );
+    render(editor());
+    const ed = await bodyEditor();
+    expect(ed.isEmpty).toBe(true);
+    expect(window.localStorage.getItem(`tm-doc-draft:acme:${DOCUMENT_ID}`)).toBeNull();
   });
 });
 

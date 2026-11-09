@@ -2,7 +2,14 @@
 
 import type { Editor } from '@tiptap/core';
 import { EditorContent, useEditor } from '@tiptap/react';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from 'react';
 
 import type { ApiClient } from '../../../lib/api/client';
 import { useTOr } from '../../../lib/i18n/use-t-or';
@@ -29,6 +36,14 @@ import {
   type SlashItem,
 } from './SlashMenu';
 import { TableControls } from './TableControls';
+
+/**
+ * What a click on the sheet leaves alone: the title (and its rename field), the conflict banner,
+ * links, buttons and every field. The meta line under the title and the empty space around the
+ * body lead into the body.
+ */
+const SHEET_OWN_CONTROLS =
+  '.tm-doctitle, .tm-doctitle__view, .tm-docconflict, a, button, input, textarea, select, label, summary, [contenteditable="true"], [role="button"], [role="link"], [role="textbox"], [tabindex]:not([tabindex="-1"])';
 
 export interface DocEditorProps {
   /** The stored body. Read once on mount: remount (a new `key`) to load another version. */
@@ -137,8 +152,34 @@ export function DocEditor({
     return () => announce.current?.(null);
   }, [editor]);
 
+  /**
+   * B-N2 (live check fd145807): a click on the sheet that missed the editable body (the gap under
+   * the title, the space beside or below the text) focused `<main tabindex=-1>` instead, so the
+   * next keys ran as page shortcuts and the typing was lost. Any click on the sheet's own empty
+   * space now puts the caret in the body, at the nearest place to the click.
+   */
+  const focusFromSheet = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (!editor || editor.isDestroyed || event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    const view = editor.view;
+    if (view.dom.contains(target)) return;
+    if (target.closest(SHEET_OWN_CONTROLS) !== null) return;
+    event.preventDefault();
+    const box = view.dom.getBoundingClientRect();
+    const top = Math.min(Math.max(event.clientY, box.top + 1), box.bottom - 1);
+    const left = Math.min(Math.max(event.clientX, box.left + 1), box.right - 1);
+    let at: { readonly pos: number } | null = null;
+    try {
+      at = view.posAtCoords({ left, top });
+    } catch {
+      // No layout to read (a test DOM): the caret goes to the end.
+    }
+    if (at) editor.chain().focus().setTextSelection(at.pos).run();
+    else editor.commands.focus('end');
+  };
+
   return (
-    <div className="tm-doced" dir={dir}>
+    <div className="tm-doced" dir={dir} data-tm-typing-surface="">
       <EditorToolbar
         editor={editor}
         onImage={(mode) => setDialog(mode)}
@@ -151,8 +192,11 @@ export function DocEditor({
         </div>
       ) : null}
       <TableControls editor={editor} />
-      <div className="tm-docpage__sheet tm-doced__sheet">
-        {header}
+      {/* The sheet's empty space is a way into the body (see focusFromSheet); keyboard users
+          reach the body itself, which is the textbox. */}
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+      <div className="tm-docpage__sheet tm-doced__sheet" onMouseDown={focusFromSheet}>
+        <div className="tm-doced__header">{header}</div>
         <EditorContent editor={editor} className="tm-doced__content" />
         {footer}
       </div>
