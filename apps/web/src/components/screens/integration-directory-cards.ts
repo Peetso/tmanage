@@ -34,6 +34,11 @@ export interface IntegrationCard {
   readonly what: string;
   /** For `page` cards: where it is set up, after `/{org}`. For `oauth` cards: where it is managed. */
   readonly path?: string;
+  /**
+   * FIX5: the older way to connect (a pasted token or webhook), after `/{org}`. Members, and owners
+   * on a server without the provider's sign-in, are sent here.
+   */
+  readonly advancedPath?: string;
 }
 
 export const INTEGRATION_CARDS: readonly IntegrationCard[] = [
@@ -87,11 +92,13 @@ export const INTEGRATION_CARDS: readonly IntegrationCard[] = [
   {
     id: 'github',
     brand: 'github',
-    flow: 'page',
+    flow: 'oauth',
     scope: 'company',
     whatKey: 'IntegrationDirectoryScreen.what.github',
     what: 'Show code changes next to the work they belong to.',
-    path: '/automations/apps#tm-int-keys',
+    // FIX5: one-click Connect (GitHub OAuth App); the access-token form stays under Advanced.
+    path: '/automations/apps#tm-app-connect-github',
+    advancedPath: '/automations/apps#tm-int-keys',
   },
   {
     id: 'jira',
@@ -105,20 +112,24 @@ export const INTEGRATION_CARDS: readonly IntegrationCard[] = [
   {
     id: 'slack',
     brand: 'slack',
-    flow: 'page',
+    flow: 'oauth',
     scope: 'company',
     whatKey: 'IntegrationDirectoryScreen.what.slack',
     what: 'Post TManage notices to a Slack channel.',
-    path: '/settings/channel-notices',
+    // FIX5: "Add to Slack", then a channel picker; the pasted webhook stays under Advanced.
+    path: '/automations/apps#tm-app-connect-slack',
+    advancedPath: '/settings/channel-notices',
   },
   {
     id: 'teams',
     brand: 'teams',
-    flow: 'page',
+    flow: 'oauth',
     scope: 'company',
     whatKey: 'IntegrationDirectoryScreen.what.teams',
     what: 'Post TManage notices to a Microsoft Teams channel.',
-    path: '/settings/channel-notices',
+    // FIX5: Microsoft sign-in, then a team and channel picker; the webhook stays under Advanced.
+    path: '/automations/apps#tm-app-connect-teams',
+    advancedPath: '/settings/channel-notices',
   },
   {
     id: 'zapier',

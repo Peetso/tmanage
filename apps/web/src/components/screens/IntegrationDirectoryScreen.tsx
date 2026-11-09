@@ -33,6 +33,8 @@ import {
   readFigmaReturn,
   startFigmaConnect,
 } from '../../lib/api/figma';
+import { startAppConnect } from '../../lib/api/app-connect';
+import { AppConnectPanel, useAppConnectStatus } from './AppConnectPanel';
 import { ConnectorDirectory } from './ConnectorDirectory';
 import { FigmaConnectCard } from './FigmaConnectCard';
 import { useOrganizationRole } from '../../lib/use-organization-names';
@@ -60,6 +62,8 @@ type CardStatus =
   | { readonly kind: 'loading' }
   | { readonly kind: 'unavailable' }
   | { readonly kind: 'ready'; readonly broken: boolean }
+  /** FIX5: the provider's app is not registered on this server; the card says so, nothing more. */
+  | { readonly kind: 'not_set_up' }
   | { readonly kind: 'connected'; readonly account: string | null };
 
 type DirectoryFilter = 'all' | 'connected' | 'available';
@@ -130,6 +134,10 @@ export function IntegrationDirectoryScreen({
     queryFn: () => getFigmaConnection(api, organizationSlug),
     retry: false,
   });
+  // FIX5: GitHub, Slack and Teams connect in one click (owners and admins; members keep the old way).
+  const github = useAppConnectStatus(api, organizationSlug, 'github', managesCompany);
+  const slack = useAppConnectStatus(api, organizationSlug, 'slack', managesCompany);
+  const teams = useAppConnectStatus(api, organizationSlug, 'teams', managesCompany);
 
   // Starts the API refused because the provider's sign-in is not set up on this server.
   const [refused, setRefused] = useState<ReadonlySet<IntegrationCardId>>(() => new Set());
@@ -178,6 +186,17 @@ export function IntegrationDirectoryScreen({
         return figma.data?.status === 'connected'
           ? { kind: 'connected', account: figma.data.handle }
           : { kind: 'ready', broken: figma.data?.status === 'error' };
+      case 'github':
+      case 'slack':
+      case 'teams': {
+        const read = id === 'github' ? github : id === 'slack' ? slack : teams;
+        if (!managesCompany) return { kind: 'ready', broken: false };
+        if (read.isPending) return { kind: 'loading' };
+        if (read.isError || !read.data?.setUp) return { kind: 'not_set_up' };
+        return read.data.connected
+          ? { kind: 'connected', account: read.data.account }
+          : { kind: 'ready', broken: false };
+      }
       default:
         return { kind: 'ready', broken: false };
     }
@@ -207,6 +226,9 @@ export function IntegrationDirectoryScreen({
   const connect = useMutation({
     mutationFn: (id: IntegrationCardId): Promise<{ readonly url: string }> => {
       if (id === 'figma') return startFigmaConnect(api, organizationSlug);
+      if (id === 'github' || id === 'slack' || id === 'teams') {
+        return startAppConnect(api, organizationSlug, id);
+      }
       // Storage started here comes back to Connected apps, which finishes the hand-over (R38);
       // the calendars always come back there.
       if (id === 'google-drive') {
@@ -335,7 +357,12 @@ export function IntegrationDirectoryScreen({
             {shown.map((card) => (
               <IntegrationCardItem
                 key={card.id}
-                card={card}
+                // FIX5: members connect GitHub, Slack and Teams the older way, as before.
+                card={
+                  !managesCompany && card.advancedPath
+                    ? { ...card, flow: 'page', path: card.advancedPath }
+                    : card
+                }
                 status={statuses.get(card.id) ?? { kind: 'loading' }}
                 organizationSlug={organizationSlug}
                 connecting={connect.isPending && connect.variables === card.id}
@@ -365,6 +392,8 @@ export function IntegrationDirectoryScreen({
             />
           ) : null}
         </div>
+
+        {managesCompany ? <AppConnectPanel api={api} organizationSlug={organizationSlug} /> : null}
 
         {managesCompany ? (
           <ConnectorDirectory api={api} organizationSlug={organizationSlug} />
@@ -510,6 +539,16 @@ function IntegrationCardItem({
       >
         {/* FIX3 item 9 (live I2): every app card says Connect; the page it opens does the rest. */}
         {tr(`${KEY}.connect`, 'Connect')}
+      </Link>
+    ) : null;
+  } else if (status.kind === 'not_set_up') {
+    // FIX5: no technical fields. The older way stays one quiet link away.
+    state = (
+      <StateCapsule state="waiting">{tr('AppConnect.notSetUp', 'Not set up yet')}</StateCapsule>
+    );
+    action = card.advancedPath ? (
+      <Link href={`/${organizationSlug}${card.advancedPath}`} className="tm-aut-btn">
+        {tr('AppConnect.otherWay', 'Connect another way')}
       </Link>
     ) : null;
   } else if (status.kind === 'unavailable') {
