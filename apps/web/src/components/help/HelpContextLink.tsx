@@ -22,20 +22,40 @@ function readPath(): string {
  * so the work in progress stays where it is. Screens without an article show nothing. `pathname`
  * overrides the address (tests, previews).
  */
-export function HelpContextLink({ pathname }: { pathname?: string }) {
+/**
+ * FIX3 item 10: this screen's Help centre article — its link and its accessible name — or
+ * `undefined` when the screen has none. The shell's Help menu lists it first, so "?" and "Help" are
+ * one button.
+ */
+export function useHelpContextArticle(
+  pathname?: string,
+):
+  | { readonly href: string; readonly name: string; readonly title: string; readonly slug: string }
+  | undefined {
   // The address itself (not `usePathname`): the shell renders in many screens and harnesses, and
   // the server HTML carries no "?" so hydration never disagrees.
   const current = useSyncExternalStore(subscribe, readPath, () => undefined);
   const language = useHelpLanguage();
   const slug = helpSlugForPath(pathname ?? current);
   const article = slug === undefined ? undefined : findHelpArticle(slug);
-  if (article === undefined) return null;
+  if (article === undefined) return undefined;
   const copy = helpCopy(language);
-  const name = `${copy.contextLink}: ${article[language].title}`;
+  return {
+    href: helpHref(article.slug, language),
+    name: `${copy.contextLink}: ${article[language].title}`,
+    title: article[language].title,
+    slug: article.slug,
+  };
+}
+
+export function HelpContextLink({ pathname }: { pathname?: string }) {
+  const article = useHelpContextArticle(pathname);
+  if (article === undefined) return null;
+  const name = article.name;
   return (
     <a
       className="tm-help-context-link"
-      href={helpHref(article.slug, language)}
+      href={article.href}
       target="_blank"
       rel="noopener noreferrer"
       title={name}

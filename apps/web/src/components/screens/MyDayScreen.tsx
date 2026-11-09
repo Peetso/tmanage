@@ -968,3 +968,26 @@ const SUMMARY_ERROR_LINES: ApiErrorLines = {
   network: ['MyDayScreen.summaryNetworkError', 'The network dropped before your summary loaded.'],
   generic: ['MyDayScreen.summaryGenericError', 'Something went wrong loading your summary.'],
 };
+
+/**
+ * FIX3 item 10 (live check a6f66e47): the day capsule as a section's top bar, so a main section
+ * other than My Day (Docs) carries the same schedule bar, from the same real data.
+ */
+export function DayScheduleBar({
+  organizationSlug,
+  client,
+}: {
+  readonly organizationSlug: string;
+  readonly client?: ApiClient;
+}) {
+  const t = useT();
+  const api = client ?? browserApiClient();
+  const { items } = useDayPulseItems(api, organizationSlug);
+  return (
+    <DayPulseBar
+      organizationSlug={organizationSlug}
+      items={items}
+      nowLabel={t('MyDayScreen.nothingScheduled')}
+    />
+  );
+}

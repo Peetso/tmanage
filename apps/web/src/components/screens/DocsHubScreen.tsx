@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { DayScheduleBar } from './MyDayScreen';
 import '../../styles/screens/docs.css';
 import { AudienceBadge } from '../docs/DocumentAudience';
 import { useCreateBlankDocument } from '../docs/DocsSidebar';
@@ -105,7 +106,11 @@ export function DocsHubScreen({
       organizationName={organizationName}
       activeNavigationId="docs"
       eyebrow={t('DocsHubScreen.eyebrow')}
-      title={t('DocsHubScreen.title')}
+      // FIX3 item 10: one name — the menu says Docs, so the page does too (it said "Knowledge").
+      title={t('nav.docs')}
+      topBar={
+        <DayScheduleBar organizationSlug={organizationSlug} {...(client ? { client } : {})} />
+      }
       description={tOr(
         'DocsHubScreen.valueLine',
         'Briefs, proposals, meeting notes and how-to guides, written together, with versions, approvals and comments, and with images, tables, files, Figma and video inside.',

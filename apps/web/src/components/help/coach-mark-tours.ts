@@ -31,10 +31,11 @@ export const COACH_MARK_STEPS: Readonly<Record<CoachMarkTour, readonly CoachMark
       target: 'section[aria-labelledby="tm-my-day-waiting"]',
     },
     {
-      key: 'CoachMarks.help',
+      // FIX3 item 10: "?" and "Help" are one button now; the step points at the Help menu.
+      key: 'CoachMarks.helpMenu',
       title: 'Help is one click away',
-      body: 'Press the ? beside a screen title to open the guide for that screen.',
-      target: '.tm-help-context-link',
+      body: 'Press Help beside the screen title for the guide to this screen, or to contact support.',
+      target: ['.tm-support-launcher__trigger', '.tm-help-context-link'],
     },
   ],
   projects: [
@@ -51,10 +52,11 @@ export const COACH_MARK_STEPS: Readonly<Record<CoachMarkTour, readonly CoachMark
       target: '.tm-por-view-bar',
     },
     {
-      key: 'CoachMarks.help',
+      // FIX3 item 10: "?" and "Help" are one button now; the step points at the Help menu.
+      key: 'CoachMarks.helpMenu',
       title: 'Help is one click away',
-      body: 'Press the ? beside a screen title to open the guide for that screen.',
-      target: '.tm-help-context-link',
+      body: 'Press Help beside the screen title for the guide to this screen, or to contact support.',
+      target: ['.tm-support-launcher__trigger', '.tm-help-context-link'],
     },
   ],
   work_board: [
@@ -69,10 +71,11 @@ export const COACH_MARK_STEPS: Readonly<Record<CoachMarkTour, readonly CoachMark
       body: 'Drag a card, or use its menu, to change its state. Everyone sees it at once.',
     },
     {
-      key: 'CoachMarks.help',
+      // FIX3 item 10: "?" and "Help" are one button now; the step points at the Help menu.
+      key: 'CoachMarks.helpMenu',
       title: 'Help is one click away',
-      body: 'Press the ? beside a screen title to open the guide for that screen.',
-      target: '.tm-help-context-link',
+      body: 'Press Help beside the screen title for the guide to this screen, or to contact support.',
+      target: ['.tm-support-launcher__trigger', '.tm-help-context-link'],
     },
   ],
 };

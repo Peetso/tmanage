@@ -21,6 +21,7 @@ import {
 } from '../../lib/api/support';
 import type { SupportStatus, SupportThread, SupportThreadDetail } from '../../lib/api/support';
 import { ATTACHMENT_ACCEPT, attachmentProblem, uploadProjectFile } from '../../lib/api/uploads';
+import { useHelpContextArticle } from '../help/HelpContextLink';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import './support.css';
 
@@ -76,6 +77,7 @@ export function SupportLauncher({
   const [menuOpen, setMenuOpen] = useState(false);
   const [panel, setPanel] = useState<View | null>(null);
   const menuId = useId();
+  const screenGuide = useHelpContextArticle(pathname);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -97,6 +99,22 @@ export function SupportLauncher({
       </button>
       {menuOpen ? (
         <ul id={menuId} role="menu" className="tm-support-menu">
+          {/* FIX3 item 10: the guide for this screen (the old "?" beside the title) is the menu's
+              first entry, so the header has one help button. */}
+          {screenGuide ? (
+            <li role="none">
+              <a
+                role="menuitem"
+                className="tm-support-menu__item"
+                href={screenGuide.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-help-slug={screenGuide.slug}
+              >
+                {tOr('Support.screenGuide', 'Guide for this screen')}
+              </a>
+            </li>
+          ) : null}
           <li role="none">
             <a
               role="menuitem"

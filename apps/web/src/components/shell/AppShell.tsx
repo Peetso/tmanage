@@ -331,8 +331,10 @@ export function AppShell({
                       {queryClient ? (
                         <GettingStartedLauncher organizationSlug={organizationSlug} />
                       ) : null}
-                      {/* Row 55-16: the Help centre article for this screen. */}
-                      <HelpContextLink />
+                      {/* Row 55-16: the Help centre article for this screen. FIX3 item 10: with a
+                          query client it is the first entry of the Help menu below, so "?" and
+                          "Help" are one button; the bare "?" stays only where that menu cannot. */}
+                      {queryClient ? null : <HelpContextLink />}
                       {/* Row 55-17: the help menu with "Contact support" (needs the query client). */}
                       {queryClient ? <SupportLauncher organizationSlug={organizationSlug} /> : null}
                       {/* "Let AI do the job" (Figma 400:5399): needs the query client. */}
