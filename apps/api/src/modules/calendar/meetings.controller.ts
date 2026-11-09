@@ -306,6 +306,18 @@ export class MeetingsController {
     return this.meetings.cancel(context, principal, meetingId);
   }
 
+  /** Live check a6f66e47: remove a cancelled meeting from the calendar (soft delete, audited). */
+  @Delete(':meetingId')
+  @RequireCapability('meeting.write')
+  @HttpCode(204)
+  async remove(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('meetingId') meetingId: string,
+  ): Promise<void> {
+    await this.meetings.remove(context, principal, meetingId);
+  }
+
   /** 0237. "Retry": push to the organizer's calendar again and pull the answers back. */
   @Post(':meetingId/sync')
   @RequireCapability('meeting.write')

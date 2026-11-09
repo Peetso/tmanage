@@ -281,6 +281,18 @@ export async function cancelMeeting(
   return data;
 }
 
+/**
+ * Remove a cancelled meeting from the calendar (live check a6f66e47). The API refuses a meeting
+ * that is not cancelled (409): cancel first, so the guests are told.
+ */
+export async function removeMeeting(
+  client: ApiClient,
+  organizationSlug: string,
+  meetingId: string,
+): Promise<void> {
+  await client.request<void>({ method: 'DELETE', path: meetingPath(organizationSlug, meetingId) });
+}
+
 /** "Try again": push to the organizer's calendar again and pull the answers back. */
 export async function syncMeeting(
   client: ApiClient,

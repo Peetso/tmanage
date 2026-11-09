@@ -685,6 +685,35 @@ export class MeetingsService {
   }
 
   /**
+   * Live check a6f66e47: a cancelled meeting can be removed from the calendar. Only a cancelled one
+   * (409 otherwise — cancel first, so the guests are told); the row is soft-deleted, so its notes
+   * stay recoverable and the audit names who removed it. Removing twice is a 404.
+   */
+  async remove(context: TenantContext, principal: Principal, meetingId: string): Promise<void> {
+    const meeting = await this.resolveMeetingFor(context, principal, meetingId, 'work.create');
+    if (!meeting.cancelledAt) {
+      throw new ApiError(
+        409,
+        'conflict',
+        'Cancel the meeting before removing it',
+        [{ field: 'meetingId', message: 'only a cancelled meeting can be removed' }],
+        'meeting_not_cancelled',
+      );
+    }
+    await this.database.transaction(context, async (tx) => {
+      await this.meetings.update(tx, context, meetingId, {
+        deleted: { at: new Date(), byUserId: principal.userId },
+      });
+      await this.audit?.record(tx, context, {
+        action: 'meeting.deleted',
+        result: 'allowed',
+        objectId: meetingId,
+        metadata: { project_id: meeting.projectId },
+      });
+    });
+  }
+
+  /**
    * 0237. "Retry" on the meeting page: push the meeting to the organizer's calendar again, then pull
    * the answers back, and return the fresh overview. Audited (`meeting.synced`).
    */
@@ -802,7 +831,8 @@ export class MeetingsService {
       this.meetings.findById(runner, context, meetingId),
     );
 
-    if (!meeting) {
+    // A removed (soft-deleted) meeting is gone for every reader.
+    if (!meeting || meeting.deletedAt) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'meeting_not_visible');
     }
 

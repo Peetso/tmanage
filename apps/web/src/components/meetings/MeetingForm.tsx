@@ -48,6 +48,7 @@ import { guessTimeZone } from '../../lib/time-zones';
 import './meetings.css';
 import { MoreOptions, useMyUserId } from '../forms/MoreOptions';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { DateField } from '../work/DateField';
 
 export interface MeetingFormProps {
   organizationSlug: string;
@@ -443,13 +444,14 @@ export function MeetingForm({
             <div className="tm-mtg-form__row4">
               <Field label={t('MeetingForm.date')}>
                 {(id) => (
-                  <input
+                  <DateField
                     id={id}
-                    type="date"
-                    className="tm-mtg-input"
+                    className="tm-mtg-input tm-mtg-input--date"
+                    heading={t('MeetingForm.date')}
                     value={date}
                     required
-                    onChange={(event) => setDate(event.target.value)}
+                    placeholder={tOr('MeetingForm.pickDate', 'Pick a date')}
+                    onChange={setDate}
                   />
                 )}
               </Field>
@@ -1232,6 +1234,7 @@ function CustomRepeat({
   onDone: (rule: RepeatRule) => void;
 }) {
   const t = useT();
+  const tOr = useTOr();
   const titleId = useId();
   const [rule, setRule] = useState<RepeatRule>(initial);
   const ends: 'never' | 'on' | 'after' = rule.until ? 'on' : rule.count ? 'after' : 'never';
@@ -1336,15 +1339,14 @@ function CustomRepeat({
             }
           />
           {t('MeetingForm.onDate')}
-          <input
-            type="date"
-            className="tm-mtg-input tm-mtg-input--sm"
-            aria-label={t('MeetingForm.endDate')}
+          <DateField
+            className="tm-mtg-input tm-mtg-input--sm tm-mtg-input--date"
+            heading={t('MeetingForm.endDate')}
+            ariaLabel={t('MeetingForm.endDate')}
             value={rule.until ?? ''}
             disabled={ends !== 'on'}
-            onChange={(event) =>
-              setRule({ ...rule, until: event.target.value || null, count: null })
-            }
+            placeholder={tOr('MeetingForm.pickDate', 'Pick a date')}
+            onChange={(day) => setRule({ ...rule, until: day || null, count: null })}
           />
         </label>
         <label className="tm-mtg-check">

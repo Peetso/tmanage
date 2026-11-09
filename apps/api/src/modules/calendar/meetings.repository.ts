@@ -67,6 +67,8 @@ export interface UpdateMeetingInput {
   readonly options?: MeetingOptionsInput;
   /** 0237. Set by cancel; a pull from the provider may set it too. */
   readonly cancelledAt?: Date | null;
+  /** Remove a cancelled meeting (live check a6f66e47): soft delete, who removed it is kept. */
+  readonly deleted?: { readonly at: Date; readonly byUserId: string };
 }
 
 /** 0237. Every meeting of the organization in a time window (the All meetings calendar). */
@@ -260,6 +262,9 @@ export class MeetingsRepository {
         ...(input.endsAt !== undefined ? { endsAt: input.endsAt } : {}),
         ...(input.agendaNote !== undefined ? { agendaNote: input.agendaNote } : {}),
         ...(input.cancelledAt !== undefined ? { cancelledAt: input.cancelledAt } : {}),
+        ...(input.deleted !== undefined
+          ? { deletedAt: input.deleted.at, deletedByUserId: input.deleted.byUserId }
+          : {}),
         ...optionColumns(input.options),
         updatedAt: sql`current_timestamp(3)`,
       })

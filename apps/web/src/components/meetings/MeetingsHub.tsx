@@ -15,6 +15,7 @@ import {
 } from '../../lib/api/meetings';
 import { setMeetingRsvp, type MeetingRsvpResponse } from '../../lib/api/meeting-rsvp';
 import { startCalendarConnect } from '../../lib/api/calendar-connections';
+import { getWorkingCalendar } from '../../lib/api/working-calendar';
 import { fillTemplate } from '../../lib/ai-approval-presentation';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
@@ -106,6 +107,19 @@ export function MeetingsHub({
     queryKey: ['meetings', organizationSlug, 'window', upcomingWindow.from, upcomingWindow.to],
     queryFn: () => listMeetingsInWindow(api, organizationSlug, upcomingWindow),
   });
+
+  // Live check a6f66e47 (M4): shade the company's days off (Friday and Saturday for a Sunday to
+  // Thursday week), read from the working calendar — never a hard-coded Saturday and Sunday.
+  const workingCalendar = useQuery({
+    queryKey: ['working-calendar', organizationSlug],
+    queryFn: () => getWorkingCalendar(api, organizationSlug),
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
+  const offDays = useMemo(
+    () => offDaysOf(workingCalendar.data?.workingDays),
+    [workingCalendar.data],
+  );
 
   const myUserId = useMyUserId(api, organizationSlug);
   const { accounts, loaded: accountsLoaded } = useCalendarAccounts(api, organizationSlug);
@@ -381,6 +395,7 @@ export function MeetingsHub({
           nextId={nextId}
           highlight={new Set(needsAnswer.map((m) => m.id))}
           now={now}
+          offDays={offDays}
         />
       ) : null}
       {meetings.isSuccess && range === 'month' ? (
@@ -391,6 +406,7 @@ export function MeetingsHub({
           overviews={overviews}
           nextId={nextId}
           now={now}
+          offDays={offDays}
         />
       ) : null}
       {meetings.isSuccess && range === 'day' ? (
@@ -466,6 +482,14 @@ interface GridProps {
   overviews: ReadonlyMap<string, MeetingOverviewView>;
   nextId: string | null;
   now: Date;
+  /** The company's days off (0 = Sunday … 6 = Saturday); empty until the calendar is read. */
+  offDays?: ReadonlySet<number>;
+}
+
+/** The weekdays outside the company's work week; none while it is unknown. */
+export function offDaysOf(workingDays: readonly number[] | undefined): ReadonlySet<number> {
+  if (!workingDays || workingDays.length === 0) return new Set();
+  return new Set([0, 1, 2, 3, 4, 5, 6].filter((day) => !workingDays.includes(day)));
 }
 
 /** Week (415:19974): seven day columns, an all-day row, hour rows, the red now-line. */
@@ -478,6 +502,7 @@ function WeekGrid({
   nextId,
   highlight,
   now,
+  offDays = new Set<number>(),
 }: GridProps & {
   days: readonly Date[];
   projectNames: ReadonlyMap<string, string>;
@@ -538,7 +563,7 @@ function WeekGrid({
         </div>
         {days.map((day) => {
           const key = dayKey(day);
-          const weekend = day.getDay() === 0 || day.getDay() === 6;
+          const weekend = offDays.has(day.getDay());
           return (
             <div key={key} className="tm-mtg-week__col" data-weekend={weekend || undefined}>
               {hourList.map((hour) => (
@@ -592,6 +617,7 @@ function MonthGrid({
   overviews,
   nextId,
   now,
+  offDays = new Set<number>(),
 }: GridProps & { anchor: Date }) {
   const t = useT();
   const days = daysOf('month', anchor);
@@ -620,7 +646,7 @@ function MonthGrid({
       <div className="tm-mtg-month__grid">
         {days.map((day) => {
           const key = dayKey(day);
-          const weekend = day.getDay() === 0 || day.getDay() === 6;
+          const weekend = offDays.has(day.getDay());
           const outside = day.getMonth() !== anchor.getMonth();
           return (
             <div

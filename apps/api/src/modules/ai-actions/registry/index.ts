@@ -5812,6 +5812,14 @@ export const OPS: readonly AiActionOp[] = [
     scope: 'manage',
   },
   {
+    id: 'meetings.delete',
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/meetings/:meetingId',
+    capability: 'meeting.write',
+    risk: 'confirm',
+    scope: 'manage',
+  },
+  {
     id: 'meetings.sync',
     method: 'POST',
     path: '/v1/organizations/:orgSlug/meetings/:meetingId/sync',

@@ -19,6 +19,9 @@ import { listMembers } from '../../lib/api/members';
 import { fillTemplate } from '../../lib/ai-approval-presentation';
 import { useOrganizationRole } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { pluralPhrase } from '../../lib/i18n/plural';
 import { calendarName, initialsOf } from './MeetingBits';
 import { useCalendarAccounts, type CalendarAccount } from './use-meetings-data';
 import {
@@ -266,6 +269,8 @@ const STATUS_KEYS = {
 /** "Defaults for new meetings" — kept in this browser; the New meeting form starts from them. */
 function Defaults({ accounts }: { accounts: readonly CalendarAccount[] }) {
   const t = useT();
+  const tOr = useTOr();
+  const locale = useActiveLocale();
   const connected = accounts.filter((a) => a.status === 'connected');
   const connectedProviders = connected.map((a) => a.provider);
   const [stored, setStored] = useState<MeetingDefaults>(() => readMeetingDefaults());
@@ -369,10 +374,7 @@ function Defaults({ accounts }: { accounts: readonly CalendarAccount[] }) {
         >
           {[5, 10, 15, 30, 60, 1440].map((minutes) => (
             <option key={minutes} value={minutes}>
-              {fillTemplate(t('CalendarConnections.reminderOption'), {
-                n: String(minutes >= 60 ? minutes / 60 : minutes),
-                unit: t(minutes >= 60 ? 'MeetingForm.unitHours' : 'MeetingForm.unitMinutes'),
-              })}
+              {reminderLabel(tOr, locale, minutes)}
             </option>
           ))}
         </select>
@@ -380,6 +382,33 @@ function Defaults({ accounts }: { accounts: readonly CalendarAccount[] }) {
       <p className="tm-mtg-hint">{t('CalendarConnections.defaultsHint')}</p>
     </section>
   );
+}
+
+/**
+ * "10 minutes before", "1 hour before", "1 day before" — ICU plural forms per locale (live check
+ * a6f66e47, K2: it read "1 hours before").
+ */
+export function reminderLabel(
+  tOr: (key: string, english: string) => string,
+  locale: string,
+  minutes: number,
+): string {
+  if (minutes >= 1440 && minutes % 1440 === 0) {
+    return pluralPhrase(tOr, locale, 'CalendarConnections.reminderDays', minutes / 1440, {
+      one: '{count} day before',
+      other: '{count} days before',
+    });
+  }
+  if (minutes >= 60 && minutes % 60 === 0) {
+    return pluralPhrase(tOr, locale, 'CalendarConnections.reminderHours', minutes / 60, {
+      one: '{count} hour before',
+      other: '{count} hours before',
+    });
+  }
+  return pluralPhrase(tOr, locale, 'CalendarConnections.reminderMinutes', minutes, {
+    one: '{count} minute before',
+    other: '{count} minutes before',
+  });
 }
 
 /** Owners: who on the team has which calendar connected (no addresses, no tokens). */
@@ -425,7 +454,17 @@ function TeamCalendars({ api, organizationSlug }: { api: ApiClient; organization
               <span className="tm-mtg-guest__who">
                 <strong>{member.displayName}</strong>
                 <small>
-                  {best ? calendarName(best.provider) : t('CalendarConnections.noCalendarYet')}
+                  {best
+                    ? // Every calendar the person has connected (Google and Outlook both), not only
+                      // the first one found (live check a6f66e47, K1).
+                      [
+                        ...new Set(
+                          rows
+                            .filter((c) => c.status === 'connected' || rows.length === 1)
+                            .map((c) => calendarName(c.provider)),
+                        ),
+                      ].join(' · ') || calendarName(best.provider)
+                    : t('CalendarConnections.noCalendarYet')}
                 </small>
               </span>
               <span className="tm-mtg-status" data-status={status}>

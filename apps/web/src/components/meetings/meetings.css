@@ -1174,6 +1174,21 @@
   font-size: var(--t-ui-md);
 }
 
+/* The app's date picker as a field (live check a6f66e47, M3). */
+.tm-mtg-input--date {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-mtg-input--date:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .tm-mtg-input:focus-visible {
   outline: var(--focus-ring);
   outline-offset: 1px;

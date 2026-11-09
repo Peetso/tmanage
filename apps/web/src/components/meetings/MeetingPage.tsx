@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -13,6 +14,7 @@ import {
   getMeetingOverview,
   listAllProjects,
   listMeetingNotes,
+  removeMeeting,
   syncMeeting,
   type MeetingOverviewView,
 } from '../../lib/api/meetings';
@@ -27,6 +29,7 @@ import {
 } from '../../lib/api/meeting-action-items';
 import { fillTemplate } from '../../lib/ai-approval-presentation';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import { answerCounts, gmtOffset, parseRrule, splitReminder, timeRange } from './meeting-model';
 import { calendarName, conferenceName, initialsOf } from './MeetingBits';
 import { repeatSummary } from './MeetingForm';
@@ -83,6 +86,17 @@ export function MeetingPageScreen({
     },
   });
   const [confirming, setConfirming] = useState(false);
+  const tOr = useTOr();
+  const router = useRouter();
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const remove = useMutation({
+    mutationFn: () => removeMeeting(api, organizationSlug, meetingId),
+    onSuccess: () => {
+      void queries.invalidateQueries({ queryKey: ['meetings', organizationSlug] });
+      void queries.invalidateQueries({ queryKey: ['calendar-grid', organizationSlug] });
+      router.push(`/${organizationSlug}/calendar`);
+    },
+  });
 
   const o = overview.data;
   const title = o?.meeting.title ?? t('MeetingPage.meeting');
@@ -121,7 +135,18 @@ export function MeetingPageScreen({
           <>
             {justSaved ? (
               <p className="tm-mtg-banner" data-tone="lime" role="status">
-                {o.external ? t('MeetingPage.savedSent') : t('MeetingPage.savedLocal')}
+                {/* Live check a6f66e47 (M2): no guests, no invitation message. */}
+                {o.external === null
+                  ? t('MeetingPage.savedLocal')
+                  : o.people.some((person) => !person.organizer)
+                    ? t('MeetingPage.savedSent')
+                    : fillTemplate(
+                        tOr(
+                          'MeetingPage.savedNoGuests',
+                          'Saved. It is in your {calendar} calendar.',
+                        ),
+                        { calendar: calendarName(o.external.provider) },
+                      )}
               </p>
             ) : null}
             {o.cancelledAt ? (
@@ -133,6 +158,15 @@ export function MeetingPageScreen({
             <Hero t={t} o={o} />
 
             <div className="tm-mtg-page__actions">
+              {o.cancelledAt !== null ? (
+                <button
+                  type="button"
+                  className="tm-mtg-btn tm-mtg-btn--danger"
+                  onClick={() => setConfirmingRemove(true)}
+                >
+                  {tOr('MeetingPage.removeMeeting', 'Remove from calendar')}
+                </button>
+              ) : null}
               {o.cancelledAt === null ? (
                 <>
                   <Link className="tm-mtg-btn tm-mtg-btn--outline" href={`${base}/edit`}>
@@ -206,6 +240,37 @@ export function MeetingPageScreen({
               </div>
             </div>
 
+            {remove.isError ? (
+              <InlineAlert
+                tone="danger"
+                title={tOr('MeetingPage.removeFailed', 'Not removed')}
+                live
+              >
+                {remove.error instanceof ApiRequestError
+                  ? remove.error.message
+                  : t('MeetingsHub.noAnswer')}
+              </InlineAlert>
+            ) : null}
+            {confirmingRemove ? (
+              <CancelDialog
+                t={t}
+                pending={remove.isPending}
+                notifies={false}
+                copy={{
+                  title: tOr('MeetingPage.removeTitle', 'Remove this meeting?'),
+                  body: tOr(
+                    'MeetingPage.removeBody',
+                    'It leaves the calendar for everyone. Nobody is notified again, because the meeting is already cancelled.',
+                  ),
+                  keep: tOr('MeetingPage.keepIt', 'Keep it'),
+                  confirm: tOr('MeetingPage.removeConfirm', 'Remove meeting'),
+                }}
+                onClose={() => setConfirmingRemove(false)}
+                onConfirm={() =>
+                  remove.mutate(undefined, { onSettled: () => setConfirmingRemove(false) })
+                }
+              />
+            ) : null}
             {confirming ? (
               <CancelDialog
                 t={t}
@@ -781,12 +846,15 @@ function CancelDialog({
   t,
   pending,
   notifies,
+  copy,
   onClose,
   onConfirm,
 }: {
   t: Translate;
   pending: boolean;
   notifies: boolean;
+  /** The same dialog for "Remove from calendar". */
+  copy?: { title: string; body: string; keep: string; confirm: string };
   onClose: () => void;
   onConfirm: () => void;
 }) {
@@ -807,14 +875,14 @@ function CancelDialog({
       }}
     >
       <h2 id={titleId} className="tm-mtg-card__title tm-mtg-dialog__title">
-        {t('MeetingPage.cancelTitle')}
+        {copy?.title ?? t('MeetingPage.cancelTitle')}
       </h2>
       <p className="tm-mtg-body">
-        {notifies ? t('MeetingPage.cancelNotifies') : t('MeetingPage.cancelLocal')}
+        {copy?.body ?? (notifies ? t('MeetingPage.cancelNotifies') : t('MeetingPage.cancelLocal'))}
       </p>
       <div className="tm-mtg-dialog__actions">
         <button type="button" className="tm-mtg-btn tm-mtg-btn--outline" onClick={onClose}>
-          {t('MeetingPage.keepMeeting')}
+          {copy?.keep ?? t('MeetingPage.keepMeeting')}
         </button>
         <button
           type="button"
@@ -822,7 +890,7 @@ function CancelDialog({
           onClick={onConfirm}
           disabled={pending}
         >
-          {t('MeetingPage.cancelConfirm')}
+          {copy?.confirm ?? t('MeetingPage.cancelConfirm')}
         </button>
       </div>
     </dialog>
