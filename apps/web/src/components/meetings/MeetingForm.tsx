@@ -26,6 +26,7 @@ import { fetchMyProfile } from '../../lib/api/member-profile';
 import { useMembers } from '../../lib/use-members';
 import { fillTemplate } from '../../lib/ai-approval-presentation';
 import { useT } from '../../lib/i18n/use-t';
+import { appDateLocale } from '../../lib/i18n/app-locale';
 import { DriveProjectFilesDialog } from '../storage/DriveProjectFilesDialog';
 import {
   MEETING_COLOURS,
@@ -942,7 +943,7 @@ export function repeatSummary(t: Translate, rule: RepeatRule, start: Date): stri
   const parts = [fillTemplate(t(unitKey[rule.freq]), { days, n: String(rule.interval) })];
   if (rule.until) {
     parts[0] += ` ${fillTemplate(t('MeetingForm.until'), {
-      date: new Intl.DateTimeFormat('en-GB', {
+      date: new Intl.DateTimeFormat(appDateLocale(), {
         day: 'numeric',
         month: 'short',
         year: 'numeric',

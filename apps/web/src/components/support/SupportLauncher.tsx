@@ -23,6 +23,7 @@ import type { SupportStatus, SupportThread, SupportThreadDetail } from '../../li
 import { ATTACHMENT_ACCEPT, attachmentProblem, uploadProjectFile } from '../../lib/api/uploads';
 import { useHelpContextArticle } from '../help/HelpContextLink';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { appDateLocale, appLocale } from '../../lib/i18n/app-locale';
 import './support.css';
 
 /**
@@ -511,7 +512,9 @@ function ThreadView({
                         : (message.authorName ?? '')}
                   </strong>{' '}
                   <time dateTime={message.createdAt}>
-                    {new Date(message.createdAt).toLocaleString()}
+                    {new Date(message.createdAt).toLocaleString(
+                      appDateLocale(appLocale(), appLocale()),
+                    )}
                   </time>
                 </p>
                 <p className="tm-support-message__body">{message.body}</p>

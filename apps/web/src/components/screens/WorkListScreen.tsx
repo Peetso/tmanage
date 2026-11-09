@@ -27,6 +27,7 @@ import type { ApiClient } from '../../lib/api/client';
 import type { MessageKey } from '../../lib/i18n/t';
 import { activeIsEnglish, compactUnit, translateOr } from '../../lib/i18n/compact-time';
 import { appLocale } from '../../lib/i18n/app-locale';
+import { countNoun } from '../../lib/i18n/plural';
 import { useT } from '../../lib/i18n/use-t';
 import { WorkBoardView } from './WorkBoardView';
 import { ApiRequestError } from '../../lib/api/errors';
@@ -387,10 +388,14 @@ export function WorkListScreen({
   ).length;
   const countLabel = `${localCount(loadedRows.length)}${workItems.hasNextPage ? '+' : ''}`;
   // CQ-07 (WRK-10): "1 items" reads wrong; a single loaded row with no further page is one item.
-  const itemWord =
-    loadedRows.length === 1 && !workItems.hasNextPage
-      ? t('WorkListScreen.itemSingular')
-      : t('WorkListScreen.itemPlural');
+  const itemWord = workItems.hasNextPage
+    ? t('WorkListScreen.itemPlural')
+    : countNoun(
+        appLocale(),
+        loadedRows.length,
+        t('WorkListScreen.itemSingular'),
+        t('WorkListScreen.itemPlural'),
+      );
   // CQ-07 (WRK-10): when the list is filtered to one project, name that project in the heading
   // rather than the state view's label ("All work"), which described the whole organization.
   const selectedProjectName = projectId === '' ? undefined : projectNames.get(projectId);

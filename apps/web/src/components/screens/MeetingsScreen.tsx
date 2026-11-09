@@ -6,7 +6,8 @@ import Link from 'next/link';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appDateLocale, appLocale } from '../../lib/i18n/app-locale';
+import { TIME_ZONE_CITIES_AR } from '../../lib/time-zones-ar';
 import { activeIsEnglish } from '../../lib/i18n/compact-time';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
@@ -108,14 +109,17 @@ export function MeetingsScreen({
  * ("Tue 20 Oct") rather than en-US's "Tue, Oct 20".
  */
 export function dateLocale(locale: string = appLocale()): string {
-  return activeIsEnglish(locale) ? 'en-GB' : locale;
+  return activeIsEnglish(locale) ? 'en-GB' : appDateLocale(locale);
 }
 
 /** "CAIRO, " from the reader's zone (`Africa/Cairo`), or nothing for a bare offset zone. */
 function zoneCity(): string {
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? '';
   const city = zone.split('/').pop()?.replace(/_/g, ' ') ?? '';
-  return city && city !== 'UTC' ? `${city}, ` : '';
+  if (!city || city === 'UTC') return '';
+  // FIX4 item 8: an Arabic member reads the city in Arabic ("القاهرة، GMT+2").
+  if (appLocale().toLowerCase().startsWith('ar')) return `${TIME_ZONE_CITIES_AR[zone] ?? city}، `;
+  return `${city}, `;
 }
 
 /** A meeting as the track draws it — the subset of the API row it reads. */

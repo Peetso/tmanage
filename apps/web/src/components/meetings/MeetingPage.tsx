@@ -29,6 +29,7 @@ import {
 } from '../../lib/api/meeting-action-items';
 import { fillTemplate } from '../../lib/ai-approval-presentation';
 import { useT } from '../../lib/i18n/use-t';
+import { appDateLocale } from '../../lib/i18n/app-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { answerCounts, gmtOffset, parseRrule, splitReminder, timeRange } from './meeting-model';
 import { calendarName, conferenceName, initialsOf } from './MeetingBits';
@@ -292,7 +293,11 @@ export function MeetingPageScreen({
 function Hero({ t, o }: { t: Translate; o: MeetingOverviewView }) {
   const start = new Date(o.meeting.startsAt);
   const rule = parseRrule(o.rrule);
-  const day = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })
+  const day = new Intl.DateTimeFormat(appDateLocale(), {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'short',
+  })
     .format(start)
     .replace(',', '');
   const zone = (o.timeZone ?? '').split('/').pop()?.replace(/_/g, ' ') ?? '';
@@ -481,7 +486,7 @@ function NotesCards({
           {latest ? (
             <small className="tm-mtg-quiet">
               {fillTemplate(t('MeetingPage.lastEdited'), {
-                time: new Intl.DateTimeFormat('en-GB', {
+                time: new Intl.DateTimeFormat(appDateLocale(), {
                   hour: '2-digit',
                   minute: '2-digit',
                 }).format(new Date(latest.createdAt)),
@@ -563,7 +568,7 @@ function ActionItemsCard({
                 ? t('MeetingPage.done')
                 : item.dueOn
                   ? fillTemplate(t('MeetingPage.due'), {
-                      date: new Intl.DateTimeFormat('en-GB', {
+                      date: new Intl.DateTimeFormat(appDateLocale(), {
                         day: 'numeric',
                         month: 'short',
                       }).format(new Date(`${item.dueOn}T12:00`)),

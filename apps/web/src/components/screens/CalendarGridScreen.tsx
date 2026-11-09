@@ -11,6 +11,7 @@ import type { CalendarGridDayRow, CalendarGridRange } from '../../lib/api/calend
 import { formatDay } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { appDateLocale } from '../../lib/i18n/app-locale';
 import type { MessageKey } from '../../lib/i18n/t';
 import { CalendarHeaderActions, CalendarSubnav } from './MeetingsScreen';
 import { useDescribeApiError } from '../../lib/api/describe-error';
@@ -272,9 +273,10 @@ export function CalendarGridScreen({
 function dayMark(date: string): string {
   const day = Number(date.slice(8, 10));
   if (day !== 1) return String(day);
-  const month = new Intl.DateTimeFormat('en-GB', { month: 'short', timeZone: 'UTC' }).format(
-    new Date(`${date}T00:00:00.000Z`),
-  );
+  const month = new Intl.DateTimeFormat(appDateLocale(), {
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(new Date(`${date}T00:00:00.000Z`));
   return `1 ${month}`;
 }
 
@@ -284,9 +286,9 @@ function rangeHeading(from: string, to: string, range: CalendarGridRange): strin
   const end = new Date(`${to}T00:00:00.000Z`);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return '';
   const month = (date: Date) =>
-    new Intl.DateTimeFormat('en-GB', { month: 'long', timeZone: 'UTC' }).format(date);
+    new Intl.DateTimeFormat(appDateLocale(), { month: 'long', timeZone: 'UTC' }).format(date);
   if (range === 'month') {
-    return new Intl.DateTimeFormat('en-GB', {
+    return new Intl.DateTimeFormat(appDateLocale(), {
       month: 'long',
       year: 'numeric',
       timeZone: 'UTC',

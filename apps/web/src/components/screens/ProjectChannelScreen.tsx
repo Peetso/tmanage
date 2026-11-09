@@ -100,7 +100,7 @@ import {
 import '../../styles/screens/chat.css';
 import '../chat/chat-shell.css';
 import { chatHref } from '../chat/chat-workspaces';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appDateLocale, appLocale } from '../../lib/i18n/app-locale';
 import { channelLabel } from '../../lib/text/channel-label';
 
 type Translate = ReturnType<typeof useT>;
@@ -1802,7 +1802,7 @@ function formatStamp(value: string): string {
   const today = new Date();
   const sameDay = parsed.toDateString() === today.toDateString();
   return new Intl.DateTimeFormat(
-    undefined,
+    appDateLocale(appLocale(), appLocale()),
     sameDay
       ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }
       : { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' },

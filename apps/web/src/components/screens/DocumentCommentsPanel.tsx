@@ -18,6 +18,7 @@ import { initialsOf } from '../docs/DocumentAudience';
 import { useT } from '../../lib/i18n/use-t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { appDateLocale, appLocale } from '../../lib/i18n/app-locale';
 import type { AnchorState } from '../docs/editor/comment-reanchor';
 import '../docs/doc-history-panel.css';
 
@@ -406,7 +407,7 @@ function formatClock(iso: string): string {
   if (Number.isNaN(at.getTime())) return iso;
   const sameDay = at.toDateString() === new Date().toDateString();
   return new Intl.DateTimeFormat(
-    undefined,
+    appDateLocale(appLocale(), appLocale()),
     sameDay
       ? { hour: '2-digit', minute: '2-digit', hour12: false }
       : { day: 'numeric', month: 'short' },

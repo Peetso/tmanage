@@ -100,7 +100,8 @@ describe('MeetingsScreen', () => {
   });
 
   it('draws meeting dates in the member locale, English in the en-GB shape', () => {
-    expect(dateLocale('ar-EG')).toBe('ar-EG');
+    // FIX4 item 8: Arabic dates keep the Latin digits the rest of the product writes.
+    expect(dateLocale('ar-EG')).toBe('ar-EG-u-nu-latn');
     expect(dateLocale('en-US')).toBe('en-GB');
   });
 });

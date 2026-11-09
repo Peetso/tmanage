@@ -1159,6 +1159,15 @@ html[lang^='zh'] body {
   text-transform: uppercase;
 }
 
+/* FIX4 item 8: Arabic glyphs reach far above and below the Latin box, so "يومي" at a 1:1 line
+   height ran into the line under it. Arabic gets room to breathe and no negative tracking, which
+   would also break the joined letters apart. */
+[dir='rtl'] .tm-canvas-header[data-title-variant='display'] .tm-canvas-header__title {
+  line-height: 1.4;
+  letter-spacing: 0;
+  padding-block: 0.05em;
+}
+
 .tm-app__columns {
   flex: 1;
   display: flex;

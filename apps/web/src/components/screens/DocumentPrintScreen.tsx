@@ -6,6 +6,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
 import { getDocument } from '../../lib/api/documents';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { appDateLocale, appLocale } from '../../lib/i18n/app-locale';
 import { DocMarkdown } from '../docs/DocMarkdown';
 import { DocBodyView } from '../docs/editor/DocBodyView';
 import '../docs/doc-print.css';
@@ -84,7 +85,8 @@ export function DocumentPrintScreen({
         {doc.title}
       </h1>
       <p className="tm-doc-print__meta">
-        {tOr('DocPrint.printed', 'Printed')} {new Date().toLocaleDateString()}
+        {tOr('DocPrint.printed', 'Printed')}{' '}
+        {new Date().toLocaleDateString(appDateLocale(appLocale(), appLocale()))}
       </p>
       <div className="tm-doc-print__body" dir="auto">
         {format === 'html' ? (

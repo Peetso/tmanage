@@ -16,3 +16,15 @@ export function pluralPhrase(
   const fallback = category === 'one' ? english.one : english.other;
   return tr(`${base}.${category}`, fallback).replace(/\{count\}/gu, display);
 }
+
+/**
+ * FIX4 item 8: the noun after a number when the catalog has only a singular and a plural word.
+ * English takes the singular for one. Arabic takes the plural (مهام) only for three to ten and the
+ * singular (مهمة) for every other count, so "0 مهام" and "15 مهام" read "0 مهمة" and "15 مهمة".
+ */
+export function countNoun(locale: string, count: number, singular: string, plural: string): string {
+  if (locale.toLowerCase().startsWith('ar')) {
+    return new Intl.PluralRules('ar').select(count) === 'few' ? plural : singular;
+  }
+  return count === 1 ? singular : plural;
+}

@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import type { MessageSummary } from '../../../lib/api/conversations';
 import { isForwarded, replyMetaOf } from '../../../lib/api/conversations';
 import { useTOr } from '../../../lib/i18n/use-t-or';
+import { appDateLocale, appLocale } from '../../../lib/i18n/app-locale';
 import type { BubbleRun } from './BubbleGroup';
 import { LocationBubble } from './LocationBubble';
 import { ReplyQuote } from './ReplyQuote';
@@ -117,10 +118,13 @@ export function MessageBubble({
             <span className="tm-pane-bubble__edited">{tOr('ChatMessages.edited', 'edited')}</span>
           ) : null}
           <time className="tm-pane-bubble__meta" dateTime={message.createdAt}>
-            {new Date(message.createdAt).toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
+            {new Date(message.createdAt).toLocaleTimeString(
+              appDateLocale(appLocale(), appLocale()),
+              {
+                hour: '2-digit',
+                minute: '2-digit',
+              },
+            )}
           </time>
           {own ? ticks : null}
         </span>

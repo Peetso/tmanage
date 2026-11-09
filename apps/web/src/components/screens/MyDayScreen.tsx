@@ -32,6 +32,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { translateOr } from '../../lib/i18n/compact-time';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { countNoun } from '../../lib/i18n/plural';
 import { fill } from '../../lib/privacy-presentation';
 import { MY_WORK_TOPIC, useWorkLiveRefresh } from '../../lib/use-work-live-refresh';
 import type { MessageKey } from '../../lib/i18n/t';
@@ -237,7 +238,8 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
                 {t('MyDayScreen.dueAtRisk')}
               </h2>
               <span className="tm-section-head__meta tm-home-section__count">
-                {totalCount} {totalCount === 1 ? t('MyDayScreen.item') : t('MyDayScreen.items')}
+                {totalCount}{' '}
+                {countNoun(locale, totalCount, t('MyDayScreen.item'), t('MyDayScreen.items'))}
               </span>
               <span className="tm-phone-home__count" aria-hidden="true">
                 {totalCount}

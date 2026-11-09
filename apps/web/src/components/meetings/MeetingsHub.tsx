@@ -18,6 +18,7 @@ import { startCalendarConnect } from '../../lib/api/calendar-connections';
 import { getWorkingCalendar } from '../../lib/api/working-calendar';
 import { fillTemplate } from '../../lib/ai-approval-presentation';
 import { useT } from '../../lib/i18n/use-t';
+import { appDateLocale } from '../../lib/i18n/app-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useHydrated } from '../../lib/use-hydrated';
 import {
@@ -453,7 +454,7 @@ function meetingHref(organizationSlug: string, meetingId: string): string {
 
 function rangeLabel(range: CalendarRange, anchor: Date): string {
   if (range === 'day') {
-    return new Intl.DateTimeFormat('en-GB', {
+    return new Intl.DateTimeFormat(appDateLocale(), {
       weekday: 'long',
       day: 'numeric',
       month: 'long',
@@ -463,17 +464,19 @@ function rangeLabel(range: CalendarRange, anchor: Date): string {
       .replace(',', '');
   }
   if (range === 'month') {
-    return new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' }).format(anchor);
+    return new Intl.DateTimeFormat(appDateLocale(), { month: 'long', year: 'numeric' }).format(
+      anchor,
+    );
   }
   const days = daysOf('week', anchor);
   const first = days[0] ?? anchor;
   const last = days[6] ?? anchor;
-  const short = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
+  const short = new Intl.DateTimeFormat(appDateLocale(), { day: 'numeric', month: 'short' });
   return `${short.format(first)} – ${short.format(last)} ${last.getFullYear()}`;
 }
 
 function weekdayShort(date: Date): string {
-  return new Intl.DateTimeFormat('en-GB', { weekday: 'short' }).format(date).toUpperCase();
+  return new Intl.DateTimeFormat(appDateLocale(), { weekday: 'short' }).format(date).toUpperCase();
 }
 
 interface GridProps {
@@ -842,7 +845,7 @@ function Invitations({
           <div key={m.id} className="tm-mtg-invite">
             <p className="tm-mtg-invite__title">{m.title}</p>
             <p className="tm-mtg-invite__when">
-              {new Intl.DateTimeFormat('en-GB', {
+              {new Intl.DateTimeFormat(appDateLocale(), {
                 weekday: 'short',
                 day: 'numeric',
                 month: 'short',
