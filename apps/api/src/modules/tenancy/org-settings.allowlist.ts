@@ -19,7 +19,9 @@
  */
 
 import {
+  AUTO_TRACKING_POLICIES,
   ASSIGNABLE_INTERNAL_ROLES,
+  DEFAULT_AUTO_TRACKING_POLICY,
   CLIENT_ROLES,
   MATRIX_KINDS,
   NOTIFICATION_PROFILES,
@@ -65,6 +67,9 @@ export const ORG_SETTING_KEYS = [
   // 55-01 (R48 L1): the onboarding wizard's progress for the company (`onboarding/` module). Its
   // own `org.manage` routes write it; the validator accepts only a canonical wizard state.
   'onboarding_wizard',
+  // FIX-2026-11-10: automatic time tracking, off / optional / required. The company OWNER's choice
+  // alone (`OWNER_ONLY_SETTING_KEYS`): written through `PATCH …/time/auto/policy`, audited.
+  'auto_time_tracking',
 ] as const;
 
 export type OrgSettingKey = (typeof ORG_SETTING_KEYS)[number];
@@ -104,6 +109,8 @@ export const OWNER_ONLY_SETTING_KEYS: readonly OrgSettingKey[] = [
   // = 'true' when no scanner is configured — a check the generic PUT could not make.
   'file_safety_presets',
   'require_scan_for_clients',
+  // FIX-2026-11-10: its own route is `PATCH …/time/auto/policy` (owner only, audited).
+  'auto_time_tracking',
 ];
 
 /** Whether `key` may only be changed by the owner, through its own route. */
@@ -262,6 +269,11 @@ const SPECS: Readonly<Record<OrgSettingKey, OrgSettingSpec>> = Object.freeze({
   require_two_step: { default: 'false', validate: booleanValue },
   // B3. Defaults to `allow_labeled`: before the setting existed an unscanned file was simply
   // unreachable, and the owner decides whether that becomes "allowed, labelled" or stays blocked.
+  // FIX-2026-11-10. `optional`: each person decides with "Track my time automatically".
+  auto_time_tracking: {
+    default: DEFAULT_AUTO_TRACKING_POLICY,
+    validate: oneOf(AUTO_TRACKING_POLICIES, 'Choose off, optional or required.'),
+  },
   downloads_before_scan: {
     default: 'allow_labeled',
     validate: oneOf(DOWNLOADS_BEFORE_SCAN_VALUES, 'Choose allow_labeled or block.'),

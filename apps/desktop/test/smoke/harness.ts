@@ -52,6 +52,7 @@ const trayModule = require(path.join(distDir, 'tray.js')) as {
 type Checks = {
   windowOpened: boolean;
   loadedOnOrigin: boolean;
+  activityBridge: boolean;
   navGuardWired: boolean;
   navGuardAllowsSameOrigin: boolean;
   navGuardRefusesOffAllowlist: boolean;
@@ -65,6 +66,7 @@ type Checks = {
 const checks: Checks = {
   windowOpened: false,
   loadedOnOrigin: false,
+  activityBridge: false,
   navGuardWired: false,
   navGuardAllowsSameOrigin: false,
   navGuardRefusesOffAllowlist: false,
@@ -125,6 +127,21 @@ async function runChecks(stubUrl: string): Promise<void> {
   const loaded = await waitForLoad(win, 20000);
   const wc = win.webContents;
   checks.loadedOnOrigin = loaded && new URL(wc.getURL()).origin === origin;
+
+  // The sandboxed preload exposes the automatic-tracking bridge, and a sample carries exactly the
+  // idle seconds and the lock state.
+  try {
+    const sample = (await wc.executeJavaScript(
+      'window.tmanageDesktop && window.tmanageDesktop.activity.sample()',
+    )) as { idleSeconds?: unknown; locked?: unknown } | null;
+    checks.activityBridge =
+      sample !== null &&
+      typeof sample.idleSeconds === 'number' &&
+      typeof sample.locked === 'boolean' &&
+      Object.keys(sample).sort().join() === 'idleSeconds,locked';
+  } catch {
+    checks.activityBridge = false;
+  }
 
   // The real main wires the allowlist onto will-navigate / will-redirect of this window.
   checks.navGuardWired =

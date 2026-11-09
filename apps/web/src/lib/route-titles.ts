@@ -468,6 +468,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/finance/reports': { en: 'Finance reports', key: 'RouteTitle.financeReports' },
   '/[orgSlug]/finance/retainers': { en: 'Retainers', key: 'RouteTitle.financeRetainers' },
   '/[orgSlug]/finance/timesheets': { en: 'Timesheets', key: 'RouteTitle.financeTimesheets' },
+  '/[orgSlug]/finance/team-time': { en: 'Team time', key: 'RouteTitle.financeTeamTime' },
   '/[orgSlug]/insights/workload': { en: 'Workload', key: 'RouteTitle.insightsWorkload' },
   '/[orgSlug]/people/[membershipId]/permissions': {
     en: 'Member permissions',

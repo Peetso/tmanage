@@ -14,6 +14,7 @@ import { mayTrackOnItem, mayTrackOnProject, requireInternal } from './time-capab
 import { roundedSpanMinutes } from './time-rounding.js';
 import { optionalBoolean, optionalId, optionalNote, utcDay } from './time-rules.js';
 import type { TimeRepository } from './time.repository.js';
+import { resolveTimeTarget } from './time-target.js';
 
 /**
  * 52-01 — the running timer, member side: start, stop, read, heartbeat, and presence.
@@ -111,11 +112,6 @@ export interface TimeServiceOptions {
   readonly now?: () => Date;
 }
 
-interface Target {
-  readonly workItemId: string | null;
-  readonly projectId: string | null;
-}
-
 const ER_DUP_ENTRY = 1062;
 
 function isDuplicateKey(error: unknown): boolean {
@@ -177,7 +173,17 @@ export class TimeService {
     const repo = this.options.repository;
 
     return this.options.database.transaction(context, async (tx) => {
-      const target = await this.resolveTarget(tx, context, principal, workItemId, projectId);
+      const target = await resolveTimeTarget(
+        {
+          workItems: this.options.workItems,
+          projectExists: (r, c, id) => repo.projectExists(r, c, id),
+        },
+        tx,
+        context,
+        principal,
+        workItemId,
+        projectId,
+      );
       const existing = await repo.findTimer(tx, context, context.membershipId, true);
       if (existing !== null) {
         if (!force) throw timerRunning();
@@ -289,35 +295,6 @@ export class TimeService {
       }
       return { timers };
     });
-  }
-
-  private async resolveTarget(
-    tx: TenantQueryRunner,
-    context: TenantContext,
-    principal: Principal,
-    workItemId: string | null,
-    projectId: string | null,
-  ): Promise<Target> {
-    if (workItemId !== null) {
-      const item = await this.options.workItems.findById(tx, context, workItemId);
-      if (!item || !mayTrackOnItem(principal, item)) throw notFound();
-      if (projectId !== null && projectId !== item.projectId) {
-        throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
-          { field: 'projectId', message: 'must be the work item’s project' },
-        ]);
-      }
-      return { workItemId: item.id, projectId: item.projectId };
-    }
-    if (projectId !== null) {
-      if (
-        !mayTrackOnProject(principal, context, projectId) ||
-        !(await this.options.repository.projectExists(tx, context, projectId))
-      ) {
-        throw notFound();
-      }
-      return { workItemId: null, projectId };
-    }
-    return { workItemId: null, projectId: null };
   }
 
   /** Stop one timer: delete it (losing a race is a 409) and file exactly one entry. */

@@ -117,6 +117,12 @@ export const CAPABILITIES = [
   // loses a finance route. Internal-only: no client role holds either.
   'finance.view',
   'finance.manage',
+  // ---- FIX-2026-11-10 · automatic time tracking, team time view ----
+  // "View team time": see the live tracking state, task and logged time of every person in the
+  // company (Finance → Team time). Appended for the same reason as the blocks above. The owner,
+  // org admins and workspace admins hold it; an admin grants it to anyone else through a custom
+  // role or a per-person override (both audited). Internal-only.
+  'time.view_team',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
@@ -343,6 +349,8 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     // 52-23 §10: finance settings, as `workspace.manage` (write) and `project.manage` (read) gave.
     'finance.view',
     'finance.manage',
+    // FIX-2026-11-10: workspace admins always see their team's time.
+    'time.view_team',
   ],
 
   manager: [
@@ -768,6 +776,8 @@ export const INTERNAL_ONLY_CAPABILITIES: readonly Capability[] = [
   ...MATRIX_NEW_CAPABILITIES,
   // 52-23 §10: finance settings are internal; no client projection of them exists.
   ...FINANCE_CAPABILITIES,
+  // FIX-2026-11-10: another person's tracked time is internal.
+  'time.view_team',
 ];
 
 const INTERNAL_ONLY_SET: ReadonlySet<Capability> = new Set(INTERNAL_ONLY_CAPABILITIES);

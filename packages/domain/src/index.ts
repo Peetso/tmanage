@@ -483,3 +483,6 @@ export * from './finance/exports/index.js';
 export * from './finance/zatca/address.js';
 export * from './finance/zatca/tlv.js';
 export * from './finance/zatca/ubl.js';
+
+// Automatic time tracking (whole-computer activity) — FIX-2026-11-10
+export * from './time/auto-tracking.js';

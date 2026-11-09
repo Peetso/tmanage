@@ -2419,3 +2419,11 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`scim_tokens` TO 'tmanage_app'@'%';
 -- notification_preferences and user_preferences and INSERTs notifications; these two are new.
 GRANT SELECT ON `tmanage`.`client_organizations` TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`oauth_grants`         TO 'tmanage_worker'@'%';
+
+-- ---- FIX 2026-11-10 · automatic time tracking ----
+-- 0341 `time_auto_tracking` (tenant): the member's own switch, current task and open session. The
+-- first settings save or heartbeat INSERTs the row; heartbeats, task changes and settings UPDATE
+-- it; DELETE serves the company erasure only. A finished session is an INSERT into
+-- `work_item_time_logs`, which the app already holds. SELECT rides the database-wide read. The
+-- worker needs no grant.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`time_auto_tracking` TO 'tmanage_app'@'%';

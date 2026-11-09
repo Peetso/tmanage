@@ -11,7 +11,7 @@
  * requirement (03-TECHNICAL-ARCHITECTURE §"Phase 1").
  */
 import path from 'node:path';
-import { app, BrowserWindow, Notification, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, Notification, ipcMain, powerMonitor, shell } from 'electron';
 import type { Tray } from 'electron';
 import { resolveConfig } from './config';
 import { classifyNavigation, isInAppNavigation, shouldOpenExternally } from './navigation-guard';
@@ -26,6 +26,7 @@ import {
   type NotifyResult,
 } from './ipc';
 import { createAiPanelController } from './ai-panel';
+import { POWER_MONITOR_EVENTS, toActivityEvent, toActivitySample } from './activity';
 
 const config = resolveConfig();
 const assetsDir = path.join(__dirname, '..', 'assets');
@@ -123,6 +124,8 @@ function createMainWindow(): void {
       sandbox: true,
       webSecurity: true,
       spellcheck: false,
+      // Automatic time tracking keeps sampling while the window is hidden in the tray.
+      backgroundThrottling: false,
     },
   });
 
@@ -263,6 +266,22 @@ function registerIpcHandlers(): void {
   ipcMain.handle(IPC.aiPanelClose, (event): void => {
     if (fromApp(event)) aiPanel.close();
   });
+
+  // Automatic time tracking: the whole-computer idle state, to the TManage page only. Seconds
+  // since the last input and whether the screen is locked — nothing about what was typed or which
+  // app or site was open.
+  ipcMain.handle(IPC.activitySample, (event) => {
+    if (!fromApp(event)) return null;
+    // The threshold only decides `idle` vs `active`; the renderer applies its own from the seconds.
+    return toActivitySample(powerMonitor.getSystemIdleTime(), powerMonitor.getSystemIdleState(60));
+  });
+  for (const name of POWER_MONITOR_EVENTS) {
+    const activityEvent = toActivityEvent(name);
+    if (activityEvent === null) continue;
+    powerMonitor.on(name as 'lock-screen', () => {
+      mainWindow?.webContents.send(IPC.activityEvent, activityEvent);
+    });
+  }
 }
 
 // Re-exported for tooling/tests that want the resolved policy without booting Electron.

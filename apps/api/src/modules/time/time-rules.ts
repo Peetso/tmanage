@@ -6,7 +6,8 @@ import { ApiError } from '../../common/http/errors.js';
  * the controller, the service and the unit test share one reading of every rule.
  */
 
-export const TIME_LOG_SOURCES = ['manual', 'timer'] as const;
+/** `automatic` (0341): a session of whole-computer activity (`time-auto-rules.ts`). */
+export const TIME_LOG_SOURCES = ['manual', 'timer', 'automatic'] as const;
 export type TimeLogSource = (typeof TIME_LOG_SOURCES)[number];
 
 /** A manual entry with a start and end may reach back at most this far (spec: 31 days). */

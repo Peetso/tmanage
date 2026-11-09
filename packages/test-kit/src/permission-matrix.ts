@@ -206,6 +206,7 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'report.export', // SPEC §3.3 ceiling paragraph
       'finance.view', // 52-23 §10: finance reads, were project.manage
       'finance.manage', // 52-23 §10: finance writes, were workspace.manage
+      'time.view_team', // FIX-2026-11-10: team time view, held by the admins
     ],
     denied: [
       'client_request.submit', // Submit client request: "No"
@@ -279,6 +280,7 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'report.export', // SPEC §3.3 ceiling paragraph
       'finance.view', // 52-23 §10: finance reads, were project.manage
       'finance.manage', // 52-23 §10: finance writes, were workspace.manage
+      'time.view_team', // FIX-2026-11-10: team time view, held by the admins
     ],
     denied: [
       'client_request.submit', // Submit client request: "No"
@@ -349,6 +351,7 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'report.export', // SPEC §3.2: full ceiling, as owner
       'finance.view', // 52-23 §10: finance reads, were project.manage
       'finance.manage', // 52-23 §10: finance writes, were workspace.manage
+      'time.view_team', // FIX-2026-11-10: team time view, held by the admins
     ],
     denied: [
       'client_request.submit', // internal principal; same reading as owner
@@ -413,6 +416,7 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'report.export', // SPEC §3.3 ceiling paragraph
       'finance.view', // 52-23 §10: finance reads, were project.manage
       'finance.manage', // 52-23 §10: finance writes, were workspace.manage
+      'time.view_team', // FIX-2026-11-10: team time view, held by the admins
     ],
     denied: [
       'org.manage', // Billing/ownership: "No"
@@ -501,6 +505,7 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'settings.view', // SPEC §3.3 ceiling paragraph
       'ai.manage', // SPEC §3.3 ceiling paragraph
       'finance.manage', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
+      'time.view_team', // FIX-2026-11-10: team time view; an admin may grant it, never a ceiling
     ],
   },
 
@@ -575,6 +580,7 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'report.export', // SPEC §3.3 ceiling paragraph
       'finance.view', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'finance.manage', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
+      'time.view_team', // FIX-2026-11-10: team time view; an admin may grant it, never a ceiling
     ],
   },
 
@@ -649,6 +655,7 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'report.export', // SPEC §3.3 ceiling paragraph
       'finance.view', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'finance.manage', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
+      'time.view_team', // FIX-2026-11-10: team time view; an admin may grant it, never a ceiling
     ],
   },
 
@@ -727,6 +734,7 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'report.export', // SPEC §3.3 ceiling paragraph
       'finance.view', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'finance.manage', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
+      'time.view_team', // FIX-2026-11-10: team time view; an admin may grant it, never a ceiling
     ],
   },
 
@@ -805,6 +813,7 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'report.export', // SPEC §3.3 ceiling paragraph
       'finance.view', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'finance.manage', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
+      'time.view_team', // FIX-2026-11-10: team time view; an admin may grant it, never a ceiling
     ],
   },
 
@@ -875,6 +884,7 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'report.export', // SPEC §3.3 ceiling paragraph
       'finance.view', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'finance.manage', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
+      'time.view_team', // FIX-2026-11-10: team time view; an admin may grant it, never a ceiling
     ],
   },
 
@@ -950,6 +960,7 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'report.export', // SPEC §3.3 ceiling paragraph
       'finance.view', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'finance.manage', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
+      'time.view_team', // FIX-2026-11-10: team time view; an admin may grant it, never a ceiling
     ],
   },
 
@@ -1028,6 +1039,7 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'report.export', // SPEC §3.3 ceiling paragraph
       'finance.view', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'finance.manage', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
+      'time.view_team', // FIX-2026-11-10: team time view; an admin may grant it, never a ceiling
     ],
   },
 };

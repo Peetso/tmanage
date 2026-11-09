@@ -6,6 +6,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import { workItemStateMachine } from '@tmanage/domain';
 import type { WorkItemState } from '@tmanage/domain';
 import { Button, Checkbox, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { CurrentTaskButton } from '../time/AutoTimerStatus';
 import { WorkItemTimerButton } from '../time/TimerControls';
 import { AppShell } from '../shell/AppShell';
 import { MemberSelect } from '../MemberSelect';
@@ -275,6 +276,12 @@ export function WorkItemDetailScreen({
               organizationSlug={organizationSlug}
               workItemId={workItemId}
               workItemTitle={item.data.title}
+              client={api}
+            />
+            {/* FIX-2026-11-10: "Work on this now" for the automatic timer. */}
+            <CurrentTaskButton
+              organizationSlug={organizationSlug}
+              workItemId={workItemId}
               client={api}
             />
             <HeaderActions

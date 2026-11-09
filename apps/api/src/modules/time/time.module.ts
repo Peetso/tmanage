@@ -11,6 +11,16 @@ import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { TIME_LOCKS_SERVICE, TimeLocksController } from './locks.controller.js';
 import { TimeLocksRepository } from './locks.repository.js';
 import { TimeLocksService } from './locks.service.js';
+import { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
+import {
+  TIME_AUTO_SERVICE,
+  TIME_TEAM_SERVICE,
+  TimeAutoController,
+  TimeTeamController,
+} from './time-auto.controller.js';
+import { TimeAutoRepository } from './time-auto.repository.js';
+import { TimeAutoService } from './time-auto.service.js';
+import { TimeTeamService } from './time-team.service.js';
 import { TIME_SERVICE, TimeController } from './time.controller.js';
 import { TimeRepository } from './time.repository.js';
 import { TimeService } from './time.service.js';
@@ -80,10 +90,54 @@ export class TimeModule {
           notifications: new NotificationsRepository(),
         }),
     };
+    // FIX-2026-11-10: automatic tracking (own) and the team time view.
+    const auto: Provider = {
+      provide: TIME_AUTO_SERVICE,
+      inject: [
+        TENANT_DATABASE,
+        AUDIT_SERVICE,
+        { token: WORK_ITEMS_REPOSITORY, optional: true },
+        { token: DURABLE_RATE_LIMITER, optional: true },
+      ],
+      useFactory: (
+        database: TenantDatabase,
+        audit: AuditService,
+        workItems: WorkItemsRepository | null | undefined,
+        limiter: DurableRateLimiter | null | undefined,
+      ) =>
+        new TimeAutoService({
+          database,
+          audit,
+          repository: new TimeAutoRepository(),
+          timers: new TimeRepository(),
+          settings: new OrgSettingsRepository(),
+          timeLogs: new WorkTimeLogsRepository(),
+          workItems: workItems ?? new WorkItemsRepository(),
+          limiter: limiter ?? null,
+        }),
+    };
+    const team: Provider = {
+      provide: TIME_TEAM_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new TimeTeamService({
+          database,
+          auto: new TimeAutoRepository(),
+          sheets: new TimesheetsRepository(),
+          timers: new TimeRepository(),
+          settings: new OrgSettingsRepository(),
+        }),
+    };
     return {
       module: TimeModule,
-      providers: [service, locks, sheets],
-      controllers: [TimeController, TimeLocksController, TimesheetsController],
+      providers: [service, locks, sheets, auto, team],
+      controllers: [
+        TimeController,
+        TimeLocksController,
+        TimesheetsController,
+        TimeAutoController,
+        TimeTeamController,
+      ],
     };
   }
 }

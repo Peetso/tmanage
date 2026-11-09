@@ -1322,6 +1322,28 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/platform/owner-notices', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/owner-notices', reason: 'platform_admin' },
   // 52-01. The running timer and presence moved to ops in R18-b (`finance-time.ts`, `time.*`).
+  // FIX-2026-11-10. Automatic time tracking: the person's own activity heartbeat, switch, current
+  // task, the owner's policy, and the team time view (everyone's state and time). Activity of the
+  // person at the keyboard, and monitoring of others: never an AI tool.
+  { method: 'GET', path: '/v1/organizations/:orgSlug/time/auto/', reason: 'time_tracking' },
+  { method: 'PUT', path: '/v1/organizations/:orgSlug/time/auto/settings', reason: 'time_tracking' },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/time/auto/current-task',
+    reason: 'time_tracking',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/time/auto/heartbeat',
+    reason: 'time_tracking',
+  },
+  { method: 'PATCH', path: '/v1/organizations/:orgSlug/time/auto/policy', reason: 'time_tracking' },
+  { method: 'GET', path: '/v1/organizations/:orgSlug/time/team/', reason: 'time_tracking' },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/time/team/:membershipId/day',
+    reason: 'time_tracking',
+  },
   // R7 slice 6. Chat presence (the tab's own heartbeat, who is online), the "show last seen"
   // privacy toggle and per-message receipts: session-bound live state of the person at the
   // keyboard, not an action an AI performs.

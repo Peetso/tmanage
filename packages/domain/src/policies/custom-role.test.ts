@@ -107,8 +107,8 @@ describe('authorize with a custom role', () => {
 
 // ---- platform-admin v2 · PA-01 ----
 describe('custom role masks after the 24 new capabilities', () => {
-  it('the allowlist has 58 capabilities and a mask round-trips every one of them', () => {
-    expect(CAPABILITIES).toHaveLength(58);
+  it('the allowlist has 59 capabilities and a mask round-trips every one of them', () => {
+    expect(CAPABILITIES).toHaveLength(59);
     const key = customRoleKey(ROLE_ID, CAPABILITIES);
     expect(customRoleIdOf(key)).toBe(ROLE_ID);
     expect([...capabilitySetFor(key)].sort()).toEqual([...CAPABILITIES].sort());

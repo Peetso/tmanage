@@ -19,7 +19,24 @@ export const IPC = {
   aiPanelPopOut: 'tmanage:ai-panel:pop-out',
   /** Renderer -> main: close the docked AI panel. */
   aiPanelClose: 'tmanage:ai-panel:close',
+  /** Renderer -> main: the computer's idle state now (seconds since the last input, locked). */
+  activitySample: 'tmanage:activity:sample',
+  /** Main -> renderer: the computer was locked, unlocked, suspended or resumed. */
+  activityEvent: 'tmanage:activity:event',
 } as const;
+
+/**
+ * Automatic time tracking (FIX-2026-11-10). The whole-computer signal, and nothing else: how long
+ * since the last keyboard or mouse input anywhere, and whether the screen is locked. No app or
+ * window names, no URLs, no keystrokes, no screenshots ever cross this bridge.
+ */
+export interface ActivitySample {
+  readonly idleSeconds: number;
+  readonly locked: boolean;
+}
+
+export const ACTIVITY_EVENTS = ['locked', 'unlocked', 'suspended', 'resumed'] as const;
+export type ActivityEvent = (typeof ACTIVITY_EVENTS)[number];
 
 /** The website area in CSS pixels of the TManage page's viewport. */
 export interface AiPanelBounds {

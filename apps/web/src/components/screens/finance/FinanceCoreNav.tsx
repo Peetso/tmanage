@@ -1,23 +1,28 @@
 'use client';
 
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { skipToken, useQuery } from '@tanstack/react-query';
 import type { Capability } from '@tmanage/domain';
 import type { ApiClient } from '../../../lib/api/client';
 import { readOrganizationMe, type OrganizationMe } from '../../../lib/api/permission-matrix';
 import { listPeople } from '../../../lib/api/people';
 import { useTOr } from '../../../lib/i18n/use-t-or';
 
-export type FinanceCoreTab = 'profile' | 'rates' | 'timesheets' | 'expenses';
+export type FinanceCoreTab = 'profile' | 'rates' | 'timesheets' | 'team-time' | 'expenses';
 
 const TABS: readonly (readonly [FinanceCoreTab, string, string])[] = [
   ['profile', 'FinanceCore.tabProfile', 'Profile'],
   ['rates', 'FinanceCore.tabRates', 'Rate cards'],
   ['timesheets', 'FinanceCore.tabTimesheets', 'Timesheets'],
+  ['team-time', 'FinanceCore.tabTeamTime', 'Team time'],
   ['expenses', 'FinanceCore.tabExpenses', 'Expenses'],
 ];
 
-/** The four finance tabs of part 1 (Figma "R31 A10a Finance", section 508:30241). */
+/**
+ * The finance tabs of part 1 (Figma "R31 A10a Finance", section 508:30241). "Team time"
+ * (FIX-2026-11-10) shows only to holders of `time.view_team`; the API checks it again. The
+ * capabilities are read from the cache the screen's `useFinanceMe` fills, without a second fetch.
+ */
 export function FinanceCoreNav({
   organizationSlug,
   active,
@@ -26,9 +31,14 @@ export function FinanceCoreNav({
   active: FinanceCoreTab;
 }) {
   const tOr = useTOr();
+  const me = useQuery<OrganizationMe>({
+    queryKey: ['organization-me', organizationSlug],
+    queryFn: skipToken,
+  }).data;
+  const mayViewTeamTime = me?.capabilities.includes('time.view_team') ?? false;
   return (
     <nav className="tm-segmented" aria-label={tOr('FinanceCore.subnav', 'Finance sections')}>
-      {TABS.map(([id, key, english]) => (
+      {TABS.filter(([id]) => id !== 'team-time' || mayViewTeamTime).map(([id, key, english]) => (
         <Link
           key={id}
           href={`/${organizationSlug}/finance/${id}`}

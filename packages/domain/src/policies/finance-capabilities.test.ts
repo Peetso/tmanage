@@ -20,7 +20,7 @@ const MANAGE = new Set(['owner', 'org_admin', 'workspace_admin', 'platform_suppo
 
 describe('finance capabilities', () => {
   it('role grid: manage = the workspace.manage holders, view = the project.manage holders, no client', () => {
-    expect(CAPABILITIES.slice(-2)).toEqual(['finance.view', 'finance.manage']);
+    expect(CAPABILITIES.slice(-3, -1)).toEqual(['finance.view', 'finance.manage']);
     for (const role of [...INTERNAL_ROLES, ...CLIENT_ROLES]) {
       expect(hasCapability(role, 'finance.manage'), role).toBe(MANAGE.has(role));
       expect(hasCapability(role, 'finance.manage')).toBe(hasCapability(role, 'workspace.manage'));

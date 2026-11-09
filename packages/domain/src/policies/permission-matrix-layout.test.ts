@@ -16,8 +16,8 @@ import {
 
 /** platform-admin v2 · PA-01 — the matrix layout the editor and the preview draw (SPEC §3.3). */
 describe('permission matrix layout', () => {
-  it('has 18 areas and 7 actions', () => {
-    expect(MATRIX_AREAS).toHaveLength(18);
+  it('has 19 areas and 7 actions', () => {
+    expect(MATRIX_AREAS).toHaveLength(19);
     expect(MATRIX_ACTIONS).toEqual([
       'view',
       'create',
@@ -38,8 +38,8 @@ describe('permission matrix layout', () => {
     }
   });
 
-  it('every one of the 58 capabilities has exactly one primary cell', () => {
-    expect(CAPABILITIES).toHaveLength(58);
+  it('every one of the 59 capabilities has exactly one primary cell', () => {
+    expect(CAPABILITIES).toHaveLength(59);
     expect(capabilitiesWithoutCell()).toEqual([]);
     for (const capability of CAPABILITIES) {
       const cell = capabilityCell(capability);

@@ -20,6 +20,8 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
  */
 export const TIME_TRACK_OWN: Capability = 'work.read';
 export const TIME_MANAGE_ANY: Capability = 'project.manage';
+/** FIX-2026-11-10: the team time view (everyone's live state, task and time). */
+export const TIME_VIEW_TEAM: Capability = 'time.view_team';
 
 /** Time is internal: a client (or service) principal is refused before anything is read. */
 export function requireInternal(principal: Principal): void {

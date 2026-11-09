@@ -3312,9 +3312,9 @@ export const workItemTimeLogs = mysqlTable(
     startedAt: datetime('started_at', { mode: 'date', fsp: 3 }),
     endedAt: datetime('ended_at', { mode: 'date', fsp: 3 }),
     billable: boolean('billable').notNull().default(true),
-    /** `manual` | `timer`, checked in `modules/time/time-rules.ts`. */
+    /** `manual` | `timer` | `automatic` (0341), checked in `modules/time/time-rules.ts`. */
     source: varchar('source', { length: 16 })
-      .$type<'manual' | 'timer'>()
+      .$type<'manual' | 'timer' | 'automatic'>()
       .notNull()
       .default('manual'),
     needsReview: boolean('needs_review').notNull().default(false),
@@ -11582,6 +11582,46 @@ export type TimeTimerRow = typeof timeTimers.$inferSelect;
 
 Object.assign(TABLES, {
   time_timers: timeTimers,
+});
+
+// ---- FIX-2026-11-10 · automatic time tracking ----
+
+/**
+ * 0341. One membership's automatic tracking: the own switch and idle threshold, the current task
+ * ("working on now") and the open session (`session_started_at`, `last_active_at`,
+ * `last_heartbeat_at`, all the server clock; NULL = none). TENANT. Internal only. A finished session
+ * is filed as a `work_item_time_logs` entry with `source = 'automatic'`. No foreign keys (0257).
+ */
+export const timeAutoTracking = mysqlTable(
+  'time_auto_tracking',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    enabled: boolean('enabled').notNull().default(false),
+    idleThresholdMinutes: smallint('idle_threshold_minutes', { unsigned: true })
+      .notNull()
+      .default(5),
+    workItemId: char('work_item_id', { length: 36 }),
+    projectId: char('project_id', { length: 36 }),
+    sessionStartedAt: datetime('session_started_at', { mode: 'date', fsp: 3 }),
+    lastActiveAt: datetime('last_active_at', { mode: 'date', fsp: 3 }),
+    lastHeartbeatAt: datetime('last_heartbeat_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_time_auto_tracking_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_time_auto_tracking_org_member').on(table.organizationId, table.membershipId),
+    index('ix_time_auto_tracking_org_heartbeat').on(table.organizationId, table.lastHeartbeatAt),
+  ],
+);
+
+export type TimeAutoTrackingRow = typeof timeAutoTracking.$inferSelect;
+
+Object.assign(TABLES, {
+  time_auto_tracking: timeAutoTracking,
 });
 
 // ---- R12 · IP intelligence ----

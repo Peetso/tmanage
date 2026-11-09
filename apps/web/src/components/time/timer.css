@@ -141,3 +141,110 @@
     opacity: 0.4;
   }
 }
+
+/* FIX-2026-11-10 — the automatic timer chip and its panel. Logical properties only. */
+
+.tm-autotimer {
+  position: relative;
+  display: inline-flex;
+}
+
+.tm-autotimer__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: 32px;
+  padding-block: var(--s1);
+  padding-inline: var(--s3);
+  border: 1px solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-800);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tm-autotimer__chip:focus-visible {
+  outline: 2px solid var(--ink-950);
+  outline-offset: 2px;
+}
+
+.tm-autotimer__dot {
+  inline-size: 8px;
+  block-size: 8px;
+  flex: none;
+  border-radius: var(--r-capsule);
+  background: var(--ink-500);
+}
+
+.tm-autotimer__chip[data-tone='on'] .tm-autotimer__dot {
+  background: var(--success-600);
+}
+
+.tm-autotimer__chip[data-tone='paused'] .tm-autotimer__dot {
+  background: var(--warning-600);
+}
+
+.tm-autotimer__name {
+  font-weight: 600;
+}
+
+.tm-autotimer__state {
+  color: var(--ink-650);
+}
+
+.tm-autotimer__panel {
+  position: absolute;
+  inset-block-start: calc(100% + var(--s2));
+  inset-inline-end: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  inline-size: min(92vw, 360px);
+  padding: var(--s5);
+  border: 1px solid var(--line-300);
+  border-radius: var(--r-sheet);
+  background: var(--paper-0);
+  color: var(--ink-800);
+  font-size: 14px;
+}
+
+.tm-autotimer__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.tm-autotimer__subtitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tm-autotimer__intro,
+.tm-autotimer__allow p,
+.tm-autotimer__task p {
+  margin: 0;
+}
+
+.tm-autotimer__allow,
+.tm-autotimer__task {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-autotimer__muted,
+.tm-autotimer__privacy {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tm-autotimer__chip[data-tone='on'] .tm-autotimer__dot {
+    animation: tm-timer-pulse 2s ease-in-out infinite;
+  }
+}

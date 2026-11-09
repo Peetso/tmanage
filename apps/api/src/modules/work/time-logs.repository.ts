@@ -6,6 +6,7 @@ import type { WorkItemTimeLogRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import { RatesRepository } from '../finance/rates.repository.js';
 import { priceTimeLog } from '../finance/rates.service.js';
+import type { TimeLogSource } from '../time/time-rules.js';
 
 /**
  * Work item time logs — x231's storage half (Work module 7).
@@ -33,7 +34,7 @@ export interface CreateTimeLogInput {
   readonly endedAt?: Date | null;
   /** Absent = 52-04 default: the work item's `billable`, else the project's `billable_default`. */
   readonly billable?: boolean;
-  readonly source?: 'manual' | 'timer';
+  readonly source?: TimeLogSource;
   readonly needsReview?: boolean;
 }
 

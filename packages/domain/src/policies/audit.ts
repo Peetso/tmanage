@@ -697,6 +697,11 @@ export const AUDIT_ACTION_CATALOG = {
     clause:
       '§12 organization settings — whether unscanned files may be downloaded is a policy change',
   },
+  /** FIX-2026-11-10. The owner set automatic time tracking off, optional or required. */
+  'organization.auto_time_tracking_policy_changed': {
+    objectType: 'organization',
+    clause: '§12 organization settings — whether time is tracked automatically is a policy change',
+  },
   /** A11. The company was renamed from the Organization card. No names in metadata. */
   'organization.renamed': {
     objectType: 'organization',
@@ -1663,6 +1668,7 @@ export function auditObjectTypeFor(action: AuditAction): string {
 const AUDIT_ACTION_LABELS = {
   'organization.provisioned': 'Set up the organization',
   'organization.download_scan_policy_changed': 'Changed downloads before a virus scan',
+  'organization.auto_time_tracking_policy_changed': 'Changed automatic time tracking',
   'organization.renamed': 'Renamed the organization',
   'organization.logo_changed': 'Changed the organization logo',
   'project.created': 'Created a project',

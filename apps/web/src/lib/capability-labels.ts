@@ -103,6 +103,8 @@ const LABELS: Readonly<Record<Capability, CapabilityLabel>> = {
     area: 'Billing and settings',
     label: 'Manage finance settings, tax and exchange rates',
   },
+  // ---- FIX-2026-11-10: team time ----
+  'time.view_team': { area: 'Work', label: 'View team time (everyone’s tracked time)' },
 };
 
 const AREA_ORDER: readonly CapabilityArea[] = [

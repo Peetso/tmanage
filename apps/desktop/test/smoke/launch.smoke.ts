@@ -61,6 +61,7 @@ describe('desktop packaged-shell smoke', () => {
 
     expect(checks.windowOpened, 'main.js opened a BrowserWindow').toBe(true);
     expect(checks.loadedOnOrigin, 'window loaded the configured origin').toBe(true);
+    expect(checks.activityBridge, 'preload exposes the idle-state bridge').toBe(true);
     expect(checks.navGuardWired, 'navigation guard wired onto the window').toBe(true);
     expect(checks.navGuardAllowsSameOrigin, 'same-origin navigation stays in-app').toBe(true);
     expect(checks.navGuardRefusesOffAllowlist, 'off-allowlist navigation refused').toBe(true);

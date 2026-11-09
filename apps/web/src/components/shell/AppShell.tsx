@@ -32,6 +32,7 @@ import { AccountMenu } from './AccountMenu';
 import { AiPanelLauncher } from '../ai-panel/AiPanelLauncher';
 import { HelpContextLink } from '../help/HelpContextLink';
 import { SupportLauncher } from '../support/SupportLauncher';
+import { AutoTimerStatus } from '../time/AutoTimerStatus';
 import { RunningTimerPill } from '../time/TimerControls';
 import { BetaTag } from './BetaTag';
 import { ThemeSync } from './ThemeSync';
@@ -334,6 +335,8 @@ export function AppShell({
                       {queryClient ? (
                         <RunningTimerPill organizationSlug={organizationSlug} />
                       ) : null}
+                      {/* FIX-2026-11-10: the automatic timer (whole-computer activity). */}
+                      {queryClient ? <AutoTimerStatus organizationSlug={organizationSlug} /> : null}
                       {/* Row 55-11: the getting-started checklist, until dismissed or done. */}
                       {queryClient ? (
                         <GettingStartedLauncher organizationSlug={organizationSlug} />

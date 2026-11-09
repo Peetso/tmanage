@@ -1,0 +1,382 @@
+'use client';
+
+import { useState } from 'react';
+import { skipToken, useQuery } from '@tanstack/react-query';
+import {
+  Button,
+  Field,
+  InlineAlert,
+  LoadingRegion,
+  Select,
+  Skeleton,
+  StateCapsule,
+  type CapsuleState,
+} from '@tmanage/ui';
+import { AppShell } from '../../shell/AppShell';
+import { browserApiClient } from '../../../lib/api/browser-client';
+import type { ApiClient } from '../../../lib/api/client';
+import { OFFLINE_LINES, useDescribeApiError } from '../../../lib/api/describe-error';
+import { listProjects } from '../../../lib/api/projects';
+import { getTeamDay, getTeamTime } from '../../../lib/api/time-auto';
+import type { TeamLiveState, TeamPerson, TeamTimeQuery } from '../../../lib/api/time-auto';
+import { formatMinutes } from '../../../lib/finance-presentation';
+import { useDisplayFormatters } from '../../../lib/i18n/use-formatters';
+import { useTOr } from '../../../lib/i18n/use-t-or';
+import { FinanceCoreNav, useFinanceMe } from './FinanceCoreNav';
+
+export interface FinanceTeamTimeScreenProps {
+  organizationSlug: string;
+  organizationName: string;
+  client?: ApiClient;
+}
+
+type TOr = ReturnType<typeof useTOr>;
+
+const LIVE: Readonly<Record<TeamLiveState, readonly [string, string, CapsuleState]>> = {
+  tracking: ['TeamTime.live.tracking', 'Tracking', 'current'],
+  manual: ['TeamTime.live.manual', 'Manual timer', 'current'],
+  paused: ['TeamTime.live.paused', 'Paused, computer idle', 'waiting'],
+  off: ['TeamTime.live.off', 'Off', 'neutral'],
+};
+
+/**
+ * FIX-2026-11-10 — **Team time.** Everyone's tracked time in the company: live state, current
+ * task, today, this week and the chosen range, with a day drill-down (each session's start, end,
+ * task, automatic or manual). Read-only: corrections stay in timesheets. Shown to holders of
+ * `time.view_team` (owner, admins, people an admin authorized); the API checks it on every call
+ * and only ever returns this company's people. No screenshots, keystrokes, app names or URLs exist.
+ */
+export function FinanceTeamTimeScreen({
+  organizationSlug,
+  organizationName,
+  client,
+}: FinanceTeamTimeScreenProps) {
+  const tOr = useTOr();
+  const describeError = useDescribeApiError(OFFLINE_LINES);
+  const format = useDisplayFormatters();
+  const api = client ?? browserApiClient();
+  const { me, can } = useFinanceMe(api, organizationSlug);
+  const allowed = me === undefined ? undefined : can('time.view_team');
+
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [projectId, setProjectId] = useState('');
+  const [membershipId, setMembershipId] = useState('');
+  const [open, setOpen] = useState<{ membershipId: string; day: string } | null>(null);
+
+  const range: TeamTimeQuery = { from, to, projectId };
+  const everyone = useQuery({
+    queryKey: ['team-time', organizationSlug, from, to, projectId, ''],
+    queryFn: () => getTeamTime(api, organizationSlug, range),
+    enabled: allowed === true,
+    retry: false,
+  });
+  const view = useQuery({
+    queryKey: ['team-time', organizationSlug, from, to, projectId, membershipId],
+    queryFn: () => getTeamTime(api, organizationSlug, { ...range, membershipId }),
+    enabled: allowed === true,
+    retry: false,
+  });
+  const projects = useQuery({
+    queryKey: ['projects', organizationSlug],
+    queryFn: () => listProjects(api, organizationSlug),
+    enabled: allowed === true,
+  });
+  const day = useQuery({
+    queryKey: ['team-time-day', organizationSlug, open?.membershipId, open?.day],
+    queryFn:
+      open === null
+        ? skipToken
+        : () => getTeamDay(api, organizationSlug, open.membershipId, open.day),
+    retry: false,
+  });
+
+  const data = view.data;
+  const minutes = (value: number) => formatMinutes(value);
+
+  return (
+    <AppShell
+      organizationSlug={organizationSlug}
+      organizationName={organizationName}
+      activeNavigationId="finance"
+      eyebrow={tOr('FinanceCore.eyebrow', 'Finance')}
+      title={tOr('TeamTime.title', 'Team time')}
+      description={tOr(
+        'TeamTime.description',
+        'See who is working now and how much time each person tracked. Only active or idle state and times are recorded.',
+      )}
+    >
+      <div className="tm-stack">
+        <FinanceCoreNav organizationSlug={organizationSlug} active="team-time" />
+
+        {allowed === false ? (
+          <InlineAlert tone="neutral" title={tOr('TeamTime.noAccessTitle', 'Not available to you')}>
+            {tOr(
+              'TeamTime.noAccessBody',
+              'Team time is for the company owner, admins and people an admin authorized. You can see your own time in Timesheets.',
+            )}
+          </InlineAlert>
+        ) : null}
+
+        {allowed === true ? (
+          <>
+            <section className="tm-panel tm-stack" aria-labelledby="tm-team-time-filters">
+              <h2 id="tm-team-time-filters" className="tm-eyebrow">
+                {tOr('TeamTime.filters', 'Filters')}
+              </h2>
+              <div className="tm-row tm-row--wrap">
+                <Field
+                  label={tOr('TeamTime.from', 'From')}
+                  name="from"
+                  type="date"
+                  value={from || (data?.from ?? '')}
+                  onChange={(event) => setFrom(event.target.value)}
+                />
+                <Field
+                  label={tOr('TeamTime.to', 'To')}
+                  name="to"
+                  type="date"
+                  value={to || (data?.to ?? '')}
+                  onChange={(event) => setTo(event.target.value)}
+                />
+                <Select
+                  label={tOr('TeamTime.person', 'Person')}
+                  value={membershipId}
+                  onChange={(event) => setMembershipId(event.target.value)}
+                >
+                  <option value="">{tOr('TeamTime.everyone', 'Everyone')}</option>
+                  {(everyone.data?.people ?? []).map((person) => (
+                    <option key={person.membershipId} value={person.membershipId}>
+                      {person.displayName}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  label={tOr('TeamTime.project', 'Project')}
+                  value={projectId}
+                  onChange={(event) => setProjectId(event.target.value)}
+                >
+                  <option value="">{tOr('TeamTime.allProjects', 'All projects')}</option>
+                  {(projects.data ?? []).map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <p className="tm-field__hint">
+                {tOr(
+                  'TeamTime.rangeHint',
+                  'Up to 62 days. Days run in UTC. Time with no task chosen counts as unassigned work time.',
+                )}
+              </p>
+            </section>
+
+            {view.isError ? (
+              <InlineAlert
+                tone="danger"
+                title={tOr('TeamTime.loadError', 'Team time could not be loaded')}
+                live
+              >
+                {describeError(view.error)}
+              </InlineAlert>
+            ) : null}
+            {view.isPending ? (
+              <LoadingRegion label={tOr('TeamTime.loading', 'Loading team time')}>
+                <Skeleton height="var(--row)" />
+                <Skeleton height="var(--row)" />
+              </LoadingRegion>
+            ) : null}
+
+            {data ? (
+              <section className="tm-panel tm-stack" aria-labelledby="tm-team-time-people">
+                <h2 id="tm-team-time-people" className="tm-eyebrow">
+                  {tOr('TeamTime.people', 'People')} · {format.day(data.from)} –{' '}
+                  {format.day(data.to)}
+                </h2>
+                {data.people.length === 0 ? (
+                  <InlineAlert tone="neutral">
+                    {tOr('TeamTime.empty', 'Nobody tracked time in this range.')}
+                  </InlineAlert>
+                ) : (
+                  <div className="tm-table-scroll">
+                    <table className="tm-table" aria-label={tOr('TeamTime.people', 'People')}>
+                      <thead>
+                        <tr>
+                          <th scope="col">{tOr('TeamTime.person', 'Person')}</th>
+                          <th scope="col">{tOr('TeamTime.now', 'Now')}</th>
+                          <th scope="col">{tOr('TeamTime.currentTask', 'Working on')}</th>
+                          <th scope="col">{tOr('TeamTime.today', 'Today')}</th>
+                          <th scope="col">{tOr('TeamTime.week', 'This week')}</th>
+                          <th scope="col">{tOr('TeamTime.range', 'Range')}</th>
+                          <th scope="col">
+                            <span className="tm-visually-hidden">
+                              {tOr('TeamTime.details', 'Details')}
+                            </span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.people.map((person) => (
+                          <PersonRow
+                            key={person.membershipId}
+                            person={person}
+                            minutes={minutes}
+                            tOr={tOr}
+                            onOpen={() =>
+                              setOpen({ membershipId: person.membershipId, day: data.today })
+                            }
+                          />
+                        ))}
+                        <tr>
+                          <th scope="row">{tOr('TeamTime.total', 'Total')}</th>
+                          <td />
+                          <td />
+                          <td>{minutes(data.totals.todayMinutes)}</td>
+                          <td>{minutes(data.totals.weekMinutes)}</td>
+                          <td>{minutes(data.totals.rangeMinutes)}</td>
+                          <td />
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            ) : null}
+
+            {open !== null ? (
+              <section className="tm-panel tm-stack" aria-labelledby="tm-team-time-day">
+                <div className="tm-row tm-row--between tm-row--wrap">
+                  <h2 id="tm-team-time-day" className="tm-eyebrow">
+                    {day.data?.displayName ?? tOr('TeamTime.dayTitle', 'Day')} ·{' '}
+                    {format.day(open.day)}
+                  </h2>
+                  <div className="tm-row tm-row--wrap">
+                    <Field
+                      label={tOr('TeamTime.day', 'Day')}
+                      name="day"
+                      type="date"
+                      value={open.day}
+                      onChange={(event) =>
+                        event.target.value !== '' &&
+                        setOpen({ membershipId: open.membershipId, day: event.target.value })
+                      }
+                    />
+                    <Button size="compact" tone="text" onClick={() => setOpen(null)}>
+                      {tOr('TeamTime.close', 'Close')}
+                    </Button>
+                  </div>
+                </div>
+                {day.isError ? (
+                  <InlineAlert
+                    tone="danger"
+                    title={tOr('TeamTime.dayError', 'The day could not be loaded')}
+                    live
+                  >
+                    {describeError(day.error)}
+                  </InlineAlert>
+                ) : null}
+                {day.isPending ? (
+                  <LoadingRegion label={tOr('TeamTime.loading', 'Loading team time')}>
+                    <Skeleton height="var(--row)" />
+                  </LoadingRegion>
+                ) : null}
+                {day.data && day.data.sessions.length === 0 ? (
+                  <InlineAlert tone="neutral">
+                    {tOr('TeamTime.dayEmpty', 'No time tracked on this day.')}
+                  </InlineAlert>
+                ) : null}
+                {day.data && day.data.sessions.length > 0 ? (
+                  <div className="tm-table-scroll">
+                    <table className="tm-table" aria-label={tOr('TeamTime.sessions', 'Sessions')}>
+                      <thead>
+                        <tr>
+                          <th scope="col">{tOr('TeamTime.start', 'Start')}</th>
+                          <th scope="col">{tOr('TeamTime.end', 'End')}</th>
+                          <th scope="col">{tOr('TeamTime.task', 'Task')}</th>
+                          <th scope="col">{tOr('TeamTime.how', 'How')}</th>
+                          <th scope="col">{tOr('TeamTime.duration', 'Time')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {day.data.sessions.map((session, index) => (
+                          <tr key={session.id ?? `open-${index}`}>
+                            <td>{session.startedAt ? format.time(session.startedAt) : '—'}</td>
+                            <td>
+                              {session.open
+                                ? tOr('TeamTime.ongoing', 'Still going')
+                                : session.endedAt
+                                  ? format.time(session.endedAt)
+                                  : '—'}
+                            </td>
+                            <td>
+                              {session.workItemTitle ??
+                                tOr('TeamTime.unassigned', 'Unassigned work time')}
+                            </td>
+                            <td>
+                              {session.source === 'automatic'
+                                ? tOr('TeamTime.automatic', 'Automatic')
+                                : tOr('TeamTime.manual', 'Manual')}
+                            </td>
+                            <td>{minutes(session.minutes)}</td>
+                          </tr>
+                        ))}
+                        <tr>
+                          <th scope="row" colSpan={4}>
+                            {tOr('TeamTime.total', 'Total')}
+                          </th>
+                          <td>{minutes(day.data.totalMinutes)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+                <p className="tm-field__hint">
+                  {tOr(
+                    'TeamTime.readOnly',
+                    'This view is read-only. To correct time, use Timesheets.',
+                  )}
+                </p>
+              </section>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+    </AppShell>
+  );
+}
+
+function PersonRow({
+  person,
+  minutes,
+  tOr,
+  onOpen,
+}: {
+  person: TeamPerson;
+  minutes: (value: number) => string;
+  tOr: TOr;
+  onOpen: () => void;
+}) {
+  const [key, english, tone] = LIVE[person.live];
+  return (
+    <tr>
+      <th scope="row">{person.displayName}</th>
+      <td>
+        <StateCapsule state={tone}>{tOr(key, english)}</StateCapsule>
+      </td>
+      <td>
+        {person.currentTask === null
+          ? '—'
+          : (person.currentTask.title ?? tOr('TeamTime.unassigned', 'Unassigned work time'))}
+      </td>
+      <td>{minutes(person.todayMinutes)}</td>
+      <td>{minutes(person.weekMinutes)}</td>
+      <td>{minutes(person.rangeMinutes)}</td>
+      <td>
+        <Button size="compact" tone="outline" onClick={onOpen}>
+          {tOr('TeamTime.openDay', 'Sessions')}
+        </Button>
+      </td>
+    </tr>
+  );
+}
