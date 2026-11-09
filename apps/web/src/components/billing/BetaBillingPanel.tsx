@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Badge } from '@tmanage/ui';
 import { useT } from '../../lib/i18n/use-t';
+import { useOrganizationName } from '../../lib/use-organization-names';
 import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/beta-billing.css';
 
@@ -32,14 +33,20 @@ function fill(template: string, values: Readonly<Record<string, string | number>
 }
 
 /** The page title and line under it, for the screen's AppShell. */
-export function useBetaBillingHeading(organizationName: string): {
+export function useBetaBillingHeading(
+  organizationSlug: string,
+  organizationName: string,
+): {
   title: string;
   description: string;
 } {
   const t = useT();
+  // FIX3 item 3 (live S1): the page hands over the design's sample name ("Northstar Studio");
+  // the session's own organization list holds the real one.
+  const name = useOrganizationName(organizationSlug, organizationName);
   return {
     title: t('BetaBilling.title'),
-    description: fill(t('BetaBilling.lede'), { organization: organizationName }),
+    description: fill(t('BetaBilling.lede'), { organization: name }),
   };
 }
 

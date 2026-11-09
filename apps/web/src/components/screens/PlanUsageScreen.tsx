@@ -57,7 +57,7 @@ export function PlanUsageScreen({
   });
   // The public beta (BILLING_MODE=beta_free, the API's default): free for everyone, nothing to buy.
   const beta = usage.data?.billingMode !== 'paid';
-  const betaHeading = useBetaBillingHeading(organizationName);
+  const betaHeading = useBetaBillingHeading(organizationSlug, organizationName);
 
   const closeDialog = useCallback(
     (didRequest: boolean) => {

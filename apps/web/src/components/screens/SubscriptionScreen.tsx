@@ -143,7 +143,7 @@ export function SubscriptionScreen({
 
   // The public beta (BILLING_MODE=beta_free, the API's default): no plan to pick, nothing to buy.
   const beta = subscription.data?.billingMode !== 'paid';
-  const betaHeading = useBetaBillingHeading(organizationName);
+  const betaHeading = useBetaBillingHeading(organizationSlug, organizationName);
 
   const change = useMutation({
     mutationFn: (planId: PlanId) => requestPlanChange(api, organizationSlug, planId),
