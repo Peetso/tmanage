@@ -7,6 +7,7 @@ import { CoachMarkTour } from '../src/components/help/CoachMarkTour';
 import { activeLocale } from '../src/lib/i18n/locale-store';
 
 afterEach(() => {
+  window.localStorage.clear();
   cleanup();
   vi.restoreAllMocks();
   act(() => activeLocale.set('en-US'));

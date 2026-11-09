@@ -7,8 +7,20 @@ import { Button, useAnchoredPosition } from '@tmanage/ui';
 import type { AnchoredSide } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
-import { getCoachMarks, saveCoachMarks, shouldShowTour } from '../../lib/api/coach-marks';
-import type { CoachMarkTour as TourId, CoachMarksPatch } from '../../lib/api/coach-marks';
+import {
+  getCoachMarks,
+  rememberTourOutcome,
+  rememberedNeverAgain,
+  rememberedTourOutcome,
+  saveCoachMarks,
+  shouldShowTour,
+} from '../../lib/api/coach-marks';
+import type {
+  CoachMarkOutcome,
+  CoachMarksPatch,
+  CoachMarksView,
+  CoachMarkTour as TourId,
+} from '../../lib/api/coach-marks';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { COACH_MARK_STEPS } from './coach-mark-tours';
 import './coach-marks.css';
@@ -68,7 +80,16 @@ export function CoachMarkTour({
   const save = useMutation({
     mutationFn: (patch: CoachMarksPatch) => saveCoachMarks(api, organizationSlug, patch),
     onSuccess: (view) => queryClient.setQueryData(key, view),
+    // A save lost on a bad connection is tried again; the device copy covers the meantime.
+    retry: 2,
   });
+  // FIX3 item 4 (T1): how this tour ended on this device. A tour that ended here never opens
+  // again here, whatever an older or failed server answer says.
+  const [ended, setEnded] = useState<CoachMarkOutcome | null>(() =>
+    rememberedTourOutcome(organizationSlug, tour),
+  );
+  const [offHere] = useState(() => rememberedNeverAgain(organizationSlug));
+  const resent = useRef(false);
   const [step, setStep] = useState(0);
   const [neverAgain, setNeverAgain] = useState(false);
   const [closed, setClosed] = useState(false);
@@ -79,7 +100,10 @@ export function CoachMarkTour({
   const titleId = useId();
   const bodyId = useId();
   const steps = COACH_MARK_STEPS[tour];
-  const open = !closed && shouldShowTour(state.data, tour);
+  const open = !closed && ended === null && !offHere && shouldShowTour(state.data, tour);
+  // FIX3 item 4 (T2): a step whose target is not drawn yet (the board still loading) is anchored
+  // as soon as it appears, instead of staying a centred dialog.
+  const [drawn, setDrawn] = useState(0);
   const current = steps[step];
 
   // Find the step's target before paint, so the card never flashes in a default spot.
@@ -94,7 +118,29 @@ export function CoachMarkTour({
     element.setAttribute('data-coach-active', '');
     if (isOffScreen(element)) element.scrollIntoView?.({ block: 'center', inline: 'nearest' });
     return () => element.removeAttribute('data-coach-active');
-  }, [open, current]);
+  }, [open, current, drawn]);
+
+  useEffect(() => {
+    const selector = current?.target;
+    if (!open || target !== null || selector === undefined) return undefined;
+    if (typeof MutationObserver === 'undefined') return undefined;
+    const observer = new MutationObserver(() => {
+      if (findTarget(selector) === null) return;
+      observer.disconnect();
+      setDrawn((count) => count + 1);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [open, target, current]);
+
+  // The server still says "not seen" for a tour that ended on this device: the save did not land,
+  // so it is sent once more.
+  useEffect(() => {
+    if (ended === null || resent.current || state.data === undefined) return;
+    if (!shouldShowTour(state.data, tour)) return;
+    resent.current = true;
+    save.mutate({ tour, outcome: ended });
+  }, [ended, state.data, tour, save]);
 
   const position = useAnchoredPosition(target, card, open && target !== null, {
     placements: STEP_PLACEMENTS,
@@ -103,8 +149,22 @@ export function CoachMarkTour({
     arrowPadding: 20,
   });
 
-  const finish = (outcome: 'done' | 'skipped') => {
+  const finish = (outcome: CoachMarkOutcome) => {
     setClosed(true);
+    setEnded(outcome);
+    resent.current = true;
+    rememberTourOutcome(organizationSlug, tour, outcome, neverAgain);
+    // Every screen's tour reads this cache: mark the tour ended now, and drop a read still on its
+    // way, so no screen opens it again before the save answers.
+    void queryClient.cancelQueries({ queryKey: key });
+    queryClient.setQueryData<CoachMarksView>(key, (view) =>
+      view === undefined
+        ? view
+        : {
+            tours: { ...view.tours, [tour]: outcome },
+            neverAgain: view.neverAgain || neverAgain,
+          },
+    );
     save.mutate(neverAgain ? { tour, outcome, neverAgain: true } : { tour, outcome });
   };
   const finishRef = useRef(finish);

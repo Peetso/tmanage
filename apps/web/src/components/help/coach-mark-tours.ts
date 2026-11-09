@@ -64,11 +64,14 @@ export const COACH_MARK_STEPS: Readonly<Record<CoachMarkTour, readonly CoachMark
       key: 'CoachMarks.workBoard.columns',
       title: 'Work moves left to right',
       body: 'Each column is a state. A card is one task.',
+      // FIX3 item 4 (T2): anchored to the first column, like the other tours' steps.
+      target: ['.tm-wk-board__column', '.tm-wk-board'],
     },
     {
       key: 'CoachMarks.workBoard.move',
       title: 'Move a card to update it',
       body: 'Drag a card, or use its menu, to change its state. Everyone sees it at once.',
+      target: ['.tm-wk-card-tile', '.tm-wk-board__column'],
     },
     {
       // FIX3 item 10: "?" and "Help" are one button now; the step points at the Help menu.

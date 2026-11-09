@@ -9,6 +9,7 @@ import { TeachingEmptyState } from '../src/components/help/TeachingEmptyState';
 import { activeLocale } from '../src/lib/i18n/locale-store';
 
 afterEach(() => {
+  window.localStorage.clear();
   cleanup();
   act(() => activeLocale.set('en-US'));
 });
