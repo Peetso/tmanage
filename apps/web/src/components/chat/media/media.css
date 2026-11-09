@@ -323,8 +323,16 @@
   text-decoration: underline;
 }
 
-/* Viewer modal */
+/* Viewer modal. B-N1: the viewer resets the ink, wrapping and type it would otherwise inherit, so
+   it reads the same from a dark own bubble, a light bubble or the Files page. */
 .r7-media-viewer {
+  color: var(--ink-950);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: normal;
   position: fixed;
   inset: 0;
   z-index: 60;
@@ -349,6 +357,7 @@
   overflow: auto;
   border-radius: var(--r-card);
   background: var(--paper-0);
+  color: var(--ink-950);
 }
 
 .r7-media-viewer__close {
@@ -361,6 +370,7 @@
   border: 0;
   border-radius: 50%;
   background: var(--paper-150);
+  color: var(--ink-950);
   font-size: 20px;
   cursor: pointer;
 }

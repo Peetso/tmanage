@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { ReactNode, SyntheticEvent } from 'react';
+import { createPortal } from 'react-dom';
 import type { ApiClient } from '../../../lib/api/client';
 import { apiBaseUrl, browserApiClient } from '../../../lib/api/browser-client';
 import { getMessageAttachmentsBatched } from '../../../lib/api/message-attachments';
@@ -250,7 +251,17 @@ function VideoTile({ src }: { readonly src: string }) {
   );
 }
 
-/** A modal dialog over the conversation: Escape and the scrim close it, focus returns on close. */
+/** Keeps a viewer event from reaching the message bubble's own handlers through the React tree. */
+const stopAtViewer = (event: SyntheticEvent): void => event.stopPropagation();
+
+/**
+ * A modal dialog over the conversation: Escape and the scrim close it, focus returns on close.
+ *
+ * B-N1: the dialog is portalled to `document.body`. Drawn inside the message bubble it inherited
+ * the own bubble's inverted ink (`color: var(--paper-0)` on `--ink-950`), so spreadsheet cells, the
+ * file name and the zoom label were white on the viewer's white paper. Outside the bubble it takes
+ * the page's colours, and `.r7-media-viewer` resets its own ink, wrapping and font as well.
+ */
 function MediaViewerModal({
   children,
   onClose,
@@ -261,7 +272,10 @@ function MediaViewerModal({
   readonly closeLabel: string;
 }) {
   const dialog = useRef<HTMLDivElement>(null);
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  useEffect(() => setHost(document.body), []);
   useEffect(() => {
+    if (host === null) return undefined;
     const returnTo = document.activeElement as HTMLElement | null;
     dialog.current?.focus();
     const onKey = (event: KeyboardEvent) => {
@@ -272,9 +286,19 @@ function MediaViewerModal({
       document.removeEventListener('keydown', onKey);
       returnTo?.focus?.();
     };
-  }, [onClose]);
-  return (
-    <div className="r7-media-viewer">
+  }, [host, onClose]);
+  if (host === null) return null;
+  return createPortal(
+    <div
+      className="r7-media-viewer"
+      data-testid="chat-media-viewer"
+      onClick={stopAtViewer}
+      onDoubleClick={stopAtViewer}
+      onPointerDown={stopAtViewer}
+      onMouseDown={stopAtViewer}
+      onContextMenu={stopAtViewer}
+      onKeyDown={stopAtViewer}
+    >
       {/* The scrim closes the viewer on a click; keyboard users close it with Escape. */}
       <button
         type="button"
@@ -300,6 +324,7 @@ function MediaViewerModal({
         </button>
         {children}
       </div>
-    </div>
+    </div>,
+    host,
   );
 }
