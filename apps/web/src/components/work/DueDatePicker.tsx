@@ -302,7 +302,9 @@ export function DueDatePicker({ heading, value, now, min, onSet, onClose }: DueD
       className="tm-wk-datepicker"
       data-testid="due-date-picker"
       data-side={placement.side}
-      style={placement.max === null ? undefined : { maxBlockSize: placement.max, overflowY: 'auto' }}
+      style={
+        placement.max === null ? undefined : { maxBlockSize: placement.max, overflowY: 'auto' }
+      }
     >
       <p id={titleId} className="tm-wk-datepicker__title">
         {heading}
