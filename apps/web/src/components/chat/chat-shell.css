@@ -1678,15 +1678,26 @@
 }
 
 .tm-chatrow__excerpt {
+  display: flex;
   flex: 1;
+  min-width: 0;
   overflow: hidden;
+  column-gap: 4px;
   color: var(--ink-650);
   font-size: 13px;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* FIX2 item 14: the message clips at its own end. With the ellipsis on the row, an English
+   message in an Arabic list lost its first words ("…he client the revised moodboard"). */
+.tm-chatrow__excerpt > bdi {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .tm-chatrow__author {
+  flex: none;
   color: var(--ink-800);
 }
 
