@@ -13,6 +13,7 @@ import type { ForwardMessageResult } from '../../../lib/api/conversations';
 import { fill } from '../../../lib/privacy-presentation';
 import { useTOr } from '../../../lib/i18n/use-t-or';
 import './pane.css';
+import { channelLabel } from '../../../lib/text/channel-label';
 
 export interface ForwardSheetProps {
   api: ApiClient;
@@ -106,7 +107,7 @@ export function ForwardSheet({
                   disabled={!picked.includes(row.id) && picked.length >= MAX_FORWARD_TARGETS}
                   onChange={() => toggle(row.id)}
                 />
-                {row.kind === 'project_channel' ? `#${row.name}` : row.name}
+                {row.kind === 'project_channel' ? channelLabel(row.name) : row.name}
               </label>
             </li>
           ))}

@@ -8,6 +8,7 @@ import { useT } from '../../../../lib/i18n/use-t';
 import { WebIcon, type WebIconName } from '../../WebIcon';
 import { ObjectCard } from '../../ProductScenes';
 import { cx } from '../../primitives';
+import { channelLabel } from '../../../../lib/text/channel-label';
 
 /**
  * Mini product scenes for Features · Chat & calendar (WEB-04). Composed from packages/ui parts
@@ -166,7 +167,7 @@ function Message({
 
 /* ── Hero: the project channel (chat screen, section 07) ───────────────────── */
 
-const HERO_CHANNEL = '#atlas-website-relaunch';
+const HERO_CHANNEL = channelLabel('atlas-website-relaunch');
 
 export function ChannelScene() {
   const t = useT();
@@ -182,7 +183,7 @@ export function ChannelScene() {
         <div className="tm-wc-chat__head">
           <Mono className="tm-wc-chat__eyebrow">{s('channelEyebrow')}</Mono>
           <div className="tm-wc-chat__title-row">
-            <p className="tm-wc-chat__title"># atlas-website-relaunch</p>
+            <p className="tm-wc-chat__title">{HERO_CHANNEL}</p>
             <span className="tm-wc-stack tm-wc-stack--members">
               <Avatar name="Maya Hassan" size="compact" decorative className="tm-wc-avatar" />
               <Avatar name="Lina Samir" size="compact" decorative className="tm-wc-avatar" />
@@ -259,7 +260,7 @@ export function ChannelsScene() {
                 key={channel.name}
                 className={cx('tm-wc-side__item', channel.on && 'tm-wc-side__item--on')}
               >
-                <span># {channel.name}</span>
+                <span>{channelLabel(channel.name)}</span>
                 {channel.unread ? <span className="tm-wc-count">{num(channel.unread)}</span> : null}
               </li>
             ))}

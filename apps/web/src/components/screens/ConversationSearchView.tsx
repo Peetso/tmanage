@@ -14,6 +14,7 @@ import { useMembers } from '../../lib/use-members';
 import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/chat.css';
 import { appLocale } from '../../lib/i18n/app-locale';
+import { channelLabel } from '../../lib/text/channel-label';
 
 /**
  * **CH-10 Search in conversation** (x253). A search field over one channel's messages, and the
@@ -116,7 +117,7 @@ export function ConversationSearchView({
   const results: readonly MessageSearchMatch[] = query.data ?? [];
   const hasSearched = term.trim() !== '';
   const channel = conversation.data
-    ? `#${conversation.data.name}`
+    ? channelLabel(conversation.data.name)
     : t('ConversationSearchView.thisChannel');
 
   return (

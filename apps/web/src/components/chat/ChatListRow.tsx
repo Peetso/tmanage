@@ -6,6 +6,7 @@ import type { ChatListRowData } from '../../lib/api/chat';
 import { useDisplayFormatters } from '../../lib/i18n/use-formatters';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { initialsOf } from './channel-browser';
+import { channelLabel } from '../../lib/text/channel-label';
 
 export interface ChatListRowProps {
   readonly row: ChatListRowData;
@@ -55,7 +56,7 @@ export function ChatListRow({
   const title =
     row.title !== ''
       ? row.kind === 'project_channel'
-        ? `#${row.title}`
+        ? channelLabel(row.title)
         : row.title
       : tOr('ChatList.unknownPerson', 'Someone');
   const excerpt =

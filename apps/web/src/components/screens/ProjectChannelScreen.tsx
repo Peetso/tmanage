@@ -101,6 +101,7 @@ import '../../styles/screens/chat.css';
 import '../chat/chat-shell.css';
 import { chatHref } from '../chat/chat-workspaces';
 import { appLocale } from '../../lib/i18n/app-locale';
+import { channelLabel } from '../../lib/text/channel-label';
 
 type Translate = ReturnType<typeof useT>;
 
@@ -434,7 +435,7 @@ export function ProjectChannelScreen({
 
   const countsLine = `${internalMembers} ${tOr('ProjectChannelScreen.internalCount', 'internal')} · ${clientMembers} ${tOr('ProjectChannelScreen.clientMembersCount', 'client members')}`;
   const phoneCountsLine = `${internalMembers} ${tOr('ProjectChannelScreen.internalCount', 'internal')} · ${clientMembers} ${tOr('ProjectChannelScreen.clientCount', 'client')}`;
-  const hash = channelName === undefined ? undefined : `#${channelName}`;
+  const hash = channelName === undefined ? undefined : channelLabel(channelName);
 
   const rowContext: ChannelRowContext = {
     api,
@@ -756,7 +757,7 @@ export function ProjectChannelScreen({
               conversationId={conversationId}
               archived={archived}
               label={t('ProjectChannelScreen.messageChannelLabel')}
-              placeholder={`${t('ProjectChannelScreen.messagePrefix')} #${conversation.data.name}`}
+              placeholder={`${t('ProjectChannelScreen.messagePrefix')} ${channelLabel(conversation.data.name)}`}
               mentions={{ projectMemberIds, subtitleOf }}
               extras
               attachProjectId={conversation.data.projectId}
