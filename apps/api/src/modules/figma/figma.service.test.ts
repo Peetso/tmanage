@@ -16,6 +16,7 @@ import { FigmaAccess } from './figma-access.js';
 import type { FigmaRepository, InsertLinkInput } from './figma.repository.js';
 import { FigmaAuthError, type FigmaRestClient } from './figma.rest.js';
 import { FigmaService, figmaTokenBinding } from './figma.service.js';
+import { FigmaOAuthRefusedError } from './figma-oauth.js';
 
 /**
  * R4 slice 13 — the Figma service with fakes: the token is stored encrypted and only its hint is
@@ -91,7 +92,14 @@ function linkRow(id: string, audience: string): FigmaLinkRow {
   };
 }
 
-function build(options: { connected?: boolean; figmaRefuses?: boolean } = {}) {
+function build(
+  options: {
+    connected?: boolean;
+    figmaRefuses?: boolean;
+    oauth?: boolean;
+    exchange?: () => Promise<{ readonly accessToken: string }>;
+  } = {},
+) {
   const connections = new Map<string, FigmaConnectionRow>();
   if (options.connected) {
     connections.set(STAFF_M, {
@@ -216,6 +224,13 @@ function build(options: { connected?: boolean; figmaRefuses?: boolean } = {}) {
     projects,
     threads,
     now: () => NOW,
+    ...(options.oauth
+      ? {
+          oauth: { clientId: 'figma-client', clientSecret: 'figma-secret' },
+          apiPublicUrl: 'https://api.example.test/',
+          exchange: options.exchange ?? (async () => ({ accessToken: 'figu_oauth_token_9876' })),
+        }
+      : {}),
   });
   const access = new FigmaAccess(database, repository, projects);
   return { service, access, connections, inserted, audits, requested: () => requested };
@@ -235,7 +250,12 @@ describe('FigmaService · connection', () => {
   it('stores the token encrypted to the member and echoes only its last four characters', async () => {
     const world = build();
     const view = await world.service.connect(contextOf(STAFF), STAFF, { token: ` ${TOKEN} ` });
-    expect(view).toEqual({ status: 'connected', handle: 'lina', tokenHint: 'WXYZ' });
+    expect(view).toEqual({
+      status: 'connected',
+      handle: 'lina',
+      tokenHint: 'WXYZ',
+      oneClick: false,
+    });
     const row = world.connections.get(STAFF_M)!;
     expect(row.tokenCiphertext).not.toContain(TOKEN);
     expect(CIPHER.decrypt(row.tokenCiphertext, figmaTokenBinding(ORG, STAFF_M))).toBe(TOKEN);
@@ -252,6 +272,87 @@ describe('FigmaService · connection', () => {
       422,
     );
     expect(await status(world.service.connection(contextOf(CLIENT), CLIENT))).toBe(404);
+  });
+});
+
+describe('FigmaService · one-click Connect (FIX4 item 6)', () => {
+  const flowOf = (state = 'state-1', membershipId = STAFF_M) => ({
+    organizationId: ORG,
+    organizationSlug: 'acme',
+    membershipId,
+    state,
+    expiresAt: Math.floor(Date.now() / 1000) + 600,
+  });
+
+  it('says whether the server offers one-click Connect', async () => {
+    expect((await build().service.connection(contextOf(STAFF), STAFF)).oneClick).toBe(false);
+    const world = build({ oauth: true });
+    expect((await world.service.connection(contextOf(STAFF), STAFF)).oneClick).toBe(true);
+  });
+
+  it('starts at the Figma consent screen with the callback and a fresh state', () => {
+    const { url, flow } = build({ oauth: true }).service.startConnect(
+      contextOf(STAFF),
+      STAFF,
+      'acme',
+    );
+    const address = new URL(url);
+    expect(address.origin + address.pathname).toBe('https://www.figma.com/oauth');
+    expect(address.searchParams.get('client_id')).toBe('figma-client');
+    expect(address.searchParams.get('redirect_uri')).toBe(
+      'https://api.example.test/v1/integrations/figma/callback',
+    );
+    expect(address.searchParams.get('state')).toBe(flow.state);
+    expect(address.searchParams.get('response_type')).toBe('code');
+    expect(flow.membershipId).toBe(STAFF_M);
+    expect(() => build().service.startConnect(contextOf(STAFF), STAFF, 'acme')).toThrow(ApiError);
+  });
+
+  it('stores the OAuth token encrypted, marked as a bearer token, and audits', async () => {
+    const world = build({ oauth: true });
+    const view = await world.service.completeConnect(contextOf(STAFF), STAFF, flowOf(), {
+      code: 'code-1',
+      state: 'state-1',
+    });
+    expect(view).toEqual({
+      status: 'connected',
+      handle: 'lina',
+      tokenHint: '9876',
+      oneClick: true,
+    });
+    const row = world.connections.get(STAFF_M)!;
+    expect(CIPHER.decrypt(row.tokenCiphertext, figmaTokenBinding(ORG, STAFF_M))).toBe(
+      'oauth:figu_oauth_token_9876',
+    );
+    expect(world.audits).toEqual(['figma.connection_changed']);
+  });
+
+  it('refuses a wrong state, a flow for someone else, no flow and a refused code', async () => {
+    const world = build({ oauth: true });
+    const ctx = contextOf(STAFF);
+    expect(
+      await status(world.service.completeConnect(ctx, STAFF, flowOf(), { code: 'c', state: 'x' })),
+    ).toBe(422);
+    expect(
+      await status(
+        world.service.completeConnect(ctx, STAFF, flowOf('s', CLIENT_M), { code: 'c', state: 's' }),
+      ),
+    ).toBe(422);
+    expect(
+      await status(world.service.completeConnect(ctx, STAFF, undefined, { code: 'c', state: 's' })),
+    ).toBe(422);
+    const refusing = build({
+      oauth: true,
+      exchange: async () => {
+        throw new FigmaOAuthRefusedError('no');
+      },
+    });
+    expect(
+      await status(
+        refusing.service.completeConnect(ctx, STAFF, flowOf(), { code: 'c', state: 'state-1' }),
+      ),
+    ).toBe(422);
+    expect(world.connections.size).toBe(0);
   });
 });
 

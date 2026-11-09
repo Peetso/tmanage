@@ -18,6 +18,8 @@ interface World {
   driveConnected?: boolean;
   /** Status code for the Drive start (200 answers with a Google URL). */
   driveStart?: number;
+  /** FIX4 item 6: the server has Figma's own sign-in. */
+  figmaOneClick?: boolean;
 }
 
 function mount(world: World = {}) {
@@ -92,8 +94,22 @@ function mount(world: World = {}) {
     if (path.endsWith('/integrations/microsoft-calendar')) {
       return [404, { error: { code: 'not_found', message: 'no', correlationId: 'c' } }];
     }
+    if (path.endsWith('/figma/connection/start')) {
+      return [200, { url: 'https://www.figma.com/oauth?client_id=x&state=s' }];
+    }
+    if (path.endsWith('/figma/connection/complete')) {
+      return [200, { status: 'connected', handle: 'lina', tokenHint: 'ab12', oneClick: true }];
+    }
     if (path.endsWith('/figma/connection')) {
-      return [200, { status: 'not_connected', handle: null, tokenHint: null }];
+      return [
+        200,
+        {
+          status: 'not_connected',
+          handle: null,
+          tokenHint: null,
+          oneClick: world.figmaOneClick === true,
+        },
+      ];
     }
     if (path.endsWith('/automations/apps/slack/connections') && method === 'POST') {
       return [
@@ -253,13 +269,49 @@ describe('Integrations cards (feedback 2026-11-09 item 6)', () => {
     expect(screen.getByRole('link', { name: 'Connect Slack' }).getAttribute('href')).toBe(
       '/northstar-studio/settings/channel-notices',
     );
-    expect(screen.getByRole('link', { name: 'Connect Figma' }).getAttribute('href')).toBe(
-      '/northstar-studio/settings/connected-apps#tm-figma-connect',
+    // FIX4 item 6: Figma, GitHub and Jira are connected on this page, not on Connected apps.
+    expect(screen.getByRole('link', { name: 'Connect GitHub' }).getAttribute('href')).toBe(
+      '/northstar-studio/automations/apps#tm-int-keys',
+    );
+    expect(screen.getByRole('link', { name: 'Connect Jira' }).getAttribute('href')).toBe(
+      '/northstar-studio/automations/apps#tm-int-keys',
     );
     const zapier = card('Zapier');
     expect(within(zapier).getByText('Coming soon')).toBeTruthy();
     expect(within(zapier).queryByRole('button')).toBeNull();
     expect(within(zapier).queryByRole('link')).toBeNull();
+  });
+
+  it('FIX4 item 6: Figma connects in one click when the server has its sign-in', async () => {
+    const { calls, navigate } = mount({ figmaOneClick: true });
+    const connect = await screen.findByRole('button', { name: 'Connect Figma' });
+    await waitFor(() => expect(connect).toBeEnabled());
+    fireEvent.click(connect);
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith('https://www.figma.com/oauth?client_id=x&state=s'),
+    );
+    const start = calls.find((call) => call.path.endsWith('/figma/connection/start'));
+    expect(JSON.parse(start?.body ?? '{}')).toEqual({ returnTo: 'integrations' });
+    expect(screen.queryByLabelText('Personal access token')).toBeNull();
+  });
+
+  it("FIX4 item 6: finishes Figma's return on this page and says it is connected", async () => {
+    globalThis.history.replaceState(
+      null,
+      '',
+      '/northstar-studio/automations/apps#figma=complete&code=c1&state=s1',
+    );
+    const { calls } = mount({ figmaOneClick: true });
+    expect(await screen.findByText('Figma is connected.')).toBeTruthy();
+    const complete = calls.find((call) => call.path.endsWith('/figma/connection/complete'));
+    expect(JSON.parse(complete?.body ?? '{}')).toEqual({ code: 'c1', state: 's1' });
+    expect(globalThis.location.hash).toBe('');
+  });
+
+  it('FIX4 item 6: without Figma sign-in, Connect opens the key form on this page', async () => {
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Connect Figma' }));
+    expect(await screen.findByLabelText('Personal access token')).toBeTruthy();
   });
 
   it('keeps the hand-recorded connection behind a closed Advanced section', async () => {

@@ -23,6 +23,8 @@ export interface FigmaConnection {
   readonly status: 'not_connected' | 'connected' | 'error';
   readonly handle: string | null;
   readonly tokenHint: string | null;
+  /** FIX4 item 6: Figma's own sign-in is set up on this server, so Connect is one click. */
+  readonly oneClick: boolean;
 }
 
 export interface FigmaDetectedFrame {
@@ -122,6 +124,50 @@ export async function connectFigma(
     body: { token },
   });
   return data;
+}
+
+/** FIX4 item 6. One-click Connect: Figma's consent address (the browser goes there next). */
+export async function startFigmaConnect(
+  client: ApiClient,
+  organizationSlug: string,
+  returnTo: 'integrations' | 'connected-apps' = 'integrations',
+): Promise<{ readonly url: string }> {
+  const { data } = await client.request<{ readonly url: string }>({
+    method: 'POST',
+    path: `${orgPath(organizationSlug)}/figma/connection/start`,
+    body: { returnTo },
+  });
+  return data;
+}
+
+/** FIX4 item 6. Finish one-click Connect with what Figma sent back. */
+export async function completeFigmaConnect(
+  client: ApiClient,
+  organizationSlug: string,
+  body: { readonly code: string; readonly state: string },
+): Promise<FigmaConnection> {
+  const { data } = await client.request<FigmaConnection>({
+    method: 'POST',
+    path: `${orgPath(organizationSlug)}/figma/connection/complete`,
+    body,
+  });
+  return data;
+}
+
+/** FIX4 item 6. Figma's return to Integrations (`#figma=complete&code=…&state=…`), if any. */
+export function readFigmaReturn(
+  hash: string,
+):
+  | { readonly kind: 'complete'; readonly code: string; readonly state: string }
+  | { readonly kind: 'error' }
+  | null {
+  const params = new URLSearchParams(hash.replace(/^#/, ''));
+  const kind = params.get('figma');
+  if (kind === 'error') return { kind: 'error' };
+  if (kind !== 'complete') return null;
+  const code = params.get('code') ?? '';
+  const state = params.get('state') ?? '';
+  return code !== '' && state !== '' ? { kind: 'complete', code, state } : { kind: 'error' };
 }
 
 export async function disconnectFigma(

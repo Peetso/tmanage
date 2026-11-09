@@ -308,3 +308,27 @@
     flex-wrap: wrap;
   }
 }
+
+/* FIX4 item 6 (I5): the pointer to Integrations, where every other app is connected. */
+.tm-connected__elsewhere {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s2);
+  padding: var(--s5);
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+}
+
+.tm-connected__elsewhere .tm-connected__caption {
+  margin: 0;
+}
+
+/* FIX4 item 6: a sentence about an app is set in the body face; mono is for dates and counts. */
+.tm-connected__desc {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}

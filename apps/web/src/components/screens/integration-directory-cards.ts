@@ -19,6 +19,7 @@ export type IntegrationCardId =
   | 'outlook'
   | 'figma'
   | 'github'
+  | 'jira'
   | 'slack'
   | 'teams'
   | 'zapier';
@@ -79,7 +80,9 @@ export const INTEGRATION_CARDS: readonly IntegrationCard[] = [
     scope: 'company',
     whatKey: 'IntegrationDirectoryScreen.what.figma',
     what: 'Show Figma frames on work items and reviews, always up to date.',
-    path: '/settings/connected-apps#tm-figma-connect',
+    // FIX4 item 6: one-click Connect when the server has Figma's sign-in; otherwise the key form
+    // further down this page.
+    path: '/automations/apps#tm-figma-connect',
   },
   {
     id: 'github',
@@ -87,8 +90,17 @@ export const INTEGRATION_CARDS: readonly IntegrationCard[] = [
     flow: 'page',
     scope: 'company',
     whatKey: 'IntegrationDirectoryScreen.what.github',
-    what: 'Link pull requests and commits to the work they belong to.',
-    path: '/settings/connected-apps',
+    what: 'Show code changes next to the work they belong to.',
+    path: '/automations/apps#tm-int-keys',
+  },
+  {
+    id: 'jira',
+    brand: 'jira',
+    flow: 'page',
+    scope: 'company',
+    whatKey: 'IntegrationDirectoryScreen.what.jira',
+    what: 'Bring Jira issues into TManage and keep them in step.',
+    path: '/automations/apps#tm-int-keys',
   },
   {
     id: 'slack',

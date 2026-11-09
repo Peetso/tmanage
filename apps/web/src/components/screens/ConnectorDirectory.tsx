@@ -14,6 +14,7 @@ import {
 import { fillTemplate } from '../../lib/ai-approval-presentation';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import '../../styles/screens/connector-directory.css';
 import { BrandLogo, type BrandId } from '../brand/BrandLogo';
 
@@ -24,6 +25,7 @@ const BRAND_OF: Readonly<Record<string, BrandId>> = {
   google_calendar: 'google-calendar',
   microsoft_calendar: 'outlook',
   github: 'github',
+  jira: 'jira',
 };
 
 /** What the row says under the name, per registry key (connector names are never translated). */
@@ -36,18 +38,18 @@ const WHAT: Readonly<Record<string, MessageKey>> = {
   github: 'ConnectorDirectory.what.github',
 };
 
+// FIX4 item 6: a key-based app reads "Connected" / "Not connected" like every other card, not
+// "Installed".
 const STATE: Readonly<Record<ConnectorState, { key: MessageKey; on: boolean }>> = {
   connected: { key: 'ConnectorDirectory.state.connected', on: true },
   not_connected: { key: 'ConnectorDirectory.state.notConnected', on: false },
-  installed: { key: 'ConnectorDirectory.state.installed', on: true },
-  not_installed: { key: 'ConnectorDirectory.state.notInstalled', on: false },
+  installed: { key: 'ConnectorDirectory.state.connected', on: true },
+  not_installed: { key: 'ConnectorDirectory.state.notConnected', on: false },
 };
 
 export interface ConnectorDirectoryProps {
   api: ApiClient;
   organizationSlug: string;
-  /** The id of the built-in connection cards, which "Manage" scrolls to. */
-  builtInAnchor: string;
 }
 
 /**
@@ -57,12 +59,9 @@ export interface ConnectorDirectoryProps {
  * card); an API-key connector installs here, its key going straight into the token vault.
  * Owners and admins only — the screen does not mount this for anyone else.
  */
-export function ConnectorDirectory({
-  api,
-  organizationSlug,
-  builtInAnchor,
-}: ConnectorDirectoryProps) {
+export function ConnectorDirectory({ api, organizationSlug }: ConnectorDirectoryProps) {
   const t = useT();
+  const tOr = useTOr();
   const queries = useQueryClient();
   const headingId = useId();
   const queryKey = ['connectors', organizationSlug];
@@ -89,11 +88,16 @@ export function ConnectorDirectory({
   });
 
   return (
-    <section className="tm-connectors" aria-labelledby={headingId}>
+    <section className="tm-connectors" aria-labelledby={headingId} id="tm-int-keys">
       <h2 className="tm-connectors__title" id={headingId}>
-        {t('ConnectorDirectory.title')}
+        {tOr('ConnectorDirectory.keysTitle', 'Apps that connect with a key')}
       </h2>
-      <p className="tm-connectors__hint">{t('ConnectorDirectory.hint')}</p>
+      <p className="tm-connectors__hint">
+        {tOr(
+          'ConnectorDirectory.keysHint',
+          'GitHub and Jira do not offer a one-click sign-in to TManage yet. An owner or admin pastes a key from the app once; it is stored encrypted and never shown again.',
+        )}
+      </p>
       {list.isPending ? null : list.isError ? (
         <InlineAlert tone="danger" title={t('ConnectorDirectory.loadError')}>
           {null}
@@ -106,60 +110,62 @@ export function ConnectorDirectory({
             </InlineAlert>
           ) : null}
           <ul className="tm-connectors__list">
-            {list.data.map((connector) => {
-              const state = STATE[connector.state];
-              const what = WHAT[connector.key];
-              return (
-                <li key={connector.key} className="tm-connectors__row">
-                  {BRAND_OF[connector.key] ? (
-                    <BrandLogo brand={BRAND_OF[connector.key]!} size={36} />
-                  ) : (
-                    <span className="tm-connectors__monogram" aria-hidden="true" dir="ltr">
-                      {connector.name.slice(0, 1)}
-                    </span>
-                  )}
-                  <div className="tm-connectors__identity">
-                    <h3 className="tm-connectors__name" dir="ltr">
-                      {connector.name}
-                    </h3>
-                    {what ? <p className="tm-connectors__what">{t(what)}</p> : null}
-                  </div>
-                  {/* FIX3 item 9 (live I2): no "API key" / "OAuth sign-in" chip — how an app
+            {/* FIX4 item 6: Drive, OneDrive and the calendars are cards above; only the apps that
+                connect with a key are listed here. */}
+            {list.data
+              .filter((connector) => connector.managed !== 'built-in')
+              .map((connector) => {
+                const state = STATE[connector.state];
+                const what = WHAT[connector.key];
+                return (
+                  <li key={connector.key} className="tm-connectors__row">
+                    {BRAND_OF[connector.key] ? (
+                      <BrandLogo brand={BRAND_OF[connector.key]!} size={36} />
+                    ) : (
+                      <span className="tm-connectors__monogram" aria-hidden="true" dir="ltr">
+                        {connector.name.slice(0, 1)}
+                      </span>
+                    )}
+                    <div className="tm-connectors__identity">
+                      <h3 className="tm-connectors__name" dir="ltr">
+                        {connector.name}
+                      </h3>
+                      {what ? <p className="tm-connectors__what">{t(what)}</p> : null}
+                    </div>
+                    {/* FIX3 item 9 (live I2): no "API key" / "OAuth sign-in" chip — how an app
                     signs in is not something a person should have to read. */}
-                  <StateCapsule state={state.on ? 'done' : 'neutral'}>{t(state.key)}</StateCapsule>
-                  {connector.managed === 'built-in' ? (
-                    <a className="tm-connectors__manage" href={`#${builtInAnchor}`}>
-                      {t('ConnectorDirectory.manage')}
-                    </a>
-                  ) : connector.state === 'installed' ? (
-                    <Button
-                      tone="outline"
-                      loading={uninstall.isPending && uninstall.variables === connector.key}
-                      loadingLabel={t('ConnectorDirectory.uninstalling')}
-                      aria-label={fillTemplate(t('ConnectorDirectory.uninstallLabel'), {
-                        app: connector.name,
-                      })}
-                      onClick={() => uninstall.mutate(connector.key)}
-                    >
-                      {t('ConnectorDirectory.uninstall')}
-                    </Button>
-                  ) : (
-                    <Button
-                      tone="ink"
-                      aria-label={fillTemplate(t('ConnectorDirectory.installLabel'), {
-                        app: connector.name,
-                      })}
-                      onClick={() => {
-                        install.reset();
-                        setInstalling(connector);
-                      }}
-                    >
-                      {t('ConnectorDirectory.install')}
-                    </Button>
-                  )}
-                </li>
-              );
-            })}
+                    <StateCapsule state={state.on ? 'done' : 'neutral'}>
+                      {t(state.key)}
+                    </StateCapsule>
+                    {connector.state === 'installed' ? (
+                      <Button
+                        tone="outline"
+                        loading={uninstall.isPending && uninstall.variables === connector.key}
+                        loadingLabel={t('ConnectorDirectory.uninstalling')}
+                        aria-label={fillTemplate(t('ConnectorDirectory.uninstallLabel'), {
+                          app: connector.name,
+                        })}
+                        onClick={() => uninstall.mutate(connector.key)}
+                      >
+                        {t('ConnectApps.disconnect')}
+                      </Button>
+                    ) : (
+                      <Button
+                        tone="ink"
+                        aria-label={fillTemplate(t('ConnectorDirectory.installLabel'), {
+                          app: connector.name,
+                        })}
+                        onClick={() => {
+                          install.reset();
+                          setInstalling(connector);
+                        }}
+                      >
+                        {t('ConnectApps.connect')}
+                      </Button>
+                    )}
+                  </li>
+                );
+              })}
           </ul>
         </>
       )}
@@ -234,7 +240,7 @@ function InstallCard({
           loadingLabel={t('ConnectorDirectory.installing')}
           disabled={apiKey.trim() === ''}
         >
-          {t('ConnectorDirectory.install')}
+          {t('ConnectApps.connect')}
         </Button>
       </div>
     </form>

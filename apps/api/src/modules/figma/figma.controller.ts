@@ -8,12 +8,31 @@ import {
   Param,
   Post,
   Query,
+  Redirect,
+  Req,
   Res,
   StreamableFile,
 } from '@nestjs/common';
 import type { Readable } from 'node:stream';
 import type { Principal } from '@tmanage/domain';
-import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
+import {
+  Ctx,
+  CurrentPrincipal,
+  NoTenant,
+  Public,
+  RequireCapability,
+} from '../../common/http/decorators.js';
+import { ApiError } from '../../common/http/errors.js';
+import { expireCookie, readCookie, serializeCookie } from '../identity/session-token.js';
+import {
+  FIGMA_COOKIE_PATH,
+  FIGMA_FLOW_COOKIE,
+  FIGMA_FLOW_TTL_SECONDS,
+  figmaCallbackTarget,
+  figmaReturnTo,
+  openFigmaFlow,
+  sealFigmaFlow,
+} from './figma-oauth.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { SANDBOX_CSP } from '../files/download-response.js';
 import type { HeaderWriter } from '../files/download-response.js';
@@ -52,9 +71,104 @@ export function respondWithSnapshot(content: SnapshotContent, reply: HeaderWrite
   });
 }
 
+/** FIX4 item 6: what the one-click Connect routes need from the API config. */
+export const FIGMA_HTTP_OPTIONS = Symbol.for('tmanage.FigmaHttpOptions');
+
+export interface FigmaHttpOptions {
+  readonly sessionSecret: string;
+  readonly secureCookies: boolean;
+  readonly webPublicUrl: string;
+}
+
+interface CookieRequest {
+  readonly headers: Record<string, string | string[] | undefined>;
+}
+
+interface CookieReply {
+  header(name: string, value: string | readonly string[]): unknown;
+}
+
+function cookieHeader(request: CookieRequest): string | undefined {
+  const raw = request.headers['cookie'];
+  return Array.isArray(raw) ? raw.join('; ') : raw;
+}
+
+const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
 @Controller('v1/organizations/:orgSlug/figma')
 export class FigmaController {
-  constructor(@Inject(FIGMA_SERVICE) private readonly figma: FigmaService) {}
+  constructor(
+    @Inject(FIGMA_SERVICE) private readonly figma: FigmaService,
+    @Inject(FIGMA_HTTP_OPTIONS) private readonly options: FigmaHttpOptions,
+  ) {}
+
+  /**
+   * FIX4 item 6. One-click Connect: Figma's consent address; the signed flow cookie (state, this
+   * person, this workspace) rides along for the return. 409 when the server has no Figma app.
+   */
+  @Post('connection/start')
+  @RequireCapability('work.read')
+  @HttpCode(200)
+  start(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('orgSlug') orgSlug: string,
+    @Body() body: { readonly returnTo?: unknown } | undefined,
+    @Res({ passthrough: true }) reply: CookieReply,
+  ): { readonly url: string } {
+    if (!SLUG_PATTERN.test(orgSlug)) {
+      throw new ApiError(400, 'validation_failed', 'The request is invalid', [
+        { field: 'orgSlug', message: 'is not a workspace address' },
+      ]);
+    }
+    const { url, flow } = this.figma.startConnect(
+      context,
+      principal,
+      orgSlug,
+      figmaReturnTo(body?.returnTo),
+    );
+    reply.header(
+      'set-cookie',
+      serializeCookie(FIGMA_FLOW_COOKIE, sealFigmaFlow(flow, this.options.sessionSecret), {
+        path: FIGMA_COOKIE_PATH,
+        maxAgeSeconds: FIGMA_FLOW_TTL_SECONDS,
+        // `Lax`: the cookie must survive the top-level return from Figma.
+        sameSite: 'Lax',
+        secure: this.options.secureCookies,
+      }),
+    );
+    return { url };
+  }
+
+  /** FIX4 item 6. Finish one-click Connect with the `code` and `state` Figma sent back. */
+  @Post('connection/complete')
+  @RequireCapability('work.read')
+  @HttpCode(200)
+  async complete(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Body() body: { readonly code?: unknown; readonly state?: unknown } | undefined,
+    @Req() request: CookieRequest,
+    @Res({ passthrough: true }) reply: CookieReply,
+  ): Promise<FigmaConnectionView> {
+    const flow = openFigmaFlow(
+      readCookie(cookieHeader(request), FIGMA_FLOW_COOKIE),
+      this.options.sessionSecret,
+    );
+    // The flow is single-use whatever happens next.
+    reply.header(
+      'set-cookie',
+      expireCookie(FIGMA_FLOW_COOKIE, {
+        path: FIGMA_COOKIE_PATH,
+        sameSite: 'Lax',
+        secure: this.options.secureCookies,
+      }),
+    );
+    return this.figma.completeConnect(context, principal, flow, {
+      code: body?.code,
+      state: body?.state,
+    });
+  }
 
   /** The caller's own Figma connection (never the token; its last four characters). */
   @Get('connection')
@@ -180,5 +294,35 @@ export class ProjectFigmaController {
       ...(attachedToType !== undefined ? { attachedToType } : {}),
       ...(attachedToId !== undefined ? { attachedToId } : {}),
     });
+  }
+}
+
+/**
+ * FIX4 item 6. Figma's redirect after consent. Public and tenant-less because Figma makes this
+ * request; it only forwards `code` and `state` in the fragment to the Integrations page, which
+ * completes under the person's own session.
+ */
+@Controller('v1/integrations/figma')
+export class FigmaCallbackController {
+  constructor(@Inject(FIGMA_HTTP_OPTIONS) private readonly options: FigmaHttpOptions) {}
+
+  @Get('callback')
+  @Public()
+  @NoTenant()
+  @Redirect()
+  callback(
+    @Query('code') code: unknown,
+    @Query('state') state: unknown,
+    @Req() request: CookieRequest,
+  ): { readonly url: string; readonly statusCode: number } {
+    return {
+      url: figmaCallbackTarget(
+        this.options,
+        readCookie(cookieHeader(request), FIGMA_FLOW_COOKIE),
+        code,
+        state,
+      ),
+      statusCode: 302,
+    };
   }
 }

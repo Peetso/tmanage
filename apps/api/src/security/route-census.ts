@@ -89,6 +89,7 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'GET /v1/integrations/google-drive/callback': 'OAuth callback: single-use state',
   'GET /v1/integrations/microsoft-calendar/callback': 'OAuth callback: single-use state',
   'GET /v1/integrations/onedrive/callback': 'OAuth callback: single-use state',
+  'GET /v1/integrations/figma/callback': 'OAuth callback: single-use state',
   'POST /v1/auth/password': 'named',
   'POST /v1/auth/mfa': 'named',
   'POST /v1/auth/recovery-code': 'named',

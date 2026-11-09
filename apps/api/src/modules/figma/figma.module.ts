@@ -17,7 +17,14 @@ import {
   FigmaSnapshotJob,
   figmaSnapshotJobEnabled,
 } from './figma-snapshot-job.js';
-import { FigmaController, ProjectFigmaController } from './figma.controller.js';
+import {
+  FIGMA_HTTP_OPTIONS,
+  FigmaCallbackController,
+  FigmaController,
+  ProjectFigmaController,
+  type FigmaHttpOptions,
+} from './figma.controller.js';
+import { figmaOAuthConfigFrom } from './figma-oauth.js';
 import {
   DEFAULT_FIGMA_API_BASE,
   FigmaRestClient,
@@ -77,14 +84,27 @@ export class FigmaModule {
           store,
           snapshots,
           embedOrigin: process.env['FIGMA_EMBED_ORIGIN'] ?? 'https://embed.figma.com',
+          // FIX4 item 6: one-click Connect when the server has a Figma app registered.
+          oauth: figmaOAuthConfigFrom(process.env),
+          apiPublicUrl: config.apiPublicUrl ?? config.webPublicUrl ?? '',
         }),
+    };
+    const httpOptions: Provider = {
+      provide: FIGMA_HTTP_OPTIONS,
+      inject: [API_CONFIG],
+      useFactory: (config: ApiConfig): FigmaHttpOptions => ({
+        sessionSecret: config.sessionSecret,
+        secureCookies: config.secureCookies,
+        webPublicUrl: config.webPublicUrl ?? '',
+      }),
     };
     return {
       module: FigmaModule,
-      providers: [job, service],
+      providers: [job, service, httpOptions],
       exports: [service],
       controllers: [
         FigmaController,
+        FigmaCallbackController,
         ProjectFigmaController,
         PortalFigmaController,
         PortalProjectFigmaController,

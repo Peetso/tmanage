@@ -335,7 +335,7 @@ export class FigmaRestClient {
   }
 
   private async getJson(url: string, token: string): Promise<unknown> {
-    const response = await this.transport(url, { 'X-Figma-Token': token });
+    const response = await this.transport(url, figmaAuthHeaders(token));
     this.raiseFor(response, true);
     try {
       return await response.json();
@@ -365,4 +365,14 @@ export function snapshotScale(width: number, height: number): number {
   if (longest * 2 <= MAX_SNAPSHOT_SIDE) return 2;
   if (longest <= MAX_SNAPSHOT_SIDE) return 1;
   return Math.max(0.01, Math.floor((MAX_SNAPSHOT_SIDE / longest) * 100) / 100);
+}
+
+/**
+ * FIX4 item 6. A token from Figma's one-click Connect is stored as `oauth:<access token>` and sent
+ * as a bearer token; a pasted personal access token goes in `X-Figma-Token`.
+ */
+export function figmaAuthHeaders(token: string): Record<string, string> {
+  return token.startsWith('oauth:')
+    ? { Authorization: `Bearer ${token.slice('oauth:'.length)}` }
+    : { 'X-Figma-Token': token };
 }

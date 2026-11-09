@@ -1480,6 +1480,17 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/organizations/:orgSlug/figma/connection', reason: 'figma_links' },
   { method: 'POST', path: '/v1/organizations/:orgSlug/figma/connection', reason: 'figma_links' },
   { method: 'DELETE', path: '/v1/organizations/:orgSlug/figma/connection', reason: 'figma_links' },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/figma/connection/start',
+    reason: 'figma_links',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/figma/connection/complete',
+    reason: 'figma_links',
+  },
+  { method: 'GET', path: '/v1/integrations/figma/callback', reason: 'figma_links' },
   { method: 'GET', path: '/v1/organizations/:orgSlug/figma/links/:linkId', reason: 'figma_links' },
   {
     method: 'POST',

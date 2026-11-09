@@ -6,7 +6,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { ConnectAppsCards } from './ConnectAppsCards';
-import { ConnectorDirectory } from './ConnectorDirectory';
 import { FigmaConnectCard } from './FigmaConnectCard';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -26,10 +25,8 @@ import {
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useOrganizationName, useOrganizationRole } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import '../../styles/screens/connected-apps.css';
-
-/** The built-in connection cards, which a built-in connector's "Manage" scrolls to. */
-const CONNECT_CARDS_ID = 'connect-apps';
 
 export interface ConnectedAppsScreenProps {
   organizationSlug: string;
@@ -56,9 +53,11 @@ export function ConnectedAppsScreen({
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
+  const tOr = useTOr();
   const locale = useActiveLocale();
   const queryKey = ['connected-apps', organizationSlug];
-  // 54-01: the connector directory is owner/admin only (`org.manage`), as its routes are.
+  // FIX4 item 6: owners and admins connect apps on Integrations; a member, who cannot open it,
+  // keeps their own Figma connection here.
   const role = useOrganizationRole(organizationSlug);
   const managesCompany =
     role.known &&
@@ -93,17 +92,50 @@ export function ConnectedAppsScreen({
       description={t('ConnectedApps.description')}
     >
       <div className="tm-connected">
-        {/* R37: the one-click app cards (calendars, company storage) come first. */}
-        <div id={CONNECT_CARDS_ID}>
-          <ConnectAppsCards api={api} organizationSlug={organizationSlug} />
-        </div>
-        {/* 54-01 Connected apps v2: every registered connector with its install state. */}
+        {/* FIX4 item 6 (I5): Drive, OneDrive, the calendars, Figma, GitHub and Jira are listed
+            once, on Integrations. The providers still return here after sign-in, so the return is
+            finished here and this page links to the one list. */}
+        <ConnectAppsCards api={api} organizationSlug={organizationSlug} returnOnly />
         {managesCompany ? (
-          <ConnectorDirectory
-            api={api}
-            organizationSlug={organizationSlug}
-            builtInAnchor={CONNECT_CARDS_ID}
-          />
+          <section className="tm-connected__elsewhere" aria-labelledby="tm-connected-elsewhere">
+            <h2 className="tm-connected__caption" id="tm-connected-elsewhere">
+              {tOr('ConnectedApps.elsewhereTitle', 'Drive, calendars, Figma and other apps')}
+            </h2>
+            <p className="tm-connected__desc">
+              {tOr(
+                'ConnectedApps.elsewhereBody',
+                'They are all on the Integrations page, with one Connect button each.',
+              )}
+            </p>
+            <Link
+              className="tm-button tm-button--ink tm-button--compact"
+              href={`/${organizationSlug}/automations/apps`}
+            >
+              {tOr('ConnectedApps.openIntegrations', 'Open Integrations')}
+            </Link>
+          </section>
+        ) : role.known ? (
+          <>
+            <FigmaConnectCard
+              api={api}
+              organizationSlug={organizationSlug}
+              returnTo="connected-apps"
+            />
+            <section className="tm-connected__elsewhere">
+              <p className="tm-connected__desc">
+                {tOr(
+                  'ConnectedApps.memberCalendars',
+                  'Your own calendar connects from Calendar settings.',
+                )}
+              </p>
+              <Link
+                className="tm-button tm-button--outline tm-button--compact"
+                href={`/${organizationSlug}/settings/calendar-connections`}
+              >
+                {tOr('ConnectedApps.openCalendarSettings', 'Open Calendar settings')}
+              </Link>
+            </section>
+          </>
         ) : null}
         {view.isPending ? (
           <LoadingRegion label={t('ConnectedApps.loading')}>
@@ -144,10 +176,6 @@ export function ConnectedAppsScreen({
             )}
           </>
         )}
-        <h2 className="tm-connected__caption">{t('Figma.connect.section')}</h2>
-        <div id="tm-figma-connect">
-          <FigmaConnectCard api={api} organizationSlug={organizationSlug} />
-        </div>
       </div>
     </ControlCenterShell>
   );

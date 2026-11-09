@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, StateCapsule } from '@tmanage/ui';
@@ -27,7 +27,15 @@ import {
   getMicrosoftCalendarStatus,
   startCalendarConnect,
 } from '../../lib/api/calendar-connections';
-import { getFigmaConnection } from '../../lib/api/figma';
+import {
+  completeFigmaConnect,
+  getFigmaConnection,
+  readFigmaReturn,
+  startFigmaConnect,
+} from '../../lib/api/figma';
+import { ConnectorDirectory } from './ConnectorDirectory';
+import { FigmaConnectCard } from './FigmaConnectCard';
+import { useOrganizationRole } from '../../lib/use-organization-names';
 import { oneDriveStatusKey } from '../storage/OneDriveAttachPicker';
 import { localizedRelativeAgo } from './integration-directory-i18n';
 import { numberWord } from './integration-directory-view';
@@ -83,6 +91,16 @@ export function IntegrationDirectoryScreen({
   const tr = useTOr();
   const locale = useActiveLocale();
   const [filter, setFilter] = useState<DirectoryFilter>('all');
+  const queries = useQueryClient();
+  // FIX4 item 6: GitHub and Jira connect with a key (owners and admins, like their routes).
+  const role = useOrganizationRole(organizationSlug);
+  const managesCompany =
+    role.known &&
+    (['owner', 'org_admin', 'admin'].includes(role.role ?? '') ||
+      (role.capabilities ?? []).includes('org.manage'));
+  // Figma without one-click sign-in on this server: the key form, opened from its card.
+  const [figmaKeyOpen, setFigmaKeyOpen] = useState(false);
+  const [figmaOutcome, setFigmaOutcome] = useState<'success' | 'failure' | null>(null);
 
   // Same query keys as the Storage screen, Connected apps and the Control Center badge.
   const drive = useQuery({
@@ -156,7 +174,7 @@ export function IntegrationDirectoryScreen({
           },
         );
       case 'figma':
-        if (figma.isPending) return { kind: 'loading' };
+        if (figma.isPending || figmaComplete.isPending) return { kind: 'loading' };
         return figma.data?.status === 'connected'
           ? { kind: 'connected', account: figma.data.handle }
           : { kind: 'ready', broken: figma.data?.status === 'error' };
@@ -165,8 +183,30 @@ export function IntegrationDirectoryScreen({
     }
   };
 
+  // FIX4 item 6: Figma's return after one-click Connect (`#figma=complete&code=…&state=…`).
+  const figmaComplete = useMutation({
+    mutationFn: (body: { readonly code: string; readonly state: string }) =>
+      completeFigmaConnect(api, organizationSlug, body),
+    onSuccess: (view) => {
+      queries.setQueryData(['figma-connection', organizationSlug], view);
+      setFigmaOutcome('success');
+    },
+    onError: () => setFigmaOutcome('failure'),
+  });
+  const figmaHandled = useRef(false);
+  useEffect(() => {
+    if (figmaHandled.current) return;
+    const back = readFigmaReturn(globalThis.location?.hash ?? '');
+    if (!back) return;
+    figmaHandled.current = true;
+    globalThis.history?.replaceState(null, '', globalThis.location.pathname);
+    if (back.kind === 'complete') figmaComplete.mutate({ code: back.code, state: back.state });
+    else setFigmaOutcome('failure');
+  }, [figmaComplete]);
+
   const connect = useMutation({
     mutationFn: (id: IntegrationCardId): Promise<{ readonly url: string }> => {
+      if (id === 'figma') return startFigmaConnect(api, organizationSlug);
       // Storage started here comes back to Connected apps, which finishes the hand-over (R38);
       // the calendars always come back there.
       if (id === 'google-drive') {
@@ -244,6 +284,23 @@ export function IntegrationDirectoryScreen({
           ))}
         </fieldset>
 
+        {figmaOutcome === 'success' ? (
+          <InlineAlert tone="success" live>
+            {t('ConnectApps.success').replace('{app}', 'Figma')}
+          </InlineAlert>
+        ) : figmaOutcome === 'failure' ? (
+          <InlineAlert
+            tone="danger"
+            title={t('ConnectApps.failedTitle').replace('{app}', 'Figma')}
+            live
+          >
+            {tr(
+              `${KEY}.figmaFailed`,
+              'Figma did not finish the sign-in, so nothing was changed. Press Connect to try again.',
+            )}
+          </InlineAlert>
+        ) : null}
+
         {failedCard ? (
           notSetUp ? (
             <InlineAlert
@@ -283,11 +340,35 @@ export function IntegrationDirectoryScreen({
                 organizationSlug={organizationSlug}
                 connecting={connect.isPending && connect.variables === card.id}
                 busy={connect.isPending}
+                figmaOneClick={figma.data?.oneClick === true}
                 onConnect={() => connect.mutate(card.id)}
+                onFigmaKey={() => {
+                  setFigmaKeyOpen(true);
+                  requestAnimationFrame(() =>
+                    globalThis.document
+                      ?.getElementById('tm-figma-connect')
+                      ?.scrollIntoView?.({ block: 'start' }),
+                  );
+                }}
               />
             ))}
           </ul>
         </section>
+
+        <div id="tm-figma-connect">
+          {figmaKeyOpen ? (
+            <FigmaConnectCard
+              api={api}
+              organizationSlug={organizationSlug}
+              startOpen
+              returnTo="integrations"
+            />
+          ) : null}
+        </div>
+
+        {managesCompany ? (
+          <ConnectorDirectory api={api} organizationSlug={organizationSlug} />
+        ) : null}
 
         <section className="tm-aut-col" aria-labelledby="tm-int-more">
           <h2 id="tm-int-more" className="tm-aut-section-head__title">
@@ -352,14 +433,20 @@ function IntegrationCardItem({
   organizationSlug,
   connecting,
   busy,
+  figmaOneClick = false,
   onConnect,
+  onFigmaKey,
 }: {
   card: IntegrationCard;
   status: CardStatus;
   organizationSlug: string;
   connecting: boolean;
   busy: boolean;
+  /** FIX4 item 6: Figma's own sign-in is set up, so its card connects in one click. */
+  figmaOneClick?: boolean;
   onConnect: () => void;
+  /** FIX4 item 6: Figma without one-click sign-in opens the key form on this page. */
+  onFigmaKey?: () => void;
 }) {
   const t = useT();
   const tr = useTOr();
@@ -385,16 +472,36 @@ function IntegrationCardItem({
         )}
       </StateCapsule>
     );
-    action = href ? (
-      <Link
-        href={href}
-        className="tm-aut-btn"
-        aria-label={tr(`${KEY}.manageLabel`, 'Manage {app}').replace('{app}', name)}
+    action =
+      card.id === 'figma' ? (
+        <button
+          type="button"
+          className="tm-aut-btn"
+          aria-label={tr(`${KEY}.manageLabel`, 'Manage {app}').replace('{app}', name)}
+          onClick={onFigmaKey}
+        >
+          {t('IntegrationDirectoryScreen.manage')}
+        </button>
+      ) : href ? (
+        <Link
+          href={href}
+          className="tm-aut-btn"
+          aria-label={tr(`${KEY}.manageLabel`, 'Manage {app}').replace('{app}', name)}
+        >
+          {t('IntegrationDirectoryScreen.manage')}
+        </Link>
+      ) : null;
+  } else if (card.id === 'figma' && !figmaOneClick && status.kind !== 'loading') {
+    action = (
+      <Button
+        tone="lime"
+        aria-label={t('ConnectApps.connectLabel').replace('{app}', name)}
+        onClick={onFigmaKey}
       >
-        {t('IntegrationDirectoryScreen.manage')}
-      </Link>
-    ) : null;
-  } else if (card.flow === 'page') {
+        {t('ConnectApps.connect')}
+      </Button>
+    );
+  } else if (card.flow === 'page' && card.id !== 'figma') {
     action = href ? (
       <Link
         href={href}

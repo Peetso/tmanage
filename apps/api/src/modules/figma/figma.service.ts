@@ -14,6 +14,18 @@ import type { AuditService } from '../audit/audit.service.js';
 import type { SeedCipher } from '../identity/seed-cipher.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { FigmaAccess, clientMayRead } from './figma-access.js';
+import {
+  FIGMA_CALLBACK_PATH,
+  FIGMA_OAUTH_TOKEN_PREFIX,
+  FigmaOAuthRefusedError,
+  exchangeFigmaCode,
+  figmaAuthorizeUrl,
+  figmaStateMatches,
+  newFigmaFlow,
+  type FigmaFlow,
+  type FigmaOAuthConfig,
+  type FigmaReturnTo,
+} from './figma-oauth.js';
 import { ReviewThreadsRepository } from '../files/review-threads.repository.js';
 import {
   FIGMA_ATTACH_TARGETS,
@@ -100,6 +112,8 @@ export interface FigmaConnectionView {
   readonly handle: string | null;
   /** The token's last four characters ("…ab12"), or null. */
   readonly tokenHint: string | null;
+  /** FIX4 item 6: one-click Connect (Figma's own sign-in) is set up on this server. */
+  readonly oneClick: boolean;
 }
 
 export interface FigmaDetectedFrameView {
@@ -208,6 +222,12 @@ export interface FigmaServiceDeps {
   readonly projects?: Pick<ProjectsRepository, 'findById'>;
   readonly threads?: Pick<ReviewThreadsRepository, 'countOpenBySubjects'>;
   readonly now?: () => Date;
+  /** FIX4 item 6: the server's Figma app for one-click Connect, or null (token path only). */
+  readonly oauth?: FigmaOAuthConfig | null;
+  /** Where Figma redirects back (`{apiPublicUrl}/v1/integrations/figma/callback`). */
+  readonly apiPublicUrl?: string;
+  /** Test seam for the code exchange. */
+  readonly exchange?: typeof exchangeFigmaCode;
 }
 
 function invalid(field: string, message: string): ApiError {
@@ -302,11 +322,12 @@ export class FigmaService {
     const row = await this.deps.database.read(context, (runner) =>
       this.repository.findConnection(runner, context, context.membershipId),
     );
-    if (!row) return { status: 'not_connected', handle: null, tokenHint: null };
+    if (!row) return { status: 'not_connected', handle: null, tokenHint: null, ...this.oneClick() };
     return {
       status: row.status === 'error' ? 'error' : 'connected',
       handle: row.figmaUserHandle,
       tokenHint: row.tokenHint,
+      ...this.oneClick(),
     };
   }
 
@@ -348,7 +369,128 @@ export class FigmaService {
         },
       );
     });
-    return { status: 'connected', handle, tokenHint: token.slice(-4) };
+    return { status: 'connected', handle, tokenHint: token.slice(-4), ...this.oneClick() };
+  }
+
+  private oneClick(): { readonly oneClick: boolean } {
+    return { oneClick: Boolean(this.deps.oauth && this.deps.apiPublicUrl) };
+  }
+
+  private redirectUri(): string {
+    return `${(this.deps.apiPublicUrl ?? '').replace(/\/+$/, '')}${FIGMA_CALLBACK_PATH}`;
+  }
+
+  /**
+   * FIX4 item 6. Start one-click Connect: Figma's consent address and the flow the controller
+   * seals into the cookie. 409 `not_configured` when the server has no Figma app.
+   */
+  startConnect(
+    context: TenantContext,
+    principal: Principal,
+    organizationSlug: string,
+    returnTo: FigmaReturnTo = 'integrations',
+  ): { readonly url: string; readonly flow: FigmaFlow } {
+    this.requireStaff(principal);
+    const config = this.deps.oauth;
+    if (!config || !this.deps.apiPublicUrl) {
+      throw new ApiError(
+        409,
+        'conflict',
+        'Figma sign-in is not set up',
+        undefined,
+        'not_configured',
+      );
+    }
+    const flow = newFigmaFlow({
+      organizationId: context.organizationId,
+      organizationSlug,
+      membershipId: context.membershipId,
+      returnTo,
+    });
+    return {
+      url: figmaAuthorizeUrl({ config, redirectUri: this.redirectUri(), state: flow.state }),
+      flow,
+    };
+  }
+
+  /**
+   * FIX4 item 6. Finish one-click Connect under the member's own session: the cookie's flow must
+   * be this person's in this workspace and its state must match; then the code is exchanged, Figma
+   * names the account, and the token is stored encrypted like a pasted one.
+   */
+  async completeConnect(
+    context: TenantContext,
+    principal: Principal,
+    flow: FigmaFlow | undefined,
+    input: { readonly code?: unknown; readonly state?: unknown },
+  ): Promise<FigmaConnectionView> {
+    this.requireStaff(principal);
+    const config = this.deps.oauth;
+    if (!config || !this.deps.apiPublicUrl) {
+      throw new ApiError(
+        409,
+        'conflict',
+        'Figma sign-in is not set up',
+        undefined,
+        'not_configured',
+      );
+    }
+    const code = typeof input.code === 'string' ? input.code : '';
+    if (
+      !flow ||
+      flow.organizationId !== context.organizationId ||
+      flow.membershipId !== context.membershipId ||
+      !figmaStateMatches(flow, input.state) ||
+      code === '' ||
+      code.length > 4096
+    ) {
+      throw invalid('state', 'the Figma sign-in expired; press Connect again');
+    }
+    let accessToken: string;
+    try {
+      ({ accessToken } = await (this.deps.exchange ?? exchangeFigmaCode)({
+        config,
+        redirectUri: this.redirectUri(),
+        code,
+      }));
+    } catch (error) {
+      if (error instanceof FigmaOAuthRefusedError) {
+        throw invalid('code', 'Figma did not accept the sign-in; press Connect again');
+      }
+      throw conflict('unreachable');
+    }
+    const stored = `${FIGMA_OAUTH_TOKEN_PREFIX}${accessToken}`;
+    let handle: string | null;
+    try {
+      ({ handle } = await this.deps.rest.me(stored));
+    } catch (error) {
+      if (error instanceof FigmaAuthError) {
+        throw invalid('code', 'Figma did not accept the sign-in; press Connect again');
+      }
+      throw this.figmaFailure(error);
+    }
+    const tokenCiphertext = this.deps.cipher.encrypt(
+      stored,
+      figmaTokenBinding(context.organizationId, context.membershipId),
+    );
+    const tokenHint = accessToken.slice(-4);
+    await this.deps.database.transaction(context, async (tx) => {
+      await this.repository.saveConnection(tx, context, {
+        membershipId: context.membershipId,
+        tokenCiphertext,
+        tokenHint,
+        handle,
+      });
+      await this.auditAllowed(
+        tx,
+        context,
+        principal,
+        'figma.connection_changed',
+        context.membershipId,
+        { connected: true },
+      );
+    });
+    return { status: 'connected', handle, tokenHint, ...this.oneClick() };
   }
 
   async disconnect(context: TenantContext, principal: Principal): Promise<FigmaConnectionView> {
@@ -366,7 +508,7 @@ export class FigmaService {
         );
       }
     });
-    return { status: 'not_connected', handle: null, tokenHint: null };
+    return { status: 'not_connected', handle: null, tokenHint: null, ...this.oneClick() };
   }
 
   // ── Attach ───────────────────────────────────────────────────────────────

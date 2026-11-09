@@ -152,9 +152,16 @@ function reasonFrom(hash: string): string | null {
 export function ConnectAppsCards({
   api,
   organizationSlug,
+  returnOnly = false,
 }: {
   api: ApiClient;
   organizationSlug: string;
+  /**
+   * FIX4 item 6: the cards live on Integrations only. Connected apps still receives the
+   * providers' return (their callbacks point there), so it mounts this to finish the connection
+   * and say how it went, without listing the apps a second time.
+   */
+  returnOnly?: boolean;
 }) {
   const t = useT();
   const queries = useQueryClient();
@@ -324,6 +331,31 @@ export function ConnectAppsCards({
   const outcomeApp = outcome ? APPS.find((app) => app.id === outcome.app) : undefined;
   const outcomeName = outcomeApp ? t(outcomeApp.nameKey) : '';
   const guideProblem = guide ? blocked[guide] : undefined;
+
+  if (returnOnly) {
+    if (!outcome && !complete.isPending) return null;
+    return (
+      <section className="tm-connect-apps" aria-live="polite">
+        {complete.isPending ? (
+          <InlineAlert tone="neutral">{t('ConnectApps.connecting')}</InlineAlert>
+        ) : null}
+        {outcome?.kind === 'success' ? (
+          <InlineAlert tone="success" live>
+            {fillTemplate(t('ConnectApps.success'), { app: outcomeName })}
+          </InlineAlert>
+        ) : null}
+        {outcome?.kind === 'failure' && outcomeApp ? (
+          <InlineAlert
+            tone="danger"
+            title={fillTemplate(t('ConnectApps.failedTitle'), { app: outcomeName })}
+            live
+          >
+            {fillTemplate(t(outcome.why.userKey), { provider: providerName(outcomeApp.provider) })}
+          </InlineAlert>
+        ) : null}
+      </section>
+    );
+  }
 
   return (
     <section className="tm-connect-apps" aria-labelledby="tm-connect-apps-title">

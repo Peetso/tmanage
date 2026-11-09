@@ -1,20 +1,24 @@
 'use client';
 
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, StateCapsule } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
 import { ApiRequestError } from '../../lib/api/errors';
 import {
+  completeFigmaConnect,
   connectFigma,
   disconnectFigma,
   getFigmaConnection,
+  readFigmaReturn,
+  startFigmaConnect,
   type FigmaConnection,
 } from '../../lib/api/figma';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import '../viewer/figma-stage.css';
 import { BrandLogo } from '../brand/BrandLogo';
+import '../../styles/screens/connected-apps.css';
 
 /**
  * **V-52 — Connect Figma.** Each person connects their own Figma account with a personal access
@@ -25,15 +29,24 @@ import { BrandLogo } from '../brand/BrandLogo';
 export function FigmaConnectCard({
   api,
   organizationSlug,
+  startOpen = false,
+  returnTo,
 }: {
   readonly api: ApiClient;
   readonly organizationSlug: string;
+  /** FIX4 item 6: Integrations' Figma card opens the key form at once. */
+  readonly startOpen?: boolean;
+  /**
+   * FIX4 item 6: where one-click Connect comes back to. Connected apps (members) handles the
+   * return here; Integrations handles it on its own screen.
+   */
+  readonly returnTo?: 'integrations' | 'connected-apps';
 }) {
   const t = useT();
   const tOr = useTOr();
   const id = useId();
   // FIX3 item 9 (live I2): the token is an advanced path, closed until Connect opens it.
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(startOpen);
   const tokenRef = useRef<HTMLDivElement | null>(null);
   const queryClient = useQueryClient();
   const queryKey = ['figma-connection', organizationSlug];
@@ -51,6 +64,27 @@ export function FigmaConnectCard({
       save(view);
     },
   });
+  // FIX4 item 6: one click — Figma's own sign-in when the server has it.
+  const oneClick = useMutation({
+    mutationFn: () => startFigmaConnect(api, organizationSlug, returnTo ?? 'connected-apps'),
+    onSuccess: ({ url }) => globalThis.location.assign(url),
+  });
+  const complete = useMutation({
+    mutationFn: (body: { readonly code: string; readonly state: string }) =>
+      completeFigmaConnect(api, organizationSlug, body),
+    onSuccess: save,
+  });
+  const [returnFailed, setReturnFailed] = useState(false);
+  const handled = useRef(false);
+  useEffect(() => {
+    if (handled.current || returnTo === 'integrations') return;
+    const back = readFigmaReturn(globalThis.location?.hash ?? '');
+    if (!back) return;
+    handled.current = true;
+    globalThis.history?.replaceState(null, '', globalThis.location.pathname);
+    if (back.kind === 'complete') complete.mutate({ code: back.code, state: back.state });
+    else setReturnFailed(true);
+  }, [complete, returnTo]);
   const disconnect = useMutation({
     mutationFn: () => disconnectFigma(api, organizationSlug),
     onSuccess: save,
@@ -76,7 +110,7 @@ export function FigmaConnectCard({
                 <StateCapsule state="blocked">{t('Figma.connect.needsAttention')}</StateCapsule>
               ) : null}
             </div>
-            <p className="tm-connected__meta">
+            <p className={connected ? 'tm-connected__meta' : 'tm-connected__desc'}>
               {connected
                 ? t('Figma.connect.connectedAs')
                     .replace('{handle}', view.handle ?? '')
@@ -94,6 +128,15 @@ export function FigmaConnectCard({
             onClick={() => disconnect.mutate()}
           >
             {t('Figma.connect.disconnect')}
+          </Button>
+        ) : view?.oneClick ? (
+          <Button
+            tone="lime"
+            loading={oneClick.isPending || complete.isPending}
+            loadingLabel={t('Figma.connect.connecting')}
+            onClick={() => oneClick.mutate()}
+          >
+            {tOr('Figma.connect.connectButton', 'Connect')}
           </Button>
         ) : view ? (
           <Button
@@ -118,13 +161,21 @@ export function FigmaConnectCard({
       {view?.status === 'error' ? (
         <InlineAlert tone="warning">{t('Figma.connect.errorBody')}</InlineAlert>
       ) : null}
+      {returnFailed || complete.isError || oneClick.isError ? (
+        <InlineAlert tone="danger" live>
+          {tOr(
+            'IntegrationDirectoryScreen.figmaFailed',
+            'Figma did not finish the sign-in, so nothing was changed. Press Connect to try again.',
+          )}
+        </InlineAlert>
+      ) : null}
       {disconnect.isError ? (
         <InlineAlert tone="danger" live>
           {t('Figma.connect.saveError')}
         </InlineAlert>
       ) : null}
 
-      {view && !connected ? (
+      {view && !connected && !view.oneClick ? (
         <details
           id={`${id}-advanced`}
           className="tm-figma-connect__advanced"
