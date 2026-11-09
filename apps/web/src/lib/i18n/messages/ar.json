@@ -4869,6 +4869,7 @@
   "HomeRecentItemsView.emptyBody": "المهام والمشاريع والمستندات والاجتماعات التي تفتحها تظهر هنا، الأحدث أولًا، لترجع إليها من أي شاشة.",
   "HomeRecentItemsView.listLabel": "فتحتها مؤخرًا",
   "HomeRecentItemsView.viewedPrefix": "فُتح في",
+  "HomeRecentItemsView.viewedPrefixWork": "فُتحت في",
   "HomeRecentItemsView.workLabel": "مهمة فتحتها مؤخرًا",
   "HomeRecentItemsView.projectLabel": "مشروع فتحته مؤخرًا",
   "HomeRecentItemsView.documentLabel": "مستند فتحته مؤخرًا",

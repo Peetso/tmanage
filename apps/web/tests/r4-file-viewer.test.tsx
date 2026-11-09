@@ -81,6 +81,7 @@ function manifest(overrides: Record<string, unknown> = {}) {
       canUploadVersion: true,
       canDownload: true,
       canRetry: true,
+      canDelete: false,
     },
     ...overrides,
   };

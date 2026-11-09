@@ -81,6 +81,7 @@ function manifest(door: 'portal' | 'studio') {
       canUploadVersion: door === 'studio',
       canDownload: true,
       canRetry: door === 'studio',
+      canDelete: false,
     },
   };
 }

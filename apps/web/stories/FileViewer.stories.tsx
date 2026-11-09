@@ -89,6 +89,7 @@ const MANIFEST = {
     canUploadVersion: true,
     canDownload: true,
     canRetry: true,
+    canDelete: false,
   },
 } as FilePreviewManifest;
 

@@ -37,6 +37,8 @@ export interface ProjectFile {
   readonly updatedAt: string;
   /** FIX4 item 1b. `not_scanned`: usable and labelled, under the owner's scan policy. */
   readonly scanStatus: 'clean' | 'not_scanned';
+  /** FIX5 item 5. Whether the caller may delete this file (uploader, project manager, owner/admin). */
+  readonly canDelete: boolean;
 }
 
 /** FIX3 item 11. A project's ready files, newest change first (internal members only). */

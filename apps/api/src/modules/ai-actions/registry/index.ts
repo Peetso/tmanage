@@ -2082,6 +2082,23 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'write',
     scope: 'write',
   },
+  // FIX5 item 5 (B-N5): delete an uploaded file (soft, with the restore window) and undo it.
+  {
+    id: 'files.delete',
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/files/:fileId',
+    capability: 'file.upload',
+    risk: 'confirm',
+    scope: 'manage',
+  },
+  {
+    id: 'files.restore',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/files/:fileId/restore',
+    capability: 'file.upload',
+    risk: 'confirm',
+    scope: 'manage',
+  },
   {
     id: 'files.comments.delete',
     method: 'DELETE',

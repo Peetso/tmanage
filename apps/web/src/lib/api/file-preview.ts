@@ -74,6 +74,8 @@ export interface PreviewCapabilities {
   readonly canUploadVersion: boolean;
   readonly canDownload: boolean;
   readonly canRetry: boolean;
+  /** FIX5 item 5. The uploader, a project manager or the company owner/admin may delete the file. */
+  readonly canDelete: boolean;
 }
 
 export interface PreviewDecisionContext {

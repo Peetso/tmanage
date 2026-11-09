@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import '../../styles/screens/docs.css';
@@ -16,6 +16,7 @@ import { useDescribeApiError } from '../../lib/api/describe-error';
 import { formatInstant } from '../../lib/work-item-presentation';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useT } from '../../lib/i18n/use-t';
+import { useDeleteFile } from '../viewer/DeleteFileDialog';
 
 export interface FilesHubScreenProps {
   readonly organizationSlug: string;
@@ -45,6 +46,27 @@ export function FilesHubScreen({
   const tOr = useTOr();
   const describeError = useDescribeApiError();
   const [projectId, setProjectId] = useState<string>(initialProjectId ?? '');
+  const queryClient = useQueryClient();
+  // FIX5 item 5 (B-N5): a deleted file leaves the list at once; Undo (restore) brings it back.
+  const [removed, setRemoved] = useState<ReadonlySet<string>>(() => new Set());
+  const refreshFiles = () =>
+    void queryClient.invalidateQueries({ queryKey: ['project-files', organizationSlug] });
+  const fileDelete = useDeleteFile({
+    api,
+    organizationSlug,
+    onDeleted: (fileId) => {
+      setRemoved((current) => new Set(current).add(fileId));
+      refreshFiles();
+    },
+    onRestored: (fileId) => {
+      setRemoved((current) => {
+        const next = new Set(current);
+        next.delete(fileId);
+        return next;
+      });
+      refreshFiles();
+    },
+  });
 
   const projects = useQuery({
     queryKey: ['projects', organizationSlug],
@@ -70,7 +92,8 @@ export function FilesHubScreen({
   });
 
   const projectName = (id: string) => available.find((project) => project.id === id)?.name ?? '';
-  const rows = files.data ?? [];
+  const rows = (files.data ?? []).filter((file) => !removed.has(file.id));
+  const anyDeletable = rows.some((file) => file.canDelete);
 
   return (
     <AppShell
@@ -157,6 +180,13 @@ export function FilesHubScreen({
                   <th scope="col" className="tm-dx-table__end">
                     {tOr('FilesHub.thChanged', 'Changed')}
                   </th>
+                  {anyDeletable ? (
+                    <th scope="col" className="tm-dx-table__end">
+                      <span className="tm-visually-hidden">
+                        {tOr('FilesHub.thActions', 'Actions')}
+                      </span>
+                    </th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody>
@@ -188,12 +218,27 @@ export function FilesHubScreen({
                         {formatInstant(file.updatedAt)}
                       </time>
                     </td>
+                    {anyDeletable ? (
+                      <td className="tm-dx-table__end">
+                        {file.canDelete ? (
+                          <button
+                            type="button"
+                            className="tm-button tm-button--text tm-button--compact"
+                            aria-label={t('FileDelete.actionAria').split('{name}').join(file.name)}
+                            onClick={() => fileDelete.ask({ id: file.id, name: file.name })}
+                          >
+                            {t('FileDelete.action')}
+                          </button>
+                        ) : null}
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         ) : null}
+        {fileDelete.dialog}
       </div>
     </AppShell>
   );

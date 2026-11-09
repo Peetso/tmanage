@@ -41,6 +41,7 @@ import { useT } from '../../lib/i18n/use-t';
 import { AudioStage } from './AudioStage';
 import { CompareStage } from './CompareStage';
 import { DecisionRail } from './DecisionRail';
+import { useDeleteFile } from './DeleteFileDialog';
 import type { DrawSettings } from './DrawLayer';
 import { DrawToolbar } from './DrawToolbar';
 import { DesktopFileStage, TextFileStage } from './FileTextStages';
@@ -356,6 +357,7 @@ export function FileViewer({
               canDecide: false,
               canUploadVersion: false,
               canRetry: false,
+              canDelete: false,
             },
           }
         : manifestData,
@@ -568,6 +570,22 @@ export function FileViewer({
       : `/${organizationSlug}`);
   const portalLook = door === 'portal';
 
+  // FIX5 item 5 (B-N5): Delete, for the uploader, a project manager or the owner/admin. The file
+  // is gone for everyone at once, so the viewer goes back to Files; the toast's Undo restores it.
+  const filesHref = `/${organizationSlug}/files`;
+  const fileDelete = useDeleteFile({
+    api,
+    organizationSlug,
+    onDeleted: () => {
+      void queryClient.invalidateQueries({ queryKey: ['project-files', organizationSlug] });
+      (onOpenFile ?? ((href: string) => window.location.assign(href)))(filesHref);
+    },
+    onRestored: () => {
+      void queryClient.invalidateQueries({ queryKey: ['project-files', organizationSlug] });
+    },
+  });
+  const canDelete = !portalLook && manifest?.capabilities.canDelete === true;
+
   const currentVersion = manifest?.versions.versions.find(
     (version) => version.fileAssetId === manifest.file.id,
   );
@@ -598,6 +616,16 @@ export function FileViewer({
             {t('Viewer.download')}
           </a>
         ) : null}
+        {canDelete && manifest ? (
+          <button
+            type="button"
+            className="tm-button tm-button--outline tm-button--default"
+            onClick={() => fileDelete.ask({ id: manifest.file.id, name: manifest.file.name })}
+          >
+            {t('FileDelete.action')}
+          </button>
+        ) : null}
+        {fileDelete.dialog}
       </span>
     ),
     topBar: (

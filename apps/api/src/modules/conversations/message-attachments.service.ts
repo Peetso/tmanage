@@ -427,7 +427,8 @@ export class MessageAttachmentsService {
     runner: TenantQueryRunner,
   ): Promise<void> {
     const file = await this.files.findById(runner, context, fileId);
-    if (!file || !(await this.usableOn(runner, context, file))) {
+    // FIX5 item 5: a deleted file cannot be attached again (it answers like an unknown id).
+    if (!file || file.deletedAt != null || !(await this.usableOn(runner, context, file))) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
     if (file.projectId !== conversation.projectId) {

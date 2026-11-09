@@ -53,6 +53,28 @@ export const filesDetails: readonly AiActionDetail[] = [
     notifies: true,
     examples: [{ summary: 'Comment', args: { fileId: 'file_7', body: 'Signed copy attached' } }],
   }),
+  // FIX5 item 5 (B-N5): delete an uploaded file, and undo that within the restore window.
+  det({
+    id: 'files.delete',
+    title: 'Delete a file',
+    description:
+      'Delete an uploaded file. It leaves Files and the messages and work items it was attached ' +
+      'to, and can be restored for a limited time. Only its uploader, a project manager or a ' +
+      'company owner or admin may. Confirm-class: needs your approval before it runs.',
+    input: pathOnly('fileId'),
+    redact: 'standard',
+    examples: [{ summary: 'Delete', args: { fileId: 'file_7' } }],
+  }),
+  det({
+    id: 'files.restore',
+    title: 'Restore a deleted file',
+    description:
+      'Bring back a file deleted within the restore window. Confirm-class: needs your approval ' +
+      'before it runs.',
+    input: pathOnly('fileId'),
+    redact: 'standard',
+    examples: [{ summary: 'Restore', args: { fileId: 'file_7' } }],
+  }),
   det({
     id: 'files.comments.delete',
     title: 'Delete a file comment',

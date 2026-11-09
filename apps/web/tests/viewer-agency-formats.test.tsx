@@ -196,6 +196,7 @@ function manifest(overrides: Record<string, unknown>): FilePreviewManifest {
       canUploadVersion: true,
       canDownload: true,
       canRetry: true,
+      canDelete: false,
     },
     ...overrides,
   } as FilePreviewManifest;

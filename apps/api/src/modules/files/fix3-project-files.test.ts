@@ -105,6 +105,8 @@ describe('project files list (FIX3 item 11)', () => {
         versionNo: 2,
         updatedAt: '2026-11-09T10:00:00.000Z',
         scanStatus: 'clean',
+        // FIX5 item 5: a deliverable's file is never deleted from Files.
+        canDelete: false,
       },
     ]);
     expect(limits).toEqual([PROJECT_FILES_LIMIT]);

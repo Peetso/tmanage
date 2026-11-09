@@ -96,6 +96,8 @@ import { FileTagsController } from './file-tags.controller.js';
 import { FileFoldersRepository } from './folders.repository.js';
 import { FileFoldersService } from './folders.service.js';
 import { FileFoldersController } from './folders.controller.js';
+import { FILE_DELETE_SERVICE, FileDeleteService } from './file-delete.service.js';
+import { FileDeleteController } from './file-delete.controller.js';
 import { FileCommentsRepository } from './comments.repository.js';
 import { FileCommentsService } from './comments.service.js';
 import { FileCommentsController } from './comments.controller.js';
@@ -581,11 +583,20 @@ export class FilesModule {
         new AttachmentVersionsService(database, assets, new ProjectsRepository(), audit),
     };
 
+    // FIX5 item 5 (B-N5). Delete an uploaded file (soft, with the restore window) and undo it.
+    const fileDelete: Provider = {
+      provide: FILE_DELETE_SERVICE,
+      inject: [TENANT_DATABASE, FILE_ASSETS_REPOSITORY, AUDIT_SERVICE],
+      useFactory: (database: TenantDatabase, assets: FileAssetsRepository, audit: AuditService) =>
+        new FileDeleteService(database, assets, new ProjectsRepository(), audit),
+    };
+
     return {
       module: FilesModule,
       providers: [
         ...repositories,
         service,
+        fileDelete,
         fileTags,
         fileFolders,
         fileComments,
@@ -652,6 +663,7 @@ export class FilesModule {
         FileFoldersController,
         FileCommentsController,
         AttachmentVersionsController,
+        FileDeleteController,
         // 56-06 (R44 L2) — the owner's blocked-files queue: list and delete now.
         BlockedFilesController,
       ],

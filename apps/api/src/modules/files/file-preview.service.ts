@@ -11,6 +11,7 @@ import { AttachmentVersionsRepository } from './attachment-versions.repository.j
 import type { FileAssetsRepository } from './file-assets.repository.js';
 import { FileClientRelation } from './file-client-relation.js';
 import { assertDoor, destroy, mayServeOriginalInline } from './file-download.service.js';
+import { mayDeleteFile } from './file-delete.service.js';
 import type { FileAccess, FileDownloadService, ResolvedFile } from './file-download.service.js';
 import { FilePreviewsRepository } from './file-previews.repository.js';
 import type { FilePreview, PreviewKind } from './file-previews.repository.js';
@@ -125,6 +126,8 @@ export interface PreviewCapabilitiesView {
   readonly canUploadVersion: boolean;
   readonly canDownload: boolean;
   readonly canRetry: boolean;
+  /** FIX5 item 5. Studio only: the uploader, a project manager or the owner/admin may delete. */
+  readonly canDelete: boolean;
 }
 
 /**
@@ -566,6 +569,7 @@ export class FilePreviewService {
       canUploadVersion,
       canDownload: resolved.access.state === 'servable',
       canRetry: canUploadVersion && rows.some((row) => row.status === 'failed'),
+      canDelete: mayDeleteFile(principal, resolved.asset, !active),
     };
   }
 

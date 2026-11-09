@@ -201,7 +201,8 @@ export class WorkItemFilesService {
     fileAssetId: string,
   ): Promise<FileAssetRow> {
     const file = await this.fileAssets.findById(runner, context, fileAssetId);
-    if (!file || file.projectId !== parent.projectId) {
+    // FIX5 item 5: a deleted file cannot be attached again (it answers like an unknown id).
+    if (!file || file.deletedAt != null || file.projectId !== parent.projectId) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
     return file;

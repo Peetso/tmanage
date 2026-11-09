@@ -1,4 +1,18 @@
-import { and, asc, desc, eq, exists, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  exists,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  or,
+  sql,
+} from 'drizzle-orm';
+import { RESTORE_VALUES, softDeleteValues } from '../../common/database/content-retention.js';
 import { uploadStateMachine, uuidv7 } from '@tmanage/domain';
 import type { Audience, UploadState } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
@@ -125,6 +139,57 @@ export class FileAssetsRepository {
     const found = await this.findById(runner, context, fileAssetId);
     if (!found) throw new FileAssetNotFoundError(fileAssetId);
     return found;
+  }
+
+  /**
+   * FIX5 item 5 (B-N5). Delete a file: the 0245 soft delete with the platform's restore window
+   * (`purge_after`). The row stays readable by id, so a restore can find it; every list and the
+   * download gate leave it out. `updated_at` is kept, so a restored file sorts where it did.
+   * Idempotent: false (and no write) when the file was already deleted.
+   */
+  async softDelete(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    fileAssetId: string,
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(fileAssets)
+      .set({
+        ...(await softDeleteValues(runner, context.userId, 'Deleted from Files')),
+        updatedAt: sql`updated_at`,
+      })
+      .where(
+        and(
+          eq(fileAssets.organizationId, context.organizationId),
+          eq(fileAssets.id, fileAssetId),
+          isNull(fileAssets.deletedAt),
+        ),
+      );
+    return result[0].affectedRows > 0;
+  }
+
+  /**
+   * FIX5 item 5. Undo a delete inside the restore window: every soft-delete column back to NULL.
+   * False when the file is not deleted, its window has passed, or its bytes were already purged.
+   */
+  async restore(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    fileAssetId: string,
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(fileAssets)
+      .set({ ...RESTORE_VALUES, updatedAt: sql`updated_at` })
+      .where(
+        and(
+          eq(fileAssets.organizationId, context.organizationId),
+          eq(fileAssets.id, fileAssetId),
+          isNotNull(fileAssets.deletedAt),
+          isNull(fileAssets.purgedAt),
+          or(isNull(fileAssets.purgeAfter), gt(fileAssets.purgeAfter, sql`current_timestamp(3)`)),
+        ),
+      );
+    return result[0].affectedRows > 0;
   }
 
   /** At the machine's initial state, explicitly — the column has no DEFAULT to invent one. */

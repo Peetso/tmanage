@@ -280,6 +280,9 @@ export class FileDownloadService {
     );
     if (!found) throw await this.refuse(context, 'file_not_found', action);
     const { asset, version } = found;
+    // FIX5 item 5 (B-N5): a deleted file (in its restore window) serves nothing — no bytes, no
+    // preview, no review — and answers exactly like an unknown id.
+    if (asset.deletedAt != null) throw await this.refuse(context, 'file_not_found', action);
 
     if (!mayDownloadFor(principal.kind, asset.purpose)) {
       throw await this.refuse(context, 'purpose_not_downloadable', action);

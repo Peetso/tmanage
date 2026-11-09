@@ -244,6 +244,8 @@ export class MessageAttachmentsRepository {
         and(
           eq(fileAssets.organizationId, messageAttachments.organizationId),
           eq(fileAssets.id, messageAttachments.fileAssetId),
+          // FIX5 item 5 (B-N5): a deleted file leaves the message; the message itself stays.
+          isNull(fileAssets.deletedAt),
         ),
       )
       .leftJoin(

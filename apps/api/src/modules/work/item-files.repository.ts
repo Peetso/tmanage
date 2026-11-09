@@ -106,6 +106,8 @@ export class WorkItemFilesRepository {
           eq(workItemFiles.workItemId, workItemId),
           // PA-03 (0245): a detached (soft-deleted) link is not listed.
           isNull(workItemFiles.deletedAt),
+          // FIX5 item 5 (B-N5): nor a link whose file was deleted.
+          isNull(fileAssets.deletedAt),
           // F50: only files of the work item's current project.
           ...(projectId === undefined ? [] : [eq(fileAssets.projectId, projectId)]),
         ),
