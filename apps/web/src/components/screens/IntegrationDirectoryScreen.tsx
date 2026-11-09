@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { Button, Field, InlineAlert, StateCapsule } from '@tmanage/ui';
 import { SettingsShell } from '../admin/SettingsShell';
+import { BrandLogo, BRAND_NAMES } from '../brand/BrandLogo';
 import '../../styles/screens/automations.css';
+import '../../styles/screens/integration-cards.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   connectIntegrationApp,
@@ -13,62 +15,76 @@ import {
   type IntegrationAppView,
 } from '../../lib/api/integration-directory';
 import type { ApiClient } from '../../lib/api/client';
+import { ApiRequestError } from '../../lib/api/errors';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
-import { getStorageStatus } from '../../lib/api/google-drive';
-import { getOneDriveStatus } from '../../lib/api/onedrive';
-import { oneDriveStatusKey } from '../storage/OneDriveAttachPicker';
-import { appState } from './integration-directory-view';
+import { activeIsEnglish } from '../../lib/i18n/compact-time';
+import { getStorageStatus, startDriveConnect } from '../../lib/api/google-drive';
+import { getOneDriveStatus, startOneDriveConnect } from '../../lib/api/onedrive';
 import {
-  localizedDescribeApp,
-  localizedDescribeAppLine,
-  localizedDirectoryTitle,
-  localizedRelativeAgo,
-} from './integration-directory-i18n';
+  getGoogleCalendarStatus,
+  getMicrosoftCalendarStatus,
+  startCalendarConnect,
+} from '../../lib/api/calendar-connections';
+import { getFigmaConnection } from '../../lib/api/figma';
+import { oneDriveStatusKey } from '../storage/OneDriveAttachPicker';
+import { localizedRelativeAgo } from './integration-directory-i18n';
+import { numberWord } from './integration-directory-view';
+import {
+  INTEGRATION_CARDS,
+  connectedTitle,
+  type IntegrationCard,
+  type IntegrationCardId,
+} from './integration-directory-cards';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface IntegrationDirectoryScreenProps {
   organizationSlug: string;
   organizationName: string;
   client?: ApiClient;
+  /** Where "Connect" sends the browser (the provider's consent screen). Tests pass their own. */
+  navigate?: (url: string) => void;
 }
 
+/** What a card can offer right now, reduced from its provider's status read. */
+type CardStatus =
+  | { readonly kind: 'loading' }
+  | { readonly kind: 'unavailable' }
+  | { readonly kind: 'ready'; readonly broken: boolean }
+  | { readonly kind: 'connected'; readonly account: string | null };
+
+type DirectoryFilter = 'all' | 'connected' | 'available';
+
+const KEY = 'IntegrationDirectoryScreen';
+
 /**
- * **Automations app directory (module 17, x165).**
+ * **Control center · Integrations** (`/{org}/automations/apps`, feedback 2026-11-09 item 6).
  *
- * `38-COMPLETE-PRODUCT-SCOPE-AND-MODULE-MAP` §Automations ("app directory"). This screen reads the
- * static integration catalog merged with the organization's connections (`GET …/automations/apps`,
- * `org.manage`) and records a connection against a catalog app (`POST …/automations/apps/:appId/
- * connections`).
+ * One card per app with its official mark and one action. Where TManage has a real sign-in flow
+ * (Google Drive, OneDrive, Google Calendar, Outlook Calendar) "Connect" asks the API for the
+ * provider's consent address and sends the browser there in the same click; the provider returns to
+ * Connected apps, which finishes the connection. Apps connected another way (Figma's access token,
+ * GitHub's key, Slack and Teams channel links) say "Set up" and open the page that does it. An app
+ * with no flow yet says "Coming soon": no form pretends to connect it.
  *
- * ## What it does, and what it cannot
- *
- * - **No secrets.** The connect form collects a label and an optional non-secret setting only. Live
- *   OAuth / credential exchange is out of scope (Needs-Peter); the API rejects secret-shaped config
- *   keys, and this form never asks for one.
- * - **A connection is recorded, never edited or removed here.** The API grants create and read only
- *   this slice, so there is no edit or disconnect control.
+ * The catalog's hand-recorded connections (a label and one non-secret setting, never a credential)
+ * stay available under **Advanced**, closed by default.
  */
 export function IntegrationDirectoryScreen({
   organizationSlug,
   organizationName,
   client,
+  navigate = (url) => globalThis.location.assign(url),
 }: IntegrationDirectoryScreenProps) {
   const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
-  const queryClient = useQueryClient();
   const t = useT();
   const tr = useTOr();
   const locale = useActiveLocale();
+  const [filter, setFilter] = useState<DirectoryFilter>('all');
 
-  const apps = useQuery({
-    queryKey: ['integration-apps', organizationSlug],
-    queryFn: () => listIntegrationApps(api, organizationSlug),
-  });
-  // C22: Google Drive and OneDrive are company storage (Control > Storage); the directory lists
-  // them too, with their connection state, so an owner finds them where the other tools are.
-  // Same keys as the Storage screen, so the two share one request.
+  // Same query keys as the Storage screen, Connected apps and the Control Center badge.
   const drive = useQuery({
     queryKey: ['storage-status', organizationSlug],
     queryFn: () => getStorageStatus(api, organizationSlug),
@@ -81,34 +97,387 @@ export function IntegrationDirectoryScreen({
     staleTime: 60_000,
     retry: false,
   });
-  const storageRows: readonly StorageRow[] = [
-    {
-      id: 'google-drive',
-      name: 'Google Drive',
-      status: drive.data?.googleDrive.status,
-      account: drive.data?.googleDrive.accountEmail ?? null,
-    },
-    {
-      id: 'onedrive',
-      name: 'OneDrive',
-      status: oneDrive.data?.oneDrive.status,
-      account: oneDrive.data?.oneDrive.accountEmail ?? null,
-    },
-  ];
+  const googleCal = useQuery({
+    queryKey: ['calendar-connection', organizationSlug, 'google'],
+    queryFn: () => getGoogleCalendarStatus(api, organizationSlug),
+    retry: false,
+  });
+  const microsoftCal = useQuery({
+    queryKey: ['calendar-connection', organizationSlug, 'microsoft'],
+    queryFn: () => getMicrosoftCalendarStatus(api, organizationSlug),
+    retry: false,
+  });
+  const figma = useQuery({
+    queryKey: ['figma-connection', organizationSlug],
+    queryFn: () => getFigmaConnection(api, organizationSlug),
+    retry: false,
+  });
 
+  // Starts the API refused because the provider's sign-in is not set up on this server.
+  const [refused, setRefused] = useState<ReadonlySet<IntegrationCardId>>(() => new Set());
+
+  const statusOf = (id: IntegrationCardId): CardStatus => {
+    if (refused.has(id)) return { kind: 'unavailable' };
+    switch (id) {
+      case 'google-drive':
+        return reduce(
+          drive,
+          drive.data && {
+            configured: drive.data.configured,
+            status: drive.data.googleDrive.status,
+            account: drive.data.googleDrive.accountEmail,
+          },
+        );
+      case 'onedrive':
+        return reduce(
+          oneDrive,
+          oneDrive.data && {
+            configured: oneDrive.data.configured,
+            status: oneDrive.data.oneDrive.status,
+            account: oneDrive.data.oneDrive.accountEmail,
+          },
+        );
+      case 'google-calendar':
+        return reduce(
+          googleCal,
+          googleCal.data && {
+            configured: googleCal.data.configured,
+            status: googleCal.data.google.status,
+            account: googleCal.data.google.accountEmail,
+          },
+        );
+      case 'outlook':
+        return reduce(
+          microsoftCal,
+          microsoftCal.data && {
+            configured: microsoftCal.data.configured,
+            status: microsoftCal.data.microsoft.status,
+            account: microsoftCal.data.microsoft.accountEmail,
+          },
+        );
+      case 'figma':
+        if (figma.isPending) return { kind: 'loading' };
+        return figma.data?.status === 'connected'
+          ? { kind: 'connected', account: figma.data.handle }
+          : { kind: 'ready', broken: figma.data?.status === 'error' };
+      default:
+        return { kind: 'ready', broken: false };
+    }
+  };
+
+  const connect = useMutation({
+    mutationFn: (id: IntegrationCardId): Promise<{ readonly url: string }> => {
+      // Storage started here comes back to Connected apps, which finishes the hand-over (R38);
+      // the calendars always come back there.
+      if (id === 'google-drive') {
+        return startDriveConnect(api, organizationSlug, { returnTo: 'connected-apps' });
+      }
+      if (id === 'onedrive') {
+        return startOneDriveConnect(api, organizationSlug, { returnTo: 'connected-apps' });
+      }
+      return startCalendarConnect(api, organizationSlug, id === 'outlook' ? 'microsoft' : 'google');
+    },
+    onSuccess: ({ url }) => navigate(url),
+    onError: (error, id) => {
+      if (error instanceof ApiRequestError && error.status === 409) {
+        setRefused((current) => new Set(current).add(id));
+      }
+    },
+  });
+
+  const statuses = new Map(INTEGRATION_CARDS.map((card) => [card.id, statusOf(card.id)]));
+  const isConnected = (card: IntegrationCard) => statuses.get(card.id)?.kind === 'connected';
+  const connectedCount = INTEGRATION_CARDS.filter(isConnected).length;
+  const shown = INTEGRATION_CARDS.filter((card) =>
+    filter === 'all' ? true : filter === 'connected' ? isConnected(card) : !isConnected(card),
+  );
+
+  const failedCard = connect.isError
+    ? INTEGRATION_CARDS.find((card) => card.id === connect.variables)
+    : undefined;
+  const failedName = failedCard ? BRAND_NAMES[failedCard.brand] : '';
+  const notSetUp = connect.error instanceof ApiRequestError && connect.error.status === 409;
+
+  const title = connectedTitle(connectedCount, tr, activeIsEnglish(locale), locale, numberWord);
+
+  return (
+    <SettingsShell
+      section="integrations"
+      organizationSlug={organizationSlug}
+      organizationName={organizationName}
+      activeNavigationId="admin"
+      eyebrow={t('IntegrationDirectoryScreen.eyebrow')}
+      title={title}
+      description={t('ConnectApps.lede')}
+      actions={
+        <Link href={`/${organizationSlug}/admin/audit`} className="tm-aut-btn">
+          {t('IntegrationDirectoryScreen.auditAccess')}
+        </Link>
+      }
+    >
+      <div className="tm-aut tm-int">
+        <fieldset className="tm-aut-filters tm-aut-filters--end">
+          <legend className="tm-visually-hidden">{t('IntegrationDirectoryScreen.show')}</legend>
+          {(
+            [
+              ['all', `${t('IntegrationDirectoryScreen.filterAll')} · ${INTEGRATION_CARDS.length}`],
+              [
+                'connected',
+                `${t('IntegrationDirectoryScreen.filterConnected')} · ${connectedCount}`,
+              ],
+              [
+                'available',
+                `${t('IntegrationDirectoryScreen.filterAvailable')} · ${INTEGRATION_CARDS.length - connectedCount}`,
+              ],
+            ] as const
+          ).map(([value, text]) => (
+            <button
+              key={value}
+              type="button"
+              className="tm-aut-filter"
+              aria-pressed={filter === value}
+              onClick={() => setFilter(value)}
+            >
+              {text}
+            </button>
+          ))}
+        </fieldset>
+
+        {failedCard ? (
+          notSetUp ? (
+            <InlineAlert
+              tone="warning"
+              title={tr(`${KEY}.notSetUpTitle`, '{app} is not available yet').replace(
+                '{app}',
+                failedName,
+              )}
+              live
+            >
+              {tr(
+                `${KEY}.notSetUpBody`,
+                'Its sign-in is not set up on this TManage server yet, so nothing was changed. Your TManage admin can finish it from Connected apps.',
+              )}
+            </InlineAlert>
+          ) : (
+            <InlineAlert
+              tone="danger"
+              title={t('ConnectApps.failedTitle').replace('{app}', failedName)}
+              live
+            >
+              {describeError(connect.error)}
+            </InlineAlert>
+          )
+        ) : null}
+
+        <section aria-labelledby="tm-int-heading" className="tm-aut-col">
+          <h2 id="tm-int-heading" className="tm-aut-section-head__title">
+            {t('ConnectApps.heading')}
+          </h2>
+          <ul className="tm-int-cards" aria-label={t('ConnectApps.heading')}>
+            {shown.map((card) => (
+              <IntegrationCardItem
+                key={card.id}
+                card={card}
+                status={statuses.get(card.id) ?? { kind: 'loading' }}
+                organizationSlug={organizationSlug}
+                connecting={connect.isPending && connect.variables === card.id}
+                busy={connect.isPending}
+                onConnect={() => connect.mutate(card.id)}
+              />
+            ))}
+          </ul>
+        </section>
+
+        <section className="tm-aut-col" aria-labelledby="tm-int-more">
+          <h2 id="tm-int-more" className="tm-aut-section-head__title">
+            {tr(`${KEY}.moreHeading`, 'More ways to connect')}
+          </h2>
+          <ul className="tm-aut-list">
+            <li>
+              <span className="tm-aut-glyph tm-aut-glyph--small" aria-hidden="true">
+                {'{ }'}
+              </span>
+              <div className="tm-aut-list__main">
+                <h3 className="tm-aut-rowtitle">{t('IntegrationDirectoryScreen.webhooks')}</h3>
+                <span className="tm-aut-rowsub">{t('IntegrationDirectoryScreen.webhooksSub')}</span>
+              </div>
+              <div className="tm-aut-list__end">
+                <Link
+                  href={`/${organizationSlug}/admin/automations/webhooks`}
+                  className="tm-aut-btn"
+                >
+                  {t('IntegrationDirectoryScreen.manage')}
+                </Link>
+              </div>
+            </li>
+            <li>
+              <span className="tm-aut-glyph tm-aut-glyph--small" aria-hidden="true">
+                ✦
+              </span>
+              <div className="tm-aut-list__main">
+                <h3 className="tm-aut-rowtitle">{t('IntegrationDirectoryScreen.aiAssistant')}</h3>
+                <span className="tm-aut-rowsub">
+                  {t('IntegrationDirectoryScreen.aiAssistantSub')}
+                </span>
+              </div>
+              <div className="tm-aut-list__end">
+                <Link href={`/${organizationSlug}/settings/ai-assistant`} className="tm-aut-btn">
+                  {t('IntegrationDirectoryScreen.setUp')}
+                </Link>
+              </div>
+            </li>
+          </ul>
+        </section>
+
+        <AdvancedRecords api={api} organizationSlug={organizationSlug} />
+      </div>
+    </SettingsShell>
+  );
+}
+
+function reduce(
+  read: { readonly isPending: boolean; readonly isError: boolean },
+  view: { configured: boolean; status: string; account: string | null } | null | undefined,
+): CardStatus {
+  if (read.isPending) return { kind: 'loading' };
+  if (read.isError || !view || !view.configured) return { kind: 'unavailable' };
+  if (view.status === 'connected') return { kind: 'connected', account: view.account };
+  return { kind: 'ready', broken: view.status === 'error' };
+}
+
+function IntegrationCardItem({
+  card,
+  status,
+  organizationSlug,
+  connecting,
+  busy,
+  onConnect,
+}: {
+  card: IntegrationCard;
+  status: CardStatus;
+  organizationSlug: string;
+  connecting: boolean;
+  busy: boolean;
+  onConnect: () => void;
+}) {
+  const t = useT();
+  const tr = useTOr();
+  const name = BRAND_NAMES[card.brand];
+  const href = card.path ? `/${organizationSlug}${card.path}` : undefined;
+
+  let state: ReactNode = null;
+  let action: ReactNode = null;
+  if (card.flow === 'soon') {
+    state = <StateCapsule state="future">{tr(`${KEY}.comingSoon`, 'Coming soon')}</StateCapsule>;
+  } else if (status.kind === 'connected') {
+    state = (
+      <StateCapsule state="done">
+        {status.account ? (
+          <>
+            {t('ConnectApps.connectedAs')} <bdi dir="ltr">{status.account}</bdi>
+          </>
+        ) : (
+          t('ConnectApps.connected')
+        )}
+      </StateCapsule>
+    );
+    action = href ? (
+      <Link
+        href={href}
+        className="tm-aut-btn"
+        aria-label={tr(`${KEY}.manageLabel`, 'Manage {app}').replace('{app}', name)}
+      >
+        {t('IntegrationDirectoryScreen.manage')}
+      </Link>
+    ) : null;
+  } else if (card.flow === 'page') {
+    action = href ? (
+      <Link
+        href={href}
+        className="tm-aut-btn tm-aut-btn--ink"
+        aria-label={tr(`${KEY}.setUpLabel`, 'Set up {app}').replace('{app}', name)}
+      >
+        {t('IntegrationDirectoryScreen.setUp')}
+      </Link>
+    ) : null;
+  } else if (status.kind === 'unavailable') {
+    state = <StateCapsule state="waiting">{t('ConnectApps.notAvailable')}</StateCapsule>;
+    action = (
+      <p className="tm-int-card__hint">
+        {tr(
+          `${KEY}.notSetUpHint`,
+          'Its sign-in is not set up on this server yet. Your TManage admin can finish it.',
+        )}
+      </p>
+    );
+  } else if (status.kind === 'ready') {
+    action = (
+      <>
+        {status.broken ? (
+          <p className="tm-int-card__hint">{t('ConnectApps.needsReconnect')}</p>
+        ) : null}
+        <Button
+          tone="lime"
+          disabled={busy && !connecting}
+          loading={connecting}
+          loadingLabel={t('ConnectApps.connecting')}
+          aria-label={t('ConnectApps.connectLabel').replace('{app}', name)}
+          onClick={onConnect}
+        >
+          {t('ConnectApps.connect')}
+        </Button>
+      </>
+    );
+  }
+
+  return (
+    <li className="tm-int-card" data-app={card.id} aria-busy={status.kind === 'loading'}>
+      <div className="tm-int-card__head">
+        <BrandLogo brand={card.brand} size={46} />
+        {state}
+      </div>
+      <h3 className="tm-int-card__name">
+        <bdi dir="ltr">{name}</bdi>
+      </h3>
+      <p className="tm-int-card__what">{tr(card.whatKey, card.what)}</p>
+      <p className="tm-int-card__scope">
+        {card.scope === 'personal'
+          ? tr(`${KEY}.scopePersonal`, 'Just for you: your own calendar')
+          : tr(`${KEY}.scopeCompany`, 'For the whole company')}
+      </p>
+      {action ? <div className="tm-int-card__foot">{action}</div> : null}
+    </li>
+  );
+}
+
+/**
+ * **Advanced** — the catalog's hand-recorded connections (x165): a label and at most one non-secret
+ * setting against a catalog app. No credential is asked for or stored; the API rejects
+ * secret-shaped keys. Closed by default: an owner connecting an app never needs it.
+ */
+function AdvancedRecords({ api, organizationSlug }: { api: ApiClient; organizationSlug: string }) {
+  const describeError = useDescribeApiError();
+  const queryClient = useQueryClient();
+  const t = useT();
+  const tr = useTOr();
+  const locale = useActiveLocale();
+  const [open, setOpen] = useState(false);
   const [activeAppId, setActiveAppId] = useState('');
   const [label, setLabel] = useState('');
   const [settingKey, setSettingKey] = useState('');
   const [settingValue, setSettingValue] = useState('');
-  const [connected, setConnected] = useState<{ appId: string; label: string } | null>(null);
-  const [filter, setFilter] = useState<DirectoryFilter>('all');
+  const [recorded, setRecorded] = useState<string | null>(null);
 
-  const rows = apps.data ?? [];
+  const apps = useQuery({
+    queryKey: ['integration-apps', organizationSlug],
+    queryFn: () => listIntegrationApps(api, organizationSlug),
+    enabled: open,
+  });
+  const rows: readonly IntegrationAppView[] = apps.data ?? [];
   const activeApp = rows.find((app) => app.id === activeAppId) ?? null;
-  const connectedApps = rows.filter((app) => app.connections.length > 0);
-  const availableApps = rows.filter((app) => app.connections.length === 0);
+  const records = rows.flatMap((app) => app.connections.map((connection) => ({ app, connection })));
 
-  const connect = useMutation({
+  const record = useMutation({
     mutationFn: (app: IntegrationAppView) => {
       const config: Record<string, string> = {};
       if (settingKey.trim() !== '' && settingValue.trim() !== '') {
@@ -120,70 +489,29 @@ export function IntegrationDirectoryScreen({
       });
     },
     onSuccess: async (connection) => {
-      setConnected({ appId: connection.appId, label: connection.label });
+      setRecorded(connection.label);
       setLabel('');
       setSettingKey('');
       setSettingValue('');
       await queryClient.invalidateQueries({ queryKey: ['integration-apps', organizationSlug] });
     },
   });
-
-  const canConnect = activeApp !== null && label.trim() !== '' && !connect.isPending;
-  const loaded = !apps.isPending && !apps.isError;
-
-  const title = loaded
-    ? localizedDirectoryTitle(rows, tr, locale)
-    : t('IntegrationDirectoryScreen.titleFallback');
+  const canRecord = activeApp !== null && label.trim() !== '' && !record.isPending;
 
   return (
-    <SettingsShell
-      section="integrations"
-      organizationSlug={organizationSlug}
-      organizationName={organizationName}
-      activeNavigationId="admin"
-      eyebrow={t('IntegrationDirectoryScreen.eyebrow')}
-      title={title}
-      description={t('IntegrationDirectoryScreen.description')}
-      actions={
-        <>
-          <Link href={`/${organizationSlug}/admin/audit`} className="tm-aut-btn">
-            {t('IntegrationDirectoryScreen.auditAccess')}
-          </Link>
-          <a href="#tm-connect" className="tm-aut-btn tm-aut-btn--ink">
-            {t('IntegrationDirectoryScreen.connectATool')}
-          </a>
-        </>
-      }
+    <details
+      className="tm-int-advanced"
+      open={open}
+      onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}
     >
-      <div className="tm-aut">
-        {loaded ? (
-          <fieldset className="tm-aut-filters tm-aut-filters--end">
-            <legend className="tm-visually-hidden">{t('IntegrationDirectoryScreen.show')}</legend>
-            {(
-              [
-                ['all', `${t('IntegrationDirectoryScreen.filterAll')} · ${rows.length}`],
-                [
-                  'connected',
-                  `${t('IntegrationDirectoryScreen.filterConnected')} · ${connectedApps.length}`,
-                ],
-                [
-                  'available',
-                  `${t('IntegrationDirectoryScreen.filterAvailable')} · ${availableApps.length}`,
-                ],
-              ] as const
-            ).map(([value, text]) => (
-              <button
-                key={value}
-                type="button"
-                className="tm-aut-filter"
-                aria-pressed={filter === value}
-                onClick={() => setFilter(value)}
-              >
-                {text}
-              </button>
-            ))}
-          </fieldset>
-        ) : null}
+      <summary className="tm-int-advanced__summary">{tr(`${KEY}.advanced`, 'Advanced')}</summary>
+      <div className="tm-int-advanced__body tm-stack">
+        <p className="tm-int-card__hint">
+          {tr(
+            `${KEY}.advancedHint`,
+            'Record a connection by hand, with a label and one setting. It holds no password or key, and it does not sign in to the app. Most companies never need this.',
+          )}
+        </p>
 
         {apps.isError ? (
           <InlineAlert tone="danger" title={t('IntegrationDirectoryScreen.loadErrorTitle')} live>
@@ -191,323 +519,114 @@ export function IntegrationDirectoryScreen({
           </InlineAlert>
         ) : null}
 
-        {loaded && filter !== 'available' && connectedApps.length > 0 ? (
-          <section aria-labelledby="tm-apps-connected-heading" className="tm-aut-col">
-            <h2 id="tm-apps-connected-heading" className="tm-visually-hidden">
-              {t('IntegrationDirectoryScreen.connected')}
-            </h2>
-            <ul className="tm-aut-tools" aria-label={t('IntegrationDirectoryScreen.connectedApps')}>
-              {connectedApps.map((app) => {
-                const live = appState(app) === 'live';
-                return (
-                  <li key={app.id} className="tm-aut-tool">
-                    <div className="tm-aut-tool__head">
-                      <span className="tm-aut-glyph" aria-hidden="true">
-                        {glyphFor(app.category)}
-                      </span>
-                      <span
-                        className={`tm-aut-state ${live ? 'tm-aut-state--live' : 'tm-aut-state--warning'}`}
-                      >
-                        {live
-                          ? t('IntegrationDirectoryScreen.stateConnected')
-                          : t('IntegrationDirectoryScreen.statePending')}
-                      </span>
-                    </div>
-                    <h3 className="tm-aut-tool__name">{app.name}</h3>
-                    <p className="tm-aut-tool__body">{localizedDescribeApp(app, tr, locale)}</p>
-                    <ul
-                      className="tm-aut-tool__foot"
-                      aria-label={`${app.name} ${t('IntegrationDirectoryScreen.connectionsSuffix')}`}
-                    >
-                      {app.connections.map((connection) => (
-                        <li key={connection.id} className="tm-aut-tool__conn">
-                          <span className="tm-aut-mono">{connection.label}</span>
-                          <span className="tm-aut-mono">
-                            <span className="tm-visually-hidden">
-                              {connection.status === 'connected'
-                                ? t('IntegrationDirectoryScreen.stateConnected')
-                                : t('IntegrationDirectoryScreen.statePending')}
-                              {t('IntegrationDirectoryScreen.commaAdded')}
-                            </span>
-                            {localizedRelativeAgo(connection.createdAt, tr, locale)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
+        {records.length > 0 ? (
+          <ul
+            className="tm-int-advanced__records"
+            aria-label={tr(`${KEY}.recordedHeading`, 'Recorded by hand')}
+          >
+            {records.map(({ app, connection }) => (
+              <li key={connection.id}>
+                <span>
+                  {app.name} · <span className="tm-aut-mono">{connection.label}</span>
+                </span>
+                <span className="tm-aut-mono">
+                  {localizedRelativeAgo(connection.createdAt, tr, locale)}
+                </span>
+              </li>
+            ))}
+          </ul>
         ) : null}
 
-        <div className="tm-aut-split">
-          <section className="tm-aut-col" aria-labelledby="tm-apps-heading">
-            <div className="tm-aut-section-head">
-              <h2 id="tm-apps-heading" className="tm-aut-section-head__title">
-                {filter === 'connected'
-                  ? t('IntegrationDirectoryScreen.connected')
-                  : t('IntegrationDirectoryScreen.available')}
-              </h2>
-              <span className="tm-aut-section-head__meta">
-                {t('IntegrationDirectoryScreen.sectionMeta')}
-              </span>
+        {recorded ? (
+          <InlineAlert
+            tone="success"
+            title={t('IntegrationDirectoryScreen.connectionRecorded')}
+            live
+          >
+            &ldquo;{recorded}&rdquo; {tr(`${KEY}.recordedBody`, 'was recorded.')}
+          </InlineAlert>
+        ) : null}
+
+        {rows.length > 0 ? (
+          <form
+            className="tm-stack"
+            noValidate
+            onSubmit={(event: FormEvent<HTMLFormElement>) => {
+              event.preventDefault();
+              if (canRecord && activeApp) record.mutate(activeApp);
+            }}
+          >
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-app-select">
+                {t('IntegrationDirectoryScreen.appLabel')}
+              </label>
+              <select
+                id="tm-app-select"
+                className="tm-field__control"
+                value={activeAppId}
+                onChange={(event) => setActiveAppId(event.target.value)}
+              >
+                <option value="">{t('IntegrationDirectoryScreen.chooseAnApp')}</option>
+                {rows.map((app) => (
+                  <option key={app.id} value={app.id}>
+                    {app.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {apps.isPending ? (
-              <LoadingRegion label={t('IntegrationDirectoryScreen.loading')}>
-                <Skeleton height="var(--row)" />
-                <Skeleton height="var(--row)" />
-              </LoadingRegion>
-            ) : null}
+            <Field
+              label={t('IntegrationDirectoryScreen.connectionLabel')}
+              name="label"
+              value={label}
+              onChange={(event) => setLabel(event.target.value)}
+              hint={t('IntegrationDirectoryScreen.connectionLabelHint')}
+              required
+            />
 
-            {/* The storage, webhook and AI rows need no catalog, so they show at once (C22). */}
-            <ul
-              className="tm-aut-list"
-              aria-label={t('IntegrationDirectoryScreen.appsInDirectory')}
-            >
-              {(filter === 'connected' ? connectedApps : availableApps).map((app) => (
-                <li key={app.id}>
-                  <span className="tm-aut-glyph tm-aut-glyph--small" aria-hidden="true">
-                    {glyphFor(app.category)}
-                  </span>
-                  <div className="tm-aut-list__main">
-                    <h3 className="tm-aut-rowtitle">{app.name}</h3>
-                    <span className="tm-aut-rowsub">
-                      {localizedDescribeAppLine(app, tr, locale)}
-                      {app.connections.length > 0
-                        ? ` · ${app.connections.length} ${
-                            app.connections.length === 1
-                              ? t('IntegrationDirectoryScreen.connectionSingular')
-                              : t('IntegrationDirectoryScreen.connectionPlural')
-                          }`
-                        : ''}
-                    </span>
-                  </div>
-                  <div className="tm-aut-list__end">
-                    <a
-                      href="#tm-connect"
-                      className="tm-aut-btn"
-                      aria-label={`${t('IntegrationDirectoryScreen.connectVerb')} ${app.name}`}
-                      onClick={() => setActiveAppId(app.id)}
-                    >
-                      {t('IntegrationDirectoryScreen.connect')}
-                    </a>
-                  </div>
-                </li>
-              ))}
-              {storageRows
-                .filter((row) =>
-                  filter === 'all'
-                    ? true
-                    : filter === 'connected'
-                      ? row.status === 'connected'
-                      : row.status !== 'connected',
-                )
-                .map((row) => (
-                  <li key={row.id}>
-                    <span className="tm-aut-glyph tm-aut-glyph--small" aria-hidden="true">
-                      {glyphFor('storage')}
-                    </span>
-                    <div className="tm-aut-list__main">
-                      <h3 className="tm-aut-rowtitle">{row.name}</h3>
-                      <span className="tm-aut-rowsub">{storageLine(row, tr)}</span>
-                    </div>
-                    <div className="tm-aut-list__end">
-                      <Link href={`/${organizationSlug}/admin/storage`} className="tm-aut-btn">
-                        {row.status === 'connected'
-                          ? t('IntegrationDirectoryScreen.manage')
-                          : t('IntegrationDirectoryScreen.setUp')}
-                      </Link>
-                    </div>
-                  </li>
-                ))}
-              <li>
-                <span className="tm-aut-glyph tm-aut-glyph--small" aria-hidden="true">
-                  {'{ }'}
-                </span>
-                <div className="tm-aut-list__main">
-                  <h3 className="tm-aut-rowtitle">{t('IntegrationDirectoryScreen.webhooks')}</h3>
-                  <span className="tm-aut-rowsub">
-                    {t('IntegrationDirectoryScreen.webhooksSub')}
-                  </span>
-                </div>
-                <div className="tm-aut-list__end">
-                  <Link
-                    href={`/${organizationSlug}/admin/automations/webhooks`}
-                    className="tm-aut-btn"
-                  >
-                    {t('IntegrationDirectoryScreen.manage')}
-                  </Link>
-                </div>
-              </li>
-              <li>
-                <span className="tm-aut-glyph tm-aut-glyph--small" aria-hidden="true">
-                  ✦
-                </span>
-                <div className="tm-aut-list__main">
-                  <h3 className="tm-aut-rowtitle">{t('IntegrationDirectoryScreen.aiAssistant')}</h3>
-                  <span className="tm-aut-rowsub">
-                    {t('IntegrationDirectoryScreen.aiAssistantSub')}
-                  </span>
-                </div>
-                <div className="tm-aut-list__end">
-                  <Link href={`/${organizationSlug}/settings/ai-assistant`} className="tm-aut-btn">
-                    {t('IntegrationDirectoryScreen.setUp')}
-                  </Link>
-                </div>
-              </li>
-            </ul>
-          </section>
+            <fieldset className="tm-aut-pair tm-fieldset">
+              <legend className="tm-field__label">
+                {t('IntegrationDirectoryScreen.optionalSetting')}
+              </legend>
+              <Field
+                label={t('IntegrationDirectoryScreen.settingName')}
+                name="setting-key"
+                value={settingKey}
+                onChange={(event) => setSettingKey(event.target.value)}
+                hint={t('IntegrationDirectoryScreen.settingNameHint')}
+              />
+              <Field
+                label={t('IntegrationDirectoryScreen.settingValue')}
+                name="setting-value"
+                value={settingValue}
+                onChange={(event) => setSettingValue(event.target.value)}
+              />
+            </fieldset>
 
-          <section
-            id="tm-connect"
-            className="tm-aut-card tm-card--ink"
-            aria-labelledby="tm-connect-heading"
-          >
-            <p className="tm-aut-eyebrow">{t('IntegrationDirectoryScreen.ruleEyebrow')}</p>
-            <h2 id="tm-connect-heading" className="tm-aut-card__title">
-              {t('IntegrationDirectoryScreen.ruleTitle')}
-            </h2>
-            <ul className="tm-aut-facts">
-              <li>{t('IntegrationDirectoryScreen.fact1')}</li>
-              <li>{t('IntegrationDirectoryScreen.fact2')}</li>
-              <li>{t('IntegrationDirectoryScreen.fact3')}</li>
-            </ul>
-
-            {connected ? (
+            {record.isError ? (
               <InlineAlert
-                tone="success"
-                title={t('IntegrationDirectoryScreen.connectionRecorded')}
+                tone="danger"
+                title={t('IntegrationDirectoryScreen.connectErrorTitle')}
                 live
               >
-                &ldquo;{connected.label}&rdquo; {t('IntegrationDirectoryScreen.wasConnected')}
+                {describeError(record.error)}
               </InlineAlert>
             ) : null}
 
-            {rows.length > 0 ? (
-              <form
-                className="tm-stack"
-                noValidate
-                onSubmit={(event: FormEvent<HTMLFormElement>) => {
-                  event.preventDefault();
-                  if (canConnect && activeApp) connect.mutate(activeApp);
-                }}
+            <div className="tm-aut-actions">
+              <Button
+                type="submit"
+                tone="outline"
+                loading={record.isPending}
+                loadingLabel={t('IntegrationDirectoryScreen.connecting')}
+                disabled={!canRecord}
               >
-                <div className="tm-field">
-                  <label className="tm-field__label" htmlFor="tm-app-select">
-                    {t('IntegrationDirectoryScreen.appLabel')}
-                  </label>
-                  <select
-                    id="tm-app-select"
-                    className="tm-field__control"
-                    value={activeAppId}
-                    onChange={(event) => setActiveAppId(event.target.value)}
-                  >
-                    <option value="">{t('IntegrationDirectoryScreen.chooseAnApp')}</option>
-                    {rows.map((app) => (
-                      <option key={app.id} value={app.id}>
-                        {app.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <Field
-                  label={t('IntegrationDirectoryScreen.connectionLabel')}
-                  name="label"
-                  value={label}
-                  onChange={(event) => setLabel(event.target.value)}
-                  hint={t('IntegrationDirectoryScreen.connectionLabelHint')}
-                  required
-                />
-
-                <fieldset className="tm-aut-pair tm-fieldset">
-                  <legend className="tm-field__label">
-                    {t('IntegrationDirectoryScreen.optionalSetting')}
-                  </legend>
-                  <Field
-                    label={t('IntegrationDirectoryScreen.settingName')}
-                    name="setting-key"
-                    value={settingKey}
-                    onChange={(event) => setSettingKey(event.target.value)}
-                    hint={t('IntegrationDirectoryScreen.settingNameHint')}
-                  />
-                  <Field
-                    label={t('IntegrationDirectoryScreen.settingValue')}
-                    name="setting-value"
-                    value={settingValue}
-                    onChange={(event) => setSettingValue(event.target.value)}
-                  />
-                </fieldset>
-
-                {connect.isError ? (
-                  <InlineAlert
-                    tone="danger"
-                    title={t('IntegrationDirectoryScreen.connectErrorTitle')}
-                    live
-                  >
-                    {describeError(connect.error)}
-                  </InlineAlert>
-                ) : null}
-
-                <div className="tm-aut-actions">
-                  <Button
-                    type="submit"
-                    tone="lime"
-                    size="accessible"
-                    loading={connect.isPending}
-                    loadingLabel={t('IntegrationDirectoryScreen.connecting')}
-                    disabled={!canConnect}
-                  >
-                    {t('IntegrationDirectoryScreen.connectApp')}
-                  </Button>
-                </div>
-              </form>
-            ) : null}
-          </section>
-        </div>
+                {tr(`${KEY}.recordButton`, 'Record connection')}
+              </Button>
+            </div>
+          </form>
+        ) : null}
       </div>
-    </SettingsShell>
+    </details>
   );
-}
-
-type DirectoryFilter = 'all' | 'connected' | 'available';
-
-/** A company-storage row (Google Drive, OneDrive); `status` is undefined until its read answers. */
-interface StorageRow {
-  readonly id: string;
-  readonly name: string;
-  readonly status: 'not_connected' | 'connected' | 'error' | undefined;
-  readonly account: string | null;
-}
-
-/** A storage row's line: who it is connected as, that it needs reconnecting, or what it is for. */
-function storageLine(row: StorageRow, tr: (key: string, english: string) => string): string {
-  if (row.status === 'connected') {
-    return row.account
-      ? tr(
-          'IntegrationDirectoryScreen.storageConnectedAs',
-          'company storage · connected as {account}',
-        ).replace('{account}', row.account)
-      : tr('IntegrationDirectoryScreen.storageConnected', 'company storage · connected');
-  }
-  if (row.status === 'error') {
-    return tr('IntegrationDirectoryScreen.storageError', 'company storage · needs reconnecting');
-  }
-  return tr('IntegrationDirectoryScreen.storageSub', 'keep the company’s files in your own drive');
-}
-
-/** The square glyph on each tool card, from the app's category (INT-01's ▦ ✉ ⇪ ◫). */
-function glyphFor(category: string): string {
-  const key = category.toLowerCase();
-  if (key.includes('calendar')) return '▦';
-  if (key.includes('mail')) return '✉';
-  if (key.includes('storage') || key.includes('file')) return '⇪';
-  if (key.includes('design')) return '◫';
-  if (key.includes('chat') || key.includes('messag') || key.includes('communic')) return '◌';
-  if (key.includes('time')) return '◔';
-  if (key.includes('account') || key.includes('financ') || key.includes('billing')) return '◈';
-  if (key.includes('dev') || key.includes('code')) return '‹›';
-  return '◇';
 }

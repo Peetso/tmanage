@@ -1,0 +1,70 @@
+/*
+ * BrandLogo: a third-party app's official mark on a quiet tile. The mark is half the tile, so a
+ * quarter of the tile is clear space on every side (the brands ask for clear space around the
+ * mark). The tile itself stays neutral; the mark keeps its own colour.
+ */
+.tm-brand-logo {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: 36px;
+  block-size: 36px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  color: var(--ink-950);
+}
+
+.tm-brand-logo__mark {
+  display: block;
+  inline-size: 50%;
+  block-size: 50%;
+}
+
+.tm-brand-logo--20 {
+  inline-size: 20px;
+  block-size: 20px;
+  border-radius: 6px;
+}
+
+.tm-brand-logo--24 {
+  inline-size: 24px;
+  block-size: 24px;
+  border-radius: 7px;
+}
+
+.tm-brand-logo--32 {
+  inline-size: 32px;
+  block-size: 32px;
+  border-radius: 10px;
+}
+
+.tm-brand-logo--46 {
+  inline-size: 46px;
+  block-size: 46px;
+}
+
+/* A brand whose official full-colour art is not vendored yet: initials, never a redrawn logo. */
+.tm-brand-logo--monogram {
+  background: var(--paper-50);
+  color: var(--ink-800);
+  font-weight: 600;
+  font-size: var(--t-ui-sm);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.tm-brand-logo--monogram::before {
+  content: attr(data-letters);
+}
+
+.tm-brand-logo--20.tm-brand-logo--monogram,
+.tm-brand-logo--24.tm-brand-logo--monogram {
+  font-size: 10px;
+}
+
+/* Inside a sentence-sized label (a checkbox, a menu badge): sit on the text line. */
+.tm-brand-logo--inline {
+  vertical-align: middle;
+  margin-inline-end: var(--s2);
+}

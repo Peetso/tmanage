@@ -13,6 +13,7 @@ import {
 } from '../../lib/api/figma';
 import { useT } from '../../lib/i18n/use-t';
 import '../viewer/figma-stage.css';
+import { BrandLogo } from '../brand/BrandLogo';
 
 /**
  * **V-52 — Connect Figma.** Each person connects their own Figma account with a personal access
@@ -58,9 +59,7 @@ export function FigmaConnectCard({
     <section className="tm-connected__app" aria-labelledby={`${id}-title`}>
       <div className="tm-connected__app-row">
         <div className="tm-connected__app-identity">
-          <span className="tm-connected__monogram" aria-hidden="true" dir="ltr">
-            {t('Figma.connect.monogram')}
-          </span>
+          <BrandLogo brand="figma" size={46} />
           <div className="tm-connected__app-text">
             <div className="tm-connected__app-name-row">
               <h2 id={`${id}-title`} className="tm-connected__app-name" dir="ltr">

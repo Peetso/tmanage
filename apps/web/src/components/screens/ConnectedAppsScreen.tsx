@@ -145,7 +145,9 @@ export function ConnectedAppsScreen({
           </>
         )}
         <h2 className="tm-connected__caption">{t('Figma.connect.section')}</h2>
-        <FigmaConnectCard api={api} organizationSlug={organizationSlug} />
+        <div id="tm-figma-connect">
+          <FigmaConnectCard api={api} organizationSlug={organizationSlug} />
+        </div>
       </div>
     </ControlCenterShell>
   );

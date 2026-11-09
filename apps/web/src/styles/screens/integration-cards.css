@@ -1,0 +1,117 @@
+/* Control center · Integrations (feedback 2026-11-09 item 6): one card per app, its mark, one action. */
+
+.tm-int {
+  display: grid;
+  gap: var(--s6);
+}
+
+.tm-int-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-int-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-block-size: 220px;
+  padding: 22px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-int-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s2);
+  margin-block-end: var(--s2);
+}
+
+.tm-int-card__name {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-body-lg);
+  line-height: 23px;
+  font-weight: 500;
+}
+
+.tm-int-card__what {
+  margin: 0;
+  color: var(--ink-800);
+  font-size: var(--t-ui-sm);
+  line-height: 18px;
+}
+
+.tm-int-card__scope {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-int-card__hint {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--t-ui-sm);
+  line-height: 18px;
+}
+
+.tm-int-card__foot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s2);
+  margin-block-start: auto;
+  padding-block-start: var(--s3);
+  border-block-start: var(--b-quiet) solid var(--paper-150);
+}
+
+/* Advanced: closed by default, a quiet disclosure under the cards. */
+.tm-int-advanced {
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-int-advanced__summary {
+  padding: var(--s4) 22px;
+  color: var(--ink-800);
+  font-size: var(--t-ui-md);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tm-int-advanced__summary:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--r-card);
+}
+
+.tm-int-advanced__body {
+  padding-inline: 22px;
+  padding-block-end: 22px;
+  max-inline-size: 560px;
+}
+
+.tm-int-advanced__records {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-int-advanced__records li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding-block: var(--s2);
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+  font-size: var(--t-ui-sm);
+}

@@ -26,6 +26,7 @@ import { HelpTip } from '../help/HelpTip';
 import '../../styles/screens/admin.css';
 import './control-center.css';
 import { ThemeSync } from '../shell/ThemeSync';
+import { BrandLogo } from '../brand/BrandLogo';
 
 /** The Control Center destinations a screen can say it is. */
 export type ControlCenterSection =
@@ -516,8 +517,18 @@ function StorageProviderBadge({ organizationSlug }: { organizationSlug: string }
     },
     queryClient ?? IDLE_QUERY_CLIENT,
   );
-  const label = storageProviderLabel(status.data?.storageMode);
-  return label ? <span className="tm-cc-sections__badge">{label}</span> : null;
+  const mode = status.data?.storageMode;
+  const label = storageProviderLabel(mode);
+  return label ? (
+    <span className="tm-cc-sections__badge">
+      <BrandLogo
+        brand={mode === 'onedrive' ? 'onedrive' : 'google-drive'}
+        size={20}
+        className="tm-brand-logo--inline"
+      />
+      {label}
+    </span>
+  ) : null;
 }
 
 /**

@@ -44,6 +44,7 @@ import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import '../../styles/screens/storage.css';
 import './admin-label-spacing.css';
+import { BrandLogo } from '../brand/BrandLogo';
 
 /**
  * Owner decision 2026-10-31 (reverses 2026-10-26): TManage storage (1 GB per company) is
@@ -364,7 +365,12 @@ function DriveOption({
     <div className="tm-storage__option">
       <Checkbox
         className="tm-storage__choice"
-        label={t('AdminStorageScreen.driveTitle')}
+        label={
+          <>
+            <BrandLogo brand="google-drive" size={24} className="tm-brand-logo--inline" />
+            {t('AdminStorageScreen.driveTitle')}
+          </>
+        }
         hint={t('AdminStorageScreen.driveLine')}
         checked={view.storageMode === 'google_drive'}
         disabled={busy || !connected || view.storageMode === 'google_drive'}
@@ -519,7 +525,12 @@ function OneDriveOption({
     <div className="tm-storage__option">
       <Checkbox
         className="tm-storage__choice"
-        label="OneDrive"
+        label={
+          <>
+            <BrandLogo brand="onedrive" size={24} className="tm-brand-logo--inline" />
+            OneDrive
+          </>
+        }
         hint={t('OneDriveStorage.body')}
         checked={view.storageMode === 'onedrive'}
         disabled={busy || !connected || view.storageMode === 'onedrive'}

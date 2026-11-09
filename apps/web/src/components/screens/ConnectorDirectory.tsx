@@ -15,6 +15,16 @@ import { fillTemplate } from '../../lib/ai-approval-presentation';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/connector-directory.css';
+import { BrandLogo, type BrandId } from '../brand/BrandLogo';
+
+/** Registry key → the app's mark (the same tile as Integrations and Storage). */
+const BRAND_OF: Readonly<Record<string, BrandId>> = {
+  google_drive: 'google-drive',
+  onedrive: 'onedrive',
+  google_calendar: 'google-calendar',
+  microsoft_calendar: 'outlook',
+  github: 'github',
+};
 
 /** What the row says under the name, per registry key (connector names are never translated). */
 const WHAT: Readonly<Record<string, MessageKey>> = {
@@ -101,9 +111,13 @@ export function ConnectorDirectory({
               const what = WHAT[connector.key];
               return (
                 <li key={connector.key} className="tm-connectors__row">
-                  <span className="tm-connectors__monogram" aria-hidden="true" dir="ltr">
-                    {connector.name.slice(0, 1)}
-                  </span>
+                  {BRAND_OF[connector.key] ? (
+                    <BrandLogo brand={BRAND_OF[connector.key]!} size={36} />
+                  ) : (
+                    <span className="tm-connectors__monogram" aria-hidden="true" dir="ltr">
+                      {connector.name.slice(0, 1)}
+                    </span>
+                  )}
                   <div className="tm-connectors__identity">
                     <h3 className="tm-connectors__name" dir="ltr">
                       {connector.name}

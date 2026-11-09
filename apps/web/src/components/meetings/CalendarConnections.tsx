@@ -30,6 +30,7 @@ import {
   type MeetingDefaults,
 } from './meeting-defaults';
 import './meetings.css';
+import { BrandLogo } from '../brand/BrandLogo';
 
 /**
  * After a connect or disconnect: the person's own connections and the owners' team card both
@@ -202,6 +203,11 @@ function AccountCard({
     <section className="tm-mtg-card tm-mtg-account" aria-labelledby={`tm-cc-${account.provider}`}>
       <div className="tm-mtg-card__head">
         <h2 id={`tm-cc-${account.provider}`} className="tm-mtg-account__name">
+          <BrandLogo
+            brand={microsoft ? 'outlook' : 'google-calendar'}
+            size={24}
+            className="tm-brand-logo--inline"
+          />
           {name}
         </h2>
         <span className="tm-mtg-status" data-status={account.status}>

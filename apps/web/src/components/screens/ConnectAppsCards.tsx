@@ -39,6 +39,7 @@ import type { MessageKey } from '../../lib/i18n/t';
 import { useT } from '../../lib/i18n/use-t';
 import { useOrganizationRole } from '../../lib/use-organization-names';
 import { ConnectSetupGuide } from './ConnectSetupGuide';
+import { BrandLogo, type BrandId } from '../brand/BrandLogo';
 import '../../styles/screens/connect-apps.css';
 
 type AppId = 'google_calendar' | 'microsoft_calendar' | 'google_drive' | 'onedrive';
@@ -46,7 +47,7 @@ type AppId = 'google_calendar' | 'microsoft_calendar' | 'google_drive' | 'onedri
 interface AppCard {
   readonly id: AppId;
   readonly provider: ConnectProvider;
-  readonly letter: string;
+  readonly brand: BrandId;
   readonly nameKey: MessageKey;
   readonly whatKey: MessageKey;
   /** Company storage: connected by the workspace owner, managed on the Storage screen. */
@@ -57,7 +58,7 @@ const APPS: readonly AppCard[] = [
   {
     id: 'google_calendar',
     provider: 'google',
-    letter: 'G',
+    brand: 'google-calendar',
     nameKey: 'ConnectApps.app.googleCalendar.name',
     whatKey: 'ConnectApps.app.googleCalendar.what',
     storage: false,
@@ -65,7 +66,7 @@ const APPS: readonly AppCard[] = [
   {
     id: 'microsoft_calendar',
     provider: 'microsoft',
-    letter: 'O',
+    brand: 'outlook',
     nameKey: 'ConnectApps.app.microsoftCalendar.name',
     whatKey: 'ConnectApps.app.microsoftCalendar.what',
     storage: false,
@@ -73,7 +74,7 @@ const APPS: readonly AppCard[] = [
   {
     id: 'google_drive',
     provider: 'google',
-    letter: 'D',
+    brand: 'google-drive',
     nameKey: 'ConnectApps.app.googleDrive.name',
     whatKey: 'ConnectApps.app.googleDrive.what',
     storage: true,
@@ -81,7 +82,7 @@ const APPS: readonly AppCard[] = [
   {
     id: 'onedrive',
     provider: 'microsoft',
-    letter: '1',
+    brand: 'onedrive',
     nameKey: 'ConnectApps.app.onedrive.name',
     whatKey: 'ConnectApps.app.onedrive.what',
     storage: true,
@@ -360,9 +361,7 @@ export function ConnectAppsCards({
           return (
             <li key={app.id} className="tm-connect-apps__card" aria-busy={card === null}>
               <div className="tm-connect-apps__identity">
-                <span className="tm-connect-apps__logo" aria-hidden="true" dir="ltr">
-                  {app.letter}
-                </span>
+                <BrandLogo brand={app.brand} size={46} />
                 <h3 className="tm-connect-apps__name">{name}</h3>
               </div>
               <p className="tm-connect-apps__what">{t(app.whatKey)}</p>
