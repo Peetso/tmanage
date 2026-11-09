@@ -16,6 +16,7 @@ import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { compactUnit } from '../../lib/i18n/compact-time';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface DocsHubScreenProps {
@@ -53,6 +54,7 @@ export function DocsHubScreen({
   const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
+  const tOr = useTOr();
   const [tab, setTab] = useState<HubTab>(initialProjectId ? 'project' : 'recent');
   const [chosenId, setProjectId] = useState<string>(initialProjectId ?? '');
 
@@ -102,6 +104,10 @@ export function DocsHubScreen({
       activeNavigationId="docs"
       eyebrow={t('DocsHubScreen.eyebrow')}
       title={t('DocsHubScreen.title')}
+      description={tOr(
+        'DocsHubScreen.valueLine',
+        'Briefs, proposals, meeting notes and how-to guides, written together, with versions, approvals and comments, and with images, tables, files, Figma and video inside.',
+      )}
       actions={
         <button
           type="button"

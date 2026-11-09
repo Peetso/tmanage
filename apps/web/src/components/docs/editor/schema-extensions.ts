@@ -28,6 +28,9 @@ export const EMBED_HOSTS: readonly string[] = [
   'youtu.be',
   'vimeo.com',
   'player.vimeo.com',
+  // FIX2 item 9: Loom, the screen-recording video agencies send with briefs and reviews.
+  'www.loom.com',
+  'loom.com',
 ];
 
 /** An https link on one of the embed hosts; anything else stays a plain link card. */
@@ -59,6 +62,10 @@ export function embedSrc(raw: string | null | undefined): string | null {
   if (host.endsWith('youtube.com')) {
     const id = url.searchParams.get('v') ?? url.pathname.split('/embed/')[1] ?? '';
     return /^[\w-]{6,20}$/u.test(id) ? `https://www.youtube.com/embed/${id}` : null;
+  }
+  if (host.endsWith('loom.com')) {
+    const id = /^\/(?:share|embed)\/([0-9a-f]{20,40})/u.exec(url.pathname)?.[1];
+    return id ? `https://www.loom.com/embed/${id}` : null;
   }
   const vimeo = /(\d{5,12})/u.exec(url.pathname)?.[1];
   return vimeo ? `https://player.vimeo.com/video/${vimeo}` : null;

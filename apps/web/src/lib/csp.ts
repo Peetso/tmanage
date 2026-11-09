@@ -104,6 +104,17 @@ const IMAGE_ORIGINS = ['https://*.googleusercontent.com', 'https://*.sharepoint.
 const PICKER_FRAMES = ['https://docs.google.com', 'https://drive.google.com'];
 /** R4 slice 13. The proofing viewer's "Live" mode embeds a Figma frame from Figma's embed host. */
 const FIGMA_FRAMES = ['https://embed.figma.com', 'https://www.figma.com'];
+/**
+ * FIX2 item 9: the doc editor's video embeds (YouTube, Vimeo, Loom). The embed node already built
+ * these iframes, but the policy named no video host, so every video embed was a blocked frame.
+ * Frames only — none of these hosts may run script, connect or load images in TManage's origin.
+ */
+const VIDEO_FRAMES = [
+  'https://www.youtube.com',
+  'https://www.youtube-nocookie.com',
+  'https://player.vimeo.com',
+  'https://www.loom.com',
+];
 const PICKER_CONNECT = ['https://apis.google.com', 'https://*.googleapis.com'];
 const PICKER_FORMS = ['https://onedrive.live.com', 'https://*.sharepoint.com'];
 
@@ -206,7 +217,7 @@ export function buildContentSecurityPolicy(input: CspInput): string {
       ...PICKER_CONNECT,
     ],
     ['font-src', "'self'"],
-    ['frame-src', "'self'", 'blob:', ...PICKER_FRAMES, ...FIGMA_FRAMES],
+    ['frame-src', "'self'", 'blob:', ...PICKER_FRAMES, ...FIGMA_FRAMES, ...VIDEO_FRAMES],
     ['worker-src', "'self'"],
     ['object-src', "'none'"],
     ['base-uri', "'self'"],

@@ -2007,6 +2007,7 @@
   "DocsHubScreen.thUpdated": "Actualizado",
   "DocsHubScreen.hiddenOne": "1 documento en un espacio que no puede leer",
   "DocsHubScreen.hiddenManySuffix": "documentos en espacios que no puede leer",
+  "DocsHubScreen.valueLine": "Briefs, propuestas, actas y guías escritos en equipo, con versiones, aprobaciones y comentarios, e imágenes, tablas, archivos, Figma y vídeo dentro.",
   "DocumentCommentsPanel.comments": "Comentarios",
   "DocumentCommentsPanel.internalOnly": "Solo interno",
   "DocumentCommentsPanel.loading": "Cargando comentarios.",

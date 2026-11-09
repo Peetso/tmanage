@@ -2007,6 +2007,7 @@
   "DocsHubScreen.thUpdated": "更新时间",
   "DocsHubScreen.hiddenOne": "1 个文档位于你无法阅读的空间中",
   "DocsHubScreen.hiddenManySuffix": "个文档位于你无法阅读的空间中",
+  "DocsHubScreen.valueLine": "简报、提案、会议纪要和操作指南，团队一起写，支持版本、审批和评论，还能插入图片、表格、文件、Figma 和视频。",
   "DocumentCommentsPanel.comments": "评论",
   "DocumentCommentsPanel.internalOnly": "仅限内部",
   "DocumentCommentsPanel.loading": "正在加载评论。",
