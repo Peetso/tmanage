@@ -3,6 +3,7 @@ import type { Principal } from '@tmanage/domain';
 import { FileFoldersController } from './folders.controller.js';
 import { FileFoldersService, PROJECT_FILES_LIMIT } from './folders.service.js';
 import type { FileFoldersRepository } from './folders.repository.js';
+import type { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import type { FileAssetsRepository } from './file-assets.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -35,7 +36,32 @@ function member(projectIds: readonly string[]): Principal {
   };
 }
 
-function harness() {
+const CLEAN = {
+  detectedMimeType: 'application/pdf',
+  sizeBytes: 2048,
+  versionNo: 2,
+  scanVerdict: 'clean',
+  trustZone: 'private',
+};
+
+function harness(
+  rows: readonly { asset: Record<string, unknown>; version: Record<string, unknown> }[] = [
+    {
+      asset: {
+        id: 'file-1',
+        projectId: PROJECT,
+        name: 'brief.pdf',
+        status: 'ready',
+        audience: 'internal',
+        purpose: 'deliverable',
+        updatedAt: new Date('2026-11-09T10:00:00.000Z'),
+      },
+      version: CLEAN,
+    },
+  ],
+  stored?: 'allow_labeled' | 'block',
+  scanner?: { kind: 'none' | 'engine' },
+) {
   const limits: number[] = [];
   const database = {
     read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
@@ -43,19 +69,7 @@ function harness() {
   const assets = {
     listReadyForProject: async (_r: unknown, _c: unknown, _projectId: string, limit: number) => {
       limits.push(limit);
-      return [
-        {
-          asset: {
-            id: 'file-1',
-            projectId: PROJECT,
-            name: 'brief.pdf',
-            audience: 'internal',
-            purpose: 'deliverable',
-            updatedAt: new Date('2026-11-09T10:00:00.000Z'),
-          },
-          version: { detectedMimeType: 'application/pdf', sizeBytes: 2048, versionNo: 2 },
-        },
-      ];
+      return rows;
     },
   } as unknown as FileAssetsRepository;
   const projects = {
@@ -67,6 +81,10 @@ function harness() {
     assets,
     projects,
     {} as unknown as FileFoldersRepository,
+    scanner,
+    {
+      findByKey: async () => (stored ? { settingValue: stored } : undefined),
+    } as unknown as OrgSettingsRepository,
   );
   return { controller: new FileFoldersController(service), limits };
 }
@@ -86,9 +104,38 @@ describe('project files list (FIX3 item 11)', () => {
         purpose: 'deliverable',
         versionNo: 2,
         updatedAt: '2026-11-09T10:00:00.000Z',
+        scanStatus: 'clean',
       },
     ]);
     expect(limits).toEqual([PROJECT_FILES_LIMIT]);
+  });
+
+  it('FIX4: lists a verified file no scanner judged as Not scanned, and hides one still verifying', async () => {
+    const waiting = (id: string, version: Record<string, unknown>) => ({
+      asset: {
+        id,
+        projectId: PROJECT,
+        name: `${id}.csv`,
+        status: 'scanning',
+        audience: 'internal',
+        purpose: 'message_attachment',
+        updatedAt: new Date('2026-11-09T10:00:00.000Z'),
+      },
+      version,
+    });
+    const rows = [
+      waiting('unscanned', { ...CLEAN, scanVerdict: 'unscanned', trustZone: 'quarantine' }),
+      waiting('verifying', { ...CLEAN, detectedMimeType: null, scanVerdict: null }),
+    ];
+    const none = harness(rows, 'block', { kind: 'none' });
+    const listed = (await none.controller.files(context, member([PROJECT]), PROJECT)).files;
+    // No scanner: the owner's stored "block" cannot apply, so the file is usable, labelled.
+    expect(listed.map((file) => [file.id, file.scanStatus])).toEqual([
+      ['unscanned', 'not_scanned'],
+    ]);
+    // A real scanner and "Block until scanned": the waiting file is not listed yet.
+    const blocked = harness(rows, 'block', { kind: 'engine' });
+    expect((await blocked.controller.files(context, member([PROJECT]), PROJECT)).files).toEqual([]);
   });
 
   it('answers 404 to a member of another project and to a client', async () => {

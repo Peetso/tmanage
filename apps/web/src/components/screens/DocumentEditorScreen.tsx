@@ -287,7 +287,7 @@ export function DocumentEditorScreen({
     : [];
   const changeCount = changes.reduce((sum, block) => sum + block.lines.length, 0);
 
-  async function uploadFile(file: File) {
+  async function uploadFile(file: File, signal?: AbortSignal) {
     if (!data) throw new Error('The document is not loaded.');
     // FIX3 item 5 (D1): the image is shown at once, so wait until the scan has made it servable;
     // before that its content answers 404 and the <img> stays broken until a reload.
@@ -295,7 +295,9 @@ export function DocumentEditorScreen({
       api,
       organizationSlug,
       { projectId: data.projectId, file },
-      { untilReady: true },
+      // FIX4 item 1: wait until the file is usable (ready, or Not scanned under the owner's
+      // policy), and stop when the dialog closes.
+      signal ? { untilReady: true, signal } : { untilReady: true },
     );
     return {
       id,

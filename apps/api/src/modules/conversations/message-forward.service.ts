@@ -1,5 +1,5 @@
-import { authorize, SERVABLE_UPLOAD_STATES } from '@tmanage/domain';
-import type { Principal, UploadState } from '@tmanage/domain';
+import { authorize } from '@tmanage/domain';
+import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { MessageKind } from '../../common/database/schema.js';
@@ -38,7 +38,7 @@ export class MessageForwardService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly conversations: Pick<ConversationsService, 'get' | 'postMessage'>,
-    private readonly attachments: Pick<MessageAttachmentsService, 'list' | 'attach'>,
+    private readonly attachments: Pick<MessageAttachmentsService, 'list' | 'attach' | 'fileUsable'>,
     private readonly repository: Pick<ConversationsRepository, 'findMessageById'>,
     private readonly files: Pick<FileAssetsRepository, 'findById'>,
   ) {}
@@ -118,7 +118,8 @@ export class MessageForwardService {
       const file = await this.database.read(context, (runner) =>
         this.files.findById(runner, context, fileId),
       );
-      if (!file || !SERVABLE_UPLOAD_STATES.includes(file.status as UploadState)) return false;
+      // FIX4 item 1b: the attach door's own rule (ready, or not scanned under the owner's policy).
+      if (!file || !(await this.attachments.fileUsable(context, file))) return false;
       if (file.projectId !== targetProjectId) return false;
       const verdict = authorize({
         principal,

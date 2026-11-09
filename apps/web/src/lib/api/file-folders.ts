@@ -35,6 +35,8 @@ export interface ProjectFile {
   readonly purpose: string;
   readonly versionNo: number | null;
   readonly updatedAt: string;
+  /** FIX4 item 1b. `not_scanned`: usable and labelled, under the owner's scan policy. */
+  readonly scanStatus: 'clean' | 'not_scanned';
 }
 
 /** FIX3 item 11. A project's ready files, newest change first (internal members only). */

@@ -8,7 +8,13 @@ import { MessageAttachmentsService } from './message-attachments.service.js';
 import type { ConversationsRepository } from './conversations.repository.js';
 import type { MessageAttachmentsRepository } from './message-attachments.repository.js';
 import type { FileAssetsRepository } from '../files/file-assets.repository.js';
-import type { ConversationRow, FileAssetRow, MessageRow } from '../../common/database/schema.js';
+import type {
+  ConversationRow,
+  FileAssetRow,
+  FileVersionRow,
+  MessageRow,
+} from '../../common/database/schema.js';
+import type { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 
 /**
@@ -57,6 +63,8 @@ function serviceWith(
   attachments: Partial<MessageAttachmentsRepository>,
   conversations: Partial<ConversationsRepository>,
   files: Partial<FileAssetsRepository>,
+  scanner?: { kind: 'none' | 'engine' },
+  stored?: 'allow_labeled' | 'block',
 ): MessageAttachmentsService {
   const database = {
     read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
@@ -66,7 +74,11 @@ function serviceWith(
     database,
     attachments as MessageAttachmentsRepository,
     conversations as ConversationsRepository,
-    files as FileAssetsRepository,
+    { findLatestVersion: async () => null, ...files } as FileAssetsRepository,
+    scanner,
+    {
+      findByKey: async () => (stored ? { settingValue: stored } : undefined),
+    } as unknown as OrgSettingsRepository,
   );
 }
 
@@ -115,6 +127,42 @@ describe('MessageAttachmentsService file resolution', () => {
       service.attach(context, AUTHOR, CONVERSATION, MESSAGE, FILE),
     ).rejects.toMatchObject({ status: 404 });
     expect(insert).not.toHaveBeenCalled();
+  });
+
+  it('FIX4: a verified file no scanner judged is attachable without a scanner, but not under Block with one', async () => {
+    const files = {
+      findById: async () =>
+        ({ id: FILE, organizationId: ORG, status: 'scanning', projectId: null }) as FileAssetRow,
+      findLatestVersion: async () =>
+        ({
+          detectedMimeType: 'text/csv',
+          scanVerdict: 'unscanned',
+          trustZone: 'quarantine',
+        }) as FileVersionRow,
+    };
+    // Under "Block until scanned" with a real scanner the file waits: 404, nothing inserted.
+    const insert = vi.fn();
+    const blocked = serviceWith(
+      { insert },
+      reachableConversation,
+      files,
+      { kind: 'engine' },
+      'block',
+    );
+    await expect(
+      blocked.attach(context, AUTHOR, CONVERSATION, MESSAGE, FILE),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(insert).not.toHaveBeenCalled();
+    // With no scanner the gate passes the readiness check and moves on to the project check.
+    const none = serviceWith({ insert }, reachableConversation, files, { kind: 'none' }, 'block');
+    const fileUsable = await none.fileUsable(context, { id: FILE, status: 'scanning' });
+    expect(fileUsable).toBe(true);
+    const notVerified = serviceWith({ insert }, reachableConversation, {
+      ...files,
+      findLatestVersion: async () =>
+        ({ detectedMimeType: null, scanVerdict: null, trustZone: 'quarantine' }) as FileVersionRow,
+    });
+    expect(await notVerified.fileUsable(context, { id: FILE, status: 'scanning' })).toBe(false);
   });
 });
 

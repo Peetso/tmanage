@@ -10,6 +10,11 @@ import type { FileAssetRow, FileFolderRow, ProjectRow } from '../../common/datab
 import type { FileAssetsRepository } from './file-assets.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import { FileFoldersRepository } from './folders.repository.js';
+import { usableScanStatus } from './file-download.service.js';
+import type { UsableScanStatus } from './file-download.service.js';
+import { effectiveDownloadScanPolicyOn } from '../tenancy/download-scan-policy.js';
+import type { ScannerPresence } from '../tenancy/download-scan-policy.js';
+import { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 
 /**
  * x332's application service — file folders (Files module).
@@ -63,6 +68,8 @@ export interface ProjectFileView {
   readonly purpose: string;
   readonly versionNo: number | null;
   readonly updatedAt: string;
+  /** FIX4 item 1b. `clean` (scanned), or `not_scanned` (usable, labelled, under the owner's policy). */
+  readonly scanStatus: UsableScanStatus;
 }
 
 /** FIX3 item 11: the hub shows the newest files; more than this is a search, not a list. */
@@ -74,6 +81,9 @@ export class FileFoldersService {
     private readonly assets: FileAssetsRepository,
     private readonly projects: ProjectsRepository,
     private readonly folders: FileFoldersRepository = new FileFoldersRepository(),
+    /** FIX4 item 1b. The configured scanner; absent reads as none (`allow_labeled`). */
+    private readonly scanner?: ScannerPresence,
+    private readonly settings: OrgSettingsRepository = new OrgSettingsRepository(),
   ) {}
 
   /** A project's folders, name-ascending. Behind `file.download` on the resolved project. */
@@ -109,17 +119,29 @@ export class FileFoldersService {
         projectId,
         PROJECT_FILES_LIMIT,
       );
-      return rows.map(({ asset, version }) => ({
-        id: asset.id,
-        projectId: asset.projectId,
-        name: asset.name,
-        mimeType: version?.detectedMimeType ?? null,
-        sizeBytes: version?.sizeBytes ?? null,
-        audience: asset.audience,
-        purpose: asset.purpose,
-        versionNo: version?.versionNo ?? null,
-        updatedAt: asset.updatedAt.toISOString(),
-      }));
+      const effective = await effectiveDownloadScanPolicyOn(
+        runner,
+        context,
+        this.scanner,
+        this.settings,
+      );
+      return rows
+        .flatMap(({ asset, version }) => {
+          const scanStatus = usableScanStatus(asset.status, version, effective);
+          return scanStatus === null ? [] : [{ asset, version, scanStatus }];
+        })
+        .map(({ asset, version, scanStatus }) => ({
+          id: asset.id,
+          projectId: asset.projectId,
+          name: asset.name,
+          mimeType: version?.detectedMimeType ?? null,
+          sizeBytes: version?.sizeBytes ?? null,
+          audience: asset.audience,
+          purpose: asset.purpose,
+          versionNo: version?.versionNo ?? null,
+          updatedAt: asset.updatedAt.toISOString(),
+          scanStatus,
+        }));
     });
   }
 

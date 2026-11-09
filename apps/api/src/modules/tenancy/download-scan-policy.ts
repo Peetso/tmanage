@@ -1,4 +1,8 @@
-import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type {
+  TenantContext,
+  TenantDatabase,
+  TenantQueryRunner,
+} from '../../common/database/tenant-context.js';
 import { DOWNLOADS_BEFORE_SCAN_VALUES, defaultFor } from './org-settings.allowlist.js';
 import type { DownloadsBeforeScan } from './org-settings.allowlist.js';
 import { OrgSettingsRepository } from './org-settings.repository.js';
@@ -65,4 +69,21 @@ export async function readDownloadScanPolicy(
     effective: effectiveDownloadsBeforeScan(stored, hasScanner),
     scannerConfigured: hasScanner,
   };
+}
+
+/**
+ * FIX4 item 1b. The effective policy read on a runner the caller already holds (inside its own
+ * transaction), for the doors that decide whether a not-yet-scanned file may be used now.
+ */
+export async function effectiveDownloadScanPolicyOn(
+  runner: TenantQueryRunner,
+  context: TenantContext,
+  scanner: ScannerPresence | undefined,
+  repository: OrgSettingsRepository = new OrgSettingsRepository(),
+): Promise<DownloadsBeforeScan> {
+  const row = await repository.findByKey(runner, context, DOWNLOADS_BEFORE_SCAN_KEY);
+  return effectiveDownloadsBeforeScan(
+    storedDownloadsBeforeScan(row?.settingValue),
+    scannerConfigured(scanner),
+  );
 }

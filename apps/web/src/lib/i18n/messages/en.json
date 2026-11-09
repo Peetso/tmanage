@@ -11993,7 +11993,7 @@
   "DownloadScan.blockLabel": "Block until scanned",
   "DownloadScan.blockHint": "Nobody can download the file until the check finishes.",
   "DownloadScan.default": "Default",
-  "DownloadScan.noScanner": "No virus scanner is connected yet. Until one is, every file stays Not scanned. With Block until scanned, nobody can download new files.",
+  "DownloadScan.noScanner": "No virus scanner is connected. New files can be used straight away and are marked Not scanned, whichever option is chosen. Programs (.exe, .msi, .bat, .cmd, .ps1, .scr, .js) and Office files with macros are always refused.",
   "DownloadScan.ownerOnly": "Only the company owner can change this setting.",
   "DownloadScan.cancel": "Cancel",
   "DownloadScan.save": "Save",
@@ -18729,7 +18729,7 @@
   "FilesHub.loadError": "The files did not load",
   "FilesHub.loading": "Loading files",
   "FilesHub.emptyTitle": "No files yet",
-  "FilesHub.emptyBody": "Files attached to work, chat messages, docs and deliverables show here once they are checked.",
+  "FilesHub.emptyBody": "Files attached to work, chat messages, docs and deliverables show here.",
   "FilesHub.tableAria": "Files",
   "FilesHub.thFile": "File",
   "FilesHub.thProject": "Project",
@@ -18778,5 +18778,10 @@
   "WorkBoard.moveDown": "Down one place",
   "WorkListScreen.reorderHandle": "Move {title}: up and down arrow keys",
   "WorkListScreen.reorderHint": "Drag to reorder, or use the up and down arrow keys",
-  "RouteTitle.files": "Files"
+  "RouteTitle.files": "Files",
+  "DocEditor.upload.busy": "TManage was busy and “{name}” did not upload. Try again in a moment.",
+  "DocEditor.upload.rejected": "“{name}” did not pass the safety check, so it cannot be added.",
+  "DocEditor.upload.still_checking": "“{name}” uploaded and is still being checked for safety. Try again in a minute.",
+  "DocEditor.upload.refused": "“{name}” could not be uploaded. Try again.",
+  "FilesHub.notScannedHint": "No virus scanner checked this file. Your company owner allows using it, marked Not scanned."
 }

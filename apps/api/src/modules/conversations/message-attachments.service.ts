@@ -6,10 +6,13 @@ import type {
   TenantDatabase,
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
-import type { ConversationRow, MessageRow } from '../../common/database/schema.js';
+import type { ConversationRow, FileAssetRow, MessageRow } from '../../common/database/schema.js';
 import { FileAssetsRepository } from '../files/file-assets.repository.js';
-import { awaitingScan } from '../files/file-download.service.js';
-import { readDownloadScanPolicy } from '../tenancy/download-scan-policy.js';
+import { awaitingScan, usableScanStatus } from '../files/file-download.service.js';
+import {
+  effectiveDownloadScanPolicyOn,
+  readDownloadScanPolicy,
+} from '../tenancy/download-scan-policy.js';
 import type { ScannerPresence } from '../tenancy/download-scan-policy.js';
 import { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import { ConversationsRepository } from './conversations.repository.js';
@@ -379,7 +382,35 @@ export class MessageAttachmentsService {
   }
 
   /**
-   * Resolve the file tenant-scoped and require it to be `ready`. A file not in this tenant, or one
+   * FIX4 item 1b. Whether a file may be attached now: `ready`, or — with no scanner, or under the
+   * owner's "Allow, marked Not scanned" — verified and waiting for a scan (labelled `not_scanned`).
+   */
+  async fileUsable(
+    context: TenantContext,
+    file: Pick<FileAssetRow, 'id' | 'status'>,
+  ): Promise<boolean> {
+    return this.database.read(context, (runner) => this.usableOn(runner, context, file));
+  }
+
+  private async usableOn(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    file: Pick<FileAssetRow, 'id' | 'status'>,
+  ): Promise<boolean> {
+    if (SERVABLE_UPLOAD_STATES.includes(file.status as UploadState)) return true;
+    const version = await this.files.findLatestVersion(runner, context, file.id);
+    const effective = await effectiveDownloadScanPolicyOn(
+      runner,
+      context,
+      this.scanner,
+      this.settings,
+    );
+    return usableScanStatus(file.status, version, effective) !== null;
+  }
+
+  /**
+   * Resolve the file tenant-scoped and require it to be usable (FIX4: `ready`, or awaiting a scan
+   * under "Allow, marked Not scanned"). A file not in this tenant, or one
    * still in flight (draft, scanning) or rejected, is a 404 — the refusal path the unit test proves,
    * with no insert. Tenant scoping means a cross-tenant `fileId` resolves to no row at all.
    *
@@ -396,7 +427,7 @@ export class MessageAttachmentsService {
     runner: TenantQueryRunner,
   ): Promise<void> {
     const file = await this.files.findById(runner, context, fileId);
-    if (!file || !SERVABLE_UPLOAD_STATES.includes(file.status as UploadState)) {
+    if (!file || !(await this.usableOn(runner, context, file))) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
     if (file.projectId !== conversation.projectId) {

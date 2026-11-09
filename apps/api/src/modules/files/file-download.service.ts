@@ -481,6 +481,35 @@ export function awaitingScan(assetStatus: string, version: FileVersionRow): bool
   return version.scanVerdict === null || version.scanVerdict === 'unscanned';
 }
 
+/**
+ * FIX4 item 1b. Whether a file may be used now — attached to a message, listed in Files, shown in a
+ * doc — and how it is labelled. `clean`: scanned and promoted (`ready`). `not_scanned`: verified
+ * (its type is known and allowed; executables and macro Office files never get this far) but not
+ * judged by a scanner, and the owner's policy is "Allow, marked Not scanned" — always the case
+ * when no scanner is configured. `null`: not usable (still uploading or verifying, refused,
+ * infected, or the owner's "Block until scanned").
+ */
+export type UsableScanStatus = 'clean' | 'not_scanned';
+
+export function usableScanStatus(
+  assetStatus: string,
+  version: FileVersionRow | null,
+  effective: 'allow_labeled' | 'block',
+): UsableScanStatus | null {
+  if (version === null) return null;
+  if (
+    isServableVersion({
+      status: assetStatus,
+      scanVerdict: version.scanVerdict,
+      trustZone: version.trustZone,
+    })
+  ) {
+    return 'clean';
+  }
+  if (effective === 'allow_labeled' && awaitingScan(assetStatus, version)) return 'not_scanned';
+  return null;
+}
+
 export function destroy(stream: unknown): void {
   const candidate = stream as { destroy?: () => void; destroyed?: boolean };
   if (typeof candidate.destroy === 'function' && !candidate.destroyed) candidate.destroy();

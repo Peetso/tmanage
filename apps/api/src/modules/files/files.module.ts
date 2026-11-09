@@ -189,6 +189,9 @@ export class FilesModule {
           scanJob,
           // 56-06 (R19-e): the organization's type presets and plan cap for the upload door.
           new FileSafetySettingsReader(database, malwareScanner),
+          undefined,
+          // FIX4 item 1b: `complete` tells the browser when a not-yet-scanned file is usable.
+          malwareScanner,
         ),
     };
 
@@ -536,13 +539,20 @@ export class FilesModule {
     // service does, and its own FileFoldersRepository — a stateless collection of queries.
     const fileFolders: Provider = {
       provide: FILE_FOLDERS_SERVICE,
-      inject: [TENANT_DATABASE, FILE_ASSETS_REPOSITORY],
-      useFactory: (database: TenantDatabase, assets: FileAssetsRepository) =>
+      // FIX4 item 1b: and the scanner, so the Files hub lists not-yet-scanned files under the
+      // owner's "Allow, marked Not scanned" (always so without a scanner).
+      inject: [TENANT_DATABASE, FILE_ASSETS_REPOSITORY, MALWARE_SCANNER],
+      useFactory: (
+        database: TenantDatabase,
+        assets: FileAssetsRepository,
+        malwareScanner: MalwareScanner,
+      ) =>
         new FileFoldersService(
           database,
           assets,
           new ProjectsRepository(),
           new FileFoldersRepository(),
+          malwareScanner,
         ),
     };
 

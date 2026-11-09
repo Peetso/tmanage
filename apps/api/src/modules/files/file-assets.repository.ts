@@ -753,7 +753,9 @@ export class FileAssetsRepository {
             'request_message',
           ]),
           isNull(fileAssets.deletedAt),
-          eq(fileAssets.status, 'ready'),
+          // FIX4 item 1b: and files waiting for a scan; the service keeps those the owner's
+          // policy lets people use (labelled Not scanned).
+          inArray(fileAssets.status, ['ready', 'scanning']),
         ),
       )
       .orderBy(desc(fileAssets.updatedAt), desc(fileAssets.id))

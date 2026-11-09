@@ -49,6 +49,9 @@ import {
 import type { SafetyChip, ScanSource } from './file-safety.js';
 import { DailyUploadCountRepository, startOfUtcDay } from './daily-upload-count.repository.js';
 import type { FileSafetySettingsSource } from '../tenancy/file-safety-settings.js';
+import { usableScanStatus } from './file-download.service.js';
+import { effectiveDownloadScanPolicyOn } from '../tenancy/download-scan-policy.js';
+import type { ScannerPresence } from '../tenancy/download-scan-policy.js';
 
 /**
  * FILE-001's application service — the upload session, from reservation to a file version.
@@ -117,6 +120,12 @@ export interface FileAssetView {
   readonly scanSource: ScanSource;
   /** 56-06 (R19-e). The chip key the file row shows; the web translates it. */
   readonly safetyChip: SafetyChip;
+  /**
+   * FIX4 item 1b. Whether the file may be used now (attached, shown, listed): `ready`, or verified
+   * and waiting for a scan under the owner's "Allow, marked Not scanned" — always the case when
+   * no scanner is configured. A browser waits for this, not for `ready`.
+   */
+  readonly usable: boolean;
 }
 
 /** The client's projection of a file asset: everything but the security metadata. */
@@ -136,6 +145,7 @@ export function clientFileAssetView(view: FileAssetView): ClientFileAssetView {
     createdAt: view.createdAt,
     scanSource: view.scanSource,
     safetyChip: view.safetyChip,
+    usable: view.usable,
   };
 }
 
@@ -229,6 +239,7 @@ function toFileAssetView(
   asset: FileAssetRow,
   version: FileVersionRow,
   session: UploadSessionRow,
+  usable: boolean = asset.status === 'ready',
 ): FileAssetView {
   return {
     id: asset.id,
@@ -246,6 +257,7 @@ function toFileAssetView(
     rejectionCode: asset.rejectionCode,
     scanSource: scanSourceOf(version),
     safetyChip: safetyChip(version),
+    usable,
   };
 }
 
@@ -310,6 +322,8 @@ export class FilesService {
      */
     private readonly safety: FileSafetySettingsSource | null = null,
     private readonly dailyUploads: DailyUploadCountRepository = new DailyUploadCountRepository(),
+    /** FIX4 item 1b. The configured scanner; absent reads as none (`allow_labeled`). */
+    private readonly scanner?: ScannerPresence,
   ) {}
 
   // ── The studio's door ──────────────────────────────────────────────────────
@@ -1251,10 +1265,20 @@ export class FilesService {
     const found = await this.database.read(context, async (runner) => {
       const asset = await this.assets.findById(runner, context, session.fileAssetId);
       const version = await this.assets.findLatestVersion(runner, context, session.fileAssetId);
-      return asset && version ? { asset, version } : null;
+      if (!asset || !version) return null;
+      // FIX4 item 1b: a verified file waiting for a scan is usable under "Allow, marked Not scanned".
+      const usable =
+        asset.status === 'ready' ||
+        (asset.status === 'scanning' &&
+          usableScanStatus(
+            asset.status,
+            version,
+            await effectiveDownloadScanPolicyOn(runner, context, this.scanner),
+          ) !== null);
+      return { asset, version, usable };
     });
     if (!found) throw new ApiError(404, 'not_found', MESSAGES.notFound);
-    return toFileAssetView(found.asset, found.version, session);
+    return toFileAssetView(found.asset, found.version, session, found.usable);
   }
 
   /**

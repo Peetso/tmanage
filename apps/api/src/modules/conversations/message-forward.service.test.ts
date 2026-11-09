@@ -48,7 +48,11 @@ function build() {
   const service = new MessageForwardService(
     db,
     { get, postMessage } as never,
-    { list, attach } as never,
+    {
+      list,
+      attach,
+      fileUsable: async (_c: unknown, f: { status: string }) => f.status === 'ready',
+    } as never,
     { findMessageById: async () => source } as never,
     { findById: async () => file } as never,
   );

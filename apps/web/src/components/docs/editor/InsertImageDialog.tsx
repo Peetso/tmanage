@@ -4,7 +4,12 @@ import type { Editor } from '@tiptap/core';
 import { useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from 'react';
 
 import '../doc-share-dialog.css';
-import { attachmentProblem, formatBytes } from '../../../lib/api/uploads';
+import {
+  attachmentProblem,
+  formatBytes,
+  UploadCancelledError,
+  UploadFailedError,
+} from '../../../lib/api/uploads';
 import { useTOr } from '../../../lib/i18n/use-t-or';
 
 /** An uploaded file as the editor references it: its id and its same-site content address. */
@@ -57,10 +62,26 @@ export function EditorDialog({ title, onClose, children }: EditorDialogProps) {
   );
 }
 
+/** FIX4 item 1: say what actually went wrong, not "did not upload" for every failure. */
+function uploadProblem(error: unknown, name: string, tOr: ReturnType<typeof useTOr>): string {
+  if (error instanceof UploadFailedError) {
+    const english: Record<UploadFailedError['reason'], string> = {
+      busy: 'TManage was busy and “{name}” did not upload. Try again in a moment.',
+      rejected: '“{name}” did not pass the safety check, so it cannot be added.',
+      still_checking:
+        '“{name}” uploaded and is still being checked for safety. Try again in a minute.',
+      refused: '“{name}” could not be uploaded. Try again.',
+    };
+    return tOr(`DocEditor.upload.${error.reason}`, english[error.reason]).replace('{name}', name);
+  }
+  return tOr('DocEditor.uploadFailed', 'The file did not upload. Try again.');
+}
+
 export interface InsertImageDialogProps {
   readonly editor: Editor;
   readonly mode: 'image' | 'file';
-  readonly onUploadFile: (file: File) => Promise<UploadedDocFile>;
+  /** FIX4 item 1: `signal` aborts the upload (and any wait for it) when the dialog closes. */
+  readonly onUploadFile: (file: File, signal?: AbortSignal) => Promise<UploadedDocFile>;
   readonly onClose: () => void;
 }
 
@@ -75,6 +96,9 @@ export function InsertImageDialog({ editor, mode, onUploadFile, onClose }: Inser
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [over, setOver] = useState(false);
+  // FIX4 item 1: closing the dialog stops the upload and its background polling.
+  const uploading = useRef<AbortController | null>(null);
+  useEffect(() => () => uploading.current?.abort(), []);
 
   async function take(file: File | undefined) {
     if (!file || busy) return;
@@ -86,7 +110,10 @@ export function InsertImageDialog({ editor, mode, onUploadFile, onClose }: Inser
     setBusy(true);
     setProblem(null);
     try {
-      const uploaded = await onUploadFile(file);
+      const controller = new AbortController();
+      uploading.current = controller;
+      const uploaded = await onUploadFile(file, controller.signal);
+      if (controller.signal.aborted) return;
       const chain = editor.chain().focus();
       if (file.type.startsWith('image/') && mode === 'image') {
         chain.insertContent({
@@ -108,8 +135,9 @@ export function InsertImageDialog({ editor, mode, onUploadFile, onClose }: Inser
       }
       chain.run();
       onClose();
-    } catch {
-      setProblem(tOr('DocEditor.uploadFailed', 'The file did not upload. Try again.'));
+    } catch (error) {
+      if (error instanceof UploadCancelledError || uploading.current?.signal.aborted) return;
+      setProblem(uploadProblem(error, file.name, tOr));
       setBusy(false);
     }
   }

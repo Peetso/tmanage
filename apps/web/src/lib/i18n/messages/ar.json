@@ -11993,7 +11993,7 @@
   "DownloadScan.blockLabel": "المنع حتى يُفحص",
   "DownloadScan.blockHint": "لا يمكن لأحد تنزيل الملف حتى ينتهي الفحص.",
   "DownloadScan.default": "الافتراضي",
-  "DownloadScan.noScanner": "لم يُربط أي برنامج لفحص الفيروسات بعد. وإلى أن يُربط، ستبقى كل الملفات «لم يُفحص»، ومع خيار «المنع حتى يُفحص» لن يتمكن أحد من تنزيل الملفات الجديدة.",
+  "DownloadScan.noScanner": "لا يوجد برنامج متصل لفحص الفيروسات. يمكن استخدام الملفات الجديدة فورًا مع وسم «لم يُفحص» أيًّا كان الخيار المحدد. وتُرفض دائمًا البرامج (‎.exe و‎.msi و‎.bat و‎.cmd و‎.ps1 و‎.scr و‎.js) وملفات Office التي تحتوي على وحدات ماكرو.",
   "DownloadScan.ownerOnly": "مالك الشركة فقط يمكنه تغيير هذا الإعداد.",
   "DownloadScan.cancel": "إلغاء",
   "DownloadScan.save": "حفظ",
@@ -18729,7 +18729,7 @@
   "FilesHub.loadError": "الملفات ما اتحمّلتش",
   "FilesHub.loading": "جاري تحميل الملفات",
   "FilesHub.emptyTitle": "لسه مفيش ملفات",
-  "FilesHub.emptyBody": "الملفات المرفقة بالشغل والرسايل والمستندات والتسليمات بتظهر هنا بعد ما تتفحص.",
+  "FilesHub.emptyBody": "تظهر هنا الملفات المرفقة بالمهام والرسائل والمستندات والمُخرَجات.",
   "FilesHub.tableAria": "الملفات",
   "FilesHub.thFile": "الملف",
   "FilesHub.thProject": "المشروع",
@@ -18778,5 +18778,10 @@
   "WorkBoard.moveDown": "نزّلها خطوة لتحت",
   "WorkListScreen.reorderHandle": "غيّر مكان {title}: استخدم سهمي فوق وتحت",
   "WorkListScreen.reorderHint": "اسحب عشان تغيّر الترتيب، أو استخدم سهمي فوق وتحت",
-  "RouteTitle.files": "الملفات"
+  "RouteTitle.files": "الملفات",
+  "DocEditor.upload.busy": "كان TManage مشغولًا ولم يُرفع «{name}». حاول مرة أخرى بعد قليل.",
+  "DocEditor.upload.rejected": "لم يجتز «{name}» فحص الأمان، لذلك لا يمكن إضافته.",
+  "DocEditor.upload.still_checking": "رُفع «{name}» وما زال قيد فحص الأمان. حاول مرة أخرى بعد دقيقة.",
+  "DocEditor.upload.refused": "تعذّر رفع «{name}». حاول مرة أخرى.",
+  "FilesHub.notScannedHint": "لم يفحص أي برنامج لمكافحة الفيروسات هذا الملف. سمح مسؤول الشركة باستخدامه مع وسم «لم يُفحص»."
 }

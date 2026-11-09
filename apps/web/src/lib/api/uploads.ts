@@ -207,6 +207,12 @@ interface UploadSessionReply {
 interface UploadedAssetReply {
   readonly id: string;
   readonly status: string;
+  /**
+   * FIX4 item 1b. The file may be used now: `ready`, or verified and waiting for a scan under the
+   * owner's "Allow, marked Not scanned" (always so when no scanner is connected). Absent from an
+   * older API: then only `ready` counts.
+   */
+  readonly usable?: boolean;
 }
 
 /**
@@ -251,11 +257,26 @@ export interface UploadAttachmentOptions {
 /** How long `untilReady` waits for the scan before giving up (the scan normally takes seconds). */
 export const UPLOAD_READY_TIMEOUT_MS = 120_000;
 
-/** Part statuses that are the host being busy, not a refusal: the part is sent again. */
-const TRANSIENT_PART_STATUSES: ReadonlySet<number> = new Set([429, 502, 503, 504]);
+/**
+ * Statuses that are the host being busy or restarting, not a refusal: the request is sent again.
+ * FIX4 item 1a: every 5xx (a starting instance answered 503 for ~20 s on live), plus 408 and 429.
+ */
+export function isTransientStatus(status: number): boolean {
+  return status === 408 || status === 429 || (status >= 500 && status <= 599);
+}
 
-/** How many times one part is sent before the upload fails. */
-export const PART_ATTEMPTS = 4;
+/** How many times one part (or the session open, or `complete`) is sent before the upload fails. */
+export const PART_ATTEMPTS = 6;
+
+/**
+ * FIX4 item 1a. The wait before try `attempt + 1`: 1 s, 2 s, 4 s, 8 s, 8 s (about 23 s in all,
+ * which covers an instance's start-up), each with up to 25 % jitter so many tabs do not retry in
+ * step.
+ */
+export function retryDelayMs(attempt: number, random: () => number = Math.random): number {
+  const base = Math.min(1_000 * 2 ** (attempt - 1), 8_000);
+  return Math.round(base * (1 + random() * 0.25));
+}
 
 /** Why an upload did not end in a usable file, so a screen can say so in its own words. */
 export type UploadFailureReason = 'busy' | 'rejected' | 'still_checking' | 'refused';
@@ -500,22 +521,28 @@ async function runUpload(
   const step = (ms: number) => anySignal(deadline(ms), deps.signal);
   const sleep = deps.sleep ?? defaultSleep;
 
-  const { data: session } = await client
-    .request<UploadSessionReply>({
-      method: 'POST',
-      path: sessionsPath,
-      signal: step(UPLOAD_STEP_TIMEOUT_MS),
-      headers: { 'idempotency-key': (deps.newKey ?? defaultKey)() },
-      body: {
-        ...target,
-        fileName: file.name,
-        mimeType,
-        sizeBytes: file.size,
-      },
-    })
-    .catch((error: unknown) => {
-      throw cancelledOr(error, deps.signal);
-    });
+  // FIX4 item 1a: a busy host is retried with backoff; the same Idempotency-Key makes a retry
+  // answer the session the first try may already have opened.
+  const idempotencyKey = (deps.newKey ?? defaultKey)();
+  const { data: session } = await withRetries(
+    () =>
+      client.request<UploadSessionReply>({
+        method: 'POST',
+        path: sessionsPath,
+        signal: step(UPLOAD_STEP_TIMEOUT_MS),
+        headers: { 'idempotency-key': idempotencyKey },
+        body: {
+          ...target,
+          fileName: file.name,
+          mimeType,
+          sizeBytes: file.size,
+        },
+      }),
+    deps.signal,
+    sleep,
+  ).catch((error: unknown) => {
+    throw cancelledOr(error, deps.signal);
+  });
 
   try {
     const parts: { partNumber: number; etag: string }[] = [];
@@ -537,18 +564,20 @@ async function runUpload(
         } catch (cause) {
           if (deps.signal?.aborted) throw new UploadCancelledError();
           if (attempt < PART_ATTEMPTS) {
-            await sleep(attempt * 1_000);
+            await sleep(retryDelayMs(attempt));
             continue;
           }
           throw new NetworkError(`“${file.name}” did not reach TManage.`, cause);
         }
-        if (!TRANSIENT_PART_STATUSES.has(response.status) || attempt >= PART_ATTEMPTS) break;
-        await sleep(attempt * 1_000);
+        if (!isTransientStatus(response.status) || attempt >= PART_ATTEMPTS) break;
+        if (deps.signal?.aborted) throw new UploadCancelledError();
+        await sleep(retryDelayMs(attempt));
       }
       const etag = response.headers.get('etag');
       if (!response.ok || !etag) {
+        // A part that never got through ends the upload here: `complete` is never called.
         throw new UploadFailedError(
-          TRANSIENT_PART_STATUSES.has(response.status) ? 'busy' : 'refused',
+          isTransientStatus(response.status) ? 'busy' : 'refused',
           file.name,
         );
       }
@@ -556,13 +585,19 @@ async function runUpload(
     }
 
     const completePath = `${sessionsPath}/${encodeURIComponent(session.id)}/complete`;
-    const { data: asset } = await client.request<UploadedAssetReply>({
-      method: 'POST',
-      path: completePath,
-      body: { parts },
-      signal: step(UPLOAD_COMPLETE_TIMEOUT_MS),
-    });
-    if (deps.untilReady) {
+    // `complete` is idempotent on a completed session, so a busy answer is simply sent again.
+    const { data: asset } = await withRetries(
+      () =>
+        client.request<UploadedAssetReply>({
+          method: 'POST',
+          path: completePath,
+          body: { parts },
+          signal: step(UPLOAD_COMPLETE_TIMEOUT_MS),
+        }),
+      deps.signal,
+      sleep,
+    );
+    if (deps.untilReady && asset.usable !== true) {
       await waitUntilReady(client, completePath, parts, asset.status, file.name, deps, sleep);
     }
     return asset.id;
@@ -582,6 +617,26 @@ async function runUpload(
       })
       .catch(() => undefined);
     throw cancelledOr(error, deps.signal);
+  }
+}
+
+/** FIX4 item 1a. Send `run` again on a busy answer or a dropped connection, with backoff. */
+async function withRetries<T>(
+  run: () => Promise<T>,
+  signal: AbortSignal | undefined,
+  sleep: (ms: number) => Promise<void>,
+): Promise<T> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await run();
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      const busy =
+        error instanceof NetworkError ||
+        (error instanceof ApiRequestError && isTransientStatus(error.status));
+      if (!busy || attempt >= PART_ATTEMPTS) throw error;
+      await sleep(retryDelayMs(attempt));
+    }
   }
 }
 
@@ -610,8 +665,10 @@ async function waitUntilReady(
 ): Promise<void> {
   const started = Date.now();
   let status = firstStatus;
+  let usable = false;
   for (let poll = 0; ; poll += 1) {
-    if (status === 'ready') return;
+    // FIX4 item 1b: `usable` — ready, or not scanned under the owner's policy (no scanner).
+    if (status === 'ready' || usable) return;
     if (!CHECKING_STATES.has(status)) throw new UploadFailedError('rejected', fileName);
     if (Date.now() - started > UPLOAD_READY_TIMEOUT_MS || poll >= 80) {
       throw new UploadFailedError('still_checking', fileName);
@@ -626,6 +683,7 @@ async function waitUntilReady(
         signal: anySignal((deps.deadline ?? defaultDeadline)(UPLOAD_STEP_TIMEOUT_MS), deps.signal),
       });
       status = data.status;
+      usable = data.usable === true;
     } catch (error) {
       if (deps.signal?.aborted) throw new UploadCancelledError();
       // A busy answer while waiting is not the file's fault: keep waiting until the deadline.

@@ -37,7 +37,7 @@ export interface DocEditorProps {
   readonly format: 'markdown' | 'html';
   /** Every change, as HTML (`''` while the document is empty). */
   readonly onChange: (html: string) => void;
-  readonly onUploadFile: (file: File) => Promise<UploadedDocFile>;
+  readonly onUploadFile: (file: File, signal?: AbortSignal) => Promise<UploadedDocFile>;
   readonly api: ApiClient;
   readonly organizationSlug: string;
   readonly dir?: 'ltr' | 'rtl';

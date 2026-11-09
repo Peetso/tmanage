@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import '../../styles/screens/docs.css';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -134,7 +134,7 @@ export function FilesHubScreen({
             <p className="tm-dx-empty__body">
               {tOr(
                 'FilesHub.emptyBody',
-                'Files attached to work, chat messages, docs and deliverables show here once they are checked.',
+                'Files attached to work, chat messages, docs and deliverables show here.',
               )}
             </p>
           </div>
@@ -166,6 +166,18 @@ export function FilesHubScreen({
                       <Link href={`/${organizationSlug}/files/${encodeURIComponent(file.id)}`}>
                         <span dir="auto">{file.name}</span>
                       </Link>
+                      {file.scanStatus === 'not_scanned' ? (
+                        <span
+                          title={tOr(
+                            'FilesHub.notScannedHint',
+                            'No virus scanner checked this file. Your company owner allows using it, marked Not scanned.',
+                          )}
+                        >
+                          <StateCapsule state="waiting" className="tm-scan-capsule">
+                            {t('DownloadScan.notScanned')}
+                          </StateCapsule>
+                        </span>
+                      ) : null}
                     </th>
                     <td className="tm-dx-table__quiet">{projectName(file.projectId)}</td>
                     <td className="tm-dx-table__quiet tm-dx-table__mono">
