@@ -105,6 +105,9 @@ import { channelLabel } from '../../lib/text/channel-label';
 
 type Translate = ReturnType<typeof useT>;
 
+/** FIX5 item 4: how long a new message's attachments are re-read, and how often. */
+const YOUNG_MESSAGE_MS = 90_000;
+const YOUNG_REFETCH_MS = 3_000;
 export interface ProjectChannelScreenProps {
   organizationSlug: string;
   organizationName: string;
@@ -1051,6 +1054,12 @@ function ChannelMessage({
     queryFn: () => getMessageAttachmentsBatched(api, organizationSlug, conversationId, message.id),
     enabled: !removed,
     staleTime: 30_000,
+    // FIX5 item 4 (B-N4): a message arrives (by the realtime frame or the sender's own refetch)
+    // before its files are linked one by one, so its first read can list 2 of 4. While a message
+    // is young its list is read again every few seconds (batched with the other young rows), so
+    // the late files and their scan results appear without a reload.
+    refetchInterval: () =>
+      Date.now() - Date.parse(message.createdAt) < YOUNG_MESSAGE_MS ? YOUNG_REFETCH_MS : false,
   });
   const files: readonly MessageAttachmentSummary[] = Array.isArray(attachments.data)
     ? attachments.data

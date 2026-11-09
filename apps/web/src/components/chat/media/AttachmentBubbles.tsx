@@ -129,7 +129,7 @@ export function AttachmentBubbles({
   return (
     <div className="r7-media">
       {visible.length > 0 ? (
-        <div className="r7-media__grid" data-count={Math.min(media.length, 3)}>
+        <div className="r7-media__grid" data-count={Math.min(media.length, 4)}>
           {visible.map((attachment, index) => {
             const more = index === 3 && media.length > 4 ? media.length - 4 : 0;
             const label = scanLabel(attachment);
@@ -147,10 +147,9 @@ export function AttachmentBubbles({
                     {label}
                   </span>
                 ) : attachmentKind(attachment.name) === 'image' ? (
-                  <img
+                  <ImageTile
                     src={attachmentContentUrl(organizationSlug, attachment.fileAssetId, door)}
-                    alt=""
-                    loading="lazy"
+                    name={attachment.name}
                   />
                 ) : (
                   <VideoTile
@@ -224,6 +223,22 @@ export function AttachmentBubbles({
 function extensionOf(name: string): string {
   const dot = name.lastIndexOf('.');
   return dot === -1 ? 'FILE' : name.slice(dot + 1, dot + 5).toUpperCase();
+}
+
+/**
+ * FIX5 item 4 (B-N4): a photo tile. When the browser cannot draw the file (not servable yet, a
+ * format it cannot decode), the tile shows the file type on paper instead of an empty dark box.
+ */
+function ImageTile({ src, name }: { readonly src: string; readonly name: string }) {
+  const [broken, setBroken] = useState(false);
+  if (broken) {
+    return (
+      <span className="r7-media__fallback" aria-hidden="true">
+        {extensionOf(name)}
+      </span>
+    );
+  }
+  return <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} />;
 }
 
 /** A video's first frame with its length in the corner. */

@@ -216,6 +216,25 @@
   aspect-ratio: 4 / 3;
 }
 
+/* FIX5 item 4 (B-N4): three photos fill the grid — the first spans the top row — so no empty
+   fourth cell shows the dark bubble through (it read as a black file). */
+.r7-media__grid[data-count='3'] .r7-media__tile:first-child {
+  grid-column: 1 / -1;
+  aspect-ratio: 2 / 1;
+}
+
+.r7-media__fallback {
+  display: grid;
+  place-items: center;
+  inline-size: 100%;
+  block-size: 100%;
+  background: var(--paper-150);
+  color: var(--ink-650);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .r7-media__tile img,
 .r7-media__tile video {
   inline-size: 100%;

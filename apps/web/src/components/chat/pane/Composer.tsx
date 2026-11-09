@@ -457,6 +457,13 @@ export function Composer({
           missing.push(files[index]?.name ?? '');
         }
       }
+      // FIX5 item 4 (B-N4): the message row may already have read its attachments while the
+      // files were still being linked (2 of 4). Read them again now that every link is made.
+      if (fileIds.length > 0) {
+        void queries.invalidateQueries({
+          queryKey: ['message-attachments', organizationSlug, conversationId, posted.id],
+        });
+      }
       if (missing.length > 0) throw new FilesNotAttachedError(missing);
       return posted;
     },
