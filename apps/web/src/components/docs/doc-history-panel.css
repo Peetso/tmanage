@@ -203,3 +203,42 @@
   font-size: 11px;
   line-height: 15px;
 }
+
+/*
+ * FIX3 item 5 (live D3): the read view drew a video embed as the iframe's default 300×150 box
+ * with its long link running beside it. It now matches the editor: a full-width 16:9 player with
+ * the link on one clipped line beneath. Images keep to the column too.
+ */
+.tm-doc-view div[data-type='embed'] {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-block: 12px;
+  padding: 10px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-50);
+}
+
+.tm-doc-view div[data-type='embed'] iframe {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: var(--r-control);
+}
+
+.tm-doc-view div[data-type='embed'] a {
+  overflow: hidden;
+  color: var(--ink-650);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: ltr;
+}
+
+.tm-doc-view img {
+  max-inline-size: 100%;
+  block-size: auto;
+}
