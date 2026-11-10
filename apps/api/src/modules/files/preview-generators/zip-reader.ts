@@ -90,10 +90,46 @@ function dosDate(date: number, time: number): string | null {
 const utf8 = new TextDecoder('utf-8');
 const latin1 = new TextDecoder('latin1');
 
-/** Reads the central directory. Throws {@link ZipReadError} for a broken or bomb-shaped archive. */
+/**
+ * Where the directory starts (absolute), and how many entries it declares. `base` is the absolute
+ * offset of `bytes[0]` in the archive, so a caller holding only the archive's tail can ask. When
+ * the ZIP64 record itself lies before `bytes`, its own offset is answered (`entries: null`): read
+ * from there and ask again.
+ */
+export function zipDirectoryStart(
+  bytes: Uint8Array,
+  base = 0,
+): { readonly start: number; readonly entries: number | null } {
+  if (bytes.byteLength < 22) throw new ZipReadError('zip_unreadable');
+  const data = view(bytes);
+  const end = findEndRecord(data);
+  if (end < 0) throw new ZipReadError('zip_unreadable');
+
+  const count = data.getUint16(end + 10, true);
+  const offset = data.getUint32(end + 16, true);
+  if (count !== 0xffff && offset !== 0xffffffff) return { start: offset, entries: count };
+  const locator = end - 20;
+  if (locator < 0 || data.getUint32(locator, true) !== ZIP64_LOCATOR) {
+    throw new ZipReadError('zip_unreadable');
+  }
+  const record = u64(data, locator + 8);
+  const at = record - base;
+  if (at < 0) return { start: record, entries: null };
+  if (at + 56 > bytes.byteLength || data.getUint32(at, true) !== ZIP64_EOCD) {
+    throw new ZipReadError('zip_unreadable');
+  }
+  return { start: Math.min(u64(data, at + 48), record), entries: u64(data, at + 32) };
+}
+
+/**
+ * Reads the central directory. Throws {@link ZipReadError} for a broken or bomb-shaped archive.
+ * `base` (default 0) is the absolute offset of `bytes[0]`: the verifier passes only the archive's
+ * tail, from {@link zipDirectoryStart} on. `localHeaderOffset` stays absolute.
+ */
 export function readZipDirectory(
   bytes: Uint8Array,
   limits: ZipLimits = DEFAULT_ZIP_LIMITS,
+  base = 0,
 ): ZipDirectory {
   if (bytes.byteLength < 22) throw new ZipReadError('zip_unreadable');
   const data = view(bytes);
@@ -101,19 +137,24 @@ export function readZipDirectory(
   if (end < 0) throw new ZipReadError('zip_unreadable');
 
   let count = data.getUint16(end + 10, true);
-  let offset = data.getUint32(end + 16, true);
-  if (count === 0xffff || offset === 0xffffffff) {
+  let offset = data.getUint32(end + 16, true) - base;
+  if (count === 0xffff || offset + base === 0xffffffff) {
     const locator = end - 20;
     if (locator < 0 || data.getUint32(locator, true) !== ZIP64_LOCATOR) {
       throw new ZipReadError('zip_unreadable');
     }
-    const record = u64(data, locator + 8);
-    if (record + 56 > bytes.byteLength || data.getUint32(record, true) !== ZIP64_EOCD) {
+    const record = u64(data, locator + 8) - base;
+    if (
+      record < 0 ||
+      record + 56 > bytes.byteLength ||
+      data.getUint32(record, true) !== ZIP64_EOCD
+    ) {
       throw new ZipReadError('zip_unreadable');
     }
     count = u64(data, record + 32);
-    offset = u64(data, record + 48);
+    offset = u64(data, record + 48) - base;
   }
+  if (offset < 0) throw new ZipReadError('zip_unreadable');
   if (count > limits.maxEntries) throw new ZipReadError('zip_bomb');
 
   const entries: ZipEntry[] = [];

@@ -70,6 +70,8 @@ export class FileRefusedError extends Error {
   constructor(
     readonly fileName: string,
     readonly reason: string,
+    /** FIX5 M2: the entry inside a refused ZIP the refusal is about, when the API named one. */
+    readonly entry: string | null = null,
   ) {
     super(`file_not_allowed:${reason}`);
     this.name = 'FileRefusedError';
@@ -90,6 +92,32 @@ export function refusalReason(error: unknown): string | null {
     : null;
 }
 
+/**
+ * FIX5 M2. The refusal behind an upload: the 422 at session time (`refusalReason`, with an
+ * optional `{ field: 'entry' }` detail), or the verifier's verdict once the bytes were read — a
+ * `rejected` file whose answer carries a known reason token (and, for a ZIP, the entry). `null`
+ * for any other failure, which keeps its own message.
+ */
+export function uploadRefusal(
+  error: unknown,
+): { readonly reason: string; readonly entry: string | null } | null {
+  if (
+    error instanceof UploadFailedError &&
+    error.reason === 'rejected' &&
+    error.rejectionCode !== null &&
+    Object.hasOwn(REFUSAL_ENGLISH, error.rejectionCode)
+  ) {
+    return { reason: error.rejectionCode, entry: error.rejectedEntry };
+  }
+  const reason = refusalReason(error);
+  if (reason === null) return null;
+  const entry =
+    error instanceof ApiRequestError
+      ? (error.details.find((detail) => detail.field === 'entry')?.message ?? null)
+      : null;
+  return { reason, entry };
+}
+
 const REFUSAL_ENGLISH: Readonly<Record<string, string>> = {
   executable: '“{name}” is a program, and programs cannot be shared in TManage.',
   macro_office:
@@ -101,15 +129,21 @@ const REFUSAL_ENGLISH: Readonly<Record<string, string>> = {
   type_not_allowed: '“{name}” is a file type this workspace does not accept.',
   too_large: '“{name}” is larger than this workspace allows.',
   channel_forbids: '“{name}” cannot be shared here.',
+  archive_contains_blocked:
+    '“{name}” contains “{entry}”, a program, script or macro file, which TManage does not accept. Remove it from the archive and attach it again.',
+  archive_nested:
+    '“{name}” contains another archive, “{entry}”. TManage looks inside one level only: unpack it, or send the inner archive on its own.',
+  archive_encrypted:
+    '“{name}” contains a password-protected file, “{entry}”, which TManage cannot check. Send it without a password.',
+  archive_unreadable: 'TManage could not look inside “{name}”, so it cannot be shared.',
 };
 
 function describeError(error: unknown, t: Translate, tOr: TranslateOr): string {
   if (error instanceof FileRefusedError) {
     const reason = REFUSAL_ENGLISH[error.reason] ? error.reason : 'type_not_allowed';
-    const why = tOr(`ChatMessages.refused.${reason}`, REFUSAL_ENGLISH[reason] as string).replace(
-      '{name}',
-      error.fileName,
-    );
+    const why = tOr(`ChatMessages.refused.${reason}`, REFUSAL_ENGLISH[reason] as string)
+      .replace('{name}', error.fileName)
+      .replace('{entry}', error.entry ?? '…');
     return `${why} ${tOr(
       'ChatMessages.refused.nothingSent',
       'Nothing was sent; your message and the other files are still here.',
@@ -440,8 +474,10 @@ export function Composer({
                 deleteFile(api, organizationSlug, id).catch(() => undefined),
               );
             }
-            const reason = refusalReason(error);
-            if (reason !== null) throw new FileRefusedError(file.name, reason);
+            const refusal = uploadRefusal(error);
+            if (refusal !== null) {
+              throw new FileRefusedError(file.name, refusal.reason, refusal.entry);
+            }
             throw error;
           }
         }

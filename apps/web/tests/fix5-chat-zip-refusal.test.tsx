@@ -16,23 +16,37 @@ import { ApiRequestError } from '../src/lib/api/errors';
 const uploaded: string[] = [];
 const deleted: string[] = [];
 
-vi.mock('../src/lib/api/uploads', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  uploadProjectFile: vi.fn(
-    (_client: unknown, _org: string, input: { readonly file: File }): Promise<string> => {
-      if (input.file.name.endsWith('.zip')) {
-        return Promise.reject(
-          new ApiRequestError(422, 'validation_failed', 'This file cannot be uploaded', 'c-1', [
-            { field: 'reason', message: 'archive_off' },
-          ]),
-        );
-      }
-      const id = `fa-${input.file.name}`;
-      uploaded.push(id);
-      return Promise.resolve(id);
-    },
-  ),
-}));
+vi.mock('../src/lib/api/uploads', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/lib/api/uploads')>();
+  return {
+    ...original,
+    uploadProjectFile: vi.fn(
+      (_client: unknown, _org: string, input: { readonly file: File }): Promise<string> => {
+        // FIX5 M2: the verifier refused the ZIP for what it holds, after the upload completed.
+        if (input.file.name.endsWith('-inner.zip')) {
+          return Promise.reject(
+            new original.UploadFailedError(
+              'rejected',
+              input.file.name,
+              'archive_contains_blocked',
+              'brief/setup.exe',
+            ),
+          );
+        }
+        if (input.file.name.endsWith('.zip')) {
+          return Promise.reject(
+            new ApiRequestError(422, 'validation_failed', 'This file cannot be uploaded', 'c-1', [
+              { field: 'reason', message: 'archive_off' },
+            ]),
+          );
+        }
+        const id = `fa-${input.file.name}`;
+        uploaded.push(id);
+        return Promise.resolve(id);
+      },
+    ),
+  };
+});
 
 vi.mock('../src/lib/api/file-delete', () => ({
   deleteFile: vi.fn((_client: unknown, _org: string, id: string) => {
@@ -119,5 +133,46 @@ describe('FIX5 item 3: one refused file in a multi-file message', () => {
     expect((box as HTMLTextAreaElement).value).toBe('Media and data');
     expect(screen.queryByText('LIVECHECK-pack.zip')).toBeNull();
     expect(screen.getByText('LIVECHECK-clip.mp4')).toBeInTheDocument();
+  });
+
+  it('names the ZIP and the entry the safety check refused it for (FIX5 M2)', async () => {
+    const queries = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { container } = render(
+      <QueryClientProvider client={queries}>
+        <Composer
+          api={client}
+          organizationSlug="qa"
+          conversationId="c-1"
+          archived={false}
+          label="Message"
+          attachProjectId="p-1"
+        />
+      </QueryClientProvider>,
+    );
+    const input = container.querySelector('input[type=file]') as HTMLInputElement;
+    fireEvent.change(input, {
+      target: {
+        files: [
+          new File(['a,b'], 'LIVECHECK-quote.csv', { type: 'text/csv' }),
+          new File(['PK'], 'LIVECHECK-brief-inner.zip', { type: 'application/zip' }),
+        ],
+      },
+    });
+    const box = screen.getByRole('textbox', { name: 'Message' });
+    fireEvent.change(box, { target: { value: 'The brief' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+
+    const alert = await screen.findByText(/LIVECHECK-brief-inner\.zip/u, {
+      selector: '[role=alert] *',
+    });
+    expect(alert.textContent).toMatch(/brief\/setup\.exe/u);
+    expect(alert.textContent).toMatch(/program, script or macro/u);
+    expect(alert.textContent).toMatch(/Nothing was sent/u);
+    await waitFor(() => expect(deleted.sort()).toEqual([...uploaded].sort()));
+    expect(posts).toHaveLength(0);
+    expect((box as HTMLTextAreaElement).value).toBe('The brief');
+    expect(screen.queryByText('LIVECHECK-brief-inner.zip')).toBeNull();
   });
 });

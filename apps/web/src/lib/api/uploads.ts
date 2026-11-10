@@ -213,6 +213,10 @@ interface UploadedAssetReply {
    * older API: then only `ready` counts.
    */
   readonly usable?: boolean;
+  /** Why a `rejected` file was refused (a token); the member's answer only. */
+  readonly rejectionCode?: string | null;
+  /** FIX5 M2: the entry inside a refused ZIP the refusal is about, when there is one. */
+  readonly rejectedEntry?: string;
 }
 
 /**
@@ -286,6 +290,10 @@ export class UploadFailedError extends Error {
   constructor(
     readonly reason: UploadFailureReason,
     readonly fileName: string,
+    /** For `rejected`: the API's reason token, when the answer carried one (members only). */
+    readonly rejectionCode: string | null = null,
+    /** For `rejected`: the entry inside a refused ZIP (FIX5 M2), when the answer named one. */
+    readonly rejectedEntry: string | null = null,
   ) {
     // The English sentence, for screens that show a thrown error's message as it is.
     super(
@@ -598,7 +606,7 @@ async function runUpload(
       sleep,
     );
     if (deps.untilReady && asset.usable !== true) {
-      await waitUntilReady(client, completePath, parts, asset.status, file.name, deps, sleep);
+      await waitUntilReady(client, completePath, parts, asset, file.name, deps, sleep);
     }
     return asset.id;
   } catch (error) {
@@ -658,18 +666,27 @@ async function waitUntilReady(
   client: ApiClient,
   completePath: string,
   parts: readonly { partNumber: number; etag: string }[],
-  firstStatus: string,
+  first: UploadedAssetReply,
   fileName: string,
   deps: UploadAttachmentOptions,
   sleep: (ms: number) => Promise<void>,
 ): Promise<void> {
   const started = Date.now();
-  let status = firstStatus;
+  let reply = first;
   let usable = false;
   for (let poll = 0; ; poll += 1) {
+    const status = reply.status;
     // FIX4 item 1b: `usable` — ready, or not scanned under the owner's policy (no scanner).
     if (status === 'ready' || usable) return;
-    if (!CHECKING_STATES.has(status)) throw new UploadFailedError('rejected', fileName);
+    if (!CHECKING_STATES.has(status)) {
+      // The reason (and, for a ZIP, the entry) travel on, so the screen can say why.
+      throw new UploadFailedError(
+        'rejected',
+        fileName,
+        reply.rejectionCode ?? null,
+        reply.rejectedEntry ?? null,
+      );
+    }
     if (Date.now() - started > UPLOAD_READY_TIMEOUT_MS || poll >= 80) {
       throw new UploadFailedError('still_checking', fileName);
     }
@@ -682,7 +699,7 @@ async function waitUntilReady(
         body: { parts },
         signal: anySignal((deps.deadline ?? defaultDeadline)(UPLOAD_STEP_TIMEOUT_MS), deps.signal),
       });
-      status = data.status;
+      reply = data;
       usable = data.usable === true;
     } catch (error) {
       if (deps.signal?.aborted) throw new UploadCancelledError();

@@ -54,7 +54,12 @@ function harness(options: {
       }
       if (url.endsWith('/complete')) {
         const status = completeStatuses.length > 1 ? completeStatuses.shift() : completeStatuses[0];
-        return Promise.resolve(json({ id: 'fa-1', status }, 202));
+        // FIX5 M2: a member's answer names why a file was refused (and, for a ZIP, the entry).
+        const why =
+          status === 'rejected'
+            ? { rejectionCode: 'archive_nested', rejectedEntry: 'more/inner.zip' }
+            : {};
+        return Promise.resolve(json({ id: 'fa-1', status, ...why }, 202));
       }
       if (url.endsWith('/cancel')) return Promise.resolve(json({ id: 'us-1' }));
       return Promise.resolve(json({}, 404));
@@ -138,5 +143,24 @@ describe('FIX3 item 1: a chat file is ready before the message names it', () => 
         { fetch: partFetch, untilReady: true, sleep: noWait },
       ),
     ).rejects.toMatchObject({ reason: 'rejected' });
+  });
+
+  it('carries the reason token and the refused ZIP entry from the answer (FIX5 M2)', async () => {
+    const { client, partFetch } = harness({
+      parts: [200],
+      completeStatuses: ['scanning', 'rejected'],
+    });
+    await expect(
+      uploadProjectFile(
+        client,
+        'qa',
+        { projectId: 'p1', file: csv },
+        { fetch: partFetch, untilReady: true, sleep: noWait },
+      ),
+    ).rejects.toMatchObject({
+      reason: 'rejected',
+      rejectionCode: 'archive_nested',
+      rejectedEntry: 'more/inner.zip',
+    });
   });
 });

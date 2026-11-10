@@ -47,6 +47,7 @@ import {
   safetyChip,
 } from './file-safety.js';
 import type { SafetyChip, ScanSource } from './file-safety.js';
+import { ARCHIVE_REJECTION_CODES, inspectStoredArchive } from './archive-inspection.js';
 import { DailyUploadCountRepository, startOfUtcDay } from './daily-upload-count.repository.js';
 import type { FileSafetySettingsSource } from '../tenancy/file-safety-settings.js';
 import { usableScanStatus } from './file-download.service.js';
@@ -116,6 +117,14 @@ export interface FileAssetView {
    * the client's projection is {@link ClientFileAssetView}, and `35` :100 fixes their copy.
    */
   readonly rejectionCode: string | null;
+  /**
+   * Security review FIX5 M2. For a ZIP or OOXML file the verifier refused for what it carries
+   * (`archive_contains_blocked`, `archive_nested`, `archive_encrypted`, `macro_office`): the
+   * offending entry's path, at most 200 characters, so the uploader is told which one. Read again
+   * from the quarantined object's directory when the answer is made (the name is content and is
+   * stored nowhere); absent otherwise, and never in the client's projection.
+   */
+  readonly rejectedEntry?: string;
   /** 56-06 (R19-e). Who judged the latest version's bytes (`tmanage` | `provider` | `none`). */
   readonly scanSource: ScanSource;
   /** 56-06 (R19-e). The chip key the file row shows; the web translates it. */
@@ -129,7 +138,7 @@ export interface FileAssetView {
 }
 
 /** The client's projection of a file asset: everything but the security metadata. */
-export type ClientFileAssetView = Omit<FileAssetView, 'rejectionCode'>;
+export type ClientFileAssetView = Omit<FileAssetView, 'rejectionCode' | 'rejectedEntry'>;
 
 export function clientFileAssetView(view: FileAssetView): ClientFileAssetView {
   return {
@@ -1278,7 +1287,40 @@ export class FilesService {
       return { asset, version, usable };
     });
     if (!found) throw new ApiError(404, 'not_found', MESSAGES.notFound);
-    return toFileAssetView(found.asset, found.version, session, found.usable);
+    const view = toFileAssetView(found.asset, found.version, session, found.usable);
+    const entry = await this.rejectedEntryOf(found.asset, found.version, session);
+    return entry === null ? view : { ...view, rejectedEntry: entry };
+  }
+
+  /**
+   * FIX5 M2. The entry a member's refused ZIP was refused for, read again from the quarantined
+   * object's directory (`archive-inspection.ts`). Only for the member door (the client's
+   * projection drops it) and only for an archive refusal; `null` when the bytes are gone (purged)
+   * or cannot be read — the reason token alone still answers.
+   */
+  private async rejectedEntryOf(
+    asset: FileAssetRow,
+    version: FileVersionRow,
+    session: UploadSessionRow,
+  ): Promise<string | null> {
+    if (session.clientOrganizationId !== null) return null;
+    if (asset.status !== 'rejected' || asset.purgedAt !== null) return null;
+    const code = asset.rejectionCode;
+    if (code === null || code === 'archive_unreadable' || !ARCHIVE_REJECTION_CODES.has(code)) {
+      return null;
+    }
+    // Only an OOXML document earns `macro_office` here, so the code says which reading to repeat.
+    const officeOpenXml = code === 'macro_office';
+    try {
+      const refusal = await inspectStoredArchive(
+        this.store,
+        { zone: 'quarantine', objectKey: version.objectKey, sizeBytes: version.sizeBytes },
+        { channel: 'member', officeOpenXml },
+      );
+      return refusal?.entry ?? null;
+    } catch {
+      return null;
+    }
   }
 
   /**

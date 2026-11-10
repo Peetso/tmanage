@@ -10,9 +10,15 @@ import type {
   TenantDatabase,
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
-import type { FileAssetRow, FileVersionRow } from '../../common/database/schema.js';
+import type {
+  FileAssetRow,
+  FileVersionRow,
+  UploadSessionRow,
+} from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
+import { inspectStoredArchive, ZIP_FAMILY_TOKENS } from './archive-inspection.js';
+import type { ArchiveRefusal, ArchiveRejectionCode } from './archive-inspection.js';
 import { SIGNATURE_WINDOW_BYTES, TextualCheck, judgeContentType } from './content-signature.js';
 import type { DetectedTypeToken, RejectionCode } from './content-signature.js';
 import { FileAssetTransitionError } from './file-assets.repository.js';
@@ -66,7 +72,13 @@ import { describeFailure } from './upload-session-sweeper.js';
  *   `content_hash` and `detected_mime_type`, the asset goes `verifying → scanning`, and
  *   `file_asset.verified` (`allowed`) is recorded.
  * - **rejected** — `hash_mismatch`, `type_not_allowed` or `type_mismatch`
- *   (`content-signature.ts`): the version gets `content_hash` (the bytes are evidence) and
+ *   (`content-signature.ts`), or — for a ZIP-family object (`zip`, `docx`, `xlsx`, `pptx`) whose
+ *   type passed — what its central directory holds (`archive-inspection.ts`, security review
+ *   FIX5 M2/L3: `macro_office`, `archive_contains_blocked`, `archive_nested`,
+ *   `archive_encrypted` for the client door, `archive_unreadable`). The directory is read with
+ *   ranged reads of the object's tail after the main read; nothing is inflated. Member and
+ *   client uploads take the same path; the session's `client_organization_id` tells the door
+ *   apart. The version gets `content_hash` (the bytes are evidence) and
  *   no detected type, the asset goes `verifying → rejected` with `rejection_code`,
  *   `file_asset.rejected` (`denied`) is recorded and `file.rejected.v1` is appended. The
  *   object stays in quarantine, is never promoted, and its bytes **stay counted** until
@@ -258,7 +270,15 @@ export class FileVerifier {
       if (!version) throw new VerificationFailure('no_version');
       if (!session) throw new VerificationFailure('no_session');
       const reading = await this.read(version);
-      return await this.conclude(context, row, version, session.declaredContentHash, reading);
+      const archive = await this.inspectArchive(version, session, reading);
+      return await this.conclude(
+        context,
+        row,
+        version,
+        session.declaredContentHash,
+        reading,
+        archive,
+      );
     } catch (error) {
       if (error instanceof ObjectStoreUnavailableError) throw error;
       await this.recordFailure(context, row, version, error);
@@ -332,6 +352,39 @@ export class FileVerifier {
   }
 
   /**
+   * FIX5 M2/L3. For an object whose digest and type passed and whose bytes are a ZIP, the
+   * refusal its directory earns, or `null`. Any other object is not opened again.
+   */
+  private async inspectArchive(
+    version: FileVersionRow,
+    session: UploadSessionRow,
+    reading: Reading,
+  ): Promise<ArchiveRefusal | null> {
+    if (
+      session.declaredContentHash !== null &&
+      session.declaredContentHash !== reading.contentHash
+    ) {
+      return null;
+    }
+    const judgement = judgeContentType(version.declaredMimeType, reading.head, reading.textual);
+    if (!judgement.ok || !ZIP_FAMILY_TOKENS.has(judgement.detectedType)) return null;
+    try {
+      return await inspectStoredArchive(
+        this.store,
+        { zone: 'quarantine', objectKey: version.objectKey, sizeBytes: reading.sizeBytes },
+        {
+          channel: session.clientOrganizationId === null ? 'member' : 'client',
+          officeOpenXml: judgement.detectedType !== 'zip',
+        },
+      );
+    } catch (error) {
+      if (error instanceof ObjectStoreUnavailableError) throw error;
+      if (error instanceof ObjectNotFoundError) throw new VerificationFailure('object_not_found');
+      throw new VerificationFailure('store_error');
+    }
+  }
+
+  /**
    * The verdict, in one transaction: the version's facts (conditional on NULL), the asset's
    * move (conditional on `verifying`), the audit row, and the outbox event for a rejection.
    * The order of checks is the header's: the digest against the declaration first — bytes
@@ -343,15 +396,20 @@ export class FileVerifier {
     version: FileVersionRow,
     declaredContentHash: string | null,
     reading: Reading,
+    archive: ArchiveRefusal | null = null,
   ): Promise<'verified' | 'rejected' | 'skipped'> {
-    let rejectionCode: RejectionCode | null = null;
+    let rejectionCode: RejectionCode | ArchiveRejectionCode | null = null;
     let detectedMimeType: string | null = null;
     let detectedType: DetectedTypeToken | null = null;
     if (declaredContentHash !== null && declaredContentHash !== reading.contentHash) {
       rejectionCode = 'hash_mismatch';
     } else {
       const judgement = judgeContentType(version.declaredMimeType, reading.head, reading.textual);
-      if (judgement.ok) {
+      if (judgement.ok && archive) {
+        // The type is what it says; what it carries is not admitted (FIX5 M2/L3).
+        detectedType = judgement.detectedType;
+        rejectionCode = archive.code;
+      } else if (judgement.ok) {
         detectedMimeType = judgement.detectedMimeType;
         detectedType = judgement.detectedType;
       } else {
@@ -368,6 +426,8 @@ export class FileVerifier {
       declared_hash_present: declaredContentHash !== null,
       ...(detectedType ? { detected_type: detectedType } : {}),
       ...(rejectionCode ? { rejection_code: rejectionCode } : {}),
+      // A token for what the entry was — never its name, which is content.
+      ...(archive ? { archive_entry_kind: archive.finding } : {}),
     };
 
     try {

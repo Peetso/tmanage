@@ -126,7 +126,18 @@ const PDF = padTo('%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n');
 const PNG = padTo(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d]));
 const SVG = padTo('<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"/>');
 const HTML = padTo('<!DOCTYPE html><html><script>alert(1)</script></html>');
-const DOCX = padTo(Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x06, 0x00]));
+// A ZIP head and an empty central directory (an end record, no entries): since FIX5 M2/L3 the
+// verifier reads a ZIP-family object's directory, and one it cannot read is refused.
+const ZIP_END_OF_DIRECTORY = (() => {
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt32LE(DECLARED - 22, 16);
+  return end;
+})();
+const DOCX = Buffer.concat([
+  padTo(Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x06, 0x00]), DECLARED - 22),
+  ZIP_END_OF_DIRECTORY,
+]);
 const TEXT = padTo('name,total\nمشروع,12\n');
 const TEXT_WITH_NUL = Buffer.concat([
   padTo('name,total\n', 40),

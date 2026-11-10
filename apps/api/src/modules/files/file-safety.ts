@@ -23,7 +23,9 @@ import { CONTRACT_MAX_SIZE_BYTES } from './upload-input.js';
  *    executable declared type. A name with an earlier extension (`invoice.pdf.exe`) is refused
  *    as `double_extension` — the disguise is the finding.
  * 2. **Macro Office** — `.docm/.xlsm/.pptm` (and their template/add-in kin), a declared
- *    `…macroEnabled…` type, or a `vbaProject.bin` entry name inside a ZIP head.
+ *    `…macroEnabled…` type, or a `vbaProject.bin` entry name inside a ZIP head (only a door that
+ *    has the head — inbound mail; the member and client doors classify before any byte exists,
+ *    and the verifier reads the whole ZIP directory instead, below).
  * 3. **Size** — the caller's cap (the plan's, never above the contract's 5 GiB); a client is
  *    capped at 100 MB whatever the plan says.
  * 4. **Type** — the extension (or, with no known extension, the declared type) must fall in one
@@ -43,10 +45,15 @@ export type FileTypePreset = (typeof FILE_TYPE_PRESETS)[number];
 
 /**
  * Every preset, archives included. FIX5 item 3 (live check fd145807, B-N3): agencies send ZIPs
- * all the time and no screen could switch archives on, so every ZIP was refused. A ZIP is still
- * opened for a `vbaProject.bin` (macro Office), never accepted from a public form or inbound mail
- * (rule 5), and opens in the listing viewer. An organization that saved a preset list without
- * archives keeps its choice.
+ * all the time and no screen could switch archives on, so every ZIP was refused. A ZIP is never
+ * accepted from a public form or inbound mail (rule 5), and opens in the listing viewer. An
+ * organization that saved a preset list without archives keeps its choice.
+ *
+ * What is *inside* a ZIP is judged once the bytes exist, by the verifier (`file-verifier.ts`,
+ * `archive-inspection.ts`, security review FIX5 M2 and L3): it reads the central directory of
+ * every ZIP and OOXML upload (member and client doors alike) and refuses the file when an entry
+ * fails {@link archiveEntryFinding} or is named `vbaProject.bin`. This module's own head check
+ * ({@link zipHeadNamesMacros}) runs only where a caller has the head before storing (inbound mail).
  */
 export const DEFAULT_PRESETS: readonly FileTypePreset[] = [
   'documents',
@@ -267,6 +274,63 @@ const MACRO_EXTENSIONS: ReadonlySet<string> = new Set([
   'ppam',
   'sldm',
 ]);
+
+/**
+ * Archive names, lowercase, without the dot: an archive inside an uploaded ZIP is refused (one
+ * level only — the verifier does not open it, so it could hide anything). OOXML (`docx`, `xlsx`,
+ * `pptx`) is not here: Office embeds one document in another, and its parts are judged as names.
+ */
+export const ARCHIVE_EXTENSIONS: ReadonlySet<string> = new Set([
+  'zip',
+  'zipx',
+  '7z',
+  'rar',
+  'tar',
+  'gz',
+  'tgz',
+  'bz2',
+  'tbz',
+  'tbz2',
+  'xz',
+  'txz',
+  'zst',
+  'lz',
+  'lzma',
+  'z',
+  'cab',
+  'iso',
+  'img',
+  'arj',
+  'lzh',
+  'lha',
+  'ace',
+  'war',
+  'ear',
+  'cpio',
+]);
+
+/** What a name inside an archive is, when it is something an upload may not carry. */
+export type ArchiveEntryFinding = 'executable' | 'double_extension' | 'macro_office' | 'archive';
+
+/**
+ * Judges one entry name of an uploaded ZIP (FIX5 M2) by the same lists the outer name is judged
+ * by: an executable or script last extension (`double_extension` when an earlier one disguises
+ * it), a macro Office extension, or an archive. `null` for a name that may pass. The caller
+ * handles `vbaProject.bin` and encryption; this reads only the name (the part after the last `/`).
+ */
+export function archiveEntryFinding(entryPath: string): ArchiveEntryFinding | null {
+  const base = entryPath.split('/').at(-1) ?? '';
+  const extensions = extensionsOf(normalizeFileName(base));
+  const last = extensions.at(-1) ?? null;
+  if (last === null) return null;
+  const earlier = extensions.slice(0, -1);
+  if (EXECUTABLE_EXTENSIONS.has(last) && (!AMBIGUOUS_EXECUTABLE.has(last) || earlier.length > 0)) {
+    return earlier.length > 0 ? 'double_extension' : 'executable';
+  }
+  if (MACRO_EXTENSIONS.has(last)) return 'macro_office';
+  if (ARCHIVE_EXTENSIONS.has(last)) return 'archive';
+  return null;
+}
 
 const startsWith = (head: Buffer, bytes: readonly number[]): boolean =>
   head.length >= bytes.length && bytes.every((byte, index) => head[index] === byte);
