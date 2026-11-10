@@ -18,7 +18,12 @@ import {
   type AppConnectFlow,
   type AppConnectProvider,
 } from './app-connect.flow.js';
-import { gitHubAuthorizeUrl, type GitHubClient, type GitHubOAuthConfig } from './github.oauth.js';
+import {
+  gitHubAuthorizeUrl,
+  gitHubGrantIsAllowed,
+  type GitHubClient,
+  type GitHubOAuthConfig,
+} from './github.oauth.js';
 
 /**
  * FIX5 — one-click Connect for GitHub (owner/admin, `org.manage`). Slack and Microsoft Teams were
@@ -33,6 +38,11 @@ import { gitHubAuthorizeUrl, type GitHubClient, type GitHubOAuthConfig } from '.
  * stored). Connect and Disconnect are audited (`github_connection.connected` / `.disconnected`)
  * in the same transaction as the vault change. Disconnect revokes at GitHub (best effort) and
  * forgets the token.
+ *
+ * Security review L4: a token whose granted scope holds anything other than `read:user` (the
+ * consent URL can be edited to ask for `repo`) is revoked at GitHub (best effort), never stored,
+ * audited as a refused `github_connection.connected` (`reason: scope_too_wide`) and answered with
+ * 400 `validation_failed`, detail `{ field: 'scope', message: 'scope_too_wide' }`.
  */
 
 export const APP_CONNECT_SERVICE = Symbol.for('tmanage.AppConnectService');
@@ -71,6 +81,9 @@ const NAMES: Readonly<Record<AppConnectProvider, string>> = {
 function invalid(field: string, message: string): ApiError {
   return new ApiError(400, 'validation_failed', 'The request is invalid', [{ field, message }]);
 }
+
+/** The detail token the web page reads to explain a too-wide GitHub grant. */
+export const SCOPE_TOO_WIDE = 'scope_too_wide';
 
 function conflict(provider: AppConnectProvider, reason: string, message: string): ApiError {
   return new ApiError(
@@ -139,11 +152,12 @@ export class AppConnectService {
     principal: Principal,
     action: 'github_connection.connected' | 'github_connection.disconnected',
     metadata: Readonly<Record<string, string | boolean>>,
+    result: 'allowed' | 'denied' = 'allowed',
   ): Promise<void> {
     await this.deps.audit.record(tx, context, {
       action,
       objectId: null,
-      result: 'allowed',
+      result,
       actorUserId: principal.userId,
       metadata,
     });
@@ -215,14 +229,24 @@ export class AppConnectService {
     const config = this.deps.config.github!;
     let accessToken: string;
     let login: string;
+    let granted: string | null;
     try {
-      ({ accessToken } = await this.deps.github.exchangeCode({
+      ({ accessToken, scope: granted } = await this.deps.github.exchangeCode({
         config,
         redirectUri: this.redirectUri(provider),
         code,
         verifier: flow.verifier,
       }));
-      ({ login } = await this.deps.github.me(accessToken));
+      // L4: refuse a too-wide grant before the token is used for anything.
+      if (granted !== null && !gitHubGrantIsAllowed(granted)) {
+        return await this.refuseGrant(context, principal, provider, accessToken);
+      }
+      let scopes: string | null;
+      ({ login, scopes } = await this.deps.github.me(accessToken));
+      // Only when the token response carried no `scope`: the header on the `/user` call.
+      if (granted === null && scopes !== null && !gitHubGrantIsAllowed(scopes)) {
+        return await this.refuseGrant(context, principal, provider, accessToken);
+      }
     } catch (error) {
       if (error instanceof ApiError) throw error;
       if (error instanceof AppConnectRefusedError) {
@@ -253,6 +277,36 @@ export class AppConnectService {
     // The replaced token would otherwise stay valid at GitHub; never block the new connection.
     if (previous !== null && previous !== accessToken) await this.revokeQuietly(provider, previous);
     return { provider, setUp: true, connected: true, account: login || null };
+  }
+
+  /**
+   * L4: the grant holds more than `read:user`. Revoke the token at GitHub (best effort), store
+   * nothing, audit the refusal (never the token), and fail the connection.
+   */
+  private async refuseGrant(
+    context: TenantContext,
+    principal: Principal,
+    provider: AppConnectProvider,
+    accessToken: string,
+  ): Promise<never> {
+    await this.revokeQuietly(provider, accessToken);
+    await this.deps.database.transaction(context, (tx) =>
+      this.audit(
+        tx,
+        context,
+        principal,
+        'github_connection.connected',
+        { provider, reason: SCOPE_TOO_WIDE },
+        'denied',
+      ),
+    );
+    throw new ApiError(
+      400,
+      'validation_failed',
+      `${NAMES[provider]} gave TManage more access than it asks for, so the connection was refused. Press Connect again and keep the requested access as it is.`,
+      [{ field: 'scope', message: SCOPE_TOO_WIDE }],
+      `app_connect_${provider}_${SCOPE_TOO_WIDE}`,
+    );
   }
 
   // ── Disconnect ─────────────────────────────────────────────────────────

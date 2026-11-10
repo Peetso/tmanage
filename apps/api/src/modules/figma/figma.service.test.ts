@@ -17,6 +17,7 @@ import type { FigmaRepository, InsertLinkInput } from './figma.repository.js';
 import { FigmaAuthError, type FigmaRestClient } from './figma.rest.js';
 import { FigmaService, figmaTokenBinding } from './figma.service.js';
 import { FigmaOAuthRefusedError } from './figma-oauth.js';
+import { pkceChallenge } from '../../common/http/oauth-flow.js';
 
 /**
  * R4 slice 13 — the Figma service with fakes: the token is stored encrypted and only its hint is
@@ -97,7 +98,9 @@ function build(
     connected?: boolean;
     figmaRefuses?: boolean;
     oauth?: boolean;
-    exchange?: () => Promise<{ readonly accessToken: string }>;
+    exchange?: (input: { readonly verifier?: string | undefined }) => Promise<{
+      readonly accessToken: string;
+    }>;
   } = {},
 ) {
   const connections = new Map<string, FigmaConnectionRow>();
@@ -307,6 +310,31 @@ describe('FigmaService · one-click Connect (FIX4 item 6)', () => {
     expect(address.searchParams.get('response_type')).toBe('code');
     expect(flow.membershipId).toBe(STAFF_M);
     expect(() => build().service.startConnect(contextOf(STAFF), STAFF, 'acme')).toThrow(ApiError);
+  });
+
+  it('uses PKCE S256: challenge on the consent address, verifier on the exchange (L5)', async () => {
+    const verifiers: (string | undefined)[] = [];
+    const world = build({
+      oauth: true,
+      exchange: async (input) => {
+        verifiers.push(input.verifier);
+        return { accessToken: 'figu_oauth_token_9876' };
+      },
+    });
+    const { url, flow } = world.service.startConnect(contextOf(STAFF), STAFF, 'acme');
+    const address = new URL(url);
+    expect(address.searchParams.get('code_challenge')).toBe(pkceChallenge(flow.verifier!));
+    expect(address.searchParams.get('code_challenge_method')).toBe('S256');
+    await world.service.completeConnect(contextOf(STAFF), STAFF, flow, {
+      code: 'code-1',
+      state: flow.state,
+    });
+    // A flow sealed before PKCE (no verifier) still completes, and sends no verifier.
+    await world.service.completeConnect(contextOf(STAFF), STAFF, flowOf(), {
+      code: 'code-2',
+      state: 'state-1',
+    });
+    expect(verifiers).toEqual([flow.verifier, undefined]);
   });
 
   it('stores the OAuth token encrypted, marked as a bearer token, and audits', async () => {

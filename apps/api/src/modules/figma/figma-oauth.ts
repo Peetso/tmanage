@@ -5,6 +5,7 @@ import {
   oauthCallbackTarget,
   oauthStateMatches,
   openOAuthFlow,
+  pkceChallenge,
   randomFlowToken,
   sealOAuthFlow,
   type OAuthFlowBase,
@@ -26,6 +27,11 @@ import {
  *    cookie, exchanges the code under the member's own session, and stores the token encrypted.
  *
  * The cookie, state and callback checks are the shared helper's (`common/http/oauth-flow.ts`).
+ *
+ * PKCE S256 (security review L5, defence in depth next to the client secret): `start` keeps a
+ * verifier in the sealed flow cookie and puts its challenge on the consent address; the exchange
+ * sends `code_verifier`. A flow sealed before this change has no verifier and still completes (no
+ * `code_verifier` is sent), until those cookies expire 10 minutes after the deploy.
  *
  * The stored secret is `oauth:<access token>` so the REST client sends it as a bearer token; a
  * pasted personal access token is stored bare and sent as `X-Figma-Token`.
@@ -66,6 +72,8 @@ export function figmaReturnTo(value: unknown): FigmaReturnTo {
 
 export interface FigmaFlow extends OAuthFlowBase {
   readonly returnTo: FigmaReturnTo;
+  /** PKCE verifier; absent in a flow sealed before PKCE was added (still accepted). */
+  readonly verifier?: string;
 }
 
 export function newFigmaFlow(
@@ -81,6 +89,7 @@ export function newFigmaFlow(
     ...owner,
     returnTo: owner.returnTo ?? 'integrations',
     state: randomFlowToken(),
+    verifier: randomFlowToken(),
     expiresAt: flowExpiry(nowSeconds),
   };
 }
@@ -96,7 +105,15 @@ export function openFigmaFlow(
   nowSeconds: number = Math.floor(Date.now() / 1000),
 ): FigmaFlow | undefined {
   const flow = openOAuthFlow<FigmaFlow>(raw, FLOW_PURPOSE, secret, { nowSeconds });
-  return flow === undefined ? undefined : { ...flow, returnTo: figmaReturnTo(flow.returnTo) };
+  if (flow === undefined) return undefined;
+  const { verifier, ...rest } = flow;
+  // A present verifier must be a plausible string; an old cookie simply has none.
+  if (verifier !== undefined && (typeof verifier !== 'string' || verifier === '')) return undefined;
+  return {
+    ...rest,
+    returnTo: figmaReturnTo(flow.returnTo),
+    ...(verifier === undefined ? {} : { verifier }),
+  };
 }
 
 export function figmaStateMatches(flow: FigmaFlow, returned: unknown): boolean {
@@ -107,6 +124,7 @@ export function figmaAuthorizeUrl(input: {
   readonly config: FigmaOAuthConfig;
   readonly redirectUri: string;
   readonly state: string;
+  readonly verifier?: string | undefined;
 }): string {
   const params = new URLSearchParams({
     client_id: input.config.clientId,
@@ -114,6 +132,9 @@ export function figmaAuthorizeUrl(input: {
     scope: FIGMA_OAUTH_SCOPES,
     state: input.state,
     response_type: 'code',
+    ...(input.verifier === undefined
+      ? {}
+      : { code_challenge: pkceChallenge(input.verifier), code_challenge_method: 'S256' }),
   });
   return `${FIGMA_AUTHORIZE_URL}?${params.toString()}`;
 }
@@ -121,12 +142,16 @@ export function figmaAuthorizeUrl(input: {
 export class FigmaOAuthRefusedError extends Error {}
 export class FigmaOAuthUnavailableError extends Error {}
 
-/** Swap the one-time code for an access token. The client authenticates with HTTP Basic. */
+/**
+ * Swap the one-time code for an access token. The client authenticates with HTTP Basic, and
+ * sends the PKCE `code_verifier` when the flow has one.
+ */
 export async function exchangeFigmaCode(
   input: {
     readonly config: FigmaOAuthConfig;
     readonly redirectUri: string;
     readonly code: string;
+    readonly verifier?: string | undefined;
   },
   fetchImpl: typeof fetch = (url, init) => globalThis.fetch(url, init),
 ): Promise<{ readonly accessToken: string }> {
@@ -146,6 +171,7 @@ export async function exchangeFigmaCode(
         redirect_uri: input.redirectUri,
         code: input.code,
         grant_type: 'authorization_code',
+        ...(input.verifier === undefined ? {} : { code_verifier: input.verifier }),
       }).toString(),
       signal: AbortSignal.timeout(FIGMA_OAUTH_TIMEOUT_MS),
     });

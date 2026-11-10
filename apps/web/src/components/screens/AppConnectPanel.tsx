@@ -16,6 +16,7 @@ import {
 } from '../../lib/api/app-connect';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { ApiRequestError } from '../../lib/api/errors';
 
 /**
  * FIX5 — the rest of one-click Connect for GitHub, on the Integrations page under the cards
@@ -35,6 +36,18 @@ const NAMES: Readonly<Record<AppConnectProvider, string>> = {
 };
 
 const K = 'AppConnect';
+
+/**
+ * Security review L4: the API refused the token because GitHub granted more than `read:user`
+ * (the consent page's requested access was changed). Detail `{ field: 'scope', message:
+ * 'scope_too_wide' }`; the token was revoked and nothing was stored.
+ */
+export function isScopeTooWide(error: unknown): boolean {
+  return (
+    error instanceof ApiRequestError &&
+    error.details.some((d) => d.field === 'scope' && d.message === 'scope_too_wide')
+  );
+}
 
 export function useAppConnectStatus(
   api: ApiClient,
@@ -118,12 +131,17 @@ export function AppConnectPanel({
           )}
           live
         >
-          {complete.isError
-            ? describeError(complete.error)
-            : tr(
-                `${K}.failedBody`,
-                '{app} did not finish the sign-in, so nothing was changed. Press Connect to try again.',
-              ).replace('{app}', NAMES[outcome.provider])}
+          {complete.isError && isScopeTooWide(complete.error)
+            ? tr(
+                `${K}.scopeTooWide`,
+                '{app} gave TManage more access than it asks for, so TManage refused the connection and gave the access back. Press Connect again and keep the requested access as it is.',
+              ).replace('{app}', NAMES[outcome.provider])
+            : complete.isError
+              ? describeError(complete.error)
+              : tr(
+                  `${K}.failedBody`,
+                  '{app} did not finish the sign-in, so nothing was changed. Press Connect to try again.',
+                ).replace('{app}', NAMES[outcome.provider])}
         </InlineAlert>
       ) : null}
 

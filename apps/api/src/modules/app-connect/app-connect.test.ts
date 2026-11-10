@@ -19,7 +19,12 @@ import {
 } from './app-connect.flow.js';
 import { AppConnectCallbackController, AppConnectController } from './app-connect.controller.js';
 import { AppConnectService } from './app-connect.service.js';
-import { GITHUB_SCOPES, createGitHubClient, gitHubOAuthConfigFrom } from './github.oauth.js';
+import {
+  GITHUB_SCOPES,
+  createGitHubClient,
+  gitHubGrantIsAllowed,
+  gitHubOAuthConfigFrom,
+} from './github.oauth.js';
 import { newFigmaFlow, openFigmaFlow, sealFigmaFlow } from '../figma/figma-oauth.js';
 
 /**
@@ -67,6 +72,10 @@ function build(
     tokens?: string[];
     revokeStatus?: number;
     revokeThrows?: boolean;
+    /** The token response's `scope`; `null` leaves it out. */
+    scope?: string | null;
+    /** The `/user` answer's `X-OAuth-Scopes` header; absent when not given. */
+    userScopes?: string;
   } = {},
 ) {
   const env = options.env ?? ENV;
@@ -118,9 +127,18 @@ function build(
   const fetchImpl = async (url: string, init: RequestInit) => {
     calls.push({ url, init });
     if (url.startsWith('https://github.com/login/oauth/access_token')) {
-      return json({ access_token: tokens.shift() ?? 'gho_spare', scope: 'read:user' });
+      const scope = options.scope === undefined ? 'read:user' : options.scope;
+      return json({
+        access_token: tokens.shift() ?? 'gho_spare',
+        ...(scope === null ? {} : { scope }),
+      });
     }
-    if (url.startsWith('https://api.github.com/user')) return json({ login: 'peter' });
+    if (url.startsWith('https://api.github.com/user')) {
+      return new Response(JSON.stringify({ login: 'peter' }), {
+        status: 200,
+        headers: options.userScopes === undefined ? {} : { 'x-oauth-scopes': options.userScopes },
+      });
+    }
     if (url.startsWith('https://api.github.com/applications/')) {
       if (options.revokeThrows) throw new Error('ECONNRESET');
       return new Response(null, { status: options.revokeStatus ?? 204 });
@@ -427,5 +445,91 @@ describe('app-connect service (GitHub)', () => {
     ).rejects.toMatchObject({ status: 409 });
     expect(base.rows).toHaveLength(0);
     expect(base.audits).toHaveLength(0);
+  });
+});
+
+describe('app-connect GitHub granted scope (security review L4)', () => {
+  it('accepts a read:user grant (and an empty one)', async () => {
+    expect(gitHubGrantIsAllowed('read:user')).toBe(true);
+    expect(gitHubGrantIsAllowed('')).toBe(true);
+    expect(gitHubGrantIsAllowed('read:user, ')).toBe(true);
+    const harness = build({ scope: 'read:user' });
+    const { view } = await connect(harness);
+    expect(view.connected).toBe(true);
+    expect(plain(harness.rows, 'github')).toBe('gho_token1234');
+    expect(harness.revokes()).toEqual([]);
+  });
+
+  it('refuses read:user,repo: revokes the token at GitHub, stores nothing, audits the refusal', async () => {
+    const harness = build({ scope: 'read:user,repo' });
+    const { flow } = harness.service.start(context, owner, 'github', 'acme');
+    await expect(
+      harness.service.complete(context, owner, 'github', flow, {
+        code: 'the-code',
+        state: flow.state,
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      code: 'validation_failed',
+      details: [{ field: 'scope', message: 'scope_too_wide' }],
+    });
+    expect(harness.rows).toHaveLength(0);
+    expect(harness.revokes()).toEqual(['gho_token1234']);
+    // Refused before the token is used: no `/user` call.
+    expect(harness.calls.some((c) => c.url === 'https://api.github.com/user')).toBe(false);
+    expect(harness.audits).toEqual([
+      {
+        action: 'github_connection.connected',
+        metadata: { provider: 'github', reason: 'scope_too_wide' },
+        actorUserId: 'user-1',
+      },
+    ]);
+    expect(JSON.stringify(harness.audits)).not.toContain('gho_');
+  });
+
+  it('refuses repo alone, and keeps an existing connection untouched', async () => {
+    expect(gitHubGrantIsAllowed('repo')).toBe(false);
+    const harness = build({ tokens: ['gho_first0001', 'gho_wide00002'] });
+    await connect(harness);
+    const deps = (
+      harness.service as unknown as { deps: ConstructorParameters<typeof AppConnectService>[0] }
+    ).deps;
+    const wideCalls: string[] = [];
+    const wide = new AppConnectService({
+      ...deps,
+      github: createGitHubClient(async (url, init) => {
+        wideCalls.push(url);
+        if (url.startsWith('https://github.com/login/oauth/access_token')) {
+          return json({ access_token: 'gho_wide00002', scope: 'repo' });
+        }
+        if (url.includes('/applications/')) {
+          wideCalls.push(String(init.body));
+          return new Response(null, { status: 204 });
+        }
+        throw new Error(`unexpected call ${url}`);
+      }),
+    });
+    const { flow } = wide.start(context, owner, 'github', 'acme');
+    await expect(
+      wide.complete(context, owner, 'github', flow, { code: 'c', state: flow.state }),
+    ).rejects.toMatchObject({
+      status: 400,
+      details: [{ field: 'scope', message: 'scope_too_wide' }],
+    });
+    expect(wideCalls).toContain(JSON.stringify({ access_token: 'gho_wide00002' }));
+    expect(plain(harness.rows, 'github')).toBe('gho_first0001');
+  });
+
+  it('checks X-OAuth-Scopes when the token response carries no scope', async () => {
+    const refused = build({ scope: null, userScopes: 'repo, read:user' });
+    const { flow } = refused.service.start(context, owner, 'github', 'acme');
+    await expect(
+      refused.service.complete(context, owner, 'github', flow, { code: 'c', state: flow.state }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(refused.rows).toHaveLength(0);
+    expect(refused.revokes()).toEqual(['gho_token1234']);
+
+    const fine = build({ scope: null, userScopes: 'read:user' });
+    expect((await connect(fine)).view.connected).toBe(true);
   });
 });

@@ -408,7 +408,12 @@ export class FigmaService {
       returnTo,
     });
     return {
-      url: figmaAuthorizeUrl({ config, redirectUri: this.redirectUri(), state: flow.state }),
+      url: figmaAuthorizeUrl({
+        config,
+        redirectUri: this.redirectUri(),
+        state: flow.state,
+        verifier: flow.verifier,
+      }),
       flow,
     };
   }
@@ -445,6 +450,8 @@ export class FigmaService {
         config,
         redirectUri: this.redirectUri(),
         code,
+        // L5: PKCE; a flow from before the change has no verifier and sends none.
+        verifier: flow.verifier,
       }));
     } catch (error) {
       if (error instanceof FigmaOAuthRefusedError) {

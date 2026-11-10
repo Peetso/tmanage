@@ -24,6 +24,20 @@ export const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
 export const GITHUB_API = 'https://api.github.com';
 export const GITHUB_SCOPES = 'read:user';
 
+/**
+ * Security review L4: the scope travels in the consent URL, which the browser (or an extension)
+ * can edit to `scope=repo`. GitHub then issues a token with that scope, so the grant is checked
+ * after the exchange: anything other than `read:user` is refused. An empty grant is fine (it
+ * reads less than `read:user`). `granted` is GitHub's comma-separated list (the token response's
+ * `scope`, or the `X-OAuth-Scopes` header).
+ */
+export function gitHubGrantIsAllowed(granted: string): boolean {
+  return granted
+    .split(/[\s,]+/)
+    .filter((scope) => scope !== '')
+    .every((scope) => scope === GITHUB_SCOPES);
+}
+
 export interface GitHubOAuthConfig {
   readonly clientId: string;
   readonly clientSecret: string;
@@ -68,9 +82,16 @@ export interface GitHubClient {
     readonly redirectUri: string;
     readonly code: string;
     readonly verifier: string;
-  }): Promise<{ readonly accessToken: string; readonly scope: string }>;
-  /** The account the token belongs to (`login`). */
-  me(accessToken: string): Promise<{ readonly login: string }>;
+  }): Promise<{
+    readonly accessToken: string;
+    /** The granted scopes, comma-separated; `null` when GitHub's answer has no `scope`. */
+    readonly scope: string | null;
+  }>;
+  /**
+   * The account the token belongs to (`login`), and the token's scopes from `X-OAuth-Scopes`
+   * (`null` when the header is absent).
+   */
+  me(accessToken: string): Promise<{ readonly login: string; readonly scopes: string | null }>;
   /** Best effort: GitHub forgets the token. A token GitHub no longer knows is already revoked. */
   revoke(config: GitHubOAuthConfig, accessToken: string): Promise<void>;
 }
@@ -109,7 +130,7 @@ export function createGitHubClient(fetchImpl: FetchLike = defaultFetch): GitHubC
       }
       return {
         accessToken,
-        scope: typeof body['scope'] === 'string' ? body['scope'].slice(0, 200) : '',
+        scope: typeof body['scope'] === 'string' ? body['scope'].slice(0, 200) : null,
       };
     },
 
@@ -123,7 +144,11 @@ export function createGitHubClient(fetchImpl: FetchLike = defaultFetch): GitHubC
       if (response.status === 401) throw new AppConnectRefusedError('GitHub refused the token');
       if (!response.ok) throw new AppConnectUnavailableError(`GitHub answered ${response.status}`);
       const body = await jsonBody(response);
-      return { login: typeof body['login'] === 'string' ? body['login'].slice(0, 100) : '' };
+      const scopes = response.headers.get('x-oauth-scopes');
+      return {
+        login: typeof body['login'] === 'string' ? body['login'].slice(0, 100) : '',
+        scopes: scopes === null ? null : scopes.slice(0, 200),
+      };
     },
 
     async revoke(config, accessToken) {

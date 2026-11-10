@@ -27,7 +27,9 @@ function mount(routes: Record<string, Answer>) {
     if (!answer) {
       return new Response(JSON.stringify({ error: { code: 'not_found' } }), { status: 404 });
     }
-    return new Response(JSON.stringify(answer(body)), {
+    const answered = answer(body);
+    if (answered instanceof Response) return answered;
+    return new Response(JSON.stringify(answered), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     });
@@ -104,6 +106,35 @@ describe('FIX5 one-click connectors', () => {
     });
     expect(globalThis.location.hash).toBe('');
     expect(calls.some((c) => c.path.includes('/slack') || c.path.includes('/teams'))).toBe(false);
+  });
+
+  it('explains a refused GitHub grant that was wider than read:user (security review L4)', async () => {
+    globalThis.history.replaceState(
+      null,
+      '',
+      '/acme/automations/apps#github=complete&code=c1&state=s1',
+    );
+    mount({
+      [`GET ${base}/github`]: () => view('github', false),
+      [`POST ${base}/github/complete`]: () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 'validation_failed',
+              message: 'GitHub gave TManage more access than it asks for',
+              correlationId: 'c',
+              details: [{ field: 'scope', message: 'scope_too_wide' }],
+            },
+          }),
+          { status: 400, headers: { 'content-type': 'application/json' } },
+        ),
+    });
+    expect(await screen.findByText("GitHub isn't connected")).toBeTruthy();
+    expect(
+      screen.getByText(
+        'GitHub gave TManage more access than it asks for, so TManage refused the connection and gave the access back. Press Connect again and keep the requested access as it is.',
+      ),
+    ).toBeTruthy();
   });
 
   it('offers no Slack or Teams webhook path under Advanced', async () => {
