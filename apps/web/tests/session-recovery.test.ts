@@ -343,10 +343,13 @@ describe('the CSRF token in memory (D03)', () => {
     });
 
     await developmentSignIn(client, 'user-1');
+    window.localStorage.setItem('tm-doc-draft:acme:0a1b2c3d:doc-1', '{"html":"<p>x</p>"}');
     await signOut(client);
     await client.request({ method: 'POST', path: '/v1/thing', body: {} }).catch(() => undefined);
 
     expect(calls.at(-1)?.csrf).toBe('cookie-token');
+    // FIX5 security review L6: no unsaved doc text stays behind for the next person.
+    expect(window.localStorage.getItem('tm-doc-draft:acme:0a1b2c3d:doc-1')).toBeNull();
   });
 
   it('is dropped by sign-out even when the sign-out request never arrived', async () => {

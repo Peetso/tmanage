@@ -1,4 +1,5 @@
 import { REFRESH_PATH, type ApiClient } from './client';
+import { clearAllDraftBackups } from '../../components/docs/editor/unsaved-draft';
 import type { SessionIntelView } from './session-intel';
 
 /**
@@ -102,6 +103,8 @@ export async function signOut(client: ApiClient): Promise<void> {
     await client.request<void>({ method: 'DELETE', path: '/v1/sessions/current' });
   } finally {
     client.forgetCsrfToken();
+    // FIX5 security review L6: no unsaved doc text stays behind for the next person.
+    clearAllDraftBackups();
   }
 }
 

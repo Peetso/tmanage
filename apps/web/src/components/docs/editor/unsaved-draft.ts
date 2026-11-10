@@ -26,8 +26,41 @@ function store(): DraftStore | null {
   }
 }
 
-export function draftKey(organizationSlug: string, documentId: string): string {
-  return `tm-doc-draft:${organizationSlug}:${documentId}`;
+const DRAFT_PREFIX = 'tm-doc-draft:';
+
+/**
+ * FIX5 security review L6: who typed it. A short, non-reversible tag of the signed-in account
+ * (its e-mail), so a copy left on a shared computer is never opened for the next person who signs
+ * in there; the e-mail itself is not written to the browser's storage.
+ */
+export function draftOwner(accountEmail: string): string {
+  let hash = 0x811c9dc5;
+  for (const char of accountEmail.trim().toLowerCase()) {
+    hash ^= char.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
+}
+
+/** One doc's backup, for one person in one workspace. */
+export function draftKey(organizationSlug: string, owner: string, documentId: string): string {
+  return `${DRAFT_PREFIX}${organizationSlug}:${owner}:${documentId}`;
+}
+
+/** Sign-out: forget every unsaved doc copy this browser holds, for every account and workspace. */
+export function clearAllDraftBackups(storage: DraftStore | null = store()): void {
+  try {
+    const all = storage as (DraftStore & Pick<Storage, 'length' | 'key'>) | null;
+    if (!all || typeof all.key !== 'function') return;
+    const keys: string[] = [];
+    for (let index = 0; index < all.length; index += 1) {
+      const key = all.key(index);
+      if (key?.startsWith(DRAFT_PREFIX)) keys.push(key);
+    }
+    for (const key of keys) all.removeItem(key);
+  } catch {
+    // Blocked storage: nothing was kept there either.
+  }
 }
 
 export function writeDraftBackup(

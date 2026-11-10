@@ -20,6 +20,7 @@ import {
   backupToRestore,
   clearDraftBackup,
   draftKey,
+  draftOwner,
   flushDraft,
   readDraftBackup,
   writeDraftBackup,
@@ -180,7 +181,11 @@ export function DocumentEditorScreen({
     readonly html: string;
     readonly promise: Promise<DocumentVersionSummary>;
   } | null>(null);
-  const backupKey = draftKey(organizationSlug, documentId);
+  // FIX5 security review L6: the backup belongs to the signed-in person; `null` until known
+  // (nothing is read or written for an unknown account).
+  const backupKey = me.data
+    ? draftKey(organizationSlug, draftOwner(me.data.email), documentId)
+    : null;
   const save = useMutation({
     mutationFn: (html: string) => {
       const promise = saveDocumentVersion(api, organizationSlug, documentId, html, {
@@ -195,7 +200,7 @@ export function DocumentEditorScreen({
       });
     },
     onSuccess: async (saved, html) => {
-      if (latest.current.draft === html) clearDraftBackup(backupKey);
+      if (latest.current.draft === html && backupKey) clearDraftBackup(backupKey);
       setSavedDraft(html);
       setSaveFailures(0);
       setRefusedDraft(null);
@@ -260,9 +265,9 @@ export function DocumentEditorScreen({
   const [restored, setRestored] = useState<string | null | undefined>(undefined);
   const historyKnown = newestNo !== undefined || versions.isError;
   useEffect(() => {
-    if (restored !== undefined || !data || collabJoin.isPending) return;
-    if (collab || !historyKnown) {
-      if (collab) setRestored(null);
+    if (restored !== undefined || !data || collabJoin.isPending || me.isPending) return;
+    if (collab || !historyKnown || backupKey === null) {
+      if (collab || backupKey === null) setRestored(null);
       return;
     }
     const backup = readDraftBackup(backupKey);
@@ -274,7 +279,17 @@ export function DocumentEditorScreen({
     }
     setRestored(pick.html);
     setDraft(pick.html);
-  }, [restored, data, collab, collabJoin.isPending, historyKnown, backupKey, stored, newestNo]);
+  }, [
+    restored,
+    data,
+    collab,
+    collabJoin.isPending,
+    me.isPending,
+    historyKnown,
+    backupKey,
+    stored,
+    newestNo,
+  ]);
 
   // Autosave: a pause in typing saves the draft once, if it differs from what is stored. A
   // conflict stops it until Reload.
@@ -317,10 +332,12 @@ export function DocumentEditorScreen({
     !collab && draft !== null && draft.trim() !== '' && draft !== stored && draft !== savedDraft;
   // B-N2: leaving the doc never loses the body. A copy waits in this browser until it is saved,
   // and leaving the page inside the app (a link, the sidebar, a shortcut) saves it at once.
-  const latest = useRef({ unsaved, draft, baseVersionNo, api });
-  latest.current = { unsaved, draft, baseVersionNo, api };
+  const latest = useRef({ unsaved, draft, baseVersionNo, api, backupKey });
+  latest.current = { unsaved, draft, baseVersionNo, api, backupKey };
   useEffect(() => {
-    if (unsaved && draft !== null) writeDraftBackup(backupKey, { html: draft, baseVersionNo });
+    if (unsaved && draft !== null && backupKey) {
+      writeDraftBackup(backupKey, { html: draft, baseVersionNo });
+    }
   }, [unsaved, draft, baseVersionNo, backupKey]);
   useEffect(
     () => () => {
@@ -333,7 +350,7 @@ export function DocumentEditorScreen({
         }),
       )
         .then(() => {
-          clearDraftBackup(backupKey);
+          if (leaving.backupKey) clearDraftBackup(leaving.backupKey);
           void queryClient.invalidateQueries({
             queryKey: ['document', organizationSlug, documentId],
           });

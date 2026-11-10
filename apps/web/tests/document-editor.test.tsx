@@ -5,6 +5,11 @@ import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DocumentEditorScreen } from '../src/components/screens/DocumentEditorScreen';
+import {
+  clearAllDraftBackups,
+  draftKey,
+  draftOwner,
+} from '../src/components/docs/editor/unsaved-draft';
 import { DocsHubScreen } from '../src/components/screens/DocsHubScreen';
 import { diffLines } from '../src/components/docs/doc-markdown';
 import { ApiClient } from '../src/lib/api/client';
@@ -141,6 +146,9 @@ function handler(call: Call): Response {
     return json({ versions: [] });
   }
   if (call.url.endsWith('/presence')) return json({ editors: [] });
+  if (call.url.endsWith('/me/profile')) {
+    return json({ displayName: 'Maya Haddad', email: 'maya@acme.test', jobTitle: null });
+  }
   if (call.url.includes(`/documents/${DOCUMENT_ID}`)) return json(BLANK);
   if (call.url.endsWith('/documents') && call.method === 'POST') {
     return json({ ...BLANK, id: 'doc-new', title: 'Untitled doc' }, 201);
@@ -446,6 +454,8 @@ describe('DocumentEditorScreen — the blank new doc', () => {
   });
 });
 
+const MAYA_KEY = draftKey('acme', draftOwner('maya@acme.test'), DOCUMENT_ID);
+
 describe('B-N2 (live check fd145807): the body is never lost after a rename', () => {
   it('a click on the sheet that misses the body puts the caret in the body', async () => {
     const { container } = render(editor());
@@ -482,9 +492,7 @@ describe('B-N2 (live check fd145807): the body is never lost after a rename', ()
     act(() => {
       ed.commands.insertContent('Typed, then the page was left');
     });
-    expect(window.localStorage.getItem(`tm-doc-draft:acme:${DOCUMENT_ID}`)).toContain(
-      'Typed, then the page was left',
-    );
+    expect(window.localStorage.getItem(MAYA_KEY)).toContain('Typed, then the page was left');
     unmount();
     await waitFor(() =>
       expect(calls.find((c) => c.method === 'POST' && c.url.endsWith('/versions'))?.body).toEqual({
@@ -496,7 +504,7 @@ describe('B-N2 (live check fd145807): the body is never lost after a rename', ()
 
   it('reopening the doc brings back a body that was never saved', async () => {
     window.localStorage.setItem(
-      `tm-doc-draft:acme:${DOCUMENT_ID}`,
+      MAYA_KEY,
       JSON.stringify({ html: '<p>Kept in this browser</p>', baseVersionNo: 0, savedAt: 1 }),
     );
     const calls: Call[] = [];
@@ -510,13 +518,33 @@ describe('B-N2 (live check fd145807): the body is never lost after a rename', ()
 
   it('a copy typed on an older version is dropped, not restored over newer work', async () => {
     window.localStorage.setItem(
-      `tm-doc-draft:acme:${DOCUMENT_ID}`,
+      MAYA_KEY,
       JSON.stringify({ html: '<p>Old copy</p>', baseVersionNo: 3, savedAt: 1 }),
     );
     render(editor());
     const ed = await bodyEditor();
     expect(ed.isEmpty).toBe(true);
-    expect(window.localStorage.getItem(`tm-doc-draft:acme:${DOCUMENT_ID}`)).toBeNull();
+    expect(window.localStorage.getItem(MAYA_KEY)).toBeNull();
+  });
+
+  it('never opens a copy another account left in this browser (FIX5 review L6)', async () => {
+    window.localStorage.setItem(
+      draftKey('acme', draftOwner('someone-else@acme.test'), DOCUMENT_ID),
+      JSON.stringify({ html: '<p>Not yours</p>', baseVersionNo: 0, savedAt: 1 }),
+    );
+    render(editor());
+    const ed = await bodyEditor();
+    expect(ed.isEmpty).toBe(true);
+  });
+
+  it('sign-out forgets every unsaved doc copy in this browser (FIX5 review L6)', () => {
+    window.localStorage.setItem(MAYA_KEY, '{"html":"<p>x</p>"}');
+    window.localStorage.setItem('tm-doc-draft:other:abc:doc-9', '{"html":"<p>y</p>"}');
+    window.localStorage.setItem('tm-unrelated', 'kept');
+    clearAllDraftBackups();
+    expect(window.localStorage.getItem(MAYA_KEY)).toBeNull();
+    expect(window.localStorage.getItem('tm-doc-draft:other:abc:doc-9')).toBeNull();
+    expect(window.localStorage.getItem('tm-unrelated')).toBe('kept');
   });
 });
 
