@@ -18683,7 +18683,6 @@
   "TeamTime.everyone": "Tout le monde",
   "TeamTime.project": "Projet",
   "TeamTime.allProjects": "Tous les projets",
-  "TeamTime.rangeHint": "Jusqu’à 62 jours. Les jours sont en UTC. Le temps sans tâche choisie compte comme temps de travail non affecté.",
   "TeamTime.loadError": "Le temps de l’équipe n’a pas pu être chargé",
   "TeamTime.loading": "Chargement du temps de l’équipe",
   "TeamTime.people": "Personnes",
@@ -18716,5 +18715,17 @@
   "RouteTitle.financeTeamTime": "Temps de l’équipe",
   "CapabilityLabel.time.view_team": "Voir le temps de l’équipe (le temps compté de chacun)",
   "PermissionMatrix.area.time": "Suivi du temps",
-  "AuditActionLabel.organization.auto_time_tracking_policy_changed": "A modifié le décompte automatique du temps"
+  "AuditActionLabel.organization.auto_time_tracking_policy_changed": "A modifié le décompte automatique du temps",
+  "AutoTimePolicy.maxIdleLabel": "Durée d’inactivité maximale que chacun peut choisir",
+  "AutoTimePolicy.maxIdleHint": "Chacun choisit quand son minuteur se met en pause, sans dépasser cette durée. Les minutes d’inactivité ne sont jamais comptées.",
+  "TeamTime.rangeHintZone": "Jusqu’à 62 jours. Les jours suivent le fuseau horaire de l’entreprise ({zone}). Le temps sans tâche choisie compte comme temps de travail non attribué.",
+  "TeamTime.deviceReported": "Le temps automatique est déclaré par l’ordinateur de chaque personne, sans vérification. Une journée de plus de 12 heures ou une session de plus de 6 heures sans pause est signalée pour vérification.",
+  "TeamTime.privateTask": "Tâche privée",
+  "TeamTime.inProgress": "+ {time} en cours",
+  "TeamTime.automaticDevice": "Automatique · déclaré par son ordinateur",
+  "TeamTime.late": "En retard · suivi le {day}",
+  "TeamTime.needsReview": "À vérifier",
+  "FinanceTimesheets.reviewTitle": "Une partie du temps est à vérifier",
+  "FinanceTimesheets.reviewBody": "Une journée de plus de 12 heures, une session de plus de 6 heures sans pause, ou du temps enregistré en retard car sa semaine était close. Vérifiez-le avant d’envoyer.",
+  "FinanceTimesheets.automaticNote": "Le temps automatique est déclaré par votre ordinateur, sans vérification. Les jours suivent le fuseau horaire de l’entreprise."
 }

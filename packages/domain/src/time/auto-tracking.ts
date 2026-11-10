@@ -30,10 +30,24 @@ export function isAutoTrackingPolicy(value: unknown): value is AutoTrackingPolic
   return (AUTO_TRACKING_POLICIES as readonly unknown[]).includes(value);
 }
 
-/** The personal idle threshold, in whole minutes. */
+/**
+ * The idle threshold, in whole minutes. The company owner sets the largest one people may choose
+ * (default {@link IDLE_THRESHOLD_DEFAULT_MINUTES}, never above {@link IDLE_THRESHOLD_MAX_MINUTES});
+ * each person picks theirs at or below it.
+ */
 export const IDLE_THRESHOLD_MIN_MINUTES = 1;
-export const IDLE_THRESHOLD_MAX_MINUTES = 30;
+export const IDLE_THRESHOLD_MAX_MINUTES = 15;
 export const IDLE_THRESHOLD_DEFAULT_MINUTES = 5;
+
+/**
+ * Automatic time is reported by the person's own device, so the server bounds it: at most
+ * {@link AUTO_DAY_CAP_MINUTES} a person per local day, and a day above
+ * {@link AUTO_DAY_REVIEW_MINUTES} or a session above {@link AUTO_SESSION_REVIEW_MINUTES} without a
+ * break is flagged for review.
+ */
+export const AUTO_DAY_CAP_MINUTES = 16 * 60;
+export const AUTO_DAY_REVIEW_MINUTES = 12 * 60;
+export const AUTO_SESSION_REVIEW_MINUTES = 6 * 60;
 
 /** How often the client reads the idle state. */
 export const ACTIVITY_SAMPLE_SECONDS = 15;

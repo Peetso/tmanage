@@ -1,4 +1,4 @@
-import { authorize, dayNumberOf } from '@tmanage/domain';
+import { authorize, dayNumberOf, localDateOf } from '@tmanage/domain';
 import type { AutoTrackingPolicy, Principal } from '@tmanage/domain';
 import type {
   TimeAutoTrackingRow,
@@ -13,13 +13,23 @@ import type {
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import {
   AUTO_TIME_TRACKING_KEY,
+  AUTO_TIME_TRACKING_MAX_IDLE_KEY,
   storedAutoTrackingPolicy,
+  storedMaxIdleMinutes,
 } from '../tenancy/auto-time-tracking-policy.js';
 import type { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
-import { TIME_VIEW_TEAM, requireInternal } from './time-capabilities.js';
-import { automaticMinutes, effectiveEnabled, isLive } from './time-auto-rules.js';
+import { TIME_VIEW_TEAM, mayTrackOnProject, requireInternal } from './time-capabilities.js';
+import { openSessionOf } from './time-auto-filing.js';
+import type { AutoTimeFiler } from './time-auto-filing.js';
+import {
+  automaticMinutes,
+  effectiveEnabled,
+  effectiveThresholdMinutes,
+  inProgress,
+  isLive,
+} from './time-auto-rules.js';
 import type { TimeAutoRepository } from './time-auto.repository.js';
-import { optionalId, periodContaining, utcDay } from './time-rules.js';
+import { optionalId, periodContaining } from './time-rules.js';
 import type { TimeLogSource, WeekBounds } from './time-rules.js';
 import type { TimesheetsRepository } from './timesheets.repository.js';
 import type { TimeRepository } from './time.repository.js';
@@ -35,10 +45,18 @@ import type { TimeRepository } from './time.repository.js';
  * - **Which people.** Only active internal memberships of the caller's organization (the
  *   `TenantContext`): every statement carries its `organization_id`, and a person id from another
  *   company is the same 404 as one that does not exist.
+ * - **Which tasks** (review M1). A task or project title shows only where the viewer may read that
+ *   project themself (the same project check the timer presence uses); anywhere else the time is
+ *   still counted, shown as a private task with no title and no ids. A project filter the viewer
+ *   cannot read is a 404.
+ * - **Which totals** (review L6). Today, week and range are filed entries only, the figures the
+ *   timesheet shows; a live session's time so far is reported apart as "in progress". A session
+ *   no heartbeat can extend any more is settled (filed) before every read, so nothing silent is
+ *   counted (review M5).
+ * - **Which days** (review M4). The company's calendar days in its time zone.
  * - **What.** State, times and the task. No screenshots, keystrokes, app or window names or URLs
- *   exist to show. Read-only: corrections stay in the timesheet (manager edits, 52-02).
- *
- * Days are UTC calendar days, the `spent_on` every timed entry is filed under.
+ *   exist to show. Automatic time is reported by the person's device; a flagged entry
+ *   (`needsReview`) is marked. Read-only: corrections stay in the timesheet (52-02).
  */
 
 /** A range covers at most this many days. */
@@ -50,6 +68,8 @@ export interface TeamTaskView {
   readonly workItemId: string | null;
   readonly projectId: string | null;
   readonly title: string | null;
+  /** The viewer may not read this task's project: no title, no ids. */
+  readonly private: boolean;
 }
 
 export interface TeamPersonView {
@@ -60,6 +80,10 @@ export interface TeamPersonView {
   readonly todayMinutes: number;
   readonly weekMinutes: number;
   readonly rangeMinutes: number;
+  /** A live session's time so far, not yet in the totals. */
+  readonly inProgressMinutes: number;
+  /** An entry in the range is flagged for review. */
+  readonly needsReview: boolean;
 }
 
 export interface TeamTimeView {
@@ -67,12 +91,14 @@ export interface TeamTimeView {
   readonly to: string;
   readonly today: string;
   readonly week: WeekBounds;
+  readonly timeZone: string;
   readonly policy: AutoTrackingPolicy;
   readonly people: readonly TeamPersonView[];
   readonly totals: {
     readonly todayMinutes: number;
     readonly weekMinutes: number;
     readonly rangeMinutes: number;
+    readonly inProgressMinutes: number;
   };
   readonly serverNow: string;
 }
@@ -87,7 +113,11 @@ export interface TeamSessionView {
   readonly workItemId: string | null;
   readonly workItemTitle: string | null;
   readonly projectId: string | null;
+  /** The viewer may not read this entry's project: no title, no ids. */
+  readonly private: boolean;
   readonly needsReview: boolean;
+  /** Filed late (its week was closed): the company day it really happened on. */
+  readonly lateFrom: string | null;
   readonly open: boolean;
 }
 
@@ -95,8 +125,11 @@ export interface TeamDayView {
   readonly membershipId: string;
   readonly displayName: string;
   readonly day: string;
+  readonly timeZone: string;
   readonly sessions: readonly TeamSessionView[];
+  /** Filed time of the day (the timesheet's figure). */
   readonly totalMinutes: number;
+  readonly inProgressMinutes: number;
 }
 
 export interface TimeTeamServiceOptions {
@@ -108,6 +141,7 @@ export interface TimeTeamServiceOptions {
   >;
   readonly timers: Pick<TimeRepository, 'listRunning'>;
   readonly settings: Pick<OrgSettingsRepository, 'findByKey'>;
+  readonly filer: Pick<AutoTimeFiler, 'settleStale' | 'timeZone'>;
   readonly now?: () => Date;
 }
 
@@ -158,11 +192,8 @@ export function requireTeamView(principal: Principal, context: TenantContext): v
   }
 }
 
-/** The open session's evidence-supported part, as a not-yet-filed piece. */
-function openPiece(row: TimeAutoTrackingRow): { startedAt: Date; endedAt: Date } | null {
-  if (row.sessionStartedAt === null || row.lastActiveAt === null) return null;
-  return { startedAt: row.sessionStartedAt, endedAt: row.lastActiveAt };
-}
+/** What the viewer may see of a project's tasks (review M1). */
+type ProjectVisible = (projectId: string | null) => boolean;
 
 export class TimeTeamService {
   private readonly now: () => Date;
@@ -186,10 +217,14 @@ export class TimeTeamService {
     const toRaw = optionalDay(query.to, 'to');
     const membershipFilter = optionalId(query.membershipId, 'membershipId');
     const projectFilter = optionalId(query.projectId, 'projectId');
-    const at = this.now();
-    const today = utcDay(at);
+    const visible = visibilityFor(principal, context);
+    if (projectFilter !== null && !visible(projectFilter)) throw notFound();
     const o = this.options;
+    await o.filer.settleStale(context, null);
+    const at = this.now();
     return o.database.read(context, async (r) => {
+      const timeZone = await o.filer.timeZone(r, context);
+      const today = localDateOf(at, timeZone);
       const week = periodContaining(today, await o.sheets.weekStart(r, context));
       const from = fromRaw ?? week.periodStart;
       const to = toRaw ?? week.periodEnd;
@@ -206,19 +241,23 @@ export class TimeTeamService {
         periodStart: [from, week.periodStart, today].sort()[0] ?? from,
         periodEnd: [to, week.periodEnd, today].sort().reverse()[0] ?? to,
       };
-      const [names, rows, timers, entries, policy] = await Promise.all([
+      const [names, rows, timers, entries, rules] = await Promise.all([
         o.auto.memberNames(r, context, members),
         o.auto.listForMembers(r, context, members),
         o.timers.listRunning(r, context, null),
         o.sheets.entriesInPeriod(r, context, members, span),
-        this.policyOn(r, context),
+        this.rulesOn(r, context),
       ]);
       const nameOf = new Map(names.map((n) => [n.membershipId, n.displayName]));
       const rowOf = new Map(rows.map((row) => [row.membershipId, row]));
       const timerOf = new Map(timers.map((t) => [t.membershipId, t]));
       const titles = await o.sheets.titles(r, context, [
-        ...rows.flatMap((row) => (row.workItemId === null ? [] : [row.workItemId])),
-        ...timers.flatMap((t) => (t.workItemId === null ? [] : [t.workItemId])),
+        ...rows.flatMap((row) =>
+          row.workItemId !== null && visible(row.projectId) ? [row.workItemId] : [],
+        ),
+        ...timers.flatMap((t) =>
+          t.workItemId !== null && visible(t.projectId) ? [t.workItemId] : [],
+        ),
       ]);
       const matches = (projectId: string | null) =>
         projectFilter === null || projectId === projectFilter;
@@ -229,46 +268,46 @@ export class TimeTeamService {
         if (!nameOf.has(membershipId)) continue; // not a membership of this company
         const row = rowOf.get(membershipId) ?? null;
         const timer = timerOf.get(membershipId) ?? null;
-        const days: { day: string; minutes: number }[] = entries
-          .filter((e) => e.loggedBy === membershipId && matches(e.projectId))
-          .map((e) => ({ day: e.spentOn, minutes: e.minutes }));
-        const piece = row === null ? null : openPiece(row);
-        if (row !== null && piece !== null && matches(row.projectId)) {
-          days.push({ day: utcDay(piece.startedAt), minutes: automaticMinutes(piece) });
-        }
+        const own = entries.filter((e) => e.loggedBy === membershipId && matches(e.projectId));
         const sum = (a: string, b: string) =>
-          days.filter((d) => inRange(d.day, a, b)).reduce((total, d) => total + d.minutes, 0);
+          own.filter((e) => inRange(e.spentOn, a, b)).reduce((total, e) => total + e.minutes, 0);
+        const piece =
+          row !== null && matches(row.projectId) ? inProgress(openSessionOf(row), at) : null;
         people.push({
           membershipId,
           displayName: nameOf.get(membershipId) ?? '',
-          live: liveState(policy, row, timer, at),
-          currentTask: taskOf(row, timer, titles),
+          live: liveState(rules, row, timer, at),
+          currentTask: taskOf(row, timer, titles, visible),
           todayMinutes: sum(today, today),
           weekMinutes: sum(week.periodStart, week.periodEnd),
           rangeMinutes: sum(from, to),
+          inProgressMinutes: piece === null ? 0 : automaticMinutes(piece),
+          needsReview: own.some((e) => e.needsReview && inRange(e.spentOn, from, to)),
         });
       }
       people.sort((a, b) => a.displayName.localeCompare(b.displayName));
-      const total = (key: 'todayMinutes' | 'weekMinutes' | 'rangeMinutes') =>
+      const total = (key: 'todayMinutes' | 'weekMinutes' | 'rangeMinutes' | 'inProgressMinutes') =>
         people.reduce((sum, person) => sum + person[key], 0);
       return {
         from,
         to,
         today,
         week,
-        policy,
+        timeZone,
+        policy: rules.policy,
         people,
         totals: {
           todayMinutes: total('todayMinutes'),
           weekMinutes: total('weekMinutes'),
           rangeMinutes: total('rangeMinutes'),
+          inProgressMinutes: total('inProgressMinutes'),
         },
         serverNow: at.toISOString(),
       };
     });
   }
 
-  /** One person's sessions on one day: start, end, task, automatic or manual. */
+  /** One person's sessions on one company day: start, end, task, automatic or manual. */
   async day(
     context: TenantContext,
     principal: Principal,
@@ -278,10 +317,14 @@ export class TimeTeamService {
     requireTeamView(principal, context);
     const membershipId = optionalId(membershipIdRaw, 'membershipId');
     if (membershipId === null) throw notFound();
-    const at = this.now();
-    const day = optionalDay(dayRaw, 'day') ?? utcDay(at);
+    const dayInput = optionalDay(dayRaw, 'day');
+    const visible = visibilityFor(principal, context);
     const o = this.options;
+    await o.filer.settleStale(context, [membershipId]);
+    const at = this.now();
     return o.database.read(context, async (r) => {
+      const timeZone = await o.filer.timeZone(r, context);
+      const day = dayInput ?? localDateOf(at, timeZone);
       const members = await o.sheets.internalMembers(r, context);
       if (!members.some((m) => m.membershipId === membershipId)) throw notFound();
       const [names, rows, entries] = await Promise.all([
@@ -292,24 +335,32 @@ export class TimeTeamService {
       const name = names[0];
       if (name === undefined) throw notFound();
       const row = rows[0] ?? null;
-      const piece = row === null ? null : openPiece(row);
-      const openToday = row !== null && piece !== null && utcDay(piece.startedAt) === day;
+      const live = row === null ? null : inProgress(openSessionOf(row), at);
+      const piece = live !== null && localDateOf(live.startedAt, timeZone) === day ? live : null;
       const titles = await o.sheets.titles(r, context, [
-        ...entries.flatMap((e) => (e.workItemId === null ? [] : [e.workItemId])),
-        ...(openToday && row.workItemId !== null ? [row.workItemId] : []),
+        ...entries.flatMap((e) =>
+          e.workItemId !== null && visible(e.projectId) ? [e.workItemId] : [],
+        ),
+        ...(piece !== null && row?.workItemId && visible(row.projectId) ? [row.workItemId] : []),
       ]);
-      const sessions: TeamSessionView[] = entries.map((e) => sessionOf(e, titles));
-      if (openToday && piece !== null) {
+      const sessions: TeamSessionView[] = entries.map((e) =>
+        sessionOf(e, titles, visible, timeZone),
+      );
+      if (piece !== null && row !== null) {
+        const shown = visible(row.projectId);
         sessions.push({
           id: null,
           startedAt: piece.startedAt.toISOString(),
           endedAt: piece.endedAt.toISOString(),
           minutes: automaticMinutes(piece),
           source: 'automatic',
-          workItemId: row.workItemId,
-          workItemTitle: row.workItemId === null ? null : (titles.get(row.workItemId) ?? null),
-          projectId: row.projectId,
+          workItemId: shown ? row.workItemId : null,
+          workItemTitle:
+            shown && row.workItemId !== null ? (titles.get(row.workItemId) ?? null) : null,
+          projectId: shown ? row.projectId : null,
+          private: !shown && (row.workItemId !== null || row.projectId !== null),
           needsReview: false,
+          lateFrom: null,
           open: true,
         });
       }
@@ -318,42 +369,59 @@ export class TimeTeamService {
         membershipId,
         displayName: name.displayName,
         day,
+        timeZone,
         sessions,
-        totalMinutes: sessions.reduce((sum, s) => sum + s.minutes, 0),
+        totalMinutes: entries.reduce((sum, e) => sum + e.minutes, 0),
+        inProgressMinutes: piece === null ? 0 : automaticMinutes(piece),
       };
     });
   }
 
-  private async policyOn(
-    r: TenantQueryRunner,
-    context: TenantContext,
-  ): Promise<AutoTrackingPolicy> {
-    const row = await this.options.settings.findByKey(r, context, AUTO_TIME_TRACKING_KEY);
-    return storedAutoTrackingPolicy(row?.settingValue);
+  private async rulesOn(r: TenantQueryRunner, context: TenantContext): Promise<CompanyRules> {
+    const [policy, maxIdle] = await Promise.all([
+      this.options.settings.findByKey(r, context, AUTO_TIME_TRACKING_KEY),
+      this.options.settings.findByKey(r, context, AUTO_TIME_TRACKING_MAX_IDLE_KEY),
+    ]);
+    return {
+      policy: storedAutoTrackingPolicy(policy?.settingValue),
+      maxIdleMinutes: storedMaxIdleMinutes(maxIdle?.settingValue),
+    };
   }
 }
 
+/** The viewer's own project read (the check the timer presence uses), per project. */
+function visibilityFor(principal: Principal, context: TenantContext): ProjectVisible {
+  const known = new Map<string, boolean>();
+  return (projectId) => {
+    if (projectId === null) return false;
+    let seen = known.get(projectId);
+    if (seen === undefined) {
+      seen = mayTrackOnProject(principal, context, projectId);
+      known.set(projectId, seen);
+    }
+    return seen;
+  };
+}
+
+interface CompanyRules {
+  readonly policy: AutoTrackingPolicy;
+  readonly maxIdleMinutes: number;
+}
+
 function liveState(
-  policy: AutoTrackingPolicy,
+  { policy, maxIdleMinutes }: CompanyRules,
   row: TimeAutoTrackingRow | null,
   timer: TimeTimerRow | null,
   at: Date,
 ): LiveState {
   if (timer !== null) return 'manual';
   if (row === null || !effectiveEnabled(policy, row.enabled)) return 'off';
+  const session = openSessionOf(row);
   if (
-    row.sessionStartedAt !== null &&
-    row.lastActiveAt !== null &&
-    row.lastHeartbeatAt !== null &&
-    isLive(
-      {
-        startedAt: row.sessionStartedAt,
-        lastActiveAt: row.lastActiveAt,
-        lastHeartbeatAt: row.lastHeartbeatAt,
-      },
-      at,
-    ) &&
-    at.getTime() - row.lastActiveAt.getTime() < row.idleThresholdMinutes * 60_000
+    session !== null &&
+    isLive(session, at) &&
+    at.getTime() - session.lastActiveAt.getTime() <
+      effectiveThresholdMinutes(row.idleThresholdMinutes, maxIdleMinutes) * 60_000
   ) {
     return 'tracking';
   }
@@ -364,27 +432,42 @@ function taskOf(
   row: TimeAutoTrackingRow | null,
   timer: TimeTimerRow | null,
   titles: ReadonlyMap<string, string>,
+  visible: ProjectVisible,
 ): TeamTaskView | null {
   const source = timer ?? row;
   if (source === null || (source.workItemId === null && source.projectId === null)) return null;
+  if (!visible(source.projectId)) {
+    return { workItemId: null, projectId: null, title: null, private: true };
+  }
   return {
     workItemId: source.workItemId,
     projectId: source.projectId,
     title: source.workItemId === null ? null : (titles.get(source.workItemId) ?? null),
+    private: false,
   };
 }
 
-function sessionOf(e: WorkItemTimeLogRow, titles: ReadonlyMap<string, string>): TeamSessionView {
+function sessionOf(
+  e: WorkItemTimeLogRow,
+  titles: ReadonlyMap<string, string>,
+  visible: ProjectVisible,
+  timeZone: string,
+): TeamSessionView {
+  const shown = visible(e.projectId);
+  const trackedOn =
+    e.source === 'automatic' && e.startedAt !== null ? localDateOf(e.startedAt, timeZone) : null;
   return {
     id: e.id,
     startedAt: e.startedAt?.toISOString() ?? null,
     endedAt: e.endedAt?.toISOString() ?? null,
     minutes: e.minutes,
     source: e.source,
-    workItemId: e.workItemId,
-    workItemTitle: e.workItemId === null ? null : (titles.get(e.workItemId) ?? null),
-    projectId: e.projectId,
+    workItemId: shown ? e.workItemId : null,
+    workItemTitle: shown && e.workItemId !== null ? (titles.get(e.workItemId) ?? null) : null,
+    projectId: shown ? e.projectId : null,
+    private: !shown && (e.workItemId !== null || e.projectId !== null),
     needsReview: e.needsReview,
+    lateFrom: trackedOn !== null && trackedOn !== e.spentOn ? trackedOn : null,
     open: false,
   };
 }

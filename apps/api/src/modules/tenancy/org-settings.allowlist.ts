@@ -23,6 +23,9 @@ import {
   ASSIGNABLE_INTERNAL_ROLES,
   DEFAULT_AUTO_TRACKING_POLICY,
   CLIENT_ROLES,
+  IDLE_THRESHOLD_DEFAULT_MINUTES,
+  IDLE_THRESHOLD_MAX_MINUTES,
+  IDLE_THRESHOLD_MIN_MINUTES,
   MATRIX_KINDS,
   NOTIFICATION_PROFILES,
   parseForcedEmailKinds,
@@ -70,6 +73,9 @@ export const ORG_SETTING_KEYS = [
   // FIX-2026-11-10: automatic time tracking, off / optional / required. The company OWNER's choice
   // alone (`OWNER_ONLY_SETTING_KEYS`): written through `PATCH …/time/auto/policy`, audited.
   'auto_time_tracking',
+  // FIX-2026-11-10 review L1: the largest idle threshold anyone in the company may choose
+  // (minutes, 1 to 15, default 5). Owner only, through the same audited policy route.
+  'auto_time_tracking_max_idle',
 ] as const;
 
 export type OrgSettingKey = (typeof ORG_SETTING_KEYS)[number];
@@ -111,6 +117,7 @@ export const OWNER_ONLY_SETTING_KEYS: readonly OrgSettingKey[] = [
   'require_scan_for_clients',
   // FIX-2026-11-10: its own route is `PATCH …/time/auto/policy` (owner only, audited).
   'auto_time_tracking',
+  'auto_time_tracking_max_idle',
 ];
 
 /** Whether `key` may only be changed by the owner, through its own route. */
@@ -273,6 +280,24 @@ const SPECS: Readonly<Record<OrgSettingKey, OrgSettingSpec>> = Object.freeze({
   auto_time_tracking: {
     default: DEFAULT_AUTO_TRACKING_POLICY,
     validate: oneOf(AUTO_TRACKING_POLICIES, 'Choose off, optional or required.'),
+  },
+  auto_time_tracking_max_idle: {
+    default: String(IDLE_THRESHOLD_DEFAULT_MINUTES),
+    validate: (raw) => {
+      const value = raw.trim();
+      const minutes = /^\d{1,2}$/.test(value) ? Number(value) : Number.NaN;
+      if (
+        !Number.isInteger(minutes) ||
+        minutes < IDLE_THRESHOLD_MIN_MINUTES ||
+        minutes > IDLE_THRESHOLD_MAX_MINUTES
+      ) {
+        return {
+          ok: false,
+          message: `Choose ${IDLE_THRESHOLD_MIN_MINUTES} to ${IDLE_THRESHOLD_MAX_MINUTES} minutes.`,
+        };
+      }
+      return { ok: true, value: String(minutes) };
+    },
   },
   downloads_before_scan: {
     default: 'allow_labeled',

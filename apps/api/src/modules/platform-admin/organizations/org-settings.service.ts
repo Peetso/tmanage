@@ -15,6 +15,10 @@ import {
 import type { OrgPolicyValue } from '../../admin/policies.allowlist.js';
 import type { PoliciesRepository } from '../../admin/policies.repository.js';
 import {
+  AUTO_TIME_TRACKING_KEY,
+  AUTO_TIME_TRACKING_MAX_IDLE_KEY,
+} from '../../tenancy/auto-time-tracking-policy.js';
+import {
   defaultFor,
   isOrgSettingKey,
   isOwnerOnlySettingKey,
@@ -39,7 +43,8 @@ import type {
  * Platform admin · Organizations · Settings (A4; SPEC §6): the organization's own settings, access
  * policy and module flags, with the SAME allowlists and validators the owner's Admin screens use —
  * the operator acts through the application's rules, never around them (SPEC P1). Owner-only keys
- * are editable here too ("Owner-only · editable here"). Each change leaves a platform audit row.
+ * are editable here too ("Owner-only · editable here"), except automatic time tracking, which only
+ * the company owner decides. Each change leaves a platform audit row.
  */
 
 export interface PlatformOrgSettingView {
@@ -136,6 +141,18 @@ export class PlatformOrganizationSettingsService {
     const row = await this.organizations.require(rawId, context);
     if (typeof rawKey !== 'string' || !isOrgSettingKey(rawKey))
       throw refusal('key', 'That is not a setting we recognise.');
+    // FIX-2026-11-10 (security review L5): whether a company's people are tracked automatically is
+    // the company owner's decision alone, made through its own audited route, which also closes
+    // open sessions when it is switched off. Platform staff cannot switch monitoring on or off.
+    if (isOwnerDecisionOnlyKey(rawKey)) {
+      throw new ApiError(
+        403,
+        'forbidden',
+        'Only the company owner can change automatic time tracking.',
+        undefined,
+        `platform.org_settings:owner_decision:${rawKey}`,
+      );
+    }
     const verdict = validateValue(rawKey, String(body?.value ?? ''));
     if (!verdict.ok) throw refusal('value', verdict.message);
     await this.orgs.write(
@@ -272,4 +289,9 @@ function audit(
     }),
     afterJson: JSON.stringify(after),
   };
+}
+
+/** Owner-only keys platform staff may not change either (monitoring of a company's people). */
+function isOwnerDecisionOnlyKey(key: string): boolean {
+  return key === AUTO_TIME_TRACKING_KEY || key === AUTO_TIME_TRACKING_MAX_IDLE_KEY;
 }

@@ -69,6 +69,12 @@ class FakeTimeLogsRepository {
   readonly rows: WorkItemTimeLogRow[] = [];
   creates = 0;
   deletes = 0;
+  /** Automatic time already filed for the caller (review L3). */
+  readonly automatic: { startedAt: Date; endedAt: Date }[] = [];
+
+  async automaticOverlaps(_r: unknown, _c: TenantContext, _m: string, from: Date, to: Date) {
+    return this.automatic.some((a) => a.startedAt < to && a.endedAt > from);
+  }
 
   async findEntry(_r: unknown, _c: TenantContext, workItemId: string, entryId: string) {
     return this.rows.find((row) => row.workItemId === workItemId && row.id === entryId) ?? null;
@@ -180,6 +186,35 @@ describe('WorkTimeLogsController', () => {
     expect(timeLogs.deletes).toBe(1);
     const after = await controller.list(context, related, WORK_ID);
     expect(after.totalMinutes).toBe(30);
+  });
+
+  it('refuses a timed entry over time the computer already recorded automatically (review L3)', async () => {
+    const { controller, timeLogs } = harnessed;
+    const related = member([PROJECT]);
+    const hour = 3_600_000;
+    const base = Math.floor(Date.now() / hour) * hour - 5 * hour;
+    const iso = (offsetMinutes: number) => new Date(base + offsetMinutes * 60_000).toISOString();
+    timeLogs.automatic.push({ startedAt: new Date(base), endedAt: new Date(base + hour) });
+    await expect(
+      controller.add(context, related, WORK_ID, {
+        startedAt: iso(30),
+        endedAt: iso(90),
+        note: null,
+      }),
+    ).rejects.toMatchObject({ status: 409, code: 'conflict' });
+    expect(timeLogs.creates).toBe(0);
+    // Right after the automatic stretch is fine; so is an entry without times.
+    await controller.add(context, related, WORK_ID, {
+      startedAt: iso(60),
+      endedAt: iso(90),
+      note: null,
+    });
+    await controller.add(context, related, WORK_ID, {
+      minutes: 15,
+      spentOn: '2026-09-20',
+      note: null,
+    });
+    expect(timeLogs.creates).toBe(2);
   });
 
   it('rejects minutes of zero, negative, non-integer or over the daily cap with 400 and no write', async () => {

@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, lt, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { timeLogPricing, workItemTimeLogs } from '../../common/database/schema.js';
@@ -41,6 +41,33 @@ export interface CreateTimeLogInput {
 export class WorkTimeLogsRepository {
   /** 52-04 (0287). Reads the rate cards and cost rates for the snapshot taken at log time. */
   constructor(private readonly rates: RatesRepository = new RatesRepository()) {}
+
+  /**
+   * FIX-2026-11-10 (review L3): does the member already have `automatic` time inside
+   * `[startedAt, endedAt)`? A manual timed entry over it would count the same hour twice.
+   */
+  async automaticOverlaps(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    membershipId: string,
+    startedAt: Date,
+    endedAt: Date,
+  ): Promise<boolean> {
+    const rows = await tenantDrizzle(runner)
+      .select({ id: workItemTimeLogs.id })
+      .from(workItemTimeLogs)
+      .where(
+        and(
+          eq(workItemTimeLogs.organizationId, context.organizationId),
+          eq(workItemTimeLogs.loggedBy, membershipId),
+          eq(workItemTimeLogs.source, 'automatic'),
+          lt(workItemTimeLogs.startedAt, endedAt),
+          gt(workItemTimeLogs.endedAt, startedAt),
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
+  }
 
   /** One time-log entry, scoped to the tenant and its parent work item; `null` if absent. */
   async findEntry(

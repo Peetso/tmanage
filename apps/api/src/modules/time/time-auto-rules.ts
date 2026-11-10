@@ -1,9 +1,16 @@
 import {
   ACTIVITY_GAP_SECONDS,
+  AUTO_DAY_CAP_MINUTES,
+  AUTO_DAY_REVIEW_MINUTES,
+  AUTO_SESSION_REVIEW_MINUTES,
   IDLE_THRESHOLD_MAX_MINUTES,
   IDLE_THRESHOLD_MIN_MINUTES,
   clampIdleSeconds,
+  dayNumberOf,
   isAutoTrackingPolicy,
+  isoDateOfDayNumber,
+  localDateOf,
+  zonedInstant,
 } from '@tmanage/domain';
 import type { AutoTrackingPolicy } from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
@@ -103,6 +110,78 @@ export function settle(session: OpenSession | null, now: Date): Span | null {
 }
 
 /**
+ * The time a live session has collected so far (start to last activity), the one figure every
+ * screen adds as "in progress". A session no heartbeat can extend any more is not in progress: it
+ * is settled and filed (`settle`), never counted twice.
+ */
+export function inProgress(session: OpenSession | null, now: Date): Span | null {
+  if (session === null || !isLive(session, now)) return null;
+  return { startedAt: session.startedAt, endedAt: session.lastActiveAt };
+}
+
+// ---- days in the company's time zone (review M4) ----
+
+/** The instant the company's next calendar day after `day` begins (DST-safe: a skipped midnight
+ * reads as the first instant that is on the next day). */
+export function nextLocalDayStart(day: string, timeZone: string): Date {
+  const next = isoDateOfDayNumber(dayNumberOf(day) + 1);
+  let at = zonedInstant(next, 0, timeZone);
+  // Where midnight does not exist (Africa/Cairo's spring change is at 00:00) the wall clock jumps
+  // to 01:00; step to the first instant that is already on the next day, and back while the one
+  // before still is.
+  for (let i = 0; i < 8 && localDateOf(at, timeZone) < next; i += 1) {
+    at = new Date(at.getTime() + 30 * 60_000);
+  }
+  for (let i = 0; i < 8 && localDateOf(new Date(at.getTime() - 60_000), timeZone) >= next; i += 1) {
+    at = new Date(at.getTime() - 30 * 60_000);
+  }
+  return at;
+}
+
+/** `span` cut at each local midnight in `timeZone`: one piece per company calendar day. */
+export function splitByLocalDay(
+  span: Span,
+  timeZone: string,
+): readonly { readonly day: string; readonly span: Span }[] {
+  const out: { day: string; span: Span }[] = [];
+  let start = span.startedAt;
+  while (start.getTime() < span.endedAt.getTime() && out.length < 400) {
+    const day = localDateOf(start, timeZone);
+    const boundary = nextLocalDayStart(day, timeZone);
+    const end = boundary.getTime() < span.endedAt.getTime() ? boundary : span.endedAt;
+    out.push({ day, span: { startedAt: start, endedAt: end } });
+    start = end;
+  }
+  return out;
+}
+
+// ---- device-reported hours (review M3) ----
+
+/**
+ * How much of `minutes` may still be filed on a day that already holds `alreadyMinutes` of the
+ * person's automatic time, and whether the entry needs a reviewer's look: a day above
+ * {@link AUTO_DAY_REVIEW_MINUTES}, a session above {@link AUTO_SESSION_REVIEW_MINUTES} without a
+ * break, or anything cut by the {@link AUTO_DAY_CAP_MINUTES} cap.
+ */
+export function boundAutomaticDay(
+  minutes: number,
+  alreadyMinutes: number,
+  sessionMinutes: number,
+): { readonly minutes: number; readonly capped: boolean; readonly needsReview: boolean } {
+  const room = Math.max(0, AUTO_DAY_CAP_MINUTES - Math.max(0, alreadyMinutes));
+  const allowed = Math.min(Math.max(0, minutes), room);
+  const capped = allowed < minutes;
+  return {
+    minutes: allowed,
+    capped,
+    needsReview:
+      capped ||
+      alreadyMinutes + allowed > AUTO_DAY_REVIEW_MINUTES ||
+      sessionMinutes > AUTO_SESSION_REVIEW_MINUTES,
+  };
+}
+
+/**
  * The stretches of `span` that no `busy` span covers, in order. A busy span with no end (a
  * running timer) covers everything after its start.
  */
@@ -151,20 +230,33 @@ export function parseIdleSeconds(raw: unknown): number {
   return clampIdleSeconds(raw);
 }
 
-/** `idleThresholdMinutes`: a whole number of minutes inside the allowed range. */
-export function parseIdleThresholdMinutes(raw: unknown): number {
+/**
+ * `idleThresholdMinutes`: a whole number of minutes from 1 to `maxMinutes`, the owner's maximum
+ * (never above {@link IDLE_THRESHOLD_MAX_MINUTES}).
+ */
+export function parseIdleThresholdMinutes(
+  raw: unknown,
+  maxMinutes: number = IDLE_THRESHOLD_MAX_MINUTES,
+  field = 'idleThresholdMinutes',
+): number {
+  const max = Math.min(maxMinutes, IDLE_THRESHOLD_MAX_MINUTES);
   if (
     typeof raw !== 'number' ||
     !Number.isInteger(raw) ||
     raw < IDLE_THRESHOLD_MIN_MINUTES ||
-    raw > IDLE_THRESHOLD_MAX_MINUTES
+    raw > max
   ) {
-    throw invalid(
-      'idleThresholdMinutes',
-      `must be a whole number from ${IDLE_THRESHOLD_MIN_MINUTES} to ${IDLE_THRESHOLD_MAX_MINUTES}`,
-    );
+    throw invalid(field, `must be a whole number from ${IDLE_THRESHOLD_MIN_MINUTES} to ${max}`);
   }
   return raw;
+}
+
+/** The threshold that counts: the person's choice, never above the owner's maximum. */
+export function effectiveThresholdMinutes(own: number, maxMinutes: number): number {
+  return Math.max(
+    IDLE_THRESHOLD_MIN_MINUTES,
+    Math.min(own, maxMinutes, IDLE_THRESHOLD_MAX_MINUTES),
+  );
 }
 
 export function parsePolicy(raw: unknown): AutoTrackingPolicy {

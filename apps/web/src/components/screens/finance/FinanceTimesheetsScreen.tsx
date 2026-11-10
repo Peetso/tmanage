@@ -88,6 +88,9 @@ export function FinanceTimesheetsScreen({
       0,
     );
   const stateLabel = (state: string) => tOr(`FinanceTimesheets.state.${state}`, state);
+  const sheetEntries = (sheet?.groups ?? []).flatMap((group) => group.entries);
+  const hasAutomatic = sheetEntries.some((entry) => entry.source === 'automatic');
+  const toReview = sheetEntries.some((entry) => entry.needsReview);
   const others = (team.data?.members ?? []).filter(
     (member: TeamMemberWeek) => member.state !== 'open' || member.totalMinutes > 0,
   );
@@ -222,6 +225,26 @@ export function FinanceTimesheetsScreen({
                 </tbody>
               </table>
             </div>
+          ) : null}
+
+          {toReview ? (
+            <InlineAlert
+              tone="warning"
+              title={tOr('FinanceTimesheets.reviewTitle', 'Some time needs review')}
+            >
+              {tOr(
+                'FinanceTimesheets.reviewBody',
+                'A day over 12 hours, a session over 6 hours without a break, or time filed late because its week was closed. Check it before you submit.',
+              )}
+            </InlineAlert>
+          ) : null}
+          {hasAutomatic ? (
+            <p className="tm-field__hint">
+              {tOr(
+                'FinanceTimesheets.automaticNote',
+                'Automatic time is reported by your own computer, not verified. Days follow the company time zone.',
+              )}
+            </p>
           ) : null}
 
           {sheet?.state === 'changes_requested' && sheet.decisionNote ? (

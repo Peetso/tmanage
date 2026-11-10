@@ -18683,7 +18683,6 @@
   "TeamTime.everyone": "所有人",
   "TeamTime.project": "项目",
   "TeamTime.allProjects": "所有项目",
-  "TeamTime.rangeHint": "最多 62 天。日期按 UTC 计算。未选择任务的时间计为未分配的工作时间。",
   "TeamTime.loadError": "无法加载团队时间",
   "TeamTime.loading": "正在加载团队时间",
   "TeamTime.people": "成员",
@@ -18716,5 +18715,17 @@
   "RouteTitle.financeTeamTime": "团队时间",
   "CapabilityLabel.time.view_team": "查看团队时间（每个人记录的时间）",
   "PermissionMatrix.area.time": "计时",
-  "AuditActionLabel.organization.auto_time_tracking_policy_changed": "更改了自动计时设置"
+  "AuditActionLabel.organization.auto_time_tracking_policy_changed": "更改了自动计时设置",
+  "AutoTimePolicy.maxIdleLabel": "成员可选择的最长空闲时间",
+  "AutoTimePolicy.maxIdleHint": "每个人自行选择计时器何时暂停，但不超过此时长。空闲分钟从不计入。",
+  "TeamTime.rangeHintZone": "最多 62 天。日期按公司时区（{zone}）计算。未选择任务的时间计为未分配的工作时间。",
+  "TeamTime.deviceReported": "自动时间由每个人自己的电脑上报，未经核实。超过 12 小时的一天或连续超过 6 小时不休息的时段会标记为待审核。",
+  "TeamTime.privateTask": "私密任务",
+  "TeamTime.inProgress": "+ {time} 进行中",
+  "TeamTime.automaticDevice": "自动 · 由其电脑上报",
+  "TeamTime.late": "延迟 · 记录于 {day}",
+  "TeamTime.needsReview": "待审核",
+  "FinanceTimesheets.reviewTitle": "部分时间待审核",
+  "FinanceTimesheets.reviewBody": "超过 12 小时的一天、连续超过 6 小时不休息的时段，或因所在周已关闭而延迟记录的时间。提交前请检查。",
+  "FinanceTimesheets.automaticNote": "自动时间由你自己的电脑上报，未经核实。日期按公司时区计算。"
 }

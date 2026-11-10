@@ -13,8 +13,8 @@ import {
 } from '../../lib/api/time-auto';
 import type { AutoTrackingState } from '../../lib/api/time-auto';
 import {
-  IDLE_THRESHOLD_CHOICES,
   autoTimerDisplay,
+  idleChoicesUpTo,
   type AutoTimerDisplay,
 } from '../../lib/auto-timer-state';
 import { useDisplayFormatters } from '../../lib/i18n/use-formatters';
@@ -234,7 +234,7 @@ function AutoTimerPanel({
           })
         }
       >
-        {IDLE_THRESHOLD_CHOICES.map((minutes) => (
+        {idleChoicesUpTo(state.maxIdleMinutes).map((minutes) => (
           <option key={minutes} value={minutes}>
             {tr('AutoTimer.minutes', '{n} min').replace('{n}', format.number(minutes))}
           </option>

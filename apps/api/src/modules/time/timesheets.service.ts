@@ -12,6 +12,7 @@ import type { NotificationsRepository } from '../inbox/notifications.repository.
 import type { WorkTimeLogsRepository } from '../work/time-logs.repository.js';
 import type { WorkItemsRepository } from '../work/work-items.repository.js';
 import type { TimeLocksRepository } from './locks.repository.js';
+import type { AutoTimeFiler } from './time-auto-filing.js';
 import {
   mayTrackOnItem,
   mayTrackOnProject,
@@ -26,7 +27,7 @@ import {
   timesheetTotals,
   utcDay,
 } from './time-rules.js';
-import type { LockedPeriod, WeekBounds } from './time-rules.js';
+import type { LockedPeriod, TimeLogSource, WeekBounds } from './time-rules.js';
 import {
   cannotApproveOwn,
   capabilityHolders,
@@ -87,6 +88,8 @@ export interface TimesheetEntryView {
   readonly note: string | null;
   readonly needsReview: boolean;
   readonly locked: boolean;
+  /** `automatic` = reported by the person's device (FIX-2026-11-10), not verified. */
+  readonly source: TimeLogSource;
 }
 
 export interface TimesheetGroupView {
@@ -170,6 +173,11 @@ export interface TimesheetsServiceOptions {
   readonly holders: Pick<TimeLocksRepository, 'financeCandidates'>;
   readonly notifications: Pick<NotificationsRepository, 'insertForRecipient'>;
   readonly audit: Pick<AuditService, 'record'>;
+  /**
+   * FIX-2026-11-10 (review M5): files silent automatic sessions before a week is read, so the
+   * timesheet and Team time show the same filed time. Absent in compositions without tracking.
+   */
+  readonly autoFiler?: Pick<AutoTimeFiler, 'settleStale'> | null;
   readonly now?: () => Date;
 }
 
@@ -194,6 +202,7 @@ export class TimesheetsService {
     weekRaw: string | undefined,
   ): Promise<TimesheetView> {
     requireInternal(principal);
+    await this.options.autoFiler?.settleStale(context, [context.membershipId]);
     const at = this.now();
     const repo = this.options.repository;
     return this.options.database.transaction(context, async (tx) => {
@@ -212,6 +221,7 @@ export class TimesheetsService {
   ): Promise<TeamWeekView> {
     this.requireManager(principal);
     const filter = optionalId(membershipRaw, 'membershipId');
+    await this.options.autoFiler?.settleStale(context, filter === null ? null : [filter]);
     const today = utcDay(this.now());
     const repo = this.options.repository;
     return this.options.database.read(context, async (r) => {
@@ -859,5 +869,6 @@ function entryView(
     note: row.note ?? null,
     needsReview: row.needsReview,
     locked: row.lockedAt !== null || isWithinLockedPeriod(row.spentOn, locks),
+    source: row.source,
   };
 }

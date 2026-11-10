@@ -1,4 +1,4 @@
-import { authorize } from '@tmanage/domain';
+import { IDLE_THRESHOLD_DEFAULT_MINUTES, authorize } from '@tmanage/domain';
 import type { AutoTrackingPolicy, Principal } from '@tmanage/domain';
 import type { TimeAutoTrackingRow, TimeTimerRow } from '../../common/database/schema.js';
 import type {
@@ -8,28 +8,35 @@ import type {
 } from '../../common/database/tenant-context.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { AuditService } from '../audit/audit.service.js';
-import type { ThrottlePolicy, ThrottleSubject } from '../rate-limits/durable-rate-limiter.js';
 import {
   AUTO_TIME_TRACKING_KEY,
+  AUTO_TIME_TRACKING_MAX_IDLE_KEY,
   storedAutoTrackingPolicy,
+  storedMaxIdleMinutes,
 } from '../tenancy/auto-time-tracking-policy.js';
 import type { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
-import type { WorkTimeLogsRepository } from '../work/time-logs.repository.js';
 import type { WorkItemsRepository } from '../work/work-items.repository.js';
 import { mayTrackOnItem, requireInternal } from './time-capabilities.js';
+import { NO_SESSION, closedSpan, openSessionOf } from './time-auto-filing.js';
+import type { AutoTimeFiler } from './time-auto-filing.js';
+import {
+  AUTO_HEARTBEAT_POLICY,
+  AUTO_TASK_POLICY,
+  InProcessAutoLimiter,
+  chargeAuto,
+} from './time-auto-limits.js';
+import type { AutoLimiter } from './time-auto-limits.js';
 import {
   applyHeartbeat,
-  automaticMinutes,
   effectiveEnabled,
-  freeSpans,
+  effectiveThresholdMinutes,
   isLive,
   parseIdleSeconds,
   parseIdleThresholdMinutes,
   parsePolicy,
 } from './time-auto-rules.js';
-import type { OpenSession, Span } from './time-auto-rules.js';
 import type { TimeAutoRepository } from './time-auto.repository.js';
-import { optionalBoolean, optionalId, utcDay } from './time-rules.js';
+import { optionalBoolean, optionalId } from './time-rules.js';
 import { resolveTimeTarget } from './time-target.js';
 import type { TimeRepository } from './time.repository.js';
 
@@ -41,22 +48,19 @@ import type { TimeRepository } from './time.repository.js';
  *   body. No route here touches another person's row (the team view reads them, `time-team.*`).
  * - **What is trusted.** Nothing the client says about time. A heartbeat carries `idleSeconds`
  *   only; the server clock and `time-auto-rules.ts` decide every start and end, so a session can
- *   never be in the future, overlap another of the same person, or outlast its heartbeats.
+ *   never be in the future, overlap another of the same person, or outlast its heartbeats. The
+ *   hours are still reported by the person's device, so `AutoTimeFiler` caps and flags them.
+ * - **When it is off** (the owner's policy, or the person's own switch) no route opens or extends a
+ *   session: a heartbeat files what was open and is refused, a task change files and closes, and
+ *   the owner switching to "off" closes everyone's open session at once.
  * - **Where the time goes.** To the current task (a work item the caller may track on, or a
  *   project), or, with none, to unassigned work time the person files later from the timesheet.
  * - **With a manual timer running** the manual timer counts and automatic tracking pauses.
+ * - **Brakes.** Heartbeats and task changes are rate-limited; the limiter fails closed.
  *
- * Audit: `time_log.created` for each filed session (ids only) and
- * `organization.auto_time_tracking_policy_changed` (previous and new value).
+ * Audit: `time_log.created` for each filed piece (ids only) and
+ * `organization.auto_time_tracking_policy_changed` (previous and new values, the actor).
  */
-
-/** 56-05 limiter budget for automatic heartbeats: a minute's worth for two devices and changes. */
-export const AUTO_HEARTBEAT_POLICY: ThrottlePolicy = {
-  name: 'time_auto_heartbeat',
-  perMinute: 12,
-  key: 'link',
-  onStoreError: 'open',
-};
 
 export interface CurrentTaskView {
   readonly workItemId: string | null;
@@ -77,7 +81,10 @@ export interface AutoTrackingView {
   readonly enabled: boolean;
   /** The person's own switch, "Track my time automatically". */
   readonly ownSwitch: boolean;
+  /** The threshold that counts: the person's choice, never above the owner's maximum. */
   readonly idleThresholdMinutes: number;
+  /** The owner's maximum idle threshold; a person chooses at or below it. */
+  readonly maxIdleMinutes: number;
   readonly currentTask: CurrentTaskView | null;
   readonly session: AutoSessionView | null;
   readonly manualTimerRunning: boolean;
@@ -88,47 +95,26 @@ export interface AutoTrackingView {
 
 export interface TimeAutoServiceOptions {
   readonly database: Pick<TenantDatabase, 'transaction' | 'read'>;
-  readonly repository: Pick<
-    TimeAutoRepository,
-    'find' | 'ensureOwn' | 'update' | 'timedEntriesOverlapping'
-  >;
-  readonly timers: Pick<TimeRepository, 'findTimer' | 'projectExists' | 'workItemExists'>;
+  readonly repository: Pick<TimeAutoRepository, 'find' | 'ensureOwn' | 'update'>;
+  readonly timers: Pick<TimeRepository, 'findTimer' | 'projectExists'>;
   readonly settings: Pick<OrgSettingsRepository, 'findByKey' | 'upsert' | 'resolveOrganization'>;
-  readonly timeLogs: Pick<WorkTimeLogsRepository, 'create'>;
   readonly workItems: Pick<WorkItemsRepository, 'findById'>;
   readonly audit: Pick<AuditService, 'record'>;
-  readonly limiter?: {
-    check(
-      policy: ThrottlePolicy,
-      subject: ThrottleSubject,
-    ): Promise<{ readonly admitted: boolean }>;
-  } | null;
+  /** Files finished sessions (shared with Team time and the timesheet). */
+  readonly filer: AutoTimeFiler;
+  /** The durable limiter; absent = an in-process window (never no brake, review L4). */
+  readonly limiter?: AutoLimiter | null;
   readonly now?: () => Date;
 }
 
-const DEFAULT_THRESHOLD_MINUTES = 5;
+interface CompanyRules {
+  readonly policy: AutoTrackingPolicy;
+  readonly maxIdleMinutes: number;
+}
 
 function record(body: unknown): Record<string, unknown> {
   return typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
 }
-
-function openSessionOf(row: TimeAutoTrackingRow | null): OpenSession | null {
-  if (
-    row === null ||
-    row.sessionStartedAt === null ||
-    row.lastActiveAt === null ||
-    row.lastHeartbeatAt === null
-  ) {
-    return null;
-  }
-  return {
-    startedAt: row.sessionStartedAt,
-    lastActiveAt: row.lastActiveAt,
-    lastHeartbeatAt: row.lastHeartbeatAt,
-  };
-}
-
-const NO_SESSION = { sessionStartedAt: null, lastActiveAt: null, lastHeartbeatAt: null } as const;
 
 const trackingOff = (): ApiError =>
   new ApiError(409, 'conflict', 'Automatic time tracking is off for you.', [
@@ -137,19 +123,23 @@ const trackingOff = (): ApiError =>
 
 export class TimeAutoService {
   private readonly now: () => Date;
+  private readonly limiter: AutoLimiter;
 
   constructor(private readonly options: TimeAutoServiceOptions) {
     this.now = options.now ?? (() => new Date());
+    this.limiter = options.limiter ?? new InProcessAutoLimiter();
   }
 
   async get(context: TenantContext, principal: Principal): Promise<AutoTrackingView> {
     requireInternal(principal);
+    // Review M5: a silent session is filed now, not when the person's next heartbeat comes.
+    await this.options.filer.settleStale(context, [context.membershipId]);
     const at = this.now();
     return this.options.database.read(context, async (r) => {
-      const policy = await this.policyOn(r, context);
+      const rules = await this.rulesOn(r, context);
       const row = await this.options.repository.find(r, context, context.membershipId);
       const timer = await this.options.timers.findTimer(r, context, context.membershipId);
-      return this.view(r, context, principal, policy, row, timer, at);
+      return this.view(r, context, principal, rules, row, timer, at);
     });
   }
 
@@ -161,19 +151,24 @@ export class TimeAutoService {
     requireInternal(principal);
     const input = record(body);
     const ownSwitch = optionalBoolean(input['enabled'], 'enabled', false);
-    const idleThresholdMinutes =
-      input['idleThresholdMinutes'] === undefined
-        ? undefined
-        : parseIdleThresholdMinutes(input['idleThresholdMinutes']);
     const at = this.now();
     return this.options.database.transaction(context, async (tx) => {
-      const policy = await this.policyOn(tx, context);
+      const rules = await this.rulesOn(tx, context);
+      // Review L1: a person chooses at or below the owner's maximum.
+      const idleThresholdMinutes =
+        input['idleThresholdMinutes'] === undefined
+          ? undefined
+          : parseIdleThresholdMinutes(input['idleThresholdMinutes'], rules.maxIdleMinutes);
       const row = await this.options.repository.ensureOwn(tx, context, at);
       const timer = await this.options.timers.findTimer(tx, context, context.membershipId);
       const session = openSessionOf(row);
-      const stillOn = effectiveEnabled(policy, ownSwitch);
+      const stillOn = effectiveEnabled(rules.policy, ownSwitch);
       if (!stillOn && session !== null) {
-        await this.file(tx, context, row, closedSpan(session), timer);
+        await this.options.filer.file(tx, context, row, closedSpan(session), {
+          timer,
+          principal,
+          at,
+        });
       }
       await this.options.repository.update(
         tx,
@@ -187,11 +182,16 @@ export class TimeAutoService {
         at,
       );
       const next = await this.options.repository.find(tx, context, context.membershipId);
-      return this.view(tx, context, principal, policy, next, timer, at);
+      return this.view(tx, context, principal, rules, next, timer, at);
     });
   }
 
-  /** Set (or clear) "working on now". An open session is split here: the old task keeps its part. */
+  /**
+   * Set (or clear) "working on now". An open session is split here: the old task keeps its part,
+   * and the new piece starts at the last real input with the old heartbeat (review M2: a task
+   * change is no heartbeat, so it never stretches a session). With tracking off for the person the
+   * open session is filed and closed, and none opens. Rate-limited like the heartbeat.
+   */
   async setCurrentTask(
     context: TenantContext,
     principal: Principal,
@@ -201,6 +201,7 @@ export class TimeAutoService {
     const input = record(body);
     const workItemId = optionalId(input['workItemId'], 'workItemId');
     const projectId = optionalId(input['projectId'], 'projectId');
+    await chargeAuto(this.limiter, AUTO_TASK_POLICY, context.organizationId, context.membershipId);
     const at = this.now();
     const timers = this.options.timers;
     return this.options.database.transaction(context, async (tx) => {
@@ -215,17 +216,26 @@ export class TimeAutoService {
         workItemId,
         projectId,
       );
-      const policy = await this.policyOn(tx, context);
+      const rules = await this.rulesOn(tx, context);
       const row = await this.options.repository.ensureOwn(tx, context, at);
       const timer = await timers.findTimer(tx, context, context.membershipId);
       const session = openSessionOf(row);
       let sessionPatch = {};
       if (session !== null) {
-        await this.file(tx, context, row, closedSpan(session), timer);
-        sessionPatch =
-          isLive(session, at) && timer === null
-            ? { sessionStartedAt: session.lastActiveAt, lastActiveAt: at, lastHeartbeatAt: at }
-            : NO_SESSION;
+        await this.options.filer.file(tx, context, row, closedSpan(session), {
+          timer,
+          principal,
+          at,
+        });
+        const keepsGoing =
+          effectiveEnabled(rules.policy, row.enabled) && isLive(session, at) && timer === null;
+        sessionPatch = keepsGoing
+          ? {
+              sessionStartedAt: session.lastActiveAt,
+              lastActiveAt: session.lastActiveAt,
+              lastHeartbeatAt: session.lastHeartbeatAt,
+            }
+          : NO_SESSION;
       }
       await this.options.repository.update(
         tx,
@@ -235,7 +245,7 @@ export class TimeAutoService {
         at,
       );
       const next = await this.options.repository.find(tx, context, context.membershipId);
-      return this.view(tx, context, principal, policy, next, timer, at);
+      return this.view(tx, context, principal, rules, next, timer, at);
     });
   }
 
@@ -246,39 +256,49 @@ export class TimeAutoService {
   ): Promise<AutoTrackingView> {
     requireInternal(principal);
     const idleSeconds = parseIdleSeconds(record(body)['idleSeconds']);
-    const limiter = this.options.limiter;
-    if (limiter) {
-      const decision = await limiter.check(AUTO_HEARTBEAT_POLICY, {
-        link: `${context.organizationId}:${context.membershipId}`,
-      });
-      if (!decision.admitted) {
-        throw new ApiError(429, 'rate_limited', 'Too many tries. Please wait a minute.');
-      }
-    }
+    await chargeAuto(
+      this.limiter,
+      AUTO_HEARTBEAT_POLICY,
+      context.organizationId,
+      context.membershipId,
+    );
     const at = this.now();
     const repo = this.options.repository;
+    const filer = this.options.filer;
     const view = await this.options.database.transaction(context, async (tx) => {
-      const policy = await this.policyOn(tx, context);
-      const row = await repo.ensureOwn(tx, context, at);
+      const rules = await this.rulesOn(tx, context);
+      let row = await repo.ensureOwn(tx, context, at);
       const timer = await this.options.timers.findTimer(tx, context, context.membershipId);
       const session = openSessionOf(row);
-      if (!effectiveEnabled(policy, row.enabled)) {
+      const fileOptions = { timer, principal, at };
+      if (!effectiveEnabled(rules.policy, row.enabled)) {
         // File what was open, commit, then refuse (outside the transaction).
         if (session !== null) {
-          await this.file(tx, context, row, closedSpan(session), timer);
+          await filer.file(tx, context, row, closedSpan(session), fileOptions);
           await repo.update(tx, context, row.id, NO_SESSION, at);
         }
         return null;
       }
+      // Review L2: a task the person can no longer reach receives nothing from now on.
+      if (
+        (row.workItemId !== null || row.projectId !== null) &&
+        !(await filer.taskAllowed(tx, context, principal, row))
+      ) {
+        await repo.update(tx, context, row.id, { workItemId: null, projectId: null }, at);
+        row = { ...row, workItemId: null, projectId: null };
+      }
       if (timer !== null) {
         // The manual timer counts; automatic tracking files what it had and waits.
         if (session !== null) {
-          await this.file(tx, context, row, closedSpan(session), timer);
+          await filer.file(tx, context, row, closedSpan(session), fileOptions);
           await repo.update(tx, context, row.id, NO_SESSION, at);
         }
       } else {
-        const outcome = applyHeartbeat(session, at, idleSeconds, row.idleThresholdMinutes * 60);
-        if (outcome.closed !== null) await this.file(tx, context, row, outcome.closed, null);
+        const threshold = effectiveThresholdMinutes(row.idleThresholdMinutes, rules.maxIdleMinutes);
+        const outcome = applyHeartbeat(session, at, idleSeconds, threshold * 60);
+        if (outcome.closed !== null) {
+          await filer.file(tx, context, row, outcome.closed, fileOptions);
+        }
         await repo.update(
           tx,
           context,
@@ -294,18 +314,22 @@ export class TimeAutoService {
         );
       }
       const next = await repo.find(tx, context, context.membershipId);
-      return this.view(tx, context, principal, policy, next, timer, at);
+      return this.view(tx, context, principal, rules, next, timer, at);
     });
     if (view === null) throw trackingOff();
     return view;
   }
 
-  /** The company owner sets automatic tracking off, optional or required. Audited. */
+  /**
+   * The company owner sets automatic tracking off, optional or required, and (review L1) the
+   * largest idle threshold people may choose. Audited with the actor. "Off" closes every open
+   * session at its last activity at once (review M2).
+   */
   async setPolicy(
     context: TenantContext,
     principal: Principal,
     body: unknown,
-  ): Promise<{ readonly policy: AutoTrackingPolicy }> {
+  ): Promise<{ readonly policy: AutoTrackingPolicy; readonly maxIdleMinutes: number }> {
     requireInternal(principal);
     const verdict = authorize({
       principal,
@@ -335,91 +359,65 @@ export class TimeAutoService {
         'auto_time_tracking.write:not_owner',
       );
     }
-    const policy = parsePolicy(record(body)['policy']);
+    const input = record(body);
+    const policy = parsePolicy(input['policy']);
+    const maxIdle =
+      input['maxIdleMinutes'] === undefined
+        ? undefined
+        : parseIdleThresholdMinutes(input['maxIdleMinutes'], undefined, 'maxIdleMinutes');
     const settings = this.options.settings;
+    const at = this.now();
     return this.options.database.transaction(context, async (tx) => {
       const org = await settings.resolveOrganization(tx, context);
       if (!org) throw new ApiError(404, 'not_found', MESSAGES.notFound);
-      const previous = await this.policyOn(tx, context);
+      const previous = await this.rulesOn(tx, context);
       await settings.upsert(tx, context, {
         key: AUTO_TIME_TRACKING_KEY,
         value: policy,
         updatedBy: principal.userId,
       });
+      if (maxIdle !== undefined) {
+        await settings.upsert(tx, context, {
+          key: AUTO_TIME_TRACKING_MAX_IDLE_KEY,
+          value: String(maxIdle),
+          updatedBy: principal.userId,
+        });
+      }
+      const closed = policy === 'off' ? await this.options.filer.closeAll(tx, context, at) : 0;
+      const maxIdleMinutes = maxIdle ?? previous.maxIdleMinutes;
       await this.options.audit.record(tx, context, {
         action: 'organization.auto_time_tracking_policy_changed',
         objectId: context.organizationId,
         result: 'allowed',
         actorUserId: principal.userId,
-        metadata: { previous, value: policy },
+        metadata: {
+          previous: previous.policy,
+          value: policy,
+          previous_max_idle_minutes: previous.maxIdleMinutes,
+          max_idle_minutes: maxIdleMinutes,
+          sessions_closed: closed,
+        },
       });
-      return { policy };
+      return { policy, maxIdleMinutes };
     });
   }
 
-  private async policyOn(
-    r: TenantQueryRunner,
-    context: TenantContext,
-  ): Promise<AutoTrackingPolicy> {
-    const row = await this.options.settings.findByKey(r, context, AUTO_TIME_TRACKING_KEY);
-    return storedAutoTrackingPolicy(row?.settingValue);
-  }
-
-  /**
-   * File a finished session as `automatic` entries on the stretches no other timed entry of the
-   * person covers (and never after a running manual timer started). Under a minute is not filed.
-   */
-  private async file(
-    tx: TenantQueryRunner,
-    context: TenantContext,
-    row: TimeAutoTrackingRow,
-    span: Span,
-    timer: TimeTimerRow | null,
-  ): Promise<void> {
-    if (span.endedAt.getTime() <= span.startedAt.getTime()) return;
-    const busy: { startedAt: Date; endedAt: Date | null }[] = [
-      ...(await this.options.repository.timedEntriesOverlapping(
-        tx,
-        context,
-        row.membershipId,
-        span,
-      )),
-    ];
-    if (timer !== null) busy.push({ startedAt: timer.startedAt, endedAt: null });
-    const workItemId =
-      row.workItemId !== null &&
-      (await this.options.timers.workItemExists(tx, context, row.workItemId))
-        ? row.workItemId
-        : null;
-    for (const piece of freeSpans(span, busy)) {
-      const minutes = automaticMinutes(piece);
-      if (minutes < 1) continue;
-      const entry = await this.options.timeLogs.create(tx, context, {
-        workItemId,
-        projectId: row.projectId,
-        loggedBy: row.membershipId,
-        minutes,
-        spentOn: utcDay(piece.startedAt),
-        note: null,
-        startedAt: piece.startedAt,
-        endedAt: piece.endedAt,
-        source: 'automatic',
-      });
-      await this.options.audit.record(tx, context, {
-        action: 'time_log.created',
-        result: 'allowed',
-        objectId: entry.id,
-        actorUserId: context.userId,
-        metadata: {},
-      });
-    }
+  private async rulesOn(r: TenantQueryRunner, context: TenantContext): Promise<CompanyRules> {
+    const [policy, maxIdle] = await Promise.all([
+      this.options.settings.findByKey(r, context, AUTO_TIME_TRACKING_KEY),
+      this.options.settings.findByKey(r, context, AUTO_TIME_TRACKING_MAX_IDLE_KEY),
+    ]);
+    return {
+      policy: storedAutoTrackingPolicy(policy?.settingValue),
+      maxIdleMinutes: storedMaxIdleMinutes(maxIdle?.settingValue),
+    };
   }
 
   private async view(
     r: TenantQueryRunner,
     context: TenantContext,
     principal: Principal,
-    policy: AutoTrackingPolicy,
+    rules: CompanyRules,
     row: TimeAutoTrackingRow | null,
     timer: TimeTimerRow | null,
     at: Date,
@@ -439,10 +437,14 @@ export class TimeAutoService {
       };
     }
     return {
-      policy,
-      enabled: effectiveEnabled(policy, ownSwitch),
+      policy: rules.policy,
+      enabled: effectiveEnabled(rules.policy, ownSwitch),
       ownSwitch,
-      idleThresholdMinutes: row?.idleThresholdMinutes ?? DEFAULT_THRESHOLD_MINUTES,
+      idleThresholdMinutes: effectiveThresholdMinutes(
+        row?.idleThresholdMinutes ?? IDLE_THRESHOLD_DEFAULT_MINUTES,
+        rules.maxIdleMinutes,
+      ),
+      maxIdleMinutes: rules.maxIdleMinutes,
       currentTask,
       session:
         session === null
@@ -457,8 +459,4 @@ export class TimeAutoService {
       serverNow: at.toISOString(),
     };
   }
-}
-
-function closedSpan(session: OpenSession): Span {
-  return { startedAt: session.startedAt, endedAt: session.lastActiveAt };
 }

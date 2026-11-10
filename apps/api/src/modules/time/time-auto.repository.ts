@@ -1,5 +1,5 @@
-import { and, asc, eq, gt, inArray, isNotNull, lt, sql } from 'drizzle-orm';
-import { uuidv7 } from '@tmanage/domain';
+import { and, asc, eq, gt, gte, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm';
+import { ACTIVITY_GAP_SECONDS, uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
   memberships,
@@ -10,6 +10,7 @@ import {
 import type { TimeAutoTrackingRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import type { Span } from './time-auto-rules.js';
+import { MAX_SPAN_MS } from './time-rules.js';
 
 /**
  * FIX-2026-11-10 — storage for automatic tracking (`time_auto_tracking`, 0341). Every statement
@@ -126,6 +127,84 @@ export class TimeAutoRepository {
         ? [{ startedAt: row.startedAt, endedAt: row.endedAt }]
         : [],
     );
+  }
+
+  /**
+   * Minutes of the member's `automatic` entries whose session piece started in `[from, to)`: the
+   * time already counted against a company day's cap, wherever a late piece was filed.
+   */
+  async automaticMinutesBetween(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    membershipId: string,
+    from: Date,
+    to: Date,
+  ): Promise<number> {
+    const rows = await tenantDrizzle(runner)
+      .select({ minutes: sql<string | number | null>`sum(${workItemTimeLogs.minutes})` })
+      .from(workItemTimeLogs)
+      .where(
+        and(
+          eq(workItemTimeLogs.organizationId, context.organizationId),
+          eq(workItemTimeLogs.loggedBy, membershipId),
+          eq(workItemTimeLogs.source, 'automatic'),
+          gte(workItemTimeLogs.startedAt, from),
+          lt(workItemTimeLogs.startedAt, to),
+        ),
+      );
+    return Number(rows[0]?.minutes ?? 0);
+  }
+
+  /**
+   * Open sessions that no heartbeat can extend any more (silent past the join gap, or 24 h old),
+   * locked FOR UPDATE so a concurrent heartbeat and a settling reader never file one twice.
+   * `membershipIds` null = the whole company.
+   */
+  async staleSessions(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    membershipIds: readonly string[] | null,
+    at: Date,
+  ): Promise<readonly TimeAutoTrackingRow[]> {
+    if (membershipIds !== null && membershipIds.length === 0) return [];
+    const silentSince = new Date(at.getTime() - ACTIVITY_GAP_SECONDS * 1000);
+    const oldSince = new Date(at.getTime() - MAX_SPAN_MS);
+    return tenantDrizzle(runner)
+      .select()
+      .from(timeAutoTracking)
+      .where(
+        and(
+          eq(timeAutoTracking.organizationId, context.organizationId),
+          membershipIds === null
+            ? undefined
+            : inArray(timeAutoTracking.membershipId, [...membershipIds]),
+          isNotNull(timeAutoTracking.sessionStartedAt),
+          or(
+            lt(timeAutoTracking.lastHeartbeatAt, silentSince),
+            lte(timeAutoTracking.sessionStartedAt, oldSince),
+          ),
+        ),
+      )
+      .limit(MAX_TEAM_MEMBERS)
+      .for('update');
+  }
+
+  /** Every open session of the company, locked FOR UPDATE (the owner turned tracking off). */
+  async openSessions(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+  ): Promise<readonly TimeAutoTrackingRow[]> {
+    return tenantDrizzle(runner)
+      .select()
+      .from(timeAutoTracking)
+      .where(
+        and(
+          eq(timeAutoTracking.organizationId, context.organizationId),
+          isNotNull(timeAutoTracking.sessionStartedAt),
+        ),
+      )
+      .limit(MAX_TEAM_MEMBERS)
+      .for('update');
   }
 
   /** Every automatic tracking row of these members (the team view's live state). */

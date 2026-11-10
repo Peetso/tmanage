@@ -18870,7 +18870,6 @@
   "TeamTime.everyone": "الجميع",
   "TeamTime.project": "المشروع",
   "TeamTime.allProjects": "كل المشاريع",
-  "TeamTime.rangeHint": "حتى 62 يومًا. الأيام محسوبة بتوقيت UTC. الوقت الذي لم تُختر له مهمة يُعدّ وقت عمل غير مخصص.",
   "TeamTime.loadError": "تعذّر تحميل وقت الفريق",
   "TeamTime.loading": "جارٍ تحميل وقت الفريق",
   "TeamTime.people": "الأشخاص",
@@ -18903,5 +18902,17 @@
   "RouteTitle.financeTeamTime": "وقت الفريق",
   "CapabilityLabel.time.view_team": "عرض وقت الفريق (الوقت المحتسب لكل شخص)",
   "PermissionMatrix.area.time": "احتساب الوقت",
-  "AuditActionLabel.organization.auto_time_tracking_policy_changed": "غيّر إعداد الاحتساب التلقائي للوقت"
+  "AuditActionLabel.organization.auto_time_tracking_policy_changed": "غيّر إعداد الاحتساب التلقائي للوقت",
+  "AutoTimePolicy.maxIdleLabel": "أطول مدة خمول يمكن للأشخاص اختيارها",
+  "AutoTimePolicy.maxIdleHint": "يختار كل شخص متى يتوقف مؤقته، بما لا يتجاوز هذه المدة. لا تُحتسب دقائق الخمول أبدًا.",
+  "TeamTime.rangeHintZone": "حتى 62 يومًا. تُحسب الأيام حسب المنطقة الزمنية للشركة ({zone}). يُحتسب الوقت دون مهمة محددة وقتَ عمل غير مخصص.",
+  "TeamTime.deviceReported": "الوقت التلقائي يُبلَّغ عنه من حاسوب كل شخص، ولم يُتحقق منه. يُعلَّم للمراجعة كل يوم يتجاوز 12 ساعة أو جلسة تتجاوز 6 ساعات دون استراحة.",
+  "TeamTime.privateTask": "مهمة خاصة",
+  "TeamTime.inProgress": "+ {time} قيد التتبع",
+  "TeamTime.automaticDevice": "تلقائي · يُبلَّغ عنه من حاسوبه",
+  "TeamTime.late": "متأخر · سُجّل في {day}",
+  "TeamTime.needsReview": "يحتاج إلى مراجعة",
+  "FinanceTimesheets.reviewTitle": "بعض الوقت يحتاج إلى مراجعة",
+  "FinanceTimesheets.reviewBody": "يوم تجاوز 12 ساعة، أو جلسة تجاوزت 6 ساعات دون استراحة، أو وقت سُجّل متأخرًا لأن أسبوعه كان مغلقًا. راجعه قبل الإرسال.",
+  "FinanceTimesheets.automaticNote": "الوقت التلقائي يُبلَّغ عنه من حاسوبك، ولم يُتحقق منه. تُحسب الأيام حسب المنطقة الزمنية للشركة."
 }

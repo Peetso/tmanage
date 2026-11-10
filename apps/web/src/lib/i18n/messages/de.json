@@ -18683,7 +18683,6 @@
   "TeamTime.everyone": "Alle",
   "TeamTime.project": "Projekt",
   "TeamTime.allProjects": "Alle Projekte",
-  "TeamTime.rangeHint": "Bis zu 62 Tage. Tage laufen in UTC. Zeit ohne gewählte Aufgabe zählt als nicht zugeordnete Arbeitszeit.",
   "TeamTime.loadError": "Die Teamzeit konnte nicht geladen werden",
   "TeamTime.loading": "Teamzeit wird geladen",
   "TeamTime.people": "Personen",
@@ -18716,5 +18715,17 @@
   "RouteTitle.financeTeamTime": "Teamzeit",
   "CapabilityLabel.time.view_team": "Teamzeit sehen (erfasste Zeit aller Personen)",
   "PermissionMatrix.area.time": "Zeiterfassung",
-  "AuditActionLabel.organization.auto_time_tracking_policy_changed": "Automatische Zeiterfassung geändert"
+  "AuditActionLabel.organization.auto_time_tracking_policy_changed": "Automatische Zeiterfassung geändert",
+  "AutoTimePolicy.maxIdleLabel": "Längste Leerlaufzeit, die Personen wählen dürfen",
+  "AutoTimePolicy.maxIdleHint": "Jede Person wählt, wann ihr Timer pausiert – höchstens nach dieser Zeit. Leerlaufminuten werden nie gezählt.",
+  "TeamTime.rangeHintZone": "Bis zu 62 Tage. Tage richten sich nach der Zeitzone des Unternehmens ({zone}). Zeit ohne gewählte Aufgabe zählt als nicht zugeordnete Arbeitszeit.",
+  "TeamTime.deviceReported": "Automatische Zeit meldet der eigene Computer jeder Person; sie ist nicht überprüft. Ein Tag über 12 Stunden oder eine Sitzung über 6 Stunden ohne Pause wird zur Prüfung markiert.",
+  "TeamTime.privateTask": "Private Aufgabe",
+  "TeamTime.inProgress": "+ {time} laufend",
+  "TeamTime.automaticDevice": "Automatisch · vom eigenen Computer gemeldet",
+  "TeamTime.late": "Nachträglich · erfasst am {day}",
+  "TeamTime.needsReview": "Prüfung nötig",
+  "FinanceTimesheets.reviewTitle": "Einige Zeiten müssen geprüft werden",
+  "FinanceTimesheets.reviewBody": "Ein Tag über 12 Stunden, eine Sitzung über 6 Stunden ohne Pause oder Zeit, die nachträglich gebucht wurde, weil ihre Woche geschlossen war. Prüfe sie vor dem Einreichen.",
+  "FinanceTimesheets.automaticNote": "Automatische Zeit meldet dein eigener Computer; sie ist nicht überprüft. Tage richten sich nach der Zeitzone des Unternehmens."
 }

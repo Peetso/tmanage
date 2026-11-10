@@ -141,6 +141,10 @@ export interface TimesheetEntry {
   readonly spentOn: string;
   readonly minutes: number;
   readonly billable: boolean;
+  /** Marked for review: a long day or session of automatic time, or late time from a closed week. */
+  readonly needsReview: boolean;
+  /** `automatic` = reported by the person's own computer, not verified. */
+  readonly source: 'manual' | 'timer' | 'automatic';
 }
 
 export interface TimesheetGroup {

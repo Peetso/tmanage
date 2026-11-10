@@ -18685,7 +18685,6 @@
   "TeamTime.everyone": "Todos",
   "TeamTime.project": "Proyecto",
   "TeamTime.allProjects": "Todos los proyectos",
-  "TeamTime.rangeHint": "Hasta 62 días. Los días van en UTC. El tiempo sin tarea elegida cuenta como tiempo de trabajo sin asignar.",
   "TeamTime.loadError": "No se pudo cargar el tiempo del equipo",
   "TeamTime.loading": "Cargando el tiempo del equipo",
   "TeamTime.people": "Personas",
@@ -18718,5 +18717,17 @@
   "RouteTitle.financeTeamTime": "Tiempo del equipo",
   "CapabilityLabel.time.view_team": "Ver el tiempo del equipo (el tiempo contado de cada persona)",
   "PermissionMatrix.area.time": "Control del tiempo",
-  "AuditActionLabel.organization.auto_time_tracking_policy_changed": "Cambió el conteo automático del tiempo"
+  "AuditActionLabel.organization.auto_time_tracking_policy_changed": "Cambió el conteo automático del tiempo",
+  "AutoTimePolicy.maxIdleLabel": "Tiempo de inactividad máximo que se puede elegir",
+  "AutoTimePolicy.maxIdleHint": "Cada persona elige cuándo se pausa su temporizador, sin superar este valor. Los minutos inactivos nunca se cuentan.",
+  "TeamTime.rangeHintZone": "Hasta 62 días. Los días siguen la zona horaria de la empresa ({zone}). El tiempo sin tarea elegida cuenta como tiempo de trabajo sin asignar.",
+  "TeamTime.deviceReported": "El tiempo automático lo informa el propio ordenador de cada persona; no está verificado. Un día de más de 12 horas o una sesión de más de 6 horas sin pausa se marca para revisión.",
+  "TeamTime.privateTask": "Tarea privada",
+  "TeamTime.inProgress": "+ {time} en curso",
+  "TeamTime.automaticDevice": "Automático · informado por su ordenador",
+  "TeamTime.late": "Tardío · registrado el {day}",
+  "TeamTime.needsReview": "Requiere revisión",
+  "FinanceTimesheets.reviewTitle": "Parte del tiempo requiere revisión",
+  "FinanceTimesheets.reviewBody": "Un día de más de 12 horas, una sesión de más de 6 horas sin pausa o tiempo registrado tarde porque su semana estaba cerrada. Revísalo antes de enviar.",
+  "FinanceTimesheets.automaticNote": "El tiempo automático lo informa tu propio ordenador; no está verificado. Los días siguen la zona horaria de la empresa."
 }

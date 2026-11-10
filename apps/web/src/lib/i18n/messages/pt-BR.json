@@ -18683,7 +18683,6 @@
   "TeamTime.everyone": "Todos",
   "TeamTime.project": "Projeto",
   "TeamTime.allProjects": "Todos os projetos",
-  "TeamTime.rangeHint": "Até 62 dias. Os dias seguem o UTC. Tempo sem tarefa escolhida conta como tempo de trabalho não atribuído.",
   "TeamTime.loadError": "Não foi possível carregar o tempo da equipe",
   "TeamTime.loading": "Carregando o tempo da equipe",
   "TeamTime.people": "Pessoas",
@@ -18716,5 +18715,17 @@
   "RouteTitle.financeTeamTime": "Tempo da equipe",
   "CapabilityLabel.time.view_team": "Ver o tempo da equipe (o tempo contado de cada pessoa)",
   "PermissionMatrix.area.time": "Controle de tempo",
-  "AuditActionLabel.organization.auto_time_tracking_policy_changed": "Alterou a contagem automática de tempo"
+  "AuditActionLabel.organization.auto_time_tracking_policy_changed": "Alterou a contagem automática de tempo",
+  "AutoTimePolicy.maxIdleLabel": "Maior tempo ocioso que as pessoas podem escolher",
+  "AutoTimePolicy.maxIdleHint": "Cada pessoa escolhe quando o timer pausa, até este limite. Minutos ociosos nunca são contados.",
+  "TeamTime.rangeHintZone": "Até 62 dias. Os dias seguem o fuso horário da empresa ({zone}). Tempo sem tarefa escolhida conta como tempo de trabalho não atribuído.",
+  "TeamTime.deviceReported": "O tempo automático é informado pelo próprio computador de cada pessoa, sem verificação. Um dia acima de 12 horas ou uma sessão acima de 6 horas sem pausa é marcado para revisão.",
+  "TeamTime.privateTask": "Tarefa privada",
+  "TeamTime.inProgress": "+ {time} em andamento",
+  "TeamTime.automaticDevice": "Automático · informado pelo computador da pessoa",
+  "TeamTime.late": "Atrasado · registrado em {day}",
+  "TeamTime.needsReview": "Precisa de revisão",
+  "FinanceTimesheets.reviewTitle": "Parte do tempo precisa de revisão",
+  "FinanceTimesheets.reviewBody": "Um dia acima de 12 horas, uma sessão acima de 6 horas sem pausa ou tempo lançado com atraso porque a semana estava fechada. Confira antes de enviar.",
+  "FinanceTimesheets.automaticNote": "O tempo automático é informado pelo seu próprio computador, sem verificação. Os dias seguem o fuso horário da empresa."
 }

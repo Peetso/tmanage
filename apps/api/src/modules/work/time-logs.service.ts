@@ -102,6 +102,26 @@ export class WorkTimeLogsService {
         // 52-01. Time is internal: a client principal with `work.update` still logs nothing.
         throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'time.internal_only');
       }
+      // FIX-2026-11-10 (review L3): the same hour is never counted twice. Automatic filing skips
+      // time a timed entry already covers; a manual timed entry over automatic time is refused.
+      if (
+        input.startedAt &&
+        input.endedAt &&
+        (await this.timeLogs.automaticOverlaps(
+          tx,
+          context,
+          principal.membershipId,
+          input.startedAt,
+          input.endedAt,
+        ))
+      ) {
+        throw new ApiError(
+          409,
+          'conflict',
+          'This time overlaps time your computer already recorded automatically. Choose another time, or edit the automatic entry in your timesheet.',
+          [{ field: 'startedAt', message: 'overlaps_automatic_time' }],
+        );
+      }
       const row = await this.timeLogs.create(tx, context, {
         workItemId,
         projectId: parent.projectId,

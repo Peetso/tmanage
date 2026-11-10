@@ -7,6 +7,7 @@ import type { AutoTrackingState, TeamTime } from '../src/lib/api/time-auto';
 import { activitySupport, startActivitySource } from '../src/lib/activity-sources';
 import { autoTimerDisplay } from '../src/lib/auto-timer-state';
 import { AutoTimerStatus } from '../src/components/time/AutoTimerStatus';
+import { AutoTimePolicyCard } from '../src/components/screens/AutoTimePolicyCard';
 import { FinanceTeamTimeScreen } from '../src/components/screens/finance/FinanceTeamTimeScreen';
 
 /**
@@ -20,6 +21,7 @@ const STATE: AutoTrackingState = {
   enabled: true,
   ownSwitch: true,
   idleThresholdMinutes: 5,
+  maxIdleMinutes: 10,
   currentTask: null,
   session: null,
   manualTimerRunning: false,
@@ -30,6 +32,7 @@ const STATE: AutoTrackingState = {
 interface Call {
   method: string;
   url: string;
+  body?: string;
 }
 
 function client(routes: (call: Call) => { status: number; body?: unknown }) {
@@ -38,7 +41,8 @@ function client(routes: (call: Call) => { status: number; body?: unknown }) {
     baseUrl: 'https://api.example.test',
     csrfCookieName: 'tm_session_csrf',
     fetch: ((input: RequestInfo | URL, init?: RequestInit) => {
-      const call = { method: init?.method ?? 'GET', url: String(input) };
+      const call: Call = { method: init?.method ?? 'GET', url: String(input) };
+      if (typeof init?.body === 'string') call.body = init.body;
       calls.push(call);
       const { status, body } = routes(call);
       return Promise.resolve(
@@ -178,6 +182,12 @@ describe('automatic timer chip', () => {
     expect(
       within(panel).getByRole('switch', { name: 'Track my time automatically' }),
     ).toBeChecked();
+    // The idle choices stop at the owner's maximum (10 here).
+    const idle = within(panel).getByRole('combobox', { name: /Pause after no activity for/ });
+    const offered = within(idle)
+      .getAllByRole('option')
+      .map((option) => option.textContent);
+    expect(offered).toEqual(['1 min', '2 min', '3 min', '5 min', '10 min']);
   });
 
   it('is hidden when the owner turned automatic tracking off', async () => {
@@ -193,6 +203,7 @@ const TEAM: TeamTime = {
   to: '2026-11-15',
   today: '2026-11-10',
   week: { periodStart: '2026-11-09', periodEnd: '2026-11-15' },
+  timeZone: 'Africa/Cairo',
   policy: 'optional',
   people: [
     {
@@ -200,12 +211,25 @@ const TEAM: TeamTime = {
       displayName: 'Basel',
       live: 'tracking',
       currentTask: { workItemId: 'w1', projectId: 'p1', title: 'Homepage copy' },
-      todayMinutes: 55,
+      todayMinutes: 45,
       weekMinutes: 300,
       rangeMinutes: 300,
+      inProgressMinutes: 10,
+      needsReview: true,
+    },
+    {
+      membershipId: 'm3',
+      displayName: 'Carim',
+      live: 'paused',
+      currentTask: { workItemId: null, projectId: null, title: null, private: true },
+      todayMinutes: 0,
+      weekMinutes: 0,
+      rangeMinutes: 0,
+      inProgressMinutes: 0,
+      needsReview: false,
     },
   ],
-  totals: { todayMinutes: 55, weekMinutes: 300, rangeMinutes: 300 },
+  totals: { todayMinutes: 45, weekMinutes: 300, rangeMinutes: 300, inProgressMinutes: 10 },
   serverNow: '2026-11-10T12:00:00.000Z',
 };
 
@@ -241,7 +265,9 @@ describe('team time screen', () => {
             membershipId: 'm2',
             displayName: 'Basel',
             day: '2026-11-10',
-            totalMinutes: 55,
+            timeZone: 'Africa/Cairo',
+            totalMinutes: 45,
+            inProgressMinutes: 10,
             sessions: [
               {
                 id: null,
@@ -252,7 +278,9 @@ describe('team time screen', () => {
                 workItemId: 'w1',
                 workItemTitle: 'Homepage copy',
                 projectId: 'p1',
+                private: false,
                 needsReview: false,
+                lateFrom: null,
                 open: true,
               },
               {
@@ -264,7 +292,23 @@ describe('team time screen', () => {
                 workItemId: null,
                 workItemTitle: null,
                 projectId: null,
+                private: false,
                 needsReview: false,
+                lateFrom: null,
+                open: false,
+              },
+              {
+                id: 'e2',
+                startedAt: '2026-11-10T06:00:00.000Z',
+                endedAt: '2026-11-10T06:30:00.000Z',
+                minutes: 30,
+                source: 'automatic',
+                workItemId: null,
+                workItemTitle: null,
+                projectId: null,
+                private: true,
+                needsReview: true,
+                lateFrom: '2026-11-03',
                 open: false,
               },
             ],
@@ -279,8 +323,14 @@ describe('team time screen', () => {
     const row = within(table).getByRole('row', { name: /Basel/ });
     expect(row).toHaveTextContent('Tracking');
     expect(row).toHaveTextContent('Homepage copy');
-    expect(row).toHaveTextContent('55m');
+    expect(row).toHaveTextContent('45m');
+    expect(row).toHaveTextContent('+ 10m in progress');
+    expect(row).toHaveTextContent('Needs review');
     expect(row).toHaveTextContent('5h');
+    // A task the viewer may not see is "Private task", never its title.
+    expect(within(table).getByRole('row', { name: /Carim/ })).toHaveTextContent('Private task');
+    expect(screen.getByText(/company time zone \(Africa\/Cairo\)/)).toBeTruthy();
+    expect(screen.getByText(/reported by each person’s own computer, not verified/)).toBeTruthy();
     expect(await screen.findByRole('link', { name: 'Team time' })).toBeTruthy();
     fireEvent.click(within(row).getByRole('button', { name: 'Sessions' }));
     const sessions = await screen.findByRole('table', { name: 'Sessions' });
@@ -288,6 +338,40 @@ describe('team time screen', () => {
     expect(sessions).toHaveTextContent('Still going');
     expect(sessions).toHaveTextContent('Manual');
     expect(sessions).toHaveTextContent('Unassigned work time');
+    expect(sessions).toHaveTextContent('Automatic · reported by their computer');
+    expect(sessions).toHaveTextContent('Private task');
+    expect(sessions).toHaveTextContent('Late · tracked');
+    expect(sessions).toHaveTextContent('Needs review');
     expect(calls.every((call) => call.method === 'GET')).toBe(true);
+  });
+});
+
+describe('automatic tracking policy card', () => {
+  it('the owner sets the longest idle time people may choose, sent with the policy', async () => {
+    const { api, calls } = client((call) =>
+      call.method === 'PATCH'
+        ? { status: 200, body: { policy: 'optional', maxIdleMinutes: 3 } }
+        : { status: 200, body: STATE },
+    );
+    wrap(<AutoTimePolicyCard organizationSlug="northstar" client={api} isOwner />);
+    const select = await screen.findByRole('combobox', {
+      name: /Longest idle time people may choose/,
+    });
+    expect(select).toHaveValue('10');
+    fireEvent.change(select, { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(calls.some((call) => call.method === 'PATCH')).toBe(true));
+    const patch = calls.find((call) => call.method === 'PATCH');
+    expect(JSON.parse(patch?.body ?? '{}')).toEqual({ policy: 'optional', maxIdleMinutes: 3 });
+  });
+
+  it('an admin reads it but cannot change it', async () => {
+    const { api } = client(() => ({ status: 200, body: STATE }));
+    wrap(<AutoTimePolicyCard organizationSlug="northstar" client={api} isOwner={false} />);
+    const select = await screen.findByRole('combobox', {
+      name: /Longest idle time people may choose/,
+    });
+    expect(select).toBeDisabled();
+    expect(screen.getByText('Only the company owner can change this.')).toBeTruthy();
   });
 });

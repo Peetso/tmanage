@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { skipToken, useQuery } from '@tanstack/react-query';
 import {
+  Badge,
   Button,
   Field,
   InlineAlert,
@@ -18,7 +19,13 @@ import type { ApiClient } from '../../../lib/api/client';
 import { OFFLINE_LINES, useDescribeApiError } from '../../../lib/api/describe-error';
 import { listProjects } from '../../../lib/api/projects';
 import { getTeamDay, getTeamTime } from '../../../lib/api/time-auto';
-import type { TeamLiveState, TeamPerson, TeamTimeQuery } from '../../../lib/api/time-auto';
+import type {
+  CurrentTask,
+  TeamLiveState,
+  TeamPerson,
+  TeamSession,
+  TeamTimeQuery,
+} from '../../../lib/api/time-auto';
 import { formatMinutes } from '../../../lib/finance-presentation';
 import { useDisplayFormatters } from '../../../lib/i18n/use-formatters';
 import { useTOr } from '../../../lib/i18n/use-t-or';
@@ -166,8 +173,14 @@ export function FinanceTeamTimeScreen({
               </div>
               <p className="tm-field__hint">
                 {tOr(
-                  'TeamTime.rangeHint',
-                  'Up to 62 days. Days run in UTC. Time with no task chosen counts as unassigned work time.',
+                  'TeamTime.rangeHintZone',
+                  'Up to 62 days. Days follow the company time zone ({zone}). Time with no task chosen counts as unassigned work time.',
+                ).replace('{zone}', data?.timeZone ?? '…')}
+              </p>
+              <p className="tm-field__hint">
+                {tOr(
+                  'TeamTime.deviceReported',
+                  'Automatic time is reported by each person’s own computer, not verified. A day over 12 hours or a session over 6 hours without a break is marked for review.',
                 )}
               </p>
             </section>
@@ -232,7 +245,14 @@ export function FinanceTeamTimeScreen({
                           <th scope="row">{tOr('TeamTime.total', 'Total')}</th>
                           <td />
                           <td />
-                          <td>{minutes(data.totals.todayMinutes)}</td>
+                          <td>
+                            <Minutes
+                              filed={data.totals.todayMinutes}
+                              inProgress={data.totals.inProgressMinutes}
+                              minutes={minutes}
+                              tOr={tOr}
+                            />
+                          </td>
                           <td>{minutes(data.totals.weekMinutes)}</td>
                           <td>{minutes(data.totals.rangeMinutes)}</td>
                           <td />
@@ -310,13 +330,13 @@ export function FinanceTeamTimeScreen({
                                   : '—'}
                             </td>
                             <td>
-                              {session.workItemTitle ??
-                                tOr('TeamTime.unassigned', 'Unassigned work time')}
+                              {session.private
+                                ? tOr('TeamTime.privateTask', 'Private task')
+                                : (session.workItemTitle ??
+                                  tOr('TeamTime.unassigned', 'Unassigned work time'))}
                             </td>
                             <td>
-                              {session.source === 'automatic'
-                                ? tOr('TeamTime.automatic', 'Automatic')
-                                : tOr('TeamTime.manual', 'Manual')}
+                              <SessionHow session={session} tOr={tOr} format={format} />
                             </td>
                             <td>{minutes(session.minutes)}</td>
                           </tr>
@@ -325,7 +345,14 @@ export function FinanceTeamTimeScreen({
                           <th scope="row" colSpan={4}>
                             {tOr('TeamTime.total', 'Total')}
                           </th>
-                          <td>{minutes(day.data.totalMinutes)}</td>
+                          <td>
+                            <Minutes
+                              filed={day.data.totalMinutes}
+                              inProgress={day.data.inProgressMinutes}
+                              minutes={minutes}
+                              tOr={tOr}
+                            />
+                          </td>
                         </tr>
                       </tbody>
                     </table>
@@ -360,16 +387,22 @@ function PersonRow({
   const [key, english, tone] = LIVE[person.live];
   return (
     <tr>
-      <th scope="row">{person.displayName}</th>
+      <th scope="row">
+        {person.displayName}{' '}
+        {person.needsReview ? <Badge>{tOr('TeamTime.needsReview', 'Needs review')}</Badge> : null}
+      </th>
       <td>
         <StateCapsule state={tone}>{tOr(key, english)}</StateCapsule>
       </td>
+      <td>{taskLabel(person.currentTask, tOr)}</td>
       <td>
-        {person.currentTask === null
-          ? '—'
-          : (person.currentTask.title ?? tOr('TeamTime.unassigned', 'Unassigned work time'))}
+        <Minutes
+          filed={person.todayMinutes}
+          inProgress={person.inProgressMinutes}
+          minutes={minutes}
+          tOr={tOr}
+        />
       </td>
-      <td>{minutes(person.todayMinutes)}</td>
       <td>{minutes(person.weekMinutes)}</td>
       <td>{minutes(person.rangeMinutes)}</td>
       <td>
@@ -378,5 +411,74 @@ function PersonRow({
         </Button>
       </td>
     </tr>
+  );
+}
+
+function taskLabel(task: CurrentTask | null, tOr: TOr): string {
+  if (task === null) return '—';
+  if (task.private === true) return tOr('TeamTime.privateTask', 'Private task');
+  return task.title ?? tOr('TeamTime.unassigned', 'Unassigned work time');
+}
+
+/** Filed time, and the open session apart from it (the timesheet counts filed time only). */
+function Minutes({
+  filed,
+  inProgress,
+  minutes,
+  tOr,
+}: {
+  filed: number;
+  inProgress: number;
+  minutes: (value: number) => string;
+  tOr: TOr;
+}) {
+  return (
+    <>
+      {minutes(filed)}
+      {inProgress > 0 ? (
+        <span className="tm-field__hint">
+          {' '}
+          {tOr('TeamTime.inProgress', '+ {time} in progress').replace(
+            '{time}',
+            minutes(inProgress),
+          )}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
+function SessionHow({
+  session,
+  tOr,
+  format,
+}: {
+  session: TeamSession;
+  tOr: TOr;
+  format: ReturnType<typeof useDisplayFormatters>;
+}) {
+  return (
+    <>
+      {session.source === 'automatic'
+        ? tOr('TeamTime.automaticDevice', 'Automatic · reported by their computer')
+        : tOr('TeamTime.manual', 'Manual')}
+      {session.lateFrom !== null ? (
+        <>
+          {' '}
+          <Badge>
+            {tOr('TeamTime.late', 'Late · tracked {day}').replace(
+              '{day}',
+              format.day(session.lateFrom),
+            )}
+          </Badge>
+        </>
+      ) : null}
+      {session.needsReview ? (
+        <>
+          {' '}
+          <Badge>{tOr('TeamTime.needsReview', 'Needs review')}</Badge>
+        </>
+      ) : null}
+    </>
   );
 }

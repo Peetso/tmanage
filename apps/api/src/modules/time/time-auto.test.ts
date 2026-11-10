@@ -2,8 +2,18 @@ import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import type { TimeAutoTrackingRow } from '../../common/database/schema.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import { applyHeartbeat, automaticMinutes, freeSpans, settle } from './time-auto-rules.js';
+import {
+  applyHeartbeat,
+  automaticMinutes,
+  boundAutomaticDay,
+  freeSpans,
+  settle,
+  splitByLocalDay,
+} from './time-auto-rules.js';
 import type { OpenSession } from './time-auto-rules.js';
+import { AutoTimeFiler } from './time-auto-filing.js';
+import type { AutoTimeFilerOptions } from './time-auto-filing.js';
+import { InProcessAutoLimiter } from './time-auto-limits.js';
 import { TimeAutoService } from './time-auto.service.js';
 import type { TimeAutoServiceOptions } from './time-auto.service.js';
 
@@ -153,6 +163,17 @@ const member = {
   hasOrgWideScope: false,
 } as unknown as Principal;
 
+/** The same member, on project p1. */
+const onP1 = { ...member, projectIds: ['p1'] } as unknown as Principal;
+const ITEM_W1 = {
+  id: 'w1',
+  organizationId: 'o1',
+  projectId: 'p1',
+  audience: 'internal',
+  state: 'open',
+  deletedAt: null,
+};
+
 function row(o: Partial<TimeAutoTrackingRow> = {}): TimeAutoTrackingRow {
   return {
     id: 'r1',
@@ -172,57 +193,145 @@ function row(o: Partial<TimeAutoTrackingRow> = {}): TimeAutoTrackingRow {
   };
 }
 
-function harness(
-  o: { row?: TimeAutoTrackingRow; policy?: string; busy?: unknown[]; nowS?: number } = {},
-) {
-  let current = o.row ?? row();
-  const entries: Record<string, unknown>[] = [];
+interface HarnessOptions {
+  readonly row?: TimeAutoTrackingRow;
+  readonly others?: readonly TimeAutoTrackingRow[];
+  readonly policy?: string;
+  readonly maxIdle?: string;
+  readonly timeZone?: string;
+  readonly busy?: unknown[];
+  readonly nowS?: number;
+  readonly locks?: readonly { periodStart: string; periodEnd: string; unlockedAt: null }[];
+  readonly sheetState?: string;
+  readonly items?: Record<string, unknown>;
+  readonly earlier?: readonly Record<string, unknown>[];
+  readonly limiter?: unknown;
+}
+
+function harness(o: HarnessOptions = {}) {
+  const rows = new Map<string, TimeAutoTrackingRow>();
+  for (const r of [o.row ?? row(), ...(o.others ?? [])]) rows.set(r.id, r);
+  const entries: Record<string, unknown>[] = [...(o.earlier ?? [])];
+  const audits: Record<string, unknown>[] = [];
   const limiterCalls: string[] = [];
-  const options = {
-    now: () => at(o.nowS ?? 0),
-    database: {
-      transaction: (_c: unknown, fn: (t: unknown) => unknown) => fn({}),
-      read: (_c: unknown, fn: (t: unknown) => unknown) => fn({}),
+  const settings = new Map<string, string>();
+  if (o.policy) settings.set('auto_time_tracking', o.policy);
+  if (o.maxIdle) settings.set('auto_time_tracking_max_idle', o.maxIdle);
+  if (o.timeZone) settings.set('default_timezone', o.timeZone);
+  const now = () => at(o.nowS ?? 0);
+  const own = () => [...rows.values()].find((r) => r.membershipId === 'm1') ?? null;
+  const database = {
+    transaction: (_c: unknown, fn: (t: unknown) => unknown) => fn({}),
+    read: (_c: unknown, fn: (t: unknown) => unknown) => fn({}),
+  };
+  const update = async (
+    _r: unknown,
+    _c: unknown,
+    id: string,
+    patch: Partial<TimeAutoTrackingRow>,
+  ) => {
+    const current = rows.get(id);
+    if (current) rows.set(id, { ...current, ...patch });
+  };
+  const timers = {
+    findTimer: async () => null,
+    projectExists: async () => true,
+    workItemExists: async () => true,
+  };
+  const settingsRepo = {
+    findByKey: async (_r: unknown, _c: unknown, key: string) =>
+      settings.has(key) ? { settingValue: settings.get(key) } : null,
+    upsert: async (_r: unknown, _c: unknown, input: { key: string; value: string }) => {
+      settings.set(input.key, input.value);
     },
+    resolveOrganization: async () => ({ id: 'o1' }),
+  };
+  const workItems = {
+    findById: async (_r: unknown, _c: unknown, id: string) => o.items?.[id] ?? null,
+  };
+  const audit = {
+    record: async (_r: unknown, _c: unknown, entry: Record<string, unknown>) => {
+      audits.push(entry);
+    },
+  };
+  const filer = new AutoTimeFiler({
+    now,
+    database,
     repository: {
-      find: async () => current,
-      ensureOwn: async () => current,
-      update: async (
+      timedEntriesOverlapping: async () => o.busy ?? [],
+      automaticMinutesBetween: async (
         _r: unknown,
         _c: unknown,
-        _id: string,
-        patch: Partial<TimeAutoTrackingRow>,
-      ) => {
-        current = { ...current, ...patch };
-      },
-      timedEntriesOverlapping: async () => o.busy ?? [],
+        membershipId: string,
+        from: Date,
+        to: Date,
+      ) =>
+        entries
+          .filter(
+            (e) =>
+              e['loggedBy'] === membershipId &&
+              e['source'] === 'automatic' &&
+              (e['startedAt'] as Date) >= from &&
+              (e['startedAt'] as Date) < to,
+          )
+          .reduce((sum, e) => sum + (e['minutes'] as number), 0),
+      staleSessions: async (_r: unknown, _c: unknown, ids: readonly string[] | null, when: Date) =>
+        [...rows.values()].filter(
+          (r) =>
+            (ids === null || ids.includes(r.membershipId)) &&
+            r.sessionStartedAt !== null &&
+            r.lastHeartbeatAt !== null &&
+            (when.getTime() - r.lastHeartbeatAt.getTime() > 150_000 ||
+              when.getTime() - r.sessionStartedAt.getTime() >= 86_400_000),
+        ),
+      openSessions: async () => [...rows.values()].filter((r) => r.sessionStartedAt !== null),
+      update,
     },
-    timers: {
-      findTimer: async () => null,
-      projectExists: async () => true,
-      workItemExists: async () => true,
+    timers,
+    sheets: {
+      weekStart: async () => 1,
+      openLocks: async () => o.locks ?? [],
+      findForMember: async () => (o.sheetState ? { state: o.sheetState } : null),
     },
-    settings: {
-      findByKey: async () => (o.policy ? { settingValue: o.policy } : null),
-      upsert: async () => undefined,
-      resolveOrganization: async () => ({ id: 'o1' }),
-    },
+    settings: settingsRepo,
     timeLogs: {
       create: async (_r: unknown, _c: unknown, input: Record<string, unknown>) => {
         entries.push(input);
         return { id: `e${entries.length}` };
       },
     },
-    workItems: { findById: async () => null },
-    audit: { record: async () => undefined },
-    limiter: {
-      check: async (_p: unknown, subject: { link: string }) => {
-        limiterCalls.push(subject.link);
-        return { admitted: limiterCalls.length <= 12 };
-      },
-    },
+    workItems,
+    audit,
+  } as unknown as AutoTimeFilerOptions);
+  const options = {
+    now,
+    database,
+    repository: { find: async () => own(), ensureOwn: async () => own(), update },
+    timers,
+    settings: settingsRepo,
+    workItems,
+    audit,
+    filer,
+    limiter:
+      o.limiter === undefined
+        ? {
+            check: async (_p: unknown, subject: { link: string }) => {
+              limiterCalls.push(subject.link);
+              return { admitted: limiterCalls.length <= 12 };
+            },
+          }
+        : o.limiter,
   } as unknown as TimeAutoServiceOptions;
-  return { service: new TimeAutoService(options), entries, limiterCalls, row: () => current };
+  return {
+    service: new TimeAutoService(options),
+    filer,
+    entries,
+    audits,
+    limiterCalls,
+    settings,
+    row: () => own() as TimeAutoTrackingRow,
+    rowById: (id: string) => rows.get(id),
+  };
 }
 
 describe('TimeAutoService', () => {
@@ -250,8 +359,8 @@ describe('TimeAutoService', () => {
       lastActiveAt: at(-1200),
       lastHeartbeatAt: at(-1200),
     });
-    const { service, entries, row: after } = harness({ row: open });
-    await service.heartbeat(me, member, { idleSeconds: 0 });
+    const { service, entries, row: after } = harness({ row: open, items: { w1: ITEM_W1 } });
+    await service.heartbeat(me, onP1, { idleSeconds: 0 });
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({
       source: 'automatic',
@@ -334,6 +443,7 @@ describe('TimeAutoService', () => {
     });
     expect(await service.setPolicy(me, owner, { policy: 'required' })).toEqual({
       policy: 'required',
+      maxIdleMinutes: 5,
     });
     const client = { ...member, kind: 'client' } as unknown as Principal;
     await expect(service.heartbeat(me, client, { idleSeconds: 0 })).rejects.toMatchObject({
@@ -341,13 +451,13 @@ describe('TimeAutoService', () => {
     });
   });
 
-  it('settings: idle threshold must be 1 to 30 whole minutes', async () => {
-    const { service, row: after } = harness();
+  it('settings: idle threshold must be 1 to 15 whole minutes', async () => {
+    const { service, row: after } = harness({ maxIdle: '15' });
     await expect(
       service.updateSettings(me, member, { enabled: true, idleThresholdMinutes: 0 }),
     ).rejects.toMatchObject({ status: 400 });
     await expect(
-      service.updateSettings(me, member, { enabled: true, idleThresholdMinutes: 31 }),
+      service.updateSettings(me, member, { enabled: true, idleThresholdMinutes: 16 }),
     ).rejects.toMatchObject({ status: 400 });
     const view = await service.updateSettings(me, member, {
       enabled: true,
@@ -356,5 +466,267 @@ describe('TimeAutoService', () => {
     expect(view.idleThresholdMinutes).toBe(10);
     expect(after().idleThresholdMinutes).toBe(10);
     expect(view.visibleTo).toBe('admins_and_authorized');
+  });
+});
+
+// ---- security review fixes (FIX-2026-11-10) ----
+
+const owner = { ...member, role: 'owner', hasOrgWideScope: true } as unknown as Principal;
+const iso = (s: string) => new Date(s);
+
+describe('review M2: "off" really stops tracking', () => {
+  it('the owner switching off closes every open session at its last activity', async () => {
+    const mine = row({
+      sessionStartedAt: at(-600),
+      lastActiveAt: at(-60),
+      lastHeartbeatAt: at(-60),
+    });
+    const theirs = row({
+      id: 'r2',
+      membershipId: 'm2',
+      userId: 'u2',
+      sessionStartedAt: at(-1200),
+      lastActiveAt: at(-300),
+      lastHeartbeatAt: at(-30),
+    });
+    const h = harness({ row: mine, others: [theirs], policy: 'optional' });
+    await h.service.setPolicy(me, owner, { policy: 'off' });
+    expect(h.entries.map((e) => [e['loggedBy'], e['minutes'], e['endedAt']])).toEqual([
+      ['m1', 9, at(-60)],
+      ['m2', 15, at(-300)],
+    ]);
+    expect(h.row().sessionStartedAt).toBeNull();
+    expect(h.rowById('r2')?.sessionStartedAt).toBeNull();
+    expect(h.audits.at(-1)).toMatchObject({
+      action: 'organization.auto_time_tracking_policy_changed',
+      actorUserId: 'u1',
+      metadata: { previous: 'optional', value: 'off', sessions_closed: 2 },
+    });
+  });
+
+  it('"working on now" with tracking off files the open session and opens none', async () => {
+    const open = row({
+      sessionStartedAt: at(-600),
+      lastActiveAt: at(-30),
+      lastHeartbeatAt: at(-30),
+    });
+    const off = harness({ row: open, policy: 'off' });
+    await off.service.setCurrentTask(me, member, {});
+    expect(off.entries).toHaveLength(1);
+    expect(off.row()).toMatchObject({ sessionStartedAt: null, lastHeartbeatAt: null });
+    const switchedOff = harness({ row: { ...open, enabled: false } });
+    await switchedOff.service.setCurrentTask(me, member, {});
+    expect(switchedOff.row().sessionStartedAt).toBeNull();
+  });
+
+  it('a task change splits the session but never extends it: the old heartbeat is kept', async () => {
+    const open = row({
+      sessionStartedAt: at(-600),
+      lastActiveAt: at(-30),
+      lastHeartbeatAt: at(-40),
+    });
+    const h = harness({ row: open });
+    await h.service.setCurrentTask(me, member, {});
+    expect(h.entries[0]).toMatchObject({ startedAt: at(-600), endedAt: at(-30) });
+    expect(h.row()).toMatchObject({
+      sessionStartedAt: at(-30),
+      lastActiveAt: at(-30),
+      lastHeartbeatAt: at(-40),
+    });
+  });
+
+  it('"working on now" is rate-limited; with no durable limiter an in-process one brakes', async () => {
+    const h = harness({ limiter: null });
+    for (let i = 0; i < 12; i += 1) await h.service.setCurrentTask(me, member, {});
+    await expect(h.service.setCurrentTask(me, member, {})).rejects.toMatchObject({ status: 429 });
+    // Heartbeats have their own budget, also braked in-process (review L4).
+    for (let i = 0; i < 12; i += 1) await h.service.heartbeat(me, member, { idleSeconds: 0 });
+    await expect(h.service.heartbeat(me, member, { idleSeconds: 0 })).rejects.toMatchObject({
+      status: 429,
+    });
+    const limiter = new InProcessAutoLimiter(() => 0);
+    const policy = { name: 'x', perMinute: 1, key: 'link' } as const;
+    expect((await limiter.check(policy, { link: 'a' })).admitted).toBe(true);
+    expect((await limiter.check(policy, { link: 'a' })).admitted).toBe(false);
+  });
+});
+
+describe('review M3: device-reported hours are bounded and flagged', () => {
+  it('caps a company day at 16 hours; flags a day over 12 hours or a session over 6', () => {
+    expect(boundAutomaticDay(120, 900, 120)).toEqual({
+      minutes: 60,
+      capped: true,
+      needsReview: true,
+    });
+    expect(boundAutomaticDay(60, 960, 60)).toEqual({ minutes: 0, capped: true, needsReview: true });
+    expect(boundAutomaticDay(120, 660, 120)).toMatchObject({ capped: false, needsReview: true });
+    expect(boundAutomaticDay(361, 0, 361)).toMatchObject({ capped: false, needsReview: true });
+    expect(boundAutomaticDay(360, 0, 360)).toEqual({
+      minutes: 360,
+      capped: false,
+      needsReview: false,
+    });
+  });
+
+  it('files the capped amount and the review flag', async () => {
+    const earlier = [
+      {
+        loggedBy: 'm1',
+        source: 'automatic',
+        minutes: 900,
+        startedAt: iso('2026-11-10T00:30:00Z'),
+      },
+    ];
+    const open = row({
+      sessionStartedAt: at(-7200),
+      lastActiveAt: at(-200),
+      lastHeartbeatAt: at(-200),
+    });
+    const h = harness({ row: open, earlier });
+    await h.service.heartbeat(me, member, { idleSeconds: 0 });
+    const filed = h.entries.slice(1);
+    expect(filed).toHaveLength(1);
+    expect(filed[0]).toMatchObject({ minutes: 60, needsReview: true, source: 'automatic' });
+    expect(h.audits.at(-1)).toMatchObject({ metadata: { capped: 'day_cap' } });
+    // A single seven-hour stretch is flagged even on an empty day.
+    const long = harness({
+      row: row({
+        sessionStartedAt: at(-25_400),
+        lastActiveAt: at(-200),
+        lastHeartbeatAt: at(-200),
+      }),
+    });
+    await long.service.heartbeat(me, member, { idleSeconds: 0 });
+    expect(long.entries.length).toBeGreaterThan(0);
+    expect(long.entries.every((e) => e['needsReview'] === true)).toBe(true);
+  });
+});
+
+describe('review M4: company days in the company time zone', () => {
+  it('splits a session at local midnight in Cairo, including the night summer time starts', () => {
+    const november = splitByLocalDay(
+      { startedAt: iso('2026-11-10T21:30:00Z'), endedAt: iso('2026-11-10T22:30:00Z') },
+      'Africa/Cairo',
+    );
+    expect(november.map((p) => [p.day, p.span.startedAt.toISOString()])).toEqual([
+      ['2026-11-10', '2026-11-10T21:30:00.000Z'],
+      ['2026-11-11', '2026-11-10T22:00:00.000Z'],
+    ]);
+    // 24 April 2026: Cairo clocks jump from 00:00 to 01:00; local midnight is 22:00 UTC.
+    const spring = splitByLocalDay(
+      { startedAt: iso('2026-04-23T21:30:00Z'), endedAt: iso('2026-04-23T22:30:00Z') },
+      'Africa/Cairo',
+    );
+    expect(spring.map((p) => [p.day, automaticMinutes(p.span)])).toEqual([
+      ['2026-04-23', 30],
+      ['2026-04-24', 30],
+    ]);
+    // In UTC the same stretch is one day.
+    expect(
+      splitByLocalDay(
+        { startedAt: iso('2026-11-10T21:30:00Z'), endedAt: iso('2026-11-10T22:30:00Z') },
+        'UTC',
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('files each piece on its own company day', async () => {
+    // T0 + 46 800 s = 22:00 UTC = midnight in Cairo.
+    const open = row({
+      sessionStartedAt: at(45_000),
+      lastActiveAt: at(48_600),
+      lastHeartbeatAt: at(48_600),
+    });
+    const h = harness({ row: open, timeZone: 'Africa/Cairo', nowS: 49_000 });
+    await h.service.heartbeat(me, member, { idleSeconds: 0 });
+    expect(h.entries.map((e) => [e['spentOn'], e['minutes']])).toEqual([
+      ['2026-11-10', 30],
+      ['2026-11-11', 30],
+    ]);
+  });
+});
+
+describe('review M5: silent sessions close without waiting, never into a closed week', () => {
+  it('a reader settles a silent session at its last activity', async () => {
+    const silent = row({
+      sessionStartedAt: at(-1800),
+      lastActiveAt: at(-900),
+      lastHeartbeatAt: at(-900),
+    });
+    const h = harness({ row: silent });
+    const view = await h.service.get(me, member);
+    expect(h.entries).toEqual([
+      expect.objectContaining({ minutes: 15, startedAt: at(-1800), endedAt: at(-900) }),
+    ]);
+    expect(view.session).toBeNull();
+    // A session with a recent heartbeat is left alone.
+    const live = harness({
+      row: row({ sessionStartedAt: at(-600), lastActiveAt: at(-30), lastHeartbeatAt: at(-30) }),
+    });
+    await live.filer.settleStale(me, null);
+    expect(live.entries).toEqual([]);
+  });
+
+  it('a locked week is never filed into: the time is late, unassigned and flagged', async () => {
+    const silent = row({
+      workItemId: 'w1',
+      projectId: 'p1',
+      sessionStartedAt: at(-1800),
+      lastActiveAt: at(-900),
+      lastHeartbeatAt: at(-900),
+    });
+    const lock = { periodStart: '2026-11-09', periodEnd: '2026-11-15', unlockedAt: null };
+    const h = harness({ row: silent, locks: [lock], items: { w1: ITEM_W1 } });
+    await h.filer.settleStale(me, null);
+    expect(h.entries).toEqual([
+      expect.objectContaining({
+        spentOn: '2026-11-16',
+        workItemId: null,
+        projectId: null,
+        needsReview: true,
+        startedAt: at(-1800),
+      }),
+    ]);
+    expect(h.audits[0]).toMatchObject({ metadata: { late_from: '2026-11-10' } });
+    // An approved timesheet closes the day the same way.
+    const approved = harness({ row: silent, sheetState: 'approved' });
+    await approved.filer.settleStale(me, null);
+    expect(approved.entries[0]).toMatchObject({ workItemId: null, needsReview: true });
+  });
+});
+
+describe('review L1, L2: idle maximum and lost access', () => {
+  it('a person chooses an idle threshold at or below the owner maximum', async () => {
+    const h = harness({ maxIdle: '8' });
+    await expect(
+      h.service.updateSettings(me, member, { enabled: true, idleThresholdMinutes: 9 }),
+    ).rejects.toMatchObject({ status: 400 });
+    const chosen = await h.service.updateSettings(me, member, {
+      enabled: true,
+      idleThresholdMinutes: 8,
+    });
+    expect(chosen.idleThresholdMinutes).toBe(8);
+    await expect(
+      h.service.setPolicy(me, owner, { policy: 'optional', maxIdleMinutes: 16 }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(await h.service.setPolicy(me, owner, { policy: 'optional', maxIdleMinutes: 3 })).toEqual(
+      { policy: 'optional', maxIdleMinutes: 3 },
+    );
+    // An older, larger own choice is read down to the new maximum.
+    expect((await h.service.get(me, member)).idleThresholdMinutes).toBe(3);
+  });
+
+  it('a task the person lost access to receives nothing more', async () => {
+    const open = row({
+      workItemId: 'w1',
+      projectId: 'p1',
+      sessionStartedAt: at(-1800),
+      lastActiveAt: at(-1200),
+      lastHeartbeatAt: at(-1200),
+    });
+    const h = harness({ row: open, items: { w1: ITEM_W1 } });
+    await h.service.heartbeat(me, member, { idleSeconds: 0 });
+    expect(h.entries[0]).toMatchObject({ workItemId: null, projectId: null, minutes: 10 });
+    expect(h.row()).toMatchObject({ workItemId: null, projectId: null });
   });
 });

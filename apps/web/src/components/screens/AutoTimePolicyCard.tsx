@@ -2,11 +2,18 @@
 
 import { useId, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AUTO_TRACKING_POLICIES, type AutoTrackingPolicy } from '@tmanage/domain';
-import { Badge, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import {
+  AUTO_TRACKING_POLICIES,
+  IDLE_THRESHOLD_DEFAULT_MINUTES,
+  IDLE_THRESHOLD_MAX_MINUTES,
+  type AutoTrackingPolicy,
+} from '@tmanage/domain';
+import { Badge, Button, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
 import { getAutoTracking, updateAutoTrackingPolicy } from '../../lib/api/time-auto';
-import type { AutoTrackingState } from '../../lib/api/time-auto';
+import type { AutoTrackingPolicyChoice, AutoTrackingState } from '../../lib/api/time-auto';
+import { idleChoicesUpTo } from '../../lib/auto-timer-state';
+import { useDisplayFormatters } from '../../lib/i18n/use-formatters';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { autoTrackingKey } from '../time/use-auto-tracker';
 import './download-scan-policy.css';
@@ -54,6 +61,7 @@ const CHOICES: Readonly<
  */
 export function AutoTimePolicyCard({ organizationSlug, client, isOwner }: AutoTimePolicyCardProps) {
   const tr = useTOr();
+  const format = useDisplayFormatters();
   const queryClient = useQueryClient();
   const titleId = useId();
   const name = useId();
@@ -63,17 +71,23 @@ export function AutoTimePolicyCard({ organizationSlug, client, isOwner }: AutoTi
     queryFn: () => getAutoTracking(client, organizationSlug),
     retry: false,
   });
-  const stored = current.data?.policy ?? 'optional';
-  const [draft, setDraft] = useState<AutoTrackingPolicy | null>(null);
+  const stored: AutoTrackingPolicyChoice = {
+    policy: current.data?.policy ?? 'optional',
+    maxIdleMinutes: current.data?.maxIdleMinutes ?? IDLE_THRESHOLD_DEFAULT_MINUTES,
+  };
+  const [draft, setDraft] = useState<AutoTrackingPolicyChoice | null>(null);
   const [saved, setSaved] = useState(false);
   const value = draft ?? stored;
+  const changed =
+    draft !== null &&
+    (draft.policy !== stored.policy || draft.maxIdleMinutes !== stored.maxIdleMinutes);
 
   const save = useMutation({
-    mutationFn: (next: AutoTrackingPolicy) =>
+    mutationFn: (next: AutoTrackingPolicyChoice) =>
       updateAutoTrackingPolicy(client, organizationSlug, next),
-    onSuccess: async ({ policy }) => {
+    onSuccess: async ({ policy, maxIdleMinutes }) => {
       queryClient.setQueryData<AutoTrackingState>(key, (old) =>
-        old === undefined ? old : { ...old, policy },
+        old === undefined ? old : { ...old, policy, maxIdleMinutes },
       );
       await queryClient.invalidateQueries({ queryKey: key });
       setDraft(null);
@@ -118,7 +132,7 @@ export function AutoTimePolicyCard({ organizationSlug, client, isOwner }: AutoTi
             data-readonly={!isOwner}
           >
             {AUTO_TRACKING_POLICIES.map((choice) => {
-              const checked = value === choice;
+              const checked = value.policy === choice;
               const hintId = `${name}-${choice}-hint`;
               const [labelKey, labelEnglish] = CHOICES[choice].label;
               const [hintKey, hintEnglish] = CHOICES[choice].hint;
@@ -134,7 +148,7 @@ export function AutoTimePolicyCard({ organizationSlug, client, isOwner }: AutoTi
                     aria-describedby={hintId}
                     onChange={() => {
                       setSaved(false);
-                      setDraft(choice);
+                      setDraft({ ...value, policy: choice });
                     }}
                   />
                   <span className="tm-dlscan-option__label">
@@ -150,6 +164,26 @@ export function AutoTimePolicyCard({ organizationSlug, client, isOwner }: AutoTi
               );
             })}
           </div>
+
+          <Select
+            label={tr('AutoTimePolicy.maxIdleLabel', 'Longest idle time people may choose')}
+            hint={tr(
+              'AutoTimePolicy.maxIdleHint',
+              'Each person picks when their timer pauses, at or below this. Idle minutes are never counted.',
+            )}
+            value={String(value.maxIdleMinutes)}
+            disabled={!isOwner || save.isPending}
+            onChange={(event) => {
+              setSaved(false);
+              setDraft({ ...value, maxIdleMinutes: Number(event.target.value) });
+            }}
+          >
+            {idleChoicesUpTo(IDLE_THRESHOLD_MAX_MINUTES).map((minutes) => (
+              <option key={minutes} value={minutes}>
+                {tr('AutoTimer.minutes', '{n} min').replace('{n}', format.number(minutes))}
+              </option>
+            ))}
+          </Select>
 
           {isOwner ? (
             <>
@@ -178,7 +212,7 @@ export function AutoTimePolicyCard({ organizationSlug, client, isOwner }: AutoTi
                   tone="ink"
                   loading={save.isPending}
                   loadingLabel={tr('AutoTimePolicy.saving', 'Saving')}
-                  disabled={draft === null || draft === stored}
+                  disabled={!changed}
                   onClick={() => save.mutate(value)}
                 >
                   {tr('AutoTimePolicy.save', 'Save')}

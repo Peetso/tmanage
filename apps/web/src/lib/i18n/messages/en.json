@@ -18870,7 +18870,6 @@
   "TeamTime.everyone": "Everyone",
   "TeamTime.project": "Project",
   "TeamTime.allProjects": "All projects",
-  "TeamTime.rangeHint": "Up to 62 days. Days run in UTC. Time with no task chosen counts as unassigned work time.",
   "TeamTime.loadError": "Team time could not be loaded",
   "TeamTime.loading": "Loading team time",
   "TeamTime.people": "People",
@@ -18903,5 +18902,17 @@
   "RouteTitle.financeTeamTime": "Team time",
   "CapabilityLabel.time.view_team": "View team time (everyone’s tracked time)",
   "PermissionMatrix.area.time": "Time tracking",
-  "AuditActionLabel.organization.auto_time_tracking_policy_changed": "Changed automatic time tracking"
+  "AuditActionLabel.organization.auto_time_tracking_policy_changed": "Changed automatic time tracking",
+  "AutoTimePolicy.maxIdleLabel": "Longest idle time people may choose",
+  "AutoTimePolicy.maxIdleHint": "Each person picks when their timer pauses, at or below this. Idle minutes are never counted.",
+  "TeamTime.rangeHintZone": "Up to 62 days. Days follow the company time zone ({zone}). Time with no task chosen counts as unassigned work time.",
+  "TeamTime.deviceReported": "Automatic time is reported by each person’s own computer, not verified. A day over 12 hours or a session over 6 hours without a break is marked for review.",
+  "TeamTime.privateTask": "Private task",
+  "TeamTime.inProgress": "+ {time} in progress",
+  "TeamTime.automaticDevice": "Automatic · reported by their computer",
+  "TeamTime.late": "Late · tracked {day}",
+  "TeamTime.needsReview": "Needs review",
+  "FinanceTimesheets.reviewTitle": "Some time needs review",
+  "FinanceTimesheets.reviewBody": "A day over 12 hours, a session over 6 hours without a break, or time filed late because its week was closed. Check it before you submit.",
+  "FinanceTimesheets.automaticNote": "Automatic time is reported by your own computer, not verified. Days follow the company time zone."
 }

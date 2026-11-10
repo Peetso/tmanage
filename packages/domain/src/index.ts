@@ -387,6 +387,7 @@ export {
   isWithinHorizon,
   isWorkingDay,
   isWorkingInstant,
+  isoDateOfDayNumber,
   localDateOf,
   maskOfWeekdays,
   minutesOfClock,

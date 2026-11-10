@@ -45,5 +45,12 @@ export function autoTimerDisplay(
   }
 }
 
-/** The idle thresholds the settings offer, in minutes (the API accepts 1..30). */
-export const IDLE_THRESHOLD_CHOICES: readonly number[] = [1, 2, 3, 5, 10, 15, 20, 30];
+/** The idle thresholds the settings offer, in minutes (the API accepts 1..15). */
+export const IDLE_THRESHOLD_CHOICES: readonly number[] = [1, 2, 3, 5, 10, 15];
+
+/** The choices a person has under the owner's maximum (the maximum itself always among them). */
+export function idleChoicesUpTo(maxMinutes: number): readonly number[] {
+  return [...new Set([...IDLE_THRESHOLD_CHOICES.filter((m) => m <= maxMinutes), maxMinutes])].sort(
+    (a, b) => a - b,
+  );
+}
