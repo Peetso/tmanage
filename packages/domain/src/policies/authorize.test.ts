@@ -183,6 +183,24 @@ describe('authorize — client boundary', () => {
     ).toMatchObject({ allowed: false, code: 'not_published' });
   });
 
+  it('bounds file.delete to the file’s project like file.download (FIX5 review L8)', () => {
+    const manager = internal({ role: 'manager', projectIds: [PROJECT_1] });
+    expect(
+      authorize({
+        principal: manager,
+        capability: 'file.delete',
+        resource: resource({ projectId: PROJECT_2 }),
+      }),
+    ).toMatchObject({ allowed: false, code: 'not_project_member' });
+    expect(
+      authorize({
+        principal: manager,
+        capability: 'file.delete',
+        resource: resource({ projectId: PROJECT_1 }),
+      }).allowed,
+    ).toBe(true);
+  });
+
   it('denies a client on a project not shared with their client organization', () => {
     expect(
       authorize({

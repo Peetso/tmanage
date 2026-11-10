@@ -136,6 +136,7 @@ const SINGLE_ROW_OR_SYSTEM: Readonly<Record<string, string>> = {
   'requests/request-comments.repository.ts#findComment': 'by id',
   'requests/request-messages.repository.ts#create': 'write path read-back',
   'files/file-assets.repository.ts#findById': 'by id',
+  'files/file-assets.repository.ts#findByIdForUpdate': 'by id, locked (delete / restore)',
   'files/file-assets.repository.ts#listAwaitingVerification': 'upload pipeline (system)',
   'files/file-assets.repository.ts#organizationsAwaitingVerification': 'upload pipeline (system)',
   'files/file-assets.repository.ts#listAwaitingScan': 'scan pipeline (system)',

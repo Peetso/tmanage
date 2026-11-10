@@ -2,6 +2,7 @@ import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import { FILES_USER_DELETE_REASON } from '../../common/database/content-retention.js';
 import type { FileAssetRow, ProjectRow, UploadPurpose } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
@@ -62,26 +63,60 @@ function fileResource(file: DeletableFile, projectArchived: boolean) {
 }
 
 /**
- * May this principal delete (and restore) this file? The one rule the routes, the Files hub's
- * `canDelete` and the viewer's `capabilities.canDelete` share. `boundToDeliverable` says whether a
- * deliverable version names the file; a caller that does not know passes nothing, which refuses
- * a `deliverable`-purpose file rather than risk deleting what a client approved.
+ * May this principal delete this file? The one rule the routes, the Files hub's `canDelete` and
+ * the viewer's `capabilities.canDelete` share.
+ *
+ * - `boundToReview` says whether the file is under review or approval (a deliverable version
+ *   names it, or a review decision was made on it); a caller that does not know passes nothing,
+ *   which refuses rather than risk deleting what a client approved.
+ * - Security review L8: the caller must be able to read the file (`file.download`, which is
+ *   project-relation gated), checked here, so a future caller cannot forget it and turn a
+ *   `manager` role into a cross-project delete.
  */
 export function mayDeleteFile(
   principal: Principal,
   file: DeletableFile,
   projectArchived: boolean,
-  boundToDeliverable = true,
+  boundToReview = true,
 ): boolean {
   if (principal.kind !== 'internal') return false;
   if (!DELETABLE_FILE_PURPOSES.includes(file.purpose)) return false;
-  if (file.purpose === 'deliverable' && boundToDeliverable) return false;
+  if (boundToReview) return false;
   const resource = fileResource(file, projectArchived);
+  if (!authorize({ principal, capability: 'file.download', resource }).allowed) return false;
   if (authorize({ principal, capability: 'file.delete', resource }).allowed) return true;
   return (
     file.ownerUserId === principal.userId &&
     authorize({ principal, capability: 'file.upload', resource }).allowed
   );
+}
+
+/** The deleted file's fields the restore decision reads. */
+export type RestorableFile = DeletableFile &
+  Pick<FileAssetRow, 'deletedByUserId' | 'deletedReason'>;
+
+/**
+ * Security review M1. May this principal undo this file's delete? Only a member's own delete from
+ * Files, chat or the viewer ({@link FILES_USER_DELETE_REASON}) is undone here; a platform takedown
+ * or any other removal is restored only from where it was made. Within that, the person who
+ * deleted it, or a holder of `file.delete` on its project (a project manager, the owner, an admin)
+ * may restore — never an uploader whose file someone else removed.
+ */
+export function mayRestoreFile(
+  principal: Principal,
+  file: RestorableFile,
+  projectArchived: boolean,
+  boundToReview = true,
+): boolean {
+  if (file.deletedReason !== FILES_USER_DELETE_REASON) return false;
+  if (!mayDeleteFile(principal, file, projectArchived, boundToReview)) return false;
+  if (principal.kind !== 'internal') return false;
+  if (file.deletedByUserId === principal.userId) return true;
+  return authorize({
+    principal,
+    capability: 'file.delete',
+    resource: fileResource(file, projectArchived),
+  }).allowed;
 }
 
 export class FileDeleteService {
@@ -95,7 +130,7 @@ export class FileDeleteService {
   /** `DELETE …/files/:fileId` — soft delete, idempotent. */
   async softDelete(context: TenantContext, principal: Principal, fileId: string): Promise<void> {
     await this.database.transaction(context, async (tx) => {
-      const { asset } = await this.requireDeletable(tx, context, principal, fileId);
+      const { asset } = await this.requireDeletable(tx, context, principal, fileId, 'delete');
       const deleted = await this.assets.softDelete(tx, context, asset.id);
       if (!deleted) return; // Already deleted: nothing changes, still a success.
       await this.audit?.record(tx, context, {
@@ -110,7 +145,7 @@ export class FileDeleteService {
   /** `POST …/files/:fileId/restore` — undo within the restore window, idempotent. */
   async restore(context: TenantContext, principal: Principal, fileId: string): Promise<void> {
     await this.database.transaction(context, async (tx) => {
-      const { asset } = await this.requireDeletable(tx, context, principal, fileId);
+      const { asset } = await this.requireDeletable(tx, context, principal, fileId, 'restore');
       if (asset.deletedAt === null) return; // Not deleted: nothing to undo.
       const restored = await this.assets.restore(tx, context, asset.id);
       if (!restored) {
@@ -127,39 +162,44 @@ export class FileDeleteService {
   }
 
   /**
-   * Resolve the file tenant-scoped (a deleted one too — restore needs it), hide it from a caller
-   * who may not read it (404), then refuse one who may read but not delete it (403).
+   * Resolve the file tenant-scoped (a deleted one too — restore needs it), locked for the rest of
+   * the transaction (security review L2: a deliverable version attaching it takes the same lock),
+   * hide it from a caller who may not read it (404), then refuse one who may read but not delete
+   * — or, for a restore, not undo this particular delete (M1) — with 403.
    */
   private async requireDeletable(
     runner: Parameters<FileAssetsRepository['findById']>[0],
     context: TenantContext,
     principal: Principal,
     fileId: string,
+    mode: 'delete' | 'restore',
   ): Promise<{ readonly asset: FileAssetRow; readonly project: ProjectRow }> {
     if (principal.kind !== 'internal') throw new ApiError(404, 'not_found', MESSAGES.notFound);
-    const asset = await this.assets.findById(runner, context, fileId);
+    const asset = await this.assets.findByIdForUpdate(runner, context, fileId);
     if (!asset || asset.purgedAt !== null) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
     const project = await this.projects.findById(runner, context, asset.projectId);
     if (!project) throw new ApiError(404, 'not_found', MESSAGES.notFound);
     const archived = project.archivedAt !== null;
-    const bound = (await this.assets.deliverableBoundIds(runner, context, [asset.id])).has(
-      asset.id,
-    );
+    const bound = (await this.assets.reviewBoundIds(runner, context, [asset.id])).has(asset.id);
     const readable = authorize({
       principal,
       capability: 'file.download',
       resource: fileResource(asset, archived),
     }).allowed;
     if (!readable) throw new ApiError(404, 'not_found', MESSAGES.notFound);
-    if (!mayDeleteFile(principal, asset, archived, bound)) {
+    const allowed =
+      mode === 'restore' && asset.deletedAt !== null
+        ? mayRestoreFile(principal, asset, archived, bound)
+        : mayDeleteFile(principal, asset, archived, bound);
+    if (!allowed) {
       throw new ApiError(
         403,
         'forbidden',
         MESSAGES.forbidden,
         undefined,
-        'file_delete_not_allowed',
+        mode === 'restore' ? 'file_restore_not_allowed' : 'file_delete_not_allowed',
       );
     }
     return { asset, project };

@@ -237,6 +237,11 @@ const RELATION_GATED: ReadonlySet<Capability> = new Set<Capability>([
   'approval.decide',
   'file.upload',
   'file.download',
+  /**
+   * FIX5 security review L8: deleting a file is bounded to the file's project like reading it,
+   * so a `manager` of one project never deletes in another (org-wide roles keep their scope).
+   */
+  'file.delete',
   'project.manage',
   'project.member.manage',
 ]);

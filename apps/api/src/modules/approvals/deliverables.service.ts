@@ -283,7 +283,10 @@ export class DeliverablesService {
             file.asset.projectId === deliverable.projectId &&
             file.asset.purpose === 'deliverable' &&
             (file.asset.objectId === null || file.asset.objectId === deliverable.id) &&
-            file.asset.status === 'ready';
+            file.asset.status === 'ready' &&
+            // Security review L2: never a deleted file (its row is locked above, so a delete
+            // running at the same moment either finished first or waits for this version).
+            file.asset.deletedAt === null;
           if (!usable || !file?.version) {
             throw new ApiError(422, 'validation_failed', 'That file cannot be attached', [
               { field: 'fileAssetId', message: 'must be a ready deliverable file in this project' },

@@ -70,6 +70,23 @@ export interface SoftDeleteValues {
   readonly purgeAfter: SQL;
 }
 
+/**
+ * FIX5 security review M1. The `deleted_reason` a member's delete from Files, chat or the viewer
+ * writes. Undo (`POST …/files/:fileId/restore`) brings back only a row carrying exactly this
+ * marker; a platform takedown or any other removal never carries it (the platform path refuses
+ * to write it, see {@link platformDeletedReason}), so it is restored only from the platform side.
+ */
+export const FILES_USER_DELETE_REASON = 'files:user_delete';
+
+/**
+ * A platform or moderation removal's reason, normalised, never the Files marker: a reason typed
+ * as the marker is kept as text but prefixed, so the uploader's Undo cannot reverse a takedown.
+ */
+export function platformDeletedReason(reason: string | null | undefined): string | null {
+  const normalised = normaliseDeletedReason(reason);
+  return normalised === FILES_USER_DELETE_REASON ? `platform: ${normalised}` : normalised;
+}
+
 /** The longest reason a row keeps (the column is VARCHAR(500)). */
 export const MAX_DELETED_REASON = 500;
 

@@ -123,7 +123,7 @@ export class FileFoldersService {
         projectId,
         PROJECT_FILES_LIMIT,
       );
-      const bound = await this.assets.deliverableBoundIds(
+      const bound = await this.assets.reviewBoundIds(
         runner,
         context,
         rows.map(({ asset }) => asset.id),

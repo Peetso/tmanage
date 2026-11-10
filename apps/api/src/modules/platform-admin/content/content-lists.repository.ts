@@ -6,7 +6,7 @@ import type {
 } from '../../../common/database/tenant-context.js';
 import {
   contentPurgeDays,
-  normaliseDeletedReason,
+  platformDeletedReason,
 } from '../../../common/database/content-retention.js';
 import { likeContains } from '../platform-admin.access.js';
 import { CONTENT_KIND_DEFINITIONS } from './content-kinds.js';
@@ -949,7 +949,7 @@ export class ContentListsRepository {
           set deleted_at = current_timestamp(3), deleted_by_user_id = ?, deleted_reason = ?,
               purge_after = date_add(current_timestamp(3), interval ? day)
         where organization_id = ? and id = ? and deleted_at is null`,
-      [context.userId, normaliseDeletedReason(reason), days, context.organizationId, id],
+      [context.userId, platformDeletedReason(reason), days, context.organizationId, id],
     );
     return affected(result) > 0;
   }

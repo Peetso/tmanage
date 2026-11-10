@@ -12,7 +12,11 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
-import { RESTORE_VALUES, softDeleteValues } from '../../common/database/content-retention.js';
+import {
+  FILES_USER_DELETE_REASON,
+  RESTORE_VALUES,
+  softDeleteValues,
+} from '../../common/database/content-retention.js';
 import { uploadStateMachine, uuidv7 } from '@tmanage/domain';
 import type { Audience, UploadState } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
@@ -20,6 +24,7 @@ import {
   clientRequests,
   deliverableVersions,
   fileAssets,
+  fileReviewDecisions,
   fileVersions,
 } from '../../common/database/schema.js';
 import type { FileAssetRow, FileVersionRow, UploadPurpose } from '../../common/database/schema.js';
@@ -137,25 +142,71 @@ export class FileAssetsRepository {
   }
 
   /**
-   * FIX5 item 5. Of these file ids, the ones a deliverable version names: those files follow the
-   * deliverable's lifecycle and are not deleted from Files or the viewer.
+   * FIX5 item 5 (and security review L2). The file row, locked for the rest of the transaction:
+   * a delete and a deliverable version attaching the same file take this lock first, so one sees
+   * the other's result rather than both passing their checks at the same moment.
    */
-  async deliverableBoundIds(
+  async findByIdForUpdate(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    fileAssetId: string,
+  ): Promise<FileAssetRow | null> {
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(fileAssets)
+      .where(
+        and(eq(fileAssets.organizationId, context.organizationId), eq(fileAssets.id, fileAssetId)),
+      )
+      .limit(1)
+      .for('update');
+    return rows[0] ?? null;
+  }
+
+  /**
+   * FIX5 item 5 (and security review L1). Of these file ids, the ones under review or approval:
+   * a deliverable version names them, or a review decision (a client's or a member's Approve /
+   * Request changes on a plain attachment) was made on them or on their version chain. Those
+   * files follow the review's lifecycle and are not deleted from Files or the viewer.
+   */
+  async reviewBoundIds(
     runner: TenantQueryRunner,
     context: TenantContext,
     fileAssetIds: readonly string[],
   ): Promise<ReadonlySet<string>> {
     if (fileAssetIds.length === 0) return new Set();
-    const rows = await tenantDrizzle(runner)
+    const ids = [...fileAssetIds];
+    const db = tenantDrizzle(runner);
+    const versions = await db
       .selectDistinct({ id: deliverableVersions.fileAssetId })
       .from(deliverableVersions)
       .where(
         and(
           eq(deliverableVersions.organizationId, context.organizationId),
-          inArray(deliverableVersions.fileAssetId, [...fileAssetIds]),
+          inArray(deliverableVersions.fileAssetId, ids),
         ),
       );
-    return new Set(rows.flatMap((row) => (row.id === null ? [] : [row.id])));
+    const decisions = await db
+      .selectDistinct({
+        id: fileReviewDecisions.fileAssetId,
+        root: fileReviewDecisions.rootFileAssetId,
+      })
+      .from(fileReviewDecisions)
+      .where(
+        and(
+          eq(fileReviewDecisions.organizationId, context.organizationId),
+          or(
+            inArray(fileReviewDecisions.fileAssetId, ids),
+            inArray(fileReviewDecisions.rootFileAssetId, ids),
+          ),
+        ),
+      );
+    const bound = new Set<string>();
+    for (const row of versions) if (row.id !== null) bound.add(row.id);
+    for (const row of decisions) {
+      bound.add(row.id);
+      bound.add(row.root);
+    }
+    return new Set(ids.filter((id) => bound.has(id)));
   }
 
   async requireById(
@@ -182,7 +233,7 @@ export class FileAssetsRepository {
     const result = await tenantDrizzle(runner)
       .update(fileAssets)
       .set({
-        ...(await softDeleteValues(runner, context.userId, 'Deleted from Files')),
+        ...(await softDeleteValues(runner, context.userId, FILES_USER_DELETE_REASON)),
         updatedAt: sql`updated_at`,
       })
       .where(

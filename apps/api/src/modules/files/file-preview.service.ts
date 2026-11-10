@@ -409,7 +409,7 @@ export class FilePreviewService {
           asset,
           input.deliverableVersionId,
         ),
-        bound: (await this.assets.deliverableBoundIds(runner, context, [asset.id])).has(asset.id),
+        bound: (await this.assets.reviewBoundIds(runner, context, [asset.id])).has(asset.id),
       }),
     );
 

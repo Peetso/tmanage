@@ -167,7 +167,10 @@ export class DeliverablesRepository {
         and(eq(fileAssets.organizationId, context.organizationId), eq(fileAssets.id, fileAssetId)),
       )
       .orderBy(desc(fileVersions.versionNo))
-      .limit(1);
+      .limit(1)
+      // Security review L2: lock the file row, as the file delete does, so attaching a file and
+      // deleting it cannot both pass their checks at the same moment.
+      .for('update');
     const row = rows[0];
     return row ? { asset: row.asset, version: row.version ?? null } : null;
   }

@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { FileDeleteController } from './file-delete.controller.js';
 import { FileDeleteService, mayDeleteFile } from './file-delete.service.js';
+import {
+  FILES_USER_DELETE_REASON,
+  platformDeletedReason,
+} from '../../common/database/content-retention.js';
 import type { FileAssetsRepository } from './file-assets.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
@@ -22,7 +26,8 @@ const PROJECT = '01890000-0000-7000-8000-000000000101';
 const OTHER_PROJECT = '01890000-0000-7000-8000-000000000102';
 const FILE = '01890000-0000-7000-8000-0000000000f1';
 const UPLOADER = '01890000-0000-7000-8000-000000000001';
-const context = { organizationId: ORG, userId: UPLOADER } as unknown as TenantContext;
+const ctx = (who: { userId: string }) =>
+  ({ organizationId: ORG, userId: who.userId }) as unknown as TenantContext;
 
 function principal(
   userId: string,
@@ -61,13 +66,19 @@ function fileRow(overrides: Partial<FileAssetRow> = {}): FileAssetRow {
     audience: 'internal',
     status: 'ready',
     deletedAt: null,
+    deletedByUserId: null,
+    deletedReason: null,
     purgedAt: null,
     purgeAfter: null,
     ...overrides,
   } as unknown as FileAssetRow;
 }
 
-function harness(initial: FileAssetRow = fileRow(), restoreWindowOpen = true) {
+function harness(
+  initial: FileAssetRow = fileRow(),
+  restoreWindowOpen = true,
+  boundToReview = false,
+) {
   let row = initial;
   const writes: string[] = [];
   const audits: string[] = [];
@@ -76,20 +87,25 @@ function harness(initial: FileAssetRow = fileRow(), restoreWindowOpen = true) {
     read: async (_c: unknown, work: (tx: unknown) => Promise<unknown>) => work({}),
   } as unknown as TenantDatabase;
   const assets = {
-    findById: async (_r: unknown, _c: unknown, id: string) => (id === row.id ? row : null),
-    softDelete: async () => {
+    findByIdForUpdate: async (_r: unknown, _c: unknown, id: string) => (id === row.id ? row : null),
+    softDelete: async (_r: unknown, c: TenantContext) => {
       if (row.deletedAt !== null) return false;
       writes.push('delete');
-      row = { ...row, deletedAt: new Date() } as FileAssetRow;
+      row = {
+        ...row,
+        deletedAt: new Date(),
+        deletedByUserId: c.userId,
+        deletedReason: FILES_USER_DELETE_REASON,
+      } as FileAssetRow;
       return true;
     },
     restore: async () => {
       if (row.deletedAt === null || !restoreWindowOpen) return false;
       writes.push('restore');
-      row = { ...row, deletedAt: null } as FileAssetRow;
+      row = { ...row, deletedAt: null, deletedByUserId: null, deletedReason: null } as FileAssetRow;
       return true;
     },
-    deliverableBoundIds: async () => new Set<string>(),
+    reviewBoundIds: async () => new Set<string>(boundToReview ? [row.id] : []),
   } as unknown as FileAssetsRepository;
   const projects = {
     findById: async (_r: unknown, _c: unknown, id: string) =>
@@ -121,9 +137,9 @@ async function status(promise: Promise<unknown>): Promise<number | 'ok'> {
 describe('file delete (FIX5 item 5)', () => {
   it('lets the uploader delete, then restore, the file — each audited once', async () => {
     const t = harness();
-    await t.controller.remove(context, uploader, FILE);
+    await t.controller.remove(ctx(uploader), uploader, FILE);
     expect(t.current().deletedAt).not.toBeNull();
-    await t.controller.restore(context, uploader, FILE);
+    await t.controller.restore(ctx(uploader), uploader, FILE);
     expect(t.current().deletedAt).toBeNull();
     expect(t.writes).toEqual(['delete', 'restore']);
     expect(t.audits).toEqual(['file_asset.deleted', 'file_asset.restored']);
@@ -132,45 +148,54 @@ describe('file delete (FIX5 item 5)', () => {
   it('lets a manager of the file’s project and the company owner delete', async () => {
     for (const who of [projectManager, owner]) {
       const t = harness();
-      expect(await status(t.controller.remove(context, who, FILE))).toBe('ok');
+      expect(await status(t.controller.remove(ctx(who), who, FILE))).toBe('ok');
       expect(t.writes).toEqual(['delete']);
     }
   });
 
   it('refuses another member of the project with 403 and changes nothing', async () => {
     const t = harness();
-    expect(await status(t.controller.remove(context, otherMember, FILE))).toBe(403);
-    expect(await status(t.controller.restore(context, otherMember, FILE))).toBe(403);
+    expect(await status(t.controller.remove(ctx(otherMember), otherMember, FILE))).toBe(403);
+    expect(await status(t.controller.restore(ctx(otherMember), otherMember, FILE))).toBe(403);
     expect(t.writes).toEqual([]);
     expect(t.audits).toEqual([]);
   });
 
   it('answers 404 to a caller outside the project, for an unknown id and for a bad id', async () => {
     const t = harness();
-    expect(await status(t.controller.remove(context, outsider, FILE))).toBe(404);
+    expect(await status(t.controller.remove(ctx(outsider), outsider, FILE))).toBe(404);
     expect(
-      await status(t.controller.remove(context, uploader, '01890000-0000-7000-8000-0000000000ff')),
+      await status(
+        t.controller.remove(ctx(uploader), uploader, '01890000-0000-7000-8000-0000000000ff'),
+      ),
     ).toBe(404);
-    expect(await status(t.controller.remove(context, uploader, 'not-an-id'))).toBe(404);
+    expect(await status(t.controller.remove(ctx(uploader), uploader, 'not-an-id'))).toBe(404);
     expect(t.writes).toEqual([]);
   });
 
   it('is idempotent: a second delete and a restore of a live file change nothing', async () => {
     const t = harness();
-    await t.controller.remove(context, uploader, FILE);
-    await t.controller.remove(context, uploader, FILE);
+    await t.controller.remove(ctx(uploader), uploader, FILE);
+    await t.controller.remove(ctx(uploader), uploader, FILE);
     expect(t.writes).toEqual(['delete']);
     expect(t.audits).toEqual(['file_asset.deleted']);
 
     const live = harness();
-    await live.controller.restore(context, uploader, FILE);
+    await live.controller.restore(ctx(uploader), uploader, FILE);
     expect(live.writes).toEqual([]);
     expect(live.audits).toEqual([]);
   });
 
   it('cannot restore once the restore window has passed (404)', async () => {
-    const t = harness(fileRow({ deletedAt: new Date() } as Partial<FileAssetRow>), false);
-    expect(await status(t.controller.restore(context, uploader, FILE))).toBe(404);
+    const t = harness(
+      fileRow({
+        deletedAt: new Date(),
+        deletedByUserId: UPLOADER,
+        deletedReason: FILES_USER_DELETE_REASON,
+      } as Partial<FileAssetRow>),
+      false,
+    );
+    expect(await status(t.controller.restore(ctx(uploader), uploader, FILE))).toBe(404);
     expect(t.audits).toEqual([]);
   });
 
@@ -183,11 +208,55 @@ describe('file delete (FIX5 item 5)', () => {
     expect(mayDeleteFile(owner, deliverable, false, false)).toBe(true);
     expect(mayDeleteFile(uploader, deliverable, false, false)).toBe(true);
     expect(mayDeleteFile(otherMember, deliverable, false, false)).toBe(false);
-    expect(mayDeleteFile({ ...uploader, kind: 'client' }, fileRow(), false)).toBe(false);
-    expect(mayDeleteFile(uploader, fileRow(), false)).toBe(true);
-    expect(mayDeleteFile(otherMember, fileRow(), false)).toBe(false);
+    expect(mayDeleteFile({ ...uploader, kind: 'client' }, fileRow(), false, false)).toBe(false);
+    expect(mayDeleteFile(uploader, fileRow(), false, false)).toBe(true);
+    expect(mayDeleteFile(otherMember, fileRow(), false, false)).toBe(false);
     // An archived project is read-only: not even the uploader deletes there.
-    expect(mayDeleteFile(uploader, fileRow(), true)).toBe(false);
+    expect(mayDeleteFile(uploader, fileRow(), true, false)).toBe(false);
+  });
+
+  it('M1: the uploader cannot undo a platform or moderation removal of their file', async () => {
+    const takenDown = fileRow({
+      deletedAt: new Date(),
+      deletedByUserId: '01890000-0000-7000-8000-0000000000aa', // a platform admin
+      deletedReason: 'Malware reported by the scanner',
+    } as Partial<FileAssetRow>);
+    for (const who of [uploader, projectManager, owner]) {
+      const t = harness(takenDown);
+      expect(await status(t.controller.restore(ctx(who), who, FILE))).toBe(403);
+      expect(t.writes).toEqual([]);
+      expect(t.audits).toEqual([]);
+    }
+    // A platform reason typed as the Files marker is stored prefixed, so it never matches.
+    expect(platformDeletedReason(FILES_USER_DELETE_REASON)).toBe('platform: files:user_delete');
+    expect(platformDeletedReason('  spam  ')).toBe('spam');
+  });
+
+  it('M1: a member cannot undo a project manager’s delete of their own file', async () => {
+    const t = harness();
+    expect(await status(t.controller.remove(ctx(projectManager), projectManager, FILE))).toBe('ok');
+    expect(t.current().deletedByUserId).toBe(projectManager.userId);
+    expect(await status(t.controller.restore(ctx(uploader), uploader, FILE))).toBe(403);
+    expect(t.current().deletedAt).not.toBeNull();
+    // The manager who deleted it, or the owner, may.
+    expect(await status(t.controller.restore(ctx(owner), owner, FILE))).toBe('ok');
+    expect(t.current().deletedAt).toBeNull();
+  });
+
+  it('L1: a file under review or approval (e.g. a client approved it) is not deleted', async () => {
+    const t = harness(fileRow(), true, true);
+    for (const who of [uploader, projectManager, owner]) {
+      expect(await status(t.controller.remove(ctx(who), who, FILE))).toBe(403);
+    }
+    expect(t.writes).toEqual([]);
+  });
+
+  it('L8: a manager-role member outside the file’s project may not delete it', () => {
+    const elsewhereManager = principal('01890000-0000-7000-8000-000000000006', 'manager', [
+      OTHER_PROJECT,
+    ]);
+    expect(mayDeleteFile(elsewhereManager, fileRow(), false, false)).toBe(false);
+    expect(mayDeleteFile(projectManager, fileRow(), false, false)).toBe(true);
   });
 
   it('gates both routes on file.upload (the uploader is an ordinary member)', () => {
