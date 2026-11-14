@@ -1549,6 +1549,34 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/portal/projects/:projectId/figma/links',
     reason: 'figma_links',
   },
+  // FIGMA lane (2026-11-14): page choice, the sharp render and the thumb of a frame, and the
+  // portal's list, render and thumb. Tokens, Figma render bytes and portal access: never AI.
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/figma/links/:linkId/pages',
+    reason: 'figma_links',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/figma/frames/:frameId/thumb',
+    reason: 'figma_links',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/figma/frames/:frameId/render',
+    reason: 'figma_links',
+  },
+  { method: 'GET', path: '/v1/organizations/:orgSlug/portal/figma/links', reason: 'figma_links' },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/figma/frames/:frameId/thumb',
+    reason: 'figma_links',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/figma/frames/:frameId/render',
+    reason: 'figma_links',
+  },
   {
     method: 'GET',
     path: '/v1/organizations/:orgSlug/figma/frames/:frameId/review/threads',

@@ -184,7 +184,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // R15-c pasted channel-link routes (5) are no longer registered: -9.
 // FIX 2026-11-10 automatic time tracking: GET time/auto, PUT settings, PUT current-task, POST
 // heartbeat, PATCH policy, GET time/team, GET time/team/:membershipId/day (+7 NEVER).
-const EXPECTED_ROUTE_COUNT = 1419;
+// FIGMA lane (2026-11-14): PUT figma/links/:linkId/pages, GET figma/frames/:frameId/render and
+// /thumb, GET portal/figma/links, GET portal/figma/frames/:frameId/render and /thumb (+6 NEVER).
+const EXPECTED_ROUTE_COUNT = 1425;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).
