@@ -5,17 +5,17 @@ import { applyTheme } from '../src/lib/theme';
 /** B17 — a dynamic render's first `<html>` follows the `app/ar` route, then the saved cookies. */
 describe('htmlAttributesFor', () => {
   it('uses the Arabic route, then an allowlisted cookie, else the static baseline', () => {
-    expect(htmlAttributesFor({ route: '/ar/sign-in', localeCookie: 'en-US' })).toEqual({
+    expect(htmlAttributesFor({ route: '/ar/sign-in', localeCookie: 'en-US' })).toMatchObject({
       lang: 'ar-EG',
       dir: 'rtl',
       theme: 'light',
     });
     expect(
       htmlAttributesFor({ route: '/[orgSlug]', localeCookie: 'ar-EG', themeCookie: 'dark' }),
-    ).toEqual({ lang: 'ar-EG', dir: 'rtl', theme: 'dark' });
+    ).toMatchObject({ lang: 'ar-EG', dir: 'rtl', theme: 'dark' });
     expect(
       htmlAttributesFor({ route: '/arabic', localeCookie: '"><x', themeCookie: 'system' }),
-    ).toEqual({ lang: 'en', dir: 'ltr', theme: 'light' });
+    ).toMatchObject({ lang: 'en', dir: 'ltr', theme: 'light', locale: undefined });
   });
 });
 

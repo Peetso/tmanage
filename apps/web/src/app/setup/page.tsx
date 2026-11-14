@@ -2,6 +2,12 @@ import type { Metadata } from 'next';
 import { FirstOwnerSetupScreen } from '../../components/screens/FirstOwnerSetupScreen';
 
 /**
+ * FIX6 locale flash: rendered per request, so the first HTML is in the member's saved language
+ * (`lib/i18n/server-html-attributes.ts`) rather than the English prerender.
+ */
+export const dynamic = 'force-dynamic';
+
+/**
  * **First-owner setup.**
  *
  * A fresh production install has no organizations and no public sign-up. When the API has

@@ -1,4 +1,6 @@
 import type { DisplayDateFormat, DisplayNumerals } from '../api/display-preferences';
+import { readDisplayFormatCookie, writeDisplayFormatCookie } from './display-format-cookie';
+import { requestDisplay } from './request-display';
 
 /**
  * FIX5 item 6b (B-N7) — the member's saved *display format*: digit shapes and date layout.
@@ -21,12 +23,22 @@ export interface DisplayFormat {
 
 type Listener = () => void;
 
+/**
+ * FIX6 locale flash: the application store is {@link persisted} — it boots from the saved-format
+ * cookie in the browser, saves every change there, and on the server answers with the request's
+ * own cookie (`request-display.ts`), so the first HTML already shows the member's digits and the
+ * browser hydrates from the same value. Stores built without it (tests) keep plain memory.
+ */
 export class DisplayFormatStore {
-  private current: DisplayFormat = {};
+  private current: DisplayFormat;
   private readonly listeners = new Set<Listener>();
 
+  constructor(private readonly persisted = false) {
+    this.current = persisted ? readDisplayFormatCookie() : {};
+  }
+
   get(): DisplayFormat {
-    return this.current;
+    return (this.persisted ? requestDisplay()?.format : undefined) ?? this.current;
   }
 
   set(next: DisplayFormat): void {
@@ -34,6 +46,7 @@ export class DisplayFormatStore {
       return;
     }
     this.current = { ...next };
+    if (this.persisted) writeDisplayFormatCookie(this.current);
     for (const listener of this.listeners) listener();
   }
 
@@ -43,7 +56,7 @@ export class DisplayFormatStore {
   }
 }
 
-export const displayFormat = new DisplayFormatStore();
+export const displayFormat = new DisplayFormatStore(true);
 
 const NUMBERING: Record<DisplayNumerals, string> = { latin: 'latn', arabic_indic: 'arab' };
 

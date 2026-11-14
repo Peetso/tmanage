@@ -14,6 +14,8 @@ import { LocaleHintToast } from '../components/shell/LocaleHintToast';
 import { UndoToastHost } from '../components/undo/UndoToastHost';
 import { bootScripts } from '../lib/boot-scripts';
 import { SITE_DESCRIPTION_EN } from '../lib/i18n/locale-html';
+import { DEFAULT_LOCALE } from '../lib/i18n/locale-store';
+import { RenderedDisplayProvider } from '../lib/i18n/rendered-display';
 import { serverHtmlAttributes } from '../lib/i18n/server-html-attributes';
 
 /**
@@ -124,7 +126,10 @@ const BOOT_SCRIPTS = bootScripts(process.env.NODE_ENV !== 'production');
  * prerendered public pages, release no-go 70645c82), so `serverHtmlAttributes()` reads the request
  * only in a render that is per-request already (B17): a dynamic route's first HTML then carries
  * the `app/ar` route's or the saved cookie's `lang`/`dir` and the saved theme, with no flip after
- * hydration. On a prerendered page the tab's own locale is applied in
+ * hydration. The same request's locale and saved number/date format are handed to
+ * `RenderedDisplayProvider` (FIX6), so the page's *text* is rendered in the member's language too
+ * and hydration starts from the same value: the first paint of a signed-in page is already Arabic
+ * and right-to-left. On a prerendered page the tab's own locale is applied in
  * the browser: the inline `<head>` script from `locale-boot.ts` reads an allowlisted `?lang=`, the
  * saved-locale cookie the language switch writes, or the cached locale, and sets `lang`/`dir`
  * before the first paint; `LocaleDirectionProvider` (mounted just inside `<body>`) keeps them in
@@ -138,8 +143,9 @@ const BOOT_SCRIPTS = bootScripts(process.env.NODE_ENV !== 'production');
  * name (Alexandria) is self-hosted by `@font-face` in `globals.css` (R36), not here: it needs two
  * weight-range faces to carry the design's 500 → 400 mapping, which `localFont` cannot declare.
  */
-export default async function RootLayout({ children }: { children: ReactNode }) {
-  const html = await serverHtmlAttributes();
+export default function RootLayout({ children }: { children: ReactNode }) {
+  const html = serverHtmlAttributes();
+  const rendered = { locale: html.locale ?? DEFAULT_LOCALE, format: html.format };
   return (
     <html
       lang={html.lang}
@@ -155,21 +161,23 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         ))}
       </head>
       <body>
-        <QueryProvider>
-          <LocaleDirectionProvider>
-            <AuthBoundaryProvider>{children}</AuthBoundaryProvider>
-          </LocaleDirectionProvider>
-        </QueryProvider>
-        {/* Every route's page name in the tab, in the active locale (`lib/route-titles.ts`). */}
-        <RouteDocumentTitle />
-        <ServiceWorkerRegister />
-        {/* The service worker's "update available" affordance (slice 08): an always-mounted toast
+        <RenderedDisplayProvider value={rendered}>
+          <QueryProvider>
+            <LocaleDirectionProvider>
+              <AuthBoundaryProvider>{children}</AuthBoundaryProvider>
+            </LocaleDirectionProvider>
+          </QueryProvider>
+          {/* Every route's page name in the tab, in the active locale (`lib/route-titles.ts`). */}
+          <RouteDocumentTitle />
+          <ServiceWorkerRegister />
+          {/* The service worker's "update available" affordance (slice 08): an always-mounted toast
             region that offers a reload when a new build is waiting to take over. */}
-        <UpdateToast />
-        {/* R12 R2: the first-visit language guess, applied once and announced (Change · Keep). */}
-        <LocaleHintToast />
-        {/* 55-23: the Undo toasts for held delete / archive / move / complete actions. */}
-        <UndoToastHost />
+          <UpdateToast />
+          {/* R12 R2: the first-visit language guess, applied once and announced (Change · Keep). */}
+          <LocaleHintToast />
+          {/* 55-23: the Undo toasts for held delete / archive / move / complete actions. */}
+          <UndoToastHost />
+        </RenderedDisplayProvider>
       </body>
     </html>
   );

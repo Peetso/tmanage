@@ -1,10 +1,13 @@
-import { cookies } from 'next/headers';
 import { workAsyncStorage } from 'next/dist/server/app-render/work-async-storage.external';
 import { workUnitAsyncStorage } from 'next/dist/server/app-render/work-unit-async-storage.external';
 import { THEME_COOKIE_NAME, themeFromCookieValue } from '../theme-cookie';
 import { localeDirection, type TextDirection } from './direction';
+import type { DisplayLocale } from '../api/display-preferences';
+import type { DisplayFormat } from './display-format';
+import { DISPLAY_FORMAT_COOKIE_NAME, displayFormatFromCookieValue } from './display-format-cookie';
 import { LOCALE_COOKIE_NAME, localeFromCookieValue } from './locale-cookie';
 import { ARABIC_PREFIX, ARABIC_ROUTE_LOCALE } from './public-locale-routes';
+import { registerRequestDisplay, type RequestDisplay } from './request-display';
 
 /**
  * B17 — `<html lang dir data-theme>` in the first HTML of a dynamic render.
@@ -29,6 +32,12 @@ export type ServerHtmlAttributes = {
   readonly lang: string;
   readonly dir: TextDirection;
   readonly theme: 'light' | 'dark';
+  /**
+   * FIX6 locale flash: the locale and display format the page's text was rendered with (the
+   * shipped default and `{}` on a prerender). The client hydrates with exactly these values.
+   */
+  readonly locale: DisplayLocale | undefined;
+  readonly format: DisplayFormat;
 };
 
 /** What a prerendered page and a request without a saved preference get. */
@@ -36,6 +45,8 @@ export const SERVER_HTML_DEFAULTS: ServerHtmlAttributes = {
   lang: 'en',
   dir: 'ltr',
   theme: 'light',
+  locale: undefined,
+  format: {},
 };
 
 /** True for a route pattern under `app/ar` (`/ar`, `/ar/sign-in`, `/ar/(site)/[[...path]]`). */
@@ -53,6 +64,7 @@ export function htmlAttributesFor(input: {
   readonly route?: string | undefined;
   readonly localeCookie?: string | undefined;
   readonly themeCookie?: string | undefined;
+  readonly formatCookie?: string | undefined;
 }): ServerHtmlAttributes {
   const locale = isArabicRoute(input.route)
     ? ARABIC_ROUTE_LOCALE
@@ -62,28 +74,40 @@ export function htmlAttributesFor(input: {
     lang: locale ?? SERVER_HTML_DEFAULTS.lang,
     dir: locale ? localeDirection(locale) : SERVER_HTML_DEFAULTS.dir,
     theme: theme === 'dark' ? 'dark' : SERVER_HTML_DEFAULTS.theme,
+    locale,
+    format: displayFormatFromCookieValue(input.formatCookie),
   };
 }
 
-function isRequestRender(): boolean {
+/**
+ * The attributes for the request being rendered, read synchronously from Next's request store
+ * (its `cookies` are the same ones `cookies()` returns); `undefined` unless the render is a
+ * per-request one.
+ */
+function currentRequestAttributes(): ServerHtmlAttributes | undefined {
   try {
-    return workUnitAsyncStorage?.getStore?.()?.type === 'request';
+    const store = workUnitAsyncStorage?.getStore?.();
+    if (store?.type !== 'request') return undefined;
+    return htmlAttributesFor({
+      route: workAsyncStorage?.getStore?.()?.route,
+      localeCookie: store.cookies.get(LOCALE_COOKIE_NAME)?.value,
+      themeCookie: store.cookies.get(THEME_COOKIE_NAME)?.value,
+      formatCookie: store.cookies.get(DISPLAY_FORMAT_COOKIE_NAME)?.value,
+    });
   } catch {
-    return false;
+    return undefined;
   }
 }
 
+/** The display values the shared stores read on the server (`request-display.ts`). */
+function currentRequestDisplay(): RequestDisplay | undefined {
+  const attributes = currentRequestAttributes();
+  return attributes ? { locale: attributes.locale, format: attributes.format } : undefined;
+}
+
+registerRequestDisplay(currentRequestDisplay);
+
 /** The attributes for the current render; the defaults unless it is a per-request render. */
-export async function serverHtmlAttributes(): Promise<ServerHtmlAttributes> {
-  if (!isRequestRender()) return SERVER_HTML_DEFAULTS;
-  try {
-    const jar = await cookies();
-    return htmlAttributesFor({
-      route: workAsyncStorage?.getStore?.()?.route,
-      localeCookie: jar.get(LOCALE_COOKIE_NAME)?.value,
-      themeCookie: jar.get(THEME_COOKIE_NAME)?.value,
-    });
-  } catch {
-    return SERVER_HTML_DEFAULTS;
-  }
+export function serverHtmlAttributes(): ServerHtmlAttributes {
+  return currentRequestAttributes() ?? SERVER_HTML_DEFAULTS;
 }

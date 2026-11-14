@@ -2,6 +2,7 @@ import { DISPLAY_LOCALES, type DisplayLocale } from '../api/display-preferences'
 import { LOCALE_STORAGE_KEY, resolveBootLocale } from './locale-boot';
 import { writeLocaleCookie } from './locale-cookie';
 import { readLocaleSource, writeLocaleSource } from './locale-source';
+import { requestDisplay } from './request-display';
 
 /**
  * i18n (NFR-02, I18N-01) — the one place the tab's *active* locale lives.
@@ -46,7 +47,14 @@ export class LocaleStore {
    */
   private open: boolean;
 
-  constructor(initial?: DisplayLocale) {
+  /**
+   * FIX6 locale flash: on the server the application store answers with the locale of the request
+   * being rendered (`request-display.ts`), so text rendered outside a hook matches the browser.
+   */
+  private readonly onServer: (() => DisplayLocale | undefined) | undefined;
+
+  constructor(initial?: DisplayLocale, onServer?: () => DisplayLocale | undefined) {
+    this.onServer = onServer;
     const boot = initial ?? readBoot();
     this.open = boot === undefined;
     this.current = boot ?? DEFAULT_LOCALE;
@@ -76,7 +84,7 @@ export class LocaleStore {
 
   /** The active locale right now. */
   get(): DisplayLocale {
-    return this.current;
+    return this.onServer?.() ?? this.current;
   }
 
   /**
@@ -163,4 +171,4 @@ function persist(locale: DisplayLocale): void {
  * the providers, the formatters and the screens must all reach the same instance. Tests build
  * their own.
  */
-export const activeLocale = new LocaleStore();
+export const activeLocale = new LocaleStore(undefined, () => requestDisplay()?.locale);

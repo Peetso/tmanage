@@ -11,6 +11,7 @@ import {
   formatTime,
   type FormatContext,
 } from './format';
+import { useRenderedDisplay } from './rendered-display';
 import { useActiveLocale } from './use-active-locale';
 
 /** The active-locale-bound formatters a component reaches for. */
@@ -33,11 +34,13 @@ export interface DisplayFormatters {
  */
 export function useDisplayFormatters(): DisplayFormatters {
   const locale = useActiveLocale();
+  const rendered = useRenderedDisplay();
   // FIX5 item 6b (B-N7): re-derive when the saved digits or date layout arrive or change.
   const saved = useSyncExternalStore(
     (onChange) => displayFormat.subscribe(onChange),
     () => displayFormat.get(),
-    () => displayFormat.get(),
+    // FIX6: hydrate with the format the server rendered with.
+    () => rendered.format,
   );
   return useMemo(() => {
     const ctx: FormatContext = { locale };
