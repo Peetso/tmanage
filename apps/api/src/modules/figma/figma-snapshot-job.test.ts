@@ -9,15 +9,20 @@ import type {
   FigmaLinkRow,
 } from '../../common/database/schema.js';
 import { createSeedCipher } from '../identity/seed-cipher.js';
-import { FigmaSnapshotJob, DEFAULT_FIGMA_SNAPSHOT_JOB_OPTIONS } from './figma-snapshot-job.js';
+import {
+  DEFAULT_FIGMA_SNAPSHOT_JOB_OPTIONS,
+  FigmaSnapshotJob,
+  figmaSnapshotJobEnabled,
+} from './figma-snapshot-job.js';
 import type { FigmaRepository } from './figma.repository.js';
-import { FigmaRateLimitError, type FigmaRestClient } from './figma.rest.js';
+import { FigmaAuthError, FigmaRateLimitError, type FigmaRestClient } from './figma.rest.js';
 import { figmaSnapshotObjectKey, figmaTokenBinding } from './figma.service.js';
 
 /**
- * R4 slice 13 — the snapshot job against an in-memory repository and a fake Figma: the PNG is
- * stored under the frame's key with its SHA-256, a frame captured before at another size gets
- * "Frame changed", Figma's 429 hands the claims back, and a link whose creator has no token fails.
+ * R4 slice 13 (reworked 2026-11-10) — the snapshot job against an in-memory repository and a
+ * fake Figma: the PNG is stored under the frame's key with its SHA-256, frames are rendered per
+ * scale, Figma's 429 hands the claims back, and each failure records why (the team's screen says
+ * it): no connection, no access, a frame Figma no longer has.
  */
 
 const ORG = '00000000-0000-4000-8000-0000000000a1';
@@ -45,6 +50,15 @@ function frame(id: string, over: Partial<FigmaFrameRow> = {}): FigmaFrameRow {
     capturedAt: null,
     sizeChanged: false,
     sortOrder: 0,
+    pageId: '0:1',
+    pageName: 'Mobile',
+    sectionName: null,
+    posX: 0,
+    posY: 0,
+    captureRank: 0,
+    goneAt: null,
+    hasThumb: false,
+    snapshotError: null,
     createdAt: NOW,
     updatedAt: NOW,
     ...over,
@@ -54,8 +68,11 @@ function frame(id: string, over: Partial<FigmaFrameRow> = {}): FigmaFrameRow {
 function build(input: {
   frames: FigmaFrameRow[];
   connected?: boolean;
-  nodeSize?: { width: number; height: number };
   rateLimited?: boolean;
+  /** Figma answers no render for these node ids (the frame is gone). */
+  missing?: readonly string[];
+  /** Figma refuses the token with this status. */
+  refused?: number;
 }) {
   const frames = new Map(input.frames.map((row) => [row.id, { ...row }]));
   const link: FigmaLinkRow = {
@@ -73,6 +90,11 @@ function build(input: {
     updatedAt: NOW,
     deletedAt: null,
     purgeAfter: null,
+    captureMode: 'whole_file',
+    focusNodeId: null,
+    outlineJson: null,
+    pageFilterJson: null,
+    syncedAt: NOW,
   };
   const connection: FigmaConnectionRow | undefined =
     input.connected === false
@@ -104,9 +126,17 @@ function build(input: {
       released.push(id);
       frames.get(id)!.claimedAt = null;
     },
-    recordSnapshotFailure: async (_r: unknown, _c: unknown, f: FigmaFrameRow, final: boolean) => {
+    recordSnapshotFailure: async (
+      _r: unknown,
+      _c: unknown,
+      f: FigmaFrameRow,
+      final: boolean,
+      _now: Date,
+      reason: string,
+    ) => {
       const row = frames.get(f.id)!;
       row.snapshotAttempts += 1;
+      row.snapshotError = reason;
       if (final || row.snapshotAttempts >= 3) row.snapshotStatus = 'failed';
     },
     markSnapshotReady: async (
@@ -118,7 +148,7 @@ function build(input: {
         hash: string;
         width: number;
         height: number;
-        sizeChanged: boolean;
+        hasThumb: boolean;
       },
     ) => {
       Object.assign(frames.get(id)!, {
@@ -127,23 +157,25 @@ function build(input: {
         snapshotHash: ready.hash,
         width: ready.width,
         height: ready.height,
-        sizeChanged: ready.sizeChanged,
+        hasThumb: ready.hasThumb,
         capturedAt: NOW,
       });
       return true;
     },
   } as unknown as FigmaRepository;
-  const size = input.nodeSize ?? { width: 390, height: 844 };
+  const scales: number[] = [];
   const rest = {
-    nodes: async (_t: string, _k: string, ids: readonly string[]) => {
+    renderUrls: async (_t: string, _k: string, ids: readonly string[], scale: number) => {
       if (input.rateLimited) throw new FigmaRateLimitError(60);
-      return {
-        name: 'Atlas',
-        nodes: ids.map((nodeId) => ({ nodeId, name: 'Booking', ...size, pageName: null })),
-      };
+      if (input.refused) throw new FigmaAuthError(input.refused);
+      scales.push(scale);
+      return new Map(
+        ids.map((id) => [
+          id,
+          input.missing?.includes(id) ? null : `https://figma-alpha-api.s3.amazonaws.com/${id}.png`,
+        ]),
+      );
     },
-    renderUrls: async (_t: string, _k: string, ids: readonly string[]) =>
-      new Map(ids.map((id) => [id, `https://figma-alpha-api.s3.amazonaws.com/${id}.png`])),
     download: async () => PNG,
   } as unknown as FigmaRestClient;
   const stored = new Map<string, Uint8Array>();
@@ -170,7 +202,7 @@ function build(input: {
     repository,
     () => NOW,
   );
-  return { job, frames, stored, released };
+  return { job, frames, stored, released, scales };
 }
 
 const F1 = '00000000-0000-4000-8000-0000000000f1';
@@ -191,19 +223,11 @@ describe('FigmaSnapshotJob', () => {
     });
   });
 
-  it('marks a frame captured before at another size as changed', async () => {
-    const world = build({
-      frames: [frame(F1, { capturedAt: new Date('2026-10-01T00:00:00Z') })],
-      nodeSize: { width: 390, height: 900 },
-    });
-    await world.job.pass();
-    expect(world.frames.get(F1)).toMatchObject({ height: 900, sizeChanged: true });
-  });
-
-  it('keeps the same size unchanged on a refresh', async () => {
-    const world = build({ frames: [frame(F1, { capturedAt: new Date('2026-10-01T00:00:00Z') })] });
-    await world.job.pass();
-    expect(world.frames.get(F1)?.sizeChanged).toBe(false);
+  it('renders a small frame at 2x and a tall one lower, one images call per scale', async () => {
+    const world = build({ frames: [frame(F1), frame(F2, { width: 1440, height: 8192 })] });
+    const report = await world.job.pass();
+    expect(report.ready).toBe(2);
+    expect(world.scales.sort()).toEqual([0.5, 2]);
   });
 
   it('hands the claims back when Figma rate-limits, counting no attempt', async () => {
@@ -218,7 +242,35 @@ describe('FigmaSnapshotJob', () => {
     const world = build({ frames: [frame(F1)], connected: false });
     const report = await world.job.pass();
     expect(report.failed).toBe(1);
-    expect(world.frames.get(F1)?.snapshotStatus).toBe('failed');
+    expect(world.frames.get(F1)).toMatchObject({
+      snapshotStatus: 'failed',
+      snapshotError: 'no_connection',
+    });
+  });
+
+  it('records why: no access to the file, or a frame Figma no longer has', async () => {
+    const refused = build({ frames: [frame(F1)], refused: 403 });
+    await refused.job.pass();
+    expect(refused.frames.get(F1)).toMatchObject({
+      snapshotStatus: 'failed',
+      snapshotError: 'no_access',
+    });
+    const gone = build({ frames: [frame(F1), frame(F2)], missing: ['1:2'] });
+    const report = await gone.job.pass();
+    expect(report).toMatchObject({ ready: 1, failed: 1 });
+    expect(gone.frames.get(F2)).toMatchObject({
+      snapshotStatus: 'failed',
+      snapshotError: 'not_found',
+    });
+  });
+
+  it('runs in the one live process unless turned off, and in suites never', () => {
+    expect(figmaSnapshotJobEnabled({})).toBe(false);
+    expect(figmaSnapshotJobEnabled({ FIGMA_SNAPSHOT_INPROCESS: '1' })).toBe(true);
+    expect(figmaSnapshotJobEnabled({ WORKER_INPROCESS: '1' })).toBe(true);
+    expect(figmaSnapshotJobEnabled({ WORKER_INPROCESS: '1', FIGMA_SNAPSHOT_INPROCESS: '0' })).toBe(
+      false,
+    );
   });
 
   it('refuses a snapshot key built from something that is not a UUID', () => {

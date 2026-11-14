@@ -7,32 +7,40 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import type { FigmaFrameRow, FigmaLinkRow } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { SeedCipher } from '../identity/seed-cipher.js';
-import { FigmaRepository } from './figma.repository.js';
+import { imageGenerator } from '../files/preview-generators/image.js';
+import { DEFAULT_PREVIEW_LIMITS } from '../files/preview-generators/types.js';
+import { FigmaRepository, type FigmaSnapshotError } from './figma.repository.js';
 import {
   FigmaAuthError,
   FigmaNotFoundError,
   FigmaRateLimitError,
+  FigmaUnavailableError,
+  NODES_PER_REQUEST,
   snapshotScale,
   type FigmaRestClient,
 } from './figma.rest.js';
-import { figmaSnapshotObjectKey, figmaTokenBinding } from './figma.service.js';
+import { figmaSnapshotObjectKey, figmaThumbObjectKey, readMemberToken } from './figma.service.js';
 
 /**
- * R4 slice 13 — the Figma snapshot job (SPEC R4 §3.5.2), the preview job's shape: off unless this
- * process runs background work (`WORKER_INPROCESS=1`, or `FIGMA_SNAPSHOT_INPROCESS=1` /
- * `FILE_PREVIEW_INPROCESS=1` for a local API); once shortly after boot; on an interval; and on
- * request (a new link, "Refresh snapshots").
+ * R4 slice 13, reworked 2026-11-10 — the Figma snapshot job (SPEC R4 §3.5.2), the preview job's
+ * shape: once shortly after boot, on an interval, on request (a new link, "Refresh from Figma",
+ * a change of pages), and again straight after any pass that drew something, so a whole file is
+ * captured in background batches without blocking anyone.
+ *
+ * On in the single Hostinger process (its start file turns `FIGMA_SNAPSHOT_INPROCESS` on unless
+ * it is set to `0`), and wherever background work runs (`WORKER_INPROCESS=1`); off in suites.
  *
  * One pass: every organization with pending frames nobody holds; per organization, a batch of
- * frames grouped by link; per link, the **link creator's** token (the member who attached it —
- * SPEC also allows "any connected member on the project"; not done here, so nobody's token reads
- * a link they did not attach), one `nodes` call for the current sizes, one `images` call for the
- * render URLs, then each PNG is downloaded, hashed (SHA-256) and stored in the `derived` zone. A
- * size other than the last snapshot's sets `size_changed` ("Frame changed").
+ * frames in capture order (the frame the link pointed at, its page, then the rest); per link,
+ * the **link creator's** token, one `images` call per render scale (at most
+ * {@link NODES_PER_REQUEST} ids each), then each PNG is downloaded, hashed (SHA-256) and stored in
+ * the `derived` zone beside a small WebP of it (the whole-page view). The frame's size is the one
+ * its outline gave ("Frame changed" is decided when the outline is read again).
  *
- * Failures: Figma's 429 releases the claims and ends the pass (the next tick tries again); a
- * refused token or a file the creator can no longer open fails the link's frames at once; any
- * other fault counts an attempt (`failed` after 3).
+ * Failures are honest: each records why (`snapshot_error`) so the team's screen can say it.
+ * Figma's 429 releases the claims and ends the pass (the next tick tries again); a refused token,
+ * a file the creator can no longer open or a frame Figma no longer has fails at once; any other
+ * fault counts an attempt (`failed` after 3).
  */
 
 export const FIGMA_SNAPSHOT_JOB = Symbol.for('tmanage.FigmaSnapshotJob');
@@ -47,6 +55,8 @@ export interface FigmaSnapshotJobOptions {
   readonly bootDelayMs: number;
   readonly intervalMs: number;
   readonly debounceMs: number;
+  /** The pause before the next batch when a pass drew something. */
+  readonly continueMs: number;
   readonly batchSize: number;
   readonly claimStaleMs: number;
   readonly log: (line: string) => void;
@@ -56,17 +66,18 @@ export const DEFAULT_FIGMA_SNAPSHOT_JOB_OPTIONS: FigmaSnapshotJobOptions = {
   bootDelayMs: 12_000,
   intervalMs: 3 * 60_000,
   debounceMs: 1_500,
+  continueMs: 3_000,
   batchSize: 20,
   claimStaleMs: 10 * 60_000,
   log: (line) => console.warn(line),
 };
 
+const OFF_VALUES = new Set(['0', 'false', 'off', 'no']);
+
 export function figmaSnapshotJobEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return (
-    env['WORKER_INPROCESS'] === '1' ||
-    env['FIGMA_SNAPSHOT_INPROCESS'] === '1' ||
-    env['FILE_PREVIEW_INPROCESS'] === '1'
-  );
+  const own = env['FIGMA_SNAPSHOT_INPROCESS'];
+  if (own !== undefined && OFF_VALUES.has(own.trim().toLowerCase())) return false;
+  return env['WORKER_INPROCESS'] === '1' || own === '1' || env['FILE_PREVIEW_INPROCESS'] === '1';
 }
 
 export interface FigmaSnapshotReport {
@@ -77,7 +88,42 @@ export interface FigmaSnapshotReport {
   readonly rateLimited: boolean;
 }
 
+interface Tally {
+  ready: number;
+  failed: number;
+  retrying: number;
+}
+
 class RateLimited extends Error {}
+
+/** Why a Figma call failed, as the token the team's screen words, and whether to stop trying. */
+export function snapshotErrorOf(error: unknown): {
+  readonly reason: FigmaSnapshotError;
+  readonly final: boolean;
+} {
+  if (error instanceof FigmaAuthError) {
+    return { reason: error.status === 401 ? 'no_connection' : 'no_access', final: true };
+  }
+  if (error instanceof FigmaNotFoundError) return { reason: 'not_found', final: true };
+  if (error instanceof FigmaUnavailableError && error.detail === 'snapshot_too_large') {
+    return { reason: 'too_large', final: true };
+  }
+  return { reason: 'unreachable', final: false };
+}
+
+/** A small WebP of the snapshot for the whole-page view, or null when it cannot be made. */
+export async function snapshotThumb(png: Uint8Array): Promise<Uint8Array | null> {
+  try {
+    const [outcome] = await imageGenerator.generate(
+      { bytes: png, mimeType: 'image/png' },
+      [{ kind: 'thumb', pageNo: 0 }],
+      DEFAULT_PREVIEW_LIMITS,
+    );
+    return outcome?.status === 'ready' && outcome.body ? outcome.body : null;
+  } catch {
+    return null;
+  }
+}
 
 export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy {
   private running: Promise<FigmaSnapshotReport> | null = null;
@@ -129,15 +175,18 @@ export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy
       await this.running.catch(() => undefined);
       return;
     }
+    let drew = false;
     do {
       this.again = false;
       this.running = this.pass();
       try {
         const report = await this.running;
+        drew = report.ready + report.retrying > 0 && !report.rateLimited;
         if (report.ready + report.failed + report.retrying > 0 || report.rateLimited) {
           this.options.log(`[figma] pass: ${JSON.stringify(report)}`);
         }
       } catch (error) {
+        drew = false;
         this.options.log(
           `[figma] pass failed: ${error instanceof Error ? error.name : 'unknown error'}`,
         );
@@ -145,6 +194,8 @@ export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy
         this.running = null;
       }
     } while (this.again && !this.stopped);
+    // More of the file may be waiting: the next batch after a short pause.
+    if (drew && this.enabled) this.schedule(this.options.continueMs);
   }
 
   private schedule(delayMs: number): void {
@@ -159,7 +210,7 @@ export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy
   async pass(): Promise<FigmaSnapshotReport> {
     const correlationId = uuidv7();
     const staleBefore = new Date(this.now().getTime() - this.options.claimStaleMs);
-    const tally = { ready: 0, failed: 0, retrying: 0 };
+    const tally: Tally = { ready: 0, failed: 0, retrying: 0 };
     const organizations = await this.database.bootstrapRead(
       { correlationId, reason: FIGMA_SNAPSHOT_REASON, tables: ['figma_frames'] },
       (db) => this.repository.organizationsWithPendingFrames(db, staleBefore),
@@ -183,7 +234,7 @@ export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy
   private async drawOrganization(
     context: TenantContext,
     staleBefore: Date,
-    tally: { ready: number; failed: number; retrying: number },
+    tally: Tally,
   ): Promise<void> {
     const listed = await this.database.read(context, (db) =>
       this.repository.listPendingFrames(db, context, staleBefore, this.options.batchSize),
@@ -227,123 +278,139 @@ export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy
     }
   }
 
+  private async fail(
+    context: TenantContext,
+    frame: FigmaFrameRow,
+    reason: FigmaSnapshotError,
+    final: boolean,
+    tally: Tally,
+    remaining: Set<string>,
+  ): Promise<void> {
+    await this.database.transaction(context, (tx) =>
+      this.repository.recordSnapshotFailure(tx, context, frame, final, this.now(), reason),
+    );
+    remaining.delete(frame.id);
+    if (final || frame.snapshotAttempts + 1 >= 3) tally.failed += 1;
+    else tally.retrying += 1;
+  }
+
   private async drawLink(
     context: TenantContext,
     link: FigmaLinkRow | undefined,
     frames: readonly FigmaFrameRow[],
-    tally: { ready: number; failed: number; retrying: number },
+    tally: Tally,
     remaining: Set<string>,
   ): Promise<void> {
-    const failAll = async (final: boolean) => {
+    const failAll = async (reason: FigmaSnapshotError, final: boolean) => {
       for (const frame of frames) {
-        await this.database.transaction(context, (tx) =>
-          this.repository.recordSnapshotFailure(tx, context, frame, final, this.now()),
-        );
-        remaining.delete(frame.id);
-        if (final) tally.failed += 1;
-        else tally.retrying += 1;
+        await this.fail(context, frame, reason, final, tally, remaining);
       }
     };
     // A removed link's frames are not drawn.
-    if (!link || link.deletedAt !== null) return failAll(true);
-    const token = await this.tokenOf(context, link.createdByMembershipId);
-    if (!token) return failAll(true);
+    if (!link || link.deletedAt !== null) return failAll('not_found', true);
+    const token = await readMemberToken(
+      this.database,
+      this.repository,
+      this.cipher,
+      context,
+      link.createdByMembershipId,
+    );
+    if (!token) return failAll('no_connection', true);
 
-    let sizes: ReadonlyMap<string, { width: number; height: number }>;
-    let urls: ReadonlyMap<string, string | null>;
-    try {
-      const nodeIds = frames.map((frame) => frame.nodeId);
-      const found = await this.rest.nodes(token, link.fileKey, nodeIds);
-      sizes = new Map(found.nodes.map((node) => [node.nodeId, node]));
-      const scale = Math.min(
-        ...frames.map((frame) => {
-          const size = sizes.get(frame.nodeId);
-          return snapshotScale(size?.width ?? frame.width, size?.height ?? frame.height);
-        }),
-      );
-      urls = await this.rest.renderUrls(token, link.fileKey, nodeIds, scale);
-    } catch (error) {
-      if (error instanceof FigmaRateLimitError) throw new RateLimited();
-      if (error instanceof FigmaAuthError || error instanceof FigmaNotFoundError) {
-        if (error instanceof FigmaAuthError && error.status === 401) {
-          await this.database.transaction(context, (tx) =>
-            this.repository.markConnectionError(tx, context, link.createdByMembershipId),
+    // One `images` call per scale, a bounded number of ids each.
+    const groups = new Map<number, FigmaFrameRow[]>();
+    for (const frame of frames) {
+      const scale = snapshotScale(frame.width, frame.height);
+      const group = groups.get(scale) ?? [];
+      group.push(frame);
+      groups.set(scale, group);
+    }
+    for (const [scale, group] of groups) {
+      for (let at = 0; at < group.length; at += NODES_PER_REQUEST) {
+        const batch = group.slice(at, at + NODES_PER_REQUEST);
+        let urls: ReadonlyMap<string, string | null>;
+        try {
+          urls = await this.rest.renderUrls(
+            token,
+            link.fileKey,
+            batch.map((frame) => frame.nodeId),
+            scale,
+          );
+        } catch (error) {
+          if (error instanceof FigmaRateLimitError) throw new RateLimited();
+          if (error instanceof FigmaAuthError && error.status === 401) {
+            await this.database.transaction(context, (tx) =>
+              this.repository.markConnectionError(tx, context, link.createdByMembershipId),
+            );
+          }
+          const { reason, final } = snapshotErrorOf(error);
+          for (const frame of batch) {
+            await this.fail(context, frame, reason, final, tally, remaining);
+          }
+          continue;
+        }
+        for (const frame of batch) {
+          await this.drawFrame(
+            context,
+            link,
+            frame,
+            urls.get(frame.nodeId) ?? null,
+            tally,
+            remaining,
           );
         }
-        return failAll(true);
-      }
-      return failAll(false);
-    }
-
-    for (const frame of frames) {
-      const size = sizes.get(frame.nodeId);
-      const url = urls.get(frame.nodeId) ?? null;
-      if (!size || !url) {
-        await this.database.transaction(context, (tx) =>
-          this.repository.recordSnapshotFailure(tx, context, frame, true, this.now()),
-        );
-        remaining.delete(frame.id);
-        tally.failed += 1;
-        continue;
-      }
-      try {
-        const bytes = await this.rest.download(url);
-        const objectKey = figmaSnapshotObjectKey(context.organizationId, link.id, frame.id);
-        await this.store.putDerivative({ objectKey, body: bytes });
-        const hash = createHash('sha256').update(bytes).digest('hex');
-        const sizeChanged =
-          frame.sizeChanged ||
-          (frame.capturedAt !== null &&
-            frame.width > 0 &&
-            (frame.width !== size.width || frame.height !== size.height));
-        await this.database.transaction(context, async (tx) => {
-          const written = await this.repository.markSnapshotReady(
-            tx,
-            context,
-            frame.id,
-            { objectKey, hash, width: size.width, height: size.height, sizeChanged },
-            this.now(),
-          );
-          if (written && this.audit) {
-            await this.audit.record(tx, context, {
-              action: 'figma.snapshot_taken',
-              objectId: frame.id,
-              result: 'allowed',
-              metadata: {
-                figma_link_id: link.id,
-                project_id: link.projectId,
-                width: size.width,
-                height: size.height,
-                size_changed: sizeChanged,
-              },
-            });
-          }
-        });
-        remaining.delete(frame.id);
-        tally.ready += 1;
-      } catch (error) {
-        if (error instanceof FigmaRateLimitError) throw new RateLimited();
-        await this.database.transaction(context, (tx) =>
-          this.repository.recordSnapshotFailure(tx, context, frame, false, this.now()),
-        );
-        remaining.delete(frame.id);
-        tally.retrying += 1;
       }
     }
   }
 
-  private async tokenOf(context: TenantContext, membershipId: string): Promise<string | null> {
-    const row = await this.database.read(context, (db) =>
-      this.repository.findConnection(db, context, membershipId),
-    );
-    if (!row || row.status !== 'connected') return null;
+  private async drawFrame(
+    context: TenantContext,
+    link: FigmaLinkRow,
+    frame: FigmaFrameRow,
+    url: string | null,
+    tally: Tally,
+    remaining: Set<string>,
+  ): Promise<void> {
+    // Figma answers no render for a node it no longer has.
+    if (!url) return this.fail(context, frame, 'not_found', true, tally, remaining);
     try {
-      return this.cipher.decrypt(
-        row.tokenCiphertext,
-        figmaTokenBinding(context.organizationId, membershipId),
-      );
-    } catch {
-      return null;
+      const bytes = await this.rest.download(url);
+      const objectKey = figmaSnapshotObjectKey(context.organizationId, link.id, frame.id);
+      await this.store.putDerivative({ objectKey, body: bytes });
+      const thumb = await snapshotThumb(bytes);
+      if (thumb) {
+        await this.store.putDerivative({ objectKey: figmaThumbObjectKey(objectKey), body: thumb });
+      }
+      const hash = createHash('sha256').update(bytes).digest('hex');
+      await this.database.transaction(context, async (tx) => {
+        const written = await this.repository.markSnapshotReady(
+          tx,
+          context,
+          frame.id,
+          { objectKey, hash, width: frame.width, height: frame.height, hasThumb: thumb !== null },
+          this.now(),
+        );
+        if (written && this.audit) {
+          await this.audit.record(tx, context, {
+            action: 'figma.snapshot_taken',
+            objectId: frame.id,
+            result: 'allowed',
+            metadata: {
+              figma_link_id: link.id,
+              project_id: link.projectId,
+              width: frame.width,
+              height: frame.height,
+              size_changed: frame.sizeChanged,
+            },
+          });
+        }
+      });
+      remaining.delete(frame.id);
+      tally.ready += 1;
+    } catch (error) {
+      if (error instanceof FigmaRateLimitError) throw new RateLimited();
+      const { reason, final } = snapshotErrorOf(error);
+      await this.fail(context, frame, reason, final, tally, remaining);
     }
   }
 }

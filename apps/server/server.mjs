@@ -619,6 +619,9 @@ async function main() {
   for (const note of database.notes) log(note);
   // H2: the socket URL the API serves beside the ticket, derived same-origin when not set.
   log(applyRealtimePublicUrl(process.env));
+  // FIGMA lane (2026-11-10): Figma frame snapshots are drawn in this one process, with or without
+  // the relay (live has no separate worker, and its variables cannot be changed). `0` turns it off.
+  process.env['FIGMA_SNAPSHOT_INPROCESS'] ??= '1';
 
   const env = loadEnv();
   await runMigrations(env, migrationGate);

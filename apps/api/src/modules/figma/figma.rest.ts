@@ -4,9 +4,10 @@
  *
  * Calls (all with the member's personal access token in `X-Figma-Token`):
  * - `GET /v1/me` — checks a pasted token and names its owner (`handle`).
- * - `GET /v1/files/:key?depth=2` — the file's name, its pages and their top-level frames (the
- *   attach dialog's "detected frames").
- * - `GET /v1/files/:key/nodes?ids=` — names and sizes of the picked frames.
+ * - `GET /v1/files/:key?depth=1` — the file's name and its pages.
+ * - `GET /v1/files/:key/nodes?ids=&depth=1` — the children of pages and sections, level by level,
+ *   so frames inside sections (and nested sections) are found too ({@link FigmaRestClient.outline}).
+ * - `GET /v1/files/:key/nodes?ids=` — names and sizes of named frames.
  * - `GET /v1/images/:key?ids=&format=png&scale=` — short-lived PNG render URLs.
  *
  * The render URL Figma answers is fetched only when it is `https` on Figma's own hosts or its
@@ -16,17 +17,38 @@
 
 export const DEFAULT_FIGMA_API_BASE = 'https://api.figma.com';
 
-/** The most frames one link may hold (SPEC R4 §6.10: Figma's rate limits). */
-export const MAX_FIGMA_FRAMES = 20;
+/**
+ * Peter, 2026-11-10 ("it's not capturing the whole page with all its frames"). The most frames
+ * one link captures (snapshots drawn and stored). A file with more lists every frame, captures
+ * this many in order of relevance, and the team chooses pages. Protects the workspace's Figma
+ * quota and its storage (a snapshot is about 1–3 MB). Was 20 picked by hand.
+ */
+export const MAX_CAPTURED_FRAMES = 250;
 
-/** The most frames the attach dialog lists. */
-export const MAX_DETECTED_FRAMES = 60;
+/** The most frames read from one file's outline; above it the outline says `truncated`. */
+export const MAX_OUTLINE_FRAMES = 2000;
+
+/** How deep sections inside sections are walked. */
+export const MAX_SECTION_DEPTH = 4;
+
+/** Node ids per `nodes` / `images` request (Figma answers large id lists slowly). */
+export const NODES_PER_REQUEST = 40;
 
 /** A snapshot PNG larger than this is refused. */
 export const MAX_SNAPSHOT_BYTES = 25 * 1024 * 1024;
 
+/** A sharper (zoom) render PNG larger than this is refused. */
+export const MAX_RENDER_BYTES = 48 * 1024 * 1024;
+
 /** Longest side, in pixels, a snapshot is rendered at (scale 2 drops to 1 above it). */
 export const MAX_SNAPSHOT_SIDE = 4096;
+
+/** Figma renders at most 4×. */
+export const MAX_RENDER_SCALE = 4;
+
+/** Longest side and pixel count of a sharper render (Figma scales larger exports down). */
+export const MAX_RENDER_SIDE = 16_384;
+export const MAX_RENDER_PIXELS = 32_000_000;
 
 const FILE_KEY = /^[A-Za-z0-9]{10,128}$/;
 const NODE_ID = /^(?:I?\d+[:-]\d+)(?:;\d+[:-]\d+)*$/;
@@ -167,9 +189,34 @@ export interface FigmaNodeSummary {
   readonly pageName: string | null;
 }
 
-export interface FigmaFileSummary {
+/** One frame of a file's outline: what it is, where it sits, what it is grouped under. */
+export interface FigmaOutlineFrame {
+  readonly nodeId: string;
   readonly name: string;
-  readonly frames: readonly FigmaNodeSummary[];
+  readonly type: string;
+  readonly width: number;
+  readonly height: number;
+  /** Position on the page's canvas (Figma's absolute coordinates). */
+  readonly x: number;
+  readonly y: number;
+  readonly pageId: string;
+  readonly pageName: string;
+  /** The section(s) it sits in, outermost first (`Onboarding / Step 2`), or null. */
+  readonly sectionName: string | null;
+}
+
+export interface FigmaOutlinePage {
+  readonly id: string;
+  readonly name: string;
+}
+
+/** The whole file: its pages, and every frame on them in Figma's order. */
+export interface FigmaOutline {
+  readonly name: string;
+  readonly pages: readonly FigmaOutlinePage[];
+  readonly frames: readonly FigmaOutlineFrame[];
+  /** More than {@link MAX_OUTLINE_FRAMES} frames, or sections nested deeper than walked. */
+  readonly truncated: boolean;
 }
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -188,6 +235,25 @@ function size(value: unknown): number {
     : 0;
 }
 
+function coordinate(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(-1_000_000_000, Math.min(Math.round(value), 1_000_000_000))
+    : 0;
+}
+
+function children(node: Record<string, unknown> | null): readonly unknown[] {
+  return Array.isArray(node?.['children']) ? (node['children'] as unknown[]) : [];
+}
+
+/** Figma's layer order: compare two index paths (page, then position at each level). */
+function compareOrder(a: readonly number[], b: readonly number[]): number {
+  for (let index = 0; index < Math.min(a.length, b.length); index += 1) {
+    const difference = (a[index] as number) - (b[index] as number);
+    if (difference !== 0) return difference;
+  }
+  return a.length - b.length;
+}
+
 /** A node's name and size from its `absoluteBoundingBox` (0 × 0 when Figma gives none). */
 export function nodeSummary(raw: unknown, pageName: string | null): FigmaNodeSummary | null {
   const node = record(raw);
@@ -204,7 +270,14 @@ export function nodeSummary(raw: unknown, pageName: string | null): FigmaNodeSum
   };
 }
 
-const FRAME_TYPES = new Set(['FRAME', 'COMPONENT', 'COMPONENT_SET', 'SECTION', 'GROUP']);
+/** What designers use as an artboard, on a page or inside a section. */
+export const FRAME_TYPES: ReadonlySet<string> = new Set([
+  'FRAME',
+  'COMPONENT',
+  'COMPONENT_SET',
+  'GROUP',
+  'INSTANCE',
+]);
 
 export function isPng(bytes: Uint8Array): boolean {
   return bytes.length > 8 && PNG_SIGNATURE.every((byte, index) => bytes[index] === byte);
@@ -248,29 +321,98 @@ export class FigmaRestClient {
     return { handle: handle === '' ? null : handle };
   }
 
-  /** The file's name and the top-level frames of each page (bounded). */
-  async file(token: string, fileKey: string): Promise<FigmaFileSummary> {
-    const body = record(
-      await this.getJson(`${this.base}/v1/files/${encodeURIComponent(fileKey)}?depth=2`, token),
-    );
-    const document = record(body?.['document']);
-    const pages = Array.isArray(document?.['children']) ? document['children'] : [];
-    const frames: FigmaNodeSummary[] = [];
-    for (const rawPage of pages) {
-      const page = record(rawPage);
-      if (!page) continue;
-      const pageName = text(page['name'], 300) || null;
-      const children = Array.isArray(page['children']) ? page['children'] : [];
-      for (const child of children) {
-        const node = record(child);
-        if (!node || !FRAME_TYPES.has(String(node['type']))) continue;
-        const summary = nodeSummary(node, pageName);
-        if (summary) frames.push(summary);
-        if (frames.length >= MAX_DETECTED_FRAMES) break;
-      }
-      if (frames.length >= MAX_DETECTED_FRAMES) break;
+  /**
+   * The whole file: its pages (`depth=1`), then the children of every page and section one level
+   * per round, {@link NODES_PER_REQUEST} ids per call, so frames inside sections and nested
+   * sections are found (the old `depth=2` read saw only frames placed straight on a page). Hidden
+   * nodes are left out. Bounded by {@link MAX_OUTLINE_FRAMES} and {@link MAX_SECTION_DEPTH}; the
+   * frames come back in Figma's order (page, then layer order at each level).
+   */
+  async outline(token: string, fileKey: string): Promise<FigmaOutline> {
+    const key = encodeURIComponent(fileKey);
+    const body = record(await this.getJson(`${this.base}/v1/files/${key}?depth=1`, token));
+    const pages: FigmaOutlinePage[] = [];
+    for (const raw of children(record(body?.['document']))) {
+      const page = record(raw);
+      const id = typeof page?.['id'] === 'string' ? normaliseNodeId(page['id']) : null;
+      if (!page || !id || page['type'] !== 'CANVAS') continue;
+      pages.push({ id, name: text(page['name'], 300) || id });
     }
-    return { name: text(body?.['name'], 300), frames };
+    interface Container {
+      readonly id: string;
+      readonly page: FigmaOutlinePage;
+      readonly section: string | null;
+      readonly order: readonly number[];
+    }
+    const found: { readonly frame: FigmaOutlineFrame; readonly order: readonly number[] }[] = [];
+    let truncated = false;
+    let level: Container[] = pages.map((page, index) => ({
+      id: page.id,
+      page,
+      section: null,
+      order: [index],
+    }));
+    for (let depth = 0; level.length > 0; depth += 1) {
+      if (depth > MAX_SECTION_DEPTH) {
+        truncated = true;
+        break;
+      }
+      const next: Container[] = [];
+      for (let at = 0; at < level.length; at += NODES_PER_REQUEST) {
+        const batch = level.slice(at, at + NODES_PER_REQUEST);
+        const ids = batch.map((item) => encodeURIComponent(item.id)).join(',');
+        const answer = record(
+          await this.getJson(`${this.base}/v1/files/${key}/nodes?ids=${ids}&depth=1`, token),
+        );
+        const nodes = record(answer?.['nodes']) ?? {};
+        for (const container of batch) {
+          const parent = record(record(nodes[container.id])?.['document']);
+          children(parent).forEach((raw, index) => {
+            const node = record(raw);
+            if (!node || node['visible'] === false) return;
+            const id = typeof node['id'] === 'string' ? normaliseNodeId(node['id']) : null;
+            if (!id) return;
+            const type = String(node['type']);
+            const order = [...container.order, index];
+            if (type === 'SECTION') {
+              const name = text(node['name'], 300) || id;
+              const section = container.section ? `${container.section} / ${name}` : name;
+              next.push({ id, page: container.page, section: section.slice(0, 300), order });
+              return;
+            }
+            if (!FRAME_TYPES.has(type)) return;
+            if (found.length >= MAX_OUTLINE_FRAMES) {
+              truncated = true;
+              return;
+            }
+            const box = record(node['absoluteBoundingBox']);
+            found.push({
+              order,
+              frame: {
+                nodeId: id,
+                name: text(node['name'], 300) || id,
+                type,
+                width: size(box?.['width']),
+                height: size(box?.['height']),
+                x: coordinate(box?.['x']),
+                y: coordinate(box?.['y']),
+                pageId: container.page.id,
+                pageName: container.page.name,
+                sectionName: container.section,
+              },
+            });
+          });
+        }
+      }
+      level = next;
+    }
+    found.sort((a, b) => compareOrder(a.order, b.order));
+    return {
+      name: text(body?.['name'], 300),
+      pages,
+      frames: found.map((item) => item.frame),
+      truncated,
+    };
   }
 
   /** Names and sizes of the given nodes; a node Figma does not know is left out. */
@@ -319,17 +461,17 @@ export class FigmaRestClient {
     return out;
   }
 
-  /** The PNG bytes of a render URL (no token: the URL is pre-signed). */
-  async download(url: string): Promise<Uint8Array> {
+  /** The PNG bytes of a render URL (no token: the URL is pre-signed), at most `maxBytes`. */
+  async download(url: string, maxBytes: number = MAX_SNAPSHOT_BYTES): Promise<Uint8Array> {
     if (!isAllowedRenderUrl(url)) throw new FigmaUnavailableError('render_url_refused');
     const response = await this.transport(url, {});
     this.raiseFor(response, false);
     const length = Number(response.header('content-length') ?? '0');
-    if (Number.isFinite(length) && length > MAX_SNAPSHOT_BYTES) {
+    if (Number.isFinite(length) && length > maxBytes) {
       throw new FigmaUnavailableError('snapshot_too_large');
     }
     const bytes = await response.bytes();
-    if (bytes.length > MAX_SNAPSHOT_BYTES) throw new FigmaUnavailableError('snapshot_too_large');
+    if (bytes.length > maxBytes) throw new FigmaUnavailableError('snapshot_too_large');
     if (!isPng(bytes)) throw new FigmaUnavailableError('snapshot_not_png');
     return bytes;
   }
@@ -365,6 +507,20 @@ export function snapshotScale(width: number, height: number): number {
   if (longest * 2 <= MAX_SNAPSHOT_SIDE) return 2;
   if (longest <= MAX_SNAPSHOT_SIDE) return 1;
   return Math.max(0.01, Math.floor((MAX_SNAPSHOT_SIDE / longest) * 100) / 100);
+}
+
+/**
+ * The scale of a sharper render for zooming in: as close to Figma's 4× as the frame allows under
+ * {@link MAX_RENDER_SIDE} and {@link MAX_RENDER_PIXELS}. Figma cannot export part of a frame
+ * (no tiles), so a large frame gets a lower scale instead. `null` when that would be no sharper
+ * than the snapshot already shown.
+ */
+export function renderScale(width: number, height: number): number | null {
+  if (width <= 0 || height <= 0) return null;
+  const bySide = MAX_RENDER_SIDE / Math.max(width, height);
+  const byPixels = Math.sqrt(MAX_RENDER_PIXELS / (width * height));
+  const scale = Math.floor(Math.min(MAX_RENDER_SCALE, bySide, byPixels) * 100) / 100;
+  return scale >= snapshotScale(width, height) + 0.25 ? scale : null;
 }
 
 /**

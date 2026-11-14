@@ -16,8 +16,17 @@ import type {
  */
 
 export type FigmaLinkAudience = 'internal' | 'client_visible';
-export type FigmaAttachTarget = 'work_item' | 'deliverable_version' | 'request';
-export type FigmaSnapshotStatus = 'pending' | 'ready' | 'failed';
+/**
+ * `deliverable`: the deliverable itself (before or after any version). `file_asset`: an uploaded
+ * `.fig` paired with its Figma file ("Show it from Figma").
+ */
+export type FigmaAttachTarget =
+  'work_item' | 'deliverable' | 'deliverable_version' | 'request' | 'file_asset';
+/** `skipped`: listed, beyond what the link captures (the file is over the limit, or a page left out). */
+export type FigmaSnapshotStatus = 'pending' | 'ready' | 'failed' | 'skipped';
+/** Why the last capture failed (team only). */
+export type FigmaSnapshotError =
+  'no_connection' | 'no_access' | 'not_found' | 'too_large' | 'unreachable';
 
 export interface FigmaConnection {
   readonly status: 'not_connected' | 'connected' | 'error';
@@ -33,12 +42,23 @@ export interface FigmaDetectedFrame {
   readonly width: number;
   readonly height: number;
   readonly pageName: string | null;
+  readonly sectionName: string | null;
+}
+
+export interface FigmaInspectPage {
+  readonly id: string;
+  readonly name: string;
+  readonly frameCount: number;
 }
 
 export interface FigmaInspection {
   readonly fileName: string;
   readonly linkedNodeId: string | null;
+  readonly pages: readonly FigmaInspectPage[];
+  /** Every frame of the file, in Figma's order (for "Only some frames"). */
   readonly frames: readonly FigmaDetectedFrame[];
+  readonly truncated: boolean;
+  /** How many frames one link captures. */
   readonly maxFrames: number;
 }
 
@@ -48,12 +68,50 @@ export interface FigmaFrame {
   readonly name: string;
   readonly width: number;
   readonly height: number;
+  readonly pageId: string | null;
+  readonly pageName: string | null;
+  readonly sectionName: string | null;
+  /** Where the frame sits on its page (the whole-page view), or null. */
+  readonly x: number | null;
+  readonly y: number | null;
   readonly snapshotStatus: FigmaSnapshotStatus;
   readonly snapshotPath: string | null;
+  /** A small picture of the snapshot (the whole-page view), or null. */
+  readonly thumbPath: string | null;
+  /** A sharper render for zooming in, or null when the snapshot is already the sharpest. */
+  readonly sharpPath: string | null;
+  readonly sharpScale: number | null;
   readonly capturedAt: string | null;
   readonly sizeChanged: boolean;
+  /** Removed in Figma at the last refresh; kept with its comments. */
+  readonly gone: boolean;
   readonly openThreads: number;
   readonly embedUrl: string | null;
+  readonly snapshotError: FigmaSnapshotError | null;
+}
+
+export interface FigmaLinkPage {
+  readonly id: string;
+  readonly name: string;
+  readonly frameCount: number;
+  readonly readyCount: number;
+  readonly selected: boolean;
+}
+
+/** How much of the file there is, and how much is captured. */
+export interface FigmaCapture {
+  readonly mode: 'whole_file' | 'picked';
+  readonly pageCount: number;
+  readonly frameCount: number;
+  readonly ready: number;
+  readonly pending: number;
+  readonly failed: number;
+  readonly skipped: number;
+  readonly gone: number;
+  readonly maxFrames: number;
+  readonly overLimit: boolean;
+  readonly truncated: boolean;
+  readonly syncedAt: string | null;
 }
 
 export interface FigmaLinkCapabilities {
@@ -72,6 +130,10 @@ export interface FigmaLink {
   readonly attachedToId: string | null;
   readonly openUrl: string | null;
   readonly createdAt: string;
+  /** The frame the viewer opens on (the one the pasted link pointed at), or null. */
+  readonly focusFrameId: string | null;
+  readonly pages: readonly FigmaLinkPage[];
+  readonly capture: FigmaCapture;
   readonly frames: readonly FigmaFrame[];
   readonly capabilities: FigmaLinkCapabilities;
 }
@@ -94,7 +156,8 @@ export interface FigmaRefresh {
 
 export interface AttachFigmaInput {
   readonly url: string;
-  readonly nodeIds: readonly string[];
+  /** "Only some frames"; left out, the whole file is attached. */
+  readonly nodeIds?: readonly string[];
   readonly audience: FigmaLinkAudience;
   readonly attachedTo?: { readonly type: FigmaAttachTarget; readonly id: string } | null;
 }
@@ -225,6 +288,17 @@ export async function listFigmaLinks(
   return data;
 }
 
+/** The client's door: every Figma link shared with this client (the portal's Files page). */
+export async function listPortalFigmaLinks(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<FigmaLinkList> {
+  const { data } = await client.request<FigmaLinkList>({
+    path: `${orgPath(organizationSlug, 'portal')}/figma/links`,
+  });
+  return data;
+}
+
 export async function getFigmaLink(
   client: ApiClient,
   organizationSlug: string,
@@ -249,6 +323,21 @@ export async function refreshFigmaSnapshots(
   return data;
 }
 
+/** Which pages to capture when the file is over the limit (`null`: every page). */
+export async function setFigmaPages(
+  client: ApiClient,
+  organizationSlug: string,
+  linkId: string,
+  pageIds: readonly string[] | null,
+): Promise<FigmaLink> {
+  const { data } = await client.request<FigmaLink>({
+    method: 'PUT',
+    path: `${orgPath(organizationSlug)}/figma/links/${encodeURIComponent(linkId)}/pages`,
+    body: { pageIds },
+  });
+  return data;
+}
+
 export async function removeFigmaLink(
   client: ApiClient,
   organizationSlug: string,
@@ -260,7 +349,10 @@ export async function removeFigmaLink(
   });
 }
 
-/** The snapshot's address on the API (`snapshotPath` is relative to the organization). */
+/**
+ * A frame picture's address on the API (`snapshotPath`, `thumbPath` and `sharpPath` are relative
+ * to the organization).
+ */
 export function figmaSnapshotUrl(
   apiBase: string,
   organizationSlug: string,

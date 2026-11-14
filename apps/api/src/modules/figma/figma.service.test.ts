@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { parseSeedKeys } from '@tmanage/config';
 import type { Principal } from '@tmanage/domain';
-import type { ObjectStore } from '@tmanage/storage';
+import { ObjectNotFoundError, type ObjectStore } from '@tmanage/storage';
+import { Readable } from 'node:stream';
+import { createFixedWindowLimiter } from '../../common/http/rate-limiter.js';
 import { ApiError } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type {
@@ -14,7 +16,14 @@ import type { AuditService } from '../audit/audit.service.js';
 import { createSeedCipher } from '../identity/seed-cipher.js';
 import { FigmaAccess } from './figma-access.js';
 import type { FigmaRepository, InsertLinkInput } from './figma.repository.js';
-import { FigmaAuthError, type FigmaRestClient } from './figma.rest.js';
+import {
+  FigmaAuthError,
+  MAX_CAPTURED_FRAMES,
+  MAX_RENDER_SCALE,
+  type FigmaOutline,
+  type FigmaRestClient,
+} from './figma.rest.js';
+import type { FrameDiff } from './figma-outline.js';
 import { FigmaService, figmaTokenBinding } from './figma.service.js';
 import { FigmaOAuthRefusedError } from './figma-oauth.js';
 import { pkceChallenge } from '../../common/http/oauth-flow.js';
@@ -40,6 +49,7 @@ const KEY = 'ZdUCRiqBiT7s3u08HA28RO';
 const CIPHER = createSeedCipher(parseSeedKeys(`1:${Buffer.alloc(32, 0x52).toString('base64url')}`));
 const NOW = new Date('2026-11-01T10:00:00Z');
 const TOKEN = 'figd_0123456789abcdefghijWXYZ';
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 
 const STAFF: Principal = {
   userId: '00000000-0000-4000-8000-0000000000c1',
@@ -90,6 +100,67 @@ function linkRow(id: string, audience: string): FigmaLinkRow {
     updatedAt: NOW,
     deletedAt: null,
     purgeAfter: null,
+    captureMode: 'whole_file',
+    focusNodeId: null,
+    outlineJson: JSON.stringify({ pages: [{ id: '0:1', name: 'Mobile' }], truncated: false }),
+    pageFilterJson: null,
+    syncedAt: NOW,
+  };
+}
+
+function frameRow(id: string, nodeId: string, over: Partial<FigmaFrameRow> = {}): FigmaFrameRow {
+  return {
+    id,
+    organizationId: ORG,
+    linkId: LINK,
+    nodeId,
+    name: 'Booking — Step 2',
+    width: 390,
+    height: 844,
+    snapshotObjectKey: `tenant/${ORG}/figma/${LINK}/${id}`,
+    snapshotHash: 'a'.repeat(64),
+    snapshotStatus: 'ready',
+    snapshotAttempts: 0,
+    claimedAt: null,
+    capturedAt: NOW,
+    sizeChanged: true,
+    sortOrder: 0,
+    pageId: '0:1',
+    pageName: 'Mobile',
+    sectionName: null,
+    posX: 0,
+    posY: 0,
+    captureRank: 0,
+    goneAt: null,
+    hasThumb: true,
+    snapshotError: null,
+    createdAt: NOW,
+    updatedAt: NOW,
+    ...over,
+  };
+}
+
+/** A Figma file's outline for the fake: `count` frames over two pages, the first in a section. */
+function outlineOf(count: number): FigmaOutline {
+  return {
+    name: 'Atlas booking flow',
+    pages: [
+      { id: '0:1', name: 'Mobile' },
+      { id: '0:2', name: 'Desktop' },
+    ],
+    frames: Array.from({ length: count }, (_, index) => ({
+      nodeId: `1:${index + 2}`,
+      name: `Frame ${index + 1}`,
+      type: 'FRAME',
+      width: 390,
+      height: 844,
+      x: index * 400,
+      y: 0,
+      pageId: index % 2 === 0 ? '0:1' : '0:2',
+      pageName: index % 2 === 0 ? 'Mobile' : 'Desktop',
+      sectionName: index === 0 ? 'Onboarding' : null,
+    })),
+    truncated: false,
   };
 }
 
@@ -98,6 +169,8 @@ function build(
     connected?: boolean;
     figmaRefuses?: boolean;
     oauth?: boolean;
+    outline?: FigmaOutline;
+    rendersPerPerson?: number;
     exchange?: (input: { readonly verifier?: string | undefined }) => Promise<{
       readonly accessToken: string;
     }>;
@@ -121,29 +194,12 @@ function build(
     [LINK, linkRow(LINK, 'client_visible')],
     [INTERNAL_LINK, linkRow(INTERNAL_LINK, 'internal')],
   ]);
-  const frames: FigmaFrameRow[] = [
-    {
-      id: FRAME,
-      organizationId: ORG,
-      linkId: LINK,
-      nodeId: '1:2',
-      name: 'Booking — Step 2',
-      width: 390,
-      height: 844,
-      snapshotObjectKey: `tenant/${ORG}/figma/${LINK}/${FRAME}`,
-      snapshotHash: 'a'.repeat(64),
-      snapshotStatus: 'ready',
-      snapshotAttempts: 0,
-      claimedAt: null,
-      capturedAt: NOW,
-      sizeChanged: true,
-      sortOrder: 0,
-      createdAt: NOW,
-      updatedAt: NOW,
-    },
-  ];
+  const frames: FigmaFrameRow[] = [frameRow(FRAME, '1:2')];
   const inserted: InsertLinkInput[] = [];
+  const diffs: FrameDiff[] = [];
   const audits: string[] = [];
+  const stored = new Map<string, Uint8Array>();
+  const renderCalls: number[] = [];
   const repository = {
     findConnection: async (_r: unknown, _c: unknown, m: string) => connections.get(m),
     saveConnection: async (
@@ -181,6 +237,11 @@ function build(
       links.set(LINK, { ...linkRow(LINK, input.audience) });
       return LINK;
     },
+    applyFrameDiff: async (_r: unknown, _c: unknown, _l: string, diff: FrameDiff) => {
+      diffs.push(diff);
+    },
+    updateLinkOutline: async () => undefined,
+    listLinksAttachedTo: async () => [...links.values()],
   } as unknown as FigmaRepository;
   const projects = {
     findById: async (_r: unknown, _c: unknown, id: string) =>
@@ -194,6 +255,12 @@ function build(
       if (options.figmaRefuses) throw new FigmaAuthError(403);
       return { handle: token ? 'lina' : null };
     },
+    outline: async () => options.outline ?? outlineOf(1),
+    renderUrls: async (_t: string, _k: string, ids: readonly string[], scale: number) => {
+      renderCalls.push(scale);
+      return new Map(ids.map((id) => [id, 'https://figma-alpha-api.s3.amazonaws.com/r.png']));
+    },
+    download: async () => PNG,
     nodes: async (_t: string, _k: string, ids: readonly string[]) => ({
       name: 'Atlas booking flow',
       nodes: ids.map((nodeId) => ({
@@ -221,12 +288,26 @@ function build(
     audit,
     cipher: CIPHER,
     rest,
-    store: {} as ObjectStore,
+    store: {
+      putDerivative: async ({ objectKey, body }: { objectKey: string; body: Uint8Array }) => {
+        stored.set(objectKey, body);
+        return { sizeBytes: body.length };
+      },
+      openDerivative: async ({ objectKey }: { objectKey: string }) => {
+        const body = stored.get(objectKey);
+        if (!body) throw new ObjectNotFoundError();
+        return { sizeBytes: body.length, stream: Readable.from([body]) };
+      },
+    } as unknown as ObjectStore,
     snapshots: { request: () => (requested += 1) },
     repository,
     projects,
     threads,
     now: () => NOW,
+    renderAdmission: {
+      workspace: createFixedWindowLimiter({ windowMs: 60_000, max: 100 }),
+      person: createFixedWindowLimiter({ windowMs: 60_000, max: options.rendersPerPerson ?? 100 }),
+    },
     ...(options.oauth
       ? {
           oauth: { clientId: 'figma-client', clientSecret: 'figma-secret' },
@@ -236,7 +317,17 @@ function build(
       : {}),
   });
   const access = new FigmaAccess(database, repository, projects);
-  return { service, access, connections, inserted, audits, requested: () => requested };
+  return {
+    service,
+    access,
+    connections,
+    inserted,
+    diffs,
+    frames,
+    renderCalls,
+    audits,
+    requested: () => requested,
+  };
 }
 
 async function status(promise: Promise<unknown>): Promise<number> {
@@ -393,8 +484,8 @@ describe('FigmaService · attach', () => {
     expect(await status(world.service.attach(contextOf(STAFF), STAFF, PROJECT, { url }))).toBe(409);
   });
 
-  it('attaches the linked frame, audits and queues the snapshots', async () => {
-    const world = build({ connected: true });
+  it('attaches the whole file, opens on the linked frame and queues the snapshots', async () => {
+    const world = build({ connected: true, outline: outlineOf(3) });
     const view = await world.service.attach(contextOf(STAFF), STAFF, PROJECT, {
       url,
       audience: 'client_visible',
@@ -405,8 +496,17 @@ describe('FigmaService · attach', () => {
       fileKey: KEY,
       audience: 'client_visible',
       attachedToType: 'work_item',
-      frames: [{ nodeId: '1:2', width: 390, height: 844 }],
+      captureMode: 'whole_file',
+      focusNodeId: '1:2',
     });
+    const listed = world.inserted[0]!.frames;
+    expect(listed.map((item) => item.frame.nodeId)).toEqual(['1:2', '1:3', '1:4']);
+    expect(listed[0]).toMatchObject({
+      frame: { sectionName: 'Onboarding', pageId: '0:1' },
+      placement: { captureRank: 0, captured: true },
+    });
+    // The linked frame first, then the rest of its page, then the other page.
+    expect(listed.map((item) => item.placement.captureRank)).toEqual([0, 2, 1]);
     expect(world.audits).toContain('figma.link_attached');
     expect(world.requested()).toBe(1);
   });
@@ -427,7 +527,7 @@ describe('FigmaService · attach', () => {
         world.service.attach(contextOf(STAFF), STAFF, PROJECT, { url: 'https://x.test' }),
       ),
     ).toBe(422);
-    const many = Array.from({ length: 21 }, (_, i) => `1:${i + 1}`);
+    const many = Array.from({ length: MAX_CAPTURED_FRAMES + 1 }, (_, i) => `1:${i + 1}`);
     expect(
       await status(world.service.attach(contextOf(STAFF), STAFF, PROJECT, { url, nodeIds: many })),
     ).toBe(422);
@@ -475,6 +575,13 @@ describe('FigmaService · reading a link', () => {
     expect(await status(world.service.link(contextOf(STAFF), STAFF, 'client', LINK))).toBe(404);
   });
 
+  it('lists a client only the links shared with clients, across its projects', async () => {
+    const world = build();
+    const view = await world.service.clientLinks(contextOf(CLIENT), CLIENT);
+    expect(view.links.map((link) => link.id)).toEqual([LINK]);
+    expect(await status(world.service.clientLinks(contextOf(STAFF), STAFF))).toBe(404);
+  });
+
   it('answers the review service: the frame of a readable link, nothing otherwise', async () => {
     const world = build();
     await expect(world.access.resolveFrame(contextOf(CLIENT), CLIENT, FRAME)).resolves.toEqual({
@@ -485,5 +592,101 @@ describe('FigmaService · reading a link', () => {
       archived: false,
     });
     await expect(world.access.resolveFrame(contextOf(STAFF), STAFF, 'nope')).resolves.toBeNull();
+  });
+});
+
+describe('FigmaService · a file larger than one link captures', () => {
+  const url = `https://www.figma.com/design/${KEY}/Atlas`;
+
+  it('lists every frame, captures the first MAX_CAPTURED_FRAMES and skips the rest', async () => {
+    const world = build({ connected: true, outline: outlineOf(MAX_CAPTURED_FRAMES + 7) });
+    await world.service.attach(contextOf(STAFF), STAFF, PROJECT, { url });
+    const listed = world.inserted[0]!.frames;
+    expect(listed).toHaveLength(MAX_CAPTURED_FRAMES + 7);
+    expect(listed.filter((item) => item.placement.captured)).toHaveLength(MAX_CAPTURED_FRAMES);
+  });
+
+  it('says how much is captured and that the file is over the limit', async () => {
+    const world = build();
+    world.frames.push(
+      ...Array.from({ length: MAX_CAPTURED_FRAMES + 1 }, (_, index) =>
+        frameRow(`00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`, `2:${index}`, {
+          snapshotStatus: index < 3 ? 'pending' : 'skipped',
+        }),
+      ),
+    );
+    const view = await world.service.link(contextOf(STAFF), STAFF, 'internal', LINK);
+    expect(view.capture).toMatchObject({
+      mode: 'whole_file',
+      frameCount: MAX_CAPTURED_FRAMES + 2,
+      ready: 1,
+      pending: 3,
+      skipped: MAX_CAPTURED_FRAMES - 2,
+      overLimit: true,
+    });
+    expect(view.pages[0]).toMatchObject({ id: '0:1', readyCount: 1, selected: true });
+  });
+});
+
+describe('FigmaService · Refresh from Figma', () => {
+  it('adds new frames, updates the ones it has in place and marks the missing gone', async () => {
+    const world = build({ connected: true, outline: outlineOf(2) });
+    // Stored: 1:2 (still in Figma) and 9:9 (gone). Figma now has 1:2 and 1:3.
+    world.frames.push(frameRow('00000000-0000-4000-8000-0000000000f9', '9:9'));
+    await world.service.refresh(contextOf(STAFF), STAFF, LINK);
+    const diff = world.diffs[0]!;
+    expect(diff.inserts.map((item) => item.frame.nodeId)).toEqual(['1:3']);
+    // The same row: the frame's comment threads stay on it.
+    expect(diff.updates.map((item) => item.row.id)).toEqual([FRAME]);
+    expect(diff.gone.map((row) => row.nodeId)).toEqual(['9:9']);
+    expect(world.requested()).toBe(1);
+  });
+
+  it('is the team only', async () => {
+    const world = build({ connected: true });
+    expect(await status(world.service.refresh(contextOf(CLIENT), CLIENT, LINK))).toBe(404);
+  });
+});
+
+describe('FigmaService · sharper render for zoom', () => {
+  it('renders at the server-chosen scale once, then serves the stored render', async () => {
+    const world = build({ connected: true });
+    const first = await world.service.render(contextOf(STAFF), STAFF, 'internal', FRAME);
+    expect(first.mimeType).toBe('image/png');
+    await world.service.render(contextOf(STAFF), STAFF, 'internal', FRAME);
+    expect(world.renderCalls).toEqual([MAX_RENDER_SCALE]);
+    expect(world.audits).toContain('figma.snapshot_taken');
+  });
+
+  it('lets a client zoom a shared link on the team connection, under a limit', async () => {
+    const world = build({ connected: true, rendersPerPerson: 1 });
+    await world.service.render(contextOf(CLIENT), CLIENT, 'client', FRAME);
+    expect(world.renderCalls).toHaveLength(1);
+    // A second new render (another frame) is over the person's limit: 429, no Figma call.
+    const second = '00000000-0000-4000-8000-0000000000f3';
+    world.frames.push(frameRow(second, '1:9', { snapshotHash: 'b'.repeat(64) }));
+    expect(await status(world.service.render(contextOf(CLIENT), CLIENT, 'client', second))).toBe(
+      429,
+    );
+    expect(world.renderCalls).toHaveLength(1);
+  });
+
+  it('refuses a portal user every picture of a link not shared with clients', async () => {
+    const world = build({ connected: true });
+    const internal = '00000000-0000-4000-8000-0000000000f4';
+    world.frames.push(frameRow(internal, '1:7', { linkId: INTERNAL_LINK }));
+    for (const route of ['render', 'thumb', 'snapshot'] as const) {
+      expect(
+        await status(world.service[route](contextOf(CLIENT), CLIENT, 'client', internal)),
+      ).toBe(404);
+    }
+    expect(world.renderCalls).toHaveLength(0);
+  });
+
+  it('answers 404 when the snapshot is already the sharpest Figma can render', async () => {
+    const world = build({ connected: true });
+    const huge = '00000000-0000-4000-8000-0000000000f5';
+    world.frames.push(frameRow(huge, '1:8', { width: 16_000, height: 16_000 }));
+    expect(await status(world.service.render(contextOf(STAFF), STAFF, 'internal', huge))).toBe(404);
   });
 });

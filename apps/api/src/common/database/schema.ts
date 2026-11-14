@@ -5964,6 +5964,14 @@ export const figmaLinks = mysqlTable(
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
     deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
     purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
+    /** 0342: `whole_file` (every frame) or `picked` (only some; every older link). */
+    captureMode: varchar('capture_mode', { length: 16 }).notNull().default('picked'),
+    focusNodeId: varchar('focus_node_id', { length: 64 }),
+    /** 0342: `{ pages: [{ id, name }], truncated }` as last read from Figma. */
+    outlineJson: text('outline_json'),
+    /** 0342: the page ids chosen for capture when the file is over the limit; null = all. */
+    pageFilterJson: text('page_filter_json'),
+    syncedAt: datetime('synced_at', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_figma_links_org_id').on(table.organizationId, table.id),
@@ -6002,6 +6010,17 @@ export const figmaFrames = mysqlTable(
     capturedAt: datetime('captured_at', { mode: 'date', fsp: 3 }),
     sizeChanged: boolean('size_changed').notNull().default(false),
     sortOrder: int('sort_order', { unsigned: true }).notNull().default(0),
+    /** 0342: the Figma page the frame sits on; null for a nested frame or an older link. */
+    pageId: varchar('page_id', { length: 64 }),
+    pageName: varchar('page_name', { length: 300 }),
+    sectionName: varchar('section_name', { length: 300 }),
+    posX: int('pos_x'),
+    posY: int('pos_y'),
+    captureRank: int('capture_rank', { unsigned: true }).notNull().default(0),
+    goneAt: datetime('gone_at', { mode: 'date', fsp: 3 }),
+    hasThumb: boolean('has_thumb').notNull().default(false),
+    /** 0342: why the last capture failed (a token the team's screen words), or null. */
+    snapshotError: varchar('snapshot_error', { length: 32 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
   },

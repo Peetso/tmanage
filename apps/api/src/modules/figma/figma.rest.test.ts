@@ -8,7 +8,11 @@ import {
   figmaOpenUrl,
   isAllowedRenderUrl,
   normaliseNodeId,
+  MAX_OUTLINE_FRAMES,
+  MAX_RENDER_SCALE,
+  NODES_PER_REQUEST,
   parseFigmaUrl,
+  renderScale,
   snapshotScale,
   type FigmaResponse,
   type FigmaTransport,
@@ -109,35 +113,101 @@ describe('FigmaRestClient', () => {
     ).rejects.toBeInstanceOf(FigmaUnavailableError);
   });
 
-  it('lists the top-level frames of every page, with their sizes', async () => {
-    const client = new FigmaRestClient(
-      transport(() =>
-        respond(200, {
-          name: 'Atlas booking',
-          document: {
-            children: [
-              {
-                type: 'CANVAS',
-                name: 'Mobile',
-                children: [
-                  {
-                    id: '1:2',
-                    name: 'Home',
-                    type: 'FRAME',
-                    absoluteBoundingBox: { x: 0, y: 0, width: 390, height: 844 },
-                  },
-                  { id: '1:3', name: 'Note', type: 'TEXT' },
-                ],
-              },
-            ],
-          },
-        }),
-      ),
-    );
-    await expect(client.file('t', KEY)).resolves.toEqual({
-      name: 'Atlas booking',
-      frames: [{ nodeId: '1:2', name: 'Home', width: 390, height: 844, pageName: 'Mobile' }],
+  /** A fake Figma file: pages, sections inside sections, frames; answers `files` and `nodes`. */
+  function fileTransport(tree: Record<string, readonly Record<string, unknown>[]>) {
+    return transport((url) => {
+      if (url.includes('/nodes?')) {
+        const ids = decodeURIComponent(new URL(url).searchParams.get('ids') ?? '').split(',');
+        return respond(200, {
+          nodes: Object.fromEntries(
+            ids.map((id) => [id, { document: { id, children: tree[id] ?? [] } }]),
+          ),
+        });
+      }
+      return respond(200, {
+        name: 'Atlas booking',
+        document: {
+          children: [
+            { id: '0:1', type: 'CANVAS', name: 'Mobile' },
+            { id: '0:2', type: 'CANVAS', name: 'Desktop' },
+          ],
+        },
+      });
     });
+  }
+
+  const box = (x: number, y: number) => ({ x, y, width: 390, height: 844 });
+
+  it('reads the whole file: frames on pages, inside sections and nested sections, in order', async () => {
+    const fake = fileTransport({
+      '0:1': [
+        { id: '1:1', name: 'Home', type: 'FRAME', absoluteBoundingBox: box(0, 0) },
+        { id: '1:9', name: 'Note', type: 'TEXT' },
+        { id: '2:1', name: 'Onboarding', type: 'SECTION' },
+        { id: '1:5', name: 'Hidden', type: 'FRAME', visible: false },
+        { id: '1:6', name: 'Card', type: 'COMPONENT', absoluteBoundingBox: box(900, 0) },
+      ],
+      '2:1': [
+        { id: '2:2', name: 'Step 1', type: 'FRAME', absoluteBoundingBox: box(0, 1000) },
+        { id: '2:3', name: 'Later', type: 'SECTION' },
+      ],
+      '2:3': [{ id: '2:4', name: 'Step 9', type: 'GROUP', absoluteBoundingBox: box(0, 2000) }],
+      '0:2': [{ id: '3:1', name: 'Wide', type: 'FRAME', absoluteBoundingBox: box(-50, 7) }],
+    });
+    const outline = await new FigmaRestClient(fake).outline('t', KEY);
+    expect(outline.name).toBe('Atlas booking');
+    expect(outline.pages).toEqual([
+      { id: '0:1', name: 'Mobile' },
+      { id: '0:2', name: 'Desktop' },
+    ]);
+    expect(outline.truncated).toBe(false);
+    expect(outline.frames.map((frame) => [frame.nodeId, frame.sectionName, frame.pageId])).toEqual([
+      ['1:1', null, '0:1'],
+      ['2:2', 'Onboarding', '0:1'],
+      ['2:4', 'Onboarding / Later', '0:1'],
+      ['1:6', null, '0:1'],
+      ['3:1', null, '0:2'],
+    ]);
+    expect(outline.frames[4]).toMatchObject({ x: -50, y: 7, width: 390, pageName: 'Desktop' });
+    // The file at depth 1, then one `nodes` call per level (pages, then sections, then nested).
+    expect(fake.calls[0]?.url).toContain(`/v1/files/${KEY}?depth=1`);
+    expect(fake.calls.filter((call) => call.url.includes('/nodes?'))).toHaveLength(3);
+  });
+
+  it('reads a page with more containers than one request holds in several requests', async () => {
+    const sections = Array.from({ length: NODES_PER_REQUEST + 5 }, (_, index) => ({
+      id: `5:${index + 1}`,
+      name: `S${index + 1}`,
+      type: 'SECTION',
+    }));
+    const tree: Record<string, readonly Record<string, unknown>[]> = { '0:1': sections };
+    for (const section of sections) {
+      tree[section.id] = [
+        {
+          id: `6:${section.id.slice(2)}`,
+          name: 'F',
+          type: 'FRAME',
+          absoluteBoundingBox: box(0, 0),
+        },
+      ];
+    }
+    const fake = fileTransport(tree);
+    const outline = await new FigmaRestClient(fake).outline('t', KEY);
+    expect(outline.frames).toHaveLength(NODES_PER_REQUEST + 5);
+    // pages: 1 call; sections: 2 calls (40 + 5).
+    expect(fake.calls.filter((call) => call.url.includes('/nodes?'))).toHaveLength(3);
+  });
+
+  it('stops at the outline cap and says it was cut short', async () => {
+    const many = Array.from({ length: MAX_OUTLINE_FRAMES + 3 }, (_, index) => ({
+      id: `7:${index + 1}`,
+      name: 'F',
+      type: 'FRAME',
+      absoluteBoundingBox: box(index, 0),
+    }));
+    const outline = await new FigmaRestClient(fileTransport({ '0:1': many })).outline('t', KEY);
+    expect(outline.frames).toHaveLength(MAX_OUTLINE_FRAMES);
+    expect(outline.truncated).toBe(true);
   });
 
   it('reads node sizes and render URLs per id', async () => {
@@ -197,5 +267,14 @@ describe('FigmaRestClient', () => {
     expect(snapshotScale(390, 844)).toBe(2);
     expect(snapshotScale(1440, 3000)).toBe(1);
     expect(snapshotScale(1440, 8192)).toBe(0.5);
+  });
+
+  it('renders sharper for zoom: 4x when it fits, lower for a big frame, none when no sharper', () => {
+    expect(renderScale(390, 844)).toBe(MAX_RENDER_SCALE);
+    // 1440 x 9000 at 1x is 13 M px: the 32 M px cap allows 1.57x (the snapshot is 0.45x).
+    expect(renderScale(1440, 9000)).toBe(1.57);
+    // A huge frame whose snapshot is already as sharp as Figma can render: no render.
+    expect(renderScale(16_000, 16_000)).toBeNull();
+    expect(renderScale(0, 0)).toBeNull();
   });
 });

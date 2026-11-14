@@ -7,6 +7,7 @@ import {
   Inject,
   Param,
   Post,
+  Put,
   Query,
   Redirect,
   Req,
@@ -51,6 +52,7 @@ import type {
   FigmaRefreshView,
   FigmaService,
   InspectInput,
+  PagesInput,
   SnapshotContent,
 } from './figma.service.js';
 
@@ -194,7 +196,10 @@ export class FigmaController {
     return this.figma.link(context, principal, 'internal', linkId);
   }
 
-  /** "Refresh snapshots": every frame back in the queue. */
+  /**
+   * "Refresh from Figma": the file is read again (new, renamed, moved and removed frames) and
+   * every captured frame is drawn again.
+   */
   @Post('links/:linkId/snapshots')
   @RequireCapability('file.upload')
   @HttpCode(202)
@@ -204,6 +209,19 @@ export class FigmaController {
     @Param('linkId') linkId: string,
   ): Promise<FigmaRefreshView> {
     return this.figma.refresh(context, principal, linkId);
+  }
+
+  /** Which pages to capture when the file has more frames than one link captures. */
+  @Put('links/:linkId/pages')
+  @RequireCapability('file.upload')
+  @HttpCode(200)
+  async pages(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('linkId') linkId: string,
+    @Body() body: PagesInput | undefined,
+  ): Promise<FigmaLinkView> {
+    return this.figma.setPages(context, principal, linkId, body ?? {});
   }
 
   @Delete('links/:linkId')
@@ -229,13 +247,39 @@ export class FigmaController {
     const content = await this.figma.snapshot(context, principal, 'internal', frameId);
     return respondWithSnapshot(content, reply);
   }
+
+  /** A small picture of the frame's snapshot (the whole-page view). */
+  @Get('frames/:frameId/thumb')
+  @RequireCapability('file.download')
+  async thumb(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('frameId') frameId: string,
+    @Res({ passthrough: true }) reply: HeaderWriter,
+  ): Promise<StreamableFile> {
+    const content = await this.figma.thumb(context, principal, 'internal', frameId);
+    return respondWithSnapshot(content, reply);
+  }
+
+  /** The frame rendered sharper for zooming in (made once, then stored; rate-limited). */
+  @Get('frames/:frameId/render')
+  @RequireCapability('file.download')
+  async render(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('frameId') frameId: string,
+    @Res({ passthrough: true }) reply: HeaderWriter,
+  ): Promise<StreamableFile> {
+    const content = await this.figma.render(context, principal, 'internal', frameId);
+    return respondWithSnapshot(content, reply);
+  }
 }
 
 @Controller('v1/organizations/:orgSlug/projects/:projectId/figma')
 export class ProjectFigmaController {
   constructor(@Inject(FIGMA_SERVICE) private readonly figma: FigmaService) {}
 
-  /** Read a pasted Figma link with the caller's token: the file's name and its frames. */
+  /** Read a pasted Figma link with the caller's token: the file's name, pages and frames. */
   @Post('inspect')
   @RequireCapability('file.upload')
   @HttpCode(200)
@@ -248,7 +292,7 @@ export class ProjectFigmaController {
     return this.figma.inspect(context, principal, projectId, body ?? {});
   }
 
-  /** Attach the picked frames (20 at most) to the project, optionally to one item. */
+  /** Attach the whole file (or only some frames) to the project, optionally to one item. */
   @Post('links')
   @RequireCapability('file.upload')
   @HttpCode(201)

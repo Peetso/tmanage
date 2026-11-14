@@ -4,6 +4,8 @@ import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
   clientRequests,
   deliverableVersions,
+  deliverables,
+  fileAssets,
   figmaConnections,
   figmaFrames,
   figmaLinks,
@@ -14,6 +16,7 @@ import type {
   FigmaFrameRow,
   FigmaLinkRow,
 } from '../../common/database/schema.js';
+import type { FrameDiff, FramePlacement, PlannedFrame } from './figma-outline.js';
 import type {
   BootstrapQueryRunner,
   TenantContext,
@@ -30,10 +33,25 @@ import type {
 export const FIGMA_LINK_AUDIENCES = ['internal', 'client_visible'] as const;
 export type FigmaLinkAudience = (typeof FIGMA_LINK_AUDIENCES)[number];
 
-export const FIGMA_ATTACH_TARGETS = ['work_item', 'deliverable_version', 'request'] as const;
+/**
+ * `deliverable`: the deliverable itself, before or after any version. `file_asset`: an uploaded
+ * `.fig` paired with its Figma file ("Show it from Figma").
+ */
+export const FIGMA_ATTACH_TARGETS = [
+  'work_item',
+  'deliverable',
+  'deliverable_version',
+  'request',
+  'file_asset',
+] as const;
 export type FigmaAttachTarget = (typeof FIGMA_ATTACH_TARGETS)[number];
 
-export type FigmaSnapshotStatus = 'pending' | 'ready' | 'failed';
+/** `skipped`: listed, beyond what the link captures (MAX_CAPTURED_FRAMES, or a page left out). */
+export type FigmaSnapshotStatus = 'pending' | 'ready' | 'failed' | 'skipped';
+
+/** Why a capture failed, for the team's screen. */
+export type FigmaSnapshotError =
+  'no_connection' | 'no_access' | 'not_found' | 'too_large' | 'unreachable';
 
 /** The most snapshot attempts a frame gets before it is `failed` (a manual refresh resets). */
 export const FIGMA_SNAPSHOT_MAX_ATTEMPTS = 3;
@@ -47,12 +65,31 @@ export interface InsertLinkInput {
   readonly attachedToId: string | null;
   readonly audience: FigmaLinkAudience;
   readonly createdByMembershipId: string;
+  readonly captureMode: 'whole_file' | 'picked';
+  readonly focusNodeId: string | null;
+  readonly outlineJson: string;
   readonly frames: readonly {
-    readonly nodeId: string;
-    readonly name: string;
-    readonly width: number;
-    readonly height: number;
+    readonly frame: PlannedFrame;
+    readonly placement: FramePlacement;
   }[];
+}
+
+/** The most rows one insert statement carries. */
+const INSERT_CHUNK = 200;
+
+function frameColumns(frame: PlannedFrame, placement: FramePlacement) {
+  return {
+    name: frame.name,
+    width: frame.width,
+    height: frame.height,
+    pageId: frame.pageId,
+    pageName: frame.pageName,
+    sectionName: frame.sectionName,
+    posX: frame.x,
+    posY: frame.y,
+    sortOrder: placement.sortOrder,
+    captureRank: placement.captureRank,
+  };
 }
 
 export interface SnapshotReadyInput {
@@ -60,7 +97,8 @@ export interface SnapshotReadyInput {
   readonly hash: string;
   readonly width: number;
   readonly height: number;
-  readonly sizeChanged: boolean;
+  /** The small picture beside it was stored too. */
+  readonly hasThumb: boolean;
 }
 
 function affected(result: unknown): number {
@@ -191,27 +229,159 @@ export class FigmaRepository {
       attachedToId: input.attachedToId,
       audience: input.audience,
       createdByMembershipId: input.createdByMembershipId,
+      captureMode: input.captureMode,
+      focusNodeId: input.focusNodeId,
+      outlineJson: input.outlineJson,
+      syncedAt: sql`current_timestamp(3)`,
       createdAt: sql`current_timestamp(3)`,
       updatedAt: sql`current_timestamp(3)`,
     });
-    if (input.frames.length > 0) {
+    await this.insertFrames(runner, context, id, input.frames);
+    return id;
+  }
+
+  private async insertFrames(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    linkId: string,
+    frames: readonly { readonly frame: PlannedFrame; readonly placement: FramePlacement }[],
+  ): Promise<void> {
+    const db = tenantDrizzle(runner);
+    for (let at = 0; at < frames.length; at += INSERT_CHUNK) {
       await db.insert(figmaFrames).values(
-        input.frames.map((frame, index) => ({
+        frames.slice(at, at + INSERT_CHUNK).map(({ frame, placement }) => ({
           id: uuidv7(),
           organizationId: context.organizationId,
-          linkId: id,
+          linkId,
           nodeId: frame.nodeId,
-          name: frame.name,
-          width: frame.width,
-          height: frame.height,
-          snapshotStatus: 'pending',
-          sortOrder: index,
+          ...frameColumns(frame, placement),
+          snapshotStatus: placement.captured ? 'pending' : 'skipped',
           createdAt: sql`current_timestamp(3)`,
           updatedAt: sql`current_timestamp(3)`,
         })),
       );
     }
-    return id;
+  }
+
+  /**
+   * "Refresh from Figma": new frames inserted; existing ones renamed, moved or resized in place
+   * (same id, so their comment threads stay) and captured again when within the limit; frames
+   * Figma no longer has marked gone (kept, with their threads). One transaction (the caller's).
+   */
+  async applyFrameDiff(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    linkId: string,
+    diff: FrameDiff,
+  ): Promise<void> {
+    const db = tenantDrizzle(runner);
+    await this.insertFrames(runner, context, linkId, diff.inserts);
+    for (const change of diff.updates) {
+      await db
+        .update(figmaFrames)
+        .set({
+          ...frameColumns(change.frame, change.placement),
+          snapshotStatus: change.placement.captured ? 'pending' : 'skipped',
+          snapshotAttempts: 0,
+          claimedAt: null,
+          goneAt: null,
+          ...(change.sizeChanged ? { sizeChanged: true } : {}),
+          updatedAt: sql`current_timestamp(3)`,
+        })
+        .where(
+          and(
+            eq(figmaFrames.organizationId, context.organizationId),
+            eq(figmaFrames.id, change.row.id),
+          ),
+        );
+    }
+    if (diff.gone.length > 0) {
+      await db
+        .update(figmaFrames)
+        .set({ goneAt: sql`current_timestamp(3)`, updatedAt: sql`current_timestamp(3)` })
+        .where(
+          and(
+            eq(figmaFrames.organizationId, context.organizationId),
+            eq(figmaFrames.linkId, linkId),
+            inArray(
+              figmaFrames.id,
+              diff.gone.map((row) => row.id),
+            ),
+          ),
+        );
+    }
+  }
+
+  /**
+   * The team chose pages: each frame's place in the capture order and whether it is captured. A
+   * frame newly within the limit goes back to `pending`; one left out with no snapshot yet becomes
+   * `skipped`; a stored snapshot is kept either way. Answers how many frames were queued.
+   */
+  async placeFrames(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    rows: readonly FigmaFrameRow[],
+    placements: ReadonlyMap<string, FramePlacement>,
+  ): Promise<number> {
+    const db = tenantDrizzle(runner);
+    let queued = 0;
+    for (const row of rows) {
+      const placement = placements.get(row.nodeId);
+      if (!placement) continue;
+      const wakes = placement.captured && row.snapshotStatus === 'skipped';
+      const status =
+        row.snapshotStatus === 'ready' || row.snapshotStatus === 'failed'
+          ? row.snapshotStatus
+          : wakes
+            ? 'pending'
+            : placement.captured
+              ? row.snapshotStatus
+              : 'skipped';
+      if (wakes) queued += 1;
+      await db
+        .update(figmaFrames)
+        .set({
+          captureRank: placement.captureRank,
+          snapshotStatus: status,
+          ...(wakes ? { snapshotAttempts: 0, claimedAt: null } : {}),
+          updatedAt: sql`current_timestamp(3)`,
+        })
+        .where(
+          and(eq(figmaFrames.organizationId, context.organizationId), eq(figmaFrames.id, row.id)),
+        );
+    }
+    return queued;
+  }
+
+  /** The outline's pages, the file's name and the sync time, after a read from Figma. */
+  async updateLinkOutline(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    linkId: string,
+    input: { readonly fileName: string | null; readonly outlineJson: string },
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .update(figmaLinks)
+      .set({
+        ...(input.fileName ? { fileName: input.fileName } : {}),
+        outlineJson: input.outlineJson,
+        syncedAt: sql`current_timestamp(3)`,
+        updatedAt: sql`current_timestamp(3)`,
+      })
+      .where(and(eq(figmaLinks.organizationId, context.organizationId), eq(figmaLinks.id, linkId)));
+  }
+
+  /** The pages chosen for capture (a JSON list of page ids), or null for every page. */
+  async setPageFilter(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    linkId: string,
+    pageFilterJson: string | null,
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .update(figmaLinks)
+      .set({ pageFilterJson, updatedAt: sql`current_timestamp(3)` })
+      .where(and(eq(figmaLinks.organizationId, context.organizationId), eq(figmaLinks.id, linkId)));
   }
 
   async findLink(
@@ -257,7 +427,7 @@ export class FigmaRepository {
       .limit(100);
   }
 
-  /** The project of the work item, deliverable version or request a link is attached to. */
+  /** The project of the work item, deliverable version, request or file a link is attached to. */
   async attachTargetProject(
     runner: TenantQueryRunner,
     context: TenantContext,
@@ -265,8 +435,28 @@ export class FigmaRepository {
     id: string,
   ): Promise<string | null> {
     const db = tenantDrizzle(runner);
+    if (type === 'file_asset') {
+      const files = await db
+        .select({ projectId: fileAssets.projectId })
+        .from(fileAssets)
+        .where(
+          and(
+            eq(fileAssets.organizationId, context.organizationId),
+            eq(fileAssets.id, id),
+            isNull(fileAssets.deletedAt),
+          ),
+        )
+        .limit(1);
+      return files[0]?.projectId ?? null;
+    }
     const table =
-      type === 'work_item' ? workItems : type === 'request' ? clientRequests : deliverableVersions;
+      type === 'work_item'
+        ? workItems
+        : type === 'request'
+          ? clientRequests
+          : type === 'deliverable'
+            ? deliverables
+            : deliverableVersions;
     const rows = await db
       .select({ projectId: table.projectId })
       .from(table)
@@ -329,26 +519,6 @@ export class FigmaRepository {
     return rows[0];
   }
 
-  /** "Refresh snapshots": every frame of the link back to `pending`, attempts reset. */
-  async requeueFrames(
-    runner: TenantQueryRunner,
-    context: TenantContext,
-    linkId: string,
-  ): Promise<number> {
-    const result = await tenantDrizzle(runner)
-      .update(figmaFrames)
-      .set({
-        snapshotStatus: 'pending',
-        snapshotAttempts: 0,
-        claimedAt: null,
-        updatedAt: sql`current_timestamp(3)`,
-      })
-      .where(
-        and(eq(figmaFrames.organizationId, context.organizationId), eq(figmaFrames.linkId, linkId)),
-      );
-    return affected(result);
-  }
-
   // ── Snapshot job ───────────────────────────────────────────────────────
 
   async organizationsWithPendingFrames(
@@ -358,7 +528,13 @@ export class FigmaRepository {
     const rows = await tenantDrizzle(runner)
       .selectDistinct({ organizationId: figmaFrames.organizationId })
       .from(figmaFrames)
-      .where(and(eq(figmaFrames.snapshotStatus, 'pending'), unclaimedOrStale(staleBefore)))
+      .where(
+        and(
+          eq(figmaFrames.snapshotStatus, 'pending'),
+          isNull(figmaFrames.goneAt),
+          unclaimedOrStale(staleBefore),
+        ),
+      )
       .orderBy(asc(figmaFrames.organizationId));
     return rows.map((row) => row.organizationId);
   }
@@ -376,10 +552,11 @@ export class FigmaRepository {
         and(
           eq(figmaFrames.organizationId, context.organizationId),
           eq(figmaFrames.snapshotStatus, 'pending'),
+          isNull(figmaFrames.goneAt),
           unclaimedOrStale(staleBefore),
         ),
       )
-      .orderBy(asc(figmaFrames.linkId), asc(figmaFrames.sortOrder))
+      .orderBy(asc(figmaFrames.captureRank), asc(figmaFrames.linkId), asc(figmaFrames.sortOrder))
       .limit(limit);
   }
 
@@ -435,11 +612,12 @@ export class FigmaRepository {
       .update(figmaFrames)
       .set({
         snapshotStatus: 'ready',
+        snapshotError: null,
         snapshotObjectKey: input.objectKey,
         snapshotHash: input.hash,
         width: input.width,
         height: input.height,
-        sizeChanged: input.sizeChanged,
+        hasThumb: input.hasThumb,
         capturedAt: now,
         claimedAt: null,
         updatedAt: now,
@@ -461,6 +639,7 @@ export class FigmaRepository {
     frame: Pick<FigmaFrameRow, 'id' | 'snapshotAttempts'>,
     final: boolean,
     now: Date,
+    reason: FigmaSnapshotError = 'unreachable',
   ): Promise<void> {
     const attempts = frame.snapshotAttempts + 1;
     const failed = final || attempts >= FIGMA_SNAPSHOT_MAX_ATTEMPTS;
@@ -468,6 +647,7 @@ export class FigmaRepository {
       .update(figmaFrames)
       .set({
         snapshotAttempts: Math.min(attempts, 255),
+        snapshotError: reason,
         snapshotStatus: failed ? 'failed' : 'pending',
         claimedAt: failed ? null : now,
         updatedAt: now,

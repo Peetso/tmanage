@@ -17,6 +17,16 @@ import type { FigmaLinkListView, FigmaLinkView, FigmaService } from './figma.ser
 export class PortalFigmaController {
   constructor(@Inject(FIGMA_SERVICE) private readonly figma: FigmaService) {}
 
+  /** Every Figma link shared with this client (the portal's Files page). */
+  @Get('links')
+  @RequireCapability('client_projection.read')
+  async links(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+  ): Promise<FigmaLinkListView> {
+    return this.figma.clientLinks(context, principal);
+  }
+
   @Get('links/:linkId')
   @RequireCapability('client_projection.read')
   async link(
@@ -36,6 +46,31 @@ export class PortalFigmaController {
     @Res({ passthrough: true }) reply: HeaderWriter,
   ): Promise<StreamableFile> {
     const content = await this.figma.snapshot(context, principal, 'client', frameId);
+    return respondWithSnapshot(content, reply);
+  }
+
+  @Get('frames/:frameId/thumb')
+  @RequireCapability('client_projection.read')
+  async thumb(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('frameId') frameId: string,
+    @Res({ passthrough: true }) reply: HeaderWriter,
+  ): Promise<StreamableFile> {
+    const content = await this.figma.thumb(context, principal, 'client', frameId);
+    return respondWithSnapshot(content, reply);
+  }
+
+  /** The sharper render for zooming in, drawn with the team's Figma connection (rate-limited). */
+  @Get('frames/:frameId/render')
+  @RequireCapability('client_projection.read')
+  async render(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('frameId') frameId: string,
+    @Res({ passthrough: true }) reply: HeaderWriter,
+  ): Promise<StreamableFile> {
+    const content = await this.figma.render(context, principal, 'client', frameId);
     return respondWithSnapshot(content, reply);
   }
 }
