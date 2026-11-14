@@ -5,6 +5,7 @@ import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clientOnlyRead } from '../../lib/portal-preview';
 import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
+import { PortalFigmaLinks } from '../viewer/FigmaLinks';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import { listPortalFiles, listPortalProjects, portalFileDownloadPath } from '../../lib/api/portal';
 import type { PortalFile } from '../../lib/api/portal';
@@ -130,6 +131,7 @@ export function PortalFilesScreen({
       }
     >
       <div className="tm-pt tm-pt--compact">
+        <PortalFigmaLinks organizationSlug={organizationSlug} client={api} />
         {projects.isError ? (
           <InlineAlert tone="danger" title={t('PortalFilesScreen.loadErrorTitle')} live>
             {describe(projects.error)}

@@ -1,9 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Badge, Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
+import {
+  Badge,
+  Button,
+  Checkbox,
+  InlineAlert,
+  LoadingRegion,
+  Skeleton,
+  StateCapsule,
+} from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
@@ -17,8 +25,10 @@ import {
   getFigmaLink,
   listFigmaFrameThreads,
   refreshFigmaSnapshots,
+  setFigmaPages,
   type FigmaFrame,
   type FigmaLink,
+  type FigmaSnapshotError,
 } from '../../lib/api/figma';
 import { sortThreadsForPanel, type ReviewDoor, type ReviewThread } from '../../lib/api/review';
 import { localeDirection } from '../../lib/i18n/direction';
@@ -39,6 +49,7 @@ import type { DrawSettings } from './DrawLayer';
 import { DrawToolbar } from './DrawToolbar';
 import { THREAD_POLL_MS, PENDING_POLL_MS, threadsOnStage } from './FileViewer';
 import { FIGMA_PROBLEM_KEYS } from './FigmaLinks';
+import { FigmaPageCanvas } from './FigmaPageCanvas';
 import { ImageStage } from './ImageStage';
 import type { ViewerDraft } from './PinLayer';
 import { ThreadCard } from './ThreadCard';
@@ -55,6 +66,8 @@ import './viewer-versions.css';
 import './figma-stage.css';
 
 export type FigmaMode = 'snapshot' | 'live';
+/** One frame on its own, or the whole page as it is laid out in Figma. */
+export type FigmaView = 'frame' | 'page';
 export type FigmaRailFilter = 'frame' | 'all' | 'resolved';
 
 const FILTER_KEYS: Record<FigmaRailFilter, MessageKey> = {
@@ -120,6 +133,97 @@ export function threadsForRail(
   );
 }
 
+/** Why a capture failed, in the team's words. */
+const SNAPSHOT_ERROR_KEYS: Record<FigmaSnapshotError, MessageKey> = {
+  no_connection: 'Figma.viewer.error.no_connection',
+  no_access: 'Figma.viewer.error.no_access',
+  not_found: 'Figma.viewer.error.not_found',
+  too_large: 'Figma.viewer.error.too_large',
+  unreachable: 'Figma.viewer.error.unreachable',
+};
+
+/**
+ * The frames a viewer lists. A client sees only what is (or is being) captured: never a frame left
+ * out, removed in Figma or that could not be captured. The team sees every frame, marked.
+ */
+export function framesForViewer(
+  frames: readonly FigmaFrame[],
+  client: boolean,
+): readonly FigmaFrame[] {
+  if (!client) return frames;
+  return frames.filter(
+    (frame) =>
+      !frame.gone && (frame.snapshotStatus === 'ready' || frame.snapshotStatus === 'pending'),
+  );
+}
+
+/** The frame on screen: the one chosen, else the one the pasted link pointed at, else the first. */
+export function frameOnStage(
+  frames: readonly FigmaFrame[],
+  chosenId: string | null,
+  focusId: string | null,
+): FigmaFrame | null {
+  return (
+    frames.find((frame) => frame.id === chosenId) ??
+    frames.find((frame) => frame.id === focusId) ??
+    frames[0] ??
+    null
+  );
+}
+
+export interface FigmaPageGroup {
+  /** The Figma page id, or null for frames with no page (an older link, a nested frame). */
+  readonly id: string | null;
+  readonly name: string | null;
+  readonly frames: readonly FigmaFrame[];
+}
+
+/** The listed frames grouped by Figma page, in the file's page order. */
+export function framesByPage(
+  frames: readonly FigmaFrame[],
+  pages: readonly { readonly id: string; readonly name: string }[],
+): readonly FigmaPageGroup[] {
+  const groups: FigmaPageGroup[] = pages
+    .map((page) => ({
+      id: page.id,
+      name: page.name,
+      frames: frames.filter((frame) => frame.pageId === page.id),
+    }))
+    .filter((group) => group.frames.length > 0);
+  const known = new Set(pages.map((page) => page.id));
+  const other = frames.filter((frame) => frame.pageId === null || !known.has(frame.pageId));
+  if (other.length > 0) groups.push({ id: null, name: null, frames: other });
+  return groups;
+}
+
+/**
+ * Whether the snapshot is too soft for the zoom on screen: it is shown larger than its own pixels
+ * (on this screen's pixel density), so the sharper render is worth fetching.
+ */
+export function wantsSharp(zoom: number, devicePixelRatio: number): boolean {
+  return zoom * Math.max(1, devicePixelRatio) > 1.05;
+}
+
+/**
+ * Figma's embed tells its host which frame it shows (`PRESENTED_NODE_CHANGED`) and when it has
+ * finished loading (`INITIAL_LOAD`). Anything else, or a message from elsewhere, is ignored.
+ */
+export function readEmbedMessage(
+  origin: string,
+  data: unknown,
+): { readonly kind: 'loaded' } | { readonly kind: 'node'; readonly nodeId: string } | null {
+  if (origin !== 'https://embed.figma.com' && origin !== 'https://www.figma.com') return null;
+  if (typeof data !== 'object' || data === null) return null;
+  const message = data as { readonly type?: unknown; readonly data?: unknown };
+  if (message.type === 'INITIAL_LOAD') return { kind: 'loaded' };
+  if (message.type !== 'PRESENTED_NODE_CHANGED') return null;
+  const detail = message.data as { readonly presentedNodeId?: unknown } | null | undefined;
+  const nodeId = detail?.presentedNodeId;
+  return typeof nodeId === 'string' && /^[\w:;-]{1,64}$/u.test(nodeId)
+    ? { kind: 'node', nodeId: nodeId.replace('-', ':') }
+    : null;
+}
+
 /** Whether the link still has frames whose snapshot is being made. */
 export function hasPendingSnapshots(link: FigmaLink | undefined): boolean {
   return link?.frames.some((frame) => frame.snapshotStatus === 'pending') ?? false;
@@ -180,9 +284,16 @@ export function FigmaStage({
   );
 
   const [frameId, setFrameId] = useState<string | null>(null);
-  const frames = useMemo(() => link?.frames ?? [], [link]);
-  const frame = frames.find((item) => item.id === frameId) ?? frames[0] ?? null;
+  const frames = useMemo(() => framesForViewer(link?.frames ?? [], portalLook), [link, portalLook]);
+  const frame = frameOnStage(frames, frameId, link?.focusFrameId ?? null);
+  const groups = useMemo(() => framesByPage(frames, link?.pages ?? []), [frames, link]);
+  const group = groups.find((item) => item.frames.some((one) => one.id === frame?.id)) ?? null;
   const [mode, setMode] = useState<FigmaMode>('snapshot');
+  const [view, setView] = useState<FigmaView>('frame');
+  const [liveReady, setLiveReady] = useState(false);
+  const [sharpLoaded, setSharpLoaded] = useState(false);
+  const [choosingPages, setChoosingPages] = useState<ReadonlySet<string> | null>(null);
+  const liveRef = useRef<HTMLIFrameElement>(null);
   const [filter, setFilter] = useState<FigmaRailFilter>('frame');
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(initialThreadId ?? null);
   const [tool, setTool] = useState<ViewerTool>('select');
@@ -245,13 +356,38 @@ export function FigmaStage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedThreadId, byFrame]);
 
+  // A new frame on stage: nothing placed or written for the last one may follow it (a comment
+  // typed on one frame was once saved on another).
   useEffect(() => {
     setNatural(null);
     setStageError(false);
+    setSharpLoaded(false);
     setDraft(null);
     setStrokes([]);
+    setWritingGeneral(false);
     setZoomChoice('fit');
   }, [frame?.id]);
+
+  // Live mode: the frame Figma's embed shows becomes the frame on stage.
+  const framesRef = useRef(frames);
+  framesRef.current = frames;
+  useEffect(() => {
+    if (mode !== 'live') return;
+    setLiveReady(false);
+    function onMessage(event: MessageEvent) {
+      if (event.source !== liveRef.current?.contentWindow) return;
+      const message = readEmbedMessage(event.origin, event.data);
+      if (!message) return;
+      if (message.kind === 'loaded') {
+        setLiveReady(true);
+        return;
+      }
+      const shown = framesRef.current.find((item) => item.nodeId === message.nodeId);
+      if (shown) setFrameId(shown.id);
+    }
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [mode]);
 
   useEffect(() => {
     if (tool === 'select') setDraft(null);
@@ -274,8 +410,9 @@ export function FigmaStage({
   );
 
   const create = useMutation({
-    mutationFn: (input: ComposerSubmit & { readonly draft: ViewerDraft | null }) => {
-      if (!frame) throw new Error('no frame');
+    mutationFn: (
+      input: ComposerSubmit & { readonly draft: ViewerDraft | null; readonly frameId: string },
+    ) => {
       const anchor = input.draft
         ? input.draft.kind === 'box'
           ? { anchorKind: 'box' as const, anchor: input.draft.box }
@@ -286,7 +423,7 @@ export function FigmaStage({
       return createFigmaFrameThread(
         api,
         organizationSlug,
-        frame.id,
+        input.frameId,
         {
           ...anchor,
           audience: apiDoor === 'portal' ? 'client_visible' : input.audience,
@@ -309,6 +446,15 @@ export function FigmaStage({
   const refresh = useMutation({
     mutationFn: () => refreshFigmaSnapshots(api, organizationSlug, linkId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: linkKey }),
+  });
+
+  const savePages = useMutation({
+    mutationFn: (pageIds: readonly string[] | null) =>
+      setFigmaPages(api, organizationSlug, linkId, pageIds),
+    onSuccess: (next) => {
+      setChoosingPages(null);
+      queryClient.setQueryData(linkKey, next);
+    },
   });
 
   const fitted = natural && available ? fitZoom(natural, available, 'contain') : 1;
@@ -347,7 +493,7 @@ export function FigmaStage({
             onClick={() => refresh.mutate()}
           >
             <ViewerIcon name="refresh" />
-            {t('Figma.viewer.refresh')}
+            {t('Figma.viewer.refreshFigma')}
           </Button>
         ) : null}
         {link?.openUrl ? (
@@ -398,7 +544,7 @@ export function FigmaStage({
     const onStage = threadsOnStage(frameThreads, null, null);
     const open = frameThreads.filter((thread) => thread.status === 'open').length;
     const snapshotReady = frame?.snapshotStatus === 'ready' && frame.snapshotPath !== null;
-    const onCanvas = !showLive && snapshotReady && !stageError;
+    const onCanvas = !showLive && view === 'frame' && snapshotReady && !stageError;
     const canPin = caps.canComment && onCanvas;
 
     const composer = (onCancel: () => void, placed: ViewerDraft | null) => (
@@ -420,7 +566,9 @@ export function FigmaStage({
             </InlineAlert>
           ) : null
         }
-        onSubmit={(input) => create.mutate({ ...input, draft: placed })}
+        onSubmit={(input) => {
+          if (frame) create.mutate({ ...input, draft: placed, frameId: frame.id });
+        }}
         onCancel={onCancel}
       />
     );
@@ -451,13 +599,169 @@ export function FigmaStage({
         </div>
       ) : null;
 
-    const stage = !frame ? (
-      <div className="tm-figma-state">
-        <p className="tm-figma-state__title">{t('Figma.viewer.noFrames')}</p>
+    const failed = stageError || frame?.snapshotStatus === 'failed';
+    const skipped = frame?.snapshotStatus === 'skipped';
+    // The client never sees a technical reason: anything not ready is "being prepared".
+    const preparing = (
+      <div className="tm-figma-state" role="status">
+        <p className="tm-figma-state__title">{t('Figma.viewer.preparingTitle')}</p>
+        <p className="tm-figma-state__body">{t('Figma.viewer.preparingBody')}</p>
       </div>
+    );
+    const notReady = !frame ? null : portalLook ? (
+      preparing
+    ) : (
+      <div className="tm-figma-state" role="status">
+        <p className="tm-figma-state__title">
+          {failed
+            ? t('Figma.viewer.snapshotFailedTitle')
+            : skipped
+              ? t('Figma.viewer.skippedTitle')
+              : t('Figma.viewer.snapshotPendingTitle')}
+        </p>
+        <p className="tm-figma-state__body">
+          {failed
+            ? frame.snapshotError
+              ? t(SNAPSHOT_ERROR_KEYS[frame.snapshotError])
+              : t('Figma.viewer.snapshotFailedBody')
+            : skipped
+              ? t('Figma.viewer.skippedBody')
+              : t('Figma.viewer.snapshotPendingBody')}
+        </p>
+        {failed && caps.canRefresh ? (
+          <Button
+            type="button"
+            tone="outline"
+            loading={refresh.isPending}
+            loadingLabel={t('Figma.viewer.refreshing')}
+            onClick={() => refresh.mutate()}
+          >
+            {t('Figma.viewer.retry')}
+          </Button>
+        ) : null}
+      </div>
+    );
+    const sharp =
+      frame?.sharpPath && natural && wantsSharp(zoom, globalThis.devicePixelRatio ?? 1)
+        ? figmaSnapshotUrl(base, organizationSlug, frame.sharpPath)
+        : null;
+    const canvas =
+      frame && snapshotReady && !stageError ? (
+        <ViewerCanvas
+          natural={natural}
+          zoom={zoom}
+          tool={canPin ? tool : 'select'}
+          threads={onStage}
+          selectedThreadId={selectedThreadId}
+          draft={draft}
+          draftNumber={nextNumber}
+          pageNo={null}
+          onDraft={(next) => {
+            create.reset();
+            setSelectedThreadId(null);
+            setDraft(next);
+          }}
+          onSelect={(threadId) => {
+            setDraft(null);
+            setSelectedThreadId(threadId);
+          }}
+          onMove={() => undefined}
+          onAvailableSize={setAvailable}
+          onZoomStep={(step) => setZoomChoice(stepZoom(zoom, step))}
+          popover={popover}
+          drawing={{
+            strokes,
+            settings: drawSettings,
+            onStroke: (stroke) => {
+              setDrawLimit(false);
+              setStrokes((current) => [...current, stroke]);
+            },
+            onLimit: () => setDrawLimit(true),
+            toolbar: (
+              <DrawToolbar
+                settings={drawSettings}
+                onSettings={setDrawSettings}
+                canUndo={strokes.length > 0}
+                onUndo={() => {
+                  setDrawLimit(false);
+                  setStrokes((current) => current.slice(0, -1));
+                }}
+                canFinish={strokes.length > 0}
+                onDone={() => {
+                  create.reset();
+                  setSelectedThreadId(null);
+                  setDraft({ kind: 'draw', strokes, bbox: strokesBBox(strokes), pageNo: null });
+                }}
+                limitReached={drawLimit}
+              />
+            ),
+          }}
+          overlay={
+            <span className="tm-viewer-stage__chip" dir="ltr">
+              {frame.name} · {frame.width}×{frame.height}
+            </span>
+          }
+        >
+          <ImageStage
+            src={figmaSnapshotUrl(base, organizationSlug, frame.snapshotPath!)}
+            alt={frame.name}
+            onNaturalSize={setNatural}
+            onError={() => setStageError(true)}
+          />
+          {sharp ? (
+            // The same box at the same zoom, so the pins and the scroll position stay put; shown
+            // only once it has loaded, so nothing flashes.
+            <img
+              className="tm-figma-sharp"
+              data-loaded={sharpLoaded}
+              src={sharp}
+              alt=""
+              aria-hidden="true"
+              crossOrigin="use-credentials"
+              draggable={false}
+              decoding="async"
+              onLoad={() => setSharpLoaded(true)}
+            />
+          ) : null}
+        </ViewerCanvas>
+      ) : null;
+    const stage = !frame ? (
+      portalLook ? (
+        preparing
+      ) : (
+        <div className="tm-figma-state">
+          <p className="tm-figma-state__title">{t('Figma.viewer.noFrames')}</p>
+        </div>
+      )
+    ) : view === 'page' && !showLive ? (
+      <FigmaPageCanvas
+        frames={group?.frames ?? frames}
+        thumbUrl={(item) =>
+          item.thumbPath ? figmaSnapshotUrl(base, organizationSlug, item.thumbPath) : null
+        }
+        selectedFrameId={frame.id}
+        onOpen={(id) => {
+          setSelectedThreadId(null);
+          setFrameId(id);
+          setView('frame');
+        }}
+      />
     ) : showLive && frame.embedUrl ? (
-      <div className="tm-figma-live">
+      // The snapshot first; Figma's embed loads behind it and takes over once it is ready.
+      <div className="tm-figma-live" data-ready={liveReady}>
+        {liveReady ? null : (
+          <div className="tm-figma-live__cover">
+            {canvas ?? notReady}
+            <div className="tm-figma-live__loading" role="status">
+              <span>{t('Figma.viewer.liveLoading')}</span>
+              <Button type="button" tone="outline" onClick={() => setLiveReady(true)}>
+                {t('Figma.viewer.liveShowNow')}
+              </Button>
+            </div>
+          </div>
+        )}
         <iframe
+          ref={liveRef}
           className="tm-figma-live__frame"
           src={frame.embedUrl}
           title={t('Figma.viewer.liveTitle').replace('{name}', frame.name)}
@@ -466,84 +770,8 @@ export function FigmaStage({
           sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
         />
       </div>
-    ) : !snapshotReady || stageError ? (
-      <div className="tm-figma-state" role="status">
-        <p className="tm-figma-state__title">
-          {stageError || frame.snapshotStatus === 'failed'
-            ? t('Figma.viewer.snapshotFailedTitle')
-            : t('Figma.viewer.snapshotPendingTitle')}
-        </p>
-        <p className="tm-figma-state__body">
-          {stageError || frame.snapshotStatus === 'failed'
-            ? caps.canRefresh
-              ? t('Figma.viewer.snapshotFailedBodyRefresh')
-              : t('Figma.viewer.snapshotFailedBody')
-            : t('Figma.viewer.snapshotPendingBody')}
-        </p>
-      </div>
     ) : (
-      <ViewerCanvas
-        natural={natural}
-        zoom={zoom}
-        tool={canPin ? tool : 'select'}
-        threads={onStage}
-        selectedThreadId={selectedThreadId}
-        draft={draft}
-        draftNumber={nextNumber}
-        pageNo={null}
-        onDraft={(next) => {
-          create.reset();
-          setSelectedThreadId(null);
-          setDraft(next);
-        }}
-        onSelect={(threadId) => {
-          setDraft(null);
-          setSelectedThreadId(threadId);
-        }}
-        onMove={() => undefined}
-        onAvailableSize={setAvailable}
-        onZoomStep={(step) => setZoomChoice(stepZoom(zoom, step))}
-        popover={popover}
-        drawing={{
-          strokes,
-          settings: drawSettings,
-          onStroke: (stroke) => {
-            setDrawLimit(false);
-            setStrokes((current) => [...current, stroke]);
-          },
-          onLimit: () => setDrawLimit(true),
-          toolbar: (
-            <DrawToolbar
-              settings={drawSettings}
-              onSettings={setDrawSettings}
-              canUndo={strokes.length > 0}
-              onUndo={() => {
-                setDrawLimit(false);
-                setStrokes((current) => current.slice(0, -1));
-              }}
-              canFinish={strokes.length > 0}
-              onDone={() => {
-                create.reset();
-                setSelectedThreadId(null);
-                setDraft({ kind: 'draw', strokes, bbox: strokesBBox(strokes), pageNo: null });
-              }}
-              limitReached={drawLimit}
-            />
-          ),
-        }}
-        overlay={
-          <span className="tm-viewer-stage__chip" dir="ltr">
-            {frame.name} · {frame.width}×{frame.height}
-          </span>
-        }
-      >
-        <ImageStage
-          src={figmaSnapshotUrl(base, organizationSlug, frame.snapshotPath!)}
-          alt={frame.name}
-          onNaturalSize={setNatural}
-          onError={() => setStageError(true)}
-        />
-      </ViewerCanvas>
+      (canvas ?? notReady)
     );
 
     const subline = frame ? (
@@ -566,8 +794,92 @@ export function FigmaStage({
       </p>
     ) : null;
 
+    const capture = link.capture;
+    const shownCount = portalLook ? frames.length : capture.frameCount;
+    const progress =
+      capture.frameCount > 0 ? (
+        <p className="tm-figma-progress" role="status">
+          {(portalLook ? t('Figma.viewer.progressClient') : t('Figma.viewer.progress'))
+            .replace('{ready}', String(capture.ready))
+            .replace('{total}', String(shownCount))
+            .replace('{pages}', String(Math.max(1, capture.pageCount)))}
+          {capture.pending > 0 ? (
+            <>
+              <span aria-hidden="true"> · </span>
+              {t('Figma.viewer.progressPreparing')}
+            </>
+          ) : null}
+          {!portalLook && capture.skipped > 0 ? (
+            <>
+              <span aria-hidden="true"> · </span>
+              {t('Figma.viewer.progressSkipped').replace('{count}', String(capture.skipped))}
+            </>
+          ) : null}
+        </p>
+      ) : null;
+    const chosenPages =
+      choosingPages ?? new Set(link.pages.filter((page) => page.selected).map((page) => page.id));
+    const overLimit =
+      !portalLook && caps.canRefresh && capture.overLimit ? (
+        <InlineAlert tone="warning" title={t('Figma.viewer.overLimitTitle')}>
+          <p>
+            {t('Figma.viewer.overLimitBody')
+              .replace('{count}', String(capture.frameCount))
+              .replace('{max}', String(capture.maxFrames))}
+          </p>
+          {choosingPages ? (
+            <fieldset className="tm-figma-pages">
+              <legend className="tm-viewer-rail__note">{t('Figma.viewer.pagesLegend')}</legend>
+              {link.pages.map((page) => (
+                <Checkbox
+                  key={page.id}
+                  label={
+                    <span dir="auto">
+                      {t('Figma.viewer.pageOption')
+                        .replace('{name}', page.name)
+                        .replace('{count}', String(page.frameCount))}
+                    </span>
+                  }
+                  checked={chosenPages.has(page.id)}
+                  onChange={() =>
+                    setChoosingPages(() => {
+                      const next = new Set(chosenPages);
+                      if (next.has(page.id)) next.delete(page.id);
+                      else next.add(page.id);
+                      return next;
+                    })
+                  }
+                />
+              ))}
+              <span className="tm-figma-pages__actions">
+                <Button
+                  type="button"
+                  tone="ink"
+                  disabled={chosenPages.size === 0}
+                  loading={savePages.isPending}
+                  loadingLabel={t('Figma.viewer.pagesSaving')}
+                  onClick={() => savePages.mutate([...chosenPages])}
+                >
+                  {t('Figma.viewer.pagesSave')}
+                </Button>
+                <Button type="button" tone="outline" onClick={() => setChoosingPages(null)}>
+                  {t('Figma.attach.cancel')}
+                </Button>
+              </span>
+            </fieldset>
+          ) : (
+            <Button type="button" tone="outline" onClick={() => setChoosingPages(chosenPages)}>
+              {t('Figma.viewer.pagesChoose')}
+            </Button>
+          )}
+          {savePages.isError ? <p>{describeError(savePages.error)}</p> : null}
+        </InlineAlert>
+      ) : null;
+
     const notice = (
       <>
+        {progress}
+        {overLimit}
         {subline}
         {showLive ? <InlineAlert tone="neutral">{t('Figma.viewer.liveNotice')}</InlineAlert> : null}
         {refresh.isError ? (
@@ -583,6 +895,26 @@ export function FigmaStage({
         ) : null}
       </>
     );
+
+    const viewToggle =
+      !showLive && (group?.frames ?? frames).some((item) => item.x !== null) ? (
+        <div className="tm-figma-mode" role="group" aria-label={t('Figma.viewer.viewLabel')}>
+          {(['frame', 'page'] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              className="tm-figma-mode__option"
+              aria-pressed={view === value}
+              title={t(
+                value === 'frame' ? 'Figma.viewer.view.frameHint' : 'Figma.viewer.view.pageHint',
+              )}
+              onClick={() => setView(value)}
+            >
+              {t(value === 'frame' ? 'Figma.viewer.view.frame' : 'Figma.viewer.view.page')}
+            </button>
+          ))}
+        </div>
+      ) : null;
 
     const modeToggle = liveAllowed ? (
       <div className="tm-figma-mode" role="group" aria-label={t('Figma.viewer.modeLabel')}>
@@ -600,10 +932,38 @@ export function FigmaStage({
       </div>
     ) : null;
 
+    const pagePicker =
+      groups.length > 1 ? (
+        <label className="tm-figma-pagepick">
+          <span className="tm-figma-pagepick__label">{t('Figma.viewer.pageLabel')}</span>
+          <select
+            className="tm-figma-pagepick__select"
+            value={group?.id ?? ''}
+            onChange={(event) => {
+              const next = groups.find((item) => (item.id ?? '') === event.target.value);
+              const first = next?.frames[0];
+              if (first) {
+                setSelectedThreadId(null);
+                setFrameId(first.id);
+              }
+            }}
+          >
+            {groups.map((item) => (
+              <option key={item.id ?? ''} value={item.id ?? ''}>
+                {t('Figma.viewer.pageOption')
+                  .replace('{name}', item.name ?? t('Figma.viewer.otherFrames'))
+                  .replace('{count}', String(item.frames.length))}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null;
+    const stripFrames = group?.frames ?? frames;
     const strip =
       frames.length > 0 ? (
         <div className="tm-figma-strip" role="group" aria-label={t('Figma.viewer.framesLabel')}>
-          {frames.map((item) => {
+          {pagePicker}
+          {stripFrames.map((item) => {
             const openCount =
               byFrame.get(item.id)?.filter((thread) => thread.status === 'open').length ??
               item.openThreads;
@@ -619,6 +979,9 @@ export function FigmaStage({
                 }}
               >
                 <span className="tm-figma-strip__name" dir="auto">
+                  {item.sectionName ? (
+                    <span className="tm-figma-strip__section">{item.sectionName} › </span>
+                  ) : null}
                   {item.name}
                 </span>
                 <span className="tm-figma-strip__meta">
@@ -632,6 +995,9 @@ export function FigmaStage({
                   ) : null}
                   {item.sizeChanged ? (
                     <StateCapsule state="waiting">{t('Figma.viewer.frameChanged')}</StateCapsule>
+                  ) : null}
+                  {item.gone ? (
+                    <StateCapsule state="neutral">{t('Figma.viewer.removedInFigma')}</StateCapsule>
                   ) : null}
                 </span>
               </button>
@@ -743,7 +1109,12 @@ export function FigmaStage({
               {caps.canComment && frame ? (
                 <div className="tm-viewer-rail__foot">
                   {writingGeneral ? (
-                    composer(() => setWritingGeneral(false), null)
+                    <>
+                      <p className="tm-viewer-rail__note" dir="auto">
+                        {t('Figma.viewer.commentOn').replace('{name}', frame.name)}
+                      </p>
+                      {composer(() => setWritingGeneral(false), null)}
+                    </>
                   ) : (
                     <>
                       <p className="tm-viewer-rail__note">
@@ -798,12 +1169,13 @@ export function FigmaStage({
               canComment={canPin}
             />
             {modeToggle}
+            {viewToggle}
             <span className="tm-viewer-counter tm-viewer-counter--toolbar">
               {t('Viewer.counter')
                 .replace('{open}', String(open))
                 .replace('{resolved}', String(frameThreads.length - open))}
             </span>
-            {onCanvas ? (
+            {onCanvas && view === 'frame' ? (
               <ZoomControls
                 zoom={zoom}
                 fitted={zoomChoice === 'fit'}

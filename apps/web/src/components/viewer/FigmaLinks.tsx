@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Checkbox, Field, InlineAlert, Switch } from '@tmanage/ui';
+import { Button, Checkbox, Field, InlineAlert, Radio, RadioGroup, Switch } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
 import { useDescribeApiError } from '../../lib/api/describe-error';
@@ -12,6 +12,7 @@ import {
   figmaProblem,
   inspectFigmaUrl,
   listFigmaLinks,
+  listPortalFigmaLinks,
   type FigmaAttachTarget,
   type FigmaInspection,
   type FigmaLink,
@@ -37,7 +38,7 @@ export const FIGMA_PROBLEM_KEYS: Record<
   unreachable: { title: 'Figma.problem.unreachableTitle', body: 'Figma.problem.unreachable' },
 };
 
-/** The frames ticked by default: the one the link points at, or the first ones up to the cap. */
+/** "Only some frames": ticked first, the one the link points at, or the first ones up to the cap. */
 export function defaultFrameChoice(inspection: FigmaInspection): ReadonlySet<string> {
   if (
     inspection.linkedNodeId &&
@@ -46,6 +47,30 @@ export function defaultFrameChoice(inspection: FigmaInspection): ReadonlySet<str
     return new Set([inspection.linkedNodeId]);
   }
   return new Set(inspection.frames.slice(0, inspection.maxFrames).map((frame) => frame.nodeId));
+}
+
+/** How a link brings in the file: every frame (the default), or the ones picked by hand. */
+export type FigmaAttachScope = 'whole' | 'some';
+
+/** What the attach request carries: no frame list for the whole file. */
+export function attachInputFor(
+  url: string,
+  scope: FigmaAttachScope,
+  chosen: ReadonlySet<string>,
+  audience: FigmaLinkAudience,
+  target: { readonly type: FigmaAttachTarget; readonly id: string } | null,
+) {
+  return {
+    url: url.trim(),
+    ...(scope === 'some' ? { nodeIds: [...chosen] } : {}),
+    audience,
+    attachedTo: target,
+  };
+}
+
+/** Where a person connects Figma (Integrations). */
+export function figmaConnectHref(organizationSlug: string): string {
+  return `/${organizationSlug}/automations/apps`;
 }
 
 export interface FigmaLinksPanelProps {
@@ -58,8 +83,10 @@ export interface FigmaLinksPanelProps {
 }
 
 /**
- * V-53 entry point — the Figma links attached to a work item or deliverable version, each opening
- * the viewer (V-23), and "Attach Figma link" for people who may add files here.
+ * V-53 entry point, the one shared Figma attach point — the Figma links attached to a task, a
+ * deliverable (before or after any version), a file or the project, each opening the viewer
+ * (V-23), and "Attach Figma link" for people who may add files here. No precondition: a screen
+ * mounts it with its own target.
  */
 export function FigmaLinksPanel({
   organizationSlug,
@@ -96,7 +123,12 @@ export function FigmaLinksPanel({
           {t('Figma.links.title')}
         </h2>
         {canAttach ? (
-          <Button type="button" tone="outline" onClick={() => setOpen(true)}>
+          <Button
+            type="button"
+            tone="outline"
+            title={t('Figma.links.attachHint')}
+            onClick={() => setOpen(true)}
+          >
             {t('Figma.links.attach')}
           </Button>
         ) : null}
@@ -152,6 +184,61 @@ export function FigmaLinksPanel({
   );
 }
 
+export interface PortalFigmaLinksProps {
+  readonly organizationSlug: string;
+  readonly client?: ApiClient;
+}
+
+/**
+ * The client's list of Figma designs shared with them (the portal's Files page). Opens the same
+ * viewer, read-only with comments; the client connects nothing. Hidden when there are none.
+ */
+export function PortalFigmaLinks({ organizationSlug, client }: PortalFigmaLinksProps) {
+  const t = useT();
+  const api = client ?? browserApiClient();
+  const id = useId();
+  const links = useQuery({
+    queryKey: ['figma-links', 'portal', organizationSlug],
+    queryFn: () => listPortalFigmaLinks(api, organizationSlug),
+    retry: false,
+  });
+  const items = links.data?.links ?? [];
+  if (items.length === 0) return null;
+  return (
+    <section className="tm-figma-links" aria-labelledby={`${id}-title`}>
+      <div className="tm-figma-links__head">
+        <h2 id={`${id}-title`} className="tm-figma-links__title">
+          {t('Figma.links.portalTitle')}
+        </h2>
+      </div>
+      <ul className="tm-figma-links__list">
+        {items.map((item) => (
+          <li key={item.id} className="tm-figma-links__item">
+            <span>
+              <span className="tm-figma-links__name" dir="auto">
+                {item.fileName ?? t('Figma.links.portalUntitled')}
+              </span>
+              <br />
+              <span className="tm-figma-links__meta">
+                {(item.frameCount === 1
+                  ? t('Figma.links.framesOne')
+                  : t('Figma.links.framesMany')
+                ).replace('{count}', String(item.frameCount))}
+              </span>
+            </span>
+            <Link
+              className="tm-button tm-button--outline tm-button--default"
+              href={`/${organizationSlug}/portal/figma/${encodeURIComponent(item.id)}`}
+            >
+              {t('Figma.links.view')}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export interface AttachFigmaDialogProps {
   readonly api: ApiClient;
   readonly organizationSlug: string;
@@ -162,9 +249,11 @@ export interface AttachFigmaDialogProps {
 }
 
 /**
- * **V-53 — Attach a Figma link.** Paste a Figma address, see the frames it holds (the one the link
- * points at is ticked), choose up to 20, choose who sees the snapshots, and attach. A person who has
- * not connected Figma is sent to Connected apps; a file their Figma account cannot open says so.
+ * **V-53 — Attach a Figma link.** Paste a Figma address and TManage reads the file: its pages and
+ * every frame on them. The whole file is attached by default (the viewer opens on the frame the
+ * link points at); "Only some frames" picks them by hand. Choose who sees it, and attach. A person
+ * who has not connected Figma is sent to Integrations; a file their Figma account cannot open
+ * says so.
  */
 export function AttachFigmaDialog({
   api,
@@ -180,6 +269,7 @@ export function AttachFigmaDialog({
   const dialogRef = useRef<HTMLDivElement>(null);
   const [url, setUrl] = useState('');
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
+  const [scope, setScope] = useState<FigmaAttachScope>('whole');
   const [audience, setAudience] = useState<FigmaLinkAudience>('internal');
 
   useEffect(() => {
@@ -201,17 +291,17 @@ export function AttachFigmaDialog({
   });
   const attach = useMutation({
     mutationFn: () =>
-      attachFigmaLink(api, organizationSlug, projectId, {
-        url: url.trim(),
-        nodeIds: [...chosen],
-        audience,
-        attachedTo: target,
-      }),
+      attachFigmaLink(
+        api,
+        organizationSlug,
+        projectId,
+        attachInputFor(url, scope, chosen, audience, target),
+      ),
     onSuccess: onAttached,
   });
 
   const inspection = inspect.data;
-  const max = inspection?.maxFrames ?? 20;
+  const max = inspection?.maxFrames ?? 250;
   const failure = inspect.error ?? attach.error;
   const problem = figmaProblem(failure);
 
@@ -256,6 +346,11 @@ export function AttachFigmaDialog({
             >
               {t('Figma.attach.find')}
             </Button>
+            {inspect.isPending ? (
+              <p className="tm-viewer-rail__note" role="status">
+                {t('Figma.attach.reading')}
+              </p>
+            ) : null}
           </form>
 
           {failure ? (
@@ -267,8 +362,8 @@ export function AttachFigmaDialog({
               <p>{problem ? t(FIGMA_PROBLEM_KEYS[problem].body) : describeError(failure)}</p>
               {problem === 'not_connected' ? (
                 <p>
-                  <Link href={`/${organizationSlug}/settings/connected-apps`}>
-                    {t('Figma.attach.connectLink')}
+                  <Link href={figmaConnectHref(organizationSlug)}>
+                    {t('Figma.attach.connectIntegrations')}
                   </Link>
                 </p>
               ) : null}
@@ -278,13 +373,37 @@ export function AttachFigmaDialog({
           {inspection ? (
             <>
               <p className="tm-viewer-rail__note" dir="auto">
-                {t('Figma.attach.found')
-                  .replace('{name}', inspection.fileName)
+                {t('Figma.attach.foundFile')
+                  .replace('{name}', inspection.fileName || t('Figma.viewer.untitled'))
+                  .replace('{pages}', String(inspection.pages.length))
                   .replace('{count}', String(inspection.frames.length))}
               </p>
               {inspection.frames.length === 0 ? (
                 <p className="tm-viewer-rail__note">{t('Figma.attach.noFrames')}</p>
               ) : (
+                <RadioGroup legend={t('Figma.attach.scopeLegend')}>
+                  <Radio
+                    label={t('Figma.attach.scopeWhole')}
+                    hint={
+                      inspection.frames.length > max
+                        ? t('Figma.attach.scopeWholeOver').replace('{max}', String(max))
+                        : t('Figma.attach.scopeWholeHint')
+                    }
+                    checked={scope === 'whole'}
+                    onChange={() => setScope('whole')}
+                  />
+                  <Radio
+                    label={t('Figma.attach.scopeSome')}
+                    hint={t('Figma.attach.scopeSomeHint')}
+                    checked={scope === 'some'}
+                    onChange={() => setScope('some')}
+                  />
+                </RadioGroup>
+              )}
+              {inspection.truncated ? (
+                <p className="tm-viewer-rail__note">{t('Figma.attach.truncated')}</p>
+              ) : null}
+              {scope === 'some' && inspection.frames.length > 0 ? (
                 <fieldset className="tm-figma-attach__fieldset">
                   <legend className="tm-viewer-rail__note">
                     {t('Figma.attach.framesLegend')
@@ -300,6 +419,7 @@ export function AttachFigmaDialog({
                             label={
                               <span dir="auto">
                                 {frame.pageName ? `${frame.pageName} › ` : ''}
+                                {frame.sectionName ? `${frame.sectionName} › ` : ''}
                                 {frame.name}
                               </span>
                             }
@@ -322,7 +442,7 @@ export function AttachFigmaDialog({
                     })}
                   </ul>
                 </fieldset>
-              )}
+              ) : null}
               <Switch
                 label={t('Figma.attach.clientVisible')}
                 hint={t('Figma.attach.clientVisibleHint')}
@@ -342,7 +462,11 @@ export function AttachFigmaDialog({
             type="button"
             tone="ink"
             size="accessible"
-            disabled={!inspection || chosen.size === 0}
+            disabled={
+              !inspection ||
+              inspection.frames.length === 0 ||
+              (scope === 'some' && chosen.size === 0)
+            }
             loading={attach.isPending}
             loadingLabel={t('Figma.attach.attaching')}
             onClick={() => attach.mutate()}

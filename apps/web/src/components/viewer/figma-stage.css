@@ -57,6 +57,173 @@
   border: 0;
 }
 
+/* Live: the snapshot covers the embed until Figma says it has loaded. */
+.tm-figma-live__cover {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper-150);
+}
+
+.tm-figma-live__loading {
+  position: absolute;
+  inset-block-end: var(--s4);
+  inset-inline-start: 50%;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-800);
+  font-size: var(--t-ui-sm);
+  transform: translateX(-50%);
+}
+
+/* The sharper render, in the snapshot's box, shown once loaded. */
+.tm-figma-sharp {
+  position: absolute;
+  inset: 0;
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+.tm-figma-sharp[data-loaded='true'] {
+  opacity: 1;
+}
+
+.tm-figma-progress {
+  margin: 0;
+  color: var(--ink-800);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-figma-pages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: var(--s2) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.tm-figma-pages__actions {
+  display: inline-flex;
+  gap: var(--s2);
+}
+
+/* Page picker at the start of the frame strip. */
+.tm-figma-pagepick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  flex: none;
+  justify-content: center;
+}
+
+.tm-figma-pagepick__label {
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+}
+
+.tm-figma-pagepick__select {
+  min-block-size: var(--control);
+  padding-inline: var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+}
+
+.tm-figma-pagepick__select:focus-visible,
+.tm-figma-page__frame:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-figma-strip__section {
+  color: var(--ink-650);
+}
+
+/* Whole-page view: every frame where it sits on the page's canvas. */
+.tm-figma-page {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-block-size: 420px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-150);
+  overflow: hidden;
+}
+
+.tm-figma-page__tools {
+  position: absolute;
+  inset-block-start: var(--s3);
+  inset-inline-end: var(--s3);
+  z-index: 3;
+}
+
+.tm-figma-page__viewport {
+  flex: 1 1 auto;
+  min-block-size: 420px;
+  padding: var(--s6);
+  overflow: auto;
+}
+
+.tm-figma-page__canvas {
+  position: relative;
+  margin: 0 auto;
+}
+
+.tm-figma-page__frame {
+  position: absolute;
+  display: block;
+  padding: 0;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-micro);
+  background: var(--paper-0);
+  cursor: zoom-in;
+  overflow: visible;
+}
+
+.tm-figma-page__frame[aria-pressed='true'] {
+  border-color: var(--lime-600);
+  box-shadow: 0 0 0 2px var(--lime-500);
+}
+
+.tm-figma-page__thumb {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  user-select: none;
+}
+
+.tm-figma-page__name {
+  position: absolute;
+  inset-block-end: 100%;
+  inset-inline-start: 0;
+  max-inline-size: 100%;
+  overflow: hidden;
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tm-figma-state {
   flex: 1 1 auto;
   display: flex;

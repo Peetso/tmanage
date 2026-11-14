@@ -13,6 +13,7 @@ import { MemberSelect } from '../MemberSelect';
 import './work-core.css';
 import { WorkCommentsPanel } from './WorkCommentsPanel';
 import { WorkItemCodeLinks } from './WorkItemCodeLinks';
+import { FigmaLinksPanel } from '../viewer/FigmaLinks';
 import { NotScannedDownload } from './NotScannedDownload';
 import { WorkChecklistPanel } from './WorkChecklistPanel';
 import { WorkItemRecurrencePanel } from './WorkItemRecurrencePanel';
@@ -866,6 +867,13 @@ function WorkItemBody({
             latestOf={latestOf}
             members={directory}
             locale={locale}
+          />
+          <FigmaLinksPanel
+            organizationSlug={organizationSlug}
+            projectId={item.projectId}
+            target={{ type: 'work_item', id: item.id }}
+            canAttach
+            client={api}
           />
         </div>
       ) : null}

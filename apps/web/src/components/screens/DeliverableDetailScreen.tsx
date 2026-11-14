@@ -237,15 +237,13 @@ export function DeliverableDetailScreen({
         )}
       </div>
 
-      {latestVersionId(detail.data) ? (
-        <FigmaLinksPanel
-          organizationSlug={organizationSlug}
-          projectId={projectId}
-          target={{ type: 'deliverable_version', id: latestVersionId(detail.data)! }}
-          canAttach
-          client={api}
-        />
-      ) : null}
+      <FigmaLinksPanel
+        organizationSlug={organizationSlug}
+        projectId={projectId}
+        target={{ type: 'deliverable', id: deliverableId }}
+        canAttach
+        client={api}
+      />
 
       {sendingVersion && detail.data ? (
         <SendForApprovalDialog
@@ -342,18 +340,6 @@ function VersionList({
         );
       })}
     </ol>
-  );
-}
-
-/** R4 slice 13 — the newest version, which Figma links are attached to. */
-function latestVersionId(
-  detail:
-    | { readonly versions: readonly { readonly id: string; readonly versionNo?: number | null }[] }
-    | undefined,
-): string | null {
-  if (!detail || detail.versions.length === 0) return null;
-  return (
-    [...detail.versions].sort((a, b) => (b.versionNo ?? 0) - (a.versionNo ?? 0))[0]?.id ?? null
   );
 }
 
