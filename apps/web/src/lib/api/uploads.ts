@@ -1,13 +1,6 @@
 import { deleteFile } from './file-delete';
 import type { ApiClient } from './client';
 import { ApiRequestError, NetworkError } from './errors';
-import { uploadToDrive, type DriveAttachmentView, type StorageStatusView } from './google-drive';
-import {
-  uploadToOneDrive,
-  uploadsGoToOneDrive,
-  type OneDriveAttachmentView,
-  type OneDriveStatusView,
-} from './onedrive';
 import { attachWorkItemFile, type ItemFile } from './work-items';
 
 /**
@@ -436,7 +429,7 @@ function progressPut(
     const body = init.body;
     const response = await send(String(input), {
       ...init,
-      // A body-less request (OneDrive's clean-up DELETE) must still run after a Cancel.
+      // A body-less request must still run after a Cancel.
       signal: anySignal(
         deadlineFor(body),
         init.signal ?? undefined,
@@ -737,27 +730,6 @@ async function waitUntilReady(
   }
 }
 
-/** Where a new attachment goes (B, 0236): the row's "To Google Drive" / "To OneDrive" note. */
-export type UploadDestination = 'tmanage' | 'google_drive' | 'onedrive';
-
-export function uploadDestination(
-  storage: StorageStatusView | undefined,
-  oneDrive: OneDriveStatusView | undefined,
-): UploadDestination {
-  if (uploadsGoToOneDrive(oneDrive)) return 'onedrive';
-  if (uploadsGoToDrive(storage)) return 'google_drive';
-  return 'tmanage';
-}
-
-/**
- * B. Whether a new attachment goes to Google Drive: the company's storage is `google_drive`
- * (Control > Storage, migration 0210) and Drive is connected. Anything else — TManage storage,
- * another provider, Drive in error, or the status not read yet — keeps the TManage upload.
- */
-export function uploadsGoToDrive(status: StorageStatusView | undefined): boolean {
-  return status?.storageMode === 'google_drive' && status.googleDrive.status === 'connected';
-}
-
 /** Reject with a `NetworkError` once `signal` aborts, whatever `work` is still waiting on. */
 function settleBy<T>(work: Promise<T>, signal: AbortSignal, message: string): Promise<T> {
   const stalled = new Promise<never>((_, reject) => {
@@ -769,63 +741,31 @@ function settleBy<T>(work: Promise<T>, signal: AbortSignal, message: string): Pr
 }
 
 /**
- * Upload a file for a work item to where the company keeps files: Google Drive through the
- * existing `uploadToDrive` (the bytes go straight to Google, the file is then attached as a Drive
- * attachment), OneDrive the same way through `uploadToOneDrive` (0236), or TManage storage,
- * attached as an item file.
+ * Upload a file for a work item and attach it as an item file.
+ *
+ * FIX6 item 2 (live check B1): a task's file takes the same road as a chat or Files upload — the
+ * bytes go to TManage through the upload session, pass the same checks, and open in the same
+ * viewer. The earlier road sent the bytes from the browser straight to the company's OneDrive or
+ * Google Drive upload host; the site's Content-Security-Policy blocks those hosts (a business
+ * OneDrive's host is a per-tenant `*.sharepoint.com` name, so it cannot be listed exactly), every
+ * task upload failed, and an empty upload session was left on the owner's OneDrive. Files already
+ * in a drive are attached from the drive pickers instead, with no upload.
  */
 export async function uploadWorkItemAttachment(
   client: ApiClient,
   organizationSlug: string,
-  input: {
-    readonly workItemId: string;
-    readonly projectId: string;
-    readonly file: File;
-    readonly storage: StorageStatusView | undefined;
-    /** 0236. OneDrive's status; OneDrive takes the upload when it is the company's storage. */
-    readonly oneDrive?: OneDriveStatusView | undefined;
-  },
+  input: { readonly workItemId: string; readonly projectId: string; readonly file: File },
   deps: UploadAttachmentOptions = {},
-): Promise<
-  | { readonly kind: 'onedrive'; readonly attachment: OneDriveAttachmentView }
-  | { readonly kind: 'google_drive'; readonly attachment: DriveAttachmentView }
-  | { readonly kind: 'tmanage'; readonly file: ItemFile }
-> {
-  const deadline = deps.deadline ?? defaultDeadline;
-  const destination = uploadDestination(input.storage, input.oneDrive);
-  if (destination !== 'tmanage') {
-    const transfer = transferTimeoutMs(input.file.size);
-    const put = progressPut(deps, input.file.size, () => deadline(transfer));
-    const within = anySignal(deadline(2 * UPLOAD_STEP_TIMEOUT_MS + transfer), deps.signal);
-    try {
-      if (destination === 'onedrive') {
-        const attachment = await settleBy(
-          uploadToOneDrive(client, organizationSlug, input.workItemId, input.file, put),
-          within,
-          `“${input.file.name}” did not reach OneDrive.`,
-        );
-        return { kind: 'onedrive', attachment };
-      }
-      const attachment = await settleBy(
-        uploadToDrive(client, organizationSlug, input.workItemId, input.file, put),
-        within,
-        `“${input.file.name}” did not reach Google Drive.`,
-      );
-      return { kind: 'google_drive', attachment };
-    } catch (error) {
-      throw cancelledOr(error, deps.signal);
-    }
-  }
+): Promise<ItemFile> {
   const fileAssetId = await uploadProjectFile(
     client,
     organizationSlug,
     { projectId: input.projectId, file: input.file },
     deps,
   );
-  const file = await settleBy(
+  return settleBy(
     attachWorkItemFile(client, organizationSlug, input.workItemId, { fileAssetId }),
-    deadline(UPLOAD_STEP_TIMEOUT_MS),
+    (deps.deadline ?? defaultDeadline)(UPLOAD_STEP_TIMEOUT_MS),
     `“${input.file.name}” was not attached.`,
   );
-  return { kind: 'tmanage', file };
 }

@@ -2,18 +2,13 @@
 
 import { useCallback, useReducer, useRef } from 'react';
 import { useA6T } from '../work/DueDatePicker';
-import {
-  UploadCancelledError,
-  type UploadAttachmentOptions,
-  type UploadDestination,
-} from '../../lib/api/uploads';
+import { UploadCancelledError, type UploadAttachmentOptions } from '../../lib/api/uploads';
 import { sizePair, uploadPercent, uploadRowsReducer, type UploadRow } from '../../lib/upload-queue';
 import './upload-progress.css';
 
 /**
  * Upload progress (Figma 409:6602): a row per file being sent — name, a percentage bar, "4.1 of
- * 9.8 MB · 42 %", Cancel — with "To Google Drive" / "To OneDrive" when the company keeps files
- * there (409:6668), "Upload stopped at 64 %" with Retry and Remove (409:6729), and "Uploaded ·
+ * 9.8 MB · 42 %", Cancel, "Upload stopped at 64 %" with Retry and Remove (409:6729), and "Uploaded ·
  * 1.2 MB · just now" once done (409:6794). Arabic mirrors it (409:6853): the bar fills from the
  * right.
  */
@@ -61,9 +56,9 @@ export function useUploadQueue(describeFailure: (error: unknown) => string | nul
 
   /** Start sending `file`; resolves `true` once it is uploaded and attached. */
   const start = useCallback(
-    (file: File, destination: UploadDestination, run: UploadRun): Promise<boolean> => {
+    (file: File, run: UploadRun): Promise<boolean> => {
       const id = newRowId();
-      dispatch({ type: 'start', id, file, destination });
+      dispatch({ type: 'start', id, file });
       return launch(id, file, 0, run);
     },
     [launch],
@@ -104,12 +99,6 @@ function fileKind(name: string): string {
         .toUpperCase()
         .slice(0, 5);
 }
-
-const UPLOADING_KEY: Readonly<Record<UploadDestination, string>> = {
-  tmanage: 'UploadProgress.uploading',
-  google_drive: 'UploadProgress.uploadingDrive',
-  onedrive: 'UploadProgress.uploadingOneDrive',
-};
 
 function CheckGlyph() {
   return (
@@ -152,7 +141,7 @@ export function UploadProgressItem({
 
   const meta =
     row.state === 'uploading'
-      ? ta(UPLOADING_KEY[row.destination], {
+      ? ta('UploadProgress.uploading', {
           sent: sizes.sent,
           total: sizes.total,
           unit,
@@ -168,15 +157,6 @@ export function UploadProgressItem({
       <span className="tm-upload__info">
         <span className="tm-upload__title">
           <span className="tm-upload__name">{row.file.name}</span>
-          {row.state === 'uploading' && row.destination !== 'tmanage' ? (
-            <span className="tm-upload__dest">
-              {ta(
-                row.destination === 'google_drive'
-                  ? 'UploadProgress.toDrive'
-                  : 'UploadProgress.toOneDrive',
-              )}
-            </span>
-          ) : null}
         </span>
         {row.state === 'done' ? null : (
           <span

@@ -204,29 +204,6 @@ export async function listDriveAttachments(
 }
 
 /**
- * Upload a file into `TManage/<Project>/<Work item>/` and attach it. The API opens a resumable
- * Google upload session; the bytes go from the browser straight to Google, never through TManage.
- */
-export async function uploadToDrive(
-  client: ApiClient,
-  organizationSlug: string,
-  workItemId: string,
-  file: File,
-  fetchImpl: typeof fetch = fetch,
-): Promise<DriveAttachmentView> {
-  const { data } = await client.request<{ uploadUrl: string }>({
-    method: 'POST',
-    path: `${itemPath(organizationSlug, workItemId)}/uploads`,
-    body: { name: file.name, mimeType: file.type || 'application/octet-stream', size: file.size },
-  });
-  const response = await fetchImpl(data.uploadUrl, { method: 'PUT', body: file });
-  if (!response.ok) throw new Error('upload_failed');
-  const uploaded = (await response.json()) as { id?: unknown };
-  if (typeof uploaded.id !== 'string') throw new Error('upload_failed');
-  return attachDriveFile(client, organizationSlug, workItemId, uploaded.id);
-}
-
-/**
  * Read the fragment the API's callback forwards to the Storage screen: `#drive=complete&code&state`
  * or `#drive=error`. Pure, so the hand-over is provable without a browser.
  */

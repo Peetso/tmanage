@@ -48,11 +48,7 @@ import {
 import type { DeliverableDetailView, DeliverableVersionView } from '../../lib/api/deliverables';
 import { listClientOrganizationOptions } from '../../lib/api/project-client';
 import { listProjectShares } from '../../lib/api/clients';
-import {
-  uploadDestination,
-  uploadProjectFileFor,
-  uploadWorkItemAttachment,
-} from '../../lib/api/uploads';
+import { uploadProjectFileFor, uploadWorkItemAttachment } from '../../lib/api/uploads';
 import { UploadProgressItem, useUploadQueue } from '../storage/UploadProgress';
 import type { UploadRow } from '../../lib/upload-queue';
 import { getStorageStatus, listDriveAttachments } from '../../lib/api/google-drive';
@@ -1141,9 +1137,8 @@ function FilesCard({
     onError: (error) => setProblem(describe(error, ta)),
   });
 
-  // B (wave 17). New files go where the company keeps them: Google Drive when Control > Storage
-  // says so and Drive is connected, TManage storage otherwise. Drive files are listed below the
-  // TManage ones in the same rows.
+  // B (wave 17). Files attached from Google Drive are listed below the TManage ones in the same
+  // rows; the storage status decides whether the Drive picker is offered.
   const storageQuery = {
     queryKey: ['storage-status', organizationSlug],
     queryFn: () => getStorageStatus(api, organizationSlug),
@@ -1193,31 +1188,16 @@ function FilesCard({
   );
   const attachFile = async (file: File) => {
     setProblem(undefined);
-    // Read at click time, so a status still loading is not mistaken for TManage storage.
-    const storageNow = await queries.fetchQuery(storageQuery).catch(() => undefined);
-    const oneDriveNow = await queries.fetchQuery(oneDriveQuery).catch(() => undefined);
-    await uploads.start(file, uploadDestination(storageNow, oneDriveNow), async (sent, deps) => {
-      const result = await uploadWorkItemAttachment(
+    // FIX6 item 2: the same road as chat and Files — uploaded to TManage, attached as an item file.
+    await uploads.start(file, async (sent, deps) => {
+      const attached = await uploadWorkItemAttachment(
         api,
         organizationSlug,
-        {
-          workItemId: item.id,
-          projectId: item.projectId,
-          file: sent,
-          storage: storageNow,
-          oneDrive: oneDriveNow,
-        },
+        { workItemId: item.id, projectId: item.projectId, file: sent },
         deps,
       );
-      void queries.invalidateQueries({
-        queryKey:
-          result.kind === 'google_drive'
-            ? driveKey
-            : result.kind === 'onedrive'
-              ? oneDriveKey
-              : filesKey,
-      });
-      return result.kind === 'tmanage' ? result.file.id : result.attachment.id;
+      void queries.invalidateQueries({ queryKey: filesKey });
+      return attached.id;
     });
   };
   // A finished row stands in for its attachment, so the list below does not show it twice.
@@ -1360,7 +1340,7 @@ function FilesCard({
             onCancel={uploads.cancel}
             onRetry={uploads.retry}
             onRemove={(done) => void removeUpload(done)}
-            removableWhenDone={row.destination === 'tmanage'}
+            removableWhenDone
           />
         ))}
         {files

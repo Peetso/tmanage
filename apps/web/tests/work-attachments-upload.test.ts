@@ -5,9 +5,7 @@ import {
   attachmentMimeType,
   attachmentProblem,
   uploadProjectFile,
-  uploadsGoToDrive,
 } from '../src/lib/api/uploads';
-import type { StorageStatusView } from '../src/lib/api/google-drive';
 
 /**
  * The New work capsule's attachments ride the existing upload pipeline (FILE-001/002). The API and
@@ -243,11 +241,5 @@ describe('upload deadlines and storage (wave 17)', () => {
     const upload = uploadProjectFile(client, 'org', input, { fetch: stalled, deadline });
     await expect(upload).rejects.toBeInstanceOf(NetworkError);
     expect(calls.at(-1)?.url).toMatch(/us-1\/cancel$/);
-  });
-  it('sends files to Google Drive only when Drive is the connected company storage', () => {
-    const at = (storageMode: string, status: string) =>
-      uploadsGoToDrive({ storageMode, googleDrive: { status } } as StorageStatusView);
-    expect([at('google_drive', 'connected'), at('google_drive', 'error')]).toEqual([true, false]);
-    expect([at('tmanage', 'connected'), uploadsGoToDrive(undefined)]).toEqual([false, false]);
   });
 });

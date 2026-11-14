@@ -237,67 +237,6 @@ export async function listOneDriveAttachments(
   return data.attachments;
 }
 
-/** Microsoft asks for every chunk but the last to be a multiple of 320 KiB; this is 16 of them. */
-export const ONEDRIVE_CHUNK_BYTES = 320 * 1024 * 16;
-
-/**
- * Upload a file into `TManage/<Project>/<Work item>/` and attach it. The API opens a Graph upload
- * session; the browser sends the bytes to Microsoft's pre-authenticated `uploadUrl` in
- * `Content-Range` chunks, never through TManage, then attaches the item Microsoft answers with.
- */
-export async function uploadToOneDrive(
-  client: ApiClient,
-  organizationSlug: string,
-  workItemId: string,
-  file: File,
-  fetchImpl: typeof fetch = fetch,
-): Promise<OneDriveAttachmentView> {
-  const { data } = await client.request<{ uploadUrl: string }>({
-    method: 'POST',
-    path: `${itemPath(organizationSlug, workItemId)}/uploads`,
-    body: { name: file.name, size: file.size },
-  });
-  let last: Response | undefined;
-  try {
-    for (let start = 0; start < file.size; start += ONEDRIVE_CHUNK_BYTES) {
-      const end = Math.min(start + ONEDRIVE_CHUNK_BYTES, file.size);
-      last = await fetchImpl(data.uploadUrl, {
-        method: 'PUT',
-        headers: { 'content-range': `bytes ${start}-${end - 1}/${file.size}` },
-        body: file.slice(start, end),
-        credentials: 'omit',
-      });
-      if (!last.ok) throw new Error('upload_failed');
-    }
-  } catch (error) {
-    // Best effort: an abandoned session would otherwise linger at Microsoft for days.
-    await fetchImpl(data.uploadUrl, { method: 'DELETE', credentials: 'omit' }).catch(
-      () => undefined,
-    );
-    throw error;
-  }
-  const uploaded = (await last?.json().catch(() => ({}))) as {
-    id?: unknown;
-    parentReference?: { driveId?: unknown };
-  };
-  const driveId = uploaded.parentReference?.driveId;
-  if (typeof uploaded.id !== 'string' || typeof driveId !== 'string') {
-    throw new Error('upload_failed');
-  }
-  return attachOneDriveFile(client, organizationSlug, workItemId, {
-    driveId,
-    itemId: uploaded.id,
-  });
-}
-
-/**
- * B. Whether a new attachment goes to OneDrive: the company's storage is `onedrive` and OneDrive
- * is connected. Anything else keeps the other routes.
- */
-export function uploadsGoToOneDrive(status: OneDriveStatusView | undefined): boolean {
-  return status?.storageMode === 'onedrive' && status.oneDrive.status === 'connected';
-}
-
 /**
  * Read the fragment the API's callback forwards to the Storage screen:
  * `#onedrive=complete&code&state` or `#onedrive=error`. Pure.

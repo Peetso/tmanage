@@ -12,7 +12,7 @@ import { listProjects } from '../../lib/api/projects';
 import { addWorkComment, createWorkItem } from '../../lib/api/work-items';
 import type { CreateWorkItemInput, WorkItemSummary } from '../../lib/api/work-items';
 import { assignItemLabel, defineWorkLabel, listWorkLabels } from '../../lib/api/work-labels';
-import { uploadDestination, uploadWorkItemAttachment } from '../../lib/api/uploads';
+import { uploadWorkItemAttachment } from '../../lib/api/uploads';
 import type { UploadAttachmentOptions } from '../../lib/api/uploads';
 import { CaptureAttachmentPicker, CaptureLabelPicker } from './CaptureExtras';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -22,10 +22,10 @@ import type { ApiClient } from '../../lib/api/client';
 import { useDictation } from '../voice/useDictation';
 import { MicButton, MicNotice } from '../voice/VoiceControls';
 import { DriveAttachPicker } from '../storage/DriveAttachPicker';
-import { attachDriveFile, getStorageStatus } from '../../lib/api/google-drive';
+import { attachDriveFile } from '../../lib/api/google-drive';
 import type { PickedDriveItem } from '../../lib/google-picker';
-import { OneDriveAttachPicker, oneDriveStatusKey } from '../storage/OneDriveAttachPicker';
-import { attachOneDriveFile, getOneDriveStatus } from '../../lib/api/onedrive';
+import { OneDriveAttachPicker } from '../storage/OneDriveAttachPicker';
+import { attachOneDriveFile } from '../../lib/api/onedrive';
 import type { PickedOneDriveItem } from '../../lib/onedrive-picker';
 import { NoStorageAttach, useAttachStorageState } from '../storage/NoStorageAttach';
 import { DueDatePicker, formatChipDay, useA6T } from '../work/DueDatePicker';
@@ -278,40 +278,17 @@ export function QuickCaptureScreen({
           failures.push(`The label “${name}” was not added.`);
         });
       }
-      // B (wave 17): files go to Google Drive when that is the company's storage and it is
-      // connected; a status that cannot be read keeps the TManage upload.
-      const storage =
-        files.length === 0
-          ? undefined
-          : await queryClient
-              .fetchQuery({
-                queryKey: ['storage-status', organizationSlug],
-                queryFn: () => getStorageStatus(api, organizationSlug),
-                staleTime: 60_000,
-              })
-              .catch(() => undefined);
-      // 0236: or to OneDrive, when that is the company's storage.
-      const oneDrive =
-        files.length === 0 || storage?.storageMode !== 'onedrive'
-          ? undefined
-          : await queryClient
-              .fetchQuery({
-                queryKey: oneDriveStatusKey(organizationSlug),
-                queryFn: () => getOneDriveStatus(api, organizationSlug),
-                staleTime: 60_000,
-              })
-              .catch(() => undefined);
-      const destination = uploadDestination(storage, oneDrive);
+      // FIX6 item 2: files take the same road as chat and Files (TManage upload, item file).
       for (const file of files) {
-        await uploads.start(file, destination, async (sent, deps) => {
+        await uploads.start(file, async (sent, deps) => {
           try {
-            const result = await uploadWorkItemAttachment(
+            const attached = await uploadWorkItemAttachment(
               api,
               organizationSlug,
-              { workItemId: item.id, projectId: item.projectId, file: sent, storage, oneDrive },
+              { workItemId: item.id, projectId: item.projectId, file: sent },
               { ...uploadOptions, ...deps },
             );
-            return result.kind === 'tmanage' ? result.file.id : result.attachment.id;
+            return attached.id;
           } catch (error) {
             throw error instanceof ApiRequestError
               ? new Error(`“${sent.name}” was not attached: ${withFullStop(error.message)}`)

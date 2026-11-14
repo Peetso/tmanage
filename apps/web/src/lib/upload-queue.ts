@@ -1,5 +1,3 @@
-import type { UploadDestination } from './api/uploads';
-
 /**
  * The rows of the upload progress list (Figma 409:6602): one per file being sent, with how many
  * bytes have gone, and whether it is still going, stopped or done. Pure, so cancel and retry are
@@ -12,7 +10,6 @@ import type { UploadDestination } from './api/uploads';
 export interface UploadRow {
   readonly id: string;
   readonly file: File;
-  readonly destination: UploadDestination;
   readonly sent: number;
   readonly state: 'uploading' | 'failed' | 'done';
   /** Why it stopped, in words; `null` means the connection dropped (the design's Retry line). */
@@ -27,7 +24,6 @@ export type UploadAction =
       readonly type: 'start';
       readonly id: string;
       readonly file: File;
-      readonly destination: UploadDestination;
     }
   | {
       readonly type: 'progress';
@@ -62,7 +58,6 @@ export function uploadRowsReducer(
         {
           id: action.id,
           file: action.file,
-          destination: action.destination,
           sent: 0,
           state: 'uploading',
           reason: null,
