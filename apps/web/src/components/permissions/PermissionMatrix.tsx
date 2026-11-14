@@ -72,6 +72,11 @@ const STATE_KEY: Readonly<Record<PermissionCellState, MessageKey>> = {
   locked: 'PermissionMatrix.locked' as MessageKey,
 };
 
+/** The cell's sentence ("Delete work items"): its accessible name, tooltip and override line. */
+export function capabilitySentence(t: (key: MessageKey) => string, capability: Capability): string {
+  return t(`PermissionMatrix.cap.${capability}` as MessageKey);
+}
+
 /** Every capability the value holds, as a list. */
 export function heldCapabilities(value: PermissionValue): Capability[] {
   return (Object.keys(value) as Capability[]).filter((capability) => value[capability] === true);
@@ -132,8 +137,7 @@ export function PermissionMatrix({
 
   const areaName = (area: MatrixArea) => t(`PermissionMatrix.area.${area}` as MessageKey);
   const actionName = (action: MatrixAction) => t(`PermissionMatrix.action.${action}` as MessageKey);
-  const sentence = (capability: Capability) =>
-    t(`PermissionMatrix.cap.${capability}` as MessageKey);
+  const sentence = (capability: Capability) => capabilitySentence(t, capability);
 
   const visible = (capability: Capability | null): capability is Capability =>
     capability !== null && !hiddenSet.has(capability);

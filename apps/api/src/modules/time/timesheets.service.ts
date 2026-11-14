@@ -38,10 +38,12 @@ import {
   notFound,
   notOpen,
   notSubmitted,
+  notUnassigned,
   overflowingDay,
   parseDecisionNote,
   parseEntries,
   parseEntryIds,
+  parseSplit,
   parseVersion,
   parseWeek,
   pathId,
@@ -159,6 +161,7 @@ export interface TimesheetsServiceOptions {
     | 'updateEntry'
     | 'stampTimesheet'
     | 'fileUnder'
+    | 'deleteUnassigned'
     | 'sumTotals'
     | 'openLocks'
     | 'weeklyHours'
@@ -182,6 +185,15 @@ export interface TimesheetsServiceOptions {
 }
 
 type Actor = 'member' | 'manager';
+
+/** An entry already on a project is filed only under a task of that project. */
+function sameProject(entry: WorkItemTimeLogRow, item: { readonly projectId: string }): void {
+  if (entry.projectId !== null && entry.projectId !== item.projectId) {
+    throw new ApiError(422, 'validation_failed', 'The entry belongs to another project.', [
+      { field: 'workItemId', message: 'must be in the entry’s project' },
+    ]);
+  }
+}
 
 const boundsOf = (sheet: TimesheetRow): WeekBounds => ({
   periodStart: sheet.periodStart,
@@ -337,7 +349,7 @@ export class TimesheetsService {
     });
   }
 
-  /** File unsorted entries of the week under one work item. */
+  /** File unassigned entries of the week under one work item. */
   async move(
     context: TenantContext,
     principal: Principal,
@@ -358,34 +370,18 @@ export class TimesheetsService {
     const repo = this.options.repository;
     return this.options.database.transaction(context, async (tx) => {
       const { sheet, actor } = await this.editable(tx, context, principal, id);
-      const item = await this.options.workItems.findById(tx, context, workItemId);
-      if (!item || !mayTrackOnItem(principal, item)) throw notFound();
-      if (actor === 'manager' && !this.manages(principal, context, item.projectId)) {
-        throw notFound();
-      }
+      const item = await this.fileTarget(tx, context, principal, actor, workItemId);
       const bounds = boundsOf(sheet);
       const before = await repo.entriesInPeriod(tx, context, [sheet.membershipId], bounds, true);
-      const byId = new Map(before.map((e) => [e.id, e]));
+      const locks = await repo.openLocks(tx, context, bounds);
       for (const entryId of entryIds) {
-        const entry = byId.get(entryId);
-        if (entry === undefined) throw notFound();
-        if (entry.lockedAt !== null) throw entryLocked();
-        if (entry.workItemId !== null) {
-          throw new ApiError(422, 'validation_failed', 'Only unsorted entries can be moved.', [
-            { field: 'entryIds', message: 'entry_already_filed' },
-          ]);
-        }
-        if (entry.projectId !== null && entry.projectId !== item.projectId) {
-          throw new ApiError(422, 'validation_failed', 'The entry belongs to another project.', [
-            { field: 'workItemId', message: 'must be in the entry’s project' },
-          ]);
-        }
+        sameProject(this.unassignedEntry(principal, context, actor, before, entryId, locks), item);
       }
       const moved = await repo.fileUnder(
         tx,
         context,
         entryIds,
-        { workItemId: item.id, projectId: item.projectId },
+        item,
         sheet.id,
         context.membershipId,
         at,
@@ -393,6 +389,115 @@ export class TimesheetsService {
       if (moved !== entryIds.length) throw entryLocked();
       return this.finishEdit(tx, context, principal, sheet, actor, before, at, {
         entries_changed: moved,
+      });
+    });
+  }
+
+  /**
+   * Split one unassigned entry (live check B2): `minutes` go to a new entry, filed under
+   * `workItemId` (a task the caller may track on) or left unassigned; the rest stays. A timed
+   * entry is cut in time too, so the two parts never overlap. Same rules as a move: the sheet must
+   * be editable, the entry unlocked and outside a locked period.
+   */
+  async split(
+    context: TenantContext,
+    principal: Principal,
+    idRaw: string,
+    body: unknown,
+  ): Promise<TimesheetView> {
+    requireInternal(principal);
+    const id = pathId(idRaw);
+    const input = parseSplit(record(body));
+    const at = this.now();
+    const repo = this.options.repository;
+    return this.options.database.transaction(context, async (tx) => {
+      const { sheet, actor } = await this.editable(tx, context, principal, id);
+      const bounds = boundsOf(sheet);
+      const before = await repo.entriesInPeriod(tx, context, [sheet.membershipId], bounds, true);
+      const locks = await repo.openLocks(tx, context, bounds);
+      const entry = this.unassignedEntry(principal, context, actor, before, input.entryId, locks);
+      if (input.minutes >= entry.minutes) {
+        throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+          { field: 'minutes', message: 'must leave at least one minute on the entry' },
+        ]);
+      }
+      let target: { readonly workItemId: string | null; readonly projectId: string | null } = {
+        workItemId: null,
+        projectId: entry.projectId,
+      };
+      if (input.workItemId !== null) {
+        const item = await this.fileTarget(tx, context, principal, actor, input.workItemId);
+        sameProject(entry, item);
+        target = item;
+      }
+      const keep = entry.minutes - input.minutes;
+      const cut =
+        entry.startedAt !== null && entry.endedAt !== null
+          ? new Date(Math.min(entry.endedAt.getTime(), entry.startedAt.getTime() + keep * 60_000))
+          : null;
+      await repo.updateEntry(
+        tx,
+        context,
+        entry.id,
+        {
+          minutes: keep,
+          spentOn: entry.spentOn,
+          billable: entry.billable,
+          note: entry.note,
+          ...(cut === null ? {} : { endedAt: cut }),
+        },
+        sheet.id,
+        context.membershipId,
+        at,
+      );
+      const piece = await this.options.timeLogs.create(tx, context, {
+        workItemId: target.workItemId,
+        projectId: target.projectId,
+        loggedBy: sheet.membershipId,
+        minutes: input.minutes,
+        spentOn: entry.spentOn,
+        note: entry.note,
+        ...(target.workItemId === null ? { billable: entry.billable } : {}),
+        startedAt: cut,
+        endedAt: cut === null ? null : entry.endedAt,
+        source: entry.source,
+        needsReview: entry.needsReview,
+      });
+      await repo.stampTimesheet(tx, context, [piece.id], sheet.id);
+      return this.finishEdit(tx, context, principal, sheet, actor, before, at, {
+        entries_changed: 2,
+        entries_split: 1,
+      });
+    });
+  }
+
+  /**
+   * Delete unassigned entries of the week (live check B2): time the person does not want kept.
+   * Entries filed under a task are deleted from that task; locked or approved time stays.
+   */
+  async deleteUnassigned(
+    context: TenantContext,
+    principal: Principal,
+    idRaw: string,
+    body: unknown,
+  ): Promise<TimesheetView> {
+    requireInternal(principal);
+    const id = pathId(idRaw);
+    const entryIds = parseEntryIds(record(body)['entryIds']);
+    const at = this.now();
+    const repo = this.options.repository;
+    return this.options.database.transaction(context, async (tx) => {
+      const { sheet, actor } = await this.editable(tx, context, principal, id);
+      const bounds = boundsOf(sheet);
+      const before = await repo.entriesInPeriod(tx, context, [sheet.membershipId], bounds, true);
+      const locks = await repo.openLocks(tx, context, bounds);
+      for (const entryId of entryIds) {
+        this.unassignedEntry(principal, context, actor, before, entryId, locks);
+      }
+      const deleted = await repo.deleteUnassigned(tx, context, entryIds, sheet.membershipId);
+      if (deleted !== entryIds.length) throw entryLocked();
+      return this.finishEdit(tx, context, principal, sheet, actor, before, at, {
+        entries_deleted: deleted,
       });
     });
   }
@@ -641,6 +746,40 @@ export class TimesheetsService {
         lifecycle: 'active',
       },
     }).allowed;
+  }
+
+  /** A task an entry may be filed under: one the caller may track on (and manage, as a manager). */
+  private async fileTarget(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    principal: Principal,
+    actor: Actor,
+    workItemId: string,
+  ): Promise<{ readonly workItemId: string; readonly projectId: string }> {
+    const item = await this.options.workItems.findById(tx, context, workItemId);
+    if (!item || !mayTrackOnItem(principal, item)) throw notFound();
+    if (actor === 'manager' && !this.manages(principal, context, item.projectId)) throw notFound();
+    return { workItemId: item.id, projectId: item.projectId };
+  }
+
+  /**
+   * One entry of the sheet the timesheet may change: still unassigned, unlocked, outside a locked
+   * period, and (for a manager) on a project they manage. Anything else is refused.
+   */
+  private unassignedEntry(
+    principal: Principal,
+    context: TenantContext,
+    actor: Actor,
+    entries: readonly WorkItemTimeLogRow[],
+    entryId: string,
+    locks: readonly LockedPeriod[],
+  ): WorkItemTimeLogRow {
+    const entry = entries.find((e) => e.id === entryId);
+    if (entry === undefined) throw notFound();
+    if (actor === 'manager' && !this.manages(principal, context, entry.projectId)) throw notFound();
+    if (entry.workItemId !== null) throw notUnassigned();
+    if (entry.lockedAt !== null || isWithinLockedPeriod(entry.spentOn, locks)) throw entryLocked();
+    return entry;
   }
 
   /**

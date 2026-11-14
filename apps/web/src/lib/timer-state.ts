@@ -1,3 +1,4 @@
+import { roundMinutes, spanMinutes } from '@tmanage/domain';
 import { ApiRequestError } from './api/errors';
 import type { RunningTimer } from './api/time-timer';
 
@@ -45,9 +46,12 @@ export function isTimerRunningConflict(error: unknown): boolean {
   );
 }
 
-/** Whole minutes the stop dialog announces; a started minute counts, never below one. */
-export function minutesToRecord(seconds: number): number {
-  return Math.max(1, Math.ceil(Math.max(0, seconds) / 60));
+/**
+ * The minutes the stop dialog announces: what the API will save — whole minutes (a started minute
+ * counts, never below one) rounded up to the company's step (`@tmanage/domain` rounding).
+ */
+export function minutesToSave(seconds: number, roundingMinutes: number): number {
+  return roundMinutes(spanMinutes(seconds * 1000), roundingMinutes);
 }
 
 /** The longest note the API keeps (`optionalNote`), so the field can stop typing there. */

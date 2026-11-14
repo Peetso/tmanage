@@ -507,7 +507,13 @@ function ChangesSection({
   failed: boolean;
 }) {
   const tr = useTOr();
-  const value = (text: string | null) => text ?? tr('AdminAuditScreen.valueEmpty', '(empty)');
+  // A field and a coded value read from the catalogs when they name them ("Automatic time
+  // tracking", "Each person chooses"); anything else is shown as recorded.
+  const fieldName = (field: string) => tr(`AuditChangeField.${field}`, humanise(field));
+  const value = (field: string, text: string | null) =>
+    text === null
+      ? tr('AdminAuditScreen.valueEmpty', '(empty)')
+      : tr(`AuditChangeValue.${field}.${text}`, text);
   return (
     <section className="tm-stack tm-stack--tight" aria-labelledby="tm-audit-changes-title">
       <h3 id="tm-audit-changes-title" className="tm-cc-card__title">
@@ -532,18 +538,20 @@ function ChangesSection({
         <dl className="tm-cc-dl" data-testid="audit-changes">
           {changes.map((change) => (
             <Fragment key={change.field}>
-              <dt>{humanise(change.field)}</dt>
+              <dt>{fieldName(change.field)}</dt>
               <dd>
                 {change.redacted ? (
                   tr('AdminAuditScreen.changesRedacted', 'Hidden for security')
                 ) : (
                   <>
                     <span>
-                      {tr('AdminAuditScreen.changesBefore', 'Before')}: {value(change.before)}
+                      {tr('AdminAuditScreen.changesBefore', 'Before')}:{' '}
+                      {value(change.field, change.before)}
                     </span>
                     <br />
                     <span>
-                      {tr('AdminAuditScreen.changesAfter', 'After')}: {value(change.after)}
+                      {tr('AdminAuditScreen.changesAfter', 'After')}:{' '}
+                      {value(change.field, change.after)}
                     </span>
                   </>
                 )}

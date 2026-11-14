@@ -59,6 +59,16 @@ export class TimeAutoController {
     return this.service.setCurrentTask(context, principal, body);
   }
 
+  @Put('device')
+  @RequireCapability(TIME_TRACK_OWN)
+  device(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Body() body: unknown,
+  ): Promise<{ readonly device: string }> {
+    return this.service.reportDevice(context, principal, body);
+  }
+
   @Post('heartbeat')
   @RequireCapability(TIME_TRACK_OWN)
   @HttpCode(200)

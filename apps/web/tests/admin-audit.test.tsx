@@ -1,21 +1,23 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ApiClient } from '../src/lib/api/client';
 import { AdminAuditScreen } from '../src/components/screens/AdminAuditScreen';
 import { expectNoAxeViolations } from './axe';
 
 /** ADM audit viewer (x115) — the Administration audit-log screen over `GET .../audit/events`. */
-function mount(body: unknown, status = 200) {
+function mount(body: unknown, status = 200, changes?: unknown) {
   const client = new ApiClient({
     baseUrl: 'https://api.example.test',
     csrfCookieName: 'tm_session_csrf',
-    fetch: (() =>
+    fetch: ((input: RequestInfo | URL) =>
       Promise.resolve(
-        new Response(JSON.stringify(body), {
-          status,
-          headers: { 'content-type': 'application/json' },
-        }),
+        new Response(
+          JSON.stringify(
+            changes !== undefined && String(input).endsWith('/changes') ? changes : body,
+          ),
+          { status, headers: { 'content-type': 'application/json' } },
+        ),
       )) as typeof globalThis.fetch,
     readCsrfToken: () => undefined,
     newCorrelationId: () => 'c',
@@ -92,6 +94,44 @@ describe('AdminAuditScreen', () => {
   it('shows the empty state when the trail has no matching events', async () => {
     mount({ events: [] });
     expect(await screen.findByText('No audit events match this view.')).toBeTruthy();
+  });
+
+  it('names the fields and coded values of what changed (live check 0186c261 B7)', async () => {
+    mount(
+      {
+        events: [
+          {
+            id: 'audit-3',
+            occurredAt: '2026-11-10T03:00:00.000Z',
+            actorId: null,
+            action: 'organization.auto_time_tracking_policy_changed',
+            entityType: 'organization',
+            entityId: 'org-1',
+            result: 'allowed',
+            summary: 'Changed automatic time tracking',
+          },
+        ],
+      },
+      200,
+      {
+        changes: [
+          { field: 'auto_time_tracking', before: 'optional', after: 'off', redacted: false },
+          { field: 'max_idle_minutes', before: '5', after: '5', redacted: false },
+          { field: 'open_auto_sessions', before: '2', after: '0', redacted: false },
+        ],
+      },
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Changed automatic time tracking' }));
+
+    const list = await screen.findByTestId('audit-changes');
+    expect(list.textContent).toContain('Automatic time tracking');
+    expect(list.textContent).toContain('Before: Each person chooses');
+    expect(list.textContent).toContain('After: Off');
+    expect(list.textContent).toContain('Count someone as away after (minutes)');
+    expect(list.textContent).toContain('Automatic sessions still open');
+    expect(list.textContent).toContain('After: 0');
+    expect(list.textContent).not.toContain('optional');
   });
 
   it('renders the API refusal rather than a blank page', async () => {

@@ -5,7 +5,7 @@ import {
   elapsedNow,
   formatElapsed,
   isTimerRunningConflict,
-  minutesToRecord,
+  minutesToSave,
   timerActionFor,
 } from '../src/lib/timer-state';
 
@@ -53,9 +53,12 @@ describe('52-01 timer state', () => {
     expect(isTimerRunningConflict(new Error('timer_running'))).toBe(false);
   });
 
-  it('records at least one minute and counts a started minute', () => {
-    expect(minutesToRecord(0)).toBe(1);
-    expect(minutesToRecord(61)).toBe(2);
-    expect(minutesToRecord(2520)).toBe(42);
+  it('announces what is saved: a started minute counts, then the company step', () => {
+    expect(minutesToSave(0, 1)).toBe(1);
+    expect(minutesToSave(61, 1)).toBe(2);
+    expect(minutesToSave(2520, 1)).toBe(42);
+    expect(minutesToSave(11, 15)).toBe(15);
+    expect(minutesToSave(16 * 60 + 1, 15)).toBe(30);
+    expect(minutesToSave(7 * 60, 5)).toBe(10);
   });
 });

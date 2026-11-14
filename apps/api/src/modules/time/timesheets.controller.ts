@@ -85,6 +85,30 @@ export class TimesheetsController {
     return this.service.move(context, principal, timesheetId, body);
   }
 
+  @Post(':timesheetId/entries/split')
+  @RequireCapability(TIME_TRACK_OWN)
+  @HttpCode(200)
+  split(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('timesheetId') timesheetId: string,
+    @Body() body: unknown,
+  ): Promise<TimesheetView> {
+    return this.service.split(context, principal, timesheetId, body);
+  }
+
+  @Post(':timesheetId/entries/delete')
+  @RequireCapability(TIME_TRACK_OWN)
+  @HttpCode(200)
+  deleteUnassigned(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('timesheetId') timesheetId: string,
+    @Body() body: unknown,
+  ): Promise<TimesheetView> {
+    return this.service.deleteUnassigned(context, principal, timesheetId, body);
+  }
+
   @Post(':timesheetId/submit')
   @RequireCapability(TIME_TRACK_OWN)
   @HttpCode(200)

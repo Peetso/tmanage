@@ -11627,6 +11627,10 @@ export const timeAutoTracking = mysqlTable(
     sessionStartedAt: datetime('session_started_at', { mode: 'date', fsp: 3 }),
     lastActiveAt: datetime('last_active_at', { mode: 'date', fsp: 3 }),
     lastHeartbeatAt: datetime('last_heartbeat_at', { mode: 'date', fsp: 3 }),
+    /** 0343. Where tracking runs: `desktop` | `browser_allowed` | `browser_prompt` | … ; NULL = never reported. */
+    deviceKind: varchar('device_kind', { length: 24 }),
+    /** 0343. When this server last received that report. */
+    deviceSeenAt: datetime('device_seen_at', { mode: 'date', fsp: 3 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
   },

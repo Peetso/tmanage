@@ -91,6 +91,23 @@ export class FinanceRepository implements DocumentSequenceStore {
       .where(eq(orgFinanceProfiles.organizationId, organizationId));
   }
 
+  /**
+   * 52-01. The manual timer's rounding step alone — the owner's choice in the time settings. Bumps
+   * `version` like a profile save, so a finance form opened before it reloads instead of
+   * overwriting it.
+   */
+  async updateRoundingMinutes(
+    runner: TenantQueryRunner,
+    organizationId: string,
+    roundingMinutes: number,
+    at: Date,
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .update(orgFinanceProfiles)
+      .set({ roundingMinutes, updatedAt: at, version: sql`${orgFinanceProfiles.version} + 1` })
+      .where(eq(orgFinanceProfiles.organizationId, organizationId));
+  }
+
   async taxRates(
     runner: TenantQueryRunner,
     organizationId: string,

@@ -52,6 +52,15 @@
   min-inline-size: 0;
 }
 
+/*
+ * A native select is as wide as its longest option by default, which pushed the "Add override"
+ * card past the 300px column and gave the page a sideways scrollbar (live check 0186c261 B3).
+ */
+.tm-pe__aside .tm-select__control {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
 .tm-pe__diff {
   display: flex;
   flex-direction: column;

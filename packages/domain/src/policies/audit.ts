@@ -718,6 +718,14 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'organization',
     clause: '§12 organization settings — whether time is tracked automatically is a policy change',
   },
+  /**
+   * 52-01. The owner chose the manual timer's rounding step (minutes; 1 = no rounding). Metadata
+   * is the previous and the new step — numbers, never prose.
+   */
+  'organization.time_rounding_changed': {
+    objectType: 'organization',
+    clause: '§12 organization settings — how manual timer time is rounded changes what is billed',
+  },
   /** A11. The company was renamed from the Organization card. No names in metadata. */
   'organization.renamed': {
     objectType: 'organization',
@@ -1685,6 +1693,7 @@ const AUDIT_ACTION_LABELS = {
   'organization.provisioned': 'Set up the organization',
   'organization.download_scan_policy_changed': 'Changed downloads before a virus scan',
   'organization.auto_time_tracking_policy_changed': 'Changed automatic time tracking',
+  'organization.time_rounding_changed': 'Changed how timer time is rounded',
   'organization.renamed': 'Renamed the organization',
   'organization.logo_changed': 'Changed the organization logo',
   'project.created': 'Created a project',

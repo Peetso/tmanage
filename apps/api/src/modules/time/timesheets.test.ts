@@ -148,3 +148,113 @@ describe('52-02 timesheet rules', () => {
     expect(writes).toEqual([]);
   });
 });
+
+describe('live check B2: unassigned time on the timesheet', () => {
+  const W = '01890000-0000-7000-8000-0000000000c1';
+  const member = { ...manager, role: 'member' } as unknown as Principal;
+  const item = {
+    id: W,
+    organizationId: 'o1',
+    projectId: PA,
+    audience: 'internal',
+    state: 'todo',
+    deletedAt: null,
+  };
+  const timed = entry({
+    loggedBy: 'm1',
+    source: 'automatic',
+    startedAt: new Date('2026-10-26T09:00:00Z'),
+    endedAt: new Date('2026-10-26T10:00:00Z'),
+  });
+
+  function sheetHarness(o: { entries?: unknown[]; state?: string; deleted?: number } = {}) {
+    const calls: { name: string; args: unknown[] }[] = [];
+    const log =
+      (name: string, result?: unknown) =>
+      async (...args: unknown[]) => {
+        calls.push({ name, args });
+        return result;
+      };
+    const { service } = harness({
+      owner: 'm1',
+      state: o.state ?? 'open',
+      entries: o.entries ?? [],
+    });
+    const options = (service as unknown as { options: Record<string, Record<string, unknown>> })
+      .options;
+    Object.assign(options['repository']!, {
+      updateEntry: log('updateEntry'),
+      stampTimesheet: log('stampTimesheet'),
+      deleteUnassigned: log('deleteUnassigned', o.deleted ?? 1),
+      sumTotals: async () => ({ totalMinutes: 60, billableMinutes: 60 }),
+      update: async () => 1,
+    });
+    options['timeLogs'] = { create: log('create', { id: 'new' }) };
+    options['workItems'] = {
+      findById: async (_r: unknown, _c: unknown, id: string) => (id === W ? item : null),
+    };
+    return { service, calls, names: () => calls.map((c) => c.name) };
+  }
+
+  it('splits minutes off to a task the person can track, cutting a timed entry in time', async () => {
+    const h = sheetHarness({ entries: [timed] });
+    await h.service.split(me, member, SHEET, { entryId: E1, minutes: 20, workItemId: W });
+    const update = h.calls.find((c) => c.name === 'updateEntry')!;
+    expect(update.args[3]).toMatchObject({
+      minutes: 40,
+      endedAt: new Date('2026-10-26T09:40:00Z'),
+    });
+    const created = h.calls.find((c) => c.name === 'create')!;
+    expect(created.args[2]).toMatchObject({
+      workItemId: W,
+      projectId: PA,
+      loggedBy: 'm1',
+      minutes: 20,
+      startedAt: new Date('2026-10-26T09:40:00Z'),
+      endedAt: new Date('2026-10-26T10:00:00Z'),
+      source: 'automatic',
+    });
+  });
+
+  it('refuses a split that leaves nothing, a filed entry, or a task the person cannot see', async () => {
+    const all = sheetHarness({ entries: [timed] });
+    await expect(
+      all.service.split(me, member, SHEET, { entryId: E1, minutes: 60, workItemId: null }),
+    ).rejects.toMatchObject({ status: 400 });
+    const filed = sheetHarness({ entries: [{ ...timed, workItemId: W }] });
+    await expect(
+      filed.service.split(me, member, SHEET, { entryId: E1, minutes: 10, workItemId: null }),
+    ).rejects.toMatchObject({ status: 422 });
+    const hidden = sheetHarness({ entries: [timed] });
+    await expect(
+      hidden.service.split(me, member, SHEET, {
+        entryId: E1,
+        minutes: 10,
+        workItemId: '01890000-0000-7000-8000-0000000000c2',
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect([...all.names(), ...filed.names(), ...hidden.names()]).toEqual([]);
+  });
+
+  it('deletes unassigned entries only; filed, locked or approved time stays', async () => {
+    const ok = sheetHarness({ entries: [timed] });
+    await ok.service.deleteUnassigned(me, member, SHEET, { entryIds: [E1] });
+    expect(ok.calls.find((c) => c.name === 'deleteUnassigned')?.args.slice(2)).toEqual([
+      [E1],
+      'm1',
+    ]);
+    const filed = sheetHarness({ entries: [{ ...timed, workItemId: W }] });
+    await expect(
+      filed.service.deleteUnassigned(me, member, SHEET, { entryIds: [E1] }),
+    ).rejects.toMatchObject({ status: 422 });
+    const locked = sheetHarness({ entries: [{ ...timed, lockedAt: new Date() }] });
+    await expect(
+      locked.service.deleteUnassigned(me, member, SHEET, { entryIds: [E1] }),
+    ).rejects.toMatchObject({ status: 409 });
+    const approved = sheetHarness({ entries: [timed], state: 'approved' });
+    await expect(
+      approved.service.deleteUnassigned(me, member, SHEET, { entryIds: [E1] }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect([...filed.names(), ...locked.names(), ...approved.names()]).toEqual([]);
+  });
+});

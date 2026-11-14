@@ -103,6 +103,16 @@ export function applyHeartbeat(
   return { closed, open: { startedAt, lastActiveAt: startedAt, lastHeartbeatAt: now } };
 }
 
+/**
+ * A live session cut at `at`, the moment the person changed "working on now" (live check B4). The
+ * click is activity, so the piece before it runs to the click, never past it; only a live session
+ * (a heartbeat within {@link ACTIVITY_GAP_SECONDS}) is split here, so this adds at most that gap.
+ */
+export function splitAt(session: OpenSession, at: Date): Span {
+  const end = at.getTime() > session.lastActiveAt.getTime() ? at : session.lastActiveAt;
+  return { startedAt: session.startedAt, endedAt: end };
+}
+
 /** The session a reader settles: ended at its last activity once no heartbeat can extend it. */
 export function settle(session: OpenSession | null, now: Date): Span | null {
   if (session === null || isLive(session, now)) return null;
@@ -231,15 +241,11 @@ export function parseIdleSeconds(raw: unknown): number {
 }
 
 /**
- * `idleThresholdMinutes`: a whole number of minutes from 1 to `maxMinutes`, the owner's maximum
- * (never above {@link IDLE_THRESHOLD_MAX_MINUTES}).
+ * When someone counts as away, the workspace's one setting: a whole number of minutes from
+ * {@link IDLE_THRESHOLD_MIN_MINUTES} to {@link IDLE_THRESHOLD_MAX_MINUTES}.
  */
-export function parseIdleThresholdMinutes(
-  raw: unknown,
-  maxMinutes: number = IDLE_THRESHOLD_MAX_MINUTES,
-  field = 'idleThresholdMinutes',
-): number {
-  const max = Math.min(maxMinutes, IDLE_THRESHOLD_MAX_MINUTES);
+export function parseIdleThresholdMinutes(raw: unknown, field: string): number {
+  const max = IDLE_THRESHOLD_MAX_MINUTES;
   if (
     typeof raw !== 'number' ||
     !Number.isInteger(raw) ||
@@ -251,12 +257,26 @@ export function parseIdleThresholdMinutes(
   return raw;
 }
 
-/** The threshold that counts: the person's choice, never above the owner's maximum. */
-export function effectiveThresholdMinutes(own: number, maxMinutes: number): number {
-  return Math.max(
-    IDLE_THRESHOLD_MIN_MINUTES,
-    Math.min(own, maxMinutes, IDLE_THRESHOLD_MAX_MINUTES),
-  );
+/**
+ * Where a person's tracking runs, as their page reports it (TIMER item 17): the desktop app, or a
+ * browser whose idle-detection permission is allowed, not asked yet, blocked, or missing.
+ */
+export const DEVICE_KINDS = [
+  'desktop',
+  'browser_allowed',
+  'browser_prompt',
+  'browser_blocked',
+  'browser_unsupported',
+] as const;
+export type DeviceKind = (typeof DEVICE_KINDS)[number];
+
+export function isDeviceKind(value: unknown): value is DeviceKind {
+  return (DEVICE_KINDS as readonly unknown[]).includes(value);
+}
+
+export function parseDeviceKind(raw: unknown): DeviceKind {
+  if (!isDeviceKind(raw)) throw invalid('device', `must be one of ${DEVICE_KINDS.join(', ')}`);
+  return raw;
 }
 
 export function parsePolicy(raw: unknown): AutoTrackingPolicy {

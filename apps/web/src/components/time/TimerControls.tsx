@@ -11,10 +11,12 @@ import { startTimer, stopTimer } from '../../lib/api/time-timer';
 import {
   formatElapsed,
   isTimerRunningConflict,
-  minutesToRecord,
+  minutesToSave,
   timerActionFor,
   TIMER_NOTE_MAX,
 } from '../../lib/timer-state';
+import { pluralPhrase } from '../../lib/i18n/plural';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { timerKey, useRunningTimer } from './use-running-timer';
 import './timer.css';
@@ -71,12 +73,16 @@ function TimerDialog({
   );
 }
 
-/** Stop the running timer: shows the minutes to be recorded and an editable note. */
+/**
+ * Stop the running timer: shows the minutes that will be saved (rounded up to the company's step,
+ * and says so) and an editable note.
+ */
 function StopTimerDialog({
   api,
   organizationSlug,
   initialNote,
   elapsedSeconds,
+  roundingMinutes,
   subject,
   onClose,
   tr,
@@ -85,10 +91,12 @@ function StopTimerDialog({
   organizationSlug: string;
   initialNote: string;
   elapsedSeconds: number;
+  roundingMinutes: number;
   subject: string | null;
   onClose: () => void;
   tr: TOr;
 }) {
+  const locale = useActiveLocale();
   const queryClient = useQueryClient();
   const [note, setNote] = useState(initialNote);
   const stop = useMutation({
@@ -99,12 +107,26 @@ function StopTimerDialog({
       onClose();
     },
   });
-  const minutes = minutesToRecord(elapsedSeconds);
-  const summary = (
+  const minutes = minutesToSave(elapsedSeconds, roundingMinutes);
+  const amount = (
     subject
       ? tr('Timer.stopSummaryOn', '{minutes} min on {subject}').replace('{subject}', subject)
       : tr('Timer.stopSummary', '{minutes} min')
   ).replace('{minutes}', String(minutes));
+  const summary =
+    roundingMinutes > 1
+      ? `${amount} (${pluralPhrase(
+          tr,
+          locale,
+          'Timer.roundedUp',
+          roundingMinutes,
+          {
+            one: 'rounded up to the nearest minute',
+            other: 'rounded up to the nearest {count} minutes',
+          },
+          String(roundingMinutes),
+        )})`
+      : amount;
   const submit = (event: FormEvent) => {
     event.preventDefault();
     stop.mutate();
@@ -161,7 +183,7 @@ export function WorkItemTimerButton({
   const api = client ?? browserApiClient();
   const tr = useTOr();
   const queryClient = useQueryClient();
-  const { timer, elapsedSeconds } = useRunningTimer(api, organizationSlug);
+  const { timer, elapsedSeconds, roundingMinutes } = useRunningTimer(api, organizationSlug);
   const [dialog, setDialog] = useState<'stop' | 'switch' | null>(null);
 
   const start = useMutation({
@@ -228,6 +250,7 @@ export function WorkItemTimerButton({
           organizationSlug={organizationSlug}
           initialNote={timer.note ?? ''}
           elapsedSeconds={elapsedSeconds}
+          roundingMinutes={roundingMinutes}
           subject={workItemTitle}
           onClose={() => setDialog(null)}
           tr={tr}
@@ -280,7 +303,7 @@ export interface RunningTimerPillProps {
 export function RunningTimerPill({ organizationSlug, client }: RunningTimerPillProps) {
   const api = client ?? browserApiClient();
   const tr = useTOr();
-  const { timer, elapsedSeconds } = useRunningTimer(api, organizationSlug);
+  const { timer, elapsedSeconds, roundingMinutes } = useRunningTimer(api, organizationSlug);
   const [stopping, setStopping] = useState(false);
   if (timer === null) return null;
   const elapsed = formatElapsed(elapsedSeconds);
@@ -313,6 +336,7 @@ export function RunningTimerPill({ organizationSlug, client }: RunningTimerPillP
           organizationSlug={organizationSlug}
           initialNote={timer.note ?? ''}
           elapsedSeconds={elapsedSeconds}
+          roundingMinutes={roundingMinutes}
           subject={null}
           onClose={() => setStopping(false)}
           tr={tr}

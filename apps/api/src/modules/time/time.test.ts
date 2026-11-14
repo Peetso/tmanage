@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { roundMinutes } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import type { WorkItemRow } from '../../common/database/schema.js';
@@ -6,7 +7,6 @@ import {
   DurableRateLimiter,
   createMemoryBucketStore,
 } from '../rate-limits/durable-rate-limiter.js';
-import { roundMinutes } from './time-rounding.js';
 import { parseManualSpan } from './time-rules.js';
 import { TimeService } from './time.service.js';
 import type { TimeServiceOptions } from './time.service.js';
@@ -18,11 +18,14 @@ const PROJECT = '01890000-0000-7000-8000-000000000101';
 const ITEM = '01890000-0000-7000-8000-000000000201';
 const MEMBER = '01890000-0000-7000-8000-000000000011';
 const context = { organizationId: ORG, userId: 'u1', membershipId: MEMBER } as TenantContext;
-const principal = (kind: Principal['kind'] = 'internal'): Principal => ({
+const principal = (
+  kind: Principal['kind'] = 'internal',
+  role: Principal['role'] = kind === 'internal' ? 'member' : 'client_admin',
+): Principal => ({
   userId: 'u1',
   organizationId: ORG,
   kind,
-  role: kind === 'internal' ? 'member' : 'client_admin',
+  role,
   membershipId: MEMBER,
   membershipStatus: 'active',
   clientOrganizationId: null,
@@ -32,10 +35,24 @@ const principal = (kind: Principal['kind'] = 'internal'): Principal => ({
 const item = { id: ITEM, organizationId: ORG, projectId: PROJECT, audience: 'internal' };
 const itemRow = { ...item, state: 'todo', deletedAt: null, title: 'T' } as unknown as WorkItemRow;
 
-function harness(presence = false, clock = { t: Date.parse('2026-10-30T09:00:00Z') }) {
+interface Setup {
+  /** The stored `org_finance_profiles.rounding_minutes`; `null` = no finance profile yet. */
+  readonly rounding?: number | null;
+  /** The stored `default_timezone`; absent = none written. */
+  readonly zone?: string;
+}
+
+function harness(
+  presence = false,
+  clock = { t: Date.parse('2026-10-30T09:00:00Z') },
+  setup: Setup = {},
+) {
   let timer: Record<string, unknown> | null = null;
   const logs: object[] = [];
   const audits: string[] = [];
+  const auditRows: { action: string; actorUserId?: string | null; metadata?: unknown }[] = [];
+  const store = { rounding: setup.rounding === undefined ? 15 : setup.rounding };
+  const profileWrites: { kind: 'insert' | 'update'; roundingMinutes: number }[] = [];
   const options: TimeServiceOptions = {
     database: {
       read: (_c, f) => f({} as never),
@@ -50,14 +67,35 @@ function harness(presence = false, clock = { t: Date.parse('2026-10-30T09:00:00Z
       listRunning: async () => (timer ? [timer] : []) as never,
       projectExists: async () => true,
       workItemExists: async () => true,
-      roundingMinutes: async () => 15,
+      roundingMinutes: async () => store.rounding,
       timePolicy: async () => ({ autostopHours: 12, presenceVisible: presence }),
     },
     timeLogs: {
       create: async (_r, _c, input) => (logs.push(input), { id: 'l1', ...input }) as never,
     },
     workItems: { findById: async () => itemRow },
-    audit: { record: async (_r, _c, e) => (audits.push(e.action), {}) as never },
+    settings: {
+      findByKey: async (_r, _c, key) =>
+        key === 'default_timezone' && setup.zone !== undefined
+          ? ({ settingValue: setup.zone } as never)
+          : undefined,
+    },
+    finance: {
+      organization: async () => ({ name: 'Acme', defaultLocale: 'en-GB', timezone: 'UTC' }),
+      profile: async () =>
+        (store.rounding === null ? null : { roundingMinutes: store.rounding }) as never,
+      insertProfile: async (_r, _o, values) => {
+        profileWrites.push({ kind: 'insert', roundingMinutes: values.roundingMinutes });
+        store.rounding = values.roundingMinutes;
+      },
+      updateRoundingMinutes: async (_r, _o, minutes) => {
+        profileWrites.push({ kind: 'update', roundingMinutes: minutes });
+        store.rounding = minutes;
+      },
+    },
+    audit: {
+      record: async (_r, _c, e) => (audits.push(e.action), auditRows.push(e), {}) as never,
+    },
     limiter: new DurableRateLimiter({
       store: createMemoryBucketStore(),
       secret: 's',
@@ -65,14 +103,14 @@ function harness(presence = false, clock = { t: Date.parse('2026-10-30T09:00:00Z
     }),
     now: () => new Date(clock.t),
   };
-  return { service: new TimeService(options), logs, audits, clock };
+  return { service: new TimeService(options), logs, audits, auditRows, profileWrites, clock };
 }
 
 const code = (p: Promise<unknown>) =>
   p.then(
     () => 'ok',
     (e: { code?: string; details?: readonly { message: string }[] }) =>
-      e.details?.[0]?.message ?? e.code,
+      e.code === 'validation_failed' ? e.code : (e.details?.[0]?.message ?? e.code),
   );
 
 describe('52-01 timer', () => {
@@ -118,6 +156,74 @@ describe('52-01 timer', () => {
     await on.service.start(context, principal(), { workItemId: ITEM });
     const { timers } = await on.service.active(context, principal(), undefined);
     expect(timers[0]).toMatchObject({ projectId: PROJECT, workItemTitle: 'T' });
+  });
+
+  it('saves the configured step, and the timer read announces it', async () => {
+    const h = harness(false, undefined, { rounding: 5 });
+    await h.service.start(context, principal(), { workItemId: ITEM });
+    h.clock.t += 11_000;
+    expect((await h.service.get(context, principal())).roundingMinutes).toBe(5);
+    await h.service.stop(context, principal(), {});
+    expect(h.logs[0]).toMatchObject({ minutes: 5 });
+  });
+
+  it('"no rounding" saves the exact whole minutes', async () => {
+    const h = harness(false, undefined, { rounding: 1 });
+    await h.service.start(context, principal(), { workItemId: ITEM });
+    h.clock.t += 7 * 60_000 + 11_000;
+    await h.service.stop(context, principal(), {});
+    expect(h.logs[0]).toMatchObject({ minutes: 8 });
+  });
+
+  it('files the entry on the company-zone day the timer started', async () => {
+    // 22:30 UTC on 30 October is 00:30 on 31 October in Cairo (UTC+2 that night).
+    const clock = { t: Date.parse('2026-10-30T22:30:00Z') };
+    const cairo = harness(false, clock, { zone: 'Africa/Cairo' });
+    await cairo.service.start(context, principal(), { workItemId: ITEM });
+    clock.t += 20 * 60_000;
+    expect((await cairo.service.stop(context, principal(), {})).spentOn).toBe('2026-10-31');
+
+    const utc = harness(false, { t: Date.parse('2026-10-30T22:30:00Z') });
+    await utc.service.start(context, principal(), { workItemId: ITEM });
+    expect((await utc.service.stop(context, principal(), {})).spentOn).toBe('2026-10-30');
+  });
+
+  it('lets only the owner change the step, audited with the actor', async () => {
+    const h = harness(false, undefined, { rounding: null });
+    expect(await code(h.service.setRounding(context, principal(), { roundingMinutes: 5 }))).toBe(
+      'forbidden',
+    );
+    expect(
+      await code(
+        h.service.setRounding(context, principal('internal', 'org_admin'), { roundingMinutes: 5 }),
+      ),
+    ).toBe('forbidden');
+    const owner = principal('internal', 'owner');
+    expect(await code(h.service.setRounding(context, owner, { roundingMinutes: 7 }))).toBe(
+      'validation_failed',
+    );
+    expect(await code(h.service.setRounding(context, owner, { roundingMinutes: '5' }))).toBe(
+      'validation_failed',
+    );
+    expect(h.profileWrites).toEqual([]);
+
+    expect(await h.service.setRounding(context, owner, { roundingMinutes: 1 })).toEqual({
+      roundingMinutes: 1,
+    });
+    await h.service.setRounding(context, owner, { roundingMinutes: 30 });
+    expect(h.profileWrites).toEqual([
+      { kind: 'insert', roundingMinutes: 1 },
+      { kind: 'update', roundingMinutes: 30 },
+    ]);
+    expect(h.auditRows).toEqual([
+      expect.objectContaining({
+        action: 'organization.time_rounding_changed',
+        actorUserId: 'u1',
+        metadata: { previous: 15, value: 1 },
+      }),
+      expect.objectContaining({ metadata: { previous: 1, value: 30 } }),
+    ]);
+    expect((await h.service.get(context, principal())).roundingMinutes).toBe(30);
   });
 
   it('throttles the heartbeat to two a minute', async () => {

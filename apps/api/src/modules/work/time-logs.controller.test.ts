@@ -131,7 +131,8 @@ class FakeTimeLogsRepository {
   }
 }
 
-function harness(parent: WorkItemRow | null) {
+/** `zone` is the stored `default_timezone`; absent = none written (UTC). */
+function harness(parent: WorkItemRow | null, zone?: string) {
   const database = {
     read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
     transaction: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
@@ -142,6 +143,10 @@ function harness(parent: WorkItemRow | null) {
     database,
     workItems,
     timeLogs as unknown as ConstructorParameters<typeof WorkTimeLogsService>[2],
+    null,
+    {
+      findByKey: async () => (zone === undefined ? undefined : ({ settingValue: zone } as never)),
+    },
   );
   return { controller: new WorkTimeLogsController(service), timeLogs };
 }
@@ -215,6 +220,19 @@ describe('WorkTimeLogsController', () => {
       note: null,
     });
     expect(timeLogs.creates).toBe(2);
+  });
+
+  it('files a start/end pair on the company-zone day it started (52-01)', async () => {
+    // 22:30 UTC two days ago is already the next day in Cairo (UTC+2 or +3).
+    const day = 86_400_000;
+    const start = Math.floor(Date.now() / day) * day - 2 * day + 22.5 * 3_600_000;
+    const iso = (at: number) => new Date(at).toISOString();
+    const span = { startedAt: iso(start), endedAt: iso(start + 20 * 60_000), note: null };
+    const cairo = harness(workItem(), 'Africa/Cairo');
+    const local = await cairo.controller.add(context, member([PROJECT]), WORK_ID, span);
+    expect(local.spentOn).toBe(iso(start + day).slice(0, 10));
+    const utc = await harnessed.controller.add(context, member([PROJECT]), WORK_ID, span);
+    expect(utc.spentOn).toBe(iso(start).slice(0, 10));
   });
 
   it('rejects minutes of zero, negative, non-integer or over the daily cap with 400 and no write', async () => {

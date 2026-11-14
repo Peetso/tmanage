@@ -3,12 +3,12 @@ import {
   isCustomRoleId,
   isInternalRole,
   isIsoDate,
+  MAX_ENTRY_MINUTES,
   parseCustomRoleCapabilities,
 } from '@tmanage/domain';
 import type { Capability } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { FinanceCandidate } from './locks-rules.js';
-import { MAX_ENTRY_MINUTES } from './time-rounding.js';
 import {
   optionalBoolean,
   optionalId,
@@ -66,6 +66,12 @@ export const notSubmitted = (): ApiError =>
 export const entryLocked = (): ApiError =>
   new ApiError(409, 'conflict', 'This entry is in a locked period.', [
     { field: 'lockedAt', message: 'time_log_locked' },
+  ]);
+
+/** Only unassigned entries are filed, split or deleted from the timesheet (B2). */
+export const notUnassigned = (): ApiError =>
+  new ApiError(422, 'validation_failed', 'Only unassigned entries can be changed here.', [
+    { field: 'entryIds', message: 'entry_already_filed' },
   ]);
 
 export const cannotApproveOwn = (): ApiError =>
@@ -184,6 +190,27 @@ export function parseEntryIds(raw: unknown): readonly string[] {
     return id;
   });
   return [...new Set(ids)];
+}
+
+/**
+ * Split one unassigned entry (live check B2): `minutes` move to a new entry (on `workItemId`, or
+ * unassigned when it is null), the rest stays. Both parts must keep at least one minute; the
+ * service checks against the entry's own minutes.
+ */
+export interface SplitInput {
+  readonly entryId: string;
+  readonly minutes: number;
+  readonly workItemId: string | null;
+}
+
+export function parseSplit(input: Record<string, unknown>): SplitInput {
+  const entryId = optionalId(input['entryId'], 'entryId');
+  if (entryId === null) throw invalid('entryId', 'is required');
+  const minutes = input['minutes'];
+  if (typeof minutes !== 'number' || !Number.isInteger(minutes) || minutes < 1) {
+    throw invalid('minutes', 'must be a whole number of minutes, 1 or more');
+  }
+  return { entryId, minutes, workItemId: optionalId(input['workItemId'], 'workItemId') };
 }
 
 /** The request-changes note: required, 3..500 characters after trimming. */

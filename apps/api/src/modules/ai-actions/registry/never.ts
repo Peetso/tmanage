@@ -1328,6 +1328,10 @@ export const NEVER: readonly NeverEntry[] = [
     reason: 'time_tracking',
   },
   { method: 'PATCH', path: '/v1/organizations/:orgSlug/time/auto/policy', reason: 'time_tracking' },
+  // TIMER item 17: which kind of device the person's tracking runs on (desktop app or browser).
+  { method: 'PUT', path: '/v1/organizations/:orgSlug/time/auto/device', reason: 'time_tracking' },
+  // 52-01 (live check B9): the owner's rounding step for the manual timer, billed time.
+  { method: 'PATCH', path: '/v1/organizations/:orgSlug/time/rounding', reason: 'finance_settings' },
   { method: 'GET', path: '/v1/organizations/:orgSlug/time/team/', reason: 'time_tracking' },
   {
     method: 'GET',

@@ -34,6 +34,7 @@ import { PlatformGate } from '../platform/shared/platform-kit';
 import { PlatformPageState } from '../platform/shared/PlatformPageState';
 import { missingPlatformPermission } from '../platform/shared/usePlatformPermissions';
 import { EffectivePermissionsPanel } from './EffectivePermissionsPanel';
+import { capabilitySentence } from './PermissionMatrix';
 import { capabilityCellLabel, fill, roleLabel } from './RoleMatrixEditor';
 import '../../styles/screens/permission-editor.css';
 
@@ -195,7 +196,7 @@ export function MemberOverridesBody({
   };
 
   const meta = (row: OverrideRow) => {
-    const bits: string[] = [row.capability];
+    const bits: string[] = [capabilitySentence(t, row.capability)];
     if (row.reason) bits.push(`“${row.reason}”`);
     const end = dateLabel(row.expiresAt, locale);
     if (!row.live) bits.push(fill(t('PermissionEditor.overrides.expiredOn'), { date: end ?? '' }));
@@ -318,7 +319,7 @@ export function MemberOverridesBody({
                 >
                   {group.capabilities.map((cap) => (
                     <option key={cap} value={cap}>
-                      {`${capabilityCellLabel(t, cap)} (${cap})`}
+                      {capabilityCellLabel(t, cap)}
                     </option>
                   ))}
                 </optgroup>

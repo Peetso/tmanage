@@ -1,4 +1,4 @@
-import { IDLE_THRESHOLD_DEFAULT_MINUTES, authorize } from '@tmanage/domain';
+import { authorize } from '@tmanage/domain';
 import type { AutoTrackingPolicy, Principal } from '@tmanage/domain';
 import type { TimeAutoTrackingRow, TimeTimerRow } from '../../common/database/schema.js';
 import type {
@@ -29,11 +29,12 @@ import type { AutoLimiter } from './time-auto-limits.js';
 import {
   applyHeartbeat,
   effectiveEnabled,
-  effectiveThresholdMinutes,
   isLive,
   parseIdleSeconds,
   parseIdleThresholdMinutes,
+  parseDeviceKind,
   parsePolicy,
+  splitAt,
 } from './time-auto-rules.js';
 import type { TimeAutoRepository } from './time-auto.repository.js';
 import { optionalBoolean, optionalId } from './time-rules.js';
@@ -81,9 +82,12 @@ export interface AutoTrackingView {
   readonly enabled: boolean;
   /** The person's own switch, "Track my time automatically". */
   readonly ownSwitch: boolean;
-  /** The threshold that counts: the person's choice, never above the owner's maximum. */
+  /**
+   * When someone counts as away: the workspace's one setting (owner only, 1..15 minutes). Stored
+   * personal thresholds from before 2026-11-14 are ignored.
+   */
   readonly idleThresholdMinutes: number;
-  /** The owner's maximum idle threshold; a person chooses at or below it. */
+  /** The same workspace value, under the name the owner's setting saves it with. */
   readonly maxIdleMinutes: number;
   readonly currentTask: CurrentTaskView | null;
   readonly session: AutoSessionView | null;
@@ -150,15 +154,12 @@ export class TimeAutoService {
   ): Promise<AutoTrackingView> {
     requireInternal(principal);
     const input = record(body);
+    // The person's own switch is the only personal setting: when someone counts as away is the
+    // workspace's (an `idleThresholdMinutes` an older client still sends is ignored).
     const ownSwitch = optionalBoolean(input['enabled'], 'enabled', false);
     const at = this.now();
     return this.options.database.transaction(context, async (tx) => {
       const rules = await this.rulesOn(tx, context);
-      // Review L1: a person chooses at or below the owner's maximum.
-      const idleThresholdMinutes =
-        input['idleThresholdMinutes'] === undefined
-          ? undefined
-          : parseIdleThresholdMinutes(input['idleThresholdMinutes'], rules.maxIdleMinutes);
       const row = await this.options.repository.ensureOwn(tx, context, at);
       const timer = await this.options.timers.findTimer(tx, context, context.membershipId);
       const session = openSessionOf(row);
@@ -174,11 +175,7 @@ export class TimeAutoService {
         tx,
         context,
         row.id,
-        {
-          enabled: ownSwitch,
-          ...(idleThresholdMinutes === undefined ? {} : { idleThresholdMinutes }),
-          ...(!stillOn ? NO_SESSION : {}),
-        },
+        { enabled: ownSwitch, ...(!stillOn ? NO_SESSION : {}) },
         at,
       );
       const next = await this.options.repository.find(tx, context, context.membershipId);
@@ -187,10 +184,12 @@ export class TimeAutoService {
   }
 
   /**
-   * Set (or clear) "working on now". An open session is split here: the old task keeps its part,
-   * and the new piece starts at the last real input with the old heartbeat (review M2: a task
-   * change is no heartbeat, so it never stretches a session). With tracking off for the person the
-   * open session is filed and closed, and none opens. Rate-limited like the heartbeat.
+   * Set (or clear) "working on now". A live session is split at this moment (live check B4): the
+   * old task keeps the time up to the click, which is itself activity, and the new piece starts
+   * at the click. The old heartbeat is kept (review M2: a task change is no heartbeat), so the
+   * session ends exactly when it would have without the change; a session no heartbeat can extend
+   * any more is filed at its last activity and closed. With tracking off for the person the open
+   * session is filed and closed, and none opens. Rate-limited like the heartbeat.
    */
   async setCurrentTask(
     context: TenantContext,
@@ -222,17 +221,14 @@ export class TimeAutoService {
       const session = openSessionOf(row);
       let sessionPatch = {};
       if (session !== null) {
-        await this.options.filer.file(tx, context, row, closedSpan(session), {
-          timer,
-          principal,
-          at,
-        });
         const keepsGoing =
           effectiveEnabled(rules.policy, row.enabled) && isLive(session, at) && timer === null;
+        const split = keepsGoing ? splitAt(session, at) : closedSpan(session);
+        await this.options.filer.file(tx, context, row, split, { timer, principal, at });
         sessionPatch = keepsGoing
           ? {
-              sessionStartedAt: session.lastActiveAt,
-              lastActiveAt: session.lastActiveAt,
+              sessionStartedAt: split.endedAt,
+              lastActiveAt: split.endedAt,
               lastHeartbeatAt: session.lastHeartbeatAt,
             }
           : NO_SESSION;
@@ -247,6 +243,33 @@ export class TimeAutoService {
       const next = await this.options.repository.find(tx, context, context.membershipId);
       return this.view(tx, context, principal, rules, next, timer, at);
     });
+  }
+
+  /**
+   * The page reports where the person's tracking runs (TIMER item 17): the desktop app, or a
+   * browser and its idle-detection permission. Only that word and this server's clock are stored,
+   * on the caller's own row; the owner reads it in Team time. Rate-limited with the task changes.
+   */
+  async reportDevice(
+    context: TenantContext,
+    principal: Principal,
+    body: unknown,
+  ): Promise<{ readonly device: string }> {
+    requireInternal(principal);
+    const device = parseDeviceKind(record(body)['device']);
+    await chargeAuto(this.limiter, AUTO_TASK_POLICY, context.organizationId, context.membershipId);
+    const at = this.now();
+    await this.options.database.transaction(context, async (tx) => {
+      const row = await this.options.repository.ensureOwn(tx, context, at);
+      await this.options.repository.update(
+        tx,
+        context,
+        row.id,
+        { deviceKind: device, deviceSeenAt: at },
+        at,
+      );
+    });
+    return { device };
   }
 
   async heartbeat(
@@ -294,8 +317,7 @@ export class TimeAutoService {
           await repo.update(tx, context, row.id, NO_SESSION, at);
         }
       } else {
-        const threshold = effectiveThresholdMinutes(row.idleThresholdMinutes, rules.maxIdleMinutes);
-        const outcome = applyHeartbeat(session, at, idleSeconds, threshold * 60);
+        const outcome = applyHeartbeat(session, at, idleSeconds, rules.maxIdleMinutes * 60);
         if (outcome.closed !== null) {
           await filer.file(tx, context, row, outcome.closed, fileOptions);
         }
@@ -321,8 +343,8 @@ export class TimeAutoService {
   }
 
   /**
-   * The company owner sets automatic tracking off, optional or required, and (review L1) the
-   * largest idle threshold people may choose. Audited with the actor. "Off" closes every open
+   * The company owner sets automatic tracking off, optional or required, and when someone counts
+   * as away (`maxIdleMinutes`, 1..15, the one threshold for everyone). Audited with the actor. "Off" closes every open
    * session at its last activity at once (review M2).
    */
   async setPolicy(
@@ -364,7 +386,7 @@ export class TimeAutoService {
     const maxIdle =
       input['maxIdleMinutes'] === undefined
         ? undefined
-        : parseIdleThresholdMinutes(input['maxIdleMinutes'], undefined, 'maxIdleMinutes');
+        : parseIdleThresholdMinutes(input['maxIdleMinutes'], 'maxIdleMinutes');
     const settings = this.options.settings;
     const at = this.now();
     return this.options.database.transaction(context, async (tx) => {
@@ -397,6 +419,13 @@ export class TimeAutoService {
           max_idle_minutes: maxIdleMinutes,
           sessions_closed: closed,
         },
+        // What the owner reads in Control > Audit log ("What changed"); the web names each field
+        // and policy value from the catalogs (AuditChangeField.* / AuditChangeValue.*).
+        changes: [
+          { field: 'auto_time_tracking', before: previous.policy, after: policy },
+          { field: 'max_idle_minutes', before: previous.maxIdleMinutes, after: maxIdleMinutes },
+          ...(policy === 'off' ? [{ field: 'open_auto_sessions', before: closed, after: 0 }] : []),
+        ],
       });
       return { policy, maxIdleMinutes };
     });
@@ -440,10 +469,7 @@ export class TimeAutoService {
       policy: rules.policy,
       enabled: effectiveEnabled(rules.policy, ownSwitch),
       ownSwitch,
-      idleThresholdMinutes: effectiveThresholdMinutes(
-        row?.idleThresholdMinutes ?? IDLE_THRESHOLD_DEFAULT_MINUTES,
-        rules.maxIdleMinutes,
-      ),
+      idleThresholdMinutes: rules.maxIdleMinutes,
       maxIdleMinutes: rules.maxIdleMinutes,
       currentTask,
       session:

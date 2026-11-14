@@ -1,3 +1,4 @@
+import type { TimeRoundingChoice } from '@tmanage/domain';
 import type { ApiClient } from './client';
 
 /**
@@ -7,6 +8,7 @@ import type { ApiClient } from './client';
  * unless `force` is set, in which case the API stops the old one into a time entry first. `stop`
  * turns the running timer into a time entry and returns it; an optional `note` replaces the
  * timer's own note. The route gate is `work.read`; client principals are refused by the API.
+ * Every read carries the company's rounding step, so the Stop dialog announces what is saved.
  */
 
 export interface RunningTimer {
@@ -24,6 +26,8 @@ export interface RunningTimer {
 export interface TimerState {
   readonly timer: RunningTimer | null;
   readonly serverNow: string;
+  /** The step a stopped timer is rounded up to, in minutes (`0`/`1` = exact minutes). */
+  readonly roundingMinutes: number;
 }
 
 export interface StoppedTimeEntry {
@@ -65,6 +69,20 @@ export async function startTimer(
     method: 'POST',
     path: `${base(organizationSlug)}/start`,
     body: input,
+  });
+  return data;
+}
+
+/** Owner only — anyone else gets `403`. Audited by the API. Automatic time is never rounded. */
+export async function updateTimeRounding(
+  client: ApiClient,
+  organizationSlug: string,
+  roundingMinutes: TimeRoundingChoice,
+): Promise<{ readonly roundingMinutes: TimeRoundingChoice }> {
+  const { data } = await client.request<{ readonly roundingMinutes: TimeRoundingChoice }>({
+    method: 'PATCH',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/time/rounding`,
+    body: { roundingMinutes },
   });
   return data;
 }

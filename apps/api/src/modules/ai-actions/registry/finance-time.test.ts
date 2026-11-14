@@ -18,7 +18,7 @@ import {
  */
 describe('R18-b finance and time ops', () => {
   it('registers every moved route once, out of NEVER, with a legal risk/scope pair', () => {
-    expect(financeTimeOps).toHaveLength(52);
+    expect(financeTimeOps).toHaveLength(54);
     for (const op of financeTimeOps) {
       expect(opsById.get(op.id), op.id).toBe(op);
       expect(neverByKey.has(routeKey(op.method, op.path)), op.id).toBe(false);

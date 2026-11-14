@@ -40,6 +40,8 @@ export interface EntryPatch {
   readonly spentOn: string;
   readonly billable: boolean;
   readonly note: string | null;
+  /** A split shortens a timed entry: its new end (B2). */
+  readonly endedAt?: Date;
 }
 
 export interface InternalMember {
@@ -248,6 +250,30 @@ export class TimesheetsRepository {
       .where(
         and(
           eq(workItemTimeLogs.organizationId, context.organizationId),
+          inArray(workItemTimeLogs.id, [...ids]),
+          isNull(workItemTimeLogs.workItemId),
+          isNull(workItemTimeLogs.lockedAt),
+        ),
+      );
+    return result[0].affectedRows;
+  }
+
+  /**
+   * Delete unassigned, unlocked entries of `loggedBy` (live check B2). Rows already filed under a
+   * work item are deleted from that item, never here. Returns the rows deleted.
+   */
+  async deleteUnassigned(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    ids: readonly string[],
+    loggedBy: string,
+  ): Promise<number> {
+    const result = await tenantDrizzle(runner)
+      .delete(workItemTimeLogs)
+      .where(
+        and(
+          eq(workItemTimeLogs.organizationId, context.organizationId),
+          eq(workItemTimeLogs.loggedBy, loggedBy),
           inArray(workItemTimeLogs.id, [...ids]),
           isNull(workItemTimeLogs.workItemId),
           isNull(workItemTimeLogs.lockedAt),

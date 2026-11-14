@@ -3,6 +3,7 @@ import type { DynamicModule, Provider } from '@nestjs/common';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { AUDIT_SERVICE, TENANT_DATABASE, WORK_ITEMS_REPOSITORY } from '../../common/http/tokens.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { FinanceRepository } from '../finance/finance.repository.js';
 import type { DurableRateLimiter } from '../rate-limits/durable-rate-limiter.js';
 import { NotificationsRepository } from '../inbox/notifications.repository.js';
 import { DURABLE_RATE_LIMITER } from '../rate-limits/durable-throttle.guard.js';
@@ -81,6 +82,8 @@ export class TimeModule {
           repository: new TimeRepository(),
           timeLogs: new WorkTimeLogsRepository(),
           workItems: workItems ?? new WorkItemsRepository(),
+          settings: new OrgSettingsRepository(),
+          finance: new FinanceRepository(),
           limiter: limiter ?? null,
         }),
     };

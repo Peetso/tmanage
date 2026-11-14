@@ -2,6 +2,7 @@ import {
   ADDRESS_FIELDS,
   addressFormatErrors,
   addressMissing,
+  DEFAULT_ROUNDING_MINUTES,
   EINVOICE_REGIMES,
   parseAddressJson,
   resolvedRegime,
@@ -116,7 +117,7 @@ export function defaultProfile(
     quotePrefix: 'QT',
     creditNotePrefix: 'CN',
     numberingReset: 'yearly',
-    roundingMinutes: 15,
+    roundingMinutes: DEFAULT_ROUNDING_MINUTES,
     weekStart: 0,
     digits: 'latn',
     showHijri: false,
@@ -224,7 +225,8 @@ export function validateProfile(
     quotePrefix: pick('quotePrefix', (v) => text(v, 'quotePrefix', 16, PREFIX)),
     creditNotePrefix: pick('creditNotePrefix', (v) => text(v, 'creditNotePrefix', 16, PREFIX)),
     numberingReset: pick('numberingReset', (v) => oneOf(v, 'numberingReset', NUMBERING_RESETS)),
-    roundingMinutes: pick('roundingMinutes', (v) => wholeNumber(v, 'roundingMinutes', 1, 60)),
+    // 52-01: the owner's choice alone, through `PATCH …/time/rounding`; a finance save keeps it.
+    roundingMinutes: current.roundingMinutes,
     weekStart: pick('weekStart', (v) => wholeNumber(v, 'weekStart', 0, 6)),
     digits: pick('digits', (v) => oneOf(v, 'digits', DIGIT_SYSTEMS)),
     showHijri: pick('showHijri', (v) => {

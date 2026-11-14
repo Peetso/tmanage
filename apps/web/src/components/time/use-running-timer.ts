@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { queryOptions, useQuery } from '@tanstack/react-query';
+import { roundingIncrement } from '@tmanage/domain';
 import type { ApiClient } from '../../lib/api/client';
 import { getTimer } from '../../lib/api/time-timer';
 import type { RunningTimer } from '../../lib/api/time-timer';
@@ -13,20 +14,27 @@ export const timerKey = (organizationSlug: string) => ['time-timer', organizatio
 /** Re-read the timer this often, so a timer stopped on another device leaves this one. */
 const REFRESH_MS = 60_000;
 
-export interface RunningTimerState {
-  readonly timer: RunningTimer | null;
-  readonly elapsedSeconds: number;
-  readonly isPending: boolean;
-}
-
-/** 52-01. The caller's running timer and its elapsed seconds, ticking once a second. */
-export function useRunningTimer(api: ApiClient, organizationSlug: string): RunningTimerState {
-  const query = useQuery({
+/** The timer read every surface shares (the pill, the item button, the owner's rounding card). */
+export function timerQuery(api: ApiClient, organizationSlug: string) {
+  return queryOptions({
     queryKey: timerKey(organizationSlug),
     queryFn: async () => ({ state: await getTimer(api, organizationSlug), at: Date.now() }),
     refetchInterval: REFRESH_MS,
     retry: false,
   });
+}
+
+export interface RunningTimerState {
+  readonly timer: RunningTimer | null;
+  readonly elapsedSeconds: number;
+  /** The company's rounding step (an answer without one reads as the default). */
+  readonly roundingMinutes: number;
+  readonly isPending: boolean;
+}
+
+/** 52-01. The caller's running timer and its elapsed seconds, ticking once a second. */
+export function useRunningTimer(api: ApiClient, organizationSlug: string): RunningTimerState {
+  const query = useQuery(timerQuery(api, organizationSlug));
   // `?.` on the state too: an answer without one (an older API, a stub) reads as no timer.
   const timer = query.data?.state?.timer ?? null;
   const [now, setNow] = useState(() => Date.now());
@@ -38,6 +46,7 @@ export function useRunningTimer(api: ApiClient, organizationSlug: string): Runni
   return {
     timer,
     elapsedSeconds: timer === null ? 0 : elapsedNow(timer, query.data?.at ?? now, now),
+    roundingMinutes: roundingIncrement(query.data?.state?.roundingMinutes),
     isPending: query.isPending,
   };
 }

@@ -186,7 +186,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // heartbeat, PATCH policy, GET time/team, GET time/team/:membershipId/day (+7 NEVER).
 // FIGMA lane (2026-11-14): PUT figma/links/:linkId/pages, GET figma/frames/:frameId/render and
 // /thumb, GET portal/figma/links, GET portal/figma/frames/:frameId/render and /thumb (+6 NEVER).
-const EXPECTED_ROUTE_COUNT = 1425;
+// TIMER lane (2026-11-14): PUT time/auto/device, PATCH time/rounding (+2 NEVER), POST
+// time/timesheets/:timesheetId/entries/split and /delete (+2 ops).
+const EXPECTED_ROUTE_COUNT = 1429;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

@@ -1,3 +1,10 @@
+import {
+  authorize,
+  isTimeRoundingChoice,
+  localDateOf,
+  roundedSpanMinutes,
+  roundingIncrement,
+} from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import type { TimeTimerRow, WorkItemTimeLogRow } from '../../common/database/schema.js';
 import type {
@@ -7,12 +14,15 @@ import type {
 } from '../../common/database/tenant-context.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { defaultProfile } from '../finance/finance-rules.js';
+import type { FinanceRepository } from '../finance/finance.repository.js';
 import type { ThrottlePolicy, ThrottleSubject } from '../rate-limits/durable-rate-limiter.js';
+import { companyTimeZone } from '../tenancy/auto-time-tracking-policy.js';
+import type { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import type { WorkTimeLogsRepository } from '../work/time-logs.repository.js';
 import type { WorkItemsRepository } from '../work/work-items.repository.js';
 import { mayTrackOnItem, mayTrackOnProject, requireInternal } from './time-capabilities.js';
-import { roundedSpanMinutes } from './time-rounding.js';
-import { optionalBoolean, optionalId, optionalNote, utcDay } from './time-rules.js';
+import { optionalBoolean, optionalId, optionalNote } from './time-rules.js';
 import type { TimeRepository } from './time.repository.js';
 import { resolveTimeTarget } from './time-target.js';
 
@@ -26,9 +36,12 @@ import { resolveTimeTarget } from './time-target.js';
  *   or another tenant's item is the same 404) or a project (`work.read` on it, and it must exist),
  *   or neither (the entry lands unsorted). Client principals are refused before anything is read.
  * - **When.** `started_at` and `ended_at` are this server's clock. Stop writes exactly one entry
- *   (`source = 'timer'`), rounded up to `org_finance_profiles.rounding_minutes`, and deletes the
- *   timer in the same transaction; the delete's row count makes a racing second stop a 409 rather
- *   than a second entry.
+ *   (`source = 'timer'`), rounded up to the owner's step (`org_finance_profiles.rounding_minutes`,
+ *   `@tmanage/domain` rounding) and filed on the company-calendar day it started
+ *   (`default_timezone`, like automatic time), and deletes the timer in the same transaction; the
+ *   delete's row count makes a racing second stop a 409 rather than a second entry.
+ * - **Rounding.** Every timer read carries the step, so the Stop dialog announces what is saved.
+ *   Only the company owner changes it (`PATCH …/time/rounding`, audited with the actor).
  * - **Presence** (`GET …/time/active`) answers only when the organization turned
  *   `time_presence_visible` on (default off; otherwise 404), and shows a project or item title
  *   only through the viewer's own `work.read` relation to it.
@@ -59,6 +72,12 @@ export interface TimerView {
 export interface TimerStateView {
   readonly timer: TimerView | null;
   readonly serverNow: string;
+  /** The step a stopped timer is rounded up to, in minutes (`0`/`1` = exact minutes). */
+  readonly roundingMinutes: number;
+}
+
+export interface TimeRoundingView {
+  readonly roundingMinutes: number;
 }
 
 export interface TimeEntryView {
@@ -101,6 +120,13 @@ export interface TimeServiceOptions {
   >;
   readonly timeLogs: Pick<WorkTimeLogsRepository, 'create'>;
   readonly workItems: Pick<WorkItemsRepository, 'findById'>;
+  /** The company time zone (`default_timezone`) the entries are filed by. */
+  readonly settings: Pick<OrgSettingsRepository, 'findByKey'>;
+  /** Where the rounding step is stored (`org_finance_profiles`), for the owner's change. */
+  readonly finance: Pick<
+    FinanceRepository,
+    'organization' | 'profile' | 'insertProfile' | 'updateRoundingMinutes'
+  >;
   readonly audit: Pick<AuditService, 'record'>;
   /** The 56-05 limiter; absent in a composition without one (the heartbeat is then unthrottled). */
   readonly limiter?: {
@@ -151,10 +177,88 @@ export class TimeService {
   async get(context: TenantContext, principal: Principal): Promise<TimerStateView> {
     requireInternal(principal);
     const at = this.now();
-    const row = await this.options.database.read(context, (r) =>
-      this.options.repository.findTimer(r, context, context.membershipId),
+    return this.options.database.read(context, async (r) =>
+      stateOf(
+        await this.options.repository.findTimer(r, context, context.membershipId),
+        at,
+        await this.options.repository.roundingMinutes(r, context),
+      ),
     );
-    return stateOf(row, at);
+  }
+
+  /**
+   * The company owner chooses the manual timer's rounding step: one of `TIME_ROUNDING_CHOICES`
+   * (1 = no rounding). Stored on the finance profile row (created with its defaults when the
+   * company has none yet) and audited with the actor and the previous step. Automatic time is
+   * never rounded.
+   */
+  async setRounding(
+    context: TenantContext,
+    principal: Principal,
+    body: unknown,
+  ): Promise<TimeRoundingView> {
+    requireInternal(principal);
+    const verdict = authorize({
+      principal,
+      capability: 'org.manage',
+      resource: {
+        organizationId: context.organizationId,
+        projectId: null,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    });
+    if (!verdict.allowed) {
+      throw new ApiError(
+        403,
+        'forbidden',
+        MESSAGES.forbidden,
+        undefined,
+        `time_rounding:${verdict.code}`,
+      );
+    }
+    if (principal.role !== 'owner') {
+      throw new ApiError(
+        403,
+        'forbidden',
+        'Only the company owner can change this setting.',
+        undefined,
+        'time_rounding.write:not_owner',
+      );
+    }
+    const value = record(body)['roundingMinutes'];
+    if (!isTimeRoundingChoice(value)) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'roundingMinutes', message: 'must be 1 (no rounding), 5, 6, 10, 15 or 30' },
+      ]);
+    }
+    const finance = this.options.finance;
+    const at = this.now();
+    return this.options.database.transaction(context, async (tx) => {
+      const organization = await finance.organization(tx, context.organizationId);
+      if (organization === null) throw notFound();
+      const row = await finance.profile(tx, context.organizationId, true);
+      const previous = roundingIncrement(row?.roundingMinutes);
+      if (row === null) {
+        await finance.insertProfile(
+          tx,
+          context.organizationId,
+          { ...defaultProfile(organization), roundingMinutes: value },
+          at,
+        );
+      } else {
+        await finance.updateRoundingMinutes(tx, context.organizationId, value, at);
+      }
+      await this.options.audit.record(tx, context, {
+        action: 'organization.time_rounding_changed',
+        objectId: context.organizationId,
+        result: 'allowed',
+        actorUserId: principal.userId,
+        metadata: { previous, value },
+        changes: [{ field: 'time_rounding_minutes', before: previous, after: value }],
+      });
+      return { roundingMinutes: value };
+    });
   }
 
   async start(
@@ -185,9 +289,10 @@ export class TimeService {
         projectId,
       );
       const existing = await repo.findTimer(tx, context, context.membershipId, true);
+      const rounding = await repo.roundingMinutes(tx, context);
       if (existing !== null) {
         if (!force) throw timerRunning();
-        await this.finish(tx, context, existing, at, existing.note);
+        await this.finish(tx, context, existing, at, existing.note, rounding);
       }
       let row: TimeTimerRow;
       try {
@@ -211,7 +316,7 @@ export class TimeService {
         actorUserId: context.userId,
         metadata: {},
       });
-      return stateOf(row, at);
+      return stateOf(row, at, rounding);
     });
   }
 
@@ -228,7 +333,8 @@ export class TimeService {
         true,
       );
       if (timer === null) throw timerNotRunning();
-      const entry = await this.finish(tx, context, timer, at, note ?? timer.note);
+      const rounding = await this.options.repository.roundingMinutes(tx, context);
+      const entry = await this.finish(tx, context, timer, at, note ?? timer.note, rounding);
       return entryView(entry);
     });
   }
@@ -254,7 +360,11 @@ export class TimeService {
       );
       if (timer === null) throw timerNotRunning();
       await this.options.repository.touchHeartbeat(tx, context, timer.id, at);
-      return stateOf({ ...timer, lastHeartbeatAt: at }, at);
+      return stateOf(
+        { ...timer, lastHeartbeatAt: at },
+        at,
+        await this.options.repository.roundingMinutes(tx, context),
+      );
     });
   }
 
@@ -297,17 +407,21 @@ export class TimeService {
     });
   }
 
-  /** Stop one timer: delete it (losing a race is a 409) and file exactly one entry. */
+  /**
+   * Stop one timer: delete it (losing a race is a 409) and file exactly one entry, rounded to the
+   * stored step and on the company-calendar day it started.
+   */
   private async finish(
     tx: TenantQueryRunner,
     context: TenantContext,
     timer: TimeTimerRow,
     endedAt: Date,
     note: string | null,
+    rounding: number | null,
   ): Promise<WorkItemTimeLogRow> {
     const repo = this.options.repository;
     if ((await repo.deleteTimer(tx, context, timer.id)) === 0) throw timerNotRunning();
-    const rounding = await repo.roundingMinutes(tx, context);
+    const zone = await companyTimeZone(tx, context, this.options.settings);
     const workItemId =
       timer.workItemId !== null && (await repo.workItemExists(tx, context, timer.workItemId))
         ? timer.workItemId
@@ -317,7 +431,7 @@ export class TimeService {
       projectId: timer.projectId,
       loggedBy: timer.membershipId,
       minutes: roundedSpanMinutes(timer.startedAt, endedAt, rounding),
-      spentOn: utcDay(timer.startedAt),
+      spentOn: localDateOf(timer.startedAt, zone),
       note,
       startedAt: timer.startedAt,
       endedAt,
@@ -335,8 +449,12 @@ export class TimeService {
   }
 }
 
-function stateOf(row: TimeTimerRow | null, at: Date): TimerStateView {
-  return { timer: row === null ? null : timerView(row, at), serverNow: at.toISOString() };
+function stateOf(row: TimeTimerRow | null, at: Date, rounding: number | null): TimerStateView {
+  return {
+    timer: row === null ? null : timerView(row, at),
+    serverNow: at.toISOString(),
+    roundingMinutes: roundingIncrement(rounding),
+  };
 }
 
 function timerView(row: TimeTimerRow, at: Date): TimerView {

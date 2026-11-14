@@ -30,6 +30,8 @@ export interface AutoRowPatch {
   readonly sessionStartedAt?: Date | null;
   readonly lastActiveAt?: Date | null;
   readonly lastHeartbeatAt?: Date | null;
+  readonly deviceKind?: string;
+  readonly deviceSeenAt?: Date;
 }
 
 export interface MemberName {

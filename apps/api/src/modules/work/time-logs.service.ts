@@ -1,4 +1,4 @@
-import { authorize } from '@tmanage/domain';
+import { authorize, localDateOf } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type {
@@ -8,6 +8,8 @@ import type {
 } from '../../common/database/tenant-context.js';
 import type { WorkItemRow, WorkItemTimeLogRow } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { companyTimeZone } from '../tenancy/auto-time-tracking-policy.js';
+import { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import type { WorkItemsRepository } from './work-items.repository.js';
 import { WorkTimeLogsRepository } from './time-logs.repository.js';
 
@@ -52,7 +54,8 @@ export interface TimeLogListView {
 
 export interface AddTimeLogInput {
   readonly minutes: number;
-  readonly spentOn: string;
+  /** `null` with a span: the company-calendar day (`default_timezone`) `startedAt` falls on. */
+  readonly spentOn: string | null;
   readonly note: string | null;
   /**
    * 52-01. When the entry was worked, both or neither, already bounded to the last 31 days by the
@@ -71,6 +74,11 @@ export class WorkTimeLogsService {
     private readonly timeLogs: WorkTimeLogsRepository = new WorkTimeLogsRepository(),
     /** 52-01. `time_log.created` on every entry; optional until `work.module.ts` passes it. */
     private readonly audit: Pick<AuditService, 'record'> | null = null,
+    /** 52-01. The company time zone a span's day is read in. */
+    private readonly settings: Pick<
+      OrgSettingsRepository,
+      'findByKey'
+    > = new OrgSettingsRepository(),
   ) {}
 
   /** The work item's time-log entries plus a summed total. Behind `work.read` on the parent item. */
@@ -127,7 +135,7 @@ export class WorkTimeLogsService {
         projectId: parent.projectId,
         loggedBy: principal.membershipId,
         minutes: input.minutes,
-        spentOn: input.spentOn,
+        spentOn: await this.dayOf(tx, context, input),
         note: input.note,
         startedAt: input.startedAt ?? null,
         endedAt: input.endedAt ?? null,
@@ -179,6 +187,21 @@ export class WorkTimeLogsService {
 
       await this.timeLogs.remove(tx, context, workItemId, entryId);
     });
+  }
+
+  /** The entry's day: the typed one, else the company-calendar day its span started on. */
+  private async dayOf(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    input: AddTimeLogInput,
+  ): Promise<string> {
+    if (input.spentOn !== null) return input.spentOn;
+    if (!input.startedAt) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'spentOn', message: 'must be a calendar day in YYYY-MM-DD form' },
+      ]);
+    }
+    return localDateOf(input.startedAt, await companyTimeZone(tx, context, this.settings));
   }
 
   /**

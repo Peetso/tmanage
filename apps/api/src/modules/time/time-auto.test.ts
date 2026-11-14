@@ -187,6 +187,8 @@ function row(o: Partial<TimeAutoTrackingRow> = {}): TimeAutoTrackingRow {
     sessionStartedAt: null,
     lastActiveAt: null,
     lastHeartbeatAt: null,
+    deviceKind: null,
+    deviceSeenAt: null,
     createdAt: T0,
     updatedAt: T0,
     ...o,
@@ -451,20 +453,17 @@ describe('TimeAutoService', () => {
     });
   });
 
-  it('settings: idle threshold must be 1 to 15 whole minutes', async () => {
-    const { service, row: after } = harness({ maxIdle: '15' });
-    await expect(
-      service.updateSettings(me, member, { enabled: true, idleThresholdMinutes: 0 }),
-    ).rejects.toMatchObject({ status: 400 });
-    await expect(
-      service.updateSettings(me, member, { enabled: true, idleThresholdMinutes: 16 }),
-    ).rejects.toMatchObject({ status: 400 });
+  it('settings: only the own switch is personal; the away threshold is the workspace one', async () => {
+    const { service, row: after } = harness({
+      maxIdle: '7',
+      row: row({ idleThresholdMinutes: 2 }),
+    });
     const view = await service.updateSettings(me, member, {
       enabled: true,
       idleThresholdMinutes: 10,
     });
-    expect(view.idleThresholdMinutes).toBe(10);
-    expect(after().idleThresholdMinutes).toBe(10);
+    expect(view.idleThresholdMinutes).toBe(7);
+    expect(after().idleThresholdMinutes).toBe(2);
     expect(view.visibleTo).toBe('admins_and_authorized');
   });
 });
@@ -501,6 +500,11 @@ describe('review M2: "off" really stops tracking', () => {
       action: 'organization.auto_time_tracking_policy_changed',
       actorUserId: 'u1',
       metadata: { previous: 'optional', value: 'off', sessions_closed: 2 },
+      changes: [
+        { field: 'auto_time_tracking', before: 'optional', after: 'off' },
+        { field: 'max_idle_minutes', before: 5, after: 5 },
+        { field: 'open_auto_sessions', before: 2, after: 0 },
+      ],
     });
   });
 
@@ -519,7 +523,7 @@ describe('review M2: "off" really stops tracking', () => {
     expect(switchedOff.row().sessionStartedAt).toBeNull();
   });
 
-  it('a task change splits the session but never extends it: the old heartbeat is kept', async () => {
+  it('a task change splits the session at the click and keeps the old heartbeat', async () => {
     const open = row({
       sessionStartedAt: at(-600),
       lastActiveAt: at(-30),
@@ -527,12 +531,40 @@ describe('review M2: "off" really stops tracking', () => {
     });
     const h = harness({ row: open });
     await h.service.setCurrentTask(me, member, {});
-    expect(h.entries[0]).toMatchObject({ startedAt: at(-600), endedAt: at(-30) });
+    expect(h.entries[0]).toMatchObject({ startedAt: at(-600), endedAt: at(0) });
     expect(h.row()).toMatchObject({
-      sessionStartedAt: at(-30),
-      lastActiveAt: at(-30),
+      sessionStartedAt: at(0),
+      lastActiveAt: at(0),
       lastHeartbeatAt: at(-40),
     });
+  });
+
+  it('live check B4: the minute before "Work on this now" stays unassigned', async () => {
+    // A session opened at -60 with no task; the task is chosen at 0; the next heartbeat at +60.
+    const open = row({
+      sessionStartedAt: at(-60),
+      lastActiveAt: at(-60),
+      lastHeartbeatAt: at(-60),
+    });
+    const id = '01890000-0000-7000-8000-0000000002a1';
+    const h = harness({ row: open, items: { [id]: { ...ITEM_W1, id } } });
+    await h.service.setCurrentTask(me, onP1, { workItemId: id });
+    expect(h.entries).toEqual([
+      expect.objectContaining({ workItemId: null, startedAt: at(-60), endedAt: at(0), minutes: 1 }),
+    ]);
+    expect(h.row()).toMatchObject({ workItemId: id, sessionStartedAt: at(0) });
+  });
+
+  it('a session no heartbeat can extend is filed at its last activity, not at the click', async () => {
+    const stale = row({
+      sessionStartedAt: at(-900),
+      lastActiveAt: at(-600),
+      lastHeartbeatAt: at(-600),
+    });
+    const h = harness({ row: stale });
+    await h.service.setCurrentTask(me, member, {});
+    expect(h.entries[0]).toMatchObject({ startedAt: at(-900), endedAt: at(-600) });
+    expect(h.row().sessionStartedAt).toBeNull();
   });
 
   it('"working on now" is rate-limited; with no durable limiter an in-process one brakes', async () => {
@@ -695,24 +727,47 @@ describe('review M5: silent sessions close without waiting, never into a closed 
   });
 });
 
-describe('review L1, L2: idle maximum and lost access', () => {
-  it('a person chooses an idle threshold at or below the owner maximum', async () => {
-    const h = harness({ maxIdle: '8' });
-    await expect(
-      h.service.updateSettings(me, member, { enabled: true, idleThresholdMinutes: 9 }),
-    ).rejects.toMatchObject({ status: 400 });
-    const chosen = await h.service.updateSettings(me, member, {
-      enabled: true,
-      idleThresholdMinutes: 8,
+describe('item 17: where tracking runs', () => {
+  it('stores only a known device word on the caller’s own row, with the server clock', async () => {
+    const h = harness();
+    await expect(h.service.reportDevice(me, member, { device: 'laptop' })).rejects.toMatchObject({
+      status: 400,
     });
-    expect(chosen.idleThresholdMinutes).toBe(8);
+    expect(await h.service.reportDevice(me, member, { device: 'browser_blocked' })).toEqual({
+      device: 'browser_blocked',
+    });
+    expect(h.row()).toMatchObject({ deviceKind: 'browser_blocked', deviceSeenAt: at(0) });
+    const client = { ...member, kind: 'client' } as unknown as Principal;
+    await expect(h.service.reportDevice(me, client, { device: 'desktop' })).rejects.toMatchObject({
+      status: 403,
+    });
+  });
+});
+
+describe('review L1, L2: idle maximum and lost access', () => {
+  it('the owner sets when someone counts as away (1 to 15); stored personal ones are ignored', async () => {
+    // An older personal choice of 15 minutes is still stored; the workspace says 2.
+    const open = row({
+      idleThresholdMinutes: 15,
+      sessionStartedAt: at(-600),
+      lastActiveAt: at(-300),
+      lastHeartbeatAt: at(-60),
+    });
+    const h = harness({ maxIdle: '2', row: open });
+    expect((await h.service.get(me, member)).idleThresholdMinutes).toBe(2);
+    // 5 minutes between two inputs is past the workspace's 2 (the stored 15 would join them): the
+    // session ends at its last activity and a new one opens.
+    await h.service.heartbeat(me, member, { idleSeconds: 0 });
+    expect(h.entries[0]).toMatchObject({ startedAt: at(-600), endedAt: at(-300), minutes: 5 });
     await expect(
       h.service.setPolicy(me, owner, { policy: 'optional', maxIdleMinutes: 16 }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      h.service.setPolicy(me, owner, { policy: 'optional', maxIdleMinutes: 0 }),
     ).rejects.toMatchObject({ status: 400 });
     expect(await h.service.setPolicy(me, owner, { policy: 'optional', maxIdleMinutes: 3 })).toEqual(
       { policy: 'optional', maxIdleMinutes: 3 },
     );
-    // An older, larger own choice is read down to the new maximum.
     expect((await h.service.get(me, member)).idleThresholdMinutes).toBe(3);
   });
 

@@ -487,3 +487,6 @@ export * from './finance/zatca/ubl.js';
 
 // Automatic time tracking (whole-computer activity) — FIX-2026-11-10
 export * from './time/auto-tracking.js';
+
+// Manual timer rounding: the step the owner chooses, shared by the API and the Stop dialog — 52-01
+export * from './time/rounding.js';

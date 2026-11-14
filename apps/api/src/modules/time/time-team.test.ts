@@ -96,6 +96,8 @@ function service(
                 sessionStartedAt: new Date(now.getTime() - 600_000),
                 lastActiveAt: beat,
                 lastHeartbeatAt: beat,
+                deviceKind: 'desktop',
+                deviceSeenAt: beat,
               },
             ]
           : [],
@@ -163,6 +165,9 @@ describe('team time view', () => {
       inProgressMinutes: 10,
     });
     expect(view.totals).toMatchObject({ todayMinutes: 65, inProgressMinutes: 10 });
+    // Item 17: where each person's tracking runs; no report yet reads as no device.
+    expect(basel?.device?.kind).toBe('desktop');
+    expect(view.people.find((p) => p.displayName === 'Amal')?.device).toBeNull();
   });
 
   it('never returns another company’s people', async () => {

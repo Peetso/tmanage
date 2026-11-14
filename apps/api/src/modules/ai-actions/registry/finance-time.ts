@@ -57,7 +57,7 @@ const READ = ['read', 'read'] as const;
 const WRITE = ['write', 'write'] as const;
 const CONFIRM = ['confirm', 'manage'] as const;
 
-/** One op per route moved out of NEVER (52 routes). */
+/** One op per route moved out of NEVER (54 routes). */
 export const financeTimeOps: readonly AiActionOp[] = [
   // 52-01 timer and presence.
   op('time.timer.get', 'GET', '/time/timer', 'work.read', ...READ),
@@ -81,6 +81,20 @@ export const financeTimeOps: readonly AiActionOp[] = [
     '/time/timesheets/:timesheetId/entries/move',
     'work.read',
     ...WRITE,
+  ),
+  op(
+    'time.timesheets.entries.split',
+    'POST',
+    '/time/timesheets/:timesheetId/entries/split',
+    'work.read',
+    ...WRITE,
+  ),
+  op(
+    'time.timesheets.entries.delete',
+    'POST',
+    '/time/timesheets/:timesheetId/entries/delete',
+    'work.read',
+    ...CONFIRM,
   ),
   op(
     'time.timesheets.submit',
@@ -292,6 +306,7 @@ export const FINANCE_TIME_WRITE_ALLOWLIST: readonly string[] = [
   'time.timer.heartbeat',
   'time.timesheets.entries.upsert',
   'time.timesheets.entries.move',
+  'time.timesheets.entries.split',
   'time.timesheets.submit',
   'time.timesheets.copy_from',
   'finance.expenses.create',
@@ -509,6 +524,44 @@ export const financeTimeDetails: readonly AiActionDetail[] = [
         timesheetId: 'ts_44',
         entryIds: ['te_9'],
         workItemId: 'wi_fix',
+      }),
+    ],
+  }),
+  detail('time.timesheets.entries.split', {
+    title: 'Split unassigned time',
+    description:
+      'Move some minutes of one unassigned entry to a task (or keep them unassigned); the rest stays.',
+    descriptionAr: 'نقل جزء من دقائق وقت بدون مهمة إلى مهمة، والباقي يفضل زي ما هو.',
+    input: bodyArgs(['timesheetId'], {
+      entryId: f.id(),
+      minutes: z.number().int().min(1).max(1440),
+      workItemId: f.id().nullable(),
+    }),
+    examples: [
+      ex('Put 20 minutes of my unassigned time on the Acme logo task', {
+        timesheetId: 'ts_44',
+        entryId: 'te_3',
+        minutes: 20,
+        workItemId: 'wi_acme_logo',
+      }),
+      ex('Split 30 minutes off that unassigned entry', {
+        timesheetId: 'ts_44',
+        entryId: 'te_7',
+        minutes: 30,
+        workItemId: null,
+      }),
+    ],
+  }),
+  detail('time.timesheets.entries.delete', {
+    title: 'Delete unassigned time',
+    description: 'Delete unassigned entries of an editable timesheet. Time on a task stays.',
+    descriptionAr: 'حذف وقت بدون مهمة من جدول زمني قابل للتعديل. الوقت المسجّل على مهمة يفضل.',
+    input: bodyArgs(['timesheetId'], { entryIds: z.array(f.id()).min(1).max(200) }),
+    examples: [
+      ex('Get rid of that unassigned time on Monday', { timesheetId: 'ts_44', entryIds: ['te_5'] }),
+      ex('Remove these two unassigned entries', {
+        timesheetId: 'ts_44',
+        entryIds: ['te_1', 'te_2'],
       }),
     ],
   }),

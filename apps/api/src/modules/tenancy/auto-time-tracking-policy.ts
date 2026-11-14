@@ -6,6 +6,8 @@ import {
   isAutoTrackingPolicy,
 } from '@tmanage/domain';
 import type { AutoTrackingPolicy } from '@tmanage/domain';
+import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+import type { OrgSettingsRepository } from './org-settings.repository.js';
 
 /**
  * FIX-2026-11-10 — "Automatic time tracking", the company owner's choice: `off` (nobody),
@@ -16,8 +18,24 @@ import type { AutoTrackingPolicy } from '@tmanage/domain';
  */
 export const AUTO_TIME_TRACKING_KEY = 'auto_time_tracking' as const;
 export const AUTO_TIME_TRACKING_MAX_IDLE_KEY = 'auto_time_tracking_max_idle' as const;
-/** The company's time zone (`org_settings.default_timezone`): automatic time is filed by its days. */
+/**
+ * The company's time zone (`org_settings.default_timezone`): automatic time and the manual timer
+ * are filed by its days.
+ */
 export const COMPANY_TIME_ZONE_KEY = 'default_timezone' as const;
+
+/**
+ * The company's time zone; an absent or blank one reads as UTC (an unknown name reads as UTC in
+ * `localDateOf`). The one reader, so every entry is filed on the same company calendar.
+ */
+export async function companyTimeZone(
+  runner: TenantQueryRunner,
+  context: TenantContext,
+  settings: Pick<OrgSettingsRepository, 'findByKey'>,
+): Promise<string> {
+  const row = await settings.findByKey(runner, context, COMPANY_TIME_ZONE_KEY);
+  return row?.settingValue?.trim() || 'UTC';
+}
 
 /** The stored value read back as a policy; anything unrecognised is the default. */
 export function storedAutoTrackingPolicy(stored: string | undefined): AutoTrackingPolicy {

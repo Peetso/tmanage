@@ -7,7 +7,7 @@ import type {
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
-import { COMPANY_TIME_ZONE_KEY } from '../tenancy/auto-time-tracking-policy.js';
+import { companyTimeZone } from '../tenancy/auto-time-tracking-policy.js';
 import type { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import type { WorkTimeLogsRepository } from '../work/time-logs.repository.js';
 import type { WorkItemsRepository } from '../work/work-items.repository.js';
@@ -116,8 +116,7 @@ export class AutoTimeFiler {
 
   /** The company's time zone (an unknown or absent one reads as UTC). */
   async timeZone(r: TenantQueryRunner, context: TenantContext): Promise<string> {
-    const row = await this.options.settings.findByKey(r, context, COMPANY_TIME_ZONE_KEY);
-    return row?.settingValue?.trim() || 'UTC';
+    return companyTimeZone(r, context, this.options.settings);
   }
 
   /**

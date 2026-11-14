@@ -24,10 +24,11 @@ import type { AutoTimeFiler } from './time-auto-filing.js';
 import {
   automaticMinutes,
   effectiveEnabled,
-  effectiveThresholdMinutes,
   inProgress,
+  isDeviceKind,
   isLive,
 } from './time-auto-rules.js';
+import type { DeviceKind } from './time-auto-rules.js';
 import type { TimeAutoRepository } from './time-auto.repository.js';
 import { optionalId, periodContaining } from './time-rules.js';
 import type { TimeLogSource, WeekBounds } from './time-rules.js';
@@ -84,6 +85,11 @@ export interface TeamPersonView {
   readonly inProgressMinutes: number;
   /** An entry in the range is flagged for review. */
   readonly needsReview: boolean;
+  /**
+   * Where this person's tracking runs, as their page last reported it (TIMER item 17), or null
+   * when no device has reported yet.
+   */
+  readonly device: { readonly kind: DeviceKind; readonly seenAt: string } | null;
 }
 
 export interface TeamTimeView {
@@ -283,6 +289,7 @@ export class TimeTeamService {
           rangeMinutes: sum(from, to),
           inProgressMinutes: piece === null ? 0 : automaticMinutes(piece),
           needsReview: own.some((e) => e.needsReview && inRange(e.spentOn, from, to)),
+          device: deviceOf(row),
         });
       }
       people.sort((a, b) => a.displayName.localeCompare(b.displayName));
@@ -408,6 +415,11 @@ interface CompanyRules {
   readonly maxIdleMinutes: number;
 }
 
+function deviceOf(row: TimeAutoTrackingRow | null): TeamPersonView['device'] {
+  if (row === null || row.deviceSeenAt === null || !isDeviceKind(row.deviceKind)) return null;
+  return { kind: row.deviceKind, seenAt: row.deviceSeenAt.toISOString() };
+}
+
 function liveState(
   { policy, maxIdleMinutes }: CompanyRules,
   row: TimeAutoTrackingRow | null,
@@ -420,8 +432,7 @@ function liveState(
   if (
     session !== null &&
     isLive(session, at) &&
-    at.getTime() - session.lastActiveAt.getTime() <
-      effectiveThresholdMinutes(row.idleThresholdMinutes, maxIdleMinutes) * 60_000
+    at.getTime() - session.lastActiveAt.getTime() < maxIdleMinutes * 60_000
   ) {
     return 'tracking';
   }

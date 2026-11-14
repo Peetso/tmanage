@@ -31,9 +31,9 @@ export function isAutoTrackingPolicy(value: unknown): value is AutoTrackingPolic
 }
 
 /**
- * The idle threshold, in whole minutes. The company owner sets the largest one people may choose
- * (default {@link IDLE_THRESHOLD_DEFAULT_MINUTES}, never above {@link IDLE_THRESHOLD_MAX_MINUTES});
- * each person picks theirs at or below it.
+ * When someone counts as away, in whole minutes: one workspace setting the company owner chooses
+ * ("Count someone as away after", default {@link IDLE_THRESHOLD_DEFAULT_MINUTES}, 1 to
+ * {@link IDLE_THRESHOLD_MAX_MINUTES}). There is no personal choice (Peter, 2026-11-10).
  */
 export const IDLE_THRESHOLD_MIN_MINUTES = 1;
 export const IDLE_THRESHOLD_MAX_MINUTES = 15;

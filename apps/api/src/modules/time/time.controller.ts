@@ -1,10 +1,11 @@
-import { Body, Controller, Get, HttpCode, Inject, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Patch, Post, Query } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import type {
   ActiveTimerView,
   TimeEntryView,
+  TimeRoundingView,
   TimeService,
   TimerStateView,
 } from './time.service.js';
@@ -16,7 +17,8 @@ export const TIME_SERVICE = Symbol.for('tmanage.TimeService');
  * organization allows it, presence. The route gate is `work.read` (the "track own" stand-in in
  * `time-capabilities.ts`); the service asks it again against the item or project the time is for
  * and refuses client principals. No body or query names a person or an organization. No public
- * route.
+ * route. `PATCH rounding` is the company owner's (`org.manage` here, the owner checked in the
+ * service, audited).
  */
 @Controller('v1/organizations/:orgSlug/time')
 export class TimeController {
@@ -61,6 +63,16 @@ export class TimeController {
     @CurrentPrincipal() principal: Principal,
   ): Promise<TimerStateView> {
     return this.service.heartbeat(context, principal);
+  }
+
+  @Patch('rounding')
+  @RequireCapability('org.manage')
+  rounding(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Body() body: unknown,
+  ): Promise<TimeRoundingView> {
+    return this.service.setRounding(context, principal, body);
   }
 
   @Get('active')
