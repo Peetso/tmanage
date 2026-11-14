@@ -133,6 +133,14 @@
 /* FIX6 item 1: the "Checked" label keeps clear of the file name beside it. */
 .tm-checked-label {
   display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
   margin-inline-start: var(--s2);
   cursor: help;
+}
+
+/* FIX6 review L3: the visible "not virus-scanned" note beside a client-bound file's label. */
+.tm-checked-label__note {
+  font-size: var(--t-caption);
+  color: var(--ink-650);
 }

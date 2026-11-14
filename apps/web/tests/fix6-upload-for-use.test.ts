@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ApiClient } from '../src/lib/api/client';
 import { ApiRequestError } from '../src/lib/api/errors';
-import { uploadProjectFileFor } from '../src/lib/api/uploads';
+import { uploadProjectFileFor, uploadWorkItemAttachment } from '../src/lib/api/uploads';
 
 /**
  * FIX6 item 1 — "Upload new version" on a deliverable. The file is handed to the version only
@@ -99,6 +99,20 @@ describe('uploadProjectFileFor', () => {
         deps(t.fetchImpl),
       ),
     ).rejects.toBe(refusal);
+    expect(t.calls).toContain('DELETE /v1/organizations/acme/files/fa-1');
+  });
+
+  it('a refused task attach deletes the uploaded file again (review L4)', async () => {
+    const t = harness();
+    await expect(
+      uploadWorkItemAttachment(
+        t.client,
+        'acme',
+        { workItemId: 'w-1', projectId: 'p-1', file },
+        deps(t.fetchImpl),
+      ),
+    ).rejects.toBeInstanceOf(ApiRequestError);
+    expect(t.calls).toContain('POST /v1/organizations/acme/work-items/w-1/files');
     expect(t.calls).toContain('DELETE /v1/organizations/acme/files/fa-1');
   });
 });

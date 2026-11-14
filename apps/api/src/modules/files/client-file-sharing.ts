@@ -10,6 +10,8 @@ import {
 import type { ScannerPresence } from '../tenancy/download-scan-policy.js';
 import { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import { ApiError } from '../../common/http/errors.js';
+import { ZIP_FAMILY_TOKENS } from './archive-inspection.js';
+import { MIME_BY_TOKEN } from './content-signature.js';
 import { FileAssetsRepository } from './file-assets.repository.js';
 
 /**
@@ -58,7 +60,33 @@ export function clientFileState(
     return 'virus_scanned';
   }
   if (policy !== 'checked' || teamDownloads !== 'allow_labeled') return null;
-  return awaitingScan(asset.status, version) ? 'checked' : null;
+  return awaitingScan(asset.status, version) && checkedByCurrentRules(version) ? 'checked' : null;
+}
+
+/**
+ * FIX6 review L2 — when the checks inside ZIP and Office files (e4fd90cd) went live: the restart
+ * of the 0186c261 deploy at 2026-11-10 01:10 UTC (deploy-live/LIVE-0186c261.md), with margin.
+ */
+export const ARCHIVE_CHECKS_LIVE_SINCE = new Date('2026-11-10T01:30:00.000Z');
+
+/** The detected MIME types whose bytes are a ZIP, so the inside checks apply to them. */
+const ZIP_FAMILY_MIME_TYPES: ReadonlySet<string> = new Set(
+  Object.entries(MIME_BY_TOKEN)
+    .filter(([token]) => ZIP_FAMILY_TOKENS.has(token))
+    .map(([, mime]) => mime),
+);
+
+/**
+ * Whether a version's "checked" was earned under today's checks. A ZIP or Office file verified
+ * before the inside checks existed never went through them, so it is not `checked` (it stays
+ * internal; uploading it again checks it fully). A virus-scanned file is not affected.
+ */
+export function checkedByCurrentRules(
+  version: Pick<FileVersionRow, 'detectedMimeType' | 'createdAt'>,
+): boolean {
+  if (version.detectedMimeType === null) return false;
+  if (!ZIP_FAMILY_MIME_TYPES.has(version.detectedMimeType)) return true;
+  return version.createdAt >= ARCHIVE_CHECKS_LIVE_SINCE;
 }
 
 /** The two owner policies the rule reads, fetched once per request. */
@@ -125,7 +153,7 @@ export class ClientFileSharing {
       'conflict',
       scanRequired
         ? 'Your company sends clients only virus-scanned files, and no virus scanner is set up, so this file cannot be sent. The company owner can change this in Settings.'
-        : 'This file cannot be sent to the client yet. It is still being checked, or it did not pass the safety check.',
+        : 'This file cannot be sent to the client yet. It is still being checked, it did not pass the safety check, or it was checked before TManage looked inside ZIP and Office files (upload it again).',
       [{ field: 'fileAssetId', message: scanRequired ? 'scan_required' : 'not_shareable' }],
       'file_not_shareable',
     );

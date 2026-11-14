@@ -193,56 +193,6 @@ export class OneDriveRepository {
       );
   }
 
-  async projectName(
-    runner: TenantQueryRunner,
-    context: TenantContext,
-    projectId: string,
-  ): Promise<string | undefined> {
-    const rows = await tenantDrizzle(runner)
-      .select({ name: projects.name })
-      .from(projects)
-      .where(and(eq(projects.organizationId, context.organizationId), eq(projects.id, projectId)))
-      .limit(1);
-    return rows[0]?.name;
-  }
-
-  async findFolder(
-    runner: TenantQueryRunner,
-    context: TenantContext,
-    key: FolderKey,
-  ): Promise<string | undefined> {
-    const rows = await tenantDrizzle(runner)
-      .select({ id: onedriveFolders.itemId })
-      .from(onedriveFolders)
-      .where(
-        and(
-          eq(onedriveFolders.organizationId, context.organizationId),
-          eq(onedriveFolders.rootItemId, key.rootItemId),
-          eq(onedriveFolders.subjectKind, key.subjectKind),
-          eq(onedriveFolders.subjectId, key.subjectId),
-        ),
-      )
-      .limit(1);
-    return rows[0]?.id;
-  }
-
-  async insertFolder(
-    runner: TenantQueryRunner,
-    context: TenantContext,
-    key: FolderKey,
-    folder: { driveId: string; itemId: string },
-  ): Promise<void> {
-    await tenantDrizzle(runner)
-      .insert(onedriveFolders)
-      .values({
-        id: uuidv7(),
-        organizationId: context.organizationId,
-        ...key,
-        ...folder,
-        createdAt: sql`current_timestamp(3)`,
-      });
-  }
-
   /** Whether `itemId` (in `driveId`) is one of this organization's TManage folders, and whose. */
   async findKnownFolder(
     runner: TenantQueryRunner,

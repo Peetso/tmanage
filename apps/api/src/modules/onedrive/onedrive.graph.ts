@@ -298,11 +298,6 @@ export interface OneDriveTransport {
     accessToken: string,
     input: { driveId: string; itemId: string; skipToken: string | null },
   ): Promise<OneDriveChildrenPage>;
-  /** Open an upload session into the folder; returns Graph's pre-authenticated upload URL. */
-  createUploadSession(
-    accessToken: string,
-    input: { driveId: string; parentId: string; name: string },
-  ): Promise<string>;
 }
 
 function idTokenLabel(idToken: unknown): string | null {
@@ -558,24 +553,6 @@ export function createOneDriveTransport(fetchImpl: typeof fetch = fetch): OneDri
             .filter((entry): entry is OneDriveChild => entry !== null)
         : [];
       return { files, nextPageToken: skipTokenOf(body['@odata.nextLink']) };
-    },
-
-    async createUploadSession(accessToken, input) {
-      const response = await call(
-        `${item(input.driveId, input.parentId)}:/${encodeURIComponent(input.name)}:/createUploadSession`,
-        {
-          method: 'POST',
-          headers: { ...auth(accessToken), 'content-type': 'application/json' },
-          body: JSON.stringify({
-            item: { '@microsoft.graph.conflictBehavior': 'rename', name: input.name },
-          }),
-        },
-      );
-      const body = (await response.json()) as { uploadUrl?: unknown };
-      if (typeof body.uploadUrl !== 'string' || !body.uploadUrl.startsWith('https://')) {
-        throw new OneDriveUnavailableError('Graph did not open an upload session');
-      }
-      return body.uploadUrl;
     },
   };
 }

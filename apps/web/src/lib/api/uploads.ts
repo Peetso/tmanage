@@ -484,8 +484,8 @@ export async function uploadProjectFile(
 
 /**
  * FIX6 item 1. Upload a file into a project for one use — a deliverable version — and hand its id
- * to `attach` once the checks have passed (`untilReady`), so the use is never refused because the
- * file is still being checked. If that is refused, the new file is deleted again, so a failed
+ * to `attach` once the checks have passed (`untilReady`, the default), so the use is never refused
+ * because the file is still being checked. If that is refused, the new file is deleted again, so a failed
  * attempt leaves no stray file in Files.
  */
 export async function uploadProjectFileFor<T>(
@@ -496,8 +496,8 @@ export async function uploadProjectFileFor<T>(
   deps: UploadAttachmentOptions = {},
 ): Promise<T> {
   const fileAssetId = await uploadProjectFile(client, organizationSlug, input, {
-    ...deps,
     untilReady: true,
+    ...deps,
   });
   try {
     return await attach(fileAssetId);
@@ -757,15 +757,18 @@ export async function uploadWorkItemAttachment(
   input: { readonly workItemId: string; readonly projectId: string; readonly file: File },
   deps: UploadAttachmentOptions = {},
 ): Promise<ItemFile> {
-  const fileAssetId = await uploadProjectFile(
+  // FIX6 review L4: a refused or stalled attach deletes the new file again, so no stray file is
+  // left in Files. The task does not wait for the checks: the item file shows their state.
+  return uploadProjectFileFor(
     client,
     organizationSlug,
     { projectId: input.projectId, file: input.file },
-    deps,
-  );
-  return settleBy(
-    attachWorkItemFile(client, organizationSlug, input.workItemId, { fileAssetId }),
-    (deps.deadline ?? defaultDeadline)(UPLOAD_STEP_TIMEOUT_MS),
-    `“${input.file.name}” was not attached.`,
+    (fileAssetId) =>
+      settleBy(
+        attachWorkItemFile(client, organizationSlug, input.workItemId, { fileAssetId }),
+        (deps.deadline ?? defaultDeadline)(UPLOAD_STEP_TIMEOUT_MS),
+        `“${input.file.name}” was not attached.`,
+      ),
+    { ...deps, untilReady: false },
   );
 }

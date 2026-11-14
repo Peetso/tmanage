@@ -75,7 +75,8 @@ import {
  * - `GET    …/integrations/onedrive/picker-session` — File Picker v8 token (org-wide callers) or
  *   `scoped` (project-scoped callers, NV10).
  * - `GET    …/integrations/onedrive/projects/:projectId/files` — the server-side project list.
- * - `…/work-items/:workItemId/onedrive/uploads|attachments` — upload, attach, list, detach.
+ * - `…/work-items/:workItemId/onedrive/attachments` — attach, list, detach. (Task files are
+ *   uploaded to TManage storage with its checks, never straight into the drive: FIX6.)
  */
 
 const ONEDRIVE_SERVICE = Symbol.for('tmanage.OneDriveService');
@@ -303,25 +304,6 @@ export class OneDriveAttachmentsController {
   ): Promise<void> {
     await this.onedrive.detach(context, principal, workItemId, attachmentId);
   }
-
-  @Post('uploads')
-  @RequireCapability('work.update')
-  @HttpCode(201)
-  async upload(
-    @Ctx() context: TenantContext,
-    @CurrentPrincipal() principal: Principal,
-    @Param('workItemId') workItemId: string,
-    @Body() body: { readonly name?: unknown; readonly size?: unknown },
-  ): Promise<{ readonly uploadUrl: string }> {
-    if (typeof body?.name !== 'string' || body.name.trim() === '' || body.name.length > 255) {
-      throw invalid('name', 'must be 1 to 255 characters');
-    }
-    if (typeof body.size !== 'number') throw invalid('size', 'must be a number of bytes');
-    return this.onedrive.startUpload(context, principal, workItemId, {
-      name: body.name,
-      size: body.size,
-    });
-  }
 }
 
 /**
@@ -430,7 +412,6 @@ export class OneDriveModule {
           cipher: createSeedCipher(config.mfaSeedKeys),
           config: oneDriveConfigFrom(process.env),
           apiPublicUrl: config.apiPublicUrl ?? config.webPublicUrl ?? '',
-          uploadMaxBytes: config.uploadMaxBytes,
         }),
     };
     return {

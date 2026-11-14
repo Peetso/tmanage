@@ -12003,6 +12003,7 @@
   "DownloadScan.blocked": "This file can't be downloaded until it has been scanned for viruses. Your company owner chose this setting.",
   "DownloadScan.downloadError": "The file could not be downloaded. Try again.",
   "DownloadScan.checkedHelp": "Passed TManage's safety check: the file type was read from the file itself, and programs and Office files with macros are refused. It was not scanned for viruses.",
+  "DownloadScan.checkedNote": "Not virus-scanned",
   "RecordDecision.action": "Record as decision",
   "RecordDecision.copyLink": "Copy link",
   "RecordDecision.heading": "Record as decision",

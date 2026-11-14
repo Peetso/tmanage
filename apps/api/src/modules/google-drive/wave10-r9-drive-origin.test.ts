@@ -153,7 +153,6 @@ function setup(
       };
     }),
     listChildren: vi.fn(async () => ({ files: [], nextPageToken: null })),
-    startUpload: vi.fn(),
   };
   const audit = { record: vi.fn(async () => ({})) };
   const drive = new GoogleDriveService({
@@ -168,8 +167,6 @@ function setup(
       projectNumber: null,
     },
     apiPublicUrl: 'https://tmanage.example.com',
-    webPublicUrl: 'https://tmanage.example.com',
-    uploadMaxBytes: 1000,
     repository: repository as unknown as GoogleDriveRepository,
     storageModes: rowBackedModes(repository),
     workItems: {

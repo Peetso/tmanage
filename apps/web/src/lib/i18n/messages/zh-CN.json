@@ -11994,6 +11994,7 @@
   "DownloadScan.blocked": "此文件在完成病毒扫描前无法下载。这是你的公司所有者选择的设置。",
   "DownloadScan.downloadError": "无法下载文件。请重试。",
   "DownloadScan.checkedHelp": "已通过 TManage 安全检查：文件类型从文件本身读取，程序和带宏的 Office 文件会被拒绝。此文件未进行病毒扫描。",
+  "DownloadScan.checkedNote": "未进行病毒扫描",
   "RecordDecision.action": "记录为决定",
   "RecordDecision.copyLink": "复制链接",
   "RecordDecision.heading": "记录为决定",

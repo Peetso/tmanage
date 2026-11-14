@@ -188,7 +188,6 @@ function setup(options: { ancestors?: Record<string, readonly string[]>; file?: 
       ],
       nextPageToken: null,
     })),
-    startUpload: vi.fn(),
   } satisfies DriveTransport;
   const audit = { record: vi.fn(async () => ({})) };
   const drive = new GoogleDriveService({
@@ -198,8 +197,6 @@ function setup(options: { ancestors?: Record<string, readonly string[]>; file?: 
     cipher: CIPHER,
     config: { clientId: 'cid', clientSecret: 'cs', pickerApiKey: 'k', projectNumber: '42' },
     apiPublicUrl: 'https://tmanage.example.com',
-    webPublicUrl: 'https://tmanage.example.com',
-    uploadMaxBytes: 1000,
     repository: repository as unknown as GoogleDriveRepository,
     storageModes: rowBackedModes(repository),
     workItems: {

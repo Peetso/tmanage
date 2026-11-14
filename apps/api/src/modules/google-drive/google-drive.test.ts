@@ -125,7 +125,6 @@ function transport(overrides: Partial<DriveTransport> = {}): DriveTransport {
     ensureFolder: vi.fn(async () => 'root_folder_1'),
     getFile: vi.fn(),
     listChildren: vi.fn(async () => ({ files: [], nextPageToken: null })),
-    startUpload: vi.fn(),
     ...overrides,
   };
 }
@@ -142,8 +141,6 @@ function service(
     cipher: CIPHER,
     config: CONFIG,
     apiPublicUrl: 'https://tmanage.example.com',
-    webPublicUrl: 'https://tmanage.example.com',
-    uploadMaxBytes: 1000,
     repository: repository as unknown as GoogleDriveRepository,
     storageModes: rowBackedModes(repository),
     workItems: { findById: vi.fn(async () => null) },
@@ -281,8 +278,6 @@ describe('a refused grant and the status view', () => {
       cipher: CIPHER,
       config: { ...CONFIG, pickerApiKey: 'k' },
       apiPublicUrl: 'https://x',
-      webPublicUrl: 'https://x',
-      uploadMaxBytes: 1,
       repository: repository as unknown as GoogleDriveRepository,
       storageModes: rowBackedModes(repository),
     });
@@ -309,8 +304,6 @@ describe('a refused grant and the status view', () => {
       cipher: CIPHER,
       config: null,
       apiPublicUrl: 'https://x',
-      webPublicUrl: 'https://x',
-      uploadMaxBytes: 1,
       repository: repository as unknown as GoogleDriveRepository,
       storageModes: rowBackedModes(repository),
     });
@@ -427,8 +420,6 @@ describe('NV10: the picker token needs the target project relation', () => {
       cipher: CIPHER,
       config: { ...CONFIG, pickerApiKey: 'k' },
       apiPublicUrl: 'https://x',
-      webPublicUrl: 'https://x',
-      uploadMaxBytes: 1,
       repository: repository as unknown as GoogleDriveRepository,
       storageModes: rowBackedModes(repository),
       projects: {

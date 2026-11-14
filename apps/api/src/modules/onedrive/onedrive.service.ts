@@ -167,7 +167,6 @@ export interface OneDriveServiceDeps {
   readonly config: OneDriveConfig | null;
   /** The OAuth redirect is `${apiPublicUrl}/v1/integrations/onedrive/callback`. */
   readonly apiPublicUrl: string;
-  readonly uploadMaxBytes: number;
   readonly repository?: OneDriveRepository;
   readonly workItems?: Pick<WorkItemsRepository, 'findById'>;
   readonly projects?: Pick<ProjectsRepository, 'findById'>;
@@ -565,35 +564,6 @@ export class OneDriveService {
     };
   }
 
-  /** Open an upload session into `TManage/<Project>/<Work item>/`; the browser sends the bytes. */
-  async startUpload(
-    context: TenantContext,
-    principal: Principal,
-    workItemId: string,
-    input: { readonly name: string; readonly size: number },
-  ): Promise<{ readonly uploadUrl: string }> {
-    if (!Number.isInteger(input.size) || input.size < 1 || input.size > this.deps.uploadMaxBytes) {
-      throw invalid('size', `must be from 1 to ${this.deps.uploadMaxBytes} bytes`);
-    }
-    const live = this.requireLive(await this.readConnection(context));
-    const item = await this.deps.database.read(context, (runner) =>
-      this.writableItem(runner, context, principal, workItemId),
-    );
-    const accessToken = await this.token(context, live);
-    const folderId = await this.workItemFolder(context, live, accessToken, item);
-    const uploadUrl = await this.graph(
-      () =>
-        this.deps.transport.createUploadSession(accessToken, {
-          driveId: live.onedriveDriveId,
-          parentId: folderId,
-          name: oneDriveFolderName(input.name, 'Untitled'),
-        }),
-      live.id,
-      context,
-    );
-    return { uploadUrl };
-  }
-
   async list(
     context: TenantContext,
     principal: Principal,
@@ -862,59 +832,6 @@ export class OneDriveService {
       return this.graph<string>(() => Promise.reject(new OneDriveUnavailableError('Long id')));
     }
     return id;
-  }
-
-  private async workItemFolder(
-    context: TenantContext,
-    live: LiveConnection,
-    accessToken: string,
-    item: WorkItemRow,
-  ): Promise<string> {
-    const root = live.rootFolderId;
-    const driveId = live.onedriveDriveId;
-    const ensure = (parentId: string, name: string) =>
-      this.graph(
-        () => this.deps.transport.ensureFolder(accessToken, { driveId, parentId, name }),
-        live.id,
-        context,
-      );
-    const projectFolder = await this.folderFor(context, driveId, {
-      key: { rootItemId: root, subjectKind: 'project', subjectId: item.projectId },
-      create: async () => {
-        const name = await this.deps.database.read(context, (runner) =>
-          this.repository.projectName(runner, context, item.projectId),
-        );
-        return ensure(root, oneDriveFolderName(name ?? '', 'Project'));
-      },
-    });
-    return this.folderFor(context, driveId, {
-      key: { rootItemId: root, subjectKind: 'work_item', subjectId: item.id },
-      create: () => ensure(projectFolder, oneDriveFolderName(item.title, 'Work item')),
-    });
-  }
-
-  private async folderFor(
-    context: TenantContext,
-    driveId: string,
-    input: {
-      key: { rootItemId: string; subjectKind: 'project' | 'work_item'; subjectId: string };
-      create: () => Promise<string>;
-    },
-  ): Promise<string> {
-    const known = await this.deps.database.read(context, (runner) =>
-      this.repository.findFolder(runner, context, input.key),
-    );
-    if (known) return known;
-    const itemId = await input.create();
-    try {
-      await this.deps.database.transaction(context, (tx) =>
-        this.repository.insertFolder(tx, context, input.key, { driveId, itemId }),
-      );
-    } catch {
-      // A concurrent request recorded the same folder first; `ensureFolder` found the same folder
-      // by name (409 then look-up), so the id it returned is still the right one.
-    }
-    return itemId;
   }
 
   private requireOrgManage(context: TenantContext, principal: Principal): void {

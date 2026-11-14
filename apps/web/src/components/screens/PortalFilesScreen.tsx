@@ -205,7 +205,7 @@ export function PortalFilesScreen({
                     </td>
                     <td>
                       <span className="tm-scan-row__actions">
-                        {file.scanStatus === 'not_scanned' ? <CheckedLabel /> : null}
+                        {file.scanStatus === 'not_scanned' ? <CheckedLabel withNote /> : null}
                         {file.scanStatus === 'being_checked' ? (
                           <StateCapsule state="waiting" className="tm-scan-capsule">
                             {t('WorkDetail.scanning')}

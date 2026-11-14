@@ -23,7 +23,6 @@ export const DRIVE_AUTHORIZATION_ENDPOINT = 'https://accounts.google.com/o/oauth
 export const DRIVE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 export const DRIVE_REVOKE_ENDPOINT = 'https://oauth2.googleapis.com/revoke';
 export const DRIVE_API = 'https://www.googleapis.com/drive/v3';
-export const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
 export const DRIVE_SCOPES = 'openid email https://www.googleapis.com/auth/drive.file';
 export const DRIVE_CALLBACK_PATH = '/v1/integrations/google-drive/callback';
 /** The flow cookie must reach both the callback and the org-scoped completion route. */
@@ -272,11 +271,6 @@ export interface DriveTransport {
     accessToken: string,
     input: { parentId: string; pageToken: string | null },
   ): Promise<DriveChildrenPage>;
-  /** Start a resumable upload into the folder; returns Google's one-upload session URL. */
-  startUpload(
-    accessToken: string,
-    input: { name: string; mimeType: string; size: number; parentId: string; origin: string },
-  ): Promise<string>;
 }
 
 function decodeEmail(idToken: unknown): string | null {
@@ -475,29 +469,6 @@ export function createDriveTransport(fetchImpl: typeof fetch = fetch): DriveTran
         files,
         nextPageToken: isDrivePageToken(body.nextPageToken) ? body.nextPageToken : null,
       };
-    },
-
-    async startUpload(accessToken, input) {
-      const response = await call(
-        `${DRIVE_UPLOAD_API}/files?uploadType=resumable&supportsAllDrives=true&fields=${FILE_FIELDS}`,
-        {
-          method: 'POST',
-          headers: {
-            ...auth(accessToken),
-            'content-type': 'application/json; charset=UTF-8',
-            'x-upload-content-type': input.mimeType,
-            'x-upload-content-length': String(input.size),
-            // Google answers the browser's upload with CORS headers for this origin only.
-            origin: input.origin,
-          },
-          body: JSON.stringify({ name: input.name, parents: [input.parentId] }),
-        },
-      );
-      const location = response.headers.get('location');
-      if (!location?.startsWith('https://')) {
-        throw new DriveUnavailableError('Google did not open an upload session');
-      }
-      return location;
     },
   };
 }

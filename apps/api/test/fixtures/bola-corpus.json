@@ -9041,18 +9041,6 @@
       "bodyIdFields": []
     },
     {
-      "key": "POST /v1/organizations/:orgSlug/work-items/:workItemId/google-drive/uploads",
-      "class": "org",
-      "handler": "apps/api/src/modules/google-drive/google-drive.controller.ts#upload",
-      "params": [
-        {
-          "name": "workItemId",
-          "table": "work_items"
-        }
-      ],
-      "bodyIdFields": []
-    },
-    {
       "key": "POST /v1/organizations/:orgSlug/work-items/:workItemId/links/",
       "class": "org",
       "handler": "apps/api/src/modules/work/item-links.controller.ts#create",
@@ -9073,18 +9061,6 @@
       "key": "POST /v1/organizations/:orgSlug/work-items/:workItemId/onedrive/attachments",
       "class": "org",
       "handler": "apps/api/src/modules/onedrive/onedrive.controller.ts#attach",
-      "params": [
-        {
-          "name": "workItemId",
-          "table": "work_items"
-        }
-      ],
-      "bodyIdFields": []
-    },
-    {
-      "key": "POST /v1/organizations/:orgSlug/work-items/:workItemId/onedrive/uploads",
-      "class": "org",
-      "handler": "apps/api/src/modules/onedrive/onedrive.controller.ts#upload",
       "params": [
         {
           "name": "workItemId",

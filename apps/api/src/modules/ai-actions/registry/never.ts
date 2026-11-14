@@ -437,11 +437,6 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/integrations/google-drive/projects/:projectId/files',
     reason: 'storage_connection',
   },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/work-items/:workItemId/google-drive/uploads',
-    reason: 'storage_connection',
-  },
   { method: 'GET', path: '/v1/integrations/google-drive/callback', reason: 'storage_connection' },
   // 0236. OneDrive storage: the same connection and credential routes as Google Drive.
   {
@@ -477,11 +472,6 @@ export const NEVER: readonly NeverEntry[] = [
   {
     method: 'GET',
     path: '/v1/organizations/:orgSlug/integrations/onedrive/projects/:projectId/files',
-    reason: 'storage_connection',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/work-items/:workItemId/onedrive/uploads',
     reason: 'storage_connection',
   },
   { method: 'GET', path: '/v1/integrations/onedrive/callback', reason: 'storage_connection' },
@@ -2002,6 +1992,18 @@ export const NEVER: readonly NeverEntry[] = [
   {
     method: 'PUT',
     path: '/v1/organizations/:orgSlug/security/file-safety/',
+    reason: 'org_security_manage',
+  },
+  // FIX6 item 1: which files clients may receive is the owner's own security choice; an AI
+  // principal neither reads nor changes it.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/client-file-policy/',
+    reason: 'org_security_manage',
+  },
+  {
+    method: 'PATCH',
+    path: '/v1/organizations/:orgSlug/client-file-policy/',
     reason: 'org_security_manage',
   },
   // 53-07 (R19-c): `projects.milestones.publish` / unpublish and a phase's band dates change what

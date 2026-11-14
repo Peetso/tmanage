@@ -11994,6 +11994,7 @@
   "DownloadScan.blocked": "Diese Datei kann erst heruntergeladen werden, wenn sie auf Viren gescannt wurde. Der Inhaber Ihres Unternehmens hat diese Einstellung gewählt.",
   "DownloadScan.downloadError": "Die Datei konnte nicht heruntergeladen werden. Versuchen Sie es erneut.",
   "DownloadScan.checkedHelp": "Hat die Sicherheitsprüfung von TManage bestanden: Der Dateityp wurde aus der Datei selbst gelesen, Programme und Office-Dateien mit Makros werden abgelehnt. Die Datei wurde nicht auf Viren gescannt.",
+  "DownloadScan.checkedNote": "Nicht auf Viren gescannt",
   "RecordDecision.action": "Als Entscheidung erfassen",
   "RecordDecision.copyLink": "Link kopieren",
   "RecordDecision.heading": "Als Entscheidung erfassen",

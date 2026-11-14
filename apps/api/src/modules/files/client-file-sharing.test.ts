@@ -4,7 +4,11 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
 import { ApiError } from '../../common/http/errors.js';
 import { clientFilesPolicyFrom } from '../tenancy/client-file-policy.js';
 import type { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
-import { ClientFileSharing, clientFileState } from './client-file-sharing.js';
+import {
+  ARCHIVE_CHECKS_LIVE_SINCE,
+  ClientFileSharing,
+  clientFileState,
+} from './client-file-sharing.js';
 import type { FileAssetsRepository } from './file-assets.repository.js';
 import { portalScanStatus } from './portal-file-list.service.js';
 
@@ -46,6 +50,25 @@ describe('clientFileState', () => {
     expect(clientFileState(asset('scanning'), checkedFile, 'checked', 'allow_labeled')).toBe(
       'checked',
     );
+  });
+
+  it('review L2: a ZIP or Office file checked before the inside checks existed is not shareable', () => {
+    const docx = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    const before = new Date(ARCHIVE_CHECKS_LIVE_SINCE.getTime() - 1);
+    for (const detectedMimeType of [docx, 'application/zip']) {
+      const old = { ...checkedFile, detectedMimeType, createdAt: before };
+      expect(clientFileState(asset('scanning'), old, 'checked', 'allow_labeled')).toBeNull();
+      const fresh = { ...old, createdAt: ARCHIVE_CHECKS_LIVE_SINCE };
+      expect(clientFileState(asset('scanning'), fresh, 'checked', 'allow_labeled')).toBe('checked');
+      // A scanner's clean verdict is not affected.
+      const scanned = { ...old, scanVerdict: 'clean', trustZone: 'private' };
+      expect(clientFileState(asset('ready'), scanned, 'checked', 'allow_labeled')).toBe(
+        'virus_scanned',
+      );
+    }
+    // A PDF from before then went through every check that applies to it.
+    const pdf = { ...checkedFile, createdAt: new Date('2026-01-01T00:00:00Z') };
+    expect(clientFileState(asset('scanning'), pdf, 'checked', 'allow_labeled')).toBe('checked');
   });
 
   it('the strict policy refuses a checked file', () => {

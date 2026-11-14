@@ -279,7 +279,7 @@ function ReviewFiles({
             <div className="tm-pt-item__main">
               <p className="tm-pt-item__title">
                 {file.name}
-                {file.safety === 'checked' ? <CheckedLabel /> : null}
+                {file.safety === 'checked' ? <CheckedLabel withNote /> : null}
               </p>
             </div>
             <PortalReviewLink

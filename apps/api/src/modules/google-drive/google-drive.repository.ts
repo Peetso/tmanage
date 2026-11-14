@@ -159,56 +159,6 @@ export class GoogleDriveRepository {
       );
   }
 
-  async projectName(
-    runner: TenantQueryRunner,
-    context: TenantContext,
-    projectId: string,
-  ): Promise<string | undefined> {
-    const rows = await tenantDrizzle(runner)
-      .select({ name: projects.name })
-      .from(projects)
-      .where(and(eq(projects.organizationId, context.organizationId), eq(projects.id, projectId)))
-      .limit(1);
-    return rows[0]?.name;
-  }
-
-  async findFolder(
-    runner: TenantQueryRunner,
-    context: TenantContext,
-    key: { rootFolderId: string; subjectKind: 'project' | 'work_item'; subjectId: string },
-  ): Promise<string | undefined> {
-    const rows = await tenantDrizzle(runner)
-      .select({ id: googleDriveFolders.driveFolderId })
-      .from(googleDriveFolders)
-      .where(
-        and(
-          eq(googleDriveFolders.organizationId, context.organizationId),
-          eq(googleDriveFolders.rootFolderId, key.rootFolderId),
-          eq(googleDriveFolders.subjectKind, key.subjectKind),
-          eq(googleDriveFolders.subjectId, key.subjectId),
-        ),
-      )
-      .limit(1);
-    return rows[0]?.id;
-  }
-
-  async insertFolder(
-    runner: TenantQueryRunner,
-    context: TenantContext,
-    key: { rootFolderId: string; subjectKind: 'project' | 'work_item'; subjectId: string },
-    driveFolderId: string,
-  ): Promise<void> {
-    await tenantDrizzle(runner)
-      .insert(googleDriveFolders)
-      .values({
-        id: uuidv7(),
-        organizationId: context.organizationId,
-        ...key,
-        driveFolderId,
-        createdAt: sql`current_timestamp(3)`,
-      });
-  }
-
   /**
    * V2. Which of `driveFolderIds` are TManage's own project or work-item folders (under any root
    * this organization has used), each with the project it belongs to.

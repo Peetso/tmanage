@@ -108,7 +108,6 @@ function setup(
     ensureFolder: vi.fn(async () => 'ROOT!1'),
     getItem: vi.fn(),
     listChildren: vi.fn(),
-    createUploadSession: vi.fn(),
     ...overrides,
   };
   const audit = { record: vi.fn(async () => ({})) };
@@ -119,7 +118,6 @@ function setup(
     cipher: CIPHER,
     config: CONFIG,
     apiPublicUrl: 'https://tmanage.example.com',
-    uploadMaxBytes: 1000,
     repository: repository as unknown as OneDriveRepository,
     workItems: {
       findById: vi.fn(async () => ({

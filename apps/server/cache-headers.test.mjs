@@ -6,11 +6,13 @@ import { readFileSync } from 'node:fs';
 
 import {
   API_DEFAULT_CACHE_CONTROL,
-  hasLocaleCookie,
+  DISPLAY_FORMAT_COOKIE,
+  hasRenderCookie,
   IMMUTABLE_CACHE_CONTROL,
   LOCALE_COOKIE,
   LOCALE_PAGE_CACHE_CONTROL,
   PAGE_CACHE_CONTROL,
+  THEME_COOKIE,
   webCacheControl,
   webCacheHeaders,
 } from './cache-headers.mjs';
@@ -63,6 +65,25 @@ test('the locale cookie name matches the one the web app writes', () => {
     'utf8',
   );
   assert.match(source, new RegExp(`LOCALE_COOKIE_NAME = '${LOCALE_COOKIE}'`));
+});
+
+test('FIX6 L5: the theme and number/date format cookies get the same guard, by the same names', () => {
+  const theme = readFileSync(new URL('../web/src/lib/theme-cookie.ts', import.meta.url), 'utf8');
+  assert.match(theme, new RegExp(`THEME_COOKIE_NAME = '${THEME_COOKIE}'`));
+  const format = readFileSync(
+    new URL('../web/src/lib/i18n/display-format-cookie.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(format, new RegExp(`DISPLAY_FORMAT_COOKIE_NAME = '${DISPLAY_FORMAT_COOKIE}'`));
+  const html = { 'content-type': HTML, 'cache-control': NEXT_PRERENDERED };
+  for (const cookie of [`${THEME_COOKIE}=dark`, `a=1; ${DISPLAY_FORMAT_COOKIE}=latin.iso`]) {
+    assert.equal(hasRenderCookie(cookie), true, cookie);
+    assert.equal(
+      webCacheHeaders('/pricing', html, { cookie })['cache-control'],
+      LOCALE_PAGE_CACHE_CONTROL,
+    );
+  }
+  assert.equal(hasRenderCookie(`x${THEME_COOKIE}=dark`), false);
 });
 
 test('every page varies by Cookie, keeping what Next already listed', () => {
@@ -127,12 +148,12 @@ test('an Arabic public page (locale in the URL) keeps the short shared policy li
   }
 });
 
-test('hasLocaleCookie matches the cookie name exactly', () => {
-  assert.equal(hasLocaleCookie(`${LOCALE_COOKIE}=ar-EG`), true);
-  assert.equal(hasLocaleCookie(` x=1;  ${LOCALE_COOKIE}=en-US`), true);
-  assert.equal(hasLocaleCookie(`x${LOCALE_COOKIE}=ar-EG; ${LOCALE_COOKIE}x=1`), false);
-  assert.equal(hasLocaleCookie(undefined), false);
-  assert.equal(hasLocaleCookie(''), false);
+test('hasRenderCookie matches the cookie names exactly', () => {
+  assert.equal(hasRenderCookie(`${LOCALE_COOKIE}=ar-EG`), true);
+  assert.equal(hasRenderCookie(` x=1;  ${LOCALE_COOKIE}=en-US`), true);
+  assert.equal(hasRenderCookie(`x${LOCALE_COOKIE}=ar-EG; ${LOCALE_COOKIE}x=1`), false);
+  assert.equal(hasRenderCookie(undefined), false);
+  assert.equal(hasRenderCookie(''), false);
 });
 
 test('hashed /_next/static assets keep the immutable year', () => {

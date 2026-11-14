@@ -136,12 +136,6 @@ export interface SettingsInput {
   readonly location?: { readonly kind: 'my_drive' } | { readonly kind: 'folder'; folderId: string };
 }
 
-export interface UploadInput {
-  readonly name: string;
-  readonly mimeType: string;
-  readonly size: number;
-}
-
 export interface GoogleDriveServiceDeps {
   readonly database: TenantDatabase;
   readonly audit: AuditService;
@@ -150,9 +144,6 @@ export interface GoogleDriveServiceDeps {
   readonly config: DriveConfig | null;
   /** `API_PUBLIC_URL`: the OAuth redirect is `${apiPublicUrl}/v1/integrations/google-drive/callback`. */
   readonly apiPublicUrl: string;
-  /** `WEB_PUBLIC_URL`: Google answers the browser's upload with CORS for this origin. */
-  readonly webPublicUrl: string;
-  readonly uploadMaxBytes: number;
   readonly repository?: GoogleDriveRepository;
   readonly workItems?: Pick<WorkItemsRepository, 'findById'>;
   /** NV10. The picker's target project, for its relation check. */
@@ -511,34 +502,6 @@ export class GoogleDriveService {
     };
   }
 
-  /** Open a resumable upload into `TManage/<Project>/<Work item>/`; the browser sends the bytes. */
-  async startUpload(
-    context: TenantContext,
-    principal: Principal,
-    workItemId: string,
-    input: UploadInput,
-  ): Promise<{ readonly uploadUrl: string }> {
-    if (!Number.isInteger(input.size) || input.size < 1 || input.size > this.deps.uploadMaxBytes) {
-      throw invalid('size', `must be from 1 to ${this.deps.uploadMaxBytes} bytes`);
-    }
-    const live = this.requireLive(await this.readConnection(context));
-    const item = await this.deps.database.read(context, (runner) =>
-      this.writableItem(runner, context, principal, workItemId),
-    );
-    const accessToken = await this.accessToken(context, live);
-    const folderId = await this.workItemFolder(context, live, accessToken, item);
-    const uploadUrl = await this.google(() =>
-      this.deps.transport.startUpload(accessToken, {
-        name: driveFolderName(input.name, 'Untitled'),
-        mimeType: input.mimeType,
-        size: input.size,
-        parentId: folderId,
-        origin: this.deps.webPublicUrl,
-      }),
-    );
-    return { uploadUrl };
-  }
-
   async list(
     context: TenantContext,
     principal: Principal,
@@ -826,72 +789,6 @@ export class GoogleDriveService {
       }
       throw conflict('unreachable');
     }
-  }
-
-  private async workItemFolder(
-    context: TenantContext,
-    connection: StorageConnectionRow & { rootFolderId: string },
-    accessToken: string,
-    item: WorkItemRow,
-  ): Promise<string> {
-    const root = connection.rootFolderId;
-    const driveId = connection.sharedDriveId;
-    const projectFolder = await this.folderFor(context, {
-      root,
-      kind: 'project',
-      subjectId: item.projectId,
-      create: async () => {
-        const name = await this.deps.database.read(context, (runner) =>
-          this.repository.projectName(runner, context, item.projectId),
-        );
-        return this.google(() =>
-          this.deps.transport.ensureFolder(accessToken, {
-            name: driveFolderName(name ?? '', 'Project'),
-            parentId: root,
-            driveId,
-          }),
-        );
-      },
-    });
-    return this.folderFor(context, {
-      root,
-      kind: 'work_item',
-      subjectId: item.id,
-      create: () =>
-        this.google(() =>
-          this.deps.transport.ensureFolder(accessToken, {
-            name: driveFolderName(item.title, 'Work item'),
-            parentId: projectFolder,
-            driveId,
-          }),
-        ),
-    });
-  }
-
-  private async folderFor(
-    context: TenantContext,
-    input: {
-      root: string;
-      kind: 'project' | 'work_item';
-      subjectId: string;
-      create: () => Promise<string>;
-    },
-  ): Promise<string> {
-    const key = { rootFolderId: input.root, subjectKind: input.kind, subjectId: input.subjectId };
-    const known = await this.deps.database.read(context, (runner) =>
-      this.repository.findFolder(runner, context, key),
-    );
-    if (known) return known;
-    const created = await input.create();
-    try {
-      await this.deps.database.transaction(context, (tx) =>
-        this.repository.insertFolder(tx, context, key, created),
-      );
-    } catch {
-      // A concurrent request recorded the same folder first; `ensureFolder` found or made the
-      // same Drive folder by name, so the id it returned is still the right one.
-    }
-    return created;
   }
 
   /** NV10. The raw token without a target project is for people who manage the company only. */

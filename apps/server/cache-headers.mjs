@@ -33,6 +33,16 @@ const STATIC_PREFIX = '/_next/static/';
  */
 export const LOCALE_COOKIE = 'tmanage_locale';
 
+/**
+ * Every cookie a per-request page may be rendered from (FIX6 review L5): the saved locale, the
+ * saved theme (apps/web/src/lib/theme-cookie.ts) and the saved number/date format
+ * (apps/web/src/lib/i18n/display-format-cookie.ts). A request carrying any of them gets the same
+ * guard as the locale cookie.
+ */
+export const THEME_COOKIE = 'tmanage_theme';
+export const DISPLAY_FORMAT_COOKIE = 'tmanage_display_format';
+export const RENDER_COOKIES = [LOCALE_COOKIE, THEME_COOKIE, DISPLAY_FORMAT_COOKIE];
+
 /** What a page rendered for a saved locale leaves with when the web child sent a shared policy. */
 export const LOCALE_PAGE_CACHE_CONTROL = 'private, no-store';
 
@@ -82,11 +92,11 @@ export function webCacheControl(url, upstreamHeaders) {
   return undefined;
 }
 
-/** True when a `Cookie` request header carries the saved-locale cookie. */
-export function hasLocaleCookie(cookieHeader) {
+/** True when a `Cookie` request header carries any cookie a page may be rendered from. */
+export function hasRenderCookie(cookieHeader) {
   return headerText(cookieHeader)
     .split(';')
-    .some((part) => part.split('=')[0].trim() === LOCALE_COOKIE);
+    .some((part) => RENDER_COOKIES.includes(part.split('=')[0].trim()));
 }
 
 /** `vary` with `Cookie` added once (case-insensitive), keeping what the web child listed. */
@@ -105,7 +115,7 @@ function varyWithCookie(upstreamVary) {
  * Headers to merge over a proxied web response (an empty object when nothing changes).
  *
  * On top of {@link webCacheControl} a page (HTML or RSC) always carries `Vary: Cookie`, and when
- * the request carried the locale cookie it is `private, no-store` unless the web child already
+ * the request carried a render cookie (locale, theme or number/date format) it is `private, no-store` unless the web child already
  * made it private (Next does for every dynamic page). Should a page ever be rendered from the
  * saved locale, one visitor's Arabic page still cannot be served from the CDN to another visitor,
  * even by a cache that ignores `Vary`.
@@ -116,7 +126,7 @@ export function webCacheHeaders(url, upstreamHeaders, requestHeaders = {}) {
   if (pathOf(url).startsWith(STATIC_PREFIX) || !isPage(upstreamHeaders)) return headers;
   headers.vary = varyWithCookie(upstreamHeaders.vary);
   const effective = value ?? headerText(upstreamHeaders['cache-control']);
-  if (hasLocaleCookie(requestHeaders.cookie) && !isPrivate(effective)) {
+  if (hasRenderCookie(requestHeaders.cookie) && !isPrivate(effective)) {
     headers['cache-control'] = LOCALE_PAGE_CACHE_CONTROL;
   }
   return headers;

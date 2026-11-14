@@ -11994,6 +11994,7 @@
   "DownloadScan.blocked": "Este archivo no se puede descargar hasta que se haya analizado en busca de virus. El propietario de su empresa eligió este ajuste.",
   "DownloadScan.downloadError": "No se pudo descargar el archivo. Inténtelo de nuevo.",
   "DownloadScan.checkedHelp": "Pasó la comprobación de seguridad de TManage: el tipo se leyó del propio archivo y se rechazan programas y archivos de Office con macros. No se analizó contra virus.",
+  "DownloadScan.checkedNote": "Sin análisis antivirus",
   "RecordDecision.action": "Registrar como decisión",
   "RecordDecision.copyLink": "Copiar enlace",
   "RecordDecision.heading": "Registrar como decisión",

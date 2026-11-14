@@ -74,7 +74,8 @@ import {
  *   for an org-wide caller, or `scoped` (no token) for a project-scoped one (NV10).
  * - `GET    …/integrations/google-drive/projects/:projectId/files` — the server-side list of one
  *   of the project's own TManage folders, for a project-scoped caller (NV10).
- * - `…/work-items/:workItemId/google-drive/uploads|attachments` — upload, attach, list, detach.
+ * - `…/work-items/:workItemId/google-drive/attachments` — attach, list, detach. (Task files are
+ *   uploaded to TManage storage with its checks, never straight into the drive: FIX6.)
  *
  * Managing the connection is `org.manage`. Attaching is `work.update` on the work item (checked
  * against the item's project in the service); listing is `work.read`.
@@ -275,30 +276,6 @@ export class GoogleDriveAttachmentsController {
   ): Promise<void> {
     await this.drive.detach(context, principal, workItemId, attachmentId);
   }
-
-  @Post('uploads')
-  @RequireCapability('work.update')
-  @HttpCode(201)
-  async upload(
-    @Ctx() context: TenantContext,
-    @CurrentPrincipal() principal: Principal,
-    @Param('workItemId') workItemId: string,
-    @Body() body: { readonly name?: unknown; readonly mimeType?: unknown; readonly size?: unknown },
-  ): Promise<{ readonly uploadUrl: string }> {
-    if (typeof body?.name !== 'string' || body.name.trim() === '' || body.name.length > 255) {
-      throw invalid('name', 'must be 1 to 255 characters');
-    }
-    const mimeType =
-      typeof body.mimeType === 'string' && /^[\w.+-]+\/[\w.+-]+$/.test(body.mimeType)
-        ? body.mimeType
-        : 'application/octet-stream';
-    if (typeof body.size !== 'number') throw invalid('size', 'must be a number of bytes');
-    return this.drive.startUpload(context, principal, workItemId, {
-      name: body.name,
-      mimeType,
-      size: body.size,
-    });
-  }
 }
 
 /**
@@ -402,8 +379,6 @@ export class GoogleDriveModule {
           cipher: createSeedCipher(config.mfaSeedKeys),
           config: driveConfigFrom(process.env),
           apiPublicUrl: config.apiPublicUrl ?? config.webPublicUrl ?? '',
-          webPublicUrl: config.webPublicUrl ?? config.apiPublicUrl ?? '',
-          uploadMaxBytes: config.uploadMaxBytes,
         }),
     };
     return {
