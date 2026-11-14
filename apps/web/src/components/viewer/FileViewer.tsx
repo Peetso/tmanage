@@ -68,6 +68,7 @@ import { VersionsTab } from './VersionsTab';
 import { VideoStage } from './VideoStage';
 import { ZipList } from './ZipList';
 import { ReviewDoorProvider } from './review-door';
+import { FigFileStage } from './FigFileStage';
 import { ViewerCanvas, type ViewerTool } from './ViewerCanvas';
 import { ViewerShell, ViewerTools } from './ViewerShell';
 import { ViewerStatePanel, type ViewerCanvasState } from './ViewerStatePanel';
@@ -138,6 +139,7 @@ export type StageKind =
   | 'office_pptx'
   | 'office_xlsx'
   | 'zip'
+  | 'fig'
   | 'text'
   | 'desktop'
   | 'unsupported'
@@ -202,6 +204,11 @@ export function stageFor(manifest: FilePreviewManifest): {
     return { stage: manifest.kind, state: null, src: manifest.originalUrl };
   }
   if (manifest.kind === 'zip' && manifest.zip) return { stage: 'zip', state: null, src: null };
+  // FIGMA item 10: a `.fig` file — the picture saved inside it and its pages and frames.
+  if (manifest.kind === 'fig') {
+    const page = previewPages(manifest)[0];
+    if (page || manifest.fig) return { stage: 'fig', state: null, src: page?.url ?? null };
+  }
   // Peter, 2026-11-09 (item 8): source code, CSV, Markdown, HTML and DXF are drawn from the
   // original's text; an IFC model (text too) and DWG / SketchUp / Revit get the desktop card.
   const name = manifest.file.name;
@@ -833,6 +840,19 @@ export function FileViewer({
           fileName={manifest.file.name}
           mimeType={manifest.version?.mimeType ?? null}
           sizeBytes={manifest.version?.sizeBytes ?? null}
+          onDownload={downloadOriginal}
+        />
+      ) : plan.stage === 'fig' ? (
+        <FigFileStage
+          organizationSlug={organizationSlug}
+          fileAssetId={fileId}
+          projectId={manifest.file.projectId}
+          fileName={manifest.file.name}
+          picture={plan.src ? absolute(plan.src) : null}
+          fig={manifest.fig}
+          door={apiDoor}
+          canAttach={caps.canUploadVersion}
+          client={api}
           onDownload={downloadOriginal}
         />
       ) : plan.stage === 'zip' && manifest.zip ? (

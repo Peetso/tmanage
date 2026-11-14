@@ -70,6 +70,7 @@ export type ViewerKind =
   | 'video'
   | 'audio'
   | 'zip'
+  | 'fig'
   | 'text'
   | 'unsupported';
 
@@ -204,6 +205,30 @@ export interface PreviewZipView {
   readonly entries: readonly PreviewZipEntryView[];
 }
 
+/** FIGMA item 10 — one frame of a `.fig` page (facts only: the file draws nothing here). */
+export interface PreviewFigFrameView {
+  readonly name: string;
+  readonly width: number;
+  readonly height: number;
+  readonly x: number;
+  readonly y: number;
+  readonly section: string | null;
+}
+
+export interface PreviewFigPageView {
+  readonly name: string;
+  readonly frameCount: number;
+  readonly frames: readonly PreviewFigFrameView[];
+}
+
+/** A `.fig` file's pages and frames, read from the file; `truncated` when more exist. */
+export interface PreviewFigView {
+  readonly fileName: string | null;
+  readonly frameCount: number;
+  readonly truncated: boolean;
+  readonly pages: readonly PreviewFigPageView[];
+}
+
 /** R4 slice 10 — one Excel sheet, in workbook order. */
 export interface PreviewOfficeSheetView {
   readonly name: string;
@@ -248,6 +273,8 @@ export interface FilePreviewManifestView {
   readonly psd: PreviewPsdView | null;
   /** A ZIP's contents; `null` before the job read them, and for other kinds. */
   readonly zip: PreviewZipView | null;
+  /** A `.fig` file's pages and frames; `null` before the job read them, and for other kinds. */
+  readonly fig: PreviewFigView | null;
   /** Office facts; `null` before the job read them, and for other kinds. */
   readonly office: PreviewOfficeView | null;
   readonly versions: PreviewChainView;
@@ -285,6 +312,7 @@ export function viewerKindFor(mimeType: string | null): ViewerKind {
   if (mimeType.startsWith('video/')) return 'video';
   if (mimeType.startsWith('audio/')) return 'audio';
   if (mimeType === 'application/zip') return 'zip';
+  if (mimeType === 'application/x-figma') return 'fig';
   if (mimeType.startsWith('text/')) return 'text';
   if (mimeType.endsWith('.wordprocessingml.document')) return 'office_docx';
   if (mimeType.endsWith('.presentationml.presentation')) return 'office_pptx';
@@ -326,7 +354,10 @@ export function manifestStatusFor(input: {
   const shown = input.rows.some(
     (row) =>
       row.status === 'ready' &&
-      (row.kind === 'preview' || row.kind === 'svg_safe' || row.kind === 'zip_manifest'),
+      (row.kind === 'preview' ||
+        row.kind === 'svg_safe' ||
+        row.kind === 'zip_manifest' ||
+        row.kind === 'fig_outline'),
   );
   if (shown) return 'ready';
   if (input.rows.some((row) => row.status === 'pending')) return 'pending';
@@ -446,6 +477,7 @@ export class FilePreviewService {
       embeddedPreview: servable && booleanMeta(rows, 'embeddedPreview'),
       psd: servable ? psdViewFrom(rows) : null,
       zip: servable ? zipViewFrom(rows) : null,
+      fig: servable ? figViewFrom(rows) : null,
       office: servable ? officeViewFrom(rows) : null,
       versions: chain,
       decisionContext,
@@ -862,6 +894,60 @@ export function zipViewFrom(rows: readonly FilePreview[]): PreviewZipView | null
     compressedBytes: count(meta, 'compressedBytes'),
     encrypted: meta['encrypted'] === true,
     entries,
+  };
+}
+
+function textOrNull(value: unknown, max: number): string | null {
+  return typeof value === 'string' && value !== '' ? value.slice(0, max) : null;
+}
+
+function roundedMeta(meta: Readonly<Record<string, unknown>>, key: string): number {
+  const value = finiteMeta(meta, key);
+  return value === null ? 0 : Math.round(value);
+}
+
+function asRecord(value: unknown): Readonly<Record<string, unknown>> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value))
+    : null;
+}
+
+/** The ready `fig_outline` row as the manifest's `fig` block (`null` until the job has run). */
+export function figViewFrom(rows: readonly FilePreview[]): PreviewFigView | null {
+  const meta = readyMeta(rows, 'fig_outline');
+  if (!meta) return null;
+  const rawPages: unknown[] = Array.isArray(meta['pages']) ? meta['pages'] : [];
+  const pages = rawPages.slice(0, 200).flatMap((item): PreviewFigPageView[] => {
+    const page = asRecord(item);
+    if (!page) return [];
+    const rawFrames: unknown[] = Array.isArray(page['frames']) ? page['frames'] : [];
+    const frames = rawFrames.slice(0, 2000).flatMap((entry): PreviewFigFrameView[] => {
+      const frame = asRecord(entry);
+      if (!frame) return [];
+      return [
+        {
+          name: textOrNull(frame['name'], 200) ?? 'Frame',
+          width: roundedMeta(frame, 'width'),
+          height: roundedMeta(frame, 'height'),
+          x: roundedMeta(frame, 'x'),
+          y: roundedMeta(frame, 'y'),
+          section: textOrNull(frame['section'], 200),
+        },
+      ];
+    });
+    return [
+      {
+        name: textOrNull(page['name'], 200) ?? 'Page',
+        frameCount: count(page, 'frameCount'),
+        frames,
+      },
+    ];
+  });
+  return {
+    fileName: textOrNull(meta['fileName'], 200),
+    frameCount: count(meta, 'frameCount'),
+    truncated: meta['truncated'] === true,
+    pages,
   };
 }
 

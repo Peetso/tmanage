@@ -185,6 +185,7 @@ function manifest(overrides: Record<string, unknown>): FilePreviewManifest {
     embeddedPreview: false,
     psd: null,
     zip: null,
+    fig: null,
     office: null,
     versions: { rootFileAssetId: 'f1', versions: [] },
     decisionContext: { kind: 'file', deliverableId: null, deliverableVersionId: null },

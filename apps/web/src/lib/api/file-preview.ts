@@ -21,6 +21,7 @@ export type ViewerKind =
   | 'video'
   | 'audio'
   | 'zip'
+  | 'fig'
   | 'text'
   | 'unsupported';
 
@@ -149,6 +150,30 @@ export interface PreviewZip {
   readonly entries: readonly PreviewZipEntry[];
 }
 
+/** One frame of a `.fig` page, as the file lists it (nothing is drawn from the file). */
+export interface PreviewFigFrame {
+  readonly name: string;
+  readonly width: number;
+  readonly height: number;
+  readonly x: number;
+  readonly y: number;
+  readonly section: string | null;
+}
+
+export interface PreviewFigPage {
+  readonly name: string;
+  readonly frameCount: number;
+  readonly frames: readonly PreviewFigFrame[];
+}
+
+/** A `.fig` file's pages and frames; `truncated` when more exist than are listed. */
+export interface PreviewFig {
+  readonly fileName: string | null;
+  readonly frameCount: number;
+  readonly truncated: boolean;
+  readonly pages: readonly PreviewFigPage[];
+}
+
 export interface PreviewOfficeSheet {
   readonly name: string;
   readonly hidden: boolean;
@@ -186,6 +211,8 @@ export interface FilePreviewManifest {
   readonly psd: PreviewPsd | null;
   /** A ZIP's contents; `null` before read, and for other kinds. */
   readonly zip: PreviewZip | null;
+  /** A `.fig` file's pages and frames; `null` before read, and for other kinds. */
+  readonly fig: PreviewFig | null;
   /** Office facts; `null` before read, and for other kinds. */
   readonly office: PreviewOffice | null;
   readonly versions: PreviewChain;

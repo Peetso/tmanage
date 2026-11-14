@@ -60,6 +60,7 @@ const MANIFEST = {
   embeddedPreview: false,
   psd: null,
   zip: null,
+  fig: null,
   office: null,
   versions: {
     rootFileAssetId: 'f0',

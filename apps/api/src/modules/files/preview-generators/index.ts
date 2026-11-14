@@ -1,4 +1,5 @@
 import { epsGenerator } from './eps.js';
+import { figGenerator } from './fig.js';
 import { heicGenerator } from './heic.js';
 import { imageGenerator } from './image.js';
 import { mediaMetaGenerator } from './media-meta.js';
@@ -29,6 +30,7 @@ export const PREVIEW_GENERATORS: readonly PreviewGenerator[] = [
   epsGenerator,
   zipGenerator,
   officeMetaGenerator,
+  figGenerator,
 ];
 
 export function generatorFor(

@@ -111,7 +111,8 @@ export type DetectedTypeToken =
   | 'html'
   | 'dwg'
   | 'skp'
-  | 'rvt';
+  | 'rvt'
+  | 'fig';
 
 const OOXML = 'application/vnd.openxmlformats-officedocument';
 
@@ -154,6 +155,7 @@ export const MIME_BY_TOKEN: Readonly<Record<DetectedTypeToken, string>> = {
   dwg: 'image/vnd.dwg',
   skp: 'application/vnd.sketchup.skp',
   rvt: 'application/vnd.autodesk.revit',
+  fig: 'application/x-figma',
 };
 
 interface Family {
@@ -389,6 +391,13 @@ export const FAMILIES: readonly Family[] = [
     // The container signature cannot tell the members apart; the declared member stands.
     // `PK\x03\x04` only. An empty archive (`PK\x05\x06`) holds nothing worth storing and a
     // spanned one (`PK\x07\x08`) is not a document; both are refused as a mismatch.
+    matches: (head) => startsWith(head, [0x50, 0x4b, 0x03, 0x04]),
+  },
+  {
+    // Peter, 2026-11-10 (FIGMA item 10): a file saved from Figma ("Save local copy") is a ZIP
+    // (`canvas.fig`, `thumbnail.png`, `meta.json`, images). Admitted only as itself, and its
+    // directory goes through the same archive inspection as any ZIP (`ZIP_FAMILY_TOKENS`).
+    members: { 'application/x-figma': 'fig' },
     matches: (head) => startsWith(head, [0x50, 0x4b, 0x03, 0x04]),
   },
   {

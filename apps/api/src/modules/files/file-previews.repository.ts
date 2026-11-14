@@ -51,6 +51,7 @@ export const PREVIEW_KINDS = [
   'office_meta',
   'media_meta',
   'zip_manifest',
+  'fig_outline',
   'poster',
 ] as const;
 export type PreviewKind = (typeof PREVIEW_KINDS)[number];

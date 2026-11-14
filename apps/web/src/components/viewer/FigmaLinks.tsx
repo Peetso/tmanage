@@ -187,19 +187,44 @@ export function FigmaLinksPanel({
 export interface PortalFigmaLinksProps {
   readonly organizationSlug: string;
   readonly client?: ApiClient;
+  /**
+   * Only the links paired with this item (a `.fig` file's "Show it from Figma"), filtered by the
+   * server through the project's portal list.
+   */
+  readonly attachedTo?: {
+    readonly projectId: string;
+    readonly type: FigmaAttachTarget;
+    readonly id: string;
+  };
 }
 
 /**
  * The client's list of Figma designs shared with them (the portal's Files page). Opens the same
  * viewer, read-only with comments; the client connects nothing. Hidden when there are none.
  */
-export function PortalFigmaLinks({ organizationSlug, client }: PortalFigmaLinksProps) {
+export function PortalFigmaLinks({ organizationSlug, client, attachedTo }: PortalFigmaLinksProps) {
   const t = useT();
   const api = client ?? browserApiClient();
   const id = useId();
   const links = useQuery({
-    queryKey: ['figma-links', 'portal', organizationSlug],
-    queryFn: () => listPortalFigmaLinks(api, organizationSlug),
+    queryKey: [
+      'figma-links',
+      'portal',
+      organizationSlug,
+      attachedTo?.projectId ?? '',
+      attachedTo?.type ?? '',
+      attachedTo?.id ?? '',
+    ],
+    queryFn: () =>
+      attachedTo
+        ? listFigmaLinks(
+            api,
+            organizationSlug,
+            attachedTo.projectId,
+            { type: attachedTo.type, id: attachedTo.id },
+            'portal',
+          )
+        : listPortalFigmaLinks(api, organizationSlug),
     retry: false,
   });
   const items = links.data?.links ?? [];
@@ -208,7 +233,7 @@ export function PortalFigmaLinks({ organizationSlug, client }: PortalFigmaLinksP
     <section className="tm-figma-links" aria-labelledby={`${id}-title`}>
       <div className="tm-figma-links__head">
         <h2 id={`${id}-title`} className="tm-figma-links__title">
-          {t('Figma.links.portalTitle')}
+          {attachedTo ? t('Figma.file.showFromFigma') : t('Figma.links.portalTitle')}
         </h2>
       </div>
       <ul className="tm-figma-links__list">
@@ -230,7 +255,7 @@ export function PortalFigmaLinks({ organizationSlug, client }: PortalFigmaLinksP
               className="tm-button tm-button--outline tm-button--default"
               href={`/${organizationSlug}/portal/figma/${encodeURIComponent(item.id)}`}
             >
-              {t('Figma.links.view')}
+              {attachedTo ? t('Figma.file.showFromFigma') : t('Figma.links.view')}
             </Link>
           </li>
         ))}

@@ -63,7 +63,13 @@ export interface ArchiveRefusal {
 }
 
 /** The detected-type tokens whose bytes are a ZIP (`content-signature.ts`). */
-export const ZIP_FAMILY_TOKENS: ReadonlySet<string> = new Set(['zip', 'docx', 'xlsx', 'pptx']);
+export const ZIP_FAMILY_TOKENS: ReadonlySet<string> = new Set([
+  'zip',
+  'docx',
+  'xlsx',
+  'pptx',
+  'fig',
+]);
 
 /** The longest entry path an answer carries; a longer one keeps its end (the file name). */
 export const ENTRY_DISPLAY_MAX = 200;
