@@ -371,6 +371,33 @@ export class FigmaRepository {
       .where(and(eq(figmaLinks.organizationId, context.organizationId), eq(figmaLinks.id, linkId)));
   }
 
+  /**
+   * Re-check of security review M2 (2026-11-14): claims a "Refresh from Figma" for this link.
+   * One conditional UPDATE: it stamps `synced_at` with `now` only when the last read (or attempt)
+   * is older than `before`, so of refreshes sent at once one wins, and a refresh that fails still
+   * starts the cooldown. `true` when this call won the claim.
+   */
+  async claimRefresh(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    linkId: string,
+    now: Date,
+    before: Date,
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(figmaLinks)
+      .set({ syncedAt: now })
+      .where(
+        and(
+          eq(figmaLinks.organizationId, context.organizationId),
+          eq(figmaLinks.id, linkId),
+          isNull(figmaLinks.deletedAt),
+          or(isNull(figmaLinks.syncedAt), lt(figmaLinks.syncedAt, before)),
+        ),
+      );
+    return affected(result) === 1;
+  }
+
   /** The pages chosen for capture (a JSON list of page ids), or null for every page. */
   async setPageFilter(
     runner: TenantQueryRunner,

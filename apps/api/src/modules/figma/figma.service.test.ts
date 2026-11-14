@@ -171,6 +171,8 @@ function build(
     figmaRefuses?: boolean;
     oauth?: boolean;
     outline?: FigmaOutline;
+    /** Figma cannot be reached when the outline is read. */
+    outlineFails?: boolean;
     rendersPerPerson?: number;
     exchange?: (input: { readonly verifier?: string | undefined }) => Promise<{
       readonly accessToken: string;
@@ -201,6 +203,7 @@ function build(
   const audits: string[] = [];
   const stored = new Map<string, Uint8Array>();
   const renderCalls: number[] = [];
+  let outlineCalls = 0;
   const repository = {
     findConnection: async (_r: unknown, _c: unknown, m: string) => connections.get(m),
     saveConnection: async (
@@ -242,6 +245,13 @@ function build(
       diffs.push(diff);
     },
     updateLinkOutline: async () => undefined,
+    // The conditional UPDATE: one row changes only when the last read is older than `before`.
+    claimRefresh: async (_r: unknown, _c: unknown, id: string, now: Date, before: Date) => {
+      const link = links.get(id);
+      if (!link || (link.syncedAt !== null && link.syncedAt >= before)) return false;
+      links.set(id, { ...link, syncedAt: now });
+      return true;
+    },
     listLinksAttachedTo: async () => [...links.values()],
   } as unknown as FigmaRepository;
   const projects = {
@@ -256,7 +266,11 @@ function build(
       if (options.figmaRefuses) throw new FigmaAuthError(403);
       return { handle: token ? 'lina' : null };
     },
-    outline: async () => options.outline ?? outlineOf(1),
+    outline: async () => {
+      outlineCalls += 1;
+      if (options.outlineFails) throw new Error('figma unreachable');
+      return options.outline ?? outlineOf(1);
+    },
     renderUrls: async (_t: string, _k: string, ids: readonly string[], scale: number) => {
       renderCalls.push(scale);
       return new Map(ids.map((id) => [id, 'https://figma-alpha-api.s3.amazonaws.com/r.png']));
@@ -328,6 +342,7 @@ function build(
     renderCalls,
     audits,
     links,
+    outlineCalls: () => outlineCalls,
     requested: () => requested,
   };
 }
@@ -655,6 +670,27 @@ describe('FigmaService · Refresh from Figma', () => {
     expect(world.diffs).toHaveLength(0);
     expect(world.requested()).toBe(0);
     expect(world.audits).not.toContain('figma.link_refreshed');
+  });
+
+  it('of two refreshes sent at once, one reads Figma and the other is held (re-check M2)', async () => {
+    const world = build({ connected: true, outline: outlineOf(2) });
+    const results = await Promise.allSettled([
+      world.service.refresh(contextOf(STAFF), STAFF, LINK),
+      world.service.refresh(contextOf(STAFF), STAFF, LINK),
+    ]);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    const held = results.find((result) => result.status === 'rejected');
+    expect(held && 'reason' in held ? held.reason : null).toMatchObject({ status: 409 });
+    expect(world.outlineCalls()).toBe(1);
+    expect(world.diffs).toHaveLength(1);
+  });
+
+  it('a refresh that fails still starts the cooldown (re-check M2)', async () => {
+    const world = build({ connected: true, outlineFails: true });
+    await world.service.refresh(contextOf(STAFF), STAFF, LINK).catch(() => undefined);
+    expect(world.outlineCalls()).toBe(1);
+    expect(await status(world.service.refresh(contextOf(STAFF), STAFF, LINK))).toBe(409);
+    expect(world.outlineCalls()).toBe(1);
   });
 
   it('is the team only', async () => {

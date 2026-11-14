@@ -1,6 +1,10 @@
 import { deflateRawSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { judgeArchiveDirectory, ZIP_FAMILY_TOKENS } from '../archive-inspection.js';
+import {
+  judgeArchiveDirectory,
+  startsAsFigCanvas,
+  ZIP_FAMILY_TOKENS,
+} from '../archive-inspection.js';
 import { judgeContentType } from '../content-signature.js';
 import { figViewFrom, viewerKindFor } from '../file-preview.service.js';
 import type { FilePreview } from '../file-previews.repository.js';
@@ -139,10 +143,10 @@ const DEFS: readonly DefSpec[] = [
 ];
 const NODE_TYPES = ['DOCUMENT', 'CANVAS', 'FRAME', 'SECTION', 'TEXT', 'SYMBOL'];
 
-function schemaBytes(): Uint8Array {
+function schemaBytes(defs: readonly DefSpec[] = DEFS): Uint8Array {
   const writer = new Writer();
-  writer.uint(DEFS.length);
-  for (const [name, kind, fields] of DEFS) {
+  writer.uint(defs.length);
+  for (const [name, kind, fields] of defs) {
     writer.string(name);
     writer.byte(kind);
     writer.uint(fields.length);
@@ -463,10 +467,66 @@ describe('hostile .fig files (security review 2026-11-14)', () => {
     );
   });
 
+  it('H2 re-check: a number list inside a kept field counts toward the kept budget', () => {
+    // A crafted schema makes the kept `size` a struct holding a uint[]: each item costs one
+    // input byte. 50 000 of them must not all be built.
+    const defs: readonly DefSpec[] = [
+      ['Vector', 1, [['x', UINT, true]]],
+      [
+        'NodeChange',
+        2,
+        [
+          ['name', STRING, false],
+          ['size', 0, false],
+        ],
+      ],
+      ['Message', 2, [['nodeChanges', 1, true]]],
+    ];
+    const writer = new Writer();
+    writer.uint(1); // nodeChanges
+    writer.uint(1);
+    writer.uint(2); // size
+    writer.uint(50_000);
+    for (let index = 0; index < 50_000; index += 1) writer.uint(0);
+    writer.uint(0);
+    writer.uint(0);
+    const document = new Uint8Array(writer.bytes);
+    const caps = { ...FIG_CAPS, maxKeptItems: 10_000 };
+    expect(() =>
+      decodeMessage(decodeSchema(schemaBytes(defs)), document, 'Message', caps, OUTLINE_FIELDS),
+    ).toThrow(expect.objectContaining({ code: 'fig_too_large' }));
+  });
+
+  it('H2 re-check: a long name is cut, and names in all count toward the text budget', () => {
+    const long = 'N'.repeat(5000);
+    const nodes: NodeSpec[] = [
+      { id: 0, type: 'DOCUMENT', name: 'Document' },
+      ...Array.from({ length: 100 }, (_, index): NodeSpec => ({
+        id: 1 + index,
+        parent: 0,
+        type: 'CANVAS',
+        name: long,
+      })),
+    ];
+    const read = readCanvas(canvasFig(nodes));
+    const names = (read['nodeChanges'] as readonly { readonly name?: unknown }[]).map(
+      (node) => node.name,
+    );
+    expect(names[1]).toHaveLength(FIG_CAPS.maxStringBytes);
+    expect(outlineOf(read).pages[0]?.name.length).toBeLessThanOrEqual(200);
+    // 100 names of 1 KB each are past a 50 KB text budget.
+    expect(() => readCanvas(canvasFig(nodes), { ...FIG_CAPS, maxKeptTextBytes: 50_000 })).toThrow(
+      expect.objectContaining({ code: 'fig_too_large' }),
+    );
+  });
+
   it('H2: the caps are what a page list needs', () => {
     expect(FIG_CAPS.maxDocumentBytes).toBeLessThanOrEqual(64 * 1024 * 1024);
     expect(FIG_CAPS.maxSchemaBytes).toBeLessThanOrEqual(1024 * 1024);
     expect(FIG_CAPS.maxObjects).toBeLessThanOrEqual(1_000_000);
+    expect(FIG_CAPS.maxSteps).toBeLessThanOrEqual(10_000_000);
+    expect(FIG_CAPS.maxKeptItems).toBeLessThanOrEqual(2_000_000);
+    expect(FIG_CAPS.maxKeptTextBytes).toBeLessThanOrEqual(4 * 1024 * 1024);
     expect(OUTLINE_FIELDS['Message']).toEqual(new Set(['nodeChanges']));
   });
 
@@ -500,6 +560,43 @@ describe('hostile .fig files (security review 2026-11-14)', () => {
     expect(
       judgeArchiveDirectory(real, { channel: 'member', officeOpenXml: false, figmaFile: true }),
     ).toBeNull();
+  });
+
+  it('L1 re-check: a canvas.fig entry must start with the fig-kiwi header', () => {
+    const spanOf = (bytes: Uint8Array) => {
+      const directory = readZipDirectory(bytes);
+      const entry = directory.entries.find((item) => item.path === 'canvas.fig')!;
+      return startsAsFigCanvas(bytes.subarray(entry.localHeaderOffset), entry);
+    };
+    expect(spanOf(zip([{ path: 'canvas.fig', body: new Uint8Array(0) }]))).toBe(false);
+    expect(spanOf(zip([{ path: 'canvas.fig', body: utf8('not-kiwi and more') }]))).toBe(false);
+    expect(spanOf(figFile())).toBe(true);
+    // Deflated (method 8), as some tools write it: the first bytes are inflated from the probe.
+    const body = deflateRawSync(Buffer.from(canvasFig(FILE)));
+    const name = Buffer.from('canvas.fig');
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(8, 8);
+    local.writeUInt16LE(name.length, 26);
+    const span = new Uint8Array(Buffer.concat([local, name, body]));
+    const entry = {
+      path: 'canvas.fig',
+      folder: false,
+      sizeBytes: canvasFig(FILE).length,
+      compressedBytes: body.length,
+      modifiedAt: null,
+      encrypted: false,
+      method: 8,
+      localHeaderOffset: 0,
+    };
+    expect(startsAsFigCanvas(span, entry)).toBe(true);
+    const fake = deflateRawSync(Buffer.from('zip-kiwi-plain-archive'));
+    expect(
+      startsAsFigCanvas(new Uint8Array(Buffer.concat([local, name, fake])), {
+        ...entry,
+        compressedBytes: fake.length,
+      }),
+    ).toBe(false);
   });
 });
 

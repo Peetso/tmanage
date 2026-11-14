@@ -40,6 +40,16 @@ export interface FigCaps {
   readonly maxObjects: number;
   /** Values read or skipped in all (bounds the time a hostile file can take). */
   readonly maxSteps: number;
+  /**
+   * Re-check of the security review (H2, 2026-11-14): values kept in all, every list item and
+   * every number included. An item of a number list costs one input byte, so without this a
+   * crafted file could make the decoder hold tens of millions of numbers.
+   */
+  readonly maxKeptItems: number;
+  /** Bytes of text kept in all (names and other kept strings). */
+  readonly maxKeptTextBytes: number;
+  /** Bytes kept of any one string; a longer one is cut (a name is shown at 200 characters). */
+  readonly maxStringBytes: number;
 }
 
 /**
@@ -54,7 +64,10 @@ export const FIG_CAPS: FigCaps = {
   maxArrayItems: 1_000_000,
   maxDepth: 64,
   maxObjects: 1_000_000,
-  maxSteps: 30_000_000,
+  maxSteps: 10_000_000,
+  maxKeptItems: 2_000_000,
+  maxKeptTextBytes: 4 * 1024 * 1024,
+  maxStringBytes: 1024,
 };
 
 /**
@@ -173,12 +186,28 @@ class Reader {
     return out.getFloat32(0);
   }
 
-  string(): string {
+  /**
+   * A zero-terminated string. Only its first `maxBytes` are decoded (cut back to a whole UTF-8
+   * character); the rest is passed over. `kept` is the number of bytes decoded.
+   */
+  string(maxBytes = Number.POSITIVE_INFINITY): { readonly text: string; readonly kept: number } {
     const end = this.bytes.indexOf(0, this.offset);
     if (end === -1) throw new FigReadError('fig_unreadable');
-    const text = utf8.decode(this.bytes.subarray(this.offset, end));
+    let cut = Math.min(end, this.offset + maxBytes);
+    while (cut < end && cut > this.offset && ((this.bytes[cut] as number) & 0xc0) === 0x80) {
+      cut -= 1;
+    }
+    const text = utf8.decode(this.bytes.subarray(this.offset, cut));
+    const kept = cut - this.offset;
     this.offset = end + 1;
-    return text;
+    return { text, kept };
+  }
+
+  /** Passes over a zero-terminated string without decoding it. */
+  skipString(): void {
+    const end = this.bytes.indexOf(0, this.offset);
+    if (end === -1) throw new FigReadError('fig_unreadable');
+    this.offset = end + 1;
   }
 
   take(length: number): Uint8Array {
@@ -199,14 +228,14 @@ export function decodeSchema(bytes: Uint8Array, caps: FigCaps = FIG_CAPS): Defin
   if (count > caps.maxDefinitions) throw new FigReadError('fig_too_large');
   const definitions: Definition[] = [];
   for (let index = 0; index < count; index += 1) {
-    const name = reader.string();
+    const name = reader.string(256).text;
     const kind = KINDS[reader.byte()];
     if (!kind) throw new FigReadError('fig_unreadable');
     const fieldCount = reader.uint();
     if (fieldCount > reader.remaining) throw new FigReadError('fig_unreadable');
     const fields: FieldDef[] = [];
     for (let at = 0; at < fieldCount; at += 1) {
-      const fieldName = reader.string();
+      const fieldName = reader.string(256).text;
       const type = reader.int();
       const array = (reader.byte() & 1) === 1;
       const value = reader.uint();
@@ -237,6 +266,8 @@ export function decodeMessage(
   );
   let steps = 0;
   let objects = 0;
+  let kept = 0;
+  let textBytes = 0;
   const step = () => {
     steps += 1;
     if (steps > caps.maxSteps) throw new FigReadError('fig_too_large');
@@ -262,7 +293,7 @@ export function decodeMessage(
         reader.float();
         return;
       case -6:
-        reader.string();
+        reader.skipString();
         return;
       case -7:
       case -8:
@@ -311,6 +342,8 @@ export function decodeMessage(
 
   const value = (type: number, depth: number): KiwiValue => {
     step();
+    kept += 1;
+    if (kept > caps.maxKeptItems) throw new FigReadError('fig_too_large');
     switch (type) {
       case -1:
         return reader.byte() !== 0;
@@ -322,8 +355,12 @@ export function decodeMessage(
         return reader.uint();
       case -5:
         return reader.float();
-      case -6:
-        return reader.string();
+      case -6: {
+        const { text, kept: bytes } = reader.string(caps.maxStringBytes);
+        textBytes += bytes;
+        if (textBytes > caps.maxKeptTextBytes) throw new FigReadError('fig_too_large');
+        return text;
+      }
       case -7:
         return reader.int64();
       case -8:

@@ -984,9 +984,19 @@ export class FigmaService {
     if (!this.mayWrite(principal, link, project)) {
       throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'figma_write_denied');
     }
-    if (link.syncedAt && this.now().getTime() - link.syncedAt.getTime() < REFRESH_COOLDOWN_MS) {
-      throw conflict('rate_limited');
-    }
+    // Claimed atomically and stamped before Figma is called: of refreshes sent at once one goes
+    // on, and a refresh that then fails still waits out the cooldown.
+    const now = this.now();
+    const claimed = await this.deps.database.transaction(context, (tx) =>
+      this.repository.claimRefresh(
+        tx,
+        context,
+        link.id,
+        now,
+        new Date(now.getTime() - REFRESH_COOLDOWN_MS),
+      ),
+    );
+    if (!claimed) throw conflict('rate_limited');
     const token = await this.refreshToken(context, link);
     const rows = await this.deps.database.read(context, (runner) =>
       this.repository.listFrames(runner, context, link.id),

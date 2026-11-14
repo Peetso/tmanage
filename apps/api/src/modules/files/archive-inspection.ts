@@ -1,3 +1,4 @@
+import { constants as zlibConstants, inflateRawSync } from 'node:zlib';
 import type { ObjectStore, TrustZone } from '@tmanage/storage';
 import { archiveEntryFinding } from './file-safety.js';
 import type { ArchiveEntryFinding } from './file-safety.js';
@@ -6,7 +7,7 @@ import {
   zipDirectoryStart,
   ZipReadError,
 } from './preview-generators/zip-reader.js';
-import type { ZipDirectory, ZipLimits } from './preview-generators/zip-reader.js';
+import type { ZipDirectory, ZipEntry, ZipLimits } from './preview-generators/zip-reader.js';
 
 /**
  * Security review FIX5, M2 and L3 — what is inside a ZIP.
@@ -149,6 +150,47 @@ export interface StoredObjectRef {
   readonly sizeBytes: number;
 }
 
+/** `fig-kiwi`: the first 8 bytes of every `canvas.fig` Figma writes. */
+const FIG_CANVAS_MAGIC = Buffer.from('fig-kiwi', 'latin1');
+/** Compressed bytes read to find the first 8 of a deflated `canvas.fig`. */
+const FIG_HEADER_PROBE_BYTES = 4096;
+/** Of those, the compressed bytes inflated (enough for the first 8 out). */
+const FIG_INFLATE_PROBE_BYTES = 256;
+
+/**
+ * Re-check of security review L1 (2026-11-14): whether a `canvas.fig` entry starts with Figma's
+ * `fig-kiwi` header. `span` holds the archive's bytes from the entry's local header on (at least
+ * its header, names and first compressed bytes). Anything else, an empty entry included, is not
+ * a Figma canvas.
+ */
+export function startsAsFigCanvas(span: Uint8Array, entry: ZipEntry): boolean {
+  if (entry.encrypted || entry.sizeBytes < FIG_CANVAS_MAGIC.length || span.byteLength < 30) {
+    return false;
+  }
+  const data = new DataView(span.buffer, span.byteOffset, span.byteLength);
+  if (data.getUint32(0, true) !== 0x04034b50) return false;
+  const start = 30 + data.getUint16(26, true) + data.getUint16(28, true);
+  const body = span.subarray(
+    start,
+    start + Math.min(entry.compressedBytes, FIG_HEADER_PROBE_BYTES),
+  );
+  let head: Uint8Array;
+  if (entry.method === 0) head = body;
+  else if (entry.method === 8) {
+    try {
+      // A cut-off stream: inflate its first bytes only. Deflate expands at most about 1 032 to
+      // 1, so 256 bytes in give well under the 512 KiB allowed out.
+      head = inflateRawSync(body.subarray(0, FIG_INFLATE_PROBE_BYTES), {
+        finishFlush: zlibConstants.Z_SYNC_FLUSH,
+        maxOutputLength: 512 * 1024,
+      });
+    } catch {
+      return false;
+    }
+  } else return false;
+  return FIG_CANVAS_MAGIC.equals(Buffer.from(head.subarray(0, FIG_CANVAS_MAGIC.length)));
+}
+
 async function readRange(
   store: ObjectStore,
   object: StoredObjectRef,
@@ -214,5 +256,24 @@ export async function inspectStoredArchive(
     }
     throw error;
   }
-  return judgeArchiveDirectory(directory, options);
+  const refusal = judgeArchiveDirectory(directory, options);
+  if (refusal !== null || options.figmaFile !== true) return refusal;
+  const canvas = directory.entries.find((entry) => !entry.folder && entry.path === 'canvas.fig');
+  if (!canvas) return { code: 'archive_unreadable', entry: null, finding: 'unreadable' };
+  // The local header (30 bytes), its names (at most 2 x 64 KiB) and the first compressed bytes.
+  const start = canvas.localHeaderOffset;
+  const end = Math.min(object.sizeBytes, start + 30 + 2 * 65_535 + FIG_HEADER_PROBE_BYTES) - 1;
+  if (start > end) return { code: 'archive_unreadable', entry: null, finding: 'unreadable' };
+  const opened = await store.openObject({
+    zone: object.zone,
+    objectKey: object.objectKey,
+    range: { start, end },
+  });
+  const chunks: Buffer[] = [];
+  for await (const piece of opened.stream) {
+    chunks.push(Buffer.isBuffer(piece) ? piece : Buffer.from(piece as string));
+  }
+  return startsAsFigCanvas(Buffer.concat(chunks), canvas)
+    ? null
+    : { code: 'archive_unreadable', entry: null, finding: 'unreadable' };
 }
