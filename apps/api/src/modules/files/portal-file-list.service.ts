@@ -1,12 +1,13 @@
-import { authorize, isServableVersion } from '@tmanage/domain';
+import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { FileAssetRow, FileVersionRow } from '../../common/database/schema.js';
 import type { FileAssetsRepository } from './file-assets.repository.js';
 import { mayDownloadFor } from './purpose-policy.js';
-import { awaitingScan, DOWNLOAD_CAPABILITY } from './file-download.service.js';
-import { readDownloadScanPolicy } from '../tenancy/download-scan-policy.js';
+import { DOWNLOAD_CAPABILITY } from './file-download.service.js';
+import { awaitingScan, ClientFileSharing } from './client-file-sharing.js';
+import type { ClientFileState, ClientSharingPolicies } from './client-file-sharing.js';
 import type { ScannerPresence } from '../tenancy/download-scan-policy.js';
 import { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
@@ -43,11 +44,9 @@ import { ReviewThreadsRepository } from './review-threads.repository.js';
  * 3. **The client-organization relation and the servable rule, per row.** The relation is read
  *    from the **request** the file hangs off — never the asset, which an internal upload leaves
  *    without a client organization — so a sibling client's attachment in a shared project is never
- *    returned. A `ready`, `clean`, `private` latest version ({@link isServableVersion}) is listed
- *    as `clean`. C4 (B3 follow-up): a file the scan has not judged yet ({@link awaitingScan}, the
- *    download door's own rule) is listed too, as the owner's "downloads before a virus scan"
- *    policy says — `not_scanned` under `allow_labeled` (the door serves it, labelled), and
- *    `being_checked` under `block` (the door answers 409; the screen disables Download). An
+ *    returned. FIX6 item 1: each row is then decided by the one sharing rule
+ *    ({@link ClientFileSharing}) the download door also applies, so the list never names a file the
+ *    door refuses. An
  *    infected, rejected, expired or not-yet-verified file is never listed, whatever the policy.
  */
 
@@ -74,17 +73,22 @@ export interface PortalFileView {
 }
 
 export class PortalFileListService {
+  /** FIX6 item 1. The one rule that decides whether a file may reach a client. */
+  private readonly sharing: ClientFileSharing;
+
   constructor(
     private readonly database: TenantDatabase,
     private readonly assets: FileAssetsRepository,
     /** C4. The configured scanner, as the download door gets it; absent means `allow_labeled`. */
-    private readonly scanner?: ScannerPresence,
-    private readonly settings: OrgSettingsRepository = new OrgSettingsRepository(),
+    scanner?: ScannerPresence,
+    settings: OrgSettingsRepository = new OrgSettingsRepository(),
     /** F48. The project's lifecycle, for the download door's own `authorize()` per row. */
     private readonly projects: ProjectsRepository = new ProjectsRepository(),
     /** R4 slice 8. The open client-visible comment count per listed file. */
     private readonly threads: ReviewThreadsRepository = new ReviewThreadsRepository(),
-  ) {}
+  ) {
+    this.sharing = new ClientFileSharing(scanner, settings);
+  }
 
   /**
    * The downloadable files in one of this client's projects.
@@ -115,8 +119,8 @@ export class PortalFileListService {
     }));
 
     const files: PortalFileView[] = [];
-    // C4. The policy is read once, and only when some file is still waiting for its scan.
-    let unscannedStatus: PortalFileScanStatus | undefined;
+    // FIX6 item 1. The policies are read once; each row is decided by the one sharing rule.
+    let policies: ClientSharingPolicies | undefined;
     for (const row of rows) {
       // The audience guard: a client sees only their own client organization's request files,
       // read from the request row (an internal upload leaves the asset's own column null). The
@@ -128,22 +132,15 @@ export class PortalFileListService {
       // project relation and lifecycle — so an `internal` staff attachment is never listed.
       if (!this.mayDownload(principal, row.asset, archived)) continue;
       if (row.version === null) continue;
-      // "Published" for a file is servable: ready asset, clean verdict, private zone.
-      if (
-        isServableVersion({
-          status: row.asset.status,
-          scanVerdict: row.version.scanVerdict,
-          trustZone: row.version.trustZone,
-        })
-      ) {
-        files.push(toView(row.asset, row.version, 'clean'));
-        continue;
-      }
-      // Not judged by the scan yet — the same rule the download door applies. Anything else
-      // (infected, rejected, expired, not verified) stays hidden.
-      if (!awaitingScan(row.asset.status, row.version)) continue;
-      unscannedStatus ??= await this.unscannedStatus(context);
-      files.push(toView(row.asset, row.version, unscannedStatus));
+      policies ??= await this.database.read(context, (runner) =>
+        this.sharing.policiesOn(runner, context),
+      );
+      const status = portalScanStatus(
+        this.sharing.stateOf(row.asset, row.version, policies),
+        awaitingScan(row.asset.status, row.version),
+        policies.scannerPresent,
+      );
+      if (status !== null) files.push(toView(row.asset, row.version, status));
     }
     if (files.length === 0) return files;
     const open = await this.database.read(context, (runner) =>
@@ -154,17 +151,6 @@ export class PortalFileListService {
       ),
     );
     return files.map((file) => ({ ...file, openComments: open.get(file.id) ?? 0 }));
-  }
-
-  /** C4. `allow_labeled` → `not_scanned` (downloadable, labelled); `block` → `being_checked`. */
-  private async unscannedStatus(context: TenantContext): Promise<PortalFileScanStatus> {
-    const policy = await readDownloadScanPolicy(
-      this.database,
-      context,
-      this.scanner,
-      this.settings,
-    );
-    return policy.effective === 'block' ? 'being_checked' : 'not_scanned';
   }
 
   /** F48. `authorize(file.download)` exactly as {@link FileDownloadService} asks it. */
@@ -200,6 +186,22 @@ export class PortalFileListService {
       },
     }).allowed;
   }
+}
+
+/**
+ * FIX6 item 1. What the list says about one file: `clean` once virus-scanned, `not_scanned` (the
+ * screen's "Checked") when the sharing rule lets a checked file reach the client, and
+ * `being_checked` while a configured scanner may still clear it. Anything else is not listed —
+ * blocked, infected or refused files, and, with no scanner, files the owner keeps to virus-scanned.
+ */
+export function portalScanStatus(
+  state: ClientFileState | null,
+  awaiting: boolean,
+  scannerPresent: boolean,
+): PortalFileScanStatus | null {
+  if (state === 'virus_scanned') return 'clean';
+  if (state === 'checked') return 'not_scanned';
+  return awaiting && scannerPresent ? 'being_checked' : null;
 }
 
 /** The allowlist projection. Listed versions are verified, so the detected type is set. */

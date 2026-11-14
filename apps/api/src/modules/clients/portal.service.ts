@@ -12,6 +12,8 @@ import {
 } from '../work/work-items.repository.js';
 import { ClientProjectionsRepository } from '../approvals/client-projections.repository.js';
 import { FileAssetsRepository } from '../files/file-assets.repository.js';
+import { ClientFileSharing } from '../files/client-file-sharing.js';
+import type { ClientFileState } from '../files/client-file-sharing.js';
 import { viewerKindFor } from '../files/file-preview.service.js';
 import { ReviewThreadsRepository } from '../files/review-threads.repository.js';
 import {
@@ -166,6 +168,8 @@ export interface PortalDeliverableFileView {
   readonly reviewable: boolean;
   /** R4 slice 8. Open comments the client can see on this file (team-only ones never count). */
   readonly openComments: number;
+  /** FIX6 item 1. `virus_scanned`, or `checked` (passed TManage's own checks, not virus-scanned). */
+  readonly safety: ClientFileState;
 }
 
 /**
@@ -342,6 +346,7 @@ function toDeliverableView(row: ClientProjectionRow): PortalDeliverableView {
 function toDeliverableFileView(
   asset: FileAssetRow,
   version: FileVersionRow,
+  safety: ClientFileState,
 ): PortalDeliverableFileView {
   return {
     id: asset.id,
@@ -351,6 +356,7 @@ function toDeliverableFileView(
     updatedAt: asset.updatedAt.toISOString(),
     reviewable: viewerKindFor(version.detectedMimeType) !== 'unsupported',
     openComments: 0,
+    safety,
   };
 }
 
@@ -420,6 +426,8 @@ export class PortalService {
     private readonly accessRecorder?: PortalAccessRecorder,
     /** R4 slice 8. The open client-visible comment count on each deliverable file. */
     private readonly reviewThreads: ReviewThreadsRepository = new ReviewThreadsRepository(),
+    /** FIX6 item 1. The one rule that decides whether a file may reach a client. */
+    private readonly sharing: ClientFileSharing = new ClientFileSharing(undefined),
   ) {}
 
   /** A10 — the linked-milestone check and the unpublish dialog's "already opened" read. */
@@ -638,8 +646,8 @@ export class PortalService {
    * the same not-found, never a 500 and never a 403 a probe could read.
    *
    * The file query is scoped to this client's own organization, so one client never sees
-   * another's file even inside a project both can read; it returns only `ready`, client-audience
-   * `deliverable` files. This route is for a client member — an internal caller has no single
+   * another's file even inside a project both can read; it returns client-audience `deliverable`
+   * files and the files of published versions, each then decided by the one sharing rule. This route is for a client member — an internal caller has no single
    * client organization to scope to and is answered `404`, the internal file surface being the
    * studio's own download route.
    */
@@ -660,17 +668,21 @@ export class PortalService {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
 
-    const rows = await this.database.read(context, (runner) =>
-      this.files.listClientVisibleForDeliverable(runner, context, {
+    const { rows, policies } = await this.database.read(context, async (runner) => ({
+      rows: await this.files.listClientVisibleForDeliverable(runner, context, {
         deliverableId,
         clientOrganizationId,
       }),
-    );
-    const files = rows
-      .filter(
-        (row): row is { asset: FileAssetRow; version: FileVersionRow } => row.version !== null,
-      )
-      .map((row) => toDeliverableFileView(row.asset, row.version));
+      policies: await this.sharing.policiesOn(runner, context),
+    }));
+    // FIX6 item 1: the one sharing rule decides each file — virus-scanned, or checked when the
+    // owner's "Files clients can receive" allows it; anything else is not listed.
+    const files = rows.flatMap((row) => {
+      const safety = this.sharing.stateOf(row.asset, row.version, policies);
+      return row.version !== null && safety !== null
+        ? [toDeliverableFileView(row.asset, row.version, safety)]
+        : [];
+    });
     if (files.length === 0) return files;
     const open = await this.database.read(context, (runner) =>
       this.reviewThreads.countOpenClientVisible(

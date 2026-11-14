@@ -1,3 +1,4 @@
+import { deleteFile } from './file-delete';
 import type { ApiClient } from './client';
 import { ApiRequestError, NetworkError } from './errors';
 import { uploadToDrive, type DriveAttachmentView, type StorageStatusView } from './google-drive';
@@ -486,6 +487,31 @@ export async function uploadProjectFile(
     input.file,
     deps,
   );
+}
+
+/**
+ * FIX6 item 1. Upload a file into a project for one use — a deliverable version — and hand its id
+ * to `attach` once the checks have passed (`untilReady`), so the use is never refused because the
+ * file is still being checked. If that is refused, the new file is deleted again, so a failed
+ * attempt leaves no stray file in Files.
+ */
+export async function uploadProjectFileFor<T>(
+  client: ApiClient,
+  organizationSlug: string,
+  input: { readonly projectId: string; readonly file: Blob & AttachmentFileInput },
+  attach: (fileAssetId: string) => Promise<T>,
+  deps: UploadAttachmentOptions = {},
+): Promise<T> {
+  const fileAssetId = await uploadProjectFile(client, organizationSlug, input, {
+    ...deps,
+    untilReady: true,
+  });
+  try {
+    return await attach(fileAssetId);
+  } catch (error) {
+    await deleteFile(client, organizationSlug, fileAssetId).catch(() => undefined);
+    throw error;
+  }
 }
 
 /**

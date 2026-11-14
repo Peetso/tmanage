@@ -13,6 +13,7 @@ import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error'
 import type { ApiClient } from '../../lib/api/client';
 import { shortDay } from './PortalParts';
 import { PortalOpenComments, PortalReviewLink } from './PortalReviewLink';
+import { CheckedLabel } from './CheckedLabel';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 import './download-scan-policy.css';
@@ -204,11 +205,7 @@ export function PortalFilesScreen({
                     </td>
                     <td>
                       <span className="tm-scan-row__actions">
-                        {file.scanStatus === 'not_scanned' ? (
-                          <StateCapsule state="waiting" className="tm-scan-capsule">
-                            {t('DownloadScan.notScanned')}
-                          </StateCapsule>
-                        ) : null}
+                        {file.scanStatus === 'not_scanned' ? <CheckedLabel /> : null}
                         {file.scanStatus === 'being_checked' ? (
                           <StateCapsule state="waiting" className="tm-scan-capsule">
                             {t('WorkDetail.scanning')}

@@ -15,7 +15,7 @@ import type {
   DeliverableDetailView,
   DeliverableVersionView,
 } from '../../lib/api/deliverables';
-import { ATTACHMENT_ACCEPT, attachmentProblem, uploadProjectFile } from '../../lib/api/uploads';
+import { ATTACHMENT_ACCEPT, attachmentProblem, uploadProjectFileFor } from '../../lib/api/uploads';
 import type { ApiClient } from '../../lib/api/client';
 import {
   STATE_KEY,
@@ -94,13 +94,16 @@ export function DeliverableDetailScreen({
 
   const upload = useMutation({
     mutationFn: async () => {
-      const fileAssetId = file
-        ? await uploadProjectFile(api, organizationSlug, { projectId, file })
-        : null;
-      return addDeliverableVersion(api, organizationSlug, deliverableId, {
-        fileAssetId,
-        note: note.trim() === '' ? null : note.trim(),
-      });
+      const versionNote = note.trim() === '' ? null : note.trim();
+      const add = (fileAssetId: string | null) =>
+        addDeliverableVersion(api, organizationSlug, deliverableId, {
+          fileAssetId,
+          note: versionNote,
+        });
+      // FIX6 item 1: the file is used once its checks pass, and removed again if refused.
+      return file
+        ? uploadProjectFileFor(api, organizationSlug, { projectId, file }, add)
+        : add(null);
     },
     onSuccess: () => {
       setFile(null);

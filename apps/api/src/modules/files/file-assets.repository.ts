@@ -21,6 +21,7 @@ import { uploadStateMachine, uuidv7 } from '@tmanage/domain';
 import type { Audience, UploadState } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
+  clientProjections,
   clientRequests,
   deliverableVersions,
   fileAssets,
@@ -731,15 +732,19 @@ export class FileAssetsRepository {
    *   and no other row kind (`0016`'s purpose/object pairing).
    * - `audience IN (client_visible, client_action_required)` — never an `internal` file. A
    *   deliverable upload is `internal` by default (`purpose-policy.ts`); only a file explicitly
-   *   marked client-facing is a file "shared to the client".
+   *   marked client-facing is a file "shared to the client". FIX6 item 1: **or** the file of one
+   *   of this deliverable's published versions (a `client_projections` row names the version) —
+   *   publishing is the act that makes it client content, as `FileClientRelation` rules.
    * - `client_organization_id = clientOrganizationId` — `04-SECURITY-PRIVACY` §5: one client
-   *   never sees another client organization's file, even inside a project both can read.
-   * - `status = 'ready'` — `23-ERD` §10: a file is invisible until it is verified, scanned clean
-   *   and promoted. A draft, scanning or rejected asset is not a shared file.
+   *   never sees another client organization's file, even inside a project both can read. A
+   *   published version's file is the project's client content: the projection's own reach.
+   *
+   * FIX6 item 1: the file's state is **not** filtered here. The caller runs every row through the
+   * one sharing rule (`ClientFileSharing`), which admits a virus-scanned file and, under the
+   * owner's policy, a checked one — never a draft, blocked, infected or refused file.
    *
    * The join is the same correlated-latest shape as {@link findWithLatestVersion}; the version is
-   * present for every `ready` asset (an asset reaches `ready` only through a clean version), but
-   * it is typed nullable and the caller drops any row without one rather than assume it.
+   * typed nullable and the caller drops any row without one rather than assume it.
    * Newest-first by `created_at`, then `id`, so the list is deterministic.
    */
   async listClientVisibleForDeliverable(
@@ -768,10 +773,34 @@ export class FileAssetsRepository {
           eq(fileAssets.purpose, 'deliverable'),
           // PA-03 (0245): a soft-deleted file leaves the list.
           isNull(fileAssets.deletedAt),
-          eq(fileAssets.objectId, input.deliverableId),
-          inArray(fileAssets.audience, clientAudiences),
-          eq(fileAssets.clientOrganizationId, input.clientOrganizationId),
-          eq(fileAssets.status, 'ready'),
+          or(
+            and(
+              eq(fileAssets.objectId, input.deliverableId),
+              inArray(fileAssets.audience, clientAudiences),
+              eq(fileAssets.clientOrganizationId, input.clientOrganizationId),
+            ),
+            exists(
+              tenantDrizzle(runner)
+                .select({ one: sql`1` })
+                .from(deliverableVersions)
+                .innerJoin(
+                  clientProjections,
+                  and(
+                    eq(clientProjections.organizationId, deliverableVersions.organizationId),
+                    eq(clientProjections.deliverableVersionId, deliverableVersions.id),
+                  ),
+                )
+                .where(
+                  and(
+                    eq(deliverableVersions.organizationId, context.organizationId),
+                    eq(clientProjections.organizationId, context.organizationId),
+                    eq(deliverableVersions.deliverableId, input.deliverableId),
+                    eq(deliverableVersions.projectId, fileAssets.projectId),
+                    eq(deliverableVersions.fileAssetId, fileAssets.id),
+                  ),
+                ),
+            ),
+          ),
         ),
       )
       .orderBy(desc(fileAssets.createdAt), desc(fileAssets.id));

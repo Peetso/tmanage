@@ -10,6 +10,7 @@ import {
   CLIENT_ORGANIZATIONS_REPOSITORY,
   INVITATION_MAILER,
   INVITATIONS_SERVICE,
+  MALWARE_SCANNER,
   MILESTONE_LIFECYCLE_SERVICE,
   OUTBOX_EVENTS_REPOSITORY,
   PORTAL_ACCESS_LOG_SERVICE,
@@ -22,6 +23,7 @@ import {
   UPDATE_COMMENTS_SERVICE,
 } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
+import type { MalwareScanner } from '../../common/scan/malware-scanner.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { InvitationMailer } from '../../common/email/invitation-mailer.js';
@@ -73,6 +75,8 @@ import { PortalAccessLogRepository } from './portal-access-log.repository.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { ClientProjectionsRepository } from '../approvals/client-projections.repository.js';
 import { FileAssetsRepository } from '../files/file-assets.repository.js';
+import { ClientFileSharing } from '../files/client-file-sharing.js';
+import { ReviewThreadsRepository } from '../files/review-threads.repository.js';
 import { InvitationsRepository } from '../tenancy/invitations.repository.js';
 import { InvitationsService } from '../tenancy/invitations.service.js';
 import { MembershipsRepository } from '../tenancy/memberships.repository.js';
@@ -165,8 +169,12 @@ export class ClientsModule {
       // x237: the access-log service is injected as the recorder, so a successful client read of a
       // deliverable or update logs one access event (best-effort; a logging failure never denies
       // the read).
-      inject: [TENANT_DATABASE, PORTAL_ACCESS_LOG_SERVICE],
-      useFactory: (database: TenantDatabase, recorder: PortalAccessLogService) =>
+      inject: [TENANT_DATABASE, PORTAL_ACCESS_LOG_SERVICE, MALWARE_SCANNER],
+      useFactory: (
+        database: TenantDatabase,
+        recorder: PortalAccessLogService,
+        scanner: MalwareScanner,
+      ) =>
         // Every repository constructed here, for the reason the service above constructs its
         // own `ProjectsRepository`: they are stateless collections of queries, and reaching
         // for another module's provider would register that dynamic module twice. x114 adds the
@@ -179,6 +187,9 @@ export class ClientsModule {
           new FileAssetsRepository(),
           new ProjectUpdatesRepository(),
           recorder,
+          new ReviewThreadsRepository(),
+          // FIX6 item 1: the scanner, so the deliverable file list obeys the one sharing rule.
+          new ClientFileSharing(scanner),
         ),
     };
 

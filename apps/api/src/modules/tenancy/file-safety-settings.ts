@@ -10,7 +10,7 @@ import { parsePresets, planMaxFileBytes } from '../files/file-safety.js';
 import type { FileTypePreset } from '../files/file-safety.js';
 import { scannerConfigured } from './download-scan-policy.js';
 import type { ScannerPresence } from './download-scan-policy.js';
-import { defaultFor } from './org-settings.allowlist.js';
+import { clientFilesPolicyFrom, REQUIRE_SCAN_FOR_CLIENTS_KEY } from './client-file-policy.js';
 import { OrgSettingsRepository } from './org-settings.repository.js';
 
 /**
@@ -20,32 +20,19 @@ import { OrgSettingsRepository } from './org-settings.repository.js';
  * - `presets`: the stored `file_safety_presets` csv, or every preset but archives.
  * - `maxFileBytes`: the plan's per-file cap (the entitled plan: the top one during the free beta),
  *   never above the contract's 5 GiB. Read-only — a plan change moves it.
- * - `requireScanForClients`: the **effective** value. Stored `true` (the default) counts only
- *   while a scanner is configured; without one no verdict would ever arrive and every client file
- *   would be unreachable — the same reasoning `downloads_before_scan` follows.
+ * - `requireScanForClients`: whether clients receive only virus-scanned files — the owner's
+ *   "Files clients can receive" (`client-file-policy.ts`, FIX6), read here so the settings route
+ *   shows it. Its own owner-only route writes it.
  */
 export const FILE_SAFETY_PRESETS_KEY = 'file_safety_presets' as const;
-export const REQUIRE_SCAN_FOR_CLIENTS_KEY = 'require_scan_for_clients' as const;
+export { REQUIRE_SCAN_FOR_CLIENTS_KEY };
 
 export interface FileSafetySettings {
   readonly presets: readonly FileTypePreset[];
   readonly maxFileBytes: number;
-  /** What a client download obeys. */
+  /** FIX6. Clients receive only virus-scanned files (the owner's "Files clients can receive"). */
   readonly requireScanForClients: boolean;
-  /** What the owner stored (or the default), before the scanner check. */
-  readonly requireScanForClientsStored: boolean;
   readonly scannerPresent: boolean;
-}
-
-/**
- * The stored `require_scan_for_clients` read as on/off: `'false'` is off, `'true'` is on, and a
- * missing or unrecognised value is the allowlist default (on).
- */
-export function requireScanStoredOn(stored: string | undefined): boolean {
-  const value = stored ?? defaultFor(REQUIRE_SCAN_FOR_CLIENTS_KEY);
-  if (value === 'false') return false;
-  if (value === 'true') return true;
-  return defaultFor(REQUIRE_SCAN_FOR_CLIENTS_KEY) === 'true';
 }
 
 /** What the upload door and the download gate ask for; `FilesService` takes it optionally. */
@@ -61,12 +48,11 @@ export function fileSafetySettingsFrom(input: {
   readonly scanner: ScannerPresence | undefined;
 }): FileSafetySettings {
   const scannerPresent = scannerConfigured(input.scanner);
-  const stored = requireScanStoredOn(input.requireStored);
   return {
     presets: parsePresets(input.presetsStored),
     maxFileBytes: planMaxFileBytes(entitlementsFor(readPlanId(input.planId)).planId),
-    requireScanForClients: stored && scannerPresent,
-    requireScanForClientsStored: stored,
+    requireScanForClients:
+      clientFilesPolicyFrom(input.requireStored, scannerPresent) === 'virus_scanned',
     scannerPresent,
   };
 }

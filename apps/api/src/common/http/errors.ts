@@ -55,10 +55,8 @@ export type ApiErrorCode =
   // name the capability tokens).
   | 'client_ceiling'
   // ---- 56-06 (R19-e) ---- an upload the file-safety rule refuses (422; one detail names the
-  // reason token only); a scanned-only rule with no scanner (409); a client's 21st upload of the
-  // UTC day (429).
+  // reason token only); a client's 21st upload of the UTC day (429).
   | 'file_not_allowed'
-  | 'scanner_missing'
   | 'daily_upload_limit'
   | 'internal_error';
 

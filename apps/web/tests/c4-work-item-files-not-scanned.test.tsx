@@ -49,7 +49,7 @@ function itemFile(availability: string, id: string) {
 }
 
 describe('WorkItemTagsAndFiles — not scanned files (C4)', () => {
-  it('shows Not scanned with Download for a file still being scanned', async () => {
+  it('shows Checked with Download for a file still being scanned', async () => {
     render(
       withQuery(
         <WorkItemTagsAndFiles
@@ -61,7 +61,7 @@ describe('WorkItemTagsAndFiles — not scanned files (C4)', () => {
       ),
     );
 
-    expect(await screen.findByText('Not scanned')).toBeInTheDocument();
+    expect(await screen.findByText('Checked')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled();
   });
 
@@ -78,7 +78,7 @@ describe('WorkItemTagsAndFiles — not scanned files (C4)', () => {
     );
 
     expect(await screen.findByText('rejected.pdf')).toBeInTheDocument();
-    expect(screen.queryByText('Not scanned')).not.toBeInTheDocument();
+    expect(screen.queryByText('Checked')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument();
   });
 });

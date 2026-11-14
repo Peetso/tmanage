@@ -15,6 +15,8 @@ import type {
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { ClientFileSharing } from '../files/client-file-sharing.js';
+import { usableScanStatus } from '../files/file-download.service.js';
 import { assertVersionOpenable } from './approval-open-preconditions.js';
 import { ApprovalVersionConflictError } from './approvals.repository.js';
 import type { ApprovalsRepository } from './approvals.repository.js';
@@ -180,6 +182,8 @@ export class DeliverablesService {
     private readonly outbox?: OutboxEventsRepository,
     /** Q3: deliverable actions leave an audit row in their own transaction (ids only). */
     private readonly audit?: AuditService,
+    /** FIX6 item 1. The one rule that decides whether a file may reach a client. */
+    private readonly sharing: ClientFileSharing = new ClientFileSharing(undefined),
   ) {}
 
   async create(
@@ -277,19 +281,26 @@ export class DeliverablesService {
             context,
             input.fileAssetId,
           );
+          // FIX6 item 1: a file the team may use now — scanned clean, or checked and not yet
+          // scanned under the owner's "downloads before a virus scan" (always, with no scanner).
+          // Whether it may reach the client is decided when the version is sent.
+          const { teamDownloads } = await this.sharing.policiesOn(tx, context);
           const usable =
             file !== null &&
             file.version !== null &&
             file.asset.projectId === deliverable.projectId &&
             file.asset.purpose === 'deliverable' &&
             (file.asset.objectId === null || file.asset.objectId === deliverable.id) &&
-            file.asset.status === 'ready' &&
+            usableScanStatus(file.asset.status, file.version, teamDownloads) !== null &&
             // Security review L2: never a deleted file (its row is locked above, so a delete
             // running at the same moment either finished first or waits for this version).
             file.asset.deletedAt === null;
           if (!usable || !file?.version) {
             throw new ApiError(422, 'validation_failed', 'That file cannot be attached', [
-              { field: 'fileAssetId', message: 'must be a ready deliverable file in this project' },
+              {
+                field: 'fileAssetId',
+                message: 'must be a usable deliverable file in this project',
+              },
             ]);
           }
           fileVersionId = file.version.id;
@@ -411,6 +422,9 @@ export class DeliverablesService {
             reviewerIds: approverIds,
           },
         );
+
+        // FIX6 item 1: the version's file must be one the sharing rule lets reach a client.
+        await this.sharing.assertVersionFileShareable(tx, context, latest.fileAssetId);
 
         // The projection is append-only per version (0031): publish it the first time only.
         if (!(await this.projections.findByVersion(tx, context, latest.id))) {

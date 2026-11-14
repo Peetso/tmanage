@@ -50,7 +50,7 @@ import { listClientOrganizationOptions } from '../../lib/api/project-client';
 import { listProjectShares } from '../../lib/api/clients';
 import {
   uploadDestination,
-  uploadProjectFile,
+  uploadProjectFileFor,
   uploadWorkItemAttachment,
 } from '../../lib/api/uploads';
 import { UploadProgressItem, useUploadQueue } from '../storage/UploadProgress';
@@ -1260,16 +1260,21 @@ function FilesCard({
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file || versionTarget === null) return;
+    const target = versionTarget;
     try {
-      const fileAssetId = await uploadProjectFile(api, organizationSlug, {
-        projectId: item.projectId,
-        file,
-      });
-      if (versionTarget.kind === 'deliverable') {
-        addVersion.mutate({ deliverableId: versionTarget.id, fileAssetId, note: null });
-      } else {
-        addPlainVersion.mutate({ rootFileAssetId: versionTarget.id, fileAssetId });
-      }
+      // FIX6 item 1: the file is used once its checks pass, and removed again if refused.
+      await uploadProjectFileFor(
+        api,
+        organizationSlug,
+        { projectId: item.projectId, file },
+        async (fileAssetId) => {
+          if (target.kind === 'deliverable') {
+            await addVersion.mutateAsync({ deliverableId: target.id, fileAssetId, note: null });
+          } else {
+            await addPlainVersion.mutateAsync({ rootFileAssetId: target.id, fileAssetId });
+          }
+        },
+      );
     } catch (error) {
       setProblem(describe(error, ta));
     }

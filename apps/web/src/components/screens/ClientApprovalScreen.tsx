@@ -16,6 +16,8 @@ import type { ApiClient } from '../../lib/api/client';
 import { longDay } from './PortalParts';
 import { listPortalDeliverableFiles } from '../../lib/api/portal';
 import { PortalReviewLink } from './PortalReviewLink';
+import { CheckedLabel } from './CheckedLabel';
+import './download-scan-policy.css';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 
@@ -275,7 +277,10 @@ function ReviewFiles({
           <li key={file.id} className="tm-pt-item">
             <span className="tm-pt-file__icon" aria-hidden="true" />
             <div className="tm-pt-item__main">
-              <p className="tm-pt-item__title">{file.name}</p>
+              <p className="tm-pt-item__title">
+                {file.name}
+                {file.safety === 'checked' ? <CheckedLabel /> : null}
+              </p>
             </div>
             <PortalReviewLink
               organizationSlug={organizationSlug}

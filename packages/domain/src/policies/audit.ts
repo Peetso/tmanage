@@ -697,6 +697,14 @@ export const AUDIT_ACTION_CATALOG = {
     clause:
       '§12 organization settings — whether unscanned files may be downloaded is a policy change',
   },
+  /**
+   * FIX6 item 1. The company owner's choice of which files clients can receive (`checked` or
+   * `virus_scanned`). Metadata is the previous and the new value — closed tokens, never prose.
+   */
+  'organization.client_file_policy_changed': {
+    objectType: 'organization',
+    clause: '§12 organization settings — which files may reach clients is a policy change',
+  },
   /** FIX-2026-11-10. The owner set automatic time tracking off, optional or required. */
   'organization.auto_time_tracking_policy_changed': {
     objectType: 'organization',
@@ -1676,6 +1684,7 @@ const AUDIT_ACTION_LABELS = {
   'work_item.transitioned': 'Moved a work item to a new stage',
   'work_item.audience_changed': 'Changed who can see a work item',
   'work_item.deleted': 'Deleted a work item',
+  'organization.client_file_policy_changed': 'Changed which files clients can receive',
   'work_item.dependency_removed': 'Removed a work item dependency',
   'work_item.commented': 'Commented through an AI app',
   'client_organization.created': 'Added a client company',

@@ -85,29 +85,42 @@ describe('56-06 file safety settings', () => {
     expect(view.maxFileBytes).toBeGreaterThan(0);
   });
 
-  it('refuses scanned-only for clients with no scanner (409 scanner_missing, no write)', async () => {
+  it('FIX6: requireScanForClients is read only here, and follows the owner policy', async () => {
     const t = build({ kind: 'none' });
-    const error = await refusal(
-      t.controller.update(context, principal('owner'), { requireScanForClients: true }),
-    );
-    expect([error.status, error.code]).toEqual([409, 'scanner_missing']);
+    expect(
+      (
+        await refusal(
+          t.controller.update(context, principal('owner'), {
+            requireScanForClients: true,
+          } as never),
+        )
+      ).status,
+    ).toBe(400);
     expect(t.stored.size).toBe(0);
-    expect(t.audits).toHaveLength(0);
-    // And without a scanner the stored default never takes effect.
-    const effective = fileSafetySettingsFrom({
-      presetsStored: undefined,
-      requireStored: 'true',
-      planId: 'free',
-      scanner: { kind: 'none' },
-    });
-    expect(effective.requireScanForClients).toBe(false);
+    // No scanner and nothing stored: checked files may go to clients.
+    expect(
+      fileSafetySettingsFrom({
+        presetsStored: undefined,
+        requireStored: undefined,
+        planId: 'free',
+        scanner: { kind: 'none' },
+      }).requireScanForClients,
+    ).toBe(false);
+    // The owner chose virus-scanned only: obeyed, scanner or not.
+    expect(
+      fileSafetySettingsFrom({
+        presetsStored: undefined,
+        requireStored: 'true',
+        planId: 'free',
+        scanner: { kind: 'none' },
+      }).requireScanForClients,
+    ).toBe(true);
   });
 
   it('writes presets in catalog order and audits before/after', async () => {
     const t = build({ kind: 'engine' });
     const view = await t.controller.update(context, principal('owner'), {
       presets: ['archives', 'documents'],
-      requireScanForClients: false,
     });
     expect(view.presets).toEqual(['documents', 'archives']);
     expect(t.stored.get('file_safety_presets')).toBe('documents,archives');
@@ -117,8 +130,6 @@ describe('56-06 file safety settings', () => {
         metadata: {
           presets_before: ['documents', 'images', 'design', 'video', 'archives'],
           presets_after: ['documents', 'archives'],
-          require_scan_before: true,
-          require_scan_after: false,
         },
       },
     ]);

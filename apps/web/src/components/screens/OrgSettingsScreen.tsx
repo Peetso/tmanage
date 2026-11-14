@@ -44,6 +44,7 @@ import {
 } from '../../lib/i18n/catalog-status';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { AutoTimePolicyCard } from './AutoTimePolicyCard';
+import { ClientFilePolicyCard } from './ClientFilePolicyCard';
 import { DownloadScanPolicyCard } from './DownloadScanPolicyCard';
 import { DataLocationCard } from './DataLocationCard';
 import { BrandColourCard } from '../brand/BrandColourCard';
@@ -585,6 +586,14 @@ export function OrgSettingsScreen({
 
       {mayManage === true ? (
         <DownloadScanPolicyCard
+          organizationSlug={organizationSlug}
+          client={api}
+          isOwner={role === 'owner'}
+        />
+      ) : null}
+
+      {mayManage === true ? (
+        <ClientFilePolicyCard
           organizationSlug={organizationSlug}
           client={api}
           isOwner={role === 'owner'}

@@ -673,6 +673,8 @@ export interface PortalDeliverableFile {
   readonly reviewable: boolean;
   /** R4 slice 8. Open comments the client can see on this file. */
   readonly openComments: number;
+  /** FIX6 item 1. `checked`: passed TManage's own safety checks, not virus-scanned. */
+  readonly safety: 'virus_scanned' | 'checked';
 }
 
 export async function listPortalDeliverables(

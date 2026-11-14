@@ -16,6 +16,7 @@ import {
   validateValue,
 } from './org-settings.allowlist.js';
 import { OrgSettingsRepository } from './org-settings.repository.js';
+import { ClientFilePolicyController } from './client-file-policy.controller.js';
 import { DownloadScanPolicyController } from './download-scan-policy.controller.js';
 
 /**
@@ -234,8 +235,13 @@ export class OrgSettingsModule {
       providers: [
         { provide: OrgSettingsRepository, useFactory: () => new OrgSettingsRepository() },
       ],
-      // B3: the owner-only "downloads before a virus scan" route, on the same repository.
-      controllers: [OrgSettingsController, DownloadScanPolicyController],
+      // B3: the owner-only "downloads before a virus scan" route, on the same repository; FIX6:
+      // the owner-only "files clients can receive" route beside it.
+      controllers: [
+        OrgSettingsController,
+        DownloadScanPolicyController,
+        ClientFilePolicyController,
+      ],
     };
   }
 }

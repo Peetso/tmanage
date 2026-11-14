@@ -118,6 +118,8 @@ function serviceWith(
   policy: {
     readonly scanner?: ScannerPresence;
     readonly stored?: string;
+    /** FIX6. The stored "Files clients can receive" (`require_scan_for_clients`). */
+    readonly clientFiles?: string;
     readonly archivedAt?: Date;
     readonly openComments?: ReadonlyMap<string, number>;
   } = {},
@@ -126,8 +128,10 @@ function serviceWith(
     listRequestAttachmentsForProject: () => Promise.resolve(rows),
   } as unknown as FileAssetsRepository;
   const settings = {
-    findByKey: () =>
-      Promise.resolve(policy.stored === undefined ? undefined : { settingValue: policy.stored }),
+    findByKey: (_r: unknown, _c: unknown, key: string) => {
+      const value = key === 'require_scan_for_clients' ? policy.clientFiles : policy.stored;
+      return Promise.resolve(value === undefined ? undefined : { settingValue: value });
+    },
   } as unknown as OrgSettingsRepository;
   const projects = {
     findById: () =>
@@ -207,7 +211,23 @@ describe('PortalFileListService.listForClient', () => {
     });
   });
 
-  it('C4: lists an unscanned file as not_scanned when the owner allows labelled downloads', async () => {
+  it('C4: lists an unscanned file as not_scanned when the owner allows labelled downloads and checked files for clients', async () => {
+    const service = serviceWith([awaiting('waiting')], {
+      scanner: { kind: 'engine' },
+      stored: 'allow_labeled',
+      clientFiles: 'false',
+    });
+
+    const files = await service.listForClient(
+      context,
+      clientPrincipal(READABLE_PROJECT),
+      READABLE_PROJECT,
+    );
+
+    expect(files.map((f) => [f.id, f.scanStatus])).toEqual([['waiting', 'not_scanned']]);
+  });
+
+  it('FIX6: with a scanner and nothing chosen, clients wait for the scan (being_checked)', async () => {
     const service = serviceWith([awaiting('waiting')], {
       scanner: { kind: 'engine' },
       stored: 'allow_labeled',
@@ -219,7 +239,22 @@ describe('PortalFileListService.listForClient', () => {
       READABLE_PROJECT,
     );
 
-    expect(files.map((f) => [f.id, f.scanStatus])).toEqual([['waiting', 'not_scanned']]);
+    expect(files.map((f) => [f.id, f.scanStatus])).toEqual([['waiting', 'being_checked']]);
+  });
+
+  it('FIX6: no scanner and the owner keeps clients to virus-scanned files: not listed', async () => {
+    const service = serviceWith([awaiting('waiting')], {
+      scanner: { kind: 'none' },
+      clientFiles: 'true',
+    });
+
+    const files = await service.listForClient(
+      context,
+      clientPrincipal(READABLE_PROJECT),
+      READABLE_PROJECT,
+    );
+
+    expect(files).toEqual([]);
   });
 
   it('C4: lists an unscanned file as being_checked when the owner blocks until scanned', async () => {

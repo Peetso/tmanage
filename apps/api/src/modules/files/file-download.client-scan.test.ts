@@ -15,7 +15,9 @@ import { FileDownloadService } from './file-download.service.js';
 /**
  * 56-06 (R19-e) — `require_scan_for_clients`. With a scanner and the setting on (the default), a
  * client asking for a version that is not scanned-clean gets the one 404; a member still gets the
- * bytes under `allow_labeled`. Without a scanner the rule is off. Fakes with the real `authorize`.
+ * bytes under `allow_labeled`. FIX6 item 1: without a scanner the default lets a checked file
+ * through, and an owner who keeps clients to virus-scanned files is obeyed even then. Fakes with
+ * the real `authorize`.
  */
 const ORG = '00000000-0000-4000-8000-0000000000a1';
 const PROJECT = '00000000-0000-4000-8000-0000000000b1';
@@ -130,7 +132,7 @@ describe('56-06 require_scan_for_clients', () => {
     expect(await status(t.service.download(context, member, ASSET))).toBe(200);
   });
 
-  it('a client gets a scanned-clean version, and the rule is off when stored false or no scanner', async () => {
+  it('a client gets a scanned-clean version, and a checked one when stored false or by default with no scanner', async () => {
     expect(
       await status(
         build('clean', { kind: 'engine' }).service.downloadForClient(context, client, ASSET),
@@ -142,9 +144,14 @@ describe('56-06 require_scan_for_clients', () => {
       ),
     ).toBe(200);
     expect(
-      await status(
-        build(null, { kind: 'none' }, 'true').service.downloadForClient(context, client, ASSET),
-      ),
+      await status(build(null, { kind: 'none' }).service.downloadForClient(context, client, ASSET)),
     ).toBe(200);
+  });
+
+  it('FIX6: the owner chose virus-scanned only and there is no scanner: a client gets the 404', async () => {
+    const t = build(null, { kind: 'none' }, 'true');
+    expect(await status(t.service.downloadForClient(context, client, ASSET))).toBe(404);
+    expect(t.denials).toEqual(['client_scan_required']);
+    expect(await status(t.service.download(context, member, ASSET))).toBe(200);
   });
 });

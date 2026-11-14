@@ -5,6 +5,7 @@ import {
   evaluateReviewerDecision,
 } from '@tmanage/domain';
 import type { ApprovalPolicy, ApprovalState, Principal, ReviewerDecision } from '@tmanage/domain';
+import { ClientFileSharing } from '../files/client-file-sharing.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type {
   TenantContext,
@@ -198,6 +199,8 @@ export class ApprovalsService {
     /** Q3: optional so the fakes-only tests construct without them; the module injects both. */
     private readonly outbox?: OutboxEventsRepository,
     private readonly audit?: AuditService,
+    /** FIX6 item 1. The one rule that decides whether a file may reach a client. */
+    private readonly sharing: ClientFileSharing = new ClientFileSharing(undefined),
   ) {}
 
   /**
@@ -628,6 +631,9 @@ export class ApprovalsService {
         if (!verdict.allowed) {
           throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, verdict.code);
         }
+
+        // FIX6 item 1: the version's file must be one the sharing rule lets reach a client.
+        await this.sharing.assertVersionFileShareable(tx, context, version.fileAssetId);
 
         return this.clientProjections.publish(tx, context, {
           projectId: version.projectId,

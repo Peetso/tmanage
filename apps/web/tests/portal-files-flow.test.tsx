@@ -100,14 +100,14 @@ describe('PortalFilesScreen (FILE-003 · WEB-006)', () => {
     renderFiles([file()]);
 
     await screen.findByRole('link', { name: 'Download' });
-    expect(screen.queryByText('Not scanned')).not.toBeInTheDocument();
+    expect(screen.queryByText('Checked')).not.toBeInTheDocument();
     expect(screen.queryByText('Being checked for viruses')).not.toBeInTheDocument();
   });
 
-  it('C4: an unscanned file the owner allows shows Not scanned and keeps Download', async () => {
+  it('C4: an unscanned file the owner allows shows Checked and keeps Download', async () => {
     const { container } = renderFiles([file({ scanStatus: 'not_scanned' })]);
 
-    expect(await screen.findByText('Not scanned')).toBeInTheDocument();
+    expect(await screen.findByText('Checked')).toBeInTheDocument();
     const link = screen.getByRole('link', { name: 'Download' });
     expect(link.getAttribute('href')).toContain(
       '/v1/organizations/northstar/portal/files/file-1/content',

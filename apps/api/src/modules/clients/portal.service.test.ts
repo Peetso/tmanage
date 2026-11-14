@@ -1,3 +1,5 @@
+import { ClientFileSharing } from '../files/client-file-sharing.js';
+import type { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { findForbiddenClientFields } from '@tmanage/domain';
@@ -435,7 +437,19 @@ describe('PortalService.filesForDeliverable (x114)', () => {
       {} as unknown as WorkItemsRepository,
       fakeProjections([projectionRow(DELIVERABLE, READABLE_PROJECT)]),
       fakeFiles(
-        [{ asset: fileAsset('file-1'), version: fileVersion('file-1') }],
+        [
+          { asset: fileAsset('file-1'), version: fileVersion('file-1') },
+          // FIX6 item 1: checked by TManage, not virus-scanned (live has no scanner): listed.
+          {
+            asset: fileAsset('file-2', { status: 'scanning' }),
+            version: fileVersion('file-2', { scanVerdict: 'unscanned', trustZone: 'quarantine' }),
+          },
+          // Blocked by the checks: never listed.
+          {
+            asset: fileAsset('file-3', { status: 'rejected' }),
+            version: fileVersion('file-3', { scanVerdict: null }),
+          },
+        ],
         (input) => (seen = input),
       ),
       undefined,
@@ -443,6 +457,9 @@ describe('PortalService.filesForDeliverable (x114)', () => {
       {
         countOpenClientVisible: () => Promise.resolve(new Map([['file-1', 3]])),
       } as unknown as ReviewThreadsRepository,
+      new ClientFileSharing({ kind: 'none' }, {
+        findByKey: () => Promise.resolve(undefined),
+      } as unknown as OrgSettingsRepository),
     );
 
     const result = await service.filesForDeliverable(
@@ -462,6 +479,17 @@ describe('PortalService.filesForDeliverable (x114)', () => {
         updatedAt: '2026-09-15T00:00:00.000Z',
         reviewable: true,
         openComments: 3,
+        safety: 'virus_scanned',
+      },
+      {
+        id: 'file-2',
+        name: 'file-2.pdf',
+        sizeBytes: 2048,
+        mimeType: 'application/pdf',
+        updatedAt: '2026-09-15T00:00:00.000Z',
+        reviewable: true,
+        openComments: 0,
+        safety: 'checked',
       },
     ]);
     // Never the internal object key, nor any other forbidden field.

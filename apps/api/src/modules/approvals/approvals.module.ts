@@ -2,11 +2,14 @@ import { Inject, Injectable, Module, Optional } from '@nestjs/common';
 import type { DynamicModule, OnModuleInit, Provider } from '@nestjs/common';
 import type { Mailer } from '@tmanage/mail';
 import type { ApiConfig } from '../../common/http/api-config.js';
+import type { MalwareScanner } from '../../common/scan/malware-scanner.js';
+import { ClientFileSharing } from '../files/client-file-sharing.js';
 import {
   API_CONFIG,
   APPROVALS_SERVICE,
   AUDIT_SERVICE,
   MAILER,
+  MALWARE_SCANNER,
   OUTBOX_EVENTS_REPOSITORY,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
@@ -78,10 +81,16 @@ export class ApprovalsModule {
       provide: APPROVALS_SERVICE,
       // Q3: a decision appends `approval.decided.v1` and an audit row in its own transaction. Both
       // are global providers; the audit service is optional (the custom-roles posture).
-      inject: [TENANT_DATABASE, OUTBOX_EVENTS_REPOSITORY, { token: AUDIT_SERVICE, optional: true }],
+      inject: [
+        TENANT_DATABASE,
+        OUTBOX_EVENTS_REPOSITORY,
+        MALWARE_SCANNER,
+        { token: AUDIT_SERVICE, optional: true },
+      ],
       useFactory: (
         database: TenantDatabase,
         outbox: OutboxEventsRepository,
+        scanner: MalwareScanner,
         audit?: AuditService,
       ) =>
         new ApprovalsService(
@@ -91,6 +100,8 @@ export class ApprovalsModule {
           new ClientProjectionsRepository(),
           outbox,
           audit,
+          // FIX6 item 1: a published version's file is shared by the one sharing rule.
+          new ClientFileSharing(scanner),
         ),
     };
 
@@ -122,10 +133,16 @@ export class ApprovalsModule {
     // writer is the global `PlatformModule`'s, so the send's `approval.requested.v1` commits with it.
     const deliverablesService: Provider = {
       provide: DELIVERABLES_SERVICE,
-      inject: [TENANT_DATABASE, OUTBOX_EVENTS_REPOSITORY, { token: AUDIT_SERVICE, optional: true }],
+      inject: [
+        TENANT_DATABASE,
+        OUTBOX_EVENTS_REPOSITORY,
+        MALWARE_SCANNER,
+        { token: AUDIT_SERVICE, optional: true },
+      ],
       useFactory: (
         database: TenantDatabase,
         outbox: OutboxEventsRepository,
+        scanner: MalwareScanner,
         audit?: AuditService,
       ) =>
         new DeliverablesService(
@@ -137,6 +154,8 @@ export class ApprovalsModule {
           new ProjectsRepository(),
           outbox,
           audit,
+          // FIX6 item 1: the scanner, so a version's file is shared by the one sharing rule.
+          new ClientFileSharing(scanner),
         ),
     };
 

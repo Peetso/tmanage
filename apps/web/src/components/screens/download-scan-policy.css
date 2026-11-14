@@ -129,3 +129,10 @@
 .tm-scan-row__message {
   flex-basis: 100%;
 }
+
+/* FIX6 item 1: the "Checked" label keeps clear of the file name beside it. */
+.tm-checked-label {
+  display: inline-flex;
+  margin-inline-start: var(--s2);
+  cursor: help;
+}

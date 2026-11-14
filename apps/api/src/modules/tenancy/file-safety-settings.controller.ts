@@ -10,11 +10,7 @@ import { SubscriptionRepository } from '../billing/subscription.repository.js';
 import { FILE_TYPE_PRESETS, isFileTypePreset, presetsToCsv } from '../files/file-safety.js';
 import type { FileTypePreset } from '../files/file-safety.js';
 import type { ScannerPresence } from './download-scan-policy.js';
-import {
-  FILE_SAFETY_PRESETS_KEY,
-  REQUIRE_SCAN_FOR_CLIENTS_KEY,
-  readFileSafetySettingsWith,
-} from './file-safety-settings.js';
+import { FILE_SAFETY_PRESETS_KEY, readFileSafetySettingsWith } from './file-safety-settings.js';
 import type { FileSafetySettings } from './file-safety-settings.js';
 import { OrgSettingsRepository } from './org-settings.repository.js';
 
@@ -23,10 +19,10 @@ import { OrgSettingsRepository } from './org-settings.repository.js';
  *
  * - `GET …/security/file-safety`: the enabled type presets, the plan's per-file cap (read-only),
  *   whether clients download only scanned-clean files, and whether a scanner is present.
- * - `PUT …/security/file-safety` `{presets?, requireScanForClients?}`: set either or both. Turning
- *   `requireScanForClients` on with no scanner configured is a `409 scanner_missing` with no write
- *   — the rule would make every client file unreachable. The change and its audit row
- *   (`org.file_safety_changed`, before/after) commit together.
+ * - `PUT …/security/file-safety` `{presets}`: set the enabled presets. The change and its audit row
+ *   (`org.file_safety_changed`, before/after) commit together. FIX6: `requireScanForClients` is
+ *   read-only here; the owner sets it as "Files clients can receive"
+ *   (`PATCH …/client-file-policy`), the one writer of that key.
  *
  * Capability: `org.security.manage` on both (exists; no capabilities.ts edit). Under `security/`
  * rather than `settings/` on purpose: the generic `PUT …/settings/:key` would capture
@@ -44,7 +40,6 @@ export interface FileSafetySettingsView {
 
 interface PutBody {
   readonly presets?: unknown;
-  readonly requireScanForClients?: unknown;
 }
 
 export function toFileSafetyView(settings: FileSafetySettings): FileSafetySettingsView {
@@ -52,8 +47,7 @@ export function toFileSafetyView(settings: FileSafetySettings): FileSafetySettin
     presets: settings.presets,
     availablePresets: FILE_TYPE_PRESETS,
     maxFileBytes: settings.maxFileBytes,
-    // What the owner chose; the screen explains it does nothing until a scanner is present.
-    requireScanForClients: settings.requireScanForClientsStored && settings.scannerPresent,
+    requireScanForClients: settings.requireScanForClients,
     scannerPresent: settings.scannerPresent,
   };
 }
@@ -105,29 +99,11 @@ export class FileSafetySettingsController {
         this.settings,
         this.subscriptions,
       );
-      if (input.requireScanForClients === true && !before.scannerPresent) {
-        throw new ApiError(
-          409,
-          'scanner_missing',
-          'Clients can only be held to scanned files once a virus scanner is set up.',
-          [{ field: 'requireScanForClients', message: 'scanner_missing' }],
-          'scanner_missing',
-        );
-      }
-      if (input.presets !== undefined) {
-        await this.settings.upsert(tx, context, {
-          key: FILE_SAFETY_PRESETS_KEY,
-          value: presetsToCsv(input.presets),
-          updatedBy: principal.userId,
-        });
-      }
-      if (input.requireScanForClients !== undefined) {
-        await this.settings.upsert(tx, context, {
-          key: REQUIRE_SCAN_FOR_CLIENTS_KEY,
-          value: String(input.requireScanForClients),
-          updatedBy: principal.userId,
-        });
-      }
+      await this.settings.upsert(tx, context, {
+        key: FILE_SAFETY_PRESETS_KEY,
+        value: presetsToCsv(input.presets),
+        updatedBy: principal.userId,
+      });
       const next = await readFileSafetySettingsWith(
         tx,
         context,
@@ -143,8 +119,6 @@ export class FileSafetySettingsController {
         metadata: {
           presets_before: [...before.presets],
           presets_after: [...next.presets],
-          require_scan_before: before.requireScanForClientsStored,
-          require_scan_after: next.requireScanForClientsStored,
         },
       });
       return next;
@@ -153,43 +127,22 @@ export class FileSafetySettingsController {
   }
 }
 
-/** Validate the PUT body: at least one field; presets a non-empty list of known names. */
+/** Validate the PUT body: presets, a non-empty list of known names. */
 export function parseBody(body: PutBody | undefined): {
-  readonly presets?: readonly FileTypePreset[];
-  readonly requireScanForClients?: boolean;
+  readonly presets: readonly FileTypePreset[];
 } {
-  const details: { field: string; message: string }[] = [];
-  let presets: FileTypePreset[] | undefined;
-  let requireScanForClients: boolean | undefined;
-  if (body?.presets !== undefined) {
-    const raw = body.presets;
-    if (
-      !Array.isArray(raw) ||
-      raw.length === 0 ||
-      !raw.every((name) => typeof name === 'string' && isFileTypePreset(name))
-    ) {
-      details.push({ field: 'presets', message: 'Choose at least one of the offered file types.' });
-    } else {
-      presets = FILE_TYPE_PRESETS.filter((preset) => (raw as string[]).includes(preset));
-    }
+  const raw = body?.presets;
+  if (
+    raw === undefined ||
+    !Array.isArray(raw) ||
+    raw.length === 0 ||
+    !raw.every((name) => typeof name === 'string' && isFileTypePreset(name))
+  ) {
+    throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+      { field: 'presets', message: 'Choose at least one of the offered file types.' },
+    ]);
   }
-  if (body?.requireScanForClients !== undefined) {
-    if (typeof body.requireScanForClients !== 'boolean') {
-      details.push({ field: 'requireScanForClients', message: 'Enter true or false.' });
-    } else {
-      requireScanForClients = body.requireScanForClients;
-    }
-  }
-  if (details.length === 0 && presets === undefined && requireScanForClients === undefined) {
-    details.push({ field: 'presets', message: 'Nothing to change.' });
-  }
-  if (details.length > 0) {
-    throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
-  }
-  return {
-    ...(presets !== undefined ? { presets } : {}),
-    ...(requireScanForClients !== undefined ? { requireScanForClients } : {}),
-  };
+  return { presets: FILE_TYPE_PRESETS.filter((preset) => (raw as string[]).includes(preset)) };
 }
 
 /** The real org-wide `org.security.manage` decision; a denial is a 403. */

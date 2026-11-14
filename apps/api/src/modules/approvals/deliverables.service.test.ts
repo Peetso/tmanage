@@ -1,3 +1,4 @@
+import { ApiError } from '../../common/http/errors.js';
 import { describe, expect, it, vi } from 'vitest';
 import { assertSafeAuditMetadata } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
@@ -28,7 +29,7 @@ const pending = {
   projectId: 'p-1',
 };
 
-function build() {
+function build(sharingRefuses = false) {
   const db = {
     transaction: (_c: unknown, w: (tx: never) => unknown) => w({} as never),
     read: (_c: unknown, w: (tx: never) => unknown) => w({} as never),
@@ -44,6 +45,7 @@ function build() {
         updatedAt: new Date(),
       })),
       touch: vi.fn(),
+      fileWithLatestVersion: vi.fn(async (): Promise<object | null> => null),
       approvalsFor: vi.fn(async () => [pending]),
       clientPeopleFor: vi.fn(async () => [
         {
@@ -92,11 +94,84 @@ function build() {
     repos.projects as never,
     repos.outbox as never,
     repos.audit as never,
+    // FIX6 item 1: the sharing rule is unit-tested on its own; here every file may be shared.
+    {
+      policiesOn: () =>
+        Promise.resolve({
+          clientFiles: 'checked',
+          teamDownloads: 'allow_labeled',
+          scannerPresent: false,
+        }),
+      assertVersionFileShareable: () =>
+        sharingRefuses
+          ? Promise.reject(new ApiError(409, 'conflict', 'not shareable'))
+          : Promise.resolve(),
+    } as never,
   );
   return { service, ...repos };
 }
 
 describe('DeliverablesService (0211)', () => {
+  it('FIX6: a version takes a file the checks passed but no scanner judged (live has none)', async () => {
+    const { service, deliverables, versions } = build();
+    deliverables.fileWithLatestVersion.mockResolvedValue({
+      asset: {
+        projectId: 'p-1',
+        purpose: 'deliverable',
+        objectId: null,
+        status: 'scanning',
+        deletedAt: null,
+      },
+      version: {
+        id: 'fv-1',
+        contentHash: 'c',
+        detectedMimeType: 'application/pdf',
+        scanVerdict: 'unscanned',
+        trustZone: 'quarantine',
+      },
+    });
+    await service.addVersion(ctx, admin, 'd-1', { fileAssetId: 'f-1', note: null });
+    expect(versions.create).toHaveBeenCalledOnce();
+  });
+
+  it('FIX6: a version never takes a file the checks blocked', async () => {
+    const { service, deliverables, versions } = build();
+    deliverables.fileWithLatestVersion.mockResolvedValue({
+      asset: {
+        projectId: 'p-1',
+        purpose: 'deliverable',
+        objectId: null,
+        status: 'rejected',
+        deletedAt: null,
+      },
+      version: {
+        id: 'fv-1',
+        contentHash: 'c',
+        detectedMimeType: 'application/pdf',
+        scanVerdict: null,
+        trustZone: 'quarantine',
+      },
+    });
+    await expect(
+      service.addVersion(ctx, admin, 'd-1', { fileAssetId: 'f-1', note: null }),
+    ).rejects.toMatchObject({ status: 422 });
+    expect(versions.create).not.toHaveBeenCalled();
+  });
+
+  it('FIX6: sending refuses a version whose file may not reach the client, before publishing', async () => {
+    const { service, projections, approvals } = build(true);
+    await expect(
+      service.send(ctx, admin, 'd-1', 'v-2', {
+        approverIds: ['c-1'],
+        dueDate: null,
+        checkNote: null,
+        notify: true,
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(projections.publish).not.toHaveBeenCalled();
+    expect(approvals.open).not.toHaveBeenCalled();
+  });
+
   it('sends the newest version: publishes, opens the approval for the picked approvers, emits approval.requested.v1', async () => {
     const { service, projections, approvals, outbox } = build();
     const sent = await service.send(ctx, admin, 'd-1', 'v-2', {

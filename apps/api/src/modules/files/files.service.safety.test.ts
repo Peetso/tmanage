@@ -23,7 +23,6 @@ function harness(started: number, maxFileBytes = 10_000) {
         presets: DEFAULT_PRESETS,
         maxFileBytes,
         requireScanForClients: false,
-        requireScanForClientsStored: true,
         scannerPresent: false,
       }),
   };

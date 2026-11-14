@@ -9,7 +9,7 @@ import { expectNoAxeViolations } from './axe';
 
 /**
  * B5 — "Downloads before a virus scan" (Figma 388:3983): the owner card, the read-only state for
- * everyone else, and the Files row's "Not scanned" label and blocked-download message.
+ * everyone else, and the Files row's "Checked" label and blocked-download message.
  */
 
 interface Call {
@@ -65,10 +65,10 @@ describe('B5 Downloads before a virus scan — Control card', () => {
         <DownloadScanPolicyCard organizationSlug="northstar-studio" client={api.client} isOwner />,
       ),
     );
-    const allow = await screen.findByRole('radio', { name: /Allow, marked Not scanned/ });
+    const allow = await screen.findByRole('radio', { name: /Allow, marked Checked/ });
     expect(allow).toBeChecked();
     expect(screen.getByText('Default')).toBeInTheDocument();
-    expect(screen.getByText(/No virus scanner is connected yet/)).toBeInTheDocument();
+    expect(screen.getByText(/No virus scanner is connected/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
 
     fireEvent.click(screen.getByRole('radio', { name: /Block until scanned/ }));
@@ -94,10 +94,10 @@ describe('B5 Downloads before a virus scan — Control card', () => {
       ),
     );
     const block = await screen.findByRole('radio', { name: /Block until scanned/ });
-    expect(screen.queryByText(/No virus scanner is connected yet/)).toBeNull();
+    expect(screen.queryByText(/No virus scanner is connected/)).toBeNull();
     fireEvent.click(block);
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(screen.getByRole('radio', { name: /Allow, marked Not scanned/ })).toBeChecked();
+    expect(screen.getByRole('radio', { name: /Allow, marked Checked/ })).toBeChecked();
     expect(api.calls.filter((call) => call.method !== 'GET')).toEqual([]);
   });
 
@@ -112,13 +112,13 @@ describe('B5 Downloads before a virus scan — Control card', () => {
         />,
       ),
     );
-    const allow = await screen.findByRole('radio', { name: /Allow, marked Not scanned/ });
+    const allow = await screen.findByRole('radio', { name: /Allow, marked Checked/ });
     expect(allow).toBeChecked();
     expect(allow).toBeDisabled();
     expect(screen.getByRole('radio', { name: /Block until scanned/ })).toBeDisabled();
     expect(screen.getByText('Only the company owner can change this setting.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
-    expect(screen.queryByText(/No virus scanner is connected yet/)).toBeNull();
+    expect(screen.queryByText(/No virus scanner is connected/)).toBeNull();
     await expectNoAxeViolations(container);
   });
 });
@@ -126,9 +126,9 @@ describe('B5 Downloads before a virus scan — Control card', () => {
 describe('B5 Files — a file the scan has not checked yet', () => {
   const href = 'https://api.example.test/v1/organizations/northstar-studio/files/f1/content';
 
-  it('shows the Not scanned label next to Download', () => {
+  it('shows the Checked label next to Download', () => {
     render(<NotScannedDownload href={href} fileName="Brand-guidelines-v3.pdf" />);
-    expect(screen.getByText('Not scanned')).toBeInTheDocument();
+    expect(screen.getByText('Checked')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled();
   });
 
