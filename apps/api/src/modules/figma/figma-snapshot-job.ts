@@ -94,7 +94,17 @@ interface Tally {
   retrying: number;
 }
 
-class RateLimited extends Error {}
+class RateLimited extends Error {
+  constructor(readonly retryAfterSeconds: number) {
+    super('rate limited');
+    this.name = 'RateLimited';
+  }
+}
+
+/** How long a workspace whose Figma token was refused waits, when Figma names no time. */
+const RATE_LIMIT_FLOOR_MS = 60_000;
+/** The longest a workspace is set aside for one refusal (Figma can name hours). */
+const RATE_LIMIT_CEILING_MS = 60 * 60_000;
 
 /** Why a Figma call failed, as the token the team's screen words, and whether to stop trying. */
 export function snapshotErrorOf(error: unknown): {
@@ -128,6 +138,12 @@ export async function snapshotThumb(png: Uint8Array): Promise<Uint8Array | null>
 export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy {
   private running: Promise<FigmaSnapshotReport> | null = null;
   private again = false;
+  /**
+   * Security review M1 (2026-11-14): a workspace Figma refused (429) waits until here, alone; the
+   * others go on. The first workspace of a pass rotates so none is always last.
+   */
+  private readonly limitedUntil = new Map<string, number>();
+  private rotation = 0;
   private pending: NodeJS.Timeout | null = null;
   private interval: NodeJS.Timeout | null = null;
   private stopped = false;
@@ -181,7 +197,7 @@ export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy
       this.running = this.pass();
       try {
         const report = await this.running;
-        drew = report.ready + report.retrying > 0 && !report.rateLimited;
+        drew = report.ready + report.retrying > 0;
         if (report.ready + report.failed + report.retrying > 0 || report.rateLimited) {
           this.options.log(`[figma] pass: ${JSON.stringify(report)}`);
         }
@@ -215,20 +231,36 @@ export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy
       { correlationId, reason: FIGMA_SNAPSHOT_REASON, tables: ['figma_frames'] },
       (db) => this.repository.organizationsWithPendingFrames(db, staleBefore),
     );
-    try {
-      for (const organizationId of organizations) {
-        const context = createServiceContext({
-          organizationId,
-          correlationId,
-          policyVersion: FIGMA_SNAPSHOT_POLICY_VERSION,
-        });
-        await this.drawOrganization(context, staleBefore, tally);
+    const start = organizations.length === 0 ? 0 : this.rotation % organizations.length;
+    this.rotation += 1;
+    const order = [...organizations.slice(start), ...organizations.slice(0, start)];
+    let rateLimited = false;
+    for (const organizationId of order) {
+      const until = this.limitedUntil.get(organizationId);
+      if (until !== undefined && until > this.now().getTime()) {
+        rateLimited = true;
+        continue;
       }
-    } catch (error) {
-      if (!(error instanceof RateLimited)) throw error;
-      return { organizations: organizations.length, ...tally, rateLimited: true };
+      this.limitedUntil.delete(organizationId);
+      const context = createServiceContext({
+        organizationId,
+        correlationId,
+        policyVersion: FIGMA_SNAPSHOT_POLICY_VERSION,
+      });
+      try {
+        await this.drawOrganization(context, staleBefore, tally);
+      } catch (error) {
+        if (!(error instanceof RateLimited)) throw error;
+        // This workspace waits; the next one is drawn now.
+        rateLimited = true;
+        const waitMs = Math.min(
+          RATE_LIMIT_CEILING_MS,
+          Math.max(RATE_LIMIT_FLOOR_MS, error.retryAfterSeconds * 1000),
+        );
+        this.limitedUntil.set(organizationId, this.now().getTime() + waitMs);
+      }
     }
-    return { organizations: organizations.length, ...tally, rateLimited: false };
+    return { organizations: organizations.length, ...tally, rateLimited };
   }
 
   private async drawOrganization(
@@ -337,7 +369,7 @@ export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy
             scale,
           );
         } catch (error) {
-          if (error instanceof FigmaRateLimitError) throw new RateLimited();
+          if (error instanceof FigmaRateLimitError) throw new RateLimited(error.retryAfterSeconds);
           if (error instanceof FigmaAuthError && error.status === 401) {
             await this.database.transaction(context, (tx) =>
               this.repository.markConnectionError(tx, context, link.createdByMembershipId),
@@ -408,7 +440,7 @@ export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy
       remaining.delete(frame.id);
       tally.ready += 1;
     } catch (error) {
-      if (error instanceof FigmaRateLimitError) throw new RateLimited();
+      if (error instanceof FigmaRateLimitError) throw new RateLimited(error.retryAfterSeconds);
       const { reason, final } = snapshotErrorOf(error);
       await this.fail(context, frame, reason, final, tally, remaining);
     }

@@ -33,17 +33,46 @@ export interface FigCaps {
   readonly maxArrayItems: number;
   /** Message nesting. */
   readonly maxDepth: number;
-  /** Values decoded in all (bounds the work on a hostile file). */
-  readonly maxValues: number;
+  /**
+   * Objects built in all (messages and structs kept for the outline). This bounds the memory a
+   * hostile file can make the decoder allocate: an empty message costs one input byte.
+   */
+  readonly maxObjects: number;
+  /** Values read or skipped in all (bounds the time a hostile file can take). */
+  readonly maxSteps: number;
 }
 
+/**
+ * Security review H2 (2026-11-14): the caps are what a page list needs, not what any file might
+ * hold. Six real files saved from Figma (2-49 MB) list in under 200 ms each; the caps leave room
+ * for a large file and stop a crafted one in about a second and a bounded amount of memory.
+ */
 export const FIG_CAPS: FigCaps = {
-  maxSchemaBytes: 4 * 1024 * 1024,
-  maxDocumentBytes: 256 * 1024 * 1024,
+  maxSchemaBytes: 1024 * 1024,
+  maxDocumentBytes: 64 * 1024 * 1024,
   maxDefinitions: 4000,
   maxArrayItems: 1_000_000,
   maxDepth: 64,
-  maxValues: 40_000_000,
+  maxObjects: 1_000_000,
+  maxSteps: 30_000_000,
+};
+
+/**
+ * The fields the outline reads, per message. Every other field is skipped without building
+ * anything (images, vector geometry, text, effects ...).
+ */
+export const OUTLINE_FIELDS: Readonly<Record<string, ReadonlySet<string>>> = {
+  Message: new Set(['nodeChanges']),
+  NodeChange: new Set([
+    'guid',
+    'parentIndex',
+    'type',
+    'name',
+    'visible',
+    'size',
+    'transform',
+    'internalOnly',
+  ]),
 };
 
 const MAGIC = 'fig-kiwi';
@@ -195,6 +224,8 @@ export function decodeMessage(
   bytes: Uint8Array,
   root: string,
   caps: FigCaps = FIG_CAPS,
+  /** Per message name, the fields to build; other fields are skipped. `null`: build all. */
+  keep: Readonly<Record<string, ReadonlySet<string>>> | null = null,
 ): { readonly [key: string]: KiwiValue } {
   const reader = new Reader(bytes);
   const rootIndex = definitions.findIndex((definition) => definition.name === root);
@@ -204,11 +235,82 @@ export function decodeMessage(
   const byValue = definitions.map(
     (definition) => new Map(definition.fields.map((field) => [field.value, field])),
   );
-  let values = 0;
+  let steps = 0;
+  let objects = 0;
+  const step = () => {
+    steps += 1;
+    if (steps > caps.maxSteps) throw new FigReadError('fig_too_large');
+  };
+  const built = () => {
+    objects += 1;
+    if (objects > caps.maxObjects) throw new FigReadError('fig_too_large');
+  };
+
+  /** Reads past one value without building it. */
+  const skip = (type: number, depth: number): void => {
+    step();
+    switch (type) {
+      case -1:
+      case -2:
+        reader.byte();
+        return;
+      case -3:
+      case -4:
+        reader.uint();
+        return;
+      case -5:
+        reader.float();
+        return;
+      case -6:
+        reader.string();
+        return;
+      case -7:
+      case -8:
+        reader.uint64();
+        return;
+      default:
+        break;
+    }
+    const definition = definitions[type];
+    if (!definition) throw new FigReadError('fig_unreadable');
+    if (depth > caps.maxDepth) throw new FigReadError('fig_too_large');
+    if (definition.kind === 'enum') {
+      reader.uint();
+      return;
+    }
+    if (definition.kind === 'struct') {
+      for (const field of definition.fields) skipField(field, depth + 1);
+      return;
+    }
+    const fields = byValue[type];
+    if (!fields) throw new FigReadError('fig_unreadable');
+    for (;;) {
+      const tag = reader.uint();
+      if (tag === 0) return;
+      const field = fields.get(tag);
+      if (!field) throw new FigReadError('fig_unreadable');
+      skipField(field, depth + 1);
+    }
+  };
+
+  const skipField = (field: FieldDef, depth: number): void => {
+    if (!field.array) {
+      skip(field.type, depth);
+      return;
+    }
+    const length = reader.uint();
+    if (field.type === -2) {
+      reader.take(length);
+      return;
+    }
+    if (length > caps.maxArrayItems || length > reader.remaining) {
+      throw new FigReadError(length > caps.maxArrayItems ? 'fig_too_large' : 'fig_unreadable');
+    }
+    for (let index = 0; index < length; index += 1) skip(field.type, depth);
+  };
 
   const value = (type: number, depth: number): KiwiValue => {
-    values += 1;
-    if (values > caps.maxValues) throw new FigReadError('fig_too_large');
+    step();
     switch (type) {
       case -1:
         return reader.byte() !== 0;
@@ -236,6 +338,7 @@ export function decodeMessage(
       const raw = reader.uint();
       return definition.fields.find((field) => field.value === raw)?.name ?? raw;
     }
+    built();
     const out: Record<string, KiwiValue> = {};
     if (definition.kind === 'struct') {
       for (const field of definition.fields) out[field.name] = fieldValue(field, depth + 1);
@@ -243,12 +346,14 @@ export function decodeMessage(
     }
     const fields = byValue[type];
     if (!fields) throw new FigReadError('fig_unreadable');
+    const wanted = keep ? keep[definition.name] : undefined;
     for (;;) {
       const tag = reader.uint();
       if (tag === 0) return out;
       const field = fields.get(tag);
       if (!field) throw new FigReadError('fig_unreadable');
-      out[field.name] = fieldValue(field, depth + 1);
+      if (keep && !wanted?.has(field.name)) skipField(field, depth + 1);
+      else out[field.name] = fieldValue(field, depth + 1);
     }
   };
 
@@ -299,7 +404,8 @@ export function canvasChunks(canvas: Uint8Array): Uint8Array[] {
   const view = new DataView(canvas.buffer, canvas.byteOffset, canvas.byteLength);
   const chunks: Uint8Array[] = [];
   let offset = 12;
-  while (offset + 4 <= canvas.length && chunks.length < 8) {
+  // Only the schema and the document: any later chunk is never read or inflated.
+  while (offset + 4 <= canvas.length && chunks.length < 2) {
     const length = view.getUint32(offset, true);
     const start = offset + 4;
     if (start + length > canvas.length) throw new FigReadError('fig_unreadable');
@@ -323,6 +429,7 @@ export function readCanvas(
     inflateChunk(documentChunk, caps.maxDocumentBytes),
     'Message',
     caps,
+    OUTLINE_FIELDS,
   );
 }
 
@@ -356,9 +463,16 @@ export interface OutlineCaps {
   readonly maxPages: number;
   readonly maxFrames: number;
   readonly maxSectionDepth: number;
+  /** Nodes looked at in all while walking pages and sections (fail closed past it). */
+  readonly maxVisits: number;
 }
 
-export const OUTLINE_CAPS: OutlineCaps = { maxPages: 200, maxFrames: 2000, maxSectionDepth: 4 };
+export const OUTLINE_CAPS: OutlineCaps = {
+  maxPages: 200,
+  maxFrames: 2000,
+  maxSectionDepth: 4,
+  maxVisits: 200_000,
+};
 
 /** Node types listed as frames (Kiwi spelling: a component is `SYMBOL`). */
 const FRAME_TYPES: ReadonlySet<string> = new Set(['FRAME', 'SYMBOL', 'INSTANCE']);
@@ -414,19 +528,40 @@ export function outlineOf(
     list.push({ node, position });
     children.set(parentKey, list);
   }
-  const ordered = (key: string | null): Node[] =>
-    key === null
-      ? []
-      : [...(children.get(key) ?? [])]
-          .sort((a, b) => (a.position < b.position ? -1 : a.position > b.position ? 1 : 0))
-          .map((entry) => entry.node);
+  // Security review H1 (2026-11-14): each parent's children are sorted once.
+  const sorted = new Map<string, Node[]>();
+  const ordered = (key: string | null): Node[] => {
+    if (key === null) return [];
+    const cached = sorted.get(key);
+    if (cached) return cached;
+    const list = [...(children.get(key) ?? [])]
+      .sort((a, b) => (a.position < b.position ? -1 : a.position > b.position ? 1 : 0))
+      .map((entry) => entry.node);
+    sorted.set(key, list);
+    return list;
+  };
+  // Security review H1: a page or section is walked at most once, whatever its guid claims (a
+  // crafted file can give many sections one guid, or a node its parent's guid), and the walk has a
+  // hard budget. Past it the file is refused, never half-listed.
+  const walked = new Set<string>();
+  let visits = 0;
+  const visit = () => {
+    visits += 1;
+    if (visits > caps.maxVisits) throw new FigReadError('fig_too_large');
+  };
 
   const document_ = nodes.find((node) => node['type'] === 'DOCUMENT');
   const canvases = (
     document_
       ? ordered(guidKey(document_['guid']))
       : nodes.filter((node) => node['type'] === 'CANVAS')
-  ).filter((node) => node['type'] === 'CANVAS' && node['internalOnly'] !== true);
+  ).filter((node) => {
+    if (node['type'] !== 'CANVAS' || node['internalOnly'] === true) return false;
+    const key = guidKey(node['guid']);
+    if (key === null || walked.has(key)) return false;
+    walked.add(key);
+    return true;
+  });
 
   let listed = 0;
   let total = 0;
@@ -442,14 +577,21 @@ export function outlineOf(
       offsetY: number,
       depth: number,
     ) => {
-      for (const node of ordered(guidKey(parent['guid']))) {
+      const parentKey = guidKey(parent['guid']);
+      for (const node of ordered(parentKey)) {
+        visit();
         if (node['visible'] === false) continue;
         const transform = isNode(node['transform']) ? node['transform'] : undefined;
         const x = offsetX + numberOf(transform, 'm02');
         const y = offsetY + numberOf(transform, 'm12');
         const type = node['type'];
-        if (type === 'SECTION' && depth < caps.maxSectionDepth) {
-          walk(node, cleanName(node['name'], 'Section'), x, y, depth + 1);
+        if (type === 'SECTION') {
+          const key = guidKey(node['guid']);
+          if (key === null || key === parentKey || walked.has(key)) continue;
+          walked.add(key);
+          if (depth < caps.maxSectionDepth) {
+            walk(node, cleanName(node['name'], 'Section'), x, y, depth + 1);
+          }
           continue;
         }
         if (typeof type !== 'string' || !FRAME_TYPES.has(type)) continue;

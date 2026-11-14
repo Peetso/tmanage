@@ -11,10 +11,19 @@ import {
   decodeSchema,
   FIG_CAPS,
   FigReadError,
+  inflateChunk,
+  OUTLINE_CAPS,
+  OUTLINE_FIELDS,
   outlineOf,
   readCanvas,
 } from './fig-kiwi.js';
-import { FIG_MIME, figFactsFrom, figGenerator } from './fig.js';
+import {
+  FIG_MIME,
+  figFactsFrom,
+  figGenerator,
+  MAX_THUMBNAIL_PIXELS,
+  pngHeaderSize,
+} from './fig.js';
 import { decodeWebp } from './raster.js';
 import { DEFAULT_PREVIEW_LIMITS } from './types.js';
 import type { PreviewRequest } from './types.js';
@@ -115,6 +124,8 @@ const DEFS: readonly DefSpec[] = [
       ['size', 3, false],
       ['transform', 4, false],
       ['internalOnly', BOOL, false],
+      // Stands for the fields the outline never reads (geometry, paints, text …).
+      ['extra', 5, true],
     ],
   ],
   [
@@ -155,6 +166,8 @@ interface NodeSpec {
   readonly size?: readonly [number, number];
   readonly at?: readonly [number, number];
   readonly internalOnly?: boolean;
+  /** This many empty messages in a field the outline does not read. */
+  readonly extra?: number;
 }
 
 function guid(writer: Writer, id: number): void {
@@ -192,6 +205,11 @@ function documentBytes(nodes: readonly NodeSpec[]): Uint8Array {
     if (node.internalOnly) {
       writer.uint(8);
       writer.byte(1);
+    }
+    if (node.extra) {
+      writer.uint(9);
+      writer.uint(node.extra);
+      for (let index = 0; index < node.extra; index += 1) writer.uint(0);
     }
     writer.uint(0);
   }
@@ -385,9 +403,103 @@ describe('the Kiwi decoder and the outline', () => {
     expect(() => readCanvas(canvasFig(FILE), { ...FIG_CAPS, maxDocumentBytes: 16 })).toThrow(
       expect.objectContaining({ code: 'fig_too_large' }),
     );
-    expect(() => readCanvas(canvasFig(FILE), { ...FIG_CAPS, maxValues: 10 })).toThrow(
+    expect(() => readCanvas(canvasFig(FILE), { ...FIG_CAPS, maxSteps: 10 })).toThrow(
       expect.objectContaining({ code: 'fig_too_large' }),
     );
+  });
+});
+
+describe('hostile .fig files (security review 2026-11-14)', () => {
+  it('H1: sections that all claim the page as parent and as themselves are walked once', () => {
+    // 30 sections share the page's own guid: each would list all 30 again, 4 levels deep
+    // (30^4 = 810 000 visits). Walked once each, the page lists its one real frame.
+    const hostile: NodeSpec[] = [
+      { id: 0, type: 'DOCUMENT', name: 'Document' },
+      { id: 1, parent: 0, type: 'CANVAS', name: 'Page' },
+      ...Array.from({ length: 30 }, (): NodeSpec => ({
+        id: 1,
+        parent: 1,
+        type: 'SECTION',
+        name: 'Loop',
+      })),
+      { id: 50, parent: 1, position: 'z', type: 'FRAME', name: 'Real', size: [10, 10], at: [0, 0] },
+    ];
+    const started = Date.now();
+    const outline = outlineOf(readCanvas(canvasFig(hostile)));
+    expect(outline.pages[0]?.frames.map((frame) => frame.name)).toEqual(['Real']);
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
+  it('H1: the walk has a hard budget and refuses past it', () => {
+    const many: NodeSpec[] = [
+      { id: 0, type: 'DOCUMENT', name: 'Document' },
+      { id: 1, parent: 0, type: 'CANVAS', name: 'Page' },
+      ...Array.from({ length: 50 }, (_, index): NodeSpec => ({
+        id: 100 + index,
+        parent: 1,
+        type: 'FRAME',
+        name: `F${index}`,
+      })),
+    ];
+    expect(() =>
+      outlineOf(readCanvas(canvasFig(many)), { ...OUTLINE_CAPS, maxVisits: 10 }),
+    ).toThrow(expect.objectContaining({ code: 'fig_too_large' }));
+  });
+
+  it('H2: empty messages in a field the outline does not read build nothing', () => {
+    // 20 000 empty messages cost 20 000 input bytes; built, each would be an object.
+    const bloated: NodeSpec[] = [
+      { id: 0, type: 'DOCUMENT', name: 'Document' },
+      { id: 1, parent: 0, type: 'CANVAS', name: 'Page', extra: 20_000 },
+    ];
+    const caps = { ...FIG_CAPS, maxObjects: 1000 };
+    expect(readCanvas(canvasFig(bloated), caps)).toMatchObject({ nodeChanges: expect.any(Array) });
+    // Read with every field kept, the same file is refused at the object cap.
+    const [schema, document] = canvasChunks(canvasFig(bloated)).map((chunk) =>
+      inflateChunk(chunk, FIG_CAPS.maxDocumentBytes),
+    );
+    expect(() => decodeMessage(decodeSchema(schema!), document!, 'Message', caps)).toThrow(
+      expect.objectContaining({ code: 'fig_too_large' }),
+    );
+  });
+
+  it('H2: the caps are what a page list needs', () => {
+    expect(FIG_CAPS.maxDocumentBytes).toBeLessThanOrEqual(64 * 1024 * 1024);
+    expect(FIG_CAPS.maxSchemaBytes).toBeLessThanOrEqual(1024 * 1024);
+    expect(FIG_CAPS.maxObjects).toBeLessThanOrEqual(1_000_000);
+    expect(OUTLINE_FIELDS['Message']).toEqual(new Set(['nodeChanges']));
+  });
+
+  it('M3: a saved picture whose header claims 20 000 x 20 000 is refused before decoding', async () => {
+    const ihdr = Buffer.alloc(25);
+    ihdr.writeUInt32BE(13, 0);
+    ihdr.write('IHDR', 4, 'latin1');
+    ihdr.writeUInt32BE(20_000, 8);
+    ihdr.writeUInt32BE(20_000, 12);
+    ihdr.set([8, 6, 0, 0, 0], 16);
+    const huge = new Uint8Array(
+      Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), ihdr]),
+    );
+    expect(pngHeaderSize(huge)).toEqual({ width: 20_000, height: 20_000 });
+    const [preview] = await figGenerator.generate(
+      { bytes: figFile({ thumbnail: huge }), mimeType: FIG_MIME },
+      [PREVIEW],
+      DEFAULT_PREVIEW_LIMITS,
+    );
+    expect(preview).toEqual({ status: 'unsupported', code: 'unsupported_too_large' });
+    expect(MAX_THUMBNAIL_PIXELS).toBeLessThanOrEqual(16_000_000);
+  });
+
+  it('L1: a ZIP named .fig without canvas.fig is not a Figma file', () => {
+    const plain = readZipDirectory(zip([{ path: 'notes.txt', body: utf8('hi') }]));
+    expect(
+      judgeArchiveDirectory(plain, { channel: 'member', officeOpenXml: false, figmaFile: true }),
+    ).toMatchObject({ code: 'archive_unreadable' });
+    expect(judgeArchiveDirectory(plain, { channel: 'member', officeOpenXml: false })).toBeNull();
+    const real = readZipDirectory(figFile());
+    expect(
+      judgeArchiveDirectory(real, { channel: 'member', officeOpenXml: false, figmaFile: true }),
+    ).toBeNull();
   });
 });
 

@@ -18792,6 +18792,7 @@
   "FinanceTimesheets.reviewTitle": "Einige Zeiten müssen geprüft werden",
   "FinanceTimesheets.reviewBody": "Ein Tag über 12 Stunden, eine Sitzung über 6 Stunden ohne Pause oder Zeit, die nachträglich gebucht wurde, weil ihre Woche geschlossen war. Prüfe sie vor dem Einreichen.",
   "FinanceTimesheets.automaticNote": "Automatische Zeit meldet dein eigener Computer; sie ist nicht überprüft. Tage richten sich nach der Zeitzone des Unternehmens.",
+  "AuditActionLabel.figma.link_refreshed": "Refreshed a Figma file",
   "ClientFilePolicy.title": "Dateien, die Kunden erhalten können",
   "ClientFilePolicy.intro": "Wählen Sie, welche Dateien Ihr Team Kunden im Portal senden kann.",
   "ClientFilePolicy.checkedLabel": "Dateien, die die Sicherheitsprüfung bestanden haben",

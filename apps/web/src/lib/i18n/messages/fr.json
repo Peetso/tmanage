@@ -18792,6 +18792,7 @@
   "FinanceTimesheets.reviewTitle": "Une partie du temps est à vérifier",
   "FinanceTimesheets.reviewBody": "Une journée de plus de 12 heures, une session de plus de 6 heures sans pause, ou du temps enregistré en retard car sa semaine était close. Vérifiez-le avant d’envoyer.",
   "FinanceTimesheets.automaticNote": "Le temps automatique est déclaré par votre ordinateur, sans vérification. Les jours suivent le fuseau horaire de l’entreprise.",
+  "AuditActionLabel.figma.link_refreshed": "Refreshed a Figma file",
   "ClientFilePolicy.title": "Fichiers que les clients peuvent recevoir",
   "ClientFilePolicy.intro": "Choisissez les fichiers que votre équipe peut envoyer aux clients dans le portail.",
   "ClientFilePolicy.checkedLabel": "Fichiers qui ont passé le contrôle de sécurité",

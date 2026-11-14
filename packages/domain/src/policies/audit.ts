@@ -544,6 +544,14 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'figma_link',
     clause: '§12 — design content removed from a project; R4 SPEC §3.3 DELETE figma/links',
   },
+  /**
+   * Security review M2 (2026-11-14). "Refresh from Figma" read a link's file again (counts of
+   * frames added, updated, removed and queued; no names).
+   */
+  'figma.link_refreshed': {
+    objectType: 'figma_link',
+    clause: "§12 — design content read again from Figma with the link creator's token",
+  },
   /** R4 slice 13. A frame snapshot was stored (ids, size, whether the frame changed). */
   'figma.snapshot_taken': {
     objectType: 'figma_frame',
@@ -1732,6 +1740,7 @@ const AUDIT_ACTION_LABELS = {
   'figma.link_attached': 'Attached a Figma file',
   'figma.link_removed': 'Removed a Figma file',
   'figma.snapshot_taken': 'Saved a Figma frame snapshot',
+  'figma.link_refreshed': 'Refreshed a Figma file',
   'file_asset.scan_disputed': "A file's scan result changed",
   'file_asset.purged': 'Deleted stored file data',
   'upload_session.expired': 'Cleaned up an expired upload',

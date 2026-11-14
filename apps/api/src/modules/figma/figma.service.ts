@@ -169,6 +169,12 @@ export async function readMemberToken(
 
 /** Sharper renders on demand, per ten minutes: per person, and per workspace. */
 export const RENDER_WINDOW_MS = 10 * 60_000;
+/**
+ * Security review M2 (2026-11-14): one "Refresh from Figma" per link per this long. A refresh
+ * spends the link creator's Figma quota (the outline, then every captured frame again), so it is
+ * held server-side from the link's own last read, which every process sees.
+ */
+export const REFRESH_COOLDOWN_MS = 3 * 60_000;
 export const RENDERS_PER_PERSON = 40;
 export const RENDERS_PER_WORKSPACE = 150;
 
@@ -978,6 +984,9 @@ export class FigmaService {
     if (!this.mayWrite(principal, link, project)) {
       throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'figma_write_denied');
     }
+    if (link.syncedAt && this.now().getTime() - link.syncedAt.getTime() < REFRESH_COOLDOWN_MS) {
+      throw conflict('rate_limited');
+    }
     const token = await this.refreshToken(context, link);
     const rows = await this.deps.database.read(context, (runner) =>
       this.repository.listFrames(runner, context, link.id),
@@ -1004,15 +1013,23 @@ export class FigmaService {
       whole ? MAX_CAPTURED_FRAMES : Number.MAX_SAFE_INTEGER,
     );
     const diff = diffFrames(rows, frames, placements);
+    const queued = [...placements.values()].filter((place) => place.captured).length;
     await this.deps.database.transaction(context, async (tx) => {
       await this.repository.applyFrameDiff(tx, context, link.id, diff);
       await this.repository.updateLinkOutline(tx, context, link.id, {
         fileName: outline.name === '' ? null : outline.name,
         outlineJson: storedOutlineJson(outline),
       });
+      await this.auditAllowed(tx, context, principal, 'figma.link_refreshed', link.id, {
+        project_id: link.projectId,
+        added: diff.inserts.length,
+        updated: diff.updates.length,
+        removed: diff.gone.length,
+        queued,
+      });
     });
     this.deps.snapshots?.request();
-    return { queued: [...placements.values()].filter((place) => place.captured).length };
+    return { queued };
   }
 
   /**

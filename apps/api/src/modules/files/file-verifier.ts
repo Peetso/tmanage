@@ -26,6 +26,9 @@ import type { FileAssetsRepository } from './file-assets.repository.js';
 import type { UploadSessionsRepository } from './upload-sessions.repository.js';
 import { describeFailure } from './upload-session-sweeper.js';
 
+/** The ZIP-family types that are Office Open XML (a `vbaProject.bin` there is a macro). */
+const OFFICE_TOKENS: ReadonlySet<string> = new Set(['docx', 'xlsx', 'pptx']);
+
 /**
  * FILE-002, slice A — the verification pass: `23-ERD` §10's `uploaded → verifying →
  * scanning | rejected`, `03-ARCHITECTURE` §108's "worker verifies checksum, MIME, size".
@@ -374,7 +377,8 @@ export class FileVerifier {
         { zone: 'quarantine', objectKey: version.objectKey, sizeBytes: reading.sizeBytes },
         {
           channel: session.clientOrganizationId === null ? 'member' : 'client',
-          officeOpenXml: judgement.detectedType !== 'zip',
+          officeOpenXml: OFFICE_TOKENS.has(judgement.detectedType),
+          figmaFile: judgement.detectedType === 'fig',
         },
       );
     } catch (error) {

@@ -18792,6 +18792,7 @@
   "FinanceTimesheets.reviewTitle": "部分时间待审核",
   "FinanceTimesheets.reviewBody": "超过 12 小时的一天、连续超过 6 小时不休息的时段，或因所在周已关闭而延迟记录的时间。提交前请检查。",
   "FinanceTimesheets.automaticNote": "自动时间由你自己的电脑上报，未经核实。日期按公司时区计算。",
+  "AuditActionLabel.figma.link_refreshed": "Refreshed a Figma file",
   "ClientFilePolicy.title": "客户可以收到的文件",
   "ClientFilePolicy.intro": "选择你的团队可以在门户中发送给客户的文件。",
   "ClientFilePolicy.checkedLabel": "通过安全检查的文件",

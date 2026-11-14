@@ -18792,6 +18792,7 @@
   "FinanceTimesheets.reviewTitle": "Parte do tempo precisa de revisão",
   "FinanceTimesheets.reviewBody": "Um dia acima de 12 horas, uma sessão acima de 6 horas sem pausa ou tempo lançado com atraso porque a semana estava fechada. Confira antes de enviar.",
   "FinanceTimesheets.automaticNote": "O tempo automático é informado pelo seu próprio computador, sem verificação. Os dias seguem o fuso horário da empresa.",
+  "AuditActionLabel.figma.link_refreshed": "Refreshed a Figma file",
   "ClientFilePolicy.title": "Arquivos que os clientes podem receber",
   "ClientFilePolicy.intro": "Escolha quais arquivos sua equipe pode enviar aos clientes no portal.",
   "ClientFilePolicy.checkedLabel": "Arquivos aprovados na verificação de segurança",

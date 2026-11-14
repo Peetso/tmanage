@@ -258,6 +258,12 @@ describe('FigmaRestClient', () => {
   it('allows render URLs on Figma hosts and S3 only', () => {
     expect(isAllowedRenderUrl('https://s3-alpha.figma.com/img/x')).toBe(true);
     expect(isAllowedRenderUrl('https://localhost/x')).toBe(false);
+    // Review L4: Figma's render bucket only, not any S3 bucket.
+    expect(isAllowedRenderUrl('https://figma-alpha-api.s3.us-west-2.amazonaws.com/x.png')).toBe(
+      true,
+    );
+    expect(isAllowedRenderUrl('https://attacker-bucket.s3.amazonaws.com/x.png')).toBe(false);
+    expect(isAllowedRenderUrl('https://figma-alpha-api.s3.amazonaws.com.evil.test/x')).toBe(false);
     expect(isAllowedRenderUrl('https://figma.com.evil.test/x')).toBe(false);
     expect(isAllowedRenderUrl('https://user:pw@www.figma.com/x')).toBe(false);
     expect(isAllowedRenderUrl('https://www.figma.com:8443/x')).toBe(false);

@@ -73,11 +73,19 @@ function build(input: {
   missing?: readonly string[];
   /** Figma refuses the token with this status. */
   refused?: number;
+  /** Workspaces with pending frames (default: the one). */
+  organizations?: readonly string[];
+  /** Workspaces whose token Figma answers with 429. */
+  limitedOrganizations?: ReadonlySet<string>;
 }) {
   const frames = new Map(input.frames.map((row) => [row.id, { ...row }]));
+  let current = ORG;
+  const renderCalls: string[] = [];
   const link: FigmaLinkRow = {
     id: LINK,
-    organizationId: ORG,
+    get organizationId() {
+      return current;
+    },
     projectId: PROJECT,
     fileKey: 'ZdUCRiqBiT7s3u08HA28RO',
     fileName: 'Atlas',
@@ -103,7 +111,9 @@ function build(input: {
           id: 'c',
           organizationId: ORG,
           membershipId: MEMBER,
-          tokenCiphertext: CIPHER.encrypt('figd_secret', figmaTokenBinding(ORG, MEMBER)),
+          get tokenCiphertext() {
+            return CIPHER.encrypt('figd_secret', figmaTokenBinding(current, MEMBER));
+          },
           tokenHint: 'cret',
           figmaUserHandle: 'lina',
           status: 'connected',
@@ -112,9 +122,13 @@ function build(input: {
         };
   const released: string[] = [];
   const repository = {
-    organizationsWithPendingFrames: async () => [ORG],
-    listPendingFrames: async () =>
-      [...frames.values()].filter((f) => f.snapshotStatus === 'pending'),
+    organizationsWithPendingFrames: async () => input.organizations ?? [ORG],
+    listPendingFrames: async (_db: unknown, context: { organizationId: string }) => {
+      current = context.organizationId;
+      return [...frames.values()].filter(
+        (f) => f.snapshotStatus === 'pending' && f.organizationId === context.organizationId,
+      );
+    },
     claimFrame: async (_r: unknown, _c: unknown, f: FigmaFrameRow) => {
       frames.get(f.id)!.claimedAt = NOW;
       return true;
@@ -166,7 +180,10 @@ function build(input: {
   const scales: number[] = [];
   const rest = {
     renderUrls: async (_t: string, _k: string, ids: readonly string[], scale: number) => {
-      if (input.rateLimited) throw new FigmaRateLimitError(60);
+      renderCalls.push(current);
+      if (input.rateLimited || input.limitedOrganizations?.has(current)) {
+        throw new FigmaRateLimitError(60);
+      }
       if (input.refused) throw new FigmaAuthError(input.refused);
       scales.push(scale);
       return new Map(
@@ -202,7 +219,7 @@ function build(input: {
     repository,
     () => NOW,
   );
-  return { job, frames, stored, released, scales };
+  return { job, frames, stored, released, scales, renderCalls };
 }
 
 const F1 = '00000000-0000-4000-8000-0000000000f1';
@@ -236,6 +253,39 @@ describe('FigmaSnapshotJob', () => {
     expect(report.rateLimited).toBe(true);
     expect(world.released.sort()).toEqual([F1, F2]);
     expect(world.frames.get(F1)).toMatchObject({ snapshotStatus: 'pending', snapshotAttempts: 0 });
+  });
+
+  it("one workspace's 429 does not stop the others; it waits alone, and passes rotate", async () => {
+    // Security review M1 (2026-11-14).
+    const ORG_B = '00000000-0000-4000-8000-0000000000b2';
+    const world = build({
+      frames: [frame(F1), frame(F2, { organizationId: ORG_B })],
+      organizations: [ORG, ORG_B],
+      limitedOrganizations: new Set([ORG]),
+    });
+    const first = await world.job.pass();
+    expect(first).toMatchObject({ ready: 1, rateLimited: true });
+    expect(world.frames.get(F2)).toMatchObject({ snapshotStatus: 'ready' });
+    expect(world.frames.get(F1)).toMatchObject({ snapshotStatus: 'pending', snapshotAttempts: 0 });
+    expect(world.released).toEqual([F1]);
+    // The refused workspace is set aside: the next pass does not call Figma for it again.
+    const second = await world.job.pass();
+    expect(second.rateLimited).toBe(true);
+    expect(world.renderCalls.filter((org) => org === ORG)).toHaveLength(1);
+  });
+
+  it('the first workspace of a pass rotates', async () => {
+    const ORG_B = '00000000-0000-4000-8000-0000000000b2';
+    const world = build({
+      frames: [frame(F1), frame(F2, { organizationId: ORG_B })],
+      organizations: [ORG, ORG_B],
+    });
+    await world.job.pass();
+    for (const id of [F1, F2]) {
+      Object.assign(world.frames.get(id)!, { snapshotStatus: 'pending', claimedAt: null });
+    }
+    await world.job.pass();
+    expect(world.renderCalls).toEqual([ORG, ORG_B, ORG_B, ORG]);
   });
 
   it('fails the frames of a link whose creator has no Figma token', async () => {

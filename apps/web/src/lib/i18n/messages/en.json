@@ -18978,6 +18978,7 @@
   "FinanceTimesheets.reviewTitle": "Some time needs review",
   "FinanceTimesheets.reviewBody": "A day over 12 hours, a session over 6 hours without a break, or time filed late because its week was closed. Check it before you submit.",
   "FinanceTimesheets.automaticNote": "Automatic time is reported by your own computer, not verified. Days follow the company time zone.",
+  "AuditActionLabel.figma.link_refreshed": "Refreshed a Figma file",
   "ClientFilePolicy.title": "Files clients can receive",
   "ClientFilePolicy.intro": "Choose which files your team can send to clients in the portal.",
   "ClientFilePolicy.checkedLabel": "Files that passed the safety check",

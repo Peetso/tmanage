@@ -283,6 +283,9 @@ export function isPng(bytes: Uint8Array): boolean {
   return bytes.length > 8 && PNG_SIGNATURE.every((byte, index) => bytes[index] === byte);
 }
 
+/** Figma's render bucket on S3, path-style region or not (`figma-alpha-api.s3.us-west-2…`). */
+const FIGMA_RENDER_BUCKET = /^figma-alpha-api\.s3(?:[.-][a-z0-9-]+)?\.amazonaws\.com$/u;
+
 /** Only Figma's own hosts and its render bucket on S3. */
 export function isAllowedRenderUrl(raw: string): boolean {
   let url: URL;
@@ -297,7 +300,8 @@ export function isAllowedRenderUrl(raw: string): boolean {
   return (
     host === 'figma.com' ||
     host.endsWith('.figma.com') ||
-    host.endsWith('.amazonaws.com') ||
+    // Security review L4 (2026-11-14): Figma's own render bucket only, not any S3 bucket.
+    FIGMA_RENDER_BUCKET.test(host) ||
     host.endsWith('.figmausercontent.com')
   );
 }

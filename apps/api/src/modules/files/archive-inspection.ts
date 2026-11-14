@@ -93,6 +93,11 @@ export type InspectionChannel = 'member' | 'client';
 
 export interface InspectionOptions {
   readonly channel: InspectionChannel;
+  /**
+   * `true` for a `.fig` (security review L1, 2026-11-14): a ZIP without Figma's `canvas.fig` is not
+   * a Figma file, so it cannot pass under the design preset while archives are off.
+   */
+  readonly figmaFile?: boolean;
   /** `true` for `docx`/`xlsx`/`pptx`: a `vbaProject.bin` there is `macro_office`. */
   readonly officeOpenXml: boolean;
 }
@@ -128,6 +133,12 @@ export function judgeArchiveDirectory(
     if (entry.encrypted && options.channel === 'client') {
       return { code: 'archive_encrypted', entry: shown, finding: 'encrypted' };
     }
+  }
+  if (
+    options.figmaFile === true &&
+    !directory.entries.some((entry) => !entry.folder && entry.path === 'canvas.fig')
+  ) {
+    return { code: 'archive_unreadable', entry: null, finding: 'unreadable' };
   }
   return null;
 }

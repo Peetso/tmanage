@@ -104,7 +104,8 @@ function linkRow(id: string, audience: string): FigmaLinkRow {
     focusNodeId: null,
     outlineJson: JSON.stringify({ pages: [{ id: '0:1', name: 'Mobile' }], truncated: false }),
     pageFilterJson: null,
-    syncedAt: NOW,
+    // Read from Figma an hour ago: past the refresh cooldown.
+    syncedAt: new Date(NOW.getTime() - 60 * 60_000),
   };
 }
 
@@ -326,6 +327,7 @@ function build(
     frames,
     renderCalls,
     audits,
+    links,
     requested: () => requested,
   };
 }
@@ -640,6 +642,19 @@ describe('FigmaService · Refresh from Figma', () => {
     expect(diff.updates.map((item) => item.row.id)).toEqual([FRAME]);
     expect(diff.gone.map((row) => row.nodeId)).toEqual(['9:9']);
     expect(world.requested()).toBe(1);
+    expect(world.audits).toContain('figma.link_refreshed');
+  });
+
+  it('holds a second refresh of the same link for a few minutes, server-side (review M2)', async () => {
+    const world = build({ connected: true, outline: outlineOf(2) });
+    const link = world.links.get(LINK)!;
+    world.links.set(LINK, { ...link, syncedAt: new Date(NOW.getTime() - 60_000) });
+    const refused = await world.service.refresh(contextOf(STAFF), STAFF, LINK).catch((e) => e);
+    expect(refused).toBeInstanceOf(ApiError);
+    expect(refused).toMatchObject({ status: 409 });
+    expect(world.diffs).toHaveLength(0);
+    expect(world.requested()).toBe(0);
+    expect(world.audits).not.toContain('figma.link_refreshed');
   });
 
   it('is the team only', async () => {

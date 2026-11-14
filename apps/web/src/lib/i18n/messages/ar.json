@@ -18978,6 +18978,7 @@
   "FinanceTimesheets.reviewTitle": "بعض الوقت يحتاج إلى مراجعة",
   "FinanceTimesheets.reviewBody": "يوم تجاوز 12 ساعة، أو جلسة تجاوزت 6 ساعات دون استراحة، أو وقت سُجّل متأخرًا لأن أسبوعه كان مغلقًا. راجعه قبل الإرسال.",
   "FinanceTimesheets.automaticNote": "الوقت التلقائي يُبلَّغ عنه من حاسوبك، ولم يُتحقق منه. تُحسب الأيام حسب المنطقة الزمنية للشركة.",
+  "AuditActionLabel.figma.link_refreshed": "حدّث ملف Figma",
   "ClientFilePolicy.title": "الملفات اللي ممكن توصل للعملاء",
   "ClientFilePolicy.intro": "اختار أنهي ملفات فريقك يقدر يبعتها للعملاء في البوابة.",
   "ClientFilePolicy.checkedLabel": "الملفات اللي عدّت من فحص الأمان",
