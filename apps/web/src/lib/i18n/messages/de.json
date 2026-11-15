@@ -19272,5 +19272,9 @@
   "RouteTitle.automationBuilder": "Automatisierungs-Editor",
   "aiApprove.op.automations.templates.flow.get": "Die verzweigten Schritte einer Automatisierung lesen",
   "aiApprove.op.automations.templates.flow.save": "Die verzweigten Schritte einer Automatisierung speichern",
-  "aiApprove.op.automations.templates.flow.turn_on": "Eine Automatisierung aktivieren"
+  "aiApprove.op.automations.templates.flow.turn_on": "Eine Automatisierung aktivieren",
+  "SiteNav.compare": "Vergleichen",
+  "SiteNav.compareHint": "TManage im Vergleich mit anderen Tools",
+  "RouteTitle.portalApprovalRecord": "Freigabeprotokoll",
+  "RouteTitle.projectApprovalRecord": "Freigabeprotokoll"
 }

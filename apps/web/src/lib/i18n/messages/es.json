@@ -19274,5 +19274,9 @@
   "RouteTitle.automationBuilder": "Creador de automatizaciones",
   "aiApprove.op.automations.templates.flow.get": "Leer los pasos con ramas de una automatización",
   "aiApprove.op.automations.templates.flow.save": "Guardar los pasos con ramas de una automatización",
-  "aiApprove.op.automations.templates.flow.turn_on": "Activar una automatización"
+  "aiApprove.op.automations.templates.flow.turn_on": "Activar una automatización",
+  "SiteNav.compare": "Comparar",
+  "SiteNav.compareHint": "TManage frente a otras herramientas",
+  "RouteTitle.portalApprovalRecord": "Registro de aprobación",
+  "RouteTitle.projectApprovalRecord": "Registro de aprobación"
 }

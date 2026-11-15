@@ -23,7 +23,8 @@ describe('robots.txt and sitemap.xml (live 307 to /robots.txt/home, 2026-10-26)'
     );
     // 26 website pages (51-10a /download, 54-17 /security/data-location, 56-17
     // /security/disclosure, 54-04 /developers), 12 library articles,
-    // sign-in and sign-up, the Help centre and its 14 articles (55-16) — each in English and Arabic.
-    expect(urls.length).toBe(110);
+    // sign-in and sign-up, the Help centre and its 14 articles (55-16), and the 57-06 compare
+    // index and its 8 pages — each in English and Arabic.
+    expect(urls.length).toBe(128);
   });
 });

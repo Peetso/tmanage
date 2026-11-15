@@ -37,6 +37,17 @@ const ROUTES: Record<string, RouteRow> = {
     from: 'website/pages/client-portal/ClientPortalPage',
     title: 'Client portal',
   },
+  // 57-06: both titles come from COMPARE_COPY, not a literal.
+  '/compare': {
+    component: 'CompareIndexPage',
+    from: 'website/pages/compare/CompareIndexPage',
+    title: null,
+  },
+  '/compare/[slug]': {
+    component: 'ComparePage',
+    from: 'website/pages/compare/ComparePage',
+    title: null,
+  },
   '/contact': {
     component: 'ContactPage',
     from: 'website/pages/contact/ContactPage',

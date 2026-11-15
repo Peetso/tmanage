@@ -19272,5 +19272,9 @@
   "RouteTitle.automationBuilder": "自动化构建器",
   "aiApprove.op.automations.templates.flow.get": "读取自动化的分支步骤",
   "aiApprove.op.automations.templates.flow.save": "保存自动化的分支步骤",
-  "aiApprove.op.automations.templates.flow.turn_on": "开启自动化"
+  "aiApprove.op.automations.templates.flow.turn_on": "开启自动化",
+  "SiteNav.compare": "对比",
+  "SiteNav.compareHint": "将 TManage 与其他工具并排对比",
+  "RouteTitle.portalApprovalRecord": "审批记录",
+  "RouteTitle.projectApprovalRecord": "审批记录"
 }

@@ -311,6 +311,10 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     en: 'Deliverable',
     key: 'RouteTitle.portalDeliverable',
   },
+  '/[orgSlug]/portal/deliverables/[deliverableVersionId]/record': {
+    en: 'Approval record',
+    key: 'RouteTitle.portalApprovalRecord',
+  },
   '/[orgSlug]/portal/chat': { en: 'Chat', key: 'RouteTitle.portalChat' },
   '/[orgSlug]/portal/chat/[conversationId]': {
     en: 'Conversation',
@@ -348,6 +352,10 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/projects/[projectId]/deliverables/[deliverableId]': {
     en: 'Deliverable',
     key: 'RouteTitle.projectDeliverable',
+  },
+  '/[orgSlug]/projects/[projectId]/deliverables/[deliverableId]/approvals/[approvalId]/record': {
+    en: 'Approval record',
+    key: 'RouteTitle.projectApprovalRecord',
   },
   '/[orgSlug]/projects/[projectId]/members': {
     en: 'Project members',

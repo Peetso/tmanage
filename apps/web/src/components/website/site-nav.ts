@@ -223,6 +223,12 @@ export const RESOURCES_MENU: WebMegaMenu = {
           href: '/resources#blog',
           icon: 'pencil',
         },
+        {
+          label: 'SiteNav.compare',
+          hint: 'SiteNav.compareHint',
+          href: '/compare',
+          icon: 'chart',
+        },
       ],
     },
     {
@@ -324,6 +330,7 @@ export const FOOTER_COLUMNS: readonly WebFooterColumn[] = [
       { label: 'SiteNav.blog', href: '/resources#blog' },
       { label: 'SiteNav.guides', href: '/resources#guides' },
       { label: 'SiteNav.templates', href: '/resources#templates' },
+      { label: 'SiteNav.compare', href: '/compare' },
       { label: 'SiteNav.helpCenter', href: '/help' },
       { label: 'SiteNav.status', href: '/status' },
       { label: 'SiteNav.developers', href: '/developers' },
