@@ -1333,6 +1333,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0337. Tenant-owned: one organization's SCIM bearer keys (hash only). The owner writes them through
   // their own context; the SCIM routes find a key by hash only through `bootstrapRead` with a reason.
   scim_tokens: 'organization_id',
+  // ---- FIX6 C3 ----
+  // 0346. Tenant-owned: a drive folder attached to a work item (provider ids and name only). Written
+  // and read through the caller's own context; the portal reads it only for a client-visible item.
+  work_item_cloud_folders: 'organization_id',
 });
 
 /**

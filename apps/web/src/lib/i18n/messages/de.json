@@ -19073,5 +19073,20 @@
   "DeliverableDelete.cancel": "Abbrechen",
   "DeliverableDelete.deleting": "Wird gelöscht…",
   "DeliverableDelete.confirm": "Lieferung löschen",
-  "DeliverableDelete.toast": "Lieferung gelöscht"
+  "DeliverableDelete.toast": "Lieferung gelöscht",
+  "CloudFolders.title": "Live-Ordner",
+  "CloudFolders.tip": "Fügen Sie einen Ordner aus dem Google Drive oder OneDrive Ihres Unternehmens hinzu. Seine Dateien werden live angezeigt, und der Kunde sieht sie im Portal, wenn diese Arbeit mit ihm geteilt ist.",
+  "CloudFolders.attachDrive": "Google-Drive-Ordner hinzufügen",
+  "CloudFolders.attachOneDrive": "OneDrive-Ordner hinzufügen",
+  "CloudFolders.open": "Dateien anzeigen",
+  "CloudFolders.hide": "Dateien ausblenden",
+  "CloudFolders.remove": "Entfernen",
+  "CloudFolders.back": "Zurück",
+  "CloudFolders.empty": "Dieser Ordner ist leer.",
+  "CloudFolders.loadError": "Der Ordner kann gerade nicht gelesen werden. Versuchen Sie es gleich noch einmal.",
+  "CloudFolders.more": "Mehr anzeigen",
+  "CloudFolders.download": "Herunterladen",
+  "CloudFolders.listLabel": "Dateien in {name}",
+  "CloudFolders.folderBadge": "Ordner",
+  "CloudFolders.problem": "Der Ordner wurde nicht hinzugefügt"
 }

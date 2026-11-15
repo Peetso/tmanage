@@ -19075,5 +19075,20 @@
   "DeliverableDelete.cancel": "Cancelar",
   "DeliverableDelete.deleting": "Eliminando…",
   "DeliverableDelete.confirm": "Eliminar entregable",
-  "DeliverableDelete.toast": "Entregable eliminado"
+  "DeliverableDelete.toast": "Entregable eliminado",
+  "CloudFolders.title": "Carpetas en vivo",
+  "CloudFolders.tip": "Añada una carpeta del Google Drive o OneDrive de su empresa. Sus archivos se muestran en vivo, y el cliente los ve en el portal cuando este trabajo se comparte con él.",
+  "CloudFolders.attachDrive": "Añadir una carpeta de Google Drive",
+  "CloudFolders.attachOneDrive": "Añadir una carpeta de OneDrive",
+  "CloudFolders.open": "Mostrar archivos",
+  "CloudFolders.hide": "Ocultar archivos",
+  "CloudFolders.remove": "Quitar",
+  "CloudFolders.back": "Atrás",
+  "CloudFolders.empty": "Esta carpeta está vacía.",
+  "CloudFolders.loadError": "No se puede leer la carpeta ahora. Inténtelo de nuevo en un momento.",
+  "CloudFolders.more": "Mostrar más",
+  "CloudFolders.download": "Descargar",
+  "CloudFolders.listLabel": "Archivos en {name}",
+  "CloudFolders.folderBadge": "Carpeta",
+  "CloudFolders.problem": "No se añadió la carpeta"
 }

@@ -51,6 +51,13 @@ import { createDriveTransport, type DriveTransport } from '../google-drive/googl
 import { googleDriveServiceFor } from '../google-drive/google-drive.controller.js';
 import { createOneDriveTransport, type OneDriveTransport } from '../onedrive/onedrive.graph.js';
 import { oneDriveServiceFor } from '../onedrive/onedrive.controller.js';
+import { CloudFoldersService } from '../cloud-folders/cloud-folders.service.js';
+import { CloudFoldersRepository } from '../cloud-folders/cloud-folders.repository.js';
+import {
+  CLOUD_FOLDERS_SERVICE,
+  PortalCloudFoldersController,
+  WorkItemCloudFoldersController,
+} from '../cloud-folders/cloud-folders.controller.js';
 import { FileSafetySettingsReader } from '../tenancy/file-safety-settings.js';
 import { FileVerifier } from './file-verifier.js';
 import { FileScanner } from './file-scanner.js';
@@ -643,12 +650,40 @@ export class FilesModule {
         }),
     };
 
+    // FIX6 C3. Live drive folders on a work item, read with the same provider services.
+    const cloudFolders: Provider = {
+      provide: CLOUD_FOLDERS_SERVICE,
+      inject: [TENANT_DATABASE, AUDIT_SERVICE, API_CONFIG],
+      useFactory: (database: TenantDatabase, audit: AuditService, config: ApiConfig) =>
+        new CloudFoldersService({
+          database,
+          folders: new CloudFoldersRepository(),
+          workItems: new WorkItemsRepository(),
+          drives: {
+            google_drive: googleDriveServiceFor(
+              database,
+              audit,
+              config,
+              drives.drive ?? createDriveTransport(),
+            ),
+            onedrive: oneDriveServiceFor(
+              database,
+              audit,
+              config,
+              drives.oneDrive ?? createOneDriveTransport(),
+            ),
+          },
+          audit,
+        }),
+    };
+
     return {
       module: FilesModule,
       providers: [
         ...repositories,
         service,
         cloudImport,
+        cloudFolders,
         fileDelete,
         fileTags,
         fileFolders,
@@ -722,6 +757,9 @@ export class FilesModule {
         // FIX6 C1 — a picked Drive/OneDrive file added as a checked TManage copy.
         WorkItemCloudImportController,
         DeliverableCloudImportController,
+        // FIX6 C3 — live drive folders on a work item, and the client's read of them.
+        WorkItemCloudFoldersController,
+        PortalCloudFoldersController,
       ],
     };
   }

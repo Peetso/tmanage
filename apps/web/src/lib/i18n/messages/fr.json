@@ -19073,5 +19073,20 @@
   "DeliverableDelete.cancel": "Annuler",
   "DeliverableDelete.deleting": "Suppression…",
   "DeliverableDelete.confirm": "Supprimer le livrable",
-  "DeliverableDelete.toast": "Livrable supprimé"
+  "DeliverableDelete.toast": "Livrable supprimé",
+  "CloudFolders.title": "Dossiers en direct",
+  "CloudFolders.tip": "Ajoutez un dossier du Google Drive ou du OneDrive de votre entreprise. Ses fichiers s'affichent en direct, et le client les voit dans le portail quand ce travail est partagé avec lui.",
+  "CloudFolders.attachDrive": "Ajouter un dossier Google Drive",
+  "CloudFolders.attachOneDrive": "Ajouter un dossier OneDrive",
+  "CloudFolders.open": "Afficher les fichiers",
+  "CloudFolders.hide": "Masquer les fichiers",
+  "CloudFolders.remove": "Retirer",
+  "CloudFolders.back": "Retour",
+  "CloudFolders.empty": "Ce dossier est vide.",
+  "CloudFolders.loadError": "Le dossier ne peut pas être lu pour le moment. Réessayez dans un instant.",
+  "CloudFolders.more": "Afficher plus",
+  "CloudFolders.download": "Télécharger",
+  "CloudFolders.listLabel": "Fichiers dans {name}",
+  "CloudFolders.folderBadge": "Dossier",
+  "CloudFolders.problem": "Le dossier n'a pas été ajouté"
 }

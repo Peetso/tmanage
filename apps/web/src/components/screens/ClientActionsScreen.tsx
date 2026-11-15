@@ -14,6 +14,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { isPast, longDay, Segmented, shortDay, Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { CloudFolderList } from '../storage/CloudFolderList';
 
 export interface ClientActionsScreenProps {
   organizationSlug: string;
@@ -238,6 +239,12 @@ export function ClientActionsScreen({
                       </div>
                       <h2 className="tm-pt-action__title">{action.title}</h2>
                       <p className="tm-pt-action__text">{describeDue(action.dueAt)}</p>
+                      <CloudFolderList
+                        organizationSlug={organizationSlug}
+                        client={api}
+                        workItemId={action.id}
+                        door="portal"
+                      />
                     </div>
                     <div className="tm-pt-action__end">
                       <Link
@@ -269,6 +276,8 @@ export function ClientActionsScreen({
                 : t('ClientActionsScreen.nothingFinished')
             }
             done={view === 'done'}
+            organizationSlug={organizationSlug}
+            client={api}
           />
         )}
 
@@ -296,11 +305,15 @@ function ItemList({
   items,
   empty,
   done,
+  organizationSlug,
+  client,
 }: {
   label: string;
   items: readonly PortalWorkItem[];
   empty: string;
   done: boolean;
+  organizationSlug: string;
+  client: ApiClient;
 }) {
   const t = useT();
   if (items.length === 0) {
@@ -326,6 +339,12 @@ function ItemList({
               ) : null}
             </div>
             <h2 className="tm-pt-action__title">{item.title}</h2>
+            <CloudFolderList
+              organizationSlug={organizationSlug}
+              client={client}
+              workItemId={item.id}
+              door="portal"
+            />
           </div>
         </li>
       ))}

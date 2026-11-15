@@ -19073,5 +19073,20 @@
   "DeliverableDelete.cancel": "取消",
   "DeliverableDelete.deleting": "正在删除…",
   "DeliverableDelete.confirm": "删除交付物",
-  "DeliverableDelete.toast": "交付物已删除"
+  "DeliverableDelete.toast": "交付物已删除",
+  "CloudFolders.title": "实时文件夹",
+  "CloudFolders.tip": "添加公司 Google Drive 或 OneDrive 中的文件夹。其中的文件实时显示，当这项工作与客户共享时，客户可以在门户中看到它们。",
+  "CloudFolders.attachDrive": "添加 Google Drive 文件夹",
+  "CloudFolders.attachOneDrive": "添加 OneDrive 文件夹",
+  "CloudFolders.open": "显示文件",
+  "CloudFolders.hide": "隐藏文件",
+  "CloudFolders.remove": "移除",
+  "CloudFolders.back": "返回",
+  "CloudFolders.empty": "此文件夹为空。",
+  "CloudFolders.loadError": "暂时无法读取该文件夹。请稍后再试。",
+  "CloudFolders.more": "显示更多",
+  "CloudFolders.download": "下载",
+  "CloudFolders.listLabel": "{name} 中的文件",
+  "CloudFolders.folderBadge": "文件夹",
+  "CloudFolders.problem": "未添加文件夹"
 }

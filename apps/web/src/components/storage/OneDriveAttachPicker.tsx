@@ -31,6 +31,9 @@ export interface OneDriveAttachPickerProps {
   disabled?: boolean;
   /** False on the work item, which attaches at once and lists the files in its own card. */
   showList?: boolean;
+  /** FIX6 C3: `folder` picks one folder (Microsoft's own picker only); the button says `label`. */
+  mode?: 'files' | 'folder';
+  label?: string;
 }
 
 export const oneDriveStatusKey = (organizationSlug: string) =>
@@ -67,6 +70,8 @@ export function OneDriveAttachPicker({
   projectId,
   disabled = false,
   showList = true,
+  mode = 'files',
+  label,
 }: OneDriveAttachPickerProps) {
   const t = useT();
   const locale = useActiveLocale();
@@ -88,14 +93,15 @@ export function OneDriveAttachPicker({
     mutationFn: async (popup: Window | null): Promise<readonly PickedOneDriveItem[]> => {
       const session = await getOneDrivePickerSession(client, organizationSlug, { projectId });
       if (session.mode !== 'onedrive') {
-        setScopedProject(session.projectId);
+        // The project-scoped list offers files only; a folder needs Microsoft's own picker.
+        if (mode === 'files') setScopedProject(session.projectId);
         return [];
       }
       if (!popup) throw new Error('popup_blocked');
       return openOneDrivePicker({
         popup,
         session,
-        mode: 'files',
+        mode,
         locale,
         tokenFor: async (resource) => {
           const next = await getOneDrivePickerSession(client, organizationSlug, {
@@ -123,7 +129,7 @@ export function OneDriveAttachPicker({
         disabled={disabled || projectId === ''}
         onClick={() => pick.mutate(reservePickerWindow())}
       >
-        {t('OneDriveAttach.button')}
+        {label ?? t('OneDriveAttach.button')}
       </Button>
       {showList ? (
         picked.length > 0 ? (

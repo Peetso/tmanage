@@ -5901,6 +5901,72 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'write',
     scope: 'write',
   },
+  // FIX6 C3. Live drive folders on a work item (attach, remove, live children, open a child as a
+  // download) and the client's read of them in the portal. Not yet enriched with details.
+  {
+    id: 'work_item_cloud_folders.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/cloud-folders/',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'work_item_cloud_folders.create',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/cloud-folders/',
+    capability: 'work.update',
+    risk: 'write',
+    scope: 'write',
+  },
+  {
+    id: 'work_item_cloud_folders.delete',
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/cloud-folders/:cloudFolderId',
+    capability: 'work.update',
+    risk: 'confirm',
+    scope: 'manage',
+  },
+  {
+    id: 'work_item_cloud_folders.children.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/cloud-folders/:cloudFolderId/children',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'work_item_cloud_folders.content.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/cloud-folders/:cloudFolderId/items/:itemId/content',
+    capability: 'work.read',
+    risk: 'confirm',
+    scope: 'manage',
+  },
+  {
+    id: 'portal.work_item_cloud_folders.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/work-items/:workItemId/cloud-folders/',
+    capability: 'client_projection.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'portal.work_item_cloud_folders.children.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/work-items/:workItemId/cloud-folders/:cloudFolderId/children',
+    capability: 'client_projection.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'portal.work_item_cloud_folders.content.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/work-items/:workItemId/cloud-folders/:cloudFolderId/items/:itemId/content',
+    capability: 'client_projection.read',
+    risk: 'confirm',
+    scope: 'manage',
+  },
   // 0237. Meetings connected to Google Calendar/Meet: the meeting page in one read, cancel
   // (confirm: it tells every guest), re-send to the organizer's calendar, and email guests.
   // Not yet enriched with details, so the tool catalogue does not expose them yet.

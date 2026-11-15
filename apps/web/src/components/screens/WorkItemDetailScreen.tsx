@@ -68,6 +68,7 @@ import {
 import type { PickedOneDriveItem } from '../../lib/onedrive-picker';
 import type { PickedDriveItem } from '../../lib/google-picker';
 import { DriveAttachPicker } from '../storage/DriveAttachPicker';
+import { CloudFoldersCard } from '../storage/CloudFoldersCard';
 import { cloudImportMessageKey } from '../../lib/cloud-import-copy';
 import { HelpTip } from '../help/HelpTip';
 import { OneDriveAttachPicker, oneDriveStatusKey } from '../storage/OneDriveAttachPicker';
@@ -875,6 +876,12 @@ function WorkItemBody({
             latestOf={latestOf}
             members={directory}
             locale={locale}
+          />
+          <CloudFoldersCard
+            organizationSlug={organizationSlug}
+            client={api}
+            workItemId={item.id}
+            projectId={item.projectId}
           />
           <FigmaLinksPanel
             organizationSlug={organizationSlug}

@@ -19073,5 +19073,20 @@
   "DeliverableDelete.cancel": "Cancelar",
   "DeliverableDelete.deleting": "Excluindo…",
   "DeliverableDelete.confirm": "Excluir entregável",
-  "DeliverableDelete.toast": "Entregável excluído"
+  "DeliverableDelete.toast": "Entregável excluído",
+  "CloudFolders.title": "Pastas ao vivo",
+  "CloudFolders.tip": "Adicione uma pasta do Google Drive ou OneDrive da sua empresa. Os arquivos aparecem ao vivo, e o cliente os vê no portal quando este trabalho é compartilhado com ele.",
+  "CloudFolders.attachDrive": "Adicionar uma pasta do Google Drive",
+  "CloudFolders.attachOneDrive": "Adicionar uma pasta do OneDrive",
+  "CloudFolders.open": "Mostrar arquivos",
+  "CloudFolders.hide": "Ocultar arquivos",
+  "CloudFolders.remove": "Remover",
+  "CloudFolders.back": "Voltar",
+  "CloudFolders.empty": "Esta pasta está vazia.",
+  "CloudFolders.loadError": "Não foi possível ler a pasta agora. Tente de novo em instantes.",
+  "CloudFolders.more": "Mostrar mais",
+  "CloudFolders.download": "Baixar",
+  "CloudFolders.listLabel": "Arquivos em {name}",
+  "CloudFolders.folderBadge": "Pasta",
+  "CloudFolders.problem": "A pasta não foi adicionada"
 }

@@ -7,6 +7,12 @@ import {
   rethrowTooLarge,
   type FetchedCloudFile,
 } from '../../common/storage/cloud-fetch.js';
+import {
+  isInsideFolder,
+  type CloudFolderDrive,
+  type CloudFolderPage,
+  type CloudFolderRef,
+} from '../cloud-folders/cloud-folder-drive.js';
 import type {
   TenantContext,
   TenantDatabase,
@@ -180,7 +186,7 @@ function invalid(field: string, message: string): ApiError {
   ]);
 }
 
-export class GoogleDriveService {
+export class GoogleDriveService implements CloudFolderDrive {
   private readonly repository: GoogleDriveRepository;
   private readonly workItems: Pick<WorkItemsRepository, 'findById'>;
   private readonly projects: Pick<ProjectsRepository, 'findById'>;
@@ -618,6 +624,136 @@ export class GoogleDriveService {
       name: file.name.slice(0, 255),
       mimeType: file.mimeType.slice(0, 190),
       bytes,
+    };
+  }
+
+  /**
+   * FIX6 C3. A Drive folder about to be attached to a work item of `projectId`: it must be a
+   * folder Google shows to the company connection, and attaching it must not reach into TManage's
+   * own tree beyond this project. The TManage root, a folder that holds it, and a folder under
+   * another project's TManage folder are the same 404 an unknown id gives.
+   */
+  async describeFolder(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+    ref: CloudFolderRef,
+  ): Promise<{ readonly name: string }> {
+    const live = this.requireLive(await this.readConnection(context));
+    const accessToken = await this.accessToken(context, live);
+    const folder = await this.google(
+      () => this.deps.transport.getFile(accessToken, ref.folderId),
+      live.id,
+      context,
+    );
+    if (folder.mimeType !== FOLDER_MIME_TYPE) throw invalid('folderId', 'must be a folder');
+    const notFound = () => new ApiError(404, 'not_found', MESSAGES.notFound);
+    if (folder.id === live.rootFolderId) throw notFound();
+    const root = await this.google(
+      () => this.deps.transport.getFile(accessToken, live.rootFolderId, 'parents'),
+      live.id,
+      context,
+    );
+    const parentsOf = this.parentsReader(context, live, accessToken);
+    if (await isInsideFolder(folder.id, root.parents, parentsOf)) throw notFound();
+    const origin = await this.resolveOrigin(context, live, accessToken, folder);
+    await this.deps.database.read(context, (runner) =>
+      this.requireAttachableOrigin(runner, context, principal, live, { projectId }, folder, origin),
+    );
+    return { name: folder.name.slice(0, 255) };
+  }
+
+  /** FIX6 C3. One live page of the attached folder, or of a subfolder proven to be inside it. */
+  async listFolder(
+    context: TenantContext,
+    ref: CloudFolderRef,
+    input: { readonly parentId: string | null; readonly pageToken: string | null },
+  ): Promise<CloudFolderPage> {
+    const live = this.requireLive(await this.readConnection(context));
+    const accessToken = await this.accessToken(context, live);
+    let parentId = ref.folderId;
+    if (input.parentId !== null && input.parentId !== ref.folderId) {
+      const sub = await this.childInside(context, live, accessToken, ref, input.parentId);
+      if (sub.mimeType !== FOLDER_MIME_TYPE) throw invalid('parentId', 'must be a folder');
+      parentId = sub.id;
+    }
+    const page = await this.google(
+      () => this.deps.transport.listChildren(accessToken, { parentId, pageToken: input.pageToken }),
+      live.id,
+      context,
+    );
+    return { files: page.files, nextPageToken: page.nextPageToken };
+  }
+
+  /** FIX6 C3. A child's bytes, only once it is proven to sit inside the attached folder. */
+  async fetchFromFolder(
+    context: TenantContext,
+    ref: CloudFolderRef,
+    childId: string,
+    maxBytes: number,
+  ): Promise<FetchedCloudFile> {
+    const live = this.requireLive(await this.readConnection(context));
+    const accessToken = await this.accessToken(context, live);
+    const file = await this.childInside(context, live, accessToken, ref, childId);
+    if (file.mimeType === FOLDER_MIME_TYPE) throw invalid('itemId', 'must be a file');
+    if (isGoogleNativeFormat(file.mimeType)) {
+      throw new ApiError(422, 'validation_failed', 'Save this Google file as PDF or DOCX first', [
+        { field: 'file', message: 'google_native_format' },
+      ]);
+    }
+    const bytes = await this.google(
+      () =>
+        this.deps.transport
+          .downloadFile(accessToken, file.id, maxBytes)
+          .catch((error: unknown) => {
+            if (error instanceof DriveNoAccessError) throw cloudNoAccess();
+            return goneOrRethrow(error);
+          })
+          .catch(rethrowTooLarge),
+      live.id,
+      context,
+    );
+    return {
+      provider: 'google_drive',
+      externalId: file.id,
+      name: file.name.slice(0, 255),
+      mimeType: file.mimeType.slice(0, 190),
+      bytes,
+    };
+  }
+
+  /** FIX6 C3. The child, when its parents lead up to the attached folder; a 404 otherwise. */
+  private async childInside(
+    context: TenantContext,
+    live: StorageConnectionRow & { rootFolderId: string },
+    accessToken: string,
+    ref: CloudFolderRef,
+    childId: string,
+  ): Promise<DriveFile> {
+    const file = await this.google(
+      () => this.deps.transport.getFile(accessToken, childId),
+      live.id,
+      context,
+    );
+    const parentsOf = this.parentsReader(context, live, accessToken);
+    if (
+      file.id === ref.folderId ||
+      !(await isInsideFolder(ref.folderId, file.parents, parentsOf))
+    ) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
+    return file;
+  }
+
+  /** An ancestor's parents for the descendant walk; one Google will not show ends the branch. */
+  private parentsReader(
+    context: TenantContext,
+    live: StorageConnectionRow & { rootFolderId: string },
+    accessToken: string,
+  ): (id: string) => Promise<readonly string[]> {
+    return async (id) => {
+      const parents = await this.ancestorParents(context, live, accessToken, id);
+      return parents === 'hidden' ? [] : parents;
     };
   }
 

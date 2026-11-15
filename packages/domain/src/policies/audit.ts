@@ -681,6 +681,18 @@ export const AUDIT_ACTION_CATALOG = {
     clause: '§12 — content brought in from an external store to become what a client approves',
   },
   /**
+   * FIX6 C3. A Google Drive or OneDrive folder attached to a work item (its children are read live)
+   * or removed from it. Metadata: provider, the SHA-256 of the folder id, the work item id.
+   */
+  'work_item.cloud_folder_attached': {
+    objectType: 'work_item',
+    clause: '§12 — an external store linked live into a tenant record',
+  },
+  'work_item.cloud_folder_removed': {
+    objectType: 'work_item',
+    clause: '§12 — the same link removed (the folder itself is never touched)',
+  },
+  /**
    * 0237. A person connects or disconnects their OWN Google or Microsoft calendar (provider in the
    * metadata, never the account's token or address), and a meeting is cancelled or re-sent to it.
    */
@@ -1799,6 +1811,8 @@ const AUDIT_ACTION_LABELS = {
   'onedrive_attachment.removed': 'Removed a OneDrive file',
   'work_item.drive_file_imported': 'Added a file from cloud storage to a work item',
   'deliverable.drive_version_imported': 'Added a file from cloud storage for a deliverable',
+  'work_item.cloud_folder_attached': 'Attached a cloud storage folder to a work item',
+  'work_item.cloud_folder_removed': 'Removed a cloud storage folder from a work item',
   'calendar_connection.connected': 'Connected a calendar',
   'calendar_connection.disconnected': 'Disconnected a calendar',
   'meeting.cancelled': 'Cancelled a meeting',

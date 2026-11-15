@@ -19264,5 +19264,20 @@
   "DeliverableDelete.cancel": "إلغاء",
   "DeliverableDelete.deleting": "جاري المسح…",
   "DeliverableDelete.confirm": "امسح التسليم",
-  "DeliverableDelete.toast": "التسليم اتمسح"
+  "DeliverableDelete.toast": "التسليم اتمسح",
+  "CloudFolders.title": "فولدرات مباشرة",
+  "CloudFolders.tip": "ضيف فولدر من Google Drive أو OneDrive بتوع الشركة. ملفاته بتظهر على طول، والعميل بيشوفها في البوابة لما الشغل ده يكون متشارك معاه.",
+  "CloudFolders.attachDrive": "ضيف فولدر من Google Drive",
+  "CloudFolders.attachOneDrive": "ضيف فولدر من OneDrive",
+  "CloudFolders.open": "اعرض الملفات",
+  "CloudFolders.hide": "اخفي الملفات",
+  "CloudFolders.remove": "شيل",
+  "CloudFolders.back": "رجوع",
+  "CloudFolders.empty": "الفولدر ده فاضي.",
+  "CloudFolders.loadError": "مش قادرين نقرا الفولدر دلوقتي. جرّب تاني بعد شوية.",
+  "CloudFolders.more": "اعرض أكتر",
+  "CloudFolders.download": "نزّل",
+  "CloudFolders.listLabel": "الملفات في {name}",
+  "CloudFolders.folderBadge": "فولدر",
+  "CloudFolders.problem": "الفولدر ماتضافش"
 }

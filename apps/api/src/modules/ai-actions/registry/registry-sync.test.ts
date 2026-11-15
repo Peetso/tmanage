@@ -193,7 +193,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // FIX6 item 8: POST deliverables/:id/delete and /restore (classified).
 // FIX6 C1: POST work-items/:id/drive-files and /onedrive-files, deliverables/:id/drive-files and
 // /onedrive-files (+4 classified).
-const EXPECTED_ROUTE_COUNT = 1437;
+// FIX6 C3: work-items/:id/cloud-folders (list, attach, remove, children, content) and the portal's
+// list, children and content (+8 classified).
+const EXPECTED_ROUTE_COUNT = 1445;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

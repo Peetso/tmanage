@@ -23,6 +23,9 @@ export interface DriveAttachPickerProps {
    */
   projectId: string;
   disabled?: boolean;
+  /** FIX6 C3: `folder` picks one folder (Google's own picker only); the button says `label`. */
+  mode?: 'files' | 'folder';
+  label?: string;
 }
 
 /**
@@ -44,6 +47,8 @@ export function DriveAttachPicker({
   onRemove,
   projectId,
   disabled = false,
+  mode = 'files',
+  label,
 }: DriveAttachPickerProps) {
   const t = useT();
   const locale = useActiveLocale();
@@ -65,14 +70,15 @@ export function DriveAttachPicker({
     mutationFn: async (): Promise<readonly PickedDriveItem[]> => {
       const session = await getPickerSession(client, organizationSlug, projectId);
       if (session.mode !== 'google') {
-        setScopedProject(session.projectId);
+        // The project-scoped list offers files only; a folder needs Google's own picker.
+        if (mode === 'files') setScopedProject(session.projectId);
         return [];
       }
       return openDrivePicker({
         accessToken: session.accessToken,
         apiKey: session.apiKey,
         appId: session.appId,
-        mode: 'files',
+        mode,
         locale,
         title: t('DriveAttach.pickerTitle'),
       });
@@ -92,7 +98,7 @@ export function DriveAttachPicker({
         disabled={disabled || projectId === ''}
         onClick={() => pick.mutate()}
       >
-        {t('DriveAttach.button')}
+        {label ?? t('DriveAttach.button')}
       </Button>
       {picked.length > 0 ? (
         <ul className="tm-drive-attach__list" aria-label={t('DriveAttach.listLabel')}>

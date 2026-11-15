@@ -2427,3 +2427,9 @@ GRANT SELECT ON `tmanage`.`oauth_grants`         TO 'tmanage_worker'@'%';
 -- `work_item_time_logs`, which the app already holds. SELECT rides the database-wide read. The
 -- worker needs no grant.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`time_auto_tracking` TO 'tmanage_app'@'%';
+
+-- ---- FIX6 C3 · live cloud folders on a work item ----
+-- 0346 `work_item_cloud_folders` (tenant): a member INSERTs an attachment and removes it with an
+-- UPDATE (`removed_at`); DELETE serves the company erasure only. SELECT rides the database-wide
+-- read. The worker needs no grant.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_item_cloud_folders` TO 'tmanage_app'@'%';

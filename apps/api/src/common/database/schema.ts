@@ -13685,3 +13685,41 @@ export const scimTokens = mysqlTable(
 export type ScimTokenRow = typeof scimTokens.$inferSelect;
 
 Object.assign(TABLES, { scim_tokens: scimTokens });
+
+// ---- FIX6 C3 · live cloud folders on a work item (0346) ----
+
+/**
+ * 0346 (FIX6 C3). A Google Drive or OneDrive folder attached to a work item. Only the provider's
+ * ids, the name at attach time and who attached it are kept; the children are read live with the
+ * company connection. `removed_at` set = removed, never listed or opened again. TENANT: keyed
+ * `(organization_id, id)`.
+ */
+export const workItemCloudFolders = mysqlTable(
+  'work_item_cloud_folders',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    provider: varchar('provider', { length: 16 }).$type<'google_drive' | 'onedrive'>().notNull(),
+    externalDriveId: varchar('external_drive_id', { length: 255 }),
+    externalFolderId: varchar('external_folder_id', { length: 255 }).notNull(),
+    name: varchar('name', { length: 255 }).notNull(),
+    attachedByUserId: char('attached_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    removedAt: datetime('removed_at', { mode: 'date', fsp: 3 }),
+    removedByUserId: char('removed_by_user_id', { length: 36 }),
+  },
+  (table) => [
+    uniqueIndex('uq_work_item_cloud_folders_org_id').on(table.organizationId, table.id),
+    index('ix_work_item_cloud_folders_item').on(
+      table.organizationId,
+      table.workItemId,
+      table.removedAt,
+    ),
+  ],
+);
+
+export type WorkItemCloudFolderRow = typeof workItemCloudFolders.$inferSelect;
+
+Object.assign(TABLES, { work_item_cloud_folders: workItemCloudFolders });

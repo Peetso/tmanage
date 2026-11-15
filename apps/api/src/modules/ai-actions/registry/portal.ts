@@ -91,6 +91,39 @@ export const portalDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'All', args: {} }],
   }),
   det({
+    id: 'portal.work_item_cloud_folders.list',
+    title: 'Portal work item folders',
+    description: 'The live Drive/OneDrive folders on a client-visible work item.',
+    input: pathOnly('workItemId'),
+    redact: 'client_safe',
+    examples: [{ summary: 'By work item', args: { workItemId: 'wi_1' } }],
+  }),
+  det({
+    id: 'portal.work_item_cloud_folders.children.list',
+    title: 'Portal folder files',
+    description: 'The files in a live folder on a client-visible work item, read live.',
+    input: listArgs(['workItemId', 'cloudFolderId'], {
+      parentId: f.text(255).optional(),
+      pageToken: f.text(1024).optional(),
+    }),
+    redact: 'client_safe',
+    examples: [{ summary: 'By folder', args: { workItemId: 'wi_1', cloudFolderId: 'cf_1' } }],
+  }),
+  det({
+    id: 'portal.work_item_cloud_folders.content.list',
+    title: 'Get a file from a portal folder',
+    description:
+      'A file from a live folder on a client-visible work item. Confirm-class: returns its bytes.',
+    input: pathOnly('workItemId', 'cloudFolderId', 'itemId'),
+    redact: 'client_safe',
+    examples: [
+      {
+        summary: 'By item',
+        args: { workItemId: 'wi_1', cloudFolderId: 'cf_1', itemId: 'drv_1' },
+      },
+    ],
+  }),
+  det({
     id: 'portal.inbox.list',
     title: 'Portal inbox',
     description: 'Client-facing inbox bundles.',

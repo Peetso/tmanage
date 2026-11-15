@@ -19264,5 +19264,20 @@
   "DeliverableDelete.cancel": "Cancel",
   "DeliverableDelete.deleting": "Deleting…",
   "DeliverableDelete.confirm": "Delete deliverable",
-  "DeliverableDelete.toast": "Deliverable deleted"
+  "DeliverableDelete.toast": "Deliverable deleted",
+  "CloudFolders.title": "Live folders",
+  "CloudFolders.tip": "Add a folder from your company's Google Drive or OneDrive. Its files are shown live, and the client sees them in the portal when this work is shared with them.",
+  "CloudFolders.attachDrive": "Add a Google Drive folder",
+  "CloudFolders.attachOneDrive": "Add a OneDrive folder",
+  "CloudFolders.open": "Show files",
+  "CloudFolders.hide": "Hide files",
+  "CloudFolders.remove": "Remove",
+  "CloudFolders.back": "Back",
+  "CloudFolders.empty": "This folder is empty.",
+  "CloudFolders.loadError": "The folder can't be read right now. Try again in a moment.",
+  "CloudFolders.more": "Show more",
+  "CloudFolders.download": "Download",
+  "CloudFolders.listLabel": "Files in {name}",
+  "CloudFolders.folderBadge": "Folder",
+  "CloudFolders.problem": "The folder wasn't added"
 }

@@ -7,6 +7,12 @@ import {
   rethrowTooLarge,
   type FetchedCloudFile,
 } from '../../common/storage/cloud-fetch.js';
+import {
+  isInsideFolder,
+  type CloudFolderDrive,
+  type CloudFolderPage,
+  type CloudFolderRef,
+} from '../cloud-folders/cloud-folder-drive.js';
 import type {
   TenantContext,
   TenantDatabase,
@@ -227,7 +233,7 @@ function graphScopes(row: StorageConnectionRow): string {
   return grantsLibraries(row.grantedScopes) ? ONEDRIVE_LIBRARY_SCOPES : ONEDRIVE_BASE_SCOPES;
 }
 
-export class OneDriveService {
+export class OneDriveService implements CloudFolderDrive {
   private readonly repository: OneDriveRepository;
   private readonly workItems: Pick<WorkItemsRepository, 'findById'>;
   private readonly projects: Pick<ProjectsRepository, 'findById'>;
@@ -679,6 +685,159 @@ export class OneDriveService {
       name: file.name.slice(0, 255),
       mimeType: file.mimeType.slice(0, 190),
       bytes,
+    };
+  }
+
+  /**
+   * FIX6 C3. A OneDrive folder about to be attached to a work item of `projectId`. The TManage
+   * root, a folder that holds it, and a folder under another project's TManage folder are the
+   * same 404 an unknown id gives.
+   */
+  async describeFolder(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+    ref: CloudFolderRef,
+  ): Promise<{ readonly name: string }> {
+    const live = this.requireLive(await this.readConnection(context));
+    const accessToken = await this.token(context, live);
+    const folder = await this.graph(
+      () => this.deps.transport.getItem(accessToken, this.target(ref, ref.folderId)),
+      live.id,
+      context,
+    );
+    if (!folder.isFolder) throw invalid('itemId', 'must be a folder');
+    if (folder.driveId === live.onedriveDriveId) {
+      if (folder.id === live.rootFolderId) throw notFound();
+      const root = await this.graph(
+        () =>
+          this.deps.transport.getItem(
+            accessToken,
+            { driveId: live.onedriveDriveId, itemId: live.rootFolderId },
+            'parent',
+          ),
+        live.id,
+        context,
+      );
+      const parentsOf = this.parentsReader(context, live, accessToken, folder.driveId);
+      if (await isInsideFolder(folder.id, root.parentId ? [root.parentId] : [], parentsOf)) {
+        throw notFound();
+      }
+    }
+    const origin = await this.resolveOrigin(context, live, accessToken, folder);
+    await this.deps.database.read(context, (runner) =>
+      this.requireAttachableOrigin(runner, context, principal, live, { projectId }, folder, origin),
+    );
+    return { name: folder.name.slice(0, 255) };
+  }
+
+  /** FIX6 C3. One live page of the attached folder, or of a subfolder proven to be inside it. */
+  async listFolder(
+    context: TenantContext,
+    ref: CloudFolderRef,
+    input: { readonly parentId: string | null; readonly pageToken: string | null },
+  ): Promise<CloudFolderPage> {
+    const live = this.requireLive(await this.readConnection(context));
+    const accessToken = await this.token(context, live);
+    let itemId = ref.folderId;
+    if (input.parentId !== null && input.parentId !== ref.folderId) {
+      const sub = await this.childInside(context, live, accessToken, ref, input.parentId);
+      if (!sub.isFolder) throw invalid('parentId', 'must be a folder');
+      itemId = sub.id;
+    }
+    const page = await this.graph(
+      () =>
+        this.deps.transport.listChildren(accessToken, {
+          ...this.target(ref, itemId),
+          skipToken: input.pageToken,
+        }),
+      live.id,
+      context,
+    );
+    return { files: page.files, nextPageToken: page.nextPageToken };
+  }
+
+  /** FIX6 C3. A child's bytes, only once it is proven to sit inside the attached folder. */
+  async fetchFromFolder(
+    context: TenantContext,
+    ref: CloudFolderRef,
+    childId: string,
+    maxBytes: number,
+  ): Promise<FetchedCloudFile> {
+    const live = this.requireLive(await this.readConnection(context));
+    const accessToken = await this.token(context, live);
+    const file = await this.childInside(context, live, accessToken, ref, childId);
+    if (file.isFolder) throw invalid('itemId', 'must be a file');
+    const bytes = await this.graph(
+      () =>
+        this.deps.transport
+          .downloadItem(accessToken, { driveId: file.driveId, itemId: file.id }, maxBytes)
+          .catch((error: unknown) => {
+            if (error instanceof OneDriveNoAccessError) throw cloudNoAccess();
+            return goneOrRethrow(error);
+          })
+          .catch(rethrowTooLarge),
+      live.id,
+      context,
+    );
+    return {
+      provider: 'onedrive',
+      externalId: `${file.driveId}:${file.id}`,
+      name: file.name.slice(0, 255),
+      mimeType: file.mimeType.slice(0, 190),
+      bytes,
+    };
+  }
+
+  private target(ref: CloudFolderRef, itemId: string): { driveId: string; itemId: string } {
+    if (ref.driveId === null) throw notFound();
+    return { driveId: ref.driveId, itemId };
+  }
+
+  /**
+   * FIX6 C3. The child, when it is in the folder's drive and its parent chain leads up to the
+   * attached folder (at most 20 levels); a 404 otherwise. The chain is followed by item id rather
+   * than by comparing `parentReference.path` strings, which Graph may percent-encode while names
+   * are not, so a prefix test could match a sibling whose name looks like a path.
+   */
+  private async childInside(
+    context: TenantContext,
+    live: LiveConnection,
+    accessToken: string,
+    ref: CloudFolderRef,
+    childId: string,
+  ): Promise<OneDriveItem> {
+    const file = await this.graph(
+      () => this.deps.transport.getItem(accessToken, this.target(ref, childId)),
+      live.id,
+      context,
+    );
+    const parentsOf = this.parentsReader(context, live, accessToken, file.driveId);
+    if (
+      file.driveId !== ref.driveId ||
+      file.id === ref.folderId ||
+      !(await isInsideFolder(ref.folderId, file.parentId ? [file.parentId] : [], parentsOf))
+    ) {
+      throw notFound();
+    }
+    return file;
+  }
+
+  /** An ancestor's parent for the descendant walk; one Graph will not show ends the branch. */
+  private parentsReader(
+    context: TenantContext,
+    live: LiveConnection,
+    accessToken: string,
+    driveId: string,
+  ): (id: string) => Promise<readonly string[]> {
+    return async (itemId) => {
+      try {
+        const item = await this.deps.transport.getItem(accessToken, { driveId, itemId }, 'parent');
+        return item.parentId ? [item.parentId] : [];
+      } catch (error) {
+        if (error instanceof OneDriveItemNotFoundError) return [];
+        return this.graph<readonly string[]>(() => Promise.reject(error), live.id, context);
+      }
     };
   }
 
