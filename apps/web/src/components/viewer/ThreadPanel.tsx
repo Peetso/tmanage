@@ -31,7 +31,7 @@ import { ThreadComposer, type ComposerSubmit } from './ThreadComposer';
 import { ViewerIcon } from './viewer-icons';
 
 export type ThreadFilter = 'all' | 'open' | 'resolved' | 'mine' | 'page';
-export type PanelTab = 'comments' | 'versions' | 'details';
+export type PanelTab = 'comments' | 'layers' | 'versions' | 'details';
 
 /** Whether the viewer started this thread (their first comment is theirs to delete). */
 export function isMine(thread: ReviewThread): boolean {
@@ -83,8 +83,8 @@ export interface ThreadPanelProps {
   readonly versionsContent?: ReactNode;
   /** R4 slice 11: the decision card under the comments (V-33). */
   readonly commentsFooter?: ReactNode;
-  /** R4 slice 11: more facts under Details (the Photoshop layers). */
-  readonly detailsExtra?: ReactNode;
+  /** FIX6 item 5: a Photoshop file's layers, in their own Layers tab (was under Details). */
+  readonly layersContent?: ReactNode;
   /** R4 slice 11: open this tab (the Versions tab after an upload). */
   readonly requestedTab?: PanelTab | null;
 }
@@ -116,7 +116,7 @@ export function ThreadPanel({
   onChanged,
   versionsContent,
   commentsFooter,
-  detailsExtra,
+  layersContent,
   requestedTab = null,
 }: ThreadPanelProps) {
   const t = useT();
@@ -192,6 +192,7 @@ export function ThreadPanel({
   const versionCount = manifest.versions.versions.length;
   const tabs: readonly { id: PanelTab; label: string; count?: number }[] = [
     { id: 'comments', label: t('Viewer.tab.comments'), count: threads.length },
+    ...(layersContent ? [{ id: 'layers' as const, label: t('ViewerFormats.psd.title') }] : []),
     { id: 'versions', label: t('Viewer.tab.versions'), count: versionCount },
     { id: 'details', label: t('Viewer.tab.details') },
   ];
@@ -392,6 +393,8 @@ export function ThreadPanel({
               {commentsFooter}
             </>
           )
+        ) : tab === 'layers' ? (
+          layersContent
         ) : tab === 'versions' ? (
           (versionsContent ?? (
             <VersionsList manifest={manifest} organizationSlug={organizationSlug} />
@@ -399,7 +402,6 @@ export function ThreadPanel({
         ) : (
           <>
             <DetailsList manifest={manifest} naturalSize={naturalSize} />
-            {detailsExtra}
           </>
         )}
       </div>

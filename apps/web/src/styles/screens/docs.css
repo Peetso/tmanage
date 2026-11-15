@@ -200,6 +200,25 @@
   text-decoration: none;
 }
 
+/* FIX6 item 5: a PSD row's artwork, before its name. Empty until the thumbnail is ready. */
+.tm-dx-table__thumb:not(:empty) {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 32px;
+  block-size: 32px;
+  margin-inline-end: var(--s2);
+  vertical-align: middle;
+  overflow: hidden;
+  border-radius: var(--r-micro);
+  background: var(--paper-150);
+}
+
+.tm-dx-table__thumb img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
 .tm-dx-table__title a:hover {
   text-decoration: underline;
   text-decoration-color: var(--tm-accent-on-ink-deep, var(--lime-600));

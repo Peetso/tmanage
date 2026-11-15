@@ -2,6 +2,12 @@ import { createRequire } from 'node:module';
 import type * as AgPsdModule from 'ag-psd';
 import type { Layer, Psd, ReadOptions } from 'ag-psd';
 import type { RgbaImage } from './codecs.js';
+import {
+  agPsdReadsColorMode,
+  psdHeader,
+  readForeignComposite,
+  withRgbHeader,
+} from './psd-composite.js';
 import { rasterOutcomes } from './raster.js';
 import type { DecodedPage } from './raster.js';
 import { failed, unsupported } from './types.js';
@@ -178,14 +184,6 @@ export function flattenLayers(psd: Psd): RgbaImage {
   return { width, height, data: out };
 }
 
-/** Width × height from the 26-byte header, without decoding anything. */
-export function psdHeaderSize(bytes: Uint8Array): { width: number; height: number } | null {
-  if (bytes.byteLength < 26) return null;
-  const data = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (data.getUint32(0) !== 0x38425053) return null; // `8BPS`
-  return { height: data.getUint32(14), width: data.getUint32(18) };
-}
-
 function read(bytes: Uint8Array, options: ReadOptions): Psd | null {
   try {
     return agPsd().readPsd(bytes, {
@@ -221,15 +219,25 @@ export const psdGenerator: PreviewGenerator = {
     return [{ kind: 'preview' }, { kind: 'thumb' }, { kind: 'psd_layers' }];
   },
   async generate(source, requests, limits) {
-    const size = psdHeaderSize(source.bytes);
-    if (!size || size.width === 0 || size.height === 0) {
+    // Width × height (and the colour mode) from the 26-byte header, before decoding anything.
+    const header = psdHeader(source.bytes);
+    if (!header || header.width === 0 || header.height === 0) {
       return requests.map(() => failed('decode_failed'));
     }
+    const size = { width: header.width, height: header.height };
     if (size.width * size.height > limits.maxPixels) {
       return requests.map(() => unsupported('unsupported_too_large'));
     }
 
     const wantsRaster = requests.some((request) => request.kind !== 'psd_layers');
+    if (!agPsdReadsColorMode(header.colorMode)) {
+      // FIX6 item 5: CMYK, Lab, multichannel, duotone — read here, colours approximate.
+      const treeOnly = withRgbHeader(source.bytes, () =>
+        read(source.bytes, { skipLayerImageData: true, skipCompositeImageData: true }),
+      );
+      const foreign = wantsRaster ? readForeignComposite(source.bytes) : null;
+      return answer(requests, layerTreeOf(treeOnly?.children), size, foreign?.image ?? null, true);
+    }
     // First pass: the composite and the tree, without every layer's pixels.
     const psd = read(source.bytes, {
       skipLayerImageData: true,
@@ -256,20 +264,28 @@ export const psdGenerator: PreviewGenerator = {
       }
     }
 
-    const raster: PreviewRequest[] = requests.filter((request) => request.kind !== 'psd_layers');
-    const rasterAnswers = image
-      ? await rasterOutcomes(raster, async (): Promise<DecodedPage> => ({
-          status: 'decoded',
-          image: image!,
-          meta: { approximate },
-        }))
-      : raster.map(() => failed('decode_failed'));
-
-    let next = 0;
-    return requests.map((request) =>
-      request.kind === 'psd_layers'
-        ? layersOutcome(tree, size, approximate)
-        : rasterAnswers[next++]!,
-    );
+    return answer(requests, tree, size, image, approximate);
   },
 };
+
+/** One outcome per request: the rasters from `image` (or a decode failure), and the tree. */
+async function answer(
+  requests: readonly PreviewRequest[],
+  tree: PsdLayerTree,
+  size: { width: number; height: number },
+  image: RgbaImage | null,
+  approximate: boolean,
+): Promise<PreviewOutcome[]> {
+  const raster: PreviewRequest[] = requests.filter((request) => request.kind !== 'psd_layers');
+  const rasterAnswers = image
+    ? await rasterOutcomes(raster, async (): Promise<DecodedPage> => ({
+        status: 'decoded',
+        image,
+        meta: { approximate },
+      }))
+    : raster.map(() => failed('decode_failed'));
+  let next = 0;
+  return requests.map((request) =>
+    request.kind === 'psd_layers' ? layersOutcome(tree, size, approximate) : rasterAnswers[next++]!,
+  );
+}

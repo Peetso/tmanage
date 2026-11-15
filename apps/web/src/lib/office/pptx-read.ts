@@ -36,6 +36,26 @@ export interface SlideParagraph {
   readonly runs: readonly SlideRun[];
 }
 
+/**
+ * FIX6 item 6: how PowerPoint lays the text inside its box (`a:bodyPr`): the inner margins, the
+ * vertical anchor, and the shrink "Shrink text on overflow" saved (`a:normAutofit`). Without
+ * them the last line of a full box fell outside it and was cut.
+ */
+export interface SlideTextBody {
+  /** Inner margins in EMU (PowerPoint's defaults 91 440 left/right, 45 720 top/bottom). */
+  readonly insets: {
+    readonly l: number;
+    readonly t: number;
+    readonly r: number;
+    readonly b: number;
+  };
+  readonly anchor: 'top' | 'middle' | 'bottom';
+  /** 1 = as written; 0.625 = the 62.5 % PowerPoint shrank the text to. */
+  readonly fontScale: number;
+  /** 1 = as written; 0.8 = line spacing reduced by 20 %. */
+  readonly lineScale: number;
+}
+
 export interface SlideShape {
   readonly kind: 'text' | 'picture';
   /** Fractions 0 … 1 of the slide width / height. */
@@ -47,6 +67,8 @@ export interface SlideShape {
   readonly paragraphs: readonly SlideParagraph[];
   /** Picture: the media part inside the package (`ppt/media/image1.png`). */
   readonly media: string | null;
+  /** Text: how the text sits in the box; `null` for a picture. */
+  readonly body: SlideTextBody | null;
 }
 
 export interface Slide {
@@ -59,8 +81,19 @@ export interface Deck {
   readonly width: number;
   readonly height: number;
   readonly slides: readonly Slide[];
-  /** Media part → its bytes as a browser object URL, made once per deck. */
-  readonly media: ReadonlyMap<string, string>;
+  /** The pictures, unpacked on first use (FIX6 item 6: the first slide does not wait for all). */
+  readonly media: DeckMedia;
+}
+
+/**
+ * A deck's pictures as browser object URLs, made when a slide first asks, one at a time in the
+ * order asked — the slide on the stage asks before the strip, so it fills in first.
+ */
+export interface DeckMedia {
+  url(part: string): Promise<string | null>;
+  /** A URL already made (so a slide drawn again shows its picture at once). */
+  ready(part: string): string | undefined;
+  release(): void;
 }
 
 const DEFAULT_WIDTH = 12_192_000;
@@ -187,6 +220,33 @@ function inheritedFrame(ph: Placeholder | null, ...sources: Map<string, Frame>[]
   return null;
 }
 
+const DEFAULT_INSETS = { l: 91_440, t: 45_720, r: 91_440, b: 45_720 } as const;
+
+function textBodyOf(shape: Element): SlideTextBody {
+  const bodyPr = child(child(shape, 'txBody'), 'bodyPr');
+  const inset = (name: string, fallback: number) => {
+    const value = emu(bodyPr, name);
+    return value === null || value < 0 ? fallback : value;
+  };
+  const autofit = child(bodyPr, 'normAutofit');
+  const share = (name: string, fallback: number) => {
+    const raw = Number(attr(autofit, name));
+    return Number.isFinite(raw) && raw > 0 ? raw / 100_000 : fallback;
+  };
+  const anchor = attr(bodyPr, 'anchor');
+  return {
+    insets: {
+      l: inset('lIns', DEFAULT_INSETS.l),
+      t: inset('tIns', DEFAULT_INSETS.t),
+      r: inset('rIns', DEFAULT_INSETS.r),
+      b: inset('bIns', DEFAULT_INSETS.b),
+    },
+    anchor: anchor === 'ctr' ? 'middle' : anchor === 'b' ? 'bottom' : 'top',
+    fontScale: Math.min(1, share('fontScale', 1)),
+    lineScale: Math.max(0.5, 1 - share('lnSpcReduction', 0)),
+  };
+}
+
 function paragraphsOf(shape: Element, theme: Theme): SlideParagraph[] {
   const body = child(shape, 'txBody');
   if (!body) return [];
@@ -274,6 +334,7 @@ function shapesOf(tree: Element, context: SlideContext, transform: Transform): S
         fill,
         paragraphs: hasText ? paragraphs : [],
         media: null,
+        body: hasText ? textBodyOf(node) : null,
       });
     } else if (node.localName === 'pic') {
       const frame = frameOf(child(node, 'spPr'));
@@ -286,6 +347,7 @@ function shapesOf(tree: Element, context: SlideContext, transform: Transform): S
         fill: null,
         paragraphs: [],
         media,
+        body: null,
       });
     } else if (node.localName === 'grpSp') {
       const xfrm = child(child(node, 'grpSpPr'), 'xfrm');
@@ -325,17 +387,39 @@ function backgroundOf(document: Document | null, theme: Theme): string | null {
   return bg ? colourOf(child(child(bg, 'bgPr'), 'solidFill'), theme) : null;
 }
 
-async function mediaUrls(zip: JSZip, parts: ReadonlySet<string>): Promise<Map<string, string>> {
-  const urls = new Map<string, string>();
-  for (const part of parts) {
-    const extension = part.split('.').pop()?.toLowerCase() ?? '';
-    const type = IMAGE_TYPES[extension];
+function deckMedia(zip: JSZip, parts: ReadonlySet<string>): DeckMedia {
+  const made = new Map<string, string>();
+  const pending = new Map<string, Promise<string | null>>();
+  let queue: Promise<unknown> = Promise.resolve();
+  let released = false;
+  const unpack = async (part: string): Promise<string | null> => {
+    const type = IMAGE_TYPES[part.split('.').pop()?.toLowerCase() ?? ''];
     const file = zip.file(part);
-    if (!type || !file) continue;
+    if (released || !type || !file) return null;
     const bytes = await file.async('uint8array');
-    urls.set(part, URL.createObjectURL(new Blob([bytes as BlobPart], { type })));
-  }
-  return urls;
+    if (released) return null;
+    const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type }));
+    made.set(part, url);
+    return url;
+  };
+  return {
+    url(part) {
+      if (!parts.has(part)) return Promise.resolve(null);
+      const known = pending.get(part);
+      if (known) return known;
+      // One picture at a time, in the order asked.
+      const next = queue.then(() => unpack(part)).catch(() => null);
+      queue = next;
+      pending.set(part, next);
+      return next;
+    },
+    ready: (part) => made.get(part),
+    release() {
+      released = true;
+      for (const url of made.values()) URL.revokeObjectURL(url);
+      made.clear();
+    },
+  };
 }
 
 /** Reads a deck's slides in presentation order. Throws when the bytes are not a deck. */
@@ -397,10 +481,10 @@ export async function readDeck(bytes: ArrayBuffer | Uint8Array): Promise<Deck> {
       (masterPart ? backgroundOf(await readXml(zip, masterPart), theme) : null);
     slides.push({ background, shapes });
   }
-  return { width, height, slides, media: await mediaUrls(zip, mediaParts) };
+  return { width, height, slides, media: deckMedia(zip, mediaParts) };
 }
 
 /** Frees the object URLs a deck made for its pictures. */
 export function releaseDeck(deck: Deck): void {
-  for (const url of deck.media.values()) URL.revokeObjectURL(url);
+  deck.media.release();
 }

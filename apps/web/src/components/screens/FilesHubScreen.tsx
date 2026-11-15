@@ -22,6 +22,7 @@ import { useDeleteFile } from '../viewer/DeleteFileDialog';
 import { CheckedLabel } from './CheckedLabel';
 import { HelpTip } from '../help/HelpTip';
 import { UploadProgressItem, useUploadQueue } from '../storage/UploadProgress';
+import { needsPreviewThumb, PreviewThumb } from '../viewer/PreviewThumb';
 
 export interface FilesHubScreenProps {
   readonly organizationSlug: string;
@@ -320,6 +321,16 @@ export function FilesHubScreen({
                   <tr key={file.id}>
                     <th scope="row" className="tm-dx-table__title">
                       <Link href={`/${organizationSlug}/files/${encodeURIComponent(file.id)}`}>
+                        {needsPreviewThumb(file.name) ? (
+                          // FIX6 item 5: a PSD row shows its artwork.
+                          <PreviewThumb
+                            api={api}
+                            organizationSlug={organizationSlug}
+                            fileAssetId={file.id}
+                            className="tm-dx-table__thumb"
+                            fallback={null}
+                          />
+                        ) : null}
                         <span dir="auto">{file.name}</span>
                       </Link>
                       {file.scanStatus === 'not_scanned' ? <CheckedLabel /> : null}

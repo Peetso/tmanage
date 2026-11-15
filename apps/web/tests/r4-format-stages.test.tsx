@@ -296,7 +296,33 @@ describe('PowerPoint reader and stage (V-25 PowerPoint)', () => {
     expect(box).toMatchObject({ kind: 'text', x: 0.5, y: 0.5, w: 0.25, h: 0.25, fill: '#D9F99D' });
     expect(picture).toMatchObject({ kind: 'picture', media: 'ppt/media/image1.png' });
     expect(deck.slides[0]!.background).toBe('#F5F5F0');
-    expect(deck.media.get('ppt/media/image1.png')).toMatch(/^blob:/);
+    // FIX6 item 6: pictures are unpacked when a slide asks, not before the deck opens.
+    expect(deck.media.ready('ppt/media/image1.png')).toBeUndefined();
+    expect(await deck.media.url('ppt/media/image1.png')).toMatch(/^blob:/);
+    expect(deck.media.ready('ppt/media/image1.png')).toMatch(/^blob:/);
+    expect(title?.body).toEqual({
+      insets: { l: 91_440, t: 45_720, r: 91_440, b: 45_720 },
+      anchor: 'top',
+      fontScale: 1,
+      lineScale: 1,
+    });
+  });
+
+  it('reads the text box margins, anchor and saved shrink, so the last line fits (FIX6 item 6)', async () => {
+    const files = deckFiles();
+    files['ppt/slides/slide2.xml'] =
+      `<p:sld xmlns:p="${NS_P}" xmlns:a="${NS_A}"><p:cSld><p:spTree>` +
+      `<p:sp><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="3048000" cy="342900"/></a:xfrm></p:spPr>` +
+      `<p:txBody><a:bodyPr lIns="0" tIns="0" rIns="0" bIns="0" anchor="ctr"><a:normAutofit fontScale="62500" lnSpcReduction="20000"/></a:bodyPr>` +
+      `<a:p><a:r><a:t>Four lines of copy</a:t></a:r></a:p></p:txBody></p:sp>` +
+      `</p:spTree></p:cSld></p:sld>`;
+    const deck = await readDeck(await packageBytes(files));
+    expect(deck.slides[1]!.shapes[0]?.body).toEqual({
+      insets: { l: 0, t: 0, r: 0, b: 0 },
+      anchor: 'middle',
+      fontScale: 0.625,
+      lineScale: 0.8,
+    });
   });
 
   it('keeps a shape fill’s alpha, so a 10 % tint does not hide text of the same colour (FIX5)', async () => {
@@ -440,13 +466,16 @@ describe('PsdLayersPanel (V-22)', () => {
 
   it('lists layers top first with kind, blend and opacity, and folds groups', async () => {
     const { container } = render(<PsdLayersPanel psd={psd} />);
-    expect(screen.getByText('4 layers · 1 groups')).toBeTruthy();
+    expect(screen.getByText('4 layers · 1 group')).toBeTruthy();
     expect(screen.getByText('4200 × 5400 px')).toBeTruthy();
     expect(screen.getByText('Text · 100%')).toBeTruthy();
     expect(screen.getByText('Smart object')).toBeTruthy();
     expect(screen.getByText('Soft light · 60%')).toBeTruthy();
     expect(screen.getByText('Adjustment · not re-rendered')).toBeTruthy();
     expect(screen.getByLabelText(/Colour grade, .* Hidden when saved/)).toBeTruthy();
+    // FIX6 item 5: no eye icons that look like switches; a hidden layer says so in words.
+    expect(container.querySelector('.tm-psd-layer__eye')).toBeNull();
+    expect(container.querySelectorAll('.tm-psd-layer__state')).toHaveLength(1);
     const toggle = screen.getByRole('button', { name: 'Close group Headline' });
     fireEvent.click(toggle);
     expect(screen.queryByText('Stay where the city slows down')).toBeNull();

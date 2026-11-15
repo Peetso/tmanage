@@ -11,6 +11,7 @@ import type { ReviewDoor } from '../../../lib/api/review';
 import { formatBytes } from '../../../lib/api/uploads';
 import { useTOr } from '../../../lib/i18n/use-t-or';
 import { FileViewer } from '../../viewer/FileViewer';
+import { needsPreviewThumb, PreviewThumb } from '../../viewer/PreviewThumb';
 import { formatVoiceClock } from './VoiceNoteBubble';
 import './media.css';
 
@@ -113,7 +114,8 @@ export function AttachmentBubbles({
   const shown = loaded.filter((attachment) => !excludeFileIds.includes(attachment.fileAssetId));
   const media = shown.filter((a) => {
     const kind = attachmentKind(a.name);
-    return kind === 'image' || kind === 'video';
+    // FIX6 item 5: a Photoshop file is a picture too, drawn from its preview thumbnail.
+    return kind === 'image' || kind === 'video' || needsPreviewThumb(a.name);
   });
   const documents = shown.filter((a) => !media.includes(a));
   if (shown.length === 0) return null;
@@ -146,6 +148,19 @@ export function AttachmentBubbles({
                   <span className="r7-media__scan" data-state={attachment.scanStatus}>
                     {label}
                   </span>
+                ) : needsPreviewThumb(attachment.name) ? (
+                  <PreviewThumb
+                    api={client ?? browserApiClient()}
+                    organizationSlug={organizationSlug}
+                    fileAssetId={attachment.fileAssetId}
+                    door={door}
+                    className="r7-media__thumb"
+                    fallback={
+                      <span className="r7-media__fallback" aria-hidden="true">
+                        {extensionOf(attachment.name)}
+                      </span>
+                    }
+                  />
                 ) : attachmentKind(attachment.name) === 'image' ? (
                   <ImageTile
                     src={attachmentContentUrl(organizationSlug, attachment.fileAssetId, door)}
@@ -307,6 +322,8 @@ function MediaViewerModal({
     <div
       className="r7-media-viewer"
       data-testid="chat-media-viewer"
+      // Only stops events reaching the chat behind it; the dialog inside carries the semantics.
+      role="presentation"
       onClick={stopAtViewer}
       onDoubleClick={stopAtViewer}
       onPointerDown={stopAtViewer}

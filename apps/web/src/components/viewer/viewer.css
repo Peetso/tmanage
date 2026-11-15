@@ -212,6 +212,16 @@
   max-block-size: calc(100dvh - 220px);
 }
 
+/* FIX6 item 5: a zoomed picture can be dragged with the pointer tool. */
+.tm-viewer-stage__scroll[data-pan='true'] {
+  cursor: grab;
+}
+
+.tm-viewer-stage__scroll[data-panning='true'] {
+  cursor: grabbing;
+  user-select: none;
+}
+
 .tm-viewer-stage__chip {
   position: absolute;
   inset-block-start: var(--s4);

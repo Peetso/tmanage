@@ -48,6 +48,41 @@ export interface OfficePptxStageProps {
   readonly fetcher?: OriginalFetcher;
 }
 
+/** A picture, unpacked when its slide is first drawn (FIX6 item 6). */
+function PictureView({
+  part,
+  deck,
+  box,
+}: {
+  readonly part: string | null;
+  readonly deck: Deck;
+  readonly box: CSSProperties;
+}) {
+  const [url, setUrl] = useState<string | null | undefined>(() =>
+    part ? deck.media.ready(part) : null,
+  );
+  useEffect(() => {
+    if (!part || url) return undefined;
+    let live = true;
+    void deck.media.url(part).then((made) => {
+      if (live) setUrl(made);
+    });
+    return () => {
+      live = false;
+    };
+  }, [deck, part, url]);
+  return url ? (
+    <img className="tm-slide__picture" style={box} src={url} alt="" draggable={false} />
+  ) : (
+    <span className="tm-slide__picture tm-slide__picture--missing" style={box} />
+  );
+}
+
+/** EMU along the slide's width as a share of the slide box (`cqw`). */
+function widthShare(value: number, deck: Deck): string {
+  return `${(value / deck.width) * 100}cqw`;
+}
+
 function ShapeView({ shape, deck }: { readonly shape: SlideShape; readonly deck: Deck }) {
   const box: CSSProperties = {
     left: `${shape.x * 100}%`,
@@ -56,16 +91,28 @@ function ShapeView({ shape, deck }: { readonly shape: SlideShape; readonly deck:
     height: `${shape.h * 100}%`,
     background: shape.fill ?? undefined,
   };
-  if (shape.kind === 'picture') {
-    const url = shape.media ? deck.media.get(shape.media) : undefined;
-    return url ? (
-      <img className="tm-slide__picture" style={box} src={url} alt="" draggable={false} />
-    ) : (
-      <span className="tm-slide__picture tm-slide__picture--missing" style={box} />
-    );
-  }
+  if (shape.kind === 'picture') return <PictureView part={shape.media} deck={deck} box={box} />;
+  const body = shape.body;
+  const fontScale = body?.fontScale ?? 1;
+  // FIX6 item 6: PowerPoint's own inner margins, anchor and saved shrink, so a full box keeps
+  // its last line.
+  const text: CSSProperties = body
+    ? {
+        ...box,
+        padding: [body.insets.t, body.insets.r, body.insets.b, body.insets.l]
+          .map((value) => widthShare(value, deck))
+          .join(' '),
+        justifyContent:
+          body.anchor === 'middle'
+            ? 'center'
+            : body.anchor === 'bottom'
+              ? 'flex-end'
+              : 'flex-start',
+        lineHeight: 1.2 * body.lineScale,
+      }
+    : box;
   return (
-    <div className="tm-slide__shape" style={box}>
+    <div className="tm-slide__shape" style={text}>
       {shape.paragraphs.map((paragraph, index) => (
         <p
           key={index}
@@ -84,7 +131,10 @@ function ShapeView({ shape, deck }: { readonly shape: SlideShape; readonly deck:
             <span
               key={runIndex}
               style={{
-                fontSize: `${(((run.sizePt ?? DEFAULT_POINTS) * EMU_PER_POINT) / deck.width) * 100}cqw`,
+                fontSize: widthShare(
+                  (run.sizePt ?? DEFAULT_POINTS) * fontScale * EMU_PER_POINT,
+                  deck,
+                ),
                 fontWeight: run.bold ? 600 : undefined,
                 fontStyle: run.italic ? 'italic' : undefined,
                 color: run.color ?? undefined,

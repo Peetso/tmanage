@@ -212,10 +212,6 @@
   overflow: hidden;
 }
 
-.r7-media__grid[data-count='1'] .r7-media__tile {
-  aspect-ratio: 4 / 3;
-}
-
 /* FIX5 item 4 (B-N4): three photos fill the grid — the first spans the top row — so no empty
    fourth cell shows the dark bubble through (it read as a black file). */
 .r7-media__grid[data-count='3'] .r7-media__tile:first-child {
@@ -240,6 +236,27 @@
   inline-size: 100%;
   block-size: 100%;
   object-fit: cover;
+}
+
+/* FIX6 item 5: a PSD tile is its preview thumbnail, filling the tile like a photo. */
+.r7-media__thumb {
+  display: grid;
+  place-items: center;
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+/* FIX6 item 9 (B12): one picture alone is shown whole, at its own shape, not cropped to 4:3. */
+.r7-media__grid[data-count='1'] .r7-media__tile {
+  aspect-ratio: auto;
+  min-block-size: 120px;
+  max-block-size: 360px;
+}
+
+.r7-media__grid[data-count='1'] .r7-media__tile img {
+  block-size: auto;
+  max-block-size: 360px;
+  object-fit: contain;
 }
 
 .r7-media__more {

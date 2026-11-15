@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Button, StateCapsule, Switch } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
 import {
+  filePreviewQueryKey,
   getFilePreviewManifest,
   previewPages,
   type FilePreviewManifest,
@@ -103,7 +104,7 @@ export function CompareStage({
   const [phonePane, setPhonePane] = useState<'left' | 'right'>('right');
 
   const manifestFor = (fileAssetId: string) => ({
-    queryKey: ['file-preview', door, organizationSlug, fileAssetId, ''],
+    queryKey: filePreviewQueryKey(door, organizationSlug, fileAssetId),
     queryFn: () => getFilePreviewManifest(api, organizationSlug, fileAssetId, { door }),
   });
   const left = useQuery(manifestFor(leftId));

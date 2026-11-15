@@ -4,16 +4,20 @@ import { useState } from 'react';
 import { InlineAlert } from '@tmanage/ui';
 import type { PreviewPsd, PreviewPsdLayer } from '../../lib/api/file-preview';
 import type { MessageKey } from '../../lib/i18n/t';
+import { pluralPhrase } from '../../lib/i18n/plural';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import { FormatIcon } from './format-icons';
 import './format-stages.css';
 
 /**
  * V-22 (`463:25305` EN, `463:25658` AR; phone `463:25565`): the Photoshop file's layers, as a
  * read-only list for the right rail's Layers tab (or the phone's Layers sheet). Top layer first,
- * groups open and close with their chevron, the eye shows whether a layer was visible when the
- * file was saved — it is not a switch (no layer toggling in R4). The canvas shows the flattened
- * preview through the shell's ImageStage; {@link PsdNotice} is the line above it.
+ * groups open and close with their chevron, and a layer hidden when the file was saved says so
+ * in words. FIX6 item 5: the eye icons are gone — they looked like switches, but the preview is
+ * the one picture Photoshop saved, so no layer can be switched on or off here. The canvas shows
+ * that picture through the shell's ImageStage; {@link PsdNotice} is the line above it.
  */
 
 const BLEND_KEYS: Readonly<Record<string, MessageKey>> = {
@@ -82,12 +86,6 @@ function LayerRow({
       aria-label={`${name}, ${detail}, ${t(layer.visible ? 'ViewerFormats.psd.visible' : 'ViewerFormats.psd.hidden')}`}
     >
       <div className="tm-psd-layer__row" style={{ paddingInlineStart: `${depth * 20}px` }}>
-        <span
-          className="tm-psd-layer__eye"
-          title={t(layer.visible ? 'ViewerFormats.psd.visible' : 'ViewerFormats.psd.hidden')}
-        >
-          <FormatIcon name={layer.visible ? 'eye' : 'eye-off'} />
-        </span>
         {group ? (
           <button
             type="button"
@@ -112,6 +110,11 @@ function LayerRow({
           </span>
           <span className="tm-psd-layer__detail">{detail}</span>
         </span>
+        {layer.visible ? null : (
+          <span className="tm-psd-layer__state" aria-hidden="true">
+            {t('ViewerFormats.psd.hidden')}
+          </span>
+        )}
       </div>
       {open && layer.children.length > 0 ? (
         <ul className="tm-psd-layers__list">
@@ -133,6 +136,8 @@ function LayerRow({
 
 export function PsdLayersPanel({ psd }: PsdLayersPanelProps) {
   const t = useT();
+  const tOr = useTOr();
+  const locale = useActiveLocale();
   const [closed, setClosed] = useState<ReadonlySet<string>>(() => new Set());
   const toggle = (path: string) =>
     setClosed((current) => {
@@ -142,9 +147,22 @@ export function PsdLayersPanel({ psd }: PsdLayersPanelProps) {
       return next;
     });
 
-  const summary = t('ViewerFormats.psd.summary')
-    .replace('{layers}', String(psd.layerCount))
-    .replace('{groups}', String(psd.groupCount));
+  // FIX6 item 5: "1 group", not "1 groups".
+  const summary = tOr('ViewerFormats.psd.summaryOf', '{layers} · {groups}')
+    .replace(
+      '{layers}',
+      pluralPhrase(tOr, locale, 'ViewerFormats.psd.layerCount', psd.layerCount, {
+        one: '{count} layer',
+        other: '{count} layers',
+      }),
+    )
+    .replace(
+      '{groups}',
+      pluralPhrase(tOr, locale, 'ViewerFormats.psd.groupCount', psd.groupCount, {
+        one: '{count} group',
+        other: '{count} groups',
+      }),
+    );
 
   return (
     <section className="tm-psd-layers" aria-label={t('ViewerFormats.psd.title')}>

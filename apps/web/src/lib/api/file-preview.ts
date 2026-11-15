@@ -231,6 +231,19 @@ function previewPath(door: PreviewDoor, organizationSlug: string, fileAssetId: s
   return `/v1/organizations/${encodeURIComponent(organizationSlug)}${portal}/files/${encodeURIComponent(fileAssetId)}/preview`;
 }
 
+/**
+ * The react-query key of one file's preview manifest, shared by the viewer, the compare view and
+ * the small thumbnails (FIX6 item 5), so a manifest loaded once is not asked for again.
+ */
+export function filePreviewQueryKey(
+  door: PreviewDoor,
+  organizationSlug: string,
+  fileAssetId: string,
+  deliverableVersionId = '',
+): readonly string[] {
+  return ['file-preview', door, organizationSlug, fileAssetId, deliverableVersionId];
+}
+
 export async function getFilePreviewManifest(
   client: ApiClient,
   organizationSlug: string,

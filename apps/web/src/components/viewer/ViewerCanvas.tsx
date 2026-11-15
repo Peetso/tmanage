@@ -10,6 +10,7 @@ import {
 import type { ReviewThread } from '../../lib/api/review';
 import { useT } from '../../lib/i18n/use-t';
 import type { DrawStroke } from '../../lib/review-anchors';
+import { useDragPan } from './drag-pan';
 import { DrawLayer, type DrawSettings } from './DrawLayer';
 import { PinLayer, type ViewerDraft } from './PinLayer';
 import {
@@ -147,6 +148,7 @@ export function ViewerCanvas({
         : draft.point
     : null;
   const activeDrawing = tool === 'draw' ? drawing : undefined;
+  const pan = useDragPan(tool === 'select');
   const placement = draftPoint ? popoverPlacement(draftPoint) : null;
 
   return (
@@ -160,7 +162,11 @@ export function ViewerCanvas({
     >
       {overlay}
       {activeDrawing && !draft ? activeDrawing.toolbar : null}
-      <div className="tm-viewer-stage__scroll">
+      <div
+        className="tm-viewer-stage__scroll"
+        data-panning={pan.panning ? 'true' : undefined}
+        {...pan.handlers}
+      >
         <div
           ref={artRef}
           className="tm-viewer-art"

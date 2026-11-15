@@ -11,6 +11,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { ApiRequestError } from '../../lib/api/errors';
 import {
+  filePreviewQueryKey,
   getFilePreviewManifest,
   previewPages,
   retryFilePreview,
@@ -342,13 +343,7 @@ export function FileViewer({
   // The routes the calls go through: a team member previewing the portal uses the team's own.
   const apiDoor: ReviewDoor = door === 'portal' && !previewAsClient ? 'portal' : 'studio';
 
-  const manifestKey = [
-    'file-preview',
-    apiDoor,
-    organizationSlug,
-    fileId,
-    deliverableVersionId ?? '',
-  ];
+  const manifestKey = filePreviewQueryKey(apiDoor, organizationSlug, fileId, deliverableVersionId);
   const manifestQuery = useQuery({
     queryKey: manifestKey,
     queryFn: () =>
@@ -1246,7 +1241,7 @@ export function FileViewer({
                     />
                   )
                 }
-                detailsExtra={
+                layersContent={
                   manifest.psd && manifest.psd.layers.length > 0 ? (
                     <PsdLayersPanel psd={manifest.psd} />
                   ) : null
