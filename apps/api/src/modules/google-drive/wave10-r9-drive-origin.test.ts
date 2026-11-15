@@ -153,6 +153,7 @@ function setup(
       };
     }),
     listChildren: vi.fn(async () => ({ files: [], nextPageToken: null })),
+    downloadFile: vi.fn(),
   };
   const audit = { record: vi.fn(async () => ({})) };
   const drive = new GoogleDriveService({

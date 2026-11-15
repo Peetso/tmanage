@@ -219,6 +219,31 @@ export const approvalsDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'Delete', args: { deliverableId: 'dlv_1' } }],
   }),
   det({
+    id: 'approvals.deliverables.import_drive',
+    title: 'Add a Google Drive file for a new version',
+    description:
+      'Copy a picked Google Drive file into TManage, through the usual file checks, for the ' +
+      "deliverable's next version. Add the version once the copy is ready.",
+    input: bodyArgs(['deliverableId'], { fileId: f.text(128) }),
+    redact: 'standard',
+    examples: [{ summary: 'From Drive', args: { deliverableId: 'dlv_1', fileId: 'drv_1' } }],
+  }),
+  det({
+    id: 'approvals.deliverables.import_onedrive',
+    title: 'Add a OneDrive file for a new version',
+    description:
+      'Copy a picked OneDrive file into TManage, through the usual file checks, for the ' +
+      "deliverable's next version. Add the version once the copy is ready.",
+    input: bodyArgs(['deliverableId'], { driveId: f.text(255), itemId: f.text(255) }),
+    redact: 'standard',
+    examples: [
+      {
+        summary: 'From OneDrive',
+        args: { deliverableId: 'dlv_1', driveId: 'od_drive', itemId: 'od_item' },
+      },
+    ],
+  }),
+  det({
     id: 'approvals.deliverables.restore',
     title: 'Restore a deleted deliverable',
     description: 'Bring back a deliverable that was deleted, with its shared versions.',

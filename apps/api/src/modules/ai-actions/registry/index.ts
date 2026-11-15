@@ -5867,6 +5867,40 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'confirm',
     scope: 'manage',
   },
+  // FIX6 C1. A picked Drive/OneDrive file added as a checked TManage copy: to a work item (and
+  // attached), or for a deliverable's next version. Write-class; not yet enriched with details.
+  {
+    id: 'work_item_files.import_drive',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/drive-files',
+    capability: 'work.update',
+    risk: 'write',
+    scope: 'write',
+  },
+  {
+    id: 'work_item_files.import_onedrive',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/onedrive-files',
+    capability: 'work.update',
+    risk: 'write',
+    scope: 'write',
+  },
+  {
+    id: 'approvals.deliverables.import_drive',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/deliverables/:deliverableId/drive-files',
+    capability: 'deliverable.create',
+    risk: 'write',
+    scope: 'write',
+  },
+  {
+    id: 'approvals.deliverables.import_onedrive',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/deliverables/:deliverableId/onedrive-files',
+    capability: 'deliverable.create',
+    risk: 'write',
+    scope: 'write',
+  },
   // 0237. Meetings connected to Google Calendar/Meet: the meeting page in one read, cancel
   // (confirm: it tells every guest), re-send to the organizer's calendar, and email guests.
   // Not yet enriched with details, so the tool catalogue does not expose them yet.

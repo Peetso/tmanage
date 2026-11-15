@@ -103,6 +103,22 @@ export class WorkItemFilesService {
     });
   }
 
+  /**
+   * FIX6 C1. The item a drive file is about to be fetched for: the same read and write gates as
+   * {@link attach}, answered before anything leaves TManage.
+   */
+  async requireWritable(
+    context: TenantContext,
+    principal: Principal,
+    workItemId: string,
+  ): Promise<{ readonly projectId: string }> {
+    return this.database.read(context, async (runner) => {
+      const parent = await this.readableParent(runner, context, principal, workItemId);
+      this.requireWrite(principal, parent);
+      return { projectId: parent.projectId };
+    });
+  }
+
   /** Attach a file to the work item. Behind `work.update` on the item. Idempotent per pair. */
   async attach(
     context: TenantContext,

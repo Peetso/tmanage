@@ -1,6 +1,12 @@
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import {
+  cloudFileGone,
+  cloudNoAccess,
+  rethrowTooLarge,
+  type FetchedCloudFile,
+} from '../../common/storage/cloud-fetch.js';
 import type {
   TenantContext,
   TenantDatabase,
@@ -21,8 +27,10 @@ import {
   DRIVE_ROOT_FOLDER_NAME,
   DriveFileNotFoundError,
   DriveGrantRevokedError,
+  DriveNoAccessError,
   FOLDER_MIME_TYPE,
   driveAuthorizationUrl,
+  isGoogleNativeFormat,
   driveFolderName,
   driveStateMatches,
   newDriveFlow,
@@ -562,6 +570,57 @@ export class GoogleDriveService {
     });
   }
 
+  /**
+   * FIX6 C1. A picked Drive file's bytes, for the server-side import into `projectId`. The caller
+   * has already checked the person may add files there; this applies the same origin rule as
+   * {@link attach} (another project's TManage folder is a 404) and then downloads with the
+   * company connection, at most `maxBytes`. The token never leaves this service.
+   */
+  async fetchForImport(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+    driveFileId: string,
+    maxBytes: number,
+  ): Promise<FetchedCloudFile> {
+    const live = this.requireLive(await this.readConnection(context));
+    const accessToken = await this.accessToken(context, live);
+    const file = await this.google(
+      () => this.deps.transport.getFile(accessToken, driveFileId).catch(goneOrRethrow),
+      live.id,
+      context,
+    );
+    if (file.mimeType === FOLDER_MIME_TYPE) throw invalid('fileId', 'must be a file');
+    if (isGoogleNativeFormat(file.mimeType)) {
+      throw new ApiError(422, 'validation_failed', 'Save this Google file as PDF or DOCX first', [
+        { field: 'file', message: 'google_native_format' },
+      ]);
+    }
+    const origin = await this.resolveOrigin(context, live, accessToken, file);
+    await this.deps.database.read(context, (runner) =>
+      this.requireAttachableOrigin(runner, context, principal, live, { projectId }, file, origin),
+    );
+    const bytes = await this.google(
+      () =>
+        this.deps.transport
+          .downloadFile(accessToken, file.id, maxBytes)
+          .catch((error: unknown) => {
+            if (error instanceof DriveNoAccessError) throw cloudNoAccess();
+            return goneOrRethrow(error);
+          })
+          .catch(rethrowTooLarge),
+      live.id,
+      context,
+    );
+    return {
+      provider: 'google_drive',
+      externalId: file.id,
+      name: file.name.slice(0, 255),
+      mimeType: file.mimeType.slice(0, 190),
+      bytes,
+    };
+  }
+
   async detach(
     context: TenantContext,
     principal: Principal,
@@ -690,7 +749,7 @@ export class GoogleDriveService {
     context: TenantContext,
     principal: Principal,
     live: StorageConnectionRow & { rootFolderId: string },
-    item: WorkItemRow,
+    item: Pick<WorkItemRow, 'projectId'>,
     file: DriveFile,
     origin: AttachOrigin,
   ): Promise<void> {
@@ -876,6 +935,12 @@ export class GoogleDriveService {
     }
     return row;
   }
+}
+
+/** FIX6 C1. On the import path a file Google no longer shows is "gone", not a bare 404. */
+function goneOrRethrow(error: unknown): never {
+  if (error instanceof DriveFileNotFoundError) throw cloudFileGone();
+  throw error;
 }
 
 /** M04. Where the attach check found the file's nearest TManage ancestry. */

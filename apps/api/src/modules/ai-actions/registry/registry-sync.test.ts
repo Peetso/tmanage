@@ -191,7 +191,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // UX test 2026-11-15: POST time/timer/discard (+1 NEVER).
 // UX-1 2026-11-15: POST deliverables/:id/versions/:versionId/share (classified).
 // FIX6 item 8: POST deliverables/:id/delete and /restore (classified).
-const EXPECTED_ROUTE_COUNT = 1433;
+// FIX6 C1: POST work-items/:id/drive-files and /onedrive-files, deliverables/:id/drive-files and
+// /onedrive-files (+4 classified).
+const EXPECTED_ROUTE_COUNT = 1437;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

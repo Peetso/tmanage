@@ -188,6 +188,7 @@ function setup(options: { ancestors?: Record<string, readonly string[]>; file?: 
       ],
       nextPageToken: null,
     })),
+    downloadFile: vi.fn(),
   } satisfies DriveTransport;
   const audit = { record: vi.fn(async () => ({})) };
   const drive = new GoogleDriveService({

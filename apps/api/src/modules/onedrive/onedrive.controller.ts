@@ -385,6 +385,23 @@ export function parseOneDriveSettings(body: {
   return out;
 }
 
+/** The service as every module builds it (FIX6 C1: the file import uses it too). */
+export function oneDriveServiceFor(
+  database: TenantDatabase,
+  audit: AuditService,
+  config: ApiConfig,
+  transport: OneDriveTransport,
+): OneDriveService {
+  return new OneDriveService({
+    database,
+    audit,
+    transport,
+    cipher: createSeedCipher(config.mfaSeedKeys),
+    config: oneDriveConfigFrom(process.env),
+    apiPublicUrl: config.apiPublicUrl ?? config.webPublicUrl ?? '',
+  });
+}
+
 /**
  * Always registered: without MICROSOFT_CLIENT_ID/SECRET the routes still answer, so the Storage
  * screen can say "not configured" instead of failing.
@@ -405,14 +422,7 @@ export class OneDriveModule {
       provide: ONEDRIVE_SERVICE,
       inject: [TENANT_DATABASE, AUDIT_SERVICE, API_CONFIG],
       useFactory: (database: TenantDatabase, audit: AuditService, config: ApiConfig) =>
-        new OneDriveService({
-          database,
-          audit,
-          transport,
-          cipher: createSeedCipher(config.mfaSeedKeys),
-          config: oneDriveConfigFrom(process.env),
-          apiPublicUrl: config.apiPublicUrl ?? config.webPublicUrl ?? '',
-        }),
+        oneDriveServiceFor(database, audit, config, transport),
     };
     return {
       module: OneDriveModule,

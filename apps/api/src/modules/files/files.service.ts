@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { authorize, clientRequestStateMachine } from '@tmanage/domain';
 import type { Audience, AuditMetadata, ClientRequestState, Principal } from '@tmanage/domain';
 import {
@@ -275,6 +276,25 @@ function scanSourceOf(version: FileVersionRow): ScanSource {
   const stored = version.scanSource;
   if (stored === 'tmanage' || stored === 'provider' || stored === 'none') return stored;
   return resolveScanSource({ scanner: version.scanner, storedAt: version.objectKey });
+}
+
+/** FIX6 C1. The provider handle of a session the server wrote itself: no multipart upload exists. */
+export const SERVER_IMPORT_UPLOAD_ID = 'server-import';
+
+/** FIX6 C1. A file the server fetched with the company's own connection. */
+export interface ImportFetchedInput {
+  readonly projectId: string;
+  readonly fileName: string;
+  readonly mimeType: string;
+  readonly bytes: Buffer;
+  /** The deliverable the file is for, or `null` (a work item's file). */
+  readonly objectId: string | null;
+}
+
+export interface ImportedFileView {
+  readonly file: FileAssetView;
+  /** The completed session, which the browser asks for the checks' outcome like an upload's. */
+  readonly uploadSessionId: string;
 }
 
 interface Draft {
@@ -634,29 +654,7 @@ export class FilesService {
           uploadTargets: upload.parts,
           expiresAt,
         });
-        const reservedEventId = await this.outbox?.append(tx, context, {
-          type: 'usage.storage_reserved.v1',
-          aggregateId: row.id,
-          payload: {
-            uploadSessionId: row.id,
-            metricKey: STORAGE_BYTES_METRIC,
-            deltaBytes: input.sizeBytes,
-          },
-        });
-        // The ledger row joins the reservation to the event that produced it, in the same
-        // transaction: a counter move without a ledger row is impossible (USAGE-001 slice 2).
-        if (reservedEventId) {
-          await this.ledger?.record(tx, context, {
-            uploadSessionId: row.id,
-            counter: 'reserved',
-            deltaBytes: input.sizeBytes,
-            reason: USAGE_LEDGER_REASON.reserve,
-            sourceEventId: reservedEventId,
-          });
-        }
-        // A reservation raised used + reserved: re-evaluate the band in this same transaction
-        // (USAGE-001 slice 4). A rising crossing emits one `usage.threshold_reached.v1`.
-        await this.thresholds?.evaluate(tx, context, STORAGE_BYTES_METRIC, limitBytes);
+        await this.recordReservation(tx, context, row.id, input.sizeBytes, limitBytes);
         return row;
       });
     } catch (error) {
@@ -679,19 +677,8 @@ export class FilesService {
       if (error instanceof TooManyOpenUploads) {
         throw await this.refuseOpenUploads(context, draft, error.open, cap);
       }
-      if (error instanceof QuotaExhausted) {
-        await this.recordRefusal(context, draft, {
-          denial_code: 'storage_quota_exhausted',
-          limit_bytes: limitBytes,
-        });
-        throw new ApiError(
-          422,
-          'validation_failed',
-          'The request body is invalid',
-          [{ field: 'sizeBytes', message: 'exceeds the storage available to this organization' }],
-          'storage_quota_exhausted',
-        );
-      }
+      if (error instanceof QuotaExhausted)
+        throw await this.quotaRefusal(context, draft, limitBytes);
       if (error instanceof UploadSessionKeyTakenError) {
         // Two requests with one key arrived together; the other won. Answer its session.
         const winner = await this.database.read(context, (runner) =>
@@ -703,6 +690,219 @@ export class FilesService {
     }
 
     return toView(created, principal);
+  }
+
+  /**
+   * The rows beside a reservation, in its transaction: the reserved event, its ledger row (a
+   * counter move without one is impossible, USAGE-001 slice 2) and the band re-evaluation
+   * (slice 4: a rising crossing emits one `usage.threshold_reached.v1`).
+   */
+  private async recordReservation(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    uploadSessionId: string,
+    sizeBytes: number,
+    limitBytes: number,
+  ): Promise<void> {
+    const reservedEventId = await this.outbox?.append(tx, context, {
+      type: 'usage.storage_reserved.v1',
+      aggregateId: uploadSessionId,
+      payload: { uploadSessionId, metricKey: STORAGE_BYTES_METRIC, deltaBytes: sizeBytes },
+    });
+    if (reservedEventId) {
+      await this.ledger?.record(tx, context, {
+        uploadSessionId,
+        counter: 'reserved',
+        deltaBytes: sizeBytes,
+        reason: USAGE_LEDGER_REASON.reserve,
+        sourceEventId: reservedEventId,
+      });
+    }
+    await this.thresholds?.evaluate(tx, context, STORAGE_BYTES_METRIC, limitBytes);
+  }
+
+  /** The organization's storage is full: one refused row, and the 422 the browser explains. */
+  private async quotaRefusal(
+    context: TenantContext,
+    draft: Draft,
+    limitBytes: number,
+  ): Promise<ApiError> {
+    await this.recordRefusal(context, draft, {
+      denial_code: 'storage_quota_exhausted',
+      limit_bytes: limitBytes,
+    });
+    return new ApiError(
+      422,
+      'validation_failed',
+      'The request body is invalid',
+      [{ field: 'sizeBytes', message: 'exceeds the storage available to this organization' }],
+      'storage_quota_exhausted',
+    );
+  }
+
+  // ── The server's import door (FIX6 C1) ─────────────────────────────────────
+
+  /**
+   * Before anything is fetched from a drive: the person may add a file to this project, and the
+   * largest file the organization allows, which is the cap the download is read under.
+   */
+  async preflightImport(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+  ): Promise<{ readonly maxBytes: number }> {
+    await this.requireImportTarget(context, principal, projectId);
+    const settings = this.safety ? await this.safety.read(context) : null;
+    return { maxBytes: settings?.maxFileBytes ?? this.config.uploadMaxBytes };
+  }
+
+  /**
+   * FIX6 C1. Bytes the server fetched itself (a picked Drive or OneDrive file) become a TManage
+   * file by the upload's own path: the same file-safety rule, permission, quota reservation and
+   * ledger, then the bytes written once into quarantine and the same commit as a completed upload,
+   * so the verifier, the scanner and the preview pass treat the copy exactly as an upload. The
+   * session is created and claimed in one transaction, so no cancel or sweep sees it half made.
+   */
+  async importFetched(
+    context: TenantContext,
+    principal: Principal,
+    input: ImportFetchedInput,
+  ): Promise<ImportedFileView> {
+    const draft: Draft = {
+      context,
+      principal,
+      clientOrganizationId: null,
+      audience: 'internal',
+      input: {
+        projectId: input.projectId,
+        fileName: input.fileName,
+        mimeType: input.mimeType,
+        sizeBytes: input.bytes.byteLength,
+        contentHash: null,
+        purpose: 'deliverable',
+        objectId: input.objectId,
+        audience: 'internal',
+        idempotencyKey: `import-${randomUUID()}`,
+      },
+    };
+    await this.requireImportTarget(context, principal, input.projectId);
+    await this.requireFileSafety(context, draft);
+
+    const id = this.sessions.nextId();
+    const objectKey = uploadObjectKey({
+      organizationId: context.organizationId,
+      projectId: input.projectId,
+      uploadId: id,
+    });
+    const sizeBytes = draft.input.sizeBytes;
+    const limitBytes = this.storageLimitsFor();
+    let session: UploadSessionRow;
+    try {
+      session = await this.writing(() =>
+        this.database.transaction(context, async (tx) => {
+          await this.counters.ensure(tx, context, STORAGE_BYTES_METRIC);
+          const reserved = await this.counters.reserve(
+            tx,
+            context,
+            STORAGE_BYTES_METRIC,
+            sizeBytes,
+            limitBytes,
+          );
+          if (!reserved) throw new QuotaExhausted();
+          const asset = await this.assets.create(tx, context, {
+            projectId: input.projectId,
+            clientOrganizationId: null,
+            ownerUserId: principal.userId,
+            name: input.fileName,
+            purpose: 'deliverable',
+            objectId: input.objectId,
+            audience: 'internal',
+          });
+          const row = await this.sessions.create(tx, context, {
+            id,
+            projectId: input.projectId,
+            clientOrganizationId: null,
+            actorUserId: principal.userId,
+            fileAssetId: asset.id,
+            idempotencyKey: draft.input.idempotencyKey,
+            purpose: 'deliverable',
+            objectId: input.objectId,
+            declaredName: input.fileName,
+            declaredMimeType: input.mimeType,
+            declaredBytes: sizeBytes,
+            declaredContentHash: null,
+            partSizeBytes: this.config.uploadPartSizeBytes,
+            partCount: 1,
+            objectKey,
+            providerUploadId: SERVER_IMPORT_UPLOAD_ID,
+            uploadTargets: [],
+            expiresAt: new Date(Date.now() + this.config.uploadUrlTtlSeconds * 1_000),
+          });
+          await this.recordReservation(tx, context, row.id, sizeBytes, limitBytes);
+          await this.sessions.transition(tx, context, row.id, ['reserved'], 'completing');
+          return row;
+        }),
+      );
+    } catch (error) {
+      if (error instanceof QuotaExhausted)
+        throw await this.quotaRefusal(context, draft, limitBytes);
+      throw error;
+    }
+
+    // Every exit settles the reservation: committed on success, given back otherwise.
+    let settled = false;
+    try {
+      const stored = await this.store.putQuarantine({ objectKey, body: input.bytes });
+      const result = await this.commitCompletion(context, session, stored);
+      if (result === null) throw new Error('the import session left completing before its commit');
+      settled = true;
+      this.scanJob?.request();
+      return {
+        file: toFileAssetView(result.asset, result.version, session),
+        uploadSessionId: session.id,
+      };
+    } finally {
+      if (!settled) {
+        await this.releaseInTransaction(context, session, 'failed', ['completing', 'reserved']);
+      }
+    }
+  }
+
+  /** The import door's gate: an internal person who may add files to this live project. */
+  private async requireImportTarget(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+  ): Promise<void> {
+    if (principal.kind !== 'internal') {
+      throw new ApiError(
+        403,
+        'forbidden',
+        MESSAGES.forbidden,
+        undefined,
+        'not_an_internal_principal',
+      );
+    }
+    const project = await this.database.read(context, (runner) =>
+      this.projects.findById(runner, context, projectId),
+    );
+    if (!project || project.archivedAt !== null) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
+    const verdict = authorize({
+      principal,
+      capability: 'file.upload',
+      resource: {
+        organizationId: context.organizationId,
+        projectId,
+        audience: 'internal',
+        clientOrganizationId: null,
+        lifecycle: 'active',
+      },
+    });
+    if (!verdict.allowed) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, verdict.code);
+    }
   }
 
   private async completeSession(

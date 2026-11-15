@@ -1,6 +1,12 @@
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import {
+  cloudFileGone,
+  cloudNoAccess,
+  rethrowTooLarge,
+  type FetchedCloudFile,
+} from '../../common/storage/cloud-fetch.js';
 import type {
   TenantContext,
   TenantDatabase,
@@ -28,6 +34,7 @@ import {
   OneDriveConsentRequiredError,
   OneDriveGrantRevokedError,
   OneDriveItemNotFoundError,
+  OneDriveNoAccessError,
   OneDriveUnavailableError,
   PERSONAL_PICKER_BASE_URL,
   PERSONAL_PICKER_SCOPE,
@@ -203,6 +210,12 @@ function invalid(field: string, message: string): ApiError {
 }
 
 const notFound = () => new ApiError(404, 'not_found', MESSAGES.notFound);
+
+/** FIX6 C1. On the import path an item Graph no longer shows is "gone", not a bare 404. */
+function goneOrRethrow(error: unknown): never {
+  if (error instanceof OneDriveItemNotFoundError) throw cloudFileGone();
+  throw error;
+}
 
 /** Whether the grant holds SharePoint libraries; Microsoft may prefix scopes with the Graph URL. */
 export function grantsLibraries(grantedScopes: string | null | undefined): boolean {
@@ -623,6 +636,52 @@ export class OneDriveService {
     });
   }
 
+  /**
+   * FIX6 C1. A picked OneDrive file's bytes, for the server-side import into `projectId`. The
+   * caller has already checked the person may add files there; this applies the same origin rule
+   * as {@link attach} and then downloads with the company connection, at most `maxBytes`. The
+   * token never leaves this service.
+   */
+  async fetchForImport(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+    target: { readonly driveId: string; readonly itemId: string },
+    maxBytes: number,
+  ): Promise<FetchedCloudFile> {
+    const live = this.requireLive(await this.readConnection(context));
+    const accessToken = await this.token(context, live);
+    const file = await this.graph(
+      () => this.deps.transport.getItem(accessToken, target).catch(goneOrRethrow),
+      live.id,
+      context,
+    );
+    if (file.isFolder) throw invalid('itemId', 'must be a file');
+    const origin = await this.resolveOrigin(context, live, accessToken, file);
+    await this.deps.database.read(context, (runner) =>
+      this.requireAttachableOrigin(runner, context, principal, live, { projectId }, file, origin),
+    );
+    const bytes = await this.graph(
+      () =>
+        this.deps.transport
+          .downloadItem(accessToken, { driveId: file.driveId, itemId: file.id }, maxBytes)
+          .catch((error: unknown) => {
+            if (error instanceof OneDriveNoAccessError) throw cloudNoAccess();
+            return goneOrRethrow(error);
+          })
+          .catch(rethrowTooLarge),
+      live.id,
+      context,
+    );
+    return {
+      provider: 'onedrive',
+      externalId: `${file.driveId}:${file.id}`,
+      name: file.name.slice(0, 255),
+      mimeType: file.mimeType.slice(0, 190),
+      bytes,
+    };
+  }
+
   async detach(
     context: TenantContext,
     principal: Principal,
@@ -702,7 +761,7 @@ export class OneDriveService {
     context: TenantContext,
     principal: Principal,
     live: LiveConnection,
-    item: WorkItemRow,
+    item: Pick<WorkItemRow, 'projectId'>,
     file: OneDriveItem,
     origin: AttachOrigin,
   ): Promise<void> {

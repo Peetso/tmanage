@@ -1,4 +1,5 @@
 import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { readCappedBody } from '../../common/storage/capped-body.js';
 import { constantTimeEquals } from '../identity/session-token.js';
 import {
   isStoredReturnTo,
@@ -245,6 +246,16 @@ export class DriveUnavailableError extends Error {
   override name = 'DriveUnavailableError';
 }
 
+/** FIX6 C1. Google shows the file but will not hand this connection its bytes (403). */
+export class DriveNoAccessError extends Error {
+  override name = 'DriveNoAccessError';
+}
+
+/** FIX6 C1. Google's own formats (Docs, Sheets, Slides…) have no bytes to download as they are. */
+export function isGoogleNativeFormat(mimeType: string): boolean {
+  return mimeType.startsWith('application/vnd.google-apps.');
+}
+
 export interface DriveTransport {
   exchangeCode(input: {
     code: string;
@@ -271,6 +282,11 @@ export interface DriveTransport {
     accessToken: string,
     input: { parentId: string; pageToken: string | null },
   ): Promise<DriveChildrenPage>;
+  /**
+   * FIX6 C1. The file's bytes (`alt=media`), from the fixed Drive host only and never following a
+   * redirect; reading stops past `maxBytes` (`DownloadTooLargeError`).
+   */
+  downloadFile(accessToken: string, fileId: string, maxBytes: number): Promise<Buffer>;
 }
 
 function decodeEmail(idToken: unknown): string | null {
@@ -469,6 +485,23 @@ export function createDriveTransport(fetchImpl: typeof fetch = fetch): DriveTran
         files,
         nextPageToken: isDrivePageToken(body.nextPageToken) ? body.nextPageToken : null,
       };
+    },
+
+    async downloadFile(accessToken, fileId, maxBytes) {
+      let response: Response;
+      try {
+        response = await fetchImpl(
+          `${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`,
+          { headers: auth(accessToken), redirect: 'error' },
+        );
+      } catch {
+        throw new DriveUnavailableError('Google Drive could not be reached');
+      }
+      if (response.status === 401) throw new DriveGrantRevokedError('Google refused the token');
+      if (response.status === 403) throw new DriveNoAccessError('Google refused the download');
+      if (response.status === 404) throw new DriveFileNotFoundError('Google has no such file');
+      if (!response.ok) throw new DriveUnavailableError(`Google Drive answered ${response.status}`);
+      return readCappedBody(response, maxBytes);
     },
   };
 }

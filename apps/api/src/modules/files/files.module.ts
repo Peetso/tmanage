@@ -38,6 +38,19 @@ import { UsageCountersRepository } from './usage-counters.repository.js';
 import { UsageLedgerRepository } from './usage-ledger.repository.js';
 import { UsageThresholdEvaluator } from './usage-thresholds.js';
 import { FilesService } from './files.service.js';
+import { CloudImportService } from './cloud-import.service.js';
+import {
+  CLOUD_IMPORT_SERVICE,
+  DeliverableCloudImportController,
+  WorkItemCloudImportController,
+} from './cloud-import.controller.js';
+import { DeliverablesRepository } from '../approvals/deliverables.repository.js';
+import { WorkItemFilesService } from '../work/item-files.service.js';
+import { WorkItemsRepository } from '../work/work-items.repository.js';
+import { createDriveTransport, type DriveTransport } from '../google-drive/google-drive.google.js';
+import { googleDriveServiceFor } from '../google-drive/google-drive.controller.js';
+import { createOneDriveTransport, type OneDriveTransport } from '../onedrive/onedrive.graph.js';
+import { oneDriveServiceFor } from '../onedrive/onedrive.controller.js';
 import { FileSafetySettingsReader } from '../tenancy/file-safety-settings.js';
 import { FileVerifier } from './file-verifier.js';
 import { FileScanner } from './file-scanner.js';
@@ -137,7 +150,10 @@ import { UploadPartsController } from './upload-parts.controller.js';
  */
 @Module({})
 export class FilesModule {
-  static register(): DynamicModule {
+  /** FIX6 C1: the drive transports the file import fetches with (a test passes fakes). */
+  static register(
+    drives: { readonly drive?: DriveTransport; readonly oneDrive?: OneDriveTransport } = {},
+  ): DynamicModule {
     const repositories: Provider[] = [
       { provide: UPLOAD_SESSIONS_REPOSITORY, useFactory: () => new UploadSessionsRepository() },
       { provide: FILE_ASSETS_REPOSITORY, useFactory: () => new FileAssetsRepository() },
@@ -591,11 +607,48 @@ export class FilesModule {
         new FileDeleteService(database, assets, new ProjectsRepository(), audit),
     };
 
+    // FIX6 C1. A picked Drive/OneDrive file stored as a checked copy: the upload door above, the
+    // work item's own attach, and the providers' services as their modules build them.
+    const cloudImport: Provider = {
+      provide: CLOUD_IMPORT_SERVICE,
+      inject: [TENANT_DATABASE, FILES_SERVICE, AUDIT_SERVICE, API_CONFIG],
+      useFactory: (
+        database: TenantDatabase,
+        files: FilesService,
+        audit: AuditService,
+        config: ApiConfig,
+      ) =>
+        new CloudImportService({
+          database,
+          files,
+          workItemFiles: new WorkItemFilesService(
+            database,
+            new WorkItemsRepository(),
+            new FileAssetsRepository(),
+          ),
+          deliverables: new DeliverablesRepository(),
+          googleDrive: googleDriveServiceFor(
+            database,
+            audit,
+            config,
+            drives.drive ?? createDriveTransport(),
+          ),
+          oneDrive: oneDriveServiceFor(
+            database,
+            audit,
+            config,
+            drives.oneDrive ?? createOneDriveTransport(),
+          ),
+          audit,
+        }),
+    };
+
     return {
       module: FilesModule,
       providers: [
         ...repositories,
         service,
+        cloudImport,
         fileDelete,
         fileTags,
         fileFolders,
@@ -666,6 +719,9 @@ export class FilesModule {
         FileDeleteController,
         // 56-06 (R44 L2) — the owner's blocked-files queue: list and delete now.
         BlockedFilesController,
+        // FIX6 C1 — a picked Drive/OneDrive file added as a checked TManage copy.
+        WorkItemCloudImportController,
+        DeliverableCloudImportController,
       ],
     };
   }

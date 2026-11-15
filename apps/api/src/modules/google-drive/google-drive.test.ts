@@ -125,6 +125,7 @@ function transport(overrides: Partial<DriveTransport> = {}): DriveTransport {
     ensureFolder: vi.fn(async () => 'root_folder_1'),
     getFile: vi.fn(),
     listChildren: vi.fn(async () => ({ files: [], nextPageToken: null })),
+    downloadFile: vi.fn(),
     ...overrides,
   };
 }

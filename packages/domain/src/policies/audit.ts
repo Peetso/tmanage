@@ -668,6 +668,19 @@ export const AUDIT_ACTION_CATALOG = {
     clause: '§12 — the same link removed (the OneDrive file itself is never deleted)',
   },
   /**
+   * FIX6 C1. A picked Google Drive or OneDrive file fetched on the server with the company
+   * connection and stored as a checked TManage copy: for a work item, or for a deliverable's next
+   * version. Metadata: provider, the SHA-256 of the external id, the work item or deliverable id.
+   */
+  'work_item.drive_file_imported': {
+    objectType: 'file_asset',
+    clause: '§12 — content brought into a tenant record from an external store',
+  },
+  'deliverable.drive_version_imported': {
+    objectType: 'file_asset',
+    clause: '§12 — content brought in from an external store to become what a client approves',
+  },
+  /**
    * 0237. A person connects or disconnects their OWN Google or Microsoft calendar (provider in the
    * metadata, never the account's token or address), and a meeting is cancelled or re-sent to it.
    */
@@ -1784,6 +1797,8 @@ const AUDIT_ACTION_LABELS = {
   'drive_attachment.removed': 'Removed a Google Drive file',
   'onedrive_attachment.attached': 'Attached a OneDrive file',
   'onedrive_attachment.removed': 'Removed a OneDrive file',
+  'work_item.drive_file_imported': 'Added a file from cloud storage to a work item',
+  'deliverable.drive_version_imported': 'Added a file from cloud storage for a deliverable',
   'calendar_connection.connected': 'Connected a calendar',
   'calendar_connection.disconnected': 'Disconnected a calendar',
   'meeting.cancelled': 'Cancelled a meeting',

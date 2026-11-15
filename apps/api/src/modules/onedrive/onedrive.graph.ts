@@ -1,4 +1,5 @@
 import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { readCappedBody } from '../../common/storage/capped-body.js';
 import { constantTimeEquals } from '../identity/session-token.js';
 import {
   isStoredReturnTo,
@@ -265,6 +266,45 @@ export class OneDriveUnavailableError extends Error {
   override name = 'OneDriveUnavailableError';
 }
 
+/** FIX6 C1. Graph shows the item but refuses this connection its bytes (403 on `/content`). */
+export class OneDriveNoAccessError extends Error {
+  override name = 'OneDriveNoAccessError';
+}
+
+/** FIX6 C1. Graph sent the download somewhere that is not Microsoft's own file storage. */
+export class OneDriveRedirectRefusedError extends Error {
+  override name = 'OneDriveRedirectRefusedError';
+}
+
+/** FIX6 C1. The only hosts a Graph `/content` redirect may send the server to (the SSRF guard). */
+const CONTENT_HOST_SUFFIXES = [
+  '.sharepoint.com',
+  '.1drv.com',
+  '.onedrive.com',
+  '.livefilestore.com',
+] as const;
+
+/**
+ * FIX6 C1. Whether a `/content` redirect target is Microsoft's file storage: `https`, the default
+ * port, no credentials in the URL, and a host under one of {@link CONTENT_HOST_SUFFIXES}.
+ */
+export function isOneDriveContentUrl(raw: string | null): raw is string {
+  if (raw === null) return false;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== 'https:' || url.port !== '' || url.username !== '' || url.password !== '') {
+    return false;
+  }
+  const host = url.hostname.toLowerCase();
+  return CONTENT_HOST_SUFFIXES.some(
+    (suffix) => host.endsWith(suffix) && host.length > suffix.length,
+  );
+}
+
 export interface OneDriveTransport {
   exchangeCode(input: {
     config: OneDriveConfig;
@@ -298,6 +338,16 @@ export interface OneDriveTransport {
     accessToken: string,
     input: { driveId: string; itemId: string; skipToken: string | null },
   ): Promise<OneDriveChildrenPage>;
+  /**
+   * FIX6 C1. The item's bytes. `/content` on the fixed Graph host answers with a redirect, which
+   * is followed only to {@link isOneDriveContentUrl} (and without the token); reading stops past
+   * `maxBytes` (`DownloadTooLargeError`).
+   */
+  downloadItem(
+    accessToken: string,
+    input: { driveId: string; itemId: string },
+    maxBytes: number,
+  ): Promise<Buffer>;
 }
 
 function idTokenLabel(idToken: unknown): string | null {
@@ -553,6 +603,40 @@ export function createOneDriveTransport(fetchImpl: typeof fetch = fetch): OneDri
             .filter((entry): entry is OneDriveChild => entry !== null)
         : [];
       return { files, nextPageToken: skipTokenOf(body['@odata.nextLink']) };
+    },
+
+    async downloadItem(accessToken, input, maxBytes) {
+      const statusError = (status: number): Error | null => {
+        if (status === 401) return new OneDriveGrantRevokedError('Graph refused the token');
+        if (status === 403) return new OneDriveNoAccessError('Graph refused the download');
+        if (status === 404) return new OneDriveItemNotFoundError('Graph shows no such item');
+        return null;
+      };
+      let response: Response;
+      try {
+        response = await fetchImpl(`${item(input.driveId, input.itemId)}/content`, {
+          headers: auth(accessToken),
+          redirect: 'manual',
+        });
+      } catch {
+        throw new OneDriveUnavailableError('Microsoft Graph could not be reached');
+      }
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (!isOneDriveContentUrl(location)) {
+          throw new OneDriveRedirectRefusedError('Graph redirected outside Microsoft storage');
+        }
+        // The pre-authenticated download URL needs no token, and the token must not travel on.
+        try {
+          response = await fetchImpl(location, { redirect: 'error' });
+        } catch {
+          throw new OneDriveUnavailableError('Microsoft storage could not be reached');
+        }
+      }
+      const refused = statusError(response.status);
+      if (refused) throw refused;
+      if (!response.ok) throw new OneDriveUnavailableError(`Graph answered ${response.status}`);
+      return readCappedBody(response, maxBytes);
     },
   };
 }

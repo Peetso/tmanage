@@ -352,6 +352,23 @@ export function parseSettings(body: {
   return out;
 }
 
+/** The service as every module builds it (FIX6 C1: the file import uses it too). */
+export function googleDriveServiceFor(
+  database: TenantDatabase,
+  audit: AuditService,
+  config: ApiConfig,
+  transport: DriveTransport,
+): GoogleDriveService {
+  return new GoogleDriveService({
+    database,
+    audit,
+    transport,
+    cipher: createSeedCipher(config.mfaSeedKeys),
+    config: driveConfigFrom(process.env),
+    apiPublicUrl: config.apiPublicUrl ?? config.webPublicUrl ?? '',
+  });
+}
+
 /**
  * Always registered: with the Google client missing from the environment the routes still answer,
  * so the Storage screen can say "not configured" instead of failing.
@@ -372,14 +389,7 @@ export class GoogleDriveModule {
       provide: GOOGLE_DRIVE_SERVICE,
       inject: [TENANT_DATABASE, AUDIT_SERVICE, API_CONFIG],
       useFactory: (database: TenantDatabase, audit: AuditService, config: ApiConfig) =>
-        new GoogleDriveService({
-          database,
-          audit,
-          transport,
-          cipher: createSeedCipher(config.mfaSeedKeys),
-          config: driveConfigFrom(process.env),
-          apiPublicUrl: config.apiPublicUrl ?? config.webPublicUrl ?? '',
-        }),
+        googleDriveServiceFor(database, audit, config, transport),
     };
     return {
       module: GoogleDriveModule,

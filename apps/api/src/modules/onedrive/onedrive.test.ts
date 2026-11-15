@@ -108,6 +108,7 @@ function setup(
     ensureFolder: vi.fn(async () => 'ROOT!1'),
     getItem: vi.fn(),
     listChildren: vi.fn(),
+    downloadItem: vi.fn(),
     ...overrides,
   };
   const audit = { record: vi.fn(async () => ({})) };
