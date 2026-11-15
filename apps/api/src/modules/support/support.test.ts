@@ -217,7 +217,7 @@ describe('55-17 support · platform path', () => {
       webPublicUrl: 'https://tm.example/',
     });
     expect(mail.subject).toBe('TManage support replied: Logo wrong');
-    expect(mail.text).toContain(`https://tm.example/atlas?support=${THREAD}`);
+    expect(mail.text).toContain(`https://tm.example/atlas/help?request=${THREAD}`);
   });
 
   async function guardStatus(permissions: PlatformPermission[], handler: 'get' | 'reply') {

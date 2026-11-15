@@ -1,4 +1,5 @@
-/* Row 55-17 — help menu, support panel and platform support inbox (Figma R39 L2-55-17-support).
+/* Rows 55-17 + 57-10 — help menu, Get help (Figma 614:35008) and the platform support inbox
+   (Figma 614:35191).
    Tokens only; logical properties so Arabic mirrors. */
 .tm-support-launcher {
   position: relative;
@@ -23,7 +24,9 @@
 
 .tm-support-launcher__trigger:focus-visible,
 .tm-support-menu__item:focus-visible,
-.tm-support-thread-row:focus-visible {
+.tm-gethelp-request:focus-visible,
+.tm-inbox-open:focus-visible,
+.tm-inbox-chip:focus-visible {
   outline: var(--b-structural) solid var(--focus-ring);
   outline-offset: var(--s1);
 }
@@ -68,32 +71,6 @@
   font-weight: 600;
 }
 
-.tm-support-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: flex;
-  justify-content: flex-end;
-  background: color-mix(in srgb, var(--ink-950) 30%, transparent);
-}
-
-.tm-support-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s5);
-  inline-size: min(100%, 28rem);
-  block-size: 100%;
-  overflow-y: auto;
-  padding: var(--s6);
-  background: var(--paper-0);
-  color: var(--ink-950);
-}
-
-.tm-support-panel:focus {
-  outline: none;
-}
-
-.tm-support-panel__head,
 .tm-support-thread-head,
 .tm-support-actions,
 .tm-support-attach {
@@ -103,18 +80,12 @@
   gap: var(--s3);
 }
 
-.tm-support-panel__head,
 .tm-support-thread-head {
   justify-content: space-between;
 }
 
 .tm-support-actions {
   justify-content: flex-end;
-}
-
-.tm-support-panel__title {
-  margin: 0;
-  font-size: var(--t-heading-card);
 }
 
 .tm-support-thread-head__subject {
@@ -205,7 +176,6 @@
   overflow-wrap: anywhere;
 }
 
-.tm-support-threads,
 .tm-support-messages {
   display: flex;
   flex-direction: column;
@@ -213,39 +183,6 @@
   margin: 0;
   padding: 0;
   list-style: none;
-}
-
-.tm-support-thread-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s3);
-  inline-size: 100%;
-  padding: var(--s4);
-  border: var(--b-quiet) solid var(--line-300);
-  border-radius: var(--r-micro);
-  background: var(--paper-0);
-  color: inherit;
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-}
-
-.tm-support-thread-row:hover,
-.tm-support-thread-row[aria-current='true'] {
-  background: var(--paper-150);
-}
-
-.tm-support-thread-row__text {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s1);
-  min-inline-size: 0;
-}
-
-.tm-support-thread-row__subject {
-  font-weight: 600;
-  overflow-wrap: anywhere;
 }
 
 .tm-support-message {
@@ -284,22 +221,274 @@
   overflow-wrap: anywhere;
 }
 
-/* Platform inbox: list beside the open conversation. */
-.tm-support-inbox {
+/* 57-10 · Get help: the new-request card beside "Your requests". */
+.tm-gethelp {
   display: grid;
-  grid-template-columns: minmax(16rem, 26rem) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
   gap: var(--s6);
   align-items: start;
 }
 
-.tm-support-filters {
+.tm-gethelp-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-gethelp-card__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  font-weight: 500;
+}
+
+.tm-gethelp-send {
+  inline-size: 100%;
+  border-radius: var(--r-capsule);
+}
+
+.tm-gethelp-policy {
+  display: flex;
+  gap: var(--s4);
+  align-items: baseline;
+  padding: var(--s3) var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-gethelp-policy__plan {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+}
+
+.tm-gethelp-requests {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-gethelp-requests > li + li {
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-gethelp-request {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s4);
+  inline-size: 100%;
+  padding-block: var(--s5);
+  padding-inline: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-gethelp-request:hover .tm-gethelp-request__subject {
+  text-decoration: underline;
+}
+
+.tm-gethelp-request__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-inline-size: 0;
+}
+
+.tm-gethelp-request__subject {
+  overflow-wrap: anywhere;
+}
+
+.tm-gethelp-request__state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s2);
+  flex: none;
+}
+
+/* The outlined status pill and the response line under it. */
+.tm-sla-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: var(--s8);
+  padding-inline: var(--s3);
+  border: var(--b-quiet) solid var(--line-700);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font-size: var(--t-ui-sm);
+  white-space: nowrap;
+}
+
+.tm-sla-badge--late {
+  border-color: var(--danger-600);
+}
+
+.tm-sla-badge--due {
+  border-color: var(--warning-600);
+}
+
+.tm-sla-badge--answered {
+  border-color: var(--success-600);
+}
+
+.tm-sla-badge--late .tm-sla-badge__glyph {
+  color: var(--danger-600);
+}
+
+.tm-sla-badge--due .tm-sla-badge__glyph {
+  color: var(--warning-600);
+}
+
+.tm-sla-badge--answered .tm-sla-badge__glyph {
+  color: var(--success-600);
+}
+
+.tm-sla-line {
+  font-size: var(--t-ui-sm);
+  text-align: end;
+}
+
+.tm-sla-line--late {
+  color: var(--danger-600);
+}
+
+.tm-sla-line--due {
+  color: var(--warning-600);
+}
+
+.tm-sla-line--answered {
+  color: var(--success-600);
+}
+
+/* 57-10 · Platform inbox: quick filters, the queue table, the targets. */
+.tm-inbox-toolbar {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.tm-inbox-chips,
+.tm-inbox-actions,
+.tm-inbox-selects {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
   gap: var(--s2);
 }
 
+.tm-inbox-selects {
+  gap: var(--s4);
+}
+
+.tm-inbox-chip {
+  min-block-size: var(--s8);
+  padding-inline: var(--s4);
+  border: var(--b-quiet) solid var(--line-700);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  cursor: pointer;
+}
+
+.tm-inbox-chip--late {
+  color: var(--danger-600);
+}
+
+.tm-inbox-chip[aria-pressed='true'] {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  color: var(--paper-0);
+}
+
+.tm-inbox-table-wrap {
+  overflow-x: auto;
+  padding: var(--s2) var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-inbox-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-ui-md);
+}
+
+.tm-inbox-table thead th {
+  padding-block: var(--s2);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+  font-weight: 400;
+  text-align: start;
+}
+
+.tm-inbox-table tbody th,
+.tm-inbox-table td {
+  padding-block: var(--s4);
+  padding-inline-end: var(--s4);
+  font-weight: 400;
+  text-align: start;
+  vertical-align: middle;
+}
+
+.tm-inbox-table tbody tr + tr > * {
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-inbox-table tbody tr[aria-current='true'] {
+  background: var(--paper-150);
+}
+
+.tm-inbox-open {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-inbox-open:hover {
+  text-decoration: underline;
+}
+
+.tm-inbox-targets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: var(--s3);
+  margin: 0;
+}
+
+.tm-inbox-targets dt {
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-inbox-targets dd {
+  margin: 0;
+}
+
 @media (max-width: 900px) {
-  .tm-support-inbox {
+  .tm-gethelp {
     grid-template-columns: 1fr;
   }
 }

@@ -85,6 +85,8 @@ export interface SupportThreadView {
   readonly priority: SupportPriority;
   /** 57-10. The SLA clock: the writer's own threads and the platform only, never other members. */
   readonly sla: SlaClockView | null;
+  /** 57-10. The plan whose targets were captured at opening (shown beside the target). */
+  readonly plan: string | null;
   readonly subject: string;
   readonly status: SupportStatus;
   readonly contextPath: string | null;
@@ -96,6 +98,16 @@ export interface SupportThreadView {
   readonly lastMessageAt: string;
   readonly createdAt: string;
   readonly closedAt: string | null;
+}
+
+/**
+ * 57-10. What "Get help" promises before a request is sent: the workspace's plan today and the
+ * first-response target for a normal request, in business minutes, and the clock's time zone.
+ */
+export interface SupportPolicyView {
+  readonly plan: string;
+  readonly firstResponseMinutes: number;
+  readonly timezone: string;
 }
 
 export interface SupportThreadDetailView {
@@ -188,6 +200,7 @@ function threadView(
     category: thread.category,
     priority: thread.priority,
     sla: showSla ? slaClock(slaState(thread), now) : null,
+    plan: showSla ? thread.planIdAtOpen : null,
     subject: thread.subject,
     status: thread.status,
     contextPath: thread.contextPath,
@@ -245,6 +258,20 @@ export class SupportService {
     );
     const now = this.now();
     return rows.map((row) => threadView(row, context.userId, now));
+  }
+
+  /** 57-10. The targets a new request would get now (the list's header on "Get help"). */
+  async policy(context: TenantContext): Promise<SupportPolicyView> {
+    this.requireInternal(context);
+    const source = await this.deps.database.read(context, (db) =>
+      this.deps.repository.slaSource(db, context),
+    );
+    const plan = readPlanId(source.planId);
+    return {
+      plan,
+      firstResponseMinutes: slaTargets(plan, 'normal').firstResponseMinutes,
+      timezone: validTimeZone(source.timezone),
+    };
   }
 
   async get(context: TenantContext, rawId: string): Promise<SupportThreadDetailView> {

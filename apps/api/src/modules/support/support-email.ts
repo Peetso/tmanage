@@ -18,7 +18,7 @@ export interface SupportReplyFacts {
 
 export function supportThreadLink(webPublicUrl: string, slug: string, threadId: string): string {
   const base = webPublicUrl.replace(/\/+$/u, '');
-  return `${base}/${encodeURIComponent(slug)}?support=${encodeURIComponent(threadId)}`;
+  return `${base}/${encodeURIComponent(slug)}/help?request=${encodeURIComponent(threadId)}`;
 }
 
 function oneLine(value: string): string {

@@ -29,6 +29,16 @@ export type SupportCategory =
   'question' | 'problem' | 'billing' | 'account' | 'feature_request' | 'other';
 export type SupportPriority = 'low' | 'normal' | 'high' | 'urgent';
 
+export const SUPPORT_CATEGORIES: readonly SupportCategory[] = [
+  'question',
+  'problem',
+  'billing',
+  'account',
+  'feature_request',
+  'other',
+];
+export const SUPPORT_PRIORITIES: readonly SupportPriority[] = ['low', 'normal', 'high', 'urgent'];
+
 export interface SupportSlaClock {
   readonly paused: boolean;
   readonly firstResponse: {
@@ -54,6 +64,8 @@ export interface SupportThread {
   readonly priority: SupportPriority;
   /** Only on the writer's own threads and in the platform inbox; null otherwise. */
   readonly sla: SupportSlaClock | null;
+  /** The plan whose targets were captured at opening; null where `sla` is null. */
+  readonly plan: string | null;
   readonly subject: string;
   readonly status: SupportStatus;
   readonly contextPath: string | null;
@@ -65,6 +77,18 @@ export interface SupportThread {
   readonly lastMessageAt: string;
   readonly createdAt: string;
   readonly closedAt: string | null;
+}
+
+/** What a new request would get now: the plan, the normal first-response target, the time zone. */
+export interface SupportPolicy {
+  readonly plan: string;
+  readonly firstResponseMinutes: number;
+  readonly timezone: string;
+}
+
+export interface SupportOverview {
+  readonly threads: readonly SupportThread[];
+  readonly policy: SupportPolicy;
 }
 
 export interface SupportThreadDetail {
@@ -86,6 +110,8 @@ export interface PlatformSupportDetail {
 }
 
 export interface NewSupportThreadInput {
+  readonly category: SupportCategory;
+  readonly priority: SupportPriority;
   readonly subject: string;
   readonly message: string;
   readonly contextPath: string | null;
@@ -102,6 +128,14 @@ export function projectIdFromPath(path: string): string | null {
   return match?.[1] ?? null;
 }
 
+/** 57-10 · "Get help"'s `?from=` page: only a page inside this workspace is sent as context. */
+export function cleanFromPath(from: string | undefined, organizationSlug: string): string | null {
+  if (!from || from.length > 300 || /[?#\\]/u.test(from)) return null;
+  const prefix = `/${organizationSlug}`;
+  if (from.startsWith(`${prefix}/help`)) return null;
+  return from === prefix || from.startsWith(`${prefix}/`) ? from : null;
+}
+
 export const supportThreadsKey = (organizationSlug: string) =>
   ['support-threads', organizationSlug] as const;
 export const supportThreadKey = (organizationSlug: string, id: string) =>
@@ -113,11 +147,9 @@ const base = (slug: string) => `/v1/organizations/${encodeURIComponent(slug)}/su
 export async function fetchSupportThreads(
   client: ApiClient,
   organizationSlug: string,
-): Promise<readonly SupportThread[]> {
-  const { data } = await client.request<{ readonly threads: readonly SupportThread[] }>({
-    path: base(organizationSlug),
-  });
-  return data.threads;
+): Promise<SupportOverview> {
+  const { data } = await client.request<SupportOverview>({ path: base(organizationSlug) });
+  return data;
 }
 
 export async function fetchSupportThread(
@@ -149,11 +181,12 @@ export async function postSupportMessage(
   organizationSlug: string,
   id: string,
   message: string,
+  attachmentFileId: string | null = null,
 ): Promise<SupportThreadDetail> {
   const { data } = await client.request<SupportThreadDetail>({
     method: 'POST',
     path: `${base(organizationSlug)}/${encodeURIComponent(id)}/messages`,
-    body: { message },
+    body: { message, attachmentFileId },
   });
   return data;
 }
@@ -170,13 +203,55 @@ export async function closeSupportThread(
   return data;
 }
 
+/** 57-10 · the inbox's server-side filters; the clock behind `breached` is computed by the API. */
+export interface PlatformSupportFilter {
+  readonly breached?: boolean;
+  readonly priority?: SupportPriority | null;
+}
+
+export const platformSupportListKey = (filter: PlatformSupportFilter) =>
+  [
+    ...PLATFORM_SUPPORT_QUERY_KEY,
+    'list',
+    filter.breached === true,
+    filter.priority ?? null,
+  ] as const;
+
 export async function fetchPlatformSupportThreads(
   client: ApiClient,
+  filter: PlatformSupportFilter = {},
 ): Promise<readonly PlatformSupportThread[]> {
+  const params = new URLSearchParams();
+  if (filter.breached) params.set('breached', '1');
+  if (filter.priority) params.set('priority', filter.priority);
+  const query = params.toString();
   const { data } = await client.request<{ readonly threads: readonly PlatformSupportThread[] }>({
-    path: '/v1/platform/support/threads',
+    path: `/v1/platform/support/threads${query === '' ? '' : `?${query}`}`,
   });
   return data.threads;
+}
+
+/** 57-10 · the published targets (public, static policy): plan → first response, the hours. */
+export interface SupportTargets {
+  readonly hours: { readonly days: string; readonly open: string; readonly close: string };
+  readonly plans: readonly {
+    readonly plan: string;
+    readonly firstResponseBusinessMinutes: number;
+  }[];
+  readonly priorities: readonly {
+    readonly priority: SupportPriority;
+    readonly firstResponseFactor: number;
+    readonly resolutionMinutes: number;
+  }[];
+}
+
+export const SUPPORT_TARGETS_QUERY_KEY = ['support-targets'] as const;
+
+export async function fetchSupportTargets(client: ApiClient): Promise<SupportTargets> {
+  const { data } = await client.request<SupportTargets>({
+    path: '/v1/public/site/support-targets',
+  });
+  return data;
 }
 
 export async function fetchPlatformSupportThread(

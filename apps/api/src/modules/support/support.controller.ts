@@ -40,7 +40,11 @@ export class SupportThreadsController {
   @Get()
   @RequireCapability('work.read')
   async list(@Ctx() context: TenantContext) {
-    return { threads: await this.service.list(context) };
+    const [threads, policy] = await Promise.all([
+      this.service.list(context),
+      this.service.policy(context),
+    ]);
+    return { threads, policy };
   }
 
   @Post()
