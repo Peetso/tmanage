@@ -120,8 +120,34 @@ export function snapshotErrorOf(error: unknown): {
   if (error instanceof FigmaUnavailableError && error.detail === 'snapshot_too_large') {
     return { reason: 'too_large', final: true };
   }
+  // 2026-11-15 live check: every failure read "unreachable". Now the token says which.
+  if (error instanceof SnapshotStorageError) return { reason: 'storage', final: false };
+  if (error instanceof FigmaUnavailableError) return { reason: 'figma_error', final: false };
+  const name = error instanceof Error ? error.name : '';
+  if (name === 'TimeoutError' || name === 'AbortError') return { reason: 'timeout', final: false };
   return { reason: 'unreachable', final: false };
 }
+
+/** The picture came from Figma but could not be written to storage. */
+export class SnapshotStorageError extends Error {
+  constructor() {
+    super('snapshot could not be stored');
+    this.name = 'SnapshotStorageError';
+  }
+}
+
+/**
+ * The scale a frame is rendered at on its own after its batch failed: a frame that would be a
+ * very large picture gets half the scale (Figma renders it faster and smaller), at least 0.25.
+ */
+export function fallbackScale(width: number, height: number, scale: number): number {
+  const pixels = width * height * scale * scale;
+  if (pixels <= FALLBACK_HALVE_ABOVE_PIXELS) return scale;
+  return Math.max(0.25, Math.floor((scale / 2) * 100) / 100);
+}
+
+/** Above this many pixels a frame retried on its own is rendered at half the scale. */
+const FALLBACK_HALVE_ABOVE_PIXELS = 8_000_000;
 
 /** A small WebP of the snapshot for the whole-page view, or null when it cannot be made. */
 export async function snapshotThumb(png: Uint8Array): Promise<Uint8Array | null> {
@@ -373,32 +399,75 @@ export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy
             scale,
           );
         } catch (error) {
-          if (error instanceof FigmaRateLimitError) {
-            throw await this.waitForFigma(context, link, error.retryAfterSeconds);
+          const { reason, final } = await this.renderFailure(context, link, error);
+          // One bad frame must not fail its whole batch: each is tried on its own.
+          if (!final && batch.length > 1) {
+            for (const frame of batch) {
+              await this.drawAlone(context, link, token, frame, scale, tally, remaining);
+            }
+            continue;
           }
-          if (error instanceof FigmaAuthError && error.status === 401) {
-            await this.database.transaction(context, (tx) =>
-              this.repository.markConnectionError(tx, context, link.createdByMembershipId),
-            );
-          }
-          const { reason, final } = snapshotErrorOf(error);
           for (const frame of batch) {
             await this.fail(context, frame, reason, final, tally, remaining);
           }
           continue;
         }
         for (const frame of batch) {
-          await this.drawFrame(
-            context,
-            link,
-            frame,
-            urls.get(frame.nodeId) ?? null,
-            tally,
-            remaining,
-          );
+          const url = urls.get(frame.nodeId) ?? null;
+          // Figma answers null for a node it could not render: tried again on its own.
+          if (!url && batch.length > 1) {
+            await this.drawAlone(context, link, token, frame, scale, tally, remaining);
+            continue;
+          }
+          await this.drawFrame(context, link, frame, url, tally, remaining);
         }
       }
     }
+  }
+
+  /** A failed `images` call: Figma's 429 ends the pass; a refused token is recorded. */
+  private async renderFailure(
+    context: TenantContext,
+    link: FigmaLinkRow,
+    error: unknown,
+  ): Promise<{ readonly reason: FigmaSnapshotError; readonly final: boolean }> {
+    if (error instanceof FigmaRateLimitError) {
+      throw await this.waitForFigma(context, link, error.retryAfterSeconds);
+    }
+    if (error instanceof FigmaAuthError && error.status === 401) {
+      await this.database.transaction(context, (tx) =>
+        this.repository.markConnectionError(tx, context, link.createdByMembershipId),
+      );
+    }
+    return snapshotErrorOf(error);
+  }
+
+  /** One frame in its own `images` call, a very large one at a lower scale. */
+  private async drawAlone(
+    context: TenantContext,
+    link: FigmaLinkRow,
+    token: string,
+    frame: FigmaFrameRow,
+    scale: number,
+    tally: Tally,
+    remaining: Set<string>,
+  ): Promise<void> {
+    let url: string | null;
+    try {
+      const urls = await this.rest.renderUrls(
+        token,
+        link.fileKey,
+        [frame.nodeId],
+        fallbackScale(frame.width, frame.height, scale),
+      );
+      url = urls.get(frame.nodeId) ?? null;
+    } catch (error) {
+      const { reason, final } = await this.renderFailure(context, link, error);
+      return this.fail(context, frame, reason, final, tally, remaining);
+    }
+    // Asked for alone and still nothing: Figma no longer has this frame (as a batch of one says).
+    if (!url) return this.fail(context, frame, 'not_found', true, tally, remaining);
+    return this.drawFrame(context, link, frame, url, tally, remaining);
   }
 
   /** Figma's 429: the link waits (in its row, for every process and the team's screen). */
@@ -427,10 +496,17 @@ export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy
     try {
       const bytes = await this.rest.download(url);
       const objectKey = figmaSnapshotObjectKey(context.organizationId, link.id, frame.id);
-      await this.store.putDerivative({ objectKey, body: bytes });
       const thumb = await snapshotThumb(bytes);
-      if (thumb) {
-        await this.store.putDerivative({ objectKey: figmaThumbObjectKey(objectKey), body: thumb });
+      try {
+        await this.store.putDerivative({ objectKey, body: bytes });
+        if (thumb) {
+          await this.store.putDerivative({
+            objectKey: figmaThumbObjectKey(objectKey),
+            body: thumb,
+          });
+        }
+      } catch {
+        throw new SnapshotStorageError();
       }
       const hash = createHash('sha256').update(bytes).digest('hex');
       await this.database.transaction(context, async (tx) => {

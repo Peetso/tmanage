@@ -11,6 +11,7 @@ import type {
 import { createSeedCipher } from '../identity/seed-cipher.js';
 import {
   DEFAULT_FIGMA_SNAPSHOT_JOB_OPTIONS,
+  fallbackScale,
   FigmaSnapshotJob,
   figmaSnapshotJobEnabled,
   RENDERS_PER_REQUEST,
@@ -80,6 +81,10 @@ function build(input: {
   organizations?: readonly string[];
   /** Workspaces whose token Figma answers with 429. */
   limitedOrganizations?: ReadonlySet<string>;
+  /** Any images call that asks for this node id times out (one bad frame in a batch). */
+  poison?: string;
+  /** The store refuses every write. */
+  storeFails?: boolean;
 }) {
   const frames = new Map(input.frames.map((row) => [row.id, { ...row }]));
   let current = ORG;
@@ -190,6 +195,7 @@ function build(input: {
     },
   } as unknown as FigmaRepository;
   const scales: number[] = [];
+  const batches: number[] = [];
   const rest = {
     renderUrls: async (_t: string, _k: string, ids: readonly string[], scale: number) => {
       renderCalls.push(current);
@@ -197,6 +203,12 @@ function build(input: {
         throw new FigmaRateLimitError(60);
       }
       if (input.refused) throw new FigmaAuthError(input.refused);
+      batches.push(ids.length);
+      if (input.poison && ids.includes(input.poison)) {
+        throw Object.assign(new Error('The operation was aborted due to timeout'), {
+          name: 'TimeoutError',
+        });
+      }
       scales.push(scale);
       return new Map(
         ids.map((id) => [
@@ -210,6 +222,7 @@ function build(input: {
   const stored = new Map<string, Uint8Array>();
   const store = {
     putDerivative: async ({ objectKey, body }: { objectKey: string; body: Uint8Array }) => {
+      if (input.storeFails) throw new Error('EACCES: permission denied');
       stored.set(objectKey, body);
       return { sizeBytes: body.length };
     },
@@ -231,7 +244,7 @@ function build(input: {
     repository,
     () => NOW,
   );
-  return { job, frames, stored, released, scales, renderCalls, waits };
+  return { job, frames, stored, released, scales, batches, renderCalls, waits };
 }
 
 const F1 = '00000000-0000-4000-8000-0000000000f1';
@@ -349,6 +362,46 @@ describe('FigmaSnapshotJob', () => {
     expect(gone.frames.get(F2)).toMatchObject({
       snapshotStatus: 'failed',
       snapshotError: 'not_found',
+    });
+  });
+
+  it('one bad frame cannot fail its batch: the batch is tried frame by frame (2026-11-15 live)', async () => {
+    const ids = ['f3', 'f4', 'f5'].map((n) => `00000000-0000-4000-8000-0000000000${n}`);
+    const world = build({
+      frames: [frame(F1), frame(F2), ...ids.map((id) => frame(id))],
+      poison: '1:2',
+    });
+    const report = await world.job.pass();
+    // One call for the batch of five, then each frame alone.
+    expect(world.batches).toEqual([5, 1, 1, 1, 1, 1]);
+    expect(report).toMatchObject({ ready: 4 });
+    expect(world.frames.get(F1)!.snapshotStatus).toBe('ready');
+    // The bad one says why, and is tried again later (not failed for good).
+    expect(world.frames.get(F2)).toMatchObject({
+      snapshotStatus: 'pending',
+      snapshotError: 'timeout',
+      snapshotAttempts: 1,
+    });
+  });
+
+  it('a huge frame tried alone is drawn at a lower scale', async () => {
+    expect(fallbackScale(390, 844, 2)).toBe(2);
+    expect(fallbackScale(4000, 20000, 2)).toBe(1);
+    expect(fallbackScale(4000, 20000, 0.25)).toBe(0.25);
+    expect(fallbackScale(1440, 3000, 2)).toBe(1);
+    const huge = frame(F2, { width: 1440, height: 3000 });
+    const world = build({ frames: [frame(F1), huge], poison: '1:1' });
+    await world.job.pass();
+    expect(world.scales).toEqual([1]);
+    expect(world.frames.get(F2)!.snapshotStatus).toBe('ready');
+  });
+
+  it('a store that refuses the write says storage, not unreachable', async () => {
+    const world = build({ frames: [frame(F1)], storeFails: true });
+    await world.job.pass();
+    expect(world.frames.get(F1)).toMatchObject({
+      snapshotStatus: 'pending',
+      snapshotError: 'storage',
     });
   });
 

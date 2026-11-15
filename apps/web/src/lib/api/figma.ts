@@ -26,7 +26,14 @@ export type FigmaAttachTarget =
 export type FigmaSnapshotStatus = 'pending' | 'ready' | 'failed' | 'skipped';
 /** Why the last capture failed (team only). */
 export type FigmaSnapshotError =
-  'no_connection' | 'no_access' | 'not_found' | 'too_large' | 'unreachable';
+  | 'no_connection'
+  | 'no_access'
+  | 'not_found'
+  | 'too_large'
+  | 'unreachable'
+  | 'timeout'
+  | 'figma_error'
+  | 'storage';
 
 export interface FigmaConnection {
   readonly status: 'not_connected' | 'connected' | 'error';

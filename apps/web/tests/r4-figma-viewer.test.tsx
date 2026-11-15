@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 import {
@@ -589,17 +589,53 @@ describe('Figma pictures still to come (2026-11-15 live test)', () => {
         />,
       ),
     );
-    const line = (await screen.findByText(/0 of 1411 frames ready/u)).closest('p')!;
+    const line = (await screen.findByText(/250 of 1411 frames captured/u)).closest('p')!;
+    expect(line).toHaveTextContent(/choose pages to capture others/u);
     expect(line).toHaveTextContent(
       /Figma asked TManage to wait · pictures resume in about 15 min/u,
     );
-    expect(line).toHaveTextContent(/1161 not shown/u);
     expect(line).toHaveTextContent(/Snapshot not taken yet/u);
     // No stacked warning box: the page chooser is one button, opened on demand.
     expect(screen.queryByText('This file is bigger than one link shows')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Choose pages' }));
     expect(screen.getByRole('group', { name: /1411 frames/u })).toBeInTheDocument();
     expect(screen.getByText(/appears by itself as soon as Figma allows it/u)).toBeInTheDocument();
+  });
+
+  it('says how many frames could not be captured and retries them from the line (2026-11-15 live)', async () => {
+    const { client, calls } = fakeApi(
+      link({
+        capture: { ...link().capture, frameCount: 1411, ready: 0, failed: 250, skipped: 1161 },
+        frames: [
+          frame({
+            snapshotStatus: 'failed',
+            snapshotError: 'timeout',
+            snapshotPath: null,
+            thumbPath: null,
+            capturedAt: null,
+          }),
+        ],
+      }),
+    );
+    render(
+      withQuery(
+        <FigmaStage
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          linkId="l1"
+          client={client}
+          apiBase={BASE}
+        />,
+      ),
+    );
+    const line = (await screen.findByText(/250 frames could not be captured/u)).closest('p')!;
+    expect(line).toHaveTextContent(/This frame could not be captured/u);
+    expect(line).not.toHaveTextContent(/Snapshot not taken yet|on their way/u);
+    expect(screen.getByText(/Figma took too long to draw this frame/u)).toBeInTheDocument();
+    fireEvent.click(within(line).getByRole('button', { name: 'Try again' }));
+    await waitFor(() =>
+      expect(calls.some((c) => c.method === 'POST' && c.url.endsWith('/snapshots'))).toBe(true),
+    );
   });
 });
 

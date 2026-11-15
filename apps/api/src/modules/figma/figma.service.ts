@@ -31,6 +31,7 @@ import { ReviewThreadsRepository } from '../files/review-threads.repository.js';
 import {
   FIGMA_ATTACH_TARGETS,
   FigmaRepository,
+  TRANSIENT_SNAPSHOT_ERRORS,
   type FigmaAttachTarget,
   type FigmaLinkAudience,
   type FigmaSnapshotError,
@@ -176,6 +177,8 @@ export const RENDER_WINDOW_MS = 10 * 60_000;
  * held server-side from the link's own last read, which every process sees.
  */
 export const REFRESH_COOLDOWN_MS = 3 * 60_000;
+/** A frame that failed for a passing reason is queued again on the next view after this long. */
+export const FAILED_RETRY_AFTER_MS = 10 * 60_000;
 export const RENDERS_PER_PERSON = 40;
 export const RENDERS_PER_WORKSPACE = 150;
 
@@ -915,7 +918,7 @@ export class FigmaService {
     const client = principal.kind === 'client';
     const canWrite = !client && this.mayWrite(principal, link, project);
     const canComment = this.mayComment(principal, link, project);
-    const { rows, frames } = await this.deps.database.read(context, async (runner) => {
+    const read = await this.deps.database.read(context, async (runner) => {
       const listed = await this.repository.listFrames(runner, context, link.id);
       const open = await this.threads.countOpenBySubjects(
         runner,
@@ -929,8 +932,38 @@ export class FigmaService {
         frames: listed.map((row) => this.frameView(row, open.get(row.id) ?? 0, link, client)),
       };
     });
+    let { rows, frames } = read;
     const outline = parseStoredOutline(link.outlineJson);
     const filter = parsePageFilter(link.pageFilterJson);
+    // 2026-11-15 live check: 250 frames had failed for a passing reason and stayed failed. A
+    // frame that failed that way a while ago is queued again when the link is opened.
+    const retry = rows.filter(
+      (row) =>
+        row.goneAt === null &&
+        row.snapshotStatus === 'failed' &&
+        (row.snapshotError === null ||
+          (TRANSIENT_SNAPSHOT_ERRORS as readonly string[]).includes(row.snapshotError)) &&
+        row.updatedAt.getTime() < this.now().getTime() - FAILED_RETRY_AFTER_MS,
+    );
+    if (retry.length > 0) {
+      await this.deps.database.transaction(context, (tx) =>
+        this.repository.requeueFailed(
+          tx,
+          context,
+          link.id,
+          new Date(this.now().getTime() - FAILED_RETRY_AFTER_MS),
+        ),
+      );
+      const again = new Set(retry.map((row) => row.id));
+      rows = rows.map((row) =>
+        again.has(row.id)
+          ? { ...row, snapshotStatus: 'pending', snapshotAttempts: 0, snapshotError: null }
+          : row,
+      );
+      frames = frames.map((view, index) =>
+        again.has(view.id) ? this.frameView(rows[index]!, view.openThreads, link, client) : view,
+      );
+    }
     const live = rows.filter((row) => row.goneAt === null);
     const count = (status: string) => live.filter((row) => row.snapshotStatus === status).length;
     const waitUntil =
@@ -1064,6 +1097,8 @@ export class FigmaService {
     const queued = [...placements.values()].filter((place) => place.captured).length;
     await this.deps.database.transaction(context, async (tx) => {
       await this.repository.applyFrameDiff(tx, context, link.id, diff);
+      // Every frame that failed for a passing reason is queued again, attempts reset.
+      await this.repository.requeueFailed(tx, context, link.id, new Date(now.getTime() + 1000));
       await this.repository.updateLinkOutline(tx, context, link.id, {
         fileName: outline.name === '' ? null : outline.name,
         outlineJson: storedOutlineJson(outline),
@@ -1483,6 +1518,9 @@ const SNAPSHOT_ERRORS: ReadonlySet<string> = new Set<FigmaSnapshotError>([
   'not_found',
   'too_large',
   'unreachable',
+  'timeout',
+  'figma_error',
+  'storage',
 ]);
 
 function isSnapshotError(raw: string | null): raw is FigmaSnapshotError {

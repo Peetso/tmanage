@@ -51,7 +51,23 @@ export type FigmaSnapshotStatus = 'pending' | 'ready' | 'failed' | 'skipped';
 
 /** Why a capture failed, for the team's screen. */
 export type FigmaSnapshotError =
-  'no_connection' | 'no_access' | 'not_found' | 'too_large' | 'unreachable';
+  | 'no_connection'
+  | 'no_access'
+  | 'not_found'
+  | 'too_large'
+  | 'unreachable'
+  // 2026-11-15 live check: 250 frames failed as "unreachable" with no way to tell why. Now:
+  | 'timeout' // Figma took longer than the request limit to render or send the picture
+  | 'figma_error' // Figma answered with an error status
+  | 'storage'; // the picture came, but could not be stored
+
+/** Failures a later attempt can fix: re-queued when the link is opened again or refreshed. */
+export const TRANSIENT_SNAPSHOT_ERRORS: readonly FigmaSnapshotError[] = [
+  'unreachable',
+  'timeout',
+  'figma_error',
+  'storage',
+];
 
 /** The most snapshot attempts a frame gets before it is `failed` (a manual refresh resets). */
 export const FIGMA_SNAPSHOT_MAX_ATTEMPTS = 3;
@@ -283,6 +299,7 @@ export class FigmaRepository {
           ...frameColumns(change.frame, change.placement),
           snapshotStatus: change.placement.captured ? 'pending' : 'skipped',
           snapshotAttempts: 0,
+          snapshotError: null,
           claimedAt: null,
           goneAt: null,
           ...(change.sizeChanged ? { sizeChanged: true } : {}),
@@ -622,6 +639,42 @@ export class FigmaRepository {
           inArray(figmaLinks.id, [...new Set(linkIds)]),
         ),
       );
+  }
+
+  /**
+   * 2026-11-15 live check: frames that failed for a passing reason go back to `pending` with their
+   * attempts reset, so they recover without anyone touching the database. Only failures older than
+   * `failedBefore` (an open page does not loop on a frame that keeps failing). Answers how many.
+   */
+  async requeueFailed(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    linkId: string,
+    failedBefore: Date,
+  ): Promise<number> {
+    const result = await tenantDrizzle(runner)
+      .update(figmaFrames)
+      .set({
+        snapshotStatus: 'pending',
+        snapshotAttempts: 0,
+        snapshotError: null,
+        claimedAt: null,
+        updatedAt: sql`current_timestamp(3)`,
+      })
+      .where(
+        and(
+          eq(figmaFrames.organizationId, context.organizationId),
+          eq(figmaFrames.linkId, linkId),
+          eq(figmaFrames.snapshotStatus, 'failed'),
+          isNull(figmaFrames.goneAt),
+          or(
+            isNull(figmaFrames.snapshotError),
+            inArray(figmaFrames.snapshotError, [...TRANSIENT_SNAPSHOT_ERRORS]),
+          ),
+          lt(figmaFrames.updatedAt, failedBefore),
+        ),
+      );
+    return affected(result);
   }
 
   /** Conditional claim: pending, unclaimed or stale, at the attempt count the caller read. */

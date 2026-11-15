@@ -139,6 +139,9 @@ const SNAPSHOT_ERROR_KEYS: Record<FigmaSnapshotError, MessageKey> = {
   not_found: 'Figma.viewer.error.not_found',
   too_large: 'Figma.viewer.error.too_large',
   unreachable: 'Figma.viewer.error.unreachable',
+  timeout: 'Figma.viewer.error.timeout',
+  figma_error: 'Figma.viewer.error.figma_error',
+  storage: 'Figma.viewer.error.storage',
 };
 
 /**
@@ -810,16 +813,42 @@ export function FigmaStage({
       : null;
     const statusParts: ReactNode[] = [];
     if (capture.frameCount > 0) {
+      // 2026-11-15 live: 1411 frames, 1161 over the cap. The team is told how many are captured
+      // and how to get the others; a client's count is only what is prepared for them.
       statusParts.push(
-        (portalLook ? t('Figma.viewer.progressClient') : t('Figma.viewer.progress'))
-          .replace('{ready}', String(capture.ready))
-          .replace('{total}', String(shownCount))
-          .replace('{pages}', String(Math.max(1, capture.pageCount))),
+        !portalLook && capture.skipped > 0
+          ? t('Figma.viewer.progressOverCap')
+              .replace('{captured}', String(capture.frameCount - capture.skipped))
+              .replace('{total}', String(capture.frameCount))
+              .replace('{ready}', String(capture.ready))
+          : (portalLook ? t('Figma.viewer.progressClient') : t('Figma.viewer.progress'))
+              .replace('{ready}', String(capture.ready))
+              .replace('{total}', String(shownCount))
+              .replace('{pages}', String(Math.max(1, capture.pageCount))),
       );
       if (capture.pending > 0 && !waitUntil) statusParts.push(t('Figma.viewer.progressPreparing'));
-      if (!portalLook && capture.skipped > 0) {
+      // 250 frames failed on live and the line kept saying "taking the snapshot": say it, and
+      // offer the retry (Refresh puts every failed frame back in the queue, tries reset).
+      if (!portalLook && capture.failed > 0) {
         statusParts.push(
-          t('Figma.viewer.progressSkipped').replace('{count}', String(capture.skipped)),
+          <span key="failed" className="tm-figma-status__problem">
+            {t('Figma.viewer.progressFailed').replace('{count}', String(capture.failed))}
+            {caps.canRefresh ? (
+              <>
+                {' '}
+                <Button
+                  type="button"
+                  tone="outline"
+                  size="compact"
+                  loading={refresh.isPending}
+                  loadingLabel={t('Figma.viewer.refreshing')}
+                  onClick={() => refresh.mutate()}
+                >
+                  {t('Figma.viewer.retry')}
+                </Button>
+              </>
+            ) : null}
+          </span>,
         );
       }
     }
@@ -835,17 +864,19 @@ export function FigmaStage({
     }
     if (frame && !portalLook) {
       statusParts.push(
-        frame.capturedAt
-          ? t('Figma.viewer.takenAt').replace(
-              '{when}',
-              format.dateTime(frame.capturedAt, {
-                day: 'numeric',
-                month: 'short',
-                hour: '2-digit',
-                minute: '2-digit',
-              }),
-            )
-          : t('Figma.viewer.notTakenYet'),
+        frame.snapshotStatus === 'failed' && !frame.capturedAt
+          ? t('Figma.viewer.frameNotCaptured')
+          : frame.capturedAt
+            ? t('Figma.viewer.takenAt').replace(
+                '{when}',
+                format.dateTime(frame.capturedAt, {
+                  day: 'numeric',
+                  month: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }),
+              )
+            : t('Figma.viewer.notTakenYet'),
       );
     }
     if (showLive) statusParts.push(t('Figma.viewer.liveNotice'));

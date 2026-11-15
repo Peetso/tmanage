@@ -15,7 +15,11 @@ import type {
 import type { AuditService } from '../audit/audit.service.js';
 import { createSeedCipher } from '../identity/seed-cipher.js';
 import { FigmaAccess } from './figma-access.js';
-import type { FigmaRepository, InsertLinkInput } from './figma.repository.js';
+import {
+  TRANSIENT_SNAPSHOT_ERRORS,
+  type FigmaRepository,
+  type InsertLinkInput,
+} from './figma.repository.js';
 import {
   FigmaAuthError,
   FigmaRateLimitError,
@@ -25,7 +29,7 @@ import {
   type FigmaRestClient,
 } from './figma.rest.js';
 import type { FrameDiff } from './figma-outline.js';
-import { FigmaService, figmaTokenBinding } from './figma.service.js';
+import { FAILED_RETRY_AFTER_MS, FigmaService, figmaTokenBinding } from './figma.service.js';
 import { FigmaOAuthRefusedError } from './figma-oauth.js';
 import { pkceChallenge } from '../../common/http/oauth-flow.js';
 
@@ -208,6 +212,7 @@ function build(
   const audits: string[] = [];
   const stored = new Map<string, Uint8Array>();
   const renderCalls: number[] = [];
+  const requeues: string[] = [];
   let outlineCalls = 0;
   const repository = {
     findConnection: async (_r: unknown, _c: unknown, m: string) => connections.get(m),
@@ -264,6 +269,27 @@ function build(
       return true;
     },
     listLinksAttachedTo: async () => [...links.values()],
+    // As the SQL: failed frames of the link, error transient (or none), last tried before `before`.
+    requeueFailed: async (_r: unknown, _c: unknown, linkId: string, before: Date) => {
+      requeues.push(linkId);
+      let count = 0;
+      frames.forEach((f, index) => {
+        const transient =
+          f.snapshotError === null ||
+          (TRANSIENT_SNAPSHOT_ERRORS as readonly string[]).includes(f.snapshotError);
+        if (f.linkId !== linkId || f.snapshotStatus !== 'failed' || f.goneAt !== null) return;
+        if (!transient || f.updatedAt >= before) return;
+        frames[index] = {
+          ...f,
+          snapshotStatus: 'pending',
+          snapshotAttempts: 0,
+          snapshotError: null,
+          claimedAt: null,
+        };
+        count += 1;
+      });
+      return count;
+    },
   } as unknown as FigmaRepository;
   const projects = {
     findById: async (_r: unknown, _c: unknown, id: string) =>
@@ -354,6 +380,7 @@ function build(
     diffs,
     frames,
     renderCalls,
+    requeues,
     audits,
     links,
     outlineCalls: () => outlineCalls,
@@ -588,6 +615,40 @@ describe('FigmaService · reading a link', () => {
     });
   });
 
+  it('opening the link puts frames that failed for a passing reason back in the queue (2026-11-15 live)', async () => {
+    const world = build();
+    const old = new Date(NOW.getTime() - FAILED_RETRY_AFTER_MS - 1000);
+    const failed = { snapshotStatus: 'failed' as const, snapshotAttempts: 3, capturedAt: null };
+    world.frames.splice(
+      0,
+      world.frames.length,
+      frameRow(FRAME, '1:2', { ...failed, snapshotError: 'unreachable', updatedAt: old }),
+      frameRow(`${FRAME.slice(0, -1)}9`, '1:9', {
+        ...failed,
+        snapshotError: 'timeout',
+        updatedAt: NOW,
+      }),
+      frameRow(`${FRAME.slice(0, -1)}8`, '1:8', {
+        ...failed,
+        snapshotError: 'not_found',
+        updatedAt: old,
+      }),
+    );
+    const view = await world.service.link(contextOf(STAFF), STAFF, 'internal', LINK);
+    expect(world.requeues).toEqual([LINK]);
+    // The old passing failure is pending again with its tries reset; a fresh one and a final one stay.
+    expect(world.frames.map((f) => [f.snapshotStatus, f.snapshotAttempts])).toEqual([
+      ['pending', 0],
+      ['failed', 3],
+      ['failed', 3],
+    ]);
+    expect(view.frames.map((f) => f.snapshotStatus)).toEqual(['pending', 'failed', 'failed']);
+    expect(world.requested()).toBeGreaterThan(0);
+    // Opened again at once: nothing old enough is left, no write.
+    await world.service.link(contextOf(STAFF), STAFF, 'internal', LINK);
+    expect(world.requeues).toEqual([LINK]);
+  });
+
   it('gives a client snapshot mode only, and no internal link at all', async () => {
     const world = build();
     const view = await world.service.link(contextOf(CLIENT), CLIENT, 'client', LINK);
@@ -742,6 +803,20 @@ describe('FigmaService · Refresh from Figma', () => {
       queued: expect.any(Number),
     });
     expect(world.outlineCalls()).toBe(1);
+  });
+
+  it('Refresh from Figma puts every failed frame back in the queue, tries reset', async () => {
+    const world = build({ connected: true, outline: outlineOf(2) });
+    world.frames[0] = {
+      ...world.frames[0]!,
+      snapshotStatus: 'failed',
+      snapshotAttempts: 3,
+      snapshotError: 'unreachable',
+      updatedAt: NOW,
+    };
+    await world.service.refresh(contextOf(STAFF), STAFF, LINK);
+    expect(world.requeues).toEqual([LINK]);
+    expect(world.frames[0]).toMatchObject({ snapshotStatus: 'pending', snapshotAttempts: 0 });
   });
 
   it('a held refresh says it was refreshed a moment ago and when to try again', async () => {
