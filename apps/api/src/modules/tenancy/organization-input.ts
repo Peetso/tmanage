@@ -1,3 +1,8 @@
+import {
+  MAX_WORKSPACE_SLUG_LENGTH,
+  RESERVED_WORKSPACE_SLUGS,
+  WORKSPACE_SLUG_PATTERN,
+} from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
 import { validateValue, type OrgSettingKey } from './org-settings.allowlist.js';
 
@@ -13,82 +18,15 @@ import { validateValue, type OrgSettingKey } from './org-settings.allowlist.js';
  *
  * `apps/web/src/lib/slug.ts` derives and checks the same shape in the browser, and that copy
  * exists to give the person immediate feedback — not to be the control. This one is the
- * control. They are two implementations of one rule and will drift; the direction that
- * matters is that a slug the browser would reject can still be posted directly, and this is
- * what refuses it.
- *
- * The width is `organizations.slug`'s own: `varchar(63)`, which is also the DNS label limit.
+ * control: a slug the browser would reject can still be posted directly, and this is what
+ * refuses it. The shape and the reserved list are `@tmanage/domain`'s `workspace-slug`, which
+ * the web app's router reads too.
  */
-export const MAX_SLUG_LENGTH = 63;
-export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export const MAX_SLUG_LENGTH = MAX_WORKSPACE_SLUG_LENGTH;
 
 export const MAX_NAME_LENGTH = 190;
 export const MAX_TIMEZONE_LENGTH = 64;
 export const MAX_LOCALE_LENGTH = 35;
-
-/**
- * Slugs the product needs for itself.
- *
- * A person who registered `api` or `admin` would take a path this application may want later,
- * and taking it back would break every link they had shared. The list is short and additive:
- * a slug that becomes reserved later stays owned by whoever holds it, because a reservation
- * that evicted an existing customer would be worse than the collision it prevented.
- */
-export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
-  // The public website's top-level paths (A22): a static route wins over [orgSlug], so an
-  // organisation holding one of these could never be reached at its own address.
-  'about',
-  'changelog',
-  'client-portal',
-  'communication',
-  'contact',
-  'customers',
-  'download',
-  'faq',
-  'features',
-  'integrations',
-  'pricing',
-  'product',
-  'resources',
-  'solutions',
-  'terms',
-  'website-kit',
-  'admin',
-  'api',
-  'app',
-  // The web app serves the Arabic public website at /ar (/ar/pricing, …) beside [orgSlug].
-  'ar',
-  'assets',
-  'auth',
-  'billing',
-  'blog',
-  'cdn',
-  'dashboard',
-  'docs',
-  'help',
-  'legal',
-  'login',
-  'mail',
-  // The web app serves Platform admin (the TManage operator) at /platform.
-  'platform',
-  'portal',
-  'privacy',
-  'security',
-  'settings',
-  // The web app serves the first-owner setup screen at /setup.
-  'setup',
-  'signin',
-  'signup',
-  // The web app serves /sign-in and /sign-up as static routes beside [orgSlug].
-  'sign-in',
-  'sign-up',
-  'static',
-  'status',
-  'support',
-  'system',
-  'tmanage',
-  'www',
-]);
 
 export interface ValidatedOrganizationInput {
   readonly slug: string;
@@ -185,10 +123,11 @@ export function slugProblem(slug: string): string | undefined {
   if (slug.length > MAX_SLUG_LENGTH) {
     return `Keep the web link to ${MAX_SLUG_LENGTH} characters.`;
   }
-  if (!SLUG_PATTERN.test(slug)) {
+  if (!WORKSPACE_SLUG_PATTERN.test(slug)) {
     return 'Use lowercase letters, numbers and single dashes between them.';
   }
-  if (RESERVED_SLUGS.has(slug)) return 'That web link is reserved. Choose a different one.';
+  if (RESERVED_WORKSPACE_SLUGS.has(slug))
+    return 'That web link is reserved. Choose a different one.';
   return undefined;
 }
 

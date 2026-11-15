@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { NextResponse, type NextRequest } from 'next/server';
 import { isEmbeddablePath, nonceFromBytes, policyHeaders, resolveCspMode } from './lib/csp';
 import { bootScripts } from './lib/boot-scripts';
+import { REQUEST_PATH_HEADER } from './lib/request-path';
 import { createPrerenderedScriptHashes, sha256Source } from './lib/prerendered-script-hashes';
 
 /**
@@ -59,6 +60,8 @@ export function proxy(request: NextRequest): NextResponse {
 
   const requestHeaders = new Headers(request.headers);
   for (const [name, value] of Object.entries(headers.request)) requestHeaders.set(name, value);
+  // `set`, so a client-sent value never survives: the workspace layout redirects on it.
+  requestHeaders.set(REQUEST_PATH_HEADER, request.nextUrl.pathname);
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   // `append`: in report-only mode `content-security-policy` carries the enforced frame-ancestors
   // stand-in; appending never overwrites a header Next or next.config.ts already set.

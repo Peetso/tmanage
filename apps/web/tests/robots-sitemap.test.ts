@@ -3,10 +3,11 @@ import robots from '@/app/robots';
 import sitemap from '@/app/sitemap';
 
 describe('robots.txt and sitemap.xml (live 307 to /robots.txt/home, 2026-10-26)', () => {
-  it('serves robots rules that keep the API out and point at the sitemap', () => {
+  it('serves robots rules that keep only the API out and point at the sitemap', () => {
     const result = robots();
     const rules = Array.isArray(result.rules) ? result.rules : [result.rules];
-    expect(rules[0]?.disallow).toEqual(expect.arrayContaining(['/v1/', '/api/']));
+    // SOFT404: internal paths are noindex by meta tag, not advertised in robots.txt.
+    expect(rules[0]?.disallow).toEqual(['/v1/']);
     expect(result.sitemap).toBe('https://tmanage.peetrix.com/sitemap.xml');
   });
 
