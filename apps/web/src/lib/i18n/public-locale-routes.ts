@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { ALL_RESOURCES } from '../../components/website/pages/resources/resources-data';
+import { COMPARE_ENTRIES } from '../../content/compare/compare-entries';
 import { HELP_ARTICLES } from '../../content/help/help-articles';
 import type { DisplayLocale } from '../api/display-preferences';
 import { PAGE_OWNS_TITLE, ROUTE_TITLES, TITLE_SUFFIX } from '../route-titles';
@@ -81,11 +82,18 @@ export const HELP_PATHS: readonly string[] = [
   ...HELP_ARTICLES.map((article) => `/help/${article.slug}`),
 ];
 
+/** The compare pages (row 57-06) and their index, each with an Arabic twin under `/ar/compare`. */
+export const COMPARE_PATHS: readonly string[] = [
+  '/compare',
+  ...COMPARE_ENTRIES.map((entry) => `/compare/${entry.slug}`),
+];
+
 const WITH_TWIN: ReadonlySet<string> = new Set<string>([
   ...PUBLIC_LOCALIZED_PATHS,
   ...ARABIC_AUTH_PATHS,
   ...ARTICLE_PATHS,
   ...HELP_PATHS,
+  ...COMPARE_PATHS,
 ]);
 
 /**

@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next';
 import {
   ARABIC_AUTH_PATHS,
   ARTICLE_PATHS,
+  COMPARE_PATHS,
   arabicTwinPath,
   HELP_PATHS,
   PUBLIC_LOCALIZED_PATHS,
@@ -16,13 +17,17 @@ import { siteOrigin } from '../lib/site-origin';
 export default function sitemap(): MetadataRoute.Sitemap {
   const origin = siteOrigin();
   const url = (path: string): string => (path === '/' ? `${origin}/` : `${origin}${path}`);
-  return [...PUBLIC_LOCALIZED_PATHS, ...ARTICLE_PATHS, ...HELP_PATHS, ...ARABIC_AUTH_PATHS].flatMap(
-    (path) => {
-      const languages = { en: url(path), ar: url(arabicTwinPath(path)) };
-      return [
-        { url: languages.en, alternates: { languages } },
-        { url: languages.ar, alternates: { languages } },
-      ];
-    },
-  );
+  return [
+    ...PUBLIC_LOCALIZED_PATHS,
+    ...ARTICLE_PATHS,
+    ...HELP_PATHS,
+    ...COMPARE_PATHS,
+    ...ARABIC_AUTH_PATHS,
+  ].flatMap((path) => {
+    const languages = { en: url(path), ar: url(arabicTwinPath(path)) };
+    return [
+      { url: languages.en, alternates: { languages } },
+      { url: languages.ar, alternates: { languages } },
+    ];
+  });
 }
