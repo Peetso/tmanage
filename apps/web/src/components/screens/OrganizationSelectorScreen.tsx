@@ -8,7 +8,8 @@ import { IdentityShell } from '../shell/IdentityShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listOrganizations, type OrganizationSummary } from '../../lib/api/organizations';
 import type { ApiClient } from '../../lib/api/client';
-import { describeInternalRole } from '../../lib/roles';
+import type { RoleDescription } from '../../lib/roles';
+import { useRoleDescription } from '../../lib/use-role-description';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
@@ -75,6 +76,7 @@ export function OrganizationSelectorScreen({
   const tr = useTOr();
   const locale = useActiveLocale();
   const [query, setQuery] = useState('');
+  const describeRole = useRoleDescription();
 
   /**
    * A removed member is sent here with `?removed`; the org list is then empty, and without this
@@ -232,7 +234,7 @@ export function OrganizationSelectorScreen({
                                 : t('OrganizationSelectorScreen.internalMember')}
                             </span>
                             {' · '}
-                            <span>{roleLabel(organization.role)}</span>
+                            <span>{roleLabel(organization.role, describeRole)}</span>
                             {isClient ? (
                               <>
                                 {' · '}
@@ -322,8 +324,8 @@ function heading(
  * "Client reviewer" here exactly as everywhere else. A value `lib/roles` does not know is spaced
  * and capitalised rather than shown raw. The stored value never changes.
  */
-function roleLabel(role: string): string {
-  const label = describeInternalRole(role).label;
+function roleLabel(role: string, describe: (role: string) => RoleDescription): string {
+  const label = describe(role).label;
   if (label !== role) return label;
   const spaced = role.replace(/_/g, ' ');
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);

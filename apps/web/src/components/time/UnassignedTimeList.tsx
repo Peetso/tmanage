@@ -51,10 +51,18 @@ export function UnassignedTimeList({
     .flatMap((group) => group.entries.map((entry) => ({ entry, projectId: group.projectId })));
 
   const queryClient = useQueryClient();
-  const refresh = async () => {
+  // UX test T-P2-1 / bug 6: show the new totals at once, then re-read every summary of the week.
+  const refresh = async (view: Timesheet) => {
     setAssigning(null);
     setDeleting(null);
-    await queryClient.invalidateQueries({ queryKey: ['finance-timesheet-mine'] });
+    queryClient.setQueriesData<Timesheet>(
+      { queryKey: ['finance-timesheet-mine', organizationSlug] },
+      (old) => (old?.id === view.id ? view : old),
+    );
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['finance-timesheet-mine', organizationSlug] }),
+      queryClient.invalidateQueries({ queryKey: ['finance-timesheet-team', organizationSlug] }),
+    ]);
   };
   const remove = useMutation({
     mutationFn: (entryId: string) =>
@@ -176,10 +184,8 @@ export function SourceMark({ source, tr }: { source: TimesheetEntry['source']; t
     <>
       <Badge>{tr('UnassignedTime.automatic', 'Automatic')}</Badge>{' '}
       <span className="tm-field__hint">
-        {tr(
-          'UnassignedTime.automaticHelp',
-          'Counted by the automatic timer from your computer’s activity. Not verified.',
-        )}
+        {/* UX test T-P1-3: a person's own time is described, never doubted. */}
+        {tr('UnassignedTime.fromDevice', 'From your device activity')}
       </span>
     </>
   );
@@ -200,7 +206,7 @@ function AssignForm({
   sheetId: string;
   entry: TimesheetEntry;
   projectId: string | null;
-  onDone: () => Promise<void>;
+  onDone: (view: Timesheet) => Promise<void>;
   onCancel: () => void;
   tr: TOr;
 }) {

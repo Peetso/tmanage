@@ -50,7 +50,7 @@ interface Call {
   body?: string;
 }
 
-function setup(sheet: Timesheet = SHEET) {
+function setup(sheet: Timesheet = SHEET, answer: Timesheet = sheet) {
   const calls: Call[] = [];
   const api = new ApiClient({
     baseUrl: 'https://api.example.test',
@@ -61,7 +61,7 @@ function setup(sheet: Timesheet = SHEET) {
       calls.push(call);
       const body = call.url.includes('/work-items')
         ? { workItems: [{ id: 'w1', title: 'Homepage copy', deletedAt: null }] }
-        : sheet;
+        : answer;
       return Promise.resolve(
         new Response(JSON.stringify(body), {
           status: 200,
@@ -73,12 +73,14 @@ function setup(sheet: Timesheet = SHEET) {
     newCorrelationId: () => 'c',
   });
   const query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  query.setQueryData(['finance-timesheet-mine', 'northstar', undefined], sheet);
+  query.setQueryData(['finance-timesheet-team', 'northstar', undefined], { members: [] });
   render(
     <QueryClientProvider client={query}>
       <UnassignedTimeList api={api} organizationSlug="northstar" sheet={sheet} />
     </QueryClientProvider>,
   );
-  return calls;
+  return Object.assign(calls, { query });
 }
 
 describe('unassigned time on the timesheet', () => {
@@ -117,6 +119,22 @@ describe('unassigned time on the timesheet', () => {
     await waitFor(() => expect(calls.some((c) => c.url.endsWith('/entries/delete'))).toBe(true));
     const remove = calls.find((c) => c.url.endsWith('/entries/delete'));
     expect(JSON.parse(remove?.body ?? '{}')).toEqual({ entryIds: ['e1'] });
+  });
+
+  it('UX bug 6: the week totals and the team summary refresh at once after a delete', async () => {
+    const after: Timesheet = { ...SHEET, totalMinutes: 0, billableMinutes: 0, groups: [] };
+    const calls = setup(SHEET, after);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete time' }));
+    await waitFor(() =>
+      expect(
+        calls.query.getQueryData<Timesheet>(['finance-timesheet-mine', 'northstar', undefined])
+          ?.totalMinutes,
+      ).toBe(0),
+    );
+    expect(
+      calls.query.getQueryState(['finance-timesheet-team', 'northstar', undefined])?.isInvalidated,
+    ).toBe(true);
   });
 
   it('offers no actions on a week that cannot change', () => {

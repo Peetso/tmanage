@@ -157,7 +157,9 @@ export function FinanceTimesheetsScreen({
               </Button>
               {sheet ? (
                 <span>
-                  {format.day(sheet.periodStart)} – {format.day(sheet.periodEnd)}
+                  <bdi>
+                    {format.day(sheet.periodStart)} – {format.day(sheet.periodEnd)}
+                  </bdi>
                 </span>
               ) : null}
               <Button size="compact" tone="outline" disabled={!sheet} onClick={() => shift(1)}>
@@ -241,7 +243,7 @@ export function FinanceTimesheetsScreen({
                   <tr>
                     <th scope="row">{tOr('FinanceTimesheets.total', 'Total')}</th>
                     {sheet.days.map((day) => (
-                      <td key={day}>{formatMinutes(dayTotal(day))}</td>
+                      <td key={day}>{dayTotal(day) > 0 ? formatMinutes(dayTotal(day)) : '—'}</td>
                     ))}
                     <td>{formatMinutes(sheet.totalMinutes)}</td>
                   </tr>
@@ -267,9 +269,10 @@ export function FinanceTimesheetsScreen({
           ) : null}
           {hasAutomatic ? (
             <p className="tm-field__hint">
+              {/* UX test T-P1-3: a person's own time is described, never doubted. */}
               {tOr(
-                'FinanceTimesheets.automaticNote',
-                'Automatic time is reported by your own computer, not verified. Days follow the company time zone.',
+                'FinanceTimesheets.automaticFriendly',
+                'Automatic time comes from your device activity. Days follow the company time zone.',
               )}
             </p>
           ) : null}

@@ -87,10 +87,16 @@ export async function updateTimeRounding(
   return data;
 }
 
+/** UX test T-P1-1: throw the running timer away; nothing is saved (audited on the server). */
+export async function discardTimer(client: ApiClient, organizationSlug: string): Promise<void> {
+  await client.request<unknown>({ method: 'POST', path: `${base(organizationSlug)}/discard` });
+}
+
 export async function stopTimer(
   client: ApiClient,
   organizationSlug: string,
-  input: { readonly note?: string },
+  /** `minutes`: what the person chose to save (1 up to the rounded amount); omitted = rounded. */
+  input: { readonly note?: string; readonly minutes?: number },
 ): Promise<StoppedTimeEntry> {
   const { data } = await client.request<StoppedTimeEntry>({
     method: 'POST',

@@ -13,7 +13,7 @@ import {
 } from '../../lib/api/invitations';
 import type { InvitationPreview } from '../../lib/api/invitations';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
-import { describeInternalRole } from '../../lib/roles';
+import { useRoleDescription } from '../../lib/use-role-description';
 import type { ApiClient } from '../../lib/api/client';
 import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
 import { useT } from '../../lib/i18n/use-t';
@@ -337,9 +337,10 @@ interface CardProps {
 /** The t1-a card: inviter line, title, the role sentence, the form, the expiry note. */
 function Card({ invitation, registering, failure, children }: CardProps) {
   const t = useT();
+  const describeRole = useRoleDescription();
   const locale = useActiveLocale();
   const isClient = invitation.audience === 'client';
-  const role = describeInternalRole(invitation.role).label;
+  const role = describeRole(invitation.role).label;
 
   return (
     <IdentityShell brand={false}>

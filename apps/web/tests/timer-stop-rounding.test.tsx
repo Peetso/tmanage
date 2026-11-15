@@ -91,6 +91,36 @@ describe('52-01 Stop dialog rounding', () => {
     expect(within(dialog).getByText('10 min (rounded up to the nearest 5 minutes)')).toBeTruthy();
   });
 
+  it('UX T-P1-1: 13 seconds shows the real time, leads with Discard, and discards after a confirm', async () => {
+    const { client, calls } = fakeApi(state(15, 13));
+    renderWithQuery(<RunningTimerPill organizationSlug={SLUG} client={client} />);
+    const dialog = await openStopDialog();
+    expect(within(dialog).getByText('Timed: 00:00:13')).toBeTruthy();
+    expect(within(dialog).getByText(/less than a minute/u)).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Discard' }));
+    expect(calls.some((c) => c.path.endsWith('/timer/discard'))).toBe(false);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Discard timer' }));
+    await waitFor(() =>
+      expect(calls.some((c) => c.method === 'POST' && c.path.endsWith('/timer/discard'))).toBe(
+        true,
+      ),
+    );
+    expect(calls.some((c) => c.path.endsWith('/timer/stop'))).toBe(false);
+  });
+
+  it('UX T-P1-1: the person may save less than the rounded amount, never more', async () => {
+    const { client, calls } = fakeApi(state(15, 13));
+    renderWithQuery(<RunningTimerPill organizationSlug={SLUG} client={client} />);
+    const dialog = await openStopDialog();
+    const minutes = within(dialog).getByLabelText(/Minutes to save/u);
+    fireEvent.change(minutes, { target: { value: '16' } });
+    expect(within(dialog).getByRole('button', { name: 'Save time' })).toBeDisabled();
+    fireEvent.change(minutes, { target: { value: '1' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save time' }));
+    await waitFor(() => expect(calls.some((c) => c.path.endsWith('/timer/stop'))).toBe(true));
+    expect(calls.find((c) => c.path.endsWith('/timer/stop'))?.body).toMatchObject({ minutes: 1 });
+  });
+
   it('shows exact minutes with no rounding note when the owner chose no rounding', async () => {
     const { client } = fakeApi(state(1, 11));
     renderWithQuery(<RunningTimerPill organizationSlug={SLUG} client={client} />);

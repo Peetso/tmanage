@@ -10,7 +10,11 @@ import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchPersonProfile } from '../../lib/api/person-profile';
 import type { PersonProfileView } from '../../lib/api/person-profile';
-import { describeInternalRole } from '../../lib/roles';
+import { useRoleDescription, useStatusLabel } from '../../lib/use-role-description';
+import { pluralPhrase } from '../../lib/i18n/plural';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { withNumerals } from '../../lib/i18n/display-format';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import type { ApiClient } from '../../lib/api/client';
 import { describePeopleError, firstNameOf, initialsOf } from './peopleShared';
 import { useT } from '../../lib/i18n/use-t';
@@ -118,7 +122,11 @@ function ProfileBody({
 }) {
   const t = useT();
   const [resetting, setResetting] = useState(false);
-  const role = describeInternalRole(profile.role);
+  const describeRole = useRoleDescription();
+  const statusLabel = useStatusLabel();
+  const tr = useTOr();
+  const locale = useActiveLocale();
+  const role = describeRole(profile.role);
   const first = firstNameOf(profile.displayName);
   const active = profile.projects.filter((project) => project.status === 'active').length;
 
@@ -130,15 +138,22 @@ function ProfileBody({
         </span>
         <div className="ppl-hero__titles">
           <p className="ppl-hero__eyebrow">
-            {role.label} · {profile.status}
+            {role.label} · {statusLabel(profile.status)}
           </p>
           <h1 className="ppl-hero__title">{profile.displayName}</h1>
           <p className="ppl-hero__lede">
             {profile.projects.length === 0
               ? `${first} ${t('PersonProfileScreen.notOnProjects')}`
-              : `On ${profile.projects.length} ${
-                  profile.projects.length === 1 ? 'project' : 'projects'
-                } in this organization, ${active} of them active.`}
+              : pluralPhrase(
+                  tr,
+                  locale,
+                  'PersonProfileScreen.onProjects',
+                  profile.projects.length,
+                  {
+                    one: 'On {count} project in this organization, {active} of them active.',
+                    other: 'On {count} projects in this organization, {active} of them active.',
+                  },
+                ).replace('{active}', active.toLocaleString(withNumerals(locale)))}
           </p>
         </div>
         {/* Q4 / t1-d. Shown to everyone; the API decides (`org.manage`) and the dialog says so. */}
@@ -201,8 +216,7 @@ function ProfileBody({
                         {project.name}
                       </Link>
                       <span className="ppl-commitment__sub">
-                        {describeInternalRole(project.role).label}{' '}
-                        {t('PersonProfileScreen.onThisProject')}
+                        {describeRole(project.role).label} {t('PersonProfileScreen.onThisProject')}
                       </span>
                     </span>
                     <span
@@ -212,7 +226,7 @@ function ProfileBody({
                           : 'ppl-pill ppl-pill--lg ppl-pill--warning'
                       }
                     >
-                      {project.status}
+                      {statusLabel(project.status)}
                     </span>
                   </li>
                 ))}
@@ -274,7 +288,9 @@ function ProfileBody({
               </li>
               <li className="ppl-soft-row ppl-soft-row--roomy">
                 {t('PersonProfileScreen.statusLabel')}
-                <span className="ppl-soft-row__end ppl-soft-row__end--text">{profile.status}</span>
+                <span className="ppl-soft-row__end ppl-soft-row__end--text">
+                  {statusLabel(profile.status)}
+                </span>
               </li>
               <li className="ppl-soft-row ppl-soft-row--roomy">
                 {t('PersonProfileScreen.projectsLabel')}

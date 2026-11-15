@@ -24,7 +24,7 @@ import type { ProjectMemberSummary } from '../../lib/api/project-members';
 import { getProject } from '../../lib/api/projects';
 import { listClientOrganizationOptions, listProjectShares } from '../../lib/api/project-client';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
-import { describeInternalRole } from '../../lib/roles';
+import { useRoleDescription } from '../../lib/use-role-description';
 import type { ApiClient } from '../../lib/api/client';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useT } from '../../lib/i18n/use-t';
@@ -79,6 +79,7 @@ export function MembersAndRolesScreen({
   const t = useT();
   const tOr = useTOr();
   const undo = useUndo();
+  const describeRole = useRoleDescription();
   const tc = useProjectClientT();
   const membersKey = ['project-members', projectId];
   const sharesKey = ['project-clients', organizationSlug, projectId];
@@ -229,7 +230,7 @@ export function MembersAndRolesScreen({
                           <span className="tm-prj-people__who">
                             <span className="tm-prj-people__name">{name}</span>
                             <span className="tm-prj-people__role">
-                              {describeInternalRole(member.role).label} ·{' '}
+                              {describeRole(member.role).label} ·{' '}
                               {t('MembersAndRolesScreen.onProjectSuffix')}
                             </span>
                           </span>
@@ -244,7 +245,7 @@ export function MembersAndRolesScreen({
                             >
                               {roleChoices(member.role).map((role) => (
                                 <option key={role} value={role}>
-                                  {describeInternalRole(role).label}
+                                  {describeRole(role).label}
                                 </option>
                               ))}
                             </Select>
@@ -304,7 +305,7 @@ export function MembersAndRolesScreen({
               >
                 {PROJECT_ROLES.map((role) => (
                   <option key={role} value={role}>
-                    {describeInternalRole(role).label}
+                    {describeRole(role).label}
                   </option>
                 ))}
               </Select>

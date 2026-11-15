@@ -24,6 +24,7 @@ import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { desktopStartup, type DesktopStartupState } from './desktop-startup';
 import { autoTrackingKey, useAutoTracker } from './use-auto-tracker';
+import { timerQuery } from './use-running-timer';
 import './timer.css';
 
 type TOr = ReturnType<typeof useTOr>;
@@ -141,6 +142,17 @@ function needsTurnOn(state: AutoTrackingState, display: AutoTimerDisplay): boole
   return display === 'off' && state.policy === 'optional';
 }
 
+/**
+ * UX test 2026-11-15 (bug 2): the panel opens by itself only on the home page, never over a form
+ * someone is filling in on another page.
+ */
+function onHomePage(organizationSlug: string): boolean {
+  if (typeof window === 'undefined') return false;
+  const path = window.location.pathname.replace(/\/+$/, '');
+  const base = `/${encodeURIComponent(organizationSlug)}`;
+  return path === base || path === `${base}/home`;
+}
+
 export interface AutoTimerStatusProps {
   organizationSlug: string;
   client?: ApiClient;
@@ -154,7 +166,11 @@ export function AutoTimerStatus({ organizationSlug, client }: AutoTimerStatusPro
   const [used, setUsed] = useState(false);
   const panelId = useId();
   const wrapper = useRef<HTMLDivElement>(null);
+  const chipRef = useRef<HTMLButtonElement>(null);
+  const refocus = useRef(false);
   const state = tracker.state;
+  // UX test T-P2-5: while a manual timer runs, its pill is the one state in the header.
+  const manualRunning = useQuery(timerQuery(api, organizationSlug)).data?.state?.timer != null;
   const display =
     state === undefined
       ? 'off'
@@ -163,7 +179,10 @@ export function AutoTimerStatus({ organizationSlug, client }: AutoTimerStatusPro
   useEffect(() => {
     if (!open) return undefined;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key !== 'Escape') return;
+      // UX test item 7: Escape hands focus back to the chip (focused after it re-renders).
+      refocus.current = true;
+      setOpen(false);
     };
     const onPointer = (event: PointerEvent) => {
       const target = event.target;
@@ -179,6 +198,12 @@ export function AutoTimerStatus({ organizationSlug, client }: AutoTimerStatusPro
     };
   }, [open]);
 
+  useEffect(() => {
+    if (open || !refocus.current) return;
+    refocus.current = false;
+    chipRef.current?.focus();
+  }, [open]);
+
   // Item 1: remember that this company used the automatic timer here, so "Off" is explained.
   const policy = state?.policy;
   useEffect(() => {
@@ -191,22 +216,26 @@ export function AutoTimerStatus({ organizationSlug, client }: AutoTimerStatusPro
   const ask = state !== undefined && needsTurnOn(state, display) && display !== 'unsupported';
   useEffect(() => {
     if (!ask || readFlag(askedKey(organizationSlug))) return;
+    if (!onHomePage(organizationSlug)) return;
     writeFlag(askedKey(organizationSlug));
     setOpen(true);
   }, [ask, organizationSlug]);
 
   if (!tracker.available || state === undefined) return null;
   if (state.policy === 'off' && !used) return null;
+  if (manualRunning && !open) return null;
   const [shortKey, shortEnglish] = SHORT[display];
   const [labelKey, labelEnglish] = LABEL[display];
   const [helpKey, helpEnglish] = HELP[display];
   const chip = (
     <button
+      ref={chipRef}
       type="button"
       className="tm-autotimer__chip"
       data-tone={TONE[display]}
       aria-expanded={open}
       aria-controls={panelId}
+      aria-label={`${tr('AutoTimer.name', 'Auto timer')}: ${tr(labelKey, labelEnglish)}`}
       onClick={() => setOpen((value) => !value)}
     >
       <span className="tm-autotimer__dot" aria-hidden="true" />
@@ -244,16 +273,26 @@ export function AutoTimerStatus({ organizationSlug, client }: AutoTimerStatusPro
   );
 }
 
-function AutoTimerPanel({
-  id,
-  api,
-  organizationSlug,
-  state,
-  display,
-  support,
-  onAllow,
-  tr,
-}: {
+function AutoTimerPanel(props: AutoTimerPanelProps) {
+  const holder = useRef<HTMLDivElement>(null);
+  // UX test item 7: the panel takes focus when it opens, so keyboard users land inside it.
+  useEffect(() => {
+    holder.current?.focus();
+  }, []);
+  return (
+    <div
+      ref={holder}
+      tabIndex={-1}
+      className="tm-autotimer__holder"
+      aria-label={props.tr('AutoTimer.panelTitle', 'Automatic timer')}
+      role="group"
+    >
+      <AutoTimerPanelBody {...props} />
+    </div>
+  );
+}
+
+interface AutoTimerPanelProps {
   id: string;
   api: ApiClient;
   organizationSlug: string;
@@ -262,7 +301,18 @@ function AutoTimerPanel({
   support: ActivitySupport;
   onAllow: () => Promise<void>;
   tr: TOr;
-}) {
+}
+
+function AutoTimerPanelBody({
+  id,
+  api,
+  organizationSlug,
+  state,
+  display,
+  support,
+  onAllow,
+  tr,
+}: AutoTimerPanelProps) {
   const queryClient = useQueryClient();
   const titleId = useId();
   const locale = useActiveLocale();
@@ -424,9 +474,9 @@ function AutoTimerPanel({
         ) : (
           <p className="tm-autotimer__muted">
             {tr(
-              'AutoTimer.noTaskUnassigned',
-              'No task chosen. Your time is kept as unassigned time. In your timesheet you can put it on a task, split it or delete it. To choose a task now, open it and press "Work on this now".',
-            )}
+              'AutoTimer.noTaskButton',
+              'No task chosen. Your time is kept as unassigned time. In your timesheet you can put it on a task, split it or delete it. To choose a task now, open it and press "{button}".',
+            ).replace('{button}', tr('AutoTimer.workOnThis', 'Work on this now'))}
           </p>
         )}
       </div>

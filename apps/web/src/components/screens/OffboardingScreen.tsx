@@ -10,7 +10,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { useMembers, memberKeys } from '../../lib/use-members';
 import { useHydrated } from '../../lib/use-hydrated';
 import { memberDisplayName } from '../../lib/members-presentation';
-import { describeInternalRole } from '../../lib/roles';
+import { useRoleDescription } from '../../lib/use-role-description';
 import { getOffboardingImpact, offboardMember } from '../../lib/api/offboarding';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
@@ -52,6 +52,7 @@ export function OffboardingScreen({
   client,
 }: OffboardingScreenProps) {
   const describe = useDescribeApiError();
+  const describeRole = useRoleDescription();
   const api = client ?? browserApiClient();
   const t = useT();
   const queryClient = useQueryClient();
@@ -198,9 +199,7 @@ export function OffboardingScreen({
                   <p className="tm-cc-metric__source">{t('OffboardingScreen.membershipsEnd')}</p>
                 </li>
                 <li className="tm-cc-metric">
-                  <p className="tm-cc-metric__value">
-                    {describeInternalRole(impact.data.role).label}
-                  </p>
+                  <p className="tm-cc-metric__value">{describeRole(impact.data.role).label}</p>
                   <p className="tm-cc-metric__label">{t('OffboardingScreen.roleStops')}</p>
                   <p className="tm-cc-metric__source">{t('OffboardingScreen.accessRevoked')}</p>
                 </li>

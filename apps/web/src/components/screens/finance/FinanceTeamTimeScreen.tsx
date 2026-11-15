@@ -181,18 +181,22 @@ export function FinanceTeamTimeScreen({
                   ))}
                 </Select>
               </div>
+              {/* UX test T-P2-3: one line, and the rest behind "How is this counted?". */}
               <p className="tm-field__hint">
                 {tOr(
-                  'TeamTime.rangeHintCity',
-                  'Up to 62 days. Days and clock times follow the company time zone ({zone}). Time with no task chosen counts as unassigned time.',
+                  'TeamTime.rangeHintShort',
+                  'Up to 62 days, in the company time zone ({zone}).',
                 ).replace('{zone}', zoneName(data?.timeZone))}
               </p>
-              <p className="tm-field__hint">
-                {tOr(
-                  'TeamTime.deviceNote',
-                  'Automatic time is reported by each person’s own computer, not verified. A day over 12 hours or a session over 6 hours without a break is marked for review. People allowed to see Team time also see where each person’s tracking runs: the desktop app, or a browser and whether it was allowed.',
-                )}
-              </p>
+              <details className="tm-field__hint">
+                <summary>{tOr('TeamTime.howCounted', 'How is this counted?')}</summary>
+                <p>
+                  {tOr(
+                    'TeamTime.howCountedBody',
+                    'Automatic time comes from each person’s own computer activity; TManage does not check it further. Time with no task chosen counts as unassigned time. A day over 12 hours, or a session over 6 hours without a break, is marked for review. You also see where each person’s tracking runs: the desktop app, or a browser and whether it was allowed.',
+                  )}
+                </p>
+              </details>
             </section>
 
             {view.isError ? (
@@ -214,8 +218,10 @@ export function FinanceTeamTimeScreen({
             {data ? (
               <section className="tm-panel tm-stack" aria-labelledby="tm-team-time-people">
                 <h2 id="tm-team-time-people" className="tm-eyebrow">
-                  {tOr('TeamTime.people', 'People')} · {format.day(data.from)} –{' '}
-                  {format.day(data.to)}
+                  {tOr('TeamTime.people', 'People')} ·{' '}
+                  <bdi>
+                    {format.day(data.from)} – {format.day(data.to)}
+                  </bdi>
                 </h2>
                 {data.people.length === 0 ? (
                   <InlineAlert tone="neutral">

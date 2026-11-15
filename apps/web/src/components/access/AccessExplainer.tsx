@@ -11,7 +11,7 @@ import {
   type ItemAudience,
 } from '../../lib/access/explain-access';
 import { capabilityLabel } from '../../lib/capability-labels';
-import { describeInternalRole } from '../../lib/roles';
+import { useRoleDescription } from '../../lib/use-role-description';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import '../../styles/screens/undo-and-access.css';
 
@@ -41,6 +41,7 @@ export function AccessExplainer({
   editCapability,
 }: AccessExplainerProps) {
   const tOr = useTOr();
+  const describeRole = useRoleDescription();
   const me = useQuery({
     queryKey: ['organization-me', organizationSlug],
     queryFn: () => readOrganizationMe(api, organizationSlug),
@@ -51,7 +52,7 @@ export function AccessExplainer({
 
   const explanation = explainAccess({
     kind: me.data.kind,
-    roleLabel: describeInternalRole(me.data.role).label,
+    roleLabel: describeRole(me.data.role).label,
     capabilities: me.data.capabilities ?? [],
     audience,
     projectName,

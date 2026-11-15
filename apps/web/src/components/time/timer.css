@@ -257,3 +257,35 @@
     animation: tm-timer-pulse 2s ease-in-out infinite;
   }
 }
+
+/* UX test 2026-11-15: the Discard confirmation inside the Stop dialog. */
+.tm-timer-dialog__confirm {
+  display: grid;
+  gap: var(--s2);
+  padding: var(--s3);
+  border: 1px solid var(--line-300);
+  border-radius: var(--r-sheet);
+}
+
+.tm-timer-dialog__confirm p {
+  margin: 0;
+}
+
+/* The panel's focus holder: focused by script on open, so it shows no ring of its own. */
+.tm-autotimer__holder:focus {
+  outline: none;
+}
+
+/* UX test item 7: at phone width every timer control is at least 40px tall. */
+@media (max-width: 640px) {
+  .tm-timer-button,
+  .tm-timer-pill,
+  .tm-timer-pill__stop,
+  .tm-autotimer__chip {
+    min-block-size: 40px;
+  }
+
+  .tm-timer-pill__stop {
+    min-inline-size: 40px;
+  }
+}

@@ -7,7 +7,7 @@ import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
 import { describeApiErrorNow } from '../../lib/api/describe-error';
-import { startTimer, stopTimer } from '../../lib/api/time-timer';
+import { discardTimer, startTimer, stopTimer } from '../../lib/api/time-timer';
 import {
   formatElapsed,
   isTimerRunningConflict,
@@ -99,20 +99,37 @@ function StopTimerDialog({
   const locale = useActiveLocale();
   const queryClient = useQueryClient();
   const [note, setNote] = useState(initialNote);
+  const rounded = minutesToSave(elapsedSeconds, roundingMinutes);
+  // UX test T-P1-1: the person sees the real time, may lower the saved amount, or discard.
+  const [chosen, setChosen] = useState(String(rounded));
+  const tooShort = elapsedSeconds < MIN_SAVE_SECONDS;
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const amountNumber = Number(chosen);
+  const amountValid =
+    Number.isInteger(amountNumber) && amountNumber >= 1 && amountNumber <= rounded;
+  const done = async () => {
+    await queryClient.invalidateQueries({ queryKey: timerKey(organizationSlug) });
+    await queryClient.invalidateQueries({ queryKey: ['work-items', organizationSlug] });
+    await queryClient.invalidateQueries({ queryKey: ['finance-timesheet-mine'] });
+    onClose();
+  };
   const stop = useMutation({
-    mutationFn: () => stopTimer(api, organizationSlug, { note: note.trim() }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: timerKey(organizationSlug) });
-      await queryClient.invalidateQueries({ queryKey: ['work-items', organizationSlug] });
-      onClose();
-    },
+    mutationFn: () =>
+      stopTimer(api, organizationSlug, {
+        note: note.trim(),
+        ...(amountNumber === rounded ? {} : { minutes: amountNumber }),
+      }),
+    onSuccess: done,
   });
-  const minutes = minutesToSave(elapsedSeconds, roundingMinutes);
+  const discard = useMutation({
+    mutationFn: () => discardTimer(api, organizationSlug),
+    onSuccess: done,
+  });
   const amount = (
     subject
       ? tr('Timer.stopSummaryOn', '{minutes} min on {subject}').replace('{subject}', subject)
       : tr('Timer.stopSummary', '{minutes} min')
-  ).replace('{minutes}', String(minutes));
+  ).replace('{minutes}', String(rounded));
   const summary =
     roundingMinutes > 1
       ? `${amount} (${pluralPhrase(
@@ -129,12 +146,48 @@ function StopTimerDialog({
       : amount;
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    stop.mutate();
+    if (amountValid) stop.mutate();
   };
   return (
     <TimerDialog title={tr('Timer.stopTitle', 'Stop timer')} onClose={onClose}>
       <form className="tm-timer-dialog__form" onSubmit={submit}>
+        <p className="tm-timer-dialog__body">
+          {tr('Timer.timedFor', 'Timed: {elapsed}').replace(
+            '{elapsed}',
+            formatElapsed(elapsedSeconds),
+          )}
+        </p>
         <p className="tm-timer-dialog__body">{summary}</p>
+        {tooShort ? (
+          <InlineAlert tone="neutral">
+            {tr(
+              'Timer.tooShort',
+              'This timer ran for less than a minute, so discarding it is the default. You can still save it.',
+            )}
+          </InlineAlert>
+        ) : null}
+        <Field
+          label={tr('Timer.minutesToSave', 'Minutes to save')}
+          hint={tr(
+            'Timer.minutesToSaveHint',
+            'You can lower this, down to 1 minute. It cannot be more than {max}.',
+          ).replace('{max}', String(rounded))}
+          name="minutes"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={rounded}
+          value={chosen}
+          error={
+            amountValid
+              ? undefined
+              : tr('Timer.minutesToSaveError', 'Enter whole minutes from 1 to {max}.').replace(
+                  '{max}',
+                  String(rounded),
+                )
+          }
+          onChange={(event) => setChosen(event.target.value)}
+        />
         <Field
           label={tr('Timer.noteLabel', 'Note')}
           hint={tr('Timer.noteHint', 'Saved on the time entry. You can change it later.')}
@@ -147,24 +200,76 @@ function StopTimerDialog({
             {describeApiErrorNow(stop.error)}
           </InlineAlert>
         ) : null}
-        <div className="tm-timer-dialog__actions">
-          <Button type="button" tone="outline" size="compact" onClick={onClose}>
-            {tr('Timer.cancel', 'Cancel')}
-          </Button>
-          <Button
-            type="submit"
-            tone="ink"
-            size="compact"
-            loading={stop.isPending}
-            loadingLabel={tr('Timer.saving', 'Saving time')}
+        {discard.isError ? (
+          <InlineAlert
+            tone="danger"
+            title={tr('Timer.discardFailed', 'The timer was not discarded')}
+            live
           >
-            {tr('Timer.saveTime', 'Save time')}
-          </Button>
-        </div>
+            {describeApiErrorNow(discard.error)}
+          </InlineAlert>
+        ) : null}
+        {confirmingDiscard ? (
+          <div className="tm-timer-dialog__confirm" role="group" aria-live="polite">
+            <p>
+              {tr(
+                'Timer.discardConfirm',
+                'Discard this timer? No time is saved, and this cannot be undone.',
+              )}
+            </p>
+            <div className="tm-timer-dialog__actions">
+              <Button
+                type="button"
+                tone="outline"
+                size="compact"
+                onClick={() => setConfirmingDiscard(false)}
+              >
+                {tr('Timer.discardBack', 'Keep it')}
+              </Button>
+              <Button
+                type="button"
+                tone="destructive"
+                size="compact"
+                loading={discard.isPending}
+                loadingLabel={tr('Timer.discarding', 'Discarding')}
+                onClick={() => discard.mutate()}
+              >
+                {tr('Timer.discardYes', 'Discard timer')}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="tm-timer-dialog__actions">
+            <Button type="button" tone="outline" size="compact" onClick={onClose}>
+              {tr('Timer.keepRunning', 'Keep running')}
+            </Button>
+            <Button
+              type="button"
+              tone={tooShort ? 'ink' : 'outline'}
+              size="compact"
+              onClick={() => setConfirmingDiscard(true)}
+            >
+              {tr('Timer.discard', 'Discard')}
+            </Button>
+            <Button
+              type="submit"
+              tone={tooShort ? 'outline' : 'ink'}
+              size="compact"
+              disabled={!amountValid}
+              loading={stop.isPending}
+              loadingLabel={tr('Timer.saving', 'Saving time')}
+            >
+              {tr('Timer.saveTime', 'Save time')}
+            </Button>
+          </div>
+        )}
       </form>
     </TimerDialog>
   );
 }
+
+/** Under this, a timer is most likely a mistake: the Stop dialog leads with Discard. */
+const MIN_SAVE_SECONDS = 60;
 
 export interface WorkItemTimerButtonProps {
   organizationSlug: string;

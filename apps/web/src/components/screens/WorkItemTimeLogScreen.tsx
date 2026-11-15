@@ -15,6 +15,8 @@ import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { formatDuration } from '../../lib/i18n/duration';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 
 export interface WorkItemTimeLogScreenProps {
   organizationSlug: string;
@@ -43,6 +45,9 @@ export function WorkItemTimeLogScreen({
   const describeError = useDescribeApiError(OFFLINE_LINES);
   const t = useT();
   const tr = useTOr();
+  const locale = useActiveLocale();
+  // UX test 2026-11-15: durations in the reader's language, not "45m".
+  const formatMinutes = (total: number): string => formatDuration(total, locale);
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
 
@@ -243,12 +248,4 @@ export function WorkItemTimeLogScreen({
       </div>
     </AppShell>
   );
-}
-
-function formatMinutes(total: number): string {
-  const hours = Math.floor(total / 60);
-  const mins = total % 60;
-  if (hours === 0) return `${mins}m`;
-  if (mins === 0) return `${hours}h`;
-  return `${hours}h ${mins}m`;
 }

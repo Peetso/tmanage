@@ -8,7 +8,8 @@ import { OnboardingScreenStyles } from './CreateOrganizationScreen';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { issueInvitation } from '../../lib/api/invitations';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
-import { describeInternalRole, INVITABLE_ROLES } from '../../lib/roles';
+import { INVITABLE_ROLES } from '../../lib/roles';
+import { useRoleDescription } from '../../lib/use-role-description';
 import {
   checkInvites,
   describeInviteProblem,
@@ -89,6 +90,7 @@ export function InviteTeamScreen({
 }: InviteTeamScreenProps) {
   const api = client ?? browserApiClient();
   const t = useT();
+  const describeRole = useRoleDescription();
 
   // The add-an-address form has no query behind it, so it gates on the hydration signal: the
   // draft email input ships disabled in the server HTML and becomes editable only once React is
@@ -108,7 +110,7 @@ export function InviteTeamScreen({
   );
 
   const sendable = checked.filter((invite) => invite.sendable);
-  const role = describeInternalRole(draftRole);
+  const role = describeRole(draftRole);
 
   function add() {
     const email = draftEmail.trim();
@@ -235,7 +237,7 @@ export function InviteTeamScreen({
                 >
                   {INVITABLE_ROLES.map((option) => (
                     <option key={option} value={option}>
-                      {describeInternalRole(option).label}
+                      {describeRole(option).label}
                     </option>
                   ))}
                 </select>
@@ -305,9 +307,7 @@ export function InviteTeamScreen({
                           </span>
                         ))}
                       </span>
-                      <span className="tm-ob-team__badge">
-                        {describeInternalRole(invite.role).label}
-                      </span>
+                      <span className="tm-ob-team__badge">{describeRole(invite.role).label}</span>
                       <button
                         type="button"
                         className="tm-ob-team__remove"

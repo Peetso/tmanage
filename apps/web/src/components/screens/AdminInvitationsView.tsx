@@ -8,7 +8,8 @@ import { fetchPendingInvitations, revokeInvitation } from '../../lib/api/admin-i
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { CLIENT_ROLES, INTERNAL_ROLES } from '@tmanage/domain';
-import { describeInternalRole } from '../../lib/roles';
+import { describeInternalRole, type RoleDescription } from '../../lib/roles';
+import { useRoleDescription } from '../../lib/use-role-description';
 import { useCustomRoles } from '../people/ChangeRoleDialog';
 import type { CustomRoleOption } from '../people/ChangeRoleDialog';
 import { useT } from '../../lib/i18n/use-t';
@@ -62,8 +63,14 @@ export function AdminInvitationsView({
 
   // B11: a custom role is stored as its id; show the role's own name, never the id.
   const customRoles = useCustomRoles(api, organizationSlug);
+  const describeRole = useRoleDescription();
   const roleName = (role: string) =>
-    invitationRoleName(role, customRoles.data, t('PeopleDirectoryScreen.role.custom'));
+    invitationRoleName(
+      role,
+      customRoles.data,
+      t('PeopleDirectoryScreen.role.custom'),
+      describeRole,
+    );
 
   const rows = invitations.data?.invitations ?? [];
 
@@ -155,13 +162,15 @@ export function invitationRoleName(
   role: string,
   customRoles: readonly CustomRoleOption[] | undefined,
   fallback: string,
+  /** UX test T-P1-5: pass `useRoleDescription()` so the built-in label is translated. */
+  describe: (role: string) => RoleDescription = describeInternalRole,
 ): string {
   const custom = customRoles?.find((entry) => entry.id === role);
   if (custom) return custom.name;
   const builtIn =
     (INTERNAL_ROLES as readonly string[]).includes(role) ||
     (CLIENT_ROLES as readonly string[]).includes(role);
-  return builtIn ? describeInternalRole(role).label : fallback;
+  return builtIn ? describe(role).label : fallback;
 }
 
 /** Format an ISO timestamp following the browser's locale; an unparseable value is shown verbatim. */

@@ -9,7 +9,7 @@ import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchTeam, listTeams } from '../../lib/api/people-teams';
 import type { TeamDetailView, TeamView } from '../../lib/api/people-teams';
-import { describeInternalRole } from '../../lib/roles';
+import { useRoleDescription } from '../../lib/use-role-description';
 import type { ApiClient } from '../../lib/api/client';
 import { describePeopleError, initialsOf } from './peopleShared';
 import '../../styles/screens/people.css';
@@ -200,6 +200,7 @@ function TeamDetail({
   organizationSlug: string;
 }) {
   const t = useT();
+  const describeRole = useRoleDescription();
   return (
     <>
       <div className="ppl-card__head">
@@ -238,7 +239,7 @@ function TeamDetail({
                   </Link>
                 </span>
                 <span className="ppl-col-owner ppl-cell-strong">
-                  {describeInternalRole(member.role).label}
+                  {describeRole(member.role).label}
                 </span>
                 <span className="ppl-col-when">
                   <span

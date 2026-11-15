@@ -226,8 +226,67 @@ describe('automatic timer chip', () => {
     delete (window as unknown as { IdleDetector?: unknown }).IdleDetector;
   });
 
+  it('UX T-P2-5: while a manual timer runs, the header shows one state (the pill), no chip', async () => {
+    const { api, calls } = client((call) => {
+      if (call.url.endsWith('/time/auto')) return { status: 200, body: STATE };
+      if (call.url.endsWith('/time/timer')) {
+        return {
+          status: 200,
+          body: {
+            timer: {
+              id: 't1',
+              workItemId: null,
+              projectId: null,
+              note: null,
+              billable: true,
+              startedAt: '2026-11-10T09:00:00.000Z',
+              lastHeartbeatAt: '2026-11-10T09:00:00.000Z',
+              elapsedSeconds: 30,
+            },
+            serverNow: '2026-11-10T09:00:30.000Z',
+            roundingMinutes: 1,
+          },
+        };
+      }
+      return { status: 200, body: {} };
+    });
+    wrap(<AutoTimerStatus organizationSlug="northstar" client={api} />);
+    await waitFor(() => expect(calls.some((call) => call.url.endsWith('/time/timer'))).toBe(true));
+    await waitFor(() => expect(calls.some((call) => call.url.endsWith('/time/auto'))).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole('button', { name: /Auto timer/ })).toBeNull();
+  });
+
+  it('UX item 7: the chip has a full name and Escape returns focus to it', async () => {
+    const { api } = client((call) =>
+      call.url.endsWith('/time/auto') ? { status: 200, body: STATE } : { status: 200, body: {} },
+    );
+    wrap(<AutoTimerStatus organizationSlug="northstar" client={api} />);
+    const chip = await screen.findByRole('button', { name: /^Auto timer: / });
+    fireEvent.click(chip);
+    expect(document.activeElement?.getAttribute('role')).toBe('group');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Auto timer: / }));
+  });
+
+  it('UX bug 2: never opens by itself away from the home page (over a form)', async () => {
+    window.localStorage.clear();
+    window.history.replaceState(null, '', '/northstar/projects/p1/deliverables/new');
+    const { api } = client((call) =>
+      call.url.endsWith('/time/auto')
+        ? { status: 200, body: { ...STATE, enabled: false, ownSwitch: false } }
+        : { status: 200, body: {} },
+    );
+    wrap(<AutoTimerStatus organizationSlug="northstar" client={api} />);
+    await screen.findByRole('button', { name: /Auto timer/ });
+    expect(screen.queryByRole('button', { name: 'Turn on automatic time tracking' })).toBeNull();
+    window.history.replaceState(null, '', '/');
+  });
+
   it('item 15: asks once, as one button, and never opens by itself again', async () => {
     window.localStorage.clear();
+    // UX bug 2: the ask opens by itself on the home page only.
+    window.history.replaceState(null, '', '/northstar/home');
     const { api } = client((call) =>
       call.url.endsWith('/time/auto')
         ? { status: 200, body: { ...STATE, enabled: false, ownSwitch: false } }
@@ -242,6 +301,7 @@ describe('automatic timer chip', () => {
     wrap(<AutoTimerStatus organizationSlug="northstar" client={api} />);
     await screen.findByRole('button', { name: /Auto timer/ });
     expect(screen.queryByRole('region', { name: 'Automatic timer' })).toBeNull();
+    window.history.replaceState(null, '', '/');
   });
 
   it('item 17: reports where tracking runs, so the owner can see it', async () => {
@@ -413,7 +473,9 @@ describe('team time screen', () => {
     expect(within(table).getByRole('row', { name: /Carim/ })).toHaveTextContent('Private task');
     // Item 11: the zone by a readable name; item 17: where each person's tracking runs.
     expect(screen.getByText(/company time zone \(Cairo\)/)).toBeTruthy();
-    expect(screen.getByText(/reported by each person’s own computer, not verified/)).toBeTruthy();
+    // UX test T-P2-3: the detail sits behind "How is this counted?".
+    expect(screen.getByText('How is this counted?').tagName).toBe('SUMMARY');
+    expect(screen.getByText(/each person’s own computer activity/)).toBeTruthy();
     expect(screen.getByText(/also see where each person’s tracking runs/)).toBeTruthy();
     expect(row).toHaveTextContent('Desktop app');
     expect(within(table).getByRole('row', { name: /Carim/ })).toHaveTextContent('No device seen');
