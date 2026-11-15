@@ -77,7 +77,7 @@ import { ViewerCanvas, type ViewerTool } from './ViewerCanvas';
 import { ViewerShell, ViewerTools } from './ViewerShell';
 import { ViewerStatePanel, type ViewerCanvasState } from './ViewerStatePanel';
 import { ZoomControls } from './ZoomControls';
-import { clampZoom, fitZoom, stepZoom } from './viewer-geometry';
+import { MAX_ZOOM, clampZoom, fitZoom, stepZoom } from './viewer-geometry';
 import { ViewerIcon } from './viewer-icons';
 import './viewer.css';
 import './viewer-versions.css';
@@ -443,7 +443,9 @@ export function FileViewer({
   const pdf = usePdfDocument(isPdf && plan?.src ? absolute(plan.src) : null);
   const pageCount = isPdf && pdf.status === 'ready' ? pdf.doc.numPages : (manifest?.pages ?? 1);
   const fitMode = isPdf ? 'width' : 'contain';
-  const fitted = natural && available ? fitZoom(natural, available, fitMode) : 1;
+  // A picture fits by shrinking only (never above 100 %); a PDF page fills the width.
+  const fitted =
+    natural && available ? fitZoom(natural, available, fitMode, isPdf ? MAX_ZOOM : 1) : 1;
   const zoom = zoomChoice === 'fit' ? fitted : clampZoom(zoomChoice);
 
   const invalidateThreads = useCallback(

@@ -18551,6 +18551,7 @@
   "CalendarConnections.reminderMinutes.zero": "{count} minutes avant",
   "ChatMessages.upload.busy": "TManage était occupé et «{name}» n’a pas été importé. Rien n’a été envoyé — réessayez dans un instant.",
   "ChatMessages.upload.notAttached": "Votre message a été envoyé, mais «{name}» n’y a pas été joint. Renvoyez-le pour partager le fichier.",
+  "ChatMessages.upload.sentWithoutFile": "Message envoyé sans le fichier",
   "ChatMessages.refused.executable": "«{name}» est un programme, et les programmes ne peuvent pas être partagés dans TManage.",
   "ChatMessages.refused.macro_office": "«{name}» contient des macros, que TManage n’accepte pas. Enregistrez-le sans macros (par exemple en .docx ou .xlsx) et joignez-le de nouveau.",
   "ChatMessages.refused.archive_off": "«{name}» est une archive, et les archives (ZIP, 7z, RAR) sont désactivées dans cet espace de travail.",

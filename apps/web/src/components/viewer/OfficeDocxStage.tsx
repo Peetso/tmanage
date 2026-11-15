@@ -11,6 +11,8 @@ import { FormatIcon } from './format-icons';
 import { fetchOriginal, openCountByPage, useParsedOriginal } from './format-stage-helpers';
 import type { OriginalFetcher } from './format-stage-helpers';
 import { OfficeLoadState } from './OfficeLoadState';
+import { fitZoom, stepZoom } from './viewer-geometry';
+import { ZoomControls } from './ZoomControls';
 import './format-stages.css';
 
 /**
@@ -92,6 +94,22 @@ export function OfficeDocxStage({
   const [renderState, setRenderState] = useState<'loading' | 'ready' | 'failed'>('loading');
   const [pageNo, setPageNo] = useState(1);
   const openCounts = openCountByPage(threads);
+  // SMALLFIX item 3: a page is drawn at its own width (an A4 page is ~794 px), which ran past a
+  // narrower pane. It now fits the pane's width by default, never enlarging, and − / + still zoom.
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [available, setAvailable] = useState(0);
+  const [pageWidths, setPageWidths] = useState<readonly number[]>([]);
+  const [zoomChoice, setZoomChoice] = useState<number | 'fit'>('fit');
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setAvailable(entry.contentRect.width);
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (loaded.state === 'failed') setRenderState('failed');
@@ -119,6 +137,8 @@ export function OfficeDocxStage({
         neutralizeDocument(host);
         const sections = Array.from(host.querySelectorAll<HTMLElement>(`section.${DOCX_CLASS}`));
         setPages(sections);
+        // Layout widths (unaffected by the host's zoom), measured once per render.
+        setPageWidths(sections.map((section) => section.offsetWidth));
         setRenderState(sections.length > 0 ? 'ready' : 'failed');
       })
       .catch(() => {
@@ -155,6 +175,15 @@ export function OfficeDocxStage({
   }, [selectedPage, selectedThreadId, count]);
 
   const current = pages[pageNo - 1] ?? null;
+  const pageWidth = pageWidths[pageNo - 1] ?? 0;
+  // Width only: the page scrolls down, as a PDF page does. Heights are not part of a width fit.
+  const fitted = fitZoom(
+    { width: pageWidth, height: 1 },
+    { width: available, height: 1 },
+    'width',
+    1,
+  );
+  const zoom = zoomChoice === 'fit' ? fitted : zoomChoice;
   const stepper = t('ViewerFormats.docx.counter')
     .replace('{page}', String(pageNo))
     .replace('{count}', String(count || office?.pages || 1));
@@ -201,10 +230,21 @@ export function OfficeDocxStage({
             })}
           </nav>
         ) : null}
-        <div className="tm-office-canvas tm-office-canvas--docx">
+        <div className="tm-office-canvas tm-office-canvas--docx" ref={canvasRef}>
           {toolbar && renderState === 'ready' ? (
             <div className="tm-office-canvas__toolbar tm-office-canvas__toolbar--side">
               {toolbar}
+            </div>
+          ) : null}
+          {renderState === 'ready' ? (
+            <div className="tm-office-canvas__chip">
+              <ZoomControls
+                zoom={zoom}
+                fitted={zoomChoice === 'fit'}
+                fitMode="width"
+                onStep={(direction) => setZoomChoice(stepZoom(zoom, direction))}
+                onFit={() => setZoomChoice('fit')}
+              />
             </div>
           ) : null}
           {renderState === 'loading' ? <OfficeLoadState state="loading" /> : null}
@@ -212,6 +252,7 @@ export function OfficeDocxStage({
             className="tm-docx-host"
             dir="ltr"
             ref={hostRef}
+            style={{ zoom }}
             role="document"
             aria-label={t('ViewerFormats.docx.label')}
           />

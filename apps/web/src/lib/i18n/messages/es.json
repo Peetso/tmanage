@@ -18553,6 +18553,7 @@
   "CalendarConnections.reminderMinutes.zero": "{count} minutos antes",
   "ChatMessages.upload.busy": "TManage estaba ocupado y «{name}» no se subió. No se envió nada; inténtalo de nuevo en un momento.",
   "ChatMessages.upload.notAttached": "Tu mensaje se envió, pero «{name}» no se adjuntó. Vuelve a enviarlo para compartir el archivo.",
+  "ChatMessages.upload.sentWithoutFile": "Mensaje enviado sin el archivo",
   "ChatMessages.refused.executable": "«{name}» es un programa, y los programas no se pueden compartir en TManage.",
   "ChatMessages.refused.macro_office": "«{name}» contiene macros, que TManage no acepta. Guárdalo sin macros (por ejemplo como .docx o .xlsx) y vuelve a adjuntarlo.",
   "ChatMessages.refused.archive_off": "«{name}» es un archivo comprimido, y los archivos comprimidos (ZIP, 7z, RAR) están desactivados en este espacio de trabajo.",

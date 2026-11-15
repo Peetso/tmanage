@@ -18699,6 +18699,7 @@
   "ChatMessages.upload.still_checking": "“{name}” is still being checked for safety. Nothing was sent — try again in a minute.",
   "ChatMessages.upload.refused": "“{name}” could not be uploaded. Nothing was sent. If this keeps happening, ask your workspace owner to check Control › Storage.",
   "ChatMessages.upload.notAttached": "Your message was sent, but “{name}” was not added to it. Send again to share the file.",
+  "ChatMessages.upload.sentWithoutFile": "Message sent without a file",
   "ChatMessages.refused.executable": "“{name}” is a program, and programs cannot be shared in TManage.",
   "ChatMessages.refused.macro_office": "“{name}” contains macros, which TManage does not accept. Save it without macros (for example as .docx or .xlsx) and attach it again.",
   "ChatMessages.refused.archive_off": "“{name}” is an archive, and archives (ZIP, 7z, RAR) are turned off for this workspace.",

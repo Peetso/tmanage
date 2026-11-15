@@ -115,6 +115,53 @@ function CheckGlyph() {
   );
 }
 
+/** The percentage bar of one file being sent (also under a chat message's attachment). */
+export function UploadBar({ name, percent }: { readonly name: string; readonly percent: number }) {
+  const ta = useA6T();
+  return (
+    <span
+      className="tm-upload__bar"
+      role="progressbar"
+      aria-label={ta('UploadProgress.progressLabel', { name })}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={percent}
+    >
+      <span className="tm-upload__fill" style={{ inlineSize: `${percent}%` }} />
+    </span>
+  );
+}
+
+/** "Uploading · 4.1 of 9.8 MB · 42 %" with its bar, for a file whose send is in flight. */
+export function UploadMeter({
+  name,
+  sent,
+  total,
+}: {
+  readonly name: string;
+  readonly sent: number;
+  readonly total: number;
+}) {
+  const ta = useA6T();
+  const percent = uploadPercent(sent, total);
+  const sizes = sizePair(sent, total);
+  return (
+    <>
+      <UploadBar name={name} percent={percent} />
+      <span className="tm-upload__meta">
+        <span>
+          {ta('UploadProgress.uploading', {
+            sent: sizes.sent,
+            total: sizes.total,
+            unit: ta(`UploadProgress.unit${sizes.unit}`),
+            pct: percent,
+          })}
+        </span>
+      </span>
+    </>
+  );
+}
+
 export interface UploadProgressItemProps {
   readonly row: UploadRow;
   readonly onCancel: (id: string) => void;
@@ -158,18 +205,7 @@ export function UploadProgressItem({
         <span className="tm-upload__title">
           <span className="tm-upload__name">{row.file.name}</span>
         </span>
-        {row.state === 'done' ? null : (
-          <span
-            className="tm-upload__bar"
-            role="progressbar"
-            aria-label={ta('UploadProgress.progressLabel', { name: row.file.name })}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={percent}
-          >
-            <span className="tm-upload__fill" style={{ inlineSize: `${percent}%` }} />
-          </span>
-        )}
+        {row.state === 'done' ? null : <UploadBar name={row.file.name} percent={percent} />}
         <span className="tm-upload__meta" role={row.state === 'failed' ? 'alert' : undefined}>
           {row.state === 'done' ? <CheckGlyph /> : null}
           <span>{meta}</span>

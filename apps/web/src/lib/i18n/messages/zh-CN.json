@@ -18551,6 +18551,7 @@
   "CalendarConnections.reminderMinutes.zero": "提前 {count} 分钟",
   "ChatMessages.upload.busy": "TManage 正忙，“{name}”未能上传。未发送任何内容，请稍后重试。",
   "ChatMessages.upload.notAttached": "你的消息已发送，但“{name}”未添加到消息中。请重新发送以分享该文件。",
+  "ChatMessages.upload.sentWithoutFile": "消息已发送，但未附带文件",
   "ChatMessages.refused.executable": "“{name}”是程序，TManage 中不能分享程序。",
   "ChatMessages.refused.macro_office": "“{name}”包含宏，TManage 不接受。请另存为不含宏的文件（例如 .docx 或 .xlsx）后再附加。",
   "ChatMessages.refused.archive_off": "“{name}”是压缩包，此工作区已关闭压缩包（ZIP、7z、RAR）。",

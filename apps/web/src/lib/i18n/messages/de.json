@@ -18551,6 +18551,7 @@
   "CalendarConnections.reminderMinutes.zero": "{count} Minuten vorher",
   "ChatMessages.upload.busy": "TManage war ausgelastet und „{name}“ wurde nicht hochgeladen. Es wurde nichts gesendet – versuche es gleich noch einmal.",
   "ChatMessages.upload.notAttached": "Deine Nachricht wurde gesendet, aber „{name}“ wurde nicht angehängt. Sende sie erneut, um die Datei zu teilen.",
+  "ChatMessages.upload.sentWithoutFile": "Nachricht ohne Datei gesendet",
   "ChatMessages.refused.executable": "„{name}“ ist ein Programm, und Programme können in TManage nicht geteilt werden.",
   "ChatMessages.refused.macro_office": "„{name}“ enthält Makros, die TManage nicht annimmt. Speichere die Datei ohne Makros (zum Beispiel als .docx oder .xlsx) und hänge sie erneut an.",
   "ChatMessages.refused.archive_off": "„{name}“ ist ein Archiv, und Archive (ZIP, 7z, RAR) sind in diesem Workspace ausgeschaltet.",

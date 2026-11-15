@@ -236,7 +236,8 @@ export class GroupSettingsService {
           throw new ApiError(409, 'conflict', 'A group needs at least one admin');
         }
       }
-      await this.groups.setRole(tx, context, row.id, userId, role);
+      // SMALLFIX item 6: a second "Make admin" racing this one changes nothing and posts nothing.
+      if (!(await this.groups.setRole(tx, context, row.id, userId, role))) return;
       await this.postSystem(
         tx,
         context,

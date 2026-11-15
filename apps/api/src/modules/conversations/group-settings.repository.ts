@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
   clientMemberships,
@@ -69,6 +69,9 @@ export class GroupSettingsRepository {
           eq(conversationMemberships.organizationId, context.organizationId),
           eq(conversationMemberships.conversationId, conversationId),
           eq(conversationMemberships.userId, userId),
+          // SMALLFIX item 6: only a row whose role actually changes counts, so of two requests
+          // racing to grant the same role exactly one sees `true` (the row lock serialises them).
+          ne(conversationMemberships.role, role),
         ),
       );
     return result[0].affectedRows > 0;

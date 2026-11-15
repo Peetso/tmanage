@@ -18699,6 +18699,7 @@
   "ChatMessages.upload.still_checking": "ما زال «{name}» قيد فحص الأمان. لم يُرسَل شيء، حاول مرة أخرى بعد دقيقة.",
   "ChatMessages.upload.refused": "تعذّر رفع «{name}»، ولم يُرسَل شيء. إذا تكرر ذلك، فاطلب من مالك مساحة العمل مراجعة التحكم › التخزين.",
   "ChatMessages.upload.notAttached": "أُرسلت رسالتك، لكن «{name}» لم يُرفق بها. أرسلها مرة أخرى لمشاركة الملف.",
+  "ChatMessages.upload.sentWithoutFile": "أُرسلت الرسالة دون الملف",
   "ChatMessages.refused.executable": "«{name}» برنامج تشغيلي، ولا يمكن مشاركة البرامج في TManage.",
   "ChatMessages.refused.macro_office": "يحتوي «{name}» على وحدات ماكرو لا يقبلها TManage. احفظه دون ماكرو (مثل ‎.docx أو ‎.xlsx) ثم أرفقه من جديد.",
   "ChatMessages.refused.archive_off": "«{name}» ملف مضغوط، والملفات المضغوطة (ZIP و7z وRAR) غير مسموح بها في مساحة العمل هذه.",

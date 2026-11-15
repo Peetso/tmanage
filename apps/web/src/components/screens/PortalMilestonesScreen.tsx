@@ -14,6 +14,8 @@ import { longDay, shortDay, Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { appDateLocale } from '../../lib/i18n/app-locale';
+import { formatDay } from '../../lib/i18n/format';
 
 type Translate = ReturnType<typeof useT>;
 type TranslateOr = ReturnType<typeof useTOr>;
@@ -119,8 +121,9 @@ export function PortalMilestonesScreen({
 
 function eyebrowFor(dated: readonly ClientMilestone[], t: Translate): string {
   if (dated.length === 0) return t('PortalMilestonesScreen.timeline');
+  // A milestone's `dueOn` is a calendar day: read it in UTC, in the member's locale.
   const month = (value: string | null) =>
-    value ? new Intl.DateTimeFormat('en-GB', { month: 'long' }).format(new Date(value)) : '';
+    value ? formatDay(value, { locale: appDateLocale() }, { month: 'long', timeZone: 'UTC' }) : '';
   const first = month(dated[0]!.dueOn);
   const last = month(dated[dated.length - 1]!.dueOn);
   return first === last

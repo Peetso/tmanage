@@ -101,17 +101,20 @@ export function stepZoom(current: number, direction: 1 | -1): number {
 /**
  * The zoom that fits artwork of `natural` size into `available` space (both CSS pixels).
  * `width` fits the width only (a tall PDF page then scrolls); `contain` fits both sides.
+ * `maxZoom` caps the fit: 1 shrinks a large picture to the pane but never blows a small one up
+ * (SMALLFIX item 4: a 600 px image opened "fitted" at 151 %).
  */
 export function fitZoom(
   natural: { readonly width: number; readonly height: number },
   available: { readonly width: number; readonly height: number },
   mode: 'contain' | 'width',
+  maxZoom: number = MAX_ZOOM,
 ): number {
   if (natural.width <= 0 || natural.height <= 0) return 1;
   if (available.width <= 0 || available.height <= 0) return 1;
   const byWidth = available.width / natural.width;
   const zoom = mode === 'width' ? byWidth : Math.min(byWidth, available.height / natural.height);
-  return clampZoom(zoom);
+  return clampZoom(Math.min(maxZoom, zoom));
 }
 
 /**

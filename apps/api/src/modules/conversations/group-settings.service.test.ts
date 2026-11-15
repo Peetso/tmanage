@@ -45,10 +45,14 @@ const principal = (kind: 'internal' | 'client', role: string): Principal =>
 
 function service(members: ConversationMembershipRow[], clients: string[] = []) {
   const roles: string[] = [];
+  const posted: string[] = [];
   const conversations = {
     findById: async () => group,
-    findMembership: async (_r: unknown, _c: unknown, _id: string, userId: string) =>
-      members.find((m) => m.userId === userId) ?? null,
+    // A snapshot, as a read is: two requests in flight both see the row as it was.
+    findMembership: async (_r: unknown, _c: unknown, _id: string, userId: string) => {
+      const found = members.find((m) => m.userId === userId);
+      return found ? { ...found } : null;
+    },
     removeMember: async (_r: unknown, _c: unknown, _id: string, userId: string) => (
       members.splice(
         members.findIndex((m) => m.userId === userId),
@@ -56,21 +60,32 @@ function service(members: ConversationMembershipRow[], clients: string[] = []) {
       ),
       true
     ),
-    appendMessage: async () => ({ id: uuidv7(), sequenceNo: 1 }),
+    appendMessage: async (_r: unknown, _c: unknown, input: { meta: { event: string } }) => (
+      posted.push(input.meta.event),
+      { id: uuidv7(), sequenceNo: 1 }
+    ),
   } as unknown as ConversationsRepository;
   const groups = {
     listMembersOldestFirst: async () => [...members],
     clientUserIds: async () => new Set(clients),
-    setRole: async (_r: unknown, _c: unknown, _id: string, userId: string, role: string) => (
-      roles.push(`${userId}:${role}`),
-      true
-    ),
+    // As the conditional UPDATE does: only a row whose role really changes reports `true`.
+    setRole: async (_r: unknown, _c: unknown, _id: string, userId: string, role: string) => {
+      const row = members.find((m) => m.userId === userId);
+      if (!row || row.role === role) return false;
+      Object.assign(row, { role });
+      roles.push(`${userId}:${role}`);
+      return true;
+    },
     findGroupByInviteToken: async () => group,
   } as unknown as GroupSettingsRepository;
   const people = {
     displayNames: async () => new Map(),
   } as unknown as DirectConversationsRepository;
-  return { roles, svc: new GroupSettingsService(database, groups, conversations, people) };
+  return {
+    roles,
+    posted,
+    svc: new GroupSettingsService(database, groups, conversations, people),
+  };
 }
 
 describe('GroupSettingsService', () => {
@@ -88,6 +103,16 @@ describe('GroupSettingsService', () => {
     );
     await svc.leave(context, principal('internal', 'member'), 'g1');
     expect(roles).toEqual(['u-old:admin']);
+  });
+
+  it('posts "is now an admin" once when Make admin is sent twice at the same time', async () => {
+    const { svc, posted } = service([member(ME, 'admin', 1), member('u-2', 'member', 2)]);
+    const admin = principal('internal', 'member');
+    await Promise.all([
+      svc.setRole(context, admin, 'g1', 'u-2', 'admin'),
+      svc.setRole(context, admin, 'g1', 'u-2', 'admin'),
+    ]);
+    expect(posted).toEqual(['admin_granted']);
   });
 
   it('never lets a client join by invite link', async () => {

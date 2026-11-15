@@ -587,7 +587,8 @@
 
 .tm-office-canvas--docx {
   align-content: start;
-  padding: var(--s6);
+  /* The top band holds the zoom pill (top end), as on the other Office canvases. */
+  padding: var(--s16) var(--s6) var(--s6);
   max-block-size: calc(100dvh - 220px);
 }
 

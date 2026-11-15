@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { appDateLocale } from '../../lib/i18n/app-locale';
+import { formatDay } from '../../lib/i18n/format';
 import '../../styles/screens/portal.css';
 
 /**
@@ -26,18 +28,36 @@ function parse(value: string | Date | null | undefined): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-/** "30 Sep" — the design's short date. Falls back to the raw value when it does not parse. */
-export function shortDay(value: string | Date | null | undefined): string {
+/** A calendar day (`2026-11-30`) is that day everywhere; an instant reads in the viewer's zone. */
+const BARE_DAY = /^\d{4}-\d{2}-\d{2}$/u;
+
+/**
+ * SMALLFIX item 5. A portal date through the shared formatter in the member's locale (English in
+ * the design's en-GB shape, Arabic with Latin digits), never a hand-built English string.
+ */
+function portalDay(
+  value: string | Date | null | undefined,
+  month: 'short' | 'long',
+  locale: string | undefined,
+): string {
   const parsed = parse(value);
   if (parsed === null) return typeof value === 'string' ? value : '';
-  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(parsed);
+  const bareDay = typeof value === 'string' && BARE_DAY.test(value);
+  return formatDay(
+    parsed.toISOString(),
+    { locale: appDateLocale(locale) },
+    { day: 'numeric', month, ...(bareDay ? { timeZone: 'UTC' } : {}) },
+  );
+}
+
+/** "30 Sep" — the design's short date. Falls back to the raw value when it does not parse. */
+export function shortDay(value: string | Date | null | undefined, locale?: string): string {
+  return portalDay(value, 'short', locale);
 }
 
 /** "30 September". */
-export function longDay(value: string | Date | null | undefined): string {
-  const parsed = parse(value);
-  if (parsed === null) return typeof value === 'string' ? value : '';
-  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long' }).format(parsed);
+export function longDay(value: string | Date | null | undefined, locale?: string): string {
+  return portalDay(value, 'long', locale);
 }
 
 /** Whole days from `now` to `value`, never negative. */

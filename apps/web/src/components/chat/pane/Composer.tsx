@@ -45,6 +45,7 @@ import { useDictation } from '../../voice/useDictation';
 import { MicButton, MicNotice } from '../../voice/VoiceControls';
 import { EmojiPicker } from './EmojiPicker';
 import { ReplyQuote } from './ReplyQuote';
+import { UploadMeter } from '../../storage/UploadProgress';
 import './pane.css';
 
 type Translate = ReturnType<typeof useT>;
@@ -368,6 +369,9 @@ export function Composer({
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [locationError, setLocationError] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  // SMALLFIX item 1: bytes sent so far per file of the send in flight (index-aligned with the
+  // files it sends); `null` while nothing is uploading.
+  const [sentBytes, setSentBytes] = useState<readonly number[] | null>(null);
   const [fileProblem, setFileProblem] = useState<string | undefined>(undefined);
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -453,7 +457,8 @@ export function Composer({
       // runs), then the message is posted, then each file is linked to it.
       const fileIds: string[] = [];
       if (files.length > 0 && typeof attachProjectId === 'string') {
-        for (const file of files) {
+        setSentBytes(files.map(() => 0));
+        for (const [index, file] of files.entries()) {
           try {
             fileIds.push(
               // Wait for the safety scan: a file still being checked cannot be linked (404).
@@ -461,7 +466,13 @@ export function Composer({
                 api,
                 organizationSlug,
                 { projectId: attachProjectId, file },
-                { untilReady: true },
+                {
+                  untilReady: true,
+                  onProgress: (sent) =>
+                    setSentBytes((all) =>
+                      all ? all.map((value, at) => (at === index ? sent : value)) : all,
+                    ),
+                },
               ),
             );
           } catch (error) {
@@ -507,6 +518,7 @@ export function Composer({
       if (missing.length > 0) throw new FilesNotAttachedError(missing);
       return posted;
     },
+    onSettled: () => setSentBytes(null),
     onError: (error) => {
       if (error instanceof FileRefusedError) {
         // The text and the other files stay; only the refused file leaves the list.
@@ -827,7 +839,11 @@ export function Composer({
               </span>
               <span className="tm-chat-file__text">
                 <span className="tm-chat-file__name">{file.name}</span>
-                <span className="tm-chat-file__meta">{formatBytes(file.size)}</span>
+                {send.isPending && sentBytes?.[index] !== undefined ? (
+                  <UploadMeter name={file.name} sent={sentBytes[index]} total={file.size} />
+                ) : (
+                  <span className="tm-chat-file__meta">{formatBytes(file.size)}</span>
+                )}
               </span>
               <button
                 type="button"
@@ -875,7 +891,16 @@ export function Composer({
         </InlineAlert>
       ) : null}
 
-      {send.isError ? (
+      {send.error instanceof FilesNotAttachedError ? (
+        // SMALLFIX item 2: the text went out; only a file did not. "Not sent" was untrue here.
+        <InlineAlert
+          tone="warning"
+          title={tOr('ChatMessages.upload.sentWithoutFile', 'Message sent without a file')}
+          live
+        >
+          {describeError(send.error, t, tOr)}
+        </InlineAlert>
+      ) : send.isError ? (
         <InlineAlert tone="danger" title={t('ProjectChannelScreen.notSent')} live>
           {describeError(send.error, t, tOr)}{' '}
           {send.error instanceof NetworkError ? t('ProjectChannelScreen.textStillHere') : ''}

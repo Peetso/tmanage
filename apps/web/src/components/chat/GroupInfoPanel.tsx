@@ -158,6 +158,7 @@ export function GroupInfoPanel({
               <button
                 type="button"
                 className="tm-chatgroup__btn tm-chatgroup__btn--quiet"
+                disabled={change.isPending}
                 onClick={() =>
                   change.mutate(() =>
                     setGroupMemberRole(
