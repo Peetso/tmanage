@@ -15,6 +15,26 @@ export function useSelectedPortalProjectId(): string | null {
 }
 
 /**
+ * The project a single-project portal screen shows: the one `?project=` names, else the first
+ * shared project. Only ever one of `projects` (the API's list of what is shared with the caller),
+ * so an id in the address bar can choose between shared projects but never reach another one.
+ */
+export function pickPortalProject<T extends { readonly id: string }>(
+  projects: readonly T[] | undefined,
+  selectedId: string | null,
+): T | undefined {
+  if (!projects) return undefined;
+  return projects.find((project) => project.id === selectedId) ?? projects[0];
+}
+
+/** {@link pickPortalProject} with the current `?project=`. */
+export function useSelectedPortalProject<T extends { readonly id: string }>(
+  projects: readonly T[] | undefined,
+): T | undefined {
+  return pickPortalProject(projects, useSelectedPortalProjectId());
+}
+
+/**
  * `href` with `?project=` set to `projectId`, or removed for `null`, every other parameter kept.
  * Exported so the portal menu's own links carry the same choice.
  */

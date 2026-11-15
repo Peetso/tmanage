@@ -5,6 +5,7 @@ import { useId, useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
+import { useSelectedPortalProjectId } from '../shell/PortalProjectSwitcher';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   listPortalDeliverableFiles,
@@ -16,6 +17,7 @@ import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error'
 import type { ApiClient } from '../../lib/api/client';
 import { Segmented, shortDay, Tag } from './PortalParts';
 import { PortalReviewLink } from './PortalReviewLink';
+import { PortalDeliverablePreview } from './PortalDeliverablePreview';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 
@@ -35,8 +37,8 @@ export interface ClientPortalDeliverablesScreenProps {
  * deliverable record, and no internal stages. Drawn as the handoff's CL-07: a counting headline,
  * an "All / Awaiting a decision / Final" switch, and one card per deliverable in two columns.
  *
- * Files hang off a deliverable and load only when its disclosure opens, so a client with many
- * deliverables issues one file query per deliverable they open. A client organization can be on
+ * Files hang off a deliverable: each card reads its file list once for its picture, and the
+ * "Show files" disclosure reuses that read. A client organization can be on
  * more than one project; the read is per-project, so the screen fans out one query per project
  * (shared by key with each project's section).
  */
@@ -63,7 +65,11 @@ export function ClientPortalDeliverablesScreen({
     queryFn: () => listPortalProjects(api, organizationSlug),
   });
 
-  const loadedProjects = projects.data ?? [];
+  // With `?project=` the page is that one shared project; "All projects" (no parameter) lists all.
+  const selectedProjectId = useSelectedPortalProjectId();
+  const sharedProjects = projects.data ?? [];
+  const chosenProjects = sharedProjects.filter((shared) => shared.id === selectedProjectId);
+  const loadedProjects = chosenProjects.length > 0 ? chosenProjects : sharedProjects;
 
   const perProject = useQueries({
     queries: loadedProjects.map((shared) => ({
@@ -279,9 +285,11 @@ function DeliverablePanel({ api, organizationSlug, deliverable, lead }: Delivera
 
   return (
     <article className={lead ? 'tm-pt-deliv tm-pt-deliv--lead' : 'tm-pt-deliv'}>
-      <div className="tm-pt-preview" aria-hidden="true">
-        nothing to show yet
-      </div>
+      <PortalDeliverablePreview
+        api={api}
+        organizationSlug={organizationSlug}
+        deliverableId={deliverable.deliverableId}
+      />
 
       <div className="tm-pt-action__meta">
         {final ? (
@@ -356,7 +364,7 @@ interface DeliverableFilesProps {
 }
 
 /**
- * The files attached to one deliverable, fetched the first time the disclosure opens.
+ * The files attached to one deliverable — the same read the card's picture made.
  */
 function DeliverableFiles({
   api,

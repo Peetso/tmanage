@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
+import { useSelectedPortalProject } from '../shell/PortalProjectSwitcher';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listPortalProjects, listPortalRisks } from '../../lib/api/portal';
 import type { ClientRisk, RiskSeverity, RiskStatus } from '../../lib/api/portal';
@@ -51,7 +52,7 @@ export function PortalRisksScreen({
     queryFn: () => listPortalProjects(api, organizationSlug),
   });
 
-  const project = projects.data?.[0];
+  const project = useSelectedPortalProject(projects.data);
   const projectId = project?.id;
 
   const risks = useQuery({

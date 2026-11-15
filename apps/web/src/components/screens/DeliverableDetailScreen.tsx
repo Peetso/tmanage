@@ -164,7 +164,7 @@ export function DeliverableDetailScreen({
       }
       actions={
         <span className="tm-row tm-row--wrap">
-          <PreviewAsClientLink organizationSlug={organizationSlug} />
+          <PreviewAsClientLink organizationSlug={organizationSlug} projectId={projectId} />
           {detail.data && !approved ? (
             <DeleteDeliverable
               api={api}

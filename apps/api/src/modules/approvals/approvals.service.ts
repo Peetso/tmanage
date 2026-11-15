@@ -3,6 +3,7 @@ import {
   authorize,
   contentHashEquals,
   evaluateReviewerDecision,
+  PENDING_APPROVAL_STATES,
 } from '@tmanage/domain';
 import type { ApprovalPolicy, ApprovalState, Principal, ReviewerDecision } from '@tmanage/domain';
 import { ClientFileSharing } from '../files/client-file-sharing.js';
@@ -160,6 +161,30 @@ export interface ClientProjectionView {
   readonly projection: ClientProjectionPayload;
   readonly publishedByUserId: string;
   readonly publishedAt: string;
+}
+
+/**
+ * The projection as a reader opens it: plus whether this reader is being asked to decide. A
+ * version shared with the client without "Send for approval" has no approval, so it opens as plain
+ * viewing; only a pending approval naming the client (or a staff preview of one) shows the
+ * decision.
+ */
+export interface ClientProjectionReadView extends ClientProjectionView {
+  readonly awaitingDecision: boolean;
+}
+
+/** The approval states in which a reviewer may still be asked to decide. */
+const PENDING_DECISION: ReadonlySet<string> = new Set(PENDING_APPROVAL_STATES);
+
+/**
+ * Whether `principal` should be offered approve / request changes on a version whose approval is
+ * `approval` — the same facts `clientDecide` gates on (a pending approval, the client among its
+ * reviewers), so the screen never offers a decision the API would refuse. Staff previewing the
+ * portal see what the client sees whenever any approval is pending.
+ */
+export function awaitsClientDecision(approval: ApprovalRow | null, principal: Principal): boolean {
+  if (!approval || !PENDING_DECISION.has(approval.state)) return false;
+  return principal.kind !== 'client' || approval.reviewerIds.includes(principal.userId);
 }
 
 /** What publishing supplies. The tenant and the frozen hash are not the caller's. */
@@ -663,8 +688,8 @@ export class ApprovalsService {
     context: TenantContext,
     principal: Principal,
     deliverableVersionId: string,
-  ): Promise<ClientProjectionView> {
-    const row = await this.guarding(() =>
+  ): Promise<ClientProjectionReadView> {
+    return this.guarding(() =>
       this.database.transaction(context, async (tx) => {
         const projection = await this.clientProjections.requireByVersion(
           tx,
@@ -687,11 +712,13 @@ export class ApprovalsService {
           throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, verdict.code);
         }
 
-        return projection;
+        const approval = await this.approvals.findByVersion(tx, context, deliverableVersionId);
+        return {
+          ...toProjectionView(projection),
+          awaitingDecision: awaitsClientDecision(approval, principal),
+        };
       }),
     );
-
-    return toProjectionView(row);
   }
 
   /**

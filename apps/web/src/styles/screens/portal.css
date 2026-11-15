@@ -1056,6 +1056,25 @@
   color: var(--ink-650);
 }
 
+/* A shared file's picture fills the box, whole and centred. */
+.tm-pt-preview--media {
+  border-style: solid;
+  overflow: hidden;
+}
+
+.tm-pt-preview__media {
+  display: grid;
+  place-items: center;
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+.tm-pt-preview__media img {
+  max-inline-size: 100%;
+  max-block-size: 100%;
+  object-fit: contain;
+}
+
 .tm-pt-deliv__title {
   margin: 0;
   font-size: 22px;

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
+import { useSelectedPortalProject } from '../shell/PortalProjectSwitcher';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listPortalPeople, listPortalProjects } from '../../lib/api/portal';
 import type { PortalPerson } from '../../lib/api/portal';
@@ -53,14 +54,14 @@ export function PortalPeopleScreen({
     queryFn: () => listPortalProjects(api, organizationSlug),
   });
 
-  const firstProjectId = projects.data?.[0]?.id;
+  const project = useSelectedPortalProject(projects.data);
+  const firstProjectId = project?.id;
   const people = useQuery({
     queryKey: ['portal-people', organizationSlug, firstProjectId],
     queryFn: () => listPortalPeople(api, organizationSlug, firstProjectId!),
     enabled: firstProjectId != null,
   });
 
-  const project = projects.data?.[0];
   const roster = people.data ?? [];
   const contact = roster.find((person) => /manager|lead|owner|pm/i.test(person.role)) ?? roster[0];
   const others = roster.filter((person) => person !== contact);

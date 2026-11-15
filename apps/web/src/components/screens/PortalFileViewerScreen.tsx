@@ -176,7 +176,8 @@ interface PortalDecisionCardProps {
  * V-40's decision card (CL-05 `55:276`): what the client is deciding on (the version's hash), then
  * Approve / Request changes. Requesting changes needs a note. The calls are the existing client
  * approval routes; a decided version is read-only ("Approved by you"). In the team's preview the
- * buttons are shown disabled with the reason.
+ * buttons are shown disabled with the reason. A version only shared, never sent for approval,
+ * has no card.
  */
 function PortalDecisionCard({
   api,
@@ -195,9 +196,9 @@ function PortalDecisionCard({
 
   const approval = useQuery({
     queryKey: key,
+    // A previewing team member reads it too (the API admits staff to the projection read), so
+    // the preview shows the decision card exactly when the client would see one.
     queryFn: () => getClientApproval(api, organizationSlug, deliverableVersionId),
-    // The approval read is the client's own; a previewing team member never calls it.
-    enabled: !preview,
   });
   const decide = useMutation({
     mutationFn: (decision: 'approve' | 'request_changes') =>
@@ -210,6 +211,8 @@ function PortalDecisionCard({
 
   const view = approval.data;
   const decided = decisionShown(decide.data?.state ?? null, view?.projection.decision ?? null);
+  // Live P1: a version only shared (no "Send for approval") is plain viewing — no decision card.
+  if (view && !view.awaitingDecision && !decided) return null;
 
   function requestChanges() {
     if (note.trim() === '') {
@@ -223,7 +226,7 @@ function PortalDecisionCard({
   return (
     <section className="tm-viewer-decision" aria-label={t('ClientApprovalScreen.yourDecision')}>
       <p className="tm-viewer-decision__eyebrow">{t('ClientApprovalScreen.whatDecidingOn')}</p>
-      {approval.isPending && !preview ? <Skeleton height="40px" /> : null}
+      {approval.isPending ? <Skeleton height="40px" /> : null}
       {view ? (
         <p className="tm-viewer-decision__hash">
           <span>{shortHash(view.contentHash)}</span>
@@ -237,7 +240,7 @@ function PortalDecisionCard({
         </InlineAlert>
       ) : null}
 
-      {preview ? (
+      {preview && view && !decided ? (
         <>
           <Button tone="lime" className="tm-viewer-decision__button" disabled>
             {t('Viewer.portal.approve')}

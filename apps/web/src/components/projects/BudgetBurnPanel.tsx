@@ -139,7 +139,9 @@ export function BudgetBurnPanel({ api, organizationSlug, projectId, today }: Bud
         ? null
         : Math.round(summary.budgetHours * 60);
     const rangeMinutes = burn.data.buckets.reduce((sum, bucket) => sum + bucket.minutes, 0);
-    const usedMinutes = summary ? Math.round(summary.usedHoursCache * 60) : rangeMinutes;
+    // Live P1 (deploy 38bab83c): the live total of logged time, never the swept cache — the cache
+    // stays 0 on a project with no budget row and lags a fresh entry by up to a sweep.
+    const usedMinutes = summary ? Math.round(summary.trackedHours * 60) : rangeMinutes;
     const points = burnLine(burn.data.buckets, usedMinutes);
     const forecast = forecastBurn({
       budgetMinutes,

@@ -7,6 +7,7 @@ import { clientOnlyRead, usePortalPreview } from '../../lib/portal-preview';
 import { useHydrated } from '../../lib/use-hydrated';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
+import { useSelectedPortalProject } from '../shell/PortalProjectSwitcher';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   listClientRequests,
@@ -113,7 +114,7 @@ export function ClientOverviewScreen({
       ),
   });
 
-  const project = projects.data?.[0];
+  const project = useSelectedPortalProject(projects.data);
   const firstProjectId = project?.id;
 
   /** Published updates only — the API decides visibility, this screen renders what it gets. */

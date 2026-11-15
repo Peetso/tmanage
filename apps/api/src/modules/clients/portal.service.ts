@@ -647,9 +647,13 @@ export class PortalService {
    *
    * The file query is scoped to this client's own organization, so one client never sees
    * another's file even inside a project both can read; it returns client-audience `deliverable`
-   * files and the files of published versions, each then decided by the one sharing rule. This route is for a client member — an internal caller has no single
-   * client organization to scope to and is answered `404`, the internal file surface being the
-   * studio's own download route.
+   * files and the files of published versions, each then decided by the one sharing rule.
+   *
+   * Live P0 (deploy 38bab83c): the team's "Preview as client" asked here and was answered `404`,
+   * so the preview showed no file at all. An internal caller (who passed `mayRead`, and may read
+   * every project file in the studio anyway) now gets the published versions' files — what every
+   * client on the project sees — and never a file scoped to one client organization. A client
+   * principal without a client organization is still a `404`.
    */
   async filesForDeliverable(
     context: TenantContext,
@@ -657,7 +661,7 @@ export class PortalService {
     deliverableId: string,
   ): Promise<readonly PortalDeliverableFileView[]> {
     const clientOrganizationId = principal.clientOrganizationId;
-    if (!clientOrganizationId) {
+    if (principal.kind === 'client' && !clientOrganizationId) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
 
@@ -671,7 +675,7 @@ export class PortalService {
     const { rows, policies } = await this.database.read(context, async (runner) => ({
       rows: await this.files.listClientVisibleForDeliverable(runner, context, {
         deliverableId,
-        clientOrganizationId,
+        clientOrganizationId: principal.kind === 'client' ? clientOrganizationId : null,
       }),
       policies: await this.sharing.policiesOn(runner, context),
     }));

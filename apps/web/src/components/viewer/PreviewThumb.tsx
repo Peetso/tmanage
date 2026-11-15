@@ -8,6 +8,7 @@ import type { ApiClient } from '../../lib/api/client';
 import {
   filePreviewQueryKey,
   getFilePreviewManifest,
+  previewPages,
   previewThumb,
   type PreviewDoor,
 } from '../../lib/api/file-preview';
@@ -32,6 +33,8 @@ export interface PreviewThumbProps {
   /** Shown until the thumbnail is ready, and when there is none. */
   readonly fallback: ReactNode;
   readonly className?: string;
+  /** `page` draws the first full preview page (a large stage), `thumb` the small picture. */
+  readonly size?: 'thumb' | 'page';
 }
 
 /**
@@ -49,6 +52,7 @@ export function PreviewThumb({
   door = 'studio',
   fallback,
   className,
+  size = 'thumb',
 }: PreviewThumbProps) {
   const ref = useRef<HTMLSpanElement>(null);
   const [seen, setSeen] = useState(false);
@@ -75,7 +79,11 @@ export function PreviewThumb({
     staleTime: 60_000,
     retry: false,
   });
-  const thumb = manifest.data ? previewThumb(manifest.data) : undefined;
+  const thumb = manifest.data
+    ? size === 'page'
+      ? (previewPages(manifest.data)[0] ?? previewThumb(manifest.data))
+      : previewThumb(manifest.data)
+    : undefined;
 
   return (
     <span ref={ref} className={className}>

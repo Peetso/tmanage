@@ -9,6 +9,7 @@ import type {
   ApprovalDecisionView,
   ApprovalsService,
   ClientDecideView,
+  ClientProjectionReadView,
   ClientProjectionView,
 } from './approvals.service.js';
 
@@ -221,7 +222,7 @@ export class ApprovalsController {
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
     @Param('deliverableVersionId') deliverableVersionId: string,
-  ): Promise<ClientProjectionView> {
+  ): Promise<ClientProjectionReadView> {
     return this.approvals.readProjection(context, principal, deliverableVersionId);
   }
 

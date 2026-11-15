@@ -16,6 +16,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { longDay } from './PortalParts';
 import { listPortalDeliverableFiles } from '../../lib/api/portal';
 import { PortalReviewLink } from './PortalReviewLink';
+import { PortalDeliverablePreview } from './PortalDeliverablePreview';
 import { CheckedLabel } from './CheckedLabel';
 import './download-scan-policy.css';
 import { usePortalNames } from '../../lib/use-organization-names';
@@ -100,6 +101,8 @@ export function ClientApprovalScreen({
   const result: ClientDecideResult | undefined = decide.data;
   const view = projection.data;
   const decided = view?.projection.decision ?? null;
+  // Shared without "Send for approval": plain viewing, no decision asked (the API's own fact).
+  const asked = view?.awaitingDecision === true;
 
   return (
     <ClientPortalShell
@@ -109,14 +112,16 @@ export function ClientApprovalScreen({
       activeNavigationId="deliverables"
       title={
         view
-          ? decided || result
-            ? view.projection.title
-            : t('ClientApprovalScreen.worksForYou')
+          ? asked && !decided && !result
+            ? t('ClientApprovalScreen.worksForYou')
+            : view.projection.title
           : t('ClientApprovalScreen.reviewAndDecide')
       }
       eyebrow={
         view
-          ? `${t('ClientApprovalScreen.approvalPrefix')}${view.projection.title}`
+          ? asked || decided || result
+            ? `${t('ClientApprovalScreen.approvalPrefix')}${view.projection.title}`
+            : t('ClientApprovalScreen.sharedWithYou')
           : t('ClientApprovalScreen.approval')
       }
       description={
@@ -144,9 +149,12 @@ export function ClientApprovalScreen({
               className="tm-pt-col"
               aria-label={t('ClientApprovalScreen.publishedDeliverable')}
             >
-              <div className="tm-pt-preview tm-pt-preview--tall" aria-hidden="true">
-                {t('ClientApprovalScreen.nothingToShow')}
-              </div>
+              <PortalDeliverablePreview
+                api={api}
+                organizationSlug={organizationSlug}
+                deliverableId={view.deliverableId}
+                tall
+              />
               <ProjectionBody view={view} />
               <ReviewFiles
                 api={api}
@@ -157,84 +165,90 @@ export function ClientApprovalScreen({
             </article>
 
             <div className="tm-pt-col">
-              <section
-                className="tm-pt-card tm-pt-card--lg"
-                aria-label={t('ClientApprovalScreen.yourDecision')}
-              >
-                <p className="tm-pt-eyebrow">{t('ClientApprovalScreen.whatDecidingOn')}</p>
-                <p className="tm-pt-item">
-                  <span className="tm-pt-mono tm-pt-mono--raw tm-pt-item__main">
-                    {shortHash(view.contentHash)}
-                  </span>
-                  <span className="tm-pt-mono">{stamp(view.publishedAt)}</span>
-                </p>
-                <p className="tm-pt-quiet">{t('ClientApprovalScreen.decisionRecordedNote')}</p>
-
-                {result ? (
-                  <Confirmation result={result} />
-                ) : decided ? (
+              {asked || decided || result ? (
+                <section
+                  className="tm-pt-card tm-pt-card--lg"
+                  aria-label={t('ClientApprovalScreen.yourDecision')}
+                >
+                  <p className="tm-pt-eyebrow">{t('ClientApprovalScreen.whatDecidingOn')}</p>
                   <p className="tm-pt-item">
-                    <span className="tm-pt-orb tm-pt-orb--done" aria-hidden="true">
-                      ✓
+                    <span className="tm-pt-mono tm-pt-mono--raw tm-pt-item__main">
+                      {shortHash(view.contentHash)}
                     </span>
-                    <span className="tm-pt-item__title">{words(decided)}</span>
+                    <span className="tm-pt-mono">{stamp(view.publishedAt)}</span>
                   </p>
-                ) : (
-                  <>
-                    {decide.isError ? (
-                      <InlineAlert tone="danger" title={t('ClientApprovalScreen.recordError')} live>
-                        {describe(decide.error)}
-                      </InlineAlert>
-                    ) : null}
+                  <p className="tm-pt-quiet">{t('ClientApprovalScreen.decisionRecordedNote')}</p>
 
-                    <label className="tm-field tm-pt-form-field" htmlFor="approval-note">
-                      <span className="tm-pt-eyebrow">
-                        {t('ClientApprovalScreen.noteForPrefix')}
-                        {providerName}
-                        {t('ClientApprovalScreen.noteForSuffix')}
+                  {result ? (
+                    <Confirmation result={result} />
+                  ) : decided ? (
+                    <p className="tm-pt-item">
+                      <span className="tm-pt-orb tm-pt-orb--done" aria-hidden="true">
+                        ✓
                       </span>
-                      <textarea
-                        id="approval-note"
-                        className="tm-input tm-pt-textarea"
-                        rows={3}
-                        value={note}
-                        onChange={(event) => setNote(event.target.value)}
-                        aria-invalid={noteRequired ? true : undefined}
-                        {...(noteRequired ? { 'aria-describedby': 'approval-note-error' } : {})}
-                      />
-                      {noteRequired ? (
-                        <span id="approval-note-error" className="tm-field__error" role="alert">
-                          {t('ClientApprovalScreen.addNotePrefix')}
-                          {providerName}
-                          {t('ClientApprovalScreen.addNoteSuffix')}
-                        </span>
-                      ) : null}
-                    </label>
-
-                    <Button
-                      tone="lime"
-                      className="tm-pt-btn--block tm-pt-btn--tall"
-                      loading={decide.isPending && decide.variables === 'approve'}
-                      disabled={decide.isPending}
-                      onClick={() => decide.mutate('approve')}
-                    >
-                      {t('ClientApprovalScreen.approveVersion')}
-                    </Button>
-                    <Button
-                      tone="outline"
-                      className="tm-pt-btn--block tm-pt-btn--tall"
-                      loading={decide.isPending && decide.variables === 'request_changes'}
-                      disabled={decide.isPending}
-                      onClick={onRequestChanges}
-                    >
-                      {t('ClientApprovalScreen.requestChanges')}
-                    </Button>
-                    <p className="tm-pt-quiet tm-pt-center">
-                      {t('ClientApprovalScreen.requestChangesNote')}
+                      <span className="tm-pt-item__title">{words(decided)}</span>
                     </p>
-                  </>
-                )}
-              </section>
+                  ) : (
+                    <>
+                      {decide.isError ? (
+                        <InlineAlert
+                          tone="danger"
+                          title={t('ClientApprovalScreen.recordError')}
+                          live
+                        >
+                          {describe(decide.error)}
+                        </InlineAlert>
+                      ) : null}
+
+                      <label className="tm-field tm-pt-form-field" htmlFor="approval-note">
+                        <span className="tm-pt-eyebrow">
+                          {t('ClientApprovalScreen.noteForPrefix')}
+                          {providerName}
+                          {t('ClientApprovalScreen.noteForSuffix')}
+                        </span>
+                        <textarea
+                          id="approval-note"
+                          className="tm-input tm-pt-textarea"
+                          rows={3}
+                          value={note}
+                          onChange={(event) => setNote(event.target.value)}
+                          aria-invalid={noteRequired ? true : undefined}
+                          {...(noteRequired ? { 'aria-describedby': 'approval-note-error' } : {})}
+                        />
+                        {noteRequired ? (
+                          <span id="approval-note-error" className="tm-field__error" role="alert">
+                            {t('ClientApprovalScreen.addNotePrefix')}
+                            {providerName}
+                            {t('ClientApprovalScreen.addNoteSuffix')}
+                          </span>
+                        ) : null}
+                      </label>
+
+                      <Button
+                        tone="lime"
+                        className="tm-pt-btn--block tm-pt-btn--tall"
+                        loading={decide.isPending && decide.variables === 'approve'}
+                        disabled={decide.isPending}
+                        onClick={() => decide.mutate('approve')}
+                      >
+                        {t('ClientApprovalScreen.approveVersion')}
+                      </Button>
+                      <Button
+                        tone="outline"
+                        className="tm-pt-btn--block tm-pt-btn--tall"
+                        loading={decide.isPending && decide.variables === 'request_changes'}
+                        disabled={decide.isPending}
+                        onClick={onRequestChanges}
+                      >
+                        {t('ClientApprovalScreen.requestChanges')}
+                      </Button>
+                      <p className="tm-pt-quiet tm-pt-center">
+                        {t('ClientApprovalScreen.requestChangesNote')}
+                      </p>
+                    </>
+                  )}
+                </section>
+              ) : null}
 
               <p className="tm-pt-card tm-pt-card--dashed tm-pt-quiet">
                 {t('ClientApprovalScreen.clientViewNote')}

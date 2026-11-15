@@ -746,11 +746,14 @@ export class FileAssetsRepository {
    * The join is the same correlated-latest shape as {@link findWithLatestVersion}; the version is
    * typed nullable and the caller drops any row without one rather than assume it.
    * Newest-first by `created_at`, then `id`, so the list is deterministic.
+   *
+   * `clientOrganizationId: null` is the team's client preview: only the published versions' files
+   * (what every client on the project sees), never a file scoped to one client organization.
    */
   async listClientVisibleForDeliverable(
     runner: TenantQueryRunner,
     context: TenantContext,
-    input: { readonly deliverableId: string; readonly clientOrganizationId: string },
+    input: { readonly deliverableId: string; readonly clientOrganizationId: string | null },
   ): Promise<readonly { readonly asset: FileAssetRow; readonly version: FileVersionRow | null }[]> {
     const clientAudiences: readonly Audience[] = ['client_visible', 'client_action_required'];
     const rows = await tenantDrizzle(runner)
@@ -774,11 +777,13 @@ export class FileAssetsRepository {
           // PA-03 (0245): a soft-deleted file leaves the list.
           isNull(fileAssets.deletedAt),
           or(
-            and(
-              eq(fileAssets.objectId, input.deliverableId),
-              inArray(fileAssets.audience, clientAudiences),
-              eq(fileAssets.clientOrganizationId, input.clientOrganizationId),
-            ),
+            input.clientOrganizationId === null
+              ? undefined
+              : and(
+                  eq(fileAssets.objectId, input.deliverableId),
+                  inArray(fileAssets.audience, clientAudiences),
+                  eq(fileAssets.clientOrganizationId, input.clientOrganizationId),
+                ),
             exists(
               tenantDrizzle(runner)
                 .select({ one: sql`1` })

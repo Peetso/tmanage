@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Announce, Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
+import { useSelectedPortalProject } from '../shell/PortalProjectSwitcher';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   DEFAULT_PORTAL_INBOX_PAGE,
@@ -105,7 +106,7 @@ export function ClientInboxScreen({
   });
 
   const bundles = mergePages(inbox.data?.pages.map((page) => page.items) ?? []);
-  const project = projects.data?.[0];
+  const project = useSelectedPortalProject(projects.data);
 
   const selectMode = (next: PortalInboxMode) => {
     markRead.reset();

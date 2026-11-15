@@ -41,6 +41,11 @@ export interface ClientApprovalView {
   readonly projection: ClientApprovalProjection;
   readonly publishedByUserId: string;
   readonly publishedAt: string;
+  /**
+   * Whether this reader is asked to decide: true only after "Send for approval" named them (or,
+   * for a staff preview, while an approval is pending). A version only shared opens as viewing.
+   */
+  readonly awaitingDecision: boolean;
 }
 
 /**

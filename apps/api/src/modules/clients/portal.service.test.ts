@@ -338,13 +338,13 @@ function fakeProjections(rows: readonly ClientProjectionRow[]): ClientProjection
 
 function fakeFiles(
   rows: readonly { asset: FileAssetRow; version: FileVersionRow | null }[],
-  onQuery?: (input: { deliverableId: string; clientOrganizationId: string }) => void,
+  onQuery?: (input: { deliverableId: string; clientOrganizationId: string | null }) => void,
 ): FileAssetsRepository {
   return {
     listClientVisibleForDeliverable: (
       _r: never,
       _c: TenantContext,
-      input: { deliverableId: string; clientOrganizationId: string },
+      input: { deliverableId: string; clientOrganizationId: string | null },
     ) => {
       onQuery?.(input);
       return Promise.resolve(rows);
@@ -430,7 +430,7 @@ describe('PortalService.deliverablesFor (x114)', () => {
 
 describe('PortalService.filesForDeliverable (x114)', () => {
   it('returns client-safe file metadata scoped to the caller client organization', async () => {
-    let seen: { deliverableId: string; clientOrganizationId: string } | undefined;
+    let seen: { deliverableId: string; clientOrganizationId: string | null } | undefined;
     const service = new PortalService(
       fakeDatabase(),
       {} as unknown as ProjectsRepository,
@@ -533,16 +533,9 @@ describe('PortalService.filesForDeliverable (x114)', () => {
     expect(filesQueried).toBe(false);
   });
 
-  it('404s a caller with no client organization (an internal principal), reading nothing', async () => {
-    let resolved = false;
-    const projections = {
-      findLatestByDeliverable: () => {
-        resolved = true;
-        return Promise.resolve(projectionRow(DELIVERABLE, READABLE_PROJECT));
-      },
-      listByProject: () => Promise.resolve([]),
-    } as unknown as ClientProjectionsRepository;
-
+  it('the team preview (an internal principal) lists only the published versions’ files', async () => {
+    // Live P0 (deploy 38bab83c): "Preview as client" was answered 404 here and showed no file.
+    let seen: { deliverableId: string; clientOrganizationId: string | null } | undefined;
     const internal: Principal = {
       userId: 'staff-1',
       organizationId: ORG,
@@ -554,19 +547,40 @@ describe('PortalService.filesForDeliverable (x114)', () => {
       projectIds: [],
       hasOrgWideScope: true,
     };
-
     const service = new PortalService(
       fakeDatabase(),
       {} as unknown as ProjectsRepository,
       {} as unknown as WorkItemsRepository,
-      projections,
-      fakeFiles([]),
+      fakeProjections([projectionRow(DELIVERABLE, READABLE_PROJECT)]),
+      fakeFiles([], (input) => (seen = input)),
+      undefined,
+      undefined,
+      {} as unknown as ReviewThreadsRepository,
+      new ClientFileSharing({ kind: 'none' }, {
+        findByKey: () => Promise.resolve(undefined),
+      } as unknown as OrgSettingsRepository),
     );
 
-    await expect(service.filesForDeliverable(context, internal, DELIVERABLE)).rejects.toMatchObject(
-      { status: 404 } satisfies Partial<ApiError>,
+    await expect(service.filesForDeliverable(context, internal, DELIVERABLE)).resolves.toEqual([]);
+    // `null`: never a file scoped to one client organization, only the project's published files.
+    expect(seen).toEqual({ deliverableId: DELIVERABLE, clientOrganizationId: null });
+  });
+
+  it('404s a client principal with no client organization, reading nothing', async () => {
+    let filesQueried = false;
+    const service = new PortalService(
+      fakeDatabase(),
+      {} as unknown as ProjectsRepository,
+      {} as unknown as WorkItemsRepository,
+      fakeProjections([projectionRow(DELIVERABLE, READABLE_PROJECT)]),
+      fakeFiles([], () => (filesQueried = true)),
     );
-    expect(resolved).toBe(false);
+    const orphan: Principal = { ...clientPrincipal(READABLE_PROJECT), clientOrganizationId: null };
+
+    await expect(service.filesForDeliverable(context, orphan, DELIVERABLE)).rejects.toMatchObject({
+      status: 404,
+    } satisfies Partial<ApiError>);
+    expect(filesQueried).toBe(false);
   });
 });
 

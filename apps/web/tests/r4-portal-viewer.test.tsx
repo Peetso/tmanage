@@ -152,9 +152,10 @@ const APPROVAL = {
   },
   publishedByUserId: 'u1',
   publishedAt: '2026-08-13T09:12:00.000Z',
+  awaitingDecision: true,
 };
 
-function fakeApi() {
+function fakeApi(approval: typeof APPROVAL = APPROVAL) {
   const calls: Call[] = [];
   const client = new ApiClient({
     baseUrl: BASE,
@@ -189,7 +190,7 @@ function fakeApi() {
           decidedAt: '2026-11-01T09:00:00.000Z',
           feedback: null,
         };
-      } else if (call.url.includes('/approvals/projections/dv1')) body = APPROVAL;
+      } else if (call.url.includes('/approvals/projections/dv1')) body = approval;
       return Promise.resolve(
         new Response(JSON.stringify(body), {
           status: call.method === 'POST' ? 201 : 200,
@@ -384,6 +385,19 @@ describe('Portal viewer (R4 slice 8)', () => {
     ).toBeInTheDocument();
   });
 
+  it('a version only shared (never sent for approval) opens without a decision card', async () => {
+    const { client, calls } = fakeApi({ ...APPROVAL, awaitingDecision: false });
+    renderPortal(client, { deliverableVersionId: 'dv1' });
+    await screen.findByRole('img', { name: 'homepage-concept-v2.png' });
+    await waitFor(() =>
+      expect(calls.some((c) => c.url.includes('/approvals/projections/dv1'))).toBe(true),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole('region', { name: 'Your decision' })).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByRole('button', { name: /Approve this version/u })).not.toBeInTheDocument();
+  });
+
   it('a team member’s preview reads as the client: team-only hidden and counted, nothing to write or decide', async () => {
     const { client, calls } = fakeApi();
     renderPortal(client, { preview: true, deliverableVersionId: 'dv1' });
@@ -400,10 +414,9 @@ describe('Portal viewer (R4 slice 8)', () => {
 
     // The team's own routes, never the client's (a team member is refused there).
     expect(calls.some((c) => c.url.includes('/portal/files/'))).toBe(false);
-    // No comment tools, no client approval read, and the decision buttons disabled with the reason.
+    // No comment tools, and the decision buttons disabled with the reason.
     expect(screen.queryByRole('button', { name: 'Comment' })).not.toBeInTheDocument();
-    expect(calls.some((c) => c.url.includes('/approvals/'))).toBe(false);
-    const card = screen.getByRole('region', { name: 'Your decision' });
+    const card = await screen.findByRole('region', { name: 'Your decision' });
     expect(within(card).getByRole('button', { name: /Approve this version/u })).toBeDisabled();
     expect(
       within(card).getByText(

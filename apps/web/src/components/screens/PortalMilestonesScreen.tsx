@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
+import { useSelectedPortalProject } from '../shell/PortalProjectSwitcher';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listPortalMilestones, listPortalProjects, listPortalRisks } from '../../lib/api/portal';
 import type { ClientMilestone, ClientRisk, MilestoneStatus } from '../../lib/api/portal';
@@ -53,7 +54,7 @@ export function PortalMilestonesScreen({
     queryFn: () => listPortalProjects(api, organizationSlug),
   });
 
-  const project = projects.data?.[0];
+  const project = useSelectedPortalProject(projects.data);
   const projectId = project?.id;
 
   const milestones = useQuery({

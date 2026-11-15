@@ -3,6 +3,7 @@ import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type {
+  ApprovalRow,
   ClientProjectionPayload,
   ClientProjectionRow,
   DeliverableVersionRow,
@@ -42,6 +43,7 @@ const OTHER_PROJECT = '00000000-0000-7000-8000-0000000000c9';
 const DELIVERABLE = '00000000-0000-7000-8000-0000000000d1';
 const VERSION = '00000000-0000-7000-8000-0000000000e1';
 const PUBLISHER = '00000000-0000-7000-8000-0000000000f1';
+const CLIENT_USER = '00000000-0000-7000-8000-000000000aa2';
 const HASH_A = 'a'.repeat(64);
 
 const context = { organizationId: ORG } as TenantContext;
@@ -74,7 +76,7 @@ function publisher(): Principal {
 /** A client principal; `projectIds` is the client relation `authorize` reads for the read gate. */
 function client(projectIds: readonly string[]): Principal {
   return {
-    userId: '00000000-0000-7000-8000-000000000aa2',
+    userId: CLIENT_USER,
     organizationId: ORG,
     kind: 'client',
     role: 'client_reviewer',
@@ -152,10 +154,44 @@ class FakeClientProjections {
   }
 }
 
-function service(versions: FakeVersions, projections: FakeClientProjections): ApprovalsService {
+/** The version's approval, or none — a version shared without "Send for approval" has none. */
+class FakeApprovals {
+  constructor(private readonly approval: ApprovalRow | null) {}
+  async findByVersion(): Promise<ApprovalRow | null> {
+    return this.approval;
+  }
+}
+
+function approvalRow(overrides: Partial<ApprovalRow> = {}): ApprovalRow {
+  return {
+    id: '00000000-0000-7000-8000-000000000aa1',
+    organizationId: ORG,
+    projectId: PROJECT,
+    deliverableId: DELIVERABLE,
+    deliverableVersionId: VERSION,
+    contentHash: HASH_A,
+    state: 'requested',
+    policy: 'all_required',
+    reviewerIds: [CLIENT_USER],
+    decidedByUserId: null,
+    decidedAt: null,
+    feedback: null,
+    invalidationReason: null,
+    version: 1,
+    createdAt: new Date('2026-09-20T00:00:00.000Z'),
+    updatedAt: new Date('2026-09-20T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+function service(
+  versions: FakeVersions,
+  projections: FakeClientProjections,
+  approval: ApprovalRow | null = null,
+): ApprovalsService {
   return new ApprovalsService(
     fakeDatabase(),
-    {} as unknown as ApprovalsRepository,
+    new FakeApprovals(approval) as unknown as ApprovalsRepository,
     versions as unknown as DeliverableVersionsRepository,
     projections as unknown as ClientProjectionsRepository,
   );
@@ -263,5 +299,34 @@ describe('ApprovalsService.publish / readProjection', () => {
     expect((error as ApiError).code).toBe('not_found');
     expect((error as ApiError).message).toBe(MESSAGES.notFound);
     expect((error as ApiError).details).toBeUndefined();
+  });
+});
+
+describe('ApprovalsService.readProjection — awaitingDecision (live P1: shared-only opened as approval)', () => {
+  async function readAs(principal: Principal, approval: ApprovalRow | null) {
+    const projections = new FakeClientProjections();
+    const svc = service(new FakeVersions(versionRow()), projections, approval);
+    await svc.publish(context, publisher(), { deliverableVersionId: VERSION, projection: payload });
+    return svc.readProjection(context, principal, VERSION);
+  }
+
+  it('a version shared without "Send for approval" opens as plain viewing', async () => {
+    expect((await readAs(client([PROJECT]), null)).awaitingDecision).toBe(false);
+  });
+
+  it('a pending approval naming the client asks that client to decide', async () => {
+    expect((await readAs(client([PROJECT]), approvalRow())).awaitingDecision).toBe(true);
+  });
+
+  it('a pending approval naming someone else, or a decided one, does not', async () => {
+    const other = approvalRow({ reviewerIds: ['00000000-0000-7000-8000-000000000ff9'] });
+    expect((await readAs(client([PROJECT]), other)).awaitingDecision).toBe(false);
+    const decided = approvalRow({ state: 'approved' });
+    expect((await readAs(client([PROJECT]), decided)).awaitingDecision).toBe(false);
+  });
+
+  it('a staff preview shows the decision only while an approval is pending', async () => {
+    expect((await readAs(publisher(), null)).awaitingDecision).toBe(false);
+    expect((await readAs(publisher(), approvalRow())).awaitingDecision).toBe(true);
   });
 });
