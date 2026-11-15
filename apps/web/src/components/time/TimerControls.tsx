@@ -104,6 +104,21 @@ function StopTimerDialog({
   const [chosen, setChosen] = useState(String(rounded));
   const tooShort = elapsedSeconds < MIN_SAVE_SECONDS;
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  // UX test item 7: the confirmation replaces the buttons, so focus moves into it (and back).
+  const confirmRef = useRef<HTMLDivElement>(null);
+  const discardRef = useRef<HTMLDivElement>(null);
+  const [focusAfter, setFocusAfter] = useState<'confirm' | 'actions' | null>(null);
+  useEffect(() => {
+    if (focusAfter === null) return;
+    // Into the confirmation: its first button ("Keep it"); back out: the Discard button again.
+    const buttons =
+      (focusAfter === 'confirm'
+        ? confirmRef.current
+        : discardRef.current
+      )?.querySelectorAll<HTMLElement>('button') ?? [];
+    buttons[focusAfter === 'confirm' ? 0 : 1]?.focus();
+    setFocusAfter(null);
+  }, [focusAfter]);
   const amountNumber = Number(chosen);
   const amountValid =
     Number.isInteger(amountNumber) && amountNumber >= 1 && amountNumber <= rounded;
@@ -210,7 +225,12 @@ function StopTimerDialog({
           </InlineAlert>
         ) : null}
         {confirmingDiscard ? (
-          <div className="tm-timer-dialog__confirm" role="group" aria-live="polite">
+          <div
+            ref={confirmRef}
+            className="tm-timer-dialog__confirm"
+            role="group"
+            aria-live="polite"
+          >
             <p>
               {tr(
                 'Timer.discardConfirm',
@@ -222,7 +242,10 @@ function StopTimerDialog({
                 type="button"
                 tone="outline"
                 size="compact"
-                onClick={() => setConfirmingDiscard(false)}
+                onClick={() => {
+                  setConfirmingDiscard(false);
+                  setFocusAfter('actions');
+                }}
               >
                 {tr('Timer.discardBack', 'Keep it')}
               </Button>
@@ -239,7 +262,7 @@ function StopTimerDialog({
             </div>
           </div>
         ) : (
-          <div className="tm-timer-dialog__actions">
+          <div ref={discardRef} className="tm-timer-dialog__actions">
             <Button type="button" tone="outline" size="compact" onClick={onClose}>
               {tr('Timer.keepRunning', 'Keep running')}
             </Button>
@@ -247,7 +270,10 @@ function StopTimerDialog({
               type="button"
               tone={tooShort ? 'ink' : 'outline'}
               size="compact"
-              onClick={() => setConfirmingDiscard(true)}
+              onClick={() => {
+                setConfirmingDiscard(true);
+                setFocusAfter('confirm');
+              }}
             >
               {tr('Timer.discard', 'Discard')}
             </Button>

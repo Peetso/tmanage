@@ -98,6 +98,8 @@ describe('52-01 Stop dialog rounding', () => {
     expect(within(dialog).getByText('Timed: 00:00:13')).toBeTruthy();
     expect(within(dialog).getByText(/less than a minute/u)).toBeTruthy();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Discard' }));
+    // UX test item 7: focus moves into the confirmation that replaced the buttons.
+    expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Keep it' }));
     expect(calls.some((c) => c.path.endsWith('/timer/discard'))).toBe(false);
     fireEvent.click(within(dialog).getByRole('button', { name: 'Discard timer' }));
     await waitFor(() =>
