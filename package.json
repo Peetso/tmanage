@@ -47,7 +47,9 @@
     "test:vr:update": "pnpm --filter @tmanage/ui test:vr:update",
     "deploy:hostinger": "node deploy/hostinger/build.mjs",
     "deploy:hostinger:branch": "node deploy/hostinger/branch.mjs",
-    "deploy:hostinger:smoke": "node deploy/hostinger/smoke.mjs"
+    "deploy:hostinger:smoke": "node deploy/hostinger/smoke.mjs",
+    "deploy:self-host": "node deploy/self-host/pack.mjs",
+    "deploy:self-host:env": "pnpm --filter @tmanage/config build && node deploy/self-host/env-reference.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

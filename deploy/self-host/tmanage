@@ -1,0 +1,301 @@
+#!/usr/bin/env bash
+# TManage self-host CLI (54-19). Run from the unpacked kit folder.
+#
+#   ./tmanage install             four questions, writes tmanage.env (chmod 600), starts the stack
+#   ./tmanage up | down | status | logs [service]
+#   ./tmanage health              waits until /healthz answers 200 (migrations run on start)
+#   ./tmanage finish-setup        removes SETUP_TOKEN after the first owner exists, restarts
+#   ./tmanage backup [dir]        database + files + env copy into a dated folder (default backups/)
+#   ./tmanage restore <folder>    checks SHA256SUMS, replaces database and files, restarts
+#   ./tmanage update <kit.tar.gz> [--sha256 <hex>] [--force]
+#                                 verifies the kit, backs up first, swaps the bundle, rebuilds
+#
+# Secrets are generated here and live only in tmanage.env. Nothing in this script phones home.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="$HERE/tmanage.env"
+KEEP_BACKUPS="${TMANAGE_KEEP_BACKUPS:-14}"
+cd "$HERE"
+
+die() { printf 'tmanage: %s\n' "$*" >&2; exit 1; }
+say() { printf '%s\n' "$*"; }
+compose() { docker compose --env-file "$ENV_FILE" -f "$HERE/compose.yaml" "$@"; }
+need_env() { [[ -f "$ENV_FILE" ]] || die "no tmanage.env here; run ./tmanage install first"; }
+env_get() { sed -n "s/^$1='\(.*\)'\$/\1/p" "$ENV_FILE" | head -n 1; }
+version() { tr -d '[:space:]' 2> /dev/null < "$HERE/VERSION" || echo local; }
+# 32 random bytes, base64url without padding (43 characters): the format every key accepts.
+gen() {
+  if command -v openssl > /dev/null; then openssl rand -base64 32; else head -c 32 /dev/urandom | base64; fi \
+    | tr '+/' '-_' | tr -d '=\n'
+}
+
+ask() { # ask <var> <prompt> [default]
+  local reply
+  read -r -p "$2${3:+ [$3]}: " reply
+  reply="${reply:-${3:-}}"
+  [[ -n "$reply" ]] || die "$2 is required"
+  [[ "$reply" != *"'"* ]] || die "values must not contain a single quote"
+  printf -v "$1" '%s' "$reply"
+}
+ask_secret() {
+  local reply
+  read -r -s -p "$2: " reply
+  printf '\n'
+  [[ "$reply" != *"'"* ]] || die "values must not contain a single quote"
+  printf -v "$1" '%s' "$reply"
+}
+
+cmd_install() {
+  command -v docker > /dev/null || die "Docker with the compose plugin is required (docs: README.en.md)"
+  [[ ! -f "$ENV_FILE" ]] || die "tmanage.env already exists; this box is installed (use ./tmanage up)"
+  [[ -f "$HERE/tmanage-bundle.zip" ]] || die "tmanage-bundle.zip is missing from the kit"
+
+  say "TManage self-host install — four questions."
+  ask DOMAIN "1/4 Domain for TManage (DNS already pointing here), e.g. tasks.your-company.tld"
+  ask ADMIN "2/4 Your email (platform admin, certificate and alert contact)"
+  say "3/4 Mail server for invitations and sign-in codes (SMTP)."
+  ask SMTP_HOST "    SMTP host"
+  ask SMTP_PORT "    SMTP port" 587
+  local secure=false
+  [[ "$SMTP_PORT" == 465 ]] && secure=true
+  ask SMTP_USERNAME "    SMTP username" "$ADMIN"
+  ask_secret SMTP_PASSWORD "    SMTP password (not shown)"
+  ask FROM "    Sender address" "$ADMIN"
+  ask STORAGE "4/4 File storage: local (a volume on this box) or s3 (your S3-compatible bucket)" local
+
+  local storage_block
+  if [[ "$STORAGE" == s3 ]]; then
+    ask S3_ENDPOINT "    S3 endpoint URL"
+    ask S3_REGION "    S3 region" us-east-1
+    ask S3_BUCKET "    S3 bucket (private)"
+    ask S3_KEY "    S3 access key id"
+    ask_secret S3_SECRET "    S3 secret access key (not shown)"
+    storage_block="STORAGE_DRIVER='s3'
+STORAGE_ENDPOINT='$S3_ENDPOINT'
+STORAGE_REGION='$S3_REGION'
+STORAGE_BUCKET='$S3_BUCKET'
+STORAGE_ACCESS_KEY_ID='$S3_KEY'
+STORAGE_SECRET_ACCESS_KEY='$S3_SECRET'"
+  else
+    [[ "$STORAGE" == local ]] || die "storage must be local or s3"
+    storage_block="STORAGE_DRIVER='local'
+STORAGE_BUCKET='unused-local'
+STORAGE_LOCAL_SIGNING_SECRET='$(gen)'"
+  fi
+
+  umask 077
+  cat > "$ENV_FILE" << EOF
+# TManage self-host environment — written by ./tmanage install. chmod 600; back it up with the
+# data (./tmanage backup copies it): without these keys encrypted fields cannot be read.
+# Every variable: ENV-REFERENCE.md. Values are single-quoted (taken literally by compose).
+NODE_ENV='production'
+TMANAGE_VERSION='$(version)'
+TMANAGE_DOMAIN='$DOMAIN'
+ACME_EMAIL='$ADMIN'
+API_PUBLIC_URL='https://$DOMAIN'
+WEB_PUBLIC_URL='https://$DOMAIN'
+CORS_ALLOWED_ORIGINS='https://$DOMAIN'
+DB_NAME='tmanage'
+DB_USER='tmanage'
+DB_PASSWORD='$(gen)'
+DATABASE_POOL_MAX='10'
+SESSION_SECRET='$(gen)'
+CSRF_SECRET='$(gen)'
+AUTH_MFA_SEED_KEYS='1:$(gen)'
+FIELD_CIPHER_KEYS='1:$(gen)'
+AUDIT_ANCHOR_KEY='1:$(gen)'
+PUBLIC_LINK_PEPPER='$(gen)'
+SETUP_TOKEN='$(gen)'
+PUBLIC_SIGNUP='off'
+PLATFORM_ADMIN_EMAILS='$ADMIN'
+ALERT_EMAILS='$ADMIN'
+EMAIL_DRIVER='smtp'
+EMAIL_FROM_ADDRESS='$FROM'
+EMAIL_FROM_NAME='TManage'
+SMTP_HOST='$SMTP_HOST'
+SMTP_PORT='$SMTP_PORT'
+SMTP_SECURE='$secure'
+SMTP_USERNAME='$SMTP_USERNAME'
+SMTP_PASSWORD='$SMTP_PASSWORD'
+$storage_block
+MALWARE_SCAN_DRIVER='none'
+QUEUE_DRIVER='redis'
+CACHE_DRIVER='redis'
+EOF
+  chmod 600 "$ENV_FILE"
+  say "Wrote tmanage.env (chmod 600)."
+
+  cmd_up
+  cmd_health
+  say ""
+  say "TManage is running. Create the first owner account now:"
+  say "  open https://$DOMAIN/setup and paste this one-time setup token:"
+  say "  $(env_get SETUP_TOKEN)"
+  say "Then run ./tmanage finish-setup to remove the token."
+
+  local reply
+  read -r -p "Schedule a daily backup at 03:15 with cron? [Y/n]: " reply
+  if [[ "${reply:-Y}" =~ ^[Yy] ]]; then
+    (crontab -l 2> /dev/null | grep -v "$HERE/tmanage backup" || true
+      echo "15 3 * * * $HERE/tmanage backup >> $HERE/backups/cron.log 2>&1") | crontab -
+    mkdir -p "$HERE/backups"
+    say "Daily backup scheduled (keeps the last $KEEP_BACKUPS). Copy backups/ off this disk too."
+  fi
+}
+
+cmd_up() {
+  need_env
+  [[ -f "$HERE/tmanage-bundle.zip" ]] || die "tmanage-bundle.zip is missing from the kit"
+  compose build app
+  compose up -d
+}
+
+cmd_health() {
+  need_env
+  say "Waiting for TManage to finish starting (first start creates the database tables)..."
+  local i
+  for i in $(seq 1 120); do
+    if compose exec -T app node -e \
+      "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" \
+      2> /dev/null; then
+      say "healthy: http://app:3000/healthz answers 200"
+      if command -v curl > /dev/null \
+        && curl -fsS -o /dev/null --max-time 15 "https://$(env_get TMANAGE_DOMAIN)/healthz"; then
+        say "healthy: https://$(env_get TMANAGE_DOMAIN)/healthz answers 200"
+      else
+        say "warning: https://$(env_get TMANAGE_DOMAIN) is not reachable yet (DNS, ports 80/443, certificate)"
+      fi
+      return 0
+    fi
+    sleep 5
+  done
+  compose logs --tail 60 app >&2 || true
+  die "the app did not become healthy in 10 minutes; the log above names the cause"
+}
+
+cmd_finish_setup() {
+  need_env
+  sed -i "/^SETUP_TOKEN=/d" "$ENV_FILE"
+  compose up -d app
+  say "SETUP_TOKEN removed; the /setup page is closed."
+}
+
+same_disk_warning() {
+  local root
+  root="$(docker info -f '{{.DockerRootDir}}' 2> /dev/null || echo /var/lib/docker)"
+  if [[ "$(df -P "$1" | awk 'NR==2{print $1}')" == "$(df -P "$root" 2> /dev/null | awk 'NR==2{print $1}')" ]]; then
+    say "warning: the backup folder is on the same disk as the data; copy it to another machine too"
+  fi
+}
+
+cmd_backup() {
+  need_env
+  local base="${1:-$HERE/backups}" dir
+  dir="$base/$(date -u +%Y-%m-%dT%H%M%SZ)"
+  mkdir -p "$dir"
+  chmod 700 "$dir"
+  compose exec -T db sh -c 'MYSQL_PWD="$MARIADB_PASSWORD" exec mariadb-dump --single-transaction \
+    --routines --triggers --events --hex-blob -u"$MARIADB_USER" "$MARIADB_DATABASE"' \
+    | gzip > "$dir/db.sql.gz"
+  if [[ "$(env_get STORAGE_DRIVER)" == local ]]; then
+    compose exec -T app tar -C /var/lib/tmanage/storage -czf - . > "$dir/files.tar.gz"
+  fi
+  install -m 600 "$ENV_FILE" "$dir/tmanage.env"
+  version > "$dir/VERSION"
+  (cd "$dir" && sha256sum -- * > SHA256SUMS)
+  say "backup written: $dir"
+  same_disk_warning "$dir"
+  # Keep the newest $KEEP_BACKUPS dated folders.
+  find "$base" -mindepth 1 -maxdepth 1 -type d -name '20*Z' | sort | head -n "-$KEEP_BACKUPS" \
+    | xargs -r rm -rf --
+}
+
+cmd_restore() {
+  need_env
+  local dir="${1:?usage: ./tmanage restore <backup folder>}"
+  [[ -f "$dir/db.sql.gz" && -f "$dir/SHA256SUMS" ]] || die "$dir is not a tmanage backup folder"
+  (cd "$dir" && sha256sum -c --quiet SHA256SUMS) || die "checksum mismatch in $dir; not restoring"
+  local reply
+  read -r -p "This REPLACES the current database and files with $dir. Type RESTORE: " reply
+  [[ "$reply" == RESTORE ]] || die "cancelled"
+  compose stop app
+  compose exec -T db sh -c 'MYSQL_PWD="$MARIADB_PASSWORD" exec mariadb -u"$MARIADB_USER" -e \
+    "DROP DATABASE IF EXISTS \`$MARIADB_DATABASE\`; CREATE DATABASE \`$MARIADB_DATABASE\` \
+     CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"'
+  gunzip -c "$dir/db.sql.gz" | compose exec -T db sh -c \
+    'MYSQL_PWD="$MARIADB_PASSWORD" exec mariadb -u"$MARIADB_USER" "$MARIADB_DATABASE"'
+  if [[ -f "$dir/files.tar.gz" ]]; then
+    compose run --rm --no-deps -T --entrypoint sh app -c \
+      'find /var/lib/tmanage/storage -mindepth 1 -delete && tar -C /var/lib/tmanage/storage -xzf -' \
+      < "$dir/files.tar.gz"
+  fi
+  if ! cmp -s "$dir/tmanage.env" "$ENV_FILE"; then
+    say "note: the backup's tmanage.env differs from the current one. Encrypted fields need the keys"
+    say "      of the backup; compare the two and copy the keys across before starting if this is a new box."
+  fi
+  compose up -d app
+  cmd_health
+}
+
+cmd_update() {
+  need_env
+  local kit="" sha="" force=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --sha256) sha="${2:?--sha256 needs a value}"; shift 2 ;;
+      --force) force=1; shift ;;
+      *) kit="$1"; shift ;;
+    esac
+  done
+  [[ -f "$kit" ]] || die "usage: ./tmanage update <tmanage-self-host-X.Y.Z.tar.gz> [--sha256 <hex>] [--force]"
+  if [[ -n "$sha" ]]; then
+    [[ "$(sha256sum "$kit" | awk '{print $1}')" == "${sha,,}" ]] || die "SHA-256 mismatch; not updating"
+    say "SHA-256 verified."
+  else
+    say "warning: no --sha256 given; compare the kit's checksum with the one published for the release"
+  fi
+  local tmp
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' RETURN
+  tar -xzf "$kit" -C "$tmp"
+  local src="$tmp"
+  [[ -f "$src/VERSION" ]] || src="$(find "$tmp" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+  [[ -f "$src/VERSION" && -f "$src/tmanage-bundle.zip" ]] || die "$kit is not a TManage self-host kit"
+  local from to
+  from="$(version)"
+  to="$(tr -d '[:space:]' < "$src/VERSION")"
+  if [[ "$from" =~ ^([0-9]+)\. && "$to" =~ ^([0-9]+)\. ]]; then
+    local fm="${from%%.*}" tm="${to%%.*}"
+    if ((tm > fm + 1 && force == 0)); then
+      die "refusing to skip a major version ($from -> $to); update one major at a time, or pass --force"
+    fi
+  fi
+  say "Updating $from -> $to. Read CHANGELOG.md in the kit for what changes."
+  cmd_backup
+  local f
+  for f in tmanage-bundle.zip VERSION Dockerfile compose.yaml Caddyfile tmanage install.sh \
+    README.en.md README.ar.md ENV-REFERENCE.md CHANGELOG.md; do
+    # Copy then rename: a new inode, so the running copy of this script is not rewritten under bash.
+    if [[ -f "$src/$f" ]]; then cp "$src/$f" "$HERE/$f.new" && mv -f "$HERE/$f.new" "$HERE/$f"; fi
+  done
+  chmod +x "$HERE/tmanage"
+  sed -i "s/^TMANAGE_VERSION=.*/TMANAGE_VERSION='$to'/" "$ENV_FILE"
+  cmd_up
+  cmd_health
+  say "Updated to $to. The previous version's backup is the newest folder in backups/."
+}
+
+case "${1:-}" in
+  install) cmd_install ;;
+  up) cmd_up ;;
+  down) need_env; compose down ;;
+  status) need_env; compose ps ;;
+  logs) need_env; shift; compose logs --tail 200 -f "$@" ;;
+  health) cmd_health ;;
+  finish-setup) cmd_finish_setup ;;
+  backup) shift; cmd_backup "$@" ;;
+  restore) shift; cmd_restore "$@" ;;
+  update) shift; cmd_update "$@" ;;
+  *) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 64 ;;
+esac

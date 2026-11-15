@@ -1,0 +1,94 @@
+# TManage self-host stack (54-19): MariaDB + the app + Caddy for HTTPS.
+#
+# Run it through the CLI, which always passes the env file:  ./tmanage up
+# (by hand: docker compose --env-file tmanage.env up -d)
+#
+# Only Caddy publishes ports (80, 443). The database and the app are reachable on the private
+# `backend` network only; nothing here listens on the host for MariaDB. Every secret comes from
+# tmanage.env (chmod 600, written by `./tmanage install`) — this file holds none.
+
+name: tmanage
+
+services:
+  db:
+    # The project's only engine, at the exact patch the cloud runs (see the root compose.yaml).
+    image: mariadb:11.8.9
+    restart: unless-stopped
+    environment:
+      MARIADB_RANDOM_ROOT_PASSWORD: '1'
+      MARIADB_DATABASE: ${DB_NAME:?set in tmanage.env}
+      MARIADB_USER: ${DB_USER:?set in tmanage.env}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?set in tmanage.env}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --character-set-collations=utf8mb4=utf8mb4_unicode_ci
+      - --sql-mode=STRICT_ALL_TABLES,NO_ENGINE_SUBSTITUTION,ERROR_FOR_DIVISION_BY_ZERO
+      - --default-storage-engine=InnoDB
+      - --default-time-zone=+00:00
+      - --innodb-flush-log-at-trx-commit=1
+      - --max-connections=100
+    volumes:
+      - db-data:/var/lib/mysql
+    networks: [backend]
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: tmanage-self-host:${TMANAGE_VERSION:-local}
+    restart: unless-stopped
+    env_file: tmanage.env
+    environment:
+      # One database user, as on the cloud bundle: server.mjs derives the migration and worker
+      # URLs from these parts and reports "single-user mode" (docs/ops/self-host/README.en.md).
+      DB_HOST: db
+      DB_PORT: '3306'
+      STORAGE_LOCAL_ROOT: /var/lib/tmanage/storage
+      # Caddy is the one proxy in front of the app, at a fixed address on `backend`.
+      TRUSTED_PROXY_ADDRESSES: 172.30.0.10
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - app-storage:/var/lib/tmanage/storage
+    networks: [backend]
+    # Non-root (USER node in the Dockerfile), no capabilities, no privilege gain.
+    security_opt: ['no-new-privileges:true']
+    cap_drop: [ALL]
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      TMANAGE_DOMAIN: ${TMANAGE_DOMAIN:?set in tmanage.env}
+      ACME_EMAIL: ${ACME_EMAIL:?set in tmanage.env}
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [app]
+    networks:
+      backend:
+        ipv4_address: 172.30.0.10
+
+networks:
+  backend:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+volumes:
+  db-data:
+  app-storage:
+  caddy-data:
+  caddy-config:

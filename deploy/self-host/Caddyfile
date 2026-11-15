@@ -1,0 +1,9 @@
+# HTTPS in front of the app (54-19). Caddy obtains and renews the certificate for TMANAGE_DOMAIN
+# itself; port 80 only redirects. The app sets its own security headers (HSTS, CSP).
+{
+	email {$ACME_EMAIL}
+}
+
+{$TMANAGE_DOMAIN} {
+	reverse_proxy app:3000
+}

@@ -48,3 +48,8 @@ graphify-out/
 
 # 51-13a: the process crash-alert de-dup state (apps/server/process-alerts.mjs)
 .crash-alert.json
+
+# 54-19 self-host kit: operator files never committed
+deploy/self-host/tmanage.env
+deploy/self-host/tmanage-bundle.zip
+deploy/self-host/backups/
