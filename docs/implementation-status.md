@@ -15762,3 +15762,19 @@ pairs with `apps/web/src/lib/api/saved-searches.ts` via `e2e/contracts/api-web-s
 saved searches and lists recents as links back into the search screen. No DB test / no new e2e in
 slice (the chain owns both); the saved/recent SQL predicates are proven by the chain's isolation and
 migrator DB suites.
+
+## Portal — client journey stepper (52-27, module 13)
+
+**Status.** Built (first slice; landed in `45a4ec52`, swept into another lane's commit). The portal
+home shows the client's path through a project as a stepper (Figma 604:33897: desktop/mobile EN/AR,
+loading, empty, error, all done). No new table: `GET …/portal/projects/:projectId/journey`
+(`modules/portal/portal-journey*.ts`, `client_projection.read`) derives the steps from the published
+milestones (first not-met is _now_, earlier _done_, later _next_; client-safe `client_title` first)
+and "Your turn" from the oldest undecided newest version of a published deliverable, which links to
+the real review-and-approve screen `portal/deliverables/:versionId`. The project id is
+relation-checked through `authorize()` before any read; another client's, cross-tenant or unknown
+project is a 404. `PortalJourneyStepper` replaces the overview's old milestone track. Unit-proven in
+`portal-journey.test.ts` (state derivation + turn choice; other-client refusal before any read).
+**Deferred (rest of 52-27):** agency journey builder, templates, step kinds (form/upload/sign/
+meeting/read/task), `client_journeys` tables and event-driven completion; the overview header still
+uses the project name rather than the design's "Your project" title.
