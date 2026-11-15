@@ -428,21 +428,29 @@ export interface NotificationInput {
 /**
  * Write one notification, idempotently. `uq_notifications_dedupe` absorbs the
  * at-least-once replay: `ON DUPLICATE KEY UPDATE id = id` turns the collision into a
- * no-op instead of an error, and the return value says which happened — an insert
- * reports one affected row, a collision zero.
+ * no-op instead of an error. Returns true only when this call wrote the row — the claim
+ * callers (the digest e-mail, the first-week nudge) send on that answer.
+ *
+ * The answer is NOT `affectedRows`: mysql2 connects with `CLIENT_FOUND_ROWS` by default, and
+ * under that flag MySQL and MariaDB report a collision that changed nothing as one affected
+ * row — exactly what a fresh insert reports. So the row is read back by the id this call
+ * generated: only the transaction that inserted it can see a row with that id, under any
+ * isolation level and with two workers racing (the loser's insert waits on the winner's
+ * key lock, then collides).
  */
 export async function insertNotification(
   tx: WorkerTransaction,
   input: NotificationInput,
 ): Promise<boolean> {
-  const result = await tx.query<{ affectedRows: number }>(
+  const id = uuidv7();
+  await tx.query(
     `INSERT INTO notifications
        (id, organization_id, recipient_user_id, type, object_type, object_id,
         dedupe_key, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, NOW(3))
      ON DUPLICATE KEY UPDATE id = id`,
     [
-      uuidv7(),
+      id,
       input.organizationId,
       input.recipientUserId,
       input.type,
@@ -451,5 +459,9 @@ export async function insertNotification(
       input.dedupeKey,
     ],
   );
-  return result.affectedRows === 1;
+  const mine = await tx.query<readonly { readonly id: string }[]>(
+    'SELECT id FROM notifications WHERE organization_id = ? AND id = ?',
+    [input.organizationId, id],
+  );
+  return mine.length === 1;
 }

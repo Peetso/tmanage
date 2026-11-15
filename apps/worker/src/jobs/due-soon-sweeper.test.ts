@@ -47,6 +47,7 @@ function fakeTx(conditions: readonly { field: string; op: string; value: string 
       if (/FROM memberships m/.test(sql)) {
         return [{ id: 'm', role: 'owner', has_org_wide_scope: 1, on_project: 1 }] as T;
       }
+      if (/SELECT id FROM notifications/.test(sql)) return [{ id: params[1] }] as T;
       if (/INSERT INTO notifications/.test(sql)) return { affectedRows: 1 } as T;
       if (/INSERT INTO workflow_runs/.test(sql)) {
         runs.push(String(params[3]));

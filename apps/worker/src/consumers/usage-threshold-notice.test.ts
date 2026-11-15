@@ -37,9 +37,13 @@ function fakeTx(memberships: readonly Membership[]): {
 } {
   const inserts: Insert[] = [];
   const seen = new Set<string>();
+  const written = new Set<string>(); // ids this fake inserted: insertNotification reads them back
   const tx = {
     async query(sql: string, params: readonly unknown[] = []): Promise<unknown> {
       if (/FROM memberships/.test(sql)) return memberships;
+      if (/SELECT id FROM notifications/.test(sql)) {
+        return written.has(String(params[1])) ? [{ id: params[1] }] : [];
+      }
       if (/INSERT INTO notifications/.test(sql)) {
         // The insert binds these seven params in order; a tuple keeps each a `string` under
         // noUncheckedIndexedAccess rather than the `string | undefined` an array index yields.
@@ -55,6 +59,7 @@ function fakeTx(memberships: readonly Membership[]): {
         const key = `${org}|${recipient}|${dedupeKey}`;
         if (seen.has(key)) return { affectedRows: 0 };
         seen.add(key);
+        written.add(String(params[0]));
         inserts.push({ recipient, type, objectType, objectId, dedupeKey });
         return { affectedRows: 1 };
       }

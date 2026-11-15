@@ -44,6 +44,7 @@ function fakeTx(conditions: readonly Condition[], state = 'in_progress') {
       if (/FROM memberships m/.test(sql)) {
         return [{ id: 'm-1', role: 'owner', has_org_wide_scope: 1, on_project: 1 }] as T;
       }
+      if (/SELECT id FROM notifications/.test(sql)) return [{ id: params[1] }] as T;
       if (/INSERT INTO notifications/.test(sql)) {
         notices.push([...params]);
         return { affectedRows: 1 } as T;

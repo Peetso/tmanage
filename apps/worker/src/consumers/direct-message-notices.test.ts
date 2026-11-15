@@ -71,6 +71,7 @@ function fakeTx(world: World): { tx: WorkerTransaction; inserts: unknown[][] } {
             : []
         ) as T;
       }
+      if (/SELECT id FROM notifications/.test(sql)) return [{ id: params[1] }] as T;
       if (sql.includes('notifications') && params.length === 7) {
         inserts.push([...params]);
         return { affectedRows: 1 } as T;

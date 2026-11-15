@@ -15,7 +15,8 @@ import type { NudgeCandidate, NudgeStep, NudgeStore } from '../../jobs/getting-s
  * quiet hours (`notification_preferences`), their stored `gettingStarted` key
  * (`user_preferences.prefs_json`) and the company signals the API's checklist uses. The write is
  * one `notifications` row whose dedupe key carries the member and the day, so the unique key makes
- * "at most one a day" hold across overlapping sweeps. Grants: SELECT on the read tables
+ * "at most one a day" hold across overlapping sweeps; `nudges_today` (an indexed count over
+ * `ix_notifications_recipient_time`) feeds the job's hard daily cap on top. Grants: SELECT on the read tables
  * (`client_organizations` and `oauth_grants` added for this sweep in scripts/db/users.sql) and the
  * INSERT on `notifications` the worker already holds.
  */
@@ -38,6 +39,7 @@ export interface NudgeRow {
   readonly connect_storage: number;
   readonly set_working_hours: number;
   readonly try_ai_assistant: number;
+  readonly nudges_today: number | string;
 }
 
 /** The stored `gettingStarted` value: hand-marked steps and whether it was dismissed. */
@@ -75,13 +77,15 @@ export function candidateOf(row: NudgeRow): NudgeCandidate {
     },
     dismissed: stored.dismissed,
     done,
+    nudgesToday: Number(row.nudges_today),
   };
 }
 
 export function createGettingStartedNudgeStore(database: WorkerDatabase): NudgeStore {
   return {
-    listCandidates: () =>
+    listCandidates: (now) =>
       database.transaction(async (tx) => {
+        const utcMidnight = new Date(`${now.toISOString().slice(0, 10)}T00:00:00.000Z`);
         const rows = await tx.query<readonly NudgeRow[]>(
           `SELECT m.id AS membership_id, m.organization_id, m.user_id, m.created_at,
                   np.in_app_enabled, np.quiet_hours_start, np.quiet_hours_end,
@@ -106,7 +110,12 @@ export function createGettingStartedNudgeStore(database: WorkerDatabase): NudgeS
                   EXISTS(SELECT 1 FROM oauth_grants g
                           WHERE g.organization_id = m.organization_id
                             AND g.user_id = m.user_id
-                            AND g.revoked_at IS NULL) AS try_ai_assistant
+                            AND g.revoked_at IS NULL) AS try_ai_assistant,
+                  (SELECT COUNT(*) FROM notifications n
+                    WHERE n.organization_id = m.organization_id
+                      AND n.recipient_user_id = m.user_id
+                      AND n.type = ?
+                      AND n.created_at >= ?) AS nudges_today
              FROM memberships m
              LEFT JOIN notification_preferences np
                ON np.organization_id = m.organization_id AND np.user_id = m.user_id
@@ -117,6 +126,7 @@ export function createGettingStartedNudgeStore(database: WorkerDatabase): NudgeS
               AND m.created_at >= current_timestamp(3) - INTERVAL ${String(NUDGE_WINDOW_DAYS)} DAY
             ORDER BY m.created_at, m.id
             LIMIT ${String(BATCH)}`,
+          [GETTING_STARTED_NUDGE_TYPE, utcMidnight],
         );
         return rows.map(candidateOf);
       }),
