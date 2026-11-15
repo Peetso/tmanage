@@ -41,6 +41,9 @@ export type ApiErrorCode =
   | 'rate_limited'
   // BILLING_MODE=beta_free: a plan change or purchase while the public beta is free (409).
   | 'billing_disabled_beta'
+  // 57-02: a write that would take the organization past its plan's people / projects limit (409).
+  | 'plan_limit_people'
+  | 'plan_limit_projects'
   // ---- platform-admin v2 · PA-02 ----
   // A platform admin whose preset lacks the route's permission (403; details name the key).
   | 'platform_permission_missing'

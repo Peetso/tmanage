@@ -729,6 +729,14 @@ export const OPS: readonly AiActionOp[] = [
     scope: 'billing',
   },
   {
+    id: 'billing.plan.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/billing/plan/',
+    capability: 'billing.view',
+    risk: 'read',
+    scope: 'billing',
+  },
+  {
     id: 'billing.plan_usage.get',
     method: 'GET',
     path: '/v1/organizations/:orgSlug/billing/plan-usage/',

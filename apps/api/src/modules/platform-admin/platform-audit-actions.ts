@@ -128,6 +128,8 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.approval_rejected',
   'platform.approval_used',
   'platform.access_review_confirmed',
+  // ---- 57-02 ----
+  'platform.plan_version_created',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];

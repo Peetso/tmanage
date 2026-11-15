@@ -119,22 +119,66 @@ export function mergeLimits(
 }
 
 /**
+ * 57-02 (0351). The limits and features one published `plan_versions` row carries. A grandfathered
+ * workspace passes the version it is pinned to; the catalog constants are version 1.
+ */
+export interface PlanVersionEntitlements {
+  readonly planId: CatalogPlanId;
+  readonly limits: PlanLimits;
+  readonly features: readonly PlanFeature[];
+}
+
+/**
  * The one place a plan's entitlements are decided. In `beta_free` every organization, whatever plan
  * it is stored on, gets the top plan's; in `paid` it gets its own. PA-07: the organization's own
  * `organization_limits` row, when given, wins over the plan field by field. (Pass the mode through
- * {@link effectiveBillingMode} to honour a per-organization override.)
+ * {@link effectiveBillingMode} to honour a per-organization override.) 57-02: in `paid`, a plan
+ * version for the stored plan (the ladder is on, `plan-versions.ts`) replaces the catalog constants;
+ * in `beta_free` it is ignored, so the ladder can never take the free beta plan away.
  */
 export function entitlementsFor(
   storedPlanId: CatalogPlanId,
   mode: BillingMode = billingMode(),
   overrides?: OrganizationLimitOverrides | null,
+  version?: PlanVersionEntitlements | null,
 ): Entitlements {
   const planId = mode === 'beta_free' ? TOP_PLAN_ID : storedPlanId;
+  const source =
+    mode === 'paid' && version?.planId === planId
+      ? version
+      : { limits: PLAN_LIMITS[planId], features: PLAN_FEATURE_SET[planId] };
   return {
     planId,
-    limits: mergeLimits(PLAN_LIMITS[planId], overrides),
-    features: PLAN_FEATURE_SET[planId],
+    limits: mergeLimits(source.limits, overrides),
+    features: source.features,
   };
+}
+
+/** The counted limits a write can run into, and the error code each refusal carries (doc 57 PLAN-03). */
+const PLAN_LIMIT_CODES = {
+  people: 'plan_limit_people',
+  activeProjects: 'plan_limit_projects',
+} as const;
+
+export type CountedPlanLimit = keyof typeof PLAN_LIMIT_CODES;
+
+/**
+ * Refuse a write that would take the organization past its plan: 409 `plan_limit_people` /
+ * `plan_limit_projects`, with no write. `used` is the current count; `adding` the write's increase.
+ * A `null` limit (unlimited, and every limit of the beta's top plan) never refuses.
+ */
+export function assertWithinPlanLimit(
+  entitlements: Entitlements,
+  limit: CountedPlanLimit,
+  used: number,
+  adding = 1,
+): void {
+  const max = entitlements.limits[limit];
+  if (max !== null && used + adding > max) {
+    throw new ApiError(409, PLAN_LIMIT_CODES[limit], 'This plan has reached its limit.', [
+      { field: limit, message: `limit ${max}` },
+    ]);
+  }
 }
 
 export const BILLING_DISABLED_BETA_MESSAGE =

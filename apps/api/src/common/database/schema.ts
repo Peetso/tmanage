@@ -5026,6 +5026,9 @@ export const subscriptions = mysqlTable(
     planId: varchar('plan_id', { length: 64 }).notNull(),
     status: mysqlEnum('status', SUBSCRIPTION_STATUSES).notNull().default('active'),
     currentPeriodEnd: datetime('current_period_end', { mode: 'date', fsp: 3 }),
+    // 0351 (57-M2). The `plan_versions` version and currency the workspace is on (grandfathering).
+    planVersion: int('plan_version', { unsigned: true }).notNull().default(1),
+    currency: char('currency', { length: 3 }).notNull().default('USD'),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
   },
@@ -13898,3 +13901,41 @@ export const workflowFlowVersions = mysqlTable(
 export type WorkflowFlowVersionRow = typeof workflowFlowVersions.$inferSelect;
 
 Object.assign(TABLES, { workflow_flow_versions: workflowFlowVersions });
+
+/**
+ * 0351 (57-02, 57-M1). One immutable row per published version of a plan's price, limits and
+ * features; a change is a new row with a higher `version`, never an edit, and a subscription keeps
+ * the version it names (`subscriptions.plan_version`). Version 1 is the code catalog, seeded by the
+ * migration. GLOBAL (`NON_TENANT_TABLES`): no organization owns a plan. INSERT-only for the API.
+ */
+/** `limits_json`, re-read with `parsePlanLimits` (schema.ts imports nothing from the modules). */
+export type PlanVersionLimitsJson = Record<string, unknown>;
+
+export const planVersions = mysqlTable(
+  'plan_versions',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    planId: varchar('plan_id', { length: 64 }).notNull(),
+    version: int('version', { unsigned: true }).notNull(),
+    currency: char('currency', { length: 3 }).notNull().default('USD'),
+    monthlyCents: int('monthly_cents', { unsigned: true }),
+    yearlyCents: int('yearly_cents', { unsigned: true }),
+    limitsJson: json('limits_json').$type<PlanVersionLimitsJson>().notNull(),
+    featuresJson: json('features_json').$type<readonly string[]>().notNull(),
+    providerPriceIdsJson: json('provider_price_ids_json').$type<Record<string, string>>(),
+    effectiveFrom: datetime('effective_from', { mode: 'date', fsp: 3 }).notNull(),
+    createdByUserId: char('created_by_user_id', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_plan_versions_plan_currency_version').on(
+      table.planId,
+      table.currency,
+      table.version,
+    ),
+  ],
+);
+
+export type PlanVersionRow = typeof planVersions.$inferSelect;
+
+Object.assign(TABLES, { plan_versions: planVersions });

@@ -2456,3 +2456,7 @@ GRANT INSERT ON `tmanage`.`approval_records` TO 'tmanage_app'@'%';
 -- force when a rule fires on its trigger (`automation-flow-store.ts`): SELECT only.
 GRANT INSERT ON `tmanage`.`workflow_flow_versions` TO 'tmanage_app'@'%';
 GRANT SELECT ON `tmanage`.`workflow_flow_versions` TO 'tmanage_worker'@'%';
+-- 0351 (57-02). `plan_versions` (global): a Platform admin publishing a new plan version INSERTs one
+-- row. **INSERT only**: a version is never rewritten, so a grandfathered subscription keeps naming
+-- the price and limits it took. SELECT rides the database-wide read. The worker needs no grant.
+GRANT INSERT ON `tmanage`.`plan_versions` TO 'tmanage_app'@'%';

@@ -200,7 +200,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // 52-19: the approval record, staff and portal (+2 classified).
 // 52-27: the portal journey stepper read (+1 classified).
 // 58-C1: the branching builder's flow read, save and turn-on (+3 classified).
-const EXPECTED_ROUTE_COUNT = 1458;
+// 57-02: the workspace's current plan (+1 classified) and the platform plan versions (+2 NEVER).
+const EXPECTED_ROUTE_COUNT = 1461;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

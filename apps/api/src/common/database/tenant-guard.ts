@@ -1524,6 +1524,10 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
 ]);
 
 export function isTenantTable(name: string): boolean {
+  // ---- 57-02 ----
+  // 0351. The versioned plan ladder (price, limits, features per version). GLOBAL: a plan belongs
+  // to no organization. Platform admins write it and every read goes through `identityRead`.
+  'plan_versions',
   return Object.hasOwn(TENANT_TABLES, name.toLowerCase());
 }
 

@@ -300,6 +300,15 @@ export const billingDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'Preview', args: { targetPlanCode: 'pro' } }],
   }),
   det({
+    id: 'billing.plan.get',
+    title: 'Current plan',
+    description:
+      'The workspace plan in use, its version, price and limits. During the free beta every workspace is on the beta plan.',
+    input: noArgs(),
+    redact: 'billing',
+    examples: [{ summary: 'Current plan', args: {} }],
+  }),
+  det({
     id: 'billing.plan_usage.get',
     title: 'Plan and usage',
     description:

@@ -1145,6 +1145,9 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/platform/keys/status', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/keys/rotate', reason: 'platform_admin' },
   // 56-32. Platform → Health: the host capacity gauges and the "move to KVM" trigger.
+  // 57-02. Platform admin → the plan ladder: list the plan versions and publish a new one.
+  { method: 'GET', path: '/v1/platform/plan-versions/', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/plan-versions/', reason: 'platform_admin' },
   { method: 'GET', path: '/v1/platform/health/capacity', reason: 'platform_admin' },
   // 56-31. Platform → E-mail health: lane counts (never addresses) and the lane pause.
   { method: 'GET', path: '/v1/platform/mail/health', reason: 'platform_admin' },

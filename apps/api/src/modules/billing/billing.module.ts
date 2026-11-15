@@ -30,6 +30,14 @@ import {
 } from './plan-change-requests.controller.js';
 import { PlanUsageService } from './plan-usage.service.js';
 import { PLAN_USAGE_SERVICE, PlanUsageController } from './plan-usage.controller.js';
+import {
+  PLAN_VERSIONS_SERVICE,
+  PlatformPlanVersionsController,
+  WorkspacePlanController,
+} from './plan-versions.controller.js';
+import { PlanVersionsRepository } from './plan-versions.repository.js';
+import { PlanVersionsService } from './plan-versions.service.js';
+import { platformAdminCore } from '../platform-admin/platform-admin-core.module.js';
 
 /**
  * Billing / module 19 (x177). The subscription module — an organization's current plan (view, and
@@ -108,9 +116,19 @@ export class BillingModule {
       inject: [TENANT_DATABASE],
       useFactory: (database: TenantDatabase) => new PlanUsageService(database),
     };
+    // 57-02. The versioned plan ladder (`plan_versions`, global): the Platform admin's list and
+    // publish routes and the workspace's own current-plan read. Off during the beta (PLAN_LADDER).
+    const planVersions: Provider = {
+      provide: PLAN_VERSIONS_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new PlanVersionsService(database, new PlanVersionsRepository(database)),
+    };
 
     return {
       module: BillingModule,
+      // The platform-admin guard's lookup, for `PlatformPlanVersionsController`.
+      imports: [platformAdminCore()],
       providers: [
         repository,
         service,
@@ -120,6 +138,7 @@ export class BillingModule {
         taxDetailsService,
         planChangeRequests,
         planUsage,
+        planVersions,
       ],
       exports: [service, planPreview],
       controllers: [
@@ -129,6 +148,8 @@ export class BillingModule {
         BillingTaxDetailsController,
         PlanChangeRequestsController,
         PlanUsageController,
+        PlatformPlanVersionsController,
+        WorkspacePlanController,
       ],
     };
   }
