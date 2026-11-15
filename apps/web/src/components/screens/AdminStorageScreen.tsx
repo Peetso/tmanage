@@ -257,6 +257,15 @@ export function AdminStorageScreen({
               ).replace('{name}', organizationName)}
             </p>
           )}
+          {firstTime ? null : (
+            // FIX6 Checkpoint A: task attachments go to TManage storage (item 2), whatever is ticked.
+            <p className="tm-storage__caption">
+              {tOr(
+                'AdminStorageScreen.taskFilesNote',
+                'Files added to tasks are kept on TManage storage, with the same safety checks as chat and Files.',
+              )}
+            </p>
+          )}
 
           {failed ? (
             <InlineAlert tone="danger" title={t('AdminStorageScreen.actionFailedTitle')} live>

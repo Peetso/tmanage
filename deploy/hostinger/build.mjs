@@ -708,6 +708,8 @@ export const SERVER_FILES = Object.freeze([
   'csp-report.mjs',
   // server.mjs imports the security.txt handler (56-17) from here; missing it, boot fails.
   'security-txt.mjs',
+  // server.mjs imports the page rate limit (FIX6) from here; missing it, boot fails.
+  'page-limit.mjs',
 ]);
 
 function assemble() {

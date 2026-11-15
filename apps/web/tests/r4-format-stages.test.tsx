@@ -525,6 +525,20 @@ describe('ZipList (V-24)', () => {
     await expectNoAxeViolations(container);
   });
 
+  it('says "1 folder" and "1 file" in the singular (FIX6 item 9)', () => {
+    const one: PreviewZip = {
+      ...zip,
+      fileCount: 1,
+      folderCount: 1,
+      entries: [
+        { path: 'Logos/', folder: true, sizeBytes: 0, modifiedAt: null },
+        { path: 'Logos/a.svg', folder: false, sizeBytes: 1000, modifiedAt: null },
+      ],
+    };
+    render(<ZipList zip={one} sizeBytes={null} />);
+    expect(screen.getByRole('heading', { name: '1 file in 1 folder' })).toBeTruthy();
+  });
+
   it('formats sizes up to gigabytes', () => {
     expect([500, 84 * 1024, 18_400_000, 3 * 1024 ** 3].map(formatSize)).toEqual([
       '500 B',

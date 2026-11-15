@@ -81,7 +81,9 @@ function renderDetail(versions: readonly ReturnType<typeof version>[]) {
         );
       }
       if (method === 'POST' && path.endsWith('/complete')) {
-        return Promise.resolve(json({ id: 'asset-3', status: 'uploaded' }));
+        // FIX6 item 1: the upload is used only once the API says the file is usable (here: passed
+        // the checks under the owner's policy, no scanner), as on live.
+        return Promise.resolve(json({ id: 'asset-3', status: 'uploaded', usable: true }));
       }
       if (method === 'POST' && path.endsWith('/files/asset-1/versions')) {
         return Promise.resolve(json({ rootFileAssetId: 'asset-1', versions }, 201));

@@ -3,8 +3,10 @@
 import { useMemo, useState } from 'react';
 import { InlineAlert } from '@tmanage/ui';
 import type { PreviewZip, PreviewZipEntry } from '../../lib/api/file-preview';
+import { pluralPhrase } from '../../lib/i18n/plural';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import { FormatIcon } from './format-icons';
 import { formatSize } from './format-stage-helpers';
 import './format-stages.css';
@@ -226,6 +228,8 @@ export interface ZipListProps {
 
 export function ZipList({ zip, sizeBytes }: ZipListProps) {
   const t = useT();
+  const tOr = useTOr();
+  const locale = useActiveLocale();
   const tree = useMemo(() => zipTree(zip.entries), [zip.entries]);
   const [open, setOpen] = useState<ReadonlySet<string>>(
     () => new Set(tree.filter((node) => node.folder).map((node) => node.path)),
@@ -238,9 +242,23 @@ export function ZipList({ zip, sizeBytes }: ZipListProps) {
     return next;
   };
   const topFolders = tree.filter((node) => node.folder).length;
-  const title = t(topFolders === 0 ? 'ViewerFormats.zip.titleNoFolders' : 'ViewerFormats.zip.title')
-    .replace('{files}', String(zip.fileCount))
-    .replace('{folders}', String(topFolders));
+  // FIX6 item 9 (B12): "1 folder", not "1 folders" — each count in the locale's plural form.
+  const files = pluralPhrase(tOr, locale, 'ViewerFormats.zip.fileCount', zip.fileCount, {
+    one: '{count} file',
+    other: '{count} files',
+  });
+  const title =
+    topFolders === 0
+      ? files
+      : tOr('ViewerFormats.zip.titleIn', '{files} in {folders}')
+          .replace('{files}', files)
+          .replace(
+            '{folders}',
+            pluralPhrase(tOr, locale, 'ViewerFormats.zip.folderCount', topFolders, {
+              one: '{count} folder',
+              other: '{count} folders',
+            }),
+          );
   const totals = [
     t('ViewerFormats.zip.unpacked').replace('{size}', formatSize(zip.totalBytes)),
     sizeBytes !== null

@@ -70,6 +70,7 @@ import { DOWNLOADS_DIR, isHttpsRequest, webSecurityHeaders } from './boot-guards
 import { webCacheHeaders } from './cache-headers.mjs';
 import { createCspReportHandler, isCspReportPath } from './csp-report.mjs';
 import { createSecurityTxtHandler, isSecurityTxtPath } from './security-txt.mjs';
+import { createPageLimiter } from './page-limit.mjs';
 import { resolveDatabaseEnv } from './database-env.mjs';
 import {
   applyRealtimePublicUrl,
@@ -544,9 +545,13 @@ async function main() {
   // Listen FIRST: LiteSpeed restarts an app that has not opened its port within ~3 s. Every
   // request — /healthz included — answers 503 "starting" until `state.ready` is set below.
   const state = { ready: undefined };
+  // FIX6: the server-rendered sign-in/sign-up/setup pages get a per-address limit (page-limit.mjs).
+  const pageLimit = createPageLimiter({ trustedProxies: process.env['TRUSTED_PROXY_ADDRESSES'] });
   const publicHandler = createPublicHandler(
     state,
-    (req, res) => proxyToWeb(req, res, transport),
+    (req, res) => {
+      if (!pageLimit(req, res)) proxyToWeb(req, res, transport);
+    },
     resolve(ROOT, DOWNLOADS_DIR),
   );
   // 56-01. The client address is read by the API's own rule (TRUSTED_PROXY_ADDRESSES, D09).
