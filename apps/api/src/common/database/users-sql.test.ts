@@ -356,6 +356,8 @@ describe('the runtime user is actually least-privilege', () => {
     // ---- R22-b ---- the chain reconciler prunes its own verdict rows past retention; derived
     // checks, never work a person made.
     purgeTables.add('einvoice_chain_checks');
+    // ---- 0355 ---- the approval chain walk prunes its own verdicts, likewise.
+    purgeTables.add('approval_chain_checks');
     for (const grant of grantsFor('tmanage_worker')) {
       if (purgeTables.has(grant.table)) continue;
       expect(grant.privileges, `worker grant on ${grant.table}`).not.toContain('DELETE');

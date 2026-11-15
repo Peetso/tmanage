@@ -260,3 +260,13 @@ export function signRefusal(error: unknown): SignRefusal {
   }
   return null;
 }
+
+/** 52-26 — the signed copy (the document, then its signature pages), staff. */
+export function signedPdfPath(organizationSlug: string, requestId: string): string {
+  return `${staffPath(organizationSlug)}/${encodeURIComponent(requestId)}/signed.pdf`;
+}
+
+/** 52-26 — the signer's own signed copy, in the portal. */
+export function portalSignedPdfPath(organizationSlug: string, requestId: string): string {
+  return `${portalPath(organizationSlug)}/${encodeURIComponent(requestId)}/signed.pdf`;
+}

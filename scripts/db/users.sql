@@ -2457,6 +2457,15 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`calendar_feed_tokens` TO 'tmanage_app
 -- re-verifies every record: SELECT only, and a break goes to `security_signals` (56-23 grant).
 GRANT INSERT ON `tmanage`.`approval_records` TO 'tmanage_app'@'%';
 GRANT SELECT ON `tmanage`.`approval_records` TO 'tmanage_worker'@'%';
+
+-- 0355 (52-19). `approval_chain_checks` (tenant): the worker's verdict of each organization's
+-- approval record chain, per run. The app may read a verdict (SELECT, as for 0314). The worker
+-- records one verdict per organization per run (SELECT, INSERT — its newest `checked_at` is the
+-- walk's last run) and prunes verdicts older than 90 days (DELETE); no UPDATE — a verdict is never
+-- rewritten. A broken verdict also inserts an `approval.chain_broken.v1` row into `outbox_events`
+-- under the worker's existing INSERT grant.
+GRANT SELECT ON `tmanage`.`approval_chain_checks` TO 'tmanage_app'@'%';
+GRANT SELECT, INSERT, DELETE ON `tmanage`.`approval_chain_checks` TO 'tmanage_worker'@'%';
 -- 0350 (58-C1). `workflow_flow_versions` (tenant): saving a rule's branching builder INSERTs one
 -- new version. **INSERT only**: a saved version is never rewritten, so a run's `flowVersion` keeps
 -- naming the graph it took. SELECT rides the database-wide read. The worker reads the version in

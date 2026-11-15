@@ -1351,6 +1351,7 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0349 (52-19). Tenant-owned: the immutable evidence record of each approval decision, written
   // inside the decision's own transaction; read back through the caller's own context.
   approval_records: 'organization_id',
+  approval_chain_checks: 'organization_id',
   // 0350 (58-C1). Tenant-owned: each saved version of a rule's branching builder graph. Registered
   // after `workflow_templates` so the company erasure empties it first (children-first).
   workflow_flow_versions: 'organization_id',

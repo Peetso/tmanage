@@ -6,8 +6,10 @@ import { Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tma
 import type { ApiClient } from '../../../lib/api/client';
 import { browserApiClient } from '../../../lib/api/browser-client';
 import {
+  approvalRecordPdfPath,
   getApprovalRecord,
   getPortalApprovalRecord,
+  portalApprovalRecordPdfPath,
   type ApprovalCertificateView,
 } from '../../../lib/api/approval-records';
 import { getDeliverable } from '../../../lib/api/deliverables';
@@ -24,6 +26,8 @@ import { useOrganizationName, usePortalNames } from '../../../lib/use-organizati
 import { FIXTURE_CLIENT_NAME, FIXTURE_ORGANIZATION_NAME } from '../../../lib/fixtures';
 import { useDisplayFormatters } from '../../../lib/i18n/use-formatters';
 import { useT } from '../../../lib/i18n/use-t';
+import { useTOr } from '../../../lib/i18n/use-t-or';
+import { PdfDownloadButton } from './PdfDownloadButton';
 import '../../../styles/screens/approval-record.css';
 
 interface SheetProps {
@@ -34,12 +38,15 @@ interface SheetProps {
   approverName: string | null;
   approverCompany: string | null;
   backHref: string;
+  /** 52-19: the sealed PDF of this record (API path). */
+  pdfPath: string;
 }
 
 /**
  * 52-19 (Figma 605:34269 / AR 605:34313): the printable approval record — an A4 sheet styled for
- * print, printed or saved as PDF by the browser (`window.print`). No server PDF, no public verify
- * link and no certificate number: neither exists yet, so neither is shown.
+ * print, printed by the browser (`window.print`), plus the server's sealed PDF (52-19, "Download
+ * PDF", offered only while the record verifies). No public verify link and no certificate number:
+ * neither exists yet, so neither is shown.
  */
 export function ApprovalRecordSheet({
   view,
@@ -49,8 +56,10 @@ export function ApprovalRecordSheet({
   approverName,
   approverCompany,
   backHref,
+  pdfPath,
 }: SheetProps) {
   const t = useT();
+  const tOr = useTOr();
   const fmt = useDisplayFormatters();
   const summary = summarizeRecord(view);
   const evidence = summary.decisive?.evidence ?? null;
@@ -75,6 +84,18 @@ export function ApprovalRecordSheet({
         <Button tone="ink" size="accessible" onClick={() => window.print()}>
           {t('ApprovalRecord.print')}
         </Button>
+        {verified ? (
+          <PdfDownloadButton
+            path={pdfPath}
+            fileName={`approval-record-${view.approvalId}.pdf`}
+            label={tOr('ApprovalRecord.downloadPdf', 'Download PDF')}
+            busyLabel={tOr('ApprovalRecord.downloadingPdf', 'Preparing the PDF')}
+            failedLabel={tOr(
+              'ApprovalRecord.downloadPdfFailed',
+              'The PDF could not be downloaded. Try again.',
+            )}
+          />
+        ) : null}
       </div>
       <article className="tm-acert__sheet" aria-labelledby="tm-acert-title">
         <header className="tm-acert__top">
@@ -261,6 +282,7 @@ export function StaffApprovalCertificate({
       approverName={approver.name}
       approverCompany={approver.company}
       backHref={`/${organizationSlug}/projects/${encodeURIComponent(projectId)}/deliverables/${encodeURIComponent(deliverableId)}`}
+      pdfPath={approvalRecordPdfPath(organizationSlug, approvalId)}
     />
   );
 }
@@ -314,6 +336,7 @@ export function PortalApprovalCertificate({
       approverName={me.data?.displayName ?? null}
       approverCompany={clientName}
       backHref={`/${organizationSlug}/portal/deliverables/${encodeURIComponent(deliverableVersionId)}`}
+      pdfPath={portalApprovalRecordPdfPath(organizationSlug, deliverableVersionId)}
     />
   );
 }

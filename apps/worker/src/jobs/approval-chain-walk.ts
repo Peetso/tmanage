@@ -28,6 +28,8 @@ export const APPROVAL_CHAIN_STALE_MS = 26 * 60 * 60 * 1000;
 export const APPROVAL_CHAIN_TICK_MS = 15 * 60 * 1000;
 export const APPROVAL_CHAIN_BATCH = 500;
 export const APPROVAL_CHAIN_RULE_KEY = 'approval_chain_break';
+export const APPROVAL_CHAIN_RETENTION_DAYS = 90;
+const DAY_MS = 24 * 60 * 60 * 1000;
 const RECORD_SCHEMA = 'tmanage.approval.record.v1';
 
 export type ApprovalChainStatus = 'ok' | 'broken' | 'empty';
@@ -75,6 +77,26 @@ export interface ApprovalChainStore {
     readonly reason: ApprovalChainBreakReason;
     readonly seenAt: Date;
   }): Promise<void>;
+  /** 0355: the newest verdict time of any organization (the walk's last run), `null` if none. */
+  latestCheckedAt(): Promise<Date | null>;
+  /**
+   * 0355: one verdict row; a broken one is written with its `approval.chain_broken.v1` outbox
+   * event in the same transaction.
+   */
+  recordVerdict(check: ApprovalChainCheck): Promise<void>;
+  /** Delete verdicts older than `before`; returns how many. */
+  pruneBefore(before: Date): Promise<number>;
+}
+
+/** 0355 — one persisted verdict. */
+export interface ApprovalChainCheck {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly checkedAt: Date;
+  readonly status: ApprovalChainStatus;
+  readonly records: number;
+  readonly breakRecordNo: number | null;
+  readonly reason: ApprovalChainBreakReason | null;
 }
 
 /** `null` = cannot tell (unsigned, or the key id is not in the ring). */
@@ -93,6 +115,7 @@ export interface ApprovalChainResult {
   readonly broken: number;
   readonly empty: number;
   readonly failed: number;
+  readonly pruned: number;
 }
 
 export function approvalRecordGenesis(organizationId: string): string {
@@ -231,6 +254,15 @@ export async function runApprovalChainWalk(
   for (const organizationId of organizations) {
     try {
       const verdict = await walkApprovalChain(deps, organizationId);
+      await deps.store.recordVerdict({
+        id: uuidv7(),
+        organizationId,
+        checkedAt: now,
+        status: verdict.status,
+        records: verdict.records,
+        breakRecordNo: verdict.breakRecordNo,
+        reason: verdict.reason,
+      });
       if (verdict.status === 'broken' && verdict.breakRecordNo !== null && verdict.reason) {
         await deps.store.recordBreak({
           id: uuidv7(),
@@ -252,10 +284,13 @@ export async function runApprovalChainWalk(
       onError(organizationId, error);
     }
   }
-  return { organizations: organizations.length, ...tally };
+  const pruned = await deps.store.pruneBefore(
+    new Date(now.getTime() - APPROVAL_CHAIN_RETENTION_DAYS * DAY_MS),
+  );
+  return { organizations: organizations.length, ...tally, pruned };
 }
 
-/** The walk's state is the last run time, kept in memory: a restart walks once on boot. */
+/** The walk's last run is the newest persisted verdict (0355), so a restart does not walk again. */
 export async function runApprovalChainLoop(
   deps: ApprovalChainDeps,
   signal: AbortSignal,
@@ -263,17 +298,15 @@ export async function runApprovalChainLoop(
     console.error('[worker] approval chain loop failed', error),
   tickMs = APPROVAL_CHAIN_TICK_MS,
 ): Promise<void> {
-  let last: Date | null = null;
   while (!signal.aborted) {
     try {
       const now = (deps.now ?? (() => new Date()))();
-      if (approvalChainWalkDue(last, now)) {
+      if (approvalChainWalkDue(await deps.store.latestCheckedAt(), now)) {
         const r = await runApprovalChainWalk(deps);
-        last = now;
         console.warn(
           `[worker] approval chain: ${String(r.organizations)} organization(s), ` +
             `${String(r.ok)} ok, ${String(r.broken)} broken, ${String(r.empty)} empty, ` +
-            `${String(r.failed)} failed`,
+            `${String(r.failed)} failed, ${String(r.pruned)} pruned`,
         );
       }
     } catch (error) {

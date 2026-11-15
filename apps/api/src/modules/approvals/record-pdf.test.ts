@@ -1,6 +1,6 @@
-import { inflateSync } from 'node:zlib';
+import { PDFDocument } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
-import { renderRecordPdf } from './record-pdf.js';
+import { renderRecordPdf, setLine, visualRuns } from './record-pdf.js';
 import { signedPdfDocument } from './record-pdf-documents.js';
 import type { SignedDocumentFacts } from './record-pdf-documents.js';
 
@@ -16,15 +16,16 @@ const facts: SignedDocumentFacts = {
   versionNo: 3,
   contentHash: 'cd'.repeat(32),
   documentUnchanged: true,
+  original: null,
   signers: [
     {
       displayName: 'Layla ليلى',
       email: 'layla@client.example',
       clientOrganizationName: 'Client Co',
-      method: 'drawn',
-      typedName: null,
-      markObjectKey: 'tenant/x/mark',
-      markSha256: 'ef'.repeat(32),
+      method: 'typed',
+      typedName: 'ليلى حسن',
+      markObjectKey: null,
+      markSha256: null,
       signedAt: '2026-11-15T10:00:00.000Z',
       codeVerifiedAt: '2026-11-15T10:00:00.000Z',
       consentTextVersion: 'esign-consent-v1',
@@ -40,27 +41,44 @@ const facts: SignedDocumentFacts = {
   ],
 };
 
-describe('52-26 signed PDF', () => {
-  it('prints the record hash and carries the exact sealed record as an attachment', () => {
-    const mark = { width: 2, height: 1, rgb: Buffer.alloc(6), alpha: Buffer.from([255, 0]) };
-    const marks = new Map([['ef'.repeat(32), mark]]);
-    const pdf = renderRecordPdf(signedPdfDocument(facts, marks));
-    const text = pdf.toString('latin1');
+describe('52-19 / 52-26 record PDF', () => {
+  it('sets an Arabic name in the Arabic face, in visual order, with no "?"', async () => {
+    const line = setLine('Layla ليلى 12', () => true);
+    expect(line.font).toBe('arabic');
+    expect(line.lossy).toBe(false);
+    expect(line.runs.map((r) => r.text).join('')).not.toContain('?');
+    // An Arabic paragraph reads right to left: the digits run sits left of the name.
+    const rtl = visualRuns('ليلى 12');
+    expect(rtl.rtl).toBe(true);
+    expect(rtl.runs.map((r) => r.text)).toEqual(['12', 'ليلى ']);
 
-    expect(text.startsWith('%PDF-1.7')).toBe(true);
-    expect(text.trimEnd().endsWith('%%EOF')).toBe(true);
-    expect(text).toContain(`(${RECORD_HASH}) Tj`);
-    expect(text).toContain('/Im1 Do');
-    // A name outside WinAnsi prints as "?" and the page says the attachment holds the exact text.
-    expect(text).toContain('(Signature 1: Layla ????) Tj');
-    expect(text).toContain('attached record files hold the exact text');
+    const { bytes } = await renderRecordPdf(signedPdfDocument(facts, new Map()));
+    const text = bytes.toString('latin1');
+    expect(text).toContain('/FontFile2');
+    expect(text).toContain('TManageAlexandria');
+    expect(text).not.toContain('Some characters cannot be shown');
     // Deterministic: the same sealed records give the same bytes.
-    expect(renderRecordPdf(signedPdfDocument(facts, marks)).equals(pdf)).toBe(true);
+    expect((await renderRecordPdf(signedPdfDocument(facts, new Map()))).bytes.equals(bytes)).toBe(
+      true,
+    );
+    const attachments = (await PDFDocument.load(bytes)).catalog.toString();
+    expect(attachments).toContain('EmbeddedFiles');
+  });
 
-    const embedded = /\/Type \/EmbeddedFile[^\n]*?\/Length (\d+) >>\nstream\n/.exec(text);
-    expect(embedded).not.toBeNull();
-    const start = (embedded?.index ?? 0) + (embedded?.[0].length ?? 0);
-    const bytes = pdf.subarray(start, start + Number(embedded?.[1]));
-    expect(inflateSync(bytes).toString('utf8')).toBe(RECORD_JSON);
+  it('puts the signed PDF first: original page count + 1 record page', async () => {
+    const original = await PDFDocument.create();
+    original.addPage();
+    original.addPage();
+    const rendered = await renderRecordPdf(signedPdfDocument(facts, new Map()), {
+      original: await original.save(),
+    });
+    expect(rendered.originalPages).toBe(2);
+    expect((await PDFDocument.load(rendered.bytes)).getPageCount()).toBe(3);
+
+    const broken = await renderRecordPdf(signedPdfDocument(facts, new Map()), {
+      original: Buffer.from('%PDF-1.7 not really'),
+    });
+    expect(broken.originalPages).toBeNull();
+    expect((await PDFDocument.load(broken.bytes)).getPageCount()).toBe(1);
   });
 });

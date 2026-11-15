@@ -117,6 +117,10 @@ export const ESIGN_EN = {
   send: 'Send for signature',
   sending: 'Sending',
   sendFailed: 'Could not send for signature',
+  // 52-26 signed copy download (staff record panel + portal signed state)
+  downloadSigned: 'Download signed copy',
+  downloadingSigned: 'Preparing the signed copy',
+  downloadSignedFailed: 'The signed copy could not be downloaded. Try again.',
 } as const;
 
 export type EsignKey = keyof typeof ESIGN_EN;

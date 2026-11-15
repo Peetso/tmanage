@@ -13270,6 +13270,36 @@ export type EinvoiceChainCheckRow = typeof einvoiceChainChecks.$inferSelect;
 
 Object.assign(TABLES, { einvoice_chain_checks: einvoiceChainChecks });
 
+// ---- 52-19 · approval record chain walk verdicts (0355) ----
+/**
+ * 52-19 (0355). One verdict of the worker's approval record chain walk over an organization's
+ * `approval_records`. `status` ok | broken | empty; `breakReason` gap | genesis_mismatch |
+ * link_mismatch | hash_mismatch | signature_invalid; `breakRecordNo` the first record that does
+ * not verify. Written by the worker only (with an `approval.chain_broken.v1` outbox event when
+ * broken); pruned at 90 days. TENANT.
+ */
+export const approvalChainChecks = mysqlTable(
+  'approval_chain_checks',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    checkedAt: datetime('checked_at', { mode: 'date', fsp: 3 }).notNull(),
+    status: varchar('status', { length: 16 }).notNull(),
+    records: int('records', { unsigned: true }).notNull().default(0),
+    breakRecordNo: int('break_record_no', { unsigned: true }),
+    breakReason: varchar('break_reason', { length: 32 }),
+  },
+  (table) => [
+    uniqueIndex('uq_acc_org_id').on(table.organizationId, table.id),
+    index('ix_acc_org_checked').on(table.organizationId, table.checkedAt),
+    index('ix_acc_checked').on(table.checkedAt),
+  ],
+);
+
+export type ApprovalChainCheckRow = typeof approvalChainChecks.$inferSelect;
+
+Object.assign(TABLES, { approval_chain_checks: approvalChainChecks });
+
 // ---- R22-a · 52-12 org secrets: the ZATCA signing certificate (0313) ----
 /**
  * 52-12 (0313). An organization's recoverable secret. `ciphertext` is a FieldCipher `fc1.` envelope

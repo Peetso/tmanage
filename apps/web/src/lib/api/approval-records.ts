@@ -96,3 +96,45 @@ export async function getPortalApprovalRecord(
   });
   return data;
 }
+
+/** 52-19 — the sealed certificate PDF (staff), relative to the API origin. */
+export function approvalRecordPdfPath(organizationSlug: string, approvalId: string): string {
+  return `${approvalsPath(organizationSlug)}/${encodeURIComponent(approvalId)}/record.pdf`;
+}
+
+/** 52-19 — the client's own certificate PDF for one published version. */
+export function portalApprovalRecordPdfPath(
+  organizationSlug: string,
+  deliverableVersionId: string,
+): string {
+  return `${approvalsPath(organizationSlug)}/projections/${encodeURIComponent(deliverableVersionId)}/record.pdf`;
+}
+
+/**
+ * Fetch a sealed record PDF with the session cookie (a `GET`, no CSRF token) and hand it to the
+ * browser as a save. `false` when the server refused (403/404/409) or the network failed.
+ */
+export async function downloadRecordPdf(
+  url: string,
+  fileName: string,
+  fetchImpl: typeof globalThis.fetch = globalThis.fetch,
+): Promise<boolean> {
+  let blob: Blob;
+  try {
+    const response = await fetchImpl(url, { method: 'GET', credentials: 'include' });
+    if (!response.ok) return false;
+    blob = await response.blob();
+  } catch {
+    return false;
+  }
+  if (typeof URL.createObjectURL !== 'function') return true;
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download = fileName;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
+  return true;
+}

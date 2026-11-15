@@ -50,6 +50,7 @@ import type {
 } from './esign.js';
 import { EsignRepository } from './esign.repository.js';
 import type { SignedDocumentFacts, SignedSignerFacts } from './record-pdf-documents.js';
+import { RecordPdfRepository } from './record-pdf.repository.js';
 import type { SignerWithContact } from './esign.repository.js';
 
 const DAY_MS = 24 * 60 * 60_000;
@@ -97,6 +98,7 @@ export class EsignService {
     private readonly versions: DeliverableVersionsRepository = new DeliverableVersionsRepository(),
     private readonly projections: ClientProjectionsRepository = new ClientProjectionsRepository(),
     private readonly records: ApprovalRecordsRepository = new ApprovalRecordsRepository(),
+    private readonly pdfFiles: RecordPdfRepository = new RecordPdfRepository(),
   ) {
     this.anchor = options.signer ?? AnchorSigner.fromEnv(process.env);
     this.now = options.now ?? (() => new Date());
@@ -656,6 +658,7 @@ export class EsignService {
       });
     }
     const version = await this.versions.findById(runner, context, request.deliverableVersionId);
+    const unchanged = version !== null && version.contentHash === request.contentHash;
     return {
       requestId: request.id,
       projectId: request.projectId,
@@ -664,8 +667,12 @@ export class EsignService {
       organizationName: (await this.repo.organization(runner, context)).name,
       versionNo: version?.versionNo ?? null,
       contentHash: request.contentHash,
-      documentUnchanged: version !== null && version.contentHash === request.contentHash,
+      documentUnchanged: unchanged,
       signers: sealed.sort((a, b) => a.recordNo - b.recordNo),
+      original:
+        version !== null && unchanged && version.fileVersionId !== null
+          ? await this.pdfFiles.signedOriginal(runner, context, version.fileVersionId)
+          : null,
     };
   }
 

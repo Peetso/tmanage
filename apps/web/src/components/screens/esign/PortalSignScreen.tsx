@@ -9,6 +9,7 @@ import { browserApiClient } from '../../../lib/api/browser-client';
 import type { ApiClient } from '../../../lib/api/client';
 import {
   getPortalSignatureRequest,
+  portalSignedPdfPath,
   sendSignatureCode,
   signRefusal,
   signSignatureRequest,
@@ -18,6 +19,7 @@ import {
 import { usePortalNames } from '../../../lib/use-organization-names';
 import { useDisplayFormatters } from '../../../lib/i18n/use-formatters';
 import { Segmented, Tag } from '../PortalParts';
+import { PdfDownloadButton } from '../approvals/PdfDownloadButton';
 import { SignaturePad } from './SignaturePad';
 import { useEsignT, type EsignKey } from './esign-copy';
 import '../../../styles/screens/esign.css';
@@ -164,6 +166,15 @@ function SignBody({ api, organizationSlug, view, agency, backHref, queryKey }: S
   );
 
   if (view.state === 'signed') {
+    const signedCopy = (
+      <PdfDownloadButton
+        path={portalSignedPdfPath(organizationSlug, view.id)}
+        fileName={`signed-${view.id}.pdf`}
+        label={t('downloadSigned')}
+        busyLabel={t('downloadingSigned')}
+        failedLabel={t('downloadSignedFailed')}
+      />
+    );
     const firstName = view.signerName.split(/\s+/)[0] ?? view.signerName;
     const date = view.signedAt ? fmt.dateTime(view.signedAt) : '';
     return justSigned ? (
@@ -176,6 +187,7 @@ function SignBody({ api, organizationSlug, view, agency, backHref, queryKey }: S
           <p className="tm-esign-muted">{t('signedOn', { date })}</p>
         </div>
         {openDocument}
+        {signedCopy}
         <BackLink href={backHref} />
       </StateCard>
     ) : (
@@ -183,6 +195,7 @@ function SignBody({ api, organizationSlug, view, agency, backHref, queryKey }: S
         <Tag tone="done">✓ {t('alreadySigned')}</Tag>
         <p className="tm-esign-text">{t('alreadySignedBody', { date })}</p>
         {openDocument}
+        {signedCopy}
       </StateCard>
     );
   }

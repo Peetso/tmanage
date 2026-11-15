@@ -19,6 +19,7 @@ import {
   cancelSignatureRequest,
   getSignatureRequest,
   remindSignatureRequest,
+  signedPdfPath,
   signRefusal,
   type SignatureRequestView,
   type SignatureSignerView,
@@ -27,6 +28,7 @@ import { OFFLINE_LINES, useDescribeApiError } from '../../../lib/api/describe-er
 import { shortFingerprint } from '../../../lib/approval-record-presentation';
 import { useDisplayFormatters } from '../../../lib/i18n/use-formatters';
 import { Fact } from '../approvals/ApprovalRecordPanel';
+import { PdfDownloadButton } from '../approvals/PdfDownloadButton';
 import { useEsignT, type EsignKey } from './esign-copy';
 import '../../../styles/screens/approval-record.css';
 import '../../../styles/screens/esign.css';
@@ -168,6 +170,15 @@ export function SignatureRequestScreen({
                 <StateCapsule state={STATE[data.state].capsule}>
                   {t(STATE[data.state].key)}
                 </StateCapsule>
+              ) : null}
+              {data.signedCount > 0 ? (
+                <PdfDownloadButton
+                  path={signedPdfPath(organizationSlug, data.id)}
+                  fileName={`signed-${data.id}.pdf`}
+                  label={t('downloadSigned')}
+                  busyLabel={t('downloadingSigned')}
+                  failedLabel={t('downloadSignedFailed')}
+                />
               ) : null}
             </div>
             <div className="tm-prj__grid tm-prj__grid--aside">

@@ -50,6 +50,18 @@ export interface SignedDocumentFacts {
   readonly contentHash: string;
   readonly documentUnchanged: boolean;
   readonly signers: readonly SignedSignerFacts[];
+  /**
+   * The signed file when it is a cleared PDF of this tenant (its pages go first in the signed
+   * copy). Internal: the object key is read from `file_versions`, never from a request.
+   */
+  readonly original: SignedOriginal | null;
+}
+
+/** 52-26 — where the signed PDF's bytes are and what they must hash to. */
+export interface SignedOriginal {
+  readonly objectKey: string;
+  readonly sizeBytes: number;
+  readonly sha256: string;
 }
 
 const CHAIN_NOTE =

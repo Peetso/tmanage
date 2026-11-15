@@ -1,20 +1,43 @@
 import { createHash } from 'node:crypto';
-import { deflateSync } from 'node:zlib';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import fontkit from '@pdf-lib/fontkit';
+import bidiModule from 'bidi-js';
+import {
+  AFRelationship,
+  PDFDocument,
+  PDFName,
+  StandardFonts,
+  TextRenderingMode,
+  popGraphicsState,
+  pushGraphicsState,
+  rgb,
+  setLineWidth,
+  setTextRenderingMode,
+} from 'pdf-lib';
+import type { PDFFont, PDFPage } from 'pdf-lib';
 
 /**
- * 52-19 / 52-26 — a small, dependency-free PDF 1.7 writer for the sealed record documents (the
- * approval certificate and the signed-document page). The repository has no PDF writer (only
- * `pdfjs-dist`, a reader, in apps/web), and a new dependency needs an install this slice may not
- * run, so this file writes the few PDF objects a text-and-image A4 page needs, and nothing else.
+ * 52-19 / 52-26 — the PDF writer for the sealed record documents (the approval certificate and
+ * the signed-document pages), on `pdf-lib` (MIT) with `@pdf-lib/fontkit` (MIT) for the embedded
+ * TrueType font and `bidi-js` (MIT) for the Unicode bidirectional algorithm.
  *
- * - Text uses the standard Helvetica, Helvetica-Bold and Courier fonts in WinAnsi encoding. A
- *   character outside WinAnsi (Arabic, CJK) prints as `?`; {@link renderRecordPdf} then adds a
- *   note, and the exact sealed text always travels inside the PDF as an attached `.json` file
- *   whose SHA-256 is the record hash printed on the page.
- * - Page content streams are left uncompressed and written as 7-bit ASCII (octal escapes), so the
- *   printed hashes are plain bytes of the file. Images and attachments are Flate-compressed.
- * - The output is deterministic: no creation date, and the file id is a hash of the content, so
- *   the same sealed records always give the same bytes (the store keys the file by content).
+ * - Latin text uses the standard Helvetica, Helvetica-Bold and Courier fonts. A line holding a
+ *   character outside WinAnsi (Arabic, most of all) is set in Alexandria (SIL OFL 1.1, the web
+ *   app's own Arabic face; `apps/api/assets/fonts/`), embedded as a subset. fontkit shapes it
+ *   (initial / medial / final forms, ligatures) and lays a right-to-left run out right to left;
+ *   bidi-js orders the runs of a mixed line (an Arabic name beside Latin digits). A line whose
+ *   paragraph direction is right-to-left is right-aligned in its column. Bold Arabic is the
+ *   regular face filled and thinly stroked (the bundled face is variable; a PDF draws its
+ *   default, 400, instance).
+ * - A character neither font draws (CJK) prints as `?`; the page then says so, and the exact
+ *   sealed text always travels inside the PDF as an attached `.json` file whose SHA-256 is the
+ *   record hash printed on the page.
+ * - The output is deterministic: no dates, fixed font names, so the same sealed records (and the
+ *   same original document) give the same bytes. The store keys the file by content anyway.
+ * - 52-26: {@link renderRecordPdf} can put the original document's pages first — the signed copy
+ *   is then the document itself followed by its signature pages.
  */
 
 export interface PdfRow {
@@ -24,12 +47,11 @@ export interface PdfRow {
   readonly mono?: boolean;
 }
 
-/** 8-bit RGB pixels, row-major, and an optional 8-bit alpha plane of the same size. */
+/** A PNG the service already decoded once (so it is known to be a PNG), and its size. */
 export interface PdfImage {
   readonly width: number;
   readonly height: number;
-  readonly rgb: Buffer;
-  readonly alpha: Buffer | null;
+  readonly png: Buffer;
 }
 
 export interface PdfSection {
@@ -57,8 +79,19 @@ export interface PdfDocument {
   readonly attachments: readonly PdfAttachment[];
 }
 
+export interface RenderOptions {
+  /** 52-26: a PDF whose pages come first (the signed document). */
+  readonly original?: Uint8Array;
+}
+
+export interface RenderedPdf {
+  readonly bytes: Buffer;
+  /** Pages of the original put first; `null` when none was given or it could not be read. */
+  readonly originalPages: number | null;
+}
+
 /** Bump when the layout changes, so stored files keyed by {@link recordPdfObjectId} are redone. */
-export const RECORD_PDF_LAYOUT = 'record-pdf.v1';
+export const RECORD_PDF_LAYOUT = 'record-pdf.v2';
 
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
@@ -70,22 +103,40 @@ const BODY = 9;
 const LEADING = 12.5;
 const IMAGE_MAX_W = 220;
 const IMAGE_MAX_H = 90;
-/** Helvetica's widest common glyphs average under this share of the size; Courier is exact. */
-const SANS_EM = 0.56;
-const MONO_EM = 0.6;
 const LOSSY_NOTE =
   'Some characters cannot be shown in this PDF. The attached record files hold the exact text.';
+const MERGED_NOTE = (pages: number) =>
+  `Pages 1 to ${String(pages)} are the signed document itself; the pages after them are its ` +
+  'signature record.';
+const UNREADABLE_NOTE =
+  'The original document could not be added to this copy; it is bound by the SHA-256 above.';
 
 // prettier-ignore
-const CP1252: Readonly<Record<number, number>> = {
-  0x20ac: 0x80, 0x201a: 0x82, 0x0192: 0x83, 0x201e: 0x84, 0x2026: 0x85, 0x2020: 0x86,
-  0x2021: 0x87, 0x02c6: 0x88, 0x2030: 0x89, 0x0160: 0x8a, 0x2039: 0x8b, 0x0152: 0x8c,
-  0x017d: 0x8e, 0x2018: 0x91, 0x2019: 0x92, 0x201c: 0x93, 0x201d: 0x94, 0x2022: 0x95,
-  0x2013: 0x96, 0x2014: 0x97, 0x02dc: 0x98, 0x2122: 0x99, 0x0161: 0x9a, 0x203a: 0x9b,
-  0x0153: 0x9c, 0x017e: 0x9e, 0x0178: 0x9f,
-};
+const CP1252 = new Set([
+  0x20ac, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021, 0x02c6, 0x2030, 0x0160, 0x2039, 0x0152,
+  0x017d, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014, 0x02dc, 0x2122, 0x0161, 0x203a,
+  0x0153, 0x017e, 0x0178,
+]);
 
-type Font = 'F1' | 'F2' | 'F3';
+const STRONG_RTL = /[\p{Script=Arabic}\p{Script=Hebrew}]/u;
+// bidi-js is CommonJS whose `module.exports` is the factory; its types declare an ES default.
+const bidiFactory = bidiModule as unknown as (typeof bidiModule)['default'];
+const bidi = bidiFactory();
+
+/** The bundled Arabic face, read once: next to this file's build (src or dist), else the cwd. */
+let arabicFontBytes: Uint8Array | null | undefined;
+function arabicFont(): Uint8Array | null {
+  if (arabicFontBytes !== undefined) return arabicFontBytes;
+  const name = 'Alexandria-Variable.ttf';
+  const here = dirname(fileURLToPath(import.meta.url));
+  const found = [
+    resolve(here, '../../../assets/fonts', name),
+    resolve(process.cwd(), 'assets/fonts', name),
+  ].find((path) => existsSync(path));
+  arabicFontBytes = found === undefined ? null : new Uint8Array(readFileSync(found));
+  if (found === undefined) console.warn('[record-pdf] Arabic font missing; Arabic prints as ?');
+  return arabicFontBytes;
+}
 
 /** A UUID-shaped id (version 5 layout) from the layout version and the sealed parts it shows. */
 export function recordPdfObjectId(parts: readonly string[]): string {
@@ -96,95 +147,200 @@ export function recordPdfObjectId(parts: readonly string[]): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
-/** Text → WinAnsi bytes as a JS latin-1 string; reports whether a character was replaced. */
-function winAnsi(text: string): { readonly bytes: string; readonly lossy: boolean } {
-  let bytes = '';
+function isWinAnsi(code: number): boolean {
+  return (code >= 0x20 && code < 0x7f) || (code >= 0xa0 && code <= 0xff) || CP1252.has(code);
+}
+
+type Style = 'regular' | 'bold' | 'mono';
+
+interface Fonts {
+  readonly regular: PDFFont;
+  readonly bold: PDFFont;
+  readonly mono: PDFFont;
+  /** `null` when the bundled face is missing. */
+  readonly arabic: PDFFont | null;
+  readonly covers: (code: number) => boolean;
+}
+
+/** One visual run of a line: its text in drawing order input, and whether it reads right to left. */
+export interface TextRun {
+  readonly text: string;
+  readonly rtl: boolean;
+}
+
+/** A line ready to draw: the font it is set in, its visual runs and the paragraph direction. */
+export interface SetLine {
+  readonly font: 'standard' | 'arabic';
+  readonly runs: readonly TextRun[];
+  readonly rtl: boolean;
+  readonly lossy: boolean;
+}
+
+/**
+ * The Unicode bidirectional algorithm (rules L1–L2) over one line, by runs: the runs come back
+ * in visual order, each still in logical order inside (fontkit lays an Arabic run out right to
+ * left itself). A right-to-left run with no Arabic letter (punctuation between two Arabic words)
+ * is reversed here, and mirrored characters are swapped in every right-to-left run.
+ */
+export function visualRuns(text: string): { readonly runs: TextRun[]; readonly rtl: boolean } {
+  if (text === '') return { runs: [], rtl: false };
+  const { levels, paragraphs } = bidi.getEmbeddingLevels(text);
+  const base = paragraphs[0]?.level ?? 0;
+  const mirrored = bidi.getMirroredCharactersMap(text, levels);
+  const units: { readonly text: string; readonly level: number }[] = [];
+  for (let i = 0; i < text.length;) {
+    const code = text.codePointAt(i) ?? 0x3f;
+    const size = code > 0xffff ? 2 : 1;
+    units.push({ text: mirrored.get(i) ?? text.slice(i, i + size), level: levels[i] ?? base });
+    i += size;
+  }
+  const runs: { text: string; level: number }[] = [];
+  for (const unit of units) {
+    const last = runs[runs.length - 1];
+    if (last !== undefined && last.level === unit.level) last.text += unit.text;
+    else runs.push({ text: unit.text, level: unit.level });
+  }
+  // L2: from the highest level down to the lowest odd one, reverse every sequence at or above it.
+  const highest = Math.max(...runs.map((r) => r.level));
+  const lowestOdd = Math.min(...runs.map((r) => (r.level % 2 === 1 ? r.level : r.level + 1)));
+  for (let level = highest; level >= lowestOdd; level -= 1) {
+    for (let i = 0; i < runs.length;) {
+      if ((runs[i]?.level ?? 0) < level) {
+        i += 1;
+        continue;
+      }
+      let end = i;
+      while (end + 1 < runs.length && (runs[end + 1]?.level ?? 0) >= level) end += 1;
+      runs.splice(i, end - i + 1, ...runs.slice(i, end + 1).reverse());
+      i = end + 1;
+    }
+  }
+  return {
+    rtl: base % 2 === 1,
+    runs: runs.map((run) => {
+      const rtl = run.level % 2 === 1;
+      const reversed = rtl && !STRONG_RTL.test(run.text);
+      return { text: reversed ? Array.from(run.text).reverse().join('') : run.text, rtl };
+    }),
+  };
+}
+
+/** Pick the font of a line and replace what neither font can draw; `covers` is the Arabic face. */
+export function setLine(raw: string, covers: ((code: number) => boolean) | null): SetLine {
+  let text = '';
   let lossy = false;
-  for (const char of text.normalize('NFC')) {
+  let standard = true;
+  for (const char of raw.normalize('NFC')) {
     const code = char.codePointAt(0) ?? 0x3f;
-    if (code < 0x20 || code === 0x7f) bytes += ' ';
-    else if (code < 0x7f || (code >= 0xa0 && code <= 0xff)) bytes += String.fromCharCode(code);
-    else if (CP1252[code] !== undefined) bytes += String.fromCharCode(CP1252[code]);
-    else {
-      bytes += '?';
+    if (code < 0x20 || code === 0x7f) text += ' ';
+    else if (isWinAnsi(code)) text += char;
+    else if (covers?.(code) === true) {
+      text += char;
+      standard = false;
+    } else {
+      text += '?';
       lossy = true;
     }
   }
-  return { bytes, lossy };
+  if (standard) return { font: 'standard', runs: [{ text, rtl: false }], rtl: false, lossy };
+  return { font: 'arabic', ...visualRuns(text), lossy };
 }
 
-/** A PDF literal string, 7-bit: `\`, `(`, `)` escaped and every other byte outside ASCII as octal. */
-function literal(bytes: string): string {
-  let out = '(';
-  for (const char of bytes) {
-    const code = char.charCodeAt(0);
-    if (char === '\\' || char === '(' || char === ')') out += `\\${char}`;
-    else if (code < 0x20 || code > 0x7e) out += `\\${code.toString(8).padStart(3, '0')}`;
-    else out += char;
-  }
-  return `${out})`;
-}
-
-/** Greedy word wrap by an estimated glyph width; a word longer than a line is cut. */
-function wrap(text: string, width: number, size: number, mono: boolean): string[] {
-  const max = Math.max(8, Math.floor(width / (size * (mono ? MONO_EM : SANS_EM))));
-  const lines: string[] = [];
-  for (const paragraph of text.split('\n')) {
-    let line = '';
-    for (const word of paragraph.split(' ')) {
-      let rest = word;
-      while (rest.length > max) {
-        if (line !== '') lines.push(line);
-        lines.push(rest.slice(0, max));
-        line = '';
-        rest = rest.slice(max);
-      }
-      const next = line === '' ? rest : `${line} ${rest}`;
-      if (next.length > max) {
-        lines.push(line);
-        line = rest;
-      } else line = next;
-    }
-    lines.push(line);
-  }
-  return lines;
-}
-
-function num(value: number): string {
-  return Number(value.toFixed(2)).toString();
-}
-
-/** Lays the document out on A4 pages and collects the content streams and image uses. */
+/** Lays the document out on A4 pages. */
 class Layout {
-  readonly pages: string[][] = [[]];
   lossy = false;
+  private page: PDFPage;
   private y = PAGE_H - MARGIN;
-  readonly images: PdfImage[] = [];
+  readonly pages: PDFPage[] = [];
 
-  private get ops(): string[] {
-    return this.pages[this.pages.length - 1] as string[];
+  constructor(
+    private readonly doc: PDFDocument,
+    private readonly fonts: Fonts,
+  ) {
+    this.page = this.newPage();
+  }
+
+  private newPage(): PDFPage {
+    const page = this.doc.addPage([PAGE_W, PAGE_H]);
+    this.pages.push(page);
+    return page;
   }
 
   private room(height: number): void {
     if (this.y - height < MARGIN + 24) {
-      this.pages.push([]);
+      this.page = this.newPage();
       this.y = PAGE_H - MARGIN;
     }
   }
 
-  text(x: number, font: Font, size: number, value: string): void {
-    const encoded = winAnsi(value);
-    if (encoded.lossy) this.lossy = true;
-    this.ops.push(
-      `BT /${font} ${num(size)} Tf ${num(x)} ${num(this.y)} Td ${literal(encoded.bytes)} Tj ET`,
-    );
+  private fontOf(line: SetLine, style: Style): PDFFont {
+    if (line.font === 'arabic' && this.fonts.arabic !== null) return this.fonts.arabic;
+    return this.fonts[style];
   }
 
-  block(font: Font, size: number, value: string, gapAfter: number): void {
-    for (const line of wrap(value, PAGE_W - 2 * MARGIN, size, font === 'F3')) {
+  width(raw: string, style: Style, size: number): number {
+    const line = setLine(raw, this.fonts.covers);
+    const font = this.fontOf(line, style);
+    return line.runs.reduce((sum, run) => sum + font.widthOfTextAtSize(run.text, size), 0);
+  }
+
+  /** Draw one line inside `[x, x + width]`, right-aligned when it reads right to left. */
+  text(x: number, width: number, style: Style, size: number, raw: string): void {
+    const line = setLine(raw, this.fonts.covers);
+    if (line.lossy) this.lossy = true;
+    const font = this.fontOf(line, style);
+    const total = line.runs.reduce((sum, run) => sum + font.widthOfTextAtSize(run.text, size), 0);
+    let cursor = line.rtl ? x + Math.max(0, width - total) : x;
+    const fakeBold = style === 'bold' && font === this.fonts.arabic;
+    if (fakeBold) {
+      this.page.pushOperators(
+        pushGraphicsState(),
+        setTextRenderingMode(TextRenderingMode.FillAndOutline),
+        setLineWidth(size * 0.035),
+      );
+    }
+    for (const run of line.runs) {
+      if (run.text !== '') {
+        this.page.drawText(run.text, { x: cursor, y: this.y, size, font, color: rgb(0, 0, 0) });
+      }
+      cursor += font.widthOfTextAtSize(run.text, size);
+    }
+    if (fakeBold) this.page.pushOperators(popGraphicsState());
+  }
+
+  /** Greedy word wrap by measured width; a word longer than a line is cut. */
+  wrap(text: string, width: number, style: Style, size: number): string[] {
+    const fits = (value: string) => this.width(value, style, size) <= width;
+    const lines: string[] = [];
+    for (const paragraph of text.split('\n')) {
+      let line = '';
+      for (const word of paragraph.split(' ')) {
+        let rest = word;
+        while (!fits(rest)) {
+          let cut = Array.from(rest).length - 1;
+          while (cut > 1 && !fits(Array.from(rest).slice(0, cut).join(''))) cut -= 1;
+          if (line !== '') lines.push(line);
+          lines.push(Array.from(rest).slice(0, cut).join(''));
+          line = '';
+          rest = Array.from(rest).slice(cut).join('');
+        }
+        const next = line === '' ? rest : `${line} ${rest}`;
+        if (!fits(next)) {
+          lines.push(line);
+          line = rest;
+        } else line = next;
+      }
+      lines.push(line);
+    }
+    return lines;
+  }
+
+  block(style: Style, size: number, value: string, gapAfter: number): void {
+    const width = PAGE_W - 2 * MARGIN;
+    for (const line of this.wrap(value, width, style, size)) {
       this.room(size * 1.4);
       this.y -= size * 1.4;
-      this.text(MARGIN, font, size, line);
+      this.text(MARGIN, width, style, size, line);
     }
     this.y -= gapAfter;
   }
@@ -196,220 +352,133 @@ class Layout {
   rule(): void {
     this.room(10);
     this.y -= 6;
-    this.ops.push(
-      `0.75 G 0.6 w ${num(MARGIN)} ${num(this.y)} m ${num(PAGE_W - MARGIN)} ${num(this.y)} l S`,
-    );
+    this.page.drawLine({
+      start: { x: MARGIN, y: this.y },
+      end: { x: PAGE_W - MARGIN, y: this.y },
+      thickness: 0.6,
+      color: rgb(0.75, 0.75, 0.75),
+    });
     this.y -= 4;
   }
 
   row(row: PdfRow): void {
-    const mono = row.mono === true;
-    const size = mono ? BODY - 0.5 : BODY;
-    const values = wrap(row.value === '' ? '-' : row.value, VALUE_W, size, mono);
-    const labels = wrap(row.label, LABEL_W - 10, BODY, false);
+    const style: Style = row.mono === true ? 'mono' : 'regular';
+    const size = style === 'mono' ? BODY - 0.5 : BODY;
+    const values = this.wrap(row.value === '' ? '-' : row.value, VALUE_W, style, size);
+    const labels = this.wrap(row.label, LABEL_W - 10, 'bold', BODY);
     const lines = Math.max(values.length, labels.length);
     this.room(lines * LEADING);
     for (let i = 0; i < lines; i += 1) {
       this.y -= LEADING;
       const label = labels[i];
       const value = values[i];
-      if (label !== undefined) this.text(MARGIN, 'F2', BODY, label);
-      if (value !== undefined) this.text(VALUE_X, mono ? 'F3' : 'F1', size, value);
+      if (label !== undefined) this.text(MARGIN, LABEL_W - 10, 'bold', BODY, label);
+      if (value !== undefined) this.text(VALUE_X, VALUE_W, style, size, value);
     }
   }
 
-  image(image: PdfImage): void {
+  async image(image: PdfImage): Promise<void> {
     const scale = Math.min(IMAGE_MAX_W / image.width, IMAGE_MAX_H / image.height, 1);
     const w = image.width * scale;
     const h = image.height * scale;
     this.room(h + 8);
     this.y -= h + 8;
-    this.images.push(image);
-    this.ops.push(
-      `q ${num(w)} 0 0 ${num(h)} ${num(VALUE_X)} ${num(this.y)} cm /Im${this.images.length} Do Q`,
-    );
+    const embedded = await this.doc.embedPng(image.png);
+    this.page.drawImage(embedded, { x: VALUE_X, y: this.y, width: w, height: h });
   }
 
-  section(section: PdfSection): void {
+  async section(section: PdfSection): Promise<void> {
     this.room(LEADING * 4);
     this.y -= 10;
-    this.block('F2', 11.5, section.heading, 0);
+    this.block('bold', 11.5, section.heading, 0);
     this.rule();
     for (const row of section.rows) this.row(row);
-    if (section.image !== undefined) this.image(section.image);
+    if (section.image !== undefined) await this.image(section.image);
     this.y -= 6;
   }
 }
 
-/** Collects numbered objects and writes the file with its cross-reference table. */
-class Objects {
-  private readonly bodies: Buffer[] = [];
-
-  reserve(): number {
-    this.bodies.push(Buffer.alloc(0));
-    return this.bodies.length;
-  }
-
-  set(id: number, body: string | Buffer): void {
-    this.bodies[id - 1] = typeof body === 'string' ? Buffer.from(body, 'latin1') : body;
-  }
-
-  add(body: string | Buffer): number {
-    const id = this.reserve();
-    this.set(id, body);
-    return id;
-  }
-
-  stream(dictionary: string, data: Buffer): Buffer {
-    return Buffer.concat([
-      Buffer.from(`<< ${dictionary} /Length ${data.length} >>\nstream\n`, 'latin1'),
-      data,
-      Buffer.from('\nendstream', 'latin1'),
-    ]);
-  }
-
-  write(rootId: number, infoId: number): Buffer {
-    const parts: Buffer[] = [Buffer.from('%PDF-1.7\n%\xe2\xe3\xcf\xd3\n', 'latin1')];
-    let offset = parts[0]?.length ?? 0;
-    const offsets: number[] = [];
-    this.bodies.forEach((body, index) => {
-      offsets.push(offset);
-      const chunk = Buffer.concat([
-        Buffer.from(`${index + 1} 0 obj\n`, 'latin1'),
-        body,
-        Buffer.from('\nendobj\n', 'latin1'),
-      ]);
-      parts.push(chunk);
-      offset += chunk.length;
-    });
-    const fileId = createHash('md5').update(Buffer.concat(parts)).digest('hex');
-    const xref = [
-      'xref',
-      `0 ${this.bodies.length + 1}`,
-      '0000000000 65535 f ',
-      ...offsets.map((o) => `${String(o).padStart(10, '0')} 00000 n `),
-      'trailer',
-      `<< /Size ${this.bodies.length + 1} /Root ${rootId} 0 R /Info ${infoId} 0 R ` +
-        `/ID [<${fileId}> <${fileId}>] >>`,
-      'startxref',
-      String(offset),
-      '%%EOF',
-      '',
-    ].join('\n');
-    parts.push(Buffer.from(xref, 'latin1'));
-    return Buffer.concat(parts);
-  }
+async function embedFonts(doc: PDFDocument): Promise<Fonts> {
+  doc.registerFontkit(fontkit);
+  const bytes = arabicFont();
+  const face = bytes === null ? null : fontkit.create(bytes);
+  return {
+    regular: await doc.embedFont(StandardFonts.Helvetica),
+    bold: await doc.embedFont(StandardFonts.HelveticaBold),
+    mono: await doc.embedFont(StandardFonts.Courier),
+    arabic:
+      bytes === null
+        ? null
+        : await doc.embedFont(bytes, { subset: true, customName: 'TManageAlexandria' }),
+    covers: (code) => face?.hasGlyphForCodePoint(code) === true,
+  };
 }
 
-function pdfText(value: string): string {
-  return literal(winAnsi(value).bytes);
-}
-
-/** A PDF name: every byte outside the regular characters as `#xx`. */
-function pdfName(value: string): string {
-  return `/${Array.from(Buffer.from(value, 'utf8'))
-    .map((b) =>
-      (b >= 0x30 && b <= 0x39) || (b >= 0x41 && b <= 0x5a) || (b >= 0x61 && b <= 0x7a)
-        ? String.fromCharCode(b)
-        : `#${b.toString(16).padStart(2, '0')}`,
-    )
-    .join('')}`;
+/** Put the original's pages first; `null` when it is not a PDF this library can read. */
+async function prependOriginal(doc: PDFDocument, original: Uint8Array): Promise<number | null> {
+  try {
+    const source = await PDFDocument.load(original, { updateMetadata: false });
+    const pages = await doc.copyPages(source, source.getPageIndices());
+    for (const page of pages) doc.addPage(page);
+    return pages.length;
+  } catch {
+    return null;
+  }
 }
 
 /** Render the document: A4 pages, a footer with page numbers, images and attached files. */
-export function renderRecordPdf(document: PdfDocument): Buffer {
-  const layout = new Layout();
-  layout.block('F2', 18, document.title, 2);
-  layout.block('F1', 10, document.subtitle, 4);
-  for (const section of document.sections) layout.section(section);
+export async function renderRecordPdf(
+  document: PdfDocument,
+  options: RenderOptions = {},
+): Promise<RenderedPdf> {
+  const doc = await PDFDocument.create({ updateMetadata: false });
+  const originalPages =
+    options.original === undefined ? null : await prependOriginal(doc, options.original);
+  const fonts = await embedFonts(doc);
+  const layout = new Layout(doc, fonts);
+  layout.block('bold', 18, document.title, 2);
+  layout.block('regular', 10, document.subtitle, 4);
+  for (const section of document.sections) await layout.section(section);
   layout.gap(8);
-  for (const note of [...document.notes, ...(layout.lossy ? [LOSSY_NOTE] : [])]) {
-    layout.block('F1', 8.5, note, 3);
-  }
+  const notes = [
+    ...document.notes,
+    ...(originalPages !== null ? [MERGED_NOTE(originalPages)] : []),
+    ...(options.original !== undefined && originalPages === null ? [UNREADABLE_NOTE] : []),
+  ];
+  for (const note of notes) layout.block('regular', 8.5, note, 3);
+  if (layout.lossy) layout.block('regular', 8.5, LOSSY_NOTE, 3);
 
-  const objects = new Objects();
-  const catalogId = objects.reserve();
-  const pagesId = objects.reserve();
-  // prettier-ignore
-  const fonts = {
-    F1: objects.add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>'),
-    F2: objects.add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'),
-    F3: objects.add('<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>'),
-  };
-  const infoId = objects.add(
-    `<< /Title ${pdfText(document.title)} /Subject ${pdfText(document.subject)} ` +
-      `/Producer (TManage) /Creator (TManage) >>`,
-  );
-
-  const imageIds = layout.images.map((image) => {
-    const mask =
-      image.alpha === null
-        ? ''
-        : ` /SMask ${objects.add(
-            objects.stream(
-              `/Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} ` +
-                '/ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode',
-              deflateSync(image.alpha),
-            ),
-          )} 0 R`;
-    return objects.add(
-      objects.stream(
-        `/Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} ` +
-          `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode${mask}`,
-        deflateSync(image.rgb),
-      ),
-    );
-  });
-
-  const files = [...document.attachments]
-    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
-    .map((file) => {
-      const embedded = objects.add(
-        objects.stream(
-          `/Type /EmbeddedFile /Subtype ${pdfName(file.mimeType)} /Filter /FlateDecode ` +
-            `/Params << /Size ${file.bytes.length} >>`,
-          deflateSync(file.bytes),
-        ),
-      );
-      const spec = objects.add(
-        `<< /Type /Filespec /F ${pdfText(file.name)} /UF ${pdfText(file.name)} ` +
-          `/Desc ${pdfText(file.description)} /AFRelationship /Data /EF << /F ${embedded} 0 R >> >>`,
-      );
-      return { name: file.name, spec };
-    });
-
-  const resources =
-    `<< /Font << /F1 ${fonts.F1} 0 R /F2 ${fonts.F2} 0 R /F3 ${fonts.F3} 0 R >>` +
-    (imageIds.length === 0
-      ? ''
-      : ` /XObject << ${imageIds.map((id, i) => `/Im${i + 1} ${id} 0 R`).join(' ')} >>`) +
-    ' >>';
   const total = layout.pages.length;
-  const pageIds = layout.pages.map((ops, index) => {
-    const footer = [
-      `BT /F1 7.5 Tf ${num(MARGIN)} ${num(MARGIN - 8)} Td ${pdfText(document.footer)} Tj ET`,
-      `BT /F1 7.5 Tf ${num(PAGE_W - MARGIN - 60)} ${num(MARGIN - 8)} Td ` +
-        `${pdfText(`Page ${index + 1} of ${total}`)} Tj ET`,
-    ];
-    const content = objects.add(
-      objects.stream('', Buffer.from([...ops, ...footer].join('\n'), 'latin1')),
-    );
-    return objects.add(
-      `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${num(PAGE_W)} ${num(PAGE_H)}] ` +
-        `/Resources ${resources} /Contents ${content} 0 R >>`,
-    );
+  layout.pages.forEach((page, index) => {
+    const size = 7.5;
+    page.drawText(setLine(document.footer, null).runs[0]?.text ?? '', {
+      x: MARGIN,
+      y: MARGIN - 8,
+      size,
+      font: fonts.regular,
+    });
+    page.drawText(`Page ${String(index + 1)} of ${String(total)}`, {
+      x: PAGE_W - MARGIN - 60,
+      y: MARGIN - 8,
+      size,
+      font: fonts.regular,
+    });
   });
-  objects.set(
-    pagesId,
-    `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${total} >>`,
+
+  doc.setTitle(document.title);
+  doc.setSubject(document.subject);
+  doc.setProducer('TManage');
+  doc.setCreator('TManage');
+  const files = [...document.attachments].sort((a, b) =>
+    a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
   );
-  const names =
-    files.length === 0
-      ? ''
-      : ` /Names << /EmbeddedFiles << /Names [${files
-          .map((f) => `${pdfText(f.name)} ${f.spec} 0 R`)
-          .join(' ')}] >> >> /AF [${files.map((f) => `${f.spec} 0 R`).join(' ')}]` +
-        ' /PageMode /UseAttachments';
-  objects.set(catalogId, `<< /Type /Catalog /Pages ${pagesId} 0 R${names} >>`);
-  return objects.write(catalogId, infoId);
+  for (const file of files) {
+    await doc.attach(file.bytes, file.name, {
+      mimeType: file.mimeType,
+      description: file.description,
+      afRelationship: AFRelationship.Data,
+    });
+  }
+  if (files.length > 0) doc.catalog.set(PDFName.of('PageMode'), PDFName.of('UseAttachments'));
+  return { bytes: Buffer.from(await doc.save({ useObjectStreams: false })), originalPages };
 }

@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createApprovalChainStore } from '../common/database/approval-chain-store.js';
+import type { WorkerDatabase } from '../common/database/worker-database.js';
 import { canonicalJson, sha256Hex } from './audit-anchor.js';
 import { approvalRecordGenesis, runApprovalChainWalk } from './approval-chain-walk.js';
 import type { ApprovalChainStore, ChainRecordRow } from './approval-chain-walk.js';
@@ -41,13 +43,17 @@ function chain(length: number): ChainRecordRow[] {
 
 function store(rows: readonly ChainRecordRow[]) {
   const recordBreak = vi.fn<ApprovalChainStore['recordBreak']>(() => Promise.resolve());
+  const recordVerdict = vi.fn<ApprovalChainStore['recordVerdict']>(() => Promise.resolve());
   const fake: ApprovalChainStore = {
     organizations: () => Promise.resolve([ORG]),
     records: (_org, after, limit) =>
       Promise.resolve(rows.filter((r) => r.recordNo > after).slice(0, limit)),
     recordBreak,
+    latestCheckedAt: () => Promise.resolve(null),
+    recordVerdict,
+    pruneBefore: () => Promise.resolve(0),
   };
-  return { fake, recordBreak };
+  return { fake, recordBreak, recordVerdict };
 }
 
 describe('52-19 approval chain walk', () => {
@@ -71,6 +77,9 @@ describe('52-19 approval chain walk', () => {
       batch: 2,
     });
     expect(result).toMatchObject({ ok: 0, broken: 1 });
+    expect(tampered.recordVerdict).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'broken', breakRecordNo: 3, reason: 'hash_mismatch' }),
+    );
     expect(tampered.recordBreak).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationId: ORG,
@@ -80,5 +89,32 @@ describe('52-19 approval chain walk', () => {
         reason: 'hash_mismatch',
       }),
     );
+  });
+
+  it('persists a broken verdict with its outbox alert in one transaction', async () => {
+    const sql: string[] = [];
+    const tx = { query: (text: string) => (sql.push(text), Promise.resolve([])) };
+    const database = {
+      transaction: (work: (t: typeof tx) => Promise<unknown>) => work(tx),
+    } as unknown as WorkerDatabase;
+    const check = { id: 'c-1', organizationId: ORG, checkedAt: new Date(0), records: 2 };
+    await createApprovalChainStore(database).recordVerdict({
+      ...check,
+      status: 'broken',
+      breakRecordNo: 3,
+      reason: 'hash_mismatch',
+    });
+    expect(sql.map((q) => /INSERT INTO (\w+)/.exec(q)?.[1])).toEqual([
+      'approval_chain_checks',
+      'outbox_events',
+    ]);
+    sql.length = 0;
+    await createApprovalChainStore(database).recordVerdict({
+      ...check,
+      status: 'ok',
+      breakRecordNo: null,
+      reason: null,
+    });
+    expect(sql).toHaveLength(1);
   });
 });

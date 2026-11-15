@@ -317,6 +317,14 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'client_invoice',
     catalog: '52-12 e-invoice signing failing — finance owner alert',
   },
+  /**
+   * 52-19 (0355): the nightly walk found an organization's approval record chain broken — owner
+   * alert. The 56-23 security digest mails it today; no outbox consumer yet.
+   */
+  'approval.chain_broken.v1': {
+    aggregateType: 'approval_chain_check',
+    catalog: '52-19 approval record chain break — workspace owner alert',
+  },
   /** 57-10: a person opened a support thread with the platform team — inbox alert; no consumer yet. */
   'support.thread_opened.v1': {
     aggregateType: 'support_thread',
@@ -836,6 +844,15 @@ export interface OutboxEventPayloads {
   readonly 'finance.einvoice_sign_failed.v1': EinvoiceSignFailedV1;
   readonly 'support.thread_opened.v1': SupportThreadOpenedV1;
   readonly 'support.reply_posted.v1': SupportReplyPostedV1;
+  readonly 'approval.chain_broken.v1': ApprovalChainBrokenV1;
+}
+
+/** 52-19 (0355). The verdict id, the first broken record number and the reason — never a hash. */
+export interface ApprovalChainBrokenV1 {
+  readonly checkId: string;
+  readonly breakRecordNo: number;
+  readonly reason: string;
+  readonly records: number;
 }
 
 /** 57-10. Ids and the chosen category / priority — never the subject or the message text. */

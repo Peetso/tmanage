@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { Principal } from '@tmanage/domain';
 import { ObjectNotFoundError, derivativeObjectKey } from '@tmanage/storage';
 import type { ObjectStore } from '@tmanage/storage';
@@ -9,8 +10,8 @@ import type { EsignService } from './esign.service.js';
 import { recordPdfObjectId, renderRecordPdf } from './record-pdf.js';
 import type { PdfImage } from './record-pdf.js';
 import { certificatePdfDocument, signedPdfDocument } from './record-pdf-documents.js';
-import type { SignedDocumentFacts } from './record-pdf-documents.js';
-import { RecordPdfRepository } from './record-pdf.repository.js';
+import type { SignedDocumentFacts, SignedOriginal } from './record-pdf-documents.js';
+import { MAX_ORIGINAL_PDF_BYTES, RecordPdfRepository } from './record-pdf.repository.js';
 
 /**
  * 52-19 / 52-26 — the sealed record PDFs: the approval certificate and the signed document.
@@ -33,7 +34,7 @@ import { RecordPdfRepository } from './record-pdf.repository.js';
  */
 
 /** A stored PDF larger than this is not ours; it is regenerated instead of streamed whole. */
-const MAX_PDF_BYTES = 8 * 1024 * 1024;
+const MAX_PDF_BYTES = MAX_ORIGINAL_PDF_BYTES + 8 * 1024 * 1024;
 /** The e-sign service refuses marks over 200 KB. */
 const MAX_MARK_BYTES = 256 * 1024;
 
@@ -91,6 +92,26 @@ export class RecordPdfStore {
     return bytes;
   }
 
+  /**
+   * 52-26 — the signed PDF's bytes from the private zone, under the key `file_versions` holds;
+   * only when they are within the cap, start like a PDF and hash to the sealed file hash.
+   * Anything else gives `null`: the signed copy is then the record pages alone.
+   */
+  async original(file: SignedOriginal): Promise<Buffer | null> {
+    let bytes: Buffer | null;
+    try {
+      const opened = await this.store.openObject({ zone: 'private', objectKey: file.objectKey });
+      bytes = await readAll(opened.stream, MAX_ORIGINAL_PDF_BYTES);
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) return null;
+      throw error;
+    }
+    if (bytes === null || bytes.length !== file.sizeBytes) return null;
+    if (bytes.subarray(0, 5).toString('latin1') !== '%PDF-') return null;
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    return sha256 === file.sha256.toLowerCase() ? bytes : null;
+  }
+
   /** The drawn mark the e-sign service stored in the private zone, decoded for the page. */
   async mark(objectKey: string): Promise<PdfImage | null> {
     let png: Buffer | null;
@@ -106,26 +127,16 @@ export class RecordPdfStore {
 }
 
 /**
- * RGBA PNG → RGB pixels and an alpha plane. The mark was validated when it was signed; one that
- * cannot be decoded now leaves the page without the picture (its SHA-256 still prints).
+ * The mark as the page draws it. It was validated when it was signed; one that cannot be decoded
+ * now leaves the page without the picture (its SHA-256 still prints).
  */
 function decodeMark(png: Buffer): PdfImage | null {
-  let decoded: { width: number; height: number; data: Buffer };
   try {
-    decoded = pngCodec().PNG.sync.read(png);
+    const { width, height } = pngCodec().PNG.sync.read(png);
+    return { width, height, png };
   } catch {
     return null;
   }
-  const { width, height, data } = decoded;
-  const rgb = Buffer.alloc(width * height * 3);
-  const alpha = Buffer.alloc(width * height);
-  for (let i = 0; i < width * height; i += 1) {
-    rgb[i * 3] = data[i * 4] ?? 0;
-    rgb[i * 3 + 1] = data[i * 4 + 1] ?? 0;
-    rgb[i * 3 + 2] = data[i * 4 + 2] ?? 0;
-    alpha[i] = data[i * 4 + 3] ?? 0;
-  }
-  return { width, height, rgb, alpha };
 }
 
 /** 52-19 — the approval certificate as a PDF, staff or portal. */
@@ -175,7 +186,7 @@ export class ApprovalCertificatePdfService {
             membershipIds: view.records.map((r) => r.evidence.approver.membershipId),
           }),
         );
-        return renderRecordPdf(certificatePdfDocument(view, names));
+        return (await renderRecordPdf(certificatePdfDocument(view, names))).bytes;
       },
     );
     return { bytes, fileName: `approval-record-${view.approvalId}.pdf` };
@@ -241,6 +252,7 @@ export class SignedPdfService {
           'signed',
           audience,
           facts.documentUnchanged ? 'unchanged' : 'changed',
+          facts.original === null ? 'record-only' : `original:${facts.original.sha256}`,
           ...facts.signers.map((s) => s.recordHash),
         ]),
       },
@@ -251,7 +263,9 @@ export class SignedPdfService {
           const image = await this.files.mark(signer.markObjectKey);
           if (image !== null) marks.set(signer.markSha256, image);
         }
-        return renderRecordPdf(signedPdfDocument(facts, marks));
+        const original = facts.original === null ? null : await this.files.original(facts.original);
+        const document = signedPdfDocument(facts, marks);
+        return (await renderRecordPdf(document, original === null ? {} : { original })).bytes;
       },
     );
     return { bytes, fileName: `signed-${facts.requestId}.pdf` };
