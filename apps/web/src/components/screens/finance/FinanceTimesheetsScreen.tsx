@@ -2,7 +2,15 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Field, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
+import {
+  Badge,
+  Button,
+  Field,
+  InlineAlert,
+  LoadingRegion,
+  Skeleton,
+  StateCapsule,
+} from '@tmanage/ui';
 import { AppShell } from '../../shell/AppShell';
 import { browserApiClient } from '../../../lib/api/browser-client';
 import type { ApiClient } from '../../../lib/api/client';
@@ -14,14 +22,16 @@ import {
   type TeamMemberWeek,
 } from '../../../lib/api/finance-core';
 import {
-  formatMinutes,
   isCannotApproveOwn,
   isoWeekFrom,
   mayDecide,
   stateCapsule,
 } from '../../../lib/finance-presentation';
+import { formatDuration } from '../../../lib/i18n/duration';
+import { useActiveLocale } from '../../../lib/i18n/use-active-locale';
 import { useDisplayFormatters } from '../../../lib/i18n/use-formatters';
 import { useTOr } from '../../../lib/i18n/use-t-or';
+import { UnassignedTimeList } from '../../time/UnassignedTimeList';
 import { FinanceCoreNav, useFinanceMe, usePersonName } from './FinanceCoreNav';
 
 export interface FinanceTimesheetsScreenProps {
@@ -44,6 +54,9 @@ export function FinanceTimesheetsScreen({
   const tOr = useTOr();
   const describeError = useDescribeApiError(OFFLINE_LINES);
   const format = useDisplayFormatters();
+  const locale = useActiveLocale();
+  // Item 10: durations in the reader's language ("45 دقيقة", never a Latin "m" in Arabic).
+  const formatMinutes = (value: number) => formatDuration(value, locale);
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const { me, can } = useFinanceMe(api, organizationSlug);
@@ -204,7 +217,17 @@ export function FinanceTimesheetsScreen({
                   {sheet.groups.map((group) => (
                     <tr key={`${group.projectId ?? ''}:${group.workItemId ?? ''}`}>
                       <th scope="row">
-                        {group.title ?? tOr('FinanceTimesheets.untitled', 'Other work')}
+                        {/* Item 8: one name for time with no task, everywhere. */}
+                        {group.title ??
+                          (group.workItemId === null
+                            ? tOr('Time.unassigned', 'Unassigned time')
+                            : tOr('FinanceTimesheets.untitled', 'Other work'))}
+                        {group.entries.some((entry) => entry.source === 'automatic') ? (
+                          <>
+                            {' '}
+                            <Badge>{tOr('UnassignedTime.automatic', 'Automatic')}</Badge>
+                          </>
+                        ) : null}
                       </th>
                       {sheet.days.map((day) => {
                         const minutes = group.entries
@@ -225,6 +248,10 @@ export function FinanceTimesheetsScreen({
                 </tbody>
               </table>
             </div>
+          ) : null}
+
+          {sheet ? (
+            <UnassignedTimeList api={api} organizationSlug={organizationSlug} sheet={sheet} />
           ) : null}
 
           {toReview ? (

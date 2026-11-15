@@ -5,14 +5,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AUTO_TRACKING_POLICIES,
   IDLE_THRESHOLD_DEFAULT_MINUTES,
-  IDLE_THRESHOLD_MAX_MINUTES,
   type AutoTrackingPolicy,
 } from '@tmanage/domain';
 import { Badge, Button, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
 import { getAutoTracking, updateAutoTrackingPolicy } from '../../lib/api/time-auto';
 import type { AutoTrackingPolicyChoice, AutoTrackingState } from '../../lib/api/time-auto';
-import { idleChoicesUpTo } from '../../lib/auto-timer-state';
+import { AWAY_THRESHOLD_CHOICES } from '../../lib/auto-timer-state';
+import { pluralPhrase } from '../../lib/i18n/plural';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useDisplayFormatters } from '../../lib/i18n/use-formatters';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { autoTrackingKey } from '../time/use-auto-tracker';
@@ -48,8 +49,8 @@ const CHOICES: Readonly<
   required: {
     label: ['AutoTimePolicy.requiredLabel', 'On for everyone'],
     hint: [
-      'AutoTimePolicy.requiredHint',
-      'Automatic tracking is on for every person and they cannot turn it off. They still choose their idle time.',
+      'AutoTimePolicy.requiredHintAll',
+      'Automatic tracking is on for every person. There is nothing for them to switch on or off.',
     ],
   },
 };
@@ -62,6 +63,7 @@ const CHOICES: Readonly<
 export function AutoTimePolicyCard({ organizationSlug, client, isOwner }: AutoTimePolicyCardProps) {
   const tr = useTOr();
   const format = useDisplayFormatters();
+  const locale = useActiveLocale();
   const queryClient = useQueryClient();
   const titleId = useId();
   const name = useId();
@@ -159,6 +161,16 @@ export function AutoTimePolicyCard({ organizationSlug, client, isOwner }: AutoTi
                   </span>
                   <span className="tm-dlscan-option__hint" id={hintId}>
                     {tr(hintKey, hintEnglish)}
+                    {/* Item 18: what "nothing to click" takes, said where the owner chooses it. */}
+                    {choice === 'required' ? (
+                      <>
+                        {' '}
+                        {tr(
+                          'AutoTimePolicy.requiredDesktopNote',
+                          'For fully automatic tracking with nothing to click, people use the TManage desktop app. In Chrome or Edge, each person clicks Allow once.',
+                        )}
+                      </>
+                    ) : null}
                   </span>
                 </label>
               );
@@ -166,10 +178,10 @@ export function AutoTimePolicyCard({ organizationSlug, client, isOwner }: AutoTi
           </div>
 
           <Select
-            label={tr('AutoTimePolicy.maxIdleLabel', 'Longest idle time people may choose')}
+            label={tr('AutoTimePolicy.awayLabel', 'Count someone as away after')}
             hint={tr(
-              'AutoTimePolicy.maxIdleHint',
-              'Each person picks when their timer pauses, at or below this. Idle minutes are never counted.',
+              'AutoTimePolicy.awayHint',
+              'The same for everyone. After this long without keyboard or mouse use the timer pauses, and it continues when they are back. Away minutes are never counted.',
             )}
             value={String(value.maxIdleMinutes)}
             disabled={!isOwner || save.isPending}
@@ -178,9 +190,16 @@ export function AutoTimePolicyCard({ organizationSlug, client, isOwner }: AutoTi
               setDraft({ ...value, maxIdleMinutes: Number(event.target.value) });
             }}
           >
-            {idleChoicesUpTo(IDLE_THRESHOLD_MAX_MINUTES).map((minutes) => (
+            {AWAY_THRESHOLD_CHOICES.map((minutes) => (
               <option key={minutes} value={minutes}>
-                {tr('AutoTimer.minutes', '{n} min').replace('{n}', format.number(minutes))}
+                {pluralPhrase(
+                  tr,
+                  locale,
+                  'AutoTimePolicy.awayMinutes',
+                  minutes,
+                  { one: '{count} minute', other: '{count} minutes' },
+                  format.number(minutes),
+                )}
               </option>
             ))}
           </Select>

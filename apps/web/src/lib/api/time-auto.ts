@@ -56,7 +56,13 @@ export interface TeamPerson {
   readonly inProgressMinutes: number;
   /** A day over 12 hours, a session over 6 hours without a break, or late time in the range. */
   readonly needsReview: boolean;
+  /** Item 17: where this person's tracking last ran; null = no device seen yet. */
+  readonly device: { readonly kind: DeviceKind; readonly seenAt: string } | null;
 }
+
+/** Item 17: where automatic tracking runs (the desktop app, or a browser and its permission). */
+export type DeviceKind =
+  'desktop' | 'browser_allowed' | 'browser_prompt' | 'browser_blocked' | 'browser_unsupported';
 
 export interface TeamTime {
   readonly from: string;
@@ -128,7 +134,7 @@ export async function getAutoTracking(
 export async function updateAutoTrackingSettings(
   client: ApiClient,
   organizationSlug: string,
-  input: { readonly enabled: boolean; readonly idleThresholdMinutes: number },
+  input: { readonly enabled: boolean },
 ): Promise<AutoTrackingState> {
   const { data } = await client.request<AutoTrackingState>({
     method: 'PUT',
@@ -150,6 +156,19 @@ export async function setCurrentTask(
     body: { workItemId },
   });
   return data;
+}
+
+/** Item 17: tell the server where tracking runs for this person, so the owner can see it. */
+export async function reportTrackingDevice(
+  client: ApiClient,
+  organizationSlug: string,
+  kind: DeviceKind,
+): Promise<void> {
+  await client.request<unknown>({
+    method: 'PUT',
+    path: `${org(organizationSlug)}/auto/device`,
+    body: { kind },
+  });
 }
 
 /** One heartbeat: how many seconds since the last input on the computer. Nothing else. */

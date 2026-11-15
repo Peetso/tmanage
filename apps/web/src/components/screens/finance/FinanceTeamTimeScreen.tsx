@@ -21,12 +21,14 @@ import { listProjects } from '../../../lib/api/projects';
 import { getTeamDay, getTeamTime } from '../../../lib/api/time-auto';
 import type {
   CurrentTask,
+  DeviceKind,
   TeamLiveState,
   TeamPerson,
   TeamSession,
   TeamTimeQuery,
 } from '../../../lib/api/time-auto';
-import { formatMinutes } from '../../../lib/finance-presentation';
+import { formatDuration, timeZoneCity } from '../../../lib/i18n/duration';
+import { useActiveLocale } from '../../../lib/i18n/use-active-locale';
 import { useDisplayFormatters } from '../../../lib/i18n/use-formatters';
 import { useTOr } from '../../../lib/i18n/use-t-or';
 import { FinanceCoreNav, useFinanceMe } from './FinanceCoreNav';
@@ -99,7 +101,15 @@ export function FinanceTeamTimeScreen({
   });
 
   const data = view.data;
-  const minutes = (value: number) => formatMinutes(value);
+  // Item 11: a session's clock times in the company's zone, not the viewer's computer's.
+  const dayZone = day.data?.timeZone ?? data?.timeZone;
+  const clock = (iso: string) =>
+    format.time(iso, { timeStyle: 'short', ...(dayZone ? { timeZone: dayZone } : {}) });
+  const locale = useActiveLocale();
+  // Item 10: durations in the reader's language; item 11: the zone by a readable name.
+  const minutes = (value: number) => formatDuration(value, locale);
+  const zoneName = (zone: string | undefined) =>
+    zone === undefined ? '…' : timeZoneCity(zone, locale);
 
   return (
     <AppShell
@@ -173,14 +183,14 @@ export function FinanceTeamTimeScreen({
               </div>
               <p className="tm-field__hint">
                 {tOr(
-                  'TeamTime.rangeHintZone',
-                  'Up to 62 days. Days follow the company time zone ({zone}). Time with no task chosen counts as unassigned work time.',
-                ).replace('{zone}', data?.timeZone ?? '…')}
+                  'TeamTime.rangeHintCity',
+                  'Up to 62 days. Days and clock times follow the company time zone ({zone}). Time with no task chosen counts as unassigned time.',
+                ).replace('{zone}', zoneName(data?.timeZone))}
               </p>
               <p className="tm-field__hint">
                 {tOr(
-                  'TeamTime.deviceReported',
-                  'Automatic time is reported by each person’s own computer, not verified. A day over 12 hours or a session over 6 hours without a break is marked for review.',
+                  'TeamTime.deviceNote',
+                  'Automatic time is reported by each person’s own computer, not verified. A day over 12 hours or a session over 6 hours without a break is marked for review. People allowed to see Team time also see where each person’s tracking runs: the desktop app, or a browser and whether it was allowed.',
                 )}
               </p>
             </section>
@@ -222,6 +232,7 @@ export function FinanceTeamTimeScreen({
                           <th scope="col">{tOr('TeamTime.today', 'Today')}</th>
                           <th scope="col">{tOr('TeamTime.week', 'This week')}</th>
                           <th scope="col">{tOr('TeamTime.range', 'Range')}</th>
+                          <th scope="col">{tOr('TeamTime.device', 'Where it runs')}</th>
                           <th scope="col">
                             <span className="tm-visually-hidden">
                               {tOr('TeamTime.details', 'Details')}
@@ -256,6 +267,7 @@ export function FinanceTeamTimeScreen({
                           <td>{minutes(data.totals.weekMinutes)}</td>
                           <td>{minutes(data.totals.rangeMinutes)}</td>
                           <td />
+                          <td />
                         </tr>
                       </tbody>
                     </table>
@@ -271,6 +283,12 @@ export function FinanceTeamTimeScreen({
                     {day.data?.displayName ?? tOr('TeamTime.dayTitle', 'Day')} ·{' '}
                     {format.day(open.day)}
                   </h2>
+                  <p className="tm-field__hint">
+                    {tOr('TeamTime.clockZone', 'Clock times in {zone} time.').replace(
+                      '{zone}',
+                      zoneName(dayZone),
+                    )}
+                  </p>
                   <div className="tm-row tm-row--wrap">
                     <Field
                       label={tOr('TeamTime.day', 'Day')}
@@ -321,19 +339,19 @@ export function FinanceTeamTimeScreen({
                       <tbody>
                         {day.data.sessions.map((session, index) => (
                           <tr key={session.id ?? `open-${index}`}>
-                            <td>{session.startedAt ? format.time(session.startedAt) : '—'}</td>
+                            <td>{session.startedAt ? clock(session.startedAt) : '—'}</td>
                             <td>
                               {session.open
                                 ? tOr('TeamTime.ongoing', 'Still going')
                                 : session.endedAt
-                                  ? format.time(session.endedAt)
+                                  ? clock(session.endedAt)
                                   : '—'}
                             </td>
                             <td>
                               {session.private
                                 ? tOr('TeamTime.privateTask', 'Private task')
                                 : (session.workItemTitle ??
-                                  tOr('TeamTime.unassigned', 'Unassigned work time'))}
+                                  tOr('Time.unassigned', 'Unassigned time'))}
                             </td>
                             <td>
                               <SessionHow session={session} tOr={tOr} format={format} />
@@ -406,6 +424,9 @@ function PersonRow({
       <td>{minutes(person.weekMinutes)}</td>
       <td>{minutes(person.rangeMinutes)}</td>
       <td>
+        <DeviceCell device={person.device} tOr={tOr} />
+      </td>
+      <td>
         <Button size="compact" tone="outline" onClick={onOpen}>
           {tOr('TeamTime.openDay', 'Sessions')}
         </Button>
@@ -417,7 +438,7 @@ function PersonRow({
 function taskLabel(task: CurrentTask | null, tOr: TOr): string {
   if (task === null) return '—';
   if (task.private === true) return tOr('TeamTime.privateTask', 'Private task');
-  return task.title ?? tOr('TeamTime.unassigned', 'Unassigned work time');
+  return task.title ?? tOr('Time.unassigned', 'Unassigned time');
 }
 
 /** Filed time, and the open session apart from it (the timesheet counts filed time only). */
@@ -446,6 +467,29 @@ function Minutes({
       ) : null}
     </>
   );
+}
+
+/** Item 17: where this person's tracking really runs, with the last time it was seen. */
+const DEVICE: Readonly<Record<DeviceKind, readonly [string, string, CapsuleState]>> = {
+  desktop: ['TeamTime.deviceDesktop', 'Desktop app', 'current'],
+  browser_allowed: ['TeamTime.deviceBrowserAllowed', 'Browser, allowed', 'current'],
+  browser_prompt: ['TeamTime.deviceBrowserPrompt', 'Browser, not allowed yet', 'waiting'],
+  browser_blocked: ['TeamTime.deviceBrowserBlocked', 'Browser, blocked', 'waiting'],
+  browser_unsupported: [
+    'TeamTime.deviceBrowserUnsupported',
+    'Browser that cannot track',
+    'waiting',
+  ],
+};
+
+function DeviceCell({ device, tOr }: { device: TeamPerson['device']; tOr: TOr }) {
+  if (device === null) {
+    return (
+      <StateCapsule state="neutral">{tOr('TeamTime.deviceNone', 'No device seen')}</StateCapsule>
+    );
+  }
+  const [key, english, tone] = DEVICE[device.kind];
+  return <StateCapsule state={tone}>{tOr(key, english)}</StateCapsule>;
 }
 
 function SessionHow({

@@ -305,7 +305,17 @@ export function RunningTimerPill({ organizationSlug, client }: RunningTimerPillP
   const tr = useTOr();
   const { timer, elapsedSeconds, roundingMinutes } = useRunningTimer(api, organizationSlug);
   const [stopping, setStopping] = useState(false);
+  // Read on each render (the pill re-renders every second), so a client navigation is seen.
+  const pathname = typeof window === 'undefined' ? '' : window.location.pathname;
   if (timer === null) return null;
+  // Item 6: on the timed item's own page its Stop button is right there; one Stop is enough.
+  if (
+    timer.workItemId !== null &&
+    pathname.endsWith(`/work/${encodeURIComponent(timer.workItemId)}`) &&
+    !stopping
+  ) {
+    return null;
+  }
   const elapsed = formatElapsed(elapsedSeconds);
   const label = tr('Timer.running', 'Timer running');
   return (

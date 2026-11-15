@@ -70,17 +70,24 @@ afterEach(() => {
 
 describe('automatic timer display', () => {
   it('says what is happening, in order of what matters', () => {
-    expect(autoTimerDisplay(undefined, 'desktop', true, 'active')).toBe('off');
-    expect(autoTimerDisplay({ ...STATE, enabled: false }, 'desktop', true, 'active')).toBe('off');
+    expect(autoTimerDisplay(undefined, 'desktop', 'granted', 'active')).toBe('off');
+    expect(autoTimerDisplay({ ...STATE, enabled: false }, 'desktop', 'granted', 'active')).toBe(
+      'off',
+    );
+    // Item 1: the owner switched it off for everyone; item 12: the browser blocked it.
+    expect(autoTimerDisplay({ ...STATE, policy: 'off' }, 'desktop', 'granted', 'active')).toBe(
+      'policy-off',
+    );
+    expect(autoTimerDisplay(STATE, 'idle-detector', 'denied', 'off')).toBe('blocked');
     expect(
-      autoTimerDisplay({ ...STATE, manualTimerRunning: true }, 'desktop', true, 'active'),
+      autoTimerDisplay({ ...STATE, manualTimerRunning: true }, 'desktop', 'granted', 'active'),
     ).toBe('manual');
-    expect(autoTimerDisplay(STATE, 'unsupported', false, 'off')).toBe('unsupported');
-    expect(autoTimerDisplay(STATE, 'idle-detector', false, 'off')).toBe('needs-permission');
-    expect(autoTimerDisplay(STATE, 'desktop', true, 'active')).toBe('tracking');
-    expect(autoTimerDisplay(STATE, 'desktop', true, 'idle')).toBe('paused-idle');
-    expect(autoTimerDisplay(STATE, 'desktop', true, 'locked')).toBe('paused-locked');
-    expect(autoTimerDisplay(STATE, 'desktop', true, 'asleep')).toBe('paused-asleep');
+    expect(autoTimerDisplay(STATE, 'unsupported', 'prompt', 'off')).toBe('unsupported');
+    expect(autoTimerDisplay(STATE, 'idle-detector', 'prompt', 'off')).toBe('needs-permission');
+    expect(autoTimerDisplay(STATE, 'desktop', 'granted', 'active')).toBe('tracking');
+    expect(autoTimerDisplay(STATE, 'desktop', 'granted', 'idle')).toBe('paused-idle');
+    expect(autoTimerDisplay(STATE, 'desktop', 'granted', 'locked')).toBe('paused-locked');
+    expect(autoTimerDisplay(STATE, 'desktop', 'granted', 'asleep')).toBe('paused-asleep');
   });
 });
 
@@ -171,7 +178,8 @@ describe('automatic timer chip', () => {
     );
     wrap(<AutoTimerStatus organizationSlug="northstar" client={api} />);
     const chip = await screen.findByRole('button', { name: /Auto timer/ });
-    expect(chip).toHaveTextContent('Off, not available in this browser');
+    // Item 6: a short label on the chip; the full sentence is in the hover help.
+    expect(chip).toHaveTextContent('Not available');
     fireEvent.click(chip);
     const panel = screen.getByRole('region', { name: 'Automatic timer' });
     expect(
@@ -182,19 +190,88 @@ describe('automatic timer chip', () => {
     expect(
       within(panel).getByRole('switch', { name: 'Track my time automatically' }),
     ).toBeChecked();
-    // The idle choices stop at the owner's maximum (10 here).
-    const idle = within(panel).getByRole('combobox', { name: /Pause after no activity for/ });
-    const offered = within(idle)
-      .getAllByRole('option')
-      .map((option) => option.textContent);
-    expect(offered).toEqual(['1 min', '2 min', '3 min', '5 min', '10 min']);
+    // Item 14: no personal pause choice; one line with the workspace's threshold.
+    expect(within(panel).queryByRole('combobox')).toBeNull();
+    expect(within(panel).getByText(/pauses by itself after 5 minutes/)).toBeTruthy();
   });
 
-  it('is hidden when the owner turned automatic tracking off', async () => {
-    const { api, calls } = client(() => ({ status: 200, body: { ...STATE, policy: 'off' } }));
+  it('item 13: "On for everyone" has no personal switch', async () => {
+    const { api } = client((call) =>
+      call.url.endsWith('/time/auto')
+        ? { status: 200, body: { ...STATE, policy: 'required' } }
+        : { status: 200, body: {} },
+    );
     wrap(<AutoTimerStatus organizationSlug="northstar" client={api} />);
+    fireEvent.click(await screen.findByRole('button', { name: /Auto timer/ }));
+    const panel = screen.getByRole('region', { name: 'Automatic timer' });
+    expect(within(panel).queryByRole('switch')).toBeNull();
+    expect(within(panel).getByText(/turned this on for everyone/)).toBeTruthy();
+  });
+
+  it('item 12: a blocked permission is detected and the panel says what to click', async () => {
+    const status = Object.assign(new EventTarget(), { state: 'denied' });
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      permissions: { query: () => Promise.resolve(status) },
+    });
+    (window as unknown as { IdleDetector?: unknown }).IdleDetector = class {};
+    const { api } = client((call) =>
+      call.url.endsWith('/time/auto') ? { status: 200, body: STATE } : { status: 200, body: {} },
+    );
+    wrap(<AutoTimerStatus organizationSlug="northstar" client={api} />);
+    const chip = await screen.findByRole('button', { name: /Auto timer/ });
+    await waitFor(() => expect(chip).toHaveTextContent('Blocked'));
+    fireEvent.click(chip);
+    expect(screen.getByText(/set "Idle detection" to Allow, then reload/)).toBeTruthy();
+    delete (window as unknown as { IdleDetector?: unknown }).IdleDetector;
+  });
+
+  it('item 15: asks once, as one button, and never opens by itself again', async () => {
+    window.localStorage.clear();
+    const { api } = client((call) =>
+      call.url.endsWith('/time/auto')
+        ? { status: 200, body: { ...STATE, enabled: false, ownSwitch: false } }
+        : { status: 200, body: {} },
+    );
+    const first = wrap(<AutoTimerStatus organizationSlug="northstar" client={api} />);
+    expect(
+      await screen.findByRole('button', { name: 'Turn on automatic time tracking' }),
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Allow activity detection/ })).toBeNull();
+    first.unmount();
+    wrap(<AutoTimerStatus organizationSlug="northstar" client={api} />);
+    await screen.findByRole('button', { name: /Auto timer/ });
+    expect(screen.queryByRole('region', { name: 'Automatic timer' })).toBeNull();
+  });
+
+  it('item 17: reports where tracking runs, so the owner can see it', async () => {
+    const { api, calls } = client((call) =>
+      call.url.endsWith('/time/auto') ? { status: 200, body: STATE } : { status: 200, body: {} },
+    );
+    wrap(<AutoTimerStatus organizationSlug="northstar" client={api} />);
+    await waitFor(() =>
+      expect(calls.some((call) => call.method === 'PUT' && call.url.endsWith('/auto/device'))).toBe(
+        true,
+      ),
+    );
+    const put = calls.find((call) => call.url.endsWith('/auto/device'));
+    expect(JSON.parse(put?.body ?? '{}')).toEqual({ kind: 'browser_unsupported' });
+  });
+
+  it('item 1: hidden for a company that never used it; "Off" with the reason once it did', async () => {
+    window.localStorage.clear();
+    const { api, calls } = client(() => ({ status: 200, body: { ...STATE, policy: 'off' } }));
+    const never = wrap(<AutoTimerStatus organizationSlug="northstar" client={api} />);
     await waitFor(() => expect(calls.length).toBeGreaterThan(0));
     expect(screen.queryByRole('button', { name: /Auto timer/ })).toBeNull();
+    never.unmount();
+    window.localStorage.setItem('tm.autotimer.used.northstar', '1');
+    wrap(<AutoTimerStatus organizationSlug="northstar" client={api} />);
+    const chip = await screen.findByRole('button', { name: /Auto timer/ });
+    expect(chip).toHaveTextContent('Off');
+    fireEvent.click(chip);
+    expect(screen.getByText(/switched automatic tracking off/)).toBeTruthy();
+    expect(screen.getByText(/saved up to your last activity/)).toBeTruthy();
   });
 });
 
@@ -216,6 +293,7 @@ const TEAM: TeamTime = {
       rangeMinutes: 300,
       inProgressMinutes: 10,
       needsReview: true,
+      device: { kind: 'desktop', seenAt: '2026-11-10T11:59:00.000Z' },
     },
     {
       membershipId: 'm3',
@@ -227,6 +305,7 @@ const TEAM: TeamTime = {
       rangeMinutes: 0,
       inProgressMinutes: 0,
       needsReview: false,
+      device: null,
     },
   ],
   totals: { todayMinutes: 45, weekMinutes: 300, rangeMinutes: 300, inProgressMinutes: 10 },
@@ -329,15 +408,22 @@ describe('team time screen', () => {
     expect(row).toHaveTextContent('5h');
     // A task the viewer may not see is "Private task", never its title.
     expect(within(table).getByRole('row', { name: /Carim/ })).toHaveTextContent('Private task');
-    expect(screen.getByText(/company time zone \(Africa\/Cairo\)/)).toBeTruthy();
+    // Item 11: the zone by a readable name; item 17: where each person's tracking runs.
+    expect(screen.getByText(/company time zone \(Cairo\)/)).toBeTruthy();
     expect(screen.getByText(/reported by each person’s own computer, not verified/)).toBeTruthy();
+    expect(screen.getByText(/also see where each person’s tracking runs/)).toBeTruthy();
+    expect(row).toHaveTextContent('Desktop app');
+    expect(within(table).getByRole('row', { name: /Carim/ })).toHaveTextContent('No device seen');
     expect(await screen.findByRole('link', { name: 'Team time' })).toBeTruthy();
     fireEvent.click(within(row).getByRole('button', { name: 'Sessions' }));
     const sessions = await screen.findByRole('table', { name: 'Sessions' });
     expect(sessions).toHaveTextContent('Automatic');
     expect(sessions).toHaveTextContent('Still going');
     expect(sessions).toHaveTextContent('Manual');
-    expect(sessions).toHaveTextContent('Unassigned work time');
+    expect(sessions).toHaveTextContent('Unassigned time');
+    // Item 11: clock times in the company zone (11:50 UTC is 1:50 PM in Cairo), named.
+    expect(sessions).toHaveTextContent('1:50');
+    expect(screen.getByText(/Clock times in Cairo time/)).toBeTruthy();
     expect(sessions).toHaveTextContent('Automatic · reported by their computer');
     expect(sessions).toHaveTextContent('Private task');
     expect(sessions).toHaveTextContent('Late · tracked');
@@ -347,17 +433,18 @@ describe('team time screen', () => {
 });
 
 describe('automatic tracking policy card', () => {
-  it('the owner sets the longest idle time people may choose, sent with the policy', async () => {
+  it('the owner sets when someone counts as away (1 to 15 minutes), sent with the policy', async () => {
     const { api, calls } = client((call) =>
       call.method === 'PATCH'
         ? { status: 200, body: { policy: 'optional', maxIdleMinutes: 3 } }
         : { status: 200, body: STATE },
     );
     wrap(<AutoTimePolicyCard organizationSlug="northstar" client={api} isOwner />);
-    const select = await screen.findByRole('combobox', {
-      name: /Longest idle time people may choose/,
-    });
+    const select = await screen.findByRole('combobox', { name: /Count someone as away after/ });
     expect(select).toHaveValue('10');
+    expect(within(select).getAllByRole('option')).toHaveLength(15);
+    // Item 18: the note under "On for everyone".
+    expect(screen.getByText(/people use the TManage desktop app/)).toBeTruthy();
     fireEvent.change(select, { target: { value: '3' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(calls.some((call) => call.method === 'PATCH')).toBe(true));
@@ -368,9 +455,7 @@ describe('automatic tracking policy card', () => {
   it('an admin reads it but cannot change it', async () => {
     const { api } = client(() => ({ status: 200, body: STATE }));
     wrap(<AutoTimePolicyCard organizationSlug="northstar" client={api} isOwner={false} />);
-    const select = await screen.findByRole('combobox', {
-      name: /Longest idle time people may choose/,
-    });
+    const select = await screen.findByRole('combobox', { name: /Count someone as away after/ });
     expect(select).toBeDisabled();
     expect(screen.getByText('Only the company owner can change this.')).toBeTruthy();
   });

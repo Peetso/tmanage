@@ -60,6 +60,46 @@ export function activitySupport(): ActivitySupport {
   return 'unsupported';
 }
 
+/** Item 12: the browser's idle-detection permission. `denied` = blocked in the site settings. */
+export type IdlePermission = 'granted' | 'prompt' | 'denied';
+
+/**
+ * The permission now, and a listener for changes (the person allows or blocks it in the site
+ * settings). The desktop app needs none. Returns the function that stops listening.
+ */
+export function watchIdlePermission(listener: (state: IdlePermission) => void): () => void {
+  if (activitySupport() === 'desktop') {
+    listener('granted');
+    return () => undefined;
+  }
+  if (typeof navigator === 'undefined' || !navigator.permissions) {
+    listener('prompt');
+    return () => undefined;
+  }
+  let status: PermissionStatus | null = null;
+  let stopped = false;
+  const onChange = () => {
+    if (status !== null) listener(asIdlePermission(status.state));
+  };
+  navigator.permissions
+    .query({ name: 'idle-detection' as PermissionName })
+    .then((found) => {
+      if (stopped) return;
+      status = found;
+      listener(asIdlePermission(found.state));
+      found.addEventListener('change', onChange);
+    })
+    .catch(() => listener('prompt'));
+  return () => {
+    stopped = true;
+    status?.removeEventListener('change', onChange);
+  };
+}
+
+function asIdlePermission(state: PermissionState): IdlePermission {
+  return state === 'granted' || state === 'denied' ? state : 'prompt';
+}
+
 /** Whether the browser already granted idle detection (no prompt needed). */
 export async function idleDetectionGranted(): Promise<boolean> {
   if (activitySupport() === 'desktop') return true;

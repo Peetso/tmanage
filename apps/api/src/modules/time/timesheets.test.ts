@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Principal } from '@tmanage/domain';
+import { isSafeAuditMetadata, type Principal } from '@tmanage/domain';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { weekBounds } from './time-rules.js';
 import { overflowingDay, parseEntries } from './timesheets-rules.js';
@@ -190,6 +190,7 @@ describe('live check B2: unassigned time on the timesheet', () => {
       update: async () => 1,
     });
     options['timeLogs'] = { create: log('create', { id: 'new' }) };
+    options['audit'] = { record: log('audit', {}) };
     options['workItems'] = {
       findById: async (_r: unknown, _c: unknown, id: string) => (id === W ? item : null),
     };
@@ -214,6 +215,11 @@ describe('live check B2: unassigned time on the timesheet', () => {
       endedAt: new Date('2026-10-26T10:00:00Z'),
       source: 'automatic',
     });
+    // The audit row names both entries: the shortened one and the new piece.
+    const audit = h.calls.find((c) => c.name === 'audit')!;
+    expect(JSON.stringify(audit.args)).toContain(`"entry_ids":["${E1}","new"]`);
+    const metadata = (audit.args[2] as { metadata: unknown }).metadata;
+    expect(isSafeAuditMetadata(metadata)).toBe(true);
   });
 
   it('refuses a split that leaves nothing, a filed entry, or a task the person cannot see', async () => {
@@ -243,6 +249,8 @@ describe('live check B2: unassigned time on the timesheet', () => {
       [E1],
       'm1',
     ]);
+    const audit = ok.calls.find((c) => c.name === 'audit')!;
+    expect(JSON.stringify(audit.args)).toContain(`"entry_ids":["${E1}"]`);
     const filed = sheetHarness({ entries: [{ ...timed, workItemId: W }] });
     await expect(
       filed.service.deleteUnassigned(me, member, SHEET, { entryIds: [E1] }),

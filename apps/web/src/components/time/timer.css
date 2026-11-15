@@ -53,6 +53,8 @@
 
 .tm-timer-pill {
   display: inline-flex;
+  flex: none;
+  white-space: nowrap;
   align-items: center;
   gap: var(--s3);
   min-block-size: 32px;
@@ -147,6 +149,7 @@
 .tm-autotimer {
   position: relative;
   display: inline-flex;
+  flex: none;
 }
 
 .tm-autotimer__chip {
@@ -163,6 +166,9 @@
   font: inherit;
   font-size: 12px;
   cursor: pointer;
+  /* Item 6: one line, never wider than this; the hover help has the full text. */
+  white-space: nowrap;
+  max-inline-size: 220px;
 }
 
 .tm-autotimer__chip:focus-visible {
@@ -191,6 +197,9 @@
 }
 
 .tm-autotimer__state {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--ink-650);
 }
 

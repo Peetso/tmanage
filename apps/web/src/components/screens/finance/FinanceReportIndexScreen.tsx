@@ -1,8 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import { useContext, type ReactNode } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
 import { AppShell } from '../../shell/AppShell';
+import { browserApiClient } from '../../../lib/api/browser-client';
 import { useTOr } from '../../../lib/i18n/use-t-or';
+import { useFinanceMe } from './FinanceCoreNav';
 import { FinanceReportSectionTabs } from './FinanceReportSectionTabs';
 import '../../../styles/screens/finance-ledger.css';
 
@@ -62,6 +66,59 @@ const AREAS: readonly {
   },
 ];
 
+type Area = (typeof AREAS)[number];
+
+function FinanceAreaCard({
+  organizationSlug,
+  area,
+  children,
+}: {
+  organizationSlug: string;
+  area: Area;
+  children?: ReactNode;
+}) {
+  const tOr = useTOr();
+  return (
+    <>
+      <li>
+        <Link href={`/${organizationSlug}${area.path}`}>
+          <span className="tm-fin-card-title">{tOr(...area.title)}</span>
+          <span className="tm-fin-muted">{tOr(...area.body)}</span>
+        </Link>
+      </li>
+      {children}
+    </>
+  );
+}
+
+/**
+ * Live check item 5: Team time next to Timesheets, only for holders of "View team time" (the API
+ * checks it again). Without a query client (static previews) there is nothing to read, so no card.
+ */
+function TeamTimeCard({ organizationSlug }: { organizationSlug: string }) {
+  const queryClient = useContext(QueryClientContext);
+  return queryClient ? <TeamTimeCardFor organizationSlug={organizationSlug} /> : null;
+}
+
+function TeamTimeCardFor({ organizationSlug }: { organizationSlug: string }) {
+  const tOr = useTOr();
+  const { can } = useFinanceMe(browserApiClient(), organizationSlug);
+  if (!can('time.view_team')) return null;
+  return (
+    <li>
+      <Link href={`/${organizationSlug}/finance/team-time`}>
+        <span className="tm-fin-card-title">{tOr('FinanceCore.tabTeamTime', 'Team time')}</span>
+        <span className="tm-fin-muted">
+          {tOr(
+            'FinanceIndex.teamTimeBody',
+            'Who is tracking now, and each person’s time today and this week.',
+          )}
+        </span>
+      </Link>
+    </li>
+  );
+}
+
 /**
  * **Finance** — the finance home (A10b): one card per finance area, each a link to its route. The
  * areas enforce their own capabilities on the API; this page only points the way.
@@ -89,12 +146,11 @@ export function FinanceReportIndexScreen({
         <FinanceReportSectionTabs organizationSlug={organizationSlug} current="overview" />
         <ul className="tm-fin-index">
           {AREAS.map((area) => (
-            <li key={area.path}>
-              <Link href={`/${organizationSlug}${area.path}`}>
-                <span className="tm-fin-card-title">{tOr(...area.title)}</span>
-                <span className="tm-fin-muted">{tOr(...area.body)}</span>
-              </Link>
-            </li>
+            <FinanceAreaCard key={area.path} organizationSlug={organizationSlug} area={area}>
+              {area.path === '/finance/timesheets' ? (
+                <TeamTimeCard organizationSlug={organizationSlug} />
+              ) : null}
+            </FinanceAreaCard>
           ))}
         </ul>
       </div>

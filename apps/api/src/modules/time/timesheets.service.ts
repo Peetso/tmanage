@@ -186,6 +186,16 @@ export interface TimesheetsServiceOptions {
 
 type Actor = 'member' | 'manager';
 
+/** Audit metadata holds at most 20 items per array: ids in rows of 20. */
+const AUDIT_IDS_PER_ROW = 20;
+function idChunks(ids: readonly string[]): string[][] {
+  const chunks: string[][] = [];
+  for (let at = 0; at < ids.length; at += AUDIT_IDS_PER_ROW) {
+    chunks.push(ids.slice(at, at + AUDIT_IDS_PER_ROW));
+  }
+  return chunks;
+}
+
 /** An entry already on a project is filed only under a task of that project. */
 function sameProject(entry: WorkItemTimeLogRow, item: { readonly projectId: string }): void {
   if (entry.projectId !== null && entry.projectId !== item.projectId) {
@@ -387,9 +397,19 @@ export class TimesheetsService {
         at,
       );
       if (moved !== entryIds.length) throw entryLocked();
-      return this.finishEdit(tx, context, principal, sheet, actor, before, at, {
-        entries_changed: moved,
-      });
+      return this.finishEdit(
+        tx,
+        context,
+        principal,
+        sheet,
+        actor,
+        before,
+        at,
+        {
+          entries_changed: moved,
+        },
+        entryIds,
+      );
     });
   }
 
@@ -464,10 +484,20 @@ export class TimesheetsService {
         needsReview: entry.needsReview,
       });
       await repo.stampTimesheet(tx, context, [piece.id], sheet.id);
-      return this.finishEdit(tx, context, principal, sheet, actor, before, at, {
-        entries_changed: 2,
-        entries_split: 1,
-      });
+      return this.finishEdit(
+        tx,
+        context,
+        principal,
+        sheet,
+        actor,
+        before,
+        at,
+        {
+          entries_changed: 2,
+          entries_split: 1,
+        },
+        [entry.id, piece.id],
+      );
     });
   }
 
@@ -496,9 +526,19 @@ export class TimesheetsService {
       }
       const deleted = await repo.deleteUnassigned(tx, context, entryIds, sheet.membershipId);
       if (deleted !== entryIds.length) throw entryLocked();
-      return this.finishEdit(tx, context, principal, sheet, actor, before, at, {
-        entries_deleted: deleted,
-      });
+      return this.finishEdit(
+        tx,
+        context,
+        principal,
+        sheet,
+        actor,
+        before,
+        at,
+        {
+          entries_deleted: deleted,
+        },
+        entryIds,
+      );
     });
   }
 
@@ -872,6 +912,8 @@ export class TimesheetsService {
     before: readonly WorkItemTimeLogRow[],
     at: Date,
     facts: Record<string, string | number>,
+    /** The entries this edit changed; named in the audit row, 20 per row (the metadata limit). */
+    entryIds: readonly string[] = [],
   ): Promise<TimesheetView> {
     const repo = this.options.repository;
     const bounds = boundsOf(sheet);
@@ -889,12 +931,22 @@ export class TimesheetsService {
       at,
     );
     if (changed === 0) throw staleVersion(sheet.version, sheet.version + 1);
+    const chunks = idChunks(entryIds);
     await this.record(tx, context, 'timesheet.entries_edited', sheet, {
       before_minutes: timesheetTotals(before).totalMinutes,
       after_minutes: totals.totalMinutes,
       ...facts,
       ...(actor === 'manager' ? { edited_for_membership_id: sheet.membershipId } : {}),
+      ...(chunks.length > 0 ? { entry_ids: chunks[0]! } : {}),
+      ...(chunks.length > 1 ? { entry_id_rows: chunks.length } : {}),
     });
+    // A batch over 20 entries: the rest of the ids, in follow-up rows of the same action.
+    for (let part = 1; part < chunks.length; part += 1) {
+      await this.record(tx, context, 'timesheet.entries_edited', sheet, {
+        entry_ids: chunks[part]!,
+        entry_id_row: part + 1,
+      });
+    }
     return this.reread(tx, context, principal, sheet.id);
   }
 
@@ -974,7 +1026,7 @@ export class TimesheetsService {
       | 'timesheet.changes_requested'
       | 'timesheet.exported',
     sheet: TimesheetRow,
-    facts: Record<string, string | number>,
+    facts: Record<string, string | number | readonly string[]>,
   ): Promise<unknown> {
     return this.options.audit.record(tx, context, {
       action,

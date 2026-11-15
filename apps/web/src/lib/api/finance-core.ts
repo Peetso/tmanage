@@ -224,6 +224,54 @@ export async function decideTimesheet(
   return data;
 }
 
+const entriesPath = (slug: string, timesheetId: string, action: string) =>
+  `${org(slug)}/time/timesheets/${encodeURIComponent(timesheetId)}/entries/${action}`;
+
+/** Live check B2: file unassigned entries of the week under one task the person can see. */
+export async function moveTimesheetEntries(
+  client: ApiClient,
+  slug: string,
+  timesheetId: string,
+  input: { readonly entryIds: readonly string[]; readonly workItemId: string },
+): Promise<Timesheet> {
+  const { data } = await client.request<Timesheet>({
+    method: 'POST',
+    path: entriesPath(slug, timesheetId, 'move'),
+    body: input,
+  });
+  return data;
+}
+
+/** Live check B2: move some minutes of one unassigned entry to a task (or keep them apart). */
+export async function splitTimesheetEntry(
+  client: ApiClient,
+  slug: string,
+  timesheetId: string,
+  input: { readonly entryId: string; readonly minutes: number; readonly workItemId: string | null },
+): Promise<Timesheet> {
+  const { data } = await client.request<Timesheet>({
+    method: 'POST',
+    path: entriesPath(slug, timesheetId, 'split'),
+    body: input,
+  });
+  return data;
+}
+
+/** Live check B2: delete unassigned entries; time on a task, locked or approved time stays. */
+export async function deleteUnassignedEntries(
+  client: ApiClient,
+  slug: string,
+  timesheetId: string,
+  entryIds: readonly string[],
+): Promise<Timesheet> {
+  const { data } = await client.request<Timesheet>({
+    method: 'POST',
+    path: entriesPath(slug, timesheetId, 'delete'),
+    body: { entryIds },
+  });
+  return data;
+}
+
 export interface Expense {
   readonly id: string;
   readonly projectId: string | null;
