@@ -42,6 +42,8 @@ import {
 } from './DeliverablesScreen';
 import { SendForApprovalDialog } from './SendForApprovalDialog';
 import { ExternalApproversPanel } from './approvals/ExternalApproversPanel';
+import { ApprovalRecordPanel } from './approvals/ApprovalRecordPanel';
+import { approvedVersion, staffRecordHref } from '../../lib/approval-record-presentation';
 import { useT } from '../../lib/i18n/use-t';
 import { HelpTip } from '../help/HelpTip';
 import { PreviewAsClientLink } from './PreviewAsClientLink';
@@ -179,6 +181,10 @@ export function DeliverableDetailScreen({
   const router = useRouter();
   // FIX6 item 8: a deliverable the client approved is a record the agency keeps — no Delete.
   const approved = detail.data?.versions.some((v) => v.approval?.state === 'approved') ?? true;
+  // 52-19: the approved version, whose sealed record the certificate shows.
+  const certified = detail.data ? approvedVersion(detail.data.versions) : null;
+  const recordHref = (approvalId: string) =>
+    staffRecordHref(organizationSlug, projectId, deliverableId, approvalId);
 
   return (
     <AppShell
@@ -202,6 +208,14 @@ export function DeliverableDetailScreen({
       actions={
         <span className="tm-row tm-row--wrap">
           <PreviewAsClientLink organizationSlug={organizationSlug} projectId={projectId} />
+          {certified ? (
+            <Link
+              className="tm-button tm-button--ink tm-button--accessible"
+              href={recordHref(certified.approval.id)}
+            >
+              {tAll('ApprovalRecord.viewCertificate')}
+            </Link>
+          ) : null}
           {detail.data && !approved ? (
             <DeleteDeliverable
               api={api}
@@ -252,10 +266,21 @@ export function DeliverableDetailScreen({
                   onSend={setSendingVersion}
                   onShare={(version) => share.mutate(version)}
                   sharing={share.isPending}
+                  recordHref={recordHref}
                 />
               </section>
             </div>
             <div className="tm-prj__col tm-prj__col--aside">
+              <ApprovalRecordPanel
+                api={api}
+                organizationSlug={organizationSlug}
+                projectId={projectId}
+                deliverableId={deliverableId}
+                approvalId={certified?.approval.id ?? null}
+                {...(latestVersion(detail.data)
+                  ? { onSendForApproval: () => setSendingVersion(latestVersion(detail.data)) }
+                  : {})}
+              />
               <section className="tm-card tm-prj-card" aria-labelledby="tm-deliverable-upload">
                 <h2 id="tm-deliverable-upload" className="tm-prj-eyebrow">
                   {t('Deliverables.uploadHeading')}
@@ -426,12 +451,15 @@ function VersionList({
   onSend,
   onShare,
   sharing,
+  recordHref,
 }: {
   detail: DeliverableDetailView;
   organizationSlug: string;
   onSend: (version: DeliverableVersionView) => void;
   onShare: (version: DeliverableVersionView) => void;
   sharing: boolean;
+  /** 52-19: the printable approval record of an approved version. */
+  recordHref: (approvalId: string) => string;
 }) {
   const t = useDeliverablesT();
   const viewerT = useT();
@@ -504,6 +532,14 @@ function VersionList({
                   href={`/${organizationSlug}/portal/deliverables/${encodeURIComponent(version.id)}`}
                 >
                   {t('Deliverables.portalLink')}
+                </Link>
+              ) : null}
+              {approval?.state === 'approved' ? (
+                <Link
+                  className="tm-button tm-button--outline tm-button--compact"
+                  href={recordHref(approval.id)}
+                >
+                  {viewerT('ApprovalRecord.viewCertificate')}
                 </Link>
               ) : null}
               {canSend ? (

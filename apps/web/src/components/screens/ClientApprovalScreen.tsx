@@ -21,6 +21,7 @@ import { CheckedLabel } from './CheckedLabel';
 import './download-scan-policy.css';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { PortalApprovalRecordCard } from './approvals/PortalApprovalRecordCard';
 
 export interface ClientApprovalScreenProps {
   organizationSlug: string;
@@ -248,6 +249,15 @@ export function ClientApprovalScreen({
                     </>
                   )}
                 </section>
+              ) : null}
+
+              {decided || result ? (
+                <PortalApprovalRecordCard
+                  api={api}
+                  organizationSlug={organizationSlug}
+                  deliverableVersionId={deliverableVersionId}
+                  providerName={providerName}
+                />
               ) : null}
 
               <p className="tm-pt-card tm-pt-card--dashed tm-pt-quiet">

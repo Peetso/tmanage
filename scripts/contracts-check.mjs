@@ -69,14 +69,6 @@ const asJson = process.argv.includes('--json');
  */
 const EXEMPT = new Map([
   [
-    'ApprovalRecordView',
-    'No web consumer yet: 52-19 sealed decision records are read only through ApprovalCertificateView, which apps/web does not fetch; the certificate screen is not built.',
-  ],
-  [
-    'ApprovalCertificateView',
-    'No web consumer yet: 52-19 added the approval-certificate read in apps/api only; no apps/web/src/lib/api client or screen requests it.',
-  ],
-  [
     'OrgCredentialView',
     'No web consumer yet: the owner credential overview (GET …/security/tokens) has no apps/web/src/lib/api client; the admin screen for it is not built.',
   ],

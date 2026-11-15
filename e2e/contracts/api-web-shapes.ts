@@ -51,6 +51,11 @@ import type { OrgBrandingView as ApiOrgBrandingView } from '../../apps/api/src/m
 import type { ChallengeResponseView as ApiChallengeResponseView } from '../../apps/api/src/modules/identity/authentication.controller.js';
 import type { ClientDecideView as ApiClientDecideView } from '../../apps/api/src/modules/approvals/approvals.service.js';
 import type { ClientProjectionReadView as ApiClientProjectionView } from '../../apps/api/src/modules/approvals/approvals.service.js';
+import type { ApprovalEvidence as ApiApprovalEvidence } from '../../apps/api/src/modules/approvals/approval-records.js';
+import type {
+  ApprovalCertificateView as ApiApprovalCertificateView,
+  ApprovalRecordView as ApiApprovalRecordView,
+} from '../../apps/api/src/modules/approvals/approvals.service.js';
 import type { ClientRequestClientView as ApiClientRequestClientView } from '../../apps/api/src/modules/requests/client-requests.service.js';
 import type { ClientRequestView as ApiClientRequestView } from '../../apps/api/src/modules/requests/client-requests.service.js';
 import type { ConversationView as ApiConversationView } from '../../apps/api/src/modules/conversations/conversations.service.js';
@@ -523,6 +528,11 @@ import type {
   ClientApprovalView as WebClientApprovalView,
   ClientDecideResult as WebClientDecideResult,
 } from '../../apps/web/src/lib/api/approvals';
+import type {
+  ApprovalCertificateView as WebApprovalCertificateView,
+  ApprovalRecordEvidence as WebApprovalRecordEvidence,
+  ApprovalRecordView as WebApprovalRecordView,
+} from '../../apps/web/src/lib/api/approval-records';
 import type { EnrolledFactor as WebEnrolledFactor } from '../../apps/web/src/lib/api/auth';
 import type { A11yPreferencesView as WebA11yPreferencesView } from '../../apps/web/src/lib/api/a11y-preferences';
 import type { DisplayPreferencesView as WebDisplayPreferencesView } from '../../apps/web/src/lib/api/display-preferences';
@@ -3016,6 +3026,15 @@ type _clientProjection = Assert<Exact<ApiClientProjectionView, WebClientApproval
  * `decidedAt` (ISO string), and the change-request note — never the internal `ApprovalDecisionView`.
  */
 type _clientDecide = Assert<Exact<ApiClientDecideView, WebClientDecideResult>>;
+
+/**
+ * 52-19 `GET …/approvals/:approvalId/record` (staff) and `GET …/approvals/projections/
+ * :deliverableVersionId/record` (portal, own records) — the sealed approval record the record panel
+ * and the printable certificate render.
+ */
+type _approvalEvidence = Assert<Exact<ApiApprovalEvidence, WebApprovalRecordEvidence>>;
+type _approvalRecord = Assert<Exact<ApiApprovalRecordView, WebApprovalRecordView>>;
+type _approvalCertificate = Assert<Exact<ApiApprovalCertificateView, WebApprovalCertificateView>>;
 
 /**
  * `GET /v1/public/site/trust` — the public security & trust page (x158, module 1).
