@@ -56,3 +56,28 @@ export function actionLabel(tOr: TOr, kind: string): string {
   const english = ACTIONS[kind as WorkflowActionKind];
   return english ? tOr(`AutomationRule.action.${kind}`, english) : kind;
 }
+
+/**
+ * 58-C1 — what an If checks, in words: the status choices the rule page offers, a project by name,
+ * and a plain fallback for any other saved check.
+ */
+export function conditionLabel(
+  tOr: TOr,
+  condition: { readonly field: string; readonly op: string; readonly value: string },
+  projectName: (id: string) => string | undefined,
+): string {
+  const { field, op, value } = condition;
+  if (field === 'status' && value === 'done' && op === 'eq') {
+    return tOr('AutomationBuilder.ifDone', 'The work item is done');
+  }
+  if (field === 'status' && value === 'done' && op === 'neq') {
+    return tOr('AutomationBuilder.ifNotDone', 'The work item is not done');
+  }
+  if (field === 'project_id' && op === 'eq') {
+    return tOr('AutomationBuilder.ifProject', 'It is in {project}').replace(
+      '{project}',
+      projectName(value) ?? value,
+    );
+  }
+  return `${field} ${op} ${value}`;
+}

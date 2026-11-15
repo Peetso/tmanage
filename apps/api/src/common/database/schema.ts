@@ -13864,3 +13864,37 @@ export const approvalRecords = mysqlTable(
 export type ApprovalRecordRow = typeof approvalRecords.$inferSelect;
 
 Object.assign(TABLES, { approval_records: approvalRecords });
+
+/**
+ * 0350 (58-C1). One immutable row per save of a rule's branching builder graph; the highest
+ * `version` per template is the one in force, and a rule with no row is a linear rule. The graph
+ * is checked by `parseAutomationFlow` before the write. INSERT-only for the API credential, SELECT
+ * for the worker. TENANT.
+ */
+/** The stored graph, re-checked with `parseAutomationFlow` on every read (schema.ts imports nothing from the domain). */
+export type WorkflowFlowJson = Record<string, unknown>;
+
+export const workflowFlowVersions = mysqlTable(
+  'workflow_flow_versions',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    templateId: char('template_id', { length: 36 }).notNull(),
+    version: int('version', { unsigned: true }).notNull(),
+    flowJson: json('flow_json').$type<WorkflowFlowJson>().notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_workflow_flow_versions_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_workflow_flow_versions_template_version').on(
+      table.organizationId,
+      table.templateId,
+      table.version,
+    ),
+  ],
+);
+
+export type WorkflowFlowVersionRow = typeof workflowFlowVersions.$inferSelect;
+
+Object.assign(TABLES, { workflow_flow_versions: workflowFlowVersions });

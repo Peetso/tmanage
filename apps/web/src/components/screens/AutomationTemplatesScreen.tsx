@@ -144,6 +144,11 @@ export function AutomationTemplatesScreen({
             {t('AutomationTemplatesScreen.runHistory')}
           </Link>
           {refused ? null : (
+            <Link href={`/${organizationSlug}/automations/builder`} className="tm-aut-btn">
+              {tOr('AutomationBuilder.buildWithBranches', 'Build with branches')}
+            </Link>
+          )}
+          {refused ? null : (
             <a href="#tm-automation-new" className="tm-aut-btn tm-aut-btn--ink">
               {t('AutomationTemplatesScreen.newAutomation')}
             </a>

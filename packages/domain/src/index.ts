@@ -201,6 +201,28 @@ export type {
   ConditionPredicate,
 } from './policies/automation-conditions.js';
 
+// 58-C1 branching automation rule (API + worker)
+export {
+  AUTOMATION_ACTION_KINDS,
+  AUTOMATION_FLOW_FIELDS,
+  AUTOMATION_FLOW_LIMITS,
+  flowIssues,
+  linearAutomationFlow,
+  parseAutomationFlow,
+  planAutomationFlow,
+} from './policies/automation-flow.js';
+export type {
+  AutomationFlow,
+  AutomationFlowActionNode,
+  AutomationFlowConditionNode,
+  AutomationFlowField,
+  AutomationFlowIssue,
+  AutomationFlowNode,
+  AutomationFlowShapeError,
+  AutomationFlowStep,
+  ParseAutomationFlowResult,
+} from './policies/automation-flow.js';
+
 // BK3 direct-message relation rule (API + worker)
 export { mayDirectMessage } from './policies/direct-message-relation.js';
 export type { DirectParty } from './policies/direct-message-relation.js';

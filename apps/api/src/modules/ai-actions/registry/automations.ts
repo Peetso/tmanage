@@ -185,6 +185,45 @@ export const automationsDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'Run', args: { templateId: 'tpl_1' } }],
   }),
   det({
+    id: 'automations.templates.flow.get',
+    title: "Read an automation's branching steps",
+    description:
+      'The When > If > Yes/No > Then steps of one rule, its saved version and what is still unfinished.',
+    input: pathOnly('templateId'),
+    redact: 'standard',
+    examples: [{ summary: 'By rule', args: { templateId: 'tpl_1' } }],
+  }),
+  det({
+    id: 'automations.templates.flow.save',
+    title: "Save an automation's branching steps",
+    description:
+      'Save the If and Then steps of one rule as a new version. Only known actions; a rule that is on must have every step finished.',
+    input: bodyArgs(['templateId'], { flow: f.config() }),
+    redact: 'standard',
+    examples: [
+      {
+        summary: 'One step',
+        args: {
+          templateId: 'tpl_1',
+          flow: {
+            start: 'step-1',
+            nodes: [{ id: 'step-1', type: 'action', actionKind: 'notify_owner', next: null }],
+          },
+        },
+      },
+    ],
+  }),
+  det({
+    id: 'automations.templates.flow.turn_on',
+    title: 'Turn an automation on',
+    description:
+      'Turn one rule on once every step is finished. Confirm-class: the rule then acts on its trigger.',
+    input: pathOnly('templateId'),
+    redact: 'standard',
+    notifies: true,
+    examples: [{ summary: 'Turn on', args: { templateId: 'tpl_1' } }],
+  }),
+  det({
     id: 'automations.templates.schedule',
     title: 'Schedule an automation',
     description: 'Schedule an automation template to run on a cadence. Confirm-class.',

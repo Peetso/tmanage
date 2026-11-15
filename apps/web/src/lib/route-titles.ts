@@ -124,11 +124,19 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/ai/approve/[id]': { en: 'AI approval', key: 'RouteTitle.aiApprove' },
   '/[orgSlug]/automations': { en: 'Automations', key: 'RouteTitle.automations' },
   '/[orgSlug]/automations/apps': { en: 'Integrations', key: 'RouteTitle.automationApps' },
+  '/[orgSlug]/automations/builder': {
+    en: 'New automation',
+    key: 'RouteTitle.automationBuilderStart',
+  },
   '/[orgSlug]/automations/runs': { en: 'Automation runs', key: 'RouteTitle.automationRuns' },
   '/[orgSlug]/automations/schedules': { en: 'Schedules', key: 'RouteTitle.automationSchedules' },
   '/[orgSlug]/automations/templates/[templateId]': {
     en: 'Automation template',
     key: 'RouteTitle.automationTemplate',
+  },
+  '/[orgSlug]/automations/templates/[templateId]/builder': {
+    en: 'Automation builder',
+    key: 'RouteTitle.automationBuilder',
   },
   '/[orgSlug]/billing': { en: 'Billing', key: 'RouteTitle.billing' },
   '/[orgSlug]/billing/contacts': { en: 'Billing contacts', key: 'RouteTitle.billingContacts' },

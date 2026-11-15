@@ -568,6 +568,12 @@ function RuleForm({
           >
             {tOr('AutomationRule.testRun', 'Test run')}
           </Button>
+          <Link
+            href={`/${organizationSlug}/automations/templates/${encodeURIComponent(template.id)}/builder`}
+            className="tm-button tm-button--outline tm-button--feature"
+          >
+            {tOr('AutomationBuilder.openBuilder', 'Add Yes / No steps')}
+          </Link>
           <Link href={backHref} className="tm-button tm-button--outline tm-button--feature">
             {tOr('AutomationRule.cancel', 'Cancel')}
           </Link>

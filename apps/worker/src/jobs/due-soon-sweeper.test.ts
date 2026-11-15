@@ -38,6 +38,7 @@ function fakeTx(conditions: readonly { field: string; op: string; value: string 
         ] as T;
       }
       if (/FROM workflow_conditions/.test(sql)) return conditions as T;
+      if (/FROM workflow_flow_versions/.test(sql)) return [] as T; // 58-C1: linear rules
       if (/INSERT IGNORE INTO workflow_due_soon_fires/.test(sql)) {
         const key = `${String(params[2])}:${String(params[3])}:today`;
         if (claims.has(key)) return { affectedRows: 0 } as T;

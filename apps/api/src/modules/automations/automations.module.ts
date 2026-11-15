@@ -15,6 +15,8 @@ import { WorkflowTemplatesController } from './templates.controller.js';
 import { WorkflowRunsRepository } from './run.repository.js';
 import { WorkflowRunService } from './run.service.js';
 import { WorkflowRunController } from './run.controller.js';
+import { WorkflowFlowController } from './flow.controller.js';
+import { WorkflowFlowVersionsRepository } from './flow-versions.repository.js';
 import { WorkflowRunHistoryRepository } from './history.repository.js';
 import { WorkflowRunHistoryController } from './history.controller.js';
 import { WorkflowTemplateEditController } from './template-edit.controller.js';
@@ -90,6 +92,8 @@ export class AutomationsModule {
         variablesRepository,
         templateTagsRepository,
         templateTagsService,
+        // 58-C1: the branching builder's saved graph versions (run + flow controllers).
+        WorkflowFlowVersionsRepository,
         // R16-e (54-10 Phase 0): keeps the GitHub inbound route's raw body for the HMAC check.
         GithubRawBodyCapture,
       ],
@@ -98,6 +102,7 @@ export class AutomationsModule {
         WorkflowTemplateEditController,
         WorkflowTemplateCloneController,
         WorkflowRunController,
+        WorkflowFlowController,
         WorkflowRunHistoryController,
         WorkflowConditionsController,
         AutomationVariablesController,

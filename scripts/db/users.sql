@@ -2450,3 +2450,9 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`calendar_feed_tokens` TO 'tmanage_app
 -- the runtime credential (its hash, signature and the next record's link would break). SELECT
 -- rides the database-wide read. The worker needs no grant.
 GRANT INSERT ON `tmanage`.`approval_records` TO 'tmanage_app'@'%';
+-- 0350 (58-C1). `workflow_flow_versions` (tenant): saving a rule's branching builder INSERTs one
+-- new version. **INSERT only**: a saved version is never rewritten, so a run's `flowVersion` keeps
+-- naming the graph it took. SELECT rides the database-wide read. The worker reads the version in
+-- force when a rule fires on its trigger (`automation-flow-store.ts`): SELECT only.
+GRANT INSERT ON `tmanage`.`workflow_flow_versions` TO 'tmanage_app'@'%';
+GRANT SELECT ON `tmanage`.`workflow_flow_versions` TO 'tmanage_worker'@'%';

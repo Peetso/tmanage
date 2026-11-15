@@ -1,7 +1,8 @@
 import { conditionsMatch, uuidv7 } from '@tmanage/domain';
 import type { WorkerDatabase, WorkerTransaction } from './worker-database.js';
 import { listRuleConditions } from './automation-conditions-store.js';
-import { projectOwners, runRule } from '../../consumers/automation-runs.js';
+import { findRuleFlow } from './automation-flow-store.js';
+import { projectOwners, runFlowRule, runRule } from '../../consumers/automation-runs.js';
 import type { TriggerObject } from '../../consumers/automation-runs.js';
 import { deliverHeldRuns, listWeekendRules } from './weekend-hold-store.js';
 import {
@@ -107,17 +108,12 @@ export async function fireDueSoonRule(
   if (items.length === 0) return 0;
 
   const conditions = await listRuleConditions(tx, org, rule.id);
+  // 58-C1: a rule saved in the builder runs its graph; a linear rule runs as before.
+  const saved = await findRuleFlow(tx, org, rule.id);
   let fired = 0;
   for (const item of items) {
-    if (
-      !conditionsMatch(conditions, {
-        object_type: 'work_item',
-        project_id: item.project_id,
-        status: item.state,
-      })
-    ) {
-      continue;
-    }
+    const event = { object_type: 'work_item', project_id: item.project_id, status: item.state };
+    if (!conditionsMatch(conditions, event)) continue;
 
     const claimId = uuidv7();
     const claim = await tx.query<InsertResult>(
@@ -137,7 +133,9 @@ export async function fireDueSoonRule(
           ? [item.owner_user_id]
           : await projectOwners(tx, org, item.project_id),
     };
-    await runRule({ id: claimId, organizationId: org }, tx, rule, object, now);
+    const fire = { id: claimId, organizationId: org };
+    if (saved === null) await runRule(fire, tx, rule, object, now);
+    else await runFlowRule(fire, tx, rule, saved, object, event);
     fired += 1;
   }
   return fired;

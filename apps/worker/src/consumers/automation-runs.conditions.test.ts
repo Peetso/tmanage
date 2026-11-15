@@ -41,6 +41,7 @@ function fakeTx(conditions: readonly Condition[], state = 'in_progress') {
       }
       if (/SELECT state FROM work_items/.test(sql)) return [{ state }] as T;
       if (/FROM workflow_conditions/.test(sql)) return conditions as T;
+      if (/FROM workflow_flow_versions/.test(sql)) return [] as T; // 58-C1: linear rules
       if (/FROM memberships m/.test(sql)) {
         return [{ id: 'm-1', role: 'owner', has_org_wide_scope: 1, on_project: 1 }] as T;
       }

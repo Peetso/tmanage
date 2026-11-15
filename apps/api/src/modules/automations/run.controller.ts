@@ -1,6 +1,6 @@
-import { Controller, HttpCode, Inject, Optional, Param, Post } from '@nestjs/common';
-import { authorize } from '@tmanage/domain';
-import type { Principal } from '@tmanage/domain';
+import { Body, Controller, HttpCode, Inject, Optional, Param, Post } from '@nestjs/common';
+import { AUTOMATION_FLOW_FIELDS, AUTOMATION_FLOW_LIMITS, authorize } from '@tmanage/domain';
+import type { ConditionEvent, Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import {
@@ -15,6 +15,7 @@ import type { WorkflowTemplatesRepository } from './templates.repository.js';
 import type { WorkflowRunsRepository } from './run.repository.js';
 import type { WorkflowRunService } from './run.service.js';
 import { NotificationsRepository } from '../inbox/notifications.repository.js';
+import { WorkflowFlowVersionsRepository } from './flow-versions.repository.js';
 
 /** CQ-12 (AUT-02): the inbox type of a manual run's test notice. */
 export const AUTOMATION_TEST_RUN_TYPE = 'automation.test_run.v1';
@@ -61,6 +62,28 @@ export interface WorkflowRunView {
   readonly finishedAt: string;
 }
 
+/**
+ * 58-C1 — the optional sample a manual test run of a branching rule is decided against (a manual run
+ * has no triggering object). Only the fields an If may read, each a bounded string; anything else is
+ * a 400 with no run.
+ */
+function sampleEvent(body: unknown): ConditionEvent | null {
+  if (body === undefined || body === null) return {};
+  if (typeof body !== 'object' || Array.isArray(body)) return null;
+  const sample = (body as { readonly event?: unknown }).event;
+  if (sample === undefined) return {};
+  if (typeof sample !== 'object' || sample === null || Array.isArray(sample)) return null;
+  const event: Record<string, string> = {};
+  for (const [key, value] of Object.entries(sample)) {
+    if (!(AUTOMATION_FLOW_FIELDS as readonly string[]).includes(key)) return null;
+    if (typeof value !== 'string' || value.length > AUTOMATION_FLOW_LIMITS.maxValueLength) {
+      return null;
+    }
+    event[key] = value;
+  }
+  return event;
+}
+
 /** An explicit projection, not a serialised row: a column added later is invisible until named. */
 function toView(row: WorkflowRunRow): WorkflowRunView {
   return {
@@ -83,6 +106,9 @@ export class WorkflowRunController {
     @Optional()
     @Inject(NotificationsRepository)
     private readonly notifications: NotificationsRepository = new NotificationsRepository(),
+    @Optional()
+    @Inject(WorkflowFlowVersionsRepository)
+    private readonly flows: WorkflowFlowVersionsRepository = new WorkflowFlowVersionsRepository(),
   ) {}
 
   /**
@@ -97,6 +123,7 @@ export class WorkflowRunController {
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
     @Param('templateId') templateId: string,
+    @Body() body?: unknown,
   ): Promise<WorkflowRunView> {
     // Resolve BEFORE authorize: tenant-scoped, so a cross-tenant/unknown id is a 404, not a 403.
     const template = await this.database.read(context, (runner) =>
@@ -126,7 +153,31 @@ export class WorkflowRunController {
       );
     }
 
-    const outcome = this.runService.execute(template.id, template.actionKind, template.triggerKind);
+    const event = sampleEvent(body);
+    if (event === null) {
+      throw new ApiError(
+        400,
+        'validation_failed',
+        'The sample event may only name status, project_id or object_type, as short text',
+        undefined,
+        'workflow_run_sample_invalid',
+      );
+    }
+
+    // 58-C1: a rule with a saved builder graph runs its flow; a linear rule runs as before.
+    const saved = await this.database.read(context, (runner) =>
+      this.flows.latest(runner, context, template.id),
+    );
+    const outcome =
+      saved === null
+        ? this.runService.execute(template.id, template.actionKind, template.triggerKind)
+        : this.runService.executeFlow(
+            template.id,
+            template.triggerKind,
+            saved.version,
+            saved.flow,
+            event,
+          );
 
     const row = await this.database.transaction(context, async (tx) => {
       const recorded = await this.runs.record(tx, context, {

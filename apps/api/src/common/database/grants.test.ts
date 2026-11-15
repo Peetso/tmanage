@@ -202,6 +202,7 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // `org_settings` and `pref_digest`.
     // ---- R49 L1 55-24 ---- +2: the getting-started nudges read `client_organizations` and
     // `oauth_grants` (the checklist's "add a client" and "try the AI assistant" signals).
+    // ---- 58-C1 ---- +1: a rule fires its builder graph, read from `workflow_flow_versions`.
     expect(reads).toHaveLength(
       26 +
         15 +
@@ -231,7 +232,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
         1 +
         1 +
         3 +
-        2,
+        2 +
+        1,
     );
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });

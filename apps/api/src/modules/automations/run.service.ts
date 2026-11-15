@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { flowIssues, planAutomationFlow } from '@tmanage/domain';
+import type { AutomationFlow, ConditionEvent } from '@tmanage/domain';
 import type { WorkflowRunDetail } from '../../common/database/schema.js';
 
 /**
@@ -71,34 +73,14 @@ export class WorkflowRunService {
    * still recorded, so the refusal is auditable.
    */
   execute(templateId: string, actionKind: string, triggerKind: string): WorkflowRunOutcome {
-    if (!isInAppActionKind(actionKind)) {
+    const reason = notRunReason(actionKind);
+    if (reason !== null) {
       return {
         status: 'failed',
         notifiesRunner: false,
-        detail: {
-          templateId,
-          triggerKind,
-          actionKind,
-          outcome: 'not_run',
-          reason: 'external_action_not_supported_in_app',
-        },
+        detail: { templateId, triggerKind, actionKind, outcome: 'not_run', reason },
       };
     }
-
-    if (!EXECUTABLE_ACTION_KINDS.includes(actionKind)) {
-      return {
-        status: 'failed',
-        notifiesRunner: false,
-        detail: {
-          templateId,
-          triggerKind,
-          actionKind,
-          outcome: 'not_run',
-          reason: 'action_not_available_yet',
-        },
-      };
-    }
-
     return {
       status: 'succeeded',
       notifiesRunner: true,
@@ -111,4 +93,56 @@ export class WorkflowRunService {
       },
     };
   }
+
+  /**
+   * 58-C1 — decide a manual run of a branching rule: walk the flow in force for `event` (each If
+   * takes Yes or No), run each Then on the path with the same executor rules as a linear rule, and
+   * log every step. The run succeeds only when every Then on the path ran. An unfinished flow is
+   * not run at all.
+   */
+  executeFlow(
+    templateId: string,
+    triggerKind: string,
+    flowVersion: number,
+    flow: AutomationFlow | null,
+    event: ConditionEvent,
+  ): WorkflowRunOutcome {
+    const base = { templateId, triggerKind, flowVersion };
+    if (flow === null || flowIssues(flow).length > 0) {
+      return {
+        status: 'failed',
+        notifiesRunner: false,
+        detail: { ...base, outcome: 'not_run', reason: 'flow_incomplete', steps: [] },
+      };
+    }
+    const steps = planAutomationFlow(flow, event).map((step) => {
+      if (step.type === 'condition') return step;
+      const reason = notRunReason(step.actionKind);
+      return reason === null
+        ? { ...step, outcome: 'executed' as const }
+        : { ...step, outcome: 'not_run' as const, reason };
+    });
+    const actions = steps.flatMap((step) => (step.type === 'action' ? [step] : []));
+    const ran = actions.filter((step) => step.outcome === 'executed').length;
+    const allRan = actions.length > 0 && ran === actions.length;
+    return {
+      status: allRan ? 'succeeded' : 'failed',
+      notifiesRunner: ran > 0,
+      detail: {
+        ...base,
+        outcome: ran > 0 ? 'executed' : 'not_run',
+        ...(ran > 0
+          ? { effect: 'Sent you a test notification in your inbox.' }
+          : { reason: actions.length === 0 ? 'no_step_on_path' : 'action_not_available_yet' }),
+        steps,
+      },
+    };
+  }
+}
+
+/** Why an action kind is not run in-app, or `null` when it has an executor. */
+function notRunReason(actionKind: string): string | null {
+  if (!isInAppActionKind(actionKind)) return 'external_action_not_supported_in_app';
+  if (!EXECUTABLE_ACTION_KINDS.includes(actionKind)) return 'action_not_available_yet';
+  return null;
 }

@@ -1,5 +1,7 @@
-import { conditionsMatch } from '@tmanage/domain';
+import { conditionsMatch, flowIssues, planAutomationFlow } from '@tmanage/domain';
 import type { ConditionEvent } from '@tmanage/domain';
+import { findRuleFlow } from '../common/database/automation-flow-store.js';
+import type { RuleFlow } from '../common/database/automation-flow-store.js';
 import type { WorkerTransaction } from '../common/database/worker-database.js';
 import {
   findWorkItemState,
@@ -50,6 +52,13 @@ import { mayBeTold } from './collaboration-notices.js';
  * A rule fires only when its saved "Only if" conditions hold for the triggering object
  * (`conditionsMatch` from `@tmanage/domain`, the same reading the API uses); a rule whose
  * conditions do not hold is skipped without a run row.
+ *
+ * ## Branching rules (58-C1)
+ *
+ * A rule saved in the builder has a graph (`workflow_flow_versions`): each If takes its Yes or No
+ * branch for the triggering object (the same fields the conditions read), and each Then on the path
+ * runs with the same executor rules as a linear rule. The run row logs every step and names the
+ * graph version it took. An unfinished graph is not run. A rule with no graph runs as before.
  */
 
 /** The automation trigger each event type answers to. */
@@ -249,6 +258,39 @@ export async function notifyAndRecord(
     ...(held === undefined ? {} : { heldRunId: held.heldRunId }),
   };
 
+  const { told, fresh } = await tellOwners(event, tx, rule, object);
+  // A held run whose every notice already existed was delivered by a racing sweep, which also
+  // appended the run that closes it: record nothing twice.
+  if (held !== undefined && told > 0 && fresh === 0) return;
+
+  const after = held === undefined ? '' : held.releaseNote;
+  await insertWorkflowRun(tx, {
+    organizationId: event.organizationId,
+    templateId: rule.id,
+    status: told > 0 ? 'succeeded' : 'failed',
+    detail:
+      told > 0
+        ? { ...base, outcome: 'executed', effect: toldEffect(told, after) }
+        : { ...base, outcome: 'not_run', reason: 'no_owner_to_notify' },
+  });
+}
+
+function toldEffect(told: number, after: string): string {
+  return told === 1
+    ? `Notified the owner in their inbox${after}.`
+    : `Notified ${String(told)} owners in their inbox${after}.`;
+}
+
+/**
+ * Tell each owner (and the project lead when the rule says so) who may still open the object.
+ * `told` counts who was reached, `fresh` the notices not already there (a redelivery adds none).
+ */
+async function tellOwners(
+  event: Pick<ClaimedOutboxEvent, 'id' | 'organizationId'>,
+  tx: WorkerTransaction,
+  rule: AutomationRule,
+  object: TriggerObject,
+): Promise<{ readonly told: number; readonly fresh: number }> {
   // A14 "Also tell: Project lead" — the project's managers and owner of record hear it too.
   const recipients = [...object.ownerIds];
   if (rule.alsoTell === 'project_lead') {
@@ -273,26 +315,64 @@ export async function notifyAndRecord(
     told += 1;
     if (inserted) fresh += 1;
   }
-  // A held run whose every notice already existed was delivered by a racing sweep, which also
-  // appended the run that closes it: record nothing twice.
-  if (held !== undefined && told > 0 && fresh === 0) return;
+  return { told, fresh };
+}
 
-  const after = held === undefined ? '' : held.releaseNote;
-  await insertWorkflowRun(tx, {
-    organizationId: event.organizationId,
-    templateId: rule.id,
-    status: told > 0 ? 'succeeded' : 'failed',
-    detail:
+/**
+ * 58-C1 — run a branching rule for one triggering object: walk its graph, run each Then on the
+ * path (only `notify_owner` has an executor; any other kind is logged not run), and append one run
+ * row with the per-step log. The weekend hold is a linear-rule option and does not apply here.
+ */
+export async function runFlowRule(
+  event: Pick<ClaimedOutboxEvent, 'id' | 'organizationId'>,
+  tx: WorkerTransaction,
+  rule: AutomationRule,
+  saved: RuleFlow,
+  object: TriggerObject | null,
+  conditionEvent: ConditionEvent,
+): Promise<void> {
+  const base = { templateId: rule.id, triggerKind: rule.triggerKind, flowVersion: saved.version };
+  const record = (status: 'succeeded' | 'failed', detail: Record<string, unknown>) =>
+    insertWorkflowRun(tx, {
+      organizationId: event.organizationId,
+      templateId: rule.id,
+      status,
+      detail: { ...base, ...detail },
+    });
+  if (saved.flow === null || flowIssues(saved.flow).length > 0) {
+    await record('failed', { outcome: 'not_run', reason: 'flow_incomplete', steps: [] });
+    return;
+  }
+  if (object === null) {
+    await record('failed', { outcome: 'not_run', reason: 'trigger_object_gone', steps: [] });
+    return;
+  }
+  const steps: Record<string, unknown>[] = [];
+  let actions = 0;
+  let ran = 0;
+  for (const step of planAutomationFlow(saved.flow, conditionEvent)) {
+    if (step.type === 'condition') {
+      steps.push(step);
+      continue;
+    }
+    actions += 1;
+    const reason = notRunReason(step.actionKind);
+    if (reason !== null) {
+      steps.push({ ...step, outcome: 'not_run', reason });
+      continue;
+    }
+    const { told } = await tellOwners(event, tx, rule, object);
+    if (told > 0) ran += 1;
+    steps.push(
       told > 0
-        ? {
-            ...base,
-            outcome: 'executed',
-            effect:
-              told === 1
-                ? `Notified the owner in their inbox${after}.`
-                : `Notified ${String(told)} owners in their inbox${after}.`,
-          }
-        : { ...base, outcome: 'not_run', reason: 'no_owner_to_notify' },
+        ? { ...step, outcome: 'executed', effect: toldEffect(told, '') }
+        : { ...step, outcome: 'not_run', reason: 'no_owner_to_notify' },
+    );
+  }
+  await record(actions > 0 && ran === actions ? 'succeeded' : 'failed', {
+    outcome: ran > 0 ? 'executed' : 'not_run',
+    ...(ran > 0 ? {} : { reason: actions === 0 ? 'no_step_on_path' : 'action_not_available_yet' }),
+    steps,
   });
 }
 
@@ -348,6 +428,8 @@ export const automationRunsConsumer: OutboxHandler = async (event, tx) => {
     ) {
       continue;
     }
-    await runRule(event, tx, rule, object, now);
+    const saved = await findRuleFlow(tx, event.organizationId, rule.id);
+    if (saved === null) await runRule(event, tx, rule, object, now);
+    else await runFlowRule(event, tx, rule, saved, object, conditionEvent ?? {});
   }
 };

@@ -9,7 +9,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { authorize } from '@tmanage/domain';
+import { AUTOMATION_ACTION_KINDS, authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
@@ -62,12 +62,7 @@ export type WorkflowTriggerKind = (typeof WORKFLOW_TRIGGER_KINDS)[number];
  * The fixed allowlist of actions an automation may take. A value outside this set is a 400
  * (`workflow_template_action_off_list`), never stored.
  */
-export const WORKFLOW_ACTION_KINDS = [
-  'notify_owner',
-  'create_work_item',
-  'post_message',
-  'send_email_digest',
-] as const;
+export const WORKFLOW_ACTION_KINDS = AUTOMATION_ACTION_KINDS;
 export type WorkflowActionKind = (typeof WORKFLOW_ACTION_KINDS)[number];
 
 /** `workflow_templates.name` is `VARCHAR(300)`. */

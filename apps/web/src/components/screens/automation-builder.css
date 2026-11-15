@@ -1,0 +1,317 @@
+/*
+ * Visual branching automation builder (58-C1, Figma 607:34180). Tokens from `@tmanage/ui`; the
+ * 12px card radius, 320px step and 340px branch widths are the design's own literal values.
+ * Logical properties only, so the Arabic page mirrors (Yes on the right) without overrides.
+ */
+
+.tm-afb {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-inline-size: 0;
+}
+
+.tm-afb-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-afb-head__sub {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--ink-650);
+}
+
+.tm-afb-head__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-afb-body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s6);
+}
+
+.tm-afb-canvas {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  min-inline-size: 0;
+  overflow: auto;
+  padding: 28px var(--s6);
+  border: 1px solid var(--line-300);
+  border-radius: 12px;
+  background: var(--paper-50);
+}
+
+.tm-afb-step {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  inline-size: 320px;
+  flex-shrink: 0;
+  padding: var(--s4);
+  border: 1px solid var(--line-300);
+  border-radius: 12px;
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  text-align: start;
+}
+
+button.tm-afb-step {
+  cursor: pointer;
+}
+
+.tm-afb-step[aria-pressed='true'] {
+  outline: var(--b-structural) solid var(--ink-950);
+  outline-offset: 2px;
+}
+
+.tm-afb-step--danger {
+  border: 2px solid var(--danger-600);
+}
+
+.tm-afb-step__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-afb-step__kind {
+  flex: 1 1 auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+.tm-afb-step__flag {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--danger-600);
+}
+
+.tm-afb-step__title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.tm-afb-step__detail {
+  font-size: var(--t-caption);
+  font-weight: 500;
+  color: var(--ink-650);
+}
+
+.tm-afb-step--danger .tm-afb-step__kind,
+.tm-afb-step--danger .tm-afb-step__title,
+.tm-afb-step--danger .tm-afb-step__detail {
+  color: var(--danger-600);
+}
+
+.tm-afb-connector {
+  display: block;
+  inline-size: 2px;
+  block-size: var(--s4);
+  flex-shrink: 0;
+  background: var(--line-700);
+}
+
+.tm-afb-connector--short {
+  block-size: 14px;
+}
+
+.tm-afb-connector--split {
+  block-size: 20px;
+}
+
+.tm-afb-add,
+.tm-afb-add-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-block-size: var(--s6);
+  min-inline-size: var(--s6);
+  justify-content: center;
+  padding: var(--s1) var(--s2);
+  border: 1px solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tm-afb-add-step {
+  padding-block: 6px;
+  padding-inline: 10px var(--s3);
+  font-size: var(--t-caption);
+  font-weight: 600;
+}
+
+.tm-afb-add-step > span {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.tm-afb-split {
+  display: block;
+  inline-size: 380px;
+  block-size: 2px;
+  flex-shrink: 0;
+  background: var(--line-700);
+}
+
+.tm-afb-branches {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s10);
+}
+
+.tm-afb-branch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  inline-size: 340px;
+  flex-shrink: 0;
+}
+
+.tm-afb-branch__yes {
+  border-color: var(--success-600);
+}
+
+.tm-afb-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  inline-size: 340px;
+  flex-shrink: 0;
+  padding: var(--s6);
+  border: 1px solid var(--line-300);
+  border-radius: 12px;
+  background: var(--paper-0);
+}
+
+.tm-afb-panel__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-afb-panel__title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-afb-panel__place,
+.tm-afb-panel__hint {
+  margin: 0;
+  font-size: var(--t-caption);
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+.tm-afb-panel__actions {
+  display: flex;
+  gap: var(--s3);
+}
+
+.tm-afb-loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  max-inline-size: 360px;
+  padding: var(--s6);
+  border: 1px solid var(--line-300);
+  border-radius: 12px;
+  background: var(--paper-0);
+}
+
+.tm-afb-loading__label {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-650);
+}
+
+.tm-afb-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s4);
+  max-inline-size: 720px;
+  padding: var(--s10) var(--s6);
+  border: 1px solid var(--line-300);
+  border-radius: 12px;
+  background: var(--paper-50);
+  text-align: center;
+}
+
+.tm-afb-empty__eyebrow {
+  margin: 0;
+  font-size: var(--t-caption);
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+.tm-afb-empty__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-afb-empty__body {
+  margin: 0;
+  max-inline-size: 480px;
+  font-size: 14px;
+  color: var(--ink-650);
+}
+
+.tm-afb-empty__chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s2);
+}
+
+.tm-afb-chip {
+  min-block-size: 40px;
+  padding: 0 var(--s4);
+  border: 1px solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tm-afb-chip[aria-pressed='true'] {
+  border: var(--b-structural) solid var(--ink-950);
+}
+
+@media (max-width: 1100px) {
+  .tm-afb-body {
+    flex-direction: column;
+  }
+
+  .tm-afb-canvas,
+  .tm-afb-panel {
+    inline-size: 100%;
+  }
+}

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { WorkflowRunController } from './run.controller.js';
 import { WorkflowRunService } from './run.service.js';
+import type { WorkflowFlowVersionsRepository } from './flow-versions.repository.js';
 import type { WorkflowTemplatesRepository } from './templates.repository.js';
 import type { WorkflowRunsRepository } from './run.repository.js';
 import type { NotificationsRepository } from '../inbox/notifications.repository.js';
@@ -103,6 +104,8 @@ function controllerWith(templates: readonly WorkflowTemplateRow[]) {
     runsRepository,
     new WorkflowRunService(),
     notifications,
+    // 58-C1: no builder graph saved, so every rule here is a linear rule.
+    { latest: async () => null } as unknown as WorkflowFlowVersionsRepository,
   );
   return { controller, runStore, notices };
 }
