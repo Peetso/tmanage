@@ -12,6 +12,7 @@
   },
   "scripts": {
     "audit:design": "node scripts/audit-design-source.mjs",
+    "audit:prod": "pnpm audit --prod --audit-level low",
     "build": "pnpm build:packages && pnpm -r --filter=./apps/** build",
     "build:packages": "pnpm -r --filter=./packages/** build && pnpm --filter @tmanage/mcp-server build",
     "build:worker": "pnpm --filter @tmanage/worker build",
@@ -73,6 +74,8 @@
       "fast-uri@<3.1.9": "^3.1.9",
       "fast-uri@>=4 <4.2.3": "^4.2.3",
       "fastify": "5.12.7",
+      "hono@<4.13.16": "^4.13.16",
+      "@hono/node-server@>=2 <2.1.6": "^2.1.6",
       "js-yaml@>=4 <4.3.2": "^4.3.2",
       "sharp": ">=0.35.5 <0.36",
       "source-map-js": "^1.2.2",
