@@ -141,6 +141,16 @@ export class FigmaRateLimitError extends Error {
   }
 }
 
+/** How long TManage waits after a 429 when Figma names no time. */
+export const FIGMA_WAIT_FLOOR_MS = 60_000;
+/** The longest TManage waits for one 429 (Figma can name days); it asks again after this. */
+export const FIGMA_WAIT_CEILING_MS = 60 * 60_000;
+
+/** The wait after Figma's 429, from its Retry-After, kept between the floor and the ceiling. */
+export function figmaWaitMs(retryAfterSeconds: number): number {
+  return Math.min(FIGMA_WAIT_CEILING_MS, Math.max(FIGMA_WAIT_FLOOR_MS, retryAfterSeconds * 1000));
+}
+
 export class FigmaUnavailableError extends Error {
   constructor(readonly detail: string) {
     super(`figma unavailable: ${detail}`);

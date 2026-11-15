@@ -366,6 +366,8 @@ export class FigmaRepository {
         ...(input.fileName ? { fileName: input.fileName } : {}),
         outlineJson: input.outlineJson,
         syncedAt: sql`current_timestamp(3)`,
+        // Figma answered this token again: the job may ask it for pictures again.
+        figmaWaitUntil: null,
         updatedAt: sql`current_timestamp(3)`,
       })
       .where(and(eq(figmaLinks.organizationId, context.organizationId), eq(figmaLinks.id, linkId)));
@@ -373,9 +375,10 @@ export class FigmaRepository {
 
   /**
    * Re-check of security review M2 (2026-11-14): claims a "Refresh from Figma" for this link.
-   * One conditional UPDATE: it stamps `synced_at` with `now` only when the last read (or attempt)
-   * is older than `before`, so of refreshes sent at once one wins, and a refresh that fails still
-   * starts the cooldown. `true` when this call won the claim.
+   * One conditional UPDATE: it stamps `refresh_claimed_at` with `now` only when no refresh was
+   * started since `before`, so of refreshes sent at once one wins, and a refresh that fails still
+   * starts the cooldown. Attaching does not write it (0344), so the first refresh always goes on.
+   * `true` when this call won the claim.
    */
   async claimRefresh(
     runner: TenantQueryRunner,
@@ -386,16 +389,32 @@ export class FigmaRepository {
   ): Promise<boolean> {
     const result = await tenantDrizzle(runner)
       .update(figmaLinks)
-      .set({ syncedAt: now })
+      .set({ refreshClaimedAt: now })
       .where(
         and(
           eq(figmaLinks.organizationId, context.organizationId),
           eq(figmaLinks.id, linkId),
           isNull(figmaLinks.deletedAt),
-          or(isNull(figmaLinks.syncedAt), lt(figmaLinks.syncedAt, before)),
+          or(isNull(figmaLinks.refreshClaimedAt), lt(figmaLinks.refreshClaimedAt, before)),
         ),
       );
     return affected(result) === 1;
+  }
+
+  /**
+   * Figma refused the link creator's token with 429: not asked again for this link before
+   * `until`. Kept in the row so every process and the team's screen see it.
+   */
+  async setFigmaWait(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    linkId: string,
+    until: Date,
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .update(figmaLinks)
+      .set({ figmaWaitUntil: until })
+      .where(and(eq(figmaLinks.organizationId, context.organizationId), eq(figmaLinks.id, linkId)));
   }
 
   /** The pages chosen for capture (a JSON list of page ids), or null for every page. */

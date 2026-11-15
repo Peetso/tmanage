@@ -6,7 +6,9 @@ import {
   AttachFigmaDialog,
   attachInputFor,
   defaultFrameChoice,
+  figmaProblemText,
 } from '../src/components/viewer/FigmaLinks';
+import { translate } from '../src/lib/i18n/t';
 import { pageFitZoom, pageLayout } from '../src/components/viewer/FigmaPageCanvas';
 import {
   FigmaStage,
@@ -472,6 +474,132 @@ describe('FigmaStage · whole file (2026-11-10)', () => {
     expect(canvas.querySelectorAll('.tm-figma-page__frame')).toHaveLength(2);
     fireEvent.click(screen.getByTitle('Open Home'));
     expect(await screen.findByRole('img', { name: 'Home' })).toBeInTheDocument();
+  });
+});
+
+describe('Figma pictures still to come (2026-11-15 live test)', () => {
+  const en = (key: Parameters<typeof translate>[1]) => translate('en', key);
+
+  it('says what Figma asked and when to try again, never just "busy"', () => {
+    const wait = new ApiRequestError(409, 'conflict', 'x', 'c', [
+      { field: 'figma', message: 'rate_limited' },
+      { field: 'retry_after', message: '600' },
+    ]);
+    expect(figmaProblemText(en, wait)).toEqual({
+      title: 'Figma asked TManage to wait',
+      body: expect.stringContaining('in about 10 min'),
+    });
+    const recent = new ApiRequestError(409, 'conflict', 'x', 'c', [
+      { field: 'figma', message: 'recently_refreshed' },
+      { field: 'retry_after', message: '120' },
+    ]);
+    expect(figmaProblemText(en, recent)?.body).toContain('again in about 2 min');
+  });
+
+  it('shows a client a "being prepared" card with progress, never a blank frame', async () => {
+    const pending = (over: Partial<FigmaFrame>) =>
+      frame({
+        snapshotStatus: 'pending',
+        snapshotPath: null,
+        thumbPath: null,
+        embedUrl: null,
+        ...over,
+      });
+    const portal = fakeApi(
+      link({
+        capture: { ...link().capture, frameCount: 40, ready: 12, pending: 28 },
+        frames: [
+          pending({}),
+          ...Array.from({ length: 39 }, (_, index) =>
+            index < 12
+              ? frame({
+                  id: `r${index}`,
+                  nodeId: `2:${index}`,
+                  name: `Ready ${index}`,
+                  x: 500 * (index + 1),
+                })
+              : pending({
+                  id: `p${index}`,
+                  nodeId: `3:${index}`,
+                  name: `Later ${index}`,
+                  x: 500 * (index + 1),
+                }),
+          ),
+        ],
+        capabilities: { canComment: true, canRefresh: false, canRemove: false, canLive: false },
+      }),
+    );
+    render(
+      withQuery(
+        <FigmaStage
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          linkId="l1"
+          door="portal"
+          client={portal.client}
+          apiBase={BASE}
+          renderShell={(_header, body) => <div>{body}</div>}
+        />,
+      ),
+    );
+    expect(await screen.findByText('This design is being prepared')).toBeInTheDocument();
+    expect(screen.getAllByText('12 of 40 frames ready').length).toBeGreaterThan(0);
+    expect(screen.getByRole('progressbar')).toHaveAttribute('value', '12');
+    // Whole page: frames without a picture are named placeholders, not empty boxes.
+    fireEvent.click(screen.getByRole('button', { name: 'Whole page' }));
+    const placeholder = screen.getByRole('button', { name: 'Later 20, being prepared' });
+    expect(placeholder).toHaveAttribute('data-state', 'preparing');
+    expect(screen.getByRole('button', { name: 'Open Ready 3' })).toHaveAttribute(
+      'data-state',
+      'ready',
+    );
+  });
+
+  it('puts the capture, the wait and the snapshot time in one status line above the design', async () => {
+    const waitUntil = new Date(Date.now() + 15 * 60_000).toISOString();
+    const { client } = fakeApi(
+      link({
+        capture: {
+          ...link().capture,
+          frameCount: 1411,
+          ready: 0,
+          pending: 250,
+          skipped: 1161,
+          overLimit: true,
+          waitUntil,
+        },
+        frames: [
+          frame({
+            snapshotStatus: 'pending',
+            snapshotPath: null,
+            thumbPath: null,
+            capturedAt: null,
+          }),
+        ],
+      }),
+    );
+    render(
+      withQuery(
+        <FigmaStage
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          linkId="l1"
+          client={client}
+          apiBase={BASE}
+        />,
+      ),
+    );
+    const line = (await screen.findByText(/0 of 1411 frames ready/u)).closest('p')!;
+    expect(line).toHaveTextContent(
+      /Figma asked TManage to wait · pictures resume in about 15 min/u,
+    );
+    expect(line).toHaveTextContent(/1161 not shown/u);
+    expect(line).toHaveTextContent(/Snapshot not taken yet/u);
+    // No stacked warning box: the page chooser is one button, opened on demand.
+    expect(screen.queryByText('This file is bigger than one link shows')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Choose pages' }));
+    expect(screen.getByRole('group', { name: /1411 frames/u })).toBeInTheDocument();
+    expect(screen.getByText(/appears by itself as soon as Figma allows it/u)).toBeInTheDocument();
   });
 });
 

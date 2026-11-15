@@ -48,6 +48,8 @@ export interface FigmaPageCanvasProps {
   readonly thumbUrl: (frame: FigmaFrame) => string | null;
   readonly selectedFrameId: string | null;
   readonly onOpen: (frameId: string) => void;
+  /** The accessible name of a frame whose picture is still being prepared. */
+  readonly preparingLabel?: (name: string) => string;
 }
 
 /**
@@ -60,6 +62,7 @@ export function FigmaPageCanvas({
   thumbUrl,
   selectedFrameId,
   onOpen,
+  preparingLabel,
 }: FigmaPageCanvasProps) {
   const t = useT();
   const boxRef = useRef<HTMLDivElement>(null);
@@ -104,6 +107,10 @@ export function FigmaPageCanvas({
         className="tm-figma-page__viewport"
         role="group"
         aria-label={t('Figma.viewer.pageCanvas')}
+        // A scrollable region must take focus so the page can be panned with the arrow keys
+        // (axe scrollable-region-focusable; the page is larger than the screen).
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+        tabIndex={0}
       >
         <div
           className="tm-figma-page__canvas"
@@ -112,13 +119,21 @@ export function FigmaPageCanvas({
         >
           {layout.frames.map((frame) => {
             const thumb = thumbUrl(frame);
+            // 2026-11-15 live test: frames without a picture were empty white boxes. Until its
+            // picture exists a frame is a named placeholder that says it is being prepared.
+            const label =
+              thumb || !preparingLabel
+                ? t('Figma.viewer.pageOpenHint').replace('{name}', frame.name)
+                : preparingLabel(frame.name);
             return (
               <button
                 key={frame.id}
                 type="button"
                 className="tm-figma-page__frame"
+                data-state={thumb ? 'ready' : 'preparing'}
                 aria-pressed={frame.id === selectedFrameId}
-                title={t('Figma.viewer.pageOpenHint').replace('{name}', frame.name)}
+                aria-label={label}
+                title={label}
                 style={{
                   left: (frame.x! - layout.minX) * zoom,
                   top: (frame.y! - layout.minY) * zoom,
@@ -137,8 +152,14 @@ export function FigmaPageCanvas({
                     loading="lazy"
                     decoding="async"
                   />
-                ) : null}
-                <span className="tm-figma-page__name" dir="auto">
+                ) : (
+                  <span className="tm-figma-page__placeholder" aria-hidden="true">
+                    <span className="tm-figma-page__placeholder-name" dir="auto">
+                      {frame.name}
+                    </span>
+                  </span>
+                )}
+                <span className="tm-figma-page__name" dir="auto" aria-hidden="true">
                   {frame.name}
                 </span>
               </button>

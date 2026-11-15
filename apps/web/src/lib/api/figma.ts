@@ -112,6 +112,8 @@ export interface FigmaCapture {
   readonly overLimit: boolean;
   readonly truncated: boolean;
   readonly syncedAt: string | null;
+  /** Figma asked TManage to wait (429): pictures resume after this time. Team only. */
+  readonly waitUntil?: string | null;
 }
 
 export interface FigmaLinkCapabilities {
@@ -390,7 +392,8 @@ export async function createFigmaFrameThread(
   return data;
 }
 
-export type FigmaProblem = 'not_connected' | 'no_access' | 'rate_limited' | 'unreachable';
+export type FigmaProblem =
+  'not_connected' | 'no_access' | 'rate_limited' | 'recently_refreshed' | 'unreachable';
 
 /** Which Figma refusal an API error is (`409` with the `figma` detail), or null for any other. */
 export function figmaProblem(error: unknown): FigmaProblem | null {
@@ -399,7 +402,16 @@ export function figmaProblem(error: unknown): FigmaProblem | null {
   return detail === 'not_connected' ||
     detail === 'no_access' ||
     detail === 'rate_limited' ||
+    detail === 'recently_refreshed' ||
     detail === 'unreachable'
     ? detail
     : null;
+}
+
+/** For a Figma refusal: in how many seconds asking again makes sense, or null when not said. */
+export function figmaRetryAfterSeconds(error: unknown): number | null {
+  if (!(error instanceof ApiRequestError)) return null;
+  const raw = error.details.find((item) => item.field === 'retry_after')?.message;
+  const seconds = raw === undefined ? Number.NaN : Number(raw);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
 }

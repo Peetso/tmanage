@@ -504,3 +504,89 @@
   color: var(--ink-800);
   font-size: var(--t-ui-sm);
 }
+
+/* 2026-11-15 persona UX test (live 69836a13) ─────────────────────────────── */
+
+/* One status line above the design instead of four stacked notices. */
+.tm-figma-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2) var(--s3);
+}
+
+.tm-figma-status__line {
+  flex: 1 1 24rem;
+  margin: 0;
+  color: var(--ink-800);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-figma-status__wait {
+  color: var(--ink-950);
+  font-weight: 600;
+}
+
+.tm-figma-status__problem {
+  color: var(--tm-on-tone, var(--ink-950));
+  font-weight: 600;
+}
+
+/* "Being prepared": how much is ready, filling in as pictures arrive. */
+.tm-figma-state__progress {
+  inline-size: min(20rem, 80%);
+  block-size: 6px;
+  accent-color: var(--ink-950);
+}
+
+.tm-figma-state__count {
+  margin: 0;
+  color: var(--ink-800);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+/* Whole page: a frame without its picture yet is a named placeholder, never an empty box. */
+.tm-figma-page__frame[data-state='preparing'] {
+  background: repeating-linear-gradient(135deg, var(--paper-50) 0 10px, var(--paper-150) 10px 20px);
+  cursor: pointer;
+}
+
+.tm-figma-page__placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s1);
+  overflow: hidden;
+}
+
+.tm-figma-page__placeholder-name {
+  max-inline-size: 100%;
+  overflow: hidden;
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-figma-page__viewport:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/*
+ * Attach dialog: the app's globals paint every .tm-choice as an option card with
+ * `display: block`, so the hint ran on after the label and collided with it ("Visible to
+ * client The client sees…"). Here a choice is the UI kit's column again: control and label,
+ * then the hint under them.
+ */
+.tm-upload-version .tm-choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}

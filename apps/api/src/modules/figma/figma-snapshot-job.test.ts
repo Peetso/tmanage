@@ -13,6 +13,7 @@ import {
   DEFAULT_FIGMA_SNAPSHOT_JOB_OPTIONS,
   FigmaSnapshotJob,
   figmaSnapshotJobEnabled,
+  RENDERS_PER_REQUEST,
 } from './figma-snapshot-job.js';
 import type { FigmaRepository } from './figma.repository.js';
 import { FigmaAuthError, FigmaRateLimitError, type FigmaRestClient } from './figma.rest.js';
@@ -73,6 +74,8 @@ function build(input: {
   missing?: readonly string[];
   /** Figma refuses the token with this status. */
   refused?: number;
+  /** Figma asked to wait for this link until then (a 429 another process saw). */
+  waitUntil?: Date;
   /** Workspaces with pending frames (default: the one). */
   organizations?: readonly string[];
   /** Workspaces whose token Figma answers with 429. */
@@ -80,6 +83,7 @@ function build(input: {
 }) {
   const frames = new Map(input.frames.map((row) => [row.id, { ...row }]));
   let current = ORG;
+  const waits = new Map<string, Date>(input.waitUntil ? [[ORG, input.waitUntil]] : []);
   const renderCalls: string[] = [];
   const link: FigmaLinkRow = {
     id: LINK,
@@ -103,6 +107,11 @@ function build(input: {
     outlineJson: null,
     pageFilterJson: null,
     syncedAt: NOW,
+    refreshClaimedAt: null,
+    // Per workspace, as each test workspace stands for its own link.
+    get figmaWaitUntil() {
+      return waits.get(current) ?? null;
+    },
   };
   const connection: FigmaConnectionRow | undefined =
     input.connected === false
@@ -122,6 +131,9 @@ function build(input: {
         };
   const released: string[] = [];
   const repository = {
+    setFigmaWait: async (_r: unknown, _c: unknown, _id: string, until: Date) => {
+      waits.set(current, until);
+    },
     organizationsWithPendingFrames: async () => input.organizations ?? [ORG],
     listPendingFrames: async (_db: unknown, context: { organizationId: string }) => {
       current = context.organizationId;
@@ -219,7 +231,7 @@ function build(input: {
     repository,
     () => NOW,
   );
-  return { job, frames, stored, released, scales, renderCalls };
+  return { job, frames, stored, released, scales, renderCalls, waits };
 }
 
 const F1 = '00000000-0000-4000-8000-0000000000f1';
@@ -253,6 +265,32 @@ describe('FigmaSnapshotJob', () => {
     expect(report.rateLimited).toBe(true);
     expect(world.released.sort()).toEqual([F1, F2]);
     expect(world.frames.get(F1)).toMatchObject({ snapshotStatus: 'pending', snapshotAttempts: 0 });
+  });
+
+  it('writes a 429 on the link, so every process and the team see when pictures resume', async () => {
+    // 2026-11-15 live test: a 429 kept frames "pending" with nothing on screen saying why.
+    const world = build({ frames: [frame(F1)], rateLimited: true });
+    await world.job.pass();
+    expect(world.waits.get(ORG)?.getTime()).toBe(NOW.getTime() + 60_000);
+  });
+
+  it('does not ask Figma for a link that must still wait, even in a fresh process', async () => {
+    const world = build({ frames: [frame(F1)], waitUntil: new Date(NOW.getTime() + 10 * 60_000) });
+    const report = await world.job.pass();
+    expect(report.rateLimited).toBe(true);
+    expect(world.renderCalls).toHaveLength(0);
+    expect(world.released).toEqual([F1]);
+    expect(world.frames.get(F1)).toMatchObject({ snapshotStatus: 'pending', snapshotAttempts: 0 });
+  });
+
+  it('asks Figma for at most RENDERS_PER_REQUEST frames per images call', async () => {
+    const ids = Array.from(
+      { length: 20 },
+      (_, index) => `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+    );
+    const world = build({ frames: ids.map((id) => frame(id)) });
+    await world.job.pass();
+    expect(world.renderCalls.length).toBe(Math.ceil(20 / RENDERS_PER_REQUEST));
   });
 
   it("one workspace's 429 does not stop the others; it waits alone, and passes rotate", async () => {

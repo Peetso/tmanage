@@ -18,6 +18,7 @@ import { FigmaAccess } from './figma-access.js';
 import type { FigmaRepository, InsertLinkInput } from './figma.repository.js';
 import {
   FigmaAuthError,
+  FigmaRateLimitError,
   MAX_CAPTURED_FRAMES,
   MAX_RENDER_SCALE,
   type FigmaOutline,
@@ -106,6 +107,8 @@ function linkRow(id: string, audience: string): FigmaLinkRow {
     pageFilterJson: null,
     // Read from Figma an hour ago: past the refresh cooldown.
     syncedAt: new Date(NOW.getTime() - 60 * 60_000),
+    refreshClaimedAt: null,
+    figmaWaitUntil: null,
   };
 }
 
@@ -173,6 +176,8 @@ function build(
     outline?: FigmaOutline;
     /** Figma cannot be reached when the outline is read. */
     outlineFails?: boolean;
+    /** Figma answers the outline read with 429 and this Retry-After (seconds). */
+    outlineRateLimited?: number;
     rendersPerPerson?: number;
     exchange?: (input: { readonly verifier?: string | undefined }) => Promise<{
       readonly accessToken: string;
@@ -245,11 +250,17 @@ function build(
       diffs.push(diff);
     },
     updateLinkOutline: async () => undefined,
-    // The conditional UPDATE: one row changes only when the last read is older than `before`.
+    setFigmaWait: async (_r: unknown, _c: unknown, id: string, until: Date) => {
+      const link = links.get(id);
+      if (link) links.set(id, { ...link, figmaWaitUntil: until });
+    },
+    // The conditional UPDATE: one row changes only when no refresh started since `before`.
     claimRefresh: async (_r: unknown, _c: unknown, id: string, now: Date, before: Date) => {
       const link = links.get(id);
-      if (!link || (link.syncedAt !== null && link.syncedAt >= before)) return false;
-      links.set(id, { ...link, syncedAt: now });
+      if (!link || (link.refreshClaimedAt !== null && link.refreshClaimedAt >= before)) {
+        return false;
+      }
+      links.set(id, { ...link, refreshClaimedAt: now });
       return true;
     },
     listLinksAttachedTo: async () => [...links.values()],
@@ -269,6 +280,9 @@ function build(
     outline: async () => {
       outlineCalls += 1;
       if (options.outlineFails) throw new Error('figma unreachable');
+      if (options.outlineRateLimited !== undefined) {
+        throw new FigmaRateLimitError(options.outlineRateLimited);
+      }
       return options.outline ?? outlineOf(1);
     },
     renderUrls: async (_t: string, _k: string, ids: readonly string[], scale: number) => {
@@ -612,6 +626,32 @@ describe('FigmaService · reading a link', () => {
   });
 });
 
+describe('FigmaService · pictures still to come (2026-11-15 live test)', () => {
+  it('a view with pending frames wakes the snapshot job', async () => {
+    const world = build();
+    world.frames.push(
+      frameRow('00000000-0000-4000-8000-0000000000f7', '1:7', { snapshotStatus: 'pending' }),
+    );
+    await world.service.link(contextOf(STAFF), STAFF, 'internal', LINK);
+    expect(world.requested()).toBe(1);
+  });
+
+  it('tells the team until when Figma asked to wait, and tells a client nothing of it', async () => {
+    const world = build();
+    const until = new Date(NOW.getTime() + 20 * 60_000);
+    world.links.set(LINK, { ...world.links.get(LINK)!, figmaWaitUntil: until });
+    world.frames.push(
+      frameRow('00000000-0000-4000-8000-0000000000f7', '1:7', { snapshotStatus: 'pending' }),
+    );
+    const team = await world.service.link(contextOf(STAFF), STAFF, 'internal', LINK);
+    expect(team.capture.waitUntil).toBe(until.toISOString());
+    const client = await world.service.link(contextOf(CLIENT), CLIENT, 'client', LINK);
+    expect(client.capture.waitUntil).toBeNull();
+    // Nothing to wake while Figma wants a wait.
+    expect(world.requested()).toBe(0);
+  });
+});
+
 describe('FigmaService · a file larger than one link captures', () => {
   const url = `https://www.figma.com/design/${KEY}/Atlas`;
 
@@ -663,7 +703,7 @@ describe('FigmaService · Refresh from Figma', () => {
   it('holds a second refresh of the same link for a few minutes, server-side (review M2)', async () => {
     const world = build({ connected: true, outline: outlineOf(2) });
     const link = world.links.get(LINK)!;
-    world.links.set(LINK, { ...link, syncedAt: new Date(NOW.getTime() - 60_000) });
+    world.links.set(LINK, { ...link, refreshClaimedAt: new Date(NOW.getTime() - 60_000) });
     const refused = await world.service.refresh(contextOf(STAFF), STAFF, LINK).catch((e) => e);
     expect(refused).toBeInstanceOf(ApiError);
     expect(refused).toMatchObject({ status: 409 });
@@ -690,6 +730,43 @@ describe('FigmaService · Refresh from Figma', () => {
     await world.service.refresh(contextOf(STAFF), STAFF, LINK).catch(() => undefined);
     expect(world.outlineCalls()).toBe(1);
     expect(await status(world.service.refresh(contextOf(STAFF), STAFF, LINK))).toBe(409);
+    expect(world.outlineCalls()).toBe(1);
+  });
+
+  it('the first refresh right after attaching goes on (2026-11-15 live test)', async () => {
+    const world = build({ connected: true, outline: outlineOf(2) });
+    const link = world.links.get(LINK)!;
+    // Attaching just read the file: synced now, never refreshed.
+    world.links.set(LINK, { ...link, syncedAt: NOW, refreshClaimedAt: null });
+    await expect(world.service.refresh(contextOf(STAFF), STAFF, LINK)).resolves.toMatchObject({
+      queued: expect.any(Number),
+    });
+    expect(world.outlineCalls()).toBe(1);
+  });
+
+  it('a held refresh says it was refreshed a moment ago and when to try again', async () => {
+    const world = build({ connected: true });
+    const link = world.links.get(LINK)!;
+    world.links.set(LINK, { ...link, refreshClaimedAt: new Date(NOW.getTime() - 60_000) });
+    const refused = await world.service.refresh(contextOf(STAFF), STAFF, LINK).catch((e) => e);
+    expect(refused.details).toEqual([
+      { field: 'figma', message: 'recently_refreshed' },
+      { field: 'retry_after', message: '120' },
+    ]);
+  });
+
+  it("Figma's 429 is kept on the link and answered with when to try again", async () => {
+    const world = build({ connected: true, outlineRateLimited: 600 });
+    const refused = await world.service.refresh(contextOf(STAFF), STAFF, LINK).catch((e) => e);
+    expect(refused.details).toEqual([
+      { field: 'figma', message: 'rate_limited' },
+      { field: 'retry_after', message: '600' },
+    ]);
+    expect(world.links.get(LINK)!.figmaWaitUntil).toEqual(new Date(NOW.getTime() + 600_000));
+    // Asked again while Figma still wants a wait: no Figma call, the time left is said.
+    world.links.set(LINK, { ...world.links.get(LINK)!, refreshClaimedAt: null });
+    const again = await world.service.refresh(contextOf(STAFF), STAFF, LINK).catch((e) => e);
+    expect(again.details).toContainEqual({ field: 'retry_after', message: '600' });
     expect(world.outlineCalls()).toBe(1);
   });
 

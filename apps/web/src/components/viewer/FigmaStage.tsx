@@ -20,7 +20,6 @@ import { useDescribeApiError } from '../../lib/api/describe-error';
 import { ApiRequestError } from '../../lib/api/errors';
 import {
   createFigmaFrameThread,
-  figmaProblem,
   figmaSnapshotUrl,
   getFigmaLink,
   listFigmaFrameThreads,
@@ -48,7 +47,7 @@ import {
 import type { DrawSettings } from './DrawLayer';
 import { DrawToolbar } from './DrawToolbar';
 import { THREAD_POLL_MS, PENDING_POLL_MS, threadsOnStage } from './FileViewer';
-import { FIGMA_PROBLEM_KEYS } from './FigmaLinks';
+import { figmaProblemText } from './FigmaLinks';
 import { FigmaPageCanvas } from './FigmaPageCanvas';
 import { ImageStage } from './ImageStage';
 import type { ViewerDraft } from './PinLayer';
@@ -601,11 +600,31 @@ export function FigmaStage({
 
     const failed = stageError || frame?.snapshotStatus === 'failed';
     const skipped = frame?.snapshotStatus === 'skipped';
-    // The client never sees a technical reason: anything not ready is "being prepared".
+    // The client never sees a technical reason or a blank frame: anything not ready is a calm
+    // "being prepared" card with how much is ready, filling in as pictures arrive.
+    const readyCount = link.capture.ready;
+    const totalCount = portalLook ? frames.length : link.capture.ready + link.capture.pending;
     const preparing = (
-      <div className="tm-figma-state" role="status">
+      <div className="tm-figma-state tm-figma-state--preparing" role="status">
         <p className="tm-figma-state__title">{t('Figma.viewer.preparingTitle')}</p>
         <p className="tm-figma-state__body">{t('Figma.viewer.preparingBody')}</p>
+        {totalCount > 0 ? (
+          <>
+            <progress
+              className="tm-figma-state__progress"
+              max={totalCount}
+              value={Math.min(readyCount, totalCount)}
+              aria-label={t('Figma.viewer.progressClient')
+                .replace('{ready}', String(readyCount))
+                .replace('{total}', String(totalCount))}
+            />
+            <p className="tm-figma-state__count">
+              {t('Figma.viewer.progressClient')
+                .replace('{ready}', String(readyCount))
+                .replace('{total}', String(totalCount))}
+            </p>
+          </>
+        ) : null}
       </div>
     );
     const notReady = !frame ? null : portalLook ? (
@@ -626,7 +645,9 @@ export function FigmaStage({
               : t('Figma.viewer.snapshotFailedBody')
             : skipped
               ? t('Figma.viewer.skippedBody')
-              : t('Figma.viewer.snapshotPendingBody')}
+              : link.capture.waitUntil
+                ? t('Figma.viewer.snapshotWaitingBody')
+                : t('Figma.viewer.snapshotPendingBody')}
         </p>
         {failed && caps.canRefresh ? (
           <Button
@@ -736,6 +757,7 @@ export function FigmaStage({
     ) : view === 'page' && !showLive ? (
       <FigmaPageCanvas
         frames={group?.frames ?? frames}
+        preparingLabel={(name) => t('Figma.viewer.pageFramePreparing').replace('{name}', name)}
         thumbUrl={(item) =>
           item.thumbPath ? figmaSnapshotUrl(base, organizationSlug, item.thumbPath) : null
         }
@@ -774,9 +796,46 @@ export function FigmaStage({
       (canvas ?? notReady)
     );
 
-    const subline = frame ? (
-      <p className="tm-figma-subline">
-        {frame.capturedAt
+    // 2026-11-15 live test: four notices stacked above the design pushed it below the fold. The
+    // capture, the snapshot time, Figma's wait, Live and the last refresh are one status line;
+    // the page chooser opens under it only when asked for. The design comes first.
+    const capture = link.capture;
+    const shownCount = portalLook ? frames.length : capture.frameCount;
+    const waitUntil = !portalLook && capture.waitUntil ? new Date(capture.waitUntil) : null;
+    const refreshProblem = refresh.isError
+      ? (figmaProblemText(t, refresh.error) ?? {
+          title: t('Figma.viewer.refreshError'),
+          body: describeError(refresh.error),
+        })
+      : null;
+    const statusParts: ReactNode[] = [];
+    if (capture.frameCount > 0) {
+      statusParts.push(
+        (portalLook ? t('Figma.viewer.progressClient') : t('Figma.viewer.progress'))
+          .replace('{ready}', String(capture.ready))
+          .replace('{total}', String(shownCount))
+          .replace('{pages}', String(Math.max(1, capture.pageCount))),
+      );
+      if (capture.pending > 0 && !waitUntil) statusParts.push(t('Figma.viewer.progressPreparing'));
+      if (!portalLook && capture.skipped > 0) {
+        statusParts.push(
+          t('Figma.viewer.progressSkipped').replace('{count}', String(capture.skipped)),
+        );
+      }
+    }
+    if (waitUntil) {
+      statusParts.push(
+        <strong key="wait" className="tm-figma-status__wait">
+          {t('Figma.viewer.statusWaiting').replace(
+            '{minutes}',
+            String(Math.max(1, Math.ceil((waitUntil.getTime() - Date.now()) / 60_000))),
+          )}
+        </strong>,
+      );
+    }
+    if (frame && !portalLook) {
+      statusParts.push(
+        frame.capturedAt
           ? t('Figma.viewer.takenAt').replace(
               '{when}',
               format.dateTime(frame.capturedAt, {
@@ -786,113 +845,96 @@ export function FigmaStage({
                 minute: '2-digit',
               }),
             )
-          : t('Figma.viewer.notTakenYet')}
-        <span aria-hidden="true"> · </span>
-        <span dir="ltr">
-          {frame.name} · {frame.width}×{frame.height}
-        </span>
-      </p>
-    ) : null;
-
-    const capture = link.capture;
-    const shownCount = portalLook ? frames.length : capture.frameCount;
-    const progress =
-      capture.frameCount > 0 ? (
-        <p className="tm-figma-progress" role="status">
-          {(portalLook ? t('Figma.viewer.progressClient') : t('Figma.viewer.progress'))
-            .replace('{ready}', String(capture.ready))
-            .replace('{total}', String(shownCount))
-            .replace('{pages}', String(Math.max(1, capture.pageCount)))}
-          {capture.pending > 0 ? (
-            <>
-              <span aria-hidden="true"> · </span>
-              {t('Figma.viewer.progressPreparing')}
-            </>
-          ) : null}
-          {!portalLook && capture.skipped > 0 ? (
-            <>
-              <span aria-hidden="true"> · </span>
-              {t('Figma.viewer.progressSkipped').replace('{count}', String(capture.skipped))}
-            </>
-          ) : null}
-        </p>
-      ) : null;
+          : t('Figma.viewer.notTakenYet'),
+      );
+    }
+    if (showLive) statusParts.push(t('Figma.viewer.liveNotice'));
+    if (refreshProblem) {
+      statusParts.push(
+        <span key="refresh" className="tm-figma-status__problem">
+          {refreshProblem.title}: {refreshProblem.body}
+        </span>,
+      );
+    } else if (refresh.isSuccess) {
+      statusParts.push(t('Figma.viewer.refreshQueued'));
+    }
     const chosenPages =
       choosingPages ?? new Set(link.pages.filter((page) => page.selected).map((page) => page.id));
-    const overLimit =
-      !portalLook && caps.canRefresh && capture.overLimit ? (
-        <InlineAlert tone="warning" title={t('Figma.viewer.overLimitTitle')}>
-          <p>
+    const canChoosePages = !portalLook && caps.canRefresh && capture.overLimit;
+    const pageChooser =
+      canChoosePages && choosingPages ? (
+        <fieldset className="tm-figma-pages">
+          <legend className="tm-viewer-rail__note">
             {t('Figma.viewer.overLimitBody')
               .replace('{count}', String(capture.frameCount))
               .replace('{max}', String(capture.maxFrames))}
-          </p>
-          {choosingPages ? (
-            <fieldset className="tm-figma-pages">
-              <legend className="tm-viewer-rail__note">{t('Figma.viewer.pagesLegend')}</legend>
-              {link.pages.map((page) => (
-                <Checkbox
-                  key={page.id}
-                  label={
-                    <span dir="auto">
-                      {t('Figma.viewer.pageOption')
-                        .replace('{name}', page.name)
-                        .replace('{count}', String(page.frameCount))}
-                    </span>
-                  }
-                  checked={chosenPages.has(page.id)}
-                  onChange={() =>
-                    setChoosingPages(() => {
-                      const next = new Set(chosenPages);
-                      if (next.has(page.id)) next.delete(page.id);
-                      else next.add(page.id);
-                      return next;
-                    })
-                  }
-                />
-              ))}
-              <span className="tm-figma-pages__actions">
-                <Button
-                  type="button"
-                  tone="ink"
-                  disabled={chosenPages.size === 0}
-                  loading={savePages.isPending}
-                  loadingLabel={t('Figma.viewer.pagesSaving')}
-                  onClick={() => savePages.mutate([...chosenPages])}
-                >
-                  {t('Figma.viewer.pagesSave')}
-                </Button>
-                <Button type="button" tone="outline" onClick={() => setChoosingPages(null)}>
-                  {t('Figma.attach.cancel')}
-                </Button>
-              </span>
-            </fieldset>
-          ) : (
-            <Button type="button" tone="outline" onClick={() => setChoosingPages(chosenPages)}>
-              {t('Figma.viewer.pagesChoose')}
+          </legend>
+          {link.pages.map((page) => (
+            <Checkbox
+              key={page.id}
+              label={
+                <span dir="auto">
+                  {t('Figma.viewer.pageOption')
+                    .replace('{name}', page.name)
+                    .replace('{count}', String(page.frameCount))}
+                </span>
+              }
+              checked={chosenPages.has(page.id)}
+              onChange={() =>
+                setChoosingPages(() => {
+                  const next = new Set(chosenPages);
+                  if (next.has(page.id)) next.delete(page.id);
+                  else next.add(page.id);
+                  return next;
+                })
+              }
+            />
+          ))}
+          <span className="tm-figma-pages__actions">
+            <Button
+              type="button"
+              tone="ink"
+              disabled={chosenPages.size === 0}
+              loading={savePages.isPending}
+              loadingLabel={t('Figma.viewer.pagesSaving')}
+              onClick={() => savePages.mutate([...chosenPages])}
+            >
+              {t('Figma.viewer.pagesSave')}
             </Button>
-          )}
+            <Button type="button" tone="outline" onClick={() => setChoosingPages(null)}>
+              {t('Figma.attach.cancel')}
+            </Button>
+          </span>
           {savePages.isError ? <p>{describeError(savePages.error)}</p> : null}
-        </InlineAlert>
+        </fieldset>
       ) : null;
 
     const notice = (
       <>
-        {progress}
-        {overLimit}
-        {subline}
-        {showLive ? <InlineAlert tone="neutral">{t('Figma.viewer.liveNotice')}</InlineAlert> : null}
-        {refresh.isError ? (
-          <InlineAlert tone="danger" title={t('Figma.viewer.refreshError')} live>
-            {figmaProblem(refresh.error)
-              ? t(FIGMA_PROBLEM_KEYS[figmaProblem(refresh.error)!].body)
-              : describeError(refresh.error)}
-          </InlineAlert>
-        ) : refresh.isSuccess ? (
-          <InlineAlert tone="neutral" live>
-            {t('Figma.viewer.refreshQueued')}
-          </InlineAlert>
-        ) : null}
+        <div className="tm-figma-status">
+          <p className="tm-figma-status__line" role="status">
+            {statusParts.map((part, index) => (
+              <span key={index} className="tm-figma-status__part">
+                {index > 0 ? <span aria-hidden="true"> · </span> : null}
+                {part}
+              </span>
+            ))}
+          </p>
+          {canChoosePages && !choosingPages ? (
+            <Button
+              type="button"
+              tone="outline"
+              size="compact"
+              title={t('Figma.viewer.overLimitBody')
+                .replace('{count}', String(capture.frameCount))
+                .replace('{max}', String(capture.maxFrames))}
+              onClick={() => setChoosingPages(chosenPages)}
+            >
+              {t('Figma.viewer.pagesChoose')}
+            </Button>
+          ) : null}
+        </div>
+        {pageChooser}
       </>
     );
 

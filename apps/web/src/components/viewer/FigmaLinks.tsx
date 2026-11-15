@@ -10,6 +10,7 @@ import { useDescribeApiError } from '../../lib/api/describe-error';
 import {
   attachFigmaLink,
   figmaProblem,
+  figmaRetryAfterSeconds,
   inspectFigmaUrl,
   listFigmaLinks,
   listPortalFigmaLinks,
@@ -34,9 +35,29 @@ export const FIGMA_PROBLEM_KEYS: Record<
     body: 'Figma.problem.not_connected',
   },
   no_access: { title: 'Figma.problem.no_accessTitle', body: 'Figma.problem.no_access' },
-  rate_limited: { title: 'Figma.problem.rate_limitedTitle', body: 'Figma.problem.rate_limited' },
+  // 2026-11-15 live test: "Figma is busy" said neither what was happening nor when to try again.
+  rate_limited: { title: 'Figma.problem.waitTitle', body: 'Figma.problem.waitBody' },
+  recently_refreshed: {
+    title: 'Figma.problem.recently_refreshedTitle',
+    body: 'Figma.problem.recently_refreshed',
+  },
   unreachable: { title: 'Figma.problem.unreachableTitle', body: 'Figma.problem.unreachable' },
 };
+
+/** A Figma refusal in words, with when to try again filled in (whole minutes, at least 1). */
+export function figmaProblemText(
+  t: (key: MessageKey) => string,
+  error: unknown,
+): { readonly title: string; readonly body: string } | null {
+  const problem = figmaProblem(error);
+  if (!problem) return null;
+  const seconds = figmaRetryAfterSeconds(error) ?? 60;
+  const minutes = String(Math.max(1, Math.ceil(seconds / 60)));
+  return {
+    title: t(FIGMA_PROBLEM_KEYS[problem].title),
+    body: t(FIGMA_PROBLEM_KEYS[problem].body).replace('{minutes}', minutes),
+  };
+}
 
 /** "Only some frames": ticked first, the one the link points at, or the first ones up to the cap. */
 export function defaultFrameChoice(inspection: FigmaInspection): ReadonlySet<string> {
@@ -329,6 +350,7 @@ export function AttachFigmaDialog({
   const max = inspection?.maxFrames ?? 250;
   const failure = inspect.error ?? attach.error;
   const problem = figmaProblem(failure);
+  const problemText = figmaProblemText(t, failure);
 
   return (
     <div className="tm-upload-version__scrim">
@@ -381,10 +403,10 @@ export function AttachFigmaDialog({
           {failure ? (
             <InlineAlert
               tone={problem === 'not_connected' ? 'warning' : 'danger'}
-              title={problem ? t(FIGMA_PROBLEM_KEYS[problem].title) : t('Figma.attach.error')}
+              title={problemText ? problemText.title : t('Figma.attach.error')}
               live
             >
-              <p>{problem ? t(FIGMA_PROBLEM_KEYS[problem].body) : describeError(failure)}</p>
+              <p>{problemText ? problemText.body : describeError(failure)}</p>
               {problem === 'not_connected' ? (
                 <p>
                   <Link href={figmaConnectHref(organizationSlug)}>

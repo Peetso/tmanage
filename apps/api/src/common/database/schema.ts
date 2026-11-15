@@ -5972,6 +5972,10 @@ export const figmaLinks = mysqlTable(
     /** 0342: the page ids chosen for capture when the file is over the limit; null = all. */
     pageFilterJson: text('page_filter_json'),
     syncedAt: datetime('synced_at', { mode: 'date', fsp: 3 }),
+    /** 0344: when "Refresh from Figma" was last started (the cooldown is claimed on it). */
+    refreshClaimedAt: datetime('refresh_claimed_at', { mode: 'date', fsp: 3 }),
+    /** 0344: Figma refused the creator's token (429); not asked again before this time. */
+    figmaWaitUntil: datetime('figma_wait_until', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_figma_links_org_id').on(table.organizationId, table.id),

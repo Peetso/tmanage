@@ -56,6 +56,7 @@ import {
   MAX_RENDER_BYTES,
   figmaEmbedUrl,
   figmaOpenUrl,
+  figmaWaitMs,
   normaliseNodeId,
   parseFigmaUrl,
   renderScale,
@@ -289,6 +290,11 @@ export interface FigmaCaptureView {
   /** The file had more frames than TManage reads at all. */
   readonly truncated: boolean;
   readonly syncedAt: string | null;
+  /**
+   * Figma refused the link creator's token (429): pictures resume after this time (ISO), or null.
+   * The team's screen says so; a client only sees "being prepared".
+   */
+  readonly waitUntil: string | null;
 }
 
 export interface FigmaLinkView {
@@ -400,15 +406,25 @@ function rateLimited(): ApiError {
 }
 
 function conflict(
-  detail: 'not_connected' | 'no_access' | 'rate_limited' | 'unreachable',
+  detail: 'not_connected' | 'no_access' | 'rate_limited' | 'recently_refreshed' | 'unreachable',
+  /** When asking again makes sense (Figma's Retry-After, or the refresh cooldown left). */
+  retryAfterSeconds?: number,
 ): ApiError {
   const messages = {
     not_connected: 'Connect Figma first',
     no_access: 'Your Figma account cannot open this file',
-    rate_limited: 'Figma is busy. Try again in a minute',
+    rate_limited: 'Figma asked TManage to wait before reading this file again',
+    recently_refreshed: 'This file was refreshed a moment ago',
     unreachable: 'Figma is not reachable right now. Try again',
   } as const;
-  return new ApiError(409, 'conflict', messages[detail], [{ field: 'figma', message: detail }]);
+  const details: { field: string; message: string }[] = [{ field: 'figma', message: detail }];
+  if (retryAfterSeconds !== undefined) {
+    details.push({
+      field: 'retry_after',
+      message: String(Math.max(1, Math.ceil(retryAfterSeconds))),
+    });
+  }
+  return new ApiError(409, 'conflict', messages[detail], details);
 }
 
 function audienceOf(raw: unknown): FigmaLinkAudience {
@@ -917,6 +933,13 @@ export class FigmaService {
     const filter = parsePageFilter(link.pageFilterJson);
     const live = rows.filter((row) => row.goneAt === null);
     const count = (status: string) => live.filter((row) => row.snapshotStatus === status).length;
+    const waitUntil =
+      link.figmaWaitUntil && link.figmaWaitUntil.getTime() > this.now().getTime()
+        ? link.figmaWaitUntil
+        : null;
+    // Someone is looking at pictures still to come: wake the job (debounced, in this process).
+    // On shared hosting the process can sleep between requests, so its own timer is not enough.
+    if (count('pending') > 0 && !waitUntil) this.deps.snapshots?.request();
     const focus =
       rows.find((row) => row.nodeId === link.focusNodeId) ??
       rows.find((row) => row.pageId !== null && row.pageId === link.focusNodeId) ??
@@ -956,6 +979,7 @@ export class FigmaService {
         overLimit: link.captureMode === 'whole_file' && live.length > MAX_CAPTURED_FRAMES,
         truncated: outline.truncated,
         syncedAt: link.syncedAt ? link.syncedAt.toISOString() : null,
+        waitUntil: waitUntil && !client ? waitUntil.toISOString() : null,
       },
       frames,
       capabilities: {
@@ -984,9 +1008,13 @@ export class FigmaService {
     if (!this.mayWrite(principal, link, project)) {
       throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'figma_write_denied');
     }
-    // Claimed atomically and stamped before Figma is called: of refreshes sent at once one goes
-    // on, and a refresh that then fails still waits out the cooldown.
     const now = this.now();
+    // Figma refused this link's token a short while ago (429): say until when, ask nothing.
+    const waitLeft = (link.figmaWaitUntil?.getTime() ?? 0) - now.getTime();
+    if (waitLeft > 0) throw conflict('rate_limited', waitLeft / 1000);
+    // Claimed atomically and stamped before Figma is called: of refreshes sent at once one goes
+    // on, and a refresh that then fails still waits out the cooldown. Attaching does not start
+    // it, so the first refresh always goes on.
     const claimed = await this.deps.database.transaction(context, (tx) =>
       this.repository.claimRefresh(
         tx,
@@ -996,7 +1024,10 @@ export class FigmaService {
         new Date(now.getTime() - REFRESH_COOLDOWN_MS),
       ),
     );
-    if (!claimed) throw conflict('rate_limited');
+    if (!claimed) {
+      const since = link.refreshClaimedAt?.getTime() ?? now.getTime();
+      throw conflict('recently_refreshed', (since + REFRESH_COOLDOWN_MS - now.getTime()) / 1000);
+    }
     const token = await this.refreshToken(context, link);
     const rows = await this.deps.database.read(context, (runner) =>
       this.repository.listFrames(runner, context, link.id),
@@ -1014,6 +1045,13 @@ export class FigmaService {
         [link.focusNodeId, ...rows.filter((row) => row.pageId === null).map((row) => row.nodeId)],
       );
     } catch (error) {
+      if (error instanceof FigmaRateLimitError) {
+        const until = new Date(now.getTime() + figmaWaitMs(error.retryAfterSeconds));
+        await this.deps.database.transaction(context, (tx) =>
+          this.repository.setFigmaWait(tx, context, link.id, until),
+        );
+        throw conflict('rate_limited', (until.getTime() - now.getTime()) / 1000);
+      }
       throw await this.figmaCallFailure(context, error);
     }
     const placements = placeFrames(
@@ -1432,7 +1470,9 @@ export class FigmaService {
 
   private figmaFailure(error: unknown): ApiError {
     if (error instanceof FigmaNotFoundError) return conflict('no_access');
-    if (error instanceof FigmaRateLimitError) return conflict('rate_limited');
+    if (error instanceof FigmaRateLimitError) {
+      return conflict('rate_limited', figmaWaitMs(error.retryAfterSeconds) / 1000);
+    }
     return conflict('unreachable');
   }
 }

@@ -15,7 +15,7 @@ import {
   FigmaNotFoundError,
   FigmaRateLimitError,
   FigmaUnavailableError,
-  NODES_PER_REQUEST,
+  figmaWaitMs,
   snapshotScale,
   type FigmaRestClient,
 } from './figma.rest.js';
@@ -33,7 +33,7 @@ import { figmaSnapshotObjectKey, figmaThumbObjectKey, readMemberToken } from './
  * One pass: every organization with pending frames nobody holds; per organization, a batch of
  * frames in capture order (the frame the link pointed at, its page, then the rest); per link,
  * the **link creator's** token, one `images` call per render scale (at most
- * {@link NODES_PER_REQUEST} ids each), then each PNG is downloaded, hashed (SHA-256) and stored in
+ * {@link RENDERS_PER_REQUEST} ids each), then each PNG is downloaded, hashed (SHA-256) and stored in
  * the `derived` zone beside a small WebP of it (the whole-page view). The frame's size is the one
  * its outline gave ("Frame changed" is decided when the outline is read again).
  *
@@ -101,10 +101,12 @@ class RateLimited extends Error {
   }
 }
 
-/** How long a workspace whose Figma token was refused waits, when Figma names no time. */
-const RATE_LIMIT_FLOOR_MS = 60_000;
-/** The longest a workspace is set aside for one refusal (Figma can name hours). */
-const RATE_LIMIT_CEILING_MS = 60 * 60_000;
+/**
+ * Ids per `images` call. Figma renders every id of a call before it answers, and a call of 20
+ * large frames can pass the 30-second request limit (2026-11-15 live test: nothing arrived), so
+ * renders go in smaller calls.
+ */
+export const RENDERS_PER_REQUEST = 8;
 
 /** Why a Figma call failed, as the token the team's screen words, and whether to stop trying. */
 export function snapshotErrorOf(error: unknown): {
@@ -253,11 +255,10 @@ export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy
         if (!(error instanceof RateLimited)) throw error;
         // This workspace waits; the next one is drawn now.
         rateLimited = true;
-        const waitMs = Math.min(
-          RATE_LIMIT_CEILING_MS,
-          Math.max(RATE_LIMIT_FLOOR_MS, error.retryAfterSeconds * 1000),
+        this.limitedUntil.set(
+          organizationId,
+          this.now().getTime() + figmaWaitMs(error.retryAfterSeconds),
         );
-        this.limitedUntil.set(organizationId, this.now().getTime() + waitMs);
       }
     }
     return { organizations: organizations.length, ...tally, rateLimited };
@@ -340,6 +341,9 @@ export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy
     };
     // A removed link's frames are not drawn.
     if (!link || link.deletedAt !== null) return failAll('not_found', true);
+    // Figma asked to wait (a 429 seen by any process): not asked again before then.
+    const waitLeft = (link.figmaWaitUntil?.getTime() ?? 0) - this.now().getTime();
+    if (waitLeft > 0) throw new RateLimited(Math.ceil(waitLeft / 1000));
     const token = await readMemberToken(
       this.database,
       this.repository,
@@ -358,8 +362,8 @@ export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy
       groups.set(scale, group);
     }
     for (const [scale, group] of groups) {
-      for (let at = 0; at < group.length; at += NODES_PER_REQUEST) {
-        const batch = group.slice(at, at + NODES_PER_REQUEST);
+      for (let at = 0; at < group.length; at += RENDERS_PER_REQUEST) {
+        const batch = group.slice(at, at + RENDERS_PER_REQUEST);
         let urls: ReadonlyMap<string, string | null>;
         try {
           urls = await this.rest.renderUrls(
@@ -369,7 +373,9 @@ export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy
             scale,
           );
         } catch (error) {
-          if (error instanceof FigmaRateLimitError) throw new RateLimited(error.retryAfterSeconds);
+          if (error instanceof FigmaRateLimitError) {
+            throw await this.waitForFigma(context, link, error.retryAfterSeconds);
+          }
           if (error instanceof FigmaAuthError && error.status === 401) {
             await this.database.transaction(context, (tx) =>
               this.repository.markConnectionError(tx, context, link.createdByMembershipId),
@@ -393,6 +399,19 @@ export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy
         }
       }
     }
+  }
+
+  /** Figma's 429: the link waits (in its row, for every process and the team's screen). */
+  private async waitForFigma(
+    context: TenantContext,
+    link: FigmaLinkRow,
+    retryAfterSeconds: number,
+  ): Promise<RateLimited> {
+    const until = new Date(this.now().getTime() + figmaWaitMs(retryAfterSeconds));
+    await this.database.transaction(context, (tx) =>
+      this.repository.setFigmaWait(tx, context, link.id, until),
+    );
+    return new RateLimited(retryAfterSeconds);
   }
 
   private async drawFrame(
@@ -440,7 +459,9 @@ export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy
       remaining.delete(frame.id);
       tally.ready += 1;
     } catch (error) {
-      if (error instanceof FigmaRateLimitError) throw new RateLimited(error.retryAfterSeconds);
+      if (error instanceof FigmaRateLimitError) {
+        throw await this.waitForFigma(context, link, error.retryAfterSeconds);
+      }
       const { reason, final } = snapshotErrorOf(error);
       await this.fail(context, frame, reason, final, tally, remaining);
     }
