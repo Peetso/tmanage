@@ -142,6 +142,37 @@ describe('52-01 timer', () => {
     expect(await code(h.service.stop(context, principal(), {}))).toBe('timer_not_running');
   });
 
+  it('UX T-P1-1: 13 seconds can be saved as less than the rounded amount, never more', async () => {
+    const h = harness(false, undefined, { rounding: 15 });
+    await h.service.start(context, principal(), { workItemId: ITEM });
+    h.clock.t += 13_000;
+    expect(await code(h.service.stop(context, principal(), { minutes: 16 }))).toBe(
+      'validation_failed',
+    );
+    expect(await code(h.service.stop(context, principal(), { minutes: 0 }))).toBe(
+      'validation_failed',
+    );
+    expect(h.logs).toHaveLength(0);
+    await h.service.stop(context, principal(), { minutes: 1 });
+    expect(h.logs[0]).toMatchObject({ minutes: 1 });
+  });
+
+  it('UX T-P1-1: discard files nothing and is audited with the elapsed seconds', async () => {
+    const h = harness();
+    await h.service.start(context, principal(), { workItemId: ITEM });
+    h.clock.t += 13_000;
+    const state = await h.service.discard(context, principal());
+    expect(state.timer).toBeNull();
+    expect(h.logs).toHaveLength(0);
+    expect(h.auditRows.at(-1)).toMatchObject({
+      action: 'time_timer.discarded',
+      metadata: { elapsed_seconds: 13 },
+    });
+    expect(await code(h.service.discard(context, principal()))).toBe('timer_not_running');
+    // Fails if requireInternal is removed from discard: a client principal has no timer to throw.
+    expect(await code(h.service.discard(context, principal('client')))).toBe('forbidden');
+  });
+
   it('refuses a manual span outside the last 31 days', () => {
     const now = new Date('2026-10-30T12:00:00Z');
     expect(() => parseManualSpan('2026-09-28T09:00:00Z', '2026-09-28T10:00:00Z', now)).toThrow();

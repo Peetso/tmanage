@@ -22,7 +22,7 @@ import type { OrgSettingsRepository } from '../tenancy/org-settings.repository.j
 import type { WorkTimeLogsRepository } from '../work/time-logs.repository.js';
 import type { WorkItemsRepository } from '../work/work-items.repository.js';
 import { mayTrackOnItem, mayTrackOnProject, requireInternal } from './time-capabilities.js';
-import { optionalBoolean, optionalId, optionalNote } from './time-rules.js';
+import { optionalBoolean, optionalId, optionalMinutes, optionalNote } from './time-rules.js';
 import type { TimeRepository } from './time.repository.js';
 import { resolveTimeTarget } from './time-target.js';
 
@@ -324,6 +324,7 @@ export class TimeService {
     requireInternal(principal);
     const input = record(body);
     const note = input['note'] === undefined ? undefined : optionalNote(input['note']);
+    const chosen = optionalMinutes(input['minutes']);
     const at = this.now();
     return this.options.database.transaction(context, async (tx) => {
       const timer = await this.options.repository.findTimer(
@@ -334,8 +335,43 @@ export class TimeService {
       );
       if (timer === null) throw timerNotRunning();
       const rounding = await this.options.repository.roundingMinutes(tx, context);
-      const entry = await this.finish(tx, context, timer, at, note ?? timer.note, rounding);
+      // UX test T-P1-1: the person may save less than the rounded amount, never more.
+      const rounded = roundedSpanMinutes(timer.startedAt, at, rounding);
+      if (chosen !== null && chosen > rounded) {
+        throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+          { field: 'minutes', message: `must be at most ${rounded}` },
+        ]);
+      }
+      const entry = await this.finish(tx, context, timer, at, note ?? timer.note, rounding, chosen);
       return entryView(entry);
+    });
+  }
+
+  /**
+   * UX test T-P1-1: throw away the caller's own running timer. Nothing is filed; the discard is
+   * audited with the elapsed seconds, so a manager can see it happened.
+   */
+  async discard(context: TenantContext, principal: Principal): Promise<TimerStateView> {
+    requireInternal(principal);
+    const at = this.now();
+    const repo = this.options.repository;
+    return this.options.database.transaction(context, async (tx) => {
+      const timer = await repo.findTimer(tx, context, context.membershipId, true);
+      if (timer === null) throw timerNotRunning();
+      if ((await repo.deleteTimer(tx, context, timer.id)) === 0) throw timerNotRunning();
+      await this.options.audit.record(tx, context, {
+        action: 'time_timer.discarded',
+        result: 'allowed',
+        objectId: timer.id,
+        actorUserId: context.userId,
+        metadata: {
+          elapsed_seconds: Math.max(
+            0,
+            Math.round((at.getTime() - timer.startedAt.getTime()) / 1000),
+          ),
+        },
+      });
+      return stateOf(null, at, await repo.roundingMinutes(tx, context));
     });
   }
 
@@ -418,6 +454,8 @@ export class TimeService {
     endedAt: Date,
     note: string | null,
     rounding: number | null,
+    /** The minutes the person chose in the Stop dialog (already checked), or null = rounded. */
+    chosen: number | null = null,
   ): Promise<WorkItemTimeLogRow> {
     const repo = this.options.repository;
     if ((await repo.deleteTimer(tx, context, timer.id)) === 0) throw timerNotRunning();
@@ -430,7 +468,7 @@ export class TimeService {
       workItemId,
       projectId: timer.projectId,
       loggedBy: timer.membershipId,
-      minutes: roundedSpanMinutes(timer.startedAt, endedAt, rounding),
+      minutes: chosen ?? roundedSpanMinutes(timer.startedAt, endedAt, rounding),
       spentOn: localDateOf(timer.startedAt, zone),
       note,
       startedAt: timer.startedAt,

@@ -55,6 +55,16 @@ export class TimeController {
     return this.service.stop(context, principal, body);
   }
 
+  @Post('timer/discard')
+  @RequireCapability('work.read')
+  @HttpCode(200)
+  discard(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+  ): Promise<TimerStateView> {
+    return this.service.discard(context, principal);
+  }
+
   @Post('timer/heartbeat')
   @RequireCapability('work.read')
   @HttpCode(200)

@@ -69,6 +69,15 @@ function invalid(field: string, message: string): ApiError {
   ]);
 }
 
+/** Whole minutes from 1 to 1440, or null when absent (UX test T-P1-1, the Stop dialog). */
+export function optionalMinutes(raw: unknown, field = 'minutes'): number | null {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== 'number' || !Number.isInteger(raw) || raw < 1 || raw > 1440) {
+    throw invalid(field, 'must be a whole number of minutes from 1 to 1440');
+  }
+  return raw;
+}
+
 export function optionalNote(raw: unknown, field = 'note'): string | null {
   if (raw === undefined || raw === null) return null;
   if (typeof raw !== 'string') throw invalid(field, 'must be a string');

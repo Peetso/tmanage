@@ -1317,6 +1317,12 @@ export const NEVER: readonly NeverEntry[] = [
   // person at the keyboard, and monitoring of others: never an AI tool.
   { method: 'GET', path: '/v1/organizations/:orgSlug/time/auto/', reason: 'time_tracking' },
   { method: 'PUT', path: '/v1/organizations/:orgSlug/time/auto/settings', reason: 'time_tracking' },
+  // UX test T-P1-1: a person throws away their own running timer; a human decision, never an AI one.
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/time/timer/discard',
+    reason: 'time_tracking',
+  },
   {
     method: 'PUT',
     path: '/v1/organizations/:orgSlug/time/auto/current-task',
