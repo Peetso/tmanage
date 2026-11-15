@@ -37,6 +37,7 @@ import {
   missingRequired,
   parseCsv,
   readBasecampArchive,
+  readMondayWorkbook,
 } from '../../lib/import-sources';
 import type { ImportSourceId } from '../../lib/import-sources';
 
@@ -55,6 +56,8 @@ const SOURCE_NAMES: Readonly<Record<ImportSourceId, string>> = {
   basecamp: 'Basecamp',
   trello: 'Trello',
   asana: 'Asana',
+  monday: 'monday.com',
+  clickup: 'ClickUp',
 };
 
 const SOURCE_HINTS: Readonly<Record<ImportSourceId, string>> = {
@@ -64,6 +67,8 @@ const SOURCE_HINTS: Readonly<Record<ImportSourceId, string>> = {
   basecamp: 'Messages and to-dos from an archive',
   trello: 'Cards from a board CSV',
   asana: 'Tasks from a project CSV',
+  monday: 'Items and sub-items from a board Excel export',
+  clickup: 'Tasks and subtasks from a CSV export',
 };
 
 const KIND_NAMES: Readonly<Record<ImportSourceKind, string>> = {
@@ -71,7 +76,19 @@ const KIND_NAMES: Readonly<Record<ImportSourceKind, string>> = {
   jira_issues: 'Jira',
   notion_database: 'Notion · Trello · Asana',
   basecamp_messages: 'Basecamp',
+  monday_board: 'monday.com',
+  clickup_tasks: 'ClickUp',
 };
+
+/** The file badge and the input's `accept` per file type. */
+const FILE_BADGES = { csv: 'CSV', zip: 'ZIP', xlsx: 'XLSX' } as const;
+const FILE_ACCEPT = {
+  csv: '.csv,text/csv',
+  zip: '.zip,application/zip',
+  xlsx: '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+} as const;
+/** The largest export read in the browser; the API bounds the rows it receives on its own. */
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 const FIELD_LABELS: Readonly<Record<string, string>> = {
   name: 'Name',
@@ -91,6 +108,10 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   person: 'Assignee',
   date: 'Due date',
   tags: 'Tags',
+  group: 'Group',
+  startDate: 'Start date',
+  itemId: 'Item ID',
+  comments: 'Comments',
 };
 
 interface LoadedFile {
@@ -211,7 +232,12 @@ function ImportStart({ organizationSlug, api }: { organizationSlug: string; api:
       return;
     }
     try {
-      if (preset.file === 'zip') {
+      if (picked.size > MAX_FILE_BYTES) throw new Error('too large');
+      if (preset.file === 'xlsx') {
+        const table = await readMondayWorkbook(await picked.arrayBuffer());
+        setFile({ name: picked.name, ...table });
+        setMapping(autoMap(preset, table.headers));
+      } else if (preset.file === 'zip') {
         const rows = await readBasecampArchive(await picked.arrayBuffer());
         setFile({ name: picked.name, headers: [], rows, truncated: false });
         setMapping({});
@@ -269,7 +295,7 @@ function ImportStart({ organizationSlug, api }: { organizationSlug: string; api:
                 <span className="tm-import-start__source-name" dir="ltr">
                   {SOURCE_NAMES[id]}
                 </span>
-                <Badge tone="neutral">{IMPORT_SOURCES[id].file === 'zip' ? 'ZIP' : 'CSV'}</Badge>
+                <Badge tone="neutral">{FILE_BADGES[IMPORT_SOURCES[id].file]}</Badge>
               </span>
               <span className="tm-import-start__source-hint">
                 {tOr(`ImportStartScreen.source.${id}`, SOURCE_HINTS[id])}
@@ -304,7 +330,7 @@ function ImportStart({ organizationSlug, api }: { organizationSlug: string; api:
                 <Field
                   key={sourceId}
                   type="file"
-                  accept={preset.file === 'zip' ? '.zip,application/zip' : '.csv,text/csv'}
+                  accept={FILE_ACCEPT[preset.file]}
                   label={tOr('ImportStartScreen.fileLabel', 'Export file')}
                   hint={
                     file === null
@@ -312,7 +338,9 @@ function ImportStart({ organizationSlug, api }: { organizationSlug: string; api:
                           `ImportStartScreen.fileHint.${sourceId}`,
                           preset.file === 'zip'
                             ? 'The ZIP archive Basecamp exports.'
-                            : 'A CSV file, up to 1,000 rows.',
+                            : preset.file === 'xlsx'
+                              ? 'The Excel file the board exports, up to 1,000 rows.'
+                              : 'A CSV file, up to 1,000 rows.',
                         )
                       : `${file.rows.length} ${tOr('ImportStartScreen.rowsFound', 'rows found')}`
                   }

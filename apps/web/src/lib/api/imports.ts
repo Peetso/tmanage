@@ -28,7 +28,7 @@ export interface ImportReceiptRow {
 /** A committed job's receipt — pairs with the API's `ImportCommitView`. */
 export interface ImportReceipt {
   readonly jobId: string;
-  readonly sourceKind: 'project' | 'jira_issues' | 'notion_database' | 'basecamp_messages';
+  readonly sourceKind: ImportSourceKind;
   readonly status: 'committed' | 'committed_with_errors';
   readonly committedCount: number;
   readonly failedCount: number;
@@ -39,6 +39,8 @@ export interface ImportReceipt {
   readonly notion?: ImportNotionSummary;
   /** R22-f: a `basecamp_messages` commit's summary, on the commit response only. */
   readonly basecamp?: ImportBasecampSummary;
+  /** 54-26: a `monday_board` / `clickup_tasks` commit's summary, on the commit response only. */
+  readonly board?: ImportBoardSummary;
 }
 
 /** R21-e: what a Jira batch created — pairs with the API's `JiraCommitSummary`. */
@@ -72,6 +74,16 @@ export interface ImportBasecampSummary {
   readonly notes: readonly string[];
 }
 
+/** 54-26: what a monday / ClickUp batch created — pairs with the API's `BoardCommitSummary`. */
+export interface ImportBoardSummary {
+  readonly projectId: string;
+  readonly itemsCreated: number;
+  readonly subtasksCreated: number;
+  readonly commentsCreated: number;
+  readonly labelsCreated: number;
+  readonly notes: readonly string[];
+}
+
 export async function fetchImportReceipt(
   client: ApiClient,
   organizationSlug: string,
@@ -86,7 +98,13 @@ export async function fetchImportReceipt(
 }
 
 /** The source kinds the import API understands — pairs with the API's `ImportSourceKind`. */
-export type ImportSourceKind = 'project' | 'jira_issues' | 'notion_database' | 'basecamp_messages';
+export type ImportSourceKind =
+  | 'project'
+  | 'jira_issues'
+  | 'notion_database'
+  | 'basecamp_messages'
+  | 'monday_board'
+  | 'clickup_tasks';
 
 /**
  * R31 (A11) — one recent committed import on the start page — pairs with the API's

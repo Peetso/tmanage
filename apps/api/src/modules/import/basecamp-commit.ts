@@ -112,7 +112,7 @@ function sortedResults(results: Map<number, ImportRowResult>): readonly ImportRo
   return [...results.values()].sort((a, b) => a.index - b.index);
 }
 
-async function resolveProject(
+export async function resolveProject(
   tx: TenantQueryRunner,
   context: TenantContext,
   projects: Pick<ProjectsRepository, 'findById'>,
@@ -140,7 +140,7 @@ async function resolveProject(
  * Display names → user ids. `userMap` (lower-cased keys) first, kept only for an active member;
  * then exactly one active member whose display name equals the name (case-insensitive).
  */
-async function resolvePeople(
+export async function resolvePeople(
   tx: TenantQueryRunner,
   context: TenantContext,
   names: ReadonlySet<string>,
@@ -167,7 +167,7 @@ async function resolvePeople(
 }
 
 /** Walk a fresh `backlog` item along the §5 main line to `target` through the state machine. */
-async function walkTo(
+export async function walkTo(
   tx: TenantQueryRunner,
   context: TenantContext,
   deps: ImportCommitDeps,

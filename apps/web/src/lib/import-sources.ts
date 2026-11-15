@@ -6,10 +6,21 @@ import type { ImportBatchInput, ImportSourceKind } from './api/imports';
  * and the batch builder. Trello and Asana have no API kind of their own: their CSV exports are a
  * task table, so they post as `notion_database` with their own column names in the mapping (the
  * API reads `mapping[field]` before its Notion aliases). Basecamp is a ZIP read in the browser
- * (the API has no ZIP reader), one `message` row per HTML page.
+ * (the API has no ZIP reader), one `message` row per HTML page. 54-26: monday.com is its board's
+ * Excel export, read in the browser and flattened (group blocks → a `Group` column, sub-item rows
+ * → rows with a `Parent item`); ClickUp is its task CSV. Both post as their own kinds.
  */
 
-export const IMPORT_SOURCE_IDS = ['csv', 'jira', 'notion', 'basecamp', 'trello', 'asana'] as const;
+export const IMPORT_SOURCE_IDS = [
+  'csv',
+  'jira',
+  'notion',
+  'basecamp',
+  'trello',
+  'asana',
+  'monday',
+  'clickup',
+] as const;
 export type ImportSourceId = (typeof IMPORT_SOURCE_IDS)[number];
 
 /** The API's batch bound (`MAX_IMPORT_ROWS`). */
@@ -30,7 +41,7 @@ export interface ImportSourcePreset {
   readonly id: ImportSourceId;
   readonly kind: ImportSourceKind;
   /** What the file input accepts. */
-  readonly file: 'csv' | 'zip';
+  readonly file: 'csv' | 'zip' | 'xlsx';
   /** Rows land in one chosen project (every kind but `project`). */
   readonly needsProject: boolean;
   readonly fields: readonly ImportTargetField[];
@@ -125,6 +136,44 @@ export const IMPORT_SOURCES: Readonly<Record<ImportSourceId, ImportSourcePreset>
       field('date', ['Due Date', 'Due']),
       field('tags', ['Tags']),
       field('description', ['Notes', 'Description']),
+    ],
+  },
+  monday: {
+    id: 'monday',
+    kind: 'monday_board',
+    file: 'xlsx',
+    needsProject: true,
+    fields: [
+      field('name', ['Name', 'Item'], true),
+      field('group', ['Group']),
+      field('status', ['Status']),
+      field('person', ['Person', 'People', 'Owner']),
+      field('date', ['Date', 'Timeline', 'Due date']),
+      field('tags', ['Tags']),
+      field('priority', ['Priority']),
+      field('description', ['Text', 'Notes', 'Description']),
+      field('parent', ['Parent item']),
+      field('comments', ['Updates']),
+    ],
+  },
+  clickup: {
+    id: 'clickup',
+    kind: 'clickup_tasks',
+    file: 'csv',
+    needsProject: true,
+    fields: [
+      field('name', ['Task Name', 'Name'], true),
+      field('group', ['List Name', 'List']),
+      field('status', ['Status']),
+      field('person', ['Assignees', 'Assignee']),
+      field('startDate', ['Start Date']),
+      field('dueDate', ['Due Date']),
+      field('tags', ['Tags']),
+      field('priority', ['Priority']),
+      field('description', ['Task Content', 'Description']),
+      field('itemId', ['Task ID']),
+      field('parent', ['Parent ID']),
+      field('comments', ['Comments']),
     ],
   },
 };
@@ -238,6 +287,112 @@ export function buildBatch(
       return match ? { ...row, [dateColumn]: match[1] } : row;
     }),
   };
+}
+
+/** The synthetic columns {@link flattenMondayGrid} adds. */
+export const MONDAY_GROUP_COLUMN = 'Group';
+export const MONDAY_PARENT_COLUMN = 'Parent item';
+
+const isHeaderStart = (value: string | undefined) =>
+  value !== undefined && /^(name|item|subitems?)$/iu.test(value.trim());
+
+/**
+ * One monday sheet (rows of cell text) as a flat table. A board export stacks blocks: a group
+ * title row, a header row starting with `Name`, the item rows; a sub-item block is a header row
+ * that starts one column in, followed by rows whose first cell is empty. Each item gets its
+ * group in {@link MONDAY_GROUP_COLUMN}; each sub-item its item's name in
+ * {@link MONDAY_PARENT_COLUMN}. Summary and blank rows are dropped.
+ */
+export function flattenMondayGrid(grid: readonly (readonly string[])[]): ParsedTable {
+  const headers: string[] = [MONDAY_GROUP_COLUMN];
+  const addHeader = (header: string) => {
+    if (header !== '' && !headers.includes(header)) headers.push(header);
+  };
+  const rows: Record<string, string>[] = [];
+  let itemHeaders: string[] | null = null;
+  let subHeaders: { offset: number; names: string[] } | null = null;
+  let group = '';
+  let lastItem = '';
+  let truncated = false;
+  grid.forEach((raw, index) => {
+    const cells = raw.map((value) => value.trim());
+    const filled = cells.filter((value) => value !== '').length;
+    if (filled === 0) return;
+    const first = cells.findIndex((value) => value !== '');
+    const next = grid[index + 1]?.map((value) => value.trim()) ?? [];
+    if (filled === 1 && first === 0 && isHeaderStart(next[0]) && next.filter(Boolean).length > 1) {
+      group = cells[0] ?? '';
+      itemHeaders = null;
+      subHeaders = null;
+      return;
+    }
+    if (isHeaderStart(cells[first]) && filled > 1) {
+      const names = cells.slice(first).map((h, i) => (i === 0 ? 'Name' : h));
+      if (first === 0) {
+        itemHeaders = names;
+        subHeaders = null;
+      } else subHeaders = { offset: first, names };
+      names.forEach(addHeader);
+      return;
+    }
+    const sub: { offset: number; names: string[] } | null = subHeaders;
+    const target =
+      first === 0 && itemHeaders !== null
+        ? { offset: 0, names: itemHeaders }
+        : first > 0 && sub !== null && lastItem !== ''
+          ? sub
+          : null;
+    if (target === null) return;
+    if (rows.length >= MAX_IMPORT_ROWS) {
+      truncated = true;
+      return;
+    }
+    const row: Record<string, string> = { [MONDAY_GROUP_COLUMN]: group };
+    target.names.forEach((name, i) => {
+      if (name !== '' && row[name] === undefined) row[name] = cells[target.offset + i] ?? '';
+    });
+    if (target.offset === 0) {
+      lastItem = row['Name'] ?? '';
+      subHeaders = null;
+    } else {
+      row[MONDAY_PARENT_COLUMN] = lastItem;
+      addHeader(MONDAY_PARENT_COLUMN);
+    }
+    if ((row['Name'] ?? '') !== '') rows.push(row);
+  });
+  return { headers, rows, truncated };
+}
+
+/**
+ * A monday board's Excel export as one table: every sheet flattened by
+ * {@link flattenMondayGrid}, in order (a separate sub-items sheet joins by its parent column).
+ * Cell text only — the reader evaluates no formula, macro or external link.
+ */
+export async function readMondayWorkbook(bytes: ArrayBuffer): Promise<ParsedTable> {
+  const { readWorkbook, columnName } = await import('./office/xlsx-read');
+  const workbook = await readWorkbook(bytes);
+  const headers = new Set<string>();
+  const rows: Record<string, string>[] = [];
+  let truncated = false;
+  for (const sheet of workbook.sheets) {
+    if (sheet.hidden) continue;
+    const grid: string[][] = [];
+    for (let r = 1; r <= sheet.rowCount; r += 1) {
+      const line: string[] = [];
+      for (let c = 0; c < sheet.columnCount; c += 1) {
+        line.push(sheet.cells.get(`${columnName(c)}${r}`)?.text ?? '');
+      }
+      grid.push(line);
+    }
+    const table = flattenMondayGrid(grid);
+    table.headers.forEach((h) => headers.add(h));
+    for (const row of table.rows) {
+      if (rows.length >= MAX_IMPORT_ROWS) truncated = true;
+      else rows.push({ ...row });
+    }
+    truncated ||= table.truncated || sheet.truncated;
+  }
+  return { headers: [...headers], rows, truncated };
 }
 
 /** The API's bound on one Basecamp HTML body (`MAX_BASECAMP_HTML`). */

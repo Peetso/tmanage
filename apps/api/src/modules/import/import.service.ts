@@ -43,6 +43,11 @@ import { ImportUndoRepository } from './import-undo.repository.js';
 import type { ImportedEntity } from './import-undo.repository.js';
 import { ImportJobAlreadyUndoneError } from './import-jobs.repository.js';
 import { AuditEventsRepository } from '../audit/audit-events.repository.js';
+import { commitBoardBatch } from './board-commit.js';
+import type { BoardCommitDeps, BoardCommitSummary, BoardRowResult } from './board-commit.js';
+import { PmImportRepository } from './pm-import.repository.js';
+import { WorkSubtasksRepository } from '../work/subtasks.repository.js';
+import { WorkCommentsRepository } from '../work/work-comments.repository.js';
 
 /**
  * ON-09's validate / dry-run service.
@@ -140,6 +145,8 @@ export interface ImportCommitView {
    * `basecamp_schedule_skipped`). Commit response only, like `jira`.
    */
   readonly basecamp?: BasecampCommitSummary;
+  /** 54-26: the monday / ClickUp summary (items, subtasks, comments, labels, notes). Commit only. */
+  readonly board?: BoardCommitSummary;
   /** R23-e (54-24): when the job was undone, or `null`. Receipt read only. */
   readonly undoneAt?: string | null;
   /** R23-e: how many created entities the undo deleted, or `null` before an undo. */
@@ -240,6 +247,12 @@ export class ImportService {
       phases: new ProjectPhasesRepository(),
     },
     private readonly audit: Pick<AuditEventsRepository, 'append'> = new AuditEventsRepository(),
+    private readonly boardDeps: BoardCommitDeps = {
+      ...importDeps,
+      subtasks: new WorkSubtasksRepository(),
+      comments: new WorkCommentsRepository(),
+      emails: new PmImportRepository(),
+    },
   ) {}
 
   async validate(
@@ -344,7 +357,12 @@ export class ImportService {
     if (request.sourceKind === 'jira_issues') {
       return this.commitJira(context, principal, request, errorsByRow);
     }
-    if (request.sourceKind === 'notion_database' || request.sourceKind === 'basecamp_messages') {
+    if (
+      request.sourceKind === 'notion_database' ||
+      request.sourceKind === 'basecamp_messages' ||
+      request.sourceKind === 'monday_board' ||
+      request.sourceKind === 'clickup_tasks'
+    ) {
       return this.commitTargeted(context, principal, request, errorsByRow);
     }
 
@@ -637,10 +655,22 @@ export class ImportService {
       },
     };
     const outcome = await this.database.transaction(context, async (tx) => {
-      let results: readonly ImportRowResult[];
+      let results: readonly (ImportRowResult | BoardRowResult)[];
       let notion: NotionCommitSummary | undefined;
       let basecamp: BasecampCommitSummary | undefined;
-      if (request.sourceKind === 'notion_database') {
+      let board: BoardCommitSummary | undefined;
+      if (request.sourceKind === 'monday_board' || request.sourceKind === 'clickup_tasks') {
+        const done = await commitBoardBatch(
+          tx,
+          context,
+          principal,
+          input,
+          this.projects,
+          this.boardDeps,
+        );
+        results = done.results;
+        board = done.summary;
+      } else if (request.sourceKind === 'notion_database') {
         const done = await commitNotionBatch(
           tx,
           context,
@@ -693,7 +723,7 @@ export class ImportService {
         committedCount,
         failedCount,
       });
-      return { written, committedCount, failedCount, status, notion, basecamp };
+      return { written, committedCount, failedCount, status, notion, basecamp, board };
     });
 
     return {
@@ -705,6 +735,7 @@ export class ImportService {
       rows: outcome.written,
       ...(outcome.notion === undefined ? {} : { notion: outcome.notion }),
       ...(outcome.basecamp === undefined ? {} : { basecamp: outcome.basecamp }),
+      ...(outcome.board === undefined ? {} : { board: outcome.board }),
     };
   }
 

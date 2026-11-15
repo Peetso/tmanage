@@ -23,6 +23,7 @@
 import { onePrefix, validateJiraRow } from './jira-issues.js';
 import { validateNotionRow } from './notion-database.js';
 import { validateBasecampRow } from './basecamp-html.js';
+import { validateBoardRow } from './board-export.js';
 
 /**
  * The batch ceiling. A dry-run validation walks every row, so an unbounded batch is an
@@ -42,12 +43,17 @@ export const MAX_IMPORT_ROWS = 1000;
  * `basecamp_messages` is a Basecamp archive the import web unzips in the browser (the API has no
  * ZIP reader) and posts as one row per message / to-do / list (`basecamp-html.ts`). Both commit
  * into one `options.projectId`, so a batch targets exactly one project by construction.
+ *
+ * 54-26: `monday_board` (a monday board's Excel export, flattened in the browser) and
+ * `clickup_tasks` (a ClickUp task CSV) share one row shape (`board-export.ts`).
  */
 export const IMPORT_SOURCE_KINDS = [
   'project',
   'jira_issues',
   'notion_database',
   'basecamp_messages',
+  'monday_board',
+  'clickup_tasks',
 ] as const;
 export type ImportSourceKind = (typeof IMPORT_SOURCE_KINDS)[number];
 
@@ -189,6 +195,8 @@ const ROW_VALIDATORS: Record<
   jira_issues: validateJiraRow,
   notion_database: validateNotionRow,
   basecamp_messages: validateBasecampRow,
+  monday_board: validateBoardRow,
+  clickup_tasks: validateBoardRow,
 };
 
 /** The batch-level checks per kind: one Jira project (one key prefix) per batch. */

@@ -44,11 +44,20 @@ export interface ImportCommitRequest extends ImportValidationRequest {
   /** Present exactly when `sourceKind` is `jira_issues`. */
   readonly jira?: JiraCommitOptions;
   /**
-   * R22-f: present exactly when `sourceKind` is `notion_database` or `basecamp_messages` — the
+   * R22-f: present exactly when `sourceKind` is `notion_database`, `basecamp_messages`,
+   * `monday_board` or `clickup_tasks` (54-26) — the
    * same `{ projectId, statusMap?, userMap? }` shape as the Jira options (`keepKeys` unused).
    */
   readonly options?: JiraCommitOptions;
 }
+
+/** The kinds that commit into one `options.projectId` (R22-f, 54-26). */
+const TARGETED_KINDS: ReadonlySet<string> = new Set([
+  'notion_database',
+  'basecamp_messages',
+  'monday_board',
+  'clickup_tasks',
+]);
 
 /** Bounds on the caller-supplied maps: a Jira instance has dozens of statuses, not thousands. */
 const MAX_MAP_ENTRIES = 500;
@@ -158,7 +167,7 @@ export function parseImportCommitBody(
       : undefined;
 
   const options =
-    source['sourceKind'] === 'notion_database' || source['sourceKind'] === 'basecamp_messages'
+    typeof source['sourceKind'] === 'string' && TARGETED_KINDS.has(source['sourceKind'])
       ? parseJiraOptions(source['options'], details)
       : undefined;
 
