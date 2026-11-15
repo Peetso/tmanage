@@ -13723,3 +13723,38 @@ export const workItemCloudFolders = mysqlTable(
 export type WorkItemCloudFolderRow = typeof workItemCloudFolders.$inferSelect;
 
 Object.assign(TABLES, { work_item_cloud_folders: workItemCloudFolders });
+
+/**
+ * 0347 (FIX6 C3b). The checked TManage copy of a file opened from a live folder: one per project,
+ * drive item and modified time. `cloud_folder_id` is the folder it was opened through; a client
+ * reaches the copy only while that folder is on a client-visible work item. TENANT.
+ */
+export const cloudFolderImports = mysqlTable(
+  'cloud_folder_imports',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    cloudFolderId: char('cloud_folder_id', { length: 36 }).notNull(),
+    provider: varchar('provider', { length: 16 }).$type<'google_drive' | 'onedrive'>().notNull(),
+    externalItemId: varchar('external_item_id', { length: 255 }).notNull(),
+    modifiedTime: varchar('modified_time', { length: 40 }).notNull(),
+    fileAssetId: char('file_asset_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_cloud_folder_imports_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_cloud_folder_imports_item').on(
+      table.organizationId,
+      table.projectId,
+      table.provider,
+      table.externalItemId,
+      table.modifiedTime,
+    ),
+    index('ix_cloud_folder_imports_asset').on(table.organizationId, table.fileAssetId),
+  ],
+);
+
+export type CloudFolderImportRow = typeof cloudFolderImports.$inferSelect;
+
+Object.assign(TABLES, { cloud_folder_imports: cloudFolderImports });

@@ -3,8 +3,8 @@ import type { ApiClient } from './client';
 /**
  * FIX6 C3 — live Google Drive / OneDrive folders on a work item, and the client's read of them in
  * the portal. The server reads the folder with the company connection; nothing here ever holds a
- * drive token or link. A child is opened through {@link cloudFolderContentUrl}, a forced download
- * the server sends only once it has checked the child sits inside the attached folder.
+ * drive token or link. A child is opened through {@link openCloudFolderFile}: the server checks it
+ * sits inside the attached folder and answers its checked TManage copy for the normal viewer.
  */
 
 export type CloudFolderProvider = 'google_drive' | 'onedrive';
@@ -100,14 +100,21 @@ export async function listCloudFolderChildren(
   return data;
 }
 
-/** The address of one child's bytes (a download), relative to the API base. */
-export function cloudFolderContentUrl(
-  apiBase: string,
+/**
+ * C3b. Open one child: the server checks it sits inside the folder, then makes (or reuses, while
+ * the file is unchanged) its checked TManage copy. Answers the copy's id for the normal viewer.
+ */
+export async function openCloudFolderFile(
+  client: ApiClient,
   organizationSlug: string,
   workItemId: string,
   folderId: string,
   childId: string,
   door: CloudFolderDoor,
-): string {
-  return `${apiBase}${base(organizationSlug, workItemId, door)}/${encodeURIComponent(folderId)}/items/${encodeURIComponent(childId)}/content`;
+): Promise<{ readonly fileId: string; readonly imported: boolean }> {
+  const { data } = await client.request<{ readonly fileId: string; readonly imported: boolean }>({
+    method: 'POST',
+    path: `${base(organizationSlug, workItemId, door)}/${encodeURIComponent(folderId)}/items/${encodeURIComponent(childId)}/copy`,
+  });
+  return data;
 }

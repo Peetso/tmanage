@@ -8,24 +8,17 @@ import {
   Param,
   Post,
   Query,
-  Res,
-  StreamableFile,
 } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type { FetchedCloudFile } from '../../common/storage/cloud-fetch.js';
 import { isDriveId, isDrivePageToken } from '../google-drive/google-drive.google.js';
 import { isGraphId, isGraphSkipToken } from '../onedrive/onedrive.graph.js';
-import {
-  SANDBOX_CSP,
-  attachmentDisposition,
-  type HeaderWriter,
-} from '../files/download-response.js';
 import type { CloudFolderPage } from './cloud-folder-drive.js';
 import type {
   CloudFolderListInput,
+  CloudFolderOpenView,
   CloudFolderSource,
   CloudFolderView,
   CloudFoldersService,
@@ -41,9 +34,9 @@ import type {
  * same reads, only on a client-visible work item.
  *
  * Every id from the browser is checked against the providers' id shapes before anything else; a
- * URL is never accepted. An opened child is sent as a download (`attachment`, octet-stream,
- * `nosniff`, sandboxed, not cached): its bytes come live from the drive and are not TManage's
- * checked copy, so the browser never renders them in TManage's origin.
+ * URL is never accepted. Opening a child (`POST …/items/:itemId/copy`) answers the id of its
+ * checked TManage copy, which the browser opens in the normal viewer; the drive's raw bytes are
+ * never sent to the browser.
  */
 export const CLOUD_FOLDERS_SERVICE = Symbol.for('tmanage.CloudFoldersService');
 
@@ -89,17 +82,6 @@ export function listInput(parentId: unknown, pageToken: unknown): CloudFolderLis
 function childId(raw: unknown): string {
   if (!isProviderId(raw)) throw invalid('itemId', 'must be an item id');
   return raw;
-}
-
-/** The live bytes as a forced download; the drive's own type is not trusted. */
-export function sendFolderFile(file: FetchedCloudFile, reply: HeaderWriter): StreamableFile {
-  reply.header('content-type', 'application/octet-stream');
-  reply.header('content-length', String(file.bytes.length));
-  reply.header('content-disposition', attachmentDisposition(file.name));
-  reply.header('x-content-type-options', 'nosniff');
-  reply.header('content-security-policy', SANDBOX_CSP);
-  reply.header('cache-control', 'private, no-store');
-  return new StreamableFile(file.bytes, { type: 'application/octet-stream' });
 }
 
 @Controller('v1/organizations/:orgSlug/work-items/:workItemId/cloud-folders')
@@ -161,7 +143,8 @@ export class WorkItemCloudFoldersController {
     );
   }
 
-  @Get(':cloudFolderId/items/:itemId/content')
+  @Post(':cloudFolderId/items/:itemId/copy')
+  @HttpCode(200)
   @RequireCapability('work.read')
   async open(
     @Ctx() context: TenantContext,
@@ -169,16 +152,8 @@ export class WorkItemCloudFoldersController {
     @Param('workItemId') workItemId: string,
     @Param('cloudFolderId') cloudFolderId: string,
     @Param('itemId') itemId: string,
-    @Res({ passthrough: true }) reply: HeaderWriter,
-  ): Promise<StreamableFile> {
-    const file = await this.folders.open(
-      context,
-      principal,
-      workItemId,
-      cloudFolderId,
-      childId(itemId),
-    );
-    return sendFolderFile(file, reply);
+  ): Promise<CloudFolderOpenView> {
+    return this.folders.open(context, principal, workItemId, cloudFolderId, childId(itemId));
   }
 }
 
@@ -215,7 +190,8 @@ export class PortalCloudFoldersController {
     );
   }
 
-  @Get(':cloudFolderId/items/:itemId/content')
+  @Post(':cloudFolderId/items/:itemId/copy')
+  @HttpCode(200)
   @RequireCapability('client_projection.read')
   async open(
     @Ctx() context: TenantContext,
@@ -223,15 +199,7 @@ export class PortalCloudFoldersController {
     @Param('workItemId') workItemId: string,
     @Param('cloudFolderId') cloudFolderId: string,
     @Param('itemId') itemId: string,
-    @Res({ passthrough: true }) reply: HeaderWriter,
-  ): Promise<StreamableFile> {
-    const file = await this.folders.portalOpen(
-      context,
-      principal,
-      workItemId,
-      cloudFolderId,
-      childId(itemId),
-    );
-    return sendFolderFile(file, reply);
+  ): Promise<CloudFolderOpenView> {
+    return this.folders.portalOpen(context, principal, workItemId, cloudFolderId, childId(itemId));
   }
 }

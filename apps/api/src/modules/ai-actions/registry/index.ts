@@ -5902,7 +5902,7 @@ export const OPS: readonly AiActionOp[] = [
     scope: 'write',
   },
   // FIX6 C3. Live drive folders on a work item (attach, remove, live children, open a child as a
-  // download) and the client's read of them in the portal. Not yet enriched with details.
+  // checked copy) and the client's read of them in the portal. Not yet enriched with details.
   {
     id: 'work_item_cloud_folders.list',
     method: 'GET',
@@ -5936,12 +5936,12 @@ export const OPS: readonly AiActionOp[] = [
     scope: 'read',
   },
   {
-    id: 'work_item_cloud_folders.content.list',
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/work-items/:workItemId/cloud-folders/:cloudFolderId/items/:itemId/content',
+    id: 'work_item_cloud_folders.copy',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/cloud-folders/:cloudFolderId/items/:itemId/copy',
     capability: 'work.read',
-    risk: 'confirm',
-    scope: 'manage',
+    risk: 'write',
+    scope: 'write',
   },
   {
     id: 'portal.work_item_cloud_folders.list',
@@ -5960,12 +5960,12 @@ export const OPS: readonly AiActionOp[] = [
     scope: 'read',
   },
   {
-    id: 'portal.work_item_cloud_folders.content.list',
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/work-items/:workItemId/cloud-folders/:cloudFolderId/items/:itemId/content',
+    id: 'portal.work_item_cloud_folders.copy',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/portal/work-items/:workItemId/cloud-folders/:cloudFolderId/items/:itemId/copy',
     capability: 'client_projection.read',
-    risk: 'confirm',
-    scope: 'manage',
+    risk: 'write',
+    scope: 'write',
   },
   // 0237. Meetings connected to Google Calendar/Meet: the meeting page in one read, cancel
   // (confirm: it tells every guest), re-send to the organizer's calendar, and email guests.

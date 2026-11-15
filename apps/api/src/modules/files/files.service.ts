@@ -752,8 +752,13 @@ export class FilesService {
     projectId: string,
   ): Promise<{ readonly maxBytes: number }> {
     await this.requireImportTarget(context, principal, projectId);
+    return { maxBytes: await this.importMaxBytes(context) };
+  }
+
+  /** The organization's own file-size cap: what an import may fetch at most. */
+  async importMaxBytes(context: TenantContext): Promise<number> {
     const settings = this.safety ? await this.safety.read(context) : null;
-    return { maxBytes: settings?.maxFileBytes ?? this.config.uploadMaxBytes };
+    return settings?.maxFileBytes ?? this.config.uploadMaxBytes;
   }
 
   /**
@@ -764,6 +769,32 @@ export class FilesService {
    * session is created and claimed in one transaction, so no cancel or sweep sees it half made.
    */
   async importFetched(
+    context: TenantContext,
+    principal: Principal,
+    input: ImportFetchedInput,
+  ): Promise<ImportedFileView> {
+    await this.requireImportTarget(context, principal, input.projectId);
+    return this.importChecked(context, principal, input);
+  }
+
+  /**
+   * FIX6 C3b. A file opened from a live drive folder on a work item becomes a checked copy by the
+   * same path as {@link importFetched}. The caller has already authorized the person's read of that
+   * folder (a member who may read the work item, or a client on a client-visible one) and proven
+   * the file sits inside it, so `file.upload` is not asked here: opening the folder's file is a
+   * read. Everything else is the upload's own: the file-safety rule for the person's channel, the
+   * quota, the verifier, the scanner and the previews.
+   */
+  async importForFolderRead(
+    context: TenantContext,
+    principal: Principal,
+    input: ImportFetchedInput,
+  ): Promise<ImportedFileView> {
+    await this.requireLiveProject(context, input.projectId);
+    return this.importChecked(context, principal, input);
+  }
+
+  private async importChecked(
     context: TenantContext,
     principal: Principal,
     input: ImportFetchedInput,
@@ -785,7 +816,6 @@ export class FilesService {
         idempotencyKey: `import-${randomUUID()}`,
       },
     };
-    await this.requireImportTarget(context, principal, input.projectId);
     await this.requireFileSafety(context, draft);
 
     const id = this.sessions.nextId();
@@ -883,12 +913,7 @@ export class FilesService {
         'not_an_internal_principal',
       );
     }
-    const project = await this.database.read(context, (runner) =>
-      this.projects.findById(runner, context, projectId),
-    );
-    if (!project || project.archivedAt !== null) {
-      throw new ApiError(404, 'not_found', MESSAGES.notFound);
-    }
+    await this.requireLiveProject(context, projectId);
     const verdict = authorize({
       principal,
       capability: 'file.upload',
@@ -902,6 +927,15 @@ export class FilesService {
     });
     if (!verdict.allowed) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, verdict.code);
+    }
+  }
+
+  private async requireLiveProject(context: TenantContext, projectId: string): Promise<void> {
+    const project = await this.database.read(context, (runner) =>
+      this.projects.findById(runner, context, projectId),
+    );
+    if (!project || project.archivedAt !== null) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
   }
 

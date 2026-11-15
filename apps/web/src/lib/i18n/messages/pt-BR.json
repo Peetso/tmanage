@@ -19085,7 +19085,9 @@
   "CloudFolders.empty": "Esta pasta está vazia.",
   "CloudFolders.loadError": "Não foi possível ler a pasta agora. Tente de novo em instantes.",
   "CloudFolders.more": "Mostrar mais",
-  "CloudFolders.download": "Baixar",
+  "CloudFolders.openFile": "Abrir",
+  "CloudFolders.preparing": "Preparando o arquivo…",
+  "CloudFolders.openProblem": "Não foi possível abrir o arquivo",
   "CloudFolders.listLabel": "Arquivos em {name}",
   "CloudFolders.folderBadge": "Pasta",
   "CloudFolders.problem": "A pasta não foi adicionada"

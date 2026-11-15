@@ -24,6 +24,8 @@ import { mayDownloadFor, objectTableFor } from './purpose-policy.js';
  * - **`deliverable_file`** — a `deliverable`-purpose file uploaded for a deliverable (`objectId`)
  *   that has at least one published version, carrying a client audience and this client's own
  *   organization: exactly the rows the portal's deliverable file list shows.
+ * - **`cloud_folder`** (FIX6 C3b) — the checked copy of a file opened from a drive folder that is
+ *   still attached to a client-visible work item of the asset's project.
  * - **`chain`** — for a `deliverable` file, another version of the same attachment chain is
  *   reachable by one of the rules above. The asset's own audience still decides in `authorize()`, so an internal later version
  *   stays the same 404.
@@ -34,7 +36,7 @@ import { mayDownloadFor, objectTableFor } from './purpose-policy.js';
  * An internal principal is not narrowed here; `authorize()` alone decides for it.
  */
 export type ClientReachVia =
-  'internal' | 'request' | 'published_deliverable' | 'deliverable_file' | 'chain';
+  'internal' | 'request' | 'published_deliverable' | 'deliverable_file' | 'chain' | 'cloud_folder';
 
 export interface ClientReach {
   readonly via: ClientReachVia;
@@ -113,6 +115,11 @@ export class FileClientRelation {
       (await this.reachReads.deliverableIsPublished(runner, context, asset.objectId))
     ) {
       return { via: 'deliverable_file', audience: asset.audience };
+    }
+    // FIX6 C3b. The checked copy of a file opened from a drive folder that is still attached to a
+    // client-visible work item of this project: the folder's audience makes it client content.
+    if (await this.reachReads.clientVisibleFolderProject(runner, context, asset)) {
+      return { via: 'cloud_folder', audience: 'client_visible' };
     }
     return null;
   }

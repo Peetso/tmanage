@@ -229,6 +229,8 @@ export interface OneDriveItem {
   readonly isFolder: boolean;
   /** The parent folder's item id; null for a drive's root. */
   readonly parentId: string | null;
+  /** FIX6 C3b. Graph's `lastModifiedDateTime`, when asked for in full; else null. */
+  readonly modifiedTime?: string | null;
 }
 
 /** NV10. One entry of a folder listing: never a download link, never a token. */
@@ -404,6 +406,8 @@ function toItem(body: Record<string, unknown>, fallbackDriveId: string): OneDriv
     webUrl: typeof body['webUrl'] === 'string' ? body['webUrl'] : null,
     isFolder: body['folder'] !== undefined && body['folder'] !== null,
     parentId: isGraphId(parent['id']) ? parent['id'] : null,
+    modifiedTime:
+      typeof body['lastModifiedDateTime'] === 'string' ? body['lastModifiedDateTime'] : null,
   };
 }
 
@@ -435,7 +439,7 @@ export function skipTokenOf(nextLink: unknown): string | null {
   }
 }
 
-const ITEM_SELECT = 'id,name,size,webUrl,file,folder,parentReference';
+const ITEM_SELECT = 'id,name,size,webUrl,file,folder,parentReference,lastModifiedDateTime';
 const PARENT_SELECT = 'id,parentReference';
 const CHILD_SELECT = 'id,name,size,file,folder,lastModifiedDateTime';
 

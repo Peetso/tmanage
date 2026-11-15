@@ -1337,6 +1337,8 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0346. Tenant-owned: a drive folder attached to a work item (provider ids and name only). Written
   // and read through the caller's own context; the portal reads it only for a client-visible item.
   work_item_cloud_folders: 'organization_id',
+  // 0347. Tenant-owned: which checked copy belongs to which drive item and modified time.
+  cloud_folder_imports: 'organization_id',
 });
 
 /**

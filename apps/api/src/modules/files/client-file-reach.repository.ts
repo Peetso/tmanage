@@ -1,10 +1,13 @@
-import { and, eq, inArray, or } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
   attachmentVersions,
   clientProjections,
+  cloudFolderImports,
   deliverableVersions,
   fileAssets,
+  workItemCloudFolders,
+  workItems,
 } from '../../common/database/schema.js';
 import type { FileAssetRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
@@ -61,6 +64,51 @@ export class ClientFileReachRepository {
       )
       .limit(1);
     return rows[0] ?? null;
+  }
+
+  /**
+   * FIX6 C3b. The project of a client-visible work item whose still-attached drive folder this
+   * checked copy was opened through, or null. `cloud_folder_imports` -> `work_item_cloud_folders`
+   * (not removed) -> `work_items` (not deleted, audience `client_visible` or
+   * `client_action_required`), all in the copy's own project.
+   */
+  async clientVisibleFolderProject(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    asset: Pick<FileAssetRow, 'id' | 'projectId'>,
+  ): Promise<string | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({ projectId: workItems.projectId })
+      .from(cloudFolderImports)
+      .innerJoin(
+        workItemCloudFolders,
+        and(
+          eq(workItemCloudFolders.organizationId, cloudFolderImports.organizationId),
+          eq(workItemCloudFolders.id, cloudFolderImports.cloudFolderId),
+        ),
+      )
+      .innerJoin(
+        workItems,
+        and(
+          eq(workItems.organizationId, workItemCloudFolders.organizationId),
+          eq(workItems.id, workItemCloudFolders.workItemId),
+        ),
+      )
+      .where(
+        and(
+          eq(cloudFolderImports.organizationId, context.organizationId),
+          eq(workItemCloudFolders.organizationId, context.organizationId),
+          eq(workItems.organizationId, context.organizationId),
+          eq(cloudFolderImports.fileAssetId, asset.id),
+          eq(cloudFolderImports.projectId, asset.projectId),
+          eq(workItems.projectId, asset.projectId),
+          isNull(workItemCloudFolders.removedAt),
+          isNull(workItems.deletedAt),
+          inArray(workItems.audience, ['client_visible', 'client_action_required']),
+        ),
+      )
+      .limit(1);
+    return rows[0]?.projectId ?? null;
   }
 
   /** Whether any version of this deliverable has been published to the client. */

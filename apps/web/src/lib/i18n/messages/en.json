@@ -19276,7 +19276,9 @@
   "CloudFolders.empty": "This folder is empty.",
   "CloudFolders.loadError": "The folder can't be read right now. Try again in a moment.",
   "CloudFolders.more": "Show more",
-  "CloudFolders.download": "Download",
+  "CloudFolders.openFile": "Open",
+  "CloudFolders.preparing": "Getting the file ready…",
+  "CloudFolders.openProblem": "The file couldn't be opened",
   "CloudFolders.listLabel": "Files in {name}",
   "CloudFolders.folderBadge": "Folder",
   "CloudFolders.problem": "The folder wasn't added"

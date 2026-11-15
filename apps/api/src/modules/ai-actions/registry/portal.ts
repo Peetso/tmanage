@@ -110,10 +110,11 @@ export const portalDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'By folder', args: { workItemId: 'wi_1', cloudFolderId: 'cf_1' } }],
   }),
   det({
-    id: 'portal.work_item_cloud_folders.content.list',
-    title: 'Get a file from a portal folder',
+    id: 'portal.work_item_cloud_folders.copy',
+    title: 'Open a file from a portal folder',
     description:
-      'A file from a live folder on a client-visible work item. Confirm-class: returns its bytes.',
+      'Make (or reuse) the checked TManage copy of a file in a live folder on a client-visible ' +
+      'work item, and answer its file id for the viewer.',
     input: pathOnly('workItemId', 'cloudFolderId', 'itemId'),
     redact: 'client_safe',
     examples: [

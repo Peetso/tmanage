@@ -1,14 +1,16 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Skeleton } from '@tmanage/ui';
+import { InlineAlert, Skeleton } from '@tmanage/ui';
+import { useDescribeApiError } from '../../lib/api/describe-error';
+import { portalFileViewerHref } from '../screens/PortalReviewLink';
 import type { ApiClient } from '../../lib/api/client';
-import { apiBaseUrl } from '../../lib/api/browser-client';
 import {
-  cloudFolderContentUrl,
   listCloudFolderChildren,
   listCloudFolders,
+  openCloudFolderFile,
   removeCloudFolder,
   type CloudFolder,
   type CloudFolderChild,
@@ -32,8 +34,10 @@ export interface CloudFolderListProps {
 
 /**
  * FIX6 C3. The live drive folders on one work item. Each folder opens in place to its children,
- * read live through the server; a subfolder opens inside it, and a file is a download the server
- * sends only once it has checked the file sits inside the attached folder. Renders nothing while
+ * read live through the server; a subfolder opens inside it, and a file opens as its checked
+ * TManage copy in the normal viewer, which the server makes only once it has checked the file sits
+ * inside the attached folder (and reuses while the file is unchanged).
+ * Renders nothing while
  * the work item has no folder. No token, link or drive id ever reaches the browser beyond the
  * provider's item ids.
  */
@@ -142,6 +146,20 @@ function FolderChildren({
         ...(pageToken ? { pageToken } : {}),
       }),
   });
+  // C3b. A file opens as its checked TManage copy in the normal viewer (the server makes the copy,
+  // or reuses it while the drive file is unchanged); the drive's bytes never reach the browser.
+  const router = useRouter();
+  const describe = useDescribeApiError();
+  const openFile = useMutation({
+    mutationFn: (childId: string) =>
+      openCloudFolderFile(client, organizationSlug, workItemId, folder.id, childId, door),
+    onSuccess: ({ fileId }) =>
+      router.push(
+        door === 'portal'
+          ? portalFileViewerHref(organizationSlug, fileId)
+          : `/${organizationSlug}/files/${encodeURIComponent(fileId)}`,
+      ),
+  });
   const portal = door === 'portal';
   const name = parent?.name ?? folder.name;
   const go = (next: readonly CloudFolderChild[]) => {
@@ -198,28 +216,28 @@ function FolderChildren({
                     {t('CloudFolders.open')}
                   </button>
                 ) : (
-                  <a
+                  <button
+                    type="button"
                     className={portal ? 'tm-pt-btn' : 'tm-wk-text-button'}
-                    href={cloudFolderContentUrl(
-                      apiBaseUrl(),
-                      organizationSlug,
-                      workItemId,
-                      folder.id,
-                      child.id,
-                      door,
-                    )}
-                    download={child.name}
-                    rel="noopener noreferrer"
-                    aria-label={`${t('CloudFolders.download')} ${child.name}`}
+                    disabled={openFile.isPending}
+                    onClick={() => openFile.mutate(child.id)}
+                    aria-label={`${t('CloudFolders.openFile')} ${child.name}`}
                   >
-                    {t('CloudFolders.download')}
-                  </a>
+                    {openFile.isPending && openFile.variables === child.id
+                      ? t('CloudFolders.preparing')
+                      : t('CloudFolders.openFile')}
+                  </button>
                 )}
               </div>
             </li>
           ))}
         </ul>
       )}
+      {openFile.isError ? (
+        <InlineAlert tone="danger" title={t('CloudFolders.openProblem')} live>
+          {describe(openFile.error)}
+        </InlineAlert>
+      ) : null}
       {page.data.nextPageToken ? (
         <button
           type="button"

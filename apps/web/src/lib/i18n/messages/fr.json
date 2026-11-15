@@ -19085,7 +19085,9 @@
   "CloudFolders.empty": "Ce dossier est vide.",
   "CloudFolders.loadError": "Le dossier ne peut pas être lu pour le moment. Réessayez dans un instant.",
   "CloudFolders.more": "Afficher plus",
-  "CloudFolders.download": "Télécharger",
+  "CloudFolders.openFile": "Ouvrir",
+  "CloudFolders.preparing": "Préparation du fichier…",
+  "CloudFolders.openProblem": "Le fichier n'a pas pu être ouvert",
   "CloudFolders.listLabel": "Fichiers dans {name}",
   "CloudFolders.folderBadge": "Dossier",
   "CloudFolders.problem": "Le dossier n'a pas été ajouté"

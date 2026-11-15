@@ -433,10 +433,94 @@ describe('FIX6 C1 — the portal reaches an imported deliverable copy only after
       publishedVersionNaming: vi.fn(async () => null),
       deliverableIsPublished: vi.fn(async () => false),
       chainSiblings: vi.fn(async () => []),
+      clientVisibleFolderProject: vi.fn(async () => null),
     };
     const relation = new FileClientRelation({} as never, reach as never);
     expect(await relation.mayClientReach({} as never, context, client, asset)).toBe(false);
     reach.publishedVersionNaming.mockResolvedValueOnce({ projectId: PROJECT } as never);
     expect(await relation.mayClientReach({} as never, context, client, asset)).toBe(true);
+  });
+});
+
+describe('FIX6 C3b — a folder file opened as a checked copy', () => {
+  it('reuses the copy while the modified time is unchanged, and refuses a blocked type', async () => {
+    const h = importHarness();
+    const folder = {
+      id: 'cf-1',
+      organizationId: ORG,
+      projectId: PROJECT,
+      workItemId: WORK_ITEM,
+      provider: 'google_drive',
+      externalDriveId: null,
+      externalFolderId: 'FOLDER_1',
+      removedAt: null,
+    };
+    const imports: Record<string, string> = {};
+    const keyOf = (k: { externalItemId: string; modifiedTime: string }) =>
+      `${k.externalItemId}@${k.modifiedTime}`;
+    const child = (id: string) => ({
+      id,
+      name: id,
+      mimeType: 'application/pdf',
+      size: 3,
+      modifiedTime: '2026-11-15T10:00:00Z',
+      isFolder: false,
+    });
+    const drive = {
+      inspectChild: vi.fn(async (_c: unknown, _r: unknown, id: string) => child(id)),
+      fetchFromFolder: vi.fn(async (_c: unknown, _r: unknown, id: string) => ({
+        provider: 'google_drive' as const,
+        externalId: id,
+        name: id,
+        mimeType: id.endsWith('.exe') ? 'application/x-msdownload' : 'application/pdf',
+        bytes: Buffer.from('%PD'),
+      })),
+    };
+    const { CloudFoldersService } = await import('../cloud-folders/cloud-folders.service.js');
+    const folders = new CloudFoldersService({
+      database: {
+        read: (_c: unknown, work: (r: unknown) => unknown) => work({}),
+        transaction: (_c: unknown, work: (r: unknown) => unknown) => work({}),
+      } as never,
+      folders: {
+        findLive: async () => folder,
+        findImport: async (_r: unknown, _c: unknown, k: never) =>
+          imports[keyOf(k)] ? { fileAssetId: imports[keyOf(k)] } : null,
+        recordImport: async (
+          _r: unknown,
+          _c: unknown,
+          k: never,
+          input: { fileAssetId: string },
+        ) => {
+          imports[keyOf(k)] = input.fileAssetId;
+        },
+      } as never,
+      workItems: {
+        findById: async () =>
+          ({
+            ...folder,
+            id: WORK_ITEM,
+            audience: 'internal',
+            state: 'open',
+            deletedAt: null,
+          }) as never,
+      },
+      drives: { google_drive: drive as never, onedrive: drive as never },
+      files: h.service,
+      assets: {
+        findById: async () => ({ id: 'asset-1', projectId: PROJECT, deletedAt: null }) as never,
+      },
+      audit: null,
+    });
+    const owner = member([PROJECT]);
+    const first = await folders.open(context, owner, WORK_ITEM, 'cf-1', 'brief_pdf1');
+    const again = await folders.open(context, owner, WORK_ITEM, 'cf-1', 'brief_pdf1');
+    expect([first.imported, again.imported, again.fileId]).toEqual([true, false, 'asset-1']);
+    expect(drive.fetchFromFolder).toHaveBeenCalledTimes(1);
+    expect(h.store.putQuarantine).toHaveBeenCalledTimes(1);
+
+    const blocked = await refusal(folders.open(context, owner, WORK_ITEM, 'cf-1', 'setup.exe'));
+    expect([blocked.status, blocked.code]).toEqual([422, 'file_not_allowed']);
+    expect(h.store.putQuarantine).toHaveBeenCalledTimes(1);
   });
 });

@@ -49,6 +49,12 @@ export interface CloudFolderDrive {
     ref: CloudFolderRef,
     input: { readonly parentId: string | null; readonly pageToken: string | null },
   ): Promise<CloudFolderPage>;
+  /** A child's metadata (its modified time keys the checked copy), once proven inside (404). */
+  inspectChild(
+    context: TenantContext,
+    ref: CloudFolderRef,
+    childId: string,
+  ): Promise<CloudFolderChild>;
   /** A child's bytes, at most `maxBytes`, only once it is proven to be inside the folder (404). */
   fetchFromFolder(
     context: TenantContext,

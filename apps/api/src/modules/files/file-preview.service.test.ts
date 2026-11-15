@@ -177,6 +177,7 @@ function build(world: World = {}) {
       (world.chain ?? [])
         .filter((member) => member.id !== id)
         .concat(id === theAsset.id ? [] : [theAsset]),
+    clientVisibleFolderProject: async () => null,
   } as unknown as ClientFileReachRepository;
   const relation = new FileClientRelation({} as ClientRequestsRepository, reachReads);
   const downloads = new FileDownloadService(

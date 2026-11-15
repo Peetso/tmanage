@@ -9,6 +9,7 @@ import {
 } from '../../common/storage/cloud-fetch.js';
 import {
   isInsideFolder,
+  type CloudFolderChild,
   type CloudFolderDrive,
   type CloudFolderPage,
   type CloudFolderRef,
@@ -683,6 +684,25 @@ export class GoogleDriveService implements CloudFolderDrive {
       context,
     );
     return { files: page.files, nextPageToken: page.nextPageToken };
+  }
+
+  /** FIX6 C3b. A child's metadata, only once it is proven to sit inside the attached folder. */
+  async inspectChild(
+    context: TenantContext,
+    ref: CloudFolderRef,
+    childId: string,
+  ): Promise<CloudFolderChild> {
+    const live = this.requireLive(await this.readConnection(context));
+    const accessToken = await this.accessToken(context, live);
+    const file = await this.childInside(context, live, accessToken, ref, childId);
+    return {
+      id: file.id,
+      name: file.name.slice(0, 255),
+      mimeType: file.mimeType.slice(0, 190),
+      size: file.size,
+      modifiedTime: file.modifiedTime ?? null,
+      isFolder: file.mimeType === FOLDER_MIME_TYPE,
+    };
   }
 
   /** FIX6 C3. A child's bytes, only once it is proven to sit inside the attached folder. */

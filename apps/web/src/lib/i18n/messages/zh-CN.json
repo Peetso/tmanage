@@ -19085,7 +19085,9 @@
   "CloudFolders.empty": "此文件夹为空。",
   "CloudFolders.loadError": "暂时无法读取该文件夹。请稍后再试。",
   "CloudFolders.more": "显示更多",
-  "CloudFolders.download": "下载",
+  "CloudFolders.openFile": "打开",
+  "CloudFolders.preparing": "正在准备文件…",
+  "CloudFolders.openProblem": "无法打开文件",
   "CloudFolders.listLabel": "{name} 中的文件",
   "CloudFolders.folderBadge": "文件夹",
   "CloudFolders.problem": "未添加文件夹"

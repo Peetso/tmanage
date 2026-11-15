@@ -1,7 +1,8 @@
 import { and, asc, eq, isNull } from 'drizzle-orm';
+import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { workItemCloudFolders } from '../../common/database/schema.js';
-import type { WorkItemCloudFolderRow } from '../../common/database/schema.js';
+import { cloudFolderImports, workItemCloudFolders } from '../../common/database/schema.js';
+import type { CloudFolderImportRow, WorkItemCloudFolderRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /** A work item holds at most this many live folders. */
@@ -85,4 +86,59 @@ export class CloudFoldersRepository {
         ),
       );
   }
+
+  /** FIX6 C3b. The checked copy already made of this drive item at this modified time, if any. */
+  async findImport(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    key: ImportKey,
+  ): Promise<CloudFolderImportRow | null> {
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(cloudFolderImports)
+      .where(
+        and(
+          eq(cloudFolderImports.organizationId, context.organizationId),
+          eq(cloudFolderImports.projectId, key.projectId),
+          eq(cloudFolderImports.provider, key.provider),
+          eq(cloudFolderImports.externalItemId, key.externalItemId),
+          eq(cloudFolderImports.modifiedTime, key.modifiedTime),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /** Remember the copy; a copy that was deleted since is replaced by the new one. */
+  async recordImport(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    key: ImportKey,
+    input: { readonly cloudFolderId: string; readonly fileAssetId: string; readonly at: Date },
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .insert(cloudFolderImports)
+      .values({
+        id: uuidv7(),
+        organizationId: context.organizationId,
+        ...key,
+        cloudFolderId: input.cloudFolderId,
+        fileAssetId: input.fileAssetId,
+        createdAt: input.at,
+      })
+      .onDuplicateKeyUpdate({
+        set: {
+          cloudFolderId: input.cloudFolderId,
+          fileAssetId: input.fileAssetId,
+          createdAt: input.at,
+        },
+      });
+  }
+}
+
+export interface ImportKey {
+  readonly projectId: string;
+  readonly provider: 'google_drive' | 'onedrive';
+  readonly externalItemId: string;
+  readonly modifiedTime: string;
 }

@@ -8,8 +8,9 @@ import type {
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
 import type { WorkItemCloudFolderRow, WorkItemRow } from '../../common/database/schema.js';
-import type { FetchedCloudFile } from '../../common/storage/cloud-fetch.js';
 import type { AuditService } from '../audit/audit.service.js';
+import type { FileAssetsRepository } from '../files/file-assets.repository.js';
+import type { FilesService } from '../files/files.service.js';
 import type { WorkItemsRepository } from '../work/work-items.repository.js';
 import type {
   CloudFolderDrive,
@@ -32,8 +33,18 @@ import { MAX_FOLDERS_PER_ITEM, type CloudFoldersRepository } from './cloud-folde
  * it, another organization's folder and a removed attachment are the same 404 an unknown id gives.
  */
 
-/** A file opened from a live folder is read into memory once, so it is capped well below RAM. */
-export const FOLDER_FILE_MAX_BYTES = 25 * 1024 * 1024;
+/**
+ * C3b. Opening a file never streams the drive's bytes to the browser: the file becomes a checked
+ * TManage copy by the upload's own path (file safety, quota, verifier, scanner, previews), once per
+ * project, drive item and modified time, and the person opens that copy in the normal viewer. A
+ * client reaches it there only while the folder stays on a client-visible work item
+ * (`FileClientRelation`, `cloud_folder`).
+ */
+export interface CloudFolderOpenView {
+  readonly fileId: string;
+  /** False when an earlier copy of the same unchanged file was reused. */
+  readonly imported: boolean;
+}
 
 /** The audiences a client may ever see (the portal's own rule). */
 const CLIENT_AUDIENCES: readonly string[] = ['client_visible', 'client_action_required'];
@@ -59,6 +70,8 @@ export interface CloudFoldersDeps {
   readonly folders: CloudFoldersRepository;
   readonly workItems: Pick<WorkItemsRepository, 'findById'>;
   readonly drives: Readonly<Record<CloudFolderProvider, CloudFolderDrive>>;
+  readonly files: Pick<FilesService, 'importMaxBytes' | 'importForFolderRead'>;
+  readonly assets: Pick<FileAssetsRepository, 'findById'>;
   readonly audit: AuditService | null;
   readonly now?: () => Date;
 }
@@ -170,12 +183,12 @@ export class CloudFoldersService {
     workItemId: string,
     folderId: string,
     childId: string,
-  ): Promise<FetchedCloudFile> {
+  ): Promise<CloudFolderOpenView> {
     const row = await this.deps.database.read(context, async (runner) => {
       await this.memberItem(runner, context, principal, workItemId, 'work.read');
       return this.liveFolder(runner, context, workItemId, folderId);
     });
-    return this.drive(row).fetchFromFolder(context, refOf(row), childId, FOLDER_FILE_MAX_BYTES);
+    return this.checkedCopy(context, principal, row, childId);
   }
 
   // ── Clients (portal) ───────────────────────────────────────────────────────
@@ -211,15 +224,76 @@ export class CloudFoldersService {
     workItemId: string,
     folderId: string,
     childId: string,
-  ): Promise<FetchedCloudFile> {
+  ): Promise<CloudFolderOpenView> {
     const row = await this.deps.database.read(context, async (runner) => {
       await this.clientItem(runner, context, principal, workItemId);
       return this.liveFolder(runner, context, workItemId, folderId);
     });
-    return this.drive(row).fetchFromFolder(context, refOf(row), childId, FOLDER_FILE_MAX_BYTES);
+    return this.checkedCopy(context, principal, row, childId);
   }
 
   // ── Internals ──────────────────────────────────────────────────────────────
+
+  /**
+   * C3b. The descendant check comes first (`inspectChild` is a 404 outside the folder); then an
+   * earlier copy of the same unchanged file is reused, or the file is fetched and imported through
+   * the upload's checks and remembered under its modified time.
+   */
+  private async checkedCopy(
+    context: TenantContext,
+    principal: Principal,
+    row: WorkItemCloudFolderRow,
+    childId: string,
+  ): Promise<CloudFolderOpenView> {
+    const drive = this.drive(row);
+    const ref = refOf(row);
+    const child = await drive.inspectChild(context, ref, childId);
+    if (child.isFolder) {
+      throw new ApiError(400, 'validation_failed', 'The request is invalid', [
+        { field: 'itemId', message: 'must be a file' },
+      ]);
+    }
+    // Without a modified time there is nothing to tell versions apart: always a fresh copy.
+    const key =
+      child.modifiedTime === null
+        ? null
+        : {
+            projectId: row.projectId,
+            provider: row.provider,
+            externalItemId: child.id,
+            modifiedTime: child.modifiedTime.slice(0, 40),
+          };
+    if (key) {
+      const reused = await this.deps.database.read(context, async (runner) => {
+        const known = await this.deps.folders.findImport(runner, context, key);
+        if (!known) return null;
+        const asset = await this.deps.assets.findById(runner, context, known.fileAssetId);
+        return asset && asset.deletedAt == null && asset.projectId === row.projectId
+          ? asset.id
+          : null;
+      });
+      if (reused) return { fileId: reused, imported: false };
+    }
+    const maxBytes = await this.deps.files.importMaxBytes(context);
+    const fetched = await drive.fetchFromFolder(context, ref, child.id, maxBytes);
+    const copy = await this.deps.files.importForFolderRead(context, principal, {
+      projectId: row.projectId,
+      fileName: fetched.name,
+      mimeType: fetched.mimeType,
+      bytes: fetched.bytes,
+      objectId: null,
+    });
+    if (key) {
+      await this.deps.database.transaction(context, (tx) =>
+        this.deps.folders.recordImport(tx, context, key, {
+          cloudFolderId: row.id,
+          fileAssetId: copy.file.id,
+          at: this.now(),
+        }),
+      );
+    }
+    return { fileId: copy.file.id, imported: true };
+  }
 
   /**
    * The work item for a member: no relation is a 404 (its existence is a secret); a reader who

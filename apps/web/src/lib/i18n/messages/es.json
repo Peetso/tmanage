@@ -19087,7 +19087,9 @@
   "CloudFolders.empty": "Esta carpeta está vacía.",
   "CloudFolders.loadError": "No se puede leer la carpeta ahora. Inténtelo de nuevo en un momento.",
   "CloudFolders.more": "Mostrar más",
-  "CloudFolders.download": "Descargar",
+  "CloudFolders.openFile": "Abrir",
+  "CloudFolders.preparing": "Preparando el archivo…",
+  "CloudFolders.openProblem": "No se pudo abrir el archivo",
   "CloudFolders.listLabel": "Archivos en {name}",
   "CloudFolders.folderBadge": "Carpeta",
   "CloudFolders.problem": "No se añadió la carpeta"

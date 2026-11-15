@@ -241,6 +241,7 @@ function relationFor(): FileClientRelation {
     publishedVersionNaming: async () => null,
     deliverableIsPublished: async () => false,
     chainSiblings: async () => [],
+    clientVisibleFolderProject: async () => null,
   } as unknown as ClientFileReachRepository;
   return new FileClientRelation(requests, reach);
 }

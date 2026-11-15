@@ -19085,7 +19085,9 @@
   "CloudFolders.empty": "Dieser Ordner ist leer.",
   "CloudFolders.loadError": "Der Ordner kann gerade nicht gelesen werden. Versuchen Sie es gleich noch einmal.",
   "CloudFolders.more": "Mehr anzeigen",
-  "CloudFolders.download": "Herunterladen",
+  "CloudFolders.openFile": "Öffnen",
+  "CloudFolders.preparing": "Datei wird vorbereitet…",
+  "CloudFolders.openProblem": "Die Datei konnte nicht geöffnet werden",
   "CloudFolders.listLabel": "Dateien in {name}",
   "CloudFolders.folderBadge": "Ordner",
   "CloudFolders.problem": "Der Ordner wurde nicht hinzugefügt"

@@ -653,10 +653,17 @@ export class FilesModule {
     // FIX6 C3. Live drive folders on a work item, read with the same provider services.
     const cloudFolders: Provider = {
       provide: CLOUD_FOLDERS_SERVICE,
-      inject: [TENANT_DATABASE, AUDIT_SERVICE, API_CONFIG],
-      useFactory: (database: TenantDatabase, audit: AuditService, config: ApiConfig) =>
+      inject: [TENANT_DATABASE, FILES_SERVICE, AUDIT_SERVICE, API_CONFIG],
+      useFactory: (
+        database: TenantDatabase,
+        files: FilesService,
+        audit: AuditService,
+        config: ApiConfig,
+      ) =>
         new CloudFoldersService({
           database,
+          files,
+          assets: new FileAssetsRepository(),
           folders: new CloudFoldersRepository(),
           workItems: new WorkItemsRepository(),
           drives: {

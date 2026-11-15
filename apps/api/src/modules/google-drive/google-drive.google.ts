@@ -214,6 +214,8 @@ export interface DriveFile {
    * parent is not visible to it, such as a file shared with the person from someone else's Drive).
    */
   readonly parents: readonly string[];
+  /** FIX6 C3b. Google's last-modified time (RFC 3339), when asked for in full; else null. */
+  readonly modifiedTime?: string | null;
 }
 
 /** NV10. One entry of a folder listing: never a download or thumbnail link, never a token. */
@@ -315,10 +317,11 @@ function toDriveFile(body: Record<string, unknown>): DriveFile {
     parents: Array.isArray(body['parents'])
       ? body['parents'].filter((id): id is string => typeof id === 'string').slice(0, 20)
       : [],
+    modifiedTime: typeof body['modifiedTime'] === 'string' ? body['modifiedTime'] : null,
   };
 }
 
-const FILE_FIELDS = 'id,name,mimeType,size,webViewLink,driveId,parents';
+const FILE_FIELDS = 'id,name,mimeType,size,webViewLink,driveId,parents,modifiedTime';
 const PARENT_FIELDS = 'id,parents';
 const CHILD_FIELDS = 'nextPageToken,files(id,name,mimeType,size,modifiedTime,parents)';
 export const DRIVE_CHILDREN_PAGE_SIZE = 50;

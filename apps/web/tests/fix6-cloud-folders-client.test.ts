@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { ApiClient } from '../src/lib/api/client';
 import {
   attachCloudFolder,
-  cloudFolderContentUrl,
   listCloudFolderChildren,
+  openCloudFolderFile,
 } from '../src/lib/api/cloud-folders';
 
 /** FIX6 C3, browser half: folders are attached by provider ids only; the portal has its own path. */
@@ -38,8 +38,9 @@ describe('FIX6 C3 — cloud folder client', () => {
     expect(calls[1]?.url).toBe(
       'https://app.example.test/v1/organizations/acme/portal/work-items/wi-1/cloud-folders/f1/children?parentId=S+1',
     );
-    expect(cloudFolderContentUrl('https://api', 'acme', 'wi-1', 'f1', 'a/b', 'member')).toBe(
-      'https://api/v1/organizations/acme/work-items/wi-1/cloud-folders/f1/items/a%2Fb/content',
+    await openCloudFolderFile(client, 'acme', 'wi-1', 'f1', 'a/b', 'portal');
+    expect(calls[2]?.url).toBe(
+      'https://app.example.test/v1/organizations/acme/portal/work-items/wi-1/cloud-folders/f1/items/a%2Fb/copy',
     );
   });
 });

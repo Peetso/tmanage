@@ -116,6 +116,11 @@ function setup() {
     folders,
     workItems: { findById: async (_r: unknown, c: TenantContext) => workItem(c.organizationId) },
     drives: { google_drive: drive, onedrive: {} as CloudFolderDrive },
+    files: {
+      importMaxBytes: async () => 1_000,
+      importForFolderRead: async () => ({ file: { id: 'copy-1' } }) as never,
+    },
+    assets: { findById: async () => null },
     audit: null,
   });
   return { service, transport };
@@ -134,8 +139,8 @@ describe('FIX6 C3 — live cloud folders', () => {
       provider: 'google_drive',
       folderId: 'folder_attached',
     });
-    const file = await service.open(ctx('org-a'), member, ITEM, folder.id, 'inside_file1');
-    expect(file.bytes.toString()).toBe('pdf');
+    const opened = await service.open(ctx('org-a'), member, ITEM, folder.id, 'inside_file1');
+    expect(opened.fileId).toBe('copy-1');
     expect(await status(service.open(ctx('org-a'), member, ITEM, folder.id, 'outside_fil1'))).toBe(
       404,
     );

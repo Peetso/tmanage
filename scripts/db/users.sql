@@ -2433,3 +2433,7 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`time_auto_tracking` TO 'tmanage_app'@
 -- UPDATE (`removed_at`); DELETE serves the company erasure only. SELECT rides the database-wide
 -- read. The worker needs no grant.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_item_cloud_folders` TO 'tmanage_app'@'%';
+-- 0347 `cloud_folder_imports` (tenant, FIX6 C3b): opening a folder's file INSERTs (or, for a copy
+-- that was deleted, UPDATEs) the row naming its checked copy; DELETE serves the company erasure
+-- only. SELECT rides the database-wide read. The worker needs no grant.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`cloud_folder_imports` TO 'tmanage_app'@'%';

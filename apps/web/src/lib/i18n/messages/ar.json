@@ -19276,7 +19276,9 @@
   "CloudFolders.empty": "الفولدر ده فاضي.",
   "CloudFolders.loadError": "مش قادرين نقرا الفولدر دلوقتي. جرّب تاني بعد شوية.",
   "CloudFolders.more": "اعرض أكتر",
-  "CloudFolders.download": "نزّل",
+  "CloudFolders.openFile": "افتح",
+  "CloudFolders.preparing": "بنجهّز الملف…",
+  "CloudFolders.openProblem": "الملف ماتفتحش",
   "CloudFolders.listLabel": "الملفات في {name}",
   "CloudFolders.folderBadge": "فولدر",
   "CloudFolders.problem": "الفولدر ماتضافش"
