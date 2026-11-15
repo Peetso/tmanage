@@ -375,6 +375,48 @@ export async function listPortalMilestones(
   return data.milestones;
 }
 
+/** 52-27. Where one step sits on the client's path. */
+export type PortalJourneyStepState = 'done' | 'now' | 'next';
+
+/** 52-27. One published milestone as a journey step. */
+export interface PortalJourneyStep {
+  readonly id: string;
+  readonly title: string;
+  /** A 'YYYY-MM-DD' day, or null when no date is committed. */
+  readonly dueOn: string | null;
+  readonly state: PortalJourneyStepState;
+  readonly missed: boolean;
+}
+
+/** 52-27. The one review the client owes now; the id opens `portal/deliverables/:id`. */
+export interface PortalJourneyTurn {
+  readonly deliverableVersionId: string;
+  readonly title: string;
+  /** An ISO-8601 instant. */
+  readonly sentAt: string;
+}
+
+/** 52-27. The client's journey through one project. */
+export interface PortalJourney {
+  readonly projectId: string;
+  readonly steps: readonly PortalJourneyStep[];
+  readonly yourTurn: PortalJourneyTurn | null;
+  /** Every step met and nothing waits on the client. */
+  readonly completed: boolean;
+}
+
+/** 52-27. The journey stepper for one of the client's projects; 404 for a project not theirs. */
+export async function getPortalJourney(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+): Promise<PortalJourney> {
+  const { data } = await client.request<{ journey: PortalJourney }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/projects/${encodeURIComponent(projectId)}/journey`,
+  });
+  return data.journey;
+}
+
 /** The full internal milestones list for a project — behind `project.manage`, on the `projects` path. */
 export async function listProjectMilestones(
   client: ApiClient,

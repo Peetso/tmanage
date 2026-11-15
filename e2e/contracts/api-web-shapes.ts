@@ -4001,3 +4001,491 @@ import type {
 type _recurrencePreview = Assert<Exact<ApiRecurrencePreviewView, WebRecurrencePreview>>;
 type _contactImportPreview = Assert<Exact<ApiContactImportPreviewView, WebContactImportPreview>>;
 type _contactImportResult = Assert<Narrows<ApiContactImportView, WebContactImportResult>>;
+
+// ---- FLAKES 2026-11-15 · coverage catch-up ----
+// Response shapes that landed on both sides without a pair. Each was compiled Exact first; the
+// Narrows ones are where the web screen declares a looser or smaller shape than the API sends.
+import type { SimulationWarning as ApiSimulationWarning } from '../../apps/api/src/modules/admin/policy-simulate.service.js';
+import type { AppConnectView as ApiAppConnectView } from '../../apps/api/src/modules/app-connect/app-connect.service.js';
+import type { AuditIntegrityReport as ApiAuditIntegrityReport } from '../../apps/api/src/modules/audit/audit-integrity.service.js';
+import type {
+  GithubHookView as ApiGithubHookView,
+  GithubHookSecretView as ApiGithubHookSecretView,
+} from '../../apps/api/src/modules/automations/github-hooks.service.js';
+import type { ChatListRowView as ApiChatListRowView } from '../../apps/api/src/modules/chat/chat-list.service.js';
+import type { ClientProjectView as ApiClientProjectView } from '../../apps/api/src/modules/clients/clients.service.js';
+import type {
+  CloudFolderChild as ApiCloudFolderChild,
+  CloudFolderPage as ApiCloudFolderPage,
+} from '../../apps/api/src/modules/cloud-folders/cloud-folder-drive.js';
+import type { CloudFolderView as ApiCloudFolderView } from '../../apps/api/src/modules/cloud-folders/cloud-folders.service.js';
+import type { ConnectorView as ApiConnectorView } from '../../apps/api/src/modules/connectors/connectors.service.js';
+import type {
+  GroupMemberView as ApiGroupMemberView,
+  GroupInfoView as ApiGroupInfoView,
+  GroupInvitePreview as ApiGroupInvitePreview,
+} from '../../apps/api/src/modules/conversations/group-settings.service.js';
+import type { LinkPreviewView as ApiLinkPreviewView } from '../../apps/api/src/modules/conversations/link-previews.repository.js';
+import type { ForwardResultView as ApiForwardResultView } from '../../apps/api/src/modules/conversations/message-forward.service.js';
+import type {
+  MessageReceiptsView as ApiMessageReceiptsView,
+  ReceiptEntry as ApiReceiptEntry,
+} from '../../apps/api/src/modules/conversations/message-receipts.repository.js';
+import type { DocumentEditorView as ApiDocumentEditorView } from '../../apps/api/src/modules/docs/document-presence.service.js';
+import type {
+  FigmaInspectPageView as ApiFigmaInspectPageView,
+  FigmaLinkPageView as ApiFigmaLinkPageView,
+  FigmaCaptureView as ApiFigmaCaptureView,
+} from '../../apps/api/src/modules/figma/figma.service.js';
+import type { BlockedFileView as ApiBlockedFileView } from '../../apps/api/src/modules/files/blocked-files.controller.js';
+import type {
+  PreviewFigFrameView as ApiPreviewFigFrameView,
+  PreviewFigPageView as ApiPreviewFigPageView,
+  PreviewFigView as ApiPreviewFigView,
+} from '../../apps/api/src/modules/files/file-preview.service.js';
+import type { ImportedFileView as ApiImportedFileView } from '../../apps/api/src/modules/files/files.service.js';
+import type { ExpenseView as ApiExpenseView } from '../../apps/api/src/modules/finance/expenses.service.js';
+import type { FinanceProfileView as ApiFinanceProfileView } from '../../apps/api/src/modules/finance/finance.service.js';
+import type {
+  RateCardView as ApiRateCardView,
+  RateEntryView as ApiRateEntryView,
+} from '../../apps/api/src/modules/finance/rates.service.js';
+import type {
+  GettingStartedView as ApiGettingStartedView,
+  SetupHealthView as ApiSetupHealthView,
+} from '../../apps/api/src/modules/getting-started/getting-started.steps.js';
+import type {
+  PasskeyView as ApiPasskeyView,
+  SecurityDeviceView as ApiSecurityDeviceView,
+} from '../../apps/api/src/modules/identity/passkeys/passkeys.controller.js';
+import type { SecurityScoreView as ApiSecurityScoreView } from '../../apps/api/src/modules/identity/passkeys/security-score.js';
+import type { SignInPolicyState as ApiSignInPolicyState } from '../../apps/api/src/modules/identity/sign-in-policy.service.js';
+import type {
+  BasecampCommitSummary as ApiBasecampCommitSummary,
+  NotionCommitSummary as ApiNotionCommitSummary,
+} from '../../apps/api/src/modules/import/basecamp-commit.js';
+import type { BoardCommitSummary as ApiBoardCommitSummary } from '../../apps/api/src/modules/import/board-commit.js';
+import type { RowValidationError as ApiRowValidationError } from '../../apps/api/src/modules/import/import-validation.js';
+import type {
+  ImportUndoView as ApiImportUndoView,
+  ImportJobSummaryView as ApiImportJobSummaryView,
+  ImportJobListView as ApiImportJobListView,
+  ImportValidationView as ApiImportValidationView,
+} from '../../apps/api/src/modules/import/import.service.js';
+import type { JiraCommitSummary as ApiJiraCommitSummary } from '../../apps/api/src/modules/import/jira-commit.js';
+import type { PmImportOptions as ApiPmImportOptions } from '../../apps/api/src/modules/import/pm-import-plan.js';
+import type {
+  PmPersonView as ApiPmPersonView,
+  PmPreviewView as ApiPmPreviewView,
+  PmJobView as ApiPmJobView,
+  PmDiscoverView as ApiPmDiscoverView,
+} from '../../apps/api/src/modules/import/pm-import.service.js';
+import type { PmBoard as ApiPmBoard } from '../../apps/api/src/modules/import/pm-sources.js';
+import type {
+  InboundAddressView as ApiInboundAddressView,
+  InboundLogEntry as ApiInboundLogEntry,
+} from '../../apps/api/src/modules/inbound-email/inbound-email.service.js';
+import type {
+  PortalInboxRequestBundleView as ApiPortalInboxRequestBundleView,
+  PortalInboxFileBundleView as ApiPortalInboxFileBundleView,
+} from '../../apps/api/src/modules/inbox/portal-inbox.service.js';
+import type {
+  IterationListView as ApiIterationListView,
+  IterationItemView as ApiIterationItemView,
+  IterationDetailView as ApiIterationDetailView,
+  BurndownView as ApiBurndownView,
+  CompleteView as ApiCompleteView,
+  IterationView as ApiIterationView,
+} from '../../apps/api/src/modules/iterations/iterations.service.js';
+import type { NotificationPreferencesView as ApiNotificationPreferencesView } from '../../apps/api/src/modules/notifications/notification-preferences.service.js';
+import type { OnboardingWizardView as ApiOnboardingWizardView } from '../../apps/api/src/modules/onboarding/onboarding-wizard.controller.js';
+import type { OneDriveFolderBrowseView as ApiOneDriveFolderBrowseView } from '../../apps/api/src/modules/onedrive/onedrive.service.js';
+import type { ContactPreviewRow as ApiContactPreviewRow } from '../../apps/api/src/modules/people/contact-suggestions.service.js';
+import type {
+  GrowthView as ApiGrowthView,
+  GrowthPeriodRow as ApiGrowthPeriodRow,
+} from '../../apps/api/src/modules/platform-admin/activity/growth.repository.js';
+import type { ConnectSetupView as ApiConnectSetupView } from '../../apps/api/src/modules/platform-admin/connect-setup/connect-setup.js';
+import type {
+  ApprovalView as ApiApprovalView,
+  ApprovalsView as ApiApprovalsView,
+  OwnerNoticeView as ApiOwnerNoticeView,
+} from '../../apps/api/src/modules/platform-admin/governance/governance.service.js';
+import type { AccessReviewView as ApiAccessReviewView } from '../../apps/api/src/modules/platform-admin/team/access-review.service.js';
+import type { PortalSignedInView as ApiPortalSignedInView } from '../../apps/api/src/modules/portal-sign-in/portal-sign-in.controller.js';
+import type { CoachMarksView as ApiCoachMarksView } from '../../apps/api/src/modules/preferences/coach-marks.controller.js';
+import type { PrivacyPreferencesView as ApiPrivacyPreferencesView } from '../../apps/api/src/modules/preferences/privacy-prefs.controller.js';
+import type { PresenceView as ApiPresenceView } from '../../apps/api/src/modules/presence/presence.service.js';
+import type {
+  ProjectBaselineItemVariance as ApiProjectBaselineItemVariance,
+  ProjectBaselineVarianceSummary as ApiProjectBaselineVarianceSummary,
+} from '../../apps/api/src/modules/projects/baseline.service.js';
+import type {
+  BurnBucketView as ApiBurnBucketView,
+  BurnReportView as ApiBurnReportView,
+} from '../../apps/api/src/modules/projects/budget-burn.service.js';
+import type {
+  BudgetPhaseView as ApiBudgetPhaseView,
+  BudgetBurnSummary as ApiBudgetBurnSummary,
+} from '../../apps/api/src/modules/projects/budget.service.js';
+import type {
+  TemplatePackView as ApiTemplatePackView,
+  TemplatePackInstallResult as ApiTemplatePackInstallResult,
+} from '../../apps/api/src/modules/projects/template-packs.service.js';
+import type {
+  ScimKeyView as ApiScimKeyView,
+  ScimSettingsView as ApiScimSettingsView,
+  ScimKeyCreatedView as ApiScimKeyCreatedView,
+} from '../../apps/api/src/modules/scim/scim.service.js';
+import type {
+  SignalView as ApiSignalView,
+  SignalPage as ApiSignalPage,
+} from '../../apps/api/src/modules/security-signals/security-signals.service.js';
+import type {
+  SupportMessageView as ApiSupportMessageView,
+  SupportThreadView as ApiSupportThreadView,
+  SupportThreadDetailView as ApiSupportThreadDetailView,
+  PlatformSupportThreadView as ApiPlatformSupportThreadView,
+  PlatformSupportDetailView as ApiPlatformSupportDetailView,
+} from '../../apps/api/src/modules/support/support.service.js';
+import type { ClientFilePolicyView as ApiClientFilePolicyView } from '../../apps/api/src/modules/tenancy/client-file-policy.controller.js';
+import type { DeviceKind as ApiDeviceKind } from '../../apps/api/src/modules/time/time-auto-rules.js';
+import type {
+  CurrentTaskView as ApiCurrentTaskView,
+  AutoSessionView as ApiAutoSessionView,
+  AutoTrackingView as ApiAutoTrackingView,
+  AutoTrackingPolicyView as ApiAutoTrackingPolicyView,
+} from '../../apps/api/src/modules/time/time-auto.service.js';
+import type {
+  TeamPersonView as ApiTeamPersonView,
+  TeamTimeView as ApiTeamTimeView,
+  TeamSessionView as ApiTeamSessionView,
+  TeamDayView as ApiTeamDayView,
+} from '../../apps/api/src/modules/time/time-team.service.js';
+import type {
+  TimerView as ApiTimerView,
+  TimerStateView as ApiTimerStateView,
+  TimeEntryView as ApiTimeEntryView,
+} from '../../apps/api/src/modules/time/time.service.js';
+import type {
+  TimesheetEntryView as ApiTimesheetEntryView,
+  TimesheetGroupView as ApiTimesheetGroupView,
+  TimesheetView as ApiTimesheetView,
+  TeamMemberWeekView as ApiTeamMemberWeekView,
+  TeamWeekView as ApiTeamWeekView,
+} from '../../apps/api/src/modules/time/timesheets.service.js';
+import type { UnfurlCard as ApiUnfurlCard } from '../../apps/api/src/modules/unfurl/unfurl-meta.js';
+import type { WorkMentionCandidateView as ApiWorkMentionCandidateView } from '../../apps/api/src/modules/work/work-comments.service.js';
+import type { WorkItemPeopleView as ApiWorkItemPeopleView } from '../../apps/api/src/modules/work/work-item-people.service.js';
+import type { CodeLinkView as ApiCodeLinkView } from '../../apps/api/src/modules/work/work-keys.service.js';
+import type {
+  HolidayView as ApiHolidayView,
+  CalendarView as ApiCalendarView,
+} from '../../apps/api/src/modules/working-calendar/working-calendar.service.js';
+import type { BlockedFileView as WebBlockedFileView } from '../../apps/web/src/lib/api/admin-blocked-files.js';
+import type {
+  SecuritySignalView as WebSecuritySignalView,
+  SecuritySignalPage as WebSecuritySignalPage,
+} from '../../apps/web/src/lib/api/admin-security-signals.js';
+import type { AppConnectView as WebAppConnectView } from '../../apps/web/src/lib/api/app-connect.js';
+import type { AuditIntegrityReport as WebAuditIntegrityReport } from '../../apps/web/src/lib/api/audit-integrity.js';
+import type { AuthenticatedResponse as WebAuthenticatedResponse2 } from '../../apps/web/src/lib/api/auth.js';
+import type {
+  GroupMember as WebGroupMember,
+  GroupInfo as WebGroupInfo,
+  GroupInvitePreview as WebGroupInvitePreview,
+} from '../../apps/web/src/lib/api/chat-groups.js';
+import type { ChatListRowData as WebChatListRowData } from '../../apps/web/src/lib/api/chat.js';
+import type { ClientFilePolicyView as WebClientFilePolicyView } from '../../apps/web/src/lib/api/client-file-policy.js';
+import type { ClientProject as WebClientProject } from '../../apps/web/src/lib/api/clients.js';
+import type {
+  CloudFolder as WebCloudFolder,
+  CloudFolderChild as WebCloudFolderChild,
+  CloudFolderPage as WebCloudFolderPage,
+} from '../../apps/web/src/lib/api/cloud-folders.js';
+import type { CoachMarksView as WebCoachMarksView } from '../../apps/web/src/lib/api/coach-marks.js';
+import type { ConnectSetupView as WebConnectSetupView } from '../../apps/web/src/lib/api/connect-setup.js';
+import type { ConnectorView as WebConnectorView } from '../../apps/web/src/lib/api/connectors.js';
+import type { ContactPreviewRow as WebContactPreviewRow } from '../../apps/web/src/lib/api/contact-import.js';
+import type { ForwardMessageResult as WebForwardMessageResult } from '../../apps/web/src/lib/api/conversations.js';
+import type { DocumentEditor as WebDocumentEditor } from '../../apps/web/src/lib/api/documents.js';
+import type {
+  FigmaInspectPage as WebFigmaInspectPage,
+  FigmaLinkPage as WebFigmaLinkPage,
+  FigmaCapture as WebFigmaCapture,
+} from '../../apps/web/src/lib/api/figma.js';
+import type {
+  PreviewFigFrame as WebPreviewFigFrame,
+  PreviewFigPage as WebPreviewFigPage,
+  PreviewFig as WebPreviewFig,
+} from '../../apps/web/src/lib/api/file-preview.js';
+import type {
+  Expense as WebExpense,
+  RateCard as WebRateCard,
+  RateEntry as WebRateEntry,
+  TimesheetEntry as WebTimesheetEntry,
+  TimesheetGroup as WebTimesheetGroup,
+  Timesheet as WebTimesheet,
+  TeamMemberWeek as WebTeamMemberWeek,
+  TeamWeek as WebTeamWeek,
+  FinanceProfile as WebFinanceProfile,
+} from '../../apps/web/src/lib/api/finance-core.js';
+import type {
+  GettingStartedView as WebGettingStartedView,
+  SetupHealthView as WebSetupHealthView,
+} from '../../apps/web/src/lib/api/getting-started.js';
+import type {
+  CodeLink as WebCodeLink,
+  GithubRepoHook as WebGithubRepoHook,
+  GithubRepoHookSecret as WebGithubRepoHookSecret,
+} from '../../apps/web/src/lib/api/github-repos.js';
+import type {
+  ImportUndoResult as WebImportUndoResult,
+  ImportJobSummary as WebImportJobSummary,
+  ImportJobList as WebImportJobList,
+  ImportValidationReport as WebImportValidationReport,
+  ImportBasecampSummary as WebImportBasecampSummary,
+  ImportBoardSummary as WebImportBoardSummary,
+  ImportRowProblem as WebImportRowProblem,
+  ImportJiraSummary as WebImportJiraSummary,
+  ImportNotionSummary as WebImportNotionSummary,
+} from '../../apps/web/src/lib/api/imports.js';
+import type {
+  InboundAddress as WebInboundAddress,
+  InboundLogEntry as WebInboundLogEntry,
+} from '../../apps/web/src/lib/api/inbound-email.js';
+import type {
+  IterationList as WebIterationList,
+  IterationItem as WebIterationItem,
+  IterationDetail as WebIterationDetail,
+  Burndown as WebBurndown,
+  CompleteResult as WebCompleteResult,
+  IterationSummary as WebIterationSummary,
+} from '../../apps/web/src/lib/api/iterations.js';
+import type { LinkPreview as WebLinkPreview } from '../../apps/web/src/lib/api/link-previews.js';
+import type { NotificationPreferencesView as WebNotificationPreferencesView } from '../../apps/web/src/lib/api/notification-preferences.js';
+import type { OnboardingWizardView as WebOnboardingWizardView } from '../../apps/web/src/lib/api/onboarding-wizard.js';
+import type { OneDriveFolderBrowseView as WebOneDriveFolderBrowseView } from '../../apps/web/src/lib/api/onedrive.js';
+import type {
+  PasskeyView as WebPasskeyView,
+  SecurityDeviceView as WebSecurityDeviceView,
+  SecurityScoreView as WebSecurityScoreView,
+} from '../../apps/web/src/lib/api/passkeys.js';
+import type {
+  PlatformApprovalView as WebPlatformApprovalView,
+  PlatformApprovalsView as WebPlatformApprovalsView,
+  PlatformOwnerNoticeView as WebPlatformOwnerNoticeView,
+  PlatformAccessReviewView as WebPlatformAccessReviewView,
+} from '../../apps/web/src/lib/api/platform-governance.js';
+import type {
+  GrowthView as WebGrowthView,
+  GrowthPeriodRow as WebGrowthPeriodRow,
+} from '../../apps/web/src/lib/api/platform-growth.js';
+import type {
+  PmPerson as WebPmPerson,
+  PmPreview as WebPmPreview,
+  PmJob as WebPmJob,
+  PmDiscovery as WebPmDiscovery,
+  PmBoard as WebPmBoard,
+  PmImportChoices as WebPmImportChoices,
+} from '../../apps/web/src/lib/api/pm-import.js';
+import type { PolicySimulationWarning as WebPolicySimulationWarning } from '../../apps/web/src/lib/api/policy-simulate.js';
+import type {
+  PortalInboxRequestBundle as WebPortalInboxRequestBundle,
+  PortalInboxFileBundle as WebPortalInboxFileBundle,
+} from '../../apps/web/src/lib/api/portal.js';
+import type {
+  PrivacyPreferencesView as WebPrivacyPreferencesView,
+  PresenceView as WebPresenceView,
+} from '../../apps/web/src/lib/api/presence.js';
+import type {
+  ProjectBaselineItemVariance as WebProjectBaselineItemVariance,
+  ProjectBaselineVarianceSummary as WebProjectBaselineVarianceSummary,
+} from '../../apps/web/src/lib/api/project-baseline.js';
+import type {
+  BurnBucket as WebBurnBucket,
+  BurnReport as WebBurnReport,
+} from '../../apps/web/src/lib/api/project-budget-burn.js';
+import type {
+  ProjectBudgetPhaseSummary as WebProjectBudgetPhaseSummary,
+  ProjectBudgetBurnSummary as WebProjectBudgetBurnSummary,
+} from '../../apps/web/src/lib/api/project-budget.js';
+import type {
+  MessageReceipts as WebMessageReceipts,
+  ReceiptEntry as WebReceiptEntry,
+} from '../../apps/web/src/lib/api/receipts.js';
+import type {
+  ScimKeyView as WebScimKeyView,
+  ScimSettingsView as WebScimSettingsView,
+  ScimKeyCreatedView as WebScimKeyCreatedView,
+} from '../../apps/web/src/lib/api/scim.js';
+import type { SignInPolicyState as WebSignInPolicyState } from '../../apps/web/src/lib/api/sign-in-policy.js';
+import type {
+  SupportMessage as WebSupportMessage,
+  SupportThread as WebSupportThread,
+  SupportThreadDetail as WebSupportThreadDetail,
+  PlatformSupportThread as WebPlatformSupportThread,
+  PlatformSupportDetail as WebPlatformSupportDetail,
+} from '../../apps/web/src/lib/api/support.js';
+import type {
+  TemplatePackView as WebTemplatePackView,
+  TemplatePackInstallResult as WebTemplatePackInstallResult,
+} from '../../apps/web/src/lib/api/template-packs.js';
+import type {
+  CurrentTask as WebCurrentTask,
+  AutoSession as WebAutoSession,
+  TeamPerson as WebTeamPerson,
+  TeamTime as WebTeamTime,
+  TeamSession as WebTeamSession,
+  TeamDay as WebTeamDay,
+  AutoTrackingState as WebAutoTrackingState,
+  DeviceKind as WebDeviceKind,
+  AutoTrackingPolicyChoice as WebAutoTrackingPolicyChoice,
+} from '../../apps/web/src/lib/api/time-auto.js';
+import type {
+  RunningTimer as WebRunningTimer,
+  TimerState as WebTimerState,
+  StoppedTimeEntry as WebStoppedTimeEntry,
+} from '../../apps/web/src/lib/api/time-timer.js';
+import type { UnfurlCard as WebUnfurlCard } from '../../apps/web/src/lib/api/unfurl.js';
+import type { ImportedCopyReply as WebImportedCopyReply } from '../../apps/web/src/lib/api/uploads.js';
+import type { WorkMentionCandidate as WebWorkMentionCandidate } from '../../apps/web/src/lib/api/work-comment-mentions.js';
+import type { WorkItemPeople as WebWorkItemPeople } from '../../apps/web/src/lib/api/work-items.js';
+import type {
+  CalendarHoliday as WebCalendarHoliday,
+  WorkingCalendar as WebWorkingCalendar,
+} from '../../apps/web/src/lib/api/working-calendar.js';
+
+type _appConnectView = Assert<Exact<ApiAppConnectView, WebAppConnectView>>;
+type _clientProject = Assert<Exact<ApiClientProjectView, WebClientProject>>;
+type _cloudFolder = Assert<Exact<ApiCloudFolderView, WebCloudFolder>>;
+type _connectorView = Assert<Narrows<ApiConnectorView, WebConnectorView>>;
+type _groupMember = Assert<Exact<ApiGroupMemberView, WebGroupMember>>;
+type _groupInfo = Assert<Exact<ApiGroupInfoView, WebGroupInfo>>;
+type _linkPreview = Assert<Exact<ApiLinkPreviewView, WebLinkPreview>>;
+type _messageReceipts = Assert<Exact<ApiMessageReceiptsView, WebMessageReceipts>>;
+type _documentEditor = Assert<Exact<ApiDocumentEditorView, WebDocumentEditor>>;
+type _figmaInspectPage = Assert<Exact<ApiFigmaInspectPageView, WebFigmaInspectPage>>;
+type _figmaLinkPage = Assert<Exact<ApiFigmaLinkPageView, WebFigmaLinkPage>>;
+type _figmaCapture = Assert<Exact<ApiFigmaCaptureView, WebFigmaCapture>>;
+type _blockedFileView = Assert<Exact<ApiBlockedFileView, WebBlockedFileView>>;
+type _previewFigFrame = Assert<Exact<ApiPreviewFigFrameView, WebPreviewFigFrame>>;
+type _previewFigPage = Assert<Exact<ApiPreviewFigPageView, WebPreviewFigPage>>;
+type _previewFig = Assert<Exact<ApiPreviewFigView, WebPreviewFig>>;
+type _expense = Assert<Narrows<ApiExpenseView, WebExpense>>;
+type _rateCard = Assert<Exact<ApiRateCardView, WebRateCard>>;
+type _rateEntry = Assert<Exact<ApiRateEntryView, WebRateEntry>>;
+type _passkeyView = Assert<Exact<ApiPasskeyView, WebPasskeyView>>;
+type _securityDeviceView = Assert<Exact<ApiSecurityDeviceView, WebSecurityDeviceView>>;
+type _importUndoResult = Assert<Exact<ApiImportUndoView, WebImportUndoResult>>;
+type _importJobSummary = Assert<Exact<ApiImportJobSummaryView, WebImportJobSummary>>;
+type _importJobList = Assert<Exact<ApiImportJobListView, WebImportJobList>>;
+type _pmPerson = Assert<Exact<ApiPmPersonView, WebPmPerson>>;
+type _pmPreview = Assert<Exact<ApiPmPreviewView, WebPmPreview>>;
+type _pmJob = Assert<Exact<ApiPmJobView, WebPmJob>>;
+type _inboundAddress = Assert<Exact<ApiInboundAddressView, WebInboundAddress>>;
+type _portalInboxRequestBundle = Assert<
+  Exact<ApiPortalInboxRequestBundleView, WebPortalInboxRequestBundle>
+>;
+type _portalInboxFileBundle = Assert<Exact<ApiPortalInboxFileBundleView, WebPortalInboxFileBundle>>;
+type _iterationList = Assert<Exact<ApiIterationListView, WebIterationList>>;
+type _iterationItem = Assert<Exact<ApiIterationItemView, WebIterationItem>>;
+type _iterationDetail = Assert<Exact<ApiIterationDetailView, WebIterationDetail>>;
+type _burndown = Assert<Exact<ApiBurndownView, WebBurndown>>;
+type _completeResult = Assert<Exact<ApiCompleteView, WebCompleteResult>>;
+type _onboardingWizardView = Assert<Exact<ApiOnboardingWizardView, WebOnboardingWizardView>>;
+type _oneDriveFolderBrowseView = Assert<
+  Exact<ApiOneDriveFolderBrowseView, WebOneDriveFolderBrowseView>
+>;
+type _growthView = Assert<Narrows<ApiGrowthView, WebGrowthView>>;
+type _coachMarksView = Assert<Exact<ApiCoachMarksView, WebCoachMarksView>>;
+type _privacyPreferencesView = Assert<Exact<ApiPrivacyPreferencesView, WebPrivacyPreferencesView>>;
+type _presenceView = Assert<Exact<ApiPresenceView, WebPresenceView>>;
+type _burnBucket = Assert<Exact<ApiBurnBucketView, WebBurnBucket>>;
+type _burnReport = Assert<Exact<ApiBurnReportView, WebBurnReport>>;
+type _templatePackView = Assert<Exact<ApiTemplatePackView, WebTemplatePackView>>;
+type _scimKeyView = Assert<Exact<ApiScimKeyView, WebScimKeyView>>;
+type _scimSettingsView = Assert<Exact<ApiScimSettingsView, WebScimSettingsView>>;
+type _scimKeyCreatedView = Assert<Exact<ApiScimKeyCreatedView, WebScimKeyCreatedView>>;
+type _supportMessage = Assert<Exact<ApiSupportMessageView, WebSupportMessage>>;
+type _supportThread = Assert<Exact<ApiSupportThreadView, WebSupportThread>>;
+type _supportThreadDetail = Assert<Exact<ApiSupportThreadDetailView, WebSupportThreadDetail>>;
+type _platformSupportThread = Assert<Exact<ApiPlatformSupportThreadView, WebPlatformSupportThread>>;
+type _platformSupportDetail = Assert<Exact<ApiPlatformSupportDetailView, WebPlatformSupportDetail>>;
+type _clientFilePolicyView = Assert<Exact<ApiClientFilePolicyView, WebClientFilePolicyView>>;
+type _currentTask = Assert<Exact<ApiCurrentTaskView, WebCurrentTask>>;
+type _autoSession = Assert<Exact<ApiAutoSessionView, WebAutoSession>>;
+type _teamPerson = Assert<Narrows<ApiTeamPersonView, WebTeamPerson>>;
+type _teamTime = Assert<Narrows<ApiTeamTimeView, WebTeamTime>>;
+type _teamSession = Assert<Exact<ApiTeamSessionView, WebTeamSession>>;
+type _teamDay = Assert<Exact<ApiTeamDayView, WebTeamDay>>;
+type _timesheetEntry = Assert<Narrows<ApiTimesheetEntryView, WebTimesheetEntry>>;
+type _timesheetGroup = Assert<Narrows<ApiTimesheetGroupView, WebTimesheetGroup>>;
+type _timesheet = Assert<Narrows<ApiTimesheetView, WebTimesheet>>;
+type _teamMemberWeek = Assert<Narrows<ApiTeamMemberWeekView, WebTeamMemberWeek>>;
+type _teamWeek = Assert<Narrows<ApiTeamWeekView, WebTeamWeek>>;
+type _workMentionCandidate = Assert<Exact<ApiWorkMentionCandidateView, WebWorkMentionCandidate>>;
+type _workItemPeople = Assert<Narrows<ApiWorkItemPeopleView, WebWorkItemPeople>>;
+type _codeLink = Assert<Exact<ApiCodeLinkView, WebCodeLink>>;
+type _githubRepoHook = Assert<Exact<ApiGithubHookView, WebGithubRepoHook>>;
+type _githubRepoHookSecret = Assert<Exact<ApiGithubHookSecretView, WebGithubRepoHookSecret>>;
+type _chatListRowData = Assert<Exact<ApiChatListRowView, WebChatListRowData>>;
+type _forwardMessageResult = Assert<Exact<ApiForwardResultView, WebForwardMessageResult>>;
+type _importedCopyReply = Assert<Narrows<ApiImportedFileView, WebImportedCopyReply>>;
+type _pmDiscovery = Assert<Exact<ApiPmDiscoverView, WebPmDiscovery>>;
+type _platformApprovalView = Assert<Exact<ApiApprovalView, WebPlatformApprovalView>>;
+type _platformApprovalsView = Assert<Exact<ApiApprovalsView, WebPlatformApprovalsView>>;
+type _platformOwnerNoticeView = Assert<Exact<ApiOwnerNoticeView, WebPlatformOwnerNoticeView>>;
+type _platformAccessReviewView = Assert<Narrows<ApiAccessReviewView, WebPlatformAccessReviewView>>;
+type _projectBudgetPhaseSummary = Assert<Exact<ApiBudgetPhaseView, WebProjectBudgetPhaseSummary>>;
+type _autoTrackingState = Assert<Exact<ApiAutoTrackingView, WebAutoTrackingState>>;
+type _calendarHoliday = Assert<Exact<ApiHolidayView, WebCalendarHoliday>>;
+type _workingCalendar = Assert<Exact<ApiCalendarView, WebWorkingCalendar>>;
+type _iterationSummary = Assert<Exact<ApiIterationView, WebIterationSummary>>;
+type _authenticatedResponse = Assert<Exact<ApiPortalSignedInView, WebAuthenticatedResponse2>>;
+type _securitySignalView = Assert<Exact<ApiSignalView, WebSecuritySignalView>>;
+type _securitySignalPage = Assert<Exact<ApiSignalPage, WebSecuritySignalPage>>;
+type _importValidationReport = Assert<Exact<ApiImportValidationView, WebImportValidationReport>>;
+type _notificationPreferencesView = Assert<
+  Exact<ApiNotificationPreferencesView, WebNotificationPreferencesView>
+>;
+type _runningTimer = Assert<Exact<ApiTimerView, WebRunningTimer>>;
+type _timerState = Assert<Exact<ApiTimerStateView, WebTimerState>>;
+type _stoppedTimeEntry = Assert<Exact<ApiTimeEntryView, WebStoppedTimeEntry>>;
+type _financeProfile = Assert<Narrows<ApiFinanceProfileView, WebFinanceProfile>>;
+type _groupInvitePreview = Assert<Exact<ApiGroupInvitePreview, WebGroupInvitePreview>>;
+type _cloudFolderChild = Assert<Exact<ApiCloudFolderChild, WebCloudFolderChild>>;
+type _cloudFolderPage = Assert<Exact<ApiCloudFolderPage, WebCloudFolderPage>>;
+type _connectSetupView = Assert<Narrows<ApiConnectSetupView, WebConnectSetupView>>;
+type _contactPreviewRow = Assert<Exact<ApiContactPreviewRow, WebContactPreviewRow>>;
+type _gettingStartedView = Assert<Exact<ApiGettingStartedView, WebGettingStartedView>>;
+type _importBasecampSummary = Assert<Exact<ApiBasecampCommitSummary, WebImportBasecampSummary>>;
+type _importBoardSummary = Assert<Exact<ApiBoardCommitSummary, WebImportBoardSummary>>;
+type _importRowProblem = Assert<Exact<ApiRowValidationError, WebImportRowProblem>>;
+type _inboundLogEntry = Assert<Narrows<ApiInboundLogEntry, WebInboundLogEntry>>;
+type _securityScoreView = Assert<Exact<ApiSecurityScoreView, WebSecurityScoreView>>;
+type _growthPeriodRow = Assert<Exact<ApiGrowthPeriodRow, WebGrowthPeriodRow>>;
+type _pmBoard = Assert<Exact<ApiPmBoard, WebPmBoard>>;
+type _pmImportChoices = Assert<Exact<ApiPmImportOptions, WebPmImportChoices>>;
+type _policySimulationWarning = Assert<Exact<ApiSimulationWarning, WebPolicySimulationWarning>>;
+type _projectBaselineItemVariance = Assert<
+  Exact<ApiProjectBaselineItemVariance, WebProjectBaselineItemVariance>
+>;
+type _projectBaselineVarianceSummary = Assert<
+  Exact<ApiProjectBaselineVarianceSummary, WebProjectBaselineVarianceSummary>
+>;
+type _projectBudgetBurnSummary = Assert<Exact<ApiBudgetBurnSummary, WebProjectBudgetBurnSummary>>;
+type _receiptEntry = Assert<Exact<ApiReceiptEntry, WebReceiptEntry>>;
+type _signInPolicyState = Assert<Exact<ApiSignInPolicyState, WebSignInPolicyState>>;
+type _templatePackInstallResult = Assert<
+  Exact<ApiTemplatePackInstallResult, WebTemplatePackInstallResult>
+>;
+type _deviceKind = Assert<Exact<ApiDeviceKind, WebDeviceKind>>;
+type _unfurlCard = Assert<Exact<ApiUnfurlCard, WebUnfurlCard>>;
+type _setupHealthView = Assert<Exact<ApiSetupHealthView, WebSetupHealthView>>;
+type _auditIntegrityReport = Assert<Narrows<ApiAuditIntegrityReport, WebAuditIntegrityReport>>;
+type _importJiraSummary = Assert<Exact<ApiJiraCommitSummary, WebImportJiraSummary>>;
+type _importNotionSummary = Assert<Exact<ApiNotionCommitSummary, WebImportNotionSummary>>;
+type _autoTrackingPolicyChoice = Assert<
+  Exact<ApiAutoTrackingPolicyView, WebAutoTrackingPolicyChoice>
+>;

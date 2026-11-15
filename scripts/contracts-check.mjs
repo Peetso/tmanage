@@ -91,16 +91,8 @@ const EXEMPT = new Map([
     'No web consumer: UNIT-12 project health roll-up is authored ready for the screen; no screen reads it yet (x86 follow-up).',
   ],
   [
-    'NotificationPreferencesView',
-    'no web consumer yet (NOTIF-001 API-only; pair when the preferences screen lands)',
-  ],
-  [
     'ApprovalDecisionView',
     'No web consumer: the internal reviewer decide record. x101 ships only the client decide (its response is the separate client-safe ClientDecideView, paired); the internal reviewer decide screen is unbuilt, so this pairs when it lands.',
-  ],
-  [
-    'ImportValidationView',
-    'No web consumer yet: ON-09 import is API-only this slice (validate/dry-run); the ON-09 screen is a follow-up. Pair it when that screen lands.',
   ],
   [
     'PortalSettingsClientView',
@@ -131,10 +123,6 @@ const EXEMPT = new Map([
   [
     'MailHealthView',
     'No web consumer yet: the platform mail-health read and lane pause (`v1/platform/mail`) have no Control Center screen; it pairs when that screen lands.',
-  ],
-  [
-    'FinanceProfileView',
-    'No web consumer yet: the finance profile (`v1/organizations/:orgSlug/finance/profile`) is API-only; the finance settings screen is a follow-up.',
   ],
   [
     'TaxRateView',
@@ -173,24 +161,8 @@ const EXEMPT = new Map([
     'No web consumer yet: quotes (`v1/organizations/:orgSlug/quotes`) are API-only; the quotes screen is a follow-up.',
   ],
   [
-    'SignalView',
-    'No web consumer yet: security signals (`admin/security/events`, `v1/platform/security-signals`) are API-only; the signals screen is a follow-up.',
-  ],
-  [
     'AlertRuleView',
     'No web consumer yet: platform alert rules (`v1/platform/alerts`) are API-only; the alert-rules screen is a follow-up.',
-  ],
-  [
-    'TimerView',
-    'No web consumer yet: the running timer (`time/timer`) is API-only; the timer control in the web is a follow-up.',
-  ],
-  [
-    'TimerStateView',
-    'No web consumer yet: the running timer state (`GET time/timer`) is API-only; the timer control in the web is a follow-up.',
-  ],
-  [
-    'TimeEntryView',
-    'No web consumer yet: timed time-log entries from the timer are API-only; the timer control in the web is a follow-up.',
   ],
   [
     'ActiveTimerView',
@@ -380,6 +352,66 @@ const WEB_EXEMPT = new Map([
     'The API names it `PublicFormDefinition` in public-forms.validate.ts (no `…View` suffix); compiled Exact in the pairing file through a named pair.',
   ],
   [
+    'SignalFilters',
+    'FLAKES 2026-11-15 — the list filters signalQuery() turns into query params on the signals read; a request shape, not a response. The response page `SecuritySignalPage` is paired Exact.',
+  ],
+  [
+    'SignInClientSignals',
+    'FLAKES 2026-11-15 — the optional device facts the browser sends inside the sign-in request body; a request shape, not a response.',
+  ],
+  [
+    'CoachMarksPatch',
+    'FLAKES 2026-11-15 — the PATCH body for the coach-marks read state; a request shape, not a response. The response `CoachMarksView` is paired Exact.',
+  ],
+  [
+    'DocumentCommentAnchor',
+    'FLAKES 2026-11-15 — the optional text anchor addDocumentComment() sends in the request body; a request shape. The response carries it as anchorId/anchorQuote on the paired comment.',
+  ],
+  [
+    'NewExpense',
+    'FLAKES 2026-11-15 — the POST body for a new expense; a request shape, not a response. The response `Expense` is paired (Narrows) with `ExpenseView`.',
+  ],
+  [
+    'AuditChainBreak',
+    'FLAKES 2026-11-15 — the first-break element of `AuditIntegrityReport`, which is paired (Narrows) with the API report, so the element shape is covered there.',
+  ],
+  [
+    'ChatLastMessage',
+    'FLAKES 2026-11-15 — the last-message element of `ChatListRowData`, which is paired Exact with `ChatListRowView`, so the element shape is covered there.',
+  ],
+  [
+    'ChatListResult',
+    'FLAKES 2026-11-15 — inline API return type of chat-list.controller.ts list() ({ rows, viewerUserId }); its rows `ChatListRowData` are paired Exact with `ChatListRowView`.',
+  ],
+  [
+    'ContactErrorRecord',
+    'FLAKES 2026-11-15 — the error element of `ContactImportResult`, which is paired (Narrows) with `ContactImportView`, so the element shape is covered there.',
+  ],
+  [
+    'BurndownPoint',
+    'FLAKES 2026-11-15 — the point element of `Burndown`, which is paired Exact with `BurndownView`, so the element shape is covered there.',
+  ],
+  [
+    'PlatformAccessReviewRow',
+    'FLAKES 2026-11-15 — the admin row element of `PlatformAccessReviewView`, which is paired (Narrows) with the API `AccessReviewView`, so the element shape is covered there.',
+  ],
+  [
+    'WorkItemRecurrenceOccurrence',
+    'FLAKES 2026-11-15 — the occurrence element of `WorkItemRecurrence` and `RecurrencePreview`, both paired Exact, so the element shape is covered there.',
+  ],
+  [
+    'BurnUpBar',
+    'FLAKES 2026-11-15 — computed in the browser by burnUpBars() from the burndown points; not a response body, so no API pair.',
+  ],
+  [
+    'ReplyMeta',
+    'FLAKES 2026-11-15 — decoded in the browser by replyMetaOf() from a message `meta` JSON object; the API types `meta` as an open record, so there is no named API shape to pair.',
+  ],
+  [
+    'GroupSystemMeta',
+    'FLAKES 2026-11-15 — the decoded `meta` JSON of a system message; the API types `meta` as an open record, so there is no named API shape to pair.',
+  ],
+  [
     'PublicFormState',
     'The API names it `PublicFormState` in public-forms.service.ts (no `…View` suffix); compiled Exact in the pairing file through a named pair.',
   ],
@@ -508,6 +540,8 @@ const pairingText = readFileSync(pairingFile, 'utf8');
 const aliasToView = new Map();
 /** @type {Map<string, string>} local alias → exported name in apps/web (the web side of a pair) */
 const webAliasToShape = new Map();
+/** @type {Map<string, string>} exported apps/api name → the source file the pairing imports it from */
+const apiTypeSource = new Map();
 const IMPORT_RE = /import type \{([^}]*)\} from '([^']*)'/g;
 for (const m of pairingText.matchAll(IMPORT_RE)) {
   const target = m[2].includes('apps/api/')
@@ -520,7 +554,23 @@ for (const m of pairingText.matchAll(IMPORT_RE)) {
     const parts = clause.trim().split(/\s+as\s+/);
     if (parts.length === 2) target.set(parts[1], parts[0]);
     else if (parts[0]) target.set(parts[0], parts[0]);
+    if (target === aliasToView && parts[0])
+      apiTypeSource.set(parts[0], join(dirname(pairingFile), m[2].replace(/\.js$/, '.ts')));
   }
+}
+
+/**
+ * True when `name` is still exported by the apps/api file the pairing imports it from — declared
+ * there (`export interface` / `export type`) or re-exported (`export type { … }`).
+ */
+function apiTypeStillExported(name) {
+  const source = apiTypeSource.get(name);
+  if (!source || !existsSync(source)) return false;
+  const text = readFileSync(source, 'utf8');
+  return (
+    new RegExp(String.raw`^export (?:interface|type) ${name}\b`, 'm').test(text) ||
+    new RegExp(String.raw`^export type \{[^}]*\b${name}\b`, 'm').test(text)
+  );
 }
 
 const ASSERT_RE = /Assert<\s*(Exact|Narrows)\s*<\s*([A-Za-z0-9_]+)\s*,\s*([A-Za-z0-9_]+)\s*>\s*>/g;
@@ -559,10 +609,13 @@ for (const [view, reason] of EXEMPT) {
   );
 }
 
+// A pair may name an apps/api type that is not an enumerated …View — an element type, a `*.ts`
+// helper's projection, a union alias of two views. It still compiles here and still covers its web
+// shape; it is stale only if the API stopped exporting the name it claims.
 for (const pair of pairs) {
-  if (!apiViews.has(pair.api))
+  if (!apiViews.has(pair.api) && !apiTypeStillExported(pair.api))
     problems.push(
-      `e2e/contracts/api-web-shapes.ts asserts against \`${pair.api}\`, which is no longer an exported …View under apps/api/src/modules/**/*.service.ts.`,
+      `e2e/contracts/api-web-shapes.ts asserts against \`${pair.api}\`, which is no longer exported by the apps/api file it is imported from.`,
     );
 }
 

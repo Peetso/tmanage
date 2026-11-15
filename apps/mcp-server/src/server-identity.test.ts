@@ -1,4 +1,4 @@
-import { createServer } from 'node:http';
+import { createServer, request } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
 import { describe, expect, it } from 'vitest';
@@ -12,6 +12,40 @@ const SITE = 'https://tmanage.example.com';
 const EMPTY: Catalog = { profile: 'compact', tools: [], resources: [], prompts: [] };
 /** Never called: `initialize` runs no tool and reads no resource. */
 const RUNTIME = {} as CatalogRuntime;
+
+/**
+ * POST a JSON body through node:http, not fetch(). listen(0) takes a port from the OS dynamic
+ * range, which on Windows can start at 1024 and so hand out a port on the fetch spec's blocked list
+ * (6000, 6665, 10080, ...) — undici then throws "bad port" before sending anything. node:http has
+ * no such list (same fix as transports/wave9-s7-http-auth.test.ts).
+ */
+function postJson(port: number, body: string): Promise<{ status: number; text: string }> {
+  return new Promise((resolve, reject) => {
+    const req = request(
+      {
+        host: '127.0.0.1',
+        port,
+        path: '/mcp',
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+          'content-length': String(Buffer.byteLength(body)),
+        },
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () =>
+          resolve({ status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString('utf8') }),
+        );
+        res.on('error', reject);
+      },
+    );
+    req.on('error', reject);
+    req.end(body);
+  });
+}
 
 /** POST one JSON-RPC `initialize` to a stateless MCP endpoint and return the parsed reply. */
 async function initializeOverHttp(siteUrl: string | undefined): Promise<Record<string, unknown>> {
@@ -27,13 +61,9 @@ async function initializeOverHttp(siteUrl: string | undefined): Promise<Record<s
   await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
   try {
     const { port } = http.address() as AddressInfo;
-    const response = await fetch(`http://127.0.0.1:${port}/mcp`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json, text/event-stream',
-      },
-      body: JSON.stringify({
+    const response = await postJson(
+      port,
+      JSON.stringify({
         jsonrpc: '2.0',
         id: 1,
         method: 'initialize',
@@ -43,9 +73,9 @@ async function initializeOverHttp(siteUrl: string | undefined): Promise<Record<s
           clientInfo: { name: 'test', version: '1' },
         },
       }),
-    });
+    );
     expect(response.status).toBe(200);
-    return (await response.json()) as Record<string, unknown>;
+    return JSON.parse(response.text) as Record<string, unknown>;
   } finally {
     await new Promise<void>((done) => http.close(() => done()));
   }

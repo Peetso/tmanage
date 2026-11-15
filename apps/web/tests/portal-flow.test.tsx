@@ -79,6 +79,11 @@ function portal(items: readonly unknown[], projects: readonly unknown[] = [PROJE
   return clientOver((url) => {
     if (url.includes('/portal/work-items')) return json({ workItems: items });
     if (url.includes('/portal/requests')) return json({ requests: [] });
+    if (url.includes('/journey')) {
+      return json({
+        journey: { projectId: 'proj-1', steps: [], yourTurn: null, completed: false },
+      });
+    }
     return json({ projects });
   });
 }
@@ -175,10 +180,11 @@ describe('CL-01 the client overview', () => {
     expect(await screen.findByText('No launch date agreed yet')).toBeInTheDocument();
   });
 
-  it('says nothing has been shared rather than showing an empty list', async () => {
+  it('says the plan is not shared yet rather than showing an empty list', async () => {
     renderOverview([]);
 
-    expect(await screen.findByText(/Nothing has been shared with you yet/)).toBeInTheDocument();
+    // 52-27 empty state (Figma 606:34469) replaced the old track's "nothing shared" line.
+    expect(await screen.findByText(/Your project plan will appear here/)).toBeInTheDocument();
   });
 
   it('renders the client’s own name, not only the provider’s', async () => {

@@ -12,14 +12,12 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import {
   listClientRequests,
   listPortalDeliverables,
-  listPortalMilestones,
   listPortalPeople,
   listPortalProjects,
   listPortalUpdates,
   listPortalWorkItems,
 } from '../../lib/api/portal';
 import type {
-  ClientMilestone,
   ClientRequest,
   PortalDeliverable,
   PortalPerson,
@@ -30,6 +28,7 @@ import type {
 import { isWaitingOnClient, requestStatusLabel } from '../../lib/client-request-presentation';
 import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
+import { PortalJourneyStepper } from './PortalJourneyStepper';
 import { Avatar, daysUntil, humanize, isPast, longDay, shortDay } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
@@ -55,9 +54,9 @@ export interface ClientOverviewScreenProps {
  *
  * Laid out as the handoff draws it: the project name as the display headline with the two
  * numbers that matter to a client beside it (days to the agreed date, actions waiting), the
- * journey pulse track built from the milestones the studio published, the client's own actions
- * on the left with the next one in lime, and the latest update, deliverables, requests and the
- * team on the right.
+ * 52-27 journey stepper (published milestones plus the one review the client owes), the
+ * client's own actions on the left with the next one in lime, and the latest update,
+ * deliverables, requests and the team on the right.
  *
  * There is still no percentage anywhere. `PortalWorkItem` has no state and no owner, so a task
  * percentage could not be computed even if the screen wanted one; the track is the published
@@ -124,12 +123,6 @@ export function ClientOverviewScreen({
     enabled: firstProjectId != null,
   });
 
-  const milestones = useQuery({
-    queryKey: ['portal-milestones', organizationSlug, firstProjectId],
-    queryFn: () => listPortalMilestones(api, organizationSlug, firstProjectId!),
-    enabled: firstProjectId != null,
-  });
-
   const deliverables = useQuery({
     queryKey: ['portal-deliverables', organizationSlug, firstProjectId],
     queryFn: () => listPortalDeliverables(api, organizationSlug, firstProjectId!),
@@ -177,11 +170,11 @@ export function ClientOverviewScreen({
         ) : null}
 
         {project ? (
-          <JourneyTrack
+          <PortalJourneyStepper
+            api={api}
             organizationSlug={organizationSlug}
+            projectId={project.id}
             providerName={providerName}
-            milestones={milestones.data ?? []}
-            hasSharedWork={items.length > 0}
           />
         ) : !projects.isPending && !projects.isError ? (
           <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
@@ -359,141 +352,6 @@ function HeaderMetrics({ project, waiting, questions, now }: HeaderMetricsProps)
         </p>
       </section>
     </div>
-  );
-}
-
-interface JourneyTrackProps {
-  organizationSlug: string;
-  providerName: string;
-  milestones: readonly ClientMilestone[];
-  hasSharedWork: boolean;
-}
-
-/** The pulse track: finished milestones in ink, the current one in lime, the rest ahead. */
-function JourneyTrack({
-  organizationSlug,
-  providerName,
-  milestones,
-  hasSharedWork,
-}: JourneyTrackProps) {
-  const t = useT();
-  const tOr = useTOr();
-  const ordered = [...milestones].sort(byDueOn);
-  const nowIndex = ordered.findIndex((milestone) => milestone.status !== 'met');
-
-  return (
-    <section className="tm-stack tm-stack--tight" aria-labelledby="tm-portal-track">
-      <div className="tm-pt-track-head">
-        <h2 id="tm-portal-track" className="tm-pt-eyebrow">
-          {t('ClientOverviewScreen.whereProjectIs')}
-        </h2>
-        {ordered.length > 0 ? (
-          <p className="tm-pt-quiet">
-            {nowIndex === -1
-              ? fill(tOr('ClientOverviewScreen.allStagesDone', 'all {count} stages done'), {
-                  count: ordered.length,
-                })
-              : fill(tOr('ClientOverviewScreen.stageOf', 'stage {index} of {total}'), {
-                  index: nowIndex + 1,
-                  total: ordered.length,
-                })}{' '}
-            ·{' '}
-            <Link href={`/${organizationSlug}/portal/timeline`}>
-              {t('ClientOverviewScreen.seeFullTimeline')}
-            </Link>
-          </p>
-        ) : null}
-      </div>
-
-      {ordered.length === 0 ? (
-        <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
-          {hasSharedWork
-            ? `${providerName}${t('ClientOverviewScreen.notSharedStagesSuffix')}`
-            : `${t('ClientOverviewScreen.nothingSharedBefore')}${providerName}${t('ClientOverviewScreen.nothingSharedAfter')}`}
-        </p>
-      ) : (
-        <ol className="tm-pt-track">
-          {ordered.map((milestone, index) => (
-            <TrackStep
-              key={milestone.id}
-              milestone={milestone}
-              position={
-                index < nowIndex || nowIndex === -1 ? 'done' : index === nowIndex ? 'now' : 'ahead'
-              }
-              last={index === ordered.length - 1}
-            />
-          ))}
-        </ol>
-      )}
-    </section>
-  );
-}
-
-function TrackStep({
-  milestone,
-  position,
-  last,
-}: {
-  milestone: ClientMilestone;
-  position: 'done' | 'now' | 'ahead';
-  last: boolean;
-}) {
-  const t = useT();
-  if (position === 'done' || milestone.status === 'met') {
-    return (
-      <li className="tm-pt-step tm-pt-step--done">
-        <span className="tm-pt-step__check" aria-hidden="true">
-          ✓
-        </span>
-        <span className="tm-pt-step__text">
-          <span className="tm-pt-step__name">{milestone.title}</span>
-          <span className="tm-pt-step__date">
-            {t('ClientOverviewScreen.doneLower')}
-            {milestone.dueOn ? ` ${shortDay(milestone.dueOn)}` : ''}
-          </span>
-        </span>
-      </li>
-    );
-  }
-
-  if (position === 'now') {
-    return (
-      <li className="tm-pt-step tm-pt-step--now" aria-current="step">
-        <span className="tm-pt-step__text">
-          <span className="tm-pt-step__kicker">{t('ClientOverviewScreen.now')}</span>
-          <span className="tm-pt-step__name">{milestone.title}</span>
-        </span>
-        <span className="tm-pt-step__end">
-          <span className="tm-pt-step__date">
-            {milestone.status === 'missed'
-              ? t('ClientOverviewScreen.dateMissed')
-              : milestone.dueOn
-                ? `${t('ClientOverviewScreen.byPrefix')}${shortDay(milestone.dueOn)}`
-                : t('ClientOverviewScreen.noDateYet')}
-          </span>
-        </span>
-      </li>
-    );
-  }
-
-  const undated = milestone.dueOn === null;
-  return (
-    <li
-      className={[
-        'tm-pt-step',
-        undated || last ? 'tm-pt-step--future' : 'tm-pt-step--grow',
-        milestone.status === 'missed' ? 'tm-pt-step--late' : '',
-      ]
-        .filter(Boolean)
-        .join(' ')}
-    >
-      <span className="tm-pt-step__text">
-        <span className="tm-pt-step__name">{milestone.title}</span>
-        <span className="tm-pt-step__date">
-          {undated ? t('ClientOverviewScreen.noDateYet') : shortDay(milestone.dueOn)}
-        </span>
-      </span>
-    </li>
   );
 }
 
@@ -854,13 +712,6 @@ function byDueDate(left: PortalWorkItem, right: PortalWorkItem): number {
   if (left.dueAt === null) return 1;
   if (right.dueAt === null) return -1;
   return left.dueAt < right.dueAt ? -1 : 1;
-}
-
-function byDueOn(left: ClientMilestone, right: ClientMilestone): number {
-  if (left.dueOn === right.dueOn) return 0;
-  if (left.dueOn === null) return 1;
-  if (right.dueOn === null) return -1;
-  return left.dueOn < right.dueOn ? -1 : 1;
 }
 
 function formatMoment(value: Date): string {

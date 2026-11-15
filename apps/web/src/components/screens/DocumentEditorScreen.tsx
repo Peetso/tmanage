@@ -61,6 +61,11 @@ export interface DocumentEditorScreenProps {
   client?: ApiClient;
   /** How long typing must pause before the draft is saved. Tests pass a short one. */
   autosaveDelayMs?: number;
+  /**
+   * The pause before a failed save is tried again, by attempt (1, 2, …): the growing upload
+   * backoff (1 s, 2 s, 4 s … with jitter). Tests pass a short one, as with `autosaveDelayMs`.
+   */
+  saveRetryDelayMs?: (attempt: number) => number;
   /** How often presence is sent and read (15 s). Tests pass a short one. */
   presenceIntervalMs?: number;
 }
@@ -86,6 +91,7 @@ export function DocumentEditorScreen({
   documentId,
   client,
   autosaveDelayMs = 1200,
+  saveRetryDelayMs = retryDelayMs,
   presenceIntervalMs = 15_000,
 }: DocumentEditorScreenProps) {
   const describeError = useDescribeApiError();
@@ -306,7 +312,7 @@ export function DocumentEditorScreen({
       return undefined;
     if (draft === savedDraft || draft === refusedDraft) return undefined;
     if (saveFailures >= PART_ATTEMPTS) return undefined;
-    const delay = saveFailures > 0 ? retryDelayMs(saveFailures) : autosaveDelayMs;
+    const delay = saveFailures > 0 ? saveRetryDelayMs(saveFailures) : autosaveDelayMs;
     const timer = setTimeout(() => saveNow(draft), delay);
     return () => clearTimeout(timer);
   }, [
@@ -317,6 +323,7 @@ export function DocumentEditorScreen({
     saveFailures,
     saving,
     autosaveDelayMs,
+    saveRetryDelayMs,
     saveNow,
     conflict,
     collab,

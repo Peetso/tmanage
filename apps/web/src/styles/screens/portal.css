@@ -1648,3 +1648,250 @@
     padding-inline: 16px;
   }
 }
+
+/* 52-27 Client journey stepper — Figma 604:33897 (desktop 606:34118, mobile 606:34310). */
+.tm-pt-journey,
+.tm-pt-journey__next {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+}
+
+.tm-pt-journey__next {
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.tm-pt-journey-card,
+.tm-pt-journey__steps,
+.tm-pt-journey__turn,
+.tm-pt-journey__later {
+  margin: 0;
+  padding: 24px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: 12px;
+  background: var(--paper-0);
+}
+
+.tm-pt-journey-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.tm-pt-journey-card__title,
+.tm-pt-journey__later-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-pt-journey-card__body {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-650);
+}
+
+.tm-pt-journey-card .tm-inline-alert {
+  align-self: stretch;
+}
+
+.tm-pt-journey-dots {
+  display: flex;
+  gap: 12px;
+}
+
+.tm-pt-journey-card__loading {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tm-pt-journey__steps {
+  display: flex;
+  list-style: none;
+}
+
+.tm-pt-jstep {
+  display: flex;
+  flex: 1 0 0;
+  flex-direction: column;
+  gap: 10px;
+  min-inline-size: 0;
+}
+
+.tm-pt-jstep__track {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tm-pt-jstep__dot {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 28px;
+  block-size: 28px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-500);
+}
+
+.tm-pt-jstep__line {
+  flex: 1 0 0;
+  block-size: 2px;
+  background: var(--line-300);
+}
+
+.tm-pt-jstep:last-child .tm-pt-jstep__line {
+  background: none;
+}
+
+.tm-pt-jstep--done .tm-pt-jstep__dot {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  color: var(--paper-0);
+}
+
+.tm-pt-jstep--done .tm-pt-jstep__line {
+  background: var(--ink-950);
+}
+
+.tm-pt-jstep--now .tm-pt-jstep__dot {
+  border: var(--b-expressive) solid var(--ink-950);
+  background: var(--lime-500);
+  color: var(--ink-950);
+}
+
+.tm-pt-jstep__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-inline-end: 16px;
+}
+
+.tm-pt-jstep__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-650);
+}
+
+.tm-pt-jstep--done .tm-pt-jstep__name {
+  color: var(--ink-950);
+}
+
+.tm-pt-jstep--now .tm-pt-jstep__name {
+  font-weight: 700;
+  color: var(--ink-950);
+}
+
+.tm-pt-jstep__date {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+.tm-pt-jstep--now .tm-pt-jstep__date {
+  color: var(--ink-950);
+}
+
+.tm-pt-journey__turn {
+  display: flex;
+  flex: 1 0 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  min-inline-size: 0;
+  background: var(--lime-100);
+}
+
+.tm-pt-journey__turn-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-pt-journey__turn-body {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-650);
+}
+
+.tm-pt-journey__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.tm-pt-journey__later {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 12px;
+  inline-size: 360px;
+}
+
+.tm-pt-journey__later-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding-inline-start: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-650);
+}
+
+.tm-pt-journey__later-list li::marker {
+  color: var(--ink-500);
+}
+
+/* Mobile (606:34310): the client's turn leads, the steps run down the page. */
+@media (max-width: 48rem) {
+  .tm-pt-journey > .tm-pt-journey__steps {
+    order: 1;
+  }
+
+  .tm-pt-journey__next {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tm-pt-journey__later {
+    inline-size: auto;
+  }
+
+  .tm-pt-journey__actions {
+    flex-direction: column;
+    align-self: stretch;
+  }
+
+  .tm-pt-journey__steps {
+    flex-direction: column;
+  }
+
+  .tm-pt-jstep {
+    flex-direction: row;
+    gap: 12px;
+  }
+
+  .tm-pt-jstep__track {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .tm-pt-jstep__line {
+    inline-size: 2px;
+    block-size: auto;
+    min-block-size: 22px;
+  }
+}

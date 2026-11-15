@@ -35,12 +35,24 @@ vi.mock('../src/lib/api/uploads', async (importOriginal) => ({
   uploadProjectFile: vi.fn(() => Promise.resolve('file-1')),
 }));
 
+/**
+ * The body mounts only after the document, history, profile and live-editing reads have all
+ * answered and Tiptap has built its view — five re-renders of the whole screen. Alone that takes
+ * ~0.4 s; under the full sixteen-worker run it measured 8-10 s, past the 5 s default, and the first
+ * test failed on this wait. It is setup, not behaviour under test, so it gets its own budget.
+ */
+const EDITOR_MOUNT = { timeout: 20_000 };
+
 /** The Tiptap editor behind the body (Tiptap keeps it on its DOM node). */
 async function bodyEditor(): Promise<Editor> {
-  const body = (await screen.findByRole('textbox', { name: 'Document body' })) as HTMLElement & {
+  const body = (await screen.findByRole(
+    'textbox',
+    { name: 'Document body' },
+    EDITOR_MOUNT,
+  )) as HTMLElement & {
     editor?: Editor;
   };
-  await waitFor(() => expect(body.editor).toBeDefined());
+  await waitFor(() => expect(body.editor).toBeDefined(), EDITOR_MOUNT);
   return body.editor as Editor;
 }
 
@@ -164,6 +176,7 @@ function screenOver(over: (call: Call) => Response, calls: Call[] = []) {
       documentId={DOCUMENT_ID}
       client={clientOver(over, calls)}
       autosaveDelayMs={20}
+      saveRetryDelayMs={() => 20}
     />,
   );
 }
@@ -250,7 +263,9 @@ describe('DocumentEditorScreen — the blank new doc', () => {
       ed.commands.insertContent('Typed after the rename');
     });
     const posts = () => calls.filter((c) => c.method === 'POST' && c.url.endsWith('/versions'));
-    await waitFor(() => expect(posts()).toHaveLength(2), { timeout: 4000 });
+    // The retry pause is 20 ms here (saveRetryDelayMs), not the real 1 s+ backoff: a wall-clock
+    // second raced the wait under a loaded full run.
+    await waitFor(() => expect(posts()).toHaveLength(2));
     expect(posts()[1]?.body).toEqual({
       body: '<p dir="auto">Typed after the rename</p>',
       format: 'html',

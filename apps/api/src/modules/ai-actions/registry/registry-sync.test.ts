@@ -197,7 +197,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // list, children and content (+8 classified).
 // 53-14: calendar-sync due-date mirror and feed (GET/POST/DELETE), the two push webhooks and the
 // ICS feed (+7 NEVER).
-const EXPECTED_ROUTE_COUNT = 1452;
+// 52-27: the portal journey stepper read (+1 classified).
+const EXPECTED_ROUTE_COUNT = 1453;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

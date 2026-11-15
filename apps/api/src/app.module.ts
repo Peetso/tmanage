@@ -123,6 +123,7 @@ import { ClientsModule } from './modules/clients/clients.module.js';
 import { PortalPeopleModule } from './modules/clients/portal-people.module.js';
 import { PortalSettingsModule } from './modules/clients/portal-settings.controller.js';
 import { PortalFeedbackModule } from './modules/portal/feedback.module.js';
+import { PortalJourneyModule } from './modules/portal/portal-journey.module.js';
 import { PortalBrandingModule } from './modules/portal/branding.controller.js';
 import { OrgSettingsModule } from './modules/tenancy/org-settings.controller.js';
 import { CustomRolesModule } from './modules/admin/roles.controller.js';
@@ -543,6 +544,7 @@ export class AppModule {
         // tenant-scoped (the x114 projection) to answer 404 rather than 500 for a cross-tenant id.
         // Over the new `portal_feedback` table.
         PortalFeedbackModule.register(),
+        PortalJourneyModule.register(),
         // SEC / Client portal branding (module 13, x323). Per-client-organization client-facing
         // branding: a staff write (`PUT …/portal/branding/:clientOrganizationId`, `client_member.manage`)
         // and a client projection (`GET …/portal/branding/client/:clientOrganizationId`,

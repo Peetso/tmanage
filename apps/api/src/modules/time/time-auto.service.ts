@@ -76,6 +76,12 @@ export interface AutoSessionView {
   readonly live: boolean;
 }
 
+/** The company's automatic tracking policy, as `PATCH …/time/auto/policy` returns it. */
+export interface AutoTrackingPolicyView {
+  readonly policy: AutoTrackingPolicy;
+  readonly maxIdleMinutes: number;
+}
+
 export interface AutoTrackingView {
   readonly policy: AutoTrackingPolicy;
   /** Tracking is on for this person (the policy and their own switch). */
@@ -351,7 +357,7 @@ export class TimeAutoService {
     context: TenantContext,
     principal: Principal,
     body: unknown,
-  ): Promise<{ readonly policy: AutoTrackingPolicy; readonly maxIdleMinutes: number }> {
+  ): Promise<AutoTrackingPolicyView> {
     requireInternal(principal);
     const verdict = authorize({
       principal,

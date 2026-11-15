@@ -3970,6 +3970,14 @@ export const OPS: readonly AiActionOp[] = [
     scope: 'read',
   },
   {
+    id: 'portal.projects.journey.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/projects/:projectId/journey',
+    capability: 'client_projection.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
     id: 'portal.projects.people.list',
     method: 'GET',
     path: '/v1/organizations/:orgSlug/portal/projects/:projectId/people',

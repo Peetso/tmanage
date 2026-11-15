@@ -10,11 +10,15 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import type { AutoTrackingPolicy, Principal } from '@tmanage/domain';
+import type { Principal } from '@tmanage/domain';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { TIME_TRACK_OWN, TIME_VIEW_TEAM } from './time-capabilities.js';
-import type { AutoTrackingView, TimeAutoService } from './time-auto.service.js';
+import type {
+  AutoTrackingPolicyView,
+  AutoTrackingView,
+  TimeAutoService,
+} from './time-auto.service.js';
 import type { TeamDayView, TeamTimeView, TimeTeamService } from './time-team.service.js';
 
 export const TIME_AUTO_SERVICE = Symbol.for('tmanage.TimeAutoService');
@@ -86,7 +90,7 @@ export class TimeAutoController {
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
     @Body() body: unknown,
-  ): Promise<{ readonly policy: AutoTrackingPolicy }> {
+  ): Promise<AutoTrackingPolicyView> {
     return this.service.setPolicy(context, principal, body);
   }
 }
