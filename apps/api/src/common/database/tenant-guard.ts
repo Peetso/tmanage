@@ -97,6 +97,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   meeting_external_events: 'organization_id',
   meeting_guests: 'organization_id',
   meeting_attachments: 'organization_id',
+  // 0353 (53-12). Tenant-owned: a meeting's pasted call link or quick room, and its attendance.
+  meeting_call_links: 'organization_id',
+  meeting_attendance: 'organization_id',
   workspaces: 'organization_id',
   projects: 'organization_id',
   project_memberships: 'organization_id',

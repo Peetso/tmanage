@@ -333,6 +333,8 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/portal/requests/new': { en: 'New request', key: 'RouteTitle.portalRequestNew' },
   '/[orgSlug]/portal/risks': { en: 'Risks', key: 'RouteTitle.portalRisks' },
   '/[orgSlug]/portal/timeline': { en: 'Timeline', key: 'RouteTitle.portalTimeline' },
+  // 53-12: a client person's meeting with one-tap Join.
+  '/[orgSlug]/portal/meetings/[meetingId]': { en: 'Meeting', key: 'RouteTitle.meeting' },
   '/[orgSlug]/portal/updates': { en: 'Updates', key: 'RouteTitle.portalUpdates' },
   '/[orgSlug]/preferences': { en: 'Preferences', key: 'RouteTitle.preferences' },
   '/[orgSlug]/projects/[projectId]': { en: 'Project', key: 'RouteTitle.project' },

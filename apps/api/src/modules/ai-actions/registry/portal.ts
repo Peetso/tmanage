@@ -370,6 +370,25 @@ export const portalDetails: readonly AiActionDetail[] = [
     redact: 'client_safe',
     examples: [{ summary: 'Accept', args: { meetingId: 'mtg_1', rsvp: 'accepted' } }],
   }),
+  // 53-12. The client's own call card and Join.
+  det({
+    id: 'portal.meetings.call.get',
+    title: 'Get a portal meeting call',
+    description:
+      'The call provider of a meeting the calling client person attends, and when Join opens.',
+    input: pathOnly('meetingId'),
+    redact: 'client_safe',
+    examples: [{ summary: 'Call', args: { meetingId: 'mtg_1' } }],
+  }),
+  det({
+    id: 'portal.meetings.join',
+    title: 'Join a portal meeting',
+    description:
+      'Join a meeting the calling client person attends: marks them present and returns the call link. Confirm-class.',
+    input: pathOnly('meetingId'),
+    redact: 'client_safe',
+    examples: [{ summary: 'Join', args: { meetingId: 'mtg_1' } }],
+  }),
   det({
     id: 'portal.upload_sessions.list',
     title: 'List portal uploads',

@@ -27,6 +27,12 @@ import { MeetingAttendeesController } from './meeting-attendees.controller.js';
 import { MeetingIcsController } from './meeting-ics.controller.js';
 import { MeetingClientAttendeesRepository } from './meeting-client-attendees.repository.js';
 import { PortalMeetingsService } from './portal-meetings.service.js';
+import { MeetingJoinService } from './meeting-join.service.js';
+import {
+  MeetingJoinController,
+  MEETING_JOIN_SERVICE,
+  PortalMeetingJoinController,
+} from './meeting-join.controller.js';
 import { PortalMeetingsController, PORTAL_MEETINGS_SERVICE } from './portal-meetings.controller.js';
 import { MeetingSeriesRepository } from './meeting-series.repository.js';
 import { MeetingSeriesService } from './meeting-series.service.js';
@@ -134,6 +140,21 @@ export class CalendarModule {
         new PortalMeetingsService(database, new MeetingClientAttendeesRepository()),
     };
 
+    // 53-12: Join (records attendance), the call link, attendance and quick rooms; staff and portal.
+    const meetingJoinService: Provider = {
+      provide: MEETING_JOIN_SERVICE,
+      inject: [TENANT_DATABASE, MEETINGS_SERVICE],
+      useFactory: (database: TenantDatabase, meetings: MeetingsService) =>
+        new MeetingJoinService(
+          database,
+          new MeetingsRepository(),
+          new MeetingCalendarRepository(),
+          undefined,
+          new MeetingClientAttendeesRepository(),
+          meetings,
+        ),
+    };
+
     // CAL recurrence (x129). The meeting-series slice: a stateless repository under its token and a
     // service that takes the tenant database and the repository. Org-scoped — it holds no projects
     // repository because a series names no project and needs no relation resolution.
@@ -171,6 +192,7 @@ export class CalendarModule {
         seriesService,
         focusBlocksService,
         portalMeetingsService,
+        meetingJoinService,
       ],
       exports: [service, attendeesService, seriesService],
       controllers: [
@@ -180,6 +202,8 @@ export class CalendarModule {
         MeetingSeriesController,
         FocusBlocksController,
         PortalMeetingsController,
+        MeetingJoinController,
+        PortalMeetingJoinController,
       ],
     };
   }

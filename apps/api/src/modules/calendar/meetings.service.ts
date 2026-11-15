@@ -645,7 +645,14 @@ export class MeetingsService {
       guestsCanSeeOthers: meeting.guestsCanSeeOthers,
       cancelledAt: meeting.cancelledAt ? meeting.cancelledAt.toISOString() : null,
       people: roster.map((entry) => toPerson(entry, meeting.createdByUserId)),
-      external: toExternal(link),
+      // 53-12: the Meet/Teams link goes only to people invited to the meeting; anyone else who can
+      // read the project still sees the provider and sync state, never the URL.
+      external: toExternal(
+        link &&
+          !roster.some((entry) => entry.kind === 'member' && entry.userId === principal.userId)
+          ? { ...link, joinUrl: null }
+          : link,
+      ),
       attachments: attachments.map((a) => ({
         id: a.id,
         provider: a.provider,

@@ -1748,3 +1748,138 @@
     padding: 0;
   }
 }
+
+/* 53-12 — Join, the call card, the quick room and attendance (Figma 612:34578 / 612:34801). */
+.tm-mtg-joinline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  margin: 0;
+}
+
+.tm-mtg-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  border: var(--b-quiet) solid var(--ink-950);
+  border-radius: var(--r-capsule);
+  color: var(--ink-950);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-mtg-capsule[data-state='open'] {
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+.tm-mtg-capsule[data-state='open']::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: currentcolor;
+  transform: rotate(45deg);
+}
+
+.tm-mtg-capsule[data-state='ended'] {
+  border-color: var(--line-300);
+  color: var(--ink-650);
+}
+
+.tm-mtg-call {
+  display: grid;
+  gap: var(--s3);
+}
+
+.tm-mtg-call__provider {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
+
+.tm-mtg-call__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.tm-mtg-call__actions .tm-mtg-btn--danger {
+  margin-inline-start: auto;
+}
+
+.tm-mtg-call__form {
+  display: grid;
+  gap: var(--s2);
+}
+
+.tm-mtg-btn--wide {
+  justify-content: center;
+  width: 100%;
+}
+
+.tm-mtg-rule {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-top: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-mtg-joinfail {
+  display: grid;
+  gap: var(--s2);
+}
+
+.tm-mtg-joinfail__box {
+  display: flex;
+  gap: var(--s3);
+  margin: 0;
+  padding: var(--s3);
+  border: var(--b-quiet) solid var(--danger-600);
+  border-radius: var(--r-control);
+}
+
+.tm-mtg-joinfail__box .tm-mtg-mono {
+  color: var(--danger-600);
+}
+
+.tm-mtg-attendance__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-ui-sm);
+}
+
+.tm-mtg-attendance__table th,
+.tm-mtg-attendance__table td {
+  padding: var(--s2) 0;
+  border-bottom: var(--b-quiet) solid var(--line-300);
+  text-align: start;
+  vertical-align: middle;
+}
+
+.tm-mtg-attendance__table thead th {
+  color: var(--ink-650);
+  font-weight: 400;
+}
+
+.tm-mtg-attendance__table tbody th {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-mtg-linkbtn {
+  display: block;
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-650);
+  font: inherit;
+  font-size: var(--t-caption);
+  cursor: pointer;
+}
+
+.tm-mtg-linkbtn:focus-visible {
+  outline: var(--focus-ring);
+}

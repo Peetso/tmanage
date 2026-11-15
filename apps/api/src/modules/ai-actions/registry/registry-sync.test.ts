@@ -202,7 +202,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // 58-C1: the branching builder's flow read, save and turn-on (+3 classified).
 // 57-02: the workspace's current plan (+1 classified) and the platform plan versions (+2 NEVER).
 // 57-10: the published support targets (+1 NEVER, public site).
-const EXPECTED_ROUTE_COUNT = 1462;
+// 53-12: meeting call, join, attendance and quick rooms; portal call and join (+9 classified).
+const EXPECTED_ROUTE_COUNT = 1471;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

@@ -9936,6 +9936,63 @@ export type MeetingExternalEventRow = typeof meetingExternalEvents.$inferSelect;
 export type MeetingGuestRow = typeof meetingGuests.$inferSelect;
 export type MeetingAttachmentRow = typeof meetingAttachments.$inferSelect;
 
+/**
+ * 0353 (53-12). The call a meeting uses when it is not the calendar-minted Meet/Teams link: a link
+ * the organizer pasted (`link`) or a public Jitsi quick room (`quick_room`). One per meeting; the
+ * URL is allow-listed by the API before it is stored and before it is handed out. TENANT.
+ */
+export const meetingCallLinks = mysqlTable(
+  'meeting_call_links',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    meetingId: char('meeting_id', { length: 36 }).notNull(),
+    kind: varchar('kind', { length: 16 }).$type<'link' | 'quick_room'>().notNull(),
+    url: varchar('url', { length: 1024 }).notNull(),
+    setByUserId: char('set_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_meeting_call_links_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_meeting_call_links_meeting').on(table.organizationId, table.meetingId),
+  ],
+);
+
+/**
+ * 0353 (53-12). Who joined a meeting: one row per (meeting, person), inserted by the first Join
+ * click inside the join window, touched by later clicks, correctable by hand. TENANT.
+ */
+export const meetingAttendance = mysqlTable(
+  'meeting_attendance',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    meetingId: char('meeting_id', { length: 36 }).notNull(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    attendeeKind: varchar('attendee_kind', { length: 8 }).$type<'member' | 'client'>().notNull(),
+    status: varchar('status', { length: 8 }).$type<'present' | 'absent'>().notNull(),
+    source: varchar('source', { length: 16 }).$type<'join_click' | 'manual'>().notNull(),
+    firstJoinedAt: datetime('first_joined_at', { mode: 'date', fsp: 3 }),
+    lastJoinedAt: datetime('last_joined_at', { mode: 'date', fsp: 3 }),
+    joinCount: int('join_count', { unsigned: true }).notNull().default(0),
+    markedByUserId: char('marked_by_user_id', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_meeting_attendance_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_meeting_attendance_person').on(
+      table.organizationId,
+      table.meetingId,
+      table.userId,
+    ),
+  ],
+);
+
+export type MeetingCallLinkRow = typeof meetingCallLinks.$inferSelect;
+export type MeetingAttendanceRow = typeof meetingAttendance.$inferSelect;
+
 export const TABLES = {
   focus_blocks: focusBlocks,
   inbox_flags: inboxFlags,
@@ -10192,6 +10249,9 @@ export const TABLES = {
   meeting_external_events: meetingExternalEvents,
   meeting_guests: meetingGuests,
   meeting_attachments: meetingAttachments,
+  // 0353 (53-12). The pasted call link / quick room, and who joined.
+  meeting_call_links: meetingCallLinks,
+  meeting_attendance: meetingAttendance,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;

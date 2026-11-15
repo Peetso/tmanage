@@ -1258,6 +1258,11 @@ GRANT INSERT, UPDATE ON `tmanage`.`calendar_connections`     TO 'tmanage_app'@'%
 GRANT INSERT, UPDATE ON `tmanage`.`meeting_external_events`  TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`meeting_guests`   TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`meeting_attachments`      TO 'tmanage_app'@'%';
+-- 0353 (53-12). `meeting_call_links`: set, replace and clear (End room) a meeting's pasted link or
+-- quick room. `meeting_attendance`: the Join click inserts and touches, the organizer corrects; no
+-- DELETE (a correction is an UPDATE with `source` = `manual`). SELECT rides the database-wide read.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`meeting_call_links` TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`meeting_attendance`         TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`user_mfa_factors`    TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`user_recovery_codes` TO 'tmanage_app'@'%';
 

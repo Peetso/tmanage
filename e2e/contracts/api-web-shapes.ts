@@ -183,6 +183,16 @@ import type { MeetingNoteDraftView as ApiMeetingNoteDraftView } from '../../apps
 import type { MeetingView as ApiMeetingView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MeetingOverviewView as ApiMeetingOverviewView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type {
+  MeetingAttendancePerson as ApiMeetingAttendancePerson,
+  MeetingAttendanceView as ApiMeetingAttendanceView,
+  MeetingCallView as ApiMeetingCallView,
+  MeetingJoinView as ApiMeetingJoinView,
+} from '../../apps/api/src/modules/calendar/meeting-join.service.js';
+import type {
+  PortalMeetingAttendeeView as ApiPortalMeetingAttendeeView,
+  PortalMeetingDetailView as ApiPortalMeetingDetailView,
+} from '../../apps/api/src/modules/calendar/portal-meetings.service.js';
+import type {
   CalendarConnectionStatusView as ApiCalendarConnectionStatusView,
   CalendarTeamView as ApiCalendarTeamView,
 } from '../../apps/api/src/modules/google-calendar/google-calendar.service.js';
@@ -712,6 +722,14 @@ import type { MeetingNoteView as WebMeetingNoteView } from '../../apps/web/src/l
 import type { MeetingNoteDraftView as WebMeetingNoteDraftView } from '../../apps/web/src/lib/api/meetings';
 import type { MeetingView as WebMeetingView } from '../../apps/web/src/lib/api/meetings';
 import type { MeetingOverviewView as WebMeetingOverviewView } from '../../apps/web/src/lib/api/meetings';
+import type {
+  MeetingAttendancePerson as WebMeetingAttendancePerson,
+  MeetingAttendanceView as WebMeetingAttendanceView,
+  MeetingCallView as WebMeetingCallView,
+  MeetingJoinView as WebMeetingJoinView,
+  PortalMeetingAttendeeView as WebPortalMeetingAttendeeView,
+  PortalMeetingDetailView as WebPortalMeetingDetailView,
+} from '../../apps/web/src/lib/api/meeting-join';
 import type {
   CalendarConnectionStatusView as WebCalendarConnectionStatusView,
   CalendarTeamView as WebCalendarTeamView,
@@ -1575,6 +1593,22 @@ type _meeting = Assert<Exact<ApiMeetingView, WebMeetingView>>;
  * caller's own calendar connection and the owners' team list (Settings > Calendar connections).
  */
 type _meetingOverview = Assert<Exact<ApiMeetingOverviewView, WebMeetingOverviewView>>;
+/**
+ * 53-12 meeting join flow. `GET|PUT …/meetings/:meetingId/call`, `POST …/quick-room` and the
+ * portal's `GET …/portal/meetings/:meetingId/call` answer `MeetingCallView`; `POST …/join` (staff
+ * and portal) `MeetingJoinView`; `GET|PUT …/attendance` `MeetingAttendanceView`. Read by
+ * apps/web/src/lib/api/meeting-join.ts, which also reads the portal meeting detail.
+ */
+type _meetingCall = Assert<Exact<ApiMeetingCallView, WebMeetingCallView>>;
+type _meetingJoin = Assert<Exact<ApiMeetingJoinView, WebMeetingJoinView>>;
+type _meetingAttendance = Assert<Exact<ApiMeetingAttendanceView, WebMeetingAttendanceView>>;
+type _meetingAttendancePerson = Assert<
+  Exact<ApiMeetingAttendancePerson, WebMeetingAttendancePerson>
+>;
+type _portalMeetingDetail = Assert<Exact<ApiPortalMeetingDetailView, WebPortalMeetingDetailView>>;
+type _portalMeetingAttendee = Assert<
+  Exact<ApiPortalMeetingAttendeeView, WebPortalMeetingAttendeeView>
+>;
 type _calendarConnectionStatus = Assert<
   Exact<ApiCalendarConnectionStatusView, WebCalendarConnectionStatusView>
 >;

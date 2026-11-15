@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -34,6 +34,8 @@ import { useTOr } from '../../lib/i18n/use-t-or';
 import { answerCounts, gmtOffset, parseRrule, splitReminder, timeRange } from './meeting-model';
 import { calendarName, conferenceName, initialsOf } from './MeetingBits';
 import { repeatSummary } from './MeetingForm';
+import { CallCard, JoinButton, JoinCapsuleLine, useMeetingCall } from './MeetingCall';
+import { AttendanceCard } from './MeetingAttendance';
 import './meetings.css';
 
 export interface MeetingPageScreenProps {
@@ -100,6 +102,8 @@ export function MeetingPageScreen({
   });
 
   const o = overview.data;
+  // 53-12: the call card, Join (records attendance) and the state capsule.
+  const call = useMeetingCall(api, organizationSlug, meetingId);
   const title = o?.meeting.title ?? t('MeetingPage.meeting');
   const base = `/${organizationSlug}/calendar/meetings/${encodeURIComponent(meetingId)}`;
 
@@ -156,7 +160,23 @@ export function MeetingPageScreen({
               </p>
             ) : null}
 
-            <Hero t={t} o={o} />
+            <Hero
+              t={t}
+              o={o}
+              join={
+                call.data && o.cancelledAt === null ? (
+                  <JoinButton
+                    api={api}
+                    organizationSlug={organizationSlug}
+                    meetingId={meetingId}
+                    call={call.data}
+                  />
+                ) : null
+              }
+            />
+            {call.data && o.cancelledAt === null ? (
+              <JoinCapsuleLine call={call.data} startsAt={o.meeting.startsAt} now={now} />
+            ) : null}
 
             <div className="tm-mtg-page__actions">
               {o.cancelledAt !== null ? (
@@ -217,6 +237,14 @@ export function MeetingPageScreen({
             <div className="tm-mtg-page__cols">
               <div className="tm-mtg-page__main">
                 <AgendaCard t={t} agenda={o.meeting.agendaNote} />
+                {o.cancelledAt === null ? (
+                  <AttendanceCard
+                    api={api}
+                    organizationSlug={organizationSlug}
+                    meetingId={meetingId}
+                    notesHref={`${base}/notes`}
+                  />
+                ) : null}
                 <NotesCards
                   api={api}
                   organizationSlug={organizationSlug}
@@ -231,6 +259,15 @@ export function MeetingPageScreen({
                 />
               </div>
               <div className="tm-mtg-page__side">
+                {call.data && o.cancelledAt === null ? (
+                  <CallCard
+                    api={api}
+                    organizationSlug={organizationSlug}
+                    meetingId={meetingId}
+                    title={o.meeting.title}
+                    call={call.data}
+                  />
+                ) : null}
                 {o.cancelledAt === null ? (
                   <Going api={api} organizationSlug={organizationSlug} o={o} />
                 ) : null}
@@ -290,7 +327,7 @@ export function MeetingPageScreen({
   );
 }
 
-function Hero({ t, o }: { t: Translate; o: MeetingOverviewView }) {
+function Hero({ t, o, join }: { t: Translate; o: MeetingOverviewView; join: ReactNode }) {
   const start = new Date(o.meeting.startsAt);
   const rule = parseRrule(o.rrule);
   const day = new Intl.DateTimeFormat(appDateLocale(), {
@@ -321,31 +358,12 @@ function Hero({ t, o }: { t: Translate; o: MeetingOverviewView }) {
         <p className="tm-mtg-hero-lime__call">
           <span>{conferenceName(t, o.conference)}</span>
           {joinUrl ? (
-            <a className="tm-mtg-mono" href={joinUrl} target="_blank" rel="noopener noreferrer">
-              {joinUrl.replace(/^https:\/\//, '')}
-            </a>
+            <span className="tm-mtg-mono">{joinUrl.replace(/^https:\/\//, '')}</span>
           ) : null}
         </p>
       </div>
-      {joinUrl ? (
-        <div className="tm-mtg-hero-lime__join">
-          <a
-            className="tm-mtg-btn tm-mtg-btn--ink tm-mtg-btn--tall"
-            href={joinUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {fillTemplate(t('MeetingPage.joinWithNamed'), {
-              name: o.conference === 'teams' ? 'Microsoft Teams' : 'Google Meet',
-            })}
-          </a>
-          <small>
-            {fillTemplate(t('MeetingPage.opensInNewTab'), {
-              name: o.conference === 'teams' ? 'Microsoft Teams' : 'Google Meet',
-            })}
-          </small>
-        </div>
-      ) : null}
+      {/* 53-12: Join goes through the API, which records attendance and answers the link. */}
+      {join}
     </section>
   );
 }

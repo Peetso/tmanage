@@ -183,6 +183,74 @@ export const calendarDetails: readonly AiActionDetail[] = [
     notifies: true,
     examples: [{ summary: 'Retry', args: { meetingId: 'mtg_1' } }],
   }),
+  // 53-12. The call card, Join and attendance.
+  det({
+    id: 'meetings.call.get',
+    title: 'Get a meeting call link',
+    description:
+      'The meeting call: provider, host and whether Join is open. The link itself only for people invited.',
+    input: pathOnly('meetingId'),
+    redact: 'standard',
+    examples: [{ summary: 'Call link', args: { meetingId: 'mtg_1' } }],
+  }),
+  det({
+    id: 'meetings.join',
+    title: 'Join a meeting',
+    description:
+      'Join a meeting you are invited to: marks you present and returns the call link. Confirm-class.',
+    input: pathOnly('meetingId'),
+    redact: 'standard',
+    examples: [{ summary: 'Join', args: { meetingId: 'mtg_1' } }],
+  }),
+  det({
+    id: 'meetings.attendance.list',
+    title: 'List meeting attendance',
+    description: 'Who joined a meeting, when, who was late and who was absent.',
+    input: pathOnly('meetingId'),
+    redact: 'standard',
+    examples: [{ summary: 'Attendance', args: { meetingId: 'mtg_1' } }],
+  }),
+  det({
+    id: 'meetings.call.set',
+    title: 'Set a meeting call link',
+    description:
+      'Paste the call link (Google Meet, Teams, Zoom, Webex, Whereby or Jitsi, https only), or null to remove it.',
+    input: bodyArgs(['meetingId'], { url: f.shortText(1024).nullable() }),
+    redact: 'standard',
+    examples: [
+      {
+        summary: 'Meet link',
+        args: { meetingId: 'mtg_1', url: 'https://meet.google.com/abc-defg-hij' },
+      },
+    ],
+  }),
+  det({
+    id: 'meetings.attendance.set',
+    title: 'Correct meeting attendance',
+    description: 'Mark someone on the meeting present or absent by hand. Confirm-class.',
+    input: bodyArgs(['meetingId', 'userId'], { status: z.enum(['present', 'absent']) }),
+    redact: 'standard',
+    examples: [
+      { summary: 'Mark present', args: { meetingId: 'mtg_1', userId: 'usr_1', status: 'present' } },
+    ],
+  }),
+  det({
+    id: 'meetings.quick_room.start',
+    title: 'Start a quick room for a meeting',
+    description:
+      "Give a meeting a private video room on Jitsi's free public servers (replaces its call link).",
+    input: pathOnly('meetingId'),
+    redact: 'standard',
+    examples: [{ summary: 'Quick room', args: { meetingId: 'mtg_1' } }],
+  }),
+  det({
+    id: 'meetings.quick_room.create',
+    title: 'Start a quick room now',
+    description: 'Create a 30-minute meeting that starts now in a project, with a quick room.',
+    input: bodyArgs([], { projectId: f.id(), title: f.shortText(300).optional() }),
+    redact: 'standard',
+    examples: [{ summary: 'Now', args: { projectId: 'prj_1', title: 'Quick sync' } }],
+  }),
   det({
     id: 'meetings.action_items.list',
     title: 'List meeting action items',
