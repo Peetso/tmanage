@@ -1,277 +1,159 @@
 'use client';
 
-import { Badge, StateCapsule, StatusDot } from '@tmanage/ui';
-import { ArrowLink, ButtonLink } from '../../primitives';
-import { FeatureRow, SectionHeader, WebSection } from '../../sections';
-import { ApprovalScene, AuditLogScene, OffboardingScene, PublicationScene } from './SecurityScenes';
-import './security.css';
-import { useT } from '../../../../lib/i18n/use-t';
-
-/**
- * Security & trust (`/security`, SITE-SPEC "PAGE: Security & trust", Figma 12-security).
- * Ink hero, six guarantees, three alternating product rows, the documents list with status and
- * disclosure cards, and the security CTA band. Copy is the spec's, word for word.
- */
-
-/*
- * No document is a public file yet: each one goes out with the security pack, so the actions say
- * "Request" and open the contact form. Only the privacy terms are a live page. The `id`s are the
- * anchors the footer's Trust column links to.
- */
-const PACK_REQUEST = '/contact#book-demo-form';
+import { StateCapsule } from '@tmanage/ui';
+import Link from 'next/link';
+import {
+  CLAIM_CAPSULE,
+  SECURITY_CARDS,
+  SECURITY_CLAIMS,
+  securityCopy,
+} from '../../../../content/security/security-copy';
+import { useActiveLocale } from '../../../../lib/i18n/use-active-locale';
+import { languageOf } from '../../../../lib/i18n/route-locale';
+import { localizeHref } from '../../../../lib/i18n/public-locale-routes';
+import { ButtonLink } from '../../primitives';
+import { WebSection } from '../../sections';
+import './security-trust.css';
 
 /**
  * Where vulnerability reports go. The support mailbox is the only one that is live today; the
- * catalog sentence carries an `{email}` placeholder so a dedicated security@ address can replace
- * this constant later without touching either translation.
+ * copy carries an `{email}` placeholder so a dedicated security@ address can replace this constant
+ * later without touching either translation.
  */
 export const SECURITY_DISCLOSURE_EMAIL = 'tm-support@peetrix.com';
 const EMAIL_PLACEHOLDER = '{email}';
 
 /** The disclosure sentence with the address as a real mailto link, in either language. */
-export function DisclosureText({ text }: { text: string }) {
-  const link = (
+export function DisclosureText({ text, linked = true }: { text: string; linked?: boolean }) {
+  const address = linked ? (
     <a href={`mailto:${SECURITY_DISCLOSURE_EMAIL}`} dir="ltr">
       {SECURITY_DISCLOSURE_EMAIL}
     </a>
+  ) : (
+    <span dir="ltr">{SECURITY_DISCLOSURE_EMAIL}</span>
   );
   const at = text.indexOf(EMAIL_PLACEHOLDER);
   if (at === -1) {
-    // A catalog without the placeholder still gets a working address after the sentence.
+    // A sentence without the placeholder still gets a working address after it.
     return (
       <>
-        {text} {link}
+        {text} {address}
       </>
     );
   }
   return (
     <>
       {text.slice(0, at)}
-      {link}
+      {address}
       {text.slice(at + EMAIL_PLACEHOLDER.length)}
     </>
   );
 }
 
+/**
+ * Row 56-20 — security page and trust centre (`/security`, `/ar/security`; Figma 613:34812 /
+ * 613:35283, mobile 613:35096 / 613:35539): plain-answer hero, eight cards, the "where we are
+ * today" table (live / planned / not audited), sub-processors and security-review cards, and the
+ * ink report band. Copy lives in `content/security/security-copy.ts`; each live claim is proven in
+ * the lane's SECPAGE-CLAIMS.md.
+ */
 export function SecurityPage() {
-  const t = useT();
-
-  const GUARANTEES: readonly { k: string; title: string; body: string; anchor?: string }[] = [
-    {
-      k: 'tenancy',
-      title: t('SecurityPage.guaranteeTenancyTitle'),
-      body: t('SecurityPage.guaranteeTenancyBody'),
-    },
-    {
-      k: 'clientAccess',
-      title: t('SecurityPage.guaranteeClientAccessTitle'),
-      body: t('SecurityPage.guaranteeClientAccessBody'),
-      anchor: 'clients',
-    },
-    {
-      k: 'files',
-      title: t('SecurityPage.guaranteeFilesTitle'),
-      body: t('SecurityPage.guaranteeFilesBody'),
-    },
-    {
-      k: 'identity',
-      title: t('SecurityPage.guaranteeIdentityTitle'),
-      body: t('SecurityPage.guaranteeIdentityBody'),
-    },
-    {
-      k: 'evidence',
-      title: t('SecurityPage.guaranteeEvidenceTitle'),
-      body: t('SecurityPage.guaranteeEvidenceBody'),
-    },
-    {
-      k: 'aiBoundary',
-      title: t('SecurityPage.guaranteeAiBoundaryTitle'),
-      body: t('SecurityPage.guaranteeAiBoundaryBody'),
-    },
-  ];
-
-  const DOCUMENTS: readonly {
-    id: string;
-    title: string;
-    body: string;
-    badge: string;
-    action?: { label: string; href: string };
-  }[] = [
-    {
-      id: 'security-overview',
-      title: t('SecurityPage.docOverviewTitle'),
-      body: t('SecurityPage.docOverviewBody'),
-      badge: t('SecurityPage.docOverviewBadge'),
-      action: { label: t('SecurityPage.docOverviewAction'), href: PACK_REQUEST },
-    },
-    {
-      id: 'sub-processors',
-      title: t('SecurityPage.docSubProcessorsTitle'),
-      body: t('SecurityPage.docSubProcessorsBody'),
-      badge: t('SecurityPage.docSubProcessorsBadge'),
-      action: { label: t('SecurityPage.docSubProcessorsAction'), href: PACK_REQUEST },
-    },
-    {
-      id: 'privacy-terms',
-      title: t('SecurityPage.docPrivacyTitle'),
-      body: t('SecurityPage.docPrivacyBody'),
-      badge: t('SecurityPage.docPrivacyBadge'),
-      action: { label: t('SecurityPage.docPrivacyAction'), href: '/legal/privacy' },
-    },
-    {
-      id: 'accessibility',
-      title: t('SecurityPage.docAccessibilityTitle'),
-      body: t('SecurityPage.docAccessibilityBody'),
-      badge: t('SecurityPage.docAccessibilityBadge'),
-      action: { label: t('SecurityPage.docAccessibilityAction'), href: PACK_REQUEST },
-    },
-    {
-      id: 'independent-audit',
-      title: t('SecurityPage.docAuditTitle'),
-      body: t('SecurityPage.docAuditBody'),
-      badge: t('SecurityPage.docAuditBadge'),
-    },
-  ];
+  const language = languageOf(useActiveLocale()) === 'ar' ? 'ar' : 'en';
+  const copy = securityCopy(language);
+  const href = (path: string) => (language === 'ar' ? localizeHref(path) : path);
 
   return (
-    <div className="tm-sec">
-      <WebSection tone="ink" className="tm-sec-hero" aria-labelledby="security-title">
-        <SectionHeader
-          as="h1"
-          id="security-title"
-          size="hero"
-          align="center"
-          tone="ink"
-          eyebrow={t('SecurityPage.heroEyebrow')}
-          title={t('SecurityPage.heroTitle')}
-          lede={t('SecurityPage.heroLede')}
-        >
-          <div className="tm-sec-hero__actions">
-            <ButtonLink href={PACK_REQUEST} tone="lime">
-              {t('SecurityPage.heroRequestPack')}
-            </ButtonLink>
-            <ButtonLink href="#guarantees" tone="outline-ink">
-              {t('SecurityPage.heroReadArchitecture')}
-            </ButtonLink>
-          </div>
-        </SectionHeader>
+    <div className="tm-trust">
+      <WebSection className="tm-trust-hero" spacing="compact" aria-labelledby="security-title">
+        <div className="tm-trust-hero__inner">
+          <p className="tm-trust-label">{copy.eyebrow}</p>
+          <h1 id="security-title" className="tm-trust-hero__title">
+            {copy.title}
+          </h1>
+          <p className="tm-trust-hero__lede">{copy.lede}</p>
+          <p className="tm-trust-hero__meta">{copy.meta}</p>
+        </div>
       </WebSection>
 
-      <WebSection id="guarantees" aria-labelledby="guarantees-title">
-        <SectionHeader
-          id="guarantees-title"
-          eyebrow={t('SecurityPage.guaranteesEyebrow')}
-          title={t('SecurityPage.guaranteesTitle')}
-          lede={t('SecurityPage.guaranteesLede')}
-        />
-        <ol className="tm-sec-pillars">
-          {GUARANTEES.map((item, index) => (
-            <li key={item.k} id={item.anchor} className="tm-sec-pillar">
-              <span className="tm-web-orb tm-web-orb--lime tm-web-orb--default tm-sec-pillar__n">
-                {index + 1}
-              </span>
-              <h3 className="tm-sec-pillar__title">{item.title}</h3>
-              <p className="tm-sec-pillar__body">{item.body}</p>
-            </li>
-          ))}
-        </ol>
-      </WebSection>
-
-      <WebSection
-        spacing="compact"
-        className="tm-sec-rows"
-        aria-label={t('SecurityPage.rowsLabel')}
-      >
-        <FeatureRow
-          label={t('SecurityPage.rowOffboardingLabel')}
-          title={t('SecurityPage.rowOffboardingTitle')}
-          body={t('SecurityPage.rowOffboardingBody')}
-          link={{ label: t('SecurityPage.rowOffboardingLink'), href: '/product#control-center' }}
-          visual={<OffboardingScene />}
-        />
-        <FeatureRow
-          reverse
-          label={t('SecurityPage.rowAuditLabel')}
-          title={t('SecurityPage.rowAuditTitle')}
-          body={t('SecurityPage.rowAuditBody')}
-          link={{ label: t('SecurityPage.rowAuditLink'), href: '/product#control-center' }}
-          visual={<AuditLogScene />}
-        />
-        <FeatureRow
-          label={t('SecurityPage.rowPublicationLabel')}
-          title={t('SecurityPage.rowPublicationTitle')}
-          body={t('SecurityPage.rowPublicationBody')}
-          link={{ label: t('SecurityPage.rowPublicationLink'), href: '/client-portal' }}
-          visual={<PublicationScene />}
-        />
-      </WebSection>
-
-      <WebSection tone="sunken" aria-labelledby="documents-title">
-        <SectionHeader
-          id="documents-title"
-          eyebrow={t('SecurityPage.documentsEyebrow')}
-          title={t('SecurityPage.documentsTitle')}
-          lede={t('SecurityPage.documentsLede')}
-        />
-        <ul className="tm-sec-docs">
-          {DOCUMENTS.map((doc) => (
-            <li key={doc.title} id={doc.id} className="tm-sec-doc">
-              <span className="tm-sec-doc__text">
-                <span className="tm-sec-doc__title">{doc.title}</span>
-                <span className="tm-sec-doc__body">{doc.body}</span>
-              </span>
-              <span className="tm-sec-doc__end">
-                {doc.action ? (
-                  <>
-                    <Badge>{doc.badge}</Badge>
-                    <ArrowLink href={doc.action.href} underline={false}>
-                      {doc.action.label}
-                    </ArrowLink>
-                  </>
+      <WebSection spacing="flush" className="tm-trust-body">
+        <ul className="tm-trust-cards">
+          {SECURITY_CARDS.map((card) => (
+            <li key={card} id={card} className="tm-trust-card">
+              <h2 className="tm-trust-card__title">{copy.cards[card].title}</h2>
+              <p className="tm-trust-card__body">
+                {card === 'report' ? (
+                  <DisclosureText text={copy.cards[card].body} linked={false} />
                 ) : (
-                  <StateCapsule state="future">{doc.badge}</StateCapsule>
+                  copy.cards[card].body
                 )}
-              </span>
+              </p>
             </li>
           ))}
         </ul>
-        <div className="tm-sec-notes">
-          <div className="tm-sec-note">
-            <p className="tm-sec-note__label">{t('SecurityPage.systemStatus')}</p>
-            <StatusDot tone="live">{t('SecurityPage.allOperational')}</StatusDot>
-            <ArrowLink href="/status" underline={false}>
-              {t('SecurityPage.openStatus')}
-            </ArrowLink>
-          </div>
-          <div className="tm-sec-note">
-            <p className="tm-sec-note__label">{t('SecurityPage.disclosureLabel')}</p>
-            <p className="tm-sec-note__text">
-              <DisclosureText text={t('SecurityPage.disclosureText')} />
-            </p>
-          </div>
+
+        <section className="tm-trust-today" aria-labelledby="security-today-title">
+          <h2 id="security-today-title" className="tm-trust-section-title">
+            {copy.todayTitle}
+          </h2>
+          <p className="tm-trust-today__note">{copy.todayNote}</p>
+          <ul className="tm-trust-table">
+            {SECURITY_CLAIMS.map((claim) => (
+              <li
+                key={claim.id}
+                className="tm-trust-row"
+                data-testid={`security-claim-${claim.id}`}
+                data-status={claim.status}
+              >
+                <span className="tm-trust-row__text">{copy.claims[claim.id]}</span>
+                <StateCapsule state={CLAIM_CAPSULE[claim.status]}>
+                  {copy.status[claim.status]}
+                </StateCapsule>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <div className="tm-trust-pair">
+          <section className="tm-trust-card tm-trust-card--action" id="sub-processors">
+            <h2 className="tm-trust-card__title">{copy.subsTitle}</h2>
+            <p className="tm-trust-card__body">{copy.subsBody}</p>
+            <ButtonLink
+              href={href('/security/data-location') + '#subprocessors'}
+              tone="outline"
+              size="default"
+            >
+              {copy.subsAction}
+            </ButtonLink>
+          </section>
+          <section className="tm-trust-card tm-trust-card--action">
+            <h2 className="tm-trust-card__title">{copy.reviewTitle}</h2>
+            <p className="tm-trust-card__body">{copy.reviewBody}</p>
+            <ButtonLink href={href('/contact')} tone="outline" size="default">
+              {copy.reviewAction}
+            </ButtonLink>
+          </section>
         </div>
       </WebSection>
 
       <section className="tm-web-cta-section" aria-labelledby="security-cta-title">
         <div className="tm-web-container">
-          <div className="tm-web-cta tm-sec-cta">
-            <div className="tm-web-cta__text">
-              <h2 className="tm-web-cta__title" id="security-cta-title">
-                {t('SecurityPage.ctaTitle')}
-              </h2>
-              <p className="tm-web-cta__lede">{t('SecurityPage.ctaLede')}</p>
-              <div className="tm-web-cta__actions">
-                <ButtonLink href={PACK_REQUEST} tone="lime">
-                  {t('SecurityPage.ctaRequestPack')}
-                </ButtonLink>
-                <ButtonLink href="/contact" tone="outline-ink">
-                  {t('SecurityPage.ctaBookCall')}
-                </ButtonLink>
-              </div>
-              <p className="tm-web-cta__note">{t('SecurityPage.ctaNote')}</p>
-            </div>
-            <div className="tm-web-cta__visual">
-              <ApprovalScene />
+          <div className="tm-trust-cta">
+            <h2 className="tm-trust-cta__title" id="security-cta-title">
+              {copy.ctaTitle}
+            </h2>
+            <p className="tm-trust-cta__body">
+              <DisclosureText text={copy.ctaBody} />
+            </p>
+            <div className="tm-trust-cta__actions">
+              <a
+                className="tm-button tm-button--lime tm-button--feature tm-web-button"
+                href={`mailto:${SECURITY_DISCLOSURE_EMAIL}`}
+              >
+                {copy.ctaAction}
+              </a>
+              <Link className="tm-trust-cta__link" href={href('/security/disclosure')}>
+                {copy.ctaLink}
+              </Link>
             </div>
           </div>
         </div>
