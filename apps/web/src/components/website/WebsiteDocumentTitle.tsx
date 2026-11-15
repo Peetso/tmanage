@@ -21,6 +21,7 @@ const HOME_PREFIX = 'TManage — ';
 /** English page name (the route's `metadata.title`) → catalog key. */
 export const WEBSITE_TITLE_KEYS: Readonly<Record<string, string>> = {
   About: 'WebsiteTitle.about',
+  Accessibility: 'WebsiteTitle.accessibility',
   Changelog: 'WebsiteTitle.changelog',
   'Client portal': 'WebsiteTitle.clientPortal',
   'Book a demo': 'WebsiteTitle.contact',

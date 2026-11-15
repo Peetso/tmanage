@@ -4228,6 +4228,7 @@ import type {
   SupportThreadDetailView as ApiSupportThreadDetailView,
   PlatformSupportThreadView as ApiPlatformSupportThreadView,
   PlatformSupportDetailView as ApiPlatformSupportDetailView,
+  SupportPolicyView as ApiSupportPolicyView,
 } from '../../apps/api/src/modules/support/support.service.js';
 import type { SlaClockView as ApiSlaClockView } from '../../apps/api/src/modules/support/support-sla.js';
 import type { ClientFilePolicyView as ApiClientFilePolicyView } from '../../apps/api/src/modules/tenancy/client-file-policy.controller.js';
@@ -4409,6 +4410,7 @@ import type {
   PlatformSupportThread as WebPlatformSupportThread,
   PlatformSupportDetail as WebPlatformSupportDetail,
   SupportSlaClock as WebSupportSlaClock,
+  SupportPolicy as WebSupportPolicy,
 } from '../../apps/web/src/lib/api/support.js';
 import type {
   TemplatePackView as WebTemplatePackView,
@@ -4497,6 +4499,8 @@ type _platformSupportThread = Assert<Exact<ApiPlatformSupportThreadView, WebPlat
 /** 57-10 SLA clock on a support thread (writer + platform only), computed by the API. */
 type _supportSlaClock = Assert<Exact<ApiSlaClockView, WebSupportSlaClock>>;
 type _platformSupportDetail = Assert<Exact<ApiPlatformSupportDetailView, WebPlatformSupportDetail>>;
+/** 57-10 what Get help promises before a request is sent (plan, normal first response, zone). */
+type _supportPolicy = Assert<Exact<ApiSupportPolicyView, WebSupportPolicy>>;
 type _clientFilePolicyView = Assert<Exact<ApiClientFilePolicyView, WebClientFilePolicyView>>;
 type _currentTask = Assert<Exact<ApiCurrentTaskView, WebCurrentTask>>;
 type _autoSession = Assert<Exact<ApiAutoSessionView, WebAutoSession>>;

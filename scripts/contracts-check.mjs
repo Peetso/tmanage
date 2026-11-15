@@ -427,6 +427,20 @@ const WEB_EXEMPT = new Map([
     'PublicFormState',
     'The API names it `PublicFormState` in public-forms.service.ts (no `…View` suffix); compiled Exact in the pairing file through a named pair.',
   ],
+  // 57-10 support screens. The member list wrapper is inline on SupportController.list; its rows
+  // (SupportThread) and its policy (SupportPolicy) are paired Exact in the pairing file.
+  [
+    'SupportOverview',
+    '57-10 — inline `{ threads, policy }` wrapper on SupportController.list (no named …View); both members are paired Exact.',
+  ],
+  [
+    'PlatformSupportFilter',
+    '57-10 — the inbox query filter the web turns into ?breached=&priority=; a request shape, never a response body.',
+  ],
+  [
+    'SupportTargets',
+    '57-10 — the API returns publishedTargets() from support-sla.ts as an unnamed object (no …View to import) on the public support-targets route.',
+  ],
 ]);
 
 // ── 1. Enumerate the API's response projections ─────────────────────────────

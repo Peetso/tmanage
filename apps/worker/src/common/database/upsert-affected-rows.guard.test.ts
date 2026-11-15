@@ -125,7 +125,8 @@ describe('upsert affected-rows guard (2026-11-15)', () => {
       }
     }
     expect(offenders).toEqual([]);
-  });
+    // Reads every API and worker source file (~6-9 s while the other suites run in parallel).
+  }, 60_000);
 
   it('insertNotification says "fresh" once when the driver reports found rows', async () => {
     const ids = new Map<string, string>();
