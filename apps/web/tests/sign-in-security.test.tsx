@@ -121,8 +121,9 @@ describe('SignInSecurityScreen (56-22)', () => {
   it('shows the score with a fix link, the passkeys and the devices (country only, this device marked)', async () => {
     mount(routes);
     expect(await screen.findByText('80')).toBeTruthy();
+    // ACCOUNT item 4: the signed-in change on the profile, not account recovery.
     expect(screen.getByRole('link', { name: 'Change password' }).getAttribute('href')).toBe(
-      '/recover',
+      '/northstar/preferences#tm-profile-security',
     );
     expect(await screen.findByText('MacBook Pro')).toBeTruthy();
     expect(await screen.findByText('This device')).toBeTruthy();
