@@ -1,4 +1,5 @@
 import type { ApiClient } from './client';
+import type { ImportedCopyReply } from './uploads';
 
 /**
  * The team side of BG2 (0211): a project's deliverables, their versions, and "Send for approval".
@@ -136,6 +137,34 @@ export async function addDeliverableVersion(
     method: 'POST',
     path: `${base(organizationSlug)}/${encodeURIComponent(deliverableId)}/versions`,
     body: input,
+  });
+  return data;
+}
+
+/** FIX6 C1. The picked drive file the next version should use: provider ids only, never a link. */
+export type CloudPick =
+  | { readonly provider: 'google_drive'; readonly fileId: string }
+  | { readonly provider: 'onedrive'; readonly driveId: string; readonly itemId: string };
+
+/**
+ * FIX6 C1. Copy a picked Google Drive or OneDrive file into TManage for this deliverable. The
+ * server fetches it with the company connection and checks it like an upload; add the version
+ * with {@link addDeliverableVersion} once the copy is usable (`importCloudFileFor`).
+ */
+export async function importCloudFileForDeliverable(
+  client: ApiClient,
+  organizationSlug: string,
+  deliverableId: string,
+  pick: CloudPick,
+): Promise<ImportedCopyReply> {
+  const route = pick.provider === 'google_drive' ? 'drive-files' : 'onedrive-files';
+  const { data } = await client.request<ImportedCopyReply>({
+    method: 'POST',
+    path: `${base(organizationSlug)}/${encodeURIComponent(deliverableId)}/${route}`,
+    body:
+      pick.provider === 'google_drive'
+        ? { fileId: pick.fileId }
+        : { driveId: pick.driveId, itemId: pick.itemId },
   });
   return data;
 }

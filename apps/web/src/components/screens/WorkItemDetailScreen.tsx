@@ -68,6 +68,8 @@ import {
 import type { PickedOneDriveItem } from '../../lib/onedrive-picker';
 import type { PickedDriveItem } from '../../lib/google-picker';
 import { DriveAttachPicker } from '../storage/DriveAttachPicker';
+import { cloudImportMessageKey } from '../../lib/cloud-import-copy';
+import { HelpTip } from '../help/HelpTip';
 import { OneDriveAttachPicker, oneDriveStatusKey } from '../storage/OneDriveAttachPicker';
 import { NoStorageAttach, useAttachStorageState } from '../storage/NoStorageAttach';
 import { addAttachmentVersion, getAttachmentHistory } from '../../lib/api/attachment-versions';
@@ -1184,6 +1186,10 @@ function FilesCard({
   // FIX6 C1. A picked drive file becomes a checked TManage copy in this item's files (the server
   // fetches it), so the client can open it in the portal without connecting anything.
   const filesKey = ['work-item-files', organizationSlug, item.id] as const;
+  const cloudProblem = (error: unknown) => {
+    const key = cloudImportMessageKey(error);
+    return key ? ta(key) : describe(error, ta);
+  };
   const attachFromOneDrive = useMutation({
     mutationFn: async (picked: readonly PickedOneDriveItem[]) => {
       for (const file of picked) {
@@ -1191,7 +1197,7 @@ function FilesCard({
       }
     },
     onSuccess: () => setProblem(undefined),
-    onError: (error) => setProblem(describe(error, ta)),
+    onError: (error) => setProblem(cloudProblem(error)),
     onSettled: () => void queries.invalidateQueries({ queryKey: filesKey }),
   });
   const attachFromDrive = useMutation({
@@ -1201,7 +1207,7 @@ function FilesCard({
       }
     },
     onSuccess: () => setProblem(undefined),
-    onError: (error) => setProblem(describe(error, ta)),
+    onError: (error) => setProblem(cloudProblem(error)),
     onSettled: () => void queries.invalidateQueries({ queryKey: filesKey }),
   });
 
@@ -1325,25 +1331,29 @@ function FilesCard({
             >
               {ta('WorkDetail.attachFile')}
             </button>
-            <DriveAttachPicker
-              organizationSlug={organizationSlug}
-              client={api}
-              picked={[]}
-              onPick={(picked) => attachFromDrive.mutate(picked)}
-              onRemove={() => undefined}
-              projectId={item.projectId}
-              disabled={attachFromDrive.isPending}
-            />
-            <OneDriveAttachPicker
-              organizationSlug={organizationSlug}
-              client={api}
-              picked={[]}
-              onPick={(picked) => attachFromOneDrive.mutate(picked)}
-              onRemove={() => undefined}
-              projectId={item.projectId}
-              disabled={attachFromOneDrive.isPending}
-              showList={false}
-            />
+            <HelpTip tip={ta('CloudImport.tip')}>
+              <span className="tm-row tm-row--wrap">
+                <DriveAttachPicker
+                  organizationSlug={organizationSlug}
+                  client={api}
+                  picked={[]}
+                  onPick={(picked) => attachFromDrive.mutate(picked)}
+                  onRemove={() => undefined}
+                  projectId={item.projectId}
+                  disabled={attachFromDrive.isPending}
+                />
+                <OneDriveAttachPicker
+                  organizationSlug={organizationSlug}
+                  client={api}
+                  picked={[]}
+                  onPick={(picked) => attachFromOneDrive.mutate(picked)}
+                  onRemove={() => undefined}
+                  projectId={item.projectId}
+                  disabled={attachFromOneDrive.isPending}
+                  showList={false}
+                />
+              </span>
+            </HelpTip>
           </>
         )}
         <input

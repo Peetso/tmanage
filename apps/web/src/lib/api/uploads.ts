@@ -507,6 +507,47 @@ export async function uploadProjectFileFor<T>(
   }
 }
 
+/** FIX6 C1. What the import routes answer: the new copy and the session the server completed. */
+export interface ImportedCopyReply {
+  readonly file: UploadedAssetReply & { readonly name: string };
+  readonly uploadSessionId: string;
+}
+
+/**
+ * FIX6 C2. A picked drive file the server copied into TManage, used once — a deliverable version —
+ * after its checks have passed, exactly as {@link uploadProjectFileFor} does for an upload: wait
+ * for the checks, hand the id to `attach`, and delete the copy again if that is refused.
+ */
+export async function importCloudFileFor<T>(
+  client: ApiClient,
+  organizationSlug: string,
+  start: () => Promise<ImportedCopyReply>,
+  attach: (fileAssetId: string) => Promise<T>,
+  deps: UploadAttachmentOptions = {},
+): Promise<T> {
+  const imported = await start();
+  try {
+    if (imported.file.usable !== true) {
+      // The server already completed the session, so `complete` only reports the checks; its
+      // body must still name a part, and a completed session answers before reading it.
+      const completePath = `${orgBase(organizationSlug)}/upload-sessions/${encodeURIComponent(imported.uploadSessionId)}/complete`;
+      await waitUntilReady(
+        client,
+        completePath,
+        [{ partNumber: 1, etag: 'server-import' }],
+        imported.file,
+        imported.file.name,
+        deps,
+        deps.sleep ?? defaultSleep,
+      );
+    }
+    return await attach(imported.file.id);
+  } catch (error) {
+    await deleteFile(client, organizationSlug, imported.file.id).catch(() => undefined);
+    throw error;
+  }
+}
+
 /**
  * A8. A client's file for a message on their own request, through the portal upload session:
  * purpose `request_message` (0232) with the request as `objectId`, so the API binds the file to

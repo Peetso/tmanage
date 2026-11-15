@@ -8,7 +8,13 @@ import type { CapsuleState } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { ProjectTabs } from '../projects/ProjectTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { addDeliverableVersion, getDeliverable, shareWithClient } from '../../lib/api/deliverables';
+import {
+  addDeliverableVersion,
+  getDeliverable,
+  importCloudFileForDeliverable,
+  shareWithClient,
+  type CloudPick,
+} from '../../lib/api/deliverables';
 import { FigmaLinksPanel } from '../viewer/FigmaLinks';
 import type {
   DeliverableApprovalState,
@@ -19,8 +25,12 @@ import {
   ATTACHMENT_ACCEPT,
   attachmentProblem,
   formatBytes,
+  importCloudFileFor,
   uploadProjectFileFor,
 } from '../../lib/api/uploads';
+import { cloudImportMessageKey } from '../../lib/cloud-import-copy';
+import { DriveAttachPicker } from '../storage/DriveAttachPicker';
+import { OneDriveAttachPicker } from '../storage/OneDriveAttachPicker';
 import type { ApiClient } from '../../lib/api/client';
 import {
   STATE_KEY,
@@ -88,6 +98,7 @@ export function DeliverableDetailScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useDeliverablesT();
+  const tAll = useT();
   const queryKey = ['deliverable', organizationSlug, deliverableId] as const;
 
   const detail = useQuery({
@@ -129,6 +140,33 @@ export function DeliverableDetailScreen({
     },
   });
 
+  // FIX6 C2. A version from a picked Drive/OneDrive file: the server copies and checks it, and the
+  // version is added once the copy is usable (removed again if that is refused), like an upload.
+  const fromCloud = useMutation({
+    mutationFn: (pick: CloudPick) => {
+      const versionNote = note.trim() === '' ? null : note.trim();
+      return importCloudFileFor(
+        api,
+        organizationSlug,
+        () => importCloudFileForDeliverable(api, organizationSlug, deliverableId, pick),
+        (fileAssetId) =>
+          addDeliverableVersion(api, organizationSlug, deliverableId, {
+            fileAssetId,
+            note: versionNote,
+          }),
+      );
+    },
+    onSuccess: () => {
+      setNote('');
+      refresh();
+    },
+  });
+  const cloudProblem = (error: unknown) => {
+    const key = cloudImportMessageKey(error);
+    return key ? tAll(key) : describeDeliverableError(error, t);
+  };
+  const busy = upload.isPending || fromCloud.isPending;
+
   const share = useMutation({
     mutationFn: (version: DeliverableVersionView) =>
       shareWithClient(api, organizationSlug, deliverableId, version.id),
@@ -136,8 +174,7 @@ export function DeliverableDetailScreen({
   });
 
   const fileProblem = file ? attachmentProblem(file) : null;
-  const canUpload =
-    (file !== null || note.trim() !== '') && fileProblem === null && !upload.isPending;
+  const canUpload = (file !== null || note.trim() !== '') && fileProblem === null && !busy;
   const listHref = `/${organizationSlug}/projects/${encodeURIComponent(projectId)}/deliverables`;
   const router = useRouter();
   // FIX6 item 8: a deliverable the client approved is a record the agency keeps — no Delete.
@@ -263,6 +300,47 @@ export function DeliverableDetailScreen({
                       </span>
                     </div>
                     {fileProblem ? <p className="tm-field__error">{fileProblem}</p> : null}
+                    <HelpTip tip={tAll('CloudImport.tip')}>
+                      <span className="tm-row tm-row--wrap">
+                        <DriveAttachPicker
+                          organizationSlug={organizationSlug}
+                          client={api}
+                          picked={[]}
+                          onPick={(picked) => {
+                            const first = picked[0];
+                            if (first)
+                              fromCloud.mutate({ provider: 'google_drive', fileId: first.id });
+                          }}
+                          onRemove={() => undefined}
+                          projectId={projectId}
+                          disabled={busy}
+                        />
+                        <OneDriveAttachPicker
+                          organizationSlug={organizationSlug}
+                          client={api}
+                          picked={[]}
+                          onPick={(picked) => {
+                            const first = picked[0];
+                            if (first) {
+                              fromCloud.mutate({
+                                provider: 'onedrive',
+                                driveId: first.driveId,
+                                itemId: first.itemId,
+                              });
+                            }
+                          }}
+                          onRemove={() => undefined}
+                          projectId={projectId}
+                          disabled={busy}
+                          showList={false}
+                        />
+                      </span>
+                    </HelpTip>
+                    {fromCloud.isPending ? (
+                      <p className="tm-field__hint" role="status">
+                        {t('Deliverables.addingFromDrive')}
+                      </p>
+                    ) : null}
                   </div>
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-deliverable-note">
@@ -281,6 +359,11 @@ export function DeliverableDetailScreen({
                   {upload.isError ? (
                     <InlineAlert tone="danger" title={t('Deliverables.uploadFailed')} live>
                       {describeDeliverableError(upload.error, t)}
+                    </InlineAlert>
+                  ) : null}
+                  {fromCloud.isError ? (
+                    <InlineAlert tone="danger" title={t('Deliverables.uploadFailed')} live>
+                      {cloudProblem(fromCloud.error)}
                     </InlineAlert>
                   ) : null}
                   <div className="tm-row">

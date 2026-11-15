@@ -184,8 +184,8 @@ function importHarness() {
   };
   const sessions = {
     nextId: vi.fn(() => SESSION),
-    create: vi.fn(async () => session),
-    transition: vi.fn(async () => true),
+    create: vi.fn(async (..._args: unknown[]) => session),
+    transition: vi.fn(async (..._args: unknown[]) => true),
   };
   const asset = {
     id: 'asset-1',
@@ -224,7 +224,7 @@ function importHarness() {
       etag: 'e',
     })),
   };
-  const audit = { record: vi.fn(async () => undefined) };
+  const audit = { record: vi.fn(async (..._args: unknown[]) => undefined) };
   const scanJob = { request: vi.fn() };
   const service = new FilesService(
     database as never,
@@ -360,9 +360,9 @@ function cloudHarness(principalProjects: readonly string[]) {
     mimeType: 'application/pdf',
     bytes: Buffer.from('%PD'),
   };
-  const googleDrive = { fetchForImport: vi.fn(async () => fetched) };
+  const googleDrive = { fetchForImport: vi.fn(async (..._args: unknown[]) => fetched) };
   const oneDrive = { fetchForImport: vi.fn() };
-  const audit = { record: vi.fn(async () => undefined) };
+  const audit = { record: vi.fn(async (..._args: unknown[]) => undefined) };
   const service = new CloudImportService({
     database: database as never,
     files: files as never,
