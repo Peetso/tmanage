@@ -21,14 +21,14 @@ Plan item 53-20 (PRIV-53-52), seeded from `apps/api/src/common/database/schema.t
 
 ## Totals
 
-Counted by hand on 2026-11-02 (56-28, R19-f; R21-f adds the three inbound e-mail tables; R22 adds `org_secrets` and `einvoice_chain_checks`; R32 C25 adds `work_item_client_audience`; R33 C26 adds `work_item_assignees`; R34 B11 adds `invitation_pending_keys`; R35 52-18 adds `external_approvers`; R39 55-17 adds `support_threads` and `support_messages`; R40 54-22 adds `template_packs`; R41 54-01 adds `connector_installations`; R41 54-14 adds `sso_connections`; R42 54-15 adds `sso_saml_requests`; R49 54-16 adds `scim_tokens`; FIX 2026-11-10 adds `time_auto_tracking`; FIX6 C3 adds `work_item_cloud_folders`; C3b adds `cloud_folder_imports`; 53-14 adds `calendar_due_mirrors` and `calendar_feed_tokens`; 52-19 adds `approval_records`; 58-C1 adds `workflow_flow_versions`; 57-02 adds `plan_versions`; 52-26 adds `signature_requests` and `signature_request_signers`).
+Counted by hand on 2026-11-02 (56-28, R19-f; R21-f adds the three inbound e-mail tables; R22 adds `org_secrets` and `einvoice_chain_checks`; R32 C25 adds `work_item_client_audience`; R33 C26 adds `work_item_assignees`; R34 B11 adds `invitation_pending_keys`; R35 52-18 adds `external_approvers`; R39 55-17 adds `support_threads` and `support_messages`; R40 54-22 adds `template_packs`; R41 54-01 adds `connector_installations`; R41 54-14 adds `sso_connections`; R42 54-15 adds `sso_saml_requests`; R49 54-16 adds `scim_tokens`; FIX 2026-11-10 adds `time_auto_tracking`; FIX6 C3 adds `work_item_cloud_folders`; C3b adds `cloud_folder_imports`; 53-14 adds `calendar_due_mirrors` and `calendar_feed_tokens`; 52-19 adds `approval_records`; 58-C1 adds `workflow_flow_versions`; 57-02 adds `plan_versions`; 52-26 adds `signature_requests` and `signature_request_signers`; 53-12 adds `meeting_call_links` and `meeting_attendance`; 57-10 alters `support_threads` only). Recounted from the rows on 2026-11-15 (INTEG3).
 
-- Tables: 349 (100 % of `TABLES` once R19-b's `finance_exports` lands; `data-inventory.doc.test.ts` checks it without a database).
-- `delete`: 271
+- Tables: 357 (100 % of `TABLES` once R19-b's `finance_exports` lands; `data-inventory.doc.test.ts` checks it without a database).
+- `delete`: 279
 - `pseudonymise`: 4
 - `keep-fiscal-redacted`: 11
 - `none-no-personal-data`: 63
-- Today `enforced`: 229, `gap`: 45, `n/a`: 63.
+- Today `enforced`: 245, `gap`: 49, `n/a`: 63.
 
 ## Planned tables
 

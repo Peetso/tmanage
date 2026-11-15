@@ -129,7 +129,7 @@ describe('automatic tracking state machine', () => {
       stepActivity(INITIAL_ACTIVITY_STATE, { type: 'enable', idleThresholdSeconds: 5 }).state
         .idleThresholdSeconds,
     ).toBe(60);
-    expect(clampIdleThresholdSeconds(99_999)).toBe(1800);
+    expect(clampIdleThresholdSeconds(99_999)).toBe(900); // IDLE_THRESHOLD_MAX_MINUTES (15) since bcff7784
     expect(clampIdleSeconds(-4)).toBe(0);
     expect(clampIdleSeconds(Number.NaN)).toBe(86_400);
   });

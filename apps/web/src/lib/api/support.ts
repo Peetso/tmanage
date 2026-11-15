@@ -26,12 +26,7 @@ export interface SupportMessage {
 
 /** 57-10 · request category and priority, and the SLA clock the API computes (never the client). */
 export type SupportCategory =
-  | 'question'
-  | 'problem'
-  | 'billing'
-  | 'account'
-  | 'feature_request'
-  | 'other';
+  'question' | 'problem' | 'billing' | 'account' | 'feature_request' | 'other';
 export type SupportPriority = 'low' | 'normal' | 'high' | 'urgent';
 
 export interface SupportSlaClock {

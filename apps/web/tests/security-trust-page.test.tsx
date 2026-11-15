@@ -16,7 +16,7 @@ describe('security page and trust centre', () => {
     const { container } = render(<SecurityPage />);
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(title);
     const soc2 = screen.getByTestId('security-claim-soc2');
-    expect(soc2.dataset.status).toBe('not_audited');
+    expect(soc2.dataset['status']).toBe('not_audited');
     const rest = (container.textContent ?? '').replace(soc2.textContent ?? '', '');
     expect(rest).not.toMatch(/certified|SOC 2 compliant|ISO 27001|حاصل(?:ون|ين) على شهادة/iu);
     expect(container.textContent).not.toMatch(/SOC 2 compliant/i);

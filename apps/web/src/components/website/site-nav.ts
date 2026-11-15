@@ -351,7 +351,7 @@ export const FOOTER_COLUMNS: readonly WebFooterColumn[] = [
     links: [
       { label: 'SiteNav.security', href: '/security' },
       { label: 'SiteNav.privacy', href: '/legal/privacy' },
-      { label: 'SiteNav.accessibility', href: '/security#accessibility' },
+      { label: 'SiteNav.accessibility', href: '/security' },
       { label: 'SiteNav.subProcessors', href: '/security/data-location#subprocessors' },
       { label: 'SiteNav.reportSecurity', href: '/security/disclosure' },
       { label: 'SiteNav.terms', href: '/legal/terms' },

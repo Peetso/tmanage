@@ -4229,6 +4229,7 @@ import type {
   PlatformSupportThreadView as ApiPlatformSupportThreadView,
   PlatformSupportDetailView as ApiPlatformSupportDetailView,
 } from '../../apps/api/src/modules/support/support.service.js';
+import type { SlaClockView as ApiSlaClockView } from '../../apps/api/src/modules/support/support-sla.js';
 import type { ClientFilePolicyView as ApiClientFilePolicyView } from '../../apps/api/src/modules/tenancy/client-file-policy.controller.js';
 import type { DeviceKind as ApiDeviceKind } from '../../apps/api/src/modules/time/time-auto-rules.js';
 import type {
@@ -4407,6 +4408,7 @@ import type {
   SupportThreadDetail as WebSupportThreadDetail,
   PlatformSupportThread as WebPlatformSupportThread,
   PlatformSupportDetail as WebPlatformSupportDetail,
+  SupportSlaClock as WebSupportSlaClock,
 } from '../../apps/web/src/lib/api/support.js';
 import type {
   TemplatePackView as WebTemplatePackView,
@@ -4492,6 +4494,8 @@ type _supportMessage = Assert<Exact<ApiSupportMessageView, WebSupportMessage>>;
 type _supportThread = Assert<Exact<ApiSupportThreadView, WebSupportThread>>;
 type _supportThreadDetail = Assert<Exact<ApiSupportThreadDetailView, WebSupportThreadDetail>>;
 type _platformSupportThread = Assert<Exact<ApiPlatformSupportThreadView, WebPlatformSupportThread>>;
+/** 57-10 SLA clock on a support thread (writer + platform only), computed by the API. */
+type _supportSlaClock = Assert<Exact<ApiSlaClockView, WebSupportSlaClock>>;
 type _platformSupportDetail = Assert<Exact<ApiPlatformSupportDetailView, WebPlatformSupportDetail>>;
 type _clientFilePolicyView = Assert<Exact<ApiClientFilePolicyView, WebClientFilePolicyView>>;
 type _currentTask = Assert<Exact<ApiCurrentTaskView, WebCurrentTask>>;

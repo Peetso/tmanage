@@ -678,6 +678,11 @@ export const envSchema = z
       .default('false')
       .transform((value) => value === 'true'),
 
+    /**
+     * 57-02. The versioned plan ladder's switch: only `on` turns it on, and only when billing is
+     * paid; anything else keeps every workspace on the free beta plan. Read by the billing module.
+     */
+    PLAN_LADDER: z.string().optional(),
     // Files. FILE-002 slice B: `none` is a real member, legal in production — the honest
     // bootstrap value (`50-BOOTSTRAP` §39: scanning "feature-flagged or processed
     // conservatively"). Under it the scan pass records every verified version `unscanned`

@@ -34,7 +34,7 @@ export const ESIGN_EN = {
   codeTooSoon: 'You asked for a code a moment ago. Wait a minute, then try again.',
   signDocument: 'Sign document',
   signing: 'Signing',
-  footer: 'Simple electronic signature. You and {agency} both get the signed copy.',
+  footer: 'Simple e-sign. You and {agency} both get the signed copy.',
   // Refusals
   codeWrong: 'That code is not right. Check the e-mail and try again.',
   codeLocked: 'Too many wrong tries. Ask for a new code.',
