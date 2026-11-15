@@ -212,6 +212,17 @@ describe('56-10c SCIM resources: cross-tenant, owner, address', () => {
     expect(memberships.transitionStatus).not.toHaveBeenCalled();
   });
 
+  it('refuses deactivating a member who became the owner after the read (checked in the transaction)', async () => {
+    // The listing said `member`, but by the time of the write the row is the owner: the re-read
+    // inside the transaction refuses it, so SCIM can never leave a company without its owner.
+    const { scim, memberships } = service({
+      repository: { findUser: vi.fn(async () => member()) },
+    });
+    memberships.requireById.mockResolvedValue({ id: 'm-1', role: 'owner', version: 2 });
+    await expect(scim.deleteUser(CALLER, 'm-1')).rejects.toMatchObject({ scimType: 'mutability' });
+    expect(memberships.transitionStatus).not.toHaveBeenCalled();
+  });
+
   it('suspends a member on active false and refuses a change of address', async () => {
     const { scim, memberships } = service({
       repository: { findUser: vi.fn(async () => member()) },
