@@ -66,6 +66,12 @@ export interface MessageSummary {
   readonly updatedAt: string;
   /** Live replies in this message's thread — channel reads only; absent on a thread read. */
   readonly replyCount?: number;
+  /**
+   * The author's send-attempt key (`PostMessageInput.clientGeneratedId`), or `null` when the
+   * message was posted without one. Lets the composer recognise a send the browser gave up on
+   * but the API stored.
+   */
+  readonly clientGeneratedId: string | null;
 }
 
 export interface MessageRevisionSummary {

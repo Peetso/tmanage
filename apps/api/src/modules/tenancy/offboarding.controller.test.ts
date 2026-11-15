@@ -84,12 +84,14 @@ interface AuditCall {
  *
  * `otherAdmins` is what `countActiveHoldersOfRoles` returns — the number of *other* active
  * `org.manage` holders — so a test sets it to 0 to make the target the last administrator.
+ * `otherOwners` is what it returns when asked about the `owner` role alone (ACCOUNT item 3); it
+ * defaults to `otherAdmins`.
  * `transitions` and `audits` record every write attempt, so a refusal can be proven to have made
  * none.
  */
 function serviceWith(
   seed: MembershipRow | null,
-  options: { readonly otherAdmins?: number } = {},
+  options: { readonly otherAdmins?: number; readonly otherOwners?: number } = {},
 ): {
   service: OffboardingService;
   transitions: MembershipRow[];
@@ -119,7 +121,10 @@ function serviceWith(
   const memberships = {
     findByUserId: async (_runner: unknown, _ctx: unknown, userId: string) =>
       store.get(userId) ?? null,
-    countActiveHoldersOfRoles: async () => options.otherAdmins ?? 5,
+    countActiveHoldersOfRoles: async (_runner: unknown, _ctx: unknown, roles: readonly string[]) =>
+      roles.length === 1 && roles[0] === 'owner'
+        ? (options.otherOwners ?? options.otherAdmins ?? 5)
+        : (options.otherAdmins ?? 5),
     transitionStatus: async (
       _runner: unknown,
       _ctx: unknown,
@@ -309,15 +314,32 @@ describe('OffboardingService', () => {
     expect(audits).toHaveLength(0);
   });
 
-  it('offboards an owner when another administrator remains', async () => {
+  it('offboards an owner when another owner remains', async () => {
     const { service, transitions, audits } = serviceWith(membershipRow({ role: 'owner' }), {
       otherAdmins: 1,
+      otherOwners: 1,
     });
 
     const result = await service.offboard(context, owner(), TARGET_USER);
     expect(result.status).toBe('offboarded');
     expect(transitions).toHaveLength(1);
     expect(audits).toHaveLength(1);
+  });
+
+  it('ACCOUNT item 3: refuses removing the last owner while an organization admin remains', async () => {
+    // An org admin holds org.manage, so the administrator count alone let the last owner go and
+    // left the organization with nobody who owns it.
+    const { service, transitions, audits } = serviceWith(membershipRow({ role: 'owner' }), {
+      otherAdmins: 1,
+      otherOwners: 0,
+    });
+
+    await expect(service.offboard(context, owner(), TARGET_USER)).rejects.toMatchObject({
+      status: 403,
+      auditCode: 'offboard_last_owner',
+    });
+    expect(transitions).toHaveLength(0);
+    expect(audits).toHaveLength(0);
   });
 
   it('refuses an organization admin offboarding an owner (CQ-06), with no write', async () => {

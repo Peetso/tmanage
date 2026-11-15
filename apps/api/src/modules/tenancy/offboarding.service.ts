@@ -259,6 +259,19 @@ export class OffboardingService {
       }
     }
 
+    // Guard 3b — ACCOUNT item 3 (live persona test 2026-11-15): the last owner. An organization
+    // admin also holds `org.manage`, so Guard 3 alone let the last owner go while an admin
+    // remained, and the organization was left with nobody who owns it (an admin cannot grant
+    // `owner`). The same rule the role change keeps: someone else is made an owner first.
+    if (membership.role === 'owner') {
+      const otherOwners = await this.database.read(context, (db) =>
+        this.memberships.countActiveHoldersOfRoles(db, context, ['owner'], membership.id),
+      );
+      if (otherOwners === 0) {
+        throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'offboard_last_owner');
+      }
+    }
+
     const updated = await this.database.transaction(context, async (tx) => {
       const row = await this.memberships.transitionStatus(
         tx,

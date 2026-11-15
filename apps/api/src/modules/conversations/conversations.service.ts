@@ -153,6 +153,12 @@ export interface MessageView {
    * screen can draw the "2 replies" pill without opening every thread. Absent on a thread read.
    */
   readonly replyCount?: number;
+  /**
+   * ACCOUNT item 2: the author's send-attempt key, or `null` when none was given. A browser that
+   * gave up on a send (a timeout after the API stored it) finds its attempt here and stops
+   * showing "Not sent". It grants nothing: the dedupe it drives is scoped to its own author.
+   */
+  readonly clientGeneratedId: string | null;
 }
 
 /**
@@ -233,6 +239,7 @@ function toMessageView(row: MessageRow): MessageView {
     deletedByUserId: row.deletedByUserId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    clientGeneratedId: row.clientGeneratedId,
   };
 }
 

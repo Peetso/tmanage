@@ -38,6 +38,7 @@ import {
   uploadProjectFile,
 } from '../../../lib/api/uploads';
 import { composeMessage } from '../../../lib/rich-composer';
+import { transcriptHoldsAttempt } from '../../../lib/sent-attempt';
 import type { MessageKey } from '../../../lib/i18n/t';
 import { useT } from '../../../lib/i18n/use-t';
 import { useTOr } from '../../../lib/i18n/use-t-or';
@@ -548,6 +549,61 @@ export function Composer({
     },
   });
 
+  // ACCOUNT item 2: a send the browser gave up on (a network failure or timeout) may still have
+  // reached the API. The stored message carries the attempt's id, so once the transcript shows
+  // it the send is settled as sent: no "Not sent", and the next message gets a fresh id. Text
+  // edited since the send stays in the box (it is a new message). With files the retry is left
+  // to the person: replaying the same id links the files to the stored message.
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const sentDraftRef = useRef<string | undefined>(undefined);
+  const cancelReplyRef = useRef(onCancelReply);
+  cancelReplyRef.current = onCancelReply;
+  const resetSend = send.reset;
+  const lostAttempt =
+    send.isError && send.error instanceof NetworkError && pendingFiles.length === 0
+      ? attemptId
+      : undefined;
+  useEffect(() => {
+    if (lostAttempt === undefined) return undefined;
+    const transcriptKey = ['messages', organizationSlug, conversationId];
+    let settled = false;
+    const settleIfStored = () => {
+      if (settled) return;
+      const stored = queries
+        .getQueriesData({ queryKey: transcriptKey })
+        .some(([, data]) => transcriptHoldsAttempt(data, lostAttempt));
+      if (!stored) return;
+      settled = true;
+      if (draftRef.current === sentDraftRef.current) {
+        cancelReplyRef.current?.();
+        if (persistDraft) clearedOnSendRef.current = true;
+        setDraft('');
+        if (persistDraft) void clearDraft(api, organizationSlug, conversationId).catch(() => {});
+      }
+      setAttemptId(undefined);
+      resetSend();
+    };
+    const unsubscribe = queries.getQueryCache().subscribe(settleIfStored);
+    settleIfStored();
+    if (!settled) void queries.invalidateQueries({ queryKey: transcriptKey });
+    return unsubscribe;
+  }, [lostAttempt, queries, organizationSlug, conversationId, api, persistDraft, resetSend]);
+
+  // ACCOUNT item 1: a shared location is a message of its own. It has its own mutation so its
+  // success never runs the send-success path above: the text being typed and the files waiting
+  // to go stay exactly as they are.
+  const sendLocation = useMutation({
+    mutationFn: (input: PostMessageInput) =>
+      postMessage(api, organizationSlug, conversationId, {
+        ...input,
+        ...(parentMessageId === undefined ? {} : { parentMessageId }),
+      }),
+    onSuccess: () => {
+      void queries.invalidateQueries({ queryKey: ['messages', organizationSlug, conversationId] });
+    },
+  });
+
   function submit(event: FormEvent) {
     event.preventDefault();
     performSend();
@@ -601,6 +657,7 @@ export function Composer({
     // Reuse the attempt id when this is a retry of a failed send; mint one otherwise.
     const clientGeneratedId = attemptId ?? newCorrelationId();
     setAttemptId(clientGeneratedId);
+    sentDraftRef.current = draft;
     send.mutate({
       ...content,
       clientGeneratedId,
@@ -690,7 +747,7 @@ export function Composer({
         const lat = Number(position.coords.latitude.toFixed(6));
         const lng = Number(position.coords.longitude.toFixed(6));
         const label = tOr('ChatMessages.myLocation', 'My location');
-        send.mutate({
+        sendLocation.mutate({
           kind: 'location',
           body: `${label}: ${lat}, ${lng}`,
           meta: { lat, lng, label },
@@ -720,6 +777,8 @@ export function Composer({
         className="tm-chat-side__round"
         aria-label={tOr('ChatMessages.shareLocation', 'Share location')}
         title={tOr('ChatMessages.shareLocation', 'Share location')}
+        disabled={sendLocation.isPending}
+        aria-busy={sendLocation.isPending}
         onClick={shareLocation}
       >
         <span aria-hidden="true">📍</span>
@@ -904,6 +963,12 @@ export function Composer({
         <InlineAlert tone="danger" title={t('ProjectChannelScreen.notSent')} live>
           {describeError(send.error, t, tOr)}{' '}
           {send.error instanceof NetworkError ? t('ProjectChannelScreen.textStillHere') : ''}
+        </InlineAlert>
+      ) : null}
+
+      {sendLocation.isError ? (
+        <InlineAlert tone="danger" title={t('ProjectChannelScreen.notSent')} live>
+          {describeError(sendLocation.error, t, tOr)}
         </InlineAlert>
       ) : null}
 

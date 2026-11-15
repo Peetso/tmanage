@@ -18,6 +18,7 @@ import { ApiError } from '../../common/http/errors.js';
 import { OUTBOX_EVENTS_REPOSITORY, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
+import { CLIENT_GENERATED_ID_RULE, isClientGeneratedId } from './client-generated-id.js';
 import { DirectConversationsRepository } from './direct-conversations.repository.js';
 import { DirectConversationsService } from './direct-conversations.service.js';
 import type {
@@ -132,11 +133,8 @@ export class DirectConversationsController {
       details.push({ field: 'body', message: `must be ${MAX_BODY_LENGTH} characters or fewer` });
     }
     const raw = body?.clientGeneratedId;
-    if (raw !== undefined && (typeof raw !== 'string' || raw === '' || raw.length > 36)) {
-      details.push({
-        field: 'clientGeneratedId',
-        message: 'must be an id of 36 characters or fewer',
-      });
+    if (!isClientGeneratedId(raw)) {
+      details.push({ field: 'clientGeneratedId', message: CLIENT_GENERATED_ID_RULE });
     }
     if (details.length > 0) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);

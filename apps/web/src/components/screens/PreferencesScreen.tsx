@@ -25,7 +25,7 @@ import {
   type DisplayTimezone,
 } from '../../lib/api/display-preferences';
 import { fetchMyProfile, saveMyProfile, type MyProfileView } from '../../lib/api/member-profile';
-import { listFactors, setPassword } from '../../lib/api/auth';
+import { changeMyPassword, listFactors } from '../../lib/api/auth';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { activeLocale } from '../../lib/i18n/locale-store';
@@ -239,6 +239,11 @@ type ProfileKey =
   | 'Profile.manage'
   | 'Profile.password'
   | 'Profile.changePassword'
+  | 'Profile.currentPassword'
+  | 'Profile.currentPasswordHint'
+  | 'Profile.currentPasswordRequired'
+  | 'Profile.authenticatorCode'
+  | 'Profile.passwordHint'
   | 'Profile.newPassword'
   | 'Profile.confirmPassword'
   | 'Profile.savePassword'
@@ -558,7 +563,7 @@ export function PreferencesScreen({
                 </Link>
               </span>
             </div>
-            <PasswordRow api={api} t={t} />
+            <PasswordRow api={api} t={t} twoStepOn={twoStepOn} />
           </section>
           <PrivacyPrefs organizationSlug={organizationSlug} client={api} />
 
@@ -592,17 +597,38 @@ export function PreferencesScreen({
   );
 }
 
-/** "Password · Change password": an inline two-field form that sets a new password. */
-function PasswordRow({ api, t }: { api: ApiClient; t: ProfileTranslate }) {
+/**
+ * "Password · Change password": an inline form that changes the person's own password. ACCOUNT
+ * item 4: the current password (and the authenticator code when two-step is on) is asked first,
+ * as the API requires; without it every change was refused. Left empty, a first password is set.
+ */
+function PasswordRow({
+  api,
+  t,
+  twoStepOn,
+}: {
+  api: ApiClient;
+  t: ProfileTranslate;
+  twoStepOn: boolean;
+}) {
   const [open, setOpen] = useState(false);
+  const [current, setCurrent] = useState('');
+  const [code, setCode] = useState('');
   const [first, setFirst] = useState('');
   const [second, setSecond] = useState('');
   const [mismatch, setMismatch] = useState(false);
 
   const change = useMutation({
-    mutationFn: (password: string) => setPassword(api, password),
+    mutationFn: (newPassword: string) =>
+      changeMyPassword(api, {
+        currentPassword: current,
+        newPassword,
+        ...(twoStepOn ? { code: code.replace(/\D/gu, '') } : {}),
+      }),
     onSuccess: () => {
       setOpen(false);
+      setCurrent('');
+      setCode('');
       setFirst('');
       setSecond('');
     },
@@ -622,6 +648,7 @@ function PasswordRow({ api, t }: { api: ApiClient; t: ProfileTranslate }) {
       <div style={S.row}>
         <span style={S.rowText}>
           <span style={S.rowLabel}>{t('Profile.password')}</span>
+          <span style={S.rowHint}>{t('Profile.passwordHint')}</span>
         </span>
         {open ? null : (
           <Button
@@ -639,6 +666,25 @@ function PasswordRow({ api, t }: { api: ApiClient; t: ProfileTranslate }) {
       </div>
       {open ? (
         <div style={S.passwordForm}>
+          <Field
+            label={t('Profile.currentPassword')}
+            hint={t('Profile.currentPasswordHint')}
+            type="password"
+            autoComplete="current-password"
+            value={current}
+            onChange={(event) => setCurrent(event.target.value)}
+          />
+          {twoStepOn ? (
+            <Field
+              label={t('Profile.authenticatorCode')}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={7}
+              dir="ltr"
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+            />
+          ) : null}
           <Field
             label={t('Profile.newPassword')}
             type="password"
@@ -660,7 +706,15 @@ function PasswordRow({ api, t }: { api: ApiClient; t: ProfileTranslate }) {
             </InlineAlert>
           ) : null}
           <div style={S.rowEnd}>
-            <Button type="button" tone="text" onClick={() => setOpen(false)}>
+            <Button
+              type="button"
+              tone="text"
+              onClick={() => {
+                setOpen(false);
+                setCurrent('');
+                setCode('');
+              }}
+            >
               {t('Profile.cancel')}
             </Button>
             <Button
@@ -685,6 +739,14 @@ function PasswordRow({ api, t }: { api: ApiClient; t: ProfileTranslate }) {
 }
 
 function describeError(error: unknown, t: ProfileTranslate): string {
+  // ACCOUNT item 4: an existing password is changed only with the current one.
+  if (
+    error instanceof ApiRequestError &&
+    error.status === 403 &&
+    error.code === 'reauthentication_required'
+  ) {
+    return t('Profile.currentPasswordRequired');
+  }
   // F01 (wave 9): a first password needs a sign-in from the last few minutes.
   if (
     error instanceof ApiRequestError &&

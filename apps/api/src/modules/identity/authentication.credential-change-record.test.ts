@@ -230,6 +230,10 @@ class RecordingCredentials extends CredentialsRepository {
     return this.password;
   }
 
+  override async findPasswordIdentifiers(): Promise<{ email: string; displayName: string }> {
+    return { email: 'holder@example.test', displayName: 'Holder' };
+  }
+
   override async setPassword(runner: IdentityQueryRunner): Promise<void> {
     noteOn(runner, 'change:password');
   }

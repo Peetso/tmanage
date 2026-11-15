@@ -261,24 +261,32 @@ export const SECTION_LIMIT = 6;
 
 /**
  * Score, drop non-matches, order by score inside each section (stable: equal scores keep their
- * given order), cap each section and return the sections in {@link GROUP_ORDER}, empty ones
- * omitted. A row the server already matched keeps at least a floor score.
+ * given order), cap each section and return the sections, empty ones omitted. A row the server
+ * already matched keeps at least a floor score.
+ *
+ * ACCOUNT item 5 (live persona test 2026-11-15): the sections follow their best match, so an
+ * exact or prefix match of the typed text is always above a fuzzy one, wherever it lives; equal
+ * best matches keep {@link GROUP_ORDER}, where Recent comes first, so a recent item breaks the
+ * tie. The "Search for …" row is an action on the query rather than a match of it: it ranks at
+ * the floor. With no query every row scores alike and the static order stands.
  */
 export function rankPalette(items: readonly PaletteItem[], query: string): PaletteSection[] {
   const scored = items
     .map((item, index) => {
-      const score = scoreMatch(query, item.label, item.keywords);
+      const score = item.group === 'search' ? 1 : scoreMatch(query, item.label, item.keywords);
       return { item, index, score: item.preMatched ? Math.max(score, 1) : score };
     })
     .filter((row) => row.score > 0);
-  return GROUP_ORDER.map((group) => ({
-    group,
-    items: scored
+  return GROUP_ORDER.map((group, order) => {
+    const rows = scored
       .filter((row) => row.item.group === group)
       .sort((a, b) => b.score - a.score || a.index - b.index)
-      .slice(0, SECTION_LIMIT)
-      .map((row) => row.item),
-  })).filter((section) => section.items.length > 0);
+      .slice(0, SECTION_LIMIT);
+    return { group, order, best: rows[0]?.score ?? 0, items: rows.map((row) => row.item) };
+  })
+    .filter((section) => section.items.length > 0)
+    .sort((a, b) => b.best - a.best || a.order - b.order)
+    .map(({ group, items: sectionItems }) => ({ group, items: sectionItems }));
 }
 
 /** The flat keyboard order of the drawn sections — what ArrowUp / ArrowDown walk. */

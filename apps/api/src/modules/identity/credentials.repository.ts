@@ -325,6 +325,22 @@ export class CredentialsRepository {
   }
 
   /**
+   * ACCOUNT item 4: what a new password may not contain — the email's local part and the display
+   * name, the identifiers sign-up and invitation screen against too. `null` for an unknown user.
+   */
+  async findPasswordIdentifiers(
+    runner: IdentityQueryRunner,
+    userId: string,
+  ): Promise<{ readonly email: string; readonly displayName: string } | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({ email: users.email, displayName: users.displayName })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /**
    * Set or replace a password.
    *
    * An upsert rather than a read-then-branch, because the read-then-branch has a race: two

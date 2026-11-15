@@ -106,6 +106,9 @@ class FakeCredentials extends CredentialsRepository {
   override async findPassword(): Promise<UserPasswordRow | null> {
     return this.password;
   }
+  override async findPasswordIdentifiers(): Promise<{ email: string; displayName: string }> {
+    return { email: 'sara.harbour@example.test', displayName: 'Sara Harbour' };
+  }
   override async countRecentFailures(): Promise<number> {
     this.calls.push('countRecentFailures');
     return this.failures.length > 1 ? this.failures.shift()! : this.failures[0]!;
@@ -348,6 +351,26 @@ describe('F01: a bound token never reaches the credential or session routes', ()
     expect(credentials.calls).toContain('setPassword');
     // A first password ends nothing: no bearer credential was opened against a stale password.
     expect(cutoff.calls).toEqual([]);
+  });
+
+  it('ACCOUNT item 4: a changed password meets the sign-up rules, the own name included', async () => {
+    const { auth, credentials } = service();
+    credentials.password = {
+      userId: USER,
+      passwordHash: 'x',
+      setAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await expect(
+      auth.setPassword({
+        userId: USER,
+        sessionId: SESSION,
+        password: 'harbour-sara.harbour-2026',
+        reauthToken: proof(),
+        context: CONTEXT,
+      }),
+    ).rejects.toMatchObject({ rejections: expect.arrayContaining(['contains_identifier']) });
+    expect(credentials.calls).not.toContain('setPassword');
   });
 
   it('an account with a password still needs the reauth token, fresh session or not', async () => {

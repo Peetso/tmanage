@@ -3,6 +3,7 @@ import type { Principal } from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ConversationsService } from './conversations.service.js';
+import { isClientGeneratedId } from './client-generated-id.js';
 import { ConversationsRepository, DuplicateMessageError } from './conversations.repository.js';
 import type { AppendMessageInput } from './conversations.repository.js';
 import type { ConversationRow, MessageRow } from '../../common/database/schema.js';
@@ -230,5 +231,32 @@ describe('postMessage dedupe is bound to the destination conversation', () => {
     // Only channel A's message was ever stored; nothing from A leaked out through B.
     expect(repo.stored).toHaveLength(1);
     expect(repo.stored[0]?.conversationId).toBe(CHANNEL_A);
+  });
+});
+
+describe('ACCOUNT item 2: a send the browser gave up on can be recognised', () => {
+  it('returns the attempt key on the stored message, first post and retry alike', async () => {
+    const { service } = build();
+    const first = await service.postMessage(CONTEXT, PRINCIPAL, CHANNEL_A, {
+      body: 'Timed out in the browser',
+      clientGeneratedId: KEY,
+    });
+    const retry = await service.postMessage(CONTEXT, PRINCIPAL, CHANNEL_A, {
+      body: 'Timed out in the browser',
+      clientGeneratedId: KEY,
+    });
+    expect(first.message.clientGeneratedId).toBe(KEY);
+    expect(retry.message.clientGeneratedId).toBe(KEY);
+  });
+
+  it('accepts an absent, null or short opaque key and refuses anything else', () => {
+    expect(isClientGeneratedId(undefined)).toBe(true);
+    expect(isClientGeneratedId(null)).toBe(true);
+    expect(isClientGeneratedId(KEY)).toBe(true);
+    expect(isClientGeneratedId('web-m3x1-k2')).toBe(true);
+    expect(isClientGeneratedId('')).toBe(false);
+    expect(isClientGeneratedId('a'.repeat(37))).toBe(false);
+    expect(isClientGeneratedId('id with spaces')).toBe(false);
+    expect(isClientGeneratedId(42)).toBe(false);
   });
 });

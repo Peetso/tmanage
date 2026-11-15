@@ -27,6 +27,7 @@ import type {
   MessageView,
 } from './conversations.service.js';
 import type { ChannelDirectoryEntry } from './channel-directory.js';
+import { CLIENT_GENERATED_ID_RULE, isClientGeneratedId } from './client-generated-id.js';
 
 /**
  * CHAT-001's HTTP surface.
@@ -429,10 +430,14 @@ export class ConversationsController {
       typeof body?.parentMessageId === 'string' && body.parentMessageId !== ''
         ? body.parentMessageId
         : undefined;
-    const clientGeneratedId =
-      typeof body?.clientGeneratedId === 'string' && body.clientGeneratedId !== ''
-        ? body.clientGeneratedId
-        : undefined;
+    // ACCOUNT item 2: the attempt key is checked, not coerced away. A malformed one used to be
+    // dropped silently, so the post lost its dedupe and a retry could double the message; one
+    // longer than the column failed in the database. The same rule as a direct message's.
+    const rawClientId = body?.clientGeneratedId;
+    if (!isClientGeneratedId(rawClientId)) {
+      details.push({ field: 'clientGeneratedId', message: CLIENT_GENERATED_ID_RULE });
+    }
+    const clientGeneratedId = typeof rawClientId === 'string' ? rawClientId : undefined;
 
     const kind = body?.kind;
     if (kind !== undefined && !MESSAGE_KIND_VALUES.includes(kind as MessageKind)) {

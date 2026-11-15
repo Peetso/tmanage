@@ -368,6 +368,11 @@ export function PeopleDirectoryScreen({
                         organizationSlug={organizationSlug}
                         organizationName={workspace}
                         mayChangeRole={mayChange}
+                        // ACCOUNT item 3: the last owner is never offered for removal (the API
+                        // refuses it too, `offboard_last_owner`): someone else becomes owner first.
+                        mayRemove={
+                          mayChange && !(person.role === 'owner' && complete && activeOwners === 1)
+                        }
                         mayManage={canManage}
                         chipLabel={person.roleName ?? chip(person.role)}
                         projectsLabel={plural('projects', person.projectCount)}
@@ -601,6 +606,7 @@ function MemberRowView({
   organizationSlug,
   organizationName,
   mayChangeRole,
+  mayRemove,
   mayManage,
   chipLabel,
   projectsLabel,
@@ -611,6 +617,7 @@ function MemberRowView({
   organizationSlug: string;
   organizationName: string;
   mayChangeRole: boolean;
+  mayRemove: boolean;
   mayManage: boolean;
   chipLabel: string;
   projectsLabel: string;
@@ -742,7 +749,7 @@ function MemberRowView({
                 </Link>
               </li>
             ) : null}
-            {mayChangeRole ? (
+            {mayRemove ? (
               <li role="none">
                 <Link
                   role="menuitem"

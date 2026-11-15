@@ -1,4 +1,5 @@
 import type { ApiClient } from './client';
+import { REAUTH_HEADER, reauthenticate } from './passkeys';
 
 /**
  * The ID-002 authentication endpoints, as the screens use them.
@@ -108,8 +109,42 @@ export async function listFactors(
   return data;
 }
 
-export async function setPassword(client: ApiClient, password: string): Promise<void> {
-  await client.request<void>({ method: 'POST', path: '/v1/auth/password/set', body: { password } });
+/**
+ * Set or change this person's password. Changing an existing one needs the `x-reauth-token` proof
+ * from `POST /v1/auth/reauth`; a first password needs none (the API asks for a fresh sign-in).
+ */
+export async function setPassword(
+  client: ApiClient,
+  password: string,
+  reauthToken?: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'POST',
+    path: '/v1/auth/password/set',
+    ...(reauthToken === undefined ? {} : { headers: { [REAUTH_HEADER]: reauthToken } }),
+    body: { password },
+  });
+}
+
+/**
+ * ACCOUNT item 4 (live persona test 2026-11-15): change the signed-in person's own password from
+ * their profile. The current password is proved first (`POST /v1/auth/reauth`, rate limited, with
+ * the authenticator code when two-step is on) and that short-lived proof goes with the change; the
+ * API applies the sign-up password rules, keeps this session and ends every other one. An empty
+ * current password is the first-password case (an account made with Google), which needs no proof.
+ */
+export async function changeMyPassword(
+  client: ApiClient,
+  input: { readonly currentPassword: string; readonly newPassword: string; readonly code?: string },
+): Promise<void> {
+  const reauthToken =
+    input.currentPassword === ''
+      ? undefined
+      : await reauthenticate(client, {
+          password: input.currentPassword,
+          ...(input.code === undefined || input.code === '' ? {} : { code: input.code }),
+        });
+  await setPassword(client, input.newPassword, reauthToken);
 }
 
 export async function beginTotpEnrolment(

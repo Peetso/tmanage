@@ -187,8 +187,10 @@ export function SignInSecurityScreen({
                       <Link
                         className="tm-sis-check__fix"
                         href={
+                          // ACCOUNT item 4: a signed-in person changes their own password on
+                          // their profile (current password first), not through account recovery.
                           check.fix === 'password'
-                            ? '/recover'
+                            ? `/${encodeURIComponent(organizationSlug)}/preferences#tm-profile-security`
                             : `/${encodeURIComponent(organizationSlug)}/settings/two-step`
                         }
                       >

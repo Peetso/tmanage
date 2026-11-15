@@ -1154,9 +1154,12 @@ export class AuthenticationService {
     identifiers?: readonly string[];
     context: SignInContext;
   }): Promise<void> {
-    const existing = await this.database.identityRead(
+    const { existing, holder } = await this.database.identityRead(
       { correlationId: input.context.correlationId, tables: [...IDENTITY_TABLES] },
-      (db) => this.credentials.findPassword(db, input.userId),
+      async (db) => ({
+        existing: await this.credentials.findPassword(db, input.userId),
+        holder: await this.credentials.findPasswordIdentifiers(db, input.userId),
+      }),
     );
     if (existing !== null) {
       await this.requireReauth({
@@ -1172,7 +1175,12 @@ export class AuthenticationService {
 
     const screened = await screenPassword({
       password: input.password,
-      identifiers: input.identifiers ?? [],
+      // ACCOUNT item 4: the sign-up rules, identifiers included — a change from the profile was
+      // screened without them, so a password made of the person's own name passed here only.
+      identifiers: input.identifiers ?? [
+        holder?.email.split('@')[0] ?? '',
+        holder?.displayName ?? '',
+      ],
       ...(this.options.breachedPasswordScreen
         ? { remoteScreen: this.options.breachedPasswordScreen }
         : {}),

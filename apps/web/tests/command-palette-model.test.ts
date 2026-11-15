@@ -4,6 +4,7 @@ import {
   CREATE_ACTIONS,
   PALETTE_SPECS,
   filterByPermission,
+  flattenSections,
   moveActive,
   parseRecentItems,
   pushRecentItem,
@@ -58,9 +59,28 @@ describe('rankPalette', () => {
       ],
       'pro',
     );
-    expect(sections.map((s) => s.group)).toEqual(['create', 'navigate', 'results']);
-    expect(sections[1]?.items.map((i) => i.id)).toEqual(['nav-projects']);
-    expect(sections[0]?.items.map((i) => i.id)).toEqual(['new-project']);
+    // ACCOUNT item 5: the prefix match (Projects, 80) leads the word-prefix one (New project, 60).
+    expect(sections.map((s) => s.group)).toEqual(['navigate', 'create', 'results']);
+    expect(sections[0]?.items.map((i) => i.id)).toEqual(['nav-projects']);
+    expect(sections[1]?.items.map((i) => i.id)).toEqual(['new-project']);
+  });
+
+  it('ACCOUNT item 5: exact and prefix matches rank above fuzzy ones; recent breaks ties', () => {
+    const flat = flattenSections(
+      rankPalette(
+        [
+          item('search-workspace', 'search', 'Search for “time”', { preMatched: true }),
+          item('fuzzy', 'create', 'Tip: mention everyone'),
+          item('nav-time', 'navigate', 'Time'),
+          item('recent-time', 'recent', 'Time'),
+          item('nav-timeline', 'navigate', 'Timeline'),
+        ],
+        'time',
+      ),
+    ).map((row) => row.id);
+    // Exact first, the recent copy ahead of the equal navigate one; prefix next; the letters-in-
+    // order match after; the search action last.
+    expect(flat).toEqual(['recent-time', 'nav-time', 'nav-timeline', 'fuzzy', 'search-workspace']);
   });
 
   it('caps each section so every section stays on screen', () => {

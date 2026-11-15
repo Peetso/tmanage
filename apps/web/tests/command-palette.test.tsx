@@ -92,9 +92,9 @@ describe('CommandPalette', () => {
         'Website launch plan',
       ),
     ).toBeInTheDocument();
-    // The search row is first; one ArrowDown reaches the live hit, Enter opens it.
-    fireEvent.keyDown(input, { key: 'ArrowDown' });
-    expect(input).toHaveAttribute('aria-activedescendant', hit.id);
+    // ACCOUNT item 5: the live hit matches the typed word, so it leads the "Search for …" row and
+    // Enter opens it at once.
+    await waitFor(() => expect(input).toHaveAttribute('aria-activedescendant', hit.id));
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(navigate).toHaveBeenCalledWith('/acme/projects/p1');
   });
