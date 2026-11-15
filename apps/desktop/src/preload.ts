@@ -5,7 +5,8 @@
  * between the hosted web app and the native shell. It exposes a deliberately tiny,
  * allowlisted surface (03-TECHNICAL-ARCHITECTURE §"Phase 1": capabilities are
  * allowlisted, no generic shell access): a native-notification bridge, the app
- * version, the AI side panel and the computer's idle state for automatic time tracking. Nothing here hands the renderer a Node primitive,
+ * version, the AI side panel, the computer's idle state for automatic time tracking and the
+ * start-with-the-computer toggle. Nothing here hands the renderer a Node primitive,
  * `ipcRenderer`, or any ability beyond these calls. A sandboxed preload may `require` only
  * `electron`, so `pnpm build` bundles this file and its local imports into `dist/preload.js`.
  */
@@ -13,12 +14,14 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { isActivityEvent } from './activity';
 import {
   IPC,
+  isStrictBoolean,
   type ActivityEvent,
   type ActivitySample,
   type AiPanelBounds,
   type AiPanelOpenRequest,
   type NotifyRequest,
   type NotifyResult,
+  type StartupState,
 } from './ipc';
 
 const api = {
@@ -72,6 +75,18 @@ const api = {
     },
   },
 
+  /**
+   * Start with the computer. `get` reads the toggle; `set` is the person's own choice; and
+   * `applyDefault` is the workspace default, which changes nothing once the person has chosen.
+   */
+  startup: {
+    get: (): Promise<StartupState> => readStartup(ipcRenderer.invoke(IPC.startupGet)),
+    set: async (openAtLogin: boolean): Promise<StartupState> =>
+      readStartup(ipcRenderer.invoke(IPC.startupSet, requireBoolean(openAtLogin))),
+    applyDefault: async (openAtLogin: boolean): Promise<StartupState> =>
+      readStartup(ipcRenderer.invoke(IPC.startupApplyDefault, requireBoolean(openAtLogin))),
+  },
+
   /** Lets the web app detect it is running inside the native companion. */
   readonly: true as const,
 };
@@ -84,6 +99,16 @@ function sanitiseNotify(request: NotifyRequest): NotifyRequest {
   if (request?.body !== undefined) out.body = String(request.body);
   if (request?.silent !== undefined) out.silent = Boolean(request.silent);
   return out;
+}
+
+function requireBoolean(value: unknown): boolean {
+  if (!isStrictBoolean(value)) throw new TypeError('openAtLogin must be true or false');
+  return value;
+}
+
+async function readStartup(reply: Promise<unknown>): Promise<StartupState> {
+  const raw = (await reply) as Partial<StartupState> | null;
+  return { openAtLogin: raw?.openAtLogin === true, chosen: raw?.chosen === true };
 }
 
 function sanitiseBounds(bounds: AiPanelBounds | undefined): AiPanelBounds {

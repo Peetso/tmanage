@@ -23,7 +23,27 @@ export const IPC = {
   activitySample: 'tmanage:activity:sample',
   /** Main -> renderer: the computer was locked, unlocked, suspended or resumed. */
   activityEvent: 'tmanage:activity:event',
+  /** Renderer -> main: whether TManage starts with the computer, and if the person chose it. */
+  startupGet: 'tmanage:startup:get',
+  /** Renderer -> main: the person's own start-with-the-computer choice. */
+  startupSet: 'tmanage:startup:set',
+  /** Renderer -> main: the workspace default, applied only while the person has not chosen. */
+  startupApplyDefault: 'tmanage:startup:apply-default',
 } as const;
+
+/**
+ * Start with the computer (FIX-2026-11-10, item 16). `chosen` is true once the person flipped the
+ * toggle themself; a workspace default never overrides that choice.
+ */
+export interface StartupState {
+  readonly openAtLogin: boolean;
+  readonly chosen: boolean;
+}
+
+/** Only a real `true` or `false` crosses the startup bridge; `'true'`, `1` or `null` are refused. */
+export function isStrictBoolean(value: unknown): value is boolean {
+  return value === true || value === false;
+}
 
 /**
  * Automatic time tracking (FIX-2026-11-10). The whole-computer signal, and nothing else: how long

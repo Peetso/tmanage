@@ -45,7 +45,12 @@ const deepLink = require(path.join(distDir, 'deep-link.js')) as {
 const trayModule = require(path.join(distDir, 'tray.js')) as {
   createTray: (
     dir: string,
-    cbs: { onOpen: () => void; onQuit: () => void },
+    cbs: {
+      onOpen: () => void;
+      onQuit: () => void;
+      startsAtLogin: () => boolean;
+      onStartsAtLoginChange: (on: boolean) => void;
+    },
   ) => { setToolTip: (s: string) => void; destroy: () => void };
 };
 
@@ -53,6 +58,7 @@ type Checks = {
   windowOpened: boolean;
   loadedOnOrigin: boolean;
   activityBridge: boolean;
+  startupBridge: boolean;
   navGuardWired: boolean;
   navGuardAllowsSameOrigin: boolean;
   navGuardRefusesOffAllowlist: boolean;
@@ -67,6 +73,7 @@ const checks: Checks = {
   windowOpened: false,
   loadedOnOrigin: false,
   activityBridge: false,
+  startupBridge: false,
   navGuardWired: false,
   navGuardAllowsSameOrigin: false,
   navGuardRefusesOffAllowlist: false,
@@ -143,6 +150,26 @@ async function runChecks(stubUrl: string): Promise<void> {
     checks.activityBridge = false;
   }
 
+  // The start-with-the-computer bridge answers its state, and refuses a non-boolean before it
+  // reaches the main process. Read-only here: the smoke never registers a real login item.
+  try {
+    const state = (await wc.executeJavaScript('window.tmanageDesktop.startup.get()')) as {
+      openAtLogin?: unknown;
+      chosen?: unknown;
+    } | null;
+    const refusesNonBoolean = (await wc.executeJavaScript(
+      "window.tmanageDesktop.startup.set('true').then(() => false, () => true)",
+    )) as boolean;
+    checks.startupBridge =
+      state !== null &&
+      state.openAtLogin === false &&
+      state.chosen === false &&
+      Object.keys(state).sort().join() === 'chosen,openAtLogin' &&
+      refusesNonBoolean === true;
+  } catch {
+    checks.startupBridge = false;
+  }
+
   // The real main wires the allowlist onto will-navigate / will-redirect of this window.
   checks.navGuardWired =
     wc.listenerCount('will-navigate') >= 1 && wc.listenerCount('will-redirect') >= 1;
@@ -157,7 +184,12 @@ async function runChecks(stubUrl: string): Promise<void> {
 
   // Tray is constructible in this real Electron runtime against the shipped asset dir.
   try {
-    const tray = trayModule.createTray(assetsDir, { onOpen: () => {}, onQuit: () => {} });
+    const tray = trayModule.createTray(assetsDir, {
+      onOpen: () => {},
+      onQuit: () => {},
+      startsAtLogin: () => false,
+      onStartsAtLoginChange: () => {},
+    });
     checks.trayConstructs = typeof tray?.destroy === 'function';
     tray?.destroy();
   } catch {

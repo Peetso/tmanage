@@ -4,8 +4,8 @@
  * A thin, allowlisted Electron shell around the existing hosted web app. It owns no
  * product logic: it opens a single BrowserWindow on the configured TManage origin,
  * keeps navigation on that origin, sends foreign links to the system browser, bridges
- * native notifications, provides a tray and a `tmanage://` deep-link route, and
- * remembers the window's size and position. Security posture (contextIsolation,
+ * native notifications, provides a tray and a `tmanage://` deep-link route,
+ * remembers the window's size and position, and can start with the computer. Security posture (contextIsolation,
  * sandbox, no nodeIntegration) follows Electron's hardening guidance and the pack's
  * "capabilities are allowlisted; no generic shell execution or broad file access"
  * requirement (03-TECHNICAL-ARCHITECTURE §"Phase 1").
@@ -16,17 +16,27 @@ import type { Tray } from 'electron';
 import { resolveConfig } from './config';
 import { classifyNavigation, isInAppNavigation, shouldOpenExternally } from './navigation-guard';
 import { DEEP_LINK_PROTOCOL, findDeepLinkArg, resolveDeepLink } from './deep-link';
-import { createTray } from './tray';
+import { createTray, refreshTrayMenu, type TrayCallbacks } from './tray';
 import { loadWindowState, saveWindowState, type WindowState } from './window-state';
 import {
   IPC,
+  isStrictBoolean,
   type AiPanelBounds,
   type AiPanelOpenRequest,
   type NotifyRequest,
   type NotifyResult,
+  type StartupState,
 } from './ipc';
 import { createAiPanelController } from './ai-panel';
 import { POWER_MONITOR_EVENTS, toActivityEvent, toActivitySample } from './activity';
+import {
+  applyStartupDefault,
+  chooseStartup,
+  isHiddenLaunch,
+  loadStartupState,
+  loginItemOptions,
+  saveStartupState,
+} from './startup';
 
 const config = resolveConfig();
 const assetsDir = path.join(__dirname, '..', 'assets');
@@ -34,6 +44,9 @@ const assetsDir = path.join(__dirname, '..', 'assets');
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
+/** A login launch (the login item's `--hidden`) opens quietly in the tray, not in a window. */
+let startHidden = false;
+let startupState: StartupState | null = null;
 const aiPanel = createAiPanelController(() => mainWindow);
 
 /* ── Single-instance lock ──────────────────────────────────────────────────── */
@@ -87,16 +100,24 @@ if (!gotLock) {
 /** A deep link that arrived before the app finished starting. */
 let pendingDeepLink: string | null = findDeepLinkArg(process.argv);
 
+const trayCallbacks: TrayCallbacks = {
+  onOpen: focusMainWindow,
+  onQuit: () => {
+    isQuitting = true;
+    app.quit();
+  },
+  startsAtLogin: () => currentStartup().openAtLogin,
+  onStartsAtLoginChange: (openAtLogin) => {
+    updateStartup(chooseStartup(openAtLogin));
+  },
+};
+
 function onReady(): void {
+  startHidden = isHiddenLaunch(process.argv, app.getLoginItemSettings().wasOpenedAtLogin);
+  syncLoginItem(currentStartup());
   registerIpcHandlers();
   createMainWindow();
-  tray = createTray(assetsDir, {
-    onOpen: focusMainWindow,
-    onQuit: () => {
-      isQuitting = true;
-      app.quit();
-    },
-  });
+  tray = createTray(assetsDir, trayCallbacks);
   if (pendingDeepLink) {
     navigateToDeepLink(pendingDeepLink);
     pendingDeepLink = null;
@@ -134,7 +155,12 @@ function createMainWindow(): void {
   hardenWebContents(mainWindow);
   persistWindowState(mainWindow);
 
-  mainWindow.once('ready-to-show', () => mainWindow?.show());
+  // Only the first window of a login launch stays hidden; Open from the tray shows it.
+  const showWhenReady = !startHidden;
+  startHidden = false;
+  mainWindow.once('ready-to-show', () => {
+    if (showWhenReady) mainWindow?.show();
+  });
 
   mainWindow.on('close', (event) => {
     // Hide to tray instead of quitting, unless the user chose Quit.
@@ -225,14 +251,44 @@ function navigateToDeepLink(deepLink: string): void {
 }
 
 function registerProtocol(): void {
-  if (process.defaultApp && process.argv.length >= 2) {
+  const entry = devEntry();
+  if (entry !== undefined) {
     // Running unpackaged (e.g. `electron .`): point the OS handler at this script.
-    app.setAsDefaultProtocolClient(DEEP_LINK_PROTOCOL, process.execPath, [
-      path.resolve(process.argv[1] ?? '.'),
-    ]);
+    app.setAsDefaultProtocolClient(DEEP_LINK_PROTOCOL, process.execPath, [entry]);
   } else {
     app.setAsDefaultProtocolClient(DEEP_LINK_PROTOCOL);
   }
+}
+
+/* ── Start with the computer ───────────────────────────────────────────────── */
+function currentStartup(): StartupState {
+  startupState ??= loadStartupState(app.getPath('userData'));
+  return startupState;
+}
+
+/** When running unpackaged (`electron .`), OS hand-offs must name this app's script. */
+function devEntry(): string | undefined {
+  return process.defaultApp && process.argv.length >= 2
+    ? path.resolve(process.argv[1] ?? '.')
+    : undefined;
+}
+
+/** Make the OS login item match `state`, writing only when it differs. */
+function syncLoginItem(state: StartupState): void {
+  const options = loginItemOptions(state.openAtLogin, devEntry());
+  if (app.getLoginItemSettings({ args: options.args }).openAtLogin === state.openAtLogin) return;
+  app.setLoginItemSettings(options);
+}
+
+function updateStartup(next: StartupState): StartupState {
+  const previous = currentStartup();
+  if (next.openAtLogin !== previous.openAtLogin || next.chosen !== previous.chosen) {
+    startupState = next;
+    saveStartupState(app.getPath('userData'), next);
+    syncLoginItem(next);
+    if (tray) refreshTrayMenu(tray, trayCallbacks);
+  }
+  return currentStartup();
 }
 
 /* ── IPC: the entire native surface exposed to the renderer ────────────────── */
@@ -275,6 +331,25 @@ function registerIpcHandlers(): void {
     // The threshold only decides `idle` vs `active`; the renderer applies its own from the seconds.
     return toActivitySample(powerMonitor.getSystemIdleTime(), powerMonitor.getSystemIdleState(60));
   });
+  // Start with the computer: the toggle, to the TManage page only, and a strict boolean only.
+  // `applyDefault` is the workspace default and never overrides the person's own choice.
+  const refuse = (): never => {
+    throw new Error('refused');
+  };
+  ipcMain.handle(IPC.startupGet, (event): StartupState =>
+    fromApp(event) ? currentStartup() : refuse(),
+  );
+  ipcMain.handle(IPC.startupSet, (event, openAtLogin: unknown): StartupState =>
+    fromApp(event) && isStrictBoolean(openAtLogin)
+      ? updateStartup(chooseStartup(openAtLogin))
+      : refuse(),
+  );
+  ipcMain.handle(IPC.startupApplyDefault, (event, openAtLogin: unknown): StartupState =>
+    fromApp(event) && isStrictBoolean(openAtLogin)
+      ? updateStartup(applyStartupDefault(currentStartup(), openAtLogin))
+      : refuse(),
+  );
+
   for (const name of POWER_MONITOR_EVENTS) {
     const activityEvent = toActivityEvent(name);
     if (activityEvent === null) continue;
