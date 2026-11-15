@@ -5,7 +5,7 @@ import {
   startsAsFigCanvas,
   ZIP_FAMILY_TOKENS,
 } from '../archive-inspection.js';
-import { judgeContentType } from '../content-signature.js';
+import { judgeContentType, TextualCheck } from '../content-signature.js';
 import { figViewFrom, viewerKindFor } from '../file-preview.service.js';
 import type { FilePreview } from '../file-previews.repository.js';
 import { pngCodec } from './codecs.js';
@@ -335,13 +335,13 @@ const OUTLINE: PreviewRequest = { kind: 'fig_outline', pageNo: 0 };
 describe('.fig upload is admitted as itself (FIGMA item 10)', () => {
   it('a ZIP declared as a Figma file passes; anything else declared as one does not', () => {
     const head = Buffer.from(figFile().subarray(0, 64));
-    expect(judgeContentType(FIG_MIME, head, { ok: () => false })).toMatchObject({
+    expect(judgeContentType(FIG_MIME, head, new TextualCheck())).toMatchObject({
       ok: true,
       detectedMimeType: FIG_MIME,
       detectedType: 'fig',
     });
     const pdf = Buffer.from('%PDF-1.7\n', 'latin1');
-    expect(judgeContentType(FIG_MIME, pdf, { ok: () => false })).toEqual({
+    expect(judgeContentType(FIG_MIME, pdf, new TextualCheck())).toEqual({
       ok: false,
       rejectionCode: 'type_mismatch',
     });
@@ -388,6 +388,7 @@ describe('the Kiwi decoder and the outline', () => {
 
   it('caps the frames listed and says so', () => {
     const outline = outlineOf(readCanvas(canvasFig(FILE)), {
+      ...OUTLINE_CAPS,
       maxPages: 200,
       maxFrames: 2,
       maxSectionDepth: 4,
