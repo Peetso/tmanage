@@ -508,6 +508,36 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/integrations/google-calendar/callback',
     reason: 'calendar_connection',
   },
+  // 53-14. A person's own calendar sync settings: the due-date mirror writes into their personal
+  // calendar and the feed routes mint or revoke a secret address of their items. The push
+  // webhooks are the providers' and the ICS feed is read by calendar apps, all signed out.
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/calendar-sync/:provider/due-date-mirror',
+    reason: 'calendar_connection',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/calendar-sync/feed',
+    reason: 'calendar_connection',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/calendar-sync/feed',
+    reason: 'calendar_connection',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/calendar-sync/feed',
+    reason: 'calendar_connection',
+  },
+  { method: 'POST', path: '/v1/public/calendar-push/google', reason: 'calendar_connection' },
+  { method: 'POST', path: '/v1/public/calendar-push/microsoft', reason: 'calendar_connection' },
+  {
+    method: 'GET',
+    path: '/v1/public/calendar-feeds/:token/tmanage.ics',
+    reason: 'calendar_connection',
+  },
   // 0237 slice B. The same for a person's own Outlook calendar connection.
   {
     method: 'GET',

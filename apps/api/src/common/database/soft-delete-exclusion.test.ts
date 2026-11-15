@@ -75,7 +75,7 @@ const LIST_READS: Readonly<Record<string, readonly string[]>> = {
   'docs/document-sharing.repository.ts': ['recent', 'contributors'],
   'decisions/decisions.repository.ts': ['list'],
   'decisions/comments.repository.ts': ['listForDecision'],
-  'calendar/meetings.repository.ts': ['list', 'listWindow'],
+  'calendar/meetings.repository.ts': ['list', 'listWindow', 'listForPersonWindow'],
   'calendar/meeting-agenda.repository.ts': ['listInWindow'],
   'calendar/meeting-client-attendees.repository.ts': ['listForClient'],
   'calendar/meeting-calendar.repository.ts': ['listAttachments'],

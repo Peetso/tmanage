@@ -195,7 +195,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // /onedrive-files (+4 classified).
 // FIX6 C3: work-items/:id/cloud-folders (list, attach, remove, children, content) and the portal's
 // list, children and content (+8 classified).
-const EXPECTED_ROUTE_COUNT = 1445;
+// 53-14: calendar-sync due-date mirror and feed (GET/POST/DELETE), the two push webhooks and the
+// ICS feed (+7 NEVER).
+const EXPECTED_ROUTE_COUNT = 1452;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).
