@@ -776,6 +776,8 @@ import type {
   PortalJourneyStep as ApiPortalJourneyStep,
   PortalJourneyTurn as ApiPortalJourneyTurn,
 } from '../../apps/api/src/modules/portal/portal-journey.js';
+import type { WorkflowFlowView as ApiWorkflowFlowView } from '../../apps/api/src/modules/automations/flow.controller.js';
+import type { WorkflowFlowSummary as WebWorkflowFlowSummary } from '../../apps/web/src/lib/api/automation-flow';
 import type { PortalAccessLogEvent as WebPortalAccessLogEvent } from '../../apps/web/src/lib/api/portal-access-log';
 import type {
   PortalAnnouncement as WebPortalAnnouncement,
@@ -4525,3 +4527,9 @@ type _autoTrackingPolicyChoice = Assert<
 type _portalJourney = Assert<Exact<ApiPortalJourney, WebPortalJourney>>;
 type _portalJourneyStep = Assert<Exact<ApiPortalJourneyStep, WebPortalJourneyStep>>;
 type _portalJourneyTurn = Assert<Exact<ApiPortalJourneyTurn, WebPortalJourneyTurn>>;
+
+/**
+ * 58-C1 branching rule builder. `GET|PUT …/automations/templates/:templateId/flow` (and the turn-on)
+ * answer `WorkflowFlowView`, read by apps/web/src/lib/api/automation-flow.ts.
+ */
+type _workflowFlow = Assert<Exact<ApiWorkflowFlowView, WebWorkflowFlowSummary>>;
