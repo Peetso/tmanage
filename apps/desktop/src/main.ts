@@ -14,7 +14,12 @@ import path from 'node:path';
 import { app, BrowserWindow, Notification, ipcMain, powerMonitor, shell } from 'electron';
 import type { Tray } from 'electron';
 import { resolveConfig } from './config';
-import { classifyNavigation, isInAppNavigation, shouldOpenExternally } from './navigation-guard';
+import {
+  classifyNavigation,
+  isAppOriginFrame,
+  isInAppNavigation,
+  shouldOpenExternally,
+} from './navigation-guard';
 import { DEEP_LINK_PROTOCOL, findDeepLinkArg, resolveDeepLink } from './deep-link';
 import { createTray, refreshTrayMenu, type TrayCallbacks } from './tray';
 import { loadWindowState, saveWindowState, type WindowState } from './window-state';
@@ -336,16 +341,19 @@ function registerIpcHandlers(): void {
   const refuse = (): never => {
     throw new Error('refused');
   };
+  // Start with the computer: only the TManage window, and only while it shows a TManage page.
+  const fromAppPage = (event: Electron.IpcMainInvokeEvent): boolean =>
+    fromApp(event) && isAppOriginFrame(event.senderFrame?.url, config.appOrigin);
   ipcMain.handle(IPC.startupGet, (event): StartupState =>
-    fromApp(event) ? currentStartup() : refuse(),
+    fromAppPage(event) ? currentStartup() : refuse(),
   );
   ipcMain.handle(IPC.startupSet, (event, openAtLogin: unknown): StartupState =>
-    fromApp(event) && isStrictBoolean(openAtLogin)
+    fromAppPage(event) && isStrictBoolean(openAtLogin)
       ? updateStartup(chooseStartup(openAtLogin))
       : refuse(),
   );
   ipcMain.handle(IPC.startupApplyDefault, (event, openAtLogin: unknown): StartupState =>
-    fromApp(event) && isStrictBoolean(openAtLogin)
+    fromAppPage(event) && isStrictBoolean(openAtLogin)
       ? updateStartup(applyStartupDefault(currentStartup(), openAtLogin))
       : refuse(),
   );

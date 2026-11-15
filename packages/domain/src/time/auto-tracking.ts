@@ -40,6 +40,38 @@ export const IDLE_THRESHOLD_MAX_MINUTES = 15;
 export const IDLE_THRESHOLD_DEFAULT_MINUTES = 5;
 
 /**
+ * TIMER item 17: where a person's tracking runs, as their page reports it — the desktop app, or a
+ * browser whose idle-detection permission is allowed, not asked yet, blocked, or missing. The one
+ * schema of `PUT time/auto/device`: the API parses with it and the web builds its body from it.
+ */
+export const TRACKING_DEVICE_KINDS = [
+  'desktop',
+  'browser_allowed',
+  'browser_prompt',
+  'browser_blocked',
+  'browser_unsupported',
+] as const;
+export type TrackingDeviceKind = (typeof TRACKING_DEVICE_KINDS)[number];
+
+/** The body of `PUT time/auto/device`. */
+export interface TrackingDeviceReport {
+  readonly device: TrackingDeviceKind;
+}
+
+export function isTrackingDeviceKind(value: unknown): value is TrackingDeviceKind {
+  return (TRACKING_DEVICE_KINDS as readonly unknown[]).includes(value);
+}
+
+/** The report, or null when the body is not exactly `{ device: <kind> }`. */
+export function parseTrackingDeviceReport(body: unknown): TrackingDeviceReport | null {
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) return null;
+  const keys = Object.keys(body);
+  if (keys.length !== 1 || keys[0] !== 'device') return null;
+  const device: unknown = (body as { readonly device?: unknown }).device;
+  return isTrackingDeviceKind(device) ? { device } : null;
+}
+
+/**
  * Automatic time is reported by the person's own device, so the server bounds it: at most
  * {@link AUTO_DAY_CAP_MINUTES} a person per local day, and a day above
  * {@link AUTO_DAY_REVIEW_MINUTES} or a session above {@link AUTO_SESSION_REVIEW_MINUTES} without a

@@ -80,6 +80,13 @@ describe('filterByPermission', () => {
     expect(owner).toHaveLength(CREATE_ACTIONS.length);
   });
 
+  it('offers Team time only to people who may see it (TIMER item 5)', () => {
+    const ids = (role: 'owner' | 'member') =>
+      filterByPermission(PALETTE_SPECS, (c) => hasCapability(role, c)).map((s) => s.id);
+    expect(ids('owner')).toContain('nav-team-time');
+    expect(ids('member')).not.toContain('nav-team-time');
+  });
+
   it('fails closed while the role is unknown', () => {
     expect(filterByPermission(CREATE_ACTIONS, () => false)).toEqual([]);
   });

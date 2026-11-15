@@ -733,6 +733,10 @@ describe('item 17: where tracking runs', () => {
     await expect(h.service.reportDevice(me, member, { device: 'laptop' })).rejects.toMatchObject({
       status: 400,
     });
+    // The old web body `{ kind }` is refused: the field is the shared schema's `device`.
+    await expect(h.service.reportDevice(me, member, { kind: 'desktop' })).rejects.toMatchObject({
+      status: 400,
+    });
     expect(await h.service.reportDevice(me, member, { device: 'browser_blocked' })).toEqual({
       device: 'browser_blocked',
     });

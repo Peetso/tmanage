@@ -1,4 +1,4 @@
-import type { AutoTrackingPolicy } from '@tmanage/domain';
+import type { AutoTrackingPolicy, TrackingDeviceKind, TrackingDeviceReport } from '@tmanage/domain';
 import type { ApiClient } from './client';
 
 /**
@@ -61,8 +61,7 @@ export interface TeamPerson {
 }
 
 /** Item 17: where automatic tracking runs (the desktop app, or a browser and its permission). */
-export type DeviceKind =
-  'desktop' | 'browser_allowed' | 'browser_prompt' | 'browser_blocked' | 'browser_unsupported';
+export type DeviceKind = TrackingDeviceKind;
 
 export interface TeamTime {
   readonly from: string;
@@ -167,7 +166,7 @@ export async function reportTrackingDevice(
   await client.request<unknown>({
     method: 'PUT',
     path: `${org(organizationSlug)}/auto/device`,
-    body: { kind },
+    body: { device: kind } satisfies TrackingDeviceReport,
   });
 }
 

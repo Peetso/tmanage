@@ -76,8 +76,12 @@ export function useAutoTracker(api: ApiClient, organizationSlug: string): AutoTr
     const kind = deviceKindOf(support, permission);
     if (reported.current === kind) return;
     reported.current = kind;
-    void reportTrackingDevice(api, organizationSlug, kind).catch(() => {
+    void reportTrackingDevice(api, organizationSlug, kind).catch((error: unknown) => {
       reported.current = null;
+      // A refused report hides the owner's "Where it runs"; never let that pass unseen in dev.
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('[auto-timer] the device report was refused', error);
+      }
     });
   }, [api, organizationSlug, policy, support, permission]);
 

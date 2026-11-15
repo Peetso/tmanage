@@ -58,6 +58,19 @@ export function classifyNavigation(targetUrl: string, appOrigin: string): Naviga
   return 'block';
 }
 
+/**
+ * Whether an IPC call comes from a page of the TManage app itself: the sending frame's origin must
+ * be the app's exact origin. A page the window was steered to (or an embedded frame) is refused.
+ */
+export function isAppOriginFrame(frameUrl: string | undefined, appOrigin: string): boolean {
+  if (frameUrl === undefined || frameUrl === '') return false;
+  try {
+    return new URL(frameUrl).origin === new URL(appOrigin).origin;
+  } catch {
+    return false;
+  }
+}
+
 /** Convenience predicate for Electron's `setWindowOpenHandler`. */
 export function shouldOpenExternally(targetUrl: string, appOrigin: string): boolean {
   return classifyNavigation(targetUrl, appOrigin) === 'external';

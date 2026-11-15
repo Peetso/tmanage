@@ -7,12 +7,14 @@ import {
   IDLE_THRESHOLD_MIN_MINUTES,
   clampIdleSeconds,
   dayNumberOf,
+  TRACKING_DEVICE_KINDS,
   isAutoTrackingPolicy,
+  isTrackingDeviceKind,
   isoDateOfDayNumber,
   localDateOf,
   zonedInstant,
 } from '@tmanage/domain';
-import type { AutoTrackingPolicy } from '@tmanage/domain';
+import type { AutoTrackingPolicy, TrackingDeviceKind } from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
 import { MAX_SPAN_MS } from './time-rules.js';
 
@@ -258,21 +260,12 @@ export function parseIdleThresholdMinutes(raw: unknown, field: string): number {
 }
 
 /**
- * Where a person's tracking runs, as their page reports it (TIMER item 17): the desktop app, or a
- * browser whose idle-detection permission is allowed, not asked yet, blocked, or missing.
+ * Where a person's tracking runs (TIMER item 17). The kinds and the request shape are the shared
+ * schema in @tmanage/domain, so the web client and this parser cannot drift apart.
  */
-export const DEVICE_KINDS = [
-  'desktop',
-  'browser_allowed',
-  'browser_prompt',
-  'browser_blocked',
-  'browser_unsupported',
-] as const;
-export type DeviceKind = (typeof DEVICE_KINDS)[number];
-
-export function isDeviceKind(value: unknown): value is DeviceKind {
-  return (DEVICE_KINDS as readonly unknown[]).includes(value);
-}
+export const DEVICE_KINDS = TRACKING_DEVICE_KINDS;
+export type DeviceKind = TrackingDeviceKind;
+export const isDeviceKind = isTrackingDeviceKind;
 
 export function parseDeviceKind(raw: unknown): DeviceKind {
   if (!isDeviceKind(raw)) throw invalid('device', `must be one of ${DEVICE_KINDS.join(', ')}`);

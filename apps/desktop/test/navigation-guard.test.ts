@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isAppOriginFrame,
   classifyAssistantNavigation,
   classifyNavigation,
   isInAppNavigation,
@@ -85,5 +86,18 @@ describe('classifyAssistantNavigation (AI side panel)', () => {
 
   it('leaves the TManage window rules unchanged: assistants stay outward links there', () => {
     expect(classifyNavigation('https://claude.ai/new', ORIGIN)).toBe('external');
+  });
+});
+
+describe('isAppOriginFrame (start-with-the-computer IPC)', () => {
+  const app = 'https://tmanage.example.com';
+  it('accepts only a frame on the app’s exact origin', () => {
+    expect(isAppOriginFrame('https://tmanage.example.com/acme/my-day', app)).toBe(true);
+    expect(isAppOriginFrame('https://evil.example.com/', app)).toBe(false);
+    expect(isAppOriginFrame('https://tmanage.example.com.evil.test/', app)).toBe(false);
+    expect(isAppOriginFrame('http://tmanage.example.com/', app)).toBe(false);
+    expect(isAppOriginFrame('about:blank', app)).toBe(false);
+    expect(isAppOriginFrame(undefined, app)).toBe(false);
+    expect(isAppOriginFrame('', app)).toBe(false);
   });
 });

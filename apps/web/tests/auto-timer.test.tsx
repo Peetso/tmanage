@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ActivitySignal } from '@tmanage/domain';
+import { parseTrackingDeviceReport, type ActivitySignal } from '@tmanage/domain';
 import { ApiClient } from '../src/lib/api/client';
 import type { AutoTrackingState, TeamTime } from '../src/lib/api/time-auto';
 import { activitySupport, startActivitySource } from '../src/lib/activity-sources';
@@ -255,7 +255,10 @@ describe('automatic timer chip', () => {
       ),
     );
     const put = calls.find((call) => call.url.endsWith('/auto/device'));
-    expect(JSON.parse(put?.body ?? '{}')).toEqual({ kind: 'browser_unsupported' });
+    // Checked against the shared schema the API parses with, not a hand-written shape.
+    expect(parseTrackingDeviceReport(JSON.parse(put?.body ?? '{}'))).toEqual({
+      device: 'browser_unsupported',
+    });
   });
 
   it('item 1: hidden for a company that never used it; "Off" with the reason once it did', async () => {

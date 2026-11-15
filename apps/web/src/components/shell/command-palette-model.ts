@@ -181,6 +181,16 @@ export const NAVIGATE_ITEMS: readonly PaletteItemSpec[] = [
     hint: 'G P',
     run: { type: 'href', href: '/projects/portfolio' },
   },
+  {
+    // TIMER item 5: Team time, for the people allowed to see it (the API checks it again).
+    id: 'nav-team-time',
+    group: 'navigate',
+    messageKey: 'FinanceCore.tabTeamTime',
+    fallback: 'Team time',
+    keywords: ['timer', 'tracking', 'who is working', 'time'],
+    capability: 'time.view_team',
+    run: { type: 'href', href: '/finance/team-time' },
+  },
 ];
 
 /** Every static row the palette offers, before permissions. */
