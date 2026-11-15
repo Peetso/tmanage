@@ -182,6 +182,10 @@ import type {
   CalendarTeamView as ApiCalendarTeamView,
 } from '../../apps/api/src/modules/google-calendar/google-calendar.service.js';
 import type { MicrosoftCalendarStatusView as ApiMicrosoftCalendarStatusView } from '../../apps/api/src/modules/microsoft-calendar/microsoft-calendar.service.js';
+import type {
+  CalendarFeedCreatedView as ApiCalendarFeedCreatedView,
+  CalendarFeedView as ApiCalendarFeedView,
+} from '../../apps/api/src/modules/google-calendar/calendar-sync.service.js';
 import type { MeetingAttendeeView as ApiMeetingAttendeeView } from '../../apps/api/src/modules/calendar/meeting-attendees.service.js';
 import type { MeetingClientAttendeeView as ApiMeetingClientAttendeeView } from '../../apps/api/src/modules/calendar/meeting-attendees.service.js';
 import type { ClientAttendeeCandidateView as ApiClientAttendeeCandidateView } from '../../apps/api/src/modules/calendar/meeting-attendees.service.js';
@@ -702,6 +706,8 @@ import type {
   CalendarConnectionStatusView as WebCalendarConnectionStatusView,
   CalendarTeamView as WebCalendarTeamView,
   MicrosoftCalendarStatusView as WebMicrosoftCalendarStatusView,
+  CalendarFeedCreatedView as WebCalendarFeedCreatedView,
+  CalendarFeedView as WebCalendarFeedView,
 } from '../../apps/web/src/lib/api/calendar-connections';
 import type { MeetingAttendeeView as WebMeetingAttendeeView } from '../../apps/web/src/lib/api/meeting-attendees';
 import type { MeetingClientAttendeeView as WebMeetingClientAttendeeView } from '../../apps/web/src/lib/api/meeting-attendees';
@@ -1556,6 +1562,9 @@ type _calendarTeam = Assert<Exact<ApiCalendarTeamView, WebCalendarTeamView>>;
 type _microsoftCalendarStatus = Assert<
   Exact<ApiMicrosoftCalendarStatusView, WebMicrosoftCalendarStatusView>
 >;
+/** 53-14: the caller's own ICS feed address state (`…/calendar-sync/feed`). */
+type _calendarFeed = Assert<Exact<ApiCalendarFeedView, WebCalendarFeedView>>;
+type _calendarFeedCreated = Assert<Exact<ApiCalendarFeedCreatedView, WebCalendarFeedCreatedView>>;
 
 /**
  * CAL-01 / MTG-01 attendees + RSVP (x126). `GET`/`POST .../meetings/:meetingId/attendees` and

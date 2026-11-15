@@ -45,6 +45,11 @@ export interface CalendarAccount {
   readonly status: 'not_connected' | 'connected' | 'error';
   readonly accountEmail: string | null;
   readonly lastSyncedAt: string | null;
+  /** 53-14: the connection's health and the due-date mirror opt-in. */
+  readonly lastErrorCode?: string | null;
+  readonly lastErrorAt?: string | null;
+  readonly pushExpiresAt?: string | null;
+  readonly mirrorDueDates?: boolean;
 }
 
 /**

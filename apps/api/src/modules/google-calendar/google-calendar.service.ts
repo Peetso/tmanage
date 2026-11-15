@@ -36,6 +36,14 @@ import {
 } from './google-calendar.google.js';
 import { GoogleCalendarRepository } from './google-calendar.repository.js';
 import type { CalendarProviderAdapter, PullOutcome } from './calendar-sync.job.js';
+import { CalendarSyncExtras, healthOf, nextDay } from './calendar-sync-extras.js';
+import type {
+  AllDayEvent,
+  CalendarHealthFields,
+  CalendarRemote,
+  RemoteSession,
+} from './calendar-sync-extras.js';
+import { GOOGLE_WATCH_TTL_MS, PUSH_PATH_GOOGLE } from './calendar-push.js';
 
 /**
  * Google Calendar + Meet for meetings (0237) — the application service.
@@ -65,7 +73,7 @@ export interface CalendarConnectionStatusView {
     readonly connectedAt: string | null;
     readonly lastSyncedAt: string | null;
     readonly lastErrorCode: string | null;
-  };
+  } & CalendarHealthFields;
 }
 
 /**
@@ -103,6 +111,8 @@ export interface GoogleCalendarServiceDeps {
    * `calendar-provider.ts` picks a single calendar (a Teams meeting goes to Outlook).
    */
   readonly microsoftConfigured?: boolean;
+  /** 53-14: `WEB_PUBLIC_URL`, for the link on a mirrored due date. */
+  readonly webPublicUrl?: string;
 }
 
 /** The additional data binding a stored refresh token to its organization, person and provider. */
@@ -130,8 +140,12 @@ function errorCode(error: unknown): string {
   return 'unavailable';
 }
 
-export class GoogleCalendarService implements CalendarSyncPort, CalendarProviderAdapter {
+export class GoogleCalendarService
+  implements CalendarSyncPort, CalendarProviderAdapter, CalendarRemote
+{
   readonly provider = GOOGLE;
+  readonly pushPath = PUSH_PATH_GOOGLE;
+  private readonly extras: CalendarSyncExtras;
   private readonly connections: GoogleCalendarRepository;
   private readonly meetings: MeetingsRepository;
   private readonly calendar: MeetingCalendarRepository;
@@ -151,6 +165,12 @@ export class GoogleCalendarService implements CalendarSyncPort, CalendarProvider
     };
     this.now = deps.now ?? (() => new Date());
     this.log = deps.log ?? ((line) => console.warn(line));
+    this.extras = new CalendarSyncExtras(deps.database, {
+      apiPublicUrl: deps.apiPublicUrl,
+      webPublicUrl: deps.webPublicUrl ?? '',
+      now: this.now,
+      log: this.log,
+    });
   }
 
   get redirectUri(): string {
@@ -264,6 +284,8 @@ export class GoogleCalendarService implements CalendarSyncPort, CalendarProvider
       this.connections.findFor(runner, context, context.userId, GOOGLE),
     );
     if (!connection || connection.status === 'disconnected') return this.toStatus(connection);
+    // 53-14: stop the push channel and remove mirrored due dates while the grant still works.
+    await this.extras.teardown(this, context, connection.id);
     if (connection.refreshTokenEnc) {
       try {
         await this.deps.transport.revoke(
@@ -532,6 +554,7 @@ export class GoogleCalendarService implements CalendarSyncPort, CalendarProvider
           syncCursor: next ?? cursor,
           lastSyncedAt: this.now(),
           lastErrorCode: null,
+          lastErrorAt: null,
         }),
       );
       return 'ok';
@@ -679,7 +702,10 @@ export class GoogleCalendarService implements CalendarSyncPort, CalendarProvider
   /** A refused grant moves the connection to `error` ("Reconnect"); anything else is logged. */
   private async recordFailure(context: TenantContext, connection: Live, error: unknown) {
     this.log(`[calendar] Google call for connection ${connection.id} failed: ${errorCode(error)}`);
-    if (!(error instanceof CalendarGrantRevokedError)) return;
+    if (!(error instanceof CalendarGrantRevokedError)) {
+      await this.extras.noteError(context, connection.id, errorCode(error));
+      return;
+    }
     this.tokens.delete(connection.id);
     try {
       await this.deps.database.transaction(context, (tx) =>
@@ -727,9 +753,100 @@ export class GoogleCalendarService implements CalendarSyncPort, CalendarProvider
         connectedAt:
           status !== 'not_connected' && row?.connectedAt ? row.connectedAt.toISOString() : null,
         lastSyncedAt: row?.lastSyncedAt ? row.lastSyncedAt.toISOString() : null,
-        lastErrorCode: status === 'error' ? (row?.lastErrorCode ?? null) : null,
+        // 53-14: a connected calendar's last problem shows too, until a pull succeeds.
+        lastErrorCode: status === 'not_connected' ? null : (row?.lastErrorCode ?? null),
+        ...healthOf(row, status !== 'not_connected'),
       },
     };
+  }
+
+  // ── 53-14: push channel and due-date mirror calls (CalendarRemote) ──
+
+  async openSession(context: TenantContext, connectionId: string): Promise<RemoteSession | null> {
+    if (!this.deps.config) return null;
+    const connection = await this.deps.database.read(context, (runner) =>
+      this.connections.findById(runner, context, connectionId),
+    );
+    if (!connection || connection.status !== 'connected' || !connection.refreshTokenEnc)
+      return null;
+    const live = connection as Live;
+    return { connection: live, accessToken: await this.accessToken(context, live) };
+  }
+
+  async openPush(
+    session: RemoteSession,
+    input: { readonly channelId: string; readonly secret: string; readonly address: string },
+  ): Promise<{
+    readonly channelId: string;
+    readonly resourceId: string | null;
+    readonly expiresAt: Date;
+  }> {
+    const opened = await this.deps.transport.watchEvents(
+      session.accessToken,
+      session.connection.calendarId,
+      {
+        id: input.channelId,
+        token: input.secret,
+        address: input.address,
+        ttlSeconds: GOOGLE_WATCH_TTL_MS / 1000,
+      },
+    );
+    return { channelId: input.channelId, ...opened };
+  }
+
+  /** Google channels cannot be extended: the extras open a new one and stop this one. */
+  async renewPush(): Promise<Date | null> {
+    return null;
+  }
+
+  async closePush(session: RemoteSession): Promise<void> {
+    const { watchChannelId, watchResourceId } = session.connection;
+    if (!watchChannelId || !watchResourceId) return;
+    await this.deps.transport.stopChannel(session.accessToken, {
+      id: watchChannelId,
+      resourceId: watchResourceId,
+    });
+  }
+
+  async putAllDay(
+    session: RemoteSession,
+    eventId: string | null,
+    event: AllDayEvent,
+  ): Promise<string> {
+    const body = {
+      summary: event.title,
+      description: event.link,
+      start: { date: event.date },
+      end: { date: nextDay(event.date) },
+      transparency: 'transparent',
+      reminders: { useDefault: false, overrides: [] },
+      source: { title: 'TManage', url: event.link },
+    };
+    const { calendarId } = session.connection;
+    if (eventId) {
+      try {
+        const patched = await this.deps.transport.patchEvent(
+          session.accessToken,
+          calendarId,
+          eventId,
+          body,
+          'none',
+        );
+        return patched.id;
+      } catch (error) {
+        // Deleted in Google by the person: write it again.
+        if (!(error instanceof CalendarEventNotFoundError)) throw error;
+      }
+    }
+    return (await this.deps.transport.insertEvent(session.accessToken, calendarId, body)).id;
+  }
+
+  async deleteEvent(session: RemoteSession, eventId: string): Promise<void> {
+    await this.deps.transport.deleteEvent(
+      session.accessToken,
+      session.connection.calendarId,
+      eventId,
+    );
   }
 }
 

@@ -1,7 +1,7 @@
-import { and, asc, eq, gt, gte, isNull, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { meetings } from '../../common/database/schema.js';
+import { meetingAttendees, meetings } from '../../common/database/schema.js';
 import type { MeetingRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import { formatReminders } from './meeting-options.js';
@@ -172,6 +172,49 @@ export class MeetingsRepository {
       .select()
       .from(meetings)
       .where(and(...predicates))
+      .orderBy(asc(meetings.startsAt), asc(meetings.id))
+      .limit(options.limit);
+  }
+
+  /**
+   * 53-14. The meetings one person organizes or is invited to (by their membership), starting in
+   * `[from, to)`, not cancelled, soonest first — the person's ICS feed. The relation filter is the
+   * caller's, after the read, as for {@link listWindow}.
+   */
+  async listForPersonWindow(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    options: {
+      readonly userId: string;
+      readonly membershipId: string;
+      readonly from: Date;
+      readonly to: Date;
+      readonly limit: number;
+    },
+  ): Promise<readonly MeetingRow[]> {
+    const db = tenantDrizzle(runner);
+    const invited = db
+      .select({ meetingId: meetingAttendees.meetingId })
+      .from(meetingAttendees)
+      .where(
+        and(
+          eq(meetingAttendees.organizationId, context.organizationId),
+          eq(meetingAttendees.membershipId, options.membershipId),
+        ),
+      );
+    return db
+      .select()
+      .from(meetings)
+      .where(
+        and(
+          eq(meetings.organizationId, context.organizationId),
+          gte(meetings.startsAt, options.from),
+          lt(meetings.startsAt, options.to),
+          isNull(meetings.deletedAt),
+          isNull(meetings.cancelledAt),
+          or(eq(meetings.createdByUserId, options.userId), inArray(meetings.id, invited)),
+        ),
+      )
       .orderBy(asc(meetings.startsAt), asc(meetings.id))
       .limit(options.limit);
   }

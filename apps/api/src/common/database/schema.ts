@@ -9816,9 +9816,21 @@ export const calendarConnections = mysqlTable(
     disconnectedAt: datetime('disconnected_at', { mode: 'date', fsp: 3 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** 0348 (53-14). Google watch channel id or Graph subscription id; unique when set. */
+    watchChannelId: varchar('watch_channel_id', { length: 64 }),
+    /** 0348. SHA-256 (hex) of the channel token / clientState; the secret is never stored. */
+    watchTokenHash: char('watch_token_hash', { length: 64 }),
+    /** 0348. Google's resource id of the channel (NULL for Graph). */
+    watchResourceId: varchar('watch_resource_id', { length: 255 }),
+    watchExpiresAt: datetime('watch_expires_at', { mode: 'date', fsp: 3 }),
+    /** 0348. When the last failed sync happened (`last_error_code` says what failed). */
+    lastErrorAt: datetime('last_error_at', { mode: 'date', fsp: 3 }),
+    /** 0348. The person's opt-in: their work items' due dates as all-day events. */
+    mirrorDueDates: boolean('mirror_due_dates').notNull().default(false),
   },
   (table) => [
     uniqueIndex('uq_calendar_connections_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_calendar_connections_watch').on(table.watchChannelId),
     uniqueIndex('uq_calendar_connections_person').on(
       table.organizationId,
       table.userId,
@@ -13758,3 +13770,60 @@ export const cloudFolderImports = mysqlTable(
 export type CloudFolderImportRow = typeof cloudFolderImports.$inferSelect;
 
 Object.assign(TABLES, { cloud_folder_imports: cloudFolderImports });
+
+/**
+ * 0348 (53-14). Which provider event mirrors which work item's due date in a person's connected
+ * calendar, with a fingerprint (SHA-256 of title + date) of what was last written. TENANT.
+ */
+export const calendarDueMirrors = mysqlTable(
+  'calendar_due_mirrors',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    connectionId: char('connection_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    externalEventId: varchar('external_event_id', { length: 512 }).notNull(),
+    fingerprint: char('fingerprint', { length: 64 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_calendar_due_mirrors_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_calendar_due_mirrors_item').on(
+      table.organizationId,
+      table.connectionId,
+      table.workItemId,
+    ),
+  ],
+);
+
+export type CalendarDueMirrorRow = typeof calendarDueMirrors.$inferSelect;
+
+/**
+ * 0348 (53-14). A person's secret ICS feed address, as a SHA-256 hash only: one per person per
+ * organization; rotating replaces the hash, revoking deletes the row. TENANT; the signed-out feed
+ * route finds a row by hash only through `bootstrapRead(['calendar_feed_tokens'])`.
+ */
+export const calendarFeedTokens = mysqlTable(
+  'calendar_feed_tokens',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    tokenHash: char('token_hash', { length: 64 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    lastUsedAt: datetime('last_used_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_calendar_feed_tokens_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_calendar_feed_tokens_person').on(table.organizationId, table.userId),
+    uniqueIndex('uq_calendar_feed_tokens_hash').on(table.tokenHash),
+  ],
+);
+
+export type CalendarFeedTokenRow = typeof calendarFeedTokens.$inferSelect;
+
+Object.assign(TABLES, {
+  calendar_due_mirrors: calendarDueMirrors,
+  calendar_feed_tokens: calendarFeedTokens,
+});

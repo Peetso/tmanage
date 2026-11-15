@@ -10,8 +10,12 @@ import { ApiRequestError } from '../../lib/api/errors';
 import {
   completeCalendarConnect,
   disconnectCalendar,
+  getCalendarFeed,
   getCalendarTeam,
   readCalendarReturn,
+  revokeCalendarFeed,
+  rotateCalendarFeed,
+  setDueDateMirror,
   startCalendarConnect,
   type CalendarProviderId,
 } from '../../lib/api/calendar-connections';
@@ -93,6 +97,11 @@ export function CalendarConnectionsScreen({
       disconnectCalendar(api, organizationSlug, provider),
     onSuccess: refresh,
   });
+  const mirror = useMutation({
+    mutationFn: (input: { provider: CalendarProviderId; enabled: boolean }) =>
+      setDueDateMirror(api, organizationSlug, input.provider, input.enabled),
+    onSuccess: refresh,
+  });
   const complete = useMutation({
     mutationFn: (input: { provider: CalendarProviderId; code: string; state: string }) =>
       completeCalendarConnect(api, organizationSlug, input.provider, input),
@@ -146,11 +155,15 @@ export function CalendarConnectionsScreen({
                 account={account}
                 now={now}
                 busy={connect.isPending || disconnect.isPending || complete.isPending}
+                mirrorBusy={mirror.isPending}
                 onConnect={() => connect.mutate(account.provider)}
                 onDisconnect={() => disconnect.mutate(account.provider)}
+                onMirror={(enabled) => mirror.mutate({ provider: account.provider, enabled })}
               />
             ))}
           </div>
+
+          <FeedCard api={api} organizationSlug={organizationSlug} />
 
           {accounts.some((a) => a.status === 'connected') ? <Defaults accounts={accounts} /> : null}
 
@@ -165,16 +178,21 @@ function AccountCard({
   account,
   now,
   busy,
+  mirrorBusy,
   onConnect,
   onDisconnect,
+  onMirror,
 }: {
   account: CalendarAccount;
   now: Date;
   busy: boolean;
+  mirrorBusy: boolean;
   onConnect: () => void;
   onDisconnect: () => void;
+  onMirror: (enabled: boolean) => void;
 }) {
   const t = useT();
+  const locale = useActiveLocale();
   const name = calendarName(account.provider);
   const microsoft = account.provider === 'microsoft';
   const minutes = account.lastSyncedAt
@@ -206,6 +224,23 @@ function AccountCard({
             ? ` · ${fillTemplate(t('CalendarConnections.syncedAgo'), { n: String(minutes) })}`
             : ''}
         </p>
+      ) : null}
+      {account.status === 'connected' ? (
+        <Health account={account} locale={locale} name={name} />
+      ) : null}
+      {account.status === 'connected' ? (
+        <div className="tm-mtg-field">
+          <label className="tm-mtg-check">
+            <input
+              type="checkbox"
+              checked={account.mirrorDueDates === true}
+              disabled={mirrorBusy}
+              onChange={(event) => onMirror(event.target.checked)}
+            />
+            {t('CalendarConnections.mirrorLabel')}
+          </label>
+          <p className="tm-mtg-hint">{t('CalendarConnections.mirrorHint')}</p>
+        </div>
       ) : null}
       {account.status === 'error' ? (
         <p className="tm-mtg-account__line" data-status="error">
@@ -254,6 +289,170 @@ function AccountCard({
           >
             {fillTemplate(t('CalendarConnections.openNamed'), { name })}
           </a>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+/** 53-14: plain words for a sync problem code; anything unknown reads as the generic one. */
+const ERROR_KEYS = {
+  unavailable: 'CalendarConnections.errorUnavailable',
+  event_not_found: 'CalendarConnections.errorEventGone',
+  recurrence_unsupported: 'CalendarConnections.errorRecurrence',
+} as const;
+
+function errorKey(code: string) {
+  return Object.prototype.hasOwnProperty.call(ERROR_KEYS, code)
+    ? ERROR_KEYS[code as keyof typeof ERROR_KEYS]
+    : 'CalendarConnections.errorOther';
+}
+
+function when(locale: string, iso: string): string {
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(
+    new Date(iso),
+  );
+}
+
+/** 53-14: how this calendar stays in step (instant updates or each minute) and its last problem. */
+function Health({
+  account,
+  locale,
+  name,
+}: {
+  account: CalendarAccount;
+  locale: string;
+  name: string;
+}) {
+  const t = useT();
+  return (
+    <>
+      <p className="tm-mtg-quiet">
+        {account.pushExpiresAt
+          ? fillTemplate(t('CalendarConnections.pushOn'), {
+              date: when(locale, account.pushExpiresAt),
+            })
+          : t('CalendarConnections.pushOff')}
+      </p>
+      {account.lastErrorCode ? (
+        <p className="tm-mtg-account__line" data-status="error" role="status">
+          <span className="tm-mtg-dot" aria-hidden="true" />
+          {fillTemplate(t('CalendarConnections.lastProblem'), {
+            when: account.lastErrorAt ? when(locale, account.lastErrorAt) : '',
+            what: fillTemplate(t(errorKey(account.lastErrorCode)), { name }),
+          })}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * 53-14: "Calendar feed" — a secret, read-only ICS address of the person's own meetings and due
+ * dates for any calendar app. The address is shown once, right after it is made.
+ */
+function FeedCard({ api, organizationSlug }: { api: ApiClient; organizationSlug: string }) {
+  const t = useT();
+  const locale = useActiveLocale();
+  const queries = useQueryClient();
+  const key = ['calendar-feed', organizationSlug];
+  const feed = useQuery({
+    queryKey: key,
+    queryFn: () => getCalendarFeed(api, organizationSlug),
+    retry: false,
+  });
+  const [address, setAddress] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const rotate = useMutation({
+    mutationFn: () => rotateCalendarFeed(api, organizationSlug),
+    onSuccess: (created) => {
+      setAddress(created.url);
+      setCopied(false);
+      void queries.invalidateQueries({ queryKey: key });
+    },
+  });
+  const revoke = useMutation({
+    mutationFn: () => revokeCalendarFeed(api, organizationSlug),
+    onSuccess: () => {
+      setAddress(null);
+      void queries.invalidateQueries({ queryKey: key });
+    },
+  });
+  if (feed.isError) return null;
+  const active = feed.data?.active === true;
+  const busy = rotate.isPending || revoke.isPending;
+  const copy = async () => {
+    if (!address) return;
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return (
+    <section className="tm-mtg-card" aria-labelledby="tm-cc-feed">
+      <div className="tm-mtg-card__head">
+        <h2 id="tm-cc-feed" className="tm-mtg-card__title">
+          {t('CalendarConnections.feedTitle')}
+        </h2>
+        <span className="tm-mtg-status" data-status={active ? 'connected' : 'not_connected'}>
+          {t(active ? 'CalendarConnections.feedOn' : 'CalendarConnections.feedOff')}
+        </span>
+      </div>
+      <p className="tm-mtg-quiet">{t('CalendarConnections.feedLede')}</p>
+      {active && !address ? (
+        <p className="tm-mtg-hint">
+          {feed.data?.lastUsedAt
+            ? fillTemplate(t('CalendarConnections.feedLastRead'), {
+                when: when(locale, feed.data.lastUsedAt),
+              })
+            : t('CalendarConnections.feedNotRead')}
+        </p>
+      ) : null}
+      {address ? (
+        <div className="tm-mtg-field">
+          <label className="tm-mtg-label" htmlFor="tm-cc-feed-url">
+            {t('CalendarConnections.feedAddress')}
+          </label>
+          <input
+            id="tm-cc-feed-url"
+            className="tm-mtg-input"
+            readOnly
+            value={address}
+            onFocus={(event) => event.target.select()}
+          />
+          <p className="tm-mtg-hint">{t('CalendarConnections.feedShownOnce')}</p>
+        </div>
+      ) : null}
+      {rotate.isError || revoke.isError ? (
+        <InlineAlert tone="danger" title={t('CalendarConnections.feedFailed')} live>
+          {t('CalendarConnections.feedFailedBody')}
+        </InlineAlert>
+      ) : null}
+      <div className="tm-mtg-account__actions">
+        {address ? (
+          <button type="button" className="tm-mtg-btn tm-mtg-btn--ink" onClick={() => void copy()}>
+            {t(copied ? 'CalendarConnections.feedCopied' : 'CalendarConnections.feedCopy')}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className={address ? 'tm-mtg-btn tm-mtg-btn--outline' : 'tm-mtg-btn tm-mtg-btn--ink'}
+          onClick={() => rotate.mutate()}
+          disabled={busy || feed.isPending}
+        >
+          {t(active ? 'CalendarConnections.feedNew' : 'CalendarConnections.feedCreate')}
+        </button>
+        {active ? (
+          <button
+            type="button"
+            className="tm-mtg-textlink"
+            onClick={() => revoke.mutate()}
+            disabled={busy}
+          >
+            {t('CalendarConnections.feedTurnOff')}
+          </button>
         ) : null}
       </div>
     </section>

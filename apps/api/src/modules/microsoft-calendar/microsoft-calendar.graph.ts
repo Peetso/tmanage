@@ -703,6 +703,15 @@ export interface MicrosoftCalendarTransport {
     accessToken: string,
     input: { link: string | null; from: Date; to: Date },
   ): Promise<DeltaPage>;
+  /** 53-14. Delete an event that has no attendees (a mirrored due date); gone already is fine. */
+  deleteEvent(accessToken: string, eventId: string): Promise<void>;
+  /** 53-14. A change subscription on the person's events. */
+  createSubscription(
+    accessToken: string,
+    input: { notificationUrl: string; clientState: string; expiresAt: Date },
+  ): Promise<{ readonly id: string; readonly expiresAt: Date }>;
+  renewSubscription(accessToken: string, id: string, expiresAt: Date): Promise<Date>;
+  deleteSubscription(accessToken: string, id: string): Promise<void>;
 }
 
 function idTokenEmail(idToken: unknown): string | null {
@@ -915,5 +924,61 @@ export function createMicrosoftCalendarTransport(
         deltaLink: isGraphLink(delta) ? delta : null,
       };
     },
+
+    async deleteEvent(accessToken, eventId) {
+      try {
+        await call(eventUrl(eventId), { method: 'DELETE', headers: headers(accessToken) });
+      } catch (error) {
+        if (error instanceof MicrosoftCalendarEventNotFoundError) return;
+        throw error;
+      }
+    },
+
+    async createSubscription(accessToken, input) {
+      const response = await call(`${MSCAL_GRAPH}/subscriptions`, {
+        method: 'POST',
+        headers: headers(accessToken),
+        body: JSON.stringify({
+          changeType: 'created,updated,deleted',
+          notificationUrl: input.notificationUrl,
+          resource: 'me/events',
+          expirationDateTime: input.expiresAt.toISOString(),
+          clientState: input.clientState,
+        }),
+      });
+      const body = (await response.json()) as { id?: unknown; expirationDateTime?: unknown };
+      if (typeof body.id !== 'string' || body.id.length > 64) {
+        throw new MicrosoftCalendarUnavailableError('Graph subscription response had no id');
+      }
+      return { id: body.id, expiresAt: graphExpiry(body.expirationDateTime, input.expiresAt) };
+    },
+
+    async renewSubscription(accessToken, id, expiresAt) {
+      const response = await call(`${MSCAL_GRAPH}/subscriptions/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: headers(accessToken),
+        body: JSON.stringify({ expirationDateTime: expiresAt.toISOString() }),
+      });
+      const body = (await response.json()) as { expirationDateTime?: unknown };
+      return graphExpiry(body.expirationDateTime, expiresAt);
+    },
+
+    async deleteSubscription(accessToken, id) {
+      try {
+        await call(`${MSCAL_GRAPH}/subscriptions/${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+          headers: headers(accessToken),
+        });
+      } catch (error) {
+        if (error instanceof MicrosoftCalendarEventNotFoundError) return;
+        throw error;
+      }
+    },
   };
+}
+
+/** Graph's `expirationDateTime`, or the asked-for time when the answer has none. */
+function graphExpiry(raw: unknown, fallback: Date): Date {
+  const parsed = typeof raw === 'string' ? Date.parse(raw) : Number.NaN;
+  return Number.isFinite(parsed) ? new Date(parsed) : fallback;
 }

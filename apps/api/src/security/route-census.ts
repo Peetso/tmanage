@@ -148,6 +148,11 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'POST /v1/public/security-reports/': 'named',
   // R16-e (54-10): GitHub repository webhook delivery — HMAC per hook, per-hook throttle.
   'POST /v1/public/integrations/github/:hookId': 'named',
+  // 53-14 calendar sync: provider push notifications (verified against the hashed channel secret
+  // before one connection is pulled) and the read-only ICS feed (hashed secret address).
+  'POST /v1/public/calendar-push/google': 'named',
+  'POST /v1/public/calendar-push/microsoft': 'named',
+  'GET /v1/public/calendar-feeds/:token/tmanage.ics': 'named',
   // R22-c (54-12): inbound e-mail provider webhook - signed delivery, named throttle.
   'POST /v1/public/inbound-email/webhook': 'named',
 };

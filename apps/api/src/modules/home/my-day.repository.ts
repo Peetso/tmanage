@@ -130,6 +130,35 @@ export class MyDayRepository {
   }
 
   /**
+   * 53-14. The acting user's open, dated work due inside `[from, to]`, soonest first, bounded —
+   * what the calendar due-date mirror and the ICS feed show. Same predicate as
+   * {@link listOwnedOpen}; the caller authorizes each row with `work.read` on top of it.
+   */
+  async listOwnedDue(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    ownerUserId: string,
+    window: { readonly from: Date; readonly to: Date; readonly limit: number },
+  ): Promise<readonly WorkItemRow[]> {
+    const rows = await tenantDrizzle(runner)
+      .select(MY_DAY_COLUMNS)
+      .from(workItems)
+      .where(
+        and(
+          eq(workItems.organizationId, context.organizationId),
+          isDoerOf(context, ownerUserId),
+          inArray(workItems.state, [...MY_DAY_STATES]),
+          isNull(workItems.deletedAt),
+          gte(workItems.dueAt, window.from),
+          lte(workItems.dueAt, window.to),
+        ),
+      )
+      .orderBy(asc(workItems.dueAt), asc(workItems.id))
+      .limit(window.limit);
+    return rows.map((row) => ({ ...row, description: null }));
+  }
+
+  /**
    * HOME-01's personal-work counts over EVERY open owned item (not the bounded list), grouped by
    * the two columns `work.read` decides on, so the service can authorize each group exactly as it
    * authorizes a row. Overdue is `due_at < start of today`; due soon is `start of today <= due_at <= cutoff` — the same

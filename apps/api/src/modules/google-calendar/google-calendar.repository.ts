@@ -28,6 +28,19 @@ export interface ConnectionPatch {
   readonly lastSyncedAt?: Date;
   readonly connectedAt?: Date;
   readonly disconnectedAt?: Date | null;
+  /** 0348 (53-14): the push channel, health and the due-date mirror opt-in. */
+  readonly watchChannelId?: string | null;
+  readonly watchTokenHash?: string | null;
+  readonly watchResourceId?: string | null;
+  readonly watchExpiresAt?: Date | null;
+  readonly lastErrorAt?: Date | null;
+  readonly mirrorDueDates?: boolean;
+}
+
+/** 53-14. What the public push webhook learns from a channel id before it verifies the token. */
+export interface WatchedConnectionRef extends ConnectionRef {
+  readonly watchTokenHash: string | null;
+  readonly watchResourceId: string | null;
 }
 
 /** What the sync job needs to visit a connection under its organization's service context. */
@@ -152,6 +165,33 @@ export class GoogleCalendarRepository {
       .where(eq(calendarConnections.organizationId, context.organizationId))
       .orderBy(asc(calendarConnections.userId), asc(calendarConnections.provider))
       .limit(2000);
+  }
+
+  /**
+   * 53-14. The push webhook's bootstrap read: the connected connection a channel id names, with
+   * the stored token hash the caller must match. Nothing else about the person is read.
+   */
+  async findByWatchChannel(
+    runner: BootstrapQueryRunner,
+    channelId: string,
+  ): Promise<WatchedConnectionRef | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({
+        organizationId: calendarConnections.organizationId,
+        id: calendarConnections.id,
+        provider: calendarConnections.provider,
+        watchTokenHash: calendarConnections.watchTokenHash,
+        watchResourceId: calendarConnections.watchResourceId,
+      })
+      .from(calendarConnections)
+      .where(
+        and(
+          eq(calendarConnections.watchChannelId, channelId),
+          eq(calendarConnections.status, 'connected'),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
   }
 
   /** The sync job's bootstrap read: every connected connection of the given providers. */

@@ -44,6 +44,18 @@ import {
   type CalendarTeamView,
 } from './google-calendar.service.js';
 import { CALENDAR_SYNC_JOB, CalendarSyncJob, calendarSyncJobEnabled } from './calendar-sync.job.js';
+import { DEFAULT_CALENDAR_SYNC_JOB_OPTIONS } from './calendar-sync.job.js';
+import { GoogleCalendarRepository } from './google-calendar.repository.js';
+import { CalendarSyncExtras } from './calendar-sync-extras.js';
+import { CalendarFeedService, CalendarPushReceiver } from './calendar-sync.service.js';
+import {
+  CALENDAR_FEED_SERVICE,
+  CALENDAR_PUSH_RECEIVER,
+  CALENDAR_SYNC_EXTRAS,
+  CalendarFeedController,
+  CalendarPushController,
+  CalendarSyncSettingsController,
+} from './calendar-sync.controller.js';
 
 /**
  * Google Calendar + Meet for meetings (0237) — the HTTP surface. Every route acts on the CALLER'S
@@ -237,9 +249,33 @@ export class GoogleCalendarModule {
           cipher: createSeedCipher(config.mfaSeedKeys),
           config: calendarConfigFrom(process.env),
           apiPublicUrl: config.apiPublicUrl ?? config.webPublicUrl ?? '',
+          webPublicUrl: config.webPublicUrl ?? '',
           // Slice B: Outlook uses the OneDrive app registration (`MICROSOFT_CLIENT_ID/SECRET`).
           microsoftConfigured: oneDriveConfigFrom(process.env) !== null,
         }),
+    };
+    // 53-14: push channels, the due-date mirror and the ICS feed.
+    const urlsOf = (config: ApiConfig) => ({
+      apiPublicUrl: config.apiPublicUrl ?? config.webPublicUrl ?? '',
+      webPublicUrl: config.webPublicUrl ?? '',
+    });
+    const extras: Provider = {
+      provide: CALENDAR_SYNC_EXTRAS,
+      inject: [TENANT_DATABASE, API_CONFIG],
+      useFactory: (database: TenantDatabase, config: ApiConfig) =>
+        new CalendarSyncExtras(database, urlsOf(config)),
+    };
+    const feeds: Provider = {
+      provide: CALENDAR_FEED_SERVICE,
+      inject: [TENANT_DATABASE, AUDIT_SERVICE, API_CONFIG],
+      useFactory: (database: TenantDatabase, audit: AuditService, config: ApiConfig) =>
+        new CalendarFeedService(database, audit, urlsOf(config)),
+    };
+    const receiver: Provider = {
+      provide: CALENDAR_PUSH_RECEIVER,
+      inject: [TENANT_DATABASE, CALENDAR_SYNC_JOB],
+      useFactory: (database: TenantDatabase, job: CalendarSyncJob) =>
+        new CalendarPushReceiver(database, job),
     };
     // Slice B: the Outlook service (MicrosoftCalendarModule, global) joins the same port and job.
     // Optional, so a suite that registers only this module still boots.
@@ -252,24 +288,34 @@ export class GoogleCalendarModule {
     };
     const job: Provider = {
       provide: CALENDAR_SYNC_JOB,
-      inject: [TENANT_DATABASE, GOOGLE_CALENDAR_SERVICE, microsoft],
+      inject: [TENANT_DATABASE, GOOGLE_CALENDAR_SERVICE, CALENDAR_SYNC_EXTRAS, microsoft],
       useFactory: (
         database: TenantDatabase,
         google: GoogleCalendarService,
+        syncExtras: CalendarSyncExtras,
         outlook?: MicrosoftCalendarService,
       ) =>
         new CalendarSyncJob(
           database,
           outlook ? [google, outlook] : [google],
           calendarSyncJobEnabled(),
+          DEFAULT_CALENDAR_SYNC_JOB_OPTIONS,
+          new GoogleCalendarRepository(),
+          syncExtras,
         ),
     };
     return {
       module: GoogleCalendarModule,
       global: true,
-      providers: [options, service, port, job],
+      providers: [options, service, port, extras, job, feeds, receiver],
       exports: [port, job],
-      controllers: [GoogleCalendarConnectionController, GoogleCalendarCallbackController],
+      controllers: [
+        GoogleCalendarConnectionController,
+        GoogleCalendarCallbackController,
+        CalendarSyncSettingsController,
+        CalendarPushController,
+        CalendarFeedController,
+      ],
     };
   }
 }

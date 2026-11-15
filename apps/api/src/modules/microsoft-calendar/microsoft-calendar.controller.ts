@@ -235,6 +235,7 @@ export class MicrosoftCalendarModule {
           cipher: createSeedCipher(config.mfaSeedKeys),
           config: microsoftCalendarConfigFrom(process.env),
           apiPublicUrl: config.apiPublicUrl ?? config.webPublicUrl ?? '',
+          webPublicUrl: config.webPublicUrl ?? '',
           googleConfigured: calendarConfigFrom(process.env) !== null,
         }),
     };

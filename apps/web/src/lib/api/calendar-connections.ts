@@ -19,6 +19,12 @@ interface CalendarAccountShape {
   readonly connectedAt: string | null;
   readonly lastSyncedAt: string | null;
   readonly lastErrorCode: string | null;
+  /** 53-14: when the last failed sync happened (`lastErrorCode` says what failed). */
+  readonly lastErrorAt: string | null;
+  /** 53-14: when instant updates end unless renewed; `null` while polled each minute. */
+  readonly pushExpiresAt: string | null;
+  /** 53-14: the person's own due dates shown in this calendar. */
+  readonly mirrorDueDates: boolean;
 }
 
 /** `GET …/integrations/google-calendar`. Paired `Exact` with the API's view. */
@@ -127,6 +133,68 @@ export async function getCalendarTeam(
 ): Promise<CalendarTeamView> {
   const { data } = await client.request<CalendarTeamView>({
     path: `${integrationPath(organizationSlug, 'google')}/team`,
+  });
+  return data;
+}
+
+/** 53-14. Turn the caller's due-date mirror on or off for one of their connected calendars. */
+export async function setDueDateMirror(
+  client: ApiClient,
+  organizationSlug: string,
+  provider: CalendarProviderId,
+  enabled: boolean,
+): Promise<void> {
+  await client.request<unknown>({
+    method: 'PUT',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/calendar-sync/${provider}/due-date-mirror`,
+    body: { enabled },
+  });
+}
+
+/** `GET …/calendar-sync/feed`. Paired `Exact` with the API's view; never carries the address. */
+export interface CalendarFeedView {
+  readonly active: boolean;
+  readonly createdAt: string | null;
+  readonly lastUsedAt: string | null;
+}
+
+/** `POST …/calendar-sync/feed`: the new address, shown once. */
+export interface CalendarFeedCreatedView extends CalendarFeedView {
+  readonly url: string;
+}
+
+function feedPath(organizationSlug: string): string {
+  return `/v1/organizations/${encodeURIComponent(organizationSlug)}/calendar-sync/feed`;
+}
+
+export async function getCalendarFeed(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<CalendarFeedView> {
+  const { data } = await client.request<CalendarFeedView>({ path: feedPath(organizationSlug) });
+  return data;
+}
+
+/** Create the caller's feed address, or replace it (the old one stops working). */
+export async function rotateCalendarFeed(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<CalendarFeedCreatedView> {
+  const { data } = await client.request<CalendarFeedCreatedView>({
+    method: 'POST',
+    path: feedPath(organizationSlug),
+    body: {},
+  });
+  return data;
+}
+
+export async function revokeCalendarFeed(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<CalendarFeedView> {
+  const { data } = await client.request<CalendarFeedView>({
+    method: 'DELETE',
+    path: feedPath(organizationSlug),
   });
   return data;
 }

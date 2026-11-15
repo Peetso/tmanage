@@ -40,6 +40,17 @@ import {
   type MicrosoftCalendarTransport,
 } from './microsoft-calendar.graph.js';
 import { MicrosoftCalendarRepository } from './microsoft-calendar.repository.js';
+import { CalendarSyncExtras, healthOf, nextDay } from '../google-calendar/calendar-sync-extras.js';
+import type {
+  AllDayEvent,
+  CalendarHealthFields,
+  CalendarRemote,
+  RemoteSession,
+} from '../google-calendar/calendar-sync-extras.js';
+import {
+  GRAPH_SUBSCRIPTION_TTL_MS,
+  PUSH_PATH_MICROSOFT,
+} from '../google-calendar/calendar-push.js';
 
 /**
  * Outlook calendar + Teams meetings (0237, slice B) — the application service. The twin of
@@ -71,7 +82,7 @@ export interface MicrosoftCalendarStatusView {
     readonly connectedAt: string | null;
     readonly lastSyncedAt: string | null;
     readonly lastErrorCode: string | null;
-  };
+  } & CalendarHealthFields;
 }
 
 export interface MicrosoftCalendarServiceDeps {
@@ -93,6 +104,8 @@ export interface MicrosoftCalendarServiceDeps {
   readonly outbox?: OutboxEventsRepository | null;
   readonly now?: () => Date;
   readonly log?: (line: string) => void;
+  /** 53-14: `WEB_PUBLIC_URL`, for the link on a mirrored due date. */
+  readonly webPublicUrl?: string;
 }
 
 /** The additional data binding a stored refresh token to its organization, person and provider. */
@@ -132,8 +145,12 @@ const isLive = (row: CalendarConnectionRow | null | undefined): row is Live =>
 const isLinked = (link: MeetingExternalEventRow | null | undefined) =>
   !!link?.externalEventId && link.syncStatus !== 'deleted';
 
-export class MicrosoftCalendarService implements CalendarSyncPort, CalendarProviderAdapter {
+export class MicrosoftCalendarService
+  implements CalendarSyncPort, CalendarProviderAdapter, CalendarRemote
+{
   readonly provider = MICROSOFT;
+  readonly pushPath = PUSH_PATH_MICROSOFT;
+  private readonly extras: CalendarSyncExtras;
   private readonly connections: MicrosoftCalendarRepository;
   private readonly meetings: MeetingsRepository;
   private readonly calendar: MeetingCalendarRepository;
@@ -153,6 +170,12 @@ export class MicrosoftCalendarService implements CalendarSyncPort, CalendarProvi
     };
     this.now = deps.now ?? (() => new Date());
     this.log = deps.log ?? ((line) => console.warn(line));
+    this.extras = new CalendarSyncExtras(deps.database, {
+      apiPublicUrl: deps.apiPublicUrl,
+      webPublicUrl: deps.webPublicUrl ?? '',
+      now: this.now,
+      log: this.log,
+    });
   }
 
   get redirectUri(): string {
@@ -258,6 +281,8 @@ export class MicrosoftCalendarService implements CalendarSyncPort, CalendarProvi
       this.connections.findFor(runner, context, context.userId, MICROSOFT),
     );
     if (!connection || connection.status === 'disconnected') return this.toStatus(connection);
+    // 53-14: end the subscription and remove mirrored due dates while the grant still works.
+    await this.extras.teardown(this, context, connection.id);
     this.tokens.delete(connection.id);
     const row = await this.deps.database.transaction(context, async (tx) => {
       await this.connections.update(tx, context, connection.id, {
@@ -472,6 +497,7 @@ export class MicrosoftCalendarService implements CalendarSyncPort, CalendarProvi
           syncCursor: stored && stored.length <= MAX_CURSOR_LENGTH ? stored : null,
           lastSyncedAt: this.now(),
           lastErrorCode: null,
+          lastErrorAt: null,
         }),
       );
       return 'ok';
@@ -666,7 +692,10 @@ export class MicrosoftCalendarService implements CalendarSyncPort, CalendarProvi
   /** A refused grant moves the connection to `error` ("Reconnect"); anything else is logged. */
   private async recordFailure(context: TenantContext, connection: Live, error: unknown) {
     this.log(`[calendar] Outlook call for connection ${connection.id} failed: ${errorCode(error)}`);
-    if (!(error instanceof MicrosoftCalendarGrantRevokedError)) return;
+    if (!(error instanceof MicrosoftCalendarGrantRevokedError)) {
+      await this.extras.noteError(context, connection.id, errorCode(error));
+      return;
+    }
     this.tokens.delete(connection.id);
     try {
       await this.deps.database.transaction(context, (tx) =>
@@ -714,9 +743,83 @@ export class MicrosoftCalendarService implements CalendarSyncPort, CalendarProvi
         connectedAt:
           status !== 'not_connected' && row?.connectedAt ? row.connectedAt.toISOString() : null,
         lastSyncedAt: row?.lastSyncedAt ? row.lastSyncedAt.toISOString() : null,
-        lastErrorCode: status === 'error' ? (row?.lastErrorCode ?? null) : null,
+        // 53-14: a connected calendar's last problem shows too, until a pull succeeds.
+        lastErrorCode: status === 'not_connected' ? null : (row?.lastErrorCode ?? null),
+        ...healthOf(row, status !== 'not_connected'),
       },
     };
+  }
+
+  // ── 53-14: push subscription and due-date mirror calls (CalendarRemote) ──
+
+  async openSession(context: TenantContext, connectionId: string): Promise<RemoteSession | null> {
+    if (!this.deps.config) return null;
+    const connection = await this.deps.database.read(context, (runner) =>
+      this.connections.findById(runner, context, connectionId),
+    );
+    if (!isLive(connection)) return null;
+    return { connection, accessToken: await this.accessToken(context, connection) };
+  }
+
+  async openPush(
+    session: RemoteSession,
+    input: { readonly channelId: string; readonly secret: string; readonly address: string },
+  ): Promise<{
+    readonly channelId: string;
+    readonly resourceId: string | null;
+    readonly expiresAt: Date;
+  }> {
+    const created = await this.deps.transport.createSubscription(session.accessToken, {
+      notificationUrl: input.address,
+      clientState: input.secret,
+      expiresAt: new Date(this.now().getTime() + GRAPH_SUBSCRIPTION_TTL_MS),
+    });
+    // Graph names the subscription; its id is the channel id the webhook looks up.
+    return { channelId: created.id, resourceId: null, expiresAt: created.expiresAt };
+  }
+
+  async renewPush(session: RemoteSession): Promise<Date | null> {
+    const id = session.connection.watchChannelId;
+    if (!id) return null;
+    return this.deps.transport.renewSubscription(
+      session.accessToken,
+      id,
+      new Date(this.now().getTime() + GRAPH_SUBSCRIPTION_TTL_MS),
+    );
+  }
+
+  async closePush(session: RemoteSession): Promise<void> {
+    const id = session.connection.watchChannelId;
+    if (id) await this.deps.transport.deleteSubscription(session.accessToken, id);
+  }
+
+  async putAllDay(
+    session: RemoteSession,
+    eventId: string | null,
+    event: AllDayEvent,
+  ): Promise<string> {
+    const body = {
+      subject: event.title,
+      body: { contentType: 'text', content: event.link },
+      start: { dateTime: `${event.date}T00:00:00`, timeZone: 'UTC' },
+      end: { dateTime: `${nextDay(event.date)}T00:00:00`, timeZone: 'UTC' },
+      isAllDay: true,
+      showAs: 'free',
+      isReminderOn: false,
+    };
+    if (eventId) {
+      try {
+        return (await this.deps.transport.updateEvent(session.accessToken, eventId, body)).id;
+      } catch (error) {
+        // Deleted in Outlook by the person: write it again.
+        if (!(error instanceof MicrosoftCalendarEventNotFoundError)) throw error;
+      }
+    }
+    return (await this.deps.transport.createEvent(session.accessToken, body)).id;
+  }
+
+  async deleteEvent(session: RemoteSession, eventId: string): Promise<void> {
+    await this.deps.transport.deleteEvent(session.accessToken, eventId);
   }
 }
 

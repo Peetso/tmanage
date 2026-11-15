@@ -91,6 +91,79 @@ function foldLine(line: string): string {
 }
 
 /**
+ * 53-14. One event of a multi-event feed: a timed meeting, or an all-day entry (a due date) on a
+ * `YYYY-MM-DD` date. `url` and `description` are optional and escaped like `SUMMARY`.
+ */
+export type IcsEvent =
+  | (Omit<IcsMeeting, 'stamp'> & {
+      readonly kind?: 'timed';
+      readonly description?: string;
+      readonly url?: string;
+    })
+  | {
+      readonly kind: 'all_day';
+      readonly uid: string;
+      readonly summary: string;
+      readonly date: string;
+      readonly description?: string;
+      readonly url?: string;
+    };
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+function formatDate(date: string): string {
+  return date.replace(/-/g, '');
+}
+
+function nextDate(date: string): string {
+  const d = new Date(`${date}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function eventLines(event: IcsEvent, stamp: Date): string[] {
+  const lines = ['BEGIN:VEVENT', `UID:${escapeText(event.uid)}`, `DTSTAMP:${formatUtc(stamp)}`];
+  if (event.kind === 'all_day') {
+    if (!DATE_ONLY.test(event.date)) return [];
+    lines.push(
+      `DTSTART;VALUE=DATE:${formatDate(event.date)}`,
+      `DTEND;VALUE=DATE:${formatDate(nextDate(event.date))}`,
+      'TRANSP:TRANSPARENT',
+    );
+  } else {
+    lines.push(`DTSTART:${formatUtc(event.startsAt)}`, `DTEND:${formatUtc(event.endsAt)}`);
+  }
+  lines.push(`SUMMARY:${escapeText(event.summary)}`);
+  if (event.description) lines.push(`DESCRIPTION:${escapeText(event.description)}`);
+  // A URI value is not TEXT: only an http(s) address with no control characters is written.
+  if (event.url && /^https?:\/\/[^\s"<>]+$/.test(event.url)) lines.push(`URL:${event.url}`);
+  lines.push('END:VEVENT');
+  return lines;
+}
+
+/**
+ * 53-14. A whole read-only calendar (a person's ICS feed): every event, one `VCALENDAR`, with a
+ * display name. Pure, like {@link serializeMeetingIcs}.
+ */
+export function serializeCalendarIcs(input: {
+  readonly name: string;
+  readonly events: readonly IcsEvent[];
+  readonly stamp: Date;
+}): string {
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    `PRODID:${PRODID}`,
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    `X-WR-CALNAME:${escapeText(input.name)}`,
+    ...input.events.flatMap((event) => eventLines(event, input.stamp)),
+    'END:VCALENDAR',
+  ];
+  return `${lines.map(foldLine).join('\r\n')}\r\n`;
+}
+
+/**
  * Serialize one meeting to a complete `text/calendar` document (a `VCALENDAR` with a single
  * `VEVENT`). Read-only by construction: it takes a value object and returns a string, mutating
  * nothing.
@@ -102,13 +175,7 @@ export function serializeMeetingIcs(meeting: IcsMeeting): string {
     `PRODID:${PRODID}`,
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
-    'BEGIN:VEVENT',
-    `UID:${escapeText(meeting.uid)}`,
-    `DTSTAMP:${formatUtc(meeting.stamp)}`,
-    `DTSTART:${formatUtc(meeting.startsAt)}`,
-    `DTEND:${formatUtc(meeting.endsAt)}`,
-    `SUMMARY:${escapeText(meeting.summary)}`,
-    'END:VEVENT',
+    ...eventLines(meeting, meeting.stamp),
     'END:VCALENDAR',
   ];
   // A trailing CRLF terminates the final line too, as §3.1 requires.

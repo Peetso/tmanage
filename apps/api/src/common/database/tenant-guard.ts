@@ -1339,6 +1339,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   work_item_cloud_folders: 'organization_id',
   // 0347. Tenant-owned: which checked copy belongs to which drive item and modified time.
   cloud_folder_imports: 'organization_id',
+  // 0348 (53-14). Tenant-owned: which provider event mirrors a work item's due date for a person's
+  // calendar connection (written by the in-process calendar sync under a service context).
+  calendar_due_mirrors: 'organization_id',
+  // 0348. Tenant-owned: a person's ICS feed token (hash only). The owner writes it through their own
+  // context; the signed-out feed route finds a row by hash only through `bootstrapRead` with a reason.
+  calendar_feed_tokens: 'organization_id',
 });
 
 /**

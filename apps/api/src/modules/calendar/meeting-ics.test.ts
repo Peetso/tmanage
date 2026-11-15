@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
-import { serializeMeetingIcs } from './meeting-ics.js';
+import { serializeCalendarIcs, serializeMeetingIcs } from './meeting-ics.js';
 import { MeetingsService } from './meetings.service.js';
 import type { MeetingsRepository } from './meetings.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
@@ -158,5 +158,17 @@ describe('MeetingsService.get (ICS read authorization)', () => {
     expect(view.title).toBe('Kickoff');
     expect(view.startsAt).toBe(STARTS_AT.toISOString());
     expect(JSON.stringify(view)).not.toContain(ORG);
+  });
+
+  it('53-14: a feed writes a due date as an all-day event and drops a non-http URL', () => {
+    const ics = serializeCalendarIcs({
+      name: 'TManage',
+      stamp: STARTS_AT,
+      events: [
+        { kind: 'all_day', uid: 'due-1', summary: 'Ship', date: '2026-11-20', url: 'javascript:x' },
+      ],
+    });
+    expect(ics).toContain('DTSTART;VALUE=DATE:20261120\r\nDTEND;VALUE=DATE:20261121');
+    expect(ics).not.toContain('URL:');
   });
 });

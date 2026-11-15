@@ -3,14 +3,20 @@ import { uuidv7 } from '@tmanage/domain';
 import { createServiceContext } from '../../common/database/tenant-context.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { GoogleCalendarRepository } from './google-calendar.repository.js';
+import type { ConnectionRef } from './google-calendar.repository.js';
+import { isCalendarRemote } from './calendar-sync-extras.js';
+import type { CalendarSyncExtras } from './calendar-sync-extras.js';
 
 /**
  * 0237 — the calendar pull, run inside the API process (the Hostinger app is one Node process and
  * has no cron), in the `FileScanJob` shape. Every {@link CalendarSyncJobOptions.intervalMs} (a
  * minute) it visits each connected calendar connection under its organization's service context
  * and lets that provider's adapter apply the changes (Google `events.list?syncToken`; slice B adds
- * the Graph `calendarView/delta` adapter). Push notifications (Google watch channels, Graph
- * subscriptions) are deferred: they expire within days and need this job to renew them anyway.
+ * the Graph `calendarView/delta` adapter).
+ *
+ * 53-14: after a successful pull the job hands the connection to {@link CalendarSyncExtras}
+ * (push channel kept alive and renewed a day before it ends; due-date mirror kept in step), and
+ * {@link CalendarSyncJob.pullSoon} lets the push webhook pull one connection at once.
  *
  * Off unless the deployment runs background work in this process (`WORKER_INPROCESS=1`, or
  * `CALENDAR_SYNC_INPROCESS=1` for a local API), so a suite never races a pass of its own.
@@ -65,6 +71,8 @@ export class CalendarSyncJob implements OnApplicationBootstrap, OnModuleDestroy 
   private stopped = false;
   /** Per connection id: consecutive failures and the earliest time it is tried again. */
   private readonly backoff = new Map<string, { failures: number; nextAt: number }>();
+  /** 53-14: per connection id, a webhook-triggered pull queued or running. */
+  private readonly soon = new Map<string, Promise<void>>();
 
   constructor(
     private readonly database: TenantDatabase,
@@ -72,6 +80,7 @@ export class CalendarSyncJob implements OnApplicationBootstrap, OnModuleDestroy 
     private readonly enabled: boolean,
     private readonly options: CalendarSyncJobOptions = DEFAULT_CALENDAR_SYNC_JOB_OPTIONS,
     private readonly connections: GoogleCalendarRepository = new GoogleCalendarRepository(),
+    private readonly extras: CalendarSyncExtras | null = null,
   ) {
     for (const adapter of adapters) this.register(adapter);
   }
@@ -96,6 +105,7 @@ export class CalendarSyncJob implements OnApplicationBootstrap, OnModuleDestroy 
     this.pending = null;
     this.interval = null;
     await this.running;
+    await Promise.allSettled([...this.soon.values()]);
   }
 
   /** One pass; a pass already running is joined, never doubled. */
@@ -107,6 +117,22 @@ export class CalendarSyncJob implements OnApplicationBootstrap, OnModuleDestroy 
       });
     }
     return this.running;
+  }
+
+  /**
+   * 53-14. A verified push notification: pull this one connection now (a pull already queued or
+   * running for it is joined). Never throws; a failure waits for the next pass.
+   */
+  pullSoon(ref: ConnectionRef): Promise<void> {
+    if (this.stopped || !this.enabled) return Promise.resolve();
+    const queued = this.soon.get(ref.id);
+    if (queued) return queued;
+    const run = (async () => {
+      await this.running?.catch(() => undefined);
+      await this.visit(ref, uuidv7());
+    })().finally(() => this.soon.delete(ref.id));
+    this.soon.set(ref.id, run);
+    return run;
   }
 
   private async pass(): Promise<void> {
@@ -123,26 +149,36 @@ export class CalendarSyncJob implements OnApplicationBootstrap, OnModuleDestroy 
     }
     for (const ref of refs) {
       if (this.stopped) return;
-      const adapter = this.adapters.get(ref.provider);
-      if (!adapter) continue;
-      const context = createServiceContext({
-        organizationId: ref.organizationId,
-        correlationId,
-        policyVersion: CALENDAR_SYNC_POLICY_VERSION,
-      });
-      const now = this.clock();
-      const waiting = this.backoff.get(ref.id);
-      if (waiting && now < waiting.nextAt) continue;
-      let outcome: PullOutcome | void;
-      try {
-        outcome = await adapter.pullConnection(context, ref.id);
-      } catch (error) {
-        // One connection's failure never stops the pass for the others.
-        this.options.log(`[calendar-sync] connection ${ref.id} failed: ${String(error)}`);
-        outcome = 'failed';
-      }
-      if (outcome === 'failed') this.recordFailure(ref.id, now);
-      else this.backoff.delete(ref.id);
+      await this.visit(ref, correlationId);
+    }
+  }
+
+  private async visit(ref: ConnectionRef, correlationId: string): Promise<void> {
+    const adapter = this.adapters.get(ref.provider);
+    if (!adapter) return;
+    const context = createServiceContext({
+      organizationId: ref.organizationId,
+      correlationId,
+      policyVersion: CALENDAR_SYNC_POLICY_VERSION,
+    });
+    const now = this.clock();
+    const waiting = this.backoff.get(ref.id);
+    if (waiting && now < waiting.nextAt) return;
+    let outcome: PullOutcome | void;
+    try {
+      outcome = await adapter.pullConnection(context, ref.id);
+    } catch (error) {
+      // One connection's failure never stops the pass for the others.
+      this.options.log(`[calendar-sync] connection ${ref.id} failed: ${String(error)}`);
+      outcome = 'failed';
+    }
+    if (outcome === 'failed') {
+      this.recordFailure(ref.id, now);
+      return;
+    }
+    this.backoff.delete(ref.id);
+    if (outcome === 'ok' && this.extras && isCalendarRemote(adapter)) {
+      await this.extras.maintain(adapter, context, ref.id);
     }
   }
 

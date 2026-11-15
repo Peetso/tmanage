@@ -409,6 +409,14 @@ export interface CalendarTransport {
     calendarId: string,
     input: { syncToken: string | null; timeMin: Date; pageToken: string | null },
   ): Promise<ChangesPage>;
+  /** 53-14. Open a push channel on the calendar's events (`events.watch`). */
+  watchEvents(
+    accessToken: string,
+    calendarId: string,
+    channel: { id: string; token: string; address: string; ttlSeconds: number },
+  ): Promise<{ readonly resourceId: string; readonly expiresAt: Date }>;
+  /** 53-14. Stop a push channel (`channels.stop`); one already gone is fine. */
+  stopChannel(accessToken: string, channel: { id: string; resourceId: string }): Promise<void>;
 }
 
 function decodeEmail(idToken: unknown): string | null {
@@ -580,6 +588,44 @@ export function createCalendarTransport(
         nextPageToken: token(body.nextPageToken),
         nextSyncToken: token(body.nextSyncToken),
       };
+    },
+
+    async watchEvents(accessToken, calendarId, channel) {
+      const response = await call(`${eventPath(calendarId)}/watch`, {
+        method: 'POST',
+        headers: headers(accessToken),
+        body: JSON.stringify({
+          id: channel.id,
+          type: 'web_hook',
+          address: channel.address,
+          token: channel.token,
+          params: { ttl: String(channel.ttlSeconds) },
+        }),
+      });
+      const body = (await response.json()) as { resourceId?: unknown; expiration?: unknown };
+      const expiration = Number(body.expiration);
+      if (typeof body.resourceId !== 'string' || body.resourceId.length > 255) {
+        throw new CalendarUnavailableError('Google watch response had no resource id');
+      }
+      return {
+        resourceId: body.resourceId,
+        expiresAt: new Date(
+          Number.isFinite(expiration) ? expiration : Date.now() + channel.ttlSeconds * 1000,
+        ),
+      };
+    },
+
+    async stopChannel(accessToken, channel) {
+      try {
+        await call(`${GCAL_API}/channels/stop`, {
+          method: 'POST',
+          headers: headers(accessToken),
+          body: JSON.stringify({ id: channel.id, resourceId: channel.resourceId }),
+        });
+      } catch (error) {
+        if (error instanceof CalendarEventNotFoundError) return;
+        throw error;
+      }
     },
   };
 }

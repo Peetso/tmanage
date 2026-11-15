@@ -704,6 +704,20 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'calendar_connection',
     clause: '§12 — the same link removed and its token wiped',
   },
+  /** 53-14. A person turned their due-date mirror on or off. Metadata: provider, enabled. */
+  'calendar_connection.mirror_changed': {
+    objectType: 'calendar_connection',
+    clause: '§12 53-14 — work item due dates shown (or no longer) in a personal calendar',
+  },
+  /** 53-14. A person created or replaced their secret calendar feed address (hash stored only). */
+  'calendar_feed.issued': {
+    objectType: 'calendar_feed',
+    clause: '§12 53-14 — a read-only calendar feed address issued; any earlier one stops working',
+  },
+  'calendar_feed.revoked': {
+    objectType: 'calendar_feed',
+    clause: '§12 53-14 — the calendar feed address revoked',
+  },
   'meeting.cancelled': {
     objectType: 'meeting',
     clause: '§12 — a meeting cancelled; its calendar event is deleted and guests are told',
@@ -1815,6 +1829,9 @@ const AUDIT_ACTION_LABELS = {
   'work_item.cloud_folder_removed': 'Removed a cloud storage folder from a work item',
   'calendar_connection.connected': 'Connected a calendar',
   'calendar_connection.disconnected': 'Disconnected a calendar',
+  'calendar_connection.mirror_changed': 'Changed due dates in a calendar',
+  'calendar_feed.issued': 'Created a calendar feed address',
+  'calendar_feed.revoked': 'Turned off a calendar feed address',
   'meeting.cancelled': 'Cancelled a meeting',
   'meeting.synced': 'Synced a meeting with a calendar',
   'drive_picker.session_issued': 'Opened the Google Drive file picker',

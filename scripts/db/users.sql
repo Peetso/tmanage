@@ -2437,3 +2437,11 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_item_cloud_folders` TO 'tmanage_
 -- that was deleted, UPDATEs) the row naming its checked copy; DELETE serves the company erasure
 -- only. SELECT rides the database-wide read. The worker needs no grant.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`cloud_folder_imports` TO 'tmanage_app'@'%';
+-- 0348 (53-14). `calendar_connections` gains push-channel and health columns (UPDATE already
+-- granted above). `calendar_due_mirrors` (tenant): the in-process calendar sync INSERTs a mirror
+-- row per mirrored due date, UPDATEs its fingerprint, DELETEs it when the item is done, gone or the
+-- person opts out. `calendar_feed_tokens` (tenant): a person INSERTs, rotates (UPDATE) and revokes
+-- (DELETE) their own feed token hash; the feed route UPDATEs `last_used_at`. SELECT rides the
+-- database-wide read. The worker needs no grant.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`calendar_due_mirrors` TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`calendar_feed_tokens` TO 'tmanage_app'@'%';
