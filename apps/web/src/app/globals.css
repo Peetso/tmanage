@@ -2895,3 +2895,13 @@ html[lang^='zh'] body {
     font-size: var(--t-ui-sm);
   }
 }
+
+/* UX-1: a styled file picker (a label around a visually hidden file input) shows the system focus
+   ring while its input has keyboard focus, and is a pointer target as a whole. */
+.tm-file-pick {
+  cursor: pointer;
+}
+
+.tm-file-pick:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}

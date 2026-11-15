@@ -189,7 +189,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // TIMER lane (2026-11-14): PUT time/auto/device, PATCH time/rounding (+2 NEVER), POST
 // time/timesheets/:timesheetId/entries/split and /delete (+2 ops).
 // UX test 2026-11-15: POST time/timer/discard (+1 NEVER).
-const EXPECTED_ROUTE_COUNT = 1430;
+// UX-1 2026-11-15: POST deliverables/:id/versions/:versionId/share (classified).
+const EXPECTED_ROUTE_COUNT = 1431;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

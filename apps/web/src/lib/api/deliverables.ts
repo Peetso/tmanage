@@ -30,6 +30,8 @@ export interface DeliverableVersionView {
   readonly note: string | null;
   readonly createdByUserId: string;
   readonly createdAt: string;
+  /** UX-1: when the client got this version in the portal, or null while only the team sees it. */
+  readonly sharedWithClientAt: string | null;
   /** The newest approval on this version, if it was ever sent. */
   readonly approval: {
     readonly id: string;
@@ -47,6 +49,8 @@ export interface DeliverableView {
   readonly description: string | null;
   readonly state: DeliverableState;
   readonly latestVersionNo: number | null;
+  /** UX-1: whether the client can open this deliverable in the portal. */
+  readonly sharedWithClient: boolean;
   readonly createdByUserId: string;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -158,6 +162,26 @@ export async function sendForApproval(
     method: 'POST',
     path: `${base(organizationSlug)}/${encodeURIComponent(deliverableId)}/versions/${encodeURIComponent(versionId)}/send`,
     body: input,
+  });
+  return data;
+}
+
+/**
+ * UX-1 "Share with client": put the newest version in the client portal, with no approval and no
+ * e-mail. The API checks `deliverable.publish` and whether the file may reach a client.
+ */
+export async function shareWithClient(
+  client: ApiClient,
+  organizationSlug: string,
+  deliverableId: string,
+  versionId: string,
+): Promise<{ readonly deliverableVersionId: string; readonly sharedWithClientAt: string }> {
+  const { data } = await client.request<{
+    readonly deliverableVersionId: string;
+    readonly sharedWithClientAt: string;
+  }>({
+    method: 'POST',
+    path: `${base(organizationSlug)}/${encodeURIComponent(deliverableId)}/versions/${encodeURIComponent(versionId)}/share`,
   });
   return data;
 }

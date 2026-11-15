@@ -1003,7 +1003,7 @@ describe('TM-03 the project overview', () => {
     );
 
     const header = await screen.findByRole('region', { name: 'This project' });
-    await within(header).findByText('Shared with a client');
+    await within(header).findByText('Client can open this project');
     expect(within(header).queryByText('Internal')).not.toBeInTheDocument();
   });
 
@@ -1039,7 +1039,7 @@ describe('TM-03 the project overview', () => {
     const header = await screen.findByRole('region', { name: 'This project' });
     // A badge the screen cannot verify is a guess; the old screen guessed "Internal".
     expect(within(header).queryByText('Internal')).not.toBeInTheDocument();
-    expect(within(header).queryByText('Shared with a client')).not.toBeInTheDocument();
+    expect(within(header).queryByText('Client can open this project')).not.toBeInTheDocument();
   });
 
   it('has no axe violations', async () => {

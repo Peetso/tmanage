@@ -42,6 +42,9 @@ import { AudioStage } from './AudioStage';
 import { CompareStage } from './CompareStage';
 import { DecisionRail } from './DecisionRail';
 import { useDeleteFile } from './DeleteFileDialog';
+import { ShareFileDialog } from './ShareFileDialog';
+import { HelpTip } from '../help/HelpTip';
+import { CheckedLabel } from '../screens/CheckedLabel';
 import type { DrawSettings } from './DrawLayer';
 import { DrawToolbar } from './DrawToolbar';
 import { DesktopFileStage, TextFileStage } from './FileTextStages';
@@ -288,9 +291,15 @@ export function threadsOnStage(
   );
 }
 
-function scanBadge(manifest: FilePreviewManifest, t: ReturnType<typeof useT>) {
+/**
+ * UX-1 (live UX test 69836a13, C-P1-4): a file that passed TManage's checks but no virus scanner
+ * wears the same "Checked" label the Files lists use (with "not virus-scanned" written out for a
+ * client), so the list and the viewer never disagree and nobody is told a file is unsafe.
+ */
+function scanBadge(manifest: FilePreviewManifest, t: ReturnType<typeof useT>, forClient: boolean) {
   const scan = manifest.version?.scanStatus;
   if (!scan) return null;
+  if (scan === 'not_scanned') return <CheckedLabel withNote={forClient} />;
   return <Badge>{t(`Viewer.scan.${scan}`)}</Badge>;
 }
 
@@ -592,6 +601,8 @@ export function FileViewer({
     },
   });
   const canDelete = !portalLook && manifest?.capabilities.canDelete === true;
+  // UX-1: "Share" opens the share-with-client dialog (it was a grey button with no reason).
+  const [sharing, setSharing] = useState(false);
 
   const currentVersion = manifest?.versions.versions.find(
     (version) => version.fileAssetId === manifest.file.id,
@@ -607,15 +618,21 @@ export function FileViewer({
             {t('Viewer.version.short').replace('{no}', String(currentVersion.versionNo))}
           </Badge>
         ) : null}
-        {scanBadge(manifest, t)}
+        {scanBadge(manifest, t, portalLook)}
       </span>
     ) : null,
     actions: (
       <span className="tm-viewer-head__actions">
-        {portalLook ? null : (
-          <button type="button" className="tm-viewer-share" disabled>
-            {t('Viewer.share')}
-          </button>
+        {portalLook || !manifest ? null : (
+          <HelpTip tip={t('Viewer.shareTip')}>
+            <button
+              type="button"
+              className="tm-button tm-button--ink tm-button--default"
+              onClick={() => setSharing(true)}
+            >
+              {t('Viewer.shareWithClient')}
+            </button>
+          </HelpTip>
         )}
         {downloadHref ? (
           <a className="tm-button tm-button--outline tm-button--default" href={downloadHref}>
@@ -633,6 +650,15 @@ export function FileViewer({
           </button>
         ) : null}
         {fileDelete.dialog}
+        {sharing && manifest ? (
+          <ShareFileDialog
+            api={api}
+            organizationSlug={organizationSlug}
+            file={manifest.file}
+            fromDeliverable={deliverableVersionId !== undefined}
+            onClose={() => setSharing(false)}
+          />
+        ) : null}
       </span>
     ),
     topBar: (

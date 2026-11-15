@@ -21,6 +21,7 @@ import type { InvitationSummary, IssuedInvitation } from '../../lib/api/invitati
 import type { ApiClient } from '../../lib/api/client';
 import { describePeopleError, initialsOf } from './peopleShared';
 import { ROLE_KEY, clientStatus } from './ClientsScreen';
+import { PreviewAsClientLink } from './PreviewAsClientLink';
 import '../../styles/screens/clients.css';
 
 export interface ClientCompanyScreenProps {
@@ -157,6 +158,7 @@ export function ClientCompanyScreen({
       actions={
         org && !archived ? (
           <div className="cl-header-actions">
+            <PreviewAsClientLink organizationSlug={organizationSlug} compact={false} />
             <Button tone="outline" size="accessible" onClick={() => setDialog('rename')}>
               {t('Clients.rename')}
             </Button>

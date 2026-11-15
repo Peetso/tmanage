@@ -48,7 +48,11 @@ import {
 import type { DeliverableDetailView, DeliverableVersionView } from '../../lib/api/deliverables';
 import { listClientOrganizationOptions } from '../../lib/api/project-client';
 import { listProjectShares } from '../../lib/api/clients';
-import { uploadProjectFileFor, uploadWorkItemAttachment } from '../../lib/api/uploads';
+import {
+  attachmentProblem,
+  uploadProjectFileFor,
+  uploadWorkItemAttachment,
+} from '../../lib/api/uploads';
 import { UploadProgressItem, useUploadQueue } from '../storage/UploadProgress';
 import type { UploadRow } from '../../lib/upload-queue';
 import { getStorageStatus, listDriveAttachments } from '../../lib/api/google-drive';
@@ -1186,8 +1190,20 @@ function FilesCard({
   const uploads = useUploadQueue((error) =>
     error instanceof NetworkError ? null : describe(error, ta),
   );
+  // UX-1 (live UX test 69836a13, O-P1-2): several files at once. A file the checks refuse before
+  // sending (empty, too large, a blocked type) is named with its reason instead of being dropped;
+  // the others go up, each with its own progress row and Retry.
+  const attachFiles = (picked: readonly File[]) => {
+    const refused = picked.flatMap((file) => {
+      const reason = attachmentProblem(file);
+      return reason === null ? [] : [reason];
+    });
+    setProblem(refused.length > 0 ? refused.join(' ') : undefined);
+    for (const file of picked) {
+      if (attachmentProblem(file) === null) void attachFile(file);
+    }
+  };
   const attachFile = async (file: File) => {
-    setProblem(undefined);
     // FIX6 item 2: the same road as chat and Files — uploaded to TManage, attached as an item file.
     await uploads.start(file, async (sent, deps) => {
       const attached = await uploadWorkItemAttachment(
@@ -1263,7 +1279,18 @@ function FilesCard({
   const nameOf = (userId: string) => memberDisplayName(userId, members.members, members.isPending);
 
   return (
-    <section className="tm-wk-card" aria-labelledby="tm-wk-files">
+    <section
+      className="tm-wk-card"
+      aria-labelledby="tm-wk-files"
+      onDragOver={(event) => {
+        if (!noStorage && event.dataTransfer.types.includes('Files')) event.preventDefault();
+      }}
+      onDrop={(event) => {
+        if (noStorage || !event.dataTransfer.types.includes('Files')) return;
+        event.preventDefault();
+        attachFiles(Array.from(event.dataTransfer.files));
+      }}
+    >
       <div className="tm-wk-card__head">
         <h2 id="tm-wk-files" className="tm-wk-card__title">
           {ta('WorkDetail.files')}
@@ -1293,13 +1320,14 @@ function FilesCard({
         <input
           ref={picker}
           type="file"
+          multiple
           hidden
           aria-hidden="true"
           tabIndex={-1}
           onChange={(event) => {
-            const file = event.target.files?.[0];
+            const picked = Array.from(event.target.files ?? []);
             event.target.value = '';
-            if (file) void attachFile(file);
+            attachFiles(picked);
           }}
         />
         <input

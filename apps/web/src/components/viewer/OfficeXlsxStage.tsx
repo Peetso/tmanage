@@ -198,6 +198,9 @@ export function OfficeXlsxStage({
                       </th>
                       {Array.from({ length: columns }, (_, column) => {
                         const address = `${columnName(column)}${row + 1}`;
+                        // UX-1: a merged range is one cell; the addresses it covers are not drawn.
+                        if (sheet.covered.has(address)) return null;
+                        const merge = sheet.merges.get(address);
                         const cell = sheet.cells.get(address);
                         const here = markers.get(address) ?? [];
                         const isDraft =
@@ -210,6 +213,7 @@ export function OfficeXlsxStage({
                           <td
                             key={address}
                             data-cell={address}
+                            {...(merge ? { colSpan: merge.colSpan, rowSpan: merge.rowSpan } : {})}
                             className="tm-xlsx__cell"
                             data-numeric={cell?.numeric ? 'true' : undefined}
                             data-selected={isSelected || isDraft ? 'true' : undefined}

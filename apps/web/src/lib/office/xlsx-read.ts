@@ -5,7 +5,8 @@ import { all, attr, child, openPackage, readXml, relationshipId, relationships }
  *
  * Values only: formulas show their last saved result (Excel stores it), numbers are formatted with
  * the common number formats (thousands, decimals, percent, dates), everything else is shown as
- * stored. Charts, colours, merged cells and conditional formats are not drawn — the stage says the
+ * stored. Merged cells are drawn as one cell (UX-1). Charts, colours and conditional formats are
+ * not drawn — the stage says the
  * layout is approximate. Comments anchor to a cell address (`Rates!C7`), which stays true however
  * the grid is drawn.
  */
@@ -29,6 +30,44 @@ export interface SheetGrid {
   readonly truncated: boolean;
   /** `A1` → cell. Only cells with something in them. */
   readonly cells: ReadonlyMap<string, SheetCell>;
+  /**
+   * UX-1 (live UX test 69836a13): merged ranges, by their top-left address. The other addresses of
+   * a range are in {@link covered}: they are not drawn, so a merged header shows once, not in every
+   * cell it spans.
+   */
+  readonly merges: ReadonlyMap<string, { readonly rowSpan: number; readonly colSpan: number }>;
+  readonly covered: ReadonlySet<string>;
+}
+
+/** The merged ranges of a sheet (`<mergeCell ref="A1:D1"/>`), clipped to the drawn grid. */
+export function readMerges(document: Document): {
+  readonly merges: Map<string, { readonly rowSpan: number; readonly colSpan: number }>;
+  readonly covered: Set<string>;
+} {
+  const merges = new Map<string, { readonly rowSpan: number; readonly colSpan: number }>();
+  const covered = new Set<string>();
+  for (const node of all(document, 'mergeCell').slice(0, 5_000)) {
+    const [from, to] = (attr(node, 'ref') ?? '').split(':');
+    const start = from ? parseCellAddress(from) : null;
+    const end = to ? parseCellAddress(to) : null;
+    if (!start || !end || start.row >= MAX_ROWS || start.column >= MAX_COLUMNS) continue;
+    const lastRow = Math.min(end.row, MAX_ROWS - 1);
+    const lastColumn = Math.min(end.column, MAX_COLUMNS - 1);
+    if (lastRow < start.row || lastColumn < start.column) continue;
+    if (lastRow === start.row && lastColumn === start.column) continue;
+    merges.set(`${columnName(start.column)}${start.row + 1}`, {
+      rowSpan: lastRow - start.row + 1,
+      colSpan: lastColumn - start.column + 1,
+    });
+    for (let row = start.row; row <= lastRow; row += 1) {
+      for (let column = start.column; column <= lastColumn; column += 1) {
+        if (row !== start.row || column !== start.column) {
+          covered.add(`${columnName(column)}${row + 1}`);
+        }
+      }
+    }
+  }
+  return { merges, covered };
 }
 
 export interface Workbook {
@@ -178,7 +217,10 @@ function readSheet(
     rowCount = Math.max(rowCount, position.row + 1);
     columnCount = Math.max(columnCount, position.column + 1);
   }
-  return { name, hidden, rowCount, columnCount, truncated, cells };
+  const { merges, covered } = readMerges(document);
+  // Some writers repeat a merged range's value in every cell it covers; only the anchor is shown.
+  for (const address of covered) cells.delete(address);
+  return { name, hidden, rowCount, columnCount, truncated, cells, merges, covered };
 }
 
 /** Reads every sheet of a workbook into display text. Throws when the bytes are not a workbook. */

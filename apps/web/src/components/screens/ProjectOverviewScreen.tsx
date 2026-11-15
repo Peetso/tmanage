@@ -24,6 +24,7 @@ import {
 } from '../../lib/api/portal';
 import type { MilestoneStatus, ProjectMilestone } from '../../lib/api/portal';
 import { listProjectShares } from '../../lib/api/clients';
+import { listDeliverables } from '../../lib/api/deliverables';
 import { listWorkItems, MAX_WORK_ITEM_PAGE } from '../../lib/api/work-items';
 import type { WorkItemSummary } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -43,6 +44,9 @@ import { useHydrated } from '../../lib/use-hydrated';
 import { useRecordRecentItem } from '../../lib/use-record-recent-item';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { deliverablesQueryKey } from './DeliverablesScreen';
+import { PreviewAsClientLink } from './PreviewAsClientLink';
 import type { MessageKey } from '../../lib/i18n/t';
 
 type Translate = ReturnType<typeof useT>;
@@ -91,6 +95,7 @@ export function ProjectOverviewScreen({
 }: ProjectOverviewScreenProps) {
   const api = client ?? browserApiClient();
   const t = useT();
+  const tOr = useTOr();
 
   const project = useQuery({
     queryKey: ['project', organizationSlug, projectId],
@@ -134,6 +139,18 @@ export function ProjectOverviewScreen({
   const overdue = items.filter((item) => isOverdue(item, now));
   const done = items.filter((item) => item.state === 'done' || item.state === 'archived');
   const clientFacing = items.filter((item) => isClientFacing(item.audience));
+
+  // UX-1 (live UX test 69836a13, O-P1-5): "What the client can see" counts what the portal shows —
+  // client-facing work and the deliverables shared with the client — so it cannot say "0 items"
+  // while a deliverable sits in the portal. The same query (and cache entry) the Deliverables tab
+  // reads.
+  const deliverables = useQuery({
+    queryKey: deliverablesQueryKey(organizationSlug, projectId),
+    queryFn: () => listDeliverables(api, organizationSlug, projectId),
+  });
+  const sharedDeliverables = (deliverables.data ?? []).filter((item) => item.sharedWithClient);
+  const clientSees = clientFacing.length + sharedDeliverables.length;
+  const projectOpenToClient = (shares.data?.length ?? 0) > 0;
 
   // The same query (and cache entry) `MilestoneComposer` reads, so the pulse track and the list
   // under the composer can never disagree.
@@ -423,15 +440,32 @@ export function ProjectOverviewScreen({
                 {t('ProjectOverviewScreen.whatClientSees')}
               </h2>
               <div className="tm-prj-client__figure">
-                <span className="tm-prj-client__value">{clientFacing.length}</span>
+                <span className="tm-prj-client__value">{clientSees}</span>
                 <span>
-                  {clientFacing.length === 1
+                  {clientSees === 1
                     ? t('ProjectOverviewScreen.itemVisibleSingular')
                     : t('ProjectOverviewScreen.itemsVisiblePlural')}
                 </span>
               </div>
-              {clientFacing.length > 0 ? (
+              {clientSees > 0 ? (
                 <ul className="tm-prj-client__list">
+                  {sharedDeliverables.map((item) => (
+                    <li key={item.id}>
+                      <span className="tm-prj-client__ring" aria-hidden="true">
+                        CL
+                      </span>
+                      <span className="tm-stack tm-stack--tight">
+                        <Link
+                          href={`/${organizationSlug}/projects/${encodeURIComponent(projectId)}/deliverables/${encodeURIComponent(item.id)}`}
+                        >
+                          {item.title}
+                        </Link>
+                        <span className="tm-meta-mono">
+                          {tOr('ProjectOverviewScreen.sharedDeliverable', 'Deliverable · shared')}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
                   {clientFacing.map((item) => (
                     <li key={item.id}>
                       <span className="tm-prj-client__ring" aria-hidden="true">
@@ -449,10 +483,16 @@ export function ProjectOverviewScreen({
               ) : null}
               <hr className="tm-prj-client__rule" />
               <p className="tm-prj-client__prose">
-                {clientFacing.length === 0
-                  ? t('ProjectOverviewScreen.clientProseNone')
-                  : t('ProjectOverviewScreen.clientProseSome')}
+                {clientSees > 0
+                  ? t('ProjectOverviewScreen.clientProseSome')
+                  : projectOpenToClient
+                    ? tOr(
+                        'ProjectOverviewScreen.clientProseOpenNothingShared',
+                        'Your client can open this project, but nothing in it is shared yet. Share a deliverable to send it to them.',
+                      )
+                    : t('ProjectOverviewScreen.clientProseNone')}
               </p>
+              <PreviewAsClientLink organizationSlug={organizationSlug} projectId={projectId} />
             </section>
 
             <section className="tm-card tm-prj-card" aria-labelledby="tm-project-health">

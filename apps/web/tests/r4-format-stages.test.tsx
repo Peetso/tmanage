@@ -154,6 +154,22 @@ describe('Excel reader', () => {
   });
 });
 
+describe('xlsx merged cells (UX-1)', () => {
+  it('reads a merged header once: the anchor spans the range, the covered cells are not drawn', async () => {
+    const files = workbookFiles();
+    // A writer that repeats the merged value in every covered cell, as the live file did.
+    files['xl/worksheets/sheet2.xml'] =
+      `<worksheet xmlns="${NS_MAIN}"><sheetData><row r="1"><c r="A1" t="str"><v>Season</v></c><c r="B1" t="str"><v>Season</v></c><c r="C1" t="str"><v>Season</v></c></row><row r="2"><c r="A2" t="str"><v>High</v></c></row></sheetData>` +
+      `<mergeCells count="1"><mergeCell ref="A1:C1"/></mergeCells></worksheet>`;
+    const seasons = (await readWorkbook(await packageBytes(files))).sheets[1]!;
+    expect(seasons.merges.get('A1')).toEqual({ rowSpan: 1, colSpan: 3 });
+    expect([...seasons.covered]).toEqual(['B1', 'C1']);
+    expect(seasons.cells.get('A1')?.text).toBe('Season');
+    expect(seasons.cells.has('B1')).toBe(false);
+    expect(seasons.cells.has('C1')).toBe(false);
+  });
+});
+
 describe('OfficeXlsxStage (V-25 Excel)', () => {
   const bytes = () => packageBytes(workbookFiles());
 

@@ -137,7 +137,15 @@ export const PUBLIC_CLAIMS: readonly PublicClaim[] = Object.freeze([
       en: [/malware-scanned/iu, /virus-checked/iu, /virus-scanned/iu],
       ar: [/مفحوصة من البرمجيات الخبيثة/u],
     },
-    plannedKeys: [],
+    // FIX6 / UX-1: in-app file states and the owner's sharing choice name a virus scan only to
+    // say a file was NOT scanned, that a configured scanner DID scan this one, or to offer
+    // "only virus-scanned files" as a policy. None of them claims TManage scans every file.
+    plannedKeys: [
+      'DownloadScan.checkedNote',
+      'Viewer.scan.not_scanned',
+      'Viewer.scan.clean',
+      'ClientFilePolicy.scannedLabel',
+    ],
   },
   {
     id: 'encrypted_backups',

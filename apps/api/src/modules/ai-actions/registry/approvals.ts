@@ -209,6 +209,16 @@ export const approvalsDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'Approvers', args: { deliverableId: 'dlv_1' } }],
   }),
   det({
+    id: 'approvals.deliverables.share.create',
+    title: 'Share a version with the client',
+    description:
+      'Put the newest version in the client portal so the client can open it. ' +
+      'No approval is asked and nobody is emailed. Confirm-class.',
+    input: pathOnly('deliverableId', 'versionId'),
+    redact: 'client_safe',
+    examples: [{ summary: 'Share v2', args: { deliverableId: 'dlv_1', versionId: 'dv_2' } }],
+  }),
+  det({
     id: 'approvals.deliverables.send.create',
     title: 'Send a version for client approval',
     description:

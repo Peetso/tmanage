@@ -10,6 +10,7 @@ import type {
   DeliverableView,
   DeliverablesService,
   SendForApprovalView,
+  ShareWithClientView,
 } from './deliverables.service.js';
 
 export const DELIVERABLES_SERVICE = Symbol.for('tmanage.DeliverablesService');
@@ -108,6 +109,22 @@ export class DeliverablesController {
     @Param('deliverableId') deliverableId: string,
   ): Promise<{ readonly approvers: readonly ApproverView[] }> {
     return { approvers: await this.deliverables.approvers(context, principal, deliverableId) };
+  }
+
+  /**
+   * UX-1 "Share with client": the newest version goes into the client portal, with no approval and
+   * no e-mail. `deliverable.publish` here and again on the project in the service.
+   */
+  @Post(':deliverableId/versions/:versionId/share')
+  @HttpCode(200)
+  @RequireCapability('deliverable.publish')
+  async share(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('deliverableId') deliverableId: string,
+    @Param('versionId') versionId: string,
+  ): Promise<ShareWithClientView> {
+    return this.deliverables.share(context, principal, deliverableId, versionId);
   }
 
   @Post(':deliverableId/versions/:versionId/send')

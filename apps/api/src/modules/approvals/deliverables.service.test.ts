@@ -19,8 +19,26 @@ const admin = {
   projectIds: ['p-1'],
   hasOrgWideScope: true,
 } as Principal;
-const deliverable = { id: 'd-1', projectId: 'p-1', title: 'Homepage' };
-const v2 = { id: 'v-2', deliverableId: 'd-1', versionNo: 2, contentHash: 'h'.repeat(64) };
+const deliverable = {
+  id: 'd-1',
+  projectId: 'p-1',
+  title: 'Homepage',
+  description: null,
+  createdByUserId: 'u-1',
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+const v2 = {
+  id: 'v-2',
+  deliverableId: 'd-1',
+  versionNo: 2,
+  contentHash: 'h'.repeat(64),
+  fileAssetId: null,
+  fileVersionId: null,
+  note: null,
+  createdByUserId: 'u-1',
+  createdAt: new Date(),
+};
 const pending = {
   id: 'a-1',
   state: 'requested',
@@ -58,6 +76,7 @@ function build(sharingRefuses = false) {
     },
     versions: {
       latestForDeliverable: vi.fn(async () => v2),
+      findById: vi.fn(async (): Promise<object | null> => null),
       listForDeliverable: vi.fn(async () => [v2]),
       create: vi.fn(async (_t: unknown, _c: unknown, i: object) => ({
         ...i,
@@ -75,7 +94,15 @@ function build(sharingRefuses = false) {
       })),
       transition: vi.fn(),
     },
-    projections: { findByVersion: vi.fn(async () => null), publish: vi.fn() },
+    projections: {
+      findByVersion: vi.fn(async (): Promise<object | null> => null),
+      listByProject: vi.fn(async (): Promise<readonly object[]> => []),
+      publish: vi.fn(async (_t: unknown, _c: unknown, i: object) => ({
+        ...i,
+        id: 'cp-1',
+        publishedAt: new Date('2026-11-15T10:00:00.000Z'),
+      })),
+    },
     outbox: { append: vi.fn() },
     projects: { findById: vi.fn(async () => ({ id: 'p-1', archivedAt: null })) },
     // Q3: the real metadata rule runs, so an unsafe key or value fails the test.
@@ -112,6 +139,74 @@ function build(sharingRefuses = false) {
 }
 
 describe('DeliverablesService (0211)', () => {
+  it('UX-1: "Share with client" publishes the newest version to the portal with no approval and no e-mail', async () => {
+    const { service, projections, approvals, outbox, audit } = build();
+    const shared = await service.share(ctx, admin, 'd-1', 'v-2');
+    expect(shared).toEqual({
+      deliverableVersionId: 'v-2',
+      sharedWithClientAt: '2026-11-15T10:00:00.000Z',
+    });
+    expect(projections.publish).toHaveBeenCalledOnce();
+    expect(projections.publish.mock.calls[0]?.[2]).toMatchObject({
+      deliverableId: 'd-1',
+      deliverableVersionId: 'v-2',
+    });
+    expect(approvals.open).not.toHaveBeenCalled();
+    expect(outbox.append).not.toHaveBeenCalled();
+    expect(audit.record.mock.calls[0]?.[2]).toMatchObject({
+      action: 'deliverable.shared_with_client',
+      metadata: { project_id: 'p-1', deliverable_version_id: 'v-2' },
+    });
+  });
+
+  it('UX-1: sharing needs deliverable.publish on the project; a reviewer without it publishes nothing', async () => {
+    const { service, projections } = build();
+    const viewer = { ...admin, role: 'member', hasOrgWideScope: false } as Principal;
+    await expect(service.share(ctx, viewer, 'd-1', 'v-2')).rejects.toBeInstanceOf(ApiError);
+    expect(projections.publish).not.toHaveBeenCalled();
+  });
+
+  it('UX-1: sharing refuses an older version and a file the sharing rule refuses, before publishing', async () => {
+    const older = build();
+    await expect(older.service.share(ctx, admin, 'd-1', 'v-unknown')).rejects.toMatchObject({
+      status: 404,
+    });
+    expect(older.projections.publish).not.toHaveBeenCalled();
+    const refused = build(true);
+    await expect(refused.service.share(ctx, admin, 'd-1', 'v-2')).rejects.toMatchObject({
+      status: 409,
+    });
+    expect(refused.projections.publish).not.toHaveBeenCalled();
+  });
+
+  it('UX-1: sharing a version already shared answers the first share and writes nothing new', async () => {
+    const { service, projections, audit } = build();
+    projections.findByVersion.mockResolvedValue({
+      publishedAt: new Date('2026-11-14T09:00:00.000Z'),
+    });
+    const shared = await service.share(ctx, admin, 'd-1', 'v-2');
+    expect(shared.sharedWithClientAt).toBe('2026-11-14T09:00:00.000Z');
+    expect(projections.publish).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it('UX-1: the deliverable says which versions the client can open (one source: the projections)', async () => {
+    const { service, projections } = build();
+    projections.listByProject.mockResolvedValue([
+      {
+        deliverableId: 'd-1',
+        deliverableVersionId: 'v-2',
+        publishedAt: new Date('2026-11-15T10:00:00.000Z'),
+      },
+      { deliverableId: 'd-other', deliverableVersionId: 'v-9', publishedAt: new Date() },
+    ]);
+    const detail = await service.detail(ctx, admin, 'd-1');
+    expect(detail.sharedWithClient).toBe(true);
+    expect(detail.versions[0]?.sharedWithClientAt).toBe('2026-11-15T10:00:00.000Z');
+    projections.listByProject.mockResolvedValue([]);
+    expect((await service.detail(ctx, admin, 'd-1')).sharedWithClient).toBe(false);
+  });
+
   it('FIX6: a version takes a file the checks passed but no scanner judged (live has none)', async () => {
     const { service, deliverables, versions } = build();
     deliverables.fileWithLatestVersion.mockResolvedValue({

@@ -784,6 +784,11 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'file_asset',
     clause: '§12 — a new version changes which file a work item, request or document serves',
   },
+  /** UX-1. A version put in the client portal by "Share with client" (no approval, no e-mail). */
+  'deliverable.shared_with_client': {
+    objectType: 'deliverable',
+    clause: '§12 disclosure — publishing a version to the client portal',
+  },
   'deliverable.sent_for_approval': {
     objectType: 'deliverable',
     clause: '§12 disclosure — publishing a version to the client and naming who decides',
@@ -1782,6 +1787,7 @@ const AUDIT_ACTION_LABELS = {
   'deliverable.created': 'Created a deliverable',
   'deliverable.version_added': 'Uploaded a new deliverable version',
   'file_asset.version_added': 'Uploaded a new file version',
+  'deliverable.shared_with_client': 'Shared a deliverable with the client',
   'deliverable.sent_for_approval': 'Sent a deliverable for client approval',
   'approval.approved': 'Approved a deliverable',
   'approval.changes_requested': 'Requested changes on a deliverable',

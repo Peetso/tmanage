@@ -9,6 +9,7 @@ import type {
 } from '../../common/database/tenant-context.js';
 import type {
   ApprovalRow,
+  ClientProjectionRow,
   DeliverableRow,
   DeliverableVersionRow,
 } from '../../common/database/schema.js';
@@ -52,6 +53,11 @@ export interface DeliverableVersionView {
   readonly note: string | null;
   readonly createdByUserId: string;
   readonly createdAt: string;
+  /**
+   * UX-1: when this version was shared with the client (its `client_projections` row, the one fact
+   * the portal reads), or null while only the team can see it.
+   */
+  readonly sharedWithClientAt: string | null;
   /** The newest approval on this version, if it was ever sent. */
   readonly approval: {
     readonly id: string;
@@ -69,9 +75,17 @@ export interface DeliverableView {
   readonly description: string | null;
   readonly state: DeliverableState;
   readonly latestVersionNo: number | null;
+  /** UX-1: whether the client can open this deliverable in the portal (any version shared). */
+  readonly sharedWithClient: boolean;
   readonly createdByUserId: string;
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+/** UX-1: the answer to "Share with client" — the version and when the client got it. */
+export interface ShareWithClientView {
+  readonly deliverableVersionId: string;
+  readonly sharedWithClientAt: string;
 }
 
 export interface DeliverableDetailView extends DeliverableView {
@@ -128,10 +142,24 @@ export function versionContentHash(parts: {
   return createHash('sha256').update(JSON.stringify(parts)).digest('hex');
 }
 
+/** UX-1: when each version of a deliverable was shared, by version id. */
+type SharedAt = ReadonlyMap<string, Date>;
+
+function sharedAtFor(projections: readonly ClientProjectionRow[], deliverableId: string): SharedAt {
+  const out = new Map<string, Date>();
+  for (const projection of projections) {
+    if (projection.deliverableId === deliverableId) {
+      out.set(projection.deliverableVersionId, projection.publishedAt);
+    }
+  }
+  return out;
+}
+
 function toView(
   row: DeliverableRow,
   versions: readonly DeliverableVersionRow[],
   all: readonly ApprovalRow[],
+  shared: SharedAt,
 ): DeliverableView {
   return {
     id: row.id,
@@ -140,6 +168,7 @@ function toView(
     description: row.description,
     state: deliverableState(versions[0], all),
     latestVersionNo: versions[0]?.versionNo ?? null,
+    sharedWithClient: shared.size > 0,
     createdByUserId: row.createdByUserId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -149,6 +178,7 @@ function toView(
 function toVersionView(
   row: DeliverableVersionRow,
   all: readonly ApprovalRow[],
+  shared: SharedAt,
 ): DeliverableVersionView {
   const approval = all.find((a) => a.deliverableVersionId === row.id);
   return {
@@ -159,6 +189,7 @@ function toVersionView(
     note: row.note,
     createdByUserId: row.createdByUserId,
     createdAt: row.createdAt.toISOString(),
+    sharedWithClientAt: shared.get(row.id)?.toISOString() ?? null,
     approval: approval
       ? {
           id: approval.id,
@@ -210,7 +241,7 @@ export class DeliverablesService {
           result: 'allowed',
           metadata: { project_id: project.id },
         });
-        return toView(row, [], []);
+        return toView(row, [], [], new Map());
       }),
     );
   }
@@ -223,11 +254,12 @@ export class DeliverablesService {
     this.require(principal, 'work.read', context, projectId);
     return this.database.read(context, async (runner) => {
       const rows = await this.deliverables.listByProject(runner, context, projectId);
+      const projections = await this.projections.listByProject(runner, context, projectId);
       const out: DeliverableView[] = [];
       for (const row of rows) {
         const versions = await this.versions.listForDeliverable(runner, context, row.id);
         const all = await this.deliverables.approvalsFor(runner, context, row.id);
-        out.push(toView(row, versions, all));
+        out.push(toView(row, versions, all, sharedAtFor(projections, row.id)));
       }
       return out;
     });
@@ -244,9 +276,13 @@ export class DeliverablesService {
         this.require(principal, 'work.read', context, row.projectId);
         const versions = await this.versions.listForDeliverable(runner, context, row.id);
         const all = await this.deliverables.approvalsFor(runner, context, row.id);
+        const shared = sharedAtFor(
+          await this.projections.listByProject(runner, context, row.projectId),
+          row.id,
+        );
         return {
-          ...toView(row, versions, all),
-          versions: versions.map((v) => toVersionView(v, all)),
+          ...toView(row, versions, all, shared),
+          versions: versions.map((v) => toVersionView(v, all, shared)),
         };
       }),
     );
@@ -339,7 +375,7 @@ export class DeliverablesService {
             file_asset_id: input.fileAssetId,
           },
         });
-        return toVersionView(created, []);
+        return toVersionView(created, [], new Map());
       }),
     );
   }
@@ -381,22 +417,7 @@ export class DeliverablesService {
         this.require(principal, 'deliverable.publish', context, deliverable.projectId);
         this.require(principal, 'deliverable.review', context, deliverable.projectId);
 
-        const latest = await this.versions.latestForDeliverable(tx, context, deliverable.id);
-        if (!latest || latest.id !== versionId) {
-          if (
-            latest &&
-            (await this.versions.findById(tx, context, versionId))?.deliverableId === deliverable.id
-          ) {
-            throw new ApiError(
-              409,
-              'conflict',
-              'Only the newest version can be sent',
-              undefined,
-              'version_superseded',
-            );
-          }
-          throw notFound('deliverable_version_not_found');
-        }
+        const latest = await this.newestVersion(tx, context, deliverable.id, versionId);
 
         const allowed = new Set(
           (await this.deciders(tx, context, deliverable.projectId)).map((p) => p.userId),
@@ -426,27 +447,10 @@ export class DeliverablesService {
         // FIX6 item 1: the version's file must be one the sharing rule lets reach a client.
         await this.sharing.assertVersionFileShareable(tx, context, latest.fileAssetId);
 
-        // The projection is append-only per version (0031): publish it the first time only.
-        if (!(await this.projections.findByVersion(tx, context, latest.id))) {
-          await this.projections.publish(tx, context, {
-            projectId: deliverable.projectId,
-            deliverableId: deliverable.id,
-            deliverableVersionId: latest.id,
-            contentHash: latest.contentHash,
-            projection: {
-              title: latest.versionNo
-                ? `${deliverable.title} · v${latest.versionNo}`
-                : deliverable.title,
-              summary: input.checkNote,
-              milestoneState: null,
-              forecastDate: input.dueDate,
-              publishedRisk: null,
-              decision: null,
-              approvedContacts: [],
-            },
-            publishedByUserId: principal.userId,
-          });
-        }
+        await this.publishOnce(tx, context, principal, deliverable, latest, {
+          summary: input.checkNote,
+          forecastDate: input.dueDate,
+        });
 
         const approval = await this.approvals.open(tx, context, {
           projectId: deliverable.projectId,
@@ -491,6 +495,105 @@ export class DeliverablesService {
         };
       }),
     );
+  }
+
+  /**
+   * UX-1 "Share with client": put the newest version in the client portal, with no approval and
+   * no e-mail. The same checks a send runs before it publishes — `deliverable.publish` on the
+   * project, the newest version only, and the one sharing rule on its file — and the same
+   * append-only projection, so the portal, the deliverable page and the project overview read one
+   * fact. Sharing an already shared version answers its first share again (idempotent).
+   */
+  async share(
+    context: TenantContext,
+    principal: Principal,
+    deliverableId: string,
+    versionId: string,
+  ): Promise<ShareWithClientView> {
+    return this.guarding(() =>
+      this.database.transaction(context, async (tx) => {
+        const deliverable = await this.deliverables.requireById(tx, context, deliverableId);
+        this.require(principal, 'deliverable.publish', context, deliverable.projectId);
+        const latest = await this.newestVersion(tx, context, deliverable.id, versionId);
+        await this.sharing.assertVersionFileShareable(tx, context, latest.fileAssetId);
+        const projection = await this.publishOnce(tx, context, principal, deliverable, latest, {
+          summary: null,
+          forecastDate: null,
+        });
+        if (projection.created) {
+          await this.deliverables.touch(tx, context, deliverable.id);
+          await this.audit?.record(tx, context, {
+            action: 'deliverable.shared_with_client',
+            objectId: deliverable.id,
+            result: 'allowed',
+            metadata: {
+              project_id: deliverable.projectId,
+              deliverable_version_id: latest.id,
+            },
+          });
+        }
+        return {
+          deliverableVersionId: latest.id,
+          sharedWithClientAt: projection.publishedAt.toISOString(),
+        };
+      }),
+    );
+  }
+
+  /** The deliverable's newest version, which must be `versionId`; an older one is a 409. */
+  private async newestVersion(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    deliverableId: string,
+    versionId: string,
+  ): Promise<DeliverableVersionRow> {
+    const latest = await this.versions.latestForDeliverable(tx, context, deliverableId);
+    if (latest && latest.id === versionId) return latest;
+    if (
+      latest &&
+      (await this.versions.findById(tx, context, versionId))?.deliverableId === deliverableId
+    ) {
+      throw new ApiError(
+        409,
+        'conflict',
+        'Only the newest version can be sent',
+        undefined,
+        'version_superseded',
+      );
+    }
+    throw notFound('deliverable_version_not_found');
+  }
+
+  /** The projection is append-only per version (0031): publish it the first time only. */
+  private async publishOnce(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    principal: Principal,
+    deliverable: { readonly id: string; readonly projectId: string; readonly title: string },
+    version: DeliverableVersionRow,
+    input: { readonly summary: string | null; readonly forecastDate: string | null },
+  ): Promise<{ readonly created: boolean; readonly publishedAt: Date }> {
+    const existing = await this.projections.findByVersion(tx, context, version.id);
+    if (existing) return { created: false, publishedAt: existing.publishedAt };
+    const row = await this.projections.publish(tx, context, {
+      projectId: deliverable.projectId,
+      deliverableId: deliverable.id,
+      deliverableVersionId: version.id,
+      contentHash: version.contentHash,
+      projection: {
+        title: version.versionNo
+          ? `${deliverable.title} · v${version.versionNo}`
+          : deliverable.title,
+        summary: input.summary,
+        milestoneState: null,
+        forecastDate: input.forecastDate,
+        publishedRisk: null,
+        decision: null,
+        approvedContacts: [],
+      },
+      publishedByUserId: principal.userId,
+    });
+    return { created: true, publishedAt: row.publishedAt };
   }
 
   private async deciders(

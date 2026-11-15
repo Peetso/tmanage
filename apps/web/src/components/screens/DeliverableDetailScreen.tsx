@@ -8,14 +8,19 @@ import type { CapsuleState } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { ProjectTabs } from '../projects/ProjectTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { addDeliverableVersion, getDeliverable } from '../../lib/api/deliverables';
+import { addDeliverableVersion, getDeliverable, shareWithClient } from '../../lib/api/deliverables';
 import { FigmaLinksPanel } from '../viewer/FigmaLinks';
 import type {
   DeliverableApprovalState,
   DeliverableDetailView,
   DeliverableVersionView,
 } from '../../lib/api/deliverables';
-import { ATTACHMENT_ACCEPT, attachmentProblem, uploadProjectFileFor } from '../../lib/api/uploads';
+import {
+  ATTACHMENT_ACCEPT,
+  attachmentProblem,
+  formatBytes,
+  uploadProjectFileFor,
+} from '../../lib/api/uploads';
 import type { ApiClient } from '../../lib/api/client';
 import {
   STATE_KEY,
@@ -28,6 +33,8 @@ import {
 import { SendForApprovalDialog } from './SendForApprovalDialog';
 import { ExternalApproversPanel } from './approvals/ExternalApproversPanel';
 import { useT } from '../../lib/i18n/use-t';
+import { HelpTip } from '../help/HelpTip';
+import { PreviewAsClientLink } from './PreviewAsClientLink';
 
 export interface DeliverableDetailScreenProps {
   organizationSlug: string;
@@ -63,6 +70,11 @@ function approvalCapsule(state: DeliverableApprovalState): CapsuleState {
  * The deliverable's versions, newest first, each with its note, file, approval state and the
  * client's feedback; "Upload new version" (the existing upload pipeline, purpose `deliverable`,
  * plus a note); and "Send for approval" on the newest version not already out with the client.
+ *
+ * UX-1 (live UX test 69836a13, O-P0-2): one primary action, **Share with client**, puts the newest
+ * version in the portal (no approval, no e-mail); "Send for approval" is the secondary choice for
+ * a version the client must sign off. Each version says whether the client can open it, read from
+ * the same fact the portal reads, and "Preview as client" opens the portal as the client sees it.
  */
 export function DeliverableDetailScreen({
   organizationSlug,
@@ -82,6 +94,8 @@ export function DeliverableDetailScreen({
   });
 
   const [file, setFile] = useState<File | null>(null);
+  // UX-1: a new key empties the file picker after a version is saved (it kept the old name).
+  const [pickerKey, setPickerKey] = useState(0);
   const [note, setNote] = useState('');
   const [sendingVersion, setSendingVersion] = useState<DeliverableVersionView | null>(null);
 
@@ -107,9 +121,16 @@ export function DeliverableDetailScreen({
     },
     onSuccess: () => {
       setFile(null);
+      setPickerKey((key) => key + 1);
       setNote('');
       refresh();
     },
+  });
+
+  const share = useMutation({
+    mutationFn: (version: DeliverableVersionView) =>
+      shareWithClient(api, organizationSlug, deliverableId, version.id),
+    onSuccess: refresh,
   });
 
   const fileProblem = file ? attachmentProblem(file) : null;
@@ -136,6 +157,7 @@ export function DeliverableDetailScreen({
           }
         />
       }
+      actions={<PreviewAsClientLink organizationSlug={organizationSlug} />}
       headerAside={
         detail.data ? (
           <StateCapsule state={stateCapsule(detail.data.state)}>
@@ -161,10 +183,17 @@ export function DeliverableDetailScreen({
                 <h2 id="tm-deliverable-versions" className="tm-prj-eyebrow">
                   {t('Deliverables.versionsHeading')}
                 </h2>
+                {share.isError ? (
+                  <InlineAlert tone="danger" title={t('Deliverables.shareFailed')} live>
+                    {describeDeliverableError(share.error, t)}
+                  </InlineAlert>
+                ) : null}
                 <VersionList
                   detail={detail.data}
                   organizationSlug={organizationSlug}
                   onSend={setSendingVersion}
+                  onShare={(version) => share.mutate(version)}
+                  sharing={share.isPending}
                 />
               </section>
             </div>
@@ -179,18 +208,39 @@ export function DeliverableDetailScreen({
                     event.preventDefault();
                     if (canUpload) upload.mutate();
                   }}
+                  onDragOver={(event) => {
+                    if (event.dataTransfer.types.includes('Files')) event.preventDefault();
+                  }}
+                  onDrop={(event) => {
+                    if (!event.dataTransfer.types.includes('Files')) return;
+                    event.preventDefault();
+                    if (!upload.isPending) setFile(event.dataTransfer.files[0] ?? null);
+                  }}
                 >
+                  {/* UX-1 (O-P1-1): the styled picker the task uploader uses, not the browser's raw
+                      "Choose File"; a file can also be dropped on this card. One file per version. */}
                   <div className="tm-field">
-                    <label className="tm-field__label" htmlFor="tm-deliverable-file">
+                    <span className="tm-field__label" id="tm-deliverable-file-label">
                       {t('Deliverables.fileLabel')}
-                    </label>
-                    <input
-                      id="tm-deliverable-file"
-                      className="tm-field__control"
-                      type="file"
-                      accept={ATTACHMENT_ACCEPT}
-                      onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                    />
+                    </span>
+                    <div className="tm-row tm-row--wrap">
+                      <label className="tm-button tm-button--outline tm-button--compact tm-file-pick">
+                        {file ? t('Deliverables.chooseOtherFile') : t('Deliverables.chooseFile')}
+                        <input
+                          key={pickerKey}
+                          className="tm-visually-hidden"
+                          type="file"
+                          accept={ATTACHMENT_ACCEPT}
+                          aria-labelledby="tm-deliverable-file-label"
+                          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                        />
+                      </label>
+                      <span className="tm-field__hint" dir="auto">
+                        {file
+                          ? `${file.name} · ${formatBytes(file.size)}`
+                          : t('Deliverables.dropHint')}
+                      </span>
+                    </div>
                     {fileProblem ? <p className="tm-field__error">{fileProblem}</p> : null}
                   </div>
                   <div className="tm-field">
@@ -270,10 +320,14 @@ function VersionList({
   detail,
   organizationSlug,
   onSend,
+  onShare,
+  sharing,
 }: {
   detail: DeliverableDetailView;
   organizationSlug: string;
   onSend: (version: DeliverableVersionView) => void;
+  onShare: (version: DeliverableVersionView) => void;
+  sharing: boolean;
 }) {
   const t = useDeliverablesT();
   const viewerT = useT();
@@ -289,25 +343,27 @@ function VersionList({
         const canSend =
           version.id === latestId &&
           (approval === null || (!pending && approval.state !== 'approved'));
+        const shared = version.sharedWithClientAt !== null;
+        const canShare = version.id === latestId && !shared;
         return (
           <li key={version.id} className="tm-stack tm-stack--tight">
             <div className="tm-row tm-row--wrap">
               <span className="tm-badge tm-badge--mono">v{version.versionNo ?? ''}</span>
               <span className="tm-meta-mono">{version.createdAt.slice(0, 10)}</span>
+              {/* UX-1: whether the client can open this version, from the portal's own fact. */}
+              <StateCapsule state={shared ? 'client' : 'neutral'} className="tm-push-end">
+                {shared ? t('Deliverables.sharedWithClient') : t('Deliverables.teamOnly')}
+              </StateCapsule>
               {approval ? (
-                <StateCapsule state={approvalCapsule(approval.state)} className="tm-push-end">
+                <StateCapsule state={approvalCapsule(approval.state)}>
                   {t(APPROVAL_KEY[approval.state])}
                 </StateCapsule>
-              ) : (
-                <StateCapsule state="neutral" className="tm-push-end">
-                  {t('Deliverables.notSent')}
-                </StateCapsule>
-              )}
+              ) : null}
             </div>
             {version.note ? <p className="tm-prose">{version.note}</p> : null}
-            <p className="tm-field__hint">
-              {version.fileAssetId ? t('Deliverables.fileAttached') : t('Deliverables.noFile')}
-            </p>
+            {version.fileAssetId ? null : (
+              <p className="tm-field__hint">{t('Deliverables.noFile')}</p>
+            )}
             {version.fileAssetId ? (
               <div className="tm-row tm-row--wrap">
                 <Link
@@ -325,7 +381,20 @@ function VersionList({
               </blockquote>
             ) : null}
             <div className="tm-row tm-row--wrap">
-              {pending ? (
+              {canShare ? (
+                <HelpTip tip={t('Deliverables.shareTip')}>
+                  <Button
+                    tone="ink"
+                    size="compact"
+                    loading={sharing}
+                    loadingLabel={t('Deliverables.sharing')}
+                    onClick={() => onShare(version)}
+                  >
+                    {t('Deliverables.shareWithClient')}
+                  </Button>
+                </HelpTip>
+              ) : null}
+              {shared || pending ? (
                 <Link
                   className="tm-button tm-button--outline tm-button--compact"
                   href={`/${organizationSlug}/portal/deliverables/${encodeURIComponent(version.id)}`}
@@ -334,9 +403,15 @@ function VersionList({
                 </Link>
               ) : null}
               {canSend ? (
-                <Button tone="ink" size="compact" onClick={() => onSend(version)}>
-                  {t('Deliverables.sendForApproval')}
-                </Button>
+                <HelpTip tip={t('Deliverables.sendTip')}>
+                  <Button
+                    tone={canShare ? 'outline' : 'ink'}
+                    size="compact"
+                    onClick={() => onSend(version)}
+                  >
+                    {t('Deliverables.sendForApproval')}
+                  </Button>
+                </HelpTip>
               ) : null}
             </div>
           </li>
