@@ -757,7 +757,15 @@ import type {
   MilestoneEdit as WebMilestoneEdit,
   ProjectRisk as WebProjectRisk,
   ClientRisk as WebClientRisk,
+  PortalJourney as WebPortalJourney,
+  PortalJourneyStep as WebPortalJourneyStep,
+  PortalJourneyTurn as WebPortalJourneyTurn,
 } from '../../apps/web/src/lib/api/portal';
+import type {
+  PortalJourney as ApiPortalJourney,
+  PortalJourneyStep as ApiPortalJourneyStep,
+  PortalJourneyTurn as ApiPortalJourneyTurn,
+} from '../../apps/api/src/modules/portal/portal-journey.js';
 import type { PortalAccessLogEvent as WebPortalAccessLogEvent } from '../../apps/web/src/lib/api/portal-access-log';
 import type {
   PortalAnnouncement as WebPortalAnnouncement,
@@ -4489,3 +4497,12 @@ type _importNotionSummary = Assert<Exact<ApiNotionCommitSummary, WebImportNotion
 type _autoTrackingPolicyChoice = Assert<
   Exact<ApiAutoTrackingPolicyView, WebAutoTrackingPolicyChoice>
 >;
+
+/**
+ * 52-27 client journey stepper. `GET …/portal/projects/:projectId/journey` answers
+ * `{ journey: PortalJourney }`, derived by `deriveJourney` in apps/api portal-journey.ts and read
+ * by `getPortalJourney` in apps/web/src/lib/api/portal.ts.
+ */
+type _portalJourney = Assert<Exact<ApiPortalJourney, WebPortalJourney>>;
+type _portalJourneyStep = Assert<Exact<ApiPortalJourneyStep, WebPortalJourneyStep>>;
+type _portalJourneyTurn = Assert<Exact<ApiPortalJourneyTurn, WebPortalJourneyTurn>>;

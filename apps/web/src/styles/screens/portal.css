@@ -1767,7 +1767,7 @@
 .tm-pt-jstep--now .tm-pt-jstep__dot {
   border: var(--b-expressive) solid var(--ink-950);
   background: var(--lime-500);
-  color: var(--ink-950);
+  color: var(--tm-on-lime);
 }
 
 .tm-pt-jstep__text {

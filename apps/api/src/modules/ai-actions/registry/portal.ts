@@ -43,6 +43,15 @@ export const portalDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'By project', args: { projectId: 'p_1' } }],
   }),
   det({
+    id: 'portal.projects.journey.get',
+    title: 'Portal project journey',
+    description:
+      "The client's journey through a project: published milestones as steps, and the one review waiting on the client.",
+    input: pathOnly('projectId'),
+    redact: 'client_safe',
+    examples: [{ summary: 'By project', args: { projectId: 'p_1' } }],
+  }),
+  det({
     id: 'portal.projects.people.list',
     title: 'Portal project people',
     description: 'Team members shown to the client for a project.',
