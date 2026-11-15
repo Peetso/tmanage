@@ -17,6 +17,7 @@ import type {
   ApprovalRow,
   ClientProjectionPayload,
   ClientProjectionRow,
+  DeliverableVersionRow,
 } from '../../common/database/schema.js';
 import {
   ApprovalNotFoundError,
@@ -35,6 +36,11 @@ import type { ClientProjectionsRepository } from './client-projections.repositor
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { assertVersionOpenable, mayDecideApprovals } from './approval-open-preconditions.js';
+import { AnchorSigner } from '../audit/audit-anchor-signer.js';
+import { RECORD_SCHEMA, verifyRecord } from './approval-records.js';
+import type { ApprovalEvidence, DecisionEvidence, RecordVerification } from './approval-records.js';
+import { ApprovalRecordRaceError } from './approval-records.repository.js';
+import type { ApprovalRecordsRepository } from './approval-records.repository.js';
 
 /**
  * FR-05's application service — the immutable-decision heart, authorized at the object layer.
@@ -97,6 +103,8 @@ export interface ApprovalDecisionInput {
   /** The approval version the reviewer read — optimistic concurrency (spec §3 step 7). */
   readonly expectedVersion: number;
   readonly feedback?: string;
+  /** 52-19. The IP address and user agent the API saw (the controller's, never the body's). */
+  readonly evidence?: DecisionEvidence;
 }
 
 /**
@@ -111,6 +119,37 @@ export interface ApprovalDecisionInput {
 export interface ClientDecisionInput {
   readonly decision: 'approve' | 'request_changes';
   readonly feedback?: string;
+  /** 52-19. The IP address and user agent the API saw (the controller's, never the body's). */
+  readonly evidence?: DecisionEvidence;
+}
+
+/** 52-19. One sealed decision record and what checking it found. */
+export interface ApprovalRecordView {
+  readonly recordNo: number;
+  readonly recordHash: string;
+  readonly previousRecordHash: string;
+  readonly signed: boolean;
+  readonly verification: RecordVerification;
+  /** The sealed evidence exactly as stored (who, what, when, from where). */
+  readonly evidence: ApprovalEvidence;
+}
+
+/**
+ * 52-19. The certificate data of one approval: the approval it belongs to and its decision
+ * records. A client reader gets only the records of their own decisions. `intact` is true when
+ * every record's hash and chain link hold and no signature is invalid.
+ */
+export interface ApprovalCertificateView {
+  readonly approvalId: string;
+  readonly organizationId: string;
+  readonly projectId: string;
+  readonly deliverableId: string;
+  readonly deliverableVersionId: string;
+  readonly contentHash: string;
+  readonly state: ApprovalState;
+  readonly decidedAt: string | null;
+  readonly intact: boolean;
+  readonly records: readonly ApprovalRecordView[];
 }
 
 /**
@@ -226,6 +265,10 @@ export class ApprovalsService {
     private readonly audit?: AuditService,
     /** FIX6 item 1. The one rule that decides whether a file may reach a client. */
     private readonly sharing: ClientFileSharing = new ClientFileSharing(undefined),
+    /** 52-19. Optional like the outbox, so the fakes-only tests construct without it. */
+    private readonly records?: ApprovalRecordsRepository,
+    /** 52-19. Signs records with `AUDIT_ANCHOR_KEY` (domain-separated); unsigned without a key. */
+    private readonly signer: AnchorSigner = AnchorSigner.fromEnv(process.env),
   ) {}
 
   /**
@@ -415,7 +458,11 @@ export class ApprovalsService {
     context: TenantContext,
     approval: ApprovalRow,
     principal: Principal,
-    input: { readonly decision: 'approve' | 'request_changes'; readonly feedback?: string },
+    input: {
+      readonly decision: 'approve' | 'request_changes';
+      readonly feedback?: string;
+      readonly evidence?: DecisionEvidence;
+    },
   ): Promise<{
     readonly row: ApprovalRow;
     readonly final: boolean;
@@ -503,6 +550,7 @@ export class ApprovalsService {
       decision,
       decidedAt,
     });
+    await this.appendRecord(tx, context, current, governed, principal, input, decision, decidedAt);
 
     if (verdict.aggregate === 'pending') {
       // Others still have to decide: the approval stays `viewed`; the version bump serialises two
@@ -721,6 +769,159 @@ export class ApprovalsService {
     );
   }
 
+  /** 52-19. The certificate data of one approval, addressed by its id — see {@link certificateFor}. */
+  async certificate(
+    context: TenantContext,
+    principal: Principal,
+    approvalId: string,
+  ): Promise<ApprovalCertificateView> {
+    return this.guarding(() =>
+      this.database.transaction(context, async (tx) => {
+        const approval = await this.approvals.requireById(tx, context, approvalId);
+        return this.certificateFor(tx, context, principal, approval);
+      }),
+    );
+  }
+
+  /**
+   * 52-19. The certificate data of the approval on a published version — the portal's address, as
+   * a client never holds an internal approval id. See {@link certificateFor}.
+   */
+  async clientCertificate(
+    context: TenantContext,
+    principal: Principal,
+    deliverableVersionId: string,
+  ): Promise<ApprovalCertificateView> {
+    return this.guarding(() =>
+      this.database.transaction(context, async (tx) => {
+        const approval = await this.approvals.requireByVersion(tx, context, deliverableVersionId);
+        return this.certificateFor(tx, context, principal, approval);
+      }),
+    );
+  }
+
+  /**
+   * Authorize and assemble a certificate. Staff need `approval.read` on the approval's project. A
+   * client needs `approval.read` on a version actually published to them and sees only the records
+   * of their own decisions — another client's or a staff reviewer's IP address and device never
+   * reach them; with no own record the answer is the same 404 as a missing approval. Every record
+   * is re-verified on read: its hash, its link to the previous record and its signature.
+   */
+  private async certificateFor(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    principal: Principal,
+    approval: ApprovalRow,
+  ): Promise<ApprovalCertificateView> {
+    const isClient = principal.kind === 'client';
+    if (isClient) {
+      await this.clientProjections.requireByVersion(tx, context, approval.deliverableVersionId);
+    }
+    const verdict = authorize({
+      principal,
+      capability: 'approval.read',
+      resource: {
+        organizationId: context.organizationId,
+        projectId: approval.projectId,
+        audience: 'client_visible',
+        ...(isClient ? { isPublished: true } : {}),
+        lifecycle: 'active',
+      },
+    });
+    if (!verdict.allowed) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, verdict.code);
+    }
+
+    const all = this.records ? await this.records.listByApproval(tx, context, approval.id) : [];
+    const rows = isClient ? all.filter((r) => r.approverUserId === principal.userId) : all;
+    if (isClient && rows.length === 0) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'no_own_record');
+    }
+    const previous = this.records
+      ? await this.records.hashesByNumber(
+          tx,
+          context,
+          rows.filter((r) => r.recordNo > 1).map((r) => r.recordNo - 1),
+        )
+      : new Map<number, string>();
+    const records = rows.map((row): ApprovalRecordView => {
+      const verification = verifyRecord(row, previous.get(row.recordNo - 1) ?? null, this.signer);
+      return {
+        recordNo: row.recordNo,
+        recordHash: row.recordHash,
+        previousRecordHash: row.previousRecordHash,
+        signed: row.signature !== null,
+        verification,
+        evidence: JSON.parse(row.recordJson) as ApprovalEvidence,
+      };
+    });
+    return {
+      approvalId: approval.id,
+      organizationId: approval.organizationId,
+      projectId: approval.projectId,
+      deliverableId: approval.deliverableId,
+      deliverableVersionId: approval.deliverableVersionId,
+      contentHash: approval.contentHash,
+      state: approval.state as ApprovalState,
+      decidedAt: approval.decidedAt ? approval.decidedAt.toISOString() : null,
+      intact: records.every(
+        (r) =>
+          r.verification.hashValid &&
+          r.verification.chainValid &&
+          r.verification.signatureValid !== false,
+      ),
+      records,
+    };
+  }
+
+  /**
+   * 52-19. Seal one reviewer decision into the organization's record chain, in the decision's own
+   * transaction: the record and the decision commit together or not at all.
+   */
+  private async appendRecord(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    approval: ApprovalRow,
+    governed: DeliverableVersionRow,
+    principal: Principal,
+    input: { readonly feedback?: string; readonly evidence?: DecisionEvidence },
+    decision: ReviewerDecision,
+    decidedAt: Date,
+  ): Promise<void> {
+    if (this.records === undefined) return;
+    const version =
+      governed.id === approval.deliverableVersionId
+        ? governed
+        : await this.deliverableVersions.requireById(tx, context, approval.deliverableVersionId);
+    await this.records.append(
+      tx,
+      context,
+      {
+        schema: RECORD_SCHEMA,
+        projectId: approval.projectId,
+        approvalId: approval.id,
+        deliverableId: approval.deliverableId,
+        deliverableVersionId: approval.deliverableVersionId,
+        versionNo: version.versionNo,
+        fileVersionId: version.fileVersionId,
+        contentHash: approval.contentHash,
+        approver: {
+          userId: principal.userId,
+          membershipId: principal.membershipId,
+          kind: principal.kind === 'client' ? 'client' : 'internal',
+          role: principal.role,
+          clientOrganizationId: principal.clientOrganizationId,
+        },
+        decision,
+        comment: input.feedback?.trim() ? input.feedback : null,
+        decidedAt: decidedAt.toISOString(),
+        ip: input.evidence?.ip ?? null,
+        userAgent: input.evidence?.userAgent ?? null,
+      },
+      this.signer,
+    );
+  }
+
   /**
    * Q3: tell the team and leave the trail, inside the decision's own transaction. The outbox event
    * `approval.decided.v1` lets the worker notify the sender and the project's deliverable makers;
@@ -825,6 +1026,11 @@ export class ApprovalsService {
           undefined,
           'reviewer_already_decided',
         );
+      }
+      if (error instanceof ApprovalRecordRaceError) {
+        // 52-19: another decision in this organization took the same record position; nothing was
+        // written, so deciding again is safe.
+        throw new ApiError(409, 'conflict', MESSAGES.conflict, undefined, 'approval_record_race');
       }
       if (error instanceof ApprovalTransitionError) {
         // A missing requirement is the reviewer's to fix (422); an illegal move is a conflict.

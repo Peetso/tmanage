@@ -13827,3 +13827,40 @@ Object.assign(TABLES, {
   calendar_due_mirrors: calendarDueMirrors,
   calendar_feed_tokens: calendarFeedTokens,
 });
+
+/**
+ * 0349 (52-19). One immutable evidence row per reviewer decision on an approval: the canonical
+ * JSON of the decision, its SHA-256, the link to the organization's previous record and an HMAC
+ * signature (NULL without a key). INSERT-only for the API credential. TENANT.
+ */
+export const approvalRecords = mysqlTable(
+  'approval_records',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    approvalId: char('approval_id', { length: 36 }).notNull(),
+    deliverableVersionId: char('deliverable_version_id', { length: 36 }).notNull(),
+    recordNo: int('record_no', { unsigned: true }).notNull(),
+    approverUserId: char('approver_user_id', { length: 36 }).notNull(),
+    approverKind: varchar('approver_kind', { length: 16 }).notNull(),
+    decision: varchar('decision', { length: 32 }).notNull(),
+    recordJson: mediumtext('record_json').notNull(),
+    recordHash: char('record_hash', { length: 64 }).notNull(),
+    previousRecordHash: char('previous_record_hash', { length: 64 }).notNull(),
+    signature: varchar('signature', { length: 160 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_approval_records_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_approval_records_org_no').on(table.organizationId, table.recordNo),
+    index('ix_approval_records_org_approval').on(
+      table.organizationId,
+      table.approvalId,
+      table.recordNo,
+    ),
+  ],
+);
+
+export type ApprovalRecordRow = typeof approvalRecords.$inferSelect;
+
+Object.assign(TABLES, { approval_records: approvalRecords });

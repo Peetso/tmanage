@@ -278,6 +278,23 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'confirm',
     scope: 'manage',
   },
+  // 52-19: the approval record (certificate data) — staff by approval id, portal by version.
+  {
+    id: 'approvals.record.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/approvals/:approvalId/record',
+    capability: 'approval.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'approvals.projections.record.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/approvals/projections/:deliverableVersionId/record',
+    capability: 'approval.read',
+    risk: 'read',
+    scope: 'read',
+  },
   // 0211 (audit gap 1): deliverables — create, version, send for client approval.
   {
     id: 'approvals.deliverables.list',

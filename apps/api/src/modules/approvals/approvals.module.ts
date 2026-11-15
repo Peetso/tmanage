@@ -23,6 +23,7 @@ import type { AuditService } from '../audit/audit.service.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { ApprovalsRepository } from './approvals.repository.js';
+import { ApprovalRecordsRepository } from './approval-records.repository.js';
 import { DeliverableVersionsRepository } from './deliverable-versions.repository.js';
 import { ClientProjectionsRepository } from './client-projections.repository.js';
 import { ApprovalsService } from './approvals.service.js';
@@ -102,6 +103,8 @@ export class ApprovalsModule {
           audit,
           // FIX6 item 1: a published version's file is shared by the one sharing rule.
           new ClientFileSharing(scanner),
+          // 52-19: every reviewer decision seals an approval record in its own transaction.
+          new ApprovalRecordsRepository(),
         ),
     };
 

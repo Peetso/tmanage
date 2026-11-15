@@ -1345,6 +1345,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0348. Tenant-owned: a person's ICS feed token (hash only). The owner writes it through their own
   // context; the signed-out feed route finds a row by hash only through `bootstrapRead` with a reason.
   calendar_feed_tokens: 'organization_id',
+  // 0349 (52-19). Tenant-owned: the immutable evidence record of each approval decision, written
+  // inside the decision's own transaction; read back through the caller's own context.
+  approval_records: 'organization_id',
 });
 
 /**

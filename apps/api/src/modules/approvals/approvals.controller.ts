@@ -1,11 +1,13 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Req } from '@nestjs/common';
 import type { ApprovalPolicy, Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
 import { APPROVALS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import type { ClientProjectionPayload } from '../../common/database/schema.js';
+import type { DecisionEvidence } from './approval-records.js';
 import type {
+  ApprovalCertificateView,
   ApprovalDecisionView,
   ApprovalsService,
   ClientDecideView,
@@ -50,6 +52,22 @@ interface ClientDecisionBody {
 interface PublishBody {
   readonly deliverableVersionId?: unknown;
   readonly projection?: unknown;
+}
+
+/** Minimal shape, so the controller does not depend on Fastify's full types. */
+interface RequestLike {
+  readonly headers: Record<string, string | string[] | undefined>;
+  /** The source address after the trusted-proxy rule (`trustProxy`), never a raw header. */
+  readonly ip?: string;
+}
+
+/** 52-19. What the server itself saw of the decision request, for the approval record. */
+function decisionEvidence(request: RequestLike): DecisionEvidence {
+  const agent = request.headers['user-agent'];
+  return {
+    ip: request.ip ?? null,
+    userAgent: typeof agent === 'string' && agent !== '' ? agent : null,
+  };
 }
 
 function requireString(value: unknown, field: string): string {
@@ -154,6 +172,7 @@ export class ApprovalsController {
     @CurrentPrincipal() principal: Principal,
     @Param('approvalId') approvalId: string,
     @Body() body: DecisionBody,
+    @Req() request: RequestLike,
   ): Promise<ApprovalDecisionView> {
     if (body.decision !== 'approve' && body.decision !== 'request_changes') {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
@@ -181,7 +200,24 @@ export class ApprovalsController {
       decision: body.decision,
       expectedVersion: body.version,
       ...(typeof body.feedback === 'string' ? { feedback: body.feedback } : {}),
+      evidence: decisionEvidence(request),
     });
+  }
+
+  /**
+   * 52-19. The approval record (certificate data) of one approval: every decision record with its
+   * verification. `approval.read` is the coarse ceiling; the service's `authorize()` on the
+   * approval's project is the gate, and a client caller sees only their own records.
+   */
+  @Get(':approvalId/record')
+  @HttpCode(200)
+  @RequireCapability('approval.read')
+  async record(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('approvalId') approvalId: string,
+  ): Promise<ApprovalCertificateView> {
+    return this.approvals.certificate(context, principal, approvalId);
   }
 
   /**
@@ -246,6 +282,7 @@ export class ApprovalsController {
     @CurrentPrincipal() principal: Principal,
     @Param('deliverableVersionId') deliverableVersionId: string,
     @Body() body: ClientDecisionBody,
+    @Req() request: RequestLike,
   ): Promise<ClientDecideView> {
     if (body.decision !== 'approve' && body.decision !== 'request_changes') {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
@@ -262,6 +299,23 @@ export class ApprovalsController {
     return this.approvals.clientDecide(context, principal, deliverableVersionId, {
       decision: body.decision,
       ...(typeof body.feedback === 'string' ? { feedback: body.feedback } : {}),
+      evidence: decisionEvidence(request),
     });
+  }
+
+  /**
+   * 52-19. The portal's approval record: version-addressed like the client decision route. A
+   * client gets only the records of their own decisions on a version published to them; anything
+   * else is the same 404 as a version that was never published.
+   */
+  @Get('projections/:deliverableVersionId/record')
+  @HttpCode(200)
+  @RequireCapability('approval.read')
+  async clientRecord(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('deliverableVersionId') deliverableVersionId: string,
+  ): Promise<ApprovalCertificateView> {
+    return this.approvals.clientCertificate(context, principal, deliverableVersionId);
   }
 }

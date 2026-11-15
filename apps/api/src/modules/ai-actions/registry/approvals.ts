@@ -158,6 +158,26 @@ export const approvalsDetails: readonly AiActionDetail[] = [
       { summary: 'Client approves', args: { deliverableVersionId: 'dv_1', decision: 'approve' } },
     ],
   }),
+  // 52-19: the approval record — sealed decision evidence and its verification.
+  det({
+    id: 'approvals.record.get',
+    title: 'Get an approval record',
+    description:
+      'Read the sealed decision records of an approval (who, which version hash, decision, when, ' +
+      'from where) and whether each record still verifies.',
+    input: pathOnly('approvalId'),
+    redact: 'standard',
+    examples: [{ summary: 'By approval', args: { approvalId: 'ap_1' } }],
+  }),
+  det({
+    id: 'approvals.projections.record.get',
+    title: 'Get my approval record for a version',
+    description:
+      'Read the sealed records of the caller’s own decisions on a published deliverable version.',
+    input: pathOnly('deliverableVersionId'),
+    redact: 'client_safe',
+    examples: [{ summary: 'By version', args: { deliverableVersionId: 'dv_1' } }],
+  }),
   // 0211 (audit gap 1): deliverables — create, version, send for client approval.
   det({
     id: 'approvals.deliverables.list',
