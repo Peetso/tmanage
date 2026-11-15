@@ -152,6 +152,14 @@ export const SIGNAL_RULES: readonly SignalRule[] = Object.freeze([
     'E-invoice chain break detected',
     'اكتُشف انقطاع في سلسلة الفواتير الإلكترونية',
   ),
+  // 52-19: written by the worker's nightly approval record chain walk; deduped like the one above.
+  rule(
+    'approval_chain_break',
+    'high',
+    'organization',
+    'Approval record chain break detected',
+    'اكتُشف انقطاع في سلسلة سجلات الموافقة',
+  ),
 ]);
 
 const BY_KEY = new Map(SIGNAL_RULES.map((entry) => [entry.key, entry]));

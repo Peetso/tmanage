@@ -454,6 +454,16 @@ export const DETECTOR_RULES: readonly Rule[] = [
         count: 1,
       })),
   },
+  // Written by the nightly chain jobs, never detected here: the entries give them the default
+  // setting the digest needs (no `platform_alert_rules` row is seeded for them), else their
+  // pending signals were suppressed as rules without a setting. 52-12 e-invoice, 52-19 approvals.
+  ...['einvoice_chain_break', 'approval_chain_break'].map((key): Rule => ({
+    key,
+    severity: 'high',
+    deferred: 'written by its nightly chain job, not detected by this pass',
+    defaults: { count: 1, windowMinutes: DAY_MINUTES, cooldownMinutes: DAY_MINUTES },
+    detect: () => Promise.resolve([]),
+  })),
   ...PLATFORM_ADMIN_RULES,
 ];
 

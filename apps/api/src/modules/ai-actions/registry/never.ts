@@ -1156,6 +1156,27 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/portal/signature-requests/:signatureRequestId/sign',
     reason: 'esign_signature',
   },
+  // 52-19 / 52-26. The sealed record PDFs: staff and portal approval certificate, signed document.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/approvals/:approvalId/record.pdf',
+    reason: 'record_pdf',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/approvals/projections/:deliverableVersionId/record.pdf',
+    reason: 'record_pdf',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/signature-requests/:signatureRequestId/signed.pdf',
+    reason: 'record_pdf',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/signature-requests/:signatureRequestId/signed.pdf',
+    reason: 'record_pdf',
+  },
   // 57-02. Platform admin → the plan ladder: list the plan versions and publish a new one.
   { method: 'GET', path: '/v1/platform/plan-versions/', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/plan-versions/', reason: 'platform_admin' },

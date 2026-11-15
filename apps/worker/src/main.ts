@@ -102,6 +102,9 @@ import { createFinanceFactsStore } from './common/database/finance-facts-store.j
 import { runFinanceFactsLoop } from './jobs/finance-facts-rebuild.js';
 import { createEinvoiceChainStore } from './common/database/einvoice-chain-store.js';
 import { runEinvoiceChainLoop } from './jobs/einvoice-chain-reconciler.js';
+// ---- 52-19 ---- the nightly approval record chain walk.
+import { createApprovalChainStore } from './common/database/approval-chain-store.js';
+import { recordSignatureCheckFromEnv, runApprovalChainLoop } from './jobs/approval-chain-walk.js';
 // ---- 53-15 ---- the notification digest e-mail, every 15 minutes (claims one send per window).
 import { createNotificationDigestStore } from './common/database/notification-digest-store.js';
 import { runNotificationDigestLoop } from './jobs/notification-digest.js';
@@ -749,6 +752,15 @@ async function main(): Promise<void> {
     { store: createEinvoiceChainStore(database) },
     controller.signal,
   );
+  // ---- 52-19 ---- approval record chain walk nightly (03:30 UTC) and once on boot: every
+  // organization's sealed decision/signature records re-verified; a break is a security signal.
+  const approvalChain = runApprovalChainLoop(
+    {
+      store: createApprovalChainStore(database),
+      verifySignature: recordSignatureCheckFromEnv(process.env),
+    },
+    controller.signal,
+  );
 
   // RT-001. Sockets exist only in loop mode — a controlled batch has no process to keep a
   // socket open — and only when a port is configured; 0 is the honest default on a host
@@ -860,6 +872,8 @@ async function main(): Promise<void> {
     await financeFacts;
     // ---- R22-b ----
     await einvoiceChain;
+    // ---- 52-19 ----
+    await approvalChain;
     // ---- 56-11 ----
     await auditAnchors;
     // ---- 56-23 ----

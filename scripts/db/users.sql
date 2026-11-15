@@ -2453,8 +2453,10 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`calendar_feed_tokens` TO 'tmanage_app
 -- 0349 (52-19). `approval_records` (tenant): the decision transaction INSERTs one evidence record
 -- per reviewer decision. **INSERT only**: a record is evidence and is never rewritten or removed by
 -- the runtime credential (its hash, signature and the next record's link would break). SELECT
--- rides the database-wide read. The worker needs no grant.
+-- rides the database-wide read. The worker's nightly chain walk (52-19, approval-chain-walk.ts)
+-- re-verifies every record: SELECT only, and a break goes to `security_signals` (56-23 grant).
 GRANT INSERT ON `tmanage`.`approval_records` TO 'tmanage_app'@'%';
+GRANT SELECT ON `tmanage`.`approval_records` TO 'tmanage_worker'@'%';
 -- 0350 (58-C1). `workflow_flow_versions` (tenant): saving a rule's branching builder INSERTs one
 -- new version. **INSERT only**: a saved version is never rewritten, so a run's `flowVersion` keeps
 -- naming the graph it took. SELECT rides the database-wide read. The worker reads the version in

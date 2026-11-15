@@ -49,9 +49,13 @@ import type {
   SignatureSignerView,
 } from './esign.js';
 import { EsignRepository } from './esign.repository.js';
+import type { SignedDocumentFacts, SignedSignerFacts } from './record-pdf-documents.js';
 import type { SignerWithContact } from './esign.repository.js';
 
 const DAY_MS = 24 * 60 * 60_000;
+
+/** 52-26. The signed PDF's data, or why there is none (no signature yet, a record that changed). */
+export type SignedPdfFacts = SignedDocumentFacts | 'not_signed' | 'record_changed';
 
 export interface EsignOptions {
   readonly database: TenantDatabase;
@@ -62,6 +66,11 @@ export interface EsignOptions {
   readonly webPublicUrl: string | null;
   readonly signer?: AnchorSigner;
   readonly now?: () => Date;
+  /**
+   * 52-26. Called after a signature's transaction has committed (the signed PDF is produced and
+   * stored). Its failure never fails the signature: the PDF is rendered again on first download.
+   */
+  readonly onSigned?: (context: TenantContext, requestId: string) => Promise<void>;
 }
 
 /** A refusal is returned from the transaction, not thrown, so a counted wrong code commits. */
@@ -449,7 +458,47 @@ export class EsignService {
       throw error;
     }
     if (!outcome.ok) throw outcome.error;
+    this.options.onSigned?.(context, requestId).catch((error: unknown) => {
+      console.warn('[esign] the signed PDF could not be produced now', error);
+    });
     return outcome.value;
+  }
+
+  // ── the signed PDF (52-26) ─────────────────────────────────────────────────
+
+  /** Staff: every sealed signature of the request, with `approval.read` on its project. */
+  async signedFacts(
+    context: TenantContext,
+    principal: Principal,
+    requestId: string,
+  ): Promise<SignedPdfFacts> {
+    return this.options.database.read(context, async (runner) => {
+      const request = await this.repo.findRequest(runner, context, requestId);
+      if (request === null) throw notFound();
+      this.staff(context, principal, request.projectId, 'approval.read');
+      return this.factsFor(runner, context, request, null);
+    });
+  }
+
+  /** Portal: the caller's own signature only, through their own signer row. */
+  async mySignedFacts(
+    context: TenantContext,
+    principal: Principal,
+    requestId: string,
+  ): Promise<SignedPdfFacts> {
+    return this.options.database.read(context, async (runner) => {
+      const { request, signer } = await this.mine(runner, context, principal, requestId);
+      return this.factsFor(runner, context, request, signer.id);
+    });
+  }
+
+  /** {@link EsignOptions.onSigned}'s read: the workspace copy, after the signer was checked. */
+  async sealedFacts(context: TenantContext, requestId: string): Promise<SignedPdfFacts> {
+    return this.options.database.read(context, async (runner) => {
+      const request = await this.repo.findRequest(runner, context, requestId);
+      if (request === null) throw notFound();
+      return this.factsFor(runner, context, request, null);
+    });
   }
 
   // ── internals ──────────────────────────────────────────────────────────────
@@ -549,6 +598,75 @@ export class EsignService {
       throw error;
     }
     return objectKey;
+  }
+
+  /** The sealed signatures (all, or one signer's), each re-verified against the chain. */
+  private async factsFor(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    request: SignatureRequestRow,
+    onlySignerId: string | null,
+  ): Promise<SignedPdfFacts> {
+    const signers = (await this.repo.signers(runner, context, request.id)).filter(
+      (s) =>
+        s.signer.status === 'signed' &&
+        s.signer.recordId !== null &&
+        (onlySignerId === null || s.signer.id === onlySignerId),
+    );
+    if (signers.length === 0) return 'not_signed';
+    const rows = await this.repo.records(
+      runner,
+      context,
+      signers.map((s) => s.signer.recordId as string),
+    );
+    const previous = await this.records.hashesByNumber(
+      runner,
+      context,
+      rows.map((r) => r.recordNo - 1).filter((n) => n > 0),
+    );
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    const sealed: SignedSignerFacts[] = [];
+    for (const s of signers) {
+      const row = byId.get(s.signer.recordId as string);
+      if (row === undefined) return 'record_changed';
+      const check = verifyRecord(row, previous.get(row.recordNo - 1) ?? null, this.anchor);
+      if (!check.hashValid || !check.chainValid || check.signatureValid === false) {
+        return 'record_changed';
+      }
+      const evidence = JSON.parse(row.recordJson) as EsignEvidence;
+      sealed.push({
+        displayName: evidence.esign.signerName,
+        email: evidence.esign.signerEmail,
+        clientOrganizationName: s.clientOrganizationName,
+        method: evidence.esign.method,
+        typedName: evidence.esign.typedName,
+        markObjectKey: s.signer.markObjectKey,
+        markSha256: evidence.esign.markSha256,
+        signedAt: evidence.decidedAt,
+        codeVerifiedAt: evidence.esign.codeVerifiedAt,
+        consentTextVersion: evidence.esign.consentTextVersion,
+        consentText: evidence.esign.consentText,
+        ip: evidence.ip,
+        userAgent: evidence.userAgent,
+        recordNo: row.recordNo,
+        recordHash: row.recordHash,
+        previousRecordHash: row.previousRecordHash,
+        recordJson: row.recordJson,
+        signed: row.signature !== null,
+      });
+    }
+    const version = await this.versions.findById(runner, context, request.deliverableVersionId);
+    return {
+      requestId: request.id,
+      projectId: request.projectId,
+      deliverableVersionId: request.deliverableVersionId,
+      title: request.title,
+      organizationName: (await this.repo.organization(runner, context)).name,
+      versionNo: version?.versionNo ?? null,
+      contentHash: request.contentHash,
+      documentUnchanged: version !== null && version.contentHash === request.contentHash,
+      signers: sealed.sort((a, b) => a.recordNo - b.recordNo),
+    };
   }
 
   private async portalView(

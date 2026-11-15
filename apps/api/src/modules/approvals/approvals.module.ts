@@ -10,6 +10,7 @@ import {
   AUDIT_SERVICE,
   MAILER,
   MALWARE_SCANNER,
+  OBJECT_STORE,
   OUTBOX_EVENTS_REPOSITORY,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
@@ -22,6 +23,7 @@ import type { OutboxEventsRepository } from '../platform/outbox-events.repositor
 import type { AuditService } from '../audit/audit.service.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import type { ObjectStore } from '@tmanage/storage';
 import { ApprovalsRepository } from './approvals.repository.js';
 import { ApprovalRecordsRepository } from './approval-records.repository.js';
 import { DeliverableVersionsRepository } from './deliverable-versions.repository.js';
@@ -46,6 +48,11 @@ import {
 } from './external-approvals.controller.js';
 import { ExternalApprovalsService } from './external-approvals.service.js';
 import { ExternalApproversRepository } from './external-approvers.repository.js';
+import {
+  APPROVAL_CERTIFICATE_PDF_SERVICE,
+  ApprovalCertificatePdfController,
+} from './record-pdf.controller.js';
+import { ApprovalCertificatePdfService, RecordPdfStore } from './record-pdf.service.js';
 
 /**
  * 52-18 — at start-up, hook the external approver record onto the 56-07 `deliverable_version`
@@ -198,10 +205,20 @@ export class ApprovalsModule {
       },
     };
 
+    // 52-19 — the approval certificate as a PDF: the certificate read above, rendered and stored
+    // in the object store's derived zone.
+    const certificatePdfService: Provider = {
+      provide: APPROVAL_CERTIFICATE_PDF_SERVICE,
+      inject: [TENANT_DATABASE, APPROVALS_SERVICE, OBJECT_STORE],
+      useFactory: (database: TenantDatabase, approvals: ApprovalsService, store: ObjectStore) =>
+        new ApprovalCertificatePdfService(database, approvals, new RecordPdfStore(store)),
+    };
+
     return {
       module: ApprovalsModule,
       providers: [
         service,
+        certificatePdfService,
         delegationService,
         stepsService,
         deliverablesService,
@@ -215,6 +232,7 @@ export class ApprovalsModule {
         ApprovalStepsController,
         DeliverablesController,
         ExternalApprovalsController,
+        ApprovalCertificatePdfController,
       ],
     };
   }

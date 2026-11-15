@@ -112,6 +112,9 @@ export const NEVER_REASONS = [
   // 54-01. The connector framework: installing a connector stores a third-party credential in the
   // token vault; listing and uninstalling are owner/admin settings no AI op may drive.
   'connector_installation',
+  // 52-19 / 52-26. The sealed record PDFs (approval certificate, signed document): a file for a
+  // person to keep or hand on. The AI reads the same sealed facts through the JSON record ops.
+  'record_pdf',
 ] as const;
 export type NeverReason = (typeof NEVER_REASONS)[number];
 
