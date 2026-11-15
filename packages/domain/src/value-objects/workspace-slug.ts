@@ -26,6 +26,7 @@ export const RESERVED_WORKSPACE_SLUGS: ReadonlySet<string> = new Set([
   // The public website's top-level paths (A22): a static route wins over [orgSlug], so an
   // organisation holding one of these could never be reached at its own address.
   'about',
+  'accessibility',
   'changelog',
   'client-portal',
   'communication',

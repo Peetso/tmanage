@@ -130,6 +130,11 @@ const ROUTES: Record<string, RouteRow> = {
     from: 'website/pages/resources/ResourceArticlePage',
     title: null,
   },
+  '/accessibility': {
+    component: 'AccessibilityStatementPage',
+    from: 'website/pages/accessibility/AccessibilityStatementPage',
+    title: 'Accessibility',
+  },
   '/security': {
     component: 'SecurityPage',
     from: 'website/pages/security/SecurityPage',

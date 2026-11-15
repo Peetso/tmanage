@@ -55,6 +55,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/portal-sign-in/[token]': { en: 'Portal sign-in', key: 'RouteTitle.portalSignInLink' },
   '/q/[token]': { en: 'Quote', key: 'RouteTitle.quotePublic' },
   '/resources': { en: 'Resources', key: 'WebsiteTitle.resources' },
+  '/accessibility': { en: 'Accessibility', key: 'WebsiteTitle.accessibility' },
   '/security': { en: 'Security & trust', key: 'WebsiteTitle.security' },
   '/security/data-location': { en: 'Where your data lives', key: 'WebsiteTitle.dataLocation' },
   '/security/disclosure': {
@@ -238,6 +239,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     key: 'RouteTitle.docTemplateVariables',
   },
   '/[orgSlug]/forms': { en: 'Intake forms', key: 'RouteTitle.workForms' },
+  '/[orgSlug]/help': { en: 'Get help', key: 'RouteTitle.getHelp' },
   '/[orgSlug]/help/connect-ai': { en: 'Connect your AI', key: 'RouteTitle.helpConnectAi' },
   '/[orgSlug]/inbox': { en: 'Inbox', key: 'RouteTitle.inbox' },
   '/[orgSlug]/inbox/notification-preferences': {

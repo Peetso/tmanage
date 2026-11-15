@@ -29,6 +29,7 @@ export const ARABIC_ROUTE_LOCALE: DisplayLocale = 'ar-EG';
 export const PUBLIC_LOCALIZED_PATHS = [
   '/',
   '/about',
+  '/accessibility',
   '/changelog',
   '/client-portal',
   '/contact',
