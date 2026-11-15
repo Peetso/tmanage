@@ -41,6 +41,28 @@ import {
 
 export const GOOGLE_PROVIDER = 'google';
 export const GOOGLE_SIGN_IN_ACTION = 'google_sign_in';
+/** 51-05 "Continue with Microsoft"; spelled here so the sign-in census finds every action. */
+export const MICROSOFT_SIGN_IN_ACTION = 'microsoft_sign_in';
+
+/**
+ * The OpenID provider a verified identity came from. Google and Microsoft (51-05) share every
+ * rule in this file; only the `user_identities.provider` value, the `authentication_events`
+ * action, the sign-in-policy method and the logged reason prefix differ.
+ */
+export interface SignInProvider {
+  readonly id: 'google' | 'microsoft';
+  readonly action: string;
+}
+
+export const GOOGLE_SIGN_IN_PROVIDER: SignInProvider = {
+  id: GOOGLE_PROVIDER,
+  action: GOOGLE_SIGN_IN_ACTION,
+};
+
+export const MICROSOFT_SIGN_IN_PROVIDER: SignInProvider = {
+  id: 'microsoft',
+  action: MICROSOFT_SIGN_IN_ACTION,
+};
 
 export type GoogleRefusal =
   | 'no_account'
@@ -86,6 +108,8 @@ export interface GoogleAuthServiceDeps {
   readonly now?: () => number;
   /** R18-e (56-25). The organization sign-in policy; absent = no policy check (unit suites). */
   readonly signInPolicy?: Pick<SignInPolicyGate, 'check'>;
+  /** Which provider this instance serves; absent = Google. */
+  readonly provider?: SignInProvider;
 }
 
 const AFTER_SIGN_IN = '/organizations';
@@ -94,8 +118,10 @@ export class GoogleAuthService {
   private readonly identities: UserIdentitiesRepository;
   private readonly accounts: SignupAccountsRepository;
   private readonly now: () => number;
+  private readonly provider: SignInProvider;
 
   constructor(private readonly deps: GoogleAuthServiceDeps) {
+    this.provider = deps.provider ?? GOOGLE_SIGN_IN_PROVIDER;
     this.identities = deps.identities ?? new UserIdentitiesRepository();
     this.accounts = deps.accounts ?? new SignupAccountsRepository();
     this.now = deps.now ?? Date.now;
@@ -183,7 +209,7 @@ export class GoogleAuthService {
       throw error;
     }
     if (invitedEmail.trim().toLowerCase() !== claims.email) {
-      await this.record(context, null, 'failed', 'google_email_mismatch');
+      await this.record(context, null, 'failed', `${this.provider.id}_email_mismatch`);
       return { kind: 'refused', reason: 'email_mismatch' };
     }
 
@@ -250,11 +276,11 @@ export class GoogleAuthService {
       async (tx) => {
         const bySubject = await this.identities.findUserBySubject(
           tx,
-          GOOGLE_PROVIDER,
+          this.provider.id,
           claims.subject,
         );
         if (bySubject) {
-          await this.identities.touch(tx, GOOGLE_PROVIDER, claims.subject);
+          await this.identities.touch(tx, this.provider.id, claims.subject);
           return bySubject.userId;
         }
         const byEmail = await this.identities.findUserByEmail(tx, claims.email);
@@ -272,7 +298,7 @@ export class GoogleAuthService {
       },
     );
     if (result === 'unverified_account') {
-      await this.record(context, null, 'failed', 'google_unverified_account');
+      await this.record(context, null, 'failed', `${this.provider.id}_unverified_account`);
     }
     return result;
   }
@@ -280,7 +306,7 @@ export class GoogleAuthService {
   private link(tx: IdentityQueryRunner, userId: string, claims: GoogleClaims): Promise<void> {
     return this.identities.link(tx, {
       userId,
-      provider: GOOGLE_PROVIDER,
+      provider: this.provider.id,
       subject: claims.subject,
       email: claims.email,
     });
@@ -293,7 +319,11 @@ export class GoogleAuthService {
   ): Promise<GoogleOutcome> {
     // R18-e (56-25). After Google proved the identity: refused when every organization of this
     // person forbids Google sign-in. A failed read throws (fail closed: no session).
-    const refusal = await this.deps.signInPolicy?.check(userId, 'google', context.correlationId);
+    const refusal = await this.deps.signInPolicy?.check(
+      userId,
+      this.provider.id,
+      context.correlationId,
+    );
     if (refusal) {
       await this.record(context, userId, 'failed', 'policy_method_not_allowed');
       return { kind: 'refused', reason: 'method_not_allowed' };
@@ -347,7 +377,7 @@ export class GoogleAuthService {
       (tx) =>
         this.deps.credentials.recordAuthenticationEvent(tx, {
           userId,
-          action: GOOGLE_SIGN_IN_ACTION,
+          action: this.provider.action,
           outcome,
           reason,
           ip: context.ip ?? null,

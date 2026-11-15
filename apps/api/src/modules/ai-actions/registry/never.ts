@@ -92,6 +92,11 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/auth/google/callback', reason: 'google_auth' },
   { method: 'POST', path: '/v1/auth/google/mfa', reason: 'google_auth' },
   { method: 'POST', path: '/v1/auth/google/start', reason: 'google_auth' },
+  // 51-05. "Continue with Microsoft": the same four public sign-in routes as Google's.
+  { method: 'GET', path: '/v1/auth/microsoft/', reason: 'auth' },
+  { method: 'GET', path: '/v1/auth/microsoft/callback', reason: 'auth' },
+  { method: 'POST', path: '/v1/auth/microsoft/mfa', reason: 'auth' },
+  { method: 'POST', path: '/v1/auth/microsoft/start', reason: 'auth' },
   // 54-14. Company sign-in (OpenID Connect): public start, callback and second-factor step.
   { method: 'POST', path: '/v1/auth/sso/start', reason: 'auth' },
   { method: 'GET', path: '/v1/auth/sso/callback', reason: 'auth' },

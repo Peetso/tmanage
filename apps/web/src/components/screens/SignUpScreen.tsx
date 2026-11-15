@@ -22,6 +22,13 @@ import {
   googleErrorKey,
   useGoogleAvailability,
 } from './GoogleSignInButton';
+import {
+  MicrosoftErrorMessage,
+  MicrosoftSignInButton,
+  microsoftErrorOf,
+  useMicrosoftAvailability,
+} from './MicrosoftSignInButton';
+import type { GoogleStartInput } from '../../lib/api/google-auth';
 import '../../styles/screens/identity.css';
 
 const MAX_NAME = 190;
@@ -91,7 +98,20 @@ export function SignUpScreen({
   const [googleError, setGoogleError] = useState<MessageKey | undefined>(undefined);
   // 52-21: the invisible form proof, fetched once when the form is shown.
   const formProof = useFormProof(api);
-  useEffect(() => setGoogleError(googleErrorKey(window.location.search)), []);
+  // 51-05 "Continue with Microsoft", beside Google.
+  const microsoft = useMicrosoftAvailability(api);
+  const [microsoftError, setMicrosoftError] = useState<readonly [string, string] | undefined>(
+    undefined,
+  );
+  /** Read at click time, so a workspace name typed before choosing a provider is kept. */
+  const signUpInput = (): GoogleStartInput => ({
+    intent: 'sign-up',
+    ...(organizationName.trim() === '' ? {} : { organizationName: organizationName.trim() }),
+  });
+  useEffect(() => {
+    setGoogleError(googleErrorKey(window.location.search));
+    setMicrosoftError(microsoftErrorOf(window.location.search));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -260,19 +280,17 @@ export function SignUpScreen({
               <GoogleErrorMessage messageKey={googleError} />
             </InlineAlert>
           ) : null}
+          {microsoftError ? (
+            <InlineAlert tone="danger" live>
+              <MicrosoftErrorMessage error={microsoftError} />
+            </InlineAlert>
+          ) : null}
           {alternatives}
-          {google?.signUp ? (
+          {google?.signUp || microsoft?.signUp ? (
             <>
               <div className="tm-id-methods">
-                <GoogleSignInButton
-                  api={api}
-                  input={() => ({
-                    intent: 'sign-up',
-                    ...(organizationName.trim() === ''
-                      ? {}
-                      : { organizationName: organizationName.trim() }),
-                  })}
-                />
+                {google?.signUp ? <GoogleSignInButton api={api} input={signUpInput} /> : null}
+                {microsoft?.signUp ? <MicrosoftSignInButton api={api} input={signUpInput} /> : null}
               </div>
               <p className="tm-divider">{t('google.or')}</p>
             </>

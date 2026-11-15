@@ -71,6 +71,7 @@ export const SESSION_ESTABLISHING_ROUTES: ReadonlySet<string> = new Set([
   'v1/auth/mfa',
   'v1/auth/recovery-code',
   'v1/auth/google/mfa',
+  'v1/auth/microsoft/mfa',
   'v1/public/sign-up',
   'v1/invitations/registrations',
   'public/setup',

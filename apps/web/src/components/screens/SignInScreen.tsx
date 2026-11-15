@@ -22,6 +22,7 @@ import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { takeGooglePendingMfa } from '../../lib/api/google-auth';
 import { takeSsoPendingMfa } from '../../lib/api/sso';
+import { takeMicrosoftPendingMfa } from '../../lib/api/microsoft-auth';
 import { CompanySignInButton, companySignInError } from './CompanySignInButton';
 import { PasskeySignInButton } from './PasskeySignInButton';
 import { useTOr } from '../../lib/i18n/use-t-or';
@@ -31,6 +32,12 @@ import {
   googleErrorKey,
   useGoogleAvailability,
 } from './GoogleSignInButton';
+import {
+  MicrosoftErrorMessage,
+  MicrosoftSignInButton,
+  microsoftErrorOf,
+  useMicrosoftAvailability,
+} from './MicrosoftSignInButton';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { refusalLine } from '../../lib/api/auth-refusal';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
@@ -177,6 +184,11 @@ export function SignInScreen({
   // "Continue with Google": shown only when the API has it configured.
   const google = useGoogleAvailability(api);
   const [googleError, setGoogleError] = useState<MessageKey | undefined>(undefined);
+  // 51-05 "Continue with Microsoft": the same, beside Google.
+  const microsoft = useMicrosoftAvailability(api);
+  const [microsoftError, setMicrosoftError] = useState<readonly [string, string] | undefined>(
+    undefined,
+  );
   /** Where a Google sign-in that needed a second factor goes afterwards (e.g. the invitation). */
   const [googleReturnTo, setGoogleReturnTo] = useState<string | undefined>(undefined);
   // 54-14: a company sign-in that came back with a refusal (`?sso_error=`).
@@ -205,7 +217,13 @@ export function SignInScreen({
   useEffect(() => {
     if (!onAlreadySignedIn || !mayHaveSession()) return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get('google') === 'mfa' || params.get('sso') === 'mfa') return;
+    if (
+      params.get('google') === 'mfa' ||
+      params.get('microsoft') === 'mfa' ||
+      params.get('sso') === 'mfa'
+    ) {
+      return;
+    }
     let cancelled = false;
     void signedInDestination(api, params.get('next')).then((destination) => {
       if (cancelled || attempted.current || destination === undefined) return;
@@ -221,14 +239,17 @@ export function SignInScreen({
     const search = window.location.search;
     setGoogleError(googleErrorKey(search));
     setSsoError(companySignInError(search));
+    setMicrosoftError(microsoftErrorOf(search));
     const params = new URLSearchParams(search);
     // 54-14: a company sign-in parks its second-factor challenge the same way, on its own route.
     const take =
       params.get('google') === 'mfa'
         ? takeGooglePendingMfa
-        : params.get('sso') === 'mfa'
-          ? takeSsoPendingMfa
-          : null;
+        : params.get('microsoft') === 'mfa'
+          ? takeMicrosoftPendingMfa
+          : params.get('sso') === 'mfa'
+            ? takeSsoPendingMfa
+            : null;
     if (take === null) return;
     let cancelled = false;
     // The challenge was parked in an HttpOnly cookie by the callback; it is taken once, here,
@@ -367,16 +388,31 @@ export function SignInScreen({
         </InlineAlert>
       ) : null}
 
+      {microsoftError ? (
+        <InlineAlert tone="danger" live>
+          <MicrosoftErrorMessage error={microsoftError} />
+          {microsoftError[0] === 'microsoft.error.noAccount' && signUpOffered ? (
+            <>
+              {' '}
+              <Link href="/sign-up">{t('signIn.createAccount')}</Link>
+            </>
+          ) : null}
+        </InlineAlert>
+      ) : null}
+
       {ssoError ? (
         <InlineAlert tone="danger" live>
           {tr(ssoError[0], ssoError[1])}
         </InlineAlert>
       ) : null}
 
-      {google ? (
+      {google || microsoft ? (
         <>
           <div className="tm-id-methods">
-            <GoogleSignInButton api={api} input={() => ({ intent: 'sign-in' })} />
+            {google ? <GoogleSignInButton api={api} input={() => ({ intent: 'sign-in' })} /> : null}
+            {microsoft ? (
+              <MicrosoftSignInButton api={api} input={() => ({ intent: 'sign-in' })} />
+            ) : null}
           </div>
           <p className="tm-divider">{t('SignInScreen.orEmail')}</p>
         </>

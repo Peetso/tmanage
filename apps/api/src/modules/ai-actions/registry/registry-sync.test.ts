@@ -206,7 +206,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // 52-26: e-sign requests (create, list, get, cancel, remind) and the portal list/read (+7
 // classified); the portal's code and signature (+2 NEVER).
 // 52-19 / 52-26 PDF: the approval certificate and signed document PDFs, staff and portal (+4 NEVER).
-const EXPECTED_ROUTE_COUNT = 1484;
+// 51-05: "Continue with Microsoft" availability, start, callback and second step (+4 NEVER).
+const EXPECTED_ROUTE_COUNT = 1488;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

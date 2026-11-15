@@ -208,6 +208,7 @@ import { FirstOwnerModule } from './modules/setup/first-owner.module.js';
 import { publicSignupModules } from './modules/signup/public-signup.module.js';
 import { PlatformAdminModule } from './modules/platform-admin/platform-admin.module.js';
 import { googleAuthModules } from './modules/google-auth/google-auth.module.js';
+import { microsoftAuthModules } from './modules/microsoft-auth/microsoft-auth.module.js';
 import { AutomationsModule } from './modules/automations/automations.module.js';
 import { IntegrationDirectoryModule } from './modules/automations/directory.controller.js';
 import { ConnectionHealthModule } from './modules/automations/connection-health.controller.js';
@@ -1029,6 +1030,10 @@ export class AppModule {
         // "Continue with Google" (`/v1/auth/google/*`). Registered only when GOOGLE_CLIENT_ID and
         // GOOGLE_CLIENT_SECRET are both set; otherwise the routes 404 and the web hides the button.
         ...googleAuthModules(options.config),
+        // 51-05 "Continue with Microsoft" (`/v1/auth/microsoft/*`), the same rules as Google.
+        // Registered only when MICROSOFT_SIGNIN_CLIENT_ID and MICROSOFT_SIGNIN_CLIENT_SECRET are
+        // both set (read from the environment, like OneDrive's keys); otherwise the routes 404.
+        ...microsoftAuthModules(process.env),
         // AUTO-01 / module 17 (x162). Org-scoped automation workflow templates (define/list), behind
         // `org.manage`. Depends only on the global tenant database — an org-admin definition with no
         // project to resolve — so its position here is by subject, not by need. Execution/runs are x163.

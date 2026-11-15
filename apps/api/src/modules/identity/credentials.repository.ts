@@ -242,8 +242,8 @@ const PASSWORD_SET_ACTION = 'password_set';
 
 /**
  * N01 (wave 11). Every action whose `succeeded` row means "this person signed in": the password
- * step (also when it led to an MFA challenge), the code step, the recovery-code fallback and
- * Google. Spelled here for the cycle reason above (`AUTHENTICATION_ACTIONS` in
+ * step (also when it led to an MFA challenge), the code step, the recovery-code fallback,
+ * Google and Microsoft (51-05). Spelled here for the cycle reason above (`AUTHENTICATION_ACTIONS` in
  * `authentication.service.ts`, `GOOGLE_SIGN_IN_ACTION` in `google-auth.service.ts`).
  */
 const SIGN_IN_ACTIONS: readonly string[] = [
@@ -251,6 +251,7 @@ const SIGN_IN_ACTIONS: readonly string[] = [
   'mfa_challenge',
   'recovery_code',
   'google_sign_in',
+  'microsoft_sign_in',
 ];
 
 /** N01 (wave 12). The two second-factor steps of a sign-in, spelled here for the same reason. */

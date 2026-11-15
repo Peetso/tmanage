@@ -152,8 +152,9 @@ function unseal(raw: string | undefined, secret: string, purpose: string): unkno
   }
 }
 
-export function sealFlow(flow: GoogleFlow, secret: string): string {
-  return seal(flow, secret, FLOW_PURPOSE);
+/** `purpose` separates providers: a Google flow cookie never opens as a Microsoft one. */
+export function sealFlow(flow: GoogleFlow, secret: string, purpose: string = FLOW_PURPOSE): string {
+  return seal(flow, secret, purpose);
 }
 
 /** The flow, or undefined when the cookie is missing, forged, malformed or expired. */
@@ -161,8 +162,9 @@ export function openFlow(
   raw: string | undefined,
   secret: string,
   nowSeconds: number = Math.floor(Date.now() / 1000),
+  purpose: string = FLOW_PURPOSE,
 ): GoogleFlow | undefined {
-  const value = unseal(raw, secret, FLOW_PURPOSE) as Partial<GoogleFlow> | undefined;
+  const value = unseal(raw, secret, purpose) as Partial<GoogleFlow> | undefined;
   if (
     !value ||
     (value.intent !== 'sign-in' && value.intent !== 'sign-up' && value.intent !== 'invitation') ||
@@ -196,12 +198,20 @@ export interface PendingMfa {
   readonly returnTo: string;
 }
 
-export function sealPendingMfa(value: PendingMfa, secret: string): string {
-  return seal(value, secret, MFA_PURPOSE);
+export function sealPendingMfa(
+  value: PendingMfa,
+  secret: string,
+  purpose: string = MFA_PURPOSE,
+): string {
+  return seal(value, secret, purpose);
 }
 
-export function openPendingMfa(raw: string | undefined, secret: string): PendingMfa | undefined {
-  const value = unseal(raw, secret, MFA_PURPOSE) as Partial<PendingMfa> | undefined;
+export function openPendingMfa(
+  raw: string | undefined,
+  secret: string,
+  purpose: string = MFA_PURPOSE,
+): PendingMfa | undefined {
+  const value = unseal(raw, secret, purpose) as Partial<PendingMfa> | undefined;
   if (
     !value ||
     typeof value.challengeToken !== 'string' ||

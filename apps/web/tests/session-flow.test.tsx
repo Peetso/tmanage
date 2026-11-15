@@ -108,9 +108,9 @@ describe('ID-01 development sign-in', () => {
       baseUrl: 'https://api.example.test',
       csrfCookieName: 'tmanage_session_csrf',
       fetch: ((input: RequestInfo | URL, init?: RequestInit) => {
-        // Skip the on-mount Google-availability probe (CQ-01); this test is about the dev
-        // sign-in's token and the mutation that follows it.
-        if (!String(input).includes('/v1/auth/google')) {
+        // Skip the on-mount Google / Microsoft availability probes (CQ-01); this test is about
+        // the dev sign-in's token and the mutation that follows it.
+        if (!/\/v1\/auth\/(google|microsoft)/u.test(String(input))) {
           csrfHeaders.push(new Headers(init?.headers).get('x-csrf-token'));
         }
         return Promise.resolve(json({ csrfToken: 'from-the-api', expiresAt: 'x' }, 201));

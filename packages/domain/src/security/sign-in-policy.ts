@@ -187,6 +187,7 @@ export const SIGN_IN_METHOD_OF_ACTION: Readonly<Record<string, SignInMethod | nu
   Object.freeze({
     password_sign_in: 'password',
     google_sign_in: 'google',
+    microsoft_sign_in: 'microsoft',
     mfa_challenge: null,
     recovery_code: null,
   });

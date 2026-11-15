@@ -25,7 +25,11 @@ import { InvitationsService } from '../tenancy/invitations.service.js';
 import { MembershipsRepository } from '../tenancy/memberships.repository.js';
 import { ProvisioningService } from '../tenancy/provisioning.service.js';
 import { GoogleAuthController, type GoogleAuthOptions } from './google-auth.controller.js';
-import { GoogleAuthService } from './google-auth.service.js';
+import {
+  GOOGLE_SIGN_IN_PROVIDER,
+  GoogleAuthService,
+  type SignInProvider,
+} from './google-auth.service.js';
 import { SsoEnforcedSignInPolicyGate } from '../sso/sso-enforcement.js';
 import {
   GOOGLE_AUTH_ADMISSION,
@@ -59,79 +63,96 @@ export class GoogleAuthModule {
         };
       },
     };
-    const service: Provider = {
-      provide: GOOGLE_AUTH_SERVICE,
-      inject: [
-        TENANT_DATABASE,
-        AUDIT_SERVICE,
-        API_CONFIG,
-        { token: INVITATION_MAILER, optional: true },
-        { token: WELCOME_MAILER, optional: true },
-      ],
-      useFactory: (
-        database: TenantDatabase,
-        audit: AuditService,
-        config: ApiConfig,
-        invitationMail?: InvitationMailer,
-        welcome?: WelcomeMailer,
-      ) =>
-        new GoogleAuthService({
-          database,
-          credentials: new CredentialsRepository(createSeedCipher(config.mfaSeedKeys)),
-          invitations: new InvitationsService(
-            database,
-            new InvitationsRepository(),
-            new MembershipsRepository(),
-            new ClientMembershipsRepository(),
-            audit,
-            invitationMail,
-          ),
-          signup:
-            config.publicSignup === true || (config.platformAdminEmails?.length ?? 0) > 0
-              ? new PublicSignupService(
-                  database,
-                  new ProvisioningService(database, audit),
-                  welcome ?? null,
-                )
-              : null,
-          // Platform admin's switch (0206) decides at request time; `PUBLIC_SIGNUP` backs it.
-          signupSwitch: createPublicSignupSwitch(database, {
-            environmentDefault: config.publicSignup === true,
-            databaseBacked: (config.platformAdminEmails?.length ?? 0) > 0,
-          }),
-          sessionSecret: config.sessionSecret,
-          // R18-e (56-25): the organization sign-in policy, checked after Google proved the person.
-          signInPolicy: new SsoEnforcedSignInPolicyGate(database),
-        }),
-    };
-    const sessions: Provider = {
-      provide: GOOGLE_AUTH_SESSIONS,
-      inject: [TENANT_DATABASE, API_CONFIG],
-      useFactory: (database: TenantDatabase, config: ApiConfig) =>
-        new SessionService(database, config),
-    };
-    const admission: Provider = {
-      provide: GOOGLE_AUTH_ADMISSION,
-      inject: [API_CONFIG],
-      useFactory: (config: ApiConfig) =>
-        createFixedWindowLimiter({
-          windowMs: config.contactWindowMs ?? CONTACT_WINDOW_MS,
-          // Starting a Google attempt is cheap and a person may retry a few times.
-          max: Math.max(10, (config.contactMaxPerWindow ?? CONTACT_MAX_PER_WINDOW) * 4),
-        }),
-    };
     return {
       module: GoogleAuthModule,
       providers: [
         options,
-        service,
-        sessions,
-        admission,
+        ...externalSignInProviders(
+          {
+            service: GOOGLE_AUTH_SERVICE,
+            sessions: GOOGLE_AUTH_SESSIONS,
+            admission: GOOGLE_AUTH_ADMISSION,
+          },
+          GOOGLE_SIGN_IN_PROVIDER,
+        ),
         { provide: GOOGLE_TRANSPORT, useValue: transport },
       ],
       controllers: [GoogleAuthController],
     };
   }
+}
+
+/**
+ * The service, session starter and start-route limiter of an external sign-in provider. Google
+ * and Microsoft (51-05) build theirs here, so both apply exactly the same account rules.
+ */
+export function externalSignInProviders(
+  tokens: { readonly service: symbol; readonly sessions: symbol; readonly admission: symbol },
+  provider: SignInProvider,
+): Provider[] {
+  const service: Provider = {
+    provide: tokens.service,
+    inject: [
+      TENANT_DATABASE,
+      AUDIT_SERVICE,
+      API_CONFIG,
+      { token: INVITATION_MAILER, optional: true },
+      { token: WELCOME_MAILER, optional: true },
+    ],
+    useFactory: (
+      database: TenantDatabase,
+      audit: AuditService,
+      config: ApiConfig,
+      invitationMail?: InvitationMailer,
+      welcome?: WelcomeMailer,
+    ) =>
+      new GoogleAuthService({
+        database,
+        credentials: new CredentialsRepository(createSeedCipher(config.mfaSeedKeys)),
+        invitations: new InvitationsService(
+          database,
+          new InvitationsRepository(),
+          new MembershipsRepository(),
+          new ClientMembershipsRepository(),
+          audit,
+          invitationMail,
+        ),
+        signup:
+          config.publicSignup === true || (config.platformAdminEmails?.length ?? 0) > 0
+            ? new PublicSignupService(
+                database,
+                new ProvisioningService(database, audit),
+                welcome ?? null,
+              )
+            : null,
+        // Platform admin's switch (0206) decides at request time; `PUBLIC_SIGNUP` backs it.
+        signupSwitch: createPublicSignupSwitch(database, {
+          environmentDefault: config.publicSignup === true,
+          databaseBacked: (config.platformAdminEmails?.length ?? 0) > 0,
+        }),
+        sessionSecret: config.sessionSecret,
+        // R18-e (56-25): the organization sign-in policy, checked after the provider proved it.
+        signInPolicy: new SsoEnforcedSignInPolicyGate(database),
+        provider,
+      }),
+  };
+  const sessions: Provider = {
+    provide: tokens.sessions,
+    inject: [TENANT_DATABASE, API_CONFIG],
+    useFactory: (database: TenantDatabase, config: ApiConfig) =>
+      new SessionService(database, config),
+  };
+  const admission: Provider = {
+    provide: tokens.admission,
+    inject: [API_CONFIG],
+    useFactory: (config: ApiConfig) =>
+      createFixedWindowLimiter({
+        windowMs: config.contactWindowMs ?? CONTACT_WINDOW_MS,
+        // Starting an attempt is cheap and a person may retry a few times.
+        max: Math.max(10, (config.contactMaxPerWindow ?? CONTACT_MAX_PER_WINDOW) * 4),
+      }),
+  };
+  return [service, sessions, admission];
 }
 
 /** Registered only when both Google credentials are configured; otherwise the routes 404. */

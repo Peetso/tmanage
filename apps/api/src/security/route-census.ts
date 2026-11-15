@@ -45,6 +45,11 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   // complete page with the code and state, which the signed-in complete route then checks.
   'GET /v1/integrations/github/callback': 'OAuth callback: redirect only, state checked later',
   'POST /v1/auth/google/mfa': 'pending named budget: needs the pending-MFA cookie',
+  // 51-05 "Continue with Microsoft": the same four routes and budgets as Google's.
+  'GET /v1/auth/microsoft/': 'read: is Microsoft sign-in configured',
+  'POST /v1/auth/microsoft/start': 'pending named budget: starts a redirect, signed state cookie',
+  'GET /v1/auth/microsoft/callback': 'OIDC callback: signed single-use state, nonce and PKCE',
+  'POST /v1/auth/microsoft/mfa': 'pending named budget: needs the pending-MFA cookie',
   'POST /v1/auth/sso/start': 'pending named budget: starts a redirect, signed state cookie',
   'GET /v1/auth/sso/callback': 'OIDC callback: signed single-use state and nonce',
   'POST /v1/auth/sso/mfa': 'pending named budget: needs the pending-MFA cookie',
