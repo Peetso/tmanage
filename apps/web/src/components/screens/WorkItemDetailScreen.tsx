@@ -55,13 +55,19 @@ import {
 } from '../../lib/api/uploads';
 import { UploadProgressItem, useUploadQueue } from '../storage/UploadProgress';
 import type { UploadRow } from '../../lib/upload-queue';
-import { getStorageStatus, listDriveAttachments } from '../../lib/api/google-drive';
 import {
-  attachOneDriveFile,
+  getStorageStatus,
+  importDriveFileToWorkItem,
+  listDriveAttachments,
+} from '../../lib/api/google-drive';
+import {
   getOneDriveStatus,
+  importOneDriveFileToWorkItem,
   listOneDriveAttachments,
 } from '../../lib/api/onedrive';
 import type { PickedOneDriveItem } from '../../lib/onedrive-picker';
+import type { PickedDriveItem } from '../../lib/google-picker';
+import { DriveAttachPicker } from '../storage/DriveAttachPicker';
 import { OneDriveAttachPicker, oneDriveStatusKey } from '../storage/OneDriveAttachPicker';
 import { NoStorageAttach, useAttachStorageState } from '../storage/NoStorageAttach';
 import { addAttachmentVersion, getAttachmentHistory } from '../../lib/api/attachment-versions';
@@ -1175,18 +1181,32 @@ function FilesCard({
     enabled: oneDrive.data?.configured === true,
   });
   const oneDriveRows = oneDriveFiles.data ?? [];
+  // FIX6 C1. A picked drive file becomes a checked TManage copy in this item's files (the server
+  // fetches it), so the client can open it in the portal without connecting anything.
+  const filesKey = ['work-item-files', organizationSlug, item.id] as const;
   const attachFromOneDrive = useMutation({
     mutationFn: async (picked: readonly PickedOneDriveItem[]) => {
-      for (const file of picked) await attachOneDriveFile(api, organizationSlug, item.id, file);
+      for (const file of picked) {
+        await importOneDriveFileToWorkItem(api, organizationSlug, item.id, file);
+      }
     },
     onSuccess: () => setProblem(undefined),
     onError: (error) => setProblem(describe(error, ta)),
-    onSettled: () => void queries.invalidateQueries({ queryKey: oneDriveKey }),
+    onSettled: () => void queries.invalidateQueries({ queryKey: filesKey }),
+  });
+  const attachFromDrive = useMutation({
+    mutationFn: async (picked: readonly PickedDriveItem[]) => {
+      for (const file of picked) {
+        await importDriveFileToWorkItem(api, organizationSlug, item.id, file.id);
+      }
+    },
+    onSuccess: () => setProblem(undefined),
+    onError: (error) => setProblem(describe(error, ta)),
+    onSettled: () => void queries.invalidateQueries({ queryKey: filesKey }),
   });
 
   // 409:6602. Each new file is a progress row (bar, Cancel, Retry) until it is attached; a dropped
   // connection reads "Upload stopped at N %", any other refusal in the API's words.
-  const filesKey = ['work-item-files', organizationSlug, item.id] as const;
   const uploads = useUploadQueue((error) =>
     error instanceof NetworkError ? null : describe(error, ta),
   );
@@ -1305,6 +1325,15 @@ function FilesCard({
             >
               {ta('WorkDetail.attachFile')}
             </button>
+            <DriveAttachPicker
+              organizationSlug={organizationSlug}
+              client={api}
+              picked={[]}
+              onPick={(picked) => attachFromDrive.mutate(picked)}
+              onRemove={() => undefined}
+              projectId={item.projectId}
+              disabled={attachFromDrive.isPending}
+            />
             <OneDriveAttachPicker
               organizationSlug={organizationSlug}
               client={api}

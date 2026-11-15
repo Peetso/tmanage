@@ -192,6 +192,25 @@ export async function attachDriveFile(
   return data;
 }
 
+/**
+ * FIX6 C1. Add the picked file to the work item as a checked TManage copy: the server fetches it
+ * with the company connection and stores it like an upload, so a client can open it in the portal
+ * with nothing connected. Answers the new file's id once it is attached.
+ */
+export async function importDriveFileToWorkItem(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  fileId: string,
+): Promise<string> {
+  const { data } = await client.request<{ readonly file: { readonly id: string } }>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/drive-files`,
+    body: { fileId },
+  });
+  return data.file.id;
+}
+
 export async function listDriveAttachments(
   client: ApiClient,
   organizationSlug: string,
