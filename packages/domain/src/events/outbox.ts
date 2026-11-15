@@ -317,6 +317,16 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'client_invoice',
     catalog: '52-12 e-invoice signing failing — finance owner alert',
   },
+  /** 57-10: a person opened a support thread with the platform team — inbox alert; no consumer yet. */
+  'support.thread_opened.v1': {
+    aggregateType: 'support_thread',
+    catalog: '57-10 support request opened — platform support inbox notification',
+  },
+  /** 57-10: the platform team replied (the first one stops the first-response clock). */
+  'support.reply_posted.v1': {
+    aggregateType: 'support_thread',
+    catalog: '57-10 support reply — writer notification, SLA report',
+  },
 } as const satisfies Record<string, OutboxEventDefinition>;
 
 export type OutboxEventType = keyof typeof OUTBOX_EVENT_CATALOG;
@@ -824,6 +834,22 @@ export interface OutboxEventPayloads {
   readonly 'milestone.published.v1': MilestonePublishedV1;
   readonly 'inbound_email.attachment_blocked.v1': InboundAttachmentBlockedV1;
   readonly 'finance.einvoice_sign_failed.v1': EinvoiceSignFailedV1;
+  readonly 'support.thread_opened.v1': SupportThreadOpenedV1;
+  readonly 'support.reply_posted.v1': SupportReplyPostedV1;
+}
+
+/** 57-10. Ids and the chosen category / priority — never the subject or the message text. */
+export interface SupportThreadOpenedV1 {
+  readonly threadId: string;
+  readonly category: string;
+  readonly priority: string;
+}
+
+/** 57-10. Ids only; `firstResponse` is true for the reply that stopped the first-response clock. */
+export interface SupportReplyPostedV1 {
+  readonly threadId: string;
+  readonly messageId: string;
+  readonly firstResponse: boolean;
 }
 
 /** 52-12 (R22-a). Ids, the error code and the 24-hour count — never certificate or key text. */

@@ -2,15 +2,17 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpCode,
   Inject,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import { Ctx, NoTenant, RequireCapability } from '../../common/http/decorators.js';
+import { Ctx, NoTenant, Public, RequireCapability } from '../../common/http/decorators.js';
 import { platformRequestContext } from '../platform-admin/platform-admin.access.js';
 import {
   CurrentPlatformAdmin,
@@ -20,6 +22,7 @@ import type { PlatformAdminActor } from '../platform-admin/platform-admin.guard.
 import { RequirePlatformPermission } from '../platform-admin/require-platform-permission.decorator.js';
 import { PLATFORM_SUPPORT_READ, PLATFORM_SUPPORT_REPLY } from './support.policy.js';
 import type { SupportService } from './support.service.js';
+import { publishedTargets } from './support-sla.js';
 
 export const SUPPORT_SERVICE = Symbol.for('tmanage.SupportService');
 
@@ -83,11 +86,19 @@ export class SupportThreadsController {
 export class PlatformSupportThreadsController {
   constructor(@Inject(SUPPORT_SERVICE) private readonly service: SupportService) {}
 
+  /** 57-10: `?breached=1` and `?priority=` narrow the queue on the clock computed now. */
   @Get()
   @RequirePlatformPermission(PLATFORM_SUPPORT_READ)
-  async list(@Req() request: object) {
+  async list(
+    @Req() request: object,
+    @Query('breached') breached?: string,
+    @Query('priority') priority?: string,
+  ) {
     return {
-      threads: await this.service.platformList(platformRequestContext(request).correlationId),
+      threads: await this.service.platformList(platformRequestContext(request).correlationId, {
+        breached,
+        priority,
+      }),
     };
   }
 
@@ -124,5 +135,21 @@ export class PlatformSupportThreadsController {
       body ?? {},
       platformRequestContext(request),
     );
+  }
+}
+
+/**
+ * 57-10 — `GET /v1/public/site/support-targets`: the published response targets (plan → first
+ * response, priority → resolution, the team's hours) for the website and the pricing compare row.
+ * Static policy data from `support-sla.ts`, no tenant data, so `@Public()` and cacheable.
+ */
+@Controller('v1/public/site')
+export class SupportTargetsController {
+  @Get('support-targets')
+  @Public()
+  @NoTenant()
+  @Header('Cache-Control', 'public, max-age=3600')
+  targets() {
+    return publishedTargets();
   }
 }

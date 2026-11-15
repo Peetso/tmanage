@@ -54,6 +54,16 @@ function thread(over: Partial<SupportThreadRecord> = {}): SupportThreadRecord {
     lastAuthorKind: 'member',
     createdAt: new Date(0),
     closedAt: null,
+    category: 'question',
+    priority: 'normal',
+    planIdAtOpen: 'free',
+    slaTimezone: 'Asia/Riyadh',
+    slaFirstResponseMinutes: 1080,
+    slaResolutionMinutes: 2700,
+    firstResponseAt: null,
+    slaPausedAt: null,
+    slaPausedMinutes: 0,
+    slaBreached: false,
     ...over,
   };
 }
@@ -73,7 +83,10 @@ function harness(found: SupportThreadRecord | null = thread()) {
     setStatus: vi.fn(async () => undefined),
     listAcrossOrganizations: vi.fn(async () => []),
     organizationOfThread: vi.fn(async () => (found ? ORG : null)),
+    slaSource: vi.fn(async () => ({ planId: 'business', timezone: 'Asia/Riyadh' })),
+    updateSla: vi.fn(async () => undefined),
   };
+  const outbox = { append: vi.fn(async () => 'event') };
   const notifications = { insertForRecipient: vi.fn(async () => undefined) };
   const files = { findById: vi.fn(async () => null as unknown) };
   const mailer = { send: vi.fn(async () => 'sent' as const) };
@@ -82,11 +95,12 @@ function harness(found: SupportThreadRecord | null = thread()) {
     repository: repository as unknown as SupportRepository,
     files: files as never,
     notifications,
+    outbox,
     mailer: mailer as unknown as Mailer,
     webPublicUrl: 'https://tmanage.example',
     now: () => new Date('2026-11-08T10:00:00.000Z'),
   });
-  return { service, repository, notifications, files, mailer, database, queries };
+  return { service, repository, notifications, files, mailer, database, queries, outbox };
 }
 
 const status = (p: Promise<unknown>) =>

@@ -7,6 +7,8 @@ import type {
 } from '../../common/database/tenant-context.js';
 import type { SupportAuthorKind, SupportStatus } from './support.policy.js';
 import { isSupportStatus } from './support.policy.js';
+import { SUPPORT_CATEGORIES, SUPPORT_PRIORITIES } from './support-sla.js';
+import type { SupportCategory, SupportPriority } from './support-sla.js';
 
 /**
  * 55-17 — the one file holding SQL for `support_threads` / `support_messages` (0324, TENANT).
@@ -39,6 +41,35 @@ export interface SupportThreadRecord {
   readonly lastAuthorKind: SupportAuthorKind;
   readonly createdAt: Date;
   readonly closedAt: Date | null;
+  // 0352 (57-10)
+  readonly category: SupportCategory;
+  readonly priority: SupportPriority;
+  readonly planIdAtOpen: string | null;
+  readonly slaTimezone: string | null;
+  readonly slaFirstResponseMinutes: number | null;
+  readonly slaResolutionMinutes: number | null;
+  readonly firstResponseAt: Date | null;
+  readonly slaPausedAt: Date | null;
+  readonly slaPausedMinutes: number;
+  readonly slaBreached: boolean;
+}
+
+/** 57-10. The SLA captured when a thread is opened. */
+export interface NewSupportSla {
+  readonly category: SupportCategory;
+  readonly priority: SupportPriority;
+  readonly planIdAtOpen: string;
+  readonly timezone: string;
+  readonly firstResponseMinutes: number;
+  readonly resolutionMinutes: number;
+}
+
+/** 57-10. The SLA columns a write moves (status change, reply). */
+export interface SupportSlaUpdate {
+  readonly firstResponseAt: Date | null;
+  readonly pausedAt: Date | null;
+  readonly pausedMinutes: number;
+  readonly breached: boolean;
 }
 
 export interface SupportMessageRecord {
@@ -59,6 +90,7 @@ export interface NewSupportThread {
   readonly subject: string;
   readonly contextPath: string | null;
   readonly contextAppVersion: string | null;
+  readonly sla: NewSupportSla;
   readonly at: Date;
 }
 
@@ -78,13 +110,27 @@ const THREAD_COLUMNS = `t.id as id, t.organization_id as organization_id,
   t.context_path as context_path, t.context_app_version as context_app_version,
   t.message_count as message_count, t.last_message_at as last_message_at,
   t.last_author_kind as last_author_kind, t.created_at as created_at, t.closed_at as closed_at,
-  u.display_name as started_by_name, u.email as started_by_email`;
+  u.display_name as started_by_name, u.email as started_by_email,
+  t.category as category, t.priority as priority, t.plan_id_at_open as plan_id_at_open,
+  t.sla_timezone as sla_timezone, t.sla_first_response_minutes as sla_first_response_minutes,
+  t.sla_resolution_minutes as sla_resolution_minutes, t.first_response_at as first_response_at,
+  t.sla_paused_at as sla_paused_at, t.sla_paused_minutes as sla_paused_minutes,
+  t.sla_breached as sla_breached`;
 
 export const SUPPORT_SQL = {
   insertThread: `insert into support_threads
       (id, organization_id, started_by_user_id, subject, status, context_path, context_app_version,
-       message_count, last_message_at, last_author_kind, created_at, updated_at, closed_at)
-    values (?, ?, ?, ?, 'open', ?, ?, 0, ?, 'member', ?, ?, null)`,
+       message_count, last_message_at, last_author_kind, created_at, updated_at, closed_at,
+       category, priority, plan_id_at_open, sla_timezone, sla_first_response_minutes,
+       sla_resolution_minutes)
+    values (?, ?, ?, ?, 'open', ?, ?, 0, ?, 'member', ?, ?, null, ?, ?, ?, ?, ?, ?)`,
+  /** 57-10. Moves the SLA columns; never touched by a member-supplied value. */
+  updateSla: `update support_threads t
+    set t.first_response_at = ?, t.sla_paused_at = ?, t.sla_paused_minutes = ?, t.sla_breached = ?
+    where t.organization_id = ? and t.id = ?`,
+  /** 57-10. The plan and timezone the SLA is captured from at opening. */
+  slaTimezone: `select o.timezone as timezone from organizations o where o.id = ? limit 1`,
+  slaPlan: `select s.plan_id as plan_id from subscriptions s where s.organization_id = ? limit 1`,
   insertMessage: `insert into support_messages
       (id, organization_id, thread_id, author_kind, author_user_id, body, attachment_file_id,
        attachment_name, created_at)
@@ -162,7 +208,25 @@ export function toThreadRecord(row: Row): SupportThreadRecord {
     lastAuthorKind: authorKind(row['last_author_kind']),
     createdAt: date(row['created_at']) ?? new Date(0),
     closedAt: date(row['closed_at']),
+    category: oneOf(row['category'], SUPPORT_CATEGORIES, 'question'),
+    priority: oneOf(row['priority'], SUPPORT_PRIORITIES, 'normal'),
+    planIdAtOpen: text(row['plan_id_at_open']),
+    slaTimezone: text(row['sla_timezone']),
+    slaFirstResponseMinutes: count(row['sla_first_response_minutes']),
+    slaResolutionMinutes: count(row['sla_resolution_minutes']),
+    firstResponseAt: date(row['first_response_at']),
+    slaPausedAt: date(row['sla_paused_at']),
+    slaPausedMinutes: count(row['sla_paused_minutes']) ?? 0,
+    slaBreached: Number(row['sla_breached'] ?? 0) === 1,
   };
+}
+
+function oneOf<T extends string>(value: unknown, values: readonly T[], fallback: T): T {
+  return (values as readonly unknown[]).includes(value) ? (value as T) : fallback;
+}
+
+function count(value: unknown): number | null {
+  return value === null || value === undefined ? null : Number(value);
 }
 
 export function toMessageRecord(row: Row): SupportMessageRecord {
@@ -195,8 +259,40 @@ export class SupportRepository {
       thread.at,
       thread.at,
       thread.at,
+      thread.sla.category,
+      thread.sla.priority,
+      thread.sla.planIdAtOpen,
+      thread.sla.timezone,
+      thread.sla.firstResponseMinutes,
+      thread.sla.resolutionMinutes,
     ];
     await runner.query(SUPPORT_SQL.insertThread, params);
+  }
+
+  async updateSla(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    threadId: string,
+    sla: SupportSlaUpdate,
+  ): Promise<void> {
+    await runner.query(SUPPORT_SQL.updateSla, [
+      sla.firstResponseAt,
+      sla.pausedAt,
+      sla.pausedMinutes,
+      sla.breached ? 1 : 0,
+      context.organizationId,
+      threadId,
+    ]);
+  }
+
+  /** The organization's plan id (null without a subscription row) and timezone. */
+  async slaSource(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+  ): Promise<{ planId: string | null; timezone: string | null }> {
+    const [zone] = await runner.query<Row[]>(SUPPORT_SQL.slaTimezone, [context.organizationId]);
+    const [plan] = await runner.query<Row[]>(SUPPORT_SQL.slaPlan, [context.organizationId]);
+    return { planId: text(plan?.['plan_id']), timezone: text(zone?.['timezone']) };
   }
 
   /** Append one message and move the thread's counters and status in the same unit of work. */

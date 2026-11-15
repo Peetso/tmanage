@@ -5,10 +5,12 @@ import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { MAILER, TENANT_DATABASE } from '../../common/http/tokens.js';
 import { FileAssetsRepository } from '../files/file-assets.repository.js';
 import { NotificationsRepository } from '../inbox/notifications.repository.js';
+import { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { platformAdminCore } from '../platform-admin/platform-admin-core.module.js';
 import {
   PlatformSupportThreadsController,
   SUPPORT_SERVICE,
+  SupportTargetsController,
   SupportThreadsController,
 } from './support.controller.js';
 import { SupportRepository } from './support.repository.js';
@@ -30,6 +32,7 @@ function supportServiceProvider(): Provider {
         repository: new SupportRepository(),
         files: new FileAssetsRepository(),
         notifications: new NotificationsRepository(),
+        outbox: new OutboxEventsRepository(),
         mailer: mailer ?? null,
         webPublicUrl: webPublicUrl(),
         onMailError: (error) =>
@@ -47,7 +50,7 @@ export class SupportModule {
     return {
       module: SupportModule,
       providers: [supportServiceProvider()],
-      controllers: [SupportThreadsController],
+      controllers: [SupportThreadsController, SupportTargetsController],
     };
   }
 }

@@ -13400,6 +13400,17 @@ export const supportThreads = mysqlTable(
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
     closedAt: datetime('closed_at', { mode: 'date', fsp: 3 }),
+    // 0352 (57-10). Category, priority and the SLA captured at opening (`support/support-sla.ts`).
+    category: varchar('category', { length: 24 }).notNull().default('question'),
+    priority: varchar('priority', { length: 16 }).notNull().default('normal'),
+    planIdAtOpen: varchar('plan_id_at_open', { length: 64 }),
+    slaTimezone: varchar('sla_timezone', { length: 64 }),
+    slaFirstResponseMinutes: int('sla_first_response_minutes', { unsigned: true }),
+    slaResolutionMinutes: int('sla_resolution_minutes', { unsigned: true }),
+    firstResponseAt: datetime('first_response_at', { mode: 'date', fsp: 3 }),
+    slaPausedAt: datetime('sla_paused_at', { mode: 'date', fsp: 3 }),
+    slaPausedMinutes: int('sla_paused_minutes', { unsigned: true }).notNull().default(0),
+    slaBreached: boolean('sla_breached').notNull().default(false),
   },
   (table) => [
     uniqueIndex('uq_support_threads_org_id').on(table.organizationId, table.id),
@@ -13409,6 +13420,7 @@ export const supportThreads = mysqlTable(
       table.lastMessageAt,
     ),
     index('ix_support_threads_status_last').on(table.status, table.lastMessageAt),
+    index('ix_support_threads_sla').on(table.status, table.slaBreached, table.createdAt),
   ],
 );
 

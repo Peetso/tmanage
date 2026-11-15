@@ -1,5 +1,7 @@
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { ApiError } from '../../common/http/errors.js';
+import { SUPPORT_CATEGORIES, SUPPORT_PRIORITIES } from './support-sla.js';
+import type { SupportCategory, SupportPriority } from './support-sla.js';
 
 /**
  * 55-17 — the pure rules of in-app support conversations. Kept free of I/O so the permission
@@ -108,7 +110,21 @@ export function cleanAttachmentId(raw: unknown): string | null {
   return raw;
 }
 
+/** 57-10. Absent means the default; anything outside the list is a 400, never stored. */
+function oneOf<T extends string>(
+  raw: unknown,
+  field: string,
+  values: readonly T[],
+  fallback: T,
+): T {
+  if (raw === undefined || raw === null || raw === '') return fallback;
+  if (typeof raw === 'string' && (values as readonly string[]).includes(raw)) return raw as T;
+  throw invalid(field, `must be one of ${values.join(', ')}`);
+}
+
 export interface NewThreadInput {
+  readonly category: SupportCategory;
+  readonly priority: SupportPriority;
   readonly subject: string;
   readonly body: string;
   readonly contextPath: string | null;
@@ -118,6 +134,8 @@ export interface NewThreadInput {
 
 export function parseNewThread(body: Readonly<Record<string, unknown>>): NewThreadInput {
   return {
+    category: oneOf(body['category'], 'category', SUPPORT_CATEGORIES, 'question'),
+    priority: oneOf(body['priority'], 'priority', SUPPORT_PRIORITIES, 'normal'),
     subject: requiredText(body['subject'], 'subject', SUBJECT_MAX),
     body: requiredText(body['message'], 'message', BODY_MAX),
     contextPath: cleanContextPath(body['contextPath']),

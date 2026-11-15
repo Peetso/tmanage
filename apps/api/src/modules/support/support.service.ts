@@ -10,6 +10,16 @@ import type { PlatformAdminActor } from '../platform-admin/platform-admin.guard.
 import { insertPlatformAudit } from '../platform-admin/platform-admin.repository.js';
 import { platformAuditFor } from '../platform-admin/platform-audit.service.js';
 import { platformOrgContext } from '../platform-admin/organizations/organizations.repository.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
+import { readPlanId } from '../billing/plan-catalog.js';
+import {
+  pauseAfterStatus,
+  slaClock,
+  slaTargets,
+  SUPPORT_PRIORITIES,
+  validTimeZone,
+} from './support-sla.js';
+import type { SlaClockView, SupportCategory, SupportPriority } from './support-sla.js';
 import { buildSupportReplyEmail } from './support-email.js';
 import {
   maySeeThread,
@@ -24,6 +34,7 @@ import type { SupportAuthorKind, SupportStatus } from './support.policy.js';
 import type {
   SupportMessageRecord,
   SupportRepository,
+  SupportSlaUpdate,
   SupportThreadRecord,
 } from './support.repository.js';
 
@@ -70,6 +81,10 @@ export interface SupportMessageView {
 
 export interface SupportThreadView {
   readonly id: string;
+  readonly category: SupportCategory;
+  readonly priority: SupportPriority;
+  /** 57-10. The SLA clock: the writer's own threads and the platform only, never other members. */
+  readonly sla: SlaClockView | null;
   readonly subject: string;
   readonly status: SupportStatus;
   readonly contextPath: string | null;
@@ -106,6 +121,7 @@ export interface SupportServiceDeps {
   readonly repository: SupportRepository;
   readonly files: Pick<FileAssetsRepository, 'findById'>;
   readonly notifications: Pick<NotificationsRepository, 'insertForRecipient'>;
+  readonly outbox: Pick<OutboxEventsRepository, 'append'>;
   readonly mailer: Mailer | null;
   readonly webPublicUrl: string;
   readonly now?: () => Date;
@@ -120,9 +136,58 @@ function notFound(): ApiError {
   return new ApiError(404, 'not_found', MESSAGES.notFound);
 }
 
-function threadView(thread: SupportThreadRecord, viewerUserId: string | null): SupportThreadView {
+/** 57-10. The clock inputs as stored; the clock itself is always computed now, server-side. */
+function slaState(thread: SupportThreadRecord) {
+  return {
+    createdAt: thread.createdAt,
+    status: thread.status,
+    closedAt: thread.closedAt,
+    timezone: thread.slaTimezone,
+    firstResponseMinutes: thread.slaFirstResponseMinutes,
+    resolutionMinutes: thread.slaResolutionMinutes,
+    firstResponseAt: thread.firstResponseAt,
+    pausedAt: thread.slaPausedAt,
+    pausedMinutes: thread.slaPausedMinutes,
+  };
+}
+
+/**
+ * 57-10. The SLA columns after a write that leaves the thread in `next` at `at`. Only the first
+ * platform reply sets `first_response_at`; nothing a member sends can (SUP-05).
+ */
+export function slaAfter(
+  thread: SupportThreadRecord,
+  next: SupportStatus,
+  at: Date,
+  platformReply = false,
+): SupportSlaUpdate {
+  const pause = pauseAfterStatus(slaState(thread), next, at);
+  const firstResponseAt = thread.firstResponseAt ?? (platformReply ? at : null);
+  const clock = slaClock(
+    {
+      ...slaState(thread),
+      status: next,
+      closedAt: next === 'closed' ? at : null,
+      firstResponseAt,
+      pausedAt: pause.pausedAt,
+      pausedMinutes: pause.pausedMinutes,
+    },
+    at,
+  );
+  return { firstResponseAt, ...pause, breached: thread.slaBreached || (clock?.breached ?? false) };
+}
+
+function threadView(
+  thread: SupportThreadRecord,
+  viewerUserId: string | null,
+  now: Date,
+  showSla = viewerUserId !== null && thread.startedByUserId === viewerUserId,
+): SupportThreadView {
   return {
     id: thread.id,
+    category: thread.category,
+    priority: thread.priority,
+    sla: showSla ? slaClock(slaState(thread), now) : null,
     subject: thread.subject,
     status: thread.status,
     contextPath: thread.contextPath,
@@ -137,9 +202,9 @@ function threadView(thread: SupportThreadRecord, viewerUserId: string | null): S
   };
 }
 
-function platformThreadView(thread: SupportThreadRecord): PlatformSupportThreadView {
+function platformThreadView(thread: SupportThreadRecord, now: Date): PlatformSupportThreadView {
   return {
-    ...threadView(thread, null),
+    ...threadView(thread, null, now, true),
     organizationId: thread.organizationId,
     organizationSlug: thread.organizationSlug,
     organizationName: thread.organizationName,
@@ -178,7 +243,8 @@ export class SupportService {
     const rows = await this.deps.database.read(context, (db) =>
       this.deps.repository.list(db, context, startedBy),
     );
-    return rows.map((row) => threadView(row, context.userId));
+    const now = this.now();
+    return rows.map((row) => threadView(row, context.userId, now));
   }
 
   async get(context: TenantContext, rawId: string): Promise<SupportThreadDetailView> {
@@ -190,7 +256,7 @@ export class SupportService {
       const label = await this.deps.repository.organizationLabel(db, context);
       const messages = await this.deps.repository.messages(db, context, id);
       return {
-        thread: threadView(thread, context.userId),
+        thread: threadView(thread, context.userId, this.now()),
         organizationSlug: label?.slug ?? null,
         messages: messages.map((m) => messageView(m, context.userId)),
       };
@@ -204,13 +270,30 @@ export class SupportService {
     const at = this.now();
     await this.deps.database.transaction(context, async (tx) => {
       const attachmentName = await this.attachment(tx, context, input.attachmentFileId);
+      // 57-10 SUP-03: the plan and targets are captured now; a later plan change moves nothing.
+      const source = await this.deps.repository.slaSource(tx, context);
+      const plan = readPlanId(source.planId);
+      const targets = slaTargets(plan, input.priority);
       await this.deps.repository.insertThread(tx, context, {
         id,
         startedByUserId: context.userId,
         subject: input.subject,
         contextPath: input.contextPath,
         contextAppVersion: input.appVersion,
+        sla: {
+          category: input.category,
+          priority: input.priority,
+          planIdAtOpen: plan,
+          timezone: validTimeZone(source.timezone),
+          firstResponseMinutes: targets.firstResponseMinutes,
+          resolutionMinutes: targets.resolutionMinutes,
+        },
         at,
+      });
+      await this.deps.outbox.append(tx, context, {
+        type: 'support.thread_opened.v1',
+        aggregateId: id,
+        payload: { threadId: id, category: input.category, priority: input.priority },
       });
       await this.deps.repository.appendMessage(
         tx,
@@ -262,6 +345,13 @@ export class SupportService {
         },
         statusAfterMessage('member'),
       );
+      // The customer answered: a `waiting` pause ends and the resolution clock runs again.
+      await this.deps.repository.updateSla(
+        tx,
+        context,
+        id,
+        slaAfter(thread, statusAfterMessage('member'), at),
+      );
     });
     return this.get(context, id);
   }
@@ -274,7 +364,9 @@ export class SupportService {
       const thread = await this.deps.repository.find(tx, context, id, true);
       if (!thread || !maySeeThread(context, thread)) throw notFound();
       if (thread.status !== 'closed') {
-        await this.deps.repository.setStatus(tx, context, id, 'closed', this.now());
+        const at = this.now();
+        await this.deps.repository.setStatus(tx, context, id, 'closed', at);
+        await this.deps.repository.updateSla(tx, context, id, slaAfter(thread, 'closed', at));
       }
     });
     return this.get(context, id);
@@ -282,12 +374,24 @@ export class SupportService {
 
   // ── Platform side ───────────────────────────────────────────────────────
 
-  async platformList(correlationId: string): Promise<readonly PlatformSupportThreadView[]> {
+  /** 57-10: `breached` and `priority` filter the queue on the clock computed now. */
+  async platformList(
+    correlationId: string,
+    filter: { readonly breached?: unknown; readonly priority?: unknown } = {},
+  ): Promise<readonly PlatformSupportThreadView[]> {
     const rows = await this.deps.database.bootstrapRead(
       { correlationId, reason: SUPPORT_LIST_REASON, tables: [...SUPPORT_BOOTSTRAP_TABLES] },
       (db) => this.deps.repository.listAcrossOrganizations(db),
     );
-    return rows.map(platformThreadView);
+    const priority = (SUPPORT_PRIORITIES as readonly unknown[]).includes(filter.priority)
+      ? filter.priority
+      : null;
+    const breachedOnly = filter.breached === '1' || filter.breached === 'true';
+    const now = this.now();
+    return rows
+      .map((row) => platformThreadView(row, now))
+      .filter((view) => priority === null || view.priority === priority)
+      .filter((view) => !breachedOnly || view.sla?.breached === true);
   }
 
   async platformGet(rawId: string, correlationId: string): Promise<PlatformSupportDetailView> {
@@ -315,6 +419,7 @@ export class SupportService {
     const { detail, thread } = await this.deps.database.transaction(context, async (tx) => {
       const current = await this.deps.repository.find(tx, context, id, true);
       if (!current) throw notFound();
+      const sla = slaAfter(current, statusAfterMessage('platform'), at, true);
       await this.deps.repository.appendMessage(
         tx,
         context,
@@ -330,6 +435,12 @@ export class SupportService {
         },
         statusAfterMessage('platform'),
       );
+      await this.deps.repository.updateSla(tx, context, id, sla);
+      await this.deps.outbox.append(tx, context, {
+        type: 'support.reply_posted.v1',
+        aggregateId: id,
+        payload: { threadId: id, messageId, firstResponse: current.firstResponseAt === null },
+      });
       await this.deps.notifications.insertForRecipient(tx, context, {
         recipientUserId: current.startedByUserId,
         type: SUPPORT_NOTIFICATION_TYPE,
@@ -368,7 +479,9 @@ export class SupportService {
       const current = await this.deps.repository.find(tx, context, id, true);
       if (!current) throw notFound();
       if (current.status !== status) {
-        await this.deps.repository.setStatus(tx, context, id, status, this.now());
+        const at = this.now();
+        await this.deps.repository.setStatus(tx, context, id, status, at);
+        await this.deps.repository.updateSla(tx, context, id, slaAfter(current, status, at));
         await insertPlatformAudit(
           tx,
           platformAuditFor(actor, request, {
@@ -430,11 +543,14 @@ export class SupportService {
     const label = await this.deps.repository.organizationLabel(db, context);
     const messages = await this.deps.repository.messages(db, context, id);
     return {
-      thread: platformThreadView({
-        ...thread,
-        organizationSlug: label?.slug ?? null,
-        organizationName: label?.name ?? null,
-      }),
+      thread: platformThreadView(
+        {
+          ...thread,
+          organizationSlug: label?.slug ?? null,
+          organizationName: label?.name ?? null,
+        },
+        this.now(),
+      ),
       messages: messages.map((m) => messageView(m, null, true)),
     };
   }

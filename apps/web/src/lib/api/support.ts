@@ -24,8 +24,41 @@ export interface SupportMessage {
   readonly createdAt: string;
 }
 
+/** 57-10 · request category and priority, and the SLA clock the API computes (never the client). */
+export type SupportCategory =
+  | 'question'
+  | 'problem'
+  | 'billing'
+  | 'account'
+  | 'feature_request'
+  | 'other';
+export type SupportPriority = 'low' | 'normal' | 'high' | 'urgent';
+
+export interface SupportSlaClock {
+  readonly paused: boolean;
+  readonly firstResponse: {
+    readonly targetMinutes: number;
+    readonly elapsedMinutes: number;
+    readonly dueAt: string;
+    readonly respondedAt: string | null;
+    readonly breached: boolean;
+  };
+  readonly resolution: {
+    readonly targetMinutes: number;
+    readonly elapsedMinutes: number;
+    readonly dueAt: string | null;
+    readonly resolvedAt: string | null;
+    readonly breached: boolean;
+  };
+  readonly breached: boolean;
+}
+
 export interface SupportThread {
   readonly id: string;
+  readonly category: SupportCategory;
+  readonly priority: SupportPriority;
+  /** Only on the writer's own threads and in the platform inbox; null otherwise. */
+  readonly sla: SupportSlaClock | null;
   readonly subject: string;
   readonly status: SupportStatus;
   readonly contextPath: string | null;
