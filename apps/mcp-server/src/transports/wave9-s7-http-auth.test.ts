@@ -1,4 +1,4 @@
-import { createServer } from 'node:http';
+import { createServer, request } from 'node:http';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -44,15 +44,55 @@ async function start(token: string | undefined): Promise<{ port: number }> {
 
 const listTools = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
 
-function post(port: number, headers: Record<string, string>): Promise<Response> {
-  return fetch(`http://127.0.0.1:${port}/mcp`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      accept: 'application/json, text/event-stream',
-      ...headers,
-    },
-    body: listTools,
+interface Reply {
+  readonly status: number;
+  text(): Promise<string>;
+}
+
+/**
+ * POST through node:http, not fetch(). listen(0) takes a port from the OS dynamic range, which on
+ * Windows can start at 1024 and so hand out a port on the fetch spec's blocked list (6000, 6665,
+ * 10080, ...) — undici then throws "bad port" before sending anything. node:http has no such list.
+ * The reply resolves as soon as its status line arrives: a 413 answers before the body is fully
+ * sent, and a socket error the server causes after that answer is not the client's failure.
+ */
+function post(
+  port: number,
+  headers: Record<string, string>,
+  body: string = listTools,
+): Promise<Reply> {
+  return new Promise<Reply>((resolve, reject) => {
+    let answered = false;
+    const req = request(
+      {
+        host: '127.0.0.1',
+        port,
+        path: '/mcp',
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+          'content-length': String(Buffer.byteLength(body)),
+          ...headers,
+        },
+      },
+      (res) => {
+        answered = true;
+        const chunks: Buffer[] = [];
+        const text = new Promise<string>((done, fail) => {
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => done(Buffer.concat(chunks).toString('utf8')));
+          res.on('error', fail);
+        });
+        // A reset after the answer must not surface as an unhandled rejection.
+        text.catch(() => undefined);
+        resolve({ status: res.statusCode ?? 0, text: () => text });
+      },
+    );
+    req.on('error', (error) => {
+      if (!answered) reject(error);
+    });
+    req.end(body);
   });
 }
 
@@ -103,20 +143,16 @@ describe('F04 — MCP HTTP transport requires a bearer on every request', () => 
 
   it('refuses an oversized body from a token holder with 413 (M02)', async () => {
     const { port } = await start(undefined);
-    const res = await fetch(`http://127.0.0.1:${port}/mcp`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json, text/event-stream',
-        authorization: 'Bearer tmanage_pat_member',
-      },
-      body: JSON.stringify({
+    const res = await post(
+      port,
+      { authorization: 'Bearer tmanage_pat_member' },
+      JSON.stringify({
         jsonrpc: '2.0',
         id: 1,
         method: 'tools/list',
         params: { pad: 'a'.repeat(1_048_577) },
       }),
-    });
+    );
     expect(res.status).toBe(413);
   });
 });
