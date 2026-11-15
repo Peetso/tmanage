@@ -11,6 +11,11 @@ import { ApiClient } from '../src/lib/api/client';
  * P7 catalog fragment, so the translator is the identity here and the test reads keys.
  */
 vi.mock('../src/lib/i18n/use-t', () => ({ useT: () => (key: string) => key }));
+const push = vi.hoisted(() => vi.fn());
+vi.mock('next/navigation', async (original) => ({
+  ...(await original<Record<string, unknown>>()),
+  useRouter: () => ({ push }),
+}));
 
 interface Call {
   method: string;
@@ -58,6 +63,7 @@ function deliverable(overrides: Record<string, unknown> = {}) {
     description: null,
     state: 'draft',
     latestVersionNo: 2,
+    sharedWithClient: false,
     createdByUserId: 'u1',
     createdAt: '2026-10-20T10:00:00.000Z',
     updatedAt: '2026-10-20T10:00:00.000Z',
@@ -74,6 +80,7 @@ function version(approval: unknown = null) {
     note: 'Bigger booking button',
     createdByUserId: 'u1',
     createdAt: '2026-10-21T10:00:00.000Z',
+    sharedWithClientAt: null,
     approval,
   };
 }
@@ -131,6 +138,39 @@ describe('DeliverablesScreen', () => {
 });
 
 describe('DeliverableDetailScreen', () => {
+  it('FIX6 item 8 / UX-1: shares the newest version, and deletes a deliverable after confirming', async () => {
+    const { client, calls } = fakeApi((call) =>
+      call.method === 'POST'
+        ? { deliverableVersionId: 'v2', sharedWithClientAt: '2026-11-15T10:00:00.000Z' }
+        : { ...deliverable(), versions: [version()] },
+    );
+    render(
+      withQuery(
+        <DeliverableDetailScreen
+          organizationSlug="north"
+          organizationName="North"
+          projectId="p1"
+          deliverableId="d1"
+          client={client}
+        />,
+      ),
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Deliverables.shareWithClient' }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.method === 'POST')?.url).toContain(
+        '/deliverables/d1/versions/v2/share',
+      ),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete deliverable' }));
+    await waitFor(() =>
+      expect(
+        calls.some((c) => c.method === 'POST' && c.url.endsWith('/deliverables/d1/delete')),
+      ).toBe(true),
+    );
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/north/projects/p1/deliverables'));
+  });
+
   it('uploads a new version with a note', async () => {
     const { client, calls } = fakeApi((call) =>
       call.method === 'POST' ? version() : { ...deliverable(), versions: [version()] },

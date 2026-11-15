@@ -209,6 +209,24 @@ export const approvalsDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'Approvers', args: { deliverableId: 'dlv_1' } }],
   }),
   det({
+    id: 'approvals.deliverables.delete',
+    title: 'Delete a deliverable',
+    description:
+      'Delete a deliverable made by mistake; it leaves the team list and the client portal and ' +
+      'can be restored. Owner or project manager; never once the client approved it. Confirm-class.',
+    input: pathOnly('deliverableId'),
+    redact: 'standard',
+    examples: [{ summary: 'Delete', args: { deliverableId: 'dlv_1' } }],
+  }),
+  det({
+    id: 'approvals.deliverables.restore',
+    title: 'Restore a deleted deliverable',
+    description: 'Bring back a deliverable that was deleted, with its shared versions.',
+    input: pathOnly('deliverableId'),
+    redact: 'standard',
+    examples: [{ summary: 'Restore', args: { deliverableId: 'dlv_1' } }],
+  }),
+  det({
     id: 'approvals.deliverables.share.create',
     title: 'Share a version with the client',
     description:

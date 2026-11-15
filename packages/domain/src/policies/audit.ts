@@ -784,6 +784,15 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'file_asset',
     clause: '§12 — a new version changes which file a work item, request or document serves',
   },
+  /** FIX6 item 8. A deliverable deleted (soft, with Undo) or brought back. Metadata: project id. */
+  'deliverable.deleted': {
+    objectType: 'deliverable',
+    clause: '§12 — deleting a deliverable takes it out of the client portal',
+  },
+  'deliverable.restored': {
+    objectType: 'deliverable',
+    clause: '§12 — restoring a deliverable puts its shared versions back in the portal',
+  },
   /** UX-1. A version put in the client portal by "Share with client" (no approval, no e-mail). */
   'deliverable.shared_with_client': {
     objectType: 'deliverable',
@@ -1788,6 +1797,8 @@ const AUDIT_ACTION_LABELS = {
   'deliverable.version_added': 'Uploaded a new deliverable version',
   'file_asset.version_added': 'Uploaded a new file version',
   'deliverable.shared_with_client': 'Shared a deliverable with the client',
+  'deliverable.deleted': 'Deleted a deliverable',
+  'deliverable.restored': 'Restored a deleted deliverable',
   'deliverable.sent_for_approval': 'Sent a deliverable for client approval',
   'approval.approved': 'Approved a deliverable',
   'approval.changes_requested': 'Requested changes on a deliverable',

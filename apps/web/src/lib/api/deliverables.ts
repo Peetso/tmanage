@@ -185,3 +185,30 @@ export async function shareWithClient(
   });
   return data;
 }
+
+/**
+ * FIX6 item 8: delete a deliverable made by mistake (soft; it leaves the team list and the client
+ * portal). The API allows the owner or a project manager, and never once the client approved it.
+ */
+export async function deleteDeliverable(
+  client: ApiClient,
+  organizationSlug: string,
+  deliverableId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'POST',
+    path: `${base(organizationSlug)}/${encodeURIComponent(deliverableId)}/delete`,
+  });
+}
+
+/** FIX6 item 8: Undo a delete. */
+export async function restoreDeliverable(
+  client: ApiClient,
+  organizationSlug: string,
+  deliverableId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'POST',
+    path: `${base(organizationSlug)}/${encodeURIComponent(deliverableId)}/restore`,
+  });
+}

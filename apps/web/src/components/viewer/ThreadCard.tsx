@@ -37,7 +37,9 @@ export function useThreadMeta(): (thread: ReviewThread) => string {
           ? t('Viewer.thread.kindBox')
           : thread.anchorKind === 'draw'
             ? t('Viewer.thread.kindDraw')
-            : t('Viewer.thread.kindGeneral');
+            : thread.anchorKind === 'cell'
+              ? cellLabel(thread.anchor, t)
+              : t('Viewer.thread.kindGeneral');
     parts.push(anchor);
     const replies = Math.max(0, thread.comments.length - 1);
     parts.push(
@@ -152,4 +154,18 @@ export function ThreadCard({ thread, selected, optionId, active, onOpen, extra }
       </div>
     </li>
   );
+}
+
+/**
+ * FIX6 item 9 (B12): a comment on a spreadsheet cell says which cell ("Cell Rates!C7"), not
+ * "Whole file". The anchor is `{ sheet, cell }` as the Excel stage stores it.
+ */
+function cellLabel(
+  anchor: Readonly<Record<string, unknown>> | null,
+  t: (key: 'Viewer.thread.kindCell' | 'Viewer.thread.kindGeneral') => string,
+): string {
+  const sheet = typeof anchor?.['sheet'] === 'string' ? anchor['sheet'] : '';
+  const cell = typeof anchor?.['cell'] === 'string' ? anchor['cell'] : '';
+  if (cell === '') return t('Viewer.thread.kindGeneral');
+  return t('Viewer.thread.kindCell').replace('{cell}', sheet === '' ? cell : `${sheet}!${cell}`);
 }

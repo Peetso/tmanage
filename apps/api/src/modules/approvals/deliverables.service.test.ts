@@ -55,6 +55,11 @@ function build(sharingRefuses = false) {
   const repos = {
     deliverables: {
       requireById: vi.fn(async () => deliverable),
+      findById: vi.fn(async (): Promise<object | null> => ({
+        ...deliverable,
+        deletedAt: new Date(),
+      })),
+      setDeleted: vi.fn(),
       create: vi.fn(async () => ({
         ...deliverable,
         description: null,
@@ -139,6 +144,40 @@ function build(sharingRefuses = false) {
 }
 
 describe('DeliverablesService (0211)', () => {
+  it('FIX6 item 8: the owner deletes a deliverable (soft, audited); a member cannot', async () => {
+    const { service, deliverables, audit } = build();
+    deliverables.approvalsFor.mockResolvedValue([]);
+    await service.remove(ctx, admin, 'd-1');
+    expect(deliverables.setDeleted.mock.calls[0]?.[2]).toBe('d-1');
+    expect(deliverables.setDeleted.mock.calls[0]?.[3]).toMatchObject({ byUserId: 'u-1' });
+    expect(audit.record.mock.calls[0]?.[2]).toMatchObject({
+      action: 'deliverable.deleted',
+      metadata: { project_id: 'p-1' },
+    });
+    const member = { ...admin, role: 'member', hasOrgWideScope: false } as Principal;
+    const second = build();
+    await expect(second.service.remove(ctx, member, 'd-1')).rejects.toBeInstanceOf(ApiError);
+    expect(second.deliverables.setDeleted).not.toHaveBeenCalled();
+  });
+
+  it('FIX6 item 8: a deliverable the client approved is never deleted', async () => {
+    const { service, deliverables } = build();
+    deliverables.approvalsFor.mockResolvedValue([{ ...pending, state: 'approved' }]);
+    await expect(service.remove(ctx, admin, 'd-1')).rejects.toMatchObject({ status: 409 });
+    expect(deliverables.setDeleted).not.toHaveBeenCalled();
+  });
+
+  it('FIX6 item 8: Undo restores a deleted deliverable, with the same permission', async () => {
+    const { service, deliverables, audit } = build();
+    await service.restore(ctx, admin, 'd-1');
+    expect(deliverables.setDeleted.mock.calls[0]?.[3]).toBeNull();
+    expect(audit.record.mock.calls[0]?.[2]).toMatchObject({ action: 'deliverable.restored' });
+    const member = { ...admin, role: 'member', hasOrgWideScope: false } as Principal;
+    const second = build();
+    await expect(second.service.restore(ctx, member, 'd-1')).rejects.toBeInstanceOf(ApiError);
+    expect(second.deliverables.setDeleted).not.toHaveBeenCalled();
+  });
+
   it('UX-1: "Share with client" publishes the newest version to the portal with no approval and no e-mail', async () => {
     const { service, projections, approvals, outbox, audit } = build();
     const shared = await service.share(ctx, admin, 'd-1', 'v-2');

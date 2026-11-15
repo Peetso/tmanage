@@ -8,6 +8,7 @@ import {
 } from '../../common/database/schema.js';
 import type { FileAssetRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+import { deliverableIsLive } from '../approvals/client-projections.repository.js';
 
 /**
  * R4 slice 4 — the reads behind a client's reach to a deliverable file and to a version chain.
@@ -54,6 +55,8 @@ export class ClientFileReachRepository {
           eq(deliverableVersions.organizationId, context.organizationId),
           eq(clientProjections.organizationId, context.organizationId),
           eq(deliverableVersions.fileAssetId, fileAssetId),
+          // FIX6 item 8: a deleted deliverable's file is not client content any more.
+          deliverableIsLive(runner),
         ),
       )
       .limit(1);
@@ -73,6 +76,7 @@ export class ClientFileReachRepository {
         and(
           eq(clientProjections.organizationId, context.organizationId),
           eq(clientProjections.deliverableId, deliverableId),
+          deliverableIsLive(runner),
         ),
       )
       .limit(1);

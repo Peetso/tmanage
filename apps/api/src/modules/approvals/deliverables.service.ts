@@ -540,6 +540,64 @@ export class DeliverablesService {
     );
   }
 
+  /**
+   * FIX6 item 8: delete a deliverable made by mistake — the owner or a project manager
+   * (`project.manage` on its project), and never once the client approved a version of it (that
+   * approval is a record the agency relies on). A soft delete: it leaves the team's list and the
+   * client portal at once, and {@link restore} (the toast's Undo) brings it back. Audited.
+   */
+  async remove(context: TenantContext, principal: Principal, deliverableId: string): Promise<void> {
+    return this.guarding(() =>
+      this.database.transaction(context, async (tx) => {
+        const deliverable = await this.deliverables.requireById(tx, context, deliverableId);
+        this.require(principal, 'project.manage', context, deliverable.projectId);
+        const all = await this.deliverables.approvalsFor(tx, context, deliverable.id);
+        if (all.some((approval) => approval.state === 'approved')) {
+          throw new ApiError(
+            409,
+            'conflict',
+            'The client approved this deliverable, so it cannot be deleted',
+            undefined,
+            'deliverable_approved',
+          );
+        }
+        await this.deliverables.setDeleted(tx, context, deliverable.id, {
+          at: new Date(),
+          byUserId: principal.userId,
+        });
+        await this.audit?.record(tx, context, {
+          action: 'deliverable.deleted',
+          objectId: deliverable.id,
+          result: 'allowed',
+          metadata: { project_id: deliverable.projectId },
+        });
+      }),
+    );
+  }
+
+  /** FIX6 item 8: Undo a delete. The same permission; a live deliverable is left as it is. */
+  async restore(
+    context: TenantContext,
+    principal: Principal,
+    deliverableId: string,
+  ): Promise<void> {
+    return this.guarding(() =>
+      this.database.transaction(context, async (tx) => {
+        const deliverable = await this.deliverables.findById(tx, context, deliverableId);
+        if (!deliverable) throw notFound('deliverable_not_found');
+        this.require(principal, 'project.manage', context, deliverable.projectId);
+        if (deliverable.deletedAt === null) return;
+        await this.deliverables.setDeleted(tx, context, deliverable.id, null);
+        await this.audit?.record(tx, context, {
+          action: 'deliverable.restored',
+          objectId: deliverable.id,
+          result: 'allowed',
+          metadata: { project_id: deliverable.projectId },
+        });
+      }),
+    );
+  }
+
   /** The deliverable's newest version, which must be `versionId`; an older one is a 409. */
   private async newestVersion(
     tx: TenantQueryRunner,

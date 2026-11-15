@@ -3490,6 +3490,9 @@ export const deliverables = mysqlTable(
     createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** 0345 (FIX6 item 8): soft delete with Undo; a deleted deliverable leaves every list. */
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
   },
   (table) => [
     uniqueIndex('uq_deliverables_org_id').on(table.organizationId, table.id),

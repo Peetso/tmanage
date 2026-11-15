@@ -320,6 +320,22 @@ export const OPS: readonly AiActionOp[] = [
     scope: 'read',
   },
   {
+    id: 'approvals.deliverables.delete',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/deliverables/:deliverableId/delete',
+    capability: 'deliverable.create',
+    risk: 'confirm',
+    scope: 'manage',
+  },
+  {
+    id: 'approvals.deliverables.restore',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/deliverables/:deliverableId/restore',
+    capability: 'deliverable.create',
+    risk: 'write',
+    scope: 'manage',
+  },
+  {
     id: 'approvals.deliverables.share.create',
     method: 'POST',
     path: '/v1/organizations/:orgSlug/deliverables/:deliverableId/versions/:versionId/share',

@@ -111,6 +111,30 @@ export class DeliverablesController {
     return { approvers: await this.deliverables.approvers(context, principal, deliverableId) };
   }
 
+  /** FIX6 item 8: delete a deliverable (soft, with Undo); `project.manage` in the service. */
+  @Post(':deliverableId/delete')
+  @HttpCode(204)
+  @RequireCapability('deliverable.create')
+  async remove(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('deliverableId') deliverableId: string,
+  ): Promise<void> {
+    await this.deliverables.remove(context, principal, deliverableId);
+  }
+
+  /** FIX6 item 8: Undo a delete. */
+  @Post(':deliverableId/restore')
+  @HttpCode(204)
+  @RequireCapability('deliverable.create')
+  async restore(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('deliverableId') deliverableId: string,
+  ): Promise<void> {
+    await this.deliverables.restore(context, principal, deliverableId);
+  }
+
   /**
    * UX-1 "Share with client": the newest version goes into the client portal, with no approval and
    * no e-mail. `deliverable.publish` here and again on the project in the service.

@@ -35,6 +35,8 @@ import { ExternalApproversPanel } from './approvals/ExternalApproversPanel';
 import { useT } from '../../lib/i18n/use-t';
 import { HelpTip } from '../help/HelpTip';
 import { PreviewAsClientLink } from './PreviewAsClientLink';
+import { DeleteDeliverable } from './DeleteDeliverable';
+import { useRouter } from 'next/navigation';
 
 export interface DeliverableDetailScreenProps {
   organizationSlug: string;
@@ -137,6 +139,9 @@ export function DeliverableDetailScreen({
   const canUpload =
     (file !== null || note.trim() !== '') && fileProblem === null && !upload.isPending;
   const listHref = `/${organizationSlug}/projects/${encodeURIComponent(projectId)}/deliverables`;
+  const router = useRouter();
+  // FIX6 item 8: a deliverable the client approved is a record the agency keeps — no Delete.
+  const approved = detail.data?.versions.some((v) => v.approval?.state === 'approved') ?? true;
 
   return (
     <AppShell
@@ -157,7 +162,23 @@ export function DeliverableDetailScreen({
           }
         />
       }
-      actions={<PreviewAsClientLink organizationSlug={organizationSlug} />}
+      actions={
+        <span className="tm-row tm-row--wrap">
+          <PreviewAsClientLink organizationSlug={organizationSlug} />
+          {detail.data && !approved ? (
+            <DeleteDeliverable
+              api={api}
+              organizationSlug={organizationSlug}
+              deliverable={{ id: deliverableId, title: detail.data.title }}
+              onDeleted={() => {
+                refresh();
+                router.push(listHref);
+              }}
+              onRestored={refresh}
+            />
+          ) : null}
+        </span>
+      }
       headerAside={
         detail.data ? (
           <StateCapsule state={stateCapsule(detail.data.state)}>

@@ -45,7 +45,7 @@ describe('undo queue (55-23)', () => {
     const onCommitted = vi.fn();
     queue.enqueue({ key: 'work:1', message: 'Item deleted', commit, onCommitted });
 
-    advance(7_999);
+    advance(9_999);
     expect(commit).not.toHaveBeenCalled();
     expect(queue.isPending('work:1')).toBe(true);
 
@@ -97,7 +97,7 @@ describe('undo queue (55-23)', () => {
       commit: () => Promise.reject(new Error('409')),
       onFailed,
     });
-    advance(8_000);
+    advance(10_000);
     await settle();
     expect(queue.entries()[0]?.status).toBe('failed');
     expect(onFailed).toHaveBeenCalledTimes(1);
@@ -107,9 +107,29 @@ describe('undo queue (55-23)', () => {
   });
 
   it('clamps the hold to 5-10 seconds and keys objects by kind', () => {
-    expect(clampUndoDelay(undefined)).toBe(8_000);
+    expect(clampUndoDelay(undefined)).toBe(10_000);
     expect(clampUndoDelay(1_000)).toBe(5_000);
     expect(clampUndoDelay(60_000)).toBe(10_000);
     expect(undoKey('file-folder', 'f-1')).toBe('file-folder:f-1');
+  });
+
+  it('FIX6 item 9: waits 10 s by default and stops counting while the toast is hovered or focused', async () => {
+    const { clock, advance } = manualClock();
+    const queue = createUndoQueue(clock);
+    const commit = vi.fn(() => Promise.resolve());
+    const id = queue.enqueue({ key: 'file:1', message: 'File deleted', commit });
+    advance(6_000);
+    queue.pause(id);
+    expect(queue.entries()[0]?.pausedRemainingMs).toBe(4_000);
+    advance(30_000);
+    await settle();
+    expect(commit).not.toHaveBeenCalled();
+    queue.resume(id);
+    advance(3_999);
+    await settle();
+    expect(commit).not.toHaveBeenCalled();
+    advance(1);
+    await settle();
+    expect(commit).toHaveBeenCalledTimes(1);
   });
 });

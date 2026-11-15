@@ -14,7 +14,8 @@
 
 export const UNDO_MIN_MS = 5_000;
 export const UNDO_MAX_MS = 10_000;
-export const UNDO_DEFAULT_MS = 8_000;
+/** FIX6 item 9: 10 s by default, so a person has time to read the toast and reach Undo. */
+export const UNDO_DEFAULT_MS = 10_000;
 
 export interface UndoRequest {
   /** What the action is about ("work:abc"), so a screen can hide an item while it is held. */
@@ -39,6 +40,11 @@ export interface UndoEntry {
   readonly message: string;
   /** Epoch ms at which the held call is sent. */
   readonly deadline: number;
+  /**
+   * FIX6 item 9: while the pointer or keyboard focus is on the toast the countdown stops; this is
+   * the time that was left when it paused (null while counting).
+   */
+  readonly pausedRemainingMs: number | null;
   readonly status: UndoStatus;
   readonly error?: unknown;
 }
@@ -70,6 +76,10 @@ export interface UndoQueue {
   flushAll(): void;
   /** Drop a failed entry's toast. */
   dismiss(id: string): void;
+  /** Stop the countdown while a person reads or reaches the toast (FIX6 item 9). */
+  pause(id: string): void;
+  /** Start it again with the time that was left. */
+  resume(id: string): void;
   isPending(key: string): boolean;
   entries(): readonly UndoEntry[];
   subscribe(listener: () => void): () => void;
@@ -127,6 +137,7 @@ export function createUndoQueue(clock: UndoClock = systemClock): UndoQueue {
           key: request.key,
           message: request.message,
           deadline: clock.now() + delay,
+          pausedRemainingMs: null,
           status: 'pending',
         },
         request,
@@ -164,6 +175,27 @@ export function createUndoQueue(clock: UndoClock = systemClock): UndoQueue {
         slots.delete(id);
         changed();
       }
+    },
+    pause(id) {
+      const slot = slots.get(id);
+      if (!slot || slot.entry.status !== 'pending' || slot.entry.pausedRemainingMs !== null) return;
+      clock.clearTimeout(slot.timer);
+      slot.entry = {
+        ...slot.entry,
+        pausedRemainingMs: Math.max(0, slot.entry.deadline - clock.now()),
+      };
+      changed();
+    },
+    resume(id) {
+      const slot = slots.get(id);
+      const remaining = slot?.entry.pausedRemainingMs;
+      if (!slot || slot.entry.status !== 'pending' || remaining === null || remaining === undefined)
+        return;
+      // At least a moment after the pointer leaves, so the toast never vanishes under it.
+      const left = Math.max(remaining, 2_000);
+      slot.entry = { ...slot.entry, deadline: clock.now() + left, pausedRemainingMs: null };
+      slot.timer = clock.setTimeout(() => send(slot), left);
+      changed();
     },
     isPending(key) {
       for (const slot of slots.values()) {

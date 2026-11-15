@@ -1,7 +1,7 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, notExists, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { clientProjections } from '../../common/database/schema.js';
+import { clientProjections, deliverables } from '../../common/database/schema.js';
 import type { ClientProjectionPayload, ClientProjectionRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -15,6 +15,28 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
  * version is refused by the UNIQUE (organization_id, deliverable_version_id) in `0031`, surfaced
  * here as {@link ClientProjectionAlreadyExistsError}.
  */
+
+/**
+ * FIX6 item 8: the projection's deliverable is not deleted. Every projection read carries it, so
+ * deleting a deliverable takes it out of the portal, the client's approval door and the client's
+ * file reach at once, and restoring brings it back. Written as "no deleted deliverable row" (not
+ * "a live row exists"): an approval-only projection (0211 fixtures, older approvals) has a
+ * deliverable id without a `deliverables` row, and it stays readable.
+ */
+export function deliverableIsLive(runner: TenantQueryRunner) {
+  return notExists(
+    tenantDrizzle(runner)
+      .select({ one: sql`1` })
+      .from(deliverables)
+      .where(
+        and(
+          eq(deliverables.organizationId, clientProjections.organizationId),
+          eq(deliverables.id, clientProjections.deliverableId),
+          isNotNull(deliverables.deletedAt),
+        ),
+      ),
+  );
+}
 
 export class ClientProjectionNotFoundError extends Error {
   constructor(readonly deliverableVersionId: string) {
@@ -112,6 +134,7 @@ export class ClientProjectionsRepository {
         and(
           eq(clientProjections.organizationId, context.organizationId),
           eq(clientProjections.deliverableVersionId, deliverableVersionId),
+          deliverableIsLive(runner),
         ),
       )
       .limit(1);
@@ -151,6 +174,7 @@ export class ClientProjectionsRepository {
         and(
           eq(clientProjections.organizationId, context.organizationId),
           eq(clientProjections.projectId, projectId),
+          deliverableIsLive(runner),
         ),
       )
       .orderBy(desc(clientProjections.publishedAt), desc(clientProjections.id));
@@ -174,6 +198,7 @@ export class ClientProjectionsRepository {
         and(
           eq(clientProjections.organizationId, context.organizationId),
           eq(clientProjections.deliverableId, deliverableId),
+          deliverableIsLive(runner),
         ),
       )
       .orderBy(desc(clientProjections.publishedAt), desc(clientProjections.id))

@@ -108,3 +108,58 @@ test('a deliverable reaches the portal only after "Share with client"', async ({
     await client.close();
   }
 });
+
+test('a deleted deliverable leaves the portal, and Undo brings it back (FIX6 item 8)', async ({
+  browser,
+}) => {
+  const { projectId, owner } = world().northstar;
+  const team = await signedIn(browser, owner.id);
+  const client = await signedIn(browser, world().atlas.admin.id);
+  try {
+    const title = `FIX6 delete ${Date.now()}`;
+    const created = await team.request.post(`${BASE}/deliverables`, {
+      headers: team.headers,
+      data: { projectId, title, description: null },
+    });
+    expect(created.ok(), await created.text()).toBe(true);
+    const deliverableId = ((await created.json()) as { id: string }).id;
+    const version = await team.request.post(`${BASE}/deliverables/${deliverableId}/versions`, {
+      headers: team.headers,
+      data: { fileAssetId: null, note: 'Made by mistake' },
+    });
+    expect(version.ok(), await version.text()).toBe(true);
+    const versionId = ((await version.json()) as { id: string }).id;
+    const shared = await team.request.post(
+      `${BASE}/deliverables/${deliverableId}/versions/${versionId}/share`,
+      { headers: team.headers },
+    );
+    expect(shared.ok(), await shared.text()).toBe(true);
+    const inPortal = async () =>
+      (await portalTitles(client.request, projectId)).some((t) => t.startsWith(title));
+    expect(await inPortal()).toBe(true);
+
+    // A client contact cannot delete it.
+    const byClient = await client.request.post(`${BASE}/deliverables/${deliverableId}/delete`, {
+      headers: client.headers,
+    });
+    expect(byClient.status()).toBeGreaterThanOrEqual(403);
+    expect(await inPortal()).toBe(true);
+
+    const deleted = await team.request.post(`${BASE}/deliverables/${deliverableId}/delete`, {
+      headers: team.headers,
+    });
+    expect(deleted.status(), await deleted.text()).toBe(204);
+    expect(await inPortal()).toBe(false);
+    const gone = await team.request.get(`${BASE}/deliverables/${deliverableId}`);
+    expect(gone.status()).toBe(404);
+
+    const restored = await team.request.post(`${BASE}/deliverables/${deliverableId}/restore`, {
+      headers: team.headers,
+    });
+    expect(restored.status(), await restored.text()).toBe(204);
+    expect(await inPortal()).toBe(true);
+  } finally {
+    await team.close();
+    await client.close();
+  }
+});

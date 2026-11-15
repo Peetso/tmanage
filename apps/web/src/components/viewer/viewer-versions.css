@@ -580,6 +580,10 @@
   inset-block-end: var(--s4);
   inset-inline-end: var(--s4);
   z-index: 5;
+  /* FIX6 item 9 (B12): never taller than the stage, so Post and Cancel stay on screen; the
+     popover scrolls inside instead of running past the bottom of a short Excel stage. */
+  max-block-size: calc(100% - 2 * var(--s4));
+  overflow-y: auto;
 }
 
 @media (max-width: 899px) {

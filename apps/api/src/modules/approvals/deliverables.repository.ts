@@ -89,14 +89,36 @@ export class DeliverablesRepository {
     return rows[0] ?? null;
   }
 
+  /**
+   * A live deliverable, or {@link DeliverableNotFoundError}: a deleted one (FIX6 item 8) is absent
+   * to every action but restore, which reads {@link findById}.
+   */
   async requireById(
     runner: TenantQueryRunner,
     context: TenantContext,
     deliverableId: string,
   ): Promise<DeliverableRow> {
     const found = await this.findById(runner, context, deliverableId);
-    if (!found) throw new DeliverableNotFoundError(deliverableId);
+    if (!found || found.deletedAt !== null) throw new DeliverableNotFoundError(deliverableId);
     return found;
+  }
+
+  /** FIX6 item 8: delete (a date and who) or restore (`null`) one deliverable. */
+  async setDeleted(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    deliverableId: string,
+    deleted: { readonly at: Date; readonly byUserId: string } | null,
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .update(deliverables)
+      .set({ deletedAt: deleted?.at ?? null, deletedByUserId: deleted?.byUserId ?? null })
+      .where(
+        and(
+          eq(deliverables.organizationId, context.organizationId),
+          eq(deliverables.id, deliverableId),
+        ),
+      );
   }
 
   async listByProject(
@@ -111,6 +133,7 @@ export class DeliverablesRepository {
         and(
           eq(deliverables.organizationId, context.organizationId),
           eq(deliverables.projectId, projectId),
+          isNull(deliverables.deletedAt),
         ),
       )
       .orderBy(desc(deliverables.updatedAt), desc(deliverables.id));

@@ -58,26 +58,39 @@ function UndoToast({
       </Toast>
     );
   }
-  const seconds = Math.max(0, Math.ceil((entry.deadline - now) / 1000));
+  const left = entry.pausedRemainingMs ?? entry.deadline - now;
+  const seconds = Math.max(0, Math.ceil(left / 1000));
+  // FIX6 item 9: the countdown stops while the pointer or keyboard focus is on the toast.
   return (
-    <Toast
-      tone="neutral"
-      onDismiss={() => queue.dismiss(entry.id)}
-      dismissLabel={tOr('Undo.dismiss', 'Dismiss')}
+    <div
+      className="tm-undo-toast__hold"
+      onMouseEnter={() => queue.pause(entry.id)}
+      onMouseLeave={() => queue.resume(entry.id)}
+      onFocus={() => queue.pause(entry.id)}
+      onBlur={(event) => {
+        const into = event.relatedTarget;
+        if (!(into instanceof Node && event.currentTarget.contains(into))) queue.resume(entry.id);
+      }}
     >
-      <span className="tm-undo-toast__message">{entry.message}</span>
-      {entry.status === 'pending' ? (
-        <>
-          {' '}
-          <Button type="button" tone="text" size="compact" onClick={() => queue.undo(entry.id)}>
-            {tOr('Undo.action', 'Undo')}
-          </Button>{' '}
-          <span className="tm-undo-toast__seconds" aria-hidden="true">
-            {tOr('Undo.secondsLeft', '{seconds} s').replace('{seconds}', String(seconds))}
-          </span>
-        </>
-      ) : null}
-    </Toast>
+      <Toast
+        tone="neutral"
+        onDismiss={() => queue.dismiss(entry.id)}
+        dismissLabel={tOr('Undo.dismiss', 'Dismiss')}
+      >
+        <span className="tm-undo-toast__message">{entry.message}</span>
+        {entry.status === 'pending' ? (
+          <>
+            {' '}
+            <Button type="button" tone="text" size="compact" onClick={() => queue.undo(entry.id)}>
+              {tOr('Undo.action', 'Undo')}
+            </Button>{' '}
+            <span className="tm-undo-toast__seconds" aria-hidden="true">
+              {tOr('Undo.secondsLeft', '{seconds} s').replace('{seconds}', String(seconds))}
+            </span>
+          </>
+        ) : null}
+      </Toast>
+    </div>
   );
 }
 
