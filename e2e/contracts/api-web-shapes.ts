@@ -794,6 +794,24 @@ import type {
   PortalJourneyStep as ApiPortalJourneyStep,
   PortalJourneyTurn as ApiPortalJourneyTurn,
 } from '../../apps/api/src/modules/portal/portal-journey.js';
+import type {
+  PortalSignatureView as ApiPortalSignatureView,
+  PortalSignatureListView as ApiPortalSignatureListView,
+  SignatureCodeSentView as ApiSignatureCodeSentView,
+  SignatureRecordSummary as ApiSignatureRecordSummary,
+  SignatureSignerView as ApiSignatureSignerView,
+  SignatureRequestView as ApiSignatureRequestView,
+  SignatureRequestListView as ApiSignatureRequestListView,
+} from '../../apps/api/src/modules/approvals/esign.js';
+import type {
+  PortalSignatureView as WebPortalSignatureView,
+  PortalSignatureListView as WebPortalSignatureListView,
+  SignatureCodeSentView as WebSignatureCodeSentView,
+  SignatureRecordSummary as WebSignatureRecordSummary,
+  SignatureSignerView as WebSignatureSignerView,
+  SignatureRequestView as WebSignatureRequestView,
+  SignatureRequestListView as WebSignatureRequestListView,
+} from '../../apps/web/src/lib/api/esign';
 import type { WorkflowFlowView as ApiWorkflowFlowView } from '../../apps/api/src/modules/automations/flow.controller.js';
 import type { WorkflowFlowSummary as WebWorkflowFlowSummary } from '../../apps/web/src/lib/api/automation-flow';
 import type { PortalAccessLogEvent as WebPortalAccessLogEvent } from '../../apps/web/src/lib/api/portal-access-log';
@@ -4567,3 +4585,24 @@ type _portalJourneyTurn = Assert<Exact<ApiPortalJourneyTurn, WebPortalJourneyTur
  * answer `WorkflowFlowView`, read by apps/web/src/lib/api/automation-flow.ts.
  */
 type _workflowFlow = Assert<Exact<ApiWorkflowFlowView, WebWorkflowFlowSummary>>;
+
+/**
+ * 52-26 simple e-sign. The team's `…/signature-requests` routes and the portal's
+ * `…/portal/signature-requests` routes answer these views (apps/api approvals/esign.ts), read by
+ * apps/web/src/lib/api/esign.ts.
+ */
+type _esignPortalSignatureView = Assert<Exact<ApiPortalSignatureView, WebPortalSignatureView>>;
+type _esignPortalSignatureListView = Assert<
+  Exact<ApiPortalSignatureListView, WebPortalSignatureListView>
+>;
+type _esignSignatureCodeSentView = Assert<
+  Exact<ApiSignatureCodeSentView, WebSignatureCodeSentView>
+>;
+type _esignSignatureRecordSummary = Assert<
+  Exact<ApiSignatureRecordSummary, WebSignatureRecordSummary>
+>;
+type _esignSignatureSignerView = Assert<Exact<ApiSignatureSignerView, WebSignatureSignerView>>;
+type _esignSignatureRequestView = Assert<Exact<ApiSignatureRequestView, WebSignatureRequestView>>;
+type _esignSignatureRequestListView = Assert<
+  Exact<ApiSignatureRequestListView, WebSignatureRequestListView>
+>;

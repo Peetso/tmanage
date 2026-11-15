@@ -43,6 +43,7 @@ import {
 import { SendForApprovalDialog } from './SendForApprovalDialog';
 import { ExternalApproversPanel } from './approvals/ExternalApproversPanel';
 import { ApprovalRecordPanel } from './approvals/ApprovalRecordPanel';
+import { SignatureRequestsPanel } from './esign/SignatureRequestsPanel';
 import { approvedVersion, staffRecordHref } from '../../lib/approval-record-presentation';
 import { useT } from '../../lib/i18n/use-t';
 import { HelpTip } from '../help/HelpTip';
@@ -281,6 +282,15 @@ export function DeliverableDetailScreen({
                   ? { onSendForApproval: () => setSendingVersion(latestVersion(detail.data)) }
                   : {})}
               />
+              {latestVersion(detail.data) ? (
+                <SignatureRequestsPanel
+                  api={api}
+                  organizationSlug={organizationSlug}
+                  deliverableId={deliverableId}
+                  deliverableTitle={detail.data.title}
+                  version={latestVersion(detail.data)!}
+                />
+              ) : null}
               <section className="tm-card tm-prj-card" aria-labelledby="tm-deliverable-upload">
                 <h2 id="tm-deliverable-upload" className="tm-prj-eyebrow">
                   {t('Deliverables.uploadHeading')}

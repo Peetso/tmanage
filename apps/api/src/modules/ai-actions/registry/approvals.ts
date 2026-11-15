@@ -10,7 +10,7 @@
  * cost/estimate/review/rationale fields.
  */
 import { z } from 'zod';
-import { det, listArgs, pathOnly, bodyArgs, f, type AiActionDetail } from './detail.js';
+import { det, listArgs, noArgs, pathOnly, bodyArgs, f, type AiActionDetail } from './detail.js';
 
 /** The reviewer decision enum mirrored from `approvals.controller.ts`. */
 const decision = z.enum(['approve', 'request_changes']);
@@ -301,5 +301,74 @@ export const approvalsDetails: readonly AiActionDetail[] = [
         args: { deliverableId: 'dlv_1', versionId: 'dv_2', approverIds: ['user_9'] },
       },
     ],
+  }),
+  // 52-26: simple e-sign. Requests are created and cancelled only with confirmation; the
+  // signature itself is never an AI op.
+  det({
+    id: 'esign.requests.create',
+    title: 'Request a signature',
+    description:
+      'Ask named client contacts to sign one deliverable version. Each contact is e-mailed. ' +
+      'Confirm-class.',
+    input: bodyArgs([], {
+      deliverableVersionId: f.id(),
+      signerUserIds: z.array(f.id()).min(1).max(10),
+      expiresInDays: z.number().int().min(1).max(30).optional(),
+      title: f.shortText(200).optional(),
+    }),
+    redact: 'standard',
+    notifies: true,
+    examples: [
+      { summary: 'One signer', args: { deliverableVersionId: 'dv_1', signerUserIds: ['user_7'] } },
+    ],
+  }),
+  det({
+    id: 'esign.requests.list',
+    title: 'List signature requests',
+    description: 'The signature requests on one deliverable version, with who signed.',
+    input: listArgs([], { deliverableVersionId: f.id() }),
+    redact: 'standard',
+    examples: [{ summary: 'By version', args: { deliverableVersionId: 'dv_1' } }],
+  }),
+  det({
+    id: 'esign.requests.get',
+    title: 'Get a signature request',
+    description: 'One signature request: its signers and each sealed signature record.',
+    input: pathOnly('signatureRequestId'),
+    redact: 'standard',
+    examples: [{ summary: 'By id', args: { signatureRequestId: 'sr_1' } }],
+  }),
+  det({
+    id: 'esign.requests.cancel',
+    title: 'Cancel a signature request',
+    description: 'Cancel a pending signature request. Signatures already made stay recorded.',
+    input: pathOnly('signatureRequestId'),
+    redact: 'standard',
+    examples: [{ summary: 'Cancel', args: { signatureRequestId: 'sr_1' } }],
+  }),
+  det({
+    id: 'esign.requests.remind',
+    title: 'Remind signers',
+    description: 'E-mail the signers who have not signed yet. Once a day at most.',
+    input: pathOnly('signatureRequestId'),
+    redact: 'standard',
+    notifies: true,
+    examples: [{ summary: 'Remind', args: { signatureRequestId: 'sr_1' } }],
+  }),
+  det({
+    id: 'esign.portal.list',
+    title: 'My signature requests',
+    description: 'The documents the caller is asked to sign, and whether each is signed.',
+    input: noArgs(),
+    redact: 'client_safe',
+    examples: [{ summary: 'Mine', args: {} }],
+  }),
+  det({
+    id: 'esign.portal.get',
+    title: 'Get my signature request',
+    description: 'One document the caller is asked to sign, and its state.',
+    input: pathOnly('signatureRequestId'),
+    redact: 'client_safe',
+    examples: [{ summary: 'By id', args: { signatureRequestId: 'sr_1' } }],
   }),
 ];

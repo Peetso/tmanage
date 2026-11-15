@@ -2465,3 +2465,10 @@ GRANT SELECT ON `tmanage`.`workflow_flow_versions` TO 'tmanage_worker'@'%';
 -- row. **INSERT only**: a version is never rewritten, so a grandfathered subscription keeps naming
 -- the price and limits it took. SELECT rides the database-wide read. The worker needs no grant.
 GRANT INSERT ON `tmanage`.`plan_versions` TO 'tmanage_app'@'%';
+-- 0354 (52-26). `signature_requests` (tenant): the team creates a request, cancels it and stamps a
+-- reminder; it completes when the last signer signs. `signature_request_signers` (tenant): created
+-- with the request; a signer's code send, wrong attempt, verification and signature are UPDATEs.
+-- No DELETE: a request is cancelled, never removed at runtime. SELECT rides the database-wide read.
+-- The worker needs no grant.
+GRANT INSERT, UPDATE ON `tmanage`.`signature_requests`        TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`signature_request_signers` TO 'tmanage_app'@'%';

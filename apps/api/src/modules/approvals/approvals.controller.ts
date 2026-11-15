@@ -55,14 +55,14 @@ interface PublishBody {
 }
 
 /** Minimal shape, so the controller does not depend on Fastify's full types. */
-interface RequestLike {
+export interface RequestLike {
   readonly headers: Record<string, string | string[] | undefined>;
   /** The source address after the trusted-proxy rule (`trustProxy`), never a raw header. */
   readonly ip?: string;
 }
 
 /** 52-19. What the server itself saw of the decision request, for the approval record. */
-function decisionEvidence(request: RequestLike): DecisionEvidence {
+export function decisionEvidence(request: RequestLike): DecisionEvidence {
   const agent = request.headers['user-agent'];
   return {
     ip: request.ip ?? null,

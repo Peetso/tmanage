@@ -301,6 +301,10 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/people/org-chart': { en: 'Org chart', key: 'RouteTitle.peopleOrgChart' },
   '/[orgSlug]/people/teams': { en: 'Teams', key: 'RouteTitle.peopleTeams' },
   '/[orgSlug]/people/time-off': { en: 'Time off', key: 'RouteTitle.peopleTimeOff' },
+  '/[orgSlug]/signatures/[requestId]': {
+    en: 'Signature request',
+    key: 'RouteTitle.signatureRequest',
+  },
   '/[orgSlug]/policies': { en: 'Policies', key: 'RouteTitle.policies' },
   '/[orgSlug]/policies/simulate': { en: 'Policy simulator', key: 'RouteTitle.policiesSimulate' },
   '/[orgSlug]/portal': { en: 'Client portal', key: 'RouteTitle.portal' },
@@ -315,6 +319,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     en: 'Approval record',
     key: 'RouteTitle.portalApprovalRecord',
   },
+  '/[orgSlug]/portal/sign/[requestId]': { en: 'Sign a document', key: 'RouteTitle.portalSign' },
   '/[orgSlug]/portal/chat': { en: 'Chat', key: 'RouteTitle.portalChat' },
   '/[orgSlug]/portal/chat/[conversationId]': {
     en: 'Conversation',

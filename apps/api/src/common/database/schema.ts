@@ -14011,3 +14011,98 @@ export const planVersions = mysqlTable(
 export type PlanVersionRow = typeof planVersions.$inferSelect;
 
 Object.assign(TABLES, { plan_versions: planVersions });
+
+/**
+ * 0354 (52-26). A simple electronic signature request: named client contacts sign one exact
+ * deliverable version, pinned by `content_hash`. `status` = pending | completed | cancelled; a
+ * pending request past `expires_at` reads as expired. TENANT; INSERT and UPDATE for the API.
+ */
+export const SIGNATURE_REQUEST_STATUSES = ['pending', 'completed', 'cancelled'] as const;
+
+export const signatureRequests = mysqlTable(
+  'signature_requests',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    deliverableId: char('deliverable_id', { length: 36 }).notNull(),
+    deliverableVersionId: char('deliverable_version_id', { length: 36 }).notNull(),
+    contentHash: char('content_hash', { length: 64 }).notNull(),
+    title: varchar('title', { length: 200 }).notNull(),
+    status: varchar('status', { length: 16 })
+      .$type<(typeof SIGNATURE_REQUEST_STATUSES)[number]>()
+      .notNull()
+      .default('pending'),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    completedAt: datetime('completed_at', { mode: 'date', fsp: 3 }),
+    cancelledAt: datetime('cancelled_at', { mode: 'date', fsp: 3 }),
+    remindedAt: datetime('reminded_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_signature_requests_org_id').on(table.organizationId, table.id),
+    index('ix_signature_requests_org_version').on(
+      table.organizationId,
+      table.deliverableVersionId,
+      table.createdAt,
+    ),
+  ],
+);
+
+export type SignatureRequestRow = typeof signatureRequests.$inferSelect;
+
+/**
+ * 0354 (52-26). One named client contact on a signature request: the hashed one-time e-mail code
+ * (expiry, attempts, send window) and, once signed, how (typed or drawn), the drawn mark's private
+ * object key and SHA-256, and the sealed `approval_records` row. TENANT.
+ */
+export const signatureRequestSigners = mysqlTable(
+  'signature_request_signers',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    requestId: char('request_id', { length: 36 }).notNull(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    clientOrganizationId: char('client_organization_id', { length: 36 }).notNull(),
+    status: varchar('status', { length: 16 })
+      .$type<'pending' | 'signed'>()
+      .notNull()
+      .default('pending'),
+    codeHash: char('code_hash', { length: 64 }),
+    codeExpiresAt: datetime('code_expires_at', { mode: 'date', fsp: 3 }),
+    codeAttempts: smallint('code_attempts', { unsigned: true }).notNull().default(0),
+    codeSentAt: datetime('code_sent_at', { mode: 'date', fsp: 3 }),
+    codeWindowStartedAt: datetime('code_window_started_at', { mode: 'date', fsp: 3 }),
+    codesInWindow: smallint('codes_in_window', { unsigned: true }).notNull().default(0),
+    codeVerifiedAt: datetime('code_verified_at', { mode: 'date', fsp: 3 }),
+    viewedAt: datetime('viewed_at', { mode: 'date', fsp: 3 }),
+    signedAt: datetime('signed_at', { mode: 'date', fsp: 3 }),
+    method: varchar('method', { length: 8 }).$type<'typed' | 'drawn'>(),
+    typedName: varchar('typed_name', { length: 120 }),
+    markObjectKey: varchar('mark_object_key', { length: 255 }),
+    markSha256: char('mark_sha256', { length: 64 }),
+    recordId: char('record_id', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_signature_request_signers_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_signature_request_signers_request_user').on(
+      table.organizationId,
+      table.requestId,
+      table.userId,
+    ),
+    index('ix_signature_request_signers_org_user').on(
+      table.organizationId,
+      table.userId,
+      table.status,
+    ),
+  ],
+);
+
+export type SignatureRequestSignerRow = typeof signatureRequestSigners.$inferSelect;
+
+Object.assign(TABLES, {
+  signature_requests: signatureRequests,
+  signature_request_signers: signatureRequestSigners,
+});

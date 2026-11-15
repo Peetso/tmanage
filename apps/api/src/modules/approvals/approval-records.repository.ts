@@ -5,7 +5,12 @@ import { approvalRecords } from '../../common/database/schema.js';
 import type { ApprovalRecordRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import { recordGenesisHash, sealRecord } from './approval-records.js';
-import type { ApprovalEvidence } from './approval-records.js';
+import type {
+  ApprovalEvidence,
+  ChainPosition,
+  EsignEvidence,
+  SealableEvidence,
+} from './approval-records.js';
 import type { AnchorSigner } from '../audit/audit-anchor-signer.js';
 
 /**
@@ -48,6 +53,25 @@ export class ApprovalRecordsRepository {
     evidence: Omit<ApprovalEvidence, 'recordNo' | 'previousRecordHash' | 'organizationId'>,
     signer: AnchorSigner,
   ): Promise<ApprovalRecordRow> {
+    return this.appendSealed(runner, context, (chain) => ({ ...evidence, ...chain }), signer);
+  }
+
+  /** 52-26. Seal and append a signature record — the same chain, the same lock. */
+  async appendEsign(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    evidence: Omit<EsignEvidence, 'recordNo' | 'previousRecordHash' | 'organizationId'>,
+    signer: AnchorSigner,
+  ): Promise<ApprovalRecordRow> {
+    return this.appendSealed(runner, context, (chain) => ({ ...evidence, ...chain }), signer);
+  }
+
+  private async appendSealed<E extends SealableEvidence>(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    complete: (chain: ChainPosition) => E,
+    signer: AnchorSigner,
+  ): Promise<ApprovalRecordRow> {
     const db = tenantDrizzle(runner);
     try {
       const last = await db
@@ -59,15 +83,14 @@ export class ApprovalRecordsRepository {
         .for('update');
       const previous = last[0];
       const sealed = sealRecord(
-        {
-          ...evidence,
+        complete({
           organizationId: context.organizationId,
           recordNo: previous === undefined ? 1 : previous.recordNo + 1,
           previousRecordHash:
             previous === undefined
               ? recordGenesisHash(context.organizationId)
               : previous.recordHash,
-        },
+        }),
         signer,
       );
       const row: ApprovalRecordRow = {

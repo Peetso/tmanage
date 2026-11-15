@@ -68,6 +68,9 @@ export const NEVER_REASONS = [
   // 52-08. Quotes: money a client is asked to accept, and `send` hands an outsider an accept link.
   // Withheld until reviewed `quotes.*` ops exist (spec 52-08 marks send and convert as risky).
   'client_quote',
+  // 52-26. A person's own electronic signature: asking for their one-time code and signing are the
+  // signer's own act, never something an AI principal may do for them.
+  'esign_signature',
   // 52-23. The organization's finance settings: tax rates, document numbering, manual FX and the
   // finance profile. Money configuration an AI must not change or read until reviewed
   // `finance.*` ops exist (the `finance.*` capabilities are still deferred).

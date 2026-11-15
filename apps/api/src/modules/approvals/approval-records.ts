@@ -64,8 +64,46 @@ export interface ApprovalEvidence {
   readonly userAgent: string | null;
 }
 
-export interface SealedRecord {
-  readonly evidence: ApprovalEvidence;
+/**
+ * 52-26. What a simple electronic signature adds to the record: how the signer signed, the
+ * consent sentence (and its version) they ticked, when their one-time e-mail code was checked, and
+ * the SHA-256 of a drawn mark. Sealed in the same chain as the approval decisions, never a second.
+ */
+export interface EsignFacts {
+  readonly requestId: string;
+  readonly signerId: string;
+  readonly signerEmail: string;
+  readonly signerName: string;
+  readonly method: 'typed' | 'drawn';
+  readonly typedName: string | null;
+  readonly markSha256: string | null;
+  readonly consentTextVersion: string;
+  readonly consentText: string;
+  readonly codeVerifiedAt: string;
+}
+
+/**
+ * 52-26. A signature record: the decision record's facts with `decision = 'signed'`. Its
+ * `approvalId` column carries the signature request id (the chain row's subject), and `contentHash`
+ * the SHA-256 the request pinned.
+ */
+export interface EsignEvidence extends Omit<ApprovalEvidence, 'decision'> {
+  readonly decision: 'signed';
+  readonly esign: EsignFacts;
+}
+
+/** Any record the chain seals. */
+export type SealableEvidence = ApprovalEvidence | EsignEvidence;
+
+/** The chain position the repository fills in. */
+export interface ChainPosition {
+  readonly organizationId: string;
+  readonly recordNo: number;
+  readonly previousRecordHash: string;
+}
+
+export interface SealedRecord<E extends SealableEvidence = ApprovalEvidence> {
+  readonly evidence: E;
   readonly recordJson: string;
   readonly recordHash: string;
   readonly signature: string | null;
@@ -95,8 +133,11 @@ function normalizedText(value: string | null, max?: number): string | null {
 }
 
 /** Normalise the free text, serialise, hash and sign one record. */
-export function sealRecord(evidence: ApprovalEvidence, signer: AnchorSigner): SealedRecord {
-  const normalized: ApprovalEvidence = {
+export function sealRecord<E extends SealableEvidence>(
+  evidence: E,
+  signer: AnchorSigner,
+): SealedRecord<E> {
+  const normalized: E = {
     ...evidence,
     comment: normalizedText(evidence.comment),
     userAgent: normalizedText(evidence.userAgent, USER_AGENT_MAX),
@@ -115,7 +156,7 @@ export function sealRecord(evidence: ApprovalEvidence, signer: AnchorSigner): Se
 function storedEvidenceMatches(row: ApprovalRecordRow): boolean {
   if (sha256Hex(row.recordJson) !== row.recordHash) return false;
   try {
-    const evidence = JSON.parse(row.recordJson) as ApprovalEvidence;
+    const evidence = JSON.parse(row.recordJson) as SealableEvidence;
     return (
       canonicalJson(evidence) === row.recordJson &&
       evidence.recordNo === row.recordNo &&

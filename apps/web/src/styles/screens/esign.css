@@ -1,0 +1,267 @@
+/* 52-26 simple e-sign: portal sign page (Figma 610:34405 / 610:34521), states (611:34597 …),
+   internal status page (611:34439) and the deliverable's signature panel. Logical properties only. */
+
+.tm-esign {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 400px);
+  gap: var(--s6);
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .tm-esign {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s4);
+  }
+}
+
+.tm-esign-back {
+  color: var(--ink-500);
+  text-decoration: none;
+}
+
+.tm-esign-back::before {
+  content: '‹ ';
+}
+
+.tm-esign-back:hover,
+.tm-esign-back:focus-visible {
+  color: var(--ink-950);
+  text-decoration: underline;
+}
+
+.tm-esign-doc,
+.tm-esign-panel,
+.tm-esign-state,
+.tm-esign-form,
+.tm-esign-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-esign-doc {
+  align-items: flex-start;
+}
+
+.tm-esign-doc__name {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-950);
+}
+
+.tm-esign-doc__icon {
+  inline-size: 12px;
+  block-size: 15px;
+  border: 2px solid var(--ink-950);
+  border-radius: 2px;
+  flex: none;
+}
+
+.tm-esign-panel__title,
+.tm-esign-state__title {
+  margin: 0;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-esign-state__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s3);
+}
+
+.tm-esign-text {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-800);
+}
+
+.tm-esign-muted {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-500);
+}
+
+.tm-esign-live:empty {
+  display: none;
+}
+
+.tm-esign-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  padding: var(--s3) var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  min-block-size: 80px;
+}
+
+.tm-esign-preview__mark {
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 500;
+  color: var(--client-500);
+  overflow-wrap: anywhere;
+}
+
+.tm-esign-code .tm-field__control {
+  font-family: var(--font-mono);
+  letter-spacing: 0.2em;
+}
+
+.tm-esign-link {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-800);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  cursor: pointer;
+}
+
+.tm-esign-link:hover {
+  color: var(--ink-950);
+  text-decoration: underline;
+}
+
+.tm-esign-link:focus-visible,
+.tm-esign-signer__pick:focus-visible,
+.tm-esign-pad__canvas:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.tm-esign-link:disabled {
+  color: var(--ink-500);
+  cursor: default;
+}
+
+/* Draw pad: a fixed 600 × 200 bitmap scaled to the column. */
+.tm-esign-pad {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-esign-pad__canvas {
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 3 / 1;
+  border: var(--b-quiet) dashed var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.tm-esign-pad__foot {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+  font-size: var(--t-caption);
+  color: var(--ink-500);
+}
+
+/* Internal status page */
+.tm-esign-signers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-esign-signers__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-esign-signer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding-block: var(--s3);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-esign-signer:last-child {
+  border-block-end: 0;
+}
+
+.tm-esign-signer__pick {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-inline-size: 0;
+  padding: var(--s1);
+  border: 0;
+  border-radius: var(--r-control);
+  background: none;
+  font: inherit;
+  text-align: start;
+  color: inherit;
+}
+
+button.tm-esign-signer__pick {
+  cursor: pointer;
+}
+
+button.tm-esign-signer__pick[aria-pressed='true'] {
+  background: var(--paper-150);
+}
+
+.tm-esign-signer__text {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+/* Deliverable panel + sheet */
+.tm-esign-requests {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-esign-requests__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-esign-sheet {
+  inline-size: min(560px, 100%);
+  max-block-size: calc(100dvh - 2 * var(--s6));
+  overflow: auto;
+  border-radius: var(--r-sheet);
+  padding: var(--s6);
+  background: var(--paper-0);
+}
+
+.tm-esign-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}

@@ -21,7 +21,7 @@ const WAVE_B = [
   /^(files|file_tags)\./,
   /^(calendar|meetings|meeting_series)\./,
   /^decisions\./,
-  /^approvals\./,
+  /^(approvals|esign)\./,
   /^client_requests\./,
 ];
 

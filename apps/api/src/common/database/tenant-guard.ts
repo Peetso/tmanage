@@ -1354,6 +1354,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0350 (58-C1). Tenant-owned: each saved version of a rule's branching builder graph. Registered
   // after `workflow_templates` so the company erasure empties it first (children-first).
   workflow_flow_versions: 'organization_id',
+  // 0354 (52-26). Tenant-owned: a signature request on a deliverable version and its named client
+  // signers (hashed e-mail code, signed state). Signers after their request (children-first erasure
+  // runs in reverse, so the signers are emptied before the requests).
+  signature_requests: 'organization_id',
+  signature_request_signers: 'organization_id',
 });
 
 /**
@@ -1524,13 +1529,13 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // platform path before any tenant exists. Reached only through `identityRead/Transaction`.
   'platform_owner_notices',
   'platform_action_approvals',
-]);
-
-export function isTenantTable(name: string): boolean {
   // ---- 57-02 ----
   // 0351. The versioned plan ladder (price, limits, features per version). GLOBAL: a plan belongs
   // to no organization. Platform admins write it and every read goes through `identityRead`.
   'plan_versions',
+]);
+
+export function isTenantTable(name: string): boolean {
   return Object.hasOwn(TENANT_TABLES, name.toLowerCase());
 }
 

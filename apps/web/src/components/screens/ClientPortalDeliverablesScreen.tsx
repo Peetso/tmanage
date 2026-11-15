@@ -18,6 +18,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { Segmented, shortDay, Tag } from './PortalParts';
 import { PortalReviewLink } from './PortalReviewLink';
 import { PortalDeliverablePreview } from './PortalDeliverablePreview';
+import { PortalSignatureWaitingList } from './esign/PortalSignatureWaitingList';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 
@@ -121,6 +122,8 @@ export function ClientPortalDeliverablesScreen({
             {describe(projects.error)}
           </InlineAlert>
         ) : null}
+
+        <PortalSignatureWaitingList api={api} organizationSlug={organizationSlug} />
 
         {projects.isPending ? (
           <LoadingRegion label={t('ClientPortalDeliverablesScreen.loadingLabel')}>

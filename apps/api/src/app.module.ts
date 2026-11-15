@@ -124,6 +124,7 @@ import { PortalPeopleModule } from './modules/clients/portal-people.module.js';
 import { PortalSettingsModule } from './modules/clients/portal-settings.controller.js';
 import { PortalFeedbackModule } from './modules/portal/feedback.module.js';
 import { PortalJourneyModule } from './modules/portal/portal-journey.module.js';
+import { EsignModule } from './modules/approvals/esign.module.js';
 import { PortalBrandingModule } from './modules/portal/branding.controller.js';
 import { OrgSettingsModule } from './modules/tenancy/org-settings.controller.js';
 import { CustomRolesModule } from './modules/admin/roles.controller.js';
@@ -976,6 +977,12 @@ export class AppModule {
         // 55-14. Client portal sign-in by e-mail link (`magic_signin` links) and its code fallback.
         PortalSignInModule.register({
           pepper: options.config.publicLinkPepper ?? options.config.csrfSecret,
+        }),
+        // 52-26. Simple e-sign: the team's signature requests and the portal's signing, sealed into
+        // the 52-19 approval-record chain. The e-mail code is an HMAC under the public-link pepper.
+        EsignModule.register({
+          pepper: options.config.publicLinkPepper ?? options.config.csrfSecret,
+          webPublicUrl: options.config.webPublicUrl ?? null,
         }),
         ContactModule.register({
           ...(options.config.contactWindowMs === undefined
