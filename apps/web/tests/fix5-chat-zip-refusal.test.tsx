@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Composer, refusalReason } from '../src/components/chat/pane/Composer';
 import { ApiClient } from '../src/lib/api/client';
 import { ApiRequestError } from '../src/lib/api/errors';
+import type * as UploadsModule from '../src/lib/api/uploads';
 
 /**
  * FIX5 item 3 (live check fd145807, B-N3). A message with an MP4, a CSV and a ZIP: the ZIP was
@@ -17,7 +18,7 @@ const uploaded: string[] = [];
 const deleted: string[] = [];
 
 vi.mock('../src/lib/api/uploads', async (importOriginal) => {
-  const original = await importOriginal<typeof import('../src/lib/api/uploads')>();
+  const original = await importOriginal<typeof UploadsModule>();
   return {
     ...original,
     uploadProjectFile: vi.fn(

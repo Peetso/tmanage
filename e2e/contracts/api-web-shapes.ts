@@ -50,7 +50,7 @@ import type { AdminOverviewView as ApiAdminOverviewView } from '../../apps/api/s
 import type { OrgBrandingView as ApiOrgBrandingView } from '../../apps/api/src/modules/admin/org-branding.controller.js';
 import type { ChallengeResponseView as ApiChallengeResponseView } from '../../apps/api/src/modules/identity/authentication.controller.js';
 import type { ClientDecideView as ApiClientDecideView } from '../../apps/api/src/modules/approvals/approvals.service.js';
-import type { ClientProjectionView as ApiClientProjectionView } from '../../apps/api/src/modules/approvals/approvals.service.js';
+import type { ClientProjectionReadView as ApiClientProjectionView } from '../../apps/api/src/modules/approvals/approvals.service.js';
 import type { ClientRequestClientView as ApiClientRequestClientView } from '../../apps/api/src/modules/requests/client-requests.service.js';
 import type { ClientRequestView as ApiClientRequestView } from '../../apps/api/src/modules/requests/client-requests.service.js';
 import type { ConversationView as ApiConversationView } from '../../apps/api/src/modules/conversations/conversations.service.js';

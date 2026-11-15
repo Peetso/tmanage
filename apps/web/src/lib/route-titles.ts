@@ -76,6 +76,8 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/sessions': { en: 'Your sessions', key: 'RouteTitle.sessions' },
   '/sessions/[sessionId]/trail': { en: 'Session sign-in trail', key: 'RouteTitle.sessionTrail' },
   '/organizations': { en: 'Choose a workspace', key: 'RouteTitle.organizations' },
+  // `/app` only redirects to the workspace chooser, so it carries that page's name.
+  '/app/[[...rest]]': { en: 'Choose a workspace', key: 'RouteTitle.organizations' },
   '/onboarding/organization': {
     en: 'Create your workspace',
     key: 'RouteTitle.onboardingOrganization',

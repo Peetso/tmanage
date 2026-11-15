@@ -32,7 +32,7 @@ describe('RecentItemsRepository.listForMembership (FIX5 item 6d)', () => {
     const { sql, params } = sent[0]!;
     const flat = sql.replace(/\s+/gu, ' ');
     expect(flat).toContain(
-      'select 1 from work_items rv_wi where rv_wi.organization_id = ? and rv_wi.id = `home_recent_items`.`object_id` and rv_wi.deleted_at is null',
+      'from work_items rv_wi where rv_wi.organization_id = ? and rv_wi.id = `home_recent_items`.`object_id` and rv_wi.deleted_at is null',
     );
     expect(flat).toContain('rv_doc.deleted_at is null');
     expect(flat).toContain('rv_mtg.deleted_at is null');

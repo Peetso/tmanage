@@ -86,6 +86,7 @@ function link(overrides: Partial<FigmaLink> = {}): FigmaLink {
       overLimit: false,
       truncated: false,
       syncedAt: '2026-10-31T10:00:00.000Z',
+      waitUntil: null,
     },
     frames: [frame(), frame({ id: 'fr2', nodeId: '1:3', name: 'Home', sizeChanged: true, x: 500 })],
     capabilities: { canComment: true, canRefresh: true, canRemove: true, canLive: true },

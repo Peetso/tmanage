@@ -120,7 +120,7 @@ export interface FigmaCapture {
   readonly truncated: boolean;
   readonly syncedAt: string | null;
   /** Figma asked TManage to wait (429): pictures resume after this time. Team only. */
-  readonly waitUntil?: string | null;
+  readonly waitUntil: string | null;
 }
 
 export interface FigmaLinkCapabilities {

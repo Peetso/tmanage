@@ -97,6 +97,14 @@ async function preview(
   return { outcomes, rgba: Array.from(image.data.slice(0, 4)) };
 }
 
+/** The `meta` of a ready outcome; any other status fails the test with its status. */
+function readyMeta(
+  outcome: PreviewOutcome | undefined,
+): Extract<PreviewOutcome, { status: 'ready' }>['meta'] {
+  if (outcome?.status !== 'ready') throw new Error(`expected ready, got ${outcome?.status}`);
+  return outcome.meta;
+}
+
 function near(actual: number[], expected: number[], tolerance = 6): void {
   actual.forEach((value, i) =>
     expect(Math.abs(value - expected[i]!)).toBeLessThanOrEqual(tolerance),
@@ -115,7 +123,7 @@ describe('PSD colour modes ag-psd does not open (FIX6 item 5)', () => {
     });
     const { outcomes, rgba } = await preview(bytes);
     near(rgba, [0, 255, 255, 255]);
-    expect(outcomes[0]?.meta).toMatchObject({ approximate: true });
+    expect(readyMeta(outcomes[0])).toMatchObject({ approximate: true });
     expect(outcomes[1]).toMatchObject({ status: 'ready', width: 6, height: 3 });
   });
 
@@ -239,7 +247,7 @@ describe('PSD colour modes ag-psd does not open (FIX6 item 5)', () => {
       [{ kind: 'psd_layers', pageNo: 0 }],
       DEFAULT_PREVIEW_LIMITS,
     );
-    expect(outcomes[0]?.meta).toMatchObject({
+    expect(readyMeta(outcomes[0])).toMatchObject({
       layers: [
         { name: 'Logo', visible: false },
         { name: 'Background', visible: true },

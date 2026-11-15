@@ -209,7 +209,6 @@ export function MeetingForm({
     if (!o || loaded.current) return;
     loaded.current = true;
     applyOverview(o);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existing.data]);
 
   function applyOverview(o: MeetingOverviewView) {
