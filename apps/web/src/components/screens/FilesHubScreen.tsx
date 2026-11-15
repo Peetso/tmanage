@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import type { DragEvent } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
@@ -11,13 +12,16 @@ import type { ApiClient } from '../../lib/api/client';
 import { listProjects } from '../../lib/api/projects';
 import { listProjectFiles } from '../../lib/api/file-folders';
 import type { ProjectFile } from '../../lib/api/file-folders';
-import { formatBytes } from '../../lib/api/uploads';
+import { formatBytes, uploadProjectFile } from '../../lib/api/uploads';
+import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { formatInstant } from '../../lib/work-item-presentation';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useT } from '../../lib/i18n/use-t';
 import { useDeleteFile } from '../viewer/DeleteFileDialog';
 import { CheckedLabel } from './CheckedLabel';
+import { HelpTip } from '../help/HelpTip';
+import { UploadProgressItem, useUploadQueue } from '../storage/UploadProgress';
 
 export interface FilesHubScreenProps {
   readonly organizationSlug: string;
@@ -92,6 +96,49 @@ export function FilesHubScreen({
     enabled: scope.length > 0,
   });
 
+  // FIX6 item 7: upload here, by the button or by dropping files on the page. A file goes into the
+  // chosen project (or the only one), through the same upload path as every other file, and is
+  // internal until someone shares it. The API decides whether this person may add files there.
+  const target =
+    projectId !== '' ? projectId : available.length === 1 ? (available[0]?.id ?? '') : '';
+  const picker = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const [needsProject, setNeedsProject] = useState(false);
+  const uploads = useUploadQueue((error) =>
+    error instanceof ApiRequestError || (error instanceof Error && !(error instanceof NetworkError))
+      ? error.message
+      : null,
+  );
+  const send = (picked: readonly File[]) => {
+    if (picked.length === 0) return;
+    if (target === '') {
+      setNeedsProject(true);
+      return;
+    }
+    setNeedsProject(false);
+    uploads.clearSettled();
+    for (const file of picked) {
+      void uploads
+        .start(file, (sent, deps) =>
+          uploadProjectFile(api, organizationSlug, { projectId: target, file: sent }, deps),
+        )
+        .then((ok) => {
+          if (ok) refreshFiles();
+        });
+    }
+  };
+  const onDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes('Files')) return;
+    event.preventDefault();
+    setDragging(true);
+  };
+  const onDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes('Files')) return;
+    event.preventDefault();
+    setDragging(false);
+    send(Array.from(event.dataTransfer.files));
+  };
+
   const projectName = (id: string) => available.find((project) => project.id === id)?.name ?? '';
   const rows = (files.data ?? []).filter((file) => !removed.has(file.id));
   const anyDeletable = rows.some((file) => file.canDelete);
@@ -106,8 +153,83 @@ export function FilesHubScreen({
         'FilesHub.valueLine',
         'Every file your projects have produced, newest first. Open one to view it, comment on it or download it.',
       )}
+      actions={
+        <HelpTip
+          tip={tOr(
+            'FilesHub.uploadTip',
+            'Add files to the chosen project. You can also drop files anywhere on this page. Only your team sees them until you share them.',
+          )}
+        >
+          <button
+            type="button"
+            className="tm-button tm-button--ink tm-button--compact"
+            onClick={() => picker.current?.click()}
+          >
+            {tOr('FilesHub.upload', 'Upload files')}
+          </button>
+        </HelpTip>
+      }
     >
-      <div className="tm-dx">
+      <div
+        className="tm-dx tm-dx--drop"
+        data-dragging={dragging ? 'true' : undefined}
+        onDragOver={onDragOver}
+        onDragLeave={(event) => {
+          const into = event.relatedTarget;
+          if (!(into instanceof Node && event.currentTarget.contains(into))) setDragging(false);
+        }}
+        onDrop={onDrop}
+      >
+        <input
+          ref={picker}
+          type="file"
+          multiple
+          hidden
+          aria-hidden="true"
+          tabIndex={-1}
+          onChange={(event) => {
+            send(Array.from(event.currentTarget.files ?? []));
+            event.currentTarget.value = '';
+          }}
+        />
+        {dragging ? (
+          <p className="tm-dx-drop-note" aria-hidden="true">
+            {target === ''
+              ? tOr(
+                  'FilesHub.dropPickProject',
+                  'Choose a project above first, then drop the files.',
+                )
+              : tOr('FilesHub.dropHere', 'Drop to upload to {project}').replace(
+                  '{project}',
+                  available.find((project) => project.id === target)?.name ?? '',
+                )}
+          </p>
+        ) : null}
+        {needsProject ? (
+          <InlineAlert
+            tone="neutral"
+            title={tOr('FilesHub.pickProjectTitle', 'Choose a project first')}
+            live
+          >
+            {tOr(
+              'FilesHub.pickProjectBody',
+              'Files belong to a project. Pick one of the projects above, then upload again.',
+            )}
+          </InlineAlert>
+        ) : null}
+        {uploads.rows.length > 0 ? (
+          <ul className="tm-upload-list" aria-label={tOr('FilesHub.uploadsAria', 'Uploads')}>
+            {uploads.rows.map((row) => (
+              <UploadProgressItem
+                key={row.id}
+                row={row}
+                onCancel={uploads.cancel}
+                onRetry={uploads.retry}
+                onRemove={(gone) => uploads.remove(gone.id)}
+              />
+            ))}
+          </ul>
+        ) : null}
         <div
           className="tm-dx-chips"
           role="group"
@@ -127,7 +249,10 @@ export function FilesHubScreen({
               type="button"
               className="tm-chip"
               aria-pressed={project.id === projectId}
-              onClick={() => setProjectId(project.id)}
+              onClick={() => {
+                setProjectId(project.id);
+                setNeedsProject(false);
+              }}
             >
               {project.name}
             </button>

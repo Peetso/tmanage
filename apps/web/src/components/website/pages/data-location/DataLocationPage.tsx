@@ -62,7 +62,7 @@ const SUBPROCESSOR_ROWS: readonly Row[] = [
   [
     'microsoft',
     'Microsoft',
-    'OneDrive and Teams, only if you connect them',
+    'OneDrive files, only if you connect it',
     'Your Microsoft account’s region',
   ],
   [

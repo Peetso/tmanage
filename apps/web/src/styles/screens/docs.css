@@ -1519,3 +1519,22 @@
     white-space: normal;
   }
 }
+
+/* FIX6 item 7: the Files page takes dropped files; while a file is dragged over it, the page shows
+   where it will go. */
+.tm-dx--drop[data-dragging='true'] {
+  outline: 2px dashed var(--ink-650);
+  outline-offset: var(--s2);
+  border-radius: var(--r-card);
+}
+
+.tm-dx-drop-note {
+  margin: 0;
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-card);
+  background: var(--paper-150);
+  color: var(--ink-950);
+  font-size: var(--t-ui-sm);
+  font-weight: 600;
+  text-align: center;
+}

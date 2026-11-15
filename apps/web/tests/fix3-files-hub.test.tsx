@@ -1,8 +1,17 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { FilesHubScreen } from '../src/components/screens/FilesHubScreen';
 import { ApiClient } from '../src/lib/api/client';
+import type * as Uploads from '../src/lib/api/uploads';
+
+const uploadProjectFile = vi.hoisted(() =>
+  vi.fn((..._args: readonly unknown[]) => Promise.resolve('uploaded-file')),
+);
+vi.mock('../src/lib/api/uploads', async (original) => ({
+  ...(await original<typeof Uploads>()),
+  uploadProjectFile,
+}));
 
 /**
  * FIX3 item 11 (live check a6f66e47 F2): `/files` was a 404. The Files hub (FIL-01) lists every
@@ -30,7 +39,59 @@ function file(id: string, projectId: string, name: string, updatedAt: string) {
   };
 }
 
+function apiClient(): ApiClient {
+  return new ApiClient({
+    baseUrl: 'https://api.example.test',
+    csrfCookieName: 'tm_session_csrf',
+    fetch: ((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/files')) return Promise.resolve(json({ files: [] }));
+      return Promise.resolve(
+        json({
+          projects: [
+            { id: 'p1', name: 'Atlas' },
+            { id: 'p2', name: 'Borealis' },
+          ],
+        }),
+      );
+    }) as typeof globalThis.fetch,
+    readCsrfToken: () => 'csrf-token',
+    newCorrelationId: () => 'correlation-fixed',
+  });
+}
+
+function dropFiles(target: Element, files: readonly File[]) {
+  const dataTransfer = { files, types: ['Files'] };
+  fireEvent.dragOver(target, { dataTransfer });
+  fireEvent.drop(target, { dataTransfer });
+}
+
 describe('Files hub (FIX3 item 11)', () => {
+  it('FIX6 item 7: dropped files upload into the chosen project; with several projects it asks for one first', async () => {
+    uploadProjectFile.mockClear();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <FilesHubScreen organizationSlug="acme" organizationName="Acme" client={apiClient()} />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole('button', { name: 'Upload files' })).toBeTruthy();
+    await screen.findByText('No files yet');
+    const page = document.querySelector('.tm-dx--drop');
+    if (!page) throw new Error('no drop area');
+    const brief = new File(['hello'], 'brief.pdf', { type: 'application/pdf' });
+
+    dropFiles(page, [brief]);
+    expect(await screen.findByText('Choose a project first')).toBeTruthy();
+    expect(uploadProjectFile).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Borealis' }));
+    dropFiles(page, [brief]);
+    await waitFor(() => expect(uploadProjectFile).toHaveBeenCalledTimes(1));
+    expect(uploadProjectFile.mock.calls[0]?.[1]).toBe('acme');
+    expect(uploadProjectFile.mock.calls[0]?.[2]).toMatchObject({ projectId: 'p2', file: brief });
+    expect(screen.queryByText('Choose a project first')).toBeNull();
+  });
+
   it('lists all projects’ files newest first, each linking to its viewer', async () => {
     const client = new ApiClient({
       baseUrl: 'https://api.example.test',

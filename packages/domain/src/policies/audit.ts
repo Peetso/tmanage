@@ -1126,6 +1126,14 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'time_timer',
     clause: '§12 52-01 — the worker stopped a forgotten timer and filed an entry to review',
   },
+  /**
+   * UX test T-P1-1. A member threw away their own running timer: nothing was filed. Metadata is
+   * the elapsed seconds only.
+   */
+  'time_timer.discarded': {
+    objectType: 'time_timer',
+    clause: '§12 52-01 — a member discarded their running timer; no time was filed',
+  },
   'time_log.created': {
     objectType: 'time_log',
     clause: '§12 52-01 — a time entry was logged (manual or a stopped timer)',
@@ -1848,6 +1856,7 @@ const AUDIT_ACTION_LABELS = {
   'exchange_rate.created': 'Recorded an exchange rate',
   'time_timer.started': 'Started a timer',
   'time_timer.auto_stopped': 'A forgotten timer was stopped',
+  'time_timer.discarded': 'Discarded a timer without saving time',
   'time_log.created': 'Logged time',
   'working_calendar.updated': 'Changed the working calendar',
   'working_calendar.holidays_imported': 'Imported a holiday list',
@@ -1868,10 +1877,10 @@ const AUDIT_ACTION_LABELS = {
   'cost_rate.changed': "Changed a person's cost rate",
   'rates.repriced': 'Re-priced unbilled time',
   'work_item.billable_changed': 'Changed whether a work item is billable',
-  'channel_link.created': 'Connected a Slack or Teams channel',
-  'channel_link.removed': 'Removed a Slack or Teams channel',
-  'channel_link.paused': 'Paused a Slack or Teams channel',
-  'channel_link.resumed': 'Resumed a Slack or Teams channel',
+  'channel_link.created': 'Linked a chat channel (retired feature)',
+  'channel_link.removed': 'Removed a chat channel link (retired feature)',
+  'channel_link.paused': 'Paused a chat channel link (retired feature)',
+  'channel_link.resumed': 'Resumed a chat channel link (retired feature)',
   'github_hook.created': 'Connected a GitHub repository',
   'github_hook.removed': 'Removed a GitHub repository',
   'github_hook.secret_rotated': 'Rotated a GitHub webhook secret',
