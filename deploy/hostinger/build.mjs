@@ -79,6 +79,14 @@ export function dirtyBundleInputs(porcelain) {
 }
 
 /**
+ * The public site's origin, as apps/web/src/lib/site-origin.ts derives it: the hreflang
+ * alternates carry absolute URLs (agent-ready site, c44d28e4).
+ */
+const SITE_ORIGIN = (
+  process.env['TMANAGE_SITE_URL']?.trim() || 'https://tmanage.peetrix.com'
+).replace(/\/+$/, '');
+
+/**
  * Pages whose prerendered HTML is checked in the bundle and on the running server. Each page
  * must hold its own text and none of the page it was once confused with (live-check 014a9d51:
  * /features/communication was reported as the Privacy Policy and /status as the setup screen).
@@ -109,7 +117,7 @@ export const ROUTE_CONTENT = [
   {
     path: '/ar',
     file: 'ar.html',
-    has: ['<html lang="ar" dir="rtl"', 'hrefLang="en" href="/"'],
+    has: ['<html lang="ar" dir="rtl"', `hrefLang="en" href="${SITE_ORIGIN}/"`],
     hasNot: ['<html lang="en"', 'setup token'],
   },
   {
