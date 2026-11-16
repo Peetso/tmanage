@@ -59,7 +59,19 @@ function failure(status: number, code: string, message: string) {
   return { status, body: { error: { code, message, correlationId: 'c' } } };
 }
 
-const NO_FACTORS = { status: 200, body: { factors: [], recoveryCodesRemaining: 0 } };
+const NO_FACTORS = {
+  status: 200,
+  body: {
+    factors: [],
+    recoveryCodesRemaining: 0,
+    email: { address: 's•••@northstar.test', verified: true },
+  },
+};
+
+/** The list opens first; the authenticator's "Turn on" starts its enrolment. */
+async function turnOnApp() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Turn on · Authenticator app' }));
+}
 
 describe('TwoStepSignInScreen', () => {
   it('enrols: QR and grouped key, 6-digit confirm, then the recovery codes once', async () => {
@@ -71,6 +83,7 @@ describe('TwoStepSignInScreen', () => {
       return NO_FACTORS;
     });
 
+    await turnOnApp();
     expect(await screen.findByTestId('tm-2s-qr')).toBeTruthy();
     expect(screen.getByDisplayValue('K7QX 2M4P 9LRA 5TCE').getAttribute('dir')).toBe('ltr');
     fireEvent.change(screen.getByLabelText('6-digit code'), { target: { value: '482 913' } });
@@ -91,6 +104,7 @@ describe('TwoStepSignInScreen', () => {
       }
       return NO_FACTORS;
     });
+    await turnOnApp();
     fireEvent.change(await screen.findByLabelText('6-digit code'), {
       target: { value: '000000' },
     });
@@ -113,6 +127,7 @@ describe('TwoStepSignInScreen', () => {
       }
       return NO_FACTORS;
     });
+    await turnOnApp();
     fireEvent.change(await screen.findByLabelText('Password'), { target: { value: 'pw' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
     expect(await screen.findByTestId('tm-2s-qr')).toBeTruthy();

@@ -16,6 +16,7 @@ import {
   userIdentities,
   userMfaFactors,
   userPasskeys,
+  userMfaEmailCodes,
   userPasswords,
   userRecoveryCodes,
   users,
@@ -434,6 +435,7 @@ export const ACCOUNT_ERASURE_TABLES: readonly string[] = [
   'user_passwords',
   'user_mfa_factors',
   'user_recovery_codes',
+  'user_mfa_email_codes',
   'user_passkeys',
   'user_identities',
   'password_reset_tokens',
@@ -580,6 +582,7 @@ export class AccountErasure {
     await db.delete(userPasswords).where(eq(userPasswords.userId, userId));
     await db.delete(userMfaFactors).where(eq(userMfaFactors.userId, userId));
     await db.delete(userRecoveryCodes).where(eq(userRecoveryCodes.userId, userId));
+    await db.delete(userMfaEmailCodes).where(eq(userMfaEmailCodes.userId, userId));
     await db.delete(userPasskeys).where(eq(userPasskeys.userId, userId));
     await db.delete(userIdentities).where(eq(userIdentities.userId, userId));
     await db.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, userId));

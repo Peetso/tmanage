@@ -320,7 +320,7 @@ export function SignInScreen({
       <MfaChallengeScreen
         client={api}
         challengeToken={challenge.challengeToken}
-        {...(challenge.factors[0] ? { factorLabel: challenge.factors[0].label } : {})}
+        factors={challenge.factors}
         onCompleted={() => {
           if (
             googleReturnTo &&

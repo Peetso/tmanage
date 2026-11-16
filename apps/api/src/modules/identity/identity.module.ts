@@ -26,7 +26,9 @@ import {
 } from './password-reset.controller.js';
 import { PasswordResetService } from './password-reset.service.js';
 import type { PasswordResetMailer } from '../../common/email/password-reset-email.js';
-import { PASSWORD_RESET_MAILER } from '../../common/http/tokens.js';
+import { MFA_CODE_MAILER, PASSWORD_RESET_MAILER } from '../../common/http/tokens.js';
+import type { MfaCodeMailer } from '../../common/email/mfa-code-email.js';
+import { createEmailCodeSendBudget } from './email-code.js';
 import { createFixedWindowLimiter } from '../../common/http/rate-limiter.js';
 import { CONTACT_MAX_PER_WINDOW, CONTACT_WINDOW_MS } from '../public-site/contact.module.js';
 import { GeoModule, IP_INTELLIGENCE } from './geo/geo.module.js';
@@ -71,8 +73,12 @@ export class IdentityModule {
 
     const authenticationService: Provider = {
       provide: AUTHENTICATION_SERVICE,
-      inject: [TENANT_DATABASE, API_CONFIG],
-      useFactory: (database: TenantDatabase, config: ApiConfig) =>
+      inject: [TENANT_DATABASE, API_CONFIG, { token: MFA_CODE_MAILER, optional: true }],
+      useFactory: (
+        database: TenantDatabase,
+        config: ApiConfig,
+        mfaCodeMailer: MfaCodeMailer | undefined,
+      ) =>
         new AuthenticationService(
           database,
           {
@@ -104,6 +110,12 @@ export class IdentityModule {
             // R18-e (56-25): the organization sign-in policy, checked after the password; 54-14
             // adds "require company sign-in" (owners keep the password as break-glass).
             signInPolicy: new SsoEnforcedSignInPolicyGate(database),
+            // MFAOPTIONS. The e-mail code method: the mail producer (optional, like the reset
+            // mailer below; absent = the method fails closed) and the in-process send limits,
+            // one budget per application for the abuse control's reason above.
+            ...(mfaCodeMailer
+              ? { emailCodes: { mailer: mfaCodeMailer, budget: createEmailCodeSendBudget() } }
+              : {}),
           },
           // D07. The keyring was parsed and validated at boot by `packages/config`, so a
           // malformed `AUTH_MFA_SEED_KEYS` has already stopped the process by the time this

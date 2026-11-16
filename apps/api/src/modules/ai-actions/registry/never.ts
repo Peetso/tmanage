@@ -88,6 +88,10 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'DELETE', path: '/v1/auth/factors/:factorId', reason: 'auth' },
   { method: 'POST', path: '/v1/auth/factors/totp', reason: 'auth' },
   { method: 'POST', path: '/v1/auth/factors/totp/confirm', reason: 'auth' },
+  // MFAOPTIONS.
+  { method: 'POST', path: '/v1/auth/factors/email', reason: 'auth' },
+  { method: 'POST', path: '/v1/auth/factors/email/confirm', reason: 'auth' },
+  { method: 'POST', path: '/v1/auth/factors/:factorId/default', reason: 'auth' },
   { method: 'GET', path: '/v1/auth/google/', reason: 'google_auth' },
   { method: 'GET', path: '/v1/auth/google/callback', reason: 'google_auth' },
   { method: 'POST', path: '/v1/auth/google/mfa', reason: 'google_auth' },
@@ -130,6 +134,7 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/auth/security-score', reason: 'auth' },
   { method: 'GET', path: '/v1/auth/security-devices', reason: 'auth' },
   { method: 'POST', path: '/v1/auth/mfa', reason: 'auth' },
+  { method: 'POST', path: '/v1/auth/mfa/email-code', reason: 'auth' },
   { method: 'POST', path: '/v1/auth/password', reason: 'auth' },
   { method: 'POST', path: '/v1/auth/password/set', reason: 'auth' },
   { method: 'POST', path: '/v1/auth/reauth', reason: 'auth' },

@@ -25,6 +25,20 @@ import type { IdentityQueryRunner } from '../../common/database/tenant-context.j
 import { openResetSignInGrant } from './reset-sign-in-grant.js';
 import { ApiError } from '../../common/http/errors.js';
 import type { SignInPolicyGate } from './sign-in-policy.repository.js';
+import type { MfaCodeMailer } from '../../common/email/mfa-code-email.js';
+import { EMAIL_FACTOR_KIND, TOTP_FACTOR_KIND } from './credentials.repository.js';
+import { EmailCodesRepository } from './email-codes.repository.js';
+import {
+  EMAIL_CODE_RESEND_GAP_MS,
+  EMAIL_CODE_TTL_SECONDS,
+  emailCodeBinding,
+  emailCodeMatches,
+  generateEmailCode,
+  hashEmailCode,
+  maskEmailAddress,
+  type EmailCodePurpose,
+  type EmailCodeSendBudget,
+} from './email-code.js';
 
 /**
  * ID-002 — what actually proves a person is who they say they are.
@@ -125,6 +139,8 @@ const IDENTITY_TABLES = [
   'user_passwords',
   'user_mfa_factors',
   'user_recovery_codes',
+  // MFAOPTIONS (0360): the mailed second-step codes.
+  'user_mfa_email_codes',
   'authentication_events',
   // `D05d`. The notice queue. Declared on every identity unit of work rather than only on
   // the four that write it, because the alternative is a second list to keep in step with
@@ -172,6 +188,8 @@ export const AUTHENTICATION_ACTIONS = {
   reauthentication: 'reauthentication',
   /** `I-1`: a session a person ended themselves from the device/session list. */
   sessionRevoked: 'session_revoked',
+  /** MFAOPTIONS: the method a sign-in asks for first was changed. A credential change. */
+  mfaDefaultChanged: 'mfa_default_changed',
 } as const;
 
 export type AuthenticationAction =
@@ -197,6 +215,9 @@ export const CREDENTIAL_CHANGE_ACTIONS = [
   AUTHENTICATION_ACTIONS.factorEnrolled,
   AUTHENTICATION_ACTIONS.factorDisabled,
   AUTHENTICATION_ACTIONS.recoveryCodesIssued,
+  // MFAOPTIONS. Which method is asked for first changes what an intruder holding the session
+  // would be asked for, so the owner is told.
+  AUTHENTICATION_ACTIONS.mfaDefaultChanged,
 ] as const;
 
 /** One entry on `ID-05`'s security event receipt. No reason, no address, no device. */
@@ -221,7 +242,46 @@ export interface EnrolledFactorView {
   readonly kind: string;
   readonly label: string;
   readonly confirmedAt: string | null;
+  /** MFAOPTIONS: the method a sign-in asks for first. */
+  readonly isDefault: boolean;
 }
+
+/**
+ * MFAOPTIONS. What `POST /v1/auth/mfa/email-code` and `POST /v1/auth/factors/email` answer after a
+ * code was mailed: the address masked (`p•••@domain`), when a new code may be asked for, and how
+ * long this one works. Never the code.
+ */
+export interface EmailCodeSentView {
+  readonly sentTo: string;
+  readonly resendAfterSeconds: number;
+  readonly expiresInSeconds: number;
+}
+
+/** MFAOPTIONS. Where a mailed code goes, and in which language. */
+interface MailContact {
+  readonly email: string;
+  readonly displayName: string;
+  readonly locale: string;
+}
+
+/** MFAOPTIONS. `POST /v1/auth/factors/email`: the pending row and where its code went. */
+export interface EmailFactorStartedView extends EmailCodeSentView {
+  readonly factorId: string;
+}
+
+/**
+ * MFAOPTIONS. Turning the e-mail method on was refused before any code was sent, for a reason the
+ * signed-in person can act on: the address was never verified, or the method is already on.
+ */
+export class EmailFactorUnavailableError extends Error {
+  constructor(readonly reason: 'email_not_verified' | 'already_enabled' | 'mail_unavailable') {
+    super(reason);
+    this.name = 'EmailFactorUnavailableError';
+  }
+}
+
+/** MFAOPTIONS. The two methods that finish a challenge with a six-digit code. */
+export type SecondFactorMethod = 'totp' | 'email';
 
 /** How much history the receipt carries. Bounded here rather than by the caller. */
 export const CREDENTIAL_CHANGE_LIMIT = 50;
@@ -259,6 +319,11 @@ export type AuthenticationReason =
   // R18-e (56-25). A correct password refused because the organization's sign-in policy does not
   // allow passwords. Excluded from the lockout count (`NON_CREDENTIAL_FAILURE_REASONS`).
   | 'policy_method_not_allowed'
+  // MFAOPTIONS. The sign-in challenge took five wrong e-mail codes and is dead.
+  | 'mfa_challenge_dead'
+  // MFAOPTIONS. A code was asked for again inside 30 s, or past five sends in an hour.
+  | 'mfa_email_too_soon'
+  | 'mfa_email_over_budget'
   // `D08`. Which source budget refused, in the abuse control's own words — reused rather
   // than retyped, so the two lists cannot drift apart.
   | SignInAbuseReason;
@@ -378,6 +443,15 @@ export interface AuthenticationOptions {
    * service) = no policy check; `identity.module.ts` always wires it.
    */
   readonly signInPolicy?: Pick<SignInPolicyGate, 'check'>;
+  /**
+   * MFAOPTIONS. How a two-step code is mailed, and the send limits (`email-code.ts`). Absent (unit
+   * suites that never mail) = the e-mail method cannot be sent or turned on: it fails closed with
+   * `mail_unavailable`, it never skips the second step.
+   */
+  readonly emailCodes?: {
+    readonly mailer: Pick<MfaCodeMailer, 'enabled' | 'deliver'>;
+    readonly budget: EmailCodeSendBudget;
+  };
 }
 
 export interface SignInContext {
@@ -480,6 +554,11 @@ export class AuthenticationService {
      * change and "sign out other sessions" apply beside the session cutoff. Stateless default.
      */
     private readonly bearerCutoff: BearerCredentialCutoff = BEARER_CREDENTIALS_REVOKER,
+    /** MFAOPTIONS. Mailed second-step codes. Stateless, like `SessionsRepository`. */
+    private readonly emailCodeStore: Pick<
+      EmailCodesRepository,
+      'create' | 'findOpen' | 'recordWrongAttempt' | 'spend' | 'isExhausted'
+    > = new EmailCodesRepository(),
   ) {
     this.credentials = credentials;
   }
@@ -706,9 +785,16 @@ export class AuthenticationService {
   async completeMfaChallenge(input: {
     challengeToken: string | undefined;
     code: string;
+    /**
+     * MFAOPTIONS. Which kind of code this is. Only a choice between the person's own **enabled**
+     * methods: the server lists them from the database and refuses a method the person does not
+     * hold, so no value here can skip or downgrade the second step.
+     */
+    method?: SecondFactorMethod;
     context: SignInContext;
   }): Promise<AuthenticatedOutcome> {
     const { challengeToken, code, context } = input;
+    const method: SecondFactorMethod = input.method ?? 'totp';
 
     // F20 (wave 9): the challenge token is verified first - an HMAC and a clock read, no I/O -
     // so the abuse control below can be keyed on the account the token names as well as on the
@@ -768,8 +854,11 @@ export class AuthenticationService {
         ) {
           return 'locked_out';
         }
+        // MFAOPTIONS. Five wrong e-mail codes kill the challenge for every method.
+        const binding = emailCodeBinding('sign_in', challengeToken ?? '');
+        if (await this.emailCodeStore.isExhausted(tx, binding)) return 'mfa_challenge_dead';
         const factors = await this.credentials.listActiveFactors(tx, userId);
-        return factors.length === 0 ? 'mfa_no_factor' : this.spendTotpCode(tx, factors, code);
+        return this.verifySecondFactor(tx, { userId, factors, method, code, binding });
       },
     );
 
@@ -780,8 +869,11 @@ export class AuthenticationService {
         outcome: 'failed',
         reason: outcome,
       });
+      // A dead challenge is answered like a lockout: waiting and signing in again is the fix.
       throw new AuthenticationRejectedError(
-        outcome === 'locked_out' ? 'rate_limited' : 'invalid_credentials',
+        outcome === 'locked_out' || outcome === 'mfa_challenge_dead'
+          ? 'rate_limited'
+          : 'invalid_credentials',
         outcome,
       );
     }
@@ -1023,7 +1115,13 @@ export class AuthenticationService {
     const outcome = await this.database.identityTransaction(
       { correlationId: context.correlationId, tables: [...IDENTITY_TABLES] },
       async (tx): Promise<AuthenticationReason | null> => {
-        const factors = await this.credentials.listActiveFactors(tx, userId);
+        // MFAOPTIONS. Only an authenticator code is asked for here. A person whose only methods
+        // are e-mail codes (and backup codes) re-authenticates with the password alone: the
+        // session already passed their second step, and mailing a code for every change would
+        // let a session holder spend the send budget the sign-in relies on.
+        const factors = (await this.credentials.listActiveFactors(tx, userId)).filter(
+          (factor) => factor.kind === TOTP_FACTOR_KIND,
+        );
         if (factors.length === 0) return null;
         // F32 (wave 9): the code step gets the same durable lockout as `completeMfaChallenge`,
         // read before the code is spent. Without it a session holder who knew the password
@@ -1640,10 +1738,15 @@ export class AuthenticationService {
   }
 
   /** The factors a person holds, for the security screen. No secrets, ever. */
-  async listFactors(input: {
-    userId: string;
-    correlationId: string;
-  }): Promise<readonly { id: string; kind: string; label: string; confirmedAt: Date | null }[]> {
+  async listFactors(input: { userId: string; correlationId: string }): Promise<
+    readonly {
+      id: string;
+      kind: string;
+      label: string;
+      confirmedAt: Date | null;
+      isDefault: boolean;
+    }[]
+  > {
     const rows = await this.database.identityRead(
       { correlationId: input.correlationId, tables: [...IDENTITY_TABLES] },
       (db) => this.credentials.listAllFactors(db, input.userId),
@@ -1653,7 +1756,360 @@ export class AuthenticationService {
       kind: row.kind,
       label: row.label,
       confirmedAt: row.confirmedAt,
+      isDefault: row.isDefault,
     }));
+  }
+
+  /**
+   * MFAOPTIONS. The address an e-mail code would go to, masked, and whether it was ever proved —
+   * what the security screen needs to offer (or explain why it cannot offer) the e-mail method.
+   */
+  async describeMailContact(input: {
+    userId: string;
+    correlationId: string;
+  }): Promise<{ address: string; verified: boolean }> {
+    const contact = await this.database.identityRead(
+      { correlationId: input.correlationId, tables: [...IDENTITY_TABLES] },
+      (db) => this.credentials.findMailContact(db, input.userId),
+    );
+    return {
+      address: contact === null ? '' : maskEmailAddress(contact.email),
+      verified: contact?.emailVerifiedAt != null,
+    };
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // MFAOPTIONS — the e-mail code method and the default method
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Mail a code that finishes this sign-in challenge. Reachable only with a valid challenge token
+   * (the password was right), so the answer discloses nothing an outsider could not already know.
+   * The person must hold a confirmed e-mail method: the server decides, never the client.
+   *
+   * Limits: 30 s between sends and five an hour per person and per source
+   * ({@link EmailCodeSendBudget}); a dead challenge (five wrong codes) takes no new code. A
+   * refused send writes nothing and charges nothing.
+   */
+  async sendSignInEmailCode(input: {
+    challengeToken: string | undefined;
+    context: SignInContext;
+  }): Promise<EmailCodeSentView> {
+    const { challengeToken, context } = input;
+    const verified = verifyChallengeToken(challengeToken, this.options.sessionSecret, this.now());
+    if (!verified.ok || challengeToken === undefined) {
+      const reason: AuthenticationReason =
+        !verified.ok && verified.rejection === 'expired'
+          ? 'challenge_expired'
+          : 'challenge_invalid';
+      await this.record(context, {
+        userId: null,
+        action: AUTHENTICATION_ACTIONS.mfaChallenge,
+        outcome: 'failed',
+        reason,
+      });
+      throw new AuthenticationRejectedError('invalid_credentials', reason);
+    }
+    const userId = verified.claims.userId;
+    const binding = emailCodeBinding('sign_in', challengeToken);
+
+    const found = await this.database.identityRead(
+      { correlationId: context.correlationId, tables: [...IDENTITY_TABLES] },
+      async (db): Promise<{ factorId: string; contact: MailContact } | AuthenticationReason> => {
+        if ((await this.sessions.findStanding(db, userId))?.disabledAt) return 'account_disabled';
+        if (await this.emailCodeStore.isExhausted(db, binding)) return 'mfa_challenge_dead';
+        const factor = (await this.credentials.listActiveFactors(db, userId)).find(
+          (row) => row.kind === EMAIL_FACTOR_KIND,
+        );
+        const contact = await this.credentials.findMailContact(db, userId);
+        if (!factor || !contact) return 'mfa_no_factor';
+        return { factorId: factor.id, contact };
+      },
+    );
+    if (typeof found === 'string') {
+      await this.record(context, {
+        userId,
+        action: AUTHENTICATION_ACTIONS.mfaChallenge,
+        outcome: 'failed',
+        reason: found,
+      });
+      throw new AuthenticationRejectedError('invalid_credentials', found);
+    }
+
+    return this.mailCode({
+      userId,
+      factorId: found.factorId,
+      purpose: 'sign_in',
+      binding,
+      contact: found.contact,
+      context,
+    });
+  }
+
+  /**
+   * Begin turning the e-mail method on: behind fresh proof (`D05`), only for a verified address,
+   * and only once (a second call while it is pending re-sends to the same pending row). The method
+   * authorises nothing until {@link confirmEmailFactor} has seen the mailed code.
+   */
+  async beginEmailFactor(input: {
+    userId: string;
+    sessionId: string;
+    reauthToken?: string | undefined;
+    context: SignInContext;
+  }): Promise<EmailFactorStartedView> {
+    await this.requireReauth({
+      userId: input.userId,
+      sessionId: input.sessionId,
+      reauthToken: input.reauthToken,
+      action: AUTHENTICATION_ACTIONS.factorEnrolled,
+      context: input.context,
+    });
+    if (!this.options.emailCodes?.mailer.enabled) {
+      throw new EmailFactorUnavailableError('mail_unavailable');
+    }
+
+    const prepared = await this.database.identityTransaction(
+      { correlationId: input.context.correlationId, tables: [...IDENTITY_TABLES] },
+      async (tx) => {
+        const contact = await this.credentials.findMailContact(tx, input.userId);
+        if (contact === null || contact.emailVerifiedAt === null) {
+          return 'email_not_verified' as const;
+        }
+        const active = await this.credentials.listActiveFactors(tx, input.userId);
+        if (active.some((factor) => factor.kind === EMAIL_FACTOR_KIND)) {
+          return 'already_enabled' as const;
+        }
+        const pending = await this.credentials.findPendingEmailFactor(tx, input.userId);
+        const factorId =
+          pending?.id ??
+          (await this.credentials.createEmailFactor(tx, {
+            userId: input.userId,
+            label: 'E-mail',
+          }));
+        return { factorId, contact };
+      },
+    );
+    if (typeof prepared === 'string') throw new EmailFactorUnavailableError(prepared);
+
+    const sent = await this.mailCode({
+      userId: input.userId,
+      factorId: prepared.factorId,
+      purpose: 'enrol',
+      binding: emailCodeBinding('enrol', `${input.sessionId}.${prepared.factorId}`),
+      contact: prepared.contact,
+      context: input.context,
+    });
+    return { factorId: prepared.factorId, ...sent };
+  }
+
+  /**
+   * Finish turning the e-mail method on with the mailed code. Same gate and same records as
+   * {@link confirmTotpFactor}: the enrolment is a credential change with its notice, in one
+   * transaction. Backup codes are issued only when the person has none left; an existing set is
+   * kept (the list returned is then empty, and the screen says the old codes still work).
+   */
+  async confirmEmailFactor(input: {
+    userId: string;
+    sessionId: string;
+    factorId: string;
+    code: string;
+    reauthToken?: string | undefined;
+    context: SignInContext;
+  }): Promise<{ recoveryCodes: readonly string[] }> {
+    await this.requireReauth({
+      userId: input.userId,
+      sessionId: input.sessionId,
+      reauthToken: input.reauthToken,
+      action: AUTHENTICATION_ACTIONS.factorEnrolled,
+      context: input.context,
+    });
+
+    const generated = generateRecoveryCodes();
+    const binding = emailCodeBinding('enrol', `${input.sessionId}.${input.factorId}`);
+
+    const outcome = await this.database.identityTransaction(
+      { correlationId: input.context.correlationId, tables: [...IDENTITY_TABLES] },
+      async (tx): Promise<{ issued: boolean } | null> => {
+        const factor = await this.credentials.findFactor(tx, input.factorId);
+        // Ownership, kind and state. One answer for someone else's id and for a wrong code.
+        if (
+          !factor ||
+          factor.userId !== input.userId ||
+          factor.kind !== EMAIL_FACTOR_KIND ||
+          factor.disabledAt !== null ||
+          factor.confirmedAt !== null
+        ) {
+          return null;
+        }
+        if ((await this.spendEmailCode(tx, binding, input.code)) !== null) return null;
+        if (!(await this.credentials.confirmCodelessFactor(tx, factor.id))) return null;
+
+        await this.credentials.recordCredentialChange(tx, {
+          userId: input.userId,
+          action: AUTHENTICATION_ACTIONS.factorEnrolled,
+          correlationId: input.context.correlationId,
+          ip: input.context.ip ?? null,
+          userAgent: input.context.userAgent ?? null,
+        });
+        const usable = await this.credentials.listUsableRecoveryCodes(tx, input.userId);
+        if (usable.length > 0) return { issued: false };
+        await this.credentials.replaceRecoveryCodes(tx, input.userId, generated.hashes);
+        await this.credentials.recordCredentialChange(tx, {
+          userId: input.userId,
+          action: AUTHENTICATION_ACTIONS.recoveryCodesIssued,
+          correlationId: input.context.correlationId,
+          ip: input.context.ip ?? null,
+          userAgent: input.context.userAgent ?? null,
+        });
+        return { issued: true };
+      },
+    );
+
+    if (outcome === null) {
+      await this.record(input.context, {
+        userId: input.userId,
+        action: AUTHENTICATION_ACTIONS.factorEnrolled,
+        outcome: 'failed',
+        reason: 'mfa_bad_code',
+      });
+      throw new AuthenticationRejectedError('invalid_credentials', 'mfa_bad_code');
+    }
+    return { recoveryCodes: outcome.issued ? generated.codes : [] };
+  }
+
+  /**
+   * Choose the method a sign-in asks for first. Behind fresh proof, recorded as a credential
+   * change with its notice. `false` (404) for an id that is not one of the person's live,
+   * confirmed factors.
+   */
+  async setDefaultFactor(input: {
+    userId: string;
+    sessionId: string;
+    factorId: string;
+    reauthToken?: string | undefined;
+    context: SignInContext;
+  }): Promise<boolean> {
+    await this.requireReauth({
+      userId: input.userId,
+      sessionId: input.sessionId,
+      reauthToken: input.reauthToken,
+      action: AUTHENTICATION_ACTIONS.mfaDefaultChanged,
+      context: input.context,
+    });
+
+    return this.database.identityTransaction(
+      { correlationId: input.context.correlationId, tables: [...IDENTITY_TABLES] },
+      async (tx) => {
+        const changed = await this.credentials.setDefaultFactor(tx, input.userId, input.factorId);
+        if (!changed) return false;
+        await this.credentials.recordCredentialChange(tx, {
+          userId: input.userId,
+          action: AUTHENTICATION_ACTIONS.mfaDefaultChanged,
+          correlationId: input.context.correlationId,
+          ip: input.context.ip ?? null,
+          userAgent: input.context.userAgent ?? null,
+        });
+        return true;
+      },
+    );
+  }
+
+  /**
+   * Charge the send budget, store the code's hash bound to `binding`, and mail it. The budget is
+   * charged only once everything else said yes; a refusal stores and sends nothing.
+   */
+  private async mailCode(input: {
+    userId: string;
+    factorId: string;
+    purpose: EmailCodePurpose;
+    binding: string;
+    contact: MailContact;
+    context: SignInContext;
+  }): Promise<EmailCodeSentView> {
+    const emailCodes = this.options.emailCodes;
+    if (!emailCodes?.mailer.enabled) throw new EmailFactorUnavailableError('mail_unavailable');
+
+    const verdict = emailCodes.budget.admit({ userId: input.userId, ip: input.context.ip });
+    if (verdict !== 'admitted') {
+      throw new AuthenticationRejectedError(
+        'rate_limited',
+        verdict === 'too_soon' ? 'mfa_email_too_soon' : 'mfa_email_over_budget',
+      );
+    }
+
+    const code = generateEmailCode();
+    await this.database.identityTransaction(
+      { correlationId: input.context.correlationId, tables: [...IDENTITY_TABLES] },
+      (tx) =>
+        this.emailCodeStore.create(tx, {
+          userId: input.userId,
+          factorId: input.factorId,
+          purpose: input.purpose,
+          bindingHash: input.binding,
+          codeHash: hashEmailCode(code, input.binding, this.options.sessionSecret),
+        }),
+    );
+    // Outside the transaction: a slow mail server must not hold a pooled connection. A failed
+    // send is not retried here; the person asks again after the 30-second pause.
+    await emailCodes.mailer.deliver({
+      to: input.contact.email,
+      displayName: input.contact.displayName,
+      code,
+      purpose: input.purpose,
+      ttlMinutes: EMAIL_CODE_TTL_SECONDS / 60,
+      locale: input.contact.locale,
+    });
+    return {
+      sentTo: maskEmailAddress(input.contact.email),
+      resendAfterSeconds: EMAIL_CODE_RESEND_GAP_MS / 1000,
+      expiresInSeconds: EMAIL_CODE_TTL_SECONDS,
+    };
+  }
+
+  /**
+   * The second-factor seam: one place decides which of the person's **enabled** methods a code
+   * is checked against. The method is the caller's choice only among what the database lists;
+   * a method the person does not hold is `mfa_no_factor`, never a pass.
+   */
+  private async verifySecondFactor(
+    tx: IdentityQueryRunner,
+    input: {
+      userId: string;
+      factors: readonly {
+        id: string;
+        kind: string;
+        secret: string;
+        lastAcceptedCounter: number | null;
+      }[];
+      method: SecondFactorMethod;
+      code: string;
+      binding: string;
+    },
+  ): Promise<AuthenticationReason | null> {
+    if (input.method === 'email') {
+      const holdsEmail = input.factors.some((factor) => factor.kind === EMAIL_FACTOR_KIND);
+      return holdsEmail ? this.spendEmailCode(tx, input.binding, input.code) : 'mfa_no_factor';
+    }
+    const totp = input.factors.filter((factor) => factor.kind === TOTP_FACTOR_KIND);
+    return totp.length === 0 ? 'mfa_no_factor' : this.spendTotpCode(tx, totp, input.code);
+  }
+
+  /**
+   * Check a mailed code against the one open code of its binding, in constant time, and spend
+   * it. A wrong code counts one attempt; the fifth kills the binding.
+   */
+  private async spendEmailCode(
+    tx: IdentityQueryRunner,
+    binding: string,
+    code: string,
+  ): Promise<AuthenticationReason | null> {
+    const open = await this.emailCodeStore.findOpen(tx, binding);
+    if (open === null) return 'mfa_bad_code';
+    if (!emailCodeMatches(open.codeHash, code, binding, this.options.sessionSecret)) {
+      const counted = await this.emailCodeStore.recordWrongAttempt(tx, open);
+      return counted === 'dead' ? 'mfa_challenge_dead' : 'mfa_bad_code';
+    }
+    return (await this.emailCodeStore.spend(tx, open.id)) ? null : 'mfa_replayed';
   }
 
   /**

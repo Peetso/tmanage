@@ -47,5 +47,12 @@
   "emailChange.previousEmail": "原电子邮件",
   "emailChange.newEmail": "新电子邮件",
   "securityAck.subject": "我们已收到你的安全报告 {reference}",
-  "securityAck.text": "谢谢。我们已收到你的安全报告，参考编号 {reference}。\n安全团队会进行审阅，如需更多信息会与你联系。\n如果你没有发送此报告，可以忽略这条消息。"
+  "securityAck.text": "谢谢。我们已收到你的安全报告，参考编号 {reference}。\n安全团队会进行审阅，如需更多信息会与你联系。\n如果你没有发送此报告，可以忽略这条消息。",
+  "mfaCode.subject": "你的 TManage 验证码",
+  "mfaCode.eyebrow": "两步验证",
+  "mfaCode.heading": "{name}，你好，这是你的验证码",
+  "mfaCode.introSignIn": "使用此验证码完成 TManage 登录。它在密码之后确认是你本人。",
+  "mfaCode.introEnrol": "使用此验证码为你的 TManage 账户开启两步验证的邮件验证码。",
+  "mfaCode.note": "验证码仅可使用一次，{minutes} 分钟后过期。TManage 绝不会通过电话或聊天向你索要。",
+  "mfaCode.footer": "如果这不是你发起的，可能有人知道你的密码：请在 TManage 中修改密码。此邮件不含任何登录链接。"
 }

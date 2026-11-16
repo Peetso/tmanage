@@ -58,6 +58,9 @@ const CHANGED_BY_ACTION: Readonly<Record<string, string>> = {
   mfa_factor_enrolled: 'A two-factor authentication method was added to your account.',
   mfa_factor_disabled: 'A two-factor authentication method was removed from your account.',
   recovery_codes_issued: 'A new set of recovery codes was issued for your account.',
+  // MFAOPTIONS.
+  mfa_default_changed:
+    'The two-step verification method asked for first at sign-in was changed on your account.',
   // 56-22. Passkeys and the new-device sign-in notice.
   passkey_added: 'A passkey was added to your account.',
   passkey_removed: 'A passkey was removed from your account.',
@@ -70,6 +73,7 @@ const SUBJECT_BY_ACTION: Readonly<Record<string, string>> = {
   mfa_factor_enrolled: 'Two-factor authentication was added to your TManage account',
   mfa_factor_disabled: 'Two-factor authentication was removed from your TManage account',
   recovery_codes_issued: 'New TManage recovery codes were issued',
+  mfa_default_changed: 'Your TManage two-step verification default was changed',
   passkey_added: 'A passkey was added to your TManage account',
   passkey_removed: 'A passkey was removed from your TManage account',
   new_device_sign_in: 'New device signed in to your TManage account',

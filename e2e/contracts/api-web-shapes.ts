@@ -545,6 +545,20 @@ import type {
   ApprovalRecordView as WebApprovalRecordView,
 } from '../../apps/web/src/lib/api/approval-records';
 import type { EnrolledFactor as WebEnrolledFactor } from '../../apps/web/src/lib/api/auth';
+import type {
+  EmailCodeSentView as WebEmailCodeSentView,
+  EmailFactorStartedView as WebEmailFactorStartedView,
+  FactorMailContact as WebFactorMailContact,
+  FactorsView as WebFactorsView,
+} from '../../apps/web/src/lib/api/auth';
+import type {
+  EmailCodeSentView as ApiEmailCodeSentView,
+  EmailFactorStartedView as ApiEmailFactorStartedView,
+} from '../../apps/api/src/modules/identity/authentication.service.js';
+import type {
+  FactorMailContactView as ApiFactorMailContactView,
+  FactorsView as ApiFactorsView,
+} from '../../apps/api/src/modules/identity/authentication.controller.js';
 import type { A11yPreferencesView as WebA11yPreferencesView } from '../../apps/web/src/lib/api/a11y-preferences';
 import type { DisplayPreferencesView as WebDisplayPreferencesView } from '../../apps/web/src/lib/api/display-preferences';
 import type { InsightSavedViewView as WebInsightSavedViewView } from '../../apps/web/src/lib/api/insight-saved-views';
@@ -3017,6 +3031,11 @@ type _createdOrganization = Assert<Exact<ApiCreatedOrganizationView, WebCreatedO
 
 /** `GET /v1/auth/factors` — one enrolled MFA factor, `confirmedAt` an ISO string or `null`. */
 type _enrolledFactor = Assert<Exact<ApiEnrolledFactorView, WebEnrolledFactor>>;
+/** MFAOPTIONS. `GET /v1/auth/factors`, the e-mail code sends and the e-mail method's start. */
+type _factorsView = Assert<Exact<ApiFactorsView, WebFactorsView>>;
+type _factorMailContact = Assert<Exact<ApiFactorMailContactView, WebFactorMailContact>>;
+type _emailCodeSent = Assert<Exact<ApiEmailCodeSentView, WebEmailCodeSentView>>;
+type _emailFactorStarted = Assert<Exact<ApiEmailFactorStartedView, WebEmailFactorStartedView>>;
 
 /** `POST …/realtime/tickets` — a minted realtime ticket; `expiresAt` an ISO string, `socketUrl` `null` where no live socket exists. */
 type _realtimeTicket = Assert<Exact<ApiRealtimeTicketView, WebRealtimeTicket>>;

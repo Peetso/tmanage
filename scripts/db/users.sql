@@ -1216,6 +1216,10 @@ GRANT INSERT, UPDATE ON `tmanage`.`user_identities`      TO 'tmanage_app'@'%';
 -- evidence like the other credential tables; a person's own deletion cascades from `users`. The
 -- worker holds nothing here.
 GRANT INSERT, UPDATE ON `tmanage`.`user_passkeys`        TO 'tmanage_app'@'%';
+-- 0360 mailed second-step codes (MFAOPTIONS). INSERT (a code is sent), UPDATE (a wrong attempt,
+-- spending, replacing). No DELETE: a spent code stays as evidence like the other credential
+-- tables; a person's own deletion cascades from `users`. The worker holds nothing here.
+GRANT INSERT, UPDATE ON `tmanage`.`user_mfa_email_codes` TO 'tmanage_app'@'%';
 -- 0206 platform admin (the TManage operator, /platform). Step-ups: INSERT only — a confirmation
 -- expires, it is never amended. The platform audit log: INSERT only, append-only like
 -- `audit_events`. Settings: INSERT and UPDATE (the one switch is an upsert). No DELETE anywhere,

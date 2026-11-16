@@ -251,6 +251,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
       'user_mfa_factors',
       'user_recovery_codes',
       'authentication_events',
+      // MFAOPTIONS (0360): the hashed e-mail codes are a second factor too.
+      'user_mfa_email_codes',
     ]) {
       for (const privilege of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
         expect(

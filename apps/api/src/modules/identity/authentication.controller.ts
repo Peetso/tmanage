@@ -23,10 +23,13 @@ import { assertSignInOpen } from '../platform/maintenance.controller.js';
 import type { AuthenticatedSession, SessionService } from './session.service.js';
 import {
   AuthenticationRejectedError,
+  EmailFactorUnavailableError,
   FreshSignInRequiredError,
   PasswordRejectedError,
   ReauthenticationRequiredError,
   type AuthenticationService,
+  type EmailCodeSentView,
+  type EmailFactorStartedView,
   type EnrolledFactorView,
 } from './authentication.service.js';
 import { describePasswordRejection } from './password.js';
@@ -108,6 +111,32 @@ const RATE_WINDOW_SECONDS = 600;
 interface ChallengeBody {
   readonly challengeToken?: unknown;
   readonly code?: unknown;
+  /** MFAOPTIONS: `'email'` for a mailed code; anything else is an authenticator code. */
+  readonly method?: unknown;
+}
+
+interface EmailCodeBody {
+  readonly challengeToken?: unknown;
+}
+
+interface ConfirmEmailFactorBody {
+  readonly factorId?: unknown;
+  readonly code?: unknown;
+}
+
+/**
+ * MFAOPTIONS. Turning the e-mail method on was refused before a code was sent: **409 `conflict`**,
+ * one detail naming the reason (`email_not_verified`, `already_enabled`, `mail_unavailable`) so
+ * the security screen can say what to do. Only ever reached by the signed-in owner.
+ */
+function emailFactorConflict(error: EmailFactorUnavailableError): ApiError {
+  return new ApiError(
+    409,
+    'conflict',
+    'E-mail codes cannot be turned on right now.',
+    [{ field: 'reason', message: error.reason }],
+    error.reason,
+  );
 }
 
 interface SetPasswordBody {
@@ -145,6 +174,19 @@ export interface ChallengeResponseView {
     readonly kind: string;
     readonly label: string;
   }[];
+}
+
+/** MFAOPTIONS. The account address an e-mail code goes to (masked) and whether it is verified. */
+export interface FactorMailContactView {
+  readonly address: string;
+  readonly verified: boolean;
+}
+
+/** `GET /v1/auth/factors`: the methods, the backup codes left, and the e-mail contact. */
+export interface FactorsView {
+  readonly factors: readonly EnrolledFactorView[];
+  readonly recoveryCodesRemaining: number;
+  readonly email: FactorMailContactView;
 }
 
 @Controller('v1/auth')
@@ -281,10 +323,39 @@ export class AuthenticationController {
       this.authentication.completeMfaChallenge({
         challengeToken: typeof body?.challengeToken === 'string' ? body.challengeToken : undefined,
         code: typeof body?.code === 'string' ? body.code : '',
+        // MFAOPTIONS. Which kind of code; the service accepts only a method the person holds.
+        method: body?.method === 'email' ? 'email' : 'totp',
         context: this.contextOf(request, state.correlationId),
       }),
     );
     return this.establish(outcome.userId, request, reply, state.correlationId);
+  }
+
+  /**
+   * MFAOPTIONS. Mail a code that finishes this sign-in challenge — "Get a code by e-mail". Needs a
+   * valid challenge token (the password step passed); refused with the sign-in's 401 otherwise,
+   * and 429 inside the 30-second pause or past five sends an hour.
+   */
+  @Post('mfa/email-code')
+  @Public()
+  @HttpCode(200)
+  async sendEmailCode(
+    @Body() body: EmailCodeBody,
+    @Req() request: RequestLike,
+  ): Promise<EmailCodeSentView> {
+    const state = requireRequestState(request);
+    try {
+      return await this.run(() =>
+        this.authentication.sendSignInEmailCode({
+          challengeToken:
+            typeof body?.challengeToken === 'string' ? body.challengeToken : undefined,
+          context: this.contextOf(request, state.correlationId),
+        }),
+      );
+    } catch (error) {
+      if (error instanceof EmailFactorUnavailableError) throw emailFactorConflict(error);
+      throw error;
+    }
   }
 
   /** `ID-02`'s "Enter a recovery code" fallback. */
@@ -645,17 +716,19 @@ export class CredentialsController {
   async listFactors(
     @CurrentSession() session: AuthenticatedSession,
     @Req() request: RequestLike,
-  ): Promise<{
-    factors: readonly EnrolledFactorView[];
-    recoveryCodesRemaining: number;
-  }> {
+  ): Promise<FactorsView> {
     const state = requireCookieSession(request);
-    const [factors, recoveryCodesRemaining] = await Promise.all([
+    const [factors, recoveryCodesRemaining, email] = await Promise.all([
       this.authentication.listFactors({
         userId: session.userId,
         correlationId: state.correlationId,
       }),
       this.authentication.countUsableRecoveryCodes({
+        userId: session.userId,
+        correlationId: state.correlationId,
+      }),
+      // MFAOPTIONS. The masked address an e-mail code would go to, and whether it is verified.
+      this.authentication.describeMailContact({
         userId: session.userId,
         correlationId: state.correlationId,
       }),
@@ -667,9 +740,121 @@ export class CredentialsController {
         kind: factor.kind,
         label: factor.label,
         confirmedAt: factor.confirmedAt?.toISOString() ?? null,
+        isDefault: factor.isDefault,
       })),
       recoveryCodesRemaining,
+      email,
     };
+  }
+
+  /**
+   * MFAOPTIONS. Begin turning the e-mail method on: mails a code to the account's verified
+   * address. `D05`: needs the `x-reauth-token` header. 409 when the address is not verified or
+   * the method is already on; 429 inside the resend pause.
+   */
+  @Post('factors/email')
+  @NoTenant()
+  @HttpCode(201)
+  async beginEmailFactor(
+    @CurrentSession() session: AuthenticatedSession,
+    @Req() request: RequestLike,
+  ): Promise<EmailFactorStartedView> {
+    const state = requireCookieSession(request);
+    try {
+      return await this.authentication.beginEmailFactor({
+        userId: session.userId,
+        sessionId: session.sessionId,
+        reauthToken: this.reauthTokenOf(request),
+        context: this.contextOf(request, state.correlationId),
+      });
+    } catch (error) {
+      this.translateReauth(error);
+      if (error instanceof EmailFactorUnavailableError) throw emailFactorConflict(error);
+      if (error instanceof AuthenticationRejectedError && error.rejection === 'rate_limited') {
+        throw new ApiError(
+          429,
+          'rate_limited',
+          'Wait a moment before asking for another code.',
+          undefined,
+          error.reason,
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * MFAOPTIONS. Finish turning the e-mail method on with the mailed code; returns new backup
+   * codes once when the person had none left (otherwise an empty list). `D05`: reauth header.
+   */
+  @Post('factors/email/confirm')
+  @NoTenant()
+  @HttpCode(200)
+  async confirmEmailFactor(
+    @CurrentSession() session: AuthenticatedSession,
+    @Body() body: ConfirmEmailFactorBody,
+    @Req() request: RequestLike,
+  ): Promise<{ recoveryCodes: readonly string[] }> {
+    const state = requireCookieSession(request);
+    const factorId = typeof body?.factorId === 'string' ? body.factorId : undefined;
+    const code = typeof body?.code === 'string' ? body.code : undefined;
+    if (!factorId || !code) {
+      throw new ApiError(400, 'validation_failed', 'factorId and code are required', [
+        ...(factorId ? [] : [{ field: 'factorId', message: 'must be a string' }]),
+        ...(code ? [] : [{ field: 'code', message: 'must be a string' }]),
+      ]);
+    }
+    try {
+      return await this.authentication.confirmEmailFactor({
+        userId: session.userId,
+        sessionId: session.sessionId,
+        factorId,
+        code,
+        reauthToken: this.reauthTokenOf(request),
+        context: this.contextOf(request, state.correlationId),
+      });
+    } catch (error) {
+      this.translateReauth(error);
+      if (error instanceof AuthenticationRejectedError) {
+        throw new ApiError(
+          400,
+          'validation_failed',
+          'That code did not match.',
+          [{ field: 'code', message: 'That code did not match.' }],
+          error.reason,
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * MFAOPTIONS. Make one of this person's methods the one a sign-in asks for first. `D05`: reauth
+   * header. 404 for an id that is not one of their live, confirmed methods.
+   */
+  @Post('factors/:factorId/default')
+  @NoTenant()
+  @HttpCode(204)
+  async setDefaultFactor(
+    @CurrentSession() session: AuthenticatedSession,
+    @Param('factorId') factorId: string,
+    @Req() request: RequestLike,
+  ): Promise<void> {
+    const state = requireCookieSession(request);
+    let changed: boolean;
+    try {
+      changed = await this.authentication.setDefaultFactor({
+        userId: session.userId,
+        sessionId: session.sessionId,
+        factorId,
+        reauthToken: this.reauthTokenOf(request),
+        context: this.contextOf(request, state.correlationId),
+      });
+    } catch (error) {
+      this.translateReauth(error);
+      throw error;
+    }
+    if (!changed) throw new ApiError(404, 'not_found', MESSAGES.notFound);
   }
 
   /**

@@ -45,6 +45,12 @@ import { SessionsRepository } from './sessions.repository.js';
 import type { AccountStanding } from './sessions.repository.js';
 import type { SignInAbuseControl } from './sign-in-abuse-control.js';
 import { base32Decode, generateTotpSecret, hotpCode, totpCounterAt } from './totp.js';
+import type { EmailCodesRepository } from './email-codes.repository.js';
+
+/** MFAOPTIONS: no mailed codes in this file; a challenge is never exhausted by them. */
+const NO_EMAIL_CODES = {
+  isExhausted: () => Promise.resolve(false),
+} as unknown as EmailCodesRepository;
 
 /**
  * Wave 9, lane S1 — one regression per security-audit finding (run 1): F01, F19, F20, F32, F43
@@ -82,6 +88,7 @@ const FACTOR: UserMfaFactorRow = {
   lastUsedAt: null,
   createdAt: new Date(NOW - 86_400_000),
   disabledAt: null,
+  isDefault: false,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -199,6 +206,7 @@ function service(abuse: SignInAbuseControl = admitAll()) {
     () => NOW,
     sessions,
     cutoff,
+    NO_EMAIL_CODES,
   );
   return { auth, credentials, sessions, cutoff };
 }

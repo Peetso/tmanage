@@ -394,65 +394,6 @@
   gap: var(--s2);
 }
 
-.tm-id-code__frame {
-  position: relative;
-  inline-size: max-content;
-  max-inline-size: 100%;
-}
-
-.tm-id-code__cells {
-  display: flex;
-  gap: 10px;
-}
-
-.tm-id-code__cell {
-  display: grid;
-  place-items: center;
-  inline-size: 56px;
-  block-size: 64px;
-  border: var(--b-quiet) solid var(--line-300);
-  border-radius: var(--r-control);
-  background: var(--paper-50);
-  color: var(--ink-950);
-  font-family: var(--font-mono);
-  font-size: 26px;
-  font-weight: 500;
-  line-height: 1;
-}
-
-.tm-id-code__cell--empty {
-  color: var(--ink-500);
-}
-
-/* The one real input sits over the six painted cells: one field, one announcement, autofill. */
-.tm-id-code__input {
-  position: absolute;
-  inset: 0;
-  inline-size: 100%;
-  block-size: 100%;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: transparent;
-  caret-color: transparent;
-  font-size: 26px;
-  outline: none;
-}
-
-.tm-id-code__input:focus-visible + .tm-id-code__cells .tm-id-code__cell--active {
-  background: var(--paper-0);
-  border: var(--b-expressive) solid var(--ink-950);
-  box-shadow: 0 0 0 3px var(--lime-500);
-}
-
-.tm-id-code__input:disabled {
-  cursor: not-allowed;
-}
-
-.tm-id-code__frame:has(.tm-id-code__input:disabled) .tm-id-code__cell {
-  color: var(--ink-500);
-}
-
 .tm-id-code .tm-field__hint {
   font-size: 12px;
   line-height: 17px;
@@ -462,6 +403,20 @@
 .tm-id-recovery-field .tm-field__control {
   font-family: var(--font-mono);
   letter-spacing: 0.08em;
+}
+
+.tm-id-resend {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 17px;
+  text-transform: uppercase;
+  text-decoration: underline;
+  color: var(--ink-800);
+  cursor: pointer;
 }
 
 .tm-id-expiry {
@@ -486,10 +441,8 @@
   min-inline-size: 0;
 }
 
-.tm-id-fallbacks > legend {
-  float: left;
-  inline-size: 100%;
-  margin-block-end: var(--s1);
+.tm-id-fallbacks__title {
+  margin: 0 0 var(--s1) 0;
   padding: 0;
   font-family: var(--font-mono);
   font-size: 10px;
@@ -504,23 +457,24 @@
   display: flex;
   align-items: center;
   gap: var(--s3);
-  min-block-size: 32px;
+  inline-size: 100%;
+  /* The whole row is the button: a 44 px target, not just the words. */
+  min-block-size: 44px;
+  margin: 0;
+  padding: var(--s1) 0;
+  border: 0;
+  background: none;
+  font: inherit;
   font-size: 13px;
   line-height: 18px;
+  text-align: start;
   color: var(--ink-800);
   cursor: pointer;
 }
 
-.tm-id-fallback--off {
+.tm-id-fallback:disabled {
   cursor: default;
   color: var(--ink-500);
-}
-
-.tm-id-fallback__input {
-  position: absolute;
-  opacity: 0;
-  inline-size: 1px;
-  block-size: 1px;
 }
 
 .tm-id-fallback__glyph {
@@ -537,12 +491,11 @@
   line-height: 1;
 }
 
-.tm-id-fallback:has(input:checked) .tm-id-fallback__glyph {
-  background: var(--tm-ink-absolute, var(--ink-950));
-  color: var(--tm-accent-on-ink, var(--lime-500));
+.tm-id-fallback:focus-visible {
+  outline: none;
 }
 
-.tm-id-fallback:has(input:focus-visible) .tm-id-fallback__glyph {
+.tm-id-fallback:focus-visible .tm-id-fallback__glyph {
   box-shadow: 0 0 0 3px var(--lime-500);
 }
 
@@ -569,10 +522,6 @@
   line-height: 17px;
   font-weight: 500;
   color: var(--ink-650);
-}
-
-.tm-id-fallback--off .tm-id-fallback__action {
-  color: var(--ink-500);
 }
 
 /* ── ID-03 Invitation ─────────────────────────────────────────────────── */
@@ -985,16 +934,6 @@
   .tm-identity .tm-identity__title {
     font-size: 30px;
     line-height: 34px;
-  }
-
-  .tm-id-code__cells {
-    gap: 6px;
-  }
-
-  .tm-id-code__cell {
-    inline-size: 44px;
-    block-size: 54px;
-    font-size: 22px;
   }
 
   .tm-id-org {

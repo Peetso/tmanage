@@ -391,6 +391,8 @@ describe('the runtime user is actually least-privilege', () => {
       'user_mfa_factors',
       'user_recovery_codes',
       'authentication_events',
+      // MFAOPTIONS (0360): the hashed e-mail codes are a second factor too.
+      'user_mfa_email_codes',
     ];
     for (const table of credentialTables) {
       expect(

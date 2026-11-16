@@ -277,6 +277,8 @@ export const INVITATION_MAILER = Symbol.for('tmanage.InvitationMailer');
 export const PASSWORD_RESET_MAILER = Symbol.for('tmanage.PasswordResetMailer');
 /** Public sign-up's welcome email (`common/email/welcome-email.ts`). */
 export const WELCOME_MAILER = Symbol.for('tmanage.WelcomeMailer');
+/** MFAOPTIONS: the two-step code email's sender (`common/email/mfa-code-email.ts`). */
+export const MFA_CODE_MAILER = Symbol.for('tmanage.MfaCodeMailer');
 export const OBJECT_STORE = Symbol.for('tmanage.ObjectStore');
 /**
  * FILE-001b. The half of the filesystem driver the public PUT route talks to. Provided by

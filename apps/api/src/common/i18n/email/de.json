@@ -47,5 +47,12 @@
   "emailChange.previousEmail": "Bisherige E-Mail",
   "emailChange.newEmail": "Neue E-Mail",
   "securityAck.subject": "Wir haben Ihre Sicherheitsmeldung {reference} erhalten",
-  "securityAck.text": "Vielen Dank. Wir haben Ihre Sicherheitsmeldung mit der Referenz {reference} erhalten.\nDas Sicherheitsteam prüft sie und meldet sich bei Ihnen, falls weitere Informationen nötig sind.\nWenn Sie diese Meldung nicht gesendet haben, können Sie diese Nachricht ignorieren."
+  "securityAck.text": "Vielen Dank. Wir haben Ihre Sicherheitsmeldung mit der Referenz {reference} erhalten.\nDas Sicherheitsteam prüft sie und meldet sich bei Ihnen, falls weitere Informationen nötig sind.\nWenn Sie diese Meldung nicht gesendet haben, können Sie diese Nachricht ignorieren.",
+  "mfaCode.subject": "Ihr TManage-Bestätigungscode",
+  "mfaCode.eyebrow": "Zweistufige Bestätigung",
+  "mfaCode.heading": "Hallo {name}, hier ist Ihr Code",
+  "mfaCode.introSignIn": "Mit diesem Code schließen Sie die Anmeldung bei TManage ab. Er bestätigt nach Ihrem Passwort, dass Sie es sind.",
+  "mfaCode.introEnrol": "Mit diesem Code schalten Sie E-Mail-Codes für die zweistufige Bestätigung Ihres TManage-Kontos ein.",
+  "mfaCode.note": "Der Code funktioniert einmal und läuft in {minutes} Minuten ab. TManage fragt nie per Telefon oder Chat danach.",
+  "mfaCode.footer": "Wenn Sie das nicht angefordert haben, kennt vielleicht jemand Ihr Passwort: Ändern Sie es in TManage. Diese E-Mail enthält keinen Anmeldelink."
 }

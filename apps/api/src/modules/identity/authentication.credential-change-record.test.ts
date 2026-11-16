@@ -200,6 +200,7 @@ const PENDING_FACTOR: UserMfaFactorRow = {
   lastUsedAt: null,
   createdAt: new Date(NOW),
   disabledAt: null,
+  isDefault: false,
 };
 
 const EXISTING_PASSWORD: UserPasswordRow = {
@@ -778,6 +779,7 @@ describe('the owner can read what happened to their own credentials', () => {
         AUTHENTICATION_ACTIONS.factorEnrolled,
         AUTHENTICATION_ACTIONS.passwordSet,
         AUTHENTICATION_ACTIONS.recoveryCodesIssued,
+        AUTHENTICATION_ACTIONS.mfaDefaultChanged,
       ].sort(),
     );
   });

@@ -190,7 +190,7 @@ describe('the second factor', () => {
 
     expect(await screen.findByText('Confirm it’s you')).toBeInTheDocument();
     // TXT-01: the identity eyebrow shows its human label only — the "ID-02" screen code is gone.
-    expect(screen.getByText('Second factor')).toBeInTheDocument();
+    expect(screen.getByText('Sign in', { selector: '.tm-identity__eyebrow' })).toBeInTheDocument();
     expect(screen.queryByText(/ID-02/)).toBeNull();
     // The factor's label from the challenge, as device context.
     expect(screen.getByText('Omar’s iPhone')).toBeInTheDocument();
@@ -263,7 +263,7 @@ describe('the second factor', () => {
     await signIn(user);
     await screen.findByText('Confirm it’s you');
 
-    await user.click(screen.getByRole('radio', { name: /A recovery code/ }));
+    await user.click(screen.getByRole('button', { name: /Use a backup code/ }));
     await user.type(screen.getByLabelText(/Recovery code/), 'K7M2P-9XQ4R');
     await user.click(screen.getByRole('button', { name: 'Verify' }));
 

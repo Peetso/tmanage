@@ -7183,7 +7183,10 @@ export const userMfaFactors = mysqlTable(
   {
     id: char('id', { length: 36 }).primaryKey(),
     userId: char('user_id', { length: 36 }).notNull(),
-    /** `totp` is the only kind implemented. `webauthn` would be a value, not a table. */
+    /**
+     * `totp` (an authenticator app; `secret` holds its sealed seed) or, since 0360, `email` (a
+     * code mailed to the account's verified address; `secret` is empty — there is no seed).
+     */
     kind: varchar('kind', { length: 32 }).notNull(),
     label: varchar('label', { length: 190 }).notNull(),
     /**
@@ -7204,6 +7207,11 @@ export const userMfaFactors = mysqlTable(
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     /** Soft-disabled: "this factor was removed on the 3rd" is a question a deletion cannot answer. */
     disabledAt: datetime('disabled_at', { mode: 'date', fsp: 3 }),
+    /**
+     * 0360 (MFAOPTIONS). The method a sign-in asks for first. At most one live row per person is
+     * true; none means the newest confirmed factor goes first.
+     */
+    isDefault: boolean('is_default').notNull().default(false),
   },
   (table) => [index('ix_user_mfa_factors_user').on(table.userId, table.disabledAt)],
 );
@@ -13727,6 +13735,37 @@ export const userPasskeys = mysqlTable(
 export type UserPasskeyRow = typeof userPasskeys.$inferSelect;
 
 Object.assign(TABLES, { user_passkeys: userPasskeys });
+
+/**
+ * 0360 (MFAOPTIONS). One 6-digit code mailed for a second step: to finish a sign-in
+ * (`purpose = 'sign_in'`) or to prove the mailbox while turning the e-mail method on
+ * (`purpose = 'enrol'`). Only an HMAC of the code is stored, salted with `binding_hash` (the
+ * SHA-256 of the challenge or the enrolment it is bound to). Ten minutes, single use, five wrong
+ * attempts and the binding is dead. GLOBAL like `user_mfa_factors`.
+ */
+export const userMfaEmailCodes = mysqlTable(
+  'user_mfa_email_codes',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    factorId: char('factor_id', { length: 36 }).notNull(),
+    purpose: varchar('purpose', { length: 16 }).notNull(),
+    bindingHash: char('binding_hash', { length: 64 }).notNull(),
+    codeHash: char('code_hash', { length: 64 }).notNull(),
+    attempts: smallint('attempts').notNull().default(0),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+    usedAt: datetime('used_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    index('ix_user_mfa_email_codes_binding').on(table.bindingHash, table.usedAt),
+    index('ix_user_mfa_email_codes_user').on(table.userId, table.createdAt),
+  ],
+);
+
+export type UserMfaEmailCodeRow = typeof userMfaEmailCodes.$inferSelect;
+
+Object.assign(TABLES, { user_mfa_email_codes: userMfaEmailCodes });
 
 // ---- R46 L2 · 56-21 platform governance (0334) ----
 

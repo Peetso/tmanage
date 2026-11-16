@@ -10,14 +10,21 @@ import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
+  beginEmailFactor,
   beginTotpEnrolment,
+  confirmEmailFactor,
   confirmTotpEnrolment,
   disableFactor,
   listFactors,
+  regenerateRecoveryCodes,
+  setDefaultFactor,
+  type EnrolledFactor,
+  type FactorsView,
 } from '../../lib/api/auth';
 import { ApiRequestError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { qrModules, qrPath } from '../../lib/qr-code';
+import { SixDigitCode } from './SixDigitCode';
 import '../../styles/screens/access-security.css';
 
 export interface TwoStepSignInScreenProps {
@@ -29,20 +36,36 @@ export interface TwoStepSignInScreenProps {
 }
 
 type Enrolment = { factorId: string; secret: string; uri: string };
+type EmailEnrolment = { factorId: string; sentTo: string; resendAt: number };
 type Action =
-  { kind: 'begin' } | { kind: 'confirm'; code: string } | { kind: 'disable'; factorId: string };
+  | { kind: 'begin' }
+  | { kind: 'confirm'; code: string }
+  | { kind: 'disable'; factorId: string }
+  | { kind: 'beginEmail' }
+  | { kind: 'confirmEmail'; code: string }
+  | { kind: 'makeDefault'; factorId: string }
+  | { kind: 'newCodes' };
 
-/** The header the five credential-changing routes read the step-up proof from (`D05`). */
+/** One action button on a method row. */
+interface RowAction {
+  readonly label: string;
+  readonly action: Action;
+  readonly primary?: boolean;
+  readonly disabled?: boolean;
+}
+
+/** The header the credential-changing routes read the step-up proof from (`D05`). */
 const REAUTH_HEADER = 'x-reauth-token';
 
 /**
- * **Two-step sign-in (t2-c) — turn on an authenticator app, save the recovery codes, or turn it off.**
+ * **Two-step verification (t2-c, MFAOPTIONS) — the ways to confirm it's you.**
  *
- * With no confirmed factor the screen starts an enrolment at once: the `otpauth://` URI drawn as a
- * QR (encoded in the browser — the secret never leaves it), the key to type by hand, and the
- * 6-digit confirm. The recovery codes come back exactly once and are shown with copy and download.
- * A `403 reauthentication_required` opens the step-up form (password, and code when a factor is
- * already on); the proof it returns is sent as `x-reauth-token` on the retried action.
+ * A short list of methods, each with one plain line and its state: the authenticator app, e-mail
+ * codes (to the account's verified address) and backup codes. No text messages: that is a paid
+ * service. The person picks the default — the method a sign-in asks for first. Turning a method on
+ * or off, choosing the default and new backup codes all need the password again: a `403
+ * reauthentication_required` opens the step-up form, and its proof is sent as `x-reauth-token` on
+ * the retried action. The server decides what is allowed; this screen only asks.
  */
 export function TwoStepSignInScreen({
   organizationSlug,
@@ -58,15 +81,18 @@ export function TwoStepSignInScreen({
   const factors = useQuery({ queryKey: factorsKey, queryFn: () => listFactors(api) });
 
   const [enrolment, setEnrolment] = useState<Enrolment | null>(null);
+  const [emailEnrolment, setEmailEnrolment] = useState<EmailEnrolment | null>(null);
   const [recoveryCodes, setRecoveryCodes] = useState<readonly string[] | null>(null);
   const [stepUp, setStepUp] = useState<Action | null>(null);
   const [confirmDisable, setConfirmDisable] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const reauthToken = useRef<string | null>(null);
-  const started = useRef(false);
 
   const run = useMutation({
     mutationFn: async (action: Action): Promise<void> => {
       const headers = reauthToken.current ? { [REAUTH_HEADER]: reauthToken.current } : undefined;
+      const proof = reauthToken.current ?? undefined;
+      setNotice(null);
       try {
         if (action.kind === 'begin') {
           const label = t('TwoStep.factorLabel');
@@ -98,7 +124,7 @@ export function TwoStepSignInScreen({
           setRecoveryCodes(result.recoveryCodes);
           setEnrolment(null);
           void queries.invalidateQueries({ queryKey: factorsKey });
-        } else {
+        } else if (action.kind === 'disable') {
           if (headers) {
             await api.request<void>({
               method: 'DELETE',
@@ -109,7 +135,40 @@ export function TwoStepSignInScreen({
             await disableFactor(api, action.factorId);
           }
           setConfirmDisable(null);
-          started.current = false;
+          void queries.invalidateQueries({ queryKey: factorsKey });
+        } else if (action.kind === 'beginEmail') {
+          const sent = await beginEmailFactor(api, proof);
+          setEmailEnrolment({
+            factorId: sent.factorId,
+            sentTo: sent.sentTo,
+            resendAt: Date.now() + sent.resendAfterSeconds * 1000,
+          });
+        } else if (action.kind === 'confirmEmail') {
+          if (!emailEnrolment) return;
+          const result = await confirmEmailFactor(
+            api,
+            { factorId: emailEnrolment.factorId, code: action.code },
+            proof,
+          );
+          setEmailEnrolment(null);
+          if (result.recoveryCodes.length > 0) setRecoveryCodes(result.recoveryCodes);
+          else setNotice(t('TwoStep.emailOnNotice'));
+          void queries.invalidateQueries({ queryKey: factorsKey });
+        } else if (action.kind === 'makeDefault') {
+          await setDefaultFactor(api, action.factorId, proof);
+          setNotice(t('TwoStep.defaultNotice'));
+          void queries.invalidateQueries({ queryKey: factorsKey });
+        } else {
+          const result = headers
+            ? (
+                await api.request<{ recoveryCodes: readonly string[] }>({
+                  method: 'POST',
+                  path: '/v1/auth/recovery-codes',
+                  headers,
+                })
+              ).data
+            : await regenerateRecoveryCodes(api);
+          setRecoveryCodes(result.recoveryCodes);
           void queries.invalidateQueries({ queryKey: factorsKey });
         }
       } catch (error) {
@@ -124,15 +183,10 @@ export function TwoStepSignInScreen({
     },
   });
 
-  const confirmed = factors.data?.factors.find(
+  const view = factors.data;
+  const totp = view?.factors.find(
     (factor) => factor.kind === 'totp' && factor.confirmedAt !== null,
   );
-
-  useEffect(() => {
-    if (!factors.isSuccess || confirmed || recoveryCodes || started.current) return;
-    started.current = true;
-    run.mutate({ kind: 'begin' });
-  }, [factors.isSuccess, confirmed, recoveryCodes, run]);
 
   // Back to Preferences, where the Two-step sign-in row that opened this page lives.
   const securityHref = `/${organizationSlug}/preferences`;
@@ -144,7 +198,7 @@ export function TwoStepSignInScreen({
         <Skeleton />
       </LoadingRegion>
     );
-  } else if (factors.isError) {
+  } else if (factors.isError || view === undefined) {
     body = (
       <InlineAlert tone="danger" title={t('TwoStep.loadError')}>
         {errorMessage(factors.error)}
@@ -154,7 +208,7 @@ export function TwoStepSignInScreen({
     body = (
       <StepUpCard
         api={api}
-        needsCode={confirmed !== undefined}
+        needsCode={totp !== undefined}
         cancelHref={securityHref}
         onConfirmed={(token) => {
           reauthToken.current = token;
@@ -166,20 +220,6 @@ export function TwoStepSignInScreen({
     );
   } else if (recoveryCodes) {
     body = <RecoveryCodesCard codes={recoveryCodes} doneHref={securityHref} />;
-  } else if (confirmed) {
-    body = (
-      <section className="tm-sec-card tm-sec-card--dialog" aria-labelledby="tm-2s-on">
-        <h2 id="tm-2s-on" className="tm-sec-card__title">
-          {t('TwoStep.onTitle')}
-        </h2>
-        <p className="tm-sec-card__body">{t('TwoStep.onBody')}</p>
-        <div className="tm-sec-actions">
-          <Button tone="outline" onClick={() => setConfirmDisable(confirmed.id)}>
-            {t('TwoStep.disable')}
-          </Button>
-        </div>
-      </section>
-    );
   } else if (enrolment) {
     body = (
       <EnrolCard
@@ -190,17 +230,29 @@ export function TwoStepSignInScreen({
         onVerify={(code) => run.mutate({ kind: 'confirm', code })}
       />
     );
-  } else if (run.isError) {
+  } else if (emailEnrolment) {
     body = (
-      <InlineAlert tone="danger" title={t('TwoStep.startError')}>
-        {errorMessage(run.error)}
-      </InlineAlert>
+      <EmailEnrolCard
+        enrolment={emailEnrolment}
+        working={run.isPending}
+        error={run.isError ? errorMessage(run.error) : null}
+        onCancel={() => setEmailEnrolment(null)}
+        onResend={() => run.mutate({ kind: 'beginEmail' })}
+        onVerify={(code) => run.mutate({ kind: 'confirmEmail', code })}
+      />
     );
   } else {
     body = (
-      <LoadingRegion label={t('TwoStep.starting')}>
-        <Skeleton />
-      </LoadingRegion>
+      <MethodsCard
+        view={view}
+        working={run.isPending}
+        error={run.isError ? errorMessage(run.error) : null}
+        notice={notice}
+        onAction={(action) => {
+          if (action.kind === 'disable') setConfirmDisable(action.factorId);
+          else run.mutate(action);
+        }}
+      />
     );
   }
 
@@ -248,6 +300,273 @@ export function TwoStepSignInScreen({
       ) : null}
     </SettingsShell>
   );
+}
+
+/** The actions on a live method's row: "Make default" when there is a choice, and "Turn off". */
+function liveActions(
+  factor: EnrolledFactor,
+  choice: boolean,
+  labels: { makeDefault: string; turnOff: string },
+): readonly RowAction[] {
+  const off: RowAction = {
+    label: labels.turnOff,
+    action: { kind: 'disable', factorId: factor.id },
+  };
+  if (!choice || factor.isDefault) return [off];
+  return [{ label: labels.makeDefault, action: { kind: 'makeDefault', factorId: factor.id } }, off];
+}
+
+/**
+ * The list of methods (design frame "Ways to confirm it's you"): one row per method, a plain line,
+ * its On / Off / Default state and the action that changes it. Backup codes are always listed;
+ * they exist only while another method is on.
+ */
+function MethodsCard({
+  view,
+  working,
+  error,
+  notice,
+  onAction,
+}: {
+  view: FactorsView;
+  working: boolean;
+  error: string | null;
+  notice: string | null;
+  onAction: (action: Action) => void;
+}) {
+  const t = useT();
+  const live = (kind: string): EnrolledFactor | undefined =>
+    view.factors.find((factor) => factor.kind === kind && factor.confirmedAt !== null);
+  const app = live('totp');
+  const email = live('email');
+  const anyOn = app !== undefined || email !== undefined;
+  const choice = app !== undefined && email !== undefined;
+  const labels = { makeDefault: t('TwoStep.makeDefault'), turnOff: t('TwoStep.disable') };
+
+  const rows: readonly {
+    readonly key: string;
+    readonly name: string;
+    readonly line: string;
+    readonly factor: EnrolledFactor | undefined;
+    readonly actions: readonly RowAction[];
+  }[] = [
+    {
+      key: 'totp',
+      name: t('TwoStep.appName'),
+      line: t('TwoStep.appLine'),
+      factor: app,
+      actions: app
+        ? liveActions(app, choice, labels)
+        : [{ label: t('TwoStep.turnOn'), action: { kind: 'begin' }, primary: true }],
+    },
+    {
+      key: 'email',
+      name: t('TwoStep.emailName'),
+      line: view.email.verified
+        ? t('TwoStep.emailLine').replace('{address}', isolate(view.email.address))
+        : t('TwoStep.emailUnverified'),
+      factor: email,
+      actions: email
+        ? liveActions(email, choice, labels)
+        : [
+            {
+              label: t('TwoStep.turnOn'),
+              action: { kind: 'beginEmail' },
+              primary: true,
+              disabled: !view.email.verified,
+            },
+          ],
+    },
+  ];
+
+  return (
+    <section className="tm-sec-card tm-sec-card--dialog" aria-labelledby="tm-2s-methods">
+      <h2 id="tm-2s-methods" className="tm-sec-card__title">
+        {t('TwoStep.methodsTitle')}
+      </h2>
+      <p className="tm-sec-card__body">{t('TwoStep.methodsBody')}</p>
+      {notice ? (
+        <InlineAlert tone="success" live>
+          {notice}
+        </InlineAlert>
+      ) : null}
+      {error ? (
+        <InlineAlert tone="danger" title={t('TwoStep.changeError')} live>
+          {error}
+        </InlineAlert>
+      ) : null}
+      <ul className="tm-sec-methods">
+        {rows.map((row) => (
+          <li key={row.key} className="tm-sec-method">
+            <div className="tm-sec-method__text">
+              <span className="tm-sec-method__name">{row.name}</span>
+              <span className="tm-sec-method__line">{row.line}</span>
+            </div>
+            <div className="tm-sec-method__state">
+              <StatePill on={row.factor !== undefined} />
+              {row.factor && (row.factor.isDefault || !choice) ? (
+                <span className="tm-sec-pill tm-sec-pill--default">{t('TwoStep.default')}</span>
+              ) : null}
+            </div>
+            <div className="tm-sec-method__actions">
+              {row.actions.map((item) => (
+                <Button
+                  key={item.label}
+                  tone={item.primary ? 'ink' : 'outline'}
+                  size="feature"
+                  disabled={working || item.disabled === true}
+                  aria-label={`${item.label} · ${row.name}`}
+                  onClick={() => onAction(item.action)}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </div>
+          </li>
+        ))}
+        <li className="tm-sec-method">
+          <div className="tm-sec-method__text">
+            <span className="tm-sec-method__name">{t('TwoStep.backupName')}</span>
+            <span className="tm-sec-method__line">
+              {anyOn
+                ? t('TwoStep.backupLine').replace('{count}', String(view.recoveryCodesRemaining))
+                : t('TwoStep.backupOff')}
+            </span>
+          </div>
+          <div className="tm-sec-method__state">
+            <StatePill on={anyOn} />
+          </div>
+          <div className="tm-sec-method__actions">
+            {anyOn ? (
+              <Button
+                tone="outline"
+                size="feature"
+                disabled={working}
+                aria-label={`${t('TwoStep.newCodes')} · ${t('TwoStep.backupName')}`}
+                onClick={() => onAction({ kind: 'newCodes' })}
+              >
+                {t('TwoStep.newCodes')}
+              </Button>
+            ) : null}
+          </div>
+        </li>
+      </ul>
+      <p className="tm-sec-methods__note">{t('TwoStep.methodsNote')}</p>
+    </section>
+  );
+}
+
+/** Turning e-mail codes on: the code mailed to the verified address, typed back once. */
+function EmailEnrolCard({
+  enrolment,
+  working,
+  error,
+  onCancel,
+  onResend,
+  onVerify,
+}: {
+  enrolment: EmailEnrolment;
+  working: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onResend: () => void;
+  onVerify: (code: string) => void;
+}) {
+  const t = useT();
+  const codeId = useId();
+  const [code, setCode] = useState('');
+  const [now, setNow] = useState(() => Date.now());
+  const digits = code.replace(/\D/gu, '');
+  const wait = Math.max(0, Math.ceil((enrolment.resendAt - now) / 1000));
+
+  useEffect(() => {
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [enrolment.resendAt]);
+
+  return (
+    <form
+      className="tm-sec-card tm-sec-card--dialog"
+      aria-labelledby="tm-2s-email"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (digits.length === 6) onVerify(digits);
+      }}
+    >
+      <h2 id="tm-2s-email" className="tm-sec-card__title">
+        {t('TwoStep.emailTitle')}
+      </h2>
+      <p className="tm-sec-card__body" aria-live="polite">
+        {t('TwoStep.emailSent').replace('{address}', isolate(enrolment.sentTo))}
+      </p>
+      <div className="tm-sec-field">
+        <label className="tm-sec-field__label" htmlFor={codeId}>
+          {t('TwoStep.codeLabel')}
+        </label>
+        <SixDigitCode id={codeId} value={code} onChange={setCode} />
+      </div>
+      {error ? (
+        <InlineAlert tone="danger" title={t('TwoStep.verifyError')} live>
+          {error}
+        </InlineAlert>
+      ) : null}
+      <div className="tm-sec-actions tm-sec-actions--code">
+        <Button
+          tone="ink"
+          size="feature"
+          type="submit"
+          disabled={digits.length !== 6}
+          loading={working}
+          loadingLabel={t('TwoStep.verifying')}
+        >
+          {t('TwoStep.emailVerify')}
+        </Button>
+        {wait > 0 ? (
+          <span className="tm-sec-resend" aria-live="polite">
+            {t('TwoStep.resendIn').replace('{time}', clock(wait))}
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="tm-sec-resend tm-sec-resend--action"
+            disabled={working}
+            onClick={onResend}
+          >
+            {t('TwoStep.resend')}
+          </button>
+        )}
+        <Button tone="outline" size="feature" className="tm-sec-actions__end" onClick={onCancel}>
+          {t('TwoStep.cancel')}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** "On" / "Off": the check glyph carries the state too, so it is never colour alone. */
+function StatePill({ on }: { on: boolean }) {
+  const t = useT();
+  return (
+    <span className={on ? 'tm-sec-pill tm-sec-pill--on' : 'tm-sec-pill'}>
+      {on ? (
+        <span className="tm-sec-pill__glyph" aria-hidden="true">
+          ✓
+        </span>
+      ) : null}
+      {on ? t('TwoStep.on') : t('TwoStep.off')}
+    </span>
+  );
+}
+
+/** A Latin address inside a sentence, isolated so an Arabic sentence keeps its punctuation. */
+function isolate(text: string): string {
+  return `⁨${text}⁩`;
+}
+
+/** `24` → `0:24`. */
+function clock(seconds: number): string {
+  return `${String(Math.floor(seconds / 60))}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
 /** "K7QX2M4P…" → "K7QX 2M4P …", the grouping the design shows. */

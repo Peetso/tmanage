@@ -100,6 +100,8 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'GET /v1/integrations/figma/callback': 'OAuth callback: single-use state',
   'POST /v1/auth/password': 'named',
   'POST /v1/auth/mfa': 'named',
+  // MFAOPTIONS: mails a sign-in code; signed challenge + 30 s / 5 per hour send budget.
+  'POST /v1/auth/mfa/email-code': 'named',
   'POST /v1/auth/recovery-code': 'named',
   'POST /v1/password-resets/': 'named',
   'POST /v1/password-resets/completions': 'named',
@@ -169,6 +171,10 @@ export const SESSION_ONLY_ROUTES: Readonly<Record<string, string>> = {
   'POST /v1/auth/password/set': 'own password',
   'POST /v1/auth/factors/totp': 'own second factor',
   'POST /v1/auth/factors/totp/confirm': 'own second factor',
+  // MFAOPTIONS: the e-mail method and the default method (fresh proof).
+  'POST /v1/auth/factors/email': 'own second factor',
+  'POST /v1/auth/factors/email/confirm': 'own second factor',
+  'POST /v1/auth/factors/:factorId/default': 'own second factor (fresh proof, else 404)',
   'GET /v1/auth/factors': 'own second factors',
   'GET /v1/auth/security-activity': 'own sign-in history',
   'DELETE /v1/auth/factors/:factorId': 'own second factor',

@@ -1,0 +1,75 @@
+/*
+ * The six-box code field (`SixDigitCode.tsx`): one real input over six painted cells. Shared by the
+ * sign-in challenge (ID-02) and turning on the e-mail method in Security (MFAOPTIONS).
+ */
+
+.tm-id-code__frame {
+  position: relative;
+  inline-size: max-content;
+  max-inline-size: 100%;
+}
+
+.tm-id-code__cells {
+  display: flex;
+  gap: 10px;
+}
+
+.tm-id-code__cell {
+  display: grid;
+  place-items: center;
+  inline-size: 56px;
+  block-size: 64px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-50);
+  color: var(--ink-950);
+  font-family: var(--font-mono);
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.tm-id-code__cell--empty {
+  color: var(--ink-500);
+}
+
+/* The one real input sits over the six painted cells: one field, one announcement, autofill. */
+.tm-id-code__input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  font-size: 26px;
+  outline: none;
+}
+
+.tm-id-code__input:focus-visible + .tm-id-code__cells .tm-id-code__cell--active {
+  background: var(--paper-0);
+  border: var(--b-expressive) solid var(--ink-950);
+  box-shadow: 0 0 0 3px var(--lime-500);
+}
+
+.tm-id-code__input:disabled {
+  cursor: not-allowed;
+}
+
+.tm-id-code__frame:has(.tm-id-code__input:disabled) .tm-id-code__cell {
+  color: var(--ink-500);
+}
+
+@media (max-width: 560px) {
+  .tm-id-code__cells {
+    gap: 6px;
+  }
+
+  .tm-id-code__cell {
+    inline-size: 44px;
+    block-size: 54px;
+    font-size: 22px;
+  }
+}

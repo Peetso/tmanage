@@ -1,17 +1,28 @@
 'use client';
 
 import Link from 'next/link';
-import { useId, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { completeMfaChallenge, completeWithRecoveryCode } from '../../lib/api/auth';
+import {
+  completeMfaChallenge,
+  completeWithRecoveryCode,
+  sendSignInEmailCode,
+} from '../../lib/api/auth';
 import type { ApiClient } from '../../lib/api/client';
 import { useHydrated } from '../../lib/use-hydrated';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { SixDigitCode } from './SixDigitCode';
 import '../../styles/screens/identity.css';
+
+/** One enabled method, as the challenge lists it (default first). No secrets, no identifiers. */
+export interface ChallengeFactor {
+  readonly kind: string;
+  readonly label: string;
+}
 
 export interface MfaChallengeScreenProps {
   client?: ApiClient;
@@ -24,47 +35,49 @@ export interface MfaChallengeScreenProps {
    * link back to sign-in — and none of the form, which could do nothing without a token.
    */
   challengeToken?: string;
-  /** The factor's label, from the challenge. Device context, per `22` §3. */
-  factorLabel?: string;
-  organizationName?: string;
+  /**
+   * MFAOPTIONS. The person's enabled methods from the challenge, the default first. The server
+   * decides this list; the screen only offers what is in it (plus backup codes, always). Absent =
+   * an authenticator app.
+   */
+  factors?: readonly ChallengeFactor[];
   /** Renders the rate-limited state without needing to fail five times to see it. */
   rateLimited?: boolean;
   onCompleted?: () => void;
 }
 
-type Method = 'code' | 'recovery';
+type Method = 'totp' | 'email' | 'recovery';
+
+/** What the e-mail method has done so far in this challenge. */
+type EmailState =
+  | { readonly phase: 'idle' }
+  | { readonly phase: 'sending' }
+  | { readonly phase: 'sent'; readonly sentTo: string; readonly resendAt: number };
+
+const DEFAULT_FACTORS: readonly ChallengeFactor[] = [{ kind: 'totp', label: 'Authenticator app' }];
 
 /**
- * **ID-02 MFA / passkey challenge.**
+ * **ID-02 two-step challenge (MFAOPTIONS).**
  *
- * `22-SCREEN-BY-SCREEN` §3: "Show method, device context, fallback policy, trust-device
- * duration. Never expose whether an unrelated account exists."
- *
- * The second rule is why this screen names no email address and no account. It says which
- * factor was asked for and offers the fallbacks; it confirms that no particular person exists.
+ * `22-SCREEN-BY-SCREEN` §3: "Show method, device context, fallback policy. Never expose whether an
+ * unrelated account exists." The default method's code field comes first; "Try another way" lists
+ * the person's other enabled methods and backup codes. For the e-mail method the address is shown
+ * masked (`p•••@domain`) as the API returned it, with a 30-second wait before a new code.
  *
  * ## The code field is one input, not six boxes
  *
- * The export draws six character cells. Six separate `<input>` elements is the usual way to
- * build that and it is a known accessibility failure: a screen reader announces six unlabelled
- * fields, a password manager cannot fill it, paste behaves differently in every browser, and
- * backspace has to be re-implemented. One `<input inputmode="numeric"
- * autocomplete="one-time-code">` gets platform autofill, paste and a single announcement — and
- * can be *styled* as cells later without changing any of that. `40-DESIGN-SYSTEM` §1 gives the
- * export authority over composition, not over the elements underneath it.
+ * {@link SixDigitCode}: one input under six painted cells, hidden from assistive technology.
  *
- * ## Two methods, one endpoint each
+ * ## One endpoint per credential
  *
- * A code from an authenticator and a recovery code go to different routes, because they are
- * different credentials with different consequences — one is reusable next time, the other is
- * spent forever. The screen makes the person choose rather than guessing from the shape of
- * what they typed: a six-digit recovery code is possible, and a wrong guess would spend one.
+ * An authenticator or e-mail code goes to `/v1/auth/mfa` (with `method: 'email'` for the second);
+ * a backup code goes to `/v1/auth/recovery-code`, because it is spent forever. The person chooses
+ * rather than the screen guessing from the shape of what they typed.
  */
 export function MfaChallengeScreen({
   client,
   challengeToken,
-  factorLabel = 'Authenticator app',
-  organizationName,
+  factors = DEFAULT_FACTORS,
   rateLimited = false,
   onCompleted,
 }: MfaChallengeScreenProps) {
@@ -73,21 +86,51 @@ export function MfaChallengeScreen({
   const t = useT();
   const tOr = useTOr();
 
-  // Reached at its own route, the method radios and the code field are controlled inputs in the
-  // server HTML with no query to gate them. They hang on the hydration signal instead — disabled
-  // in the server render, enabled once React is live — so a code typed on a cold page survives
-  // hydration. In the sign-in flow this screen is only ever mounted after React is already live,
-  // where the signal is already true and the gate is a no-op.
+  // Reached at its own route, the form's controlled inputs are in the server HTML with no query to
+  // gate them. They hang on the hydration signal instead — disabled in the server render, enabled
+  // once React is live — so a code typed on a cold page survives hydration.
   const hydrated = useHydrated();
   const codeId = useId();
 
-  const [method, setMethod] = useState<Method>('code');
+  const totpFactor = factors.find((factor) => factor.kind === 'totp');
+  const hasEmail = factors.some((factor) => factor.kind === 'email');
+  const firstMethod: Method = factors[0]?.kind === 'email' ? 'email' : 'totp';
+
+  const [method, setMethod] = useState<Method>(firstMethod);
   const [value, setValue] = useState('');
   const [working, setWorking] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
+  const [email, setEmail] = useState<EmailState>({ phase: 'idle' });
+  const now = useNow(email.phase === 'sent');
 
   const digitsOnly = value.replace(/\D/g, '');
-  const codeLooksComplete = method === 'code' ? digitsOnly.length === 6 : value.trim() !== '';
+  const codeLooksComplete = method === 'recovery' ? value.trim() !== '' : digitsOnly.length === 6;
+
+  const sendEmailCode = useCallback(async () => {
+    if (!challengeToken) return;
+    setEmail({ phase: 'sending' });
+    setFailure(undefined);
+    try {
+      const sent = await sendSignInEmailCode(api, { challengeToken });
+      setEmail({
+        phase: 'sent',
+        sentTo: sent.sentTo,
+        resendAt: Date.now() + sent.resendAfterSeconds * 1000,
+      });
+    } catch (error) {
+      setEmail({ phase: 'idle' });
+      setFailure(describe(error));
+    }
+  }, [api, challengeToken, describe]);
+
+  // The e-mail method as the default: one code is sent when the step opens. The ref keeps a
+  // development double-mount from sending two.
+  const autoSent = useRef(false);
+  useEffect(() => {
+    if (autoSent.current || firstMethod !== 'email' || !challengeToken || rateLimited) return;
+    autoSent.current = true;
+    void sendEmailCode();
+  }, [firstMethod, challengeToken, rateLimited, sendEmailCode]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -98,9 +141,9 @@ export function MfaChallengeScreen({
     }
     if (!codeLooksComplete) {
       setFailure(
-        method === 'code'
-          ? t('MfaChallengeScreen.enterAllDigits')
-          : t('MfaChallengeScreen.enterRecovery'),
+        method === 'recovery'
+          ? t('MfaChallengeScreen.enterRecovery')
+          : t('MfaChallengeScreen.enterAllDigits'),
       );
       return;
     }
@@ -109,10 +152,12 @@ export function MfaChallengeScreen({
     setFailure(undefined);
 
     try {
-      if (method === 'code') {
-        await completeMfaChallenge(api, { challengeToken, code: digitsOnly });
-      } else {
+      if (method === 'recovery') {
         await completeWithRecoveryCode(api, { challengeToken, code: value.trim() });
+      } else if (method === 'email') {
+        await completeMfaChallenge(api, { challengeToken, code: digitsOnly, method: 'email' });
+      } else {
+        await completeMfaChallenge(api, { challengeToken, code: digitsOnly });
       }
       onCompleted?.();
     } catch (error) {
@@ -127,6 +172,7 @@ export function MfaChallengeScreen({
     setMethod(next);
     setValue('');
     setFailure(undefined);
+    if (next === 'email' && email.phase === 'idle') void sendEmailCode();
   }
 
   if (challengeToken === undefined) {
@@ -135,7 +181,7 @@ export function MfaChallengeScreen({
     return (
       <IdentityShell
         screenId="ID-02"
-        eyebrow={tOr('MfaChallengeScreen.eyebrow', 'Second factor')}
+        eyebrow={tOr('MfaChallengeScreen.eyebrow', 'Sign in')}
         footer={<Link href="/sign-in">{t('RecoveryScreen.backToSignIn')}</Link>}
       >
         <div className="tm-id-bare tm-id-card tm-id-mfa tm-stack">
@@ -148,66 +194,62 @@ export function MfaChallengeScreen({
     );
   }
 
-  const cells = Array.from({ length: 6 }, (_, index) => digitsOnly.charAt(index));
-  const activeCell = Math.min(digitsOnly.length, 5);
+  const waitSeconds =
+    email.phase === 'sent' ? Math.max(0, Math.ceil((email.resendAt - now) / 1000)) : 0;
+
+  const lede =
+    method === 'recovery'
+      ? t('MfaChallengeScreen.recoveryLede')
+      : method === 'totp'
+        ? t('MfaChallengeScreen.totpLede')
+        : email.phase === 'sent'
+          ? // Isolated: a Latin address must not pull an Arabic sentence's full stop to its side.
+            t('MfaChallengeScreen.emailLede').replace('{address}', `⁨${email.sentTo}⁩`)
+          : t('MfaChallengeScreen.emailSending');
+
+  const others: {
+    readonly method: Method;
+    readonly glyph: string;
+    readonly name: string;
+    readonly action: string;
+  }[] = [];
+  if (method !== 'email' && hasEmail) {
+    others.push({
+      method: 'email',
+      glyph: '@',
+      name: t('MfaChallengeScreen.useEmail'),
+      action: t('MfaChallengeScreen.send'),
+    });
+  }
+  if (method !== 'totp' && totpFactor) {
+    others.push({
+      method: 'totp',
+      glyph: '#',
+      name: t('MfaChallengeScreen.useApp'),
+      action: t('MfaChallengeScreen.use'),
+    });
+  }
+  if (method !== 'recovery') {
+    others.push({
+      method: 'recovery',
+      glyph: '▤',
+      name: t('MfaChallengeScreen.useBackup'),
+      action: t('MfaChallengeScreen.enter'),
+    });
+  }
 
   return (
-    <IdentityShell screenId="ID-02" eyebrow={tOr('MfaChallengeScreen.eyebrow', 'Second factor')}>
+    <IdentityShell screenId="ID-02" eyebrow={tOr('MfaChallengeScreen.eyebrow', 'Sign in')}>
       <form className="tm-id-bare tm-id-card tm-id-mfa" noValidate onSubmit={submit}>
         <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
           <div className="tm-id-intro">
             <h1 className="tm-identity__title">{t('MfaChallengeScreen.title')}</h1>
-            <p className="tm-id-lede">
-              {organizationName ?? t('MfaChallengeScreen.orgFallback')}{' '}
-              {t('MfaChallengeScreen.requiresSecondFactor')}
+            <p className="tm-id-lede" aria-live="polite">
+              {lede}
             </p>
           </div>
 
-          {method === 'code' ? (
-            <div className="tm-id-code">
-              <label className="tm-field__label" htmlFor={codeId}>
-                {t('MfaChallengeScreen.sixDigitCode')}
-              </label>
-              <div className="tm-id-code__frame">
-                <input
-                  id={codeId}
-                  className="tm-id-code__input"
-                  name="code"
-                  value={value}
-                  onChange={(event) => {
-                    setValue(event.target.value);
-                    setFailure(undefined);
-                  }}
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={7}
-                  // Codes are digits in every locale, so the field stays LTR in an RTL document.
-                  dir="ltr"
-                  aria-describedby={`${codeId}-hint`}
-                  disabled={rateLimited}
-                />
-                <div className="tm-id-code__cells" aria-hidden="true" dir="ltr">
-                  {cells.map((digit, index) => (
-                    <span
-                      key={index}
-                      className={[
-                        'tm-id-code__cell',
-                        digit === '' ? 'tm-id-code__cell--empty' : null,
-                        index === activeCell ? 'tm-id-code__cell--active' : null,
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                    >
-                      {digit === '' ? '·' : digit}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              <span className="tm-field__hint" id={`${codeId}-hint`}>
-                {t('MfaChallengeScreen.codeHint')}
-              </span>
-            </div>
-          ) : (
+          {method === 'recovery' ? (
             <Field
               className="tm-id-recovery-field"
               label={t('MfaChallengeScreen.recoveryLabel')}
@@ -223,6 +265,27 @@ export function MfaChallengeScreen({
               hint={t('MfaChallengeScreen.recoveryHint')}
               disabled={rateLimited}
             />
+          ) : (
+            <div className="tm-id-code">
+              <label className="tm-field__label" htmlFor={codeId}>
+                {t('MfaChallengeScreen.sixDigitCode')}
+              </label>
+              <SixDigitCode
+                id={codeId}
+                value={value}
+                onChange={(next) => {
+                  setValue(next);
+                  setFailure(undefined);
+                }}
+                describedBy={`${codeId}-hint`}
+                disabled={rateLimited || (method === 'email' && email.phase !== 'sent')}
+              />
+              <span className="tm-field__hint" id={`${codeId}-hint`}>
+                {method === 'email'
+                  ? t('MfaChallengeScreen.emailHint')
+                  : t('MfaChallengeScreen.codeHint')}
+              </span>
+            </div>
           )}
 
           {failure ? (
@@ -236,80 +299,59 @@ export function MfaChallengeScreen({
               type="submit"
               tone="ink"
               size="accessible"
-              disabled={rateLimited || challengeToken === undefined}
+              disabled={rateLimited || (method === 'email' && email.phase !== 'sent')}
               loading={working}
               loadingLabel={t('MfaChallengeScreen.verifying')}
             >
               {t('MfaChallengeScreen.verify')}
             </Button>
-            <p className="tm-id-expiry">
-              <span className="tm-visually-hidden">{t('MfaChallengeScreen.factorPrefix')}</span>
-              <span>{factorLabel}</span>
-            </p>
+            {method === 'totp' && totpFactor ? (
+              <p className="tm-id-expiry">
+                <span className="tm-visually-hidden">{t('MfaChallengeScreen.factorPrefix')}</span>
+                <span>{totpFactor.label}</span>
+              </p>
+            ) : null}
+            {method === 'email' && email.phase === 'sent' ? (
+              waitSeconds > 0 ? (
+                <p className="tm-id-expiry" aria-live="off">
+                  {t('MfaChallengeScreen.newCodeIn').replace('{time}', clock(waitSeconds))}
+                </p>
+              ) : (
+                <button type="button" className="tm-id-resend" onClick={() => void sendEmailCode()}>
+                  {t('MfaChallengeScreen.resend')}
+                </button>
+              )
+            ) : null}
           </div>
         </fieldset>
       </form>
 
-      <fieldset className="tm-id-fallbacks" disabled={!hydrated}>
-        <legend>{t('MfaChallengeScreen.howVerify')}</legend>
-        <label className="tm-id-fallback">
-          <input
-            className="tm-id-fallback__input"
-            type="radio"
-            name="method"
-            value="code"
-            checked={method === 'code'}
-            onChange={() => choose('code')}
-          />
-          <span className="tm-id-fallback__glyph" aria-hidden="true">
-            #
-          </span>
-          <span className="tm-id-fallback__text">
-            <span className="tm-id-fallback__name">{t('MfaChallengeScreen.codeMethodName')}</span>
-            <span className="tm-id-fallback__detail">
-              {t('MfaChallengeScreen.sixDigitsFrom')} {factorLabel}.
-            </span>
-          </span>
-          <span className="tm-id-fallback__action" aria-hidden="true">
-            {t('MfaChallengeScreen.use')}
-          </span>
-        </label>
-        <label className="tm-id-fallback">
-          <input
-            className="tm-id-fallback__input"
-            type="radio"
-            name="method"
-            value="recovery"
-            checked={method === 'recovery'}
-            onChange={() => choose('recovery')}
-          />
-          <span className="tm-id-fallback__glyph" aria-hidden="true">
-            ▤
-          </span>
-          <span className="tm-id-fallback__text">
-            <span className="tm-id-fallback__name">
-              {t('MfaChallengeScreen.recoveryMethodName')}
-            </span>
-            <span className="tm-id-fallback__detail">
-              {t('MfaChallengeScreen.recoveryMethodDetail')}
-            </span>
-          </span>
-          <span className="tm-id-fallback__action" aria-hidden="true">
-            {t('MfaChallengeScreen.enter')}
-          </span>
-        </label>
-        {/* Admin-assisted verification is not built: shown, never offered. Passkeys are not
-            shown at all until 56-22 ships them (57-05 honesty fix). */}
-        <div className="tm-id-fallback tm-id-fallback--off">
-          <span className="tm-id-fallback__glyph" aria-hidden="true">
-            ✉
-          </span>
-          <span className="tm-id-fallback__text">
-            <span className="tm-id-fallback__name">{t('MfaChallengeScreen.adminName')}</span>
-          </span>
-          <span className="tm-id-fallback__action">{t('MfaChallengeScreen.notAvailable')}</span>
-        </div>
-      </fieldset>
+      {others.length > 0 ? (
+        <section className="tm-id-fallbacks" aria-labelledby={`${codeId}-others`}>
+          <h2 id={`${codeId}-others`} className="tm-id-fallbacks__title">
+            {t('MfaChallengeScreen.tryAnotherWay')}
+          </h2>
+          {others.map((other) => (
+            <button
+              key={other.method}
+              type="button"
+              className="tm-id-fallback"
+              disabled={!hydrated || working}
+              onClick={() => choose(other.method)}
+            >
+              <span className="tm-id-fallback__glyph" aria-hidden="true">
+                {other.glyph}
+              </span>
+              <span className="tm-id-fallback__text">
+                <span className="tm-id-fallback__name">{other.name}</span>
+              </span>
+              <span className="tm-id-fallback__action" aria-hidden="true">
+                {other.action}
+              </span>
+            </button>
+          ))}
+        </section>
+      ) : null}
 
       {rateLimited ? (
         <InlineAlert
@@ -323,4 +365,21 @@ export function MfaChallengeScreen({
       ) : null}
     </IdentityShell>
   );
+}
+
+/** `24` → `0:24`. */
+function clock(seconds: number): string {
+  return `${String(Math.floor(seconds / 60))}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+/** The current time, ticking once a second while `running`. */
+function useNow(running: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!running) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [running]);
+  return now;
 }

@@ -22,6 +22,12 @@ import type { SessionService } from './session.service.js';
 import type { SessionsRepository } from './sessions.repository.js';
 import { createSignInAbuseControl } from './sign-in-abuse-control.js';
 import { base32Decode, hotpCode, totpCounterAt } from './totp.js';
+import type { EmailCodesRepository } from './email-codes.repository.js';
+
+/** MFAOPTIONS: no mailed codes in this file; a challenge is never exhausted by them. */
+const NO_EMAIL_CODES = {
+  isExhausted: () => Promise.resolve(false),
+} as unknown as EmailCodesRepository;
 
 /**
  * N01 (security run 3, wave 11, lane Q2) - the lockout a guesser re-arms right after a reset.
@@ -210,6 +216,7 @@ function world() {
       findStanding: () => Promise.resolve({ disabledAt: null, twoStepRequiredAt: null }),
     } as unknown as SessionsRepository,
     { revokeAllForUser: () => Promise.resolve({ personalAccessTokens: 0, grants: 0 }) },
+    NO_EMAIL_CODES,
   );
 
   const tokens = new Map<string, ResetTarget>();
@@ -458,6 +465,7 @@ describe('N01 (wave 11): the reset sign-in grant', () => {
         lastUsedAt: null,
         createdAt: new Date(T0 - 86_400_000),
         disabledAt: null,
+        isDefault: false,
       },
     ]);
     const { grant } = await w.reset(ALICE);
@@ -486,6 +494,7 @@ describe('N01 (wave 12): the grant carries on to the second-factor step', () => 
         lastUsedAt: null,
         createdAt: new Date(T0 - 86_400_000),
         disabledAt: null,
+        isDefault: false,
       },
     ]);
   }

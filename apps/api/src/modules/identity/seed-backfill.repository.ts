@@ -125,8 +125,12 @@ const ENVELOPE_PREFIX = 'mfa1.';
  * `disabled_at` is read for `status` alone, to tell a row that can still refuse a sign-in
  * from one an operator has already retired. The sweep ignores it on purpose: a disabled row
  * still holds a seed, and leaving it in plaintext would defeat the point of D07.
+ *
+ * MFAOPTIONS (0360): only `totp` rows hold a seed. An `email` row stores `''` by design and would
+ * otherwise be reported as an `empty` failure on every run.
  */
-const SELECT_SECRETS = 'SELECT id, user_id, secret, disabled_at FROM user_mfa_factors ORDER BY id';
+const SELECT_SECRETS =
+  "SELECT id, user_id, secret, disabled_at FROM user_mfa_factors WHERE kind = 'totp' ORDER BY id";
 
 /**
  * The compare-and-swap. `secret = ?` is the previous value, read moments ago; without it

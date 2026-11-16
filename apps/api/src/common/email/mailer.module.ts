@@ -7,11 +7,13 @@ import type { DynamicModule, Provider } from '@nestjs/common';
 import {
   INVITATION_MAILER,
   MAILER,
+  MFA_CODE_MAILER,
   PASSWORD_RESET_MAILER,
   TENANT_DATABASE,
   WELCOME_MAILER,
 } from '../http/tokens.js';
 import { InvitationMailer } from './invitation-mailer.js';
+import { MfaCodeMailer } from './mfa-code-email.js';
 import { PasswordResetMailer } from './password-reset-email.js';
 import { WelcomeMailer } from './welcome-email.js';
 
@@ -75,6 +77,8 @@ function producersFor(mailer: Mailer | null, webPublicUrl: string) {
     invitation: new InvitationMailer(keyed('invitation'), webPublicUrl),
     passwordReset: new PasswordResetMailer(keyed('password_reset'), webPublicUrl),
     welcome: new WelcomeMailer(keyed('welcome'), webPublicUrl),
+    // MFAOPTIONS. `mfa_code` is the auth lane lanes.ts already reserves (10-minute deadline).
+    mfaCode: new MfaCodeMailer(keyed('mfa_code')),
   };
 }
 
@@ -87,11 +91,13 @@ function moduleFor(mailer: Mailer | null, webPublicUrl: string): DynamicModule {
     useValue: producers.passwordReset,
   };
   const welcomeMailer: Provider = { provide: WELCOME_MAILER, useValue: producers.welcome };
+  const mfaCodeMailer: Provider = { provide: MFA_CODE_MAILER, useValue: producers.mfaCode };
+  const all = [mailerProvider, invitationMailer, passwordResetMailer, welcomeMailer, mfaCodeMailer];
   return {
     module: MailerModule,
     global: true,
-    providers: [mailerProvider, invitationMailer, passwordResetMailer, welcomeMailer],
-    exports: [mailerProvider, invitationMailer, passwordResetMailer, welcomeMailer],
+    providers: all,
+    exports: all,
   };
 }
 
@@ -117,6 +123,7 @@ function queuedModule(webPublicUrl: string): DynamicModule {
     from(INVITATION_MAILER, (q) => q.invitation),
     from(PASSWORD_RESET_MAILER, (q) => q.passwordReset),
     from(WELCOME_MAILER, (q) => q.welcome),
+    from(MFA_CODE_MAILER, (q) => q.mfaCode),
   ];
   return {
     module: MailerModule,

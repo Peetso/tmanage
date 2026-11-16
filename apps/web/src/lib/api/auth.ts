@@ -63,9 +63,13 @@ export async function signInWithPassword(
   return data;
 }
 
+/**
+ * Finish the second step with a six-digit code. `method: 'email'` says the code came by e-mail;
+ * without it the code is an authenticator code. The API accepts only a method the person holds.
+ */
 export async function completeMfaChallenge(
   client: ApiClient,
-  input: { challengeToken: string; code: string },
+  input: { challengeToken: string; code: string; method?: 'email' },
 ): Promise<AuthenticatedResponse> {
   const { data } = await client.request<AuthenticatedResponse>({
     method: 'POST',
@@ -74,6 +78,27 @@ export async function completeMfaChallenge(
     authentication: 'none',
   });
   client.rememberCsrfToken(data.csrfToken);
+  return data;
+}
+
+/** MFAOPTIONS. Where a two-step code was mailed (masked), and the resend and expiry times. */
+export interface EmailCodeSentView {
+  readonly sentTo: string;
+  readonly resendAfterSeconds: number;
+  readonly expiresInSeconds: number;
+}
+
+/** MFAOPTIONS. "Get a code by e-mail" during sign-in. 429 inside the 30-second pause. */
+export async function sendSignInEmailCode(
+  client: ApiClient,
+  input: { challengeToken: string },
+): Promise<EmailCodeSentView> {
+  const { data } = await client.request<EmailCodeSentView>({
+    method: 'POST',
+    path: '/v1/auth/mfa/email-code',
+    body: input,
+    authentication: 'none',
+  });
   return data;
 }
 
@@ -97,15 +122,24 @@ export interface EnrolledFactor {
   readonly label: string;
   /** `null` while enrolment is unfinished. An unconfirmed factor authorises nothing. */
   readonly confirmedAt: string | null;
+  /** MFAOPTIONS: the method a sign-in asks for first. */
+  readonly isDefault: boolean;
 }
 
-export async function listFactors(
-  client: ApiClient,
-): Promise<{ factors: readonly EnrolledFactor[]; recoveryCodesRemaining: number }> {
-  const { data } = await client.request<{
-    factors: readonly EnrolledFactor[];
-    recoveryCodesRemaining: number;
-  }>({ path: '/v1/auth/factors' });
+/** MFAOPTIONS. The account address an e-mail code goes to (masked) and whether it is verified. */
+export interface FactorMailContact {
+  readonly address: string;
+  readonly verified: boolean;
+}
+
+export interface FactorsView {
+  readonly factors: readonly EnrolledFactor[];
+  readonly recoveryCodesRemaining: number;
+  readonly email: FactorMailContact;
+}
+
+export async function listFactors(client: ApiClient): Promise<FactorsView> {
+  const { data } = await client.request<FactorsView>({ path: '/v1/auth/factors' });
   return data;
 }
 
@@ -170,6 +204,57 @@ export async function confirmTotpEnrolment(
     body: input,
   });
   return data;
+}
+
+/** MFAOPTIONS. `POST /v1/auth/factors/email`: the pending method and where its code went. */
+export interface EmailFactorStartedView extends EmailCodeSentView {
+  readonly factorId: string;
+}
+
+/** MFAOPTIONS. Begin turning e-mail codes on; mails a code. Needs the re-auth proof. */
+export async function beginEmailFactor(
+  client: ApiClient,
+  reauthToken?: string,
+): Promise<EmailFactorStartedView> {
+  const { data } = await client.request<EmailFactorStartedView>({
+    method: 'POST',
+    path: '/v1/auth/factors/email',
+    ...reauthHeaders(reauthToken),
+  });
+  return data;
+}
+
+/** MFAOPTIONS. Finish turning e-mail codes on. New backup codes only when none were left. */
+export async function confirmEmailFactor(
+  client: ApiClient,
+  input: { factorId: string; code: string },
+  reauthToken?: string,
+): Promise<{ recoveryCodes: readonly string[] }> {
+  const { data } = await client.request<{ recoveryCodes: readonly string[] }>({
+    method: 'POST',
+    path: '/v1/auth/factors/email/confirm',
+    ...reauthHeaders(reauthToken),
+    body: input,
+  });
+  return data;
+}
+
+/** MFAOPTIONS. Make one method the one a sign-in asks for first. Needs the re-auth proof. */
+export async function setDefaultFactor(
+  client: ApiClient,
+  factorId: string,
+  reauthToken?: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'POST',
+    path: `/v1/auth/factors/${encodeURIComponent(factorId)}/default`,
+    ...reauthHeaders(reauthToken),
+  });
+}
+
+/** The `x-reauth-token` header when a step-up proof is held; nothing otherwise (the API asks). */
+function reauthHeaders(reauthToken: string | undefined): { headers?: Record<string, string> } {
+  return reauthToken === undefined ? {} : { headers: { [REAUTH_HEADER]: reauthToken } };
 }
 
 export async function regenerateRecoveryCodes(

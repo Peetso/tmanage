@@ -87,6 +87,8 @@ export const PUBLIC_ROUTE_POLICIES: Readonly<Record<string, ThrottlePolicy>> = {
   'InvitationAcceptanceController.register': sharedInvitation,
   'AuthenticationController.signInWithPassword': sharedSignIn,
   'AuthenticationController.completeMfa': sharedSignIn,
+  // MFAOPTIONS: mails a sign-in code; the service adds the 30 s / 5 per hour send budget.
+  'AuthenticationController.sendEmailCode': sharedSignIn,
   'AuthenticationController.completeWithRecoveryCode': sharedSignIn,
   'OAuthRegisterController.register': sharedOAuth,
   'OAuthTokenController.token': sharedOAuth,

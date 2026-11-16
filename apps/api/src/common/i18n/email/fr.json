@@ -47,5 +47,12 @@
   "emailChange.previousEmail": "E-mail précédent",
   "emailChange.newEmail": "Nouvel e-mail",
   "securityAck.subject": "Nous avons bien reçu votre signalement de sécurité {reference}",
-  "securityAck.text": "Merci. Nous avons bien reçu votre signalement de sécurité, référence {reference}.\nL’équipe sécurité va l’examiner et vous contactera si des informations complémentaires sont nécessaires.\nSi vous n’avez pas envoyé ce signalement, vous pouvez ignorer ce message."
+  "securityAck.text": "Merci. Nous avons bien reçu votre signalement de sécurité, référence {reference}.\nL’équipe sécurité va l’examiner et vous contactera si des informations complémentaires sont nécessaires.\nSi vous n’avez pas envoyé ce signalement, vous pouvez ignorer ce message.",
+  "mfaCode.subject": "Votre code de vérification TManage",
+  "mfaCode.eyebrow": "Validation en deux étapes",
+  "mfaCode.heading": "Bonjour {name}, voici votre code",
+  "mfaCode.introSignIn": "Utilisez ce code pour terminer votre connexion à TManage. Il confirme que c’est bien vous après votre mot de passe.",
+  "mfaCode.introEnrol": "Utilisez ce code pour activer les codes par e-mail pour la validation en deux étapes de votre compte TManage.",
+  "mfaCode.note": "Le code fonctionne une seule fois et expire dans {minutes} minutes. TManage ne vous le demandera jamais par téléphone ou par chat.",
+  "mfaCode.footer": "Si vous ne l’avez pas demandé, quelqu’un connaît peut-être votre mot de passe : changez-le dans TManage. Cet e-mail ne contient aucun lien de connexion."
 }

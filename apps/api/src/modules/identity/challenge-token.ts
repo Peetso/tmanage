@@ -44,8 +44,12 @@ const CHALLENGE_TOKEN_VERSION = 'c1';
 const CHALLENGE_TOKEN_VERSION_VIA_RESET_GRANT = 'c2';
 const CHALLENGE_TOKEN_PURPOSE = 'mfa';
 
-/** Five minutes. Long enough to find a phone, short enough that a logged token is usually dead. */
-export const CHALLENGE_TTL_SECONDS = 300;
+/**
+ * Ten minutes. Long enough to find a phone or to wait for the mailed code (MFAOPTIONS: an e-mail
+ * code works for ten minutes, and the challenge it finishes must last as long), short enough that
+ * a logged token is usually dead. Raised from five minutes for the e-mail method.
+ */
+export const CHALLENGE_TTL_SECONDS = 600;
 
 export interface ChallengeClaims {
   readonly userId: string;

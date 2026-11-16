@@ -47,5 +47,12 @@
   "emailChange.previousEmail": "E-mail anterior",
   "emailChange.newEmail": "Novo e-mail",
   "securityAck.subject": "Recebemos seu relatório de segurança {reference}",
-  "securityAck.text": "Obrigado. Recebemos seu relatório de segurança, referência {reference}.\nA equipe de segurança vai analisá-lo e entrará em contato se precisar de mais informações.\nSe você não enviou este relatório, pode ignorar esta mensagem."
+  "securityAck.text": "Obrigado. Recebemos seu relatório de segurança, referência {reference}.\nA equipe de segurança vai analisá-lo e entrará em contato se precisar de mais informações.\nSe você não enviou este relatório, pode ignorar esta mensagem.",
+  "mfaCode.subject": "Seu código de verificação do TManage",
+  "mfaCode.eyebrow": "Verificação em duas etapas",
+  "mfaCode.heading": "Olá {name}, aqui está seu código",
+  "mfaCode.introSignIn": "Use este código para concluir o login no TManage. Ele confirma que é você depois da senha.",
+  "mfaCode.introEnrol": "Use este código para ativar os códigos por e-mail na verificação em duas etapas da sua conta TManage.",
+  "mfaCode.note": "O código funciona uma vez e expira em {minutes} minutos. O TManage nunca pede este código por telefone ou chat.",
+  "mfaCode.footer": "Se você não pediu isto, alguém pode saber sua senha: altere-a no TManage. Este e-mail não contém link de login."
 }

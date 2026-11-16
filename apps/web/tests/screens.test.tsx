@@ -239,7 +239,7 @@ describe('ID-02 MFA', () => {
     const user = userEvent.setup();
     render(<MfaChallengeScreen challengeToken="c1.mfa.u.1.sig" />);
 
-    await user.click(screen.getByRole('radio', { name: /A recovery code/ }));
+    await user.click(screen.getByRole('button', { name: /Use a backup code/ }));
     expect(screen.getByLabelText(/Recovery code/)).toBeInTheDocument();
     expect(screen.queryByLabelText(/Six-digit code/)).toBeNull();
   });
@@ -285,7 +285,12 @@ describe('ID-02 MFA', () => {
   });
 
   it('names the factor from the challenge as device context', () => {
-    render(<MfaChallengeScreen challengeToken="c1.mfa.u.1.sig" factorLabel="Omar’s iPhone" />);
+    render(
+      <MfaChallengeScreen
+        challengeToken="c1.mfa.u.1.sig"
+        factors={[{ kind: 'totp', label: 'Omar’s iPhone' }]}
+      />,
+    );
     expect(screen.getByText('Omar’s iPhone')).toBeInTheDocument();
   });
 });

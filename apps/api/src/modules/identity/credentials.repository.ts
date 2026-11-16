@@ -83,7 +83,24 @@ export type UserMfaFactorSummary = {
   readonly kind: string;
   readonly label: string;
   readonly confirmedAt: Date | null;
+  /** MFAOPTIONS: the method a sign-in asks for first. */
+  readonly isDefault: boolean;
 };
+
+/** MFAOPTIONS. The two kinds a `user_mfa_factors` row can be. Only `totp` holds a seed. */
+export const TOTP_FACTOR_KIND = 'totp';
+export const EMAIL_FACTOR_KIND = 'email';
+
+/**
+ * MFAOPTIONS. The order factors are listed and asked for in: the person's chosen default first;
+ * with none chosen, the authenticator before the e-mail method (the e-mail method was added
+ * later and never takes over by being newer); then newest first, as before 0360.
+ */
+const FACTOR_ORDER = [
+  desc(userMfaFactors.isDefault),
+  sql`case when ${userMfaFactors.kind} = ${TOTP_FACTOR_KIND} then 0 else 1 end`,
+  desc(userMfaFactors.createdAt),
+] as const;
 
 /**
  * The four refusals `D05`'s gate writes when a credential-changing route is asked for without
@@ -278,6 +295,8 @@ const CREDENTIAL_CHANGE_ACTIONS: readonly string[] = [
   'mfa_factor_enrolled',
   'mfa_factor_disabled',
   'recovery_codes_issued',
+  // MFAOPTIONS: the method a sign-in asks for first was changed.
+  'mfa_default_changed',
 ];
 
 /**
@@ -441,13 +460,13 @@ export class CredentialsRepository {
           sql`${userMfaFactors.confirmedAt} is not null`,
         ),
       )
-      .orderBy(desc(userMfaFactors.createdAt));
+      .orderBy(...FACTOR_ORDER);
 
     const opened: UserMfaFactorRow[] = [];
     let firstRefusal: SeedCipherError | undefined;
     for (const row of rows) {
       try {
-        opened.push(this.open(row));
+        opened.push(this.openIfSeeded(row));
       } catch (error) {
         // Only a refusal by the cipher is a set-aside row. Anything else is a fault in this
         // process rather than in the column, and swallowing it would hide it.
@@ -478,10 +497,11 @@ export class CredentialsRepository {
         kind: userMfaFactors.kind,
         label: userMfaFactors.label,
         confirmedAt: userMfaFactors.confirmedAt,
+        isDefault: userMfaFactors.isDefault,
       })
       .from(userMfaFactors)
       .where(and(eq(userMfaFactors.userId, userId), isNull(userMfaFactors.disabledAt)))
-      .orderBy(desc(userMfaFactors.createdAt));
+      .orderBy(...FACTOR_ORDER);
   }
 
   /**
@@ -514,7 +534,7 @@ export class CredentialsRepository {
       .where(eq(userMfaFactors.id, factorId))
       .limit(1);
     const row = rows[0];
-    return row === undefined ? null : this.open(row);
+    return row === undefined ? null : this.openIfSeeded(row);
   }
 
   /** Begin enrolment. The row exists and authorises nothing until `confirmFactor` succeeds. */
@@ -548,6 +568,133 @@ export class CredentialsRepository {
    */
   private open(row: UserMfaFactorRow): UserMfaFactorRow {
     return { ...row, secret: this.seeds.decrypt(row.secret, { userId: row.userId }) };
+  }
+
+  /**
+   * MFAOPTIONS. Only an authenticator row holds a seed. An e-mail row stores `''` and is handed
+   * up as it is: there is nothing to decrypt, and its code lives in `user_mfa_email_codes`.
+   */
+  private openIfSeeded(row: UserMfaFactorRow): UserMfaFactorRow {
+    return row.kind === TOTP_FACTOR_KIND ? this.open(row) : row;
+  }
+
+  /**
+   * MFAOPTIONS. Begin turning the e-mail method on: a row of kind `email` with no secret. Like a
+   * TOTP row it authorises nothing until {@link confirmCodelessFactor} succeeds, which the service
+   * calls only after the person typed the code mailed to their verified address.
+   */
+  async createEmailFactor(
+    runner: IdentityQueryRunner,
+    input: { readonly userId: string; readonly label: string },
+  ): Promise<string> {
+    const id = uuidv7();
+    await tenantDrizzle(runner)
+      .insert(userMfaFactors)
+      .values({
+        id,
+        userId: input.userId,
+        kind: EMAIL_FACTOR_KIND,
+        label: input.label,
+        secret: '',
+        createdAt: sql`current_timestamp(3)`,
+      });
+    return id;
+  }
+
+  /** The person's pending (unconfirmed, live) e-mail row, reused by a second "turn on". */
+  async findPendingEmailFactor(
+    runner: IdentityQueryRunner,
+    userId: string,
+  ): Promise<{ readonly id: string } | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({ id: userMfaFactors.id })
+      .from(userMfaFactors)
+      .where(
+        and(
+          eq(userMfaFactors.userId, userId),
+          eq(userMfaFactors.kind, EMAIL_FACTOR_KIND),
+          isNull(userMfaFactors.disabledAt),
+          isNull(userMfaFactors.confirmedAt),
+        ),
+      )
+      .orderBy(desc(userMfaFactors.createdAt))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Finish an enrolment that has no counter to start (the e-mail method). One-way, like
+   * {@link confirmFactor}: a confirmed row is not confirmed again.
+   */
+  async confirmCodelessFactor(runner: IdentityQueryRunner, factorId: string): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(userMfaFactors)
+      .set({ confirmedAt: sql`current_timestamp(3)`, lastUsedAt: sql`current_timestamp(3)` })
+      .where(
+        and(
+          eq(userMfaFactors.id, factorId),
+          isNull(userMfaFactors.confirmedAt),
+          isNull(userMfaFactors.disabledAt),
+        ),
+      );
+    return result[0].affectedRows > 0;
+  }
+
+  /**
+   * MFAOPTIONS. Make one of the person's live, confirmed factors the default and clear the flag
+   * on all the others, in one statement, so at most one row carries it. `false` when the id is
+   * not one of this person's live confirmed factors (nothing changes then).
+   */
+  async setDefaultFactor(
+    runner: IdentityQueryRunner,
+    userId: string,
+    factorId: string,
+  ): Promise<boolean> {
+    const db = tenantDrizzle(runner);
+    const target = await db
+      .select({ id: userMfaFactors.id })
+      .from(userMfaFactors)
+      .where(
+        and(
+          eq(userMfaFactors.id, factorId),
+          eq(userMfaFactors.userId, userId),
+          isNull(userMfaFactors.disabledAt),
+          sql`${userMfaFactors.confirmedAt} is not null`,
+        ),
+      )
+      .limit(1);
+    if (target.length === 0) return false;
+    await db
+      .update(userMfaFactors)
+      .set({ isDefault: sql`case when ${userMfaFactors.id} = ${factorId} then 1 else 0 end` })
+      .where(eq(userMfaFactors.userId, userId));
+    return true;
+  }
+
+  /**
+   * MFAOPTIONS. Where a mailed code goes and in which language: the account's own address, and
+   * whether it was ever proved. `null` for an unknown user.
+   */
+  async findMailContact(
+    runner: IdentityQueryRunner,
+    userId: string,
+  ): Promise<{
+    readonly email: string;
+    readonly displayName: string;
+    readonly locale: string;
+    readonly emailVerifiedAt: Date | null;
+  } | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({
+        email: users.email,
+        displayName: users.displayName,
+        locale: users.locale,
+        emailVerifiedAt: users.emailVerifiedAt,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    return rows[0] ?? null;
   }
 
   /**

@@ -21,17 +21,22 @@ const meta = {
 } satisfies Meta<typeof MfaChallengeScreen>;
 
 export default meta;
+
+/** An authenticator app as the default, e-mail codes as the other way (MFAOPTIONS). */
+const STORY_FACTORS = [
+  { kind: 'totp', label: 'Authenticator app' },
+  { kind: 'email', label: 'E-mail' },
+];
 type Story = StoryObj<typeof meta>;
 
 /** Reached at its own route with no challenge behind it. The honest dead end. */
 export const NoChallenge: Story = {};
 
-/** The second step of a sign-in, with the factor and organization the challenge named. */
+/** The second step of a sign-in, with the methods the challenge named (default first). */
 export const WithChallenge: Story = {
   args: {
     challengeToken: 'challenge-token-for-story-only',
-    factorLabel: 'Authenticator app',
-    organizationName: 'Northstar Studio',
+    factors: STORY_FACTORS,
   },
 };
 
@@ -39,8 +44,7 @@ export const WithChallenge: Story = {
 export const RateLimited: Story = {
   args: {
     challengeToken: 'challenge-token-for-story-only',
-    factorLabel: 'Authenticator app',
-    organizationName: 'Northstar Studio',
+    factors: STORY_FACTORS,
     rateLimited: true,
   },
 };

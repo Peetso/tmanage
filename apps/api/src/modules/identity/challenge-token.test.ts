@@ -122,9 +122,9 @@ describe('verification', () => {
   });
 
   it('is short-lived by construction', () => {
-    // Five minutes. Long enough to find a phone; short enough that a token captured from a
-    // log is usually already dead.
-    expect(CHALLENGE_TTL_SECONDS).toBe(300);
+    // Ten minutes (MFAOPTIONS: as long as a mailed code works). Long enough to find a phone or
+    // read the e-mail; short enough that a token captured from a log is usually already dead.
+    expect(CHALLENGE_TTL_SECONDS).toBe(600);
     expect(CHALLENGE_TTL_SECONDS).toBeLessThanOrEqual(600);
   });
 });

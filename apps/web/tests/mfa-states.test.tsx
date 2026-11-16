@@ -167,7 +167,7 @@ describe('MfaChallengeScreen renders the not-reachable state only without a toke
 
     expect(screen.getByRole('heading', { level: 1, name: /Confirm it’s you/ })).toBeInTheDocument();
     expect(screen.getByLabelText(/Six-digit code/)).toBeEnabled();
-    expect(screen.getAllByRole('radio')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: /Use a backup code/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Verify' })).toBeInTheDocument();
     expect(screen.queryByText('There is nothing to verify here')).toBeNull();
   });

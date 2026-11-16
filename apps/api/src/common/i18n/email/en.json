@@ -47,5 +47,12 @@
   "emailChange.previousEmail": "Previous email",
   "emailChange.newEmail": "New email",
   "securityAck.subject": "We received your security report {reference}",
-  "securityAck.text": "Thank you. We received your security report, reference {reference}.\nThe security team will review it and contact you if more information is needed.\nIf you did not send this report, you can ignore this message."
+  "securityAck.text": "Thank you. We received your security report, reference {reference}.\nThe security team will review it and contact you if more information is needed.\nIf you did not send this report, you can ignore this message.",
+  "mfaCode.subject": "Your TManage verification code",
+  "mfaCode.eyebrow": "Two-step verification",
+  "mfaCode.heading": "Hi {name}, here is your code",
+  "mfaCode.introSignIn": "Use this code to finish signing in to TManage. It confirms it’s you after your password.",
+  "mfaCode.introEnrol": "Use this code to turn on e-mail codes for two-step verification on your TManage account.",
+  "mfaCode.note": "The code works once and expires in {minutes} minutes. TManage never asks for it by phone or chat.",
+  "mfaCode.footer": "If you did not ask for this, someone may know your password: change it in TManage. This email carries no sign-in link."
 }
