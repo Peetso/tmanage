@@ -2099,6 +2099,12 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/portal/invoices/:invoiceId',
     reason: 'finance_settings',
   },
+  // 52-13: the client's invoice print document ("Download PDF") — NEVER, as every invoice route.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/invoices/:invoiceId/print',
+    reason: 'finance_settings',
+  },
   // ---- R19-a · 52-28 tax-document labels ---- a label on a fiscal document and a recorded tax
   // registration reference are the agency's own legal claims; no AI op (MCP ops are 52-28 later).
   {

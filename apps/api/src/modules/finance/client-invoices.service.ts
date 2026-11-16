@@ -11,10 +11,12 @@ import {
   defaultLabelFor,
   divideHalfUp,
   currencyDigits,
+  invoiceStanding,
   invoiceTotals,
   isCreditable,
   isValidTaxRef,
   labelCopy,
+  localDateOf,
   nextInvoiceState,
   resolvedRegime,
   taxNoticeRequired,
@@ -26,6 +28,7 @@ import type {
   AuditAction,
   Capability,
   InvoiceLineInput,
+  InvoiceStanding,
   Phase1QrInput,
   Principal,
   TaxRateTotal,
@@ -274,6 +277,8 @@ export interface PortalInvoiceView {
   readonly totalMinor: number;
   readonly paidMinor: number;
   readonly amountDueMinor: number;
+  /** 52-13: paid / overdue N days / due in N days / open, on the workspace's calendar. */
+  readonly standing: InvoiceStanding;
   readonly notes: string | null;
   readonly lines: readonly {
     readonly description: string;
@@ -584,31 +589,38 @@ export class ClientInvoicesService {
     lang: unknown,
   ): Promise<string> {
     const view = await this.get(context, principal, id);
-    const language =
-      lang === 'en' || lang === 'ar' || lang === 'bi'
-        ? lang
-        : (view.language as 'en' | 'ar' | 'bi');
     const org = context.organizationId;
-    // B5: a sent document prints the parties it went out with; a draft previews today's profile
-    // and the client's billing record.
     const { parties, country } = await this.options.database.read(context, async (r) => {
       const row = await this.repo.findInvoice(r, org, id);
       if (row === null) throw notFound();
-      const profile = await this.profile(r, org);
-      if (view.state !== 'draft' && row.sellerSnapshotJson !== null) {
-        const seller = sellerFromSnapshot(row.sellerSnapshotJson);
-        return {
-          parties: printPartiesFromSnapshots(row.sellerSnapshotJson, row.buyerSnapshotJson),
-          country: seller.country ?? profile.country,
-        };
-      }
-      const client = await this.repo.clientBilling(r, org, row.clientOrganizationId);
-      return { parties: printPartiesFromRecords(profile, client), country: profile.country };
+      return this.printParties(r, org, row, view.state);
     });
     // A sent document shows the notice it went out with; a draft previews today's rule.
     const notice =
       view.state === 'draft' ? taxNoticeRequired(country, view.documentLabel) : noticeOf(view);
-    return renderPrint(view, language, { notice, parties, country });
+    return renderPrint(view, printLanguage(lang, view.language), { notice, parties, country });
+  }
+
+  /**
+   * B5: a sent document prints the parties it went out with; a draft previews today's profile
+   * and the client's billing record.
+   */
+  private async printParties(
+    r: TenantQueryRunner,
+    org: string,
+    row: ClientInvoiceRow,
+    state: string,
+  ): Promise<{ readonly parties: PrintParties; readonly country: string }> {
+    const profile = await this.profile(r, org);
+    if (state !== 'draft' && row.sellerSnapshotJson !== null) {
+      const seller = sellerFromSnapshot(row.sellerSnapshotJson);
+      return {
+        parties: printPartiesFromSnapshots(row.sellerSnapshotJson, row.buyerSnapshotJson),
+        country: seller.country ?? profile.country,
+      };
+    }
+    const client = await this.repo.clientBilling(r, org, row.clientOrganizationId);
+    return { parties: printPartiesFromRecords(profile, client), country: profile.country };
   }
 
   // ---- writes (finance.manage) ----
@@ -1576,6 +1588,7 @@ export class ClientInvoicesService {
   ): Promise<{ readonly invoices: readonly PortalInvoiceSummary[] }> {
     const clientOrg = this.portalClient(principal, null);
     return this.options.database.read(context, async (r) => {
+      const today = await this.workspaceToday(r, context.organizationId);
       const rows = await this.repo.listInvoices(r, context.organizationId, {
         state: null,
         clientOrganizationId: clientOrg,
@@ -1588,7 +1601,7 @@ export class ClientInvoicesService {
           .filter(
             (row) => row.clientOrganizationId === clientOrg && !PORTAL_HIDDEN_STATES.has(row.state),
           )
-          .map((row) => portalHeader(row)),
+          .map((row) => portalHeader(row, today)),
       };
     });
   }
@@ -1614,7 +1627,7 @@ export class ClientInvoicesService {
       const lines = await this.repo.lines(tx, org, id);
       const payments = await this.repo.payments(tx, org, id);
       return {
-        ...portalHeader(row),
+        ...portalHeader(row, await this.workspaceToday(tx, org)),
         notes: row.notesText,
         lines: lines.map((l) => ({
           description: portalDescription(l, row.language, showNames),
@@ -1632,6 +1645,43 @@ export class ClientInvoicesService {
         })),
       };
     });
+  }
+
+  /**
+   * 52-13 — the client's "Download PDF": the same A4 print document the team prints ("Save as
+   * PDF" from the browser), behind the portal read's checks (own client organization, never a
+   * draft or void; otherwise 404). A by-person line names nobody unless the setting allows it,
+   * exactly as the portal read.
+   */
+  async portalPrint(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+    lang: unknown,
+  ): Promise<string> {
+    const org = context.organizationId;
+    const { view, parties, country } = await this.options.database.read(context, async (r) => {
+      const row = await this.repo.findInvoice(r, org, id);
+      if (row === null || PORTAL_HIDDEN_STATES.has(row.state)) throw notFound();
+      this.portalClient(principal, row.clientOrganizationId);
+      const showNames = (await this.repo.setting(r, org, PORTAL_SHOW_NAMES_SETTING_KEY)) === 'on';
+      const full = await this.view(r, org, row);
+      return {
+        view: { ...full, lines: full.lines.map((l) => portalPrintLine(l, showNames)) },
+        ...(await this.printParties(r, org, row, full.state)),
+      };
+    });
+    return renderPrint(view, printLanguage(lang, view.language), {
+      notice: noticeOf(view),
+      parties,
+      country,
+    });
+  }
+
+  /** Today's civil date on the workspace's own calendar (its time zone; UTC when unknown). */
+  private async workspaceToday(r: TenantQueryRunner, org: string): Promise<string> {
+    const organization = await this.options.finance.organization(r, org);
+    return localDateOf(this.now(), organization?.timezone ?? 'UTC');
   }
 
   /**
@@ -2064,8 +2114,22 @@ function langOf(language: string): 'en' | 'ar' | 'bi' {
   return language === 'en' || language === 'ar' ? language : 'bi';
 }
 
-function portalHeader(row: ClientInvoiceRow): PortalInvoiceSummary {
+/** The print language asked for, else the invoice's own. */
+function printLanguage(lang: unknown, invoiceLanguage: string | null): 'en' | 'ar' | 'bi' {
+  return lang === 'en' || lang === 'ar' || lang === 'bi'
+    ? lang
+    : (invoiceLanguage as 'en' | 'ar' | 'bi');
+}
+
+/** A print line for the client: a by-person line names nobody unless allowed (as the portal read). */
+function portalPrintLine(line: InvoiceLineView, showNames: boolean): InvoiceLineView {
+  if (line.groupKey?.startsWith('person:') !== true || showNames) return line;
+  return { ...line, descriptionEn: PERSON_LINE_EN, descriptionAr: PERSON_LINE_AR };
+}
+
+function portalHeader(row: ClientInvoiceRow, today: string): PortalInvoiceSummary {
   const lang = langOf(row.language);
+  const amountDueMinor = dueOf(row);
   return {
     id: row.id,
     number: row.number,
@@ -2089,7 +2153,8 @@ function portalHeader(row: ClientInvoiceRow): PortalInvoiceSummary {
     taxMinor: Number(row.taxMinor),
     totalMinor: Number(row.totalMinor),
     paidMinor: Number(row.paidMinor),
-    amountDueMinor: dueOf(row),
+    amountDueMinor,
+    standing: invoiceStanding(row.dueDate, amountDueMinor, today),
   };
 }
 

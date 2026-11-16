@@ -4,9 +4,23 @@ import {
   agingBucket,
   applyPayment,
   creditNoteTotals,
+  invoiceStanding,
   invoiceTotals,
   nextInvoiceState,
 } from './invoicing.js';
+
+describe('52-13 invoiceStanding', () => {
+  it('reads paid, overdue, due and open from the due date and what is left to pay', () => {
+    expect(invoiceStanding('2026-11-13', 0, '2026-11-16')).toEqual({ kind: 'paid' });
+    expect(invoiceStanding('2026-11-13', 4_560_000, '2026-11-16')).toEqual({
+      kind: 'overdue',
+      days: 3,
+    });
+    expect(invoiceStanding('2026-11-30', 100, '2026-11-16')).toEqual({ kind: 'due', days: 14 });
+    expect(invoiceStanding('2026-11-16', 100, '2026-11-16')).toEqual({ kind: 'due', days: 0 });
+    expect(invoiceStanding(null, 100, '2026-11-16')).toEqual({ kind: 'open' });
+  });
+});
 
 /** UNIT-52-12 invoice totals, discount, tax per rate, deposit, payments, credit; UNIT-52-13 words. */
 

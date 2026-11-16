@@ -339,6 +339,8 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     key: 'RouteTitle.portalFileReview',
   },
   '/[orgSlug]/portal/inbox': { en: 'Portal inbox', key: 'RouteTitle.portalInbox' },
+  '/[orgSlug]/portal/money': { en: 'Money', key: 'RouteTitle.portalMoney' },
+  '/[orgSlug]/portal/money/[invoiceId]': { en: 'Invoice', key: 'RouteTitle.portalInvoice' },
   '/[orgSlug]/portal/people': { en: 'People', key: 'RouteTitle.portalPeople' },
   '/[orgSlug]/portal/requests': { en: 'Requests', key: 'RouteTitle.portalRequests' },
   '/[orgSlug]/portal/requests/[requestId]': { en: 'Request', key: 'RouteTitle.portalRequest' },

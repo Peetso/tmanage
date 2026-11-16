@@ -1,4 +1,14 @@
-import { Controller, Get, Headers, Inject, Ip, Param } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Headers,
+  Inject,
+  Ip,
+  Param,
+  Query,
+  Res,
+  StreamableFile,
+} from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
@@ -51,5 +61,29 @@ export class PortalInvoicesController {
       ip: ip ?? null,
       userAgent: userAgent ?? null,
     });
+  }
+
+  /**
+   * 52-13 — "Download PDF": the A4 print document ("Save as PDF" from the browser) behind the
+   * same checks as the read above (own client organization, never a draft or void; else 404).
+   * Every value is escaped as plain text; nothing runs and nothing is cached.
+   */
+  @Get('portal/invoices/:invoiceId/print')
+  @RequireCapability('client_projection.read')
+  async print(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('invoiceId') invoiceId: string,
+    @Query('lang') lang: string | undefined,
+    @Res({ passthrough: true }) reply: { header(name: string, value: string): unknown },
+  ): Promise<StreamableFile> {
+    const html = await this.invoices.portalPrint(context, principal, invoiceId, lang);
+    const body = Buffer.from(html, 'utf8');
+    reply.header('content-type', 'text/html; charset=utf-8');
+    reply.header('content-length', String(body.byteLength));
+    reply.header('x-content-type-options', 'nosniff');
+    reply.header('content-security-policy', "default-src 'none'; style-src 'unsafe-inline'");
+    reply.header('cache-control', 'private, no-store');
+    return new StreamableFile(body, { type: 'text/html; charset=utf-8' });
   }
 }

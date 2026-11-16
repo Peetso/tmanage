@@ -4749,3 +4749,28 @@ type _publicLinkManager = Assert<Exact<ApiPublicLinkManagerView, WebPublicLinkMa
 type _publicLinkBulkResult = Assert<
   Exact<ApiPublicLinkBulkResultView, WebPublicLinkBulkResultView>
 >;
+
+// ---- 52-13 · client portal Money ----
+// The client's invoices, its retainers this period and a shared project's budget, as the portal
+// Money screens read them. The retainer detail (with its entries) still has no screen: EXEMPT.
+import type {
+  PortalInvoiceSummary as ApiPortalInvoiceSummary,
+  PortalInvoiceView as ApiPortalInvoiceView,
+} from '../../apps/api/src/modules/finance/client-invoices.service.js';
+import type { PortalRetainerSummary as ApiPortalRetainerSummary } from '../../apps/api/src/modules/finance/retainers.service.js';
+import type { PortalBudgetView as ApiPortalBudgetView } from '../../apps/api/src/modules/projects/budget-burn.service.js';
+import type {
+  PortalBudget as WebPortalBudget,
+  PortalInvoice as WebPortalInvoice,
+  PortalInvoiceSummary as WebPortalInvoiceSummary,
+  PortalRetainer as WebPortalRetainer,
+} from '../../apps/web/src/lib/api/portal-money.js';
+
+/** `GET …/portal/invoices/:invoiceId` — one of the client's own invoices. */
+type _portalInvoice = Assert<Exact<ApiPortalInvoiceView, WebPortalInvoice>>;
+/** `GET …/portal/invoices` — a row of the client's invoice list. */
+type _portalInvoiceSummary = Assert<Exact<ApiPortalInvoiceSummary, WebPortalInvoiceSummary>>;
+/** `GET …/portal/retainers` — the client's retainers this period, hours only. */
+type _portalRetainer = Assert<Exact<ApiPortalRetainerSummary, WebPortalRetainer>>;
+/** `GET …/portal/projects/:projectId/budget` — the share used and a status, never an amount. */
+type _portalBudget = Assert<Exact<ApiPortalBudgetView, WebPortalBudget>>;

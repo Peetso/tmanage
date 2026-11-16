@@ -228,6 +228,7 @@ export const CLIENT_NAVIGATION: readonly NavigationItem[] = [
   },
   { id: 'risks', label: 'Risks', messageKey: 'nav.risks', href: '/portal/risks', icon: 'alert' },
   { id: 'files', label: 'Files', messageKey: 'nav.files', href: '/portal/files', icon: 'files' },
+  { id: 'money', label: 'Money', messageKey: 'nav.money', href: '/portal/money', icon: 'receipt' },
   {
     id: 'people',
     label: 'People',

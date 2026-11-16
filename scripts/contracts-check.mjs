@@ -194,10 +194,6 @@ const EXEMPT = new Map([
     'No web consumer yet: `GET …/client-invoices/:id/einvoice` (ZATCA/PINT XML and QR) is API-only; no apps/web screen reads it.',
   ],
   [
-    'PortalInvoiceView',
-    'No web consumer yet: the client portal invoice read `GET …/portal/invoices/:id` is API-only; no portal screen calls it.',
-  ],
-  [
     'CertificateStatusView',
     'No web consumer yet: `GET|PUT …/finance/einvoicing/certificate` (e-invoice signing certificate) is API-only; no apps/web client.',
   ],
@@ -219,7 +215,7 @@ const EXEMPT = new Map([
   ],
   [
     'PortalRetainerView',
-    'No web consumer yet: the client portal retainer read `GET …/portal/retainers/:id` is API-only; no portal screen calls it.',
+    'No web consumer yet: the retainer detail with its entries `GET …/portal/retainers/:id` has no portal screen; 52-13 Money reads the list (PortalRetainerSummary, paired).',
   ],
   [
     'JiraSourceView',
@@ -268,10 +264,6 @@ const EXEMPT = new Map([
   [
     'PortfolioBurnView',
     'No web consumer yet: the `burn` field of the portfolio row is sent only with `include=burn`, which apps/web never requests.',
-  ],
-  [
-    'PortalBudgetView',
-    'No web consumer yet: the client portal budget read `GET …/portal/projects/:id/budget` is API-only; no portal screen calls it.',
   ],
   [
     'LocaleHintView',

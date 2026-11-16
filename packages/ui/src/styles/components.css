@@ -1215,7 +1215,10 @@
   display: inline-flex;
   align-items: center;
   gap: var(--s2);
-  padding: 6px var(--s3);
+  /* 52-13 fix 7: logical sides only, so the shape sits at the start of the word in both
+     directions — left of "Paid", right of "مدفوعة". */
+  padding-block: 6px;
+  padding-inline: var(--s3);
   border-radius: var(--r-capsule);
   border: var(--b-quiet) solid var(--line-300);
   background: var(--paper-0);
@@ -1229,6 +1232,8 @@
 .tm-state-capsule__glyph {
   font-family: var(--font-mono);
   flex: none;
+  /* Always the first item on the inline axis: the inline start, whatever the reading direction. */
+  order: -1;
 }
 
 /* Lime marks the current/live state only — never success, never selection. */

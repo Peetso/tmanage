@@ -222,6 +222,27 @@ export function agingBucket(dueDate: string, today: string): AgingBucket {
   return '90_plus';
 }
 
+/**
+ * 52-13 — where an invoice stands for the client who owes it: `paid` (nothing left to pay),
+ * `overdue` (`days` past the due date), `due` (`days` until it, 0 = today) or `open` (no due date).
+ * One rule for every screen; the caller passes the workspace's civil date (`localDateOf`).
+ */
+export type InvoiceStanding =
+  | { readonly kind: 'paid' }
+  | { readonly kind: 'open' }
+  | { readonly kind: 'overdue' | 'due'; readonly days: number };
+
+export function invoiceStanding(
+  dueDate: string | null,
+  amountDueMinor: number,
+  today: string,
+): InvoiceStanding {
+  if (amountDueMinor <= 0) return { kind: 'paid' };
+  if (dueDate === null) return { kind: 'open' };
+  const days = dayNumber(dueDate) - dayNumber(today);
+  return days < 0 ? { kind: 'overdue', days: -days } : { kind: 'due', days };
+}
+
 export interface CreditNoteTotals {
   readonly lines: readonly InvoiceLineAmounts[];
   readonly subtotalMinor: number;
