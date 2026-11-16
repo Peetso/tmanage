@@ -22,7 +22,7 @@
  *   not decoded: it is skipped and counted (`quoted_printable`).
  */
 
-import { toCsv } from '../export/csv.js';
+import type { CsvValue } from '../export/csv.js';
 
 /** The most records one import reads; the rest are counted as skipped. */
 export const CONTACT_IMPORT_MAX_ROWS = 5_000;
@@ -355,12 +355,22 @@ const ERROR_REPORT_REASONS: Record<Exclude<ContactRecordOutcome, 'ok'>, string> 
   duplicate: 'Repeated in the file (an earlier row has this e-mail)',
 };
 
+/** r46 — the downloadable error report's header row. */
+export const CONTACT_ERROR_REPORT_HEADER: readonly CsvValue[] = [
+  'Row',
+  'Name',
+  'E-mail',
+  'Company',
+  'Problem',
+];
+
 /**
- * r46 — the downloadable error report: one CSV row per record that was not imported. Cells go
- * through `toCsv`, so a name like `=HYPERLINK(...)` is neutralised before a spreadsheet opens it.
+ * r46 — the downloadable error report's rows: one per record that was not imported. The caller
+ * serialises them with `toCsv` (`export/csv.ts`, with a BOM), so a name like `=HYPERLINK(...)` is
+ * neutralised before a spreadsheet opens it.
  */
-export function contactErrorReportCsv(records: readonly ContactRecord[]): string {
-  const rows = records.flatMap((record) =>
+export function contactErrorReportRows(records: readonly ContactRecord[]): CsvValue[][] {
+  return records.flatMap((record) =>
     record.outcome === 'ok'
       ? []
       : [
@@ -373,7 +383,6 @@ export function contactErrorReportCsv(records: readonly ContactRecord[]): string
           ],
         ],
   );
-  return toCsv(rows, ['Row', 'Name', 'E-mail', 'Company', 'Problem'], { bom: true });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

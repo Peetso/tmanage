@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { toCsv } from '../export/csv.js';
 import {
-  contactErrorReportCsv,
+  CONTACT_ERROR_REPORT_HEADER,
+  contactErrorReportRows,
   contactsCsvHeader,
   isValidContactMapping,
   parseContactsCsv,
@@ -81,12 +83,11 @@ describe('54-11 contacts parsers', () => {
       'END:VCARD',
     ].join('\n');
     parseVcard(vcf, trace);
-    const lines = contactErrorReportCsv(trace)
-      .replace(/^\uFEFF/, '')
-      .trim()
-      .split('\r\n');
-    expect(lines).toHaveLength(2);
-    expect(lines[1]).toContain("'=HYPERLINK");
-    expect(lines[1]).toContain('Not a valid e-mail address');
+    const rows = contactErrorReportRows(trace);
+    expect(rows).toEqual([[1, '=HYPERLINK("x")', 'bad@', null, 'Not a valid e-mail address']]);
+    // The screen serialises exactly like this: the `=` cell comes out as quoted text.
+    const csv = toCsv(rows, CONTACT_ERROR_REPORT_HEADER, { bom: true });
+    expect(csv.startsWith('\uFEFFRow,Name,E-mail,Company,Problem\r\n')).toBe(true);
+    expect(csv.split('\r\n')[1]).toBe(`1,"'=HYPERLINK(""x"")",bad@,,Not a valid e-mail address`);
   });
 });

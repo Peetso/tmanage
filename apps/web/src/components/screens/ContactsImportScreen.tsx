@@ -2,7 +2,7 @@
 
 import { useState, type ChangeEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { contactErrorReportCsv } from '@tmanage/domain';
+import { CONTACT_ERROR_REPORT_HEADER, contactErrorReportRows, toCsv } from '@tmanage/domain';
 import { Badge, Button, Checkbox, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
@@ -316,7 +316,12 @@ export function ContactsImportScreen({
                 size="accessible"
                 disabled={data.errors.length === 0}
                 onClick={() =>
-                  download('contacts-import-errors.csv', contactErrorReportCsv(data.errors))
+                  download(
+                    'contacts-import-errors.csv',
+                    toCsv(contactErrorReportRows(data.errors), CONTACT_ERROR_REPORT_HEADER, {
+                      bom: true,
+                    }),
+                  )
                 }
               >
                 {tOr('ContactsImport.errorReport', 'Download error report')}
