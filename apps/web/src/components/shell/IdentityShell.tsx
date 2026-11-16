@@ -23,6 +23,12 @@ export interface IdentityShellProps {
   children: ReactNode;
   /** The privacy and support links `22-SCREEN-BY-SCREEN` §3 requires on ID-01. */
   footer?: ReactNode;
+  /**
+   * The website's language switch (A5), as the last row of the card under `footer`: on the paper
+   * card, in the footer's quiet tone, so it reads as part of the screen rather than loose text on
+   * the dark ground behind it.
+   */
+  language?: ReactNode;
 }
 
 /**
@@ -38,7 +44,13 @@ export interface IdentityShellProps {
  * `27-TEST-CATALOG` — skip link, `<main>`, one `<h1>` — is satisfied structurally instead of
  * nine times by hand.
  */
-export function IdentityShell({ eyebrow, brand = true, children, footer }: IdentityShellProps) {
+export function IdentityShell({
+  eyebrow,
+  brand = true,
+  children,
+  footer,
+  language,
+}: IdentityShellProps) {
   const t = useT();
   const tOr = useTOr();
   return (
@@ -59,6 +71,7 @@ export function IdentityShell({ eyebrow, brand = true, children, footer }: Ident
           </main>
 
           {footer ? <footer className="tm-identity__footer">{footer}</footer> : null}
+          {language ? <div className="tm-identity__lang">{language}</div> : null}
         </div>
       </div>
     </LiveAnnouncer>

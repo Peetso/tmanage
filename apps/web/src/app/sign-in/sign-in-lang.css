@@ -1,27 +1,31 @@
 /*
- * A5: the English / Arabic switch on the sign-in page (and its `/ar/sign-in` twin, which renders
- * the same page). The switch is the website's own Web/Language switch; its look is repeated here
- * because `website.css` only loads inside the website chrome, and the identity shell renders
- * outside it (the same reason `state-screen.css` repeats it).
+ * A5: the language switch on the sign-in page (and its `/ar/sign-in` twin, which renders the same
+ * page). It is the website's own Web/Language switch, drawn as the card's last row under the legal
+ * links, in their quiet `--ink-650` paper-surface tone (6.74:1 on `--paper-150`, see the D14 note on
+ * `.tm-identity__footer`). Its look is repeated here because `website.css` only loads inside the
+ * website chrome, and the identity shell renders outside it (the same reason `state-screen.css`
+ * repeats it).
+ *
+ * It used to be pinned absolutely to the corner of the page, outside the card: ink on the dark
+ * ground, unreadable, and over the wordmark on a phone once the beta languages joined the list.
  */
-.tm-sign-in-lang {
-  position: absolute;
-  inset-block-start: var(--s4);
-  inset-inline-end: var(--s4);
-  z-index: 1;
-}
-
-.tm-sign-in-lang .tm-web-lang {
-  display: inline-flex;
+.tm-identity__lang .tm-web-lang {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--s1);
-  font-size: var(--t-body-md);
-  line-height: var(--t-body-md-line);
-  color: var(--ink-950);
+  gap: var(--s1) var(--s2);
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
 }
 
-.tm-sign-in-lang .tm-web-lang__option {
+.tm-identity__lang .tm-web-lang__more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-identity__lang .tm-web-lang__option {
   padding: 0;
   border: 0;
   background: none;
@@ -30,10 +34,14 @@
   cursor: pointer;
 }
 
-.tm-sign-in-lang .tm-web-lang__option[lang='ar'] {
+.tm-identity__lang .tm-web-lang__option[aria-pressed='true'] {
+  color: var(--ink-950);
+}
+
+.tm-identity__lang .tm-web-lang__option[lang='ar'] {
   font-family: var(--font-arabic);
 }
 
-.tm-sign-in-lang .tm-web-lang__option:hover {
+.tm-identity__lang .tm-web-lang__option:hover {
   text-decoration: underline;
 }

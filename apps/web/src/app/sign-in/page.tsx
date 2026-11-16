@@ -15,26 +15,22 @@ import './sign-in-lang.css';
  * A person who is already signed in is sent into the app (`signedInDestination`) — replaced,
  * not pushed, so Back does not return to a sign-in form they do not need.
  *
- * A5: the website's English / Arabic switch sits at the top of the page, so a visitor can change
- * the language before signing in; on `/sign-in` ↔ `/ar/sign-in` it loads the other twin.
+ * A5: the website's language switch is the card's last row, so a visitor can change the
+ * language before signing in; on `/sign-in` ↔ `/ar/sign-in` it loads the other twin.
  */
 export default function SignInPage() {
   const router = useRouter();
   return (
-    <>
-      <div className="tm-sign-in-lang">
-        <LanguageSwitch />
-      </div>
-      <SignInScreen
-        onAlreadySignedIn={(destination) => router.replace(destination)}
-        onSignedIn={() => {
-          const next =
-            typeof window === 'undefined'
-              ? null
-              : new URLSearchParams(window.location.search).get('next');
-          router.push(safeReturnPath(next));
-        }}
-      />
-    </>
+    <SignInScreen
+      language={<LanguageSwitch />}
+      onAlreadySignedIn={(destination) => router.replace(destination)}
+      onSignedIn={() => {
+        const next =
+          typeof window === 'undefined'
+            ? null
+            : new URLSearchParams(window.location.search).get('next');
+        router.push(safeReturnPath(next));
+      }}
+    />
   );
 }

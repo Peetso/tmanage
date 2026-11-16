@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import Link from '../website/WebLink';
 import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
@@ -69,6 +69,11 @@ export interface SignInScreenProps {
    * (their workspace home, the picker, or an allowed `?next=`). When absent, no check is made.
    */
   onAlreadySignedIn?: (destination: string) => void;
+  /**
+   * The website's language switch, drawn inside the card under the legal links (the page passes
+   * it; a test mounting the screen leaves it out). See `IdentityShell`'s `language`.
+   */
+  language?: ReactNode;
   /**
    * Whether this browser may hold a session — the readable CSRF cookie the API sets and clears
    * with the session cookies (`serializeReadableCookie`). When it is absent the visitor is signed
@@ -145,6 +150,7 @@ export function SignInScreen({
   boundary = authBoundary,
   onAlreadySignedIn,
   mayHaveSession = browserMayHaveSession,
+  language,
 }: SignInScreenProps) {
   const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
@@ -356,6 +362,7 @@ export function SignInScreen({
     <IdentityShell
       screenId="ID-01"
       eyebrow={t('SignInScreen.eyebrow')}
+      language={language}
       footer={
         <>
           <Link href="/legal/privacy">{t('SignInScreen.privacy')}</Link>
