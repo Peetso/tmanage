@@ -128,18 +128,26 @@ describe('the root layout stays static (public pages prerendered)', () => {
     // cookie, rewrite or redirect) — that is what the removed server-locale proxy did. Its allowed
     // rewrites are AGENTREADY's `Accept: text/markdown` answer (the page's Markdown twin,
     // `markdownPathFor`) and NOTFOUND's prerendered 404 page (`notFoundPage`, chosen by path);
-    // neither picks a locale, and it never redirects. Its one cookie read is NOTFOUND's
-    // `sessionHint`: whether the CSRF cookie is present (`request.cookies.has`), never a value.
+    // neither picks a locale. Its one redirect is PLATFORMFIX's signed-out request for a
+    // signed-in area (`signedOutAreaRedirect`) to sign-in. Its one cookie read is `sessionHint`:
+    // whether the CSRF cookie is present (`request.cookies.has`), never a value.
     const proxy = join(SRC, 'proxy.ts');
     if (existsSync(proxy)) {
       const source = readFileSync(proxy, 'utf8');
       expect(source).not.toMatch(/locale-cookie|server-locale/);
       const cookieUses = source.match(/\.cookies\b[^\n]*/g) ?? [];
+      expect(cookieUses).toHaveLength(1);
       for (const use of cookieUses) {
-        expect(use).toMatch(/^\.cookies\.has\(name\), request\.headers\.get\('host'\)\),?$/);
+        expect(use).toMatch(/^\.cookies\.has\(name\), request\.headers\.get\('host'\)\)[,;]?$/);
       }
       expect(source).toMatch(/sessionHint\(\(name\) => request\.cookies\.has\(name\)/);
-      expect(source).not.toMatch(/NextResponse\.redirect/);
+      const redirects = source.match(/NextResponse\.redirect\([^,]*/g) ?? [];
+      for (const redirect of redirects) {
+        expect(redirect).toBe('NextResponse.redirect(new URL(signIn');
+      }
+      expect(redirects.length === 0 || /const signIn = signedOutAreaRedirect\(/.test(source)).toBe(
+        true,
+      );
       const rewrites = source.match(/NextResponse\.rewrite\([^,]*/g) ?? [];
       for (const rewrite of rewrites) {
         expect(rewrite).toMatch(
