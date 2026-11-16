@@ -207,7 +207,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // classified); the portal's code and signature (+2 NEVER).
 // 52-19 / 52-26 PDF: the approval certificate and signed document PDFs, staff and portal (+4 NEVER).
 // 51-05: "Continue with Microsoft" availability, start, callback and second step (+4 NEVER).
-const EXPECTED_ROUTE_COUNT = 1488;
+// PORTALA11Y: the portal's own accessibility read and save (+2 classified).
+// 51-17: storage hand-over targets and request (+2 NEVER, storage_connection).
+const EXPECTED_ROUTE_COUNT = 1492;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

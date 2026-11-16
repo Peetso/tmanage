@@ -167,15 +167,18 @@ describe('ClientPortalShell', () => {
     );
   }
 
-  it('carries the same account menu as the internal shell', () => {
+  // PORTALA11Y: the client's account menu offers their own display and accessibility page, and
+  // none of the member-only destinations (profile, settings, AI assistant, access tokens).
+  it('carries the client account menu: own accessibility page, no member destinations', () => {
     renderShell();
     const en = (key: string) => translate('en-US', `AccountMenu.${key}` as MessageKey);
     fireEvent.click(screen.getByRole('button', { name: en('trigger') }));
     const menu = screen.getByRole('menu');
-    expect(within(menu).getByRole('menuitem', { name: en('accessTokens') })).toHaveAttribute(
-      'href',
-      '/northstar/settings/security',
-    );
+    expect(
+      within(menu).getByRole('menuitem', { name: en('displayAccessibility') }),
+    ).toHaveAttribute('href', '/northstar/portal/accessibility');
+    expect(within(menu).queryByRole('menuitem', { name: en('accessTokens') })).toBeNull();
+    expect(within(menu).queryByRole('menuitem', { name: en('aiAssistant') })).toBeNull();
     expect(within(menu).getByRole('menuitem', { name: en('signOut') })).toBeInTheDocument();
   });
 

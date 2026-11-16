@@ -3995,6 +3995,23 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'confirm',
     scope: 'manage',
   },
+  // PORTALA11Y (0357): a client person's own text size, contrast and motion settings.
+  {
+    id: 'portal.accessibility.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/me/accessibility/',
+    capability: 'client_projection.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'portal.accessibility.set',
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/portal/me/accessibility/',
+    capability: 'client_projection.read',
+    risk: 'write',
+    scope: 'write',
+  },
   // BK5 (0217): the meetings a client person attends, and their own RSVP.
   {
     id: 'portal.meetings.list',

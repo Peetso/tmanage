@@ -311,6 +311,10 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/policies/simulate': { en: 'Policy simulator', key: 'RouteTitle.policiesSimulate' },
   '/[orgSlug]/portal': { en: 'Client portal', key: 'RouteTitle.portal' },
   '/[orgSlug]/portal/sign-in': { en: 'Portal sign-in', key: 'RouteTitle.portalSignIn' },
+  '/[orgSlug]/portal/accessibility': {
+    en: 'Display and accessibility',
+    key: 'RouteTitle.portalAccessibility',
+  },
   '/[orgSlug]/portal/actions': { en: 'Actions', key: 'RouteTitle.portalActions' },
   '/[orgSlug]/portal/deliverables': { en: 'Deliverables', key: 'RouteTitle.portalDeliverables' },
   '/[orgSlug]/portal/deliverables/[deliverableVersionId]': {

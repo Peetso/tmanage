@@ -444,6 +444,18 @@ export const NEVER: readonly NeverEntry[] = [
     reason: 'storage_connection',
   },
   { method: 'GET', path: '/v1/integrations/google-drive/callback', reason: 'storage_connection' },
+  // 51-17 (0356). Handing the storage connection to another admin moves who owns the company's
+  // files; the target list names the admins it can go to. A person's own consent, never an AI's.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/integrations/storage/handover-targets',
+    reason: 'storage_connection',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/integrations/storage/handover',
+    reason: 'storage_connection',
+  },
   // 0236. OneDrive storage: the same connection and credential routes as Google Drive.
   {
     method: 'POST',

@@ -7,7 +7,7 @@
  * content. `openWorldHint` (notifies) is set on the ops that send a message or publish to a client.
  */
 import { z } from 'zod';
-import { det, listArgs, pathOnly, bodyArgs, f, type AiActionDetail } from './detail.js';
+import { det, listArgs, noArgs, pathOnly, bodyArgs, f, type AiActionDetail } from './detail.js';
 
 export const portalDetails: readonly AiActionDetail[] = [
   det({
@@ -369,6 +369,32 @@ export const portalDetails: readonly AiActionDetail[] = [
     input: bodyArgs(['meetingId'], { rsvp: z.enum(['accepted', 'declined']) }),
     redact: 'client_safe',
     examples: [{ summary: 'Accept', args: { meetingId: 'mtg_1', rsvp: 'accepted' } }],
+  }),
+  // PORTALA11Y (0357). The calling client person's own text size, contrast and motion settings.
+  det({
+    id: 'portal.accessibility.get',
+    title: 'Your portal accessibility settings',
+    description: 'The calling client person’s text size, high contrast and reduced motion.',
+    input: noArgs(),
+    redact: 'config',
+    examples: [{ summary: 'Read', args: {} }],
+  }),
+  det({
+    id: 'portal.accessibility.set',
+    title: 'Set your portal accessibility settings',
+    description: 'Replace the calling client person’s text size, high contrast and reduced motion.',
+    input: bodyArgs([], {
+      fontScale: z.enum(['sm', 'md', 'lg', 'xl']),
+      reduceMotion: z.boolean(),
+      highContrast: z.boolean(),
+    }),
+    redact: 'config',
+    examples: [
+      {
+        summary: 'Larger text',
+        args: { fontScale: 'lg', reduceMotion: false, highContrast: false },
+      },
+    ],
   }),
   // 53-12. The client's own call card and Join.
   det({
