@@ -1,3 +1,4 @@
+import { signupAttributionFromCookie, SIGNUP_ATTRIBUTION_COOKIE } from '@tmanage/domain';
 import {
   Body,
   Controller,
@@ -237,7 +238,14 @@ export class GoogleAuthController {
         nonce: flow.nonce,
         keys: await this.transport.signingKeys(),
       });
-      outcome = await this.service.complete(flow, claims, context);
+      outcome = await this.service.complete(
+        flow,
+        claims,
+        context,
+        signupAttributionFromCookie(
+          readCookie(headerOf(request, 'cookie'), SIGNUP_ATTRIBUTION_COOKIE),
+        ),
+      );
     } catch (error) {
       if (error instanceof IdTokenRejectedError) {
         await this.service.record(context, null, 'failed', `google_${error.reason}`);

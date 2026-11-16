@@ -210,7 +210,11 @@ export function ForbiddenState({
   );
 }
 
-/** 404 — the address does not resolve. A link home is the only honest action. */
+/**
+ * 404 — the address does not resolve. A link home, and on the public 404 page a link to sign in
+ * as well: someone who typed their workspace address while signed out lands here and must not
+ * hit a dead end.
+ */
 export function NotFoundState({
   title,
   description,
@@ -219,7 +223,11 @@ export function NotFoundState({
   headingLevel = 1,
   autoFocusAction = true,
   className,
-}: NavStateProps) {
+  signInHref,
+}: NavStateProps & {
+  /** Adds a "Sign in" link beside the link home. */
+  signInHref?: string;
+}) {
   const t = useT();
   const tOr = useTOr();
   const focusRef = useFocusOnMount(autoFocusAction);
@@ -232,13 +240,20 @@ export function NotFoundState({
       description={description ?? tOr('StateScreens.notFoundDescription', copy.description)}
       className={className}
       action={
-        <a
-          ref={focusRef}
-          className="tm-button tm-button--ink tm-button--accessible"
-          href={homeHref}
-        >
-          {actionLabel ?? t('StateScreens.backToHome')}
-        </a>
+        <>
+          <a
+            ref={focusRef}
+            className="tm-button tm-button--ink tm-button--accessible"
+            href={homeHref}
+          >
+            {actionLabel ?? t('StateScreens.backToHome')}
+          </a>
+          {signInHref === undefined ? null : (
+            <a className="tm-button tm-button--outline tm-button--accessible" href={signInHref}>
+              {t('signUp.signIn')}
+            </a>
+          )}
+        </>
       }
     />
   );

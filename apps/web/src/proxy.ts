@@ -10,6 +10,7 @@ import {
   isArabicPublicPath,
 } from './lib/i18n/public-locale-routes';
 import { markdownPathFor, prefersMarkdown, publicPageLinkHeader } from './lib/markdown-negotiation';
+import { rememberSignupAttribution } from './lib/signup-attribution-cookie';
 
 /**
  * The request-time half of the browser security policy (56-01; Next 16 names this file `proxy`).
@@ -78,7 +79,8 @@ export function proxy(request: NextRequest): NextResponse {
 /**
  * A public page (one in the sitemap, English or Arabic) names its Markdown version and
  * `llms.txt` in a `Link` header, and varies by `Accept` (AGENTREADY): an English page asked for
- * `text/markdown` is answered with its Markdown version (`app/md`) at the same address. Any other
+ * `text/markdown` is answered with its Markdown version (`app/md`) at the same address, and a
+ * landing from an ad keeps its `utm_*` values for sign-up (ADTRACK). Any other
  * request goes on unchanged.
  */
 function publicPageResponse(request: NextRequest, requestHeaders: Headers): NextResponse {
@@ -93,6 +95,7 @@ function publicPageResponse(request: NextRequest, requestHeaders: Headers): Next
       : NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.append('vary', 'Accept');
   response.headers.set('link', publicPageLinkHeader(english));
+  rememberSignupAttribution(request, response);
   return response;
 }
 

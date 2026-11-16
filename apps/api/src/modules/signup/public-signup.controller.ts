@@ -1,9 +1,11 @@
+import { signupAttributionFromCookie, SIGNUP_ATTRIBUTION_COOKIE } from '@tmanage/domain';
 import { Body, Controller, Get, HttpCode, Inject, Optional, Post, Req, Res } from '@nestjs/common';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { Public } from '../../common/http/decorators.js';
 import { clientAddressKey, type RequestAdmission } from '../../common/http/rate-limiter.js';
 import { requireRequestState } from '../../common/http/request-state.js';
 import type { SessionService } from '../identity/session.service.js';
+import { readCookie } from '../identity/session-token.js';
 import type { PublicSignupSwitch } from '../platform-admin/platform-settings.js';
 import { PUBLIC_ABUSE_ASSESS } from '../public-abuse/public-abuse.guard.js';
 import type { AssessPublicWrite } from '../public-abuse/public-abuse.guard.js';
@@ -31,6 +33,17 @@ interface RequestLike {
 
 interface ReplyLike {
   header(name: string, value: string | readonly string[]): unknown;
+}
+
+/**
+ * ADTRACK. The landing page's `utm_*` values from the web proxy's first-party cookie, validated
+ * again here: the cookie is client-held, so only what the shared schema accepts is kept.
+ */
+export function signupAttributionOf(request: RequestLike) {
+  const header = request.headers['cookie'];
+  return signupAttributionFromCookie(
+    readCookie(typeof header === 'string' ? header : undefined, SIGNUP_ATTRIBUTION_COOKIE),
+  );
 }
 
 const RATE_LIMITED = 'Too many attempts. Wait a few minutes and try again.';
@@ -133,7 +146,11 @@ export class PublicSignupController {
 
     let result;
     try {
-      result = await this.service.signUp(body ?? {}, state.correlationId);
+      result = await this.service.signUp(
+        body ?? {},
+        state.correlationId,
+        signupAttributionOf(request),
+      );
     } catch (error) {
       if (error instanceof SignupEmailTakenError) {
         throw new ApiError(

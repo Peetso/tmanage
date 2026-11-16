@@ -84,6 +84,16 @@ export interface PlatformOrgOverviewView {
   readonly firstSupportExpiry: string | null;
   readonly attention: readonly PlatformOrgAttentionView[];
   readonly recentActions: readonly PlatformOrgActionView[];
+  /** ADTRACK. Organizations created in the last 90 days, by the sign-up's `utm_*` values. */
+  readonly signupSources: readonly PlatformSignupSourceView[];
+}
+
+export interface PlatformSignupSourceView {
+  readonly source: string | null;
+  readonly medium: string | null;
+  readonly campaign: string | null;
+  readonly content: string | null;
+  readonly signups: number;
 }
 
 export interface PlatformOrgSearchView {

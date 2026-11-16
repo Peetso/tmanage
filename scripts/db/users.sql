@@ -2488,3 +2488,6 @@ GRANT INSERT, UPDATE ON `tmanage`.`signature_request_signers` TO 'tmanage_app'@'
 -- `uq_client_a11y_preferences_org_client_membership`. No DELETE: a client clears settings by saving
 -- the defaults. SELECT rides the database-wide read. The worker needs no grant.
 GRANT INSERT, UPDATE ON `tmanage`.`client_a11y_preferences` TO 'tmanage_app'@'%';
+-- 0359 (ADTRACK). `organizations` gains four nullable `signup_utm_*` columns, written once in the
+-- sign-up INSERT and read by the platform overview. They ride the existing `organizations` INSERT
+-- grant above and the database-wide read; the worker needs no grant.

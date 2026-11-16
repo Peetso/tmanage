@@ -128,6 +128,7 @@ function harness(options: { emailTaken?: boolean; slugTakenTimes?: number } = {}
   );
   return {
     service,
+    organizations,
     database,
     tenantContexts,
     founders,
@@ -163,6 +164,17 @@ describe('PublicSignupService', () => {
         organizationSlug: 'nile-studio',
         locale: 'ar',
       }),
+    );
+  });
+
+  it('stores the landing page utm values on the new organization (ADTRACK)', async () => {
+    const h = harness();
+    const attribution = { utm_source: 'facebook', utm_campaign: 'tm_beta_traffic' };
+    await h.service.signUp(BODY, CORR_1, attribution);
+    expect(h.organizations.create).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ signupAttribution: attribution }),
     );
   });
 

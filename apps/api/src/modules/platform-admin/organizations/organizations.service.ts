@@ -18,7 +18,11 @@ import {
 } from '../../tenancy/organization-input.js';
 import { optionalReason, requireId, requireReason } from '../platform-admin.access.js';
 import type { PlatformAdminActor } from '../platform-admin.guard.js';
-import type { PlatformAdminRepository, PlatformCompanyRow } from '../platform-admin.repository.js';
+import type {
+  PlatformAdminRepository,
+  PlatformCompanyRow,
+  PlatformSignupSourceRow,
+} from '../platform-admin.repository.js';
 import type {
   PlatformCompanyDetailView,
   PlatformCompanyView,
@@ -122,6 +126,8 @@ export interface PlatformOrgOverviewView {
   readonly firstSupportExpiry: string | null;
   readonly attention: readonly PlatformOrgAttentionView[];
   readonly recentActions: readonly PlatformOrgActionView[];
+  /** ADTRACK. "Where sign-ups came from": the last 90 days, by `utm_*` combination. */
+  readonly signupSources: readonly PlatformSignupSourceRow[];
 }
 
 export interface PlatformOrgSearchView {

@@ -133,6 +133,19 @@ export {
   WORKSPACE_SLUG_PATTERN,
 } from './value-objects/workspace-slug.js';
 export {
+  parseSignupAttribution,
+  SIGNUP_ATTRIBUTION_COOKIE,
+  SIGNUP_ATTRIBUTION_KEYS,
+  SIGNUP_ATTRIBUTION_MAX_AGE_SECONDS,
+  SIGNUP_ATTRIBUTION_MAX_LENGTH,
+  signupAttributionCookieValue,
+  signupAttributionFromCookie,
+} from './value-objects/signup-attribution.js';
+export type {
+  SignupAttribution,
+  SignupAttributionKey,
+} from './value-objects/signup-attribution.js';
+export {
   abbreviateContentHash,
   assertContentHash,
   contentHashEquals,

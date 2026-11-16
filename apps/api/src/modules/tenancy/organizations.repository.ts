@@ -1,3 +1,4 @@
+import type { SignupAttribution } from '@tmanage/domain';
 import { eq, isNull, sql, and } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { organizations } from '../../common/database/schema.js';
@@ -79,6 +80,8 @@ export interface CreateOrganizationInput {
   readonly name: string;
   readonly defaultLocale: string;
   readonly timezone: string;
+  /** ADTRACK. The landing page's validated `utm_*` values, for a public sign-up only. */
+  readonly signupAttribution?: SignupAttribution;
 }
 
 export class OrganizationsRepository {
@@ -117,6 +120,10 @@ export class OrganizationsRepository {
           name: input.name,
           defaultLocale: input.defaultLocale,
           timezone: input.timezone,
+          signupUtmSource: input.signupAttribution?.utm_source ?? null,
+          signupUtmMedium: input.signupAttribution?.utm_medium ?? null,
+          signupUtmCampaign: input.signupAttribution?.utm_campaign ?? null,
+          signupUtmContent: input.signupAttribution?.utm_content ?? null,
           createdAt: sql`current_timestamp(3)`,
           updatedAt: sql`current_timestamp(3)`,
         });

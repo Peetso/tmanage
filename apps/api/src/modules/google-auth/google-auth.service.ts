@@ -3,7 +3,7 @@ import { ApiError } from '../../common/http/errors.js';
 import type { CredentialsRepository } from '../identity/credentials.repository.js';
 import { CHALLENGE_TTL_SECONDS, signChallengeToken } from '../identity/challenge-token.js';
 import type { SignInContext } from '../identity/authentication.service.js';
-import { uuidv7 } from '@tmanage/domain';
+import { uuidv7, type SignupAttribution } from '@tmanage/domain';
 import type { PublicSignupService } from '../signup/public-signup.service.js';
 import type { PublicSignupSwitch } from '../platform-admin/platform-settings.js';
 import {
@@ -141,6 +141,8 @@ export class GoogleAuthService {
     flow: GoogleFlow,
     claims: GoogleClaims,
     context: SignInContext,
+    /** ADTRACK. The landing page's validated `utm_*` values, kept if this creates an account. */
+    signupAttribution?: SignupAttribution,
   ): Promise<GoogleOutcome> {
     if (flow.intent === 'invitation') return this.completeInvitation(flow, claims, context);
 
@@ -173,6 +175,7 @@ export class GoogleAuthService {
         emailVerified: true,
         correlationId: context.correlationId,
         alsoWithin: (identity, userId) => this.link(identity, userId, claims),
+        ...(signupAttribution === undefined ? {} : { signupAttribution }),
       });
       await this.record(context, created.userId, 'succeeded', null);
       return {

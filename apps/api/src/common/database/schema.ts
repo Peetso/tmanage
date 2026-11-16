@@ -363,6 +363,11 @@ export const organizations = mysqlTable(
     deletedByUserId: char('deleted_by_user_id', { length: 36 }),
     billingModeOverride: varchar('billing_mode_override', { length: 16 }),
     operatorNotes: text('operator_notes'),
+    // ---- ADTRACK ---- 0359: the landing page's validated `utm_*` values of a public sign-up.
+    signupUtmSource: varchar('signup_utm_source', { length: 100 }),
+    signupUtmMedium: varchar('signup_utm_medium', { length: 100 }),
+    signupUtmCampaign: varchar('signup_utm_campaign', { length: 100 }),
+    signupUtmContent: varchar('signup_utm_content', { length: 100 }),
   },
   (table) => [uniqueIndex('uq_organizations_slug').on(table.slug)],
 );

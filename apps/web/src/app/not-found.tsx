@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export default function NotFound() {
   return (
     <StateScreen label="Not found" labelKey="StateScreens.eyebrowNotFound">
-      <NotFoundState />
+      <NotFoundState signInHref="/sign-in" />
     </StateScreen>
   );
 }

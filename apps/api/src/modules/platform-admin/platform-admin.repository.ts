@@ -165,7 +165,22 @@ export interface PlatformOverviewRow {
   readonly storageBytesUsed: number;
   readonly failedAutomationRuns7d: number;
   readonly outboxErrors: number;
+  /** ADTRACK. Organizations created in the last 90 days, counted by their sign-up `utm_*`. */
+  readonly signupSources: readonly PlatformSignupSourceRow[];
 }
+
+/** One sign-up source: a distinct `utm_*` combination and how many organizations it brought. */
+export interface PlatformSignupSourceRow {
+  readonly source: string | null;
+  readonly medium: string | null;
+  readonly campaign: string | null;
+  readonly content: string | null;
+  readonly signups: number;
+}
+
+/** How far back "Where sign-ups came from" counts, and how many sources it lists. */
+export const SIGNUP_SOURCE_WINDOW_DAYS = 90;
+const SIGNUP_SOURCE_LIMIT = 50;
 
 export interface PlatformCompanyRow {
   readonly id: string;
@@ -262,6 +277,13 @@ export const SQL = {
          where status = 'failed' and started_at >= ?) as failed_runs_7d,
       (select count(*) from outbox_events
          where published_at is null and last_error is not null) as outbox_errors`,
+  signupSources: `select signup_utm_source as source, signup_utm_medium as medium,
+      signup_utm_campaign as campaign, signup_utm_content as content, count(*) as signups
+    from organizations
+    where created_at >= ? and (signup_utm_source is not null or signup_utm_medium is not null
+      or signup_utm_campaign is not null or signup_utm_content is not null)
+    group by signup_utm_source, signup_utm_medium, signup_utm_campaign, signup_utm_content
+    order by signups desc, source, campaign, content limit ?`,
   listCompanies: `select ${COMPANY_COLUMNS} from organizations o
     order by o.created_at desc, o.id desc limit ?`,
   searchCompanies: `select ${COMPANY_COLUMNS} from organizations o
@@ -517,6 +539,10 @@ export class PlatformAdminRepository {
         new Date(now.getTime() - 7 * day),
       ]);
       const row = rows[0] ?? ({} as Row);
+      const sources = await db.query<Row[]>(SQL.signupSources, [
+        new Date(now.getTime() - SIGNUP_SOURCE_WINDOW_DAYS * day),
+        SIGNUP_SOURCE_LIMIT,
+      ]);
       return {
         companies: num(row['companies']),
         suspendedCompanies: num(row['suspended_companies']),
@@ -527,6 +553,13 @@ export class PlatformAdminRepository {
         storageBytesUsed: num(row['storage_bytes']),
         failedAutomationRuns7d: num(row['failed_runs_7d']),
         outboxErrors: num(row['outbox_errors']),
+        signupSources: sources.map((source) => ({
+          source: text(source['source']),
+          medium: text(source['medium']),
+          campaign: text(source['campaign']),
+          content: text(source['content']),
+          signups: num(source['signups']),
+        })),
       };
     });
   }

@@ -1,5 +1,5 @@
 import { capabilitiesFor, isInternalRole, uuidv7, workWeekForTimezone } from '@tmanage/domain';
-import type { Capability } from '@tmanage/domain';
+import type { Capability, SignupAttribution } from '@tmanage/domain';
 import { createTenantContext } from '../../common/database/tenant-context.js';
 import type {
   TenantContext,
@@ -101,6 +101,8 @@ export interface ProvisionOrganizationInput {
   /** ON-01's starting template, stored as `org_settings.operating_template`. */
   readonly operatingTemplate?: string;
   readonly correlationId: string;
+  /** ADTRACK. Where a public sign-up came from; stored on the organization row. */
+  readonly signupAttribution?: SignupAttribution;
 }
 
 export interface ProvisionedOrganization {
@@ -233,6 +235,9 @@ export class ProvisioningService {
       name: input.name,
       defaultLocale: input.defaultLocale,
       timezone: input.timezone,
+      ...(input.signupAttribution === undefined
+        ? {}
+        : { signupAttribution: input.signupAttribution }),
     });
 
     const workspace = await this.workspaces.create(tx, context, {

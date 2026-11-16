@@ -176,6 +176,36 @@ function OverviewBody({ data }: { data: PlatformOrgOverviewView }) {
           </ul>
         )}
       </section>
+      <section className="tm-cc-card" aria-labelledby="tm-orgs-signup-sources">
+        <div className="tm-cc-card__head">
+          <h2 id="tm-orgs-signup-sources" className="tm-cc-card__title">
+            {t('PlatformOrgs.signupSourcesTitle')}
+          </h2>
+        </div>
+        {data.signupSources.length === 0 ? (
+          <p className="tm-cc-note">{t('PlatformOrgs.noAdSignups')}</p>
+        ) : (
+          <ul className="tm-cc-rows">
+            {data.signupSources.map((row) => (
+              <li
+                key={[row.source, row.medium, row.campaign, row.content].join('|')}
+                className="tm-cc-rows__grow tm-cc-hero__actions"
+              >
+                <span className="tm-cc-rows__title">
+                  {[row.source, row.medium].filter((part) => part !== null).join(' · ')}
+                </span>
+                <span className="tm-cc-cell-mono">
+                  {[row.campaign, row.content].filter((part) => part !== null).join(' · ')}
+                </span>
+                <span>
+                  {t('PlatformOrgs.signupSourceCount').replace('{count}', String(row.signups))}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="tm-cc-note">{t('PlatformOrgs.signupSourcesWindow')}</p>
+      </section>
       <section className="tm-cc-card" aria-labelledby="tm-orgs-recent">
         <div className="tm-cc-card__head">
           <h2 id="tm-orgs-recent" className="tm-cc-card__title">

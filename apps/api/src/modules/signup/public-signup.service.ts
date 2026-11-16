@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { uuidv7 } from '@tmanage/domain';
+import { uuidv7, type SignupAttribution } from '@tmanage/domain';
 import { ApiError, type ApiErrorDetail } from '../../common/http/errors.js';
 import type { IdentityQueryRunner, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { WelcomeMailer } from '../../common/email/welcome-email.js';
@@ -90,6 +90,8 @@ export interface NewOwnerAccount {
   readonly correlationId: string;
   /** Extra identity-table writes in the same transaction (e.g. linking a Google identity). */
   readonly alsoWithin?: (identity: IdentityQueryRunner, userId: string) => Promise<void>;
+  /** ADTRACK. The landing page's `utm_*` values, already validated. */
+  readonly signupAttribution?: SignupAttribution;
 }
 
 const EMAIL_MAX_LENGTH = 254;
@@ -149,7 +151,11 @@ export class PublicSignupService {
     private readonly credentials = new CredentialsRepository(NO_SEED_CIPHER),
   ) {}
 
-  async signUp(body: PublicSignupBody, correlationId: string): Promise<PublicSignupResult> {
+  async signUp(
+    body: PublicSignupBody,
+    correlationId: string,
+    signupAttribution?: SignupAttribution,
+  ): Promise<PublicSignupResult> {
     const input = await this.validate(body);
     const passwordHash = await hashPassword(input.password);
     return this.createOwnerAccount({
@@ -161,6 +167,7 @@ export class PublicSignupService {
       defaultLocale: input.defaultLocale,
       emailVerified: false,
       correlationId,
+      ...(signupAttribution === undefined ? {} : { signupAttribution }),
     });
   }
 
@@ -217,6 +224,9 @@ export class PublicSignupService {
             timezone: account.timezone,
             correlationId: account.correlationId,
             origin: 'public_signup',
+            ...(account.signupAttribution === undefined
+              ? {}
+              : { signupAttribution: account.signupAttribution }),
           },
         );
         return {
