@@ -31,4 +31,24 @@ describe('56-28 data inventory covers TABLES', () => {
       doubled: listed.filter((t, i) => listed.indexOf(t) !== i),
     }).toEqual({ missing: [], unknown: [], doubled: [] });
   });
+
+  it('states the "Today" totals the rows hold, with no erasure gap left (56-18)', () => {
+    const markdown = readFileSync(INVENTORY, 'utf8');
+    const counted: Record<string, number> = {};
+    for (const line of markdown.split(/\r?\n/u)) {
+      if (!/^\| `[a-z0-9_]+`\s*\|/u.test(line)) continue;
+      const state = (line.split('|')[4] ?? '').trim();
+      counted[state] = (counted[state] ?? 0) + 1;
+    }
+    const totals = /Today `enforced`: (\d+), `retained`: (\d+), `gap`: (\d+), `n\/a`: (\d+)/u.exec(
+      markdown,
+    );
+    expect(totals?.slice(1).map(Number)).toEqual([
+      counted['enforced'] ?? 0,
+      counted['retained'] ?? 0,
+      counted['gap'] ?? 0,
+      counted['n/a'] ?? 0,
+    ]);
+    expect(counted['gap'] ?? 0).toBe(0);
+  });
 });

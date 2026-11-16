@@ -938,6 +938,15 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'organization',
     clause: '§12 export — a bulk copy of the security log is itself a security event',
   },
+  /**
+   * 56-18 follow-up (0358). The retention purge removed audit entries older than the
+   * organization's explicitly set window. Metadata: how many, the cutoff and the window — never
+   * the removed rows' content.
+   */
+  'audit.purged': {
+    objectType: 'organization',
+    clause: '§12 retention — removing old security-log entries is itself a security event',
+  },
   /** Wave 9 S8 (F53). The usage counters left the system as a CSV (row count and window only). */
   'usage.exported': {
     objectType: 'organization',
@@ -1878,6 +1887,7 @@ const AUDIT_ACTION_LABELS = {
   'privacy_deletion.cancelled': 'Cancelled a deletion request',
   'privacy_deletion.executed': 'A requested deletion was carried out',
   'audit.exported': 'Exported the audit log',
+  'audit.purged': 'Old audit entries were removed by the retention setting',
   'usage.exported': 'Exported the usage figures',
   'member_admin_note.created': 'Added a private note about a member',
   'member_admin_note.deleted': 'Deleted a private note about a member',

@@ -9,10 +9,11 @@ import type { MalwareScanner } from '../../common/scan/malware-scanner.js';
 import { ScannerUnavailableError } from '../../common/scan/malware-scanner.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
+import { AuditRetentionPurge } from '../admin/audit-retention-purge.js';
 import { PrivacyArchiveBuilder, archiveDoorOf, packArchive } from './privacy-archive.repository.js';
 import { ArchiveFileContents } from './privacy-archive-files.repository.js';
-import { CompanyErasure } from './privacy-erasure.repository.js';
-import type { ErasureOutcome } from './privacy-erasure.repository.js';
+import { AccountErasure, CompanyErasure } from './privacy-erasure.repository.js';
+import type { AccountErasureOutcome, ErasureOutcome } from './privacy-erasure.repository.js';
 import type { ArchiveDocument, ArchiveHeader } from './privacy-archive.repository.js';
 import { EXPORT_LINK_DAYS, addDays, privacyExportObjectKey } from './privacy-policy.js';
 import { PrivacyRepository } from './privacy.repository.js';
@@ -42,6 +43,12 @@ import type { PrivacyJobRequester } from './privacy.service.js';
  *    enough for the "your company was deleted" emails to go out — its stored files and every row of
  *    every tenant table are erased in batches (`privacy-erasure.repository.ts`), tenant-scoped, resumable across
  *    passes, and audited once complete (`purged_at` on the request, 0233).
+ * 5. **Erase deleted accounts** (56-18). After the same delay, an executed account deletion has the
+ *    person's IP and user agent nulled on the company's invoice event log and, once they belong to
+ *    no organization at all, their global account erased (`AccountErasure`); audited, `purged_at`.
+ * 6. **Age out audit entries** (56-18, 0358). For each organization that set a retention window,
+ *    audit rows older than it are removed in batches and one `audit.purged` entry records it
+ *    (`audit-retention-purge.ts`). A workspace without a window is never touched.
  *
  * Runs in-process (the single Hostinger app has no cron), off unless `WORKER_INPROCESS=1` or
  * `PRIVACY_JOBS_INPROCESS=1`, exactly like the file scan job, so a suite never races a pass.
@@ -89,6 +96,8 @@ export interface PrivacyPassReport {
   readonly deletionsExecuted: number;
   readonly deletionsWaiting: number;
   readonly companiesErased: number;
+  readonly accountsErased: number;
+  readonly auditRowsPurged: number;
 }
 
 /** The scanner fact and call the job needs. */
@@ -109,6 +118,11 @@ export class PrivacyPass {
     private readonly now: () => Date = () => new Date(),
     private readonly log: (line: string) => void = (line) => console.warn(line),
     private readonly erasure: Pick<CompanyErasure, 'run'> = new CompanyErasure(database, store),
+    private readonly accountErasure: Pick<AccountErasure, 'run'> = new AccountErasure(database),
+    private readonly auditPurge: Pick<AuditRetentionPurge, 'runAll'> = new AuditRetentionPurge(
+      database,
+      audit,
+    ),
   ) {}
 
   async run(): Promise<PrivacyPassReport> {
@@ -180,7 +194,72 @@ export class PrivacyPass {
       }
     }
 
-    return { built, failed, purged, deletionsExecuted, deletionsWaiting, companiesErased };
+    let accountsErased = 0;
+    const accounts = await this.database.bootstrapRead(
+      { correlationId, reason: FIND_ERASURES_REASON, tables: ['privacy_deletion_requests'] },
+      (db) => this.repository.organizationsWithErasureDue(db, closedBefore, 'account'),
+    );
+    for (const organizationId of accounts) {
+      const context = serviceContext(organizationId, correlationId);
+      const rows = await this.database.read(context, (runner) =>
+        this.repository.listErasureDue(runner, context, closedBefore, 'account'),
+      );
+      for (const row of rows) {
+        if (await this.eraseAccount(serviceContext(organizationId, uuidv7()), row)) {
+          accountsErased += 1;
+        }
+      }
+    }
+
+    const auditRowsPurged = await this.auditPurge.runAll(correlationId);
+
+    return {
+      built,
+      failed,
+      purged,
+      deletionsExecuted,
+      deletionsWaiting,
+      companiesErased,
+      accountsErased,
+      auditRowsPurged,
+    };
+  }
+
+  /**
+   * Erase one executed account deletion (56-18): the person's redacted fields in this company, then
+   * their global account if they belong nowhere else (`AccountErasure`). Recorded once
+   * (`purged_at`) whatever the global outcome — a person still in another company keeps that
+   * account — and audited with the outcome. A refusal by the database waits for the next pass.
+   */
+  async eraseAccount(context: TenantContext, row: PrivacyDeletionRequestRow): Promise<boolean> {
+    if (row.kind !== 'account' || row.status !== 'executed' || row.subjectUserId === null) {
+      return false;
+    }
+    let outcome: AccountErasureOutcome;
+    try {
+      outcome = await this.accountErasure.run(context, row.subjectUserId);
+    } catch (error) {
+      this.log(`[privacy] account erasure ${row.id} waits: ${describe(error)}`);
+      return false;
+    }
+    const now = this.now();
+    return this.database.transaction(context, async (tx) => {
+      const moved = await this.repository.markErased(tx, context, row.id, now);
+      if (!moved) return false;
+      await this.audit?.record(tx, context, {
+        action: 'privacy_deletion.executed',
+        objectId: row.id,
+        result: 'allowed',
+        actorUserId: null,
+        metadata: {
+          kind: 'account',
+          step: 'erased',
+          rows_redacted: outcome.tenantRowsRedacted,
+          account: outcome.global,
+        },
+      });
+      return true;
+    });
   }
 
   /**
@@ -503,12 +582,15 @@ export class PrivacyJob implements PrivacyJobRequester, OnApplicationBootstrap, 
         report.failed +
         report.purged +
         report.deletionsExecuted +
-        report.companiesErased;
+        report.companiesErased +
+        report.accountsErased +
+        report.auditRowsPurged;
       if (work > 0) {
         this.options.log(
           `[privacy] built ${String(report.built)}, failed ${String(report.failed)}, purged ` +
             `${String(report.purged)}, deletions ${String(report.deletionsExecuted)}, companies ` +
-            `erased ${String(report.companiesErased)}`,
+            `erased ${String(report.companiesErased)}, accounts erased ` +
+            `${String(report.accountsErased)}, audit rows purged ${String(report.auditRowsPurged)}`,
         );
       }
     } catch (error) {

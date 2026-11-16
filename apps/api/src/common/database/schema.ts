@@ -11544,6 +11544,11 @@ export const auditHeads = mysqlTable(
     legacyLastEventId: char('legacy_last_event_id', { length: 36 }),
     chainStartedAt: datetime('chain_started_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    // 0358. The retention purge's boundary: the last purged chain position and that row's hash
+    // (the verifier starts after it), and when the purge last moved it. NULL = never purged.
+    purgedThroughSeq: bigint('purged_through_seq', { mode: 'number' }),
+    purgedThroughHash: char('purged_through_hash', { length: 64 }),
+    purgedAt: datetime('purged_at', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_audit_heads_org_id').on(table.organizationId, table.id),

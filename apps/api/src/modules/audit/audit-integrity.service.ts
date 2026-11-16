@@ -97,7 +97,14 @@ export class AuditIntegrityService {
       let invalidSignature = 0;
       let unknownKey = 0;
       for (const anchor of anchorRows) {
-        if (head !== null && anchor.eventCount > 0 && anchor.eventCount <= head.chainSeq) {
+        // An anchor inside the purged prefix names a row the retention purge removed (0358).
+        const purged = Number(head?.purgedThroughSeq ?? 0);
+        if (
+          head !== null &&
+          anchor.eventCount > purged &&
+          anchor.eventCount > 0 &&
+          anchor.eventCount <= head.chainSeq
+        ) {
           anchorMap.set(anchor.eventCount, anchor.headHash);
         }
         const verdict = this.signer.verify(
@@ -115,10 +122,14 @@ export class AuditIntegrityService {
         else unknownKey += 1;
       }
 
-      const verifier = new ChainVerifier(context.organizationId, anchorMap);
+      const purgedThrough =
+        head?.purgedThroughSeq != null && head.purgedThroughHash != null
+          ? { chainSeq: Number(head.purgedThroughSeq), rowHash: head.purgedThroughHash }
+          : null;
+      const verifier = new ChainVerifier(context.organizationId, anchorMap, purgedThrough);
       let complete = true;
       if (head !== null) {
-        let after = 0;
+        let after = purgedThrough?.chainSeq ?? 0;
         let seen = 0;
         while (after < head.chainSeq) {
           const page = await this.chain.chainedPage(runner, context, after, VERIFY_PAGE_SIZE);

@@ -140,11 +140,18 @@ export class ChainVerifier {
   private lastId: string | null = null;
   private anchorsChecked = 0;
 
+  /**
+   * `purgedThrough` (0358) is the retention purge's boundary: the walk then starts at the position
+   * after it and expects that row's hash as the first kept row's `prev_hash`, so a prefix removed
+   * by the purge is not a `missing_row`. Anything else missing is still caught.
+   */
   constructor(
     organizationId: string,
     private readonly anchors: ReadonlyMap<number, string> = new Map(),
+    purgedThrough: { readonly chainSeq: number; readonly rowHash: string } | null = null,
   ) {
-    this.expectedPrev = genesisHash(organizationId);
+    this.expectedPrev = purgedThrough?.rowHash ?? genesisHash(organizationId);
+    this.expectedSeq = (purgedThrough?.chainSeq ?? 0) + 1;
     this.lastHash = this.expectedPrev;
   }
 

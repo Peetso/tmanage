@@ -584,17 +584,21 @@ export class PrivacyRepository {
 
   // ── The erasure after a company deletion (H3, 0233) ───────────────────────────────────────────
 
-  /** Organizations holding an executed company deletion, closed before `before`, not yet erased. */
+  /**
+   * Organizations holding an executed deletion of `kind`, carried out before `before`, whose
+   * erasure is not recorded yet (`purged_at`). `company` by default; 56-18 adds `account`.
+   */
   async organizationsWithErasureDue(
     runner: BootstrapQueryRunner,
     before: Date,
+    kind: PrivacyDeletionKind = 'company',
   ): Promise<readonly string[]> {
     const rows = await tenantDrizzle(runner)
       .selectDistinct({ organizationId: privacyDeletionRequests.organizationId })
       .from(privacyDeletionRequests)
       .where(
         and(
-          eq(privacyDeletionRequests.kind, 'company'),
+          eq(privacyDeletionRequests.kind, kind),
           eq(privacyDeletionRequests.status, 'executed'),
           isNull(privacyDeletionRequests.purgedAt),
           lte(privacyDeletionRequests.executedAt, before),
@@ -604,11 +608,12 @@ export class PrivacyRepository {
     return rows.map((row) => row.organizationId);
   }
 
-  /** This organization's executed company deletions whose erasure is still to do. */
+  /** This organization's executed deletions of `kind` whose erasure is still to do. */
   async listErasureDue(
     runner: TenantQueryRunner,
     context: TenantContext,
     before: Date,
+    kind: PrivacyDeletionKind = 'company',
   ): Promise<readonly PrivacyDeletionRequestRow[]> {
     return tenantDrizzle(runner)
       .select()
@@ -616,7 +621,7 @@ export class PrivacyRepository {
       .where(
         and(
           eq(privacyDeletionRequests.organizationId, context.organizationId),
-          eq(privacyDeletionRequests.kind, 'company'),
+          eq(privacyDeletionRequests.kind, kind),
           eq(privacyDeletionRequests.status, 'executed'),
           isNull(privacyDeletionRequests.purgedAt),
           lte(privacyDeletionRequests.executedAt, before),
@@ -628,8 +633,8 @@ export class PrivacyRepository {
 
   /**
    * Record that the erasure is complete (`purged_at`), conditional on it not being recorded yet, and
-   * clear the closed organization's logo pointer (the file it named is gone). True when this call
-   * recorded it.
+   * on a closed organization clear the logo pointer (the file it named is gone) and who soft-deleted
+   * it (56-18: the kept organization row no longer names a person). True when this call recorded it.
    */
   async markErased(
     runner: TenantQueryRunner,
@@ -655,7 +660,7 @@ export class PrivacyRepository {
     if (affected(result) !== 1) return false;
     await tenantDrizzle(runner)
       .update(organizations)
-      .set({ logoFileId: null, updatedAt: now })
+      .set({ logoFileId: null, deletedByUserId: null, updatedAt: now })
       .where(
         and(eq(organizations.id, context.organizationId), isNotNull(organizations.archivedAt)),
       );

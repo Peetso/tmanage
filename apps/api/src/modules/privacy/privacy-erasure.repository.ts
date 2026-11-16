@@ -1,6 +1,31 @@
+import { and, eq, inArray } from 'drizzle-orm';
 import type { ObjectStore } from '@tmanage/storage';
+import { tenantDrizzle } from '../../common/database/drizzle.js';
+import {
+  authenticationEvents,
+  clientInvoiceEvents,
+  clientMemberships,
+  credentialChangeNotices,
+  marketingLeads,
+  memberships,
+  passwordResetTokens,
+  platformAdmins,
+  platformOwnerNotices,
+  sessionRefreshTokens,
+  sessions,
+  userIdentities,
+  userMfaFactors,
+  userPasskeys,
+  userPasswords,
+  userRecoveryCodes,
+  users,
+} from '../../common/database/schema.js';
 import { TENANT_TABLES } from '../../common/database/tenant-guard.js';
-import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type {
+  IdentityQueryRunner,
+  TenantContext,
+  TenantDatabase,
+} from '../../common/database/tenant-context.js';
 
 /**
  * H3 (audit gap 3, NFR-09, 33-LEGAL §8) — the erasure that follows a company deletion.
@@ -392,5 +417,192 @@ export class CompanyErasure {
       }
     }
     return removed;
+  }
+}
+
+// ── The erasure after an account deletion (56-18) ──────────────────────────────────────────────
+
+/**
+ * The global tables an account erasure reaches (all in `NON_TENANT_TABLES`): the credentials and
+ * sessions that go, the account row and sign-in log that stay without the person, the marketing
+ * enquiry and platform notices that named them, and the platform staff list it checks first.
+ */
+export const ACCOUNT_ERASURE_TABLES: readonly string[] = [
+  'users',
+  'sessions',
+  'session_refresh_tokens',
+  'user_passwords',
+  'user_mfa_factors',
+  'user_recovery_codes',
+  'user_passkeys',
+  'user_identities',
+  'password_reset_tokens',
+  'credential_change_notices',
+  'authentication_events',
+  'marketing_leads',
+  'platform_owner_notices',
+  'platform_admins',
+];
+
+/** The pseudonymised account: no name, an address that cannot receive mail, disabled. */
+export const ERASED_DISPLAY_NAME = 'Former member';
+
+export function erasedEmail(userId: string): string {
+  return `erased-${userId}@erased.invalid`;
+}
+
+/** What happened to the global account once the person's company rows were redacted. */
+export type AccountGlobalOutcome =
+  'erased' | 'already_erased' | 'kept_other_memberships' | 'kept_platform_staff' | 'not_found';
+
+export interface AccountErasureOutcome {
+  /** Rows in the requesting company whose personal fields were nulled. */
+  readonly tenantRowsRedacted: number;
+  readonly global: AccountGlobalOutcome;
+}
+
+const FIND_MEMBERSHIPS_REASON =
+  'checking whether a person whose account deletion was carried out still belongs to any ' +
+  'organization, before their global account is erased (56-18, GDPR Art. 17)';
+
+/**
+ * 56-18 — the erasure that follows an executed account deletion, after the same delay as a
+ * company's (run by the privacy job, `privacy-job.ts`). Two halves:
+ *
+ * - **The requesting company.** Under that company's own service context, the personal fields the
+ *   inventory keeps redacted are nulled for this one person: the IP and user agent on the invoice
+ *   event log (`client_invoice_events`, kept as a fiscal record). Every statement names the
+ *   organization and the subject.
+ * - **The global account**, only once the person belongs to no organization at all (no active or
+ *   suspended membership or client membership anywhere): credentials, sessions, linked sign-ins,
+ *   reset tokens and pending notices are deleted; the account row is pseudonymised; the sign-in
+ *   log keeps its rows without IP, user agent or client hints; a marketing enquiry from the same
+ *   address and platform notices sent to the person are deleted. Shared work keeps pointing at the
+ *   account id, which now names no one. A platform staff member is never erased here (their staff
+ *   record is offboarded by the operator).
+ *
+ * Nothing here is a new trigger: it runs only for a request the privacy job has already executed.
+ * Running it again finds the account already erased and changes nothing.
+ */
+export class AccountErasure {
+  constructor(
+    private readonly database: TenantDatabase,
+    private readonly now: () => Date = () => new Date(),
+  ) {}
+
+  async run(context: TenantContext, subjectUserId: string): Promise<AccountErasureOutcome> {
+    const tenantRowsRedacted = await this.redactInCompany(context, subjectUserId);
+    const stillMember = await this.database.bootstrapRead(
+      {
+        correlationId: context.correlationId,
+        reason: FIND_MEMBERSHIPS_REASON,
+        tables: ['memberships', 'client_memberships'],
+      },
+      async (db) => {
+        const member = await tenantDrizzle(db)
+          .select({ id: memberships.id })
+          .from(memberships)
+          .where(
+            and(
+              eq(memberships.userId, subjectUserId),
+              inArray(memberships.status, ['active', 'suspended']),
+            ),
+          )
+          .limit(1);
+        if (member.length > 0) return true;
+        const client = await tenantDrizzle(db)
+          .select({ id: clientMemberships.id })
+          .from(clientMemberships)
+          .where(
+            and(
+              eq(clientMemberships.userId, subjectUserId),
+              inArray(clientMemberships.status, ['active', 'suspended']),
+            ),
+          )
+          .limit(1);
+        return client.length > 0;
+      },
+    );
+    if (stillMember) return { tenantRowsRedacted, global: 'kept_other_memberships' };
+    const global = await this.database.identityTransaction(
+      { correlationId: context.correlationId, tables: ACCOUNT_ERASURE_TABLES },
+      (tx) => this.eraseAccount(tx, subjectUserId),
+    );
+    return { tenantRowsRedacted, global };
+  }
+
+  /** Null the person's IP and user agent on this company's invoice event log. */
+  private async redactInCompany(context: TenantContext, subjectUserId: string): Promise<number> {
+    return this.database.transaction(context, async (tx) =>
+      affected(
+        await tenantDrizzle(tx)
+          .update(clientInvoiceEvents)
+          .set({ ip: null, ua: null })
+          .where(
+            and(
+              eq(clientInvoiceEvents.organizationId, context.organizationId),
+              eq(clientInvoiceEvents.actorId, subjectUserId),
+            ),
+          ),
+      ),
+    );
+  }
+
+  private async eraseAccount(
+    tx: IdentityQueryRunner,
+    userId: string,
+  ): Promise<AccountGlobalOutcome> {
+    const db = tenantDrizzle(tx);
+    const account = await db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
+      .for('update');
+    const email = account[0]?.email;
+    if (email === undefined) return 'not_found';
+    if (email === erasedEmail(userId)) return 'already_erased';
+    const staff = await db
+      .select({ id: platformAdmins.id })
+      .from(platformAdmins)
+      .where(eq(platformAdmins.userId, userId))
+      .limit(1);
+    if (staff.length > 0) return 'kept_platform_staff';
+
+    const ownSessions = db
+      .select({ id: sessions.id })
+      .from(sessions)
+      .where(eq(sessions.userId, userId));
+    await db
+      .delete(sessionRefreshTokens)
+      .where(inArray(sessionRefreshTokens.sessionId, ownSessions));
+    await db.delete(sessions).where(eq(sessions.userId, userId));
+    await db.delete(userPasswords).where(eq(userPasswords.userId, userId));
+    await db.delete(userMfaFactors).where(eq(userMfaFactors.userId, userId));
+    await db.delete(userRecoveryCodes).where(eq(userRecoveryCodes.userId, userId));
+    await db.delete(userPasskeys).where(eq(userPasskeys.userId, userId));
+    await db.delete(userIdentities).where(eq(userIdentities.userId, userId));
+    await db.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, userId));
+    await db.delete(credentialChangeNotices).where(eq(credentialChangeNotices.userId, userId));
+    await db.delete(platformOwnerNotices).where(eq(platformOwnerNotices.ownerUserId, userId));
+    // The column's collation compares the address without case, as the enquiry form stored it.
+    await db.delete(marketingLeads).where(eq(marketingLeads.email, email));
+    await db
+      .update(authenticationEvents)
+      .set({ ip: null, userAgent: null, clientHints: null })
+      .where(eq(authenticationEvents.userId, userId));
+    const at = this.now();
+    await db
+      .update(users)
+      .set({
+        email: erasedEmail(userId),
+        displayName: ERASED_DISPLAY_NAME,
+        emailVerifiedAt: null,
+        disabledAt: at,
+        disabledReason: null,
+        updatedAt: at,
+      })
+      .where(eq(users.id, userId));
+    return 'erased';
   }
 }

@@ -10,11 +10,12 @@ import { AuditRetentionRepository } from './audit-retention.repository.js';
  * policy, and build the read view (the stored policy plus a read-only purge-preview count of the
  * existing `audit_events` older than the window).
  *
- * ## Preview, not purge
+ * ## Preview here, purge in the background
  *
- * This slice **stores** a retention window and **previews** how many audit rows fall outside it. It
- * never writes to `audit_events` — that table is append-only, and the runtime credential holds no
- * DELETE on it. The actual purge is a later, separately-credentialed procedure; the screen says so.
+ * This service **stores** a retention window and **previews** how many audit rows fall outside it;
+ * it never writes to `audit_events`. The purge itself is the privacy job's step
+ * (`audit-retention-purge.ts`, 0358): no route triggers it, it visits only organizations that set
+ * a window, and the 0358 trigger refuses any row not past its own organization's window.
  *
  * ## The window is bounded before any write
  *
@@ -33,6 +34,9 @@ import { AuditRetentionRepository } from './audit-retention.repository.js';
 
 /** The upper bound on a retention window: ten years, in whole days. */
 export const MAX_RETENTION_DAYS = 3650;
+
+/** The floor: no window shorter than one day is stored, and the purge (and 0358) honour no less. */
+export const MIN_RETENTION_DAYS = 1;
 
 /** The validated PUT body — an integer number of days in 1..3650. */
 export interface RetentionPolicyInput {
@@ -69,10 +73,10 @@ export class AuditRetentionService {
     if (typeof value !== 'number' || !Number.isInteger(value)) {
       throw this.badRequest('retentionDays', 'retentionDays must be a whole number of days.');
     }
-    if (value < 1 || value > MAX_RETENTION_DAYS) {
+    if (value < MIN_RETENTION_DAYS || value > MAX_RETENTION_DAYS) {
       throw this.badRequest(
         'retentionDays',
-        `retentionDays must be between 1 and ${MAX_RETENTION_DAYS}.`,
+        `retentionDays must be between ${MIN_RETENTION_DAYS} and ${MAX_RETENTION_DAYS}.`,
       );
     }
     return { retentionDays: value };

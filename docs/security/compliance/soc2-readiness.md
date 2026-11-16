@@ -12,12 +12,12 @@ Effort: S = under a day, M = a few days, L = a week or more.
 | --- | -------------------------------------------------------------------------- | ------ | ------ | ------------------- |
 | 1   | CI cannot start (GitHub billing block): no independent gate record         | High   | S      | Owner decision      |
 | 2   | No restore drill on record (CC9.1, A1)                                     | High   | S      | Policy / people     |
-| 3   | Erasure not automated for 49 inventory rows (global account, audit fields) | High   | L      | Code                |
+| 3   | Erasure built for the 49 former `gap` rows; MariaDB DB-suite proof pending | Medium | S      | Code (test)         |
 | 4   | No information-security policy set (CC1, CC5)                              | High   | M      | Policy / people     |
 | 5   | No external penetration test (CC7.1)                                       | High   | M      | Auditor / paid      |
 | 6   | No Data Processing Addendum, no transfer mechanism (GDPR Art. 28, 44–49)   | High   | M      | Legal, owner        |
 | 7   | No periodic access-review report (CC6.3)                                   | Medium | S      | Code + policy       |
-| 8   | Audit-log purge is preview-only (C1.2, GDPR Art. 5(1)(e))                  | Medium | M      | Code                |
+| 8   | Audit-log purge built (0358); MariaDB DB-suite proof pending               | Low    | S      | Code (test)         |
 | 9   | No analytics/cookie consent switch (GDPR Art. 6–7)                         | Medium | M      | Code                |
 | 10  | First incident tabletop not held (CC7.3–7.5)                               | Medium | S      | Policy / people     |
 | 11  | Least-privilege database proof open on MariaDB (CC6.1)                     | Medium | S      | Code (test)         |
@@ -32,11 +32,13 @@ Effort: S = under a day, M = a few days, L = a week or more.
 
 **Code work (can be built now, no paid service):**
 
-- Automate erasure for the inventory `gap` rows: pseudonymise `authentication_events`, redact
-  personal fields kept in `audit_events`, delete global identity rows on account deletion
-  (`docs/security/data-inventory.md`).
-- A separately credentialed audit-log purge that honours the stored retention window
-  (`apps/api/src/modules/admin/audit-retention.service.ts` says the purge is a later step).
+- Done 2026-11-16 (56-18 follow-up): the 49 inventory `gap` rows are now 27 `enforced` and 22
+  `retained` with the reason (`docs/security/data-inventory.md`); account erasure is
+  `AccountErasure` in `apps/api/src/modules/privacy/privacy-erasure.repository.ts`. Left: prove it
+  on MariaDB in `apps/api/test/priv-053-erasure-inventory.db.test.ts`.
+- Done 2026-11-16: the audit-log purge honours only an explicitly stored window, with the floor held
+  by the 0358 trigger (`apps/api/src/modules/admin/audit-retention-purge.ts`). Left: a DB-suite
+  proof, and on split database users a DELETE grant decision (today it reports `not_permitted`).
 - An access-review export: every member, role, last sign-in and second-factor state, per
   organization, recorded in the audit log when taken.
 - Analytics and cookie consent setting, wired to the product-events registry.

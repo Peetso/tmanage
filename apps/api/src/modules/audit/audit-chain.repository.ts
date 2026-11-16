@@ -80,6 +80,9 @@ export class AuditChainRepository {
         legacyLastEventId: auditHeads.legacyLastEventId,
         chainStartedAt: auditHeads.chainStartedAt,
         updatedAt: auditHeads.updatedAt,
+        purgedThroughSeq: auditHeads.purgedThroughSeq,
+        purgedThroughHash: auditHeads.purgedThroughHash,
+        purgedAt: auditHeads.purgedAt,
         now: sql<unknown>`current_timestamp(3)`,
       })
       .from(auditHeads)
@@ -107,6 +110,31 @@ export class AuditChainRepository {
         updatedAt: sql`current_timestamp(3)`,
       })
       .where(and(eq(auditHeads.organizationId, context.organizationId), eq(auditHeads.id, headId)));
+  }
+
+  /**
+   * 0358 — move the retention purge's boundary to the last purged chain position and that row's
+   * hash. Runs in the purge batch's own transaction, after its DELETE, so the verifier never sees
+   * a purged prefix without the boundary that explains it. Only ever moves forward.
+   */
+  async recordPurgeBoundary(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    boundary: { readonly chainSeq: number; readonly rowHash: string; readonly at: Date },
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .update(auditHeads)
+      .set({
+        purgedThroughSeq: boundary.chainSeq,
+        purgedThroughHash: boundary.rowHash,
+        purgedAt: boundary.at,
+      })
+      .where(
+        and(
+          eq(auditHeads.organizationId, context.organizationId),
+          sql`coalesce(${auditHeads.purgedThroughSeq}, 0) < ${boundary.chainSeq}`,
+        ),
+      );
   }
 
   // ---- verifier (read-only) ----
