@@ -78,8 +78,8 @@ export async function updateTimeRounding(
   client: ApiClient,
   organizationSlug: string,
   roundingMinutes: TimeRoundingChoice,
-): Promise<{ readonly roundingMinutes: TimeRoundingChoice }> {
-  const { data } = await client.request<{ readonly roundingMinutes: TimeRoundingChoice }>({
+): Promise<{ readonly roundingMinutes: number }> {
+  const { data } = await client.request<{ readonly roundingMinutes: number }>({
     method: 'PATCH',
     path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/time/rounding`,
     body: { roundingMinutes },

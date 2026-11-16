@@ -180,6 +180,123 @@ const EXEMPT = new Map([
     'ActiveTimerView',
     'No web consumer yet: active timers for presence are API-only; the timer control in the web is a follow-up.',
   ],
+  // CLEANUP 2026-11-16c — views with no apps/web caller, each checked by route against apps/web/src.
+  [
+    'ClientProjectionView',
+    'No web consumer: it is the `POST …/approvals/projections` (publish) reply, which apps/web never calls; the read reply `ClientProjectionReadView` extends it and is paired Exact with `ClientApprovalView`.',
+  ],
+  [
+    'ChannelLinkView',
+    'No web consumer yet: R15-c Slack/Teams channel links exist only as ChannelLinksService; no controller serves them and no apps/web client exists.',
+  ],
+  [
+    'EinvoiceView',
+    'No web consumer yet: `GET …/client-invoices/:id/einvoice` (ZATCA/PINT XML and QR) is API-only; no apps/web screen reads it.',
+  ],
+  [
+    'PortalInvoiceView',
+    'No web consumer yet: the client portal invoice read `GET …/portal/invoices/:id` is API-only; no portal screen calls it.',
+  ],
+  [
+    'CertificateStatusView',
+    'No web consumer yet: `GET|PUT …/finance/einvoicing/certificate` (e-invoice signing certificate) is API-only; no apps/web client.',
+  ],
+  [
+    'TaxDocumentRulesView',
+    'No web consumer yet: `GET …/finance/tax-document-rules` is API-only; the invoice editor does not read it.',
+  ],
+  [
+    'ResolvedRateView',
+    'No web consumer yet: `GET …/finance/rates/resolve` is API-only; the rate-card screens read rate cards and entries, not the resolver.',
+  ],
+  [
+    'CostRateView',
+    'No web consumer yet: `GET|PUT …/finance/cost-rates/:membershipId` is API-only; no apps/web cost-rate screen.',
+  ],
+  [
+    'RetainerEntryView',
+    'No web consumer yet: `GET …/retainers/:id/periods/:periodId/entries` is API-only; the retainer screens read retainers and periods only.',
+  ],
+  [
+    'PortalRetainerView',
+    'No web consumer yet: the client portal retainer read `GET …/portal/retainers/:id` is API-only; no portal screen calls it.',
+  ],
+  [
+    'JiraSourceView',
+    'No web consumer yet: `POST …/imports/sources/jira` (live Jira REST page) is API-only; the web import flow uploads a file instead.',
+  ],
+  [
+    'InboundAttachmentView',
+    'No web consumer yet: `GET …/inbound-email/:id/attachments` is API-only; the inbound-mail settings screen reads the address and log only.',
+  ],
+  [
+    'ProfitabilityRowView',
+    'No web consumer yet: the row of `GET …/insights/finance/profitability`, which no apps/web screen calls.',
+  ],
+  [
+    'ProfitabilityView',
+    'No web consumer yet: `GET …/insights/finance/profitability` is API-only; no apps/web screen calls the finance insights reads.',
+  ],
+  [
+    'UnbilledRowView',
+    'No web consumer yet: the row of `GET …/insights/finance/unbilled`, which no apps/web screen calls.',
+  ],
+  [
+    'UnbilledView',
+    'No web consumer yet: `GET …/insights/finance/unbilled` is API-only; no apps/web screen calls it.',
+  ],
+  [
+    'UtilisationRowView',
+    'No web consumer yet: the row of `GET …/insights/finance/utilisation`, which no apps/web screen calls.',
+  ],
+  [
+    'UtilisationView',
+    'No web consumer yet: `GET …/insights/finance/utilisation` is API-only; no apps/web screen calls it.',
+  ],
+  [
+    'RebuildView',
+    'No web consumer yet: `POST …/insights/finance/facts/rebuild` is an operator action with no apps/web caller.',
+  ],
+  [
+    'ContactSuggestionView',
+    'No web consumer yet: `GET …/contacts/suggest` is API-only; the web contact import uses import-preview and import-file.',
+  ],
+  [
+    'PersonLoadView',
+    'No web consumer yet: `GET …/people/:membershipId/load` is API-only; no apps/web screen calls it.',
+  ],
+  [
+    'PortfolioBurnView',
+    'No web consumer yet: the `burn` field of the portfolio row is sent only with `include=burn`, which apps/web never requests.',
+  ],
+  [
+    'PortalBudgetView',
+    'No web consumer yet: the client portal budget read `GET …/portal/projects/:id/budget` is API-only; no portal screen calls it.',
+  ],
+  [
+    'LocaleHintView',
+    'No declared web type: lib/i18n/locale-hint.ts reads `GET /v1/public/locale-hint` as `unknown` and checks `locale`/`source` at run time (any other answer falls back to the browser languages), so there is no compile-time web shape to pair.',
+  ],
+  [
+    'FileSafetySettingsView',
+    'No web consumer yet: `GET|PUT …/security/file-safety` is API-only; the admin file-safety page reads only the blocked-files list.',
+  ],
+  [
+    'QuickAddChipView',
+    'No web consumer yet: the chip of `GET …/work/quick-add/resolve`, which no apps/web caller uses (quick-add dates are parsed in the browser by lib/quick-date.ts).',
+  ],
+  [
+    'QuickAddResolveView',
+    'No web consumer yet: `GET …/work/quick-add/resolve` is API-only; quick-add dates are parsed in the browser by lib/quick-date.ts.',
+  ],
+  [
+    'DependencyEditView',
+    'No web reader: the timeline calls `POST|DELETE …/work-items/:id/dependencies` but discards the reply (`Promise<void>` in work-views.ts) and re-reads the timeline, so no web type declares it.',
+  ],
+  [
+    'ClientHolidayView',
+    'No web consumer yet: no route serves it — `clientHolidayProjection` in working-calendar.service.ts is not wired to any controller.',
+  ],
 ]);
 
 /**

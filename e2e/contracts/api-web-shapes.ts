@@ -4614,3 +4614,94 @@ type _esignSignatureRequestView = Assert<Exact<ApiSignatureRequestView, WebSigna
 type _esignSignatureRequestListView = Assert<
   Exact<ApiSignatureRequestListView, WebSignatureRequestListView>
 >;
+
+// ---- CLEANUP 2026-11-16c · coverage catch-up ----
+// API views that landed with a web consumer but no pair. Where the web side declares the response
+// inline or unexported (the timeline's cascade/overlay reads, the share, open-copy, iteration-move
+// and rounding replies) the pair reads it through the web function's own return type, so the
+// assertion follows the code rather than a copy of it. Views with no web consumer are in EXEMPT.
+import type { ShareWithClientView as ApiShareWithClientView } from '../../apps/api/src/modules/approvals/deliverables.service.js';
+import type { ExternalApproverView as ApiExternalApproverView } from '../../apps/api/src/modules/approvals/external-approvals.service.js';
+import type { CloudFolderOpenView as ApiCloudFolderOpenView } from '../../apps/api/src/modules/cloud-folders/cloud-folders.service.js';
+import type { WorkItemCloudImportView as ApiWorkItemCloudImportView } from '../../apps/api/src/modules/files/cloud-import.service.js';
+import type {
+  AgingView as ApiAgingView,
+  InvoiceLineView as ApiInvoiceLineView,
+} from '../../apps/api/src/modules/finance/client-invoices.service.js';
+import type { FinanceExportView as ApiFinanceExportView } from '../../apps/api/src/modules/finance/finance-exports.service.js';
+import type {
+  RetainerPeriodView as ApiRetainerPeriodView,
+  RetainerView as ApiRetainerView,
+} from '../../apps/api/src/modules/finance/retainers.service.js';
+import type { MoveItemsView as ApiMoveItemsView } from '../../apps/api/src/modules/iterations/iterations.service.js';
+import type { ProjectBaselineOverlayView as ApiProjectBaselineOverlayView } from '../../apps/api/src/modules/projects/baseline.service.js';
+import type { TimeLockView as ApiTimeLockView } from '../../apps/api/src/modules/time/locks.service.js';
+import type { TeamTaskView as ApiTeamTaskView } from '../../apps/api/src/modules/time/time-team.service.js';
+import type { TimeRoundingView as ApiTimeRoundingView } from '../../apps/api/src/modules/time/time.service.js';
+import type {
+  CascadeMoveView as ApiCascadeMoveView,
+  CascadePlanView as ApiCascadePlanView,
+} from '../../apps/api/src/modules/work/schedule-cascade.service.js';
+import type { ExternalApprover as WebExternalApprover } from '../../apps/web/src/components/screens/approvals/ExternalApprovalApi.js';
+import type { FinanceExportRow as WebFinanceExportRow } from '../../apps/web/src/components/screens/finance/FinanceReportApi.js';
+import type {
+  ClientInvoiceDocument as WebClientInvoiceDocument,
+  InvoiceAging as WebInvoiceAging,
+} from '../../apps/web/src/components/screens/finance/InvoiceApi.js';
+import type { PeriodLockRow as WebPeriodLockRow } from '../../apps/web/src/components/screens/finance/PeriodLockApi.js';
+import type {
+  RetainerPeriodRow as WebRetainerPeriodRow,
+  RetainerRow as WebRetainerRow,
+} from '../../apps/web/src/components/screens/finance/RetainerApi.js';
+import type { openCloudFolderFile as webOpenCloudFolderFile } from '../../apps/web/src/lib/api/cloud-folders.js';
+import type { shareWithClient as webShareWithClient } from '../../apps/web/src/lib/api/deliverables.js';
+import type { moveIterationItems as webMoveIterationItems } from '../../apps/web/src/lib/api/iterations.js';
+import type { updateTimeRounding as webUpdateTimeRounding } from '../../apps/web/src/lib/api/time-timer.js';
+import type {
+  getTimelineBaseline as webGetTimelineBaseline,
+  previewTimelineMove as webPreviewTimelineMove,
+} from '../../apps/web/src/lib/api/work-views.js';
+
+type WebShareWithClientResult = Awaited<ReturnType<typeof webShareWithClient>>;
+type WebCloudFolderOpenResult = Awaited<ReturnType<typeof webOpenCloudFolderFile>>;
+type WebMoveIterationItemsResult = Awaited<ReturnType<typeof webMoveIterationItems>>;
+type WebTimeRoundingResult = Awaited<ReturnType<typeof webUpdateTimeRounding>>;
+type WebTimelineBaselineOverlay = NonNullable<Awaited<ReturnType<typeof webGetTimelineBaseline>>>;
+type WebTimelineCascadePlan = Awaited<ReturnType<typeof webPreviewTimelineMove>>;
+type WebTimelineCascadeMove = WebTimelineCascadePlan['moves'][number];
+type WebClientInvoiceLine = WebClientInvoiceDocument['lines'][number];
+
+/** UX-1 `POST …/deliverables/:d/versions/:v/share` — the version now in the client portal. */
+type _shareWithClient = Assert<Exact<ApiShareWithClientView, WebShareWithClientResult>>;
+/** 52-18 the account-less approver, as the member-side panel lists and sends it. */
+type _externalApprover = Assert<Exact<ApiExternalApproverView, WebExternalApprover>>;
+/** `POST …/cloud-folders/:f/items/:c/copy` — the TManage copy of a linked-folder file. */
+type _cloudFolderOpen = Assert<Exact<ApiCloudFolderOpenView, WebCloudFolderOpenResult>>;
+/**
+ * FIX6 C1 `POST …/work-items/:id/drive-files|onedrive-files`. The work-item importers read only
+ * `file.id`; `ImportedCopyReply` is the web's declaration of what the import routes answer, and the
+ * work-item view extends the paired `ImportedFileView` with the attachment the web does not read.
+ */
+type _workItemCloudImport = Assert<Narrows<ApiWorkItemCloudImportView, WebImportedCopyReply>>;
+/** 52-09 one invoice line, as the detail and editor screens read it (fewer fields than sent). */
+type _invoiceLine = Assert<Narrows<ApiInvoiceLineView, WebClientInvoiceLine>>;
+/** 52-09 `GET …/client-invoices/aging` — the aging roll-up per currency. */
+type _invoiceAging = Assert<Exact<ApiAgingView, WebInvoiceAging>>;
+/** `GET …/finance/exports` — one accounting export; the screen omits the hash and author. */
+type _financeExport = Assert<Narrows<ApiFinanceExportView, WebFinanceExportRow>>;
+/** 52-07 a retainer and one period, as the retainer screens read them. */
+type _retainer = Assert<Narrows<ApiRetainerView, WebRetainerRow>>;
+type _retainerPeriod = Assert<Narrows<ApiRetainerPeriodView, WebRetainerPeriodRow>>;
+/** `POST …/iterations/:id/items` — how many items moved in and out. */
+type _moveIterationItems = Assert<Exact<ApiMoveItemsView, WebMoveIterationItemsResult>>;
+/** 53-03 `GET …/baselines/current/overlay` — the timeline's ghost bars. */
+type _baselineOverlay = Assert<Exact<ApiProjectBaselineOverlayView, WebTimelineBaselineOverlay>>;
+/** 52-03 `…/time/locks` — one period lock. */
+type _timeLock = Assert<Exact<ApiTimeLockView, WebPeriodLockRow>>;
+/** Team time: the person's current task. The web marks `private` optional (it also reads own time). */
+type _teamTask = Assert<Narrows<ApiTeamTaskView, WebCurrentTask>>;
+/** 52-01 `PATCH …/time/rounding` — the saved rounding step. */
+type _timeRounding = Assert<Exact<ApiTimeRoundingView, WebTimeRoundingResult>>;
+/** 53-04 `POST …/schedule/cascade-preview|cascade-apply` — the cascade plan and one move. */
+type _cascadePlan = Assert<Exact<ApiCascadePlanView, WebTimelineCascadePlan>>;
+type _cascadeMove = Assert<Exact<ApiCascadeMoveView, WebTimelineCascadeMove>>;
