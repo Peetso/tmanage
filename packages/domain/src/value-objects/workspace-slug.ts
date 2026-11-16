@@ -74,6 +74,8 @@ export const RESERVED_WORKSPACE_SLUGS: ReadonlySet<string> = new Set([
   'legal',
   'login',
   'mail',
+  // The web app serves the public pages' Markdown versions at /md (/md/pricing, AGENTREADY).
+  'md',
   // The web app serves Platform admin (the TManage operator) at /platform.
   'platform',
   'portal',

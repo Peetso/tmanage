@@ -25,6 +25,7 @@ import {
   FOOTER_SOCIAL,
 } from './site-nav';
 import type { MessageKey } from '../../lib/i18n/t';
+import { SUPPORT_EMAIL } from '../../lib/public-contact';
 
 /** The catalog-language rule `translate()` uses: the primary subtag decides. */
 export function isArabicLocale(locale: string): boolean {
@@ -171,6 +172,9 @@ export function WebFooter() {
                 {t(link.label)}
               </Link>
             ))}
+            <a href={`mailto:${SUPPORT_EMAIL}`} dir="ltr">
+              {SUPPORT_EMAIL}
+            </a>
           </p>
           <ul className="tm-web-footer__social">
             {FOOTER_SOCIAL.map((item) => (

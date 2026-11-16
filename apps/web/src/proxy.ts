@@ -4,6 +4,12 @@ import { isEmbeddablePath, nonceFromBytes, policyHeaders, resolveCspMode } from 
 import { bootScripts } from './lib/boot-scripts';
 import { REQUEST_PATH_HEADER } from './lib/request-path';
 import { createPrerenderedScriptHashes, sha256Source } from './lib/prerendered-script-hashes';
+import {
+  englishPublicPath,
+  hasArabicTwin,
+  isArabicPublicPath,
+} from './lib/i18n/public-locale-routes';
+import { markdownPathFor, prefersMarkdown, publicPageLinkHeader } from './lib/markdown-negotiation';
 
 /**
  * The request-time half of the browser security policy (56-01; Next 16 names this file `proxy`).
@@ -62,10 +68,31 @@ export function proxy(request: NextRequest): NextResponse {
   for (const [name, value] of Object.entries(headers.request)) requestHeaders.set(name, value);
   // `set`, so a client-sent value never survives: the workspace layout redirects on it.
   requestHeaders.set(REQUEST_PATH_HEADER, request.nextUrl.pathname);
-  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  const response = publicPageResponse(request, requestHeaders);
   // `append`: in report-only mode `content-security-policy` carries the enforced frame-ancestors
   // stand-in; appending never overwrites a header Next or next.config.ts already set.
   for (const [name, value] of headers.response) response.headers.append(name, value);
+  return response;
+}
+
+/**
+ * A public page (one in the sitemap, English or Arabic) names its Markdown version and
+ * `llms.txt` in a `Link` header, and varies by `Accept` (AGENTREADY): an English page asked for
+ * `text/markdown` is answered with its Markdown version (`app/md`) at the same address. Any other
+ * request goes on unchanged.
+ */
+function publicPageResponse(request: NextRequest, requestHeaders: Headers): NextResponse {
+  const pathname = request.nextUrl.pathname;
+  const english = englishPublicPath(pathname);
+  if (!hasArabicTwin(english)) return NextResponse.next({ request: { headers: requestHeaders } });
+  const response =
+    !isArabicPublicPath(pathname) && prefersMarkdown(request.headers.get('accept'))
+      ? NextResponse.rewrite(new URL(markdownPathFor(english), request.url), {
+          request: { headers: requestHeaders },
+        })
+      : NextResponse.next({ request: { headers: requestHeaders } });
+  response.headers.append('vary', 'Accept');
+  response.headers.set('link', publicPageLinkHeader(english));
   return response;
 }
 

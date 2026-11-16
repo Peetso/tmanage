@@ -11,7 +11,9 @@ import { signInPathFor } from './sign-in-return';
  *
  * - A segment that is not a workspace address — wrong shape (`elmah.axd`, `_debug`) or reserved
  *   (`wp-admin`, `server-status`, `api`) — is a real 404.
- * - A signed-out visitor goes to sign-in, keeping only an allowed return path
+ * - A signed-out request for the bare `/{x}` is a 404 too, for every `x` (AGENTREADY, 2026-11-16):
+ *   `/this-page-does-not-exist` no longer ends on the sign-in page with 200.
+ * - Any deeper signed-out address goes to sign-in, keeping only an allowed return path
  *   (`signInPathFor`), or to the portal's own sign-in for a portal address. The portal sign-in
  *   page itself stays open: that is where a signed-out client asks for a link.
  * - Otherwise the screen renders; membership is the API's answer, as before.
@@ -38,6 +40,9 @@ export function workspaceGate({ slug, pathname, hasSession }: WorkspaceRequest):
   if (hasSession) return { kind: 'open' };
 
   const root = `/${slug}`;
+  // A signed-out bare `/{x}` is a 404 whether or not a workspace has that address (AGENTREADY):
+  // an unknown page is a real 404 for crawlers, and no lookup tells a visitor which slugs exist.
+  if (pathname === root) return { kind: 'not-found' };
   const here =
     pathname !== null && (pathname === root || pathname.startsWith(`${root}/`)) ? pathname : root;
   const portalSignIn = `${root}/portal/sign-in`;

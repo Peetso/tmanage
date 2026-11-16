@@ -9,6 +9,8 @@ import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { WebsiteDocumentTitle } from './WebsiteDocumentTitle';
 import { PublicLocaleAlternates } from './PublicLocaleAlternates';
+import { PublicStructuredData } from './PublicStructuredData';
+import { WebMcpTools } from './WebMcpTools';
 import { englishPublicPath } from '../../lib/i18n/public-locale-routes';
 import './website.css';
 
@@ -56,6 +58,8 @@ export function WebsiteChrome({ children }: { children: ReactNode }) {
     <WebsiteChromeContext.Provider value>
       <WebsiteDocumentTitle />
       <PublicLocaleAlternates />
+      <PublicStructuredData />
+      <WebMcpTools />
       <LiveAnnouncer label={tOr('Shell.liveAnnouncements', 'Live announcements')}>
         <div className="tm-web">
           <SkipLink targetId="tm-web-main">{t('WebsiteChrome.skipLink')}</SkipLink>

@@ -218,8 +218,14 @@ describe('rendering under the Arabic route locale', () => {
     expect(html).toMatch(/<a[^>]*href="\/ar\/pricing"/);
     expect(html).toMatch(/<a[^>]*href="\/ar\/sign-in"/);
     expect(html).not.toMatch(/<a[^>]*href="\/pricing"/);
-    expect(html).toMatch(/<link rel="alternate" hrefLang="en" href="\/pricing"\/>/i);
-    expect(html).toMatch(/<link rel="alternate" hrefLang="ar" href="\/ar\/pricing"\/>/i);
+    // AGENTREADY: absolute URLs, and the Arabic page is its own canonical.
+    expect(html).toContain('<link rel="canonical" href="https://tmanage.peetrix.com/ar/pricing"/>');
+    expect(html).toContain(
+      '<link rel="alternate" hrefLang="en" href="https://tmanage.peetrix.com/pricing"/>',
+    );
+    expect(html).toContain(
+      '<link rel="alternate" hrefLang="ar" href="https://tmanage.peetrix.com/ar/pricing"/>',
+    );
   });
 
   it('keeps the English site in English with English links', () => {

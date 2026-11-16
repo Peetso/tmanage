@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import robots from '@/app/robots';
+import { GET as robotsRoute } from '@/app/robots.txt/route';
 import sitemap from '@/app/sitemap';
 
 describe('robots.txt and sitemap.xml (live 307 to /robots.txt/home, 2026-10-26)', () => {
-  it('serves robots rules that keep only the API out and point at the sitemap', () => {
-    const result = robots();
-    const rules = Array.isArray(result.rules) ? result.rules : [result.rules];
+  it('serves robots rules that keep only the API out and point at the sitemap', async () => {
+    const body = await robotsRoute().text();
     // SOFT404: internal paths are noindex by meta tag, not advertised in robots.txt.
-    expect(rules[0]?.disallow).toEqual(['/v1/']);
-    expect(result.sitemap).toBe('https://tmanage.peetrix.com/sitemap.xml');
+    expect(body.match(/^Disallow: .*$/gm)).toEqual(['Disallow: /v1/']);
+    expect(body).toContain('Sitemap: https://tmanage.peetrix.com/sitemap.xml');
   });
 
   it('lists every public page in English and Arabic with absolute URLs', () => {

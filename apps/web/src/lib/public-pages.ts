@@ -1,0 +1,161 @@
+import { ALL_RESOURCES } from '../components/website/pages/resources/resources-data';
+import { COMPARE_COPY } from '../content/compare/compare-copy';
+import { COMPARE_ENTRIES } from '../content/compare/compare-entries';
+import { HELP_ARTICLES } from '../content/help/help-articles';
+import { ARABIC_AUTH_PATHS, PUBLIC_LOCALIZED_PATHS } from './i18n/public-locale-routes';
+import { translate } from './i18n/t';
+import { PAGE_OWNS_TITLE, ROUTE_TITLES } from './route-titles';
+
+/**
+ * The public site as one list (AGENTREADY, 2026-11-16): every English page the sitemap names,
+ * with the name, one-line summary and section `llms.txt` groups it under, and the date it last
+ * changed. `sitemap.xml`, `llms.txt` and the Markdown pages are all built from this list, so none
+ * of them can name a page the others do not.
+ *
+ * The date is the content's own where it has one (a compare page: the day its facts were
+ * checked) and the build's otherwise: the pages are prerendered, so a build is when they change.
+ */
+
+export type PublicPageSection =
+  | 'product'
+  | 'solutions'
+  | 'pricing'
+  | 'compare'
+  | 'help'
+  | 'resources'
+  | 'trust'
+  | 'developers'
+  | 'company'
+  | 'account';
+
+export interface PublicPage {
+  /** The English path; its Arabic twin is `arabicTwinPath(path)`. */
+  readonly path: string;
+  readonly title: string;
+  readonly summary?: string;
+  readonly section: PublicPageSection;
+  /** ISO date, `YYYY-MM-DD`. */
+  readonly lastModified: string;
+}
+
+/** The day this build was made: the prerendered pages change only with a build. */
+export const SITE_BUILD_DATE = new Date().toISOString().slice(0, 10);
+
+/** The heading each section gets in `llms.txt`, in the order the file lists them. */
+export const PUBLIC_PAGE_SECTIONS: readonly { id: PublicPageSection; heading: string }[] = [
+  { id: 'product', heading: 'Product' },
+  { id: 'solutions', heading: 'Solutions' },
+  { id: 'pricing', heading: 'Pricing' },
+  { id: 'compare', heading: 'Compare' },
+  { id: 'account', heading: 'Get started' },
+  { id: 'help', heading: 'Help centre' },
+  { id: 'resources', heading: 'Resources' },
+  { id: 'developers', heading: 'Developers and the MCP connector' },
+  { id: 'trust', heading: 'Security, privacy and accessibility' },
+  { id: 'company', heading: 'Company' },
+];
+
+const SECTION_BY_PREFIX: readonly [string, PublicPageSection][] = [
+  ['/features/', 'product'],
+  ['/product', 'product'],
+  ['/client-portal', 'product'],
+  ['/integrations', 'product'],
+  ['/download', 'product'],
+  ['/solutions/', 'solutions'],
+  ['/pricing', 'pricing'],
+  ['/faq', 'pricing'],
+  ['/developers', 'developers'],
+  ['/security', 'trust'],
+  ['/legal/', 'trust'],
+  ['/accessibility', 'trust'],
+  ['/status', 'trust'],
+  ['/sign-', 'account'],
+];
+
+function sectionOf(path: string): PublicPageSection {
+  return SECTION_BY_PREFIX.find(([prefix]) => path.startsWith(prefix))?.[1] ?? 'company';
+}
+
+function routeName(path: string): string {
+  const entry = ROUTE_TITLES[path];
+  if (entry === undefined || entry === PAGE_OWNS_TITLE) {
+    throw new Error(`No page name for public route ${path}`);
+  }
+  return entry.en;
+}
+
+function websitePage(path: string): PublicPage {
+  if (path === '/') {
+    return {
+      path,
+      title: 'TManage',
+      summary: translate('en', 'HomePage.heroLede'),
+      section: 'product',
+      lastModified: SITE_BUILD_DATE,
+    };
+  }
+  return { path, title: routeName(path), section: sectionOf(path), lastModified: SITE_BUILD_DATE };
+}
+
+function resourcePages(): PublicPage[] {
+  return ALL_RESOURCES.map((item) => ({
+    path: `/resources/${item.slug}`,
+    title: item.title,
+    summary: item.line,
+    section: 'resources',
+    lastModified: SITE_BUILD_DATE,
+  }));
+}
+
+function helpPages(): PublicPage[] {
+  return [
+    { path: '/help', title: routeName('/help'), section: 'help', lastModified: SITE_BUILD_DATE },
+    ...HELP_ARTICLES.map((article): PublicPage => ({
+      path: `/help/${article.slug}`,
+      title: article.en.title,
+      summary: article.en.summary,
+      section: 'help',
+      lastModified: SITE_BUILD_DATE,
+    })),
+  ];
+}
+
+function comparePages(): PublicPage[] {
+  const newest =
+    COMPARE_ENTRIES.map((entry) => entry.checkedOn)
+      .sort()
+      .at(-1) ?? SITE_BUILD_DATE;
+  return [
+    {
+      path: '/compare',
+      title: COMPARE_COPY.en.indexTitle,
+      section: 'compare',
+      lastModified: newest,
+    },
+    ...COMPARE_ENTRIES.map((entry): PublicPage => ({
+      path: `/compare/${entry.slug}`,
+      title: COMPARE_COPY.en.title(entry.name),
+      summary: entry.strong.en,
+      section: 'compare',
+      lastModified: entry.checkedOn,
+    })),
+  ];
+}
+
+/** Every English public page, in the sitemap's order. */
+export const PUBLIC_PAGES: readonly PublicPage[] = [
+  ...PUBLIC_LOCALIZED_PATHS.map(websitePage),
+  ...resourcePages(),
+  ...helpPages(),
+  ...comparePages(),
+  ...ARABIC_AUTH_PATHS.map(websitePage),
+];
+
+const BY_PATH: ReadonlyMap<string, PublicPage> = new Map(
+  PUBLIC_PAGES.map((page) => [page.path, page]),
+);
+
+/** The public page at an English path, or `undefined` for any other path. */
+export function publicPageAt(path: string): PublicPage | undefined {
+  return BY_PATH.get(path);
+}
