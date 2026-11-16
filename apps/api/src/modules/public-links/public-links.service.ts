@@ -264,11 +264,34 @@ export class PublicLinksService {
                 projectId,
               ))));
       if (!allowed) throw notFound('public_link.revoke_denied');
-      if (!(await this.store.revoke(tx, context, link.id, this.now()))) {
+      if (!(await this.revokeInTransaction(tx, context, link))) {
         throw new ApiError(409, 'conflict', 'This link is already revoked or decided.');
       }
-      await this.audited(tx, context, 'public_link.revoked', link, {}, context.userId);
     });
+  }
+
+  /**
+   * The one revoke path (56-07p's bulk revoke uses it too): stamp `revoked_at` on a live link and
+   * write its audit row. The caller has authorized and holds the row lock; false = it was already
+   * revoked or decided. From this commit on, `open` answers `revoked` — there is no cache to clear.
+   */
+  async revokeInTransaction(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    link: PublicLinkRow,
+  ): Promise<boolean> {
+    if (!(await this.store.revoke(tx, context, link.id, this.now()))) return false;
+    await this.audited(tx, context, 'public_link.revoked', link, {}, context.userId);
+    return true;
+  }
+
+  /** One link of the context's organization, locked for the rest of the transaction. */
+  async findForUpdate(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    linkId: string,
+  ): Promise<PublicLinkRow | null> {
+    return this.store.findById(tx, context, linkId, true);
   }
 
   // ── outsider side ──────────────────────────────────────────────────────────

@@ -53,6 +53,8 @@ export type ControlCenterSection =
   | 'policies'
   | 'policy-simulation'
   | 'audit'
+  // 56-07p: every public link the workspace issued, owner and admin.
+  | 'public-links'
   | 'data'
   // D5 (Figma F5): data export and deletion requests, owner-only.
   | 'privacy'
@@ -298,6 +300,13 @@ const GROUPS: readonly SectionGroup[] = [
         href: '/admin/audit',
         capability: 'audit.read',
       },
+      // 56-07p (Figma 619:35204): after Audit log, as in the frame.
+      {
+        id: 'public-links',
+        labelKey: ccKey('ControlCenter.publicLinks'),
+        href: '/admin/public-links',
+        capability: 'org.security.manage',
+      },
       {
         id: 'data',
         labelKey: ccKey('ControlCenter.dataAndRetention'),
@@ -360,6 +369,7 @@ export const SECTION_ICONS: Partial<Record<ControlCenterSection, PhoneIconName>>
   security: 'shield',
   incidents: 'alert',
   audit: 'listChecks',
+  'public-links': 'lock',
   data: 'database',
   storage: 'cloud',
   privacy: 'lock',

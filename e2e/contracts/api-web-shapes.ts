@@ -4725,3 +4725,23 @@ type _storageHandoverTarget = Assert<
 >;
 /** `POST …/integrations/storage/handover` — the named admin, pending their own sign-in. */
 type _storageHandover = Assert<Exact<ApiStorageHandoverView, WebStorageHandoverView>>;
+
+// ---- 56-07p Settings · Public links: the workspace link manager ----
+import type {
+  ManagedPublicLinkView as ApiManagedPublicLinkView,
+  PublicLinkBulkResultView as ApiPublicLinkBulkResultView,
+  PublicLinkManagerView as ApiPublicLinkManagerView,
+} from '../../apps/api/src/modules/public-links/public-link-manager.service.js';
+import type {
+  ManagedPublicLinkView as WebManagedPublicLinkView,
+  PublicLinkBulkResultView as WebPublicLinkBulkResultView,
+  PublicLinkManagerView as WebPublicLinkManagerView,
+} from '../../apps/web/src/lib/api/public-link-manager.js';
+/** One row of `GET …/public-links/manage` — metadata only, never the token. */
+type _managedPublicLink = Assert<Exact<ApiManagedPublicLinkView, WebManagedPublicLinkView>>;
+/** `GET …/public-links/manage` — one page, the chip counts and the filter options. */
+type _publicLinkManager = Assert<Exact<ApiPublicLinkManagerView, WebPublicLinkManagerView>>;
+/** `POST …/public-links/manage/revoke` and `…/manage/expiry` — how many changed, how many skipped. */
+type _publicLinkBulkResult = Assert<
+  Exact<ApiPublicLinkBulkResultView, WebPublicLinkBulkResultView>
+>;

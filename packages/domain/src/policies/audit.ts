@@ -1146,6 +1146,10 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'public_link',
     clause: '§12 56-07 — a public link was cancelled before it expired',
   },
+  'public_link.expiry_changed': {
+    objectType: 'public_link',
+    clause: '§12 56-07p — an owner or admin moved the day a public link stops working',
+  },
   // ---- 52-08 · quotes ----
   'quote.created': {
     objectType: 'quote',
@@ -1931,6 +1935,7 @@ const AUDIT_ACTION_LABELS = {
   'public_link.opened': 'A public link was opened',
   'public_link.decided': 'A decision was made through a public link',
   'public_link.revoked': 'Revoked a public link',
+  'public_link.expiry_changed': 'Changed when a public link expires',
   'quote.created': 'Created a quote',
   'quote.updated': 'Edited a draft quote',
   'quote.sent': 'Sent a quote',

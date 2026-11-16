@@ -1,0 +1,321 @@
+/*
+ * 56-07p · Settings · Public links (Figma 619:35203). The table, row menu and dialogs are the
+ * Members screen's (`people.css`); this file adds only what that screen does not have: the filter
+ * card, the bulk bar, the selection column, the pager and the empty state. Logical properties
+ * throughout, so Arabic mirrors it.
+ */
+
+.pl-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.pl-filters .tm-search-field {
+  flex: 1 1 260px;
+  max-inline-size: 360px;
+}
+
+.pl-filters__end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--s2);
+  margin-inline-start: auto;
+}
+
+.pl-chip__count {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: 20px;
+  padding-inline: 5px;
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.pl-chip[aria-pressed='true'] {
+  background: var(--lime-100);
+}
+
+.pl-chip[aria-pressed='true'] .pl-chip__count {
+  background: var(--ink-950);
+  color: var(--paper-0);
+}
+
+.pl-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3) var(--s2) var(--s4);
+  border: var(--b-quiet) solid var(--line-700);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.pl-bulk__count {
+  color: var(--ink-950);
+}
+
+.pl-bulk__actions {
+  display: flex;
+  gap: var(--s3);
+  margin-inline-start: auto;
+}
+
+.pl-check {
+  inline-size: 20px;
+}
+
+.pl-check .tm-choice {
+  margin: 0;
+}
+
+.pl-row--selected td {
+  background: var(--lime-100);
+}
+
+.pl-title {
+  max-inline-size: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pl-main {
+  display: block;
+  color: var(--ink-950);
+}
+
+/* Readable on every row, ended ones included (AA: ink-650 on white is above 4.5:1). */
+.pl-sub {
+  display: block;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.pl-sub--warn {
+  color: var(--warning-600);
+}
+
+.pl-none,
+.pl-footnote {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.pl-pager {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.pl-pager__total {
+  margin-inline-end: var(--s4);
+  font-size: var(--t-caption);
+  color: var(--ink-650);
+}
+
+.pl-pager__step,
+.pl-pager__page {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: 32px;
+  block-size: 32px;
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: transparent;
+  font: inherit;
+  color: var(--ink-950);
+  cursor: pointer;
+}
+
+.pl-pager__step {
+  inline-size: 40px;
+  block-size: 40px;
+  border: var(--b-quiet) solid var(--ink-950);
+}
+
+.pl-pager__step:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pl-pager__page[aria-current='page'] {
+  background: var(--lime-500);
+}
+
+.pl-pager__step:focus-visible,
+.pl-pager__page:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* A chevron that points forward in reading order: right in English, left in Arabic. */
+.pl-pager__arrow {
+  inline-size: 7px;
+  block-size: 7px;
+  border-block-start: 1.5px solid currentColor;
+  border-inline-end: 1.5px solid currentColor;
+  transform: rotate(45deg);
+}
+
+.pl-pager__arrow--back {
+  transform: rotate(-135deg);
+}
+
+[dir='rtl'] .pl-pager__arrow {
+  transform: rotate(-135deg);
+}
+
+[dir='rtl'] .pl-pager__arrow--back {
+  transform: rotate(45deg);
+}
+
+.pl-cards {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pl-empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--s4);
+  padding: 48px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  text-align: center;
+}
+
+.pl-empty__icon {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 48px;
+  block-size: 48px;
+  border-radius: var(--r-capsule);
+  background: var(--lime-100);
+}
+
+.pl-empty__title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 27px;
+  color: var(--ink-950);
+}
+
+.pl-empty__body {
+  max-inline-size: 560px;
+  margin: 0;
+  color: var(--ink-650);
+}
+
+.pl-empty__hints {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pl-empty__hint {
+  display: grid;
+  gap: 4px;
+  max-inline-size: 232px;
+  padding: 14px 16px;
+  border-radius: var(--r-card);
+  background: var(--paper-150);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+  text-align: start;
+}
+
+.pl-empty__hint strong {
+  color: var(--ink-950);
+  font-weight: 500;
+}
+
+/* Phone (Figma 622:35515): each link is a card — box, title and menu; kind and state; one line. */
+@media (max-width: 640px) {
+  .pl-filters__end {
+    margin-inline-start: 0;
+  }
+
+  .pl-bulk__actions {
+    inline-size: 100%;
+    margin-inline-start: 0;
+  }
+
+  .pl-bulk__actions .tm-button {
+    flex: 1 1 0;
+  }
+
+  .pl-card {
+    border: 0;
+    background: transparent;
+  }
+
+  .pl-table thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .pl-table,
+  .pl-table tbody {
+    display: grid;
+    gap: var(--s3);
+  }
+
+  .pl-table .pl-row {
+    display: grid;
+    grid-template-columns: 20px 1fr auto;
+    gap: 6px var(--s3);
+    padding: 12px 8px 12px 14px;
+    border: var(--b-quiet) solid var(--line-300);
+    border-radius: var(--r-card);
+    background: var(--paper-0);
+  }
+
+  .pl-table .pl-row--selected {
+    background: var(--lime-100);
+  }
+
+  .pl-table .pl-row td {
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+
+  .pl-table .pl-row td:nth-child(n + 3):nth-child(-n + 7) {
+    grid-column: 2 / 4;
+  }
+
+  .pl-table .pl-row .ppl-member__actions {
+    grid-row: 1;
+    grid-column: 3;
+    inline-size: auto;
+  }
+
+  .pl-pager {
+    flex-wrap: wrap;
+  }
+}

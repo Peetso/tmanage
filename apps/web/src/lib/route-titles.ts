@@ -108,6 +108,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/admin/incidents': { en: 'Incidents', key: 'RouteTitle.adminIncidents' },
   '/[orgSlug]/admin/ip-allowlist': { en: 'IP allowlist', key: 'RouteTitle.adminIpAllowlist' },
   '/[orgSlug]/admin/privacy': { en: 'Privacy', key: 'RouteTitle.adminPrivacy' },
+  '/[orgSlug]/admin/public-links': { en: 'Public links', key: 'RouteTitle.adminPublicLinks' },
   '/[orgSlug]/admin/roles': { en: 'Roles', key: 'RouteTitle.adminRoles' },
   '/[orgSlug]/admin/roles/edit': { en: 'Edit role', key: 'RouteTitle.adminRoleEdit' },
   '/[orgSlug]/admin/security': { en: 'Security', key: 'RouteTitle.adminSecurity' },

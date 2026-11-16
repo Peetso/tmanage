@@ -1275,6 +1275,23 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/public-links/:linkId',
     reason: 'org_security_manage',
   },
+  // 56-07p. Settings · Public links: the workspace-wide list names outsiders' addresses; a bulk
+  // revoke or a new end date changes who can still open a link. An owner's or admin's own act.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/public-links/manage/',
+    reason: 'org_security_manage',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/public-links/manage/revoke',
+    reason: 'org_security_manage',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/public-links/manage/expiry',
+    reason: 'org_security_manage',
+  },
   // 52-18. The account-less approver: sending a deliverable version to an outside e-mail hands an
   // outsider access (risky, human approval in the spec); the list shows outsiders' details.
   {

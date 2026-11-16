@@ -5,6 +5,11 @@ import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { AUDIT_SERVICE, MAILER, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { deliverableVersionTarget } from './deliverable-version-target.repository.js';
+import {
+  PUBLIC_LINK_MANAGER_SERVICE,
+  PublicLinkManagerController,
+} from './public-link-manager.controller.js';
+import { PublicLinkManagerService } from './public-link-manager.service.js';
 import { PublicLinkSecrets } from './public-link-secrets.js';
 import { PUBLIC_LINK_TARGETS, PublicLinkTargets } from './public-link-targets.js';
 import {
@@ -59,11 +64,22 @@ export class PublicLinksModule {
           mailer: mailer ?? null,
         }),
     };
+    // 56-07p: Settings · Public links — revokes through the service above, the one revoke path.
+    const manager: Provider = {
+      provide: PUBLIC_LINK_MANAGER_SERVICE,
+      inject: [TENANT_DATABASE, PUBLIC_LINK_TARGETS, PUBLIC_LINKS_SERVICE, AUDIT_SERVICE],
+      useFactory: (
+        database: TenantDatabase,
+        registry: PublicLinkTargets,
+        links: PublicLinksService,
+        audit: AuditService,
+      ) => new PublicLinkManagerService({ database, targets: registry, links, audit }),
+    };
     return {
       module: PublicLinksModule,
       global: true,
-      providers: [targets, service],
-      controllers: [PublicLinksController, PublicLinkAccessController],
+      providers: [targets, service, manager],
+      controllers: [PublicLinksController, PublicLinkAccessController, PublicLinkManagerController],
       exports: [PUBLIC_LINK_TARGETS, PUBLIC_LINKS_SERVICE],
     };
   }

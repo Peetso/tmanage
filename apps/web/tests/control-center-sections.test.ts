@@ -43,6 +43,8 @@ describe('controlCenterSectionsFor', () => {
         // A17: workspace incidents sit right after Security.
         ['incidents', '/admin/incidents'],
         ['audit', '/admin/audit'],
+        // 56-07p: Public links follows the audit log (owner and admin only).
+        ['public-links', '/admin/public-links'],
         ['data', '/admin/audit/export'],
         ['storage', '/admin/storage'],
         // D5 (Figma F5): Privacy sits between Data and retention and Organization.

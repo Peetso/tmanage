@@ -121,6 +121,15 @@ export class PublicLinkTargets {
     return typeof targetType === 'string' ? (this.adapters.get(targetType) ?? null) : null;
   }
 
+  /**
+   * 56-07p: the kinds a member can issue here — every kind a registered adapter takes. A kind no
+   * adapter takes (`magic_signin`, issued by portal sign-in for its own 15-minute use) is not one.
+   */
+  issuedKinds(): readonly PublicLinkKind[] {
+    const kinds = new Set([...this.adapters.values()].flatMap((adapter) => adapter.kinds));
+    return PUBLIC_LINK_KINDS.filter((kind) => kinds.has(kind));
+  }
+
   /** 52-18: add a decision side effect for a target type (registered or not yet). */
   observeDecisions(targetType: string, observer: PublicLinkDecisionObserver): void {
     const list = this.observers.get(targetType) ?? [];
