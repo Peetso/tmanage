@@ -17,6 +17,7 @@ import {
 import { PlatformAdminRepository } from './platform-admin.repository.js';
 import { PlatformAdminService } from './platform-admin.service.js';
 import { PlatformAuditService } from './platform-audit.service.js';
+import { PlatformBootstrapReport } from './platform-bootstrap-report.js';
 
 /**
  * The shared core of the Platform admin (platform-admin v2, PA-02): the guard and its lookup,
@@ -104,6 +105,8 @@ export class PlatformAdminCoreModule {
       signupDefault,
       service,
       PlatformAdminGuard,
+      // PLATFORMFIX: one start-up line on what the server list amounts to (counts only).
+      PlatformBootstrapReport,
     ];
     return {
       module: PlatformAdminCoreModule,

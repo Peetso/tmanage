@@ -7,7 +7,7 @@ import type {
   TenantDatabase,
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
-import { likeContains } from './platform-admin.access.js';
+import { likeContains, type PlatformBootstrapAccount } from './platform-admin.access.js';
 import { revokeAllBearerCredentialsForUser } from '../identity/bearer-credentials.js';
 import { PlatformAdminsRepository } from './platform-admins.repository.js';
 import type { PlatformAdminRecord } from './platform-admins.repository.js';
@@ -250,6 +250,10 @@ export const SQL = {
       (select count(*) from user_mfa_factors f
          where f.user_id = u.id and f.confirmed_at is not null and f.disabled_at is null) as factors
     from users u where u.id = ? limit 1`,
+  bootstrapAccounts: (count: number) => `select u.email_verified_at as email_verified_at,
+      (select count(*) from user_mfa_factors f
+         where f.user_id = u.id and f.confirmed_at is not null and f.disabled_at is null) as factors
+    from users u where lower(u.email) in (${Array.from({ length: count }, () => '?').join(', ')})`,
   liveStepUp: `select expires_at, mfa_verified from platform_admin_step_ups
     where user_id = ? and session_id = ? and expires_at > now(3)
     order by expires_at desc limit 1`,
@@ -409,6 +413,28 @@ export class PlatformAdminRepository {
             row['email_verified_at'] !== null && row['email_verified_at'] !== undefined,
           mfaEnabled: num(row['factors']) > 0,
         };
+      },
+    );
+  }
+
+  /**
+   * PLATFORMFIX: the confirmed / two-step state of the accounts on the server list, for the one
+   * start-up line (`platformBootstrapLine`). Lower-cased addresses in, no address out.
+   */
+  async bootstrapAccounts(
+    emails: readonly string[],
+    correlationId: string,
+  ): Promise<readonly PlatformBootstrapAccount[]> {
+    if (emails.length === 0) return [];
+    return this.database.identityRead(
+      { correlationId, tables: [...ACCOUNT_TABLES] },
+      async (db) => {
+        const rows = await db.query<Row[]>(SQL.bootstrapAccounts(emails.length), [...emails]);
+        return rows.map((row) => ({
+          emailVerified:
+            row['email_verified_at'] !== null && row['email_verified_at'] !== undefined,
+          mfaEnabled: num(row['factors']) > 0,
+        }));
       },
     );
   }

@@ -745,6 +745,8 @@ export const SERVER_FILES = Object.freeze([
   'security-txt.mjs',
   // server.mjs imports the page rate limit (FIX6) from here; missing it, boot fails.
   'page-limit.mjs',
+  // server.mjs imports the Platform admin page gate (PLATFORMFIX) from here; missing it, boot fails.
+  'platform-gate.mjs',
 ]);
 
 function assemble() {

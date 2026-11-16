@@ -23,8 +23,19 @@ const CONSENT_PATH = /^\/connect\/authorize\?[A-Za-z0-9\-._~%&=+]{1,4000}$/u;
  */
 const AI_APPROVE_PATH = /^\/[a-z0-9][a-z0-9-]{0,62}\/ai\/approve\/[0-9a-f-]{36}$/u;
 
+/**
+ * A Platform admin page (PLATFORMFIX): `/platform` and its sub-pages, path only, plain segments.
+ * A signed-out visitor is sent to sign-in from there by the server, and comes back after.
+ */
+const PLATFORM_PATH = /^\/platform(?:\/[A-Za-z0-9_-]{1,64}){0,6}$/u;
+
 function isAllowedReturn(path: string): boolean {
-  return INVITATION_PATH.test(path) || CONSENT_PATH.test(path) || AI_APPROVE_PATH.test(path);
+  return (
+    INVITATION_PATH.test(path) ||
+    CONSENT_PATH.test(path) ||
+    AI_APPROVE_PATH.test(path) ||
+    PLATFORM_PATH.test(path)
+  );
 }
 
 export const DEFAULT_AFTER_SIGN_IN = '/organizations';

@@ -99,6 +99,7 @@ import {
   workerSweepJobs,
 } from './scheduled-sweeps.mjs';
 import { WEB_HEALTHY_MS, webRestartDelayMs } from './web-restart.mjs';
+import { createPlatformGate, isPlatformPath } from './platform-gate.mjs';
 import {
   bindProxyLifetimes,
   cleanupWebTransport,
@@ -550,10 +551,20 @@ async function main() {
   const state = { ready: undefined };
   // FIX6: the server-rendered sign-in/sign-up/setup pages get a per-address limit (page-limit.mjs).
   const pageLimit = createPageLimiter({ trustedProxies: process.env['TRUSTED_PROXY_ADDRESSES'] });
+  const toWeb = (req, res) => proxyToWeb(req, res, transport);
+  // PLATFORMFIX: who may see Platform admin is decided here, by the API, before the web child
+  // renders any of its shell (platform-gate.mjs).
+  const platformGate = createPlatformGate({
+    inject: (options) => state.ready.fastify.inject(options),
+    proxyToWeb: toWeb,
+    log,
+  });
   const publicHandler = createPublicHandler(
     state,
     (req, res) => {
-      if (!pageLimit(req, res)) proxyToWeb(req, res, transport);
+      if (pageLimit(req, res)) return;
+      if (isPlatformPath(req.url)) platformGate(req, res);
+      else toWeb(req, res);
     },
     resolve(ROOT, DOWNLOADS_DIR),
   );

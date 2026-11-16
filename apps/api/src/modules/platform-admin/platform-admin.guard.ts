@@ -29,7 +29,8 @@ import { PLATFORM_PERMISSION_METADATA } from './require-platform-permission.deco
  *    `platform_permission_missing` naming the key. Checked before the step-up: stepping up
  *    would not help, and the screen should say what is missing instead of asking for a password.
  * 5. **A fresh step-up** — the password (and MFA code) confirmed in THIS session within the
- *    last 15 minutes — for every route except `me` and `step-up` (`@PlatformStepUpExempt()`).
+ *    step-up window (`PLATFORM_STEP_UP_MINUTES`, 24 hours by default) — for every route except
+ *    `me` and `step-up` (`@PlatformStepUpExempt()`).
  *
  * Refusals 1–3 are the same 404 any unknown path gets, so the surface does not confirm it
  * exists to someone who is not an admin. Refusals 4–5 are 403s: by then the caller is an admin.

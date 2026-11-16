@@ -12,6 +12,7 @@ import {
 import { markdownPathFor, prefersMarkdown, publicPageLinkHeader } from './lib/markdown-negotiation';
 import { rememberSignupAttribution } from './lib/signup-attribution-cookie';
 import { publicNotFoundPage } from './lib/public-not-found';
+import { signedOutAreaRedirect } from './lib/signed-in-shell-gate';
 import { bareNotFoundRewrite, sessionHint } from './lib/workspace-gate';
 
 /**
@@ -57,11 +58,13 @@ export function proxy(request: NextRequest): NextResponse {
   // NOTFOUND: a signed-out bare `/{x}` is answered with the prerendered not-found page, so its
   // hash policy is that page's.
   // NEXTUP: so is an unknown public website page (`/help/<x>`, `/compare/<x>`, `/ar/...`).
+  const hasSession = sessionHint((name) => request.cookies.has(name), request.headers.get('host'));
   const notFoundPage =
-    bareNotFoundRewrite(
-      request.nextUrl.pathname,
-      sessionHint((name) => request.cookies.has(name), request.headers.get('host')),
-    ) ?? publicNotFoundPage(request.nextUrl.pathname);
+    bareNotFoundRewrite(request.nextUrl.pathname, hasSession) ??
+    publicNotFoundPage(request.nextUrl.pathname);
+  // PLATFORMFIX: a signed-out request for a signed-in area (Platform admin above all) is sent to
+  // sign-in here, before any of the area's shell is rendered.
+  const signIn = signedOutAreaRedirect(request.nextUrl.pathname, hasSession);
   // `next dev` renders every page per request; a stale build's manifest must not count there.
   const pageHashes = development
     ? undefined
@@ -82,12 +85,14 @@ export function proxy(request: NextRequest): NextResponse {
   // `set`, so a client-sent value never survives: the workspace layout redirects on it.
   requestHeaders.set(REQUEST_PATH_HEADER, request.nextUrl.pathname);
   const response =
-    notFoundPage === undefined
-      ? publicPageResponse(request, requestHeaders)
-      : NextResponse.rewrite(new URL(notFoundPage, request.url), {
-          status: 404,
-          request: { headers: requestHeaders },
-        });
+    signIn !== undefined
+      ? NextResponse.redirect(new URL(signIn, request.url), 307)
+      : notFoundPage === undefined
+        ? publicPageResponse(request, requestHeaders)
+        : NextResponse.rewrite(new URL(notFoundPage, request.url), {
+            status: 404,
+            request: { headers: requestHeaders },
+          });
   // `append`: in report-only mode `content-security-policy` carries the enforced frame-ancestors
   // stand-in; appending never overwrites a header Next or next.config.ts already set.
   for (const [name, value] of headers.response) response.headers.append(name, value);

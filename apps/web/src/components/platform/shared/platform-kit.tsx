@@ -139,8 +139,12 @@ export function PlatformGate({
       ) : null}
       {me.isSuccess && !me.data.mfaEnabled ? (
         <InlineAlert tone="warning" title={t('PlatformAdminScreens.setupTwoStepTitle')}>
-          {t('PlatformAdminScreens.twoStepBody1')} {me.data.stepUpMinutes}{' '}
-          {t('PlatformAdminScreens.twoStepBody2')}{' '}
+          {t('PlatformAdminScreens.twoStepBody1')} {stepUpWindow(me.data.stepUpMinutes).count}{' '}
+          {t(
+            stepUpWindow(me.data.stepUpMinutes).hours
+              ? 'PlatformAdminScreens.twoStepBody2Hours'
+              : 'PlatformAdminScreens.twoStepBody2',
+          )}{' '}
           <Link href="/organizations">{t('PlatformAdminScreens.yourOrganizations')}</Link>.
         </InlineAlert>
       ) : null}
@@ -150,6 +154,16 @@ export function PlatformGate({
       {me.isSuccess && me.data.stepUpExpiresAt !== null ? children(me.data) : null}
     </PlatformShell>
   );
+}
+
+/**
+ * The step-up window as the screen says it (PLATFORMFIX): the API's `stepUpMinutes` in whole
+ * hours when it is a whole number of hours (the default, 24 hours), otherwise in minutes.
+ */
+export function stepUpWindow(minutes: number): { readonly count: number; readonly hours: boolean } {
+  return minutes >= 60 && minutes % 60 === 0
+    ? { count: minutes / 60, hours: true }
+    : { count: minutes, hours: false };
 }
 
 export function StepUpForm({ api, me }: { api: ApiClient; me: PlatformMeView }) {
@@ -186,8 +200,12 @@ export function StepUpForm({ api, me }: { api: ApiClient; me: PlatformMeView }) 
       <p className="tm-cc-note">
         {t('PlatformAdminScreens.stepUpNote1')}
         {me.mfaEnabled ? ` ${t('PlatformAdminScreens.stepUpAndCode')}` : ''}{' '}
-        {t('PlatformAdminScreens.stepUpNote2')} {me.stepUpMinutes}{' '}
-        {t('PlatformAdminScreens.stepUpMinutesWord')}
+        {t('PlatformAdminScreens.stepUpNote2')} {stepUpWindow(me.stepUpMinutes).count}{' '}
+        {t(
+          stepUpWindow(me.stepUpMinutes).hours
+            ? 'PlatformAdminScreens.stepUpHoursWord'
+            : 'PlatformAdminScreens.stepUpMinutesWord',
+        )}
       </p>
       <form className="tm-stack tm-stack--tight" onSubmit={submit}>
         <Field

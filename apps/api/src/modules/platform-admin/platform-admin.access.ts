@@ -23,22 +23,83 @@ import { requireRequestState } from '../../common/http/request-state.js';
  * admin-team changes, billing mode, purge, end session.
  */
 
-/** A fresh password (and MFA code, when one is set up) confirmation lasts this long. */
-export const PLATFORM_STEP_UP_MINUTES = 15;
+/**
+ * How long a Platform admin step-up (password, plus the two-step code when one is set up) lasts,
+ * in this session only — a new session or a sign-out ends it (PLATFORMFIX, the owner's decision
+ * 2026-11-16: once a day instead of every 15 minutes). `PLATFORM_REAUTH_TTL_HOURS` overrides the
+ * default of 24 with a whole number of hours from 1 to 24; anything else is the default. Only
+ * this window: every other re-authentication (settings, two-step changes) keeps its own.
+ */
+export const PLATFORM_REAUTH_TTL_DEFAULT_HOURS = 24;
+export const PLATFORM_REAUTH_TTL_MAX_HOURS = 24;
+
+export function platformStepUpMinutes(env: Readonly<Record<string, string | undefined>>): number {
+  const raw = (env['PLATFORM_REAUTH_TTL_HOURS'] ?? '').trim();
+  const hours = /^\d{1,2}$/u.test(raw) ? Number(raw) : PLATFORM_REAUTH_TTL_DEFAULT_HOURS;
+  const bounded =
+    hours >= 1 && hours <= PLATFORM_REAUTH_TTL_MAX_HOURS
+      ? hours
+      : PLATFORM_REAUTH_TTL_DEFAULT_HOURS;
+  return bounded * 60;
+}
+
+/** The step-up window of this process, read once at start (`PLATFORM_REAUTH_TTL_HOURS`). */
+export const PLATFORM_STEP_UP_MINUTES = platformStepUpMinutes(process.env);
 
 /** Reason bounds: long enough to say something, short enough to stay a reason. */
 export const MIN_REASON_LENGTH = 5;
 export const MAX_REASON_LENGTH = 500;
 
-/** Parse `PLATFORM_ADMIN_EMAILS` into a de-duplicated, lower-cased list. Junk entries drop out. */
+/**
+ * Parse `PLATFORM_ADMIN_EMAILS` into a de-duplicated, lower-cased list. Junk entries drop out.
+ * Forgiving of how a hosting panel is typed into (PLATFORMFIX): commas, semicolons, spaces or new
+ * lines separate addresses, and quotes or angle brackets around the value or an address are
+ * ignored — `"a@x.com, B@Y.com"` and `<a@x.com>;b@y.com` both name the same two people.
+ */
 export function parsePlatformAdminEmails(raw: string | null | undefined): readonly string[] {
   if (typeof raw !== 'string') return [];
   const seen = new Set<string>();
-  for (const part of raw.split(',')) {
-    const email = part.trim().toLowerCase();
-    if (email.length > 3 && email.length <= 254 && email.includes('@')) seen.add(email);
+  for (const part of raw.split(/[\s,;]+/u)) {
+    const email = part.replace(/^["'<]+|["'>]+$/gu, '').toLowerCase();
+    if (email.length > 3 && email.length <= 254 && /^[^@\s]+@[^@\s]+$/u.test(email)) {
+      seen.add(email);
+    }
   }
   return [...seen];
+}
+
+/** What the server knows about one configured address at start (no address is ever logged). */
+export interface PlatformBootstrapAccount {
+  readonly emailVerified: boolean;
+  readonly mfaEnabled: boolean;
+}
+
+/**
+ * The one start-up line about the server list (PLATFORMFIX: an operator who set the variable and
+ * restarted had no way to tell why /platform still answered 404). Counts only — never an address.
+ * The list is read on every request, so nothing is granted or stored here: an address on the list
+ * whose account is confirmed opens Platform admin as soon as it signs in.
+ */
+export function platformBootstrapLine(
+  configured: number,
+  accounts: readonly PlatformBootstrapAccount[],
+  twoStepRequired: boolean,
+): string {
+  const prefix = `platform bootstrap: ${configured} address(es) configured`;
+  if (configured === 0) return `${prefix}; Platform admin is off`;
+  const verified = accounts.filter((account) => account.emailVerified);
+  const ready = verified.filter((account) => !twoStepRequired || account.mfaEnabled);
+  const parts = [
+    `${accounts.length} with an account`,
+    `${verified.length} confirmed`,
+    `${ready.length} can open Platform admin`,
+  ];
+  let hint = '';
+  if (accounts.length === 0) hint = ' — no account with that address yet (sign up first)';
+  else if (verified.length === 0)
+    hint = ' — e-mail not confirmed yet (click the confirmation link)';
+  else if (ready.length === 0) hint = ' — turn on two-step sign-in first';
+  return `${prefix}; ${parts.join(', ')}${hint}`;
 }
 
 /** Exact, case-insensitive membership. A prefix or a pattern would let `a@x.co` match `a@x.com`. */

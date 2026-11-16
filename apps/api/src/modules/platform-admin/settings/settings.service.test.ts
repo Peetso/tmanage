@@ -74,7 +74,7 @@ describe('buildFullView — env default vs stored value', () => {
     });
     expect(view.retention).toEqual({ orgPurgeDays: 30, userPurgeDays: 30, contentPurgeDays: 30 });
     expect(view.supportDefaults).toEqual({ maxMinutes: 480, requireReason: false });
-    expect(view.stepUpMinutes).toBe(15);
+    expect(view.stepUpMinutes).toBe(24 * 60);
     expect(view.changes.billingMode).toEqual({ at: null, by: null });
   });
 
