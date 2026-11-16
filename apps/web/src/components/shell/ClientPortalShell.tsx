@@ -16,6 +16,7 @@ import { PortalMenu, usePortalShellProjects } from './PortalMenu';
 import { PortalProjectSwitcher } from './PortalProjectSwitcher';
 // ---- platform-admin v2 · PA-05 ----
 import { ShellBanners } from './ShellBanners';
+import { ThemeSync } from './ThemeSync';
 import { SupportSessionEndedGate } from '../platform/support/SupportSessionEndedGate';
 
 /**
@@ -128,6 +129,11 @@ export function ClientPortalShell({
         {queryClient ? (
           <ShellBanners organizationSlug={organizationSlug} organizationName={providerName} />
         ) : null}
+        {/* PORTALA11Y: the saved display settings on every portal page — the client's own, or a
+            previewing staff member's. */}
+        {queryClient ? (
+          <ThemeSync organizationSlug={organizationSlug} audience={preview ? 'member' : 'client'} />
+        ) : null}
 
         {preview ? (
           <div className="tm-portal__preview-bar">
@@ -203,6 +209,7 @@ export function ClientPortalShell({
             <AccountMenu
               organizationSlug={organizationSlug}
               placement="header"
+              audience={preview ? 'member' : 'client'}
               {...(accountInitials ? { initials: accountInitials } : {})}
               {...(accountName ? { name: accountName } : {})}
               {...(accountEmail ? { email: accountEmail } : {})}

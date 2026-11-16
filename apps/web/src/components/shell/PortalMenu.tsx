@@ -299,6 +299,21 @@ function PortalMenuCard({
       </ul>
       <hr className="tm-portal-menu__rule" />
       <ul className="tm-portal-menu__list">
+        {/* PORTALA11Y: the client's own text size, contrast and motion. */}
+        <li>
+          <Link
+            href={`${base}/portal/accessibility`}
+            className="tm-portal-menu__item"
+            onClick={() => onClose(false)}
+          >
+            <span className="tm-portal-menu__glyph" aria-hidden="true">
+              <NavIcon name="eye" size={16} />
+            </span>
+            <span className="tm-portal-menu__label">
+              {tOr('AccountMenu.displayAccessibility', 'Display and accessibility')}
+            </span>
+          </Link>
+        </li>
         <li>
           <button
             type="button"

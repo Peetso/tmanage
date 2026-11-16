@@ -1,8 +1,12 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { a11yPreferences } from '../../common/database/schema.js';
-import type { A11yPreferenceRow, A11yPreferences } from '../../common/database/schema.js';
+import { a11yPreferences, clientA11yPreferences } from '../../common/database/schema.js';
+import type {
+  A11yPreferenceRow,
+  A11yPreferences,
+  ClientA11yPreferenceRow,
+} from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -62,5 +66,46 @@ export class A11yPreferencesRepository {
           a11yJson: settings,
         },
       });
+  }
+
+  /**
+   * PORTALA11Y (0357). The same read for a client portal user, keyed to their own client
+   * membership (`client_a11y_preferences`): a client has no `memberships` row to key 0079 to.
+   */
+  async findForClientMembership(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    clientMembershipId: string,
+  ): Promise<ClientA11yPreferenceRow | null> {
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(clientA11yPreferences)
+      .where(
+        and(
+          eq(clientA11yPreferences.organizationId, context.organizationId),
+          eq(clientA11yPreferences.clientMembershipId, clientMembershipId),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /** Create or replace this client person's settings in this studio. Idempotent by the unique key. */
+  async upsertForClientMembership(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    clientMembershipId: string,
+    settings: A11yPreferences,
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .insert(clientA11yPreferences)
+      .values({
+        id: uuidv7(),
+        organizationId: context.organizationId,
+        clientMembershipId,
+        a11yJson: settings,
+        updatedAt: sql`current_timestamp(3)`,
+      })
+      .onDuplicateKeyUpdate({ set: { a11yJson: settings } });
   }
 }

@@ -23,15 +23,34 @@ export interface A11yPreferencesView {
   readonly highContrast: boolean;
 }
 
-function path(organizationSlug: string): string {
-  return `/v1/organizations/${encodeURIComponent(organizationSlug)}/me/accessibility`;
+/**
+ * Whose settings: a workspace member's (`/me/accessibility`, behind `work.read`) or a client portal
+ * user's (`/portal/me/accessibility`, PORTALA11Y). Either way the server keys the row to the
+ * caller's own membership; nothing here names one.
+ */
+export type A11yAudience = 'member' | 'client';
+
+/** The query key a settings screen and `ThemeSync` share, so a save re-applies everywhere at once. */
+export function a11yPreferencesQueryKey(
+  organizationSlug: string,
+  audience: A11yAudience = 'member',
+): readonly string[] {
+  return [audience === 'client' ? 'portal-a11y-preferences' : 'a11y-preferences', organizationSlug];
+}
+
+function path(organizationSlug: string, audience: A11yAudience): string {
+  const base = `/v1/organizations/${encodeURIComponent(organizationSlug)}`;
+  return audience === 'client' ? `${base}/portal/me/accessibility` : `${base}/me/accessibility`;
 }
 
 export async function getAccessibilityPreferences(
   client: ApiClient,
   organizationSlug: string,
+  audience: A11yAudience = 'member',
 ): Promise<A11yPreferencesView> {
-  const { data } = await client.request<A11yPreferencesView>({ path: path(organizationSlug) });
+  const { data } = await client.request<A11yPreferencesView>({
+    path: path(organizationSlug, audience),
+  });
   return data;
 }
 
@@ -39,10 +58,11 @@ export async function updateAccessibilityPreferences(
   client: ApiClient,
   organizationSlug: string,
   settings: A11yPreferencesView,
+  audience: A11yAudience = 'member',
 ): Promise<A11yPreferencesView> {
   const { data } = await client.request<A11yPreferencesView>({
     method: 'PUT',
-    path: path(organizationSlug),
+    path: path(organizationSlug, audience),
     body: settings,
   });
   return data;

@@ -1,12 +1,11 @@
 import { Body, Controller, Get, HttpCode, Inject, Put } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
-import { ApiError } from '../../common/http/errors.js';
 import { A11Y_PREFERENCES_REPOSITORY, TENANT_DATABASE } from '../../common/http/tokens.js';
-import { A11Y_FONT_SCALES } from '../../common/database/schema.js';
-import type { A11yFontScale, A11yPreferences } from '../../common/database/schema.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { A11yPreferencesRepository } from './a11y.repository.js';
+import { DEFAULT_A11Y_PREFERENCES, a11yViewOf, parseA11yPreferences } from './a11y-preferences.js';
+import type { A11yPreferencesView } from './a11y-preferences.js';
 
 /**
  * A11Y-183 accessibility preferences — the caller's own settings, read and replaced (module 20
@@ -27,27 +26,14 @@ import type { A11yPreferencesRepository } from './a11y.repository.js';
  *
  * The body carries every setting and the upsert stores exactly it — a partial PUT would make
  * "unset" and "set to the default" indistinguishable, and the screen sends the whole form.
- * Validation is here rather than in the store because a malformed body is the client's error to be
- * told about (400), not a state the store should ever hold: an unknown key, a font scale off the
+ * Validation (the shared `a11y-preferences.ts`, which the portal route uses too) runs before the
+ * store because a malformed body is the client's error to be told about (400), not a state the store should ever hold: an unknown key, a font scale off the
  * closed vocabulary, or a non-boolean toggle is a 400 and nothing is written.
  */
 
-/** What the GET/PUT route exchanges: the three accessibility settings, without row identity. */
-export interface A11yPreferencesView {
-  readonly fontScale: A11yFontScale;
-  readonly reduceMotion: boolean;
-  readonly highContrast: boolean;
-}
-
-/** The shipped defaults an unsaved member is reached by: medium type, motion and contrast normal. */
-export const DEFAULT_A11Y_PREFERENCES: A11yPreferencesView = {
-  fontScale: 'md',
-  reduceMotion: false,
-  highContrast: false,
-};
-
-/** The only keys a PUT body may carry — anything else is a 400 (fixed-key allowlist). */
-const ALLOWED_KEYS: ReadonlySet<string> = new Set(['fontScale', 'reduceMotion', 'highContrast']);
+// Re-exported: the e2e shape contract and the route tests import them from the route.
+export { DEFAULT_A11Y_PREFERENCES };
+export type { A11yPreferencesView };
 
 @Controller('v1/organizations/:orgSlug/me/accessibility')
 export class A11yPreferencesController {
@@ -66,7 +52,7 @@ export class A11yPreferencesController {
     const row = await this.database.read(context, (runner) =>
       this.preferences.findForMembership(runner, context, principal.membershipId),
     );
-    return row ? viewOf(row.a11yJson) : DEFAULT_A11Y_PREFERENCES;
+    return row ? a11yViewOf(row.a11yJson) : DEFAULT_A11Y_PREFERENCES;
   }
 
   @Put()
@@ -77,62 +63,11 @@ export class A11yPreferencesController {
     @CurrentPrincipal() principal: Principal,
     @Body() body: unknown,
   ): Promise<A11yPreferencesView> {
-    const settings = parseInput(body);
+    const settings = parseA11yPreferences(body);
     return this.database.transaction(context, async (tx) => {
       await this.preferences.upsert(tx, context, principal.membershipId, settings);
       const row = await this.preferences.findForMembership(tx, context, principal.membershipId);
-      return row ? viewOf(row.a11yJson) : viewOf(settings);
+      return row ? a11yViewOf(row.a11yJson) : a11yViewOf(settings);
     });
   }
-}
-
-function viewOf(settings: A11yPreferences): A11yPreferencesView {
-  return {
-    fontScale: settings.fontScale,
-    reduceMotion: settings.reduceMotion,
-    highContrast: settings.highContrast,
-  };
-}
-
-function parseInput(body: unknown): A11yPreferences {
-  const details: { field: string; message: string }[] = [];
-  const value = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
-
-  // Fixed-key allowlist: a key the store has no column for is the client's error, not a silent drop.
-  for (const key of Object.keys(value)) {
-    if (!ALLOWED_KEYS.has(key)) {
-      details.push({ field: key, message: 'is not a known preference' });
-    }
-  }
-
-  const scale = value['fontScale'];
-  if (!(A11Y_FONT_SCALES as readonly unknown[]).includes(scale)) {
-    details.push({
-      field: 'fontScale',
-      message: `must be one of ${A11Y_FONT_SCALES.join(', ')}`,
-    });
-  }
-
-  const bool = (field: string): boolean => {
-    const raw = value[field];
-    if (typeof raw !== 'boolean') {
-      details.push({ field, message: 'must be a boolean' });
-      return false;
-    }
-    return raw;
-  };
-
-  const reduceMotion = bool('reduceMotion');
-  const highContrast = bool('highContrast');
-
-  if (details.length > 0) {
-    throw new ApiError(
-      400,
-      'validation_failed',
-      'The accessibility preferences are invalid',
-      details,
-    );
-  }
-
-  return { fontScale: scale as A11yFontScale, reduceMotion, highContrast };
 }

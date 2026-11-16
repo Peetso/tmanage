@@ -3,7 +3,11 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { getAccessibilityPreferences } from '../../lib/api/a11y-preferences';
+import {
+  a11yPreferencesQueryKey,
+  getAccessibilityPreferences,
+} from '../../lib/api/a11y-preferences';
+import type { A11yAudience } from '../../lib/api/a11y-preferences';
 import { getDisplayPreferences } from '../../lib/api/display-preferences';
 import { applyA11yPreferences } from '../../lib/a11y-shell';
 import { displayFormat } from '../../lib/i18n/display-format';
@@ -23,12 +27,23 @@ import { applyDensity, applyTheme } from '../../lib/theme';
  * loads it is published to the active-locale store, which also re-writes the cookie and the
  * cached locale, so the next load boots in the saved language. Signed-out pages never mount
  * this, so they keep the cookie behaviour (and the sign-in switch, R24 A5).
+ *
+ * PORTALA11Y: the client portal mounts it with `audience="client"`. A client has no member display
+ * row (theme and language stay the boot script's cached copy and the cookie), so only their own
+ * accessibility settings are read, from the portal route.
  */
-export function ThemeSync({ organizationSlug }: { organizationSlug: string }) {
+export function ThemeSync({
+  organizationSlug,
+  audience = 'member',
+}: {
+  organizationSlug: string;
+  audience?: A11yAudience;
+}) {
   const preferences = useQuery({
     queryKey: ['display-preferences', organizationSlug],
     queryFn: () => getDisplayPreferences(browserApiClient(), organizationSlug),
     staleTime: 5 * 60_000,
+    enabled: audience === 'member',
   });
   const theme = preferences.data?.theme;
   useEffect(() => {
@@ -49,8 +64,8 @@ export function ThemeSync({ organizationSlug }: { organizationSlug: string }) {
     if (numerals || dateFormat) displayFormat.set({ numerals, dateFormat });
   }, [numerals, dateFormat]);
   const a11y = useQuery({
-    queryKey: ['a11y-preferences', organizationSlug],
-    queryFn: () => getAccessibilityPreferences(browserApiClient(), organizationSlug),
+    queryKey: a11yPreferencesQueryKey(organizationSlug, audience),
+    queryFn: () => getAccessibilityPreferences(browserApiClient(), organizationSlug, audience),
     staleTime: 5 * 60_000,
   });
   useEffect(() => {

@@ -585,6 +585,7 @@
   "MessageBookmark.refused": "یہ پیغام محفوظ نہیں ہو سکا۔",
   "AccountMenu.downloadDesktop": "ڈیسک ٹاپ ایپ ڈاؤن لوڈ کریں",
   "AccountMenu.downloadDesktopHint": "Windows کے لیے · تقریباً {size} MB",
+  "AccountMenu.displayAccessibility": "ڈسپلے اور رسائی",
   "NewMessageDialog.noMatchTitle": "“{query}” سے کوئی میل نہیں کھاتا",
   "NewMessageDialog.noMatchBody": "ہجے چیک کریں، یا پہلے انہیں {organization} میں مدعو کریں۔",
   "NewMessageDialog.noMatchBodyWorkspace": "ہجے چیک کریں، یا پہلے انہیں اس ورک اسپیس میں مدعو کریں۔",

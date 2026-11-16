@@ -14136,3 +14136,34 @@ Object.assign(TABLES, {
   signature_requests: signatureRequests,
   signature_request_signers: signatureRequestSigners,
 });
+
+// ---- PORTALA11Y · client portal accessibility preferences (0357) ----
+/**
+ * PORTALA11Y (0357, module 20). A client portal user's own accessibility settings: the client twin
+ * of {@link a11yPreferences}, keyed to `client_memberships` because a client has no `memberships`
+ * row. One row per `(organization_id, client_membership_id)`; `a11y_json` holds the same
+ * {@link A11yPreferences} object, validated by the application. Absence reads the shipped defaults.
+ * TENANT.
+ */
+export const clientA11yPreferences = mysqlTable(
+  'client_a11y_preferences',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    clientMembershipId: char('client_membership_id', { length: 36 }).notNull(),
+    a11yJson: json('a11y_json').$type<A11yPreferences>().notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_client_a11y_preferences_org_id').on(table.organizationId, table.id),
+    // The upsert key: one row per client person per studio.
+    uniqueIndex('uq_client_a11y_preferences_org_client_membership').on(
+      table.organizationId,
+      table.clientMembershipId,
+    ),
+  ],
+);
+
+export type ClientA11yPreferenceRow = typeof clientA11yPreferences.$inferSelect;
+
+Object.assign(TABLES, { client_a11y_preferences: clientA11yPreferences });

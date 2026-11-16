@@ -1360,6 +1360,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // runs in reverse, so the signers are emptied before the requests).
   signature_requests: 'organization_id',
   signature_request_signers: 'organization_id',
+  // 0357 (PORTALA11Y). Tenant-owned: one client portal user's accessibility settings in one studio;
+  // an unscoped read would be every client's settings on the server. Registered after
+  // `client_memberships` so the company erasure empties it first (children-first).
+  client_a11y_preferences: 'organization_id',
 });
 
 /**

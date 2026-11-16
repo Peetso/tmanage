@@ -37,6 +37,11 @@ export interface AccountMenuProps {
   email?: string;
   /** `rail` opens beside the rail orb; `header` drops below the portal header's end. */
   placement?: 'rail' | 'header';
+  /**
+   * PORTALA11Y: a client in their portal holds none of the member destinations (profile, settings,
+   * AI assistant, tokens), so their menu offers their own "Display and accessibility" page instead.
+   */
+  audience?: 'member' | 'client';
 }
 
 function initialsOf(name: string | undefined): string {
@@ -64,6 +69,7 @@ export function AccountMenu({
   name,
   email,
   placement = 'rail',
+  audience = 'member',
 }: AccountMenuProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -107,6 +113,7 @@ export function AccountMenu({
           initials={shown}
           name={name}
           email={email}
+          audience={audience}
           onClose={close}
         />
       ) : null}
@@ -124,6 +131,7 @@ function AccountMenuPanel({
   initials,
   name,
   email,
+  audience,
   onClose,
 }: {
   id: string;
@@ -131,6 +139,7 @@ function AccountMenuPanel({
   initials: string;
   name: string | undefined;
   email: string | undefined;
+  audience: 'member' | 'client';
   onClose: (returnFocus: boolean) => void;
 }) {
   const t = useT();
@@ -170,6 +179,11 @@ function AccountMenuPanel({
   const [languagesOpen, setLanguagesOpen] = useState(false);
   const chooseLanguage = (next: (typeof OFFERED_LOCALES)[number]) => {
     activeLocale.set(next);
+    // A client has no member display row to save to; their pick lives in the locale cookie.
+    if (audience === 'client') {
+      onClose(true);
+      return;
+    }
     // R25 A6: the workspace now follows the saved preference on every load, so the pick is saved
     // there too — otherwise the next load would switch back. Best-effort: the in-tab switch above
     // already happened, and a failed save only means the next load keeps the old language.
@@ -233,8 +247,14 @@ function AccountMenuPanel({
         </div>
       </div>
       <hr className="tm-account__rule" />
-      {linkItem(`${base}/preferences`, key('profile'))}
-      {linkItem(`${base}/settings/display`, key('preferences'))}
+      {audience === 'client' ? (
+        linkItem(`${base}/portal/accessibility`, key('displayAccessibility'))
+      ) : (
+        <>
+          {linkItem(`${base}/preferences`, key('profile'))}
+          {linkItem(`${base}/settings/display`, key('preferences'))}
+        </>
+      )}
       <button
         type="button"
         role="menuitem"
@@ -271,8 +291,12 @@ function AccountMenuPanel({
           ))}
         </div>
       ) : null}
-      {linkItem(`${base}/settings/ai-assistant`, key('aiAssistant'))}
-      {linkItem(`${base}/settings/security`, key('accessTokens'))}
+      {audience === 'member' ? (
+        <>
+          {linkItem(`${base}/settings/ai-assistant`, key('aiAssistant'))}
+          {linkItem(`${base}/settings/security`, key('accessTokens'))}
+        </>
+      ) : null}
       {offerDesktopDownload(window) ? (
         <>
           <hr className="tm-account__rule" />

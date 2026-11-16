@@ -7,10 +7,15 @@ import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   A11Y_FONT_SCALES,
+  a11yPreferencesQueryKey,
   getAccessibilityPreferences,
   updateAccessibilityPreferences,
 } from '../../lib/api/a11y-preferences';
-import type { A11yFontScale, A11yPreferencesView } from '../../lib/api/a11y-preferences';
+import type {
+  A11yAudience,
+  A11yFontScale,
+  A11yPreferencesView,
+} from '../../lib/api/a11y-preferences';
 import { applyA11yPreferences } from '../../lib/a11y-shell';
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
@@ -49,10 +54,45 @@ export function AccessibilityScreen({
   organizationName,
   client,
 }: AccessibilityScreenProps) {
+  const t = useT();
+  return (
+    <SettingsShell
+      section="accessibility"
+      organizationSlug={organizationSlug}
+      organizationName={organizationName}
+      eyebrow={t('AccessibilityScreen.eyebrow')}
+      title={t('AccessibilityScreen.title')}
+    >
+      <AccessibilityPreferencesPanel
+        organizationSlug={organizationSlug}
+        audience="member"
+        {...(client ? { client } : {})}
+      />
+    </SettingsShell>
+  );
+}
+
+export interface AccessibilityPreferencesPanelProps {
+  organizationSlug: string;
+  /** Whose settings: the member's own, or (PORTALA11Y) the client portal user's own. */
+  audience: A11yAudience;
+  client?: ApiClient;
+}
+
+/**
+ * The settings form and its live sample, without a shell: the member settings page and the client
+ * portal's "Display and accessibility" page render the same approved design around it.
+ */
+export function AccessibilityPreferencesPanel({
+  organizationSlug,
+  audience,
+  client,
+}: AccessibilityPreferencesPanelProps) {
   const errorMessage = useDescribeApiError(OFFLINE_LINES);
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
+  const queryKey = a11yPreferencesQueryKey(organizationSlug, audience);
 
   const fontScaleLabels: Record<A11yFontScale, string> = {
     sm: t('AccessibilityScreen.fontScaleSmall'),
@@ -62,8 +102,8 @@ export function AccessibilityScreen({
   };
 
   const preferences = useQuery({
-    queryKey: ['a11y-preferences', organizationSlug],
-    queryFn: () => getAccessibilityPreferences(api, organizationSlug),
+    queryKey,
+    queryFn: () => getAccessibilityPreferences(api, organizationSlug, audience),
   });
 
   const [fontScale, setFontScale] = useState<A11yFontScale>(DEFAULTS.fontScale);
@@ -82,26 +122,21 @@ export function AccessibilityScreen({
 
   const save = useMutation({
     mutationFn: (): Promise<A11yPreferencesView> =>
-      updateAccessibilityPreferences(api, organizationSlug, {
-        fontScale,
-        reduceMotion,
-        highContrast,
-      }),
+      updateAccessibilityPreferences(
+        api,
+        organizationSlug,
+        { fontScale, reduceMotion, highContrast },
+        audience,
+      ),
     onSuccess: (result) => {
-      queries.setQueryData(['a11y-preferences', organizationSlug], result);
+      queries.setQueryData(queryKey, result);
       applyA11yPreferences(result);
       setSaved(true);
     },
   });
 
   return (
-    <SettingsShell
-      section="accessibility"
-      organizationSlug={organizationSlug}
-      organizationName={organizationName}
-      eyebrow={t('AccessibilityScreen.eyebrow')}
-      title={t('AccessibilityScreen.title')}
-    >
+    <>
       {preferences.isPending ? (
         <LoadingRegion label={t('AccessibilityScreen.loading')}>
           <Skeleton />
@@ -222,6 +257,6 @@ export function AccessibilityScreen({
           </aside>
         </div>
       )}
-    </SettingsShell>
+    </>
   );
 }

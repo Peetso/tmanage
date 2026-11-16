@@ -2483,3 +2483,8 @@ GRANT INSERT ON `tmanage`.`plan_versions` TO 'tmanage_app'@'%';
 -- The worker needs no grant.
 GRANT INSERT, UPDATE ON `tmanage`.`signature_requests`        TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`signature_request_signers` TO 'tmanage_app'@'%';
+-- 0357 (PORTALA11Y). `client_a11y_preferences` (tenant): a client portal user's own accessibility
+-- settings, created and replaced in place by an `INSERT ... ON DUPLICATE KEY UPDATE` upsert against
+-- `uq_client_a11y_preferences_org_client_membership`. No DELETE: a client clears settings by saving
+-- the defaults. SELECT rides the database-wide read. The worker needs no grant.
+GRANT INSERT, UPDATE ON `tmanage`.`client_a11y_preferences` TO 'tmanage_app'@'%';

@@ -96,7 +96,7 @@ afterEach(() => {
 });
 
 describe('PortalMenu (ph-portal)', () => {
-  it('opens on Menu with the project block, the six destinations, language and sign out', async () => {
+  it('opens on Menu with the project block, the six destinations, display, language and sign out', async () => {
     search = new URLSearchParams('project=p1');
     renderMenu();
     expect(await screen.findByText('Website relaunch')).toBeInTheDocument();
@@ -108,6 +108,7 @@ describe('PortalMenu (ph-portal)', () => {
       'Files',
       'Messages',
       'Chat',
+      'Display and accessibility',
       'Language',
       'Sign out',
     ]);
