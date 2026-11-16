@@ -50,9 +50,10 @@ describe('every navigation destination resolves to a page', () => {
     // Q1 added the "Clients" internal destination (/clients); A10a added "Finance" (/finance).
     // FIX3 item 11 added "Files" (/files, FIL-01).
     expect(INTERNAL_NAVIGATION.length).toBe(11);
-    // Portal risks (x140) added the "Risks" client destination (/portal/risks).
-    expect(CLIENT_NAVIGATION.length).toBe(8);
-    expect(ALL_DESTINATIONS.length).toBe(19);
+    // Portal risks (x140) added the "Risks" client destination (/portal/risks); portal Money
+    // (37247fbf) added "Money" (/portal/money).
+    expect(CLIENT_NAVIGATION.length).toBe(9);
+    expect(ALL_DESTINATIONS.length).toBe(20);
   });
 
   it.each(ALL_DESTINATIONS.map((item) => [item.label, item] as const))(

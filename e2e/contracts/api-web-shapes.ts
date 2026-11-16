@@ -3781,6 +3781,12 @@ type _pa07OrgLimitItem = Assert<Exact<ApiPlatformOrgLimitItem, WebPlatformOrgLim
 type _pa07OrgSettingItem = Assert<Exact<ApiPlatformOrgSettingItem, WebPlatformOrgSettingItem>>;
 type _pa07OrgFlagItem = Assert<Exact<ApiPlatformOrgFlagItem, WebPlatformOrgFlagItem>>;
 type _pa07OrgMemberItem = Assert<Exact<ApiPlatformOrgMemberItem, WebPlatformOrgMemberItem>>;
+// ADTRACK (0359): one row of the platform overview's `signupSources`.
+import type { PlatformSignupSourceRow as ApiPlatformSignupSourceItem } from '../../apps/api/src/modules/platform-admin/platform-admin.repository.js';
+import type { PlatformSignupSourceView as WebPlatformSignupSourceItem } from '../../apps/web/src/lib/api/platform-organizations';
+type _adtrackSignupSourceItem = Assert<
+  Exact<ApiPlatformSignupSourceItem, WebPlatformSignupSourceItem>
+>;
 
 // ---- platform-admin v2 · PA-08 ----
 // Content (SPEC §5.4, B5–B7): `/v1/platform/organizations/:id/content…`, read by `apps/web/src/lib/api/platform-content.ts`.

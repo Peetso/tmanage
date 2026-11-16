@@ -124,13 +124,19 @@ describe('the root layout stays static (public pages prerendered)', () => {
   it('has no request proxy left over from the server render', () => {
     expect(existsSync(LAYOUT_SOURCE)).toBe(true);
     expect(existsSync(join(SRC, 'middleware.ts'))).toBe(false);
-    // 56-01's `proxy.ts` only sets the CSP nonce headers; it must never pick a locale (read the
-    // cookie, rewrite or redirect) — that is what the removed server-locale proxy did.
+    // 56-01's `proxy.ts` sets the CSP nonce headers; it must never pick a locale (read the
+    // cookie, rewrite or redirect) — that is what the removed server-locale proxy did. Its one
+    // allowed rewrite is AGENTREADY's `Accept: text/markdown` answer, which targets the page's
+    // Markdown twin (`markdownPathFor`) and never a locale; it never redirects.
     const proxy = join(SRC, 'proxy.ts');
     if (existsSync(proxy)) {
       const source = readFileSync(proxy, 'utf8');
       expect(source).not.toMatch(/locale-cookie|server-locale|\.cookies\b/);
-      expect(source).not.toMatch(/NextResponse\.(rewrite|redirect)/);
+      expect(source).not.toMatch(/NextResponse\.redirect/);
+      const rewrites = source.match(/NextResponse\.rewrite\([^,]*/g) ?? [];
+      for (const rewrite of rewrites) {
+        expect(rewrite).toMatch(/^NextResponse\.rewrite\(new URL\(markdownPathFor\(/);
+      }
     }
   });
 });
