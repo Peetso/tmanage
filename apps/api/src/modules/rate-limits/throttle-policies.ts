@@ -81,6 +81,7 @@ export const PUBLIC_ROUTE_POLICIES: Readonly<Record<string, ThrottlePolicy>> = {
   'PublicSignupController.signUp': sharedSignup,
   'PasswordResetController.request': sharedPasswordReset,
   'PasswordResetController.complete': sharedPasswordReset,
+  'EmailConfirmationController.complete': sharedPasswordReset,
   'FirstOwnerController.setup': sharedSetup,
   'InvitationAcceptanceController.preview': sharedInvitation,
   'InvitationAcceptanceController.accept': sharedInvitation,

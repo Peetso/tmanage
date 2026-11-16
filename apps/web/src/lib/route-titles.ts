@@ -73,6 +73,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/sign-up': { en: 'Create your TManage account', key: 'RouteTitle.signUp' },
   '/recover': { en: 'Recover your account', key: 'RouteTitle.recover' },
   '/recover/[token]': { en: 'Choose a new password', key: 'RouteTitle.recoverToken' },
+  '/confirm-email/[token]': { en: 'Confirm your e-mail', key: 'ConfirmEmail.pageTitle' },
   '/setup': { en: 'Set up TManage', key: 'RouteTitle.setup' },
   '/sessions': { en: 'Your sessions', key: 'RouteTitle.sessions' },
   '/sessions/[sessionId]/trail': { en: 'Session sign-in trail', key: 'RouteTitle.sessionTrail' },

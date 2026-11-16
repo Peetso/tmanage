@@ -118,6 +118,7 @@ function harness(options: { emailTaken?: boolean; slugTakenTimes?: number } = {}
   const setPassword = vi.fn(async () => undefined);
   const credentials = { setPassword } as unknown as CredentialsRepository;
   const deliver = vi.fn(async () => 'sent' as const);
+  const confirm = vi.fn(async () => 'sent' as const);
 
   const service = new PublicSignupService(
     database,
@@ -125,6 +126,7 @@ function harness(options: { emailTaken?: boolean; slugTakenTimes?: number } = {}
     { deliver } as never,
     accounts,
     credentials,
+    { request: confirm },
   );
   return {
     service,
@@ -136,6 +138,7 @@ function harness(options: { emailTaken?: boolean; slugTakenTimes?: number } = {}
     insertUser,
     setPassword,
     deliver,
+    confirm,
     audit,
   };
 }
@@ -165,6 +168,20 @@ describe('PublicSignupService', () => {
         locale: 'ar',
       }),
     );
+  });
+
+  it('mails the confirm-your-e-mail link after a password sign-up (VERIFYMAIL)', async () => {
+    const h = harness();
+    const result = await h.service.signUp(BODY, CORR_1);
+    expect(h.confirm).toHaveBeenCalledWith(result.userId, { correlationId: CORR_1 });
+  });
+
+  it('keeps the account when the confirmation mail fails (VERIFYMAIL)', async () => {
+    const h = harness();
+    h.confirm.mockRejectedValueOnce(new Error('smtp down'));
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(h.service.signUp(BODY, CORR_1)).resolves.toMatchObject({ slug: 'nile-studio' });
+    error.mockRestore();
   });
 
   it('stores the landing page utm values on the new organization (ADTRACK)', async () => {

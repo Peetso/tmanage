@@ -34,6 +34,31 @@ export class PasswordResetRepository {
     return rows[0] ?? null;
   }
 
+  /**
+   * VERIFYMAIL: the signed-in person's own account, by id, with whether the address is already
+   * confirmed — for the "Confirm your e-mail" mail. `null` for an unknown id.
+   */
+  async findConfirmationTarget(
+    runner: IdentityQueryRunner,
+    userId: string,
+  ): Promise<(ResetTarget & { readonly emailVerified: boolean }) | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({
+        userId: users.id,
+        email: users.email,
+        displayName: users.displayName,
+        locale: users.locale,
+        emailVerifiedAt: users.emailVerifiedAt,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    const { emailVerifiedAt, ...target } = row;
+    return { ...target, emailVerified: emailVerifiedAt !== null };
+  }
+
   /** Retire every unused link this person holds, so only the newest one works. */
   async retireOpen(runner: IdentityQueryRunner, userId: string): Promise<void> {
     await tenantDrizzle(runner)

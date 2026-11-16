@@ -3,6 +3,7 @@ import { uuidv7, type SignupAttribution } from '@tmanage/domain';
 import { ApiError, type ApiErrorDetail } from '../../common/http/errors.js';
 import type { IdentityQueryRunner, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { WelcomeMailer } from '../../common/email/welcome-email.js';
+import { serializeForLog } from '../../common/observability/logger.js';
 import type { SeedCipher } from '../identity/seed-cipher.js';
 import { CredentialsRepository } from '../identity/credentials.repository.js';
 import { describePasswordRejection, hashPassword, screenPassword } from '../identity/password.js';
@@ -55,6 +56,11 @@ export interface PublicSignupBody {
   readonly startedAt?: unknown;
   readonly nonce?: unknown;
   readonly proof?: unknown;
+}
+
+/** VERIFYMAIL. The part of `EmailConfirmationService` sign-up uses. */
+export interface SignupEmailConfirmation {
+  request(userId: string, context: { readonly correlationId: string }): Promise<unknown>;
 }
 
 export interface PublicSignupResult {
@@ -149,6 +155,11 @@ export class PublicSignupService {
     private readonly welcome: WelcomeMailer | null,
     private readonly accounts = new SignupAccountsRepository(),
     private readonly credentials = new CredentialsRepository(NO_SEED_CIPHER),
+    /**
+     * VERIFYMAIL: mails the "Confirm your e-mail" link after a sign-up whose address is not yet
+     * confirmed (a password sign-up). Optional; without it no confirmation mail is sent.
+     */
+    private readonly confirmations: SignupEmailConfirmation | null = null,
   ) {}
 
   async signUp(
@@ -240,13 +251,23 @@ export class PublicSignupService {
   }
 
   private async sendWelcome(account: NewOwnerAccount, result: PublicSignupResult): Promise<void> {
-    if (this.welcome === null) return;
     // After commit, and never fatal: the account exists whether or not the mail goes out.
-    await this.welcome.deliver({
-      to: account.email,
-      organizationSlug: result.slug,
-      locale: account.defaultLocale,
-    });
+    if (this.welcome !== null) {
+      await this.welcome.deliver({
+        to: account.email,
+        organizationSlug: result.slug,
+        locale: account.defaultLocale,
+      });
+    }
+    // VERIFYMAIL: a password sign-up's address is unconfirmed; mail the link that confirms it.
+    // Never fatal either; the person can send another from their account.
+    if (!account.emailVerified && this.confirmations !== null) {
+      await this.confirmations
+        .request(result.userId, { correlationId: account.correlationId })
+        .catch((error: unknown) => {
+          console.error('[signup] confirmation mail failed', serializeForLog(error));
+        });
+    }
   }
 
   /** Every problem at once, so the screen can mark all fields. */

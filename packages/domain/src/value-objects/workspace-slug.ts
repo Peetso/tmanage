@@ -57,6 +57,8 @@ export const RESERVED_WORKSPACE_SLUGS: ReadonlySet<string> = new Set([
   'portal-sign-in',
   'q',
   'recover',
+  // The link in the address-confirmation mail (/confirm-email/{token}, VERIFYMAIL).
+  'confirm-email',
   'sessions',
   'admin',
   'api',

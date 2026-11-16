@@ -13,6 +13,7 @@ test('the server-rendered account pages are limited, the rest of the site is not
     '/sign-up',
     '/ar/sign-up',
     '/recover',
+    '/confirm-email/TOKEN',
     '/setup',
     '/organizations',
     '/onboarding/organization',

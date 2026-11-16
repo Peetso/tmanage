@@ -24,7 +24,11 @@ import {
   PASSWORD_RESET_SERVICE,
   PasswordResetController,
 } from './password-reset.controller.js';
-import { PasswordResetService } from './password-reset.service.js';
+import { EmailConfirmationService, PasswordResetService } from './password-reset.service.js';
+import {
+  EMAIL_CONFIRMATION_SERVICE,
+  EmailConfirmationController,
+} from './email-confirmation.controller.js';
 import type { PasswordResetMailer } from '../../common/email/password-reset-email.js';
 import { MFA_CODE_MAILER, PASSWORD_RESET_MAILER } from '../../common/http/tokens.js';
 import type { MfaCodeMailer } from '../../common/email/mfa-code-email.js';
@@ -159,6 +163,13 @@ export class IdentityModule {
       useFactory: (database: TenantDatabase, mailer: PasswordResetMailer | undefined) =>
         new PasswordResetService(database, mailer ?? null),
     };
+    // VERIFYMAIL. Confirming a password account's address with the reset's own kind of link.
+    const emailConfirmationService: Provider = {
+      provide: EMAIL_CONFIRMATION_SERVICE,
+      inject: [TENANT_DATABASE, { token: PASSWORD_RESET_MAILER, optional: true }],
+      useFactory: (database: TenantDatabase, mailer: PasswordResetMailer | undefined) =>
+        new EmailConfirmationService(database, mailer ?? null),
+    };
     const passwordResetAdmission: Provider = {
       provide: PASSWORD_RESET_ADMISSION,
       inject: [API_CONFIG],
@@ -191,6 +202,7 @@ export class IdentityModule {
       imports: [GeoModule],
       providers: [
         passwordResetService,
+        emailConfirmationService,
         passwordResetAdmission,
         sessionService,
         authenticationService,
@@ -210,6 +222,7 @@ export class IdentityModule {
         AuthenticationController,
         CredentialsController,
         PasswordResetController,
+        EmailConfirmationController,
         SignInPolicyController,
       ],
     };

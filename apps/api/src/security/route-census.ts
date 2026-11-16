@@ -105,6 +105,7 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'POST /v1/auth/recovery-code': 'named',
   'POST /v1/password-resets/': 'named',
   'POST /v1/password-resets/completions': 'named',
+  'POST /v1/email-confirmations/completions': 'named',
   'POST /v1/sessions/refresh': 'named',
   'POST /v1/dev/sessions/':
     'pending named budget: development-only sign-in (registerWithDevelopmentSignIn)',
@@ -168,6 +169,7 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
 /** Signed-in routes with no capability because they act only on the caller's own account. */
 export const SESSION_ONLY_ROUTES: Readonly<Record<string, string>> = {
   'POST /v1/auth/reauth': 'own session step-up',
+  'POST /v1/email-confirmations/': 'own address confirmation mail',
   'POST /v1/auth/password/set': 'own password',
   'POST /v1/auth/factors/totp': 'own second factor',
   'POST /v1/auth/factors/totp/confirm': 'own second factor',

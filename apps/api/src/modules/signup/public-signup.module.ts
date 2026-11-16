@@ -3,9 +3,12 @@ import type { DynamicModule, Provider } from '@nestjs/common';
 import {
   API_CONFIG,
   AUDIT_SERVICE,
+  PASSWORD_RESET_MAILER,
   TENANT_DATABASE,
   WELCOME_MAILER,
 } from '../../common/http/tokens.js';
+import type { PasswordResetMailer } from '../../common/email/password-reset-email.js';
+import { EmailConfirmationService } from '../identity/password-reset.service.js';
 import { createFixedWindowLimiter } from '../../common/http/rate-limiter.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
@@ -51,12 +54,26 @@ export class PublicSignupModule {
     };
     const service: Provider = {
       provide: PUBLIC_SIGNUP_SERVICE,
-      inject: [TENANT_DATABASE, AUDIT_SERVICE, { token: WELCOME_MAILER, optional: true }],
-      useFactory: (database: TenantDatabase, audit: AuditService, welcome?: WelcomeMailer) =>
+      inject: [
+        TENANT_DATABASE,
+        AUDIT_SERVICE,
+        { token: WELCOME_MAILER, optional: true },
+        { token: PASSWORD_RESET_MAILER, optional: true },
+      ],
+      useFactory: (
+        database: TenantDatabase,
+        audit: AuditService,
+        welcome?: WelcomeMailer,
+        confirmMailer?: PasswordResetMailer,
+      ) =>
         new PublicSignupService(
           database,
           new ProvisioningService(database, audit),
           welcome ?? null,
+          undefined,
+          undefined,
+          // VERIFYMAIL: a password sign-up is mailed the link that confirms its address.
+          new EmailConfirmationService(database, confirmMailer ?? null),
         ),
     };
     const sessions: Provider = {

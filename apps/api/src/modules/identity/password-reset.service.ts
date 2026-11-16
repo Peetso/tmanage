@@ -283,6 +283,81 @@ export class PasswordResetService {
   }
 }
 
+/**
+ * VERIFYMAIL (2026-11-16) — confirming the address of a password account.
+ *
+ * A password sign-up stores the address unconfirmed and, until now, only a spent reset link could
+ * confirm it, so an owner on `PLATFORM_ADMIN_EMAILS` had no way in. The confirmation link is the
+ * reset link's own kind — the same table, the same 256-bit token stored only as its SHA-256, the
+ * same 30-minute expiry, single use by the same compare-and-set — mailed with "Confirm your
+ * e-mail" copy to a page that confirms it on a click. Spending it marks the address confirmed
+ * (`spend`, F03) and does nothing else: no password change, no session, no sign-in. A link of
+ * either kind proves the same thing (it reached that mailbox), which is why one token serves both.
+ */
+export type EmailConfirmationRequest = 'sent' | 'already_confirmed' | 'not_sent';
+
+export class EmailConfirmationService {
+  constructor(
+    private readonly database: TenantDatabase,
+    private readonly mailer: PasswordResetMailer | null,
+    private readonly resets: PasswordResetRepository = new PasswordResetRepository(),
+    /** The reset's per-recipient and global mail bounds, one budget per instance. */
+    private readonly mailBudget: PasswordResetMailBudget = createPasswordResetMailBudget(),
+  ) {}
+
+  /**
+   * Mail a confirmation link to the signed-in person's own address (the session names the
+   * account; nothing in the request does). Answers whether a mail went out, which says nothing
+   * about anyone else. Bounded per address (3 an hour) and globally, like the reset.
+   */
+  async request(userId: string, context: PasswordResetContext): Promise<EmailConfirmationRequest> {
+    const issued = issueInvitationToken();
+    const target = await this.database.identityTransaction(
+      { correlationId: context.correlationId, tables: [...RESET_TABLES] },
+      async (tx) => {
+        const account = await this.resets.findConfirmationTarget(tx, userId);
+        if (account === null) return 'not_sent' as const;
+        if (account.emailVerified) return 'already_confirmed' as const;
+        if (!this.mailBudget.admitRecipient(account.email)) return 'not_sent' as const;
+        if (!this.mailBudget.admitDelivery()) return 'not_sent' as const;
+        await this.resets.retireOpen(tx, account.userId);
+        await this.resets.create(tx, {
+          userId: account.userId,
+          tokenHash: issued.tokenHash,
+          ttlMinutes: PASSWORD_RESET_TTL_MINUTES,
+        });
+        return account;
+      },
+    );
+    if (typeof target === 'string') return target;
+    if (this.mailer === null) return 'not_sent';
+    const delivered = await this.mailer
+      .deliverConfirmation({
+        to: target.email,
+        displayName: target.displayName,
+        locale: target.locale,
+        ttlMinutes: PASSWORD_RESET_TTL_MINUTES,
+        token: issued.token,
+      })
+      .catch((error: unknown) => {
+        console.error('[email-confirmation] delivery threw', serializeForLog(error));
+        return 'failed' as const;
+      });
+    return delivered === 'sent' ? 'sent' : 'not_sent';
+  }
+
+  /** Spend a link and confirm its address. 404 for a link unknown, used, superseded or expired. */
+  async complete(token: unknown, context: PasswordResetContext): Promise<void> {
+    if (typeof token !== 'string' || !looksLikeInvitationToken(token)) throw unusableLink();
+    const tokenHash = hashInvitationToken(token);
+    const spent = await this.database.identityTransaction(
+      { correlationId: context.correlationId, tables: [...RESET_TABLES] },
+      (tx) => this.resets.spend(tx, tokenHash),
+    );
+    if (!spent) throw unusableLink();
+  }
+}
+
 function unusableLink(): ApiError {
   return new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'password_reset_unusable');
 }

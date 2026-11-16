@@ -353,6 +353,8 @@ export const NEVER: readonly NeverEntry[] = [
   },
   { method: 'POST', path: '/v1/password-resets/', reason: 'auth' },
   { method: 'POST', path: '/v1/password-resets/completions', reason: 'auth' },
+  { method: 'POST', path: '/v1/email-confirmations/', reason: 'auth' },
+  { method: 'POST', path: '/v1/email-confirmations/completions', reason: 'auth' },
   { method: 'GET', path: '/v1/platform/audit', reason: 'platform_admin' },
   { method: 'GET', path: '/v1/platform/companies', reason: 'platform_admin' },
   { method: 'GET', path: '/v1/platform/companies/:organizationId', reason: 'platform_admin' },

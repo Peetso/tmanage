@@ -55,6 +55,36 @@ export function composePasswordResetEmail(facts: PasswordResetEmailFacts): MailM
 }
 
 /**
+ * VERIFYMAIL. The "Confirm your e-mail" message: the same kind of link as the reset (it works
+ * once and expires in the same time), to the confirmation page instead of the recover page.
+ * Clicking it only confirms the address; it never changes the password or signs anyone in.
+ */
+export function composeEmailConfirmationEmail(facts: PasswordResetEmailFacts): MailMessage {
+  const locale = facts.locale;
+  const arabic = emailIsRtl(locale);
+  const name = oneLine(facts.displayName);
+  const minutes = String(facts.ttlMinutes);
+  const copy = {
+    subject: emailT(locale, 'emailConfirm.subject'),
+    eyebrow: emailT(locale, 'emailConfirm.eyebrow'),
+    heading: emailT(locale, 'emailConfirm.heading', { name }),
+    intro: emailT(locale, 'emailConfirm.intro'),
+    button: emailT(locale, 'emailConfirm.button'),
+    fallback: emailT(locale, 'common.fallback'),
+    note: emailT(locale, 'emailConfirm.note', { minutes }),
+    footer: emailT(locale, 'emailConfirm.footer'),
+  };
+  return {
+    to: facts.to,
+    subject: copy.subject,
+    text: [copy.heading, copy.intro, `${copy.button}: ${facts.link}`, copy.note, copy.footer].join(
+      '\n\n',
+    ),
+    html: renderActionEmail({ arabic, link: facts.link, rows: [], ...copy }),
+  };
+}
+
+/**
  * Sends the reset email. Owns the link — `${WEB_PUBLIC_URL}/recover/${token}`, built from
  * configuration and never from a request header, because a `Host` header is attacker-writable
  * and this link carries a credential — and absorbs a mail failure loudly (the operator's log,
@@ -81,6 +111,21 @@ export class PasswordResetMailer {
       return await this.mailer.send(composePasswordResetEmail({ ...rest, link }));
     } catch (error) {
       console.error('[mailer] password reset email failed', serializeForLog(error));
+      return 'failed';
+    }
+  }
+
+  /** VERIFYMAIL. `${WEB_PUBLIC_URL}/confirm-email/${token}`, built from configuration only. */
+  async deliverConfirmation(
+    facts: Omit<PasswordResetEmailFacts, 'link'> & { readonly token: string },
+  ): Promise<'sent' | 'none' | 'failed'> {
+    if (this.mailer === null) return 'none';
+    const { token, ...rest } = facts;
+    const link = `${this.webPublicUrl.replace(/\/+$/u, '')}/confirm-email/${token}`;
+    try {
+      return await this.mailer.send(composeEmailConfirmationEmail({ ...rest, link }));
+    } catch (error) {
+      console.error('[mailer] e-mail confirmation failed', serializeForLog(error));
       return 'failed';
     }
   }

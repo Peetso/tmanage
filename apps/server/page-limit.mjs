@@ -19,6 +19,7 @@ const LIMITED_PAGES = [
   '/sign-up',
   '/portal-sign-in',
   '/recover',
+  '/confirm-email',
   '/setup',
   '/organizations',
   '/onboarding',

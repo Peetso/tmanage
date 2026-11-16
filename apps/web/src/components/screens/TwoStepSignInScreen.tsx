@@ -25,6 +25,7 @@ import { ApiRequestError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { qrModules, qrPath } from '../../lib/qr-code';
 import { SixDigitCode } from './SixDigitCode';
+import { ConfirmEmailNotice } from './ConfirmEmailNotice';
 import '../../styles/screens/access-security.css';
 
 export interface TwoStepSignInScreenProps {
@@ -273,6 +274,7 @@ export function TwoStepSignInScreen({
             {tOr('TwoStep.requiredBody', 'Turn it on below to keep using TManage.')}
           </InlineAlert>
         ) : null}
+        {view && !view.email.verified ? <ConfirmEmailNotice api={api} /> : null}
         {body}
       </div>
       {confirmDisable ? (
