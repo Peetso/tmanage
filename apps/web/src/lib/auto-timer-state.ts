@@ -68,6 +68,23 @@ export function deviceKindOf(
   return permission === 'denied' ? 'browser_blocked' : 'browser_prompt';
 }
 
+/**
+ * TIMETRACK: the device word this page should report now, or `null` to wait. Nothing is reported
+ * before the browser's abilities are known — `null` support or permission means "still checking".
+ * Reporting a starting value would tell the owner that a normal Chrome "cannot track", and with the
+ * rate limit the correct report a moment later could be refused and never sent.
+ */
+export function deviceToReport(
+  policy: AutoTrackingState['policy'] | undefined,
+  support: ActivitySupport | null,
+  permission: IdlePermission | null,
+): ReturnType<typeof deviceKindOf> | null {
+  if (policy === undefined || policy === 'off') return null;
+  if (support === null) return null;
+  if (support === 'idle-detector' && permission === null) return null;
+  return deviceKindOf(support, permission ?? 'prompt');
+}
+
 /** Item 15: the one-time "Turn on automatic time tracking" ask, remembered per company. */
 export const askedKey = (organizationSlug: string): string =>
   `tm.autotimer.asked.${organizationSlug}`;

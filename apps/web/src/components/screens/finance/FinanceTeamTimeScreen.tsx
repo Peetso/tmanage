@@ -481,11 +481,8 @@ const DEVICE: Readonly<Record<DeviceKind, readonly [string, string, CapsuleState
   browser_allowed: ['TeamTime.deviceBrowserAllowed', 'Browser, allowed', 'current'],
   browser_prompt: ['TeamTime.deviceBrowserPrompt', 'Browser, not allowed yet', 'waiting'],
   browser_blocked: ['TeamTime.deviceBrowserBlocked', 'Browser, blocked', 'waiting'],
-  browser_unsupported: [
-    'TeamTime.deviceBrowserUnsupported',
-    'Browser that cannot track',
-    'waiting',
-  ],
+  // TIMETRACK: the timer works in any browser; only automatic tracking needs more. Not a warning.
+  browser_unsupported: ['TeamTime.deviceBrowserUnsupported', 'Browser · timer only', 'neutral'],
 };
 
 function DeviceCell({ device, tOr }: { device: TeamPerson['device']; tOr: TOr }) {

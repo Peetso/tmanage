@@ -20,7 +20,7 @@ import {
   type ActivitySupport,
   type IdlePermission,
 } from '../../lib/activity-sources';
-import { deviceKindOf } from '../../lib/auto-timer-state';
+import { deviceToReport } from '../../lib/auto-timer-state';
 import { desktopStartup } from './desktop-startup';
 
 /** The cache key every automatic-timer surface shares. */
@@ -34,7 +34,13 @@ export interface AutoTracker {
   readonly state: AutoTrackingState | undefined;
   /** False when the API refused (a client principal, a signed-out page). */
   readonly available: boolean;
+  /**
+   * What this computer can report. `'unsupported'` until {@link detected} is true; read
+   * `detected` before saying anything about it (TIMETRACK).
+   */
   readonly support: ActivitySupport;
+  /** TIMETRACK: true once the browser's abilities and permission are known. */
+  readonly detected: boolean;
   /** Item 12: granted, not asked yet, or blocked in the site settings. */
   readonly permission: IdlePermission;
   readonly status: ActivityStatus;
@@ -58,23 +64,30 @@ export function useAutoTracker(api: ApiClient, organizationSlug: string): AutoTr
   });
   const state = query.data;
 
-  const [support, setSupport] = useState<ActivitySupport>('unsupported');
-  const [permission, setPermission] = useState<IdlePermission>('prompt');
+  // TIMETRACK: `null` = still checking. Starting from 'unsupported' / 'prompt' told the server that
+  // a normal Chrome (and even the desktop app) "cannot track" before detection had run.
+  const [detectedSupport, setSupport] = useState<ActivitySupport | null>(null);
+  const [detectedPermission, setPermission] = useState<IdlePermission | null>(null);
   useEffect(() => {
     const found = activitySupport();
     setSupport(found);
     if (found === 'unsupported') return undefined;
     return watchIdlePermission(setPermission);
   }, []);
+  const support: ActivitySupport = detectedSupport ?? 'unsupported';
+  const permission: IdlePermission = detectedPermission ?? 'prompt';
+  const detected =
+    detectedSupport !== null && (detectedSupport === 'unsupported' || detectedPermission !== null);
   const permissionGranted = permission === 'granted';
 
   // Item 17: tell the server where tracking runs, once per kind, so the owner sees it.
   const policy = state?.policy;
   const reported = useRef<string | null>(null);
+  // A refused report (the rate limit) is tried again at the next refresh, not dropped for good.
+  const refreshedAt = query.dataUpdatedAt;
   useEffect(() => {
-    if (policy === undefined || policy === 'off') return;
-    const kind = deviceKindOf(support, permission);
-    if (reported.current === kind) return;
+    const kind = deviceToReport(policy, detectedSupport, detectedPermission);
+    if (kind === null || reported.current === kind) return;
     reported.current = kind;
     void reportTrackingDevice(api, organizationSlug, kind).catch((error: unknown) => {
       reported.current = null;
@@ -83,7 +96,7 @@ export function useAutoTracker(api: ApiClient, organizationSlug: string): AutoTr
         console.error('[auto-timer] the device report was refused', error);
       }
     });
-  }, [api, organizationSlug, policy, support, permission]);
+  }, [api, organizationSlug, policy, detectedSupport, detectedPermission, refreshedAt]);
 
   // Item 16: in the desktop app, "On for everyone" starts the app with the computer by default.
   useEffect(() => {
@@ -141,6 +154,7 @@ export function useAutoTracker(api: ApiClient, organizationSlug: string): AutoTr
     state,
     available: query.isSuccess,
     support,
+    detected,
     permission,
     status: running ? status : 'off',
     requestPermission,

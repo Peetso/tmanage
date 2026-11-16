@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, Switch, Tooltip } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -50,7 +51,7 @@ const SHORT: Readonly<Record<AutoTimerDisplay, readonly [string, string]>> = {
   'needs-permission': ['AutoTimer.short.needsOk', 'Needs your OK'],
   blocked: ['AutoTimer.short.blocked', 'Blocked'],
   'policy-off': ['AutoTimer.short.off', 'Off'],
-  unsupported: ['AutoTimer.short.unavailable', 'Not available'],
+  unsupported: ['AutoTimer.short.unavailable', 'Timer only'],
   off: ['AutoTimer.short.off', 'Off'],
 };
 
@@ -63,7 +64,7 @@ const LABEL: Readonly<Record<AutoTimerDisplay, readonly [string, string]>> = {
   'needs-permission': ['AutoTimer.state.needsPermission', 'Off, needs your permission'],
   blocked: ['AutoTimer.state.blocked', 'Off, blocked in your browser'],
   'policy-off': ['AutoTimer.state.policyOff', 'Off for the whole workspace'],
-  unsupported: ['AutoTimer.state.unsupported', 'Off, not available in this browser'],
+  unsupported: ['AutoTimer.state.unsupported', 'Off in this browser · the timer still works'],
   off: ['AutoTimer.state.off', 'Off'],
 };
 
@@ -102,7 +103,7 @@ const HELP: Readonly<Record<AutoTimerDisplay, readonly [string, string]>> = {
   ],
   unsupported: [
     'AutoTimer.help.unsupported',
-    'This browser cannot tell whether your computer is in use. Use the TManage desktop app, or Chrome or Edge.',
+    'The timer works here. Automatic tracking needs the TManage desktop app, or Chrome or Edge on a computer.',
   ],
   off: ['AutoTimer.help.off', 'Automatic tracking is off. Open the timer to turn it on.'],
 };
@@ -221,7 +222,8 @@ export function AutoTimerStatus({ organizationSlug, client }: AutoTimerStatusPro
     setOpen(true);
   }, [ask, organizationSlug]);
 
-  if (!tracker.available || state === undefined) return null;
+  // TIMETRACK: say nothing about this browser until its abilities are known (no false flash).
+  if (!tracker.available || state === undefined || !tracker.detected) return null;
   if (state.policy === 'off' && !used) return null;
   if (manualRunning && !open) return null;
   const [shortKey, shortEnglish] = SHORT[display];
@@ -398,11 +400,13 @@ function AutoTimerPanelBody({
       ) : null}
 
       {display === 'unsupported' ? (
-        <InlineAlert tone="warning">
+        // TIMETRACK: what works comes first; only the optional automatic part needs more.
+        <InlineAlert tone="neutral">
           {tr(
             'AutoTimer.unsupported',
-            'This browser cannot tell whether your computer is in use, so it cannot track your time automatically. Use the TManage desktop app, or open TManage in Chrome or Edge.',
-          )}
+            'The timer works here. Automatic tracking needs to know when your computer is in use, and this browser cannot tell. For that, use the TManage desktop app, or Chrome or Edge on a computer.',
+          )}{' '}
+          <Link href="/download">{tr('AutoTimer.getApp', 'Get the desktop app')}</Link>
         </InlineAlert>
       ) : null}
 

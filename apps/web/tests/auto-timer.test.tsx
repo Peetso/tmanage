@@ -5,7 +5,7 @@ import { parseTrackingDeviceReport, type ActivitySignal } from '@tmanage/domain'
 import { ApiClient } from '../src/lib/api/client';
 import type { AutoTrackingState, TeamTime } from '../src/lib/api/time-auto';
 import { activitySupport, startActivitySource } from '../src/lib/activity-sources';
-import { autoTimerDisplay } from '../src/lib/auto-timer-state';
+import { autoTimerDisplay, deviceToReport } from '../src/lib/auto-timer-state';
 import { AutoTimerStatus } from '../src/components/time/AutoTimerStatus';
 import { AutoTimePolicyCard } from '../src/components/screens/AutoTimePolicyCard';
 import { FinanceTeamTimeScreen } from '../src/components/screens/finance/FinanceTeamTimeScreen';
@@ -179,12 +179,18 @@ describe('automatic timer chip', () => {
     wrap(<AutoTimerStatus organizationSlug="northstar" client={api} />);
     const chip = await screen.findByRole('button', { name: /Auto timer/ });
     // Item 6: a short label on the chip; the full sentence is in the hover help.
-    expect(chip).toHaveTextContent('Not available');
+    expect(chip).toHaveTextContent('Timer only');
     fireEvent.click(chip);
     const panel = screen.getByRole('region', { name: 'Automatic timer' });
     expect(
-      within(panel).getByText(/Use the TManage desktop app, or open TManage in Chrome or Edge/),
+      within(panel).getByText(/^The timer works here\. Automatic tracking needs/),
     ).toBeTruthy();
+    // TIMETRACK: never "cannot track"; the way to the desktop app is one link away.
+    expect(within(panel).queryByText(/cannot track/)).toBeNull();
+    expect(within(panel).getByRole('link', { name: 'Get the desktop app' })).toHaveAttribute(
+      'href',
+      '/download',
+    );
     expect(within(panel).getByText(/No screenshots, keystrokes, app or window names/)).toBeTruthy();
     expect(within(panel).getByText(/visible to your workspace owner and admins/)).toBeTruthy();
     expect(
@@ -319,6 +325,51 @@ describe('automatic timer chip', () => {
     expect(parseTrackingDeviceReport(JSON.parse(put?.body ?? '{}'))).toEqual({
       device: 'browser_unsupported',
     });
+  });
+
+  it('TIMETRACK: nothing is reported while the browser is still being checked', () => {
+    expect(deviceToReport('optional', null, null)).toBeNull();
+    expect(deviceToReport('optional', 'idle-detector', null)).toBeNull();
+    expect(deviceToReport('off', 'idle-detector', 'granted')).toBeNull();
+    expect(deviceToReport('optional', 'idle-detector', 'prompt')).toBe('browser_prompt');
+    expect(deviceToReport('optional', 'desktop', null)).toBe('desktop');
+    expect(deviceToReport('optional', 'unsupported', null)).toBe('browser_unsupported');
+  });
+
+  it('TIMETRACK: Chrome with the state already cached reports what it can do, never "cannot track"', async () => {
+    let settle: (status: EventTarget & { state: string }) => void = () => undefined;
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      permissions: {
+        query: () =>
+          new Promise((resolve) => {
+            settle = resolve;
+          }),
+      },
+    });
+    (window as unknown as { IdleDetector?: unknown }).IdleDetector = class {};
+    const { api, calls } = client((call) =>
+      call.url.endsWith('/time/auto') ? { status: 200, body: STATE } : { status: 200, body: {} },
+    );
+    const query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    query.setQueryData(['time-auto', 'northstar'], STATE);
+    render(
+      <QueryClientProvider client={query}>
+        <AutoTimerStatus organizationSlug="northstar" client={api} />
+      </QueryClientProvider>,
+    );
+    // Still checking: no report, and no "not available" chip.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(calls.filter((call) => call.url.endsWith('/auto/device'))).toEqual([]);
+    expect(screen.queryByRole('button', { name: /Auto timer/ })).toBeNull();
+
+    settle(Object.assign(new EventTarget(), { state: 'prompt' }));
+    await waitFor(() =>
+      expect(calls.filter((call) => call.url.endsWith('/auto/device'))).toHaveLength(1),
+    );
+    const put = calls.find((call) => call.url.endsWith('/auto/device'));
+    expect(JSON.parse(put?.body ?? '{}')).toEqual({ device: 'browser_prompt' });
+    delete (window as unknown as { IdleDetector?: unknown }).IdleDetector;
   });
 
   it('item 1: hidden for a company that never used it; "Off" with the reason once it did', async () => {
