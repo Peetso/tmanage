@@ -646,6 +646,19 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'storage_connection',
     clause: '§12 organization settings — removing the external store and wiping its token',
   },
+  /**
+   * 0356 (51-17). An owner or admin asks another admin to take the company storage connection
+   * over, and that admin's own consent completes it (the root stays). Metadata is the provider and
+   * the two user ids — never the token or an e-mail.
+   */
+  'storage_connection.handover_requested': {
+    objectType: 'storage_connection',
+    clause: '§12 organization settings — naming who takes over the company storage connection',
+  },
+  'storage_connection.handover': {
+    objectType: 'storage_connection',
+    clause: '§12 organization settings — the company storage connection changed hands',
+  },
   /** 0210. A Drive file attached to, or detached from, a work item (ids and type only). */
   'drive_attachment.attached': {
     objectType: 'google_drive_attachment',
@@ -1819,6 +1832,8 @@ const AUDIT_ACTION_LABELS = {
   'storage_connection.connected': 'Connected Google Drive',
   'storage_connection.settings_changed': 'Changed where files are stored',
   'storage_connection.disconnected': 'Disconnected Google Drive',
+  'storage_connection.handover_requested': 'Asked an admin to take over company storage',
+  'storage_connection.handover': 'Took over the company storage connection',
   'drive_attachment.attached': 'Attached a Google Drive file',
   'drive_attachment.removed': 'Removed a Google Drive file',
   'onedrive_attachment.attached': 'Attached a OneDrive file',

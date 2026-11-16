@@ -16,6 +16,7 @@ import type {
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import type { StorageMode } from './storage-mode.repository.js';
 import { DRIVE_MY_DRIVE_NAME } from './google-drive.google.js';
+import { googleRootOwner, type RootOwnerKind } from '../storage-root/root-owner.js';
 
 /**
  * The data half of Google Drive storage. Every query carries
@@ -106,6 +107,9 @@ export class GoogleDriveRepository {
       locationName: DRIVE_MY_DRIVE_NAME,
       lastErrorCode: null,
       connectedByUserId: input.connectedByUserId,
+      // 51-17 (0356). A fresh connect puts the root in this account's My Drive: personal.
+      rootOwnerKind: googleRootOwner(null),
+      handoverToUserId: null,
       connectedAt: sql`current_timestamp(3)`,
       disconnectedAt: null,
       updatedAt: sql`current_timestamp(3)`,
@@ -146,6 +150,12 @@ export class GoogleDriveRepository {
       locationName: string | null;
       lastErrorCode: string | null;
       disconnectedAt: Date | null;
+      /** 51-17 (0356). */
+      rootOwnerKind: RootOwnerKind;
+      accountEmail: string | null;
+      connectedByUserId: string | null;
+      handoverToUserId: string | null;
+      handedOverAt: Date | null;
     }>,
   ): Promise<void> {
     await tenantDrizzle(runner)

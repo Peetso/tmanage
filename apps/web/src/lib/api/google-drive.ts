@@ -1,4 +1,5 @@
 import type { ApiClient } from './client';
+import type { RootOwnerView } from './storage-root';
 
 /**
  * Google Drive as company storage (migration 0210) — the Control > Storage screen and "Attach from
@@ -19,6 +20,8 @@ export interface StorageStatusView {
     readonly accountEmail: string | null;
     readonly folderPath: string | null;
     readonly sharedDriveName: string | null;
+    /** 51-17. Who owns the root and the hand-over state; null when not connected. */
+    readonly rootOwner: RootOwnerView | null;
   };
 }
 

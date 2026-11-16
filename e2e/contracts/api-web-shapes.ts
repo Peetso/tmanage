@@ -4705,3 +4705,23 @@ type _timeRounding = Assert<Exact<ApiTimeRoundingView, WebTimeRoundingResult>>;
 /** 53-04 `POST …/schedule/cascade-preview|cascade-apply` — the cascade plan and one move. */
 type _cascadePlan = Assert<Exact<ApiCascadePlanView, WebTimelineCascadePlan>>;
 type _cascadeMove = Assert<Exact<ApiCascadeMoveView, WebTimelineCascadeMove>>;
+
+// ---- 51-17 (0356) company storage root: owner kind and hand-over ----
+import type { RootOwnerView as ApiRootOwnerView } from '../../apps/api/src/modules/storage-root/root-owner.js';
+import type {
+  StorageHandoverTargetView as ApiStorageHandoverTargetView,
+  StorageHandoverView as ApiStorageHandoverView,
+} from '../../apps/api/src/modules/storage-root/storage-handover.service.js';
+import type {
+  RootOwnerView as WebRootOwnerView,
+  StorageHandoverTargetView as WebStorageHandoverTargetView,
+  StorageHandoverView as WebStorageHandoverView,
+} from '../../apps/web/src/lib/api/storage-root.js';
+/** `rootOwner` on both storage status views: the owner badge, the steer and the hand-over state. */
+type _rootOwner = Assert<Exact<ApiRootOwnerView, WebRootOwnerView>>;
+/** `GET …/integrations/storage/handover-targets` — one admin who could take over. */
+type _storageHandoverTarget = Assert<
+  Exact<ApiStorageHandoverTargetView, WebStorageHandoverTargetView>
+>;
+/** `POST …/integrations/storage/handover` — the named admin, pending their own sign-in. */
+type _storageHandover = Assert<Exact<ApiStorageHandoverView, WebStorageHandoverView>>;

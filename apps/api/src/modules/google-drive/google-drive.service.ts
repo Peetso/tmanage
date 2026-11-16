@@ -48,6 +48,12 @@ import {
 } from './google-drive.google.js';
 import { GoogleDriveRepository, type AttachedItem } from './google-drive.repository.js';
 import {
+  googleRootOwner,
+  pendingHandoverFor,
+  toRootOwnerView,
+  type RootOwnerView,
+} from '../storage-root/root-owner.js';
+import {
   databaseStorageModes,
   type StorageMode,
   type StorageModeStore,
@@ -79,6 +85,8 @@ export interface StorageStatusView {
     readonly accountEmail: string | null;
     readonly folderPath: string | null;
     readonly sharedDriveName: string | null;
+    /** 51-17. Who owns the root (the steer) and the hand-over state; null when not connected. */
+    readonly rootOwner: RootOwnerView | null;
   };
 }
 
@@ -172,11 +180,14 @@ export function tokenBinding(organizationId: string): { userId: string } {
   return { userId: `storage:${organizationId}:google_drive` };
 }
 
-function conflict(detail: 'not_configured' | 'not_connected' | 'unreachable'): ApiError {
+function conflict(
+  detail: 'not_configured' | 'not_connected' | 'unreachable' | 'root_not_shared',
+): ApiError {
   const messages = {
     not_configured: 'Google Drive is not set up for TManage yet',
     not_connected: 'Google Drive is not connected',
     unreachable: 'Google Drive is not reachable. Reconnect it in Storage',
+    root_not_shared: 'This Google account cannot open the company TManage folder',
   } as const;
   return new ApiError(409, 'conflict', messages[detail], [{ field: 'storage', message: detail }]);
 }
@@ -211,7 +222,7 @@ export class GoogleDriveService implements CloudFolderDrive {
       row: await this.repository.findConnection(runner, context),
       mode: await this.modes.effective(runner, context),
     }));
-    return toStatusView(this.deps.config, row, canManage, mode);
+    return toStatusView(this.deps.config, row, canManage, mode, context.userId);
   }
 
   /** Begin connecting: the Google consent URL and the flow to seal into the cookie. */
@@ -267,6 +278,14 @@ export class GoogleDriveService implements CloudFolderDrive {
       }),
     );
     if (!tokens.refreshToken) throw conflict('unreachable');
+    const handover = pendingHandoverFor(await this.readConnection(context), context.userId);
+    if (handover) {
+      return this.completeHandover(context, handover, {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        email: tokens.email,
+      });
+    }
     const rootFolderId = await this.google(() =>
       this.deps.transport.ensureFolder(tokens.accessToken, {
         name: DRIVE_ROOT_FOLDER_NAME,
@@ -294,7 +313,70 @@ export class GoogleDriveService implements CloudFolderDrive {
       });
       return { row: saved, mode: await this.modes.effective(tx, context) };
     });
-    return toStatusView(this.deps.config, row, true, mode);
+    return toStatusView(this.deps.config, row, true, mode, context.userId);
+  }
+
+  /**
+   * 51-17. The admin named in a hand-over finished their own Google consent: their token replaces
+   * the leaving person's, and the root stays where it is. Their account must already open the
+   * root (a Shared Drive they belong to, or a folder shared with them); otherwise nothing changes.
+   * The old token is revoked at Google (best effort) only after the new one is stored.
+   */
+  private async completeHandover(
+    context: TenantContext,
+    connection: StorageConnectionRow & { rootFolderId: string },
+    tokens: { accessToken: string; refreshToken: string; email: string | null },
+  ): Promise<StorageStatusView> {
+    try {
+      await this.deps.transport.getFile(tokens.accessToken, connection.rootFolderId, 'parents');
+    } catch (error) {
+      if (error instanceof DriveFileNotFoundError || error instanceof DriveNoAccessError) {
+        throw conflict('root_not_shared');
+      }
+      throw conflict('unreachable');
+    }
+    const refreshTokenEnc = this.deps.cipher.encrypt(
+      tokens.refreshToken,
+      tokenBinding(context.organizationId),
+    );
+    const { row, mode } = await this.deps.database.transaction(context, async (tx) => {
+      await this.repository.update(tx, context, connection.id, {
+        status: 'connected',
+        accountEmail: tokens.email,
+        refreshTokenEnc,
+        lastErrorCode: null,
+        connectedByUserId: context.userId,
+        handoverToUserId: null,
+        handedOverAt: new Date(),
+      });
+      await this.deps.audit.record(tx, context, {
+        action: 'storage_connection.handover',
+        result: 'allowed',
+        objectId: connection.id,
+        metadata: {
+          provider: 'google_drive',
+          from_user_id: connection.connectedByUserId,
+          to_user_id: context.userId,
+        },
+      });
+      return {
+        row: await this.repository.findConnection(tx, context),
+        mode: await this.modes.effective(tx, context),
+      };
+    });
+    if (connection.refreshTokenEnc) {
+      try {
+        await this.deps.transport.revoke(
+          this.deps.cipher.decrypt(
+            connection.refreshTokenEnc,
+            tokenBinding(context.organizationId),
+          ),
+        );
+      } catch {
+        // The old token is no longer stored either way.
+      }
+    }
+    return toStatusView(this.deps.config, row, true, mode, context.userId);
   }
 
   async updateSettings(context: TenantContext, input: SettingsInput): Promise<StorageStatusView> {
@@ -315,6 +397,7 @@ export class GoogleDriveService implements CloudFolderDrive {
         patch.sharedDriveId = null;
         patch.sharedDriveName = null;
         patch.locationName = DRIVE_MY_DRIVE_NAME;
+        patch.rootOwnerKind = googleRootOwner(null);
       } else {
         const folderId = input.location.folderId;
         const folder = await this.google(() => this.deps.transport.getFile(accessToken, folderId));
@@ -327,6 +410,7 @@ export class GoogleDriveService implements CloudFolderDrive {
           }),
         );
         patch.sharedDriveId = folder.driveId;
+        patch.rootOwnerKind = googleRootOwner(folder.driveId);
         patch.sharedDriveName = folder.driveId
           ? driveFolderName(folder.name, 'Shared Drive')
           : null;
@@ -363,7 +447,7 @@ export class GoogleDriveService implements CloudFolderDrive {
       });
       return { row: await this.repository.findConnection(tx, context), mode: effective };
     });
-    return toStatusView(this.deps.config, row, true, mode);
+    return toStatusView(this.deps.config, row, true, mode, context.userId);
   }
 
   /** Disconnect: revoke at Google (best effort), wipe the token, move back to TManage storage. */
@@ -400,7 +484,7 @@ export class GoogleDriveService implements CloudFolderDrive {
         mode: await this.modes.effective(tx, context),
       };
     });
-    return toStatusView(this.deps.config, row, true, mode);
+    return toStatusView(this.deps.config, row, true, mode, context.userId);
   }
 
   // ── Picker, upload and attachments ────────────────────────────────────────
@@ -1138,6 +1222,8 @@ export function toStatusView(
   canManage: boolean,
   /** 0236. The organization's effective mode across providers; without it, this row's own. */
   effective?: StorageMode,
+  /** 51-17. The person reading, for "you were asked to take over". */
+  viewerUserId: string | null = null,
 ): StorageStatusView {
   const live = row && row.status !== 'disconnected' ? row : undefined;
   const status = !live ? 'not_connected' : live.status === 'error' ? 'error' : 'connected';
@@ -1151,6 +1237,7 @@ export function toStatusView(
       accountEmail: canManage ? (live?.accountEmail ?? null) : null,
       folderPath: live ? driveFolderPath(live.locationName) : null,
       sharedDriveName: live?.sharedDriveName ?? null,
+      rootOwner: toRootOwnerView(live, viewerUserId, canManage),
     },
   };
 }

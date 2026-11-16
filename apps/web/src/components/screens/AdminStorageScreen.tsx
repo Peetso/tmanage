@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Button,
@@ -37,6 +37,8 @@ import type { ApiClient } from '../../lib/api/client';
 import { openDrivePicker } from '../../lib/google-picker';
 import { oneDriveStatusKey } from '../storage/OneDriveAttachPicker';
 import { OneDriveFolderDialog } from '../storage/OneDriveFolderDialog';
+import { StorageRootNotice } from '../storage/StorageRootNotice';
+import type { RootOwnerView } from '../../lib/api/storage-root';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { isFirstTimeStorage } from '../../lib/storage-attach-state';
 import { useOrganizationName } from '../../lib/use-organization-names';
@@ -296,6 +298,19 @@ export function AdminStorageScreen({
               oneDrive={oneDriveView}
               firstTime={firstTime}
               busy={busy}
+              notice={
+                status.data.googleDrive.rootOwner ? (
+                  <StorageRootNotice
+                    organizationSlug={organizationSlug}
+                    client={api}
+                    provider="google_drive"
+                    rootOwner={status.data.googleDrive.rootOwner}
+                    busy={busy}
+                    onTakeOver={() => connect.mutate()}
+                    onChanged={() => void queries.invalidateQueries({ queryKey })}
+                  />
+                ) : null
+              }
               onUseDrive={() => settings.mutate({ storageMode: 'google_drive' })}
               onConnect={() => connect.mutate()}
               onDisconnect={() => disconnect.mutate()}
@@ -308,6 +323,21 @@ export function AdminStorageScreen({
                 view={oneDriveView}
                 firstTime={firstTime}
                 busy={busy}
+                notice={
+                  oneDriveView.oneDrive.rootOwner ? (
+                    <StorageRootNotice
+                      organizationSlug={organizationSlug}
+                      client={api}
+                      provider="onedrive"
+                      rootOwner={oneDriveView.oneDrive.rootOwner}
+                      busy={busy}
+                      onTakeOver={() =>
+                        connectOneDrive.mutate(oneDriveView.oneDrive.librariesEnabled)
+                      }
+                      onChanged={() => void queries.invalidateQueries({ queryKey: oneDriveKey })}
+                    />
+                  ) : null
+                }
                 onUse={() => oneDriveSettings.mutate({ storageMode: 'onedrive' })}
                 onConnect={(libraries) => connectOneDrive.mutate(libraries)}
                 onDisconnect={() => disconnectMicrosoft.mutate()}
@@ -345,6 +375,8 @@ interface DriveOptionProps {
   /** 419:23660: the first-time card, its state and ink button indented under the choice. */
   firstTime: boolean;
   busy: boolean;
+  /** 51-17. Who owns the root, the steer and the hand-over (connected or error state). */
+  notice: ReactNode;
   onUseDrive: () => void;
   onConnect: () => void;
   onDisconnect: () => void;
@@ -357,6 +389,7 @@ function DriveOption({
   oneDrive,
   firstTime,
   busy,
+  notice,
   onUseDrive,
   onConnect,
   onDisconnect,
@@ -433,6 +466,7 @@ function DriveOption({
               {t('AdminStorageScreen.disconnect')}
             </Button>
           </div>
+          {notice}
         </>
       ) : (
         <>
@@ -450,6 +484,7 @@ function DriveOption({
               <dt>{t('AdminStorageScreen.folder')}</dt>
               <dd dir="ltr">{drive.folderPath ?? 'TManage/'}</dd>
             </div>
+            <RootOwnerFact rootOwner={drive.rootOwner} />
             <div className="tm-storage__fact">
               <dt>{t('AdminStorageScreen.sharedDrive')}</dt>
               <dd>
@@ -491,6 +526,7 @@ function DriveOption({
           {view.storageMode === 'google_drive' ? (
             <p className="tm-storage__caption">{t('AdminStorageScreen.existingFilesNote')}</p>
           ) : null}
+          {notice}
         </>
       )}
     </div>
@@ -502,6 +538,8 @@ interface OneDriveOptionProps {
   /** 419:23670: the first-time card, its state, ink button and note indented under the choice. */
   firstTime: boolean;
   busy: boolean;
+  /** 51-17. Who owns the root, the steer and the hand-over (connected or error state). */
+  notice: ReactNode;
   onUse: () => void;
   onConnect: (libraries: boolean) => void;
   onDisconnect: () => void;
@@ -517,6 +555,7 @@ function OneDriveOption({
   view,
   firstTime,
   busy,
+  notice,
   onUse,
   onConnect,
   onDisconnect,
@@ -600,6 +639,7 @@ function OneDriveOption({
               {t('OneDriveStorage.disconnect')}
             </Button>
           </div>
+          {notice}
         </>
       ) : (
         <>
@@ -623,6 +663,7 @@ function OneDriveOption({
               <dt>{t('OneDriveStorage.library')}</dt>
               <dd>{library ?? t('OneDriveStorage.notUsed')}</dd>
             </div>
+            <RootOwnerFact rootOwner={drive.rootOwner} />
           </dl>
           <hr className="tm-storage__rule" />
           <Switch
@@ -649,8 +690,25 @@ function OneDriveOption({
           {view.storageMode === 'onedrive' ? (
             <p className="tm-storage__caption">{t('OneDriveStorage.existingFilesNote')}</p>
           ) : null}
+          {notice}
         </>
       )}
+    </div>
+  );
+}
+
+/** 51-17. The owner badge of a connected root: the company, or one person. */
+function RootOwnerFact({ rootOwner }: { rootOwner: RootOwnerView | null }) {
+  const tr = useTOr();
+  if (!rootOwner || rootOwner.kind === 'unknown') return null;
+  return (
+    <div className="tm-storage__fact">
+      <dt>{tr('StorageRoot.ownerLabel', 'Owned by')}</dt>
+      <dd>
+        {rootOwner.companyOwned
+          ? tr('StorageRoot.ownerCompany', 'The company')
+          : tr('StorageRoot.ownerPersonal', 'One person')}
+      </dd>
     </div>
   );
 }

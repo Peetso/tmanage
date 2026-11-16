@@ -55,6 +55,12 @@ import {
   type OneDriveTransport,
 } from './onedrive.graph.js';
 import {
+  oneDriveRootOwner,
+  pendingHandoverFor,
+  toRootOwnerView,
+  type RootOwnerView,
+} from '../storage-root/root-owner.js';
+import {
   OneDriveRepository,
   type AttachedItem,
   type ConnectionPatch,
@@ -86,6 +92,8 @@ export interface OneDriveStatusView {
     readonly driveName: string | null;
     /** Whether the grant includes SharePoint document libraries (`Files.ReadWrite.All`). */
     readonly librariesEnabled: boolean;
+    /** 51-17. Who owns the root (the steer) and the hand-over state; null when not connected. */
+    readonly rootOwner: RootOwnerView | null;
   };
 }
 
@@ -198,7 +206,8 @@ export function tokenBinding(organizationId: string): { userId: string } {
   return { userId: `storage:${organizationId}:onedrive` };
 }
 
-type ConflictReason = 'not_configured' | 'not_connected' | 'unreachable' | 'consent_required';
+type ConflictReason =
+  'not_configured' | 'not_connected' | 'unreachable' | 'consent_required' | 'root_not_shared';
 
 function conflict(detail: ConflictReason): ApiError {
   const messages = {
@@ -206,6 +215,7 @@ function conflict(detail: ConflictReason): ApiError {
     not_connected: 'OneDrive is not connected',
     unreachable: 'OneDrive is not reachable. Reconnect it in Storage',
     consent_required: 'OneDrive needs your permission for this. Reconnect it in Storage',
+    root_not_shared: 'This Microsoft account cannot open the company TManage folder',
   } as const;
   return new ApiError(409, 'conflict', messages[detail], [{ field: 'storage', message: detail }]);
 }
@@ -258,7 +268,7 @@ export class OneDriveService implements CloudFolderDrive {
       row: await this.repository.findConnection(runner, context),
       mode: await this.modes.effective(runner, context),
     }));
-    return toOneDriveStatusView(this.deps.config, row, canManage, mode);
+    return toOneDriveStatusView(this.deps.config, row, canManage, mode, context.userId);
   }
 
   /** Begin connecting: the Microsoft consent URL and the flow to seal into the cookie. */
@@ -313,6 +323,15 @@ export class OneDriveService implements CloudFolderDrive {
       }),
     );
     if (!tokens.refreshToken) throw conflict('unreachable');
+    const handover = pendingHandoverFor(await this.readConnection(context), context.userId);
+    if (handover) {
+      return this.completeHandover(context, handover, {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        email: tokens.email,
+        grantedScopes: (tokens.scope ?? scope).slice(0, 512),
+      });
+    }
     const drive = await this.graph(() => this.deps.transport.myDrive(tokens.accessToken));
     const rootItemId = await this.ensureRoot(tokens.accessToken, drive.id, 'root');
     const refreshTokenEnc = this.deps.cipher.encrypt(
@@ -328,6 +347,7 @@ export class OneDriveService implements CloudFolderDrive {
         rootItemId,
         grantedScopes: (tokens.scope ?? scope).slice(0, 512),
         connectedByUserId: context.userId,
+        rootOwnerKind: oneDriveRootOwner(drive.driveType),
       });
       const saved = await this.repository.findConnection(tx, context);
       await this.deps.audit.record(tx, context, {
@@ -338,7 +358,70 @@ export class OneDriveService implements CloudFolderDrive {
       });
       return { row: saved, mode: await this.modes.effective(tx, context) };
     });
-    return toOneDriveStatusView(this.deps.config, row, true, mode);
+    return toOneDriveStatusView(this.deps.config, row, true, mode, context.userId);
+  }
+
+  /**
+   * 51-17. The admin named in a hand-over finished their own Microsoft consent: their token
+   * replaces the leaving person's and the root stays. Their account must already open the root
+   * (a library they belong to, or a folder shared with them); otherwise nothing changes.
+   * Microsoft has no revoke endpoint, so the old token is only wiped (overwritten here).
+   */
+  private async completeHandover(
+    context: TenantContext,
+    connection: StorageConnectionRow & { rootFolderId: string },
+    tokens: {
+      accessToken: string;
+      refreshToken: string;
+      email: string | null;
+      grantedScopes: string;
+    },
+  ): Promise<OneDriveStatusView> {
+    if (!connection.onedriveDriveId) throw conflict('unreachable');
+    const driveId = connection.onedriveDriveId;
+    try {
+      await this.deps.transport.getItem(
+        tokens.accessToken,
+        { driveId, itemId: connection.rootFolderId },
+        'parent',
+      );
+    } catch (error) {
+      if (error instanceof OneDriveItemNotFoundError || error instanceof OneDriveNoAccessError) {
+        throw conflict('root_not_shared');
+      }
+      throw conflict('unreachable');
+    }
+    const refreshTokenEnc = this.deps.cipher.encrypt(
+      tokens.refreshToken,
+      tokenBinding(context.organizationId),
+    );
+    const { row, mode } = await this.deps.database.transaction(context, async (tx) => {
+      await this.repository.update(tx, context, connection.id, {
+        status: 'connected',
+        accountEmail: tokens.email,
+        refreshTokenEnc,
+        grantedScopes: tokens.grantedScopes,
+        lastErrorCode: null,
+        connectedByUserId: context.userId,
+        handoverToUserId: null,
+        handedOverAt: new Date(),
+      });
+      await this.deps.audit.record(tx, context, {
+        action: 'storage_connection.handover',
+        result: 'allowed',
+        objectId: connection.id,
+        metadata: {
+          provider: 'onedrive',
+          from_user_id: connection.connectedByUserId,
+          to_user_id: context.userId,
+        },
+      });
+      return {
+        row: await this.repository.findConnection(tx, context),
+        mode: await this.modes.effective(tx, context),
+      };
+    });
+    return toOneDriveStatusView(this.deps.config, row, true, mode, context.userId);
   }
 
   async updateSettings(
@@ -357,6 +440,7 @@ export class OneDriveService implements CloudFolderDrive {
         patch.rootFolderId = await this.ensureRoot(accessToken, drive.id, 'root');
         patch.onedriveDriveId = drive.id;
         patch.onedriveDriveName = drive.name;
+        patch.rootOwnerKind = oneDriveRootOwner(drive.driveType);
       } else if (location.kind === 'library') {
         if (!grantsLibraries(live.grantedScopes)) throw conflict('consent_required');
         const drive = await this.graph(() =>
@@ -365,6 +449,7 @@ export class OneDriveService implements CloudFolderDrive {
         patch.rootFolderId = await this.ensureRoot(accessToken, drive.id, 'root');
         patch.onedriveDriveId = drive.id;
         patch.onedriveDriveName = oneDriveFolderName(drive.name, 'SharePoint library');
+        patch.rootOwnerKind = oneDriveRootOwner(drive.driveType);
       } else {
         const folder = await this.graph(() =>
           this.deps.transport.getItem(accessToken, {
@@ -375,12 +460,13 @@ export class OneDriveService implements CloudFolderDrive {
         if (!folder.isFolder) throw invalid('location', 'must be a folder');
         patch.rootFolderId = await this.ensureRoot(accessToken, folder.driveId, folder.id);
         patch.onedriveDriveId = folder.driveId;
+        // 51-17. The folder's drive says who owns it (a library or one person's OneDrive).
+        const drive = await this.graph(() =>
+          this.deps.transport.getDrive(accessToken, folder.driveId),
+        );
+        patch.rootOwnerKind = oneDriveRootOwner(drive.driveType);
         // R36 F2. The drive's own top has no parent and is called `root`; show the drive's name.
-        const placeName =
-          folder.parentId === null
-            ? (await this.graph(() => this.deps.transport.getDrive(accessToken, folder.driveId)))
-                .name
-            : folder.name;
+        const placeName = folder.parentId === null ? drive.name : folder.name;
         patch.onedriveDriveName = oneDriveFolderName(placeName, 'OneDrive');
       }
     }
@@ -409,7 +495,7 @@ export class OneDriveService implements CloudFolderDrive {
       });
       return { row: await this.repository.findConnection(tx, context), mode: effective };
     });
-    return toOneDriveStatusView(this.deps.config, row, true, mode);
+    return toOneDriveStatusView(this.deps.config, row, true, mode, context.userId);
   }
 
   /**
@@ -438,7 +524,7 @@ export class OneDriveService implements CloudFolderDrive {
         mode: await this.modes.effective(tx, context),
       };
     });
-    return toOneDriveStatusView(this.deps.config, row, true, mode);
+    return toOneDriveStatusView(this.deps.config, row, true, mode, context.userId);
   }
 
   // ── Picker, upload and attachments ────────────────────────────────────────
@@ -1233,6 +1319,8 @@ export function toOneDriveStatusView(
   row: StorageConnectionRow | undefined,
   canManage: boolean,
   effective: StorageMode,
+  /** 51-17. The person reading, for "you were asked to take over". */
+  viewerUserId: string | null = null,
 ): OneDriveStatusView {
   const live = row && row.status !== 'disconnected' ? row : undefined;
   const status = !live ? 'not_connected' : live.status === 'error' ? 'error' : 'connected';
@@ -1246,6 +1334,7 @@ export function toOneDriveStatusView(
       folderPath: live ? oneDriveFolderPath(live.onedriveDriveName) : null,
       driveName: live?.onedriveDriveName ?? null,
       librariesEnabled: live ? grantsLibraries(live.grantedScopes) : false,
+      rootOwner: toRootOwnerView(live, viewerUserId, canManage),
     },
   };
 }

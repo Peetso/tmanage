@@ -13,6 +13,7 @@ import type {
   StorageConnectionRow,
   WorkItemRow,
 } from '../../common/database/schema.js';
+import type { RootOwnerKind } from '../storage-root/root-owner.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -33,6 +34,8 @@ export interface SaveConnectionInput {
   readonly rootItemId: string;
   readonly grantedScopes: string | null;
   readonly connectedByUserId: string;
+  /** 51-17 (0356). From the drive's Graph `driveType`. */
+  readonly rootOwnerKind: RootOwnerKind;
 }
 
 export interface InsertAttachmentInput {
@@ -84,6 +87,12 @@ export type ConnectionPatch = Partial<{
   lastErrorCode: string | null;
   storageMode: 'tmanage';
   disconnectedAt: Date | null;
+  /** 51-17 (0356). */
+  rootOwnerKind: RootOwnerKind;
+  accountEmail: string | null;
+  connectedByUserId: string | null;
+  handoverToUserId: string | null;
+  handedOverAt: Date | null;
 }>;
 
 export class OneDriveRepository {
@@ -125,6 +134,8 @@ export class OneDriveRepository {
       grantedScopes: input.grantedScopes,
       lastErrorCode: null,
       connectedByUserId: input.connectedByUserId,
+      rootOwnerKind: input.rootOwnerKind,
+      handoverToUserId: null,
       connectedAt: sql`current_timestamp(3)`,
       disconnectedAt: null,
       updatedAt: sql`current_timestamp(3)`,

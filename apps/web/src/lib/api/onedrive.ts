@@ -1,4 +1,5 @@
 import type { ApiClient } from './client';
+import type { RootOwnerView } from './storage-root';
 import type { StorageMode } from './google-drive';
 
 /**
@@ -21,6 +22,8 @@ export interface OneDriveStatusView {
     readonly folderPath: string | null;
     readonly driveName: string | null;
     readonly librariesEnabled: boolean;
+    /** 51-17. Who owns the root and the hand-over state; null when not connected. */
+    readonly rootOwner: RootOwnerView | null;
   };
 }
 

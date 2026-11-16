@@ -9666,6 +9666,14 @@ export const storageConnections = mysqlTable(
     connectedByUserId: char('connected_by_user_id', { length: 36 }),
     connectedAt: datetime('connected_at', { mode: 'date', fsp: 3 }),
     disconnectedAt: datetime('disconnected_at', { mode: 'date', fsp: 3 }),
+    /**
+     * 0356 (51-17). Who owns the root's place: `shared_drive`, `sharepoint_library`, `personal`
+     * or `unknown` (closed list in `storage-root/root-owner.ts`).
+     */
+    rootOwnerKind: varchar('root_owner_kind', { length: 20 }).notNull().default('unknown'),
+    /** 0356. The admin asked to take the connection over; their own consent completes it. */
+    handoverToUserId: char('handover_to_user_id', { length: 36 }),
+    handedOverAt: datetime('handed_over_at', { mode: 'date', fsp: 3 }),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
   },

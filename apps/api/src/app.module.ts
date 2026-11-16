@@ -138,6 +138,7 @@ import { SsoModule } from './modules/sso/sso.controller.js';
 import { ScimModule } from './modules/scim/scim.controller.js';
 import { PasskeysModule } from './modules/identity/passkeys/passkeys.controller.js';
 import { OneDriveModule } from './modules/onedrive/onedrive.controller.js';
+import { StorageRootModule } from './modules/storage-root/storage-handover.controller.js';
 import { FigmaModule } from './modules/figma/figma.module.js';
 import { ConnectorsModule } from './modules/connectors/connectors.module.js';
 import { AppConnectModule } from './modules/app-connect/app-connect.module.js';
@@ -1169,6 +1170,8 @@ export class AppModule {
         // 0236. OneDrive as company storage, the second external option. Always registered:
         // without MICROSOFT_CLIENT_ID/SECRET the routes answer "not configured".
         OneDriveModule.register(),
+        // 0356 (51-17). Company storage hand-over (Storage screen): name the admin who takes over.
+        StorageRootModule.register(),
         // R4 slice 13. Figma links in the proofing viewer: each member's own personal access token,
         // links and frame snapshots. Always registered; nothing in the environment is required.
         FigmaModule.register(),
