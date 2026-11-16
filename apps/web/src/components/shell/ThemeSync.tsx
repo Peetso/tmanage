@@ -3,7 +3,9 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { getAccessibilityPreferences } from '../../lib/api/a11y-preferences';
 import { getDisplayPreferences } from '../../lib/api/display-preferences';
+import { applyA11yPreferences } from '../../lib/a11y-shell';
 import { displayFormat } from '../../lib/i18n/display-format';
 import { activeLocale } from '../../lib/i18n/locale-store';
 import { applyDensity, applyTheme } from '../../lib/theme';
@@ -11,6 +13,10 @@ import { applyDensity, applyTheme } from '../../lib/theme';
 /**
  * Applies the member's saved theme, density and language inside a workspace. Shares its query key with
  * `DisplayPreferencesView`, so a save there re-applies here at once. Renders nothing.
+ *
+ * x183: the saved text size, contrast and reduced motion too (query key shared with
+ * `AccessibilityScreen`), on every workspace page rather than only after the settings screen; the
+ * boot script has already painted the cached copy, so this only reconciles it with the server.
  *
  * R25 A6: a signed-in member's language is their saved preference, not whatever the
  * `tmanage_locale` cookie or a visit to a public `/ar` page left behind. When the preference
@@ -42,5 +48,13 @@ export function ThemeSync({ organizationSlug }: { organizationSlug: string }) {
   useEffect(() => {
     if (numerals || dateFormat) displayFormat.set({ numerals, dateFormat });
   }, [numerals, dateFormat]);
+  const a11y = useQuery({
+    queryKey: ['a11y-preferences', organizationSlug],
+    queryFn: () => getAccessibilityPreferences(browserApiClient(), organizationSlug),
+    staleTime: 5 * 60_000,
+  });
+  useEffect(() => {
+    if (a11y.data) applyA11yPreferences(a11y.data);
+  }, [a11y.data]);
   return null;
 }

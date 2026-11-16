@@ -9,6 +9,8 @@ import {
 } from './locale-cookie';
 import { ARABIC_PREFIX, ARABIC_ROUTE_LOCALE, isArabicPublicPath } from './public-locale-routes';
 import { THEME_STORAGE_KEY } from '../theme';
+import { A11Y_STORAGE_KEY } from '../a11y-shell';
+import { A11Y_FONT_SCALES } from '../api/a11y-preferences';
 
 /**
  * i18n (NFR-02, I18N-01) — the locale a tab boots in, decided before the first paint.
@@ -159,6 +161,8 @@ export function localeBootScript(): string {
     p: ARABIC_PREFIX,
     pl: ARABIC_ROUTE_LOCALE,
     th: THEME_STORAGE_KEY,
+    ax: A11Y_STORAGE_KEY,
+    af: A11Y_FONT_SCALES,
   }).replace(/</g, '\\u003c');
   return (
     '(function(c){try{' +
@@ -167,6 +171,13 @@ export function localeBootScript(): string {
     'window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";' +
     'if(th==="dark"||th==="light")document.documentElement.setAttribute("data-theme",th);}catch(e){}' +
     'var h=document.documentElement,l=null,q=null,s=null,k=null,w=false;' +
+    // x183: the cached text size, contrast and reduced motion (`lib/a11y-shell.ts`), so every
+    // page, not only the settings screen, paints with them from the first frame.
+    'try{var ax=JSON.parse(window.localStorage.getItem(c.ax)||"null");if(ax&&typeof ax==="object"){' +
+    'if(c.af.indexOf(ax.fontScale)>-1)h.setAttribute("data-tm-font-scale",ax.fontScale);' +
+    'h.setAttribute("data-tm-high-contrast",ax.highContrast===true?"on":"off");' +
+    'h.setAttribute("data-tm-reduce-motion",ax.reduceMotion===true||(window.matchMedia&&' +
+    'window.matchMedia("(prefers-reduced-motion: reduce)").matches)?"on":"off");}}catch(e){}' +
     'function ok(v){return typeof v==="string"&&c.a.indexOf(v)>-1;}' +
     'try{var p=document.cookie.split(";");for(var i=0;i<p.length;i++){var e=p[i].indexOf("=");' +
     'if(e>-1&&p[i].slice(0,e).trim()===c.n){' +

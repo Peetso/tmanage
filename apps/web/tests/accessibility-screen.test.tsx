@@ -1,10 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AccessibilityScreen } from '../src/components/screens/AccessibilityScreen';
 import { ApiClient } from '../src/lib/api/client';
 import { expectNoAxeViolations } from './axe';
+
+vi.mock('../src/components/shell/ThemeSync', () => ({ ThemeSync: () => null }));
 
 /**
  * A11Y-183 accessibility preferences web (x183). The API's tenant scoping, the `work.read` gate and

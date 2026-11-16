@@ -11,6 +11,7 @@ import {
   updateAccessibilityPreferences,
 } from '../../lib/api/a11y-preferences';
 import type { A11yFontScale, A11yPreferencesView } from '../../lib/api/a11y-preferences';
+import { applyA11yPreferences } from '../../lib/a11y-shell';
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
@@ -33,33 +34,6 @@ const FONT_SCALE_PERCENT: Record<A11yFontScale, string> = {
   lg: '113%',
   xl: '125%',
 };
-
-/** True when the operating system asks for reduced motion, so the shell honours it even when unset. */
-function systemPrefersReducedMotion(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  );
-}
-
-/**
- * Apply the accessibility preferences to the app shell by writing data attributes onto the document
- * root. The CSS rules keyed off these attributes are additive and guarded (globals.css), so the
- * default state — no attribute — changes nothing and every existing a11y baseline is untouched.
- * Reduced motion is the OR of the saved setting and the OS `prefers-reduced-motion`, so the shell
- * respects the system even before a member opts in.
- */
-function applyToShell(settings: A11yPreferencesView): void {
-  if (typeof document === 'undefined') return;
-  const root = document.documentElement;
-  root.setAttribute('data-tm-font-scale', settings.fontScale);
-  root.setAttribute(
-    'data-tm-reduce-motion',
-    settings.reduceMotion || systemPrefersReducedMotion() ? 'on' : 'off',
-  );
-  root.setAttribute('data-tm-high-contrast', settings.highContrast ? 'on' : 'off');
-}
 
 /**
  * **Accessibility preferences (module 20 Preferences & accessibility, A11Y, x183).**
@@ -103,7 +77,7 @@ export function AccessibilityScreen({
     setFontScale(preferences.data.fontScale);
     setReduceMotion(preferences.data.reduceMotion);
     setHighContrast(preferences.data.highContrast);
-    applyToShell(preferences.data);
+    applyA11yPreferences(preferences.data);
   }, [preferences.data]);
 
   const save = useMutation({
@@ -115,7 +89,7 @@ export function AccessibilityScreen({
       }),
     onSuccess: (result) => {
       queries.setQueryData(['a11y-preferences', organizationSlug], result);
-      applyToShell(result);
+      applyA11yPreferences(result);
       setSaved(true);
     },
   });
