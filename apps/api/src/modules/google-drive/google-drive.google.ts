@@ -289,7 +289,17 @@ export interface DriveTransport {
    * redirect; reading stops past `maxBytes` (`DownloadTooLargeError`).
    */
   downloadFile(accessToken: string, fileId: string, maxBytes: number): Promise<Buffer>;
+  /** 51-17. The Shared Drives this account may add files to (one page, at most 100). */
+  listSharedDrives(accessToken: string): Promise<readonly DriveSharedDrive[]>;
 }
+
+export interface DriveSharedDrive {
+  readonly id: string;
+  readonly name: string;
+}
+
+/** 51-17. How many Shared Drives the root choice lists (Google's page maximum). */
+export const SHARED_DRIVES_PAGE_SIZE = 100;
 
 function decodeEmail(idToken: unknown): string | null {
   if (typeof idToken !== 'string') return null;
@@ -488,6 +498,27 @@ export function createDriveTransport(fetchImpl: typeof fetch = fetch): DriveTran
         files,
         nextPageToken: isDrivePageToken(body.nextPageToken) ? body.nextPageToken : null,
       };
+    },
+
+    async listSharedDrives(accessToken) {
+      const search = new URLSearchParams({
+        pageSize: String(SHARED_DRIVES_PAGE_SIZE),
+        fields: 'drives(id,name,capabilities/canAddChildren)',
+      });
+      const body = (await (
+        await call(`${DRIVE_API}/drives?${search.toString()}`, { headers: auth(accessToken) })
+      ).json()) as { drives?: unknown };
+      if (!Array.isArray(body.drives)) return [];
+      return body.drives.slice(0, SHARED_DRIVES_PAGE_SIZE).flatMap((entry) => {
+        const drive = (entry ?? {}) as {
+          id?: unknown;
+          name?: unknown;
+          capabilities?: { canAddChildren?: unknown };
+        };
+        if (!isDriveId(drive.id) || drive.capabilities?.canAddChildren !== true) return [];
+        const name = typeof drive.name === 'string' ? drive.name.slice(0, 190) : '';
+        return [{ id: drive.id, name: name || 'Shared Drive' }];
+      });
     },
 
     async downloadFile(accessToken, fileId, maxBytes) {

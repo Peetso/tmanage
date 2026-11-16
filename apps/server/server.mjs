@@ -344,6 +344,7 @@ async function startInProcessWorker(env, attachRealtime) {
     runQueueBatch,
     ClientRequestMailer,
     UsageThresholdMailer,
+    StorageRootMailer,
     CredentialChangeMailer,
     PrivacyMailer,
     writeHeartbeat,
@@ -394,6 +395,8 @@ async function startInProcessWorker(env, attachRealtime) {
   const relayHandlers = createWorkerOutboxHandlers({
     clientRequestMailer: new ClientRequestMailer(notificationTransport, env.WEB_PUBLIC_URL),
     usageThresholdMailer: new UsageThresholdMailer(notificationTransport),
+    // 51-17 — the owners' "company storage at risk" mail.
+    storageRootMailer: new StorageRootMailer(notificationTransport),
     // H3 — data export ready, deletion scheduled / cancelled / carried out.
     privacyMailer: new PrivacyMailer(transport, env.WEB_PUBLIC_URL),
   });

@@ -31,6 +31,21 @@ export function oneDriveRootOwner(driveType: string): RootOwnerKind {
   return 'unknown';
 }
 
+/**
+ * 51-17 slice 2. One company-owned place the connected account can put the root in: a Google
+ * Shared Drive it may add files to, or a SharePoint document library. Read from the provider on the
+ * server; a saved id must be one of these.
+ */
+export interface CompanyRootOption {
+  readonly id: string;
+  readonly name: string;
+}
+
+export interface CompanyRootOptionsView {
+  readonly kind: 'shared_drive' | 'sharepoint_library';
+  readonly options: readonly CompanyRootOption[];
+}
+
 function storedKind(value: string): RootOwnerKind {
   return (ROOT_OWNER_KINDS as readonly string[]).includes(value)
     ? (value as RootOwnerKind)

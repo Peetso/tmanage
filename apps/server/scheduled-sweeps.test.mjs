@@ -15,6 +15,7 @@ import {
   startRetainerRoll,
   startChannelPosts,
   startWebhookDeliveries,
+  storageRootJob,
   sweepIntervalMs,
   sweepsEnabled,
   workerSweepJobs,
@@ -61,6 +62,11 @@ function fakeWorker(calls, { expired = 0, reopened = 0, reminded = 0 } = {}) {
       calls.push(store);
       return { candidates: 0, sent: 0 };
     },
+    createStorageRootCheckStore: (database) => ({ database, kind: 'storage-root' }),
+    sweepStorageRootCheck: async (store) => {
+      calls.push(store);
+      return { checked: 0, announced: 0 };
+    },
     // ---- platform-admin v2 · PA-05 ----
     createSupportSessionSweepStore: (database) => ({ database, kind: 'support-sessions' }),
     sweepSupportSessions: async (store) => {
@@ -100,7 +106,15 @@ test('every --sweep-* command the worker CLI offers has a job, bound to the one 
   for (const job of jobs) await job.run();
   assert.deepEqual(
     calls.map((store) => store.kind),
-    ['invitations', 'deferred', 'due-soon', 'getting-started', 'support-sessions', 'purge'],
+    [
+      'invitations',
+      'deferred',
+      'due-soon',
+      'getting-started',
+      'storage-root',
+      'support-sessions',
+      'purge',
+    ],
   );
   assert.ok(calls.every((store) => store.database === database));
 });
@@ -119,10 +133,10 @@ test('start runs a tick at once, schedules the rest, and logs only what moved', 
   await scheduler.stop();
   assert.equal(timers.intervalMs, 60_000);
   assert.equal(timers.cleared, true);
-  assert.equal(calls.length, 6);
+  assert.equal(calls.length, 7);
   assert.match(
     lines[0],
-    /scheduled sweeps on \(invitations, deferred-requests, due-soon, getting-started, support-sessions, purge\), every 60000ms/,
+    /scheduled sweeps on \(invitations, deferred-requests, due-soon, getting-started, storage-root, support-sessions, purge\), every 60000ms/,
   );
   assert.deepEqual(lines.slice(1), ['sweep invitations: expired 2 overdue invitation(s)']);
 });
@@ -411,4 +425,23 @@ test('R17-e: the recurrence spawner joins the minute tick only when the API expo
   assert.equal(job.name, 'recurrence-spawner');
   assert.equal(job.changed(await job.run()), true);
   assert.equal(job.describe(report), 'spawned 1');
+});
+
+test('51-17: the storage-root check runs at most once an hour', async () => {
+  let clock = 0;
+  let runs = 0;
+  const job = storageRootJob(
+    async () => {
+      runs += 1;
+      return { checked: 1, announced: 1 };
+    },
+    () => clock,
+  );
+  assert.equal(job.name, 'storage-root');
+  assert.equal(job.changed(await job.run()), true);
+  clock = 59 * 60 * 1000;
+  assert.equal(job.changed(await job.run()), false);
+  clock = 61 * 60 * 1000;
+  await job.run();
+  assert.equal(runs, 2);
 });

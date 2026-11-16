@@ -19666,5 +19666,7 @@
   "PublicLinks.saving": "正在保存…",
   "PublicLinks.saveExpiry": "保存到期时间",
   "ControlCenter.publicLinks": "公开链接",
-  "AuditActionLabel.public_link.expiry_changed": "更改了公开链接的到期时间"
+  "AuditActionLabel.public_link.expiry_changed": "更改了公开链接的到期时间",
+  "NotificationsFeedScreen.typeStorageRootAtRisk": "公司存储需要新的负责人",
+  "NotificationsFeedScreen.objectStorageConnection": "公司存储"
 }

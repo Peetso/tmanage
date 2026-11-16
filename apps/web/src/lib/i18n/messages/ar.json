@@ -19857,5 +19857,7 @@
   "PublicLinks.saving": "جارٍ الحفظ…",
   "PublicLinks.saveExpiry": "حفظ تاريخ الانتهاء",
   "ControlCenter.publicLinks": "الروابط العامة",
-  "AuditActionLabel.public_link.expiry_changed": "غيّر موعد انتهاء رابط عام"
+  "AuditActionLabel.public_link.expiry_changed": "غيّر موعد انتهاء رابط عام",
+  "NotificationsFeedScreen.typeStorageRootAtRisk": "تخزين الشركة يحتاج إلى مالك جديد",
+  "NotificationsFeedScreen.objectStorageConnection": "تخزين الشركة"
 }

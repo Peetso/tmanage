@@ -104,4 +104,23 @@ export class StorageHandoverRepository {
         ),
       );
   }
+
+  /** 51-17 slice 2. The live connections this person connected, in the acting tenant only. */
+  async listHeldBy(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userId: string,
+  ): Promise<readonly { readonly id: string; readonly provider: string }[]> {
+    return tenantDrizzle(runner)
+      .select({ id: storageConnections.id, provider: storageConnections.provider })
+      .from(storageConnections)
+      .where(
+        and(
+          eq(storageConnections.organizationId, context.organizationId),
+          eq(storageConnections.connectedByUserId, userId),
+          ne(storageConnections.status, 'disconnected'),
+        ),
+      )
+      .limit(4);
+  }
 }

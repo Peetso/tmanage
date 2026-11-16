@@ -29,6 +29,16 @@ export interface StorageHandoverView {
   readonly status: 'pending';
 }
 
+/**
+ * 51-17 slice 2. `GET …/integrations/google-drive/root-options` (Shared Drives) and
+ * `…/onedrive/root-options` (SharePoint libraries): the company-owned places the connected
+ * account can hold the root. Mirrors the API's `CompanyRootOptionsView` (`root-owner.ts`).
+ */
+export interface CompanyRootOptionsView {
+  readonly kind: 'shared_drive' | 'sharepoint_library';
+  readonly options: readonly { readonly id: string; readonly name: string }[];
+}
+
 function basePath(organizationSlug: string): string {
   return `/v1/organizations/${encodeURIComponent(organizationSlug)}/integrations/storage`;
 }

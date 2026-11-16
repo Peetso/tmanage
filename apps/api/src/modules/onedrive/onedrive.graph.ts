@@ -28,6 +28,8 @@ import {
  */
 
 export const GRAPH_API = 'https://graph.microsoft.com/v1.0';
+/** 51-17. How many document libraries the root choice lists. */
+export const LIBRARIES_PAGE_SIZE = 100;
 export const ONEDRIVE_BASE_SCOPES = 'openid profile email offline_access Files.ReadWrite';
 /** Incremental consent for SharePoint document libraries. */
 export const ONEDRIVE_LIBRARY_SCOPES = `${ONEDRIVE_BASE_SCOPES} Files.ReadWrite.All`;
@@ -350,6 +352,8 @@ export interface OneDriveTransport {
     input: { driveId: string; itemId: string },
     maxBytes: number,
   ): Promise<Buffer>;
+  /** 51-17. The document libraries of the organisation's root SharePoint site this account sees. */
+  listLibraries(accessToken: string): Promise<readonly OneDriveDrive[]>;
 }
 
 function idTokenLabel(idToken: unknown): string | null {
@@ -541,6 +545,28 @@ export function createOneDriveTransport(fetchImpl: typeof fetch = fetch): OneDri
 
     async getDrive(accessToken, driveId) {
       return drive(accessToken, `${GRAPH_API}/drives/${encodeURIComponent(driveId)}`);
+    },
+
+    async listLibraries(accessToken) {
+      const response = await call(
+        `${GRAPH_API}/sites/root/drives?$select=id,name,driveType,webUrl&$top=${LIBRARIES_PAGE_SIZE}`,
+        { headers: auth(accessToken) },
+      );
+      const body = (await response.json()) as { value?: unknown };
+      if (!Array.isArray(body.value)) return [];
+      return body.value.slice(0, LIBRARIES_PAGE_SIZE).flatMap((entry) => {
+        const raw = (entry ?? {}) as Record<string, unknown>;
+        if (!isGraphId(raw['id']) || raw['driveType'] !== 'documentLibrary') return [];
+        const name = typeof raw['name'] === 'string' ? raw['name'].slice(0, 190) : '';
+        return [
+          {
+            id: raw['id'],
+            name: name || 'SharePoint library',
+            driveType: 'documentLibrary',
+            webUrl: typeof raw['webUrl'] === 'string' ? raw['webUrl'] : null,
+          },
+        ];
+      });
     },
 
     async ensureFolder(accessToken, input) {

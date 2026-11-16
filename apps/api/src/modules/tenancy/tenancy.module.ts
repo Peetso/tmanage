@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { StorageHoldsHook } from '../storage-root/storage-holds.js';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
   API_CONFIG,
@@ -119,7 +120,17 @@ export class TenancyModule {
         database: TenantDatabase,
         memberships: MembershipsRepository,
         audit: AuditService,
-      ) => new OffboardingService(database, memberships, audit),
+      ) =>
+        new OffboardingService(
+          database,
+          memberships,
+          audit,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          new StorageHoldsHook(),
+        ),
     };
 
     const invitationsService: Provider = {

@@ -19666,5 +19666,7 @@
   "PublicLinks.saving": "Enregistrement…",
   "PublicLinks.saveExpiry": "Enregistrer l’expiration",
   "ControlCenter.publicLinks": "Liens publics",
-  "AuditActionLabel.public_link.expiry_changed": "A modifié l’expiration d’un lien public"
+  "AuditActionLabel.public_link.expiry_changed": "A modifié l’expiration d’un lien public",
+  "NotificationsFeedScreen.typeStorageRootAtRisk": "Le stockage de l’entreprise a besoin d’un nouveau responsable",
+  "NotificationsFeedScreen.objectStorageConnection": "Stockage de l’entreprise"
 }

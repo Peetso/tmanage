@@ -23,6 +23,8 @@ export interface OffboardingImpactView {
   readonly projectMembershipCount: number;
   readonly ownedWorkItemCount: number;
   readonly offboardable: boolean;
+  /** 51-17. The company storage connections this person holds (hand them over first). */
+  readonly storageConnections: readonly ('google_drive' | 'onedrive')[];
 }
 
 /** The confirmation an offboard returns. Paired `Exact` with the API's `OffboardedMemberView`. */
@@ -31,6 +33,8 @@ export interface OffboardedMember {
   readonly userId: string;
   readonly role: string;
   readonly status: string;
+  /** 51-17. The storage connections still on this person's account: hand them over now. */
+  readonly storageHandoverRequired: readonly ('google_drive' | 'onedrive')[];
 }
 
 /** ADM-12 — the read-only access-impact preview for one membership. */

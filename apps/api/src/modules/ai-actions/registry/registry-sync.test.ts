@@ -210,7 +210,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // PORTALA11Y: the portal's own accessibility read and save (+2 classified).
 // 51-17: storage hand-over targets and request (+2 NEVER, storage_connection).
 // 56-07p: the public link manager's list, bulk revoke and new end date (+3 NEVER).
-const EXPECTED_ROUTE_COUNT = 1495;
+// 51-17 slice 2: Google Drive and OneDrive company root options (+2 NEVER, storage_connection).
+const EXPECTED_ROUTE_COUNT = 1497;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

@@ -313,6 +313,11 @@ const TYPE_LABEL_FALLBACKS: Record<string, { readonly key: string; readonly engl
     key: 'NotificationsFeedScreen.typeMeetingAttendeeResponded',
     english: 'Meeting answer from a calendar',
   },
+  // 51-17: the company's storage root is at risk (holder left, or a personal drive).
+  'storage_connection.root_at_risk.v1': {
+    key: 'NotificationsFeedScreen.typeStorageRootAtRisk',
+    english: 'Company storage needs a new owner',
+  },
 };
 
 function describeType(type: string, t: (key: MessageKey) => string): string {
@@ -330,6 +335,9 @@ function describeType(type: string, t: (key: MessageKey) => string): string {
 function describeObject(item: NotificationView): string {
   // R4 slice 12: a file under review is a "File" to the reader, never its table name.
   if (item.objectType === 'file_asset') return translateOr('InboxScreen.kindFile', 'File');
+  if (item.objectType === 'storage_connection') {
+    return translateOr('NotificationsFeedScreen.objectStorageConnection', 'Company storage');
+  }
   const kind = item.objectType.replace(/[._]/g, ' ');
   return kind.length > 0 ? kind.charAt(0).toUpperCase() + kind.slice(1) : 'Update';
 }

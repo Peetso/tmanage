@@ -29,6 +29,7 @@ import { API_CONFIG, AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/to
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
+import type { CompanyRootOptionsView } from '../storage-root/root-owner.js';
 import {
   parseConnectReturnTo,
   storageReturnScreen,
@@ -192,6 +193,13 @@ export class OneDriveStorageController {
     @Body() body: { readonly storageMode?: unknown; readonly location?: unknown },
   ): Promise<OneDriveStatusView> {
     return this.onedrive.updateSettings(context, parseOneDriveSettings(body));
+  }
+
+  /** 51-17 slice 2. The SharePoint libraries the connected account can hold the company's root. */
+  @Get('root-options')
+  @RequireCapability('org.manage')
+  async rootOptions(@Ctx() context: TenantContext): Promise<CompanyRootOptionsView> {
+    return this.onedrive.companyRootOptions(context);
   }
 
   @Delete()

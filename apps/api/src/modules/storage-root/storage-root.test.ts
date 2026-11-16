@@ -16,6 +16,8 @@ import { GoogleDriveService, tokenBinding } from '../google-drive/google-drive.s
 import { googleRootOwner, oneDriveRootOwner, toRootOwnerView } from './root-owner.js';
 import type { HandoverCandidateRow } from './storage-handover.repository.js';
 import { StorageHandoverService, type StorageHandoverStore } from './storage-handover.service.js';
+import { StorageHoldsHook } from './storage-holds.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 
 const ORG_A = 'org-a';
 const ORG_B = 'org-b';
@@ -38,6 +40,8 @@ const principal = (role: string, organizationId = ORG_A) =>
     projectIds: [],
     hasOrgWideScope: true,
   }) as unknown as Principal;
+/** The workspace requires no two-step sign-in of anyone (slice 2's check, off here). */
+const noGap = async () => false;
 const database = {
   read: (_c: TenantContext, work: (runner: unknown) => Promise<unknown>) => work({}),
   transaction: (_c: TenantContext, work: (runner: unknown) => Promise<unknown>) => work({}),
@@ -110,7 +114,7 @@ function store(row = connection()) {
 describe('hand-over request', () => {
   it('is refused for a non-admin before anything is read or written', async () => {
     const fake = store();
-    const service = new StorageHandoverService(database, { record: vi.fn() }, fake);
+    const service = new StorageHandoverService(database, { record: vi.fn() }, fake, noGap);
     await expect(
       service.request(ctx(), principal('member'), { provider: 'google_drive', toUserId: ADMIN }),
     ).rejects.toMatchObject({ status: 403 });
@@ -121,17 +125,17 @@ describe('hand-over request', () => {
   it('refuses a target who is not an admin, or who is only in another workspace', async () => {
     const audit = { record: vi.fn() };
     const fake = store(connection({ organizationId: ORG_B }));
-    const service = new StorageHandoverService(database, audit, fake);
+    const service = new StorageHandoverService(database, audit, fake, noGap);
     // ORG_B's connection and admin do not resolve from ORG_A.
     await expect(
       service.request(ctx(), principal('owner'), { provider: 'google_drive', toUserId: ADMIN }),
     ).rejects.toMatchObject({ status: 409 });
     const own = store();
-    const inA = new StorageHandoverService(database, audit, own);
+    const inA = new StorageHandoverService(database, audit, own, noGap);
     await expect(
       inA.request(ctx(), principal('owner'), { provider: 'google_drive', toUserId: MEMBER }),
     ).rejects.toMatchObject({ status: 400 });
-    own.findActiveMember.mockResolvedValueOnce(null);
+    own.findActiveMember.mockResolvedValue(null);
     await expect(
       inA.request(ctx(), principal('owner'), { provider: 'google_drive', toUserId: ADMIN }),
     ).rejects.toMatchObject({ status: 400 });
@@ -142,7 +146,7 @@ describe('hand-over request', () => {
   it('names the admin and writes the audit entry; the list offers only admins', async () => {
     const audit = { record: vi.fn() };
     const fake = store();
-    const service = new StorageHandoverService(database, audit, fake);
+    const service = new StorageHandoverService(database, audit, fake, noGap);
     const view = await service.request(ctx(), principal('owner'), {
       provider: 'google_drive',
       toUserId: ADMIN,
@@ -242,5 +246,69 @@ describe('hand-over completion (Google)', () => {
     ).rejects.toMatchObject({ status: 409 });
     expect(repository.update).not.toHaveBeenCalled();
     expect(audit.record).not.toHaveBeenCalled();
+  });
+});
+
+describe('51-17 slice 2: two-step sign-in and the leave announcement', () => {
+  it('refuses a target the workspace two-step rule would refuse, before any write', async () => {
+    const audit = { record: vi.fn() };
+    const fake = store();
+    const gap = vi.fn(async () => true);
+    const service = new StorageHandoverService(database, audit, fake, gap);
+    await expect(
+      service.request(ctx(), principal('owner'), { provider: 'google_drive', toUserId: ADMIN }),
+    ).rejects.toMatchObject({
+      status: 409,
+      details: [{ field: 'toUserId', message: 'two_step_required' }],
+    });
+    expect(gap).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: ORG_A }),
+      expect.objectContaining({ userId: ADMIN, role: 'org_admin' }),
+    );
+    expect(fake.setHandoverTarget).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it('reads holds in the acting tenant only and keeps the two cloud providers', async () => {
+    const listHeldBy = vi.fn(async (_r: unknown, c: TenantContext) =>
+      c.organizationId === ORG_A
+        ? [
+            { id: 'conn-1', provider: 'google_drive' },
+            { id: 'conn-x', provider: 'tmanage' },
+          ]
+        : [],
+    );
+    const hook = new StorageHoldsHook({ append: vi.fn() }, { listHeldBy });
+    expect(await hook.heldBy({} as never, ctx(), LEAVER)).toEqual([
+      { connectionId: 'conn-1', provider: 'google_drive' },
+    ]);
+    expect(await hook.heldBy({} as never, ctx(LEAVER, ORG_B), LEAVER)).toEqual([]);
+    expect(listHeldBy).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ organizationId: ORG_A }),
+      LEAVER,
+    );
+  });
+
+  it('announces each held connection once per leave, keyed by connection and leave', async () => {
+    const append = vi.fn(async () => 'event-1');
+    const hook = new StorageHoldsHook({ append } as unknown as OutboxEventsRepository, {
+      listHeldBy: vi.fn(),
+    });
+    await hook.announceLeft(
+      {} as never,
+      ctx(),
+      [{ connectionId: 'conn-1', provider: 'onedrive' }],
+      'm-1:2',
+    );
+    expect(append).toHaveBeenCalledWith({}, expect.anything(), {
+      type: 'storage_connection.root_at_risk.v1',
+      aggregateId: 'conn-1',
+      payload: expect.objectContaining({
+        organizationId: ORG_A,
+        reason: 'holder_offboarded',
+        idempotencyKey: 'conn-1:holder_offboarded:m-1:2',
+      }),
+    });
   });
 });

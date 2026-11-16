@@ -19857,5 +19857,7 @@
   "PublicLinks.saving": "Saving…",
   "PublicLinks.saveExpiry": "Save expiry",
   "ControlCenter.publicLinks": "Public links",
-  "AuditActionLabel.public_link.expiry_changed": "Changed when a public link expires"
+  "AuditActionLabel.public_link.expiry_changed": "Changed when a public link expires",
+  "NotificationsFeedScreen.typeStorageRootAtRisk": "Company storage needs a new owner",
+  "NotificationsFeedScreen.objectStorageConnection": "Company storage"
 }

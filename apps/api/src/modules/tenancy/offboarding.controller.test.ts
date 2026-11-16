@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { customRoleKey, OFFBOARDING_NEVER_AUTO_RESTORES_ACCESS } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { OffboardingService } from './offboarding.service.js';
@@ -10,6 +10,7 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import type { MembershipRow } from '../../common/database/schema.js';
 import type { InvitationsRepository } from './invitations.repository.js';
 import type { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
+import type { StorageHoldsHook } from '../storage-root/storage-holds.js';
 
 /**
  * ADM-12/13 (x121) offboarding proofs, database-free over the module's fakes with the **real**
@@ -91,7 +92,11 @@ interface AuditCall {
  */
 function serviceWith(
   seed: MembershipRow | null,
-  options: { readonly otherAdmins?: number; readonly otherOwners?: number } = {},
+  options: {
+    readonly otherAdmins?: number;
+    readonly otherOwners?: number;
+    readonly storageHolds?: StorageHoldsHook;
+  } = {},
 ): {
   service: OffboardingService;
   transitions: MembershipRow[];
@@ -198,6 +203,7 @@ function serviceWith(
       workItems,
       invitations,
       customRoles,
+      options.storageHolds ?? null,
     ),
     transitions,
     audits,
@@ -232,6 +238,46 @@ describe('OffboardingService', () => {
     expect(audits[0]?.action).toBe('membership.offboarded');
     expect(audits[0]?.result).toBe('allowed');
     expect(audits[0]?.objectId).toBe(TARGET_MEMBERSHIP);
+  });
+
+  it('51-17: says which company storage the leaver holds, and announces it inside the leave', async () => {
+    const heldBy = vi.fn(async (_runner: unknown, ctx: TenantContext, userId: string) =>
+      ctx.organizationId === ORG && userId === TARGET_USER
+        ? [{ connectionId: 'conn-1', provider: 'google_drive' as const }]
+        : [],
+    );
+    const announceLeft = vi.fn(async () => undefined);
+    const storageHolds = { heldBy, announceLeft } as unknown as StorageHoldsHook;
+    const { service } = serviceWith(membershipRow(), { storageHolds });
+
+    const impact = await service.impact(context, owner(), TARGET_USER);
+    expect(impact.storageConnections).toEqual(['google_drive']);
+    expect(announceLeft).not.toHaveBeenCalled();
+
+    const result = await service.offboard(context, owner(), TARGET_USER);
+    expect(result.storageHandoverRequired).toEqual(['google_drive']);
+    expect(announceLeft).toHaveBeenCalledWith(
+      expect.anything(),
+      context,
+      [{ connectionId: 'conn-1', provider: 'google_drive' }],
+      `${TARGET_MEMBERSHIP}:2`,
+    );
+  });
+
+  it('51-17: a refused offboard announces nothing', async () => {
+    const announceLeft = vi.fn(async () => undefined);
+    const storageHolds = {
+      heldBy: vi.fn(async () => [{ connectionId: 'conn-1', provider: 'onedrive' as const }]),
+      announceLeft,
+    } as unknown as StorageHoldsHook;
+    const { service } = serviceWith(membershipRow({ role: 'owner' }), {
+      otherAdmins: 0,
+      storageHolds,
+    });
+    await expect(service.offboard(context, owner(), TARGET_USER)).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(announceLeft).not.toHaveBeenCalled();
   });
 
   it('revokes project access and releases owned work in the same transaction (ADM-06, ADM-07)', async () => {

@@ -19668,5 +19668,7 @@
   "PublicLinks.saving": "Guardando…",
   "PublicLinks.saveExpiry": "Guardar vencimiento",
   "ControlCenter.publicLinks": "Enlaces públicos",
-  "AuditActionLabel.public_link.expiry_changed": "Cambió el vencimiento de un enlace público"
+  "AuditActionLabel.public_link.expiry_changed": "Cambió el vencimiento de un enlace público",
+  "NotificationsFeedScreen.typeStorageRootAtRisk": "El almacenamiento de la empresa necesita un nuevo responsable",
+  "NotificationsFeedScreen.objectStorageConnection": "Almacenamiento de la empresa"
 }

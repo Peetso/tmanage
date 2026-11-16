@@ -51,6 +51,7 @@ import {
   googleRootOwner,
   pendingHandoverFor,
   toRootOwnerView,
+  type CompanyRootOptionsView,
   type RootOwnerView,
 } from '../storage-root/root-owner.js';
 import {
@@ -155,8 +156,14 @@ const ORIGIN_MAX_BREADTH = 5;
 
 export interface SettingsInput {
   readonly storageMode?: 'tmanage' | 'google_drive';
-  /** `my_drive`, or a folder the person picked (possibly inside a Shared Drive). */
-  readonly location?: { readonly kind: 'my_drive' } | { readonly kind: 'folder'; folderId: string };
+  /**
+   * `my_drive`, a folder the person picked (possibly inside a Shared Drive), or (51-17) a Shared
+   * Drive from {@link GoogleDriveService.companyRootOptions}.
+   */
+  readonly location?:
+    | { readonly kind: 'my_drive' }
+    | { readonly kind: 'folder'; folderId: string }
+    | { readonly kind: 'shared_drive'; driveId: string };
 }
 
 export interface GoogleDriveServiceDeps {
@@ -398,6 +405,24 @@ export class GoogleDriveService implements CloudFolderDrive {
         patch.sharedDriveName = null;
         patch.locationName = DRIVE_MY_DRIVE_NAME;
         patch.rootOwnerKind = googleRootOwner(null);
+      } else if (input.location.kind === 'shared_drive') {
+        // 51-17. Only a Shared Drive Google lists for this account (and lets it add files to).
+        const driveId = input.location.driveId;
+        const drives = await this.google(() => this.deps.transport.listSharedDrives(accessToken));
+        const drive = drives.find((entry) => entry.id === driveId);
+        if (!drive)
+          throw invalid('location', 'must be a Shared Drive this account can add files to');
+        patch.rootFolderId = await this.google(() =>
+          this.deps.transport.ensureFolder(accessToken, {
+            name: DRIVE_ROOT_FOLDER_NAME,
+            parentId: null,
+            driveId: drive.id,
+          }),
+        );
+        patch.sharedDriveId = drive.id;
+        patch.sharedDriveName = driveFolderName(drive.name, 'Shared Drive');
+        patch.locationName = patch.sharedDriveName;
+        patch.rootOwnerKind = googleRootOwner(drive.id);
       } else {
         const folderId = input.location.folderId;
         const folder = await this.google(() => this.deps.transport.getFile(accessToken, folderId));
@@ -448,6 +473,24 @@ export class GoogleDriveService implements CloudFolderDrive {
       return { row: await this.repository.findConnection(tx, context), mode: effective };
     });
     return toStatusView(this.deps.config, row, true, mode, context.userId);
+  }
+
+  /**
+   * 51-17 slice 2. The Shared Drives the connected account may put the company's root in, read
+   * from Google on the server. Saving `{ kind: 'shared_drive' }` accepts only one of these.
+   */
+  async companyRootOptions(context: TenantContext): Promise<CompanyRootOptionsView> {
+    const live = this.requireLive(await this.readConnection(context));
+    const accessToken = await this.accessToken(context, live);
+    const drives = await this.google(
+      () => this.deps.transport.listSharedDrives(accessToken),
+      live.id,
+      context,
+    );
+    return {
+      kind: 'shared_drive',
+      options: drives.map((drive) => ({ id: drive.id, name: drive.name })),
+    };
   }
 
   /** Disconnect: revoke at Google (best effort), wipe the token, move back to TManage storage. */

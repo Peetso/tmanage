@@ -60,6 +60,9 @@ import { createDueSoonSweepStore } from './common/database/due-soon-store.js';
 import { sweepDueSoon } from './jobs/due-soon-sweeper.js';
 import { createGettingStartedNudgeStore } from './common/database/getting-started-nudge-store.js';
 import { sweepGettingStartedNudges } from './jobs/getting-started-nudges.js';
+import { createStorageRootCheckStore } from './common/database/storage-root-check-store.js';
+import { sweepStorageRootCheck } from './jobs/storage-root-check.js';
+import { StorageRootMailer } from './notifications/storage-root-mailer.js';
 // ---- platform-admin v2 · PA-03 ---- the content purge.
 import { PURGE_HOOKS, runPurge } from './jobs/purge-sweeper.js';
 // ---- platform-admin v2 · PA-05 ---- the Support-session expiry sweep.
@@ -466,6 +469,21 @@ async function main(): Promise<void> {
     return;
   }
 
+  // 51-17: the weekly storage-root check — owners told at most once a week per connection.
+  if (command.kind === 'sweep-storage-root') {
+    try {
+      const result = await sweepStorageRootCheck(createStorageRootCheckStore(database));
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      console.warn(
+        `[worker] storage-root check: ${String(result.checked)} connection(s), ` +
+          `announced ${String(result.announced)}`,
+      );
+    } finally {
+      await database.end();
+    }
+    return;
+  }
+
   // ---- platform-admin v2 · PA-03 ---- the content purge: rows past purge_after, hourly cron.
   if (command.kind === 'sweep-purge') {
     try {
@@ -578,6 +596,8 @@ async function main(): Promise<void> {
     // USAGE-001 slice 4c — the storage-threshold mail. No link, so no WEB_PUBLIC_URL: the usage
     // screen it would point at is a later slice and does not exist yet.
     usageThresholdMailer: new UsageThresholdMailer(notice('usage_threshold')),
+    // 51-17 — the owners' "company storage at risk" mail.
+    storageRootMailer: new StorageRootMailer(notice('storage_root')),
     // CQ-12 — mentions, comments, meeting invites, project adds and client-action emails.
     collaborationMailer: new CollaborationMailer(
       notice('collaboration_notice'),

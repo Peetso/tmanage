@@ -6,7 +6,12 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import type { StorageConnectionRow } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { createSeedCipher } from '../identity/seed-cipher.js';
-import { callbackTarget, parseSettings } from './google-drive.controller.js';
+import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
+import {
+  callbackTarget,
+  GoogleDriveStorageController,
+  parseSettings,
+} from './google-drive.controller.js';
 import {
   DRIVE_FLOW_COOKIE,
   DriveGrantRevokedError,
@@ -126,6 +131,7 @@ function transport(overrides: Partial<DriveTransport> = {}): DriveTransport {
     getFile: vi.fn(),
     listChildren: vi.fn(async () => ({ files: [], nextPageToken: null })),
     downloadFile: vi.fn(),
+    listSharedDrives: vi.fn(async () => []),
     ...overrides,
   };
 }
@@ -479,5 +485,53 @@ describe('NV10: the picker token needs the target project relation', () => {
       accessToken: 'fresh-access',
       rootFolderId: 'root_folder_1',
     });
+  });
+});
+
+describe('51-17 slice 2: a Shared Drive as the company root', () => {
+  const drives = [{ id: 'shared_drive_1', name: 'Studio' }];
+
+  it('lists the Shared Drives server-side, behind org.manage', async () => {
+    const { repository } = fakeRepository({
+      refreshTokenEnc: CIPHER.encrypt('rt', tokenBinding(ORG_A)),
+    });
+    const google = transport({ listSharedDrives: vi.fn(async () => drives) });
+    expect(await service(repository, google).companyRootOptions(ctx())).toEqual({
+      kind: 'shared_drive',
+      options: drives,
+    });
+    expect(
+      Reflect.getMetadata(REQUIRED_CAPABILITY, GoogleDriveStorageController.prototype.rootOptions),
+    ).toBe('org.manage');
+  });
+
+  it('saves only a listed Shared Drive, and marks the root company-owned', async () => {
+    const { repository, current } = fakeRepository({
+      refreshTokenEnc: CIPHER.encrypt('rt', tokenBinding(ORG_A)),
+    });
+    const ensureFolder = vi.fn(async () => 'root_in_shared');
+    const google = transport({ listSharedDrives: vi.fn(async () => drives), ensureFolder });
+    await expect(
+      service(repository, google).updateSettings(ctx(), {
+        location: { kind: 'shared_drive', driveId: 'other_drive_9' },
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(ensureFolder).not.toHaveBeenCalled();
+
+    await service(repository, google).updateSettings(ctx(), {
+      location: { kind: 'shared_drive', driveId: 'shared_drive_1' },
+    });
+    expect(ensureFolder).toHaveBeenCalledWith('fresh-access', {
+      name: 'TManage',
+      parentId: null,
+      driveId: 'shared_drive_1',
+    });
+    expect(current()).toMatchObject({
+      rootFolderId: 'root_in_shared',
+      sharedDriveId: 'shared_drive_1',
+      rootOwnerKind: 'shared_drive',
+      locationName: 'Studio',
+    });
+    expect(() => parseSettings({ location: { kind: 'shared_drive', driveId: '../x' } })).toThrow();
   });
 });

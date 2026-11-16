@@ -487,6 +487,18 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/integrations/onedrive/folders',
     reason: 'storage_connection',
   },
+  // 51-17 slice 2. The company-owned places (Shared Drives, SharePoint libraries) the connected
+  // account can hold the company's root: part of choosing where the files live, a person's act.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/integrations/google-drive/root-options',
+    reason: 'storage_connection',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/integrations/onedrive/root-options',
+    reason: 'storage_connection',
+  },
   {
     method: 'GET',
     path: '/v1/organizations/:orgSlug/integrations/onedrive/projects/:projectId/files',

@@ -4725,6 +4725,10 @@ type _storageHandoverTarget = Assert<
 >;
 /** `POST …/integrations/storage/handover` — the named admin, pending their own sign-in. */
 type _storageHandover = Assert<Exact<ApiStorageHandoverView, WebStorageHandoverView>>;
+// 51-17 slice 2: `GET …/google-drive|onedrive/root-options` — the company-owned root choices.
+import type { CompanyRootOptionsView as ApiCompanyRootOptionsView } from '../../apps/api/src/modules/storage-root/root-owner.js';
+import type { CompanyRootOptionsView as WebCompanyRootOptionsView } from '../../apps/web/src/lib/api/storage-root.js';
+type _companyRootOptions = Assert<Exact<ApiCompanyRootOptionsView, WebCompanyRootOptionsView>>;
 
 // ---- 56-07p Settings · Public links: the workspace link manager ----
 import type {

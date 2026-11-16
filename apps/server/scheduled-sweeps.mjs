@@ -105,6 +105,16 @@ export function workerSweepJobs(worker, database, env = process.env) {
       describe: (result) => `getting-started: sent ${String(result.sent)} nudge(s)`,
       changed: (result) => result.sent > 0,
     },
+    // 51-17 `--sweep-storage-root`: the weekly owner check of the company's storage root. Hourly,
+    // not every tick; at most one announcement a week per connection either way (the store skips a
+    // connection with an at-risk event in the last 7 days). Present when the worker offers it.
+    ...(typeof worker.sweepStorageRootCheck === 'function'
+      ? [
+          storageRootJob(() =>
+            worker.sweepStorageRootCheck(worker.createStorageRootCheckStore(database)),
+          ),
+        ]
+      : []),
     // ---- platform-admin v2 · PA-05 ----
     {
       // `--sweep-support-sessions`: ends expired Support sessions and takes their hidden
@@ -404,6 +414,22 @@ export function createSweepScheduler({
 
 /** The hourly content purge as a minute-tick job: a skipped tick reports nothing moved. */
 export const PURGE_EVERY_MS = 60 * 60 * 1000;
+
+/** 51-17. The storage-root check, at most once an hour (it reads every live connection). */
+export function storageRootJob(run, now = () => Date.now()) {
+  let last = Number.NEGATIVE_INFINITY;
+  return {
+    name: 'storage-root',
+    run: async () => {
+      if (now() - last < PURGE_EVERY_MS) return { checked: 0, announced: 0, skipped: true };
+      last = now();
+      return run();
+    },
+    describe: (result) =>
+      `storage-root: checked ${String(result.checked)}, announced ${String(result.announced)}`,
+    changed: (result) => result.announced > 0,
+  };
+}
 
 function purgeJob(run, now = () => Date.now()) {
   let last = Number.NEGATIVE_INFINITY;

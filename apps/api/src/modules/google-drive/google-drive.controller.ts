@@ -29,6 +29,7 @@ import { API_CONFIG, AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/to
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
+import type { CompanyRootOptionsView } from '../storage-root/root-owner.js';
 import {
   parseConnectReturnTo,
   storageReturnScreen,
@@ -191,6 +192,13 @@ export class GoogleDriveStorageController {
     return this.drive.updateSettings(context, parseSettings(body));
   }
 
+  /** 51-17 slice 2. The Shared Drives the connected account can hold the company's root. */
+  @Get('root-options')
+  @RequireCapability('org.manage')
+  async rootOptions(@Ctx() context: TenantContext): Promise<CompanyRootOptionsView> {
+    return this.drive.companyRootOptions(context);
+  }
+
   @Delete()
   @RequireCapability('org.manage')
   async disconnect(@Ctx() context: TenantContext): Promise<StorageStatusView> {
@@ -340,11 +348,17 @@ export function parseSettings(body: {
     out.storageMode = body.storageMode;
   }
   if (body?.location !== undefined) {
-    const location = body.location as { kind?: unknown; folderId?: unknown } | null;
+    const location = body.location as {
+      kind?: unknown;
+      folderId?: unknown;
+      driveId?: unknown;
+    } | null;
     if (location?.kind === 'my_drive') out.location = { kind: 'my_drive' };
     else if (location?.kind === 'folder' && isDriveId(location.folderId)) {
       out.location = { kind: 'folder', folderId: location.folderId };
-    } else throw invalid('location', 'must be my_drive or a picked folder');
+    } else if (location?.kind === 'shared_drive' && isDriveId(location.driveId)) {
+      out.location = { kind: 'shared_drive', driveId: location.driveId };
+    } else throw invalid('location', 'must be my_drive, a picked folder or a Shared Drive');
   }
   if (out.storageMode === undefined && out.location === undefined) {
     throw invalid('storageMode', 'nothing to change');

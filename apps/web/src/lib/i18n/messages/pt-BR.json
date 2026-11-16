@@ -19666,5 +19666,7 @@
   "PublicLinks.saving": "Salvando…",
   "PublicLinks.saveExpiry": "Salvar validade",
   "ControlCenter.publicLinks": "Links públicos",
-  "AuditActionLabel.public_link.expiry_changed": "Alterou a validade de um link público"
+  "AuditActionLabel.public_link.expiry_changed": "Alterou a validade de um link público",
+  "NotificationsFeedScreen.typeStorageRootAtRisk": "O armazenamento da empresa precisa de um novo responsável",
+  "NotificationsFeedScreen.objectStorageConnection": "Armazenamento da empresa"
 }

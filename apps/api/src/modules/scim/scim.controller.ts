@@ -17,6 +17,7 @@ import {
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import type { DynamicModule, OnApplicationBootstrap, Provider } from '@nestjs/common';
+import { StorageHoldsHook } from '../storage-root/storage-holds.js';
 import { HttpAdapterHost } from '@nestjs/core';
 import type { Principal } from '@tmanage/domain';
 import type { ApiConfig } from '../../common/http/api-config.js';
@@ -401,7 +402,12 @@ export class ScimModule {
       provide: SCIM_SERVICE,
       inject: [TENANT_DATABASE, AUDIT_SERVICE, API_CONFIG],
       useFactory: (database: TenantDatabase, audit: AuditService, config: ApiConfig) =>
-        new ScimService({ database, audit, webPublicUrl: config.webPublicUrl ?? '' }),
+        new ScimService({
+          database,
+          audit,
+          webPublicUrl: config.webPublicUrl ?? '',
+          storageHolds: new StorageHoldsHook(),
+        }),
     };
     const admission: Provider = {
       provide: SCIM_ADMISSION,

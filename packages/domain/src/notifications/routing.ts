@@ -141,6 +141,8 @@ export const NOTIFICATION_ROUTES: Readonly<Record<string, NotificationRoute>> = 
   // Account, billing & security — locked on
   'usage.threshold_reached.v1': route('account', MAIL),
   'webhook.endpoint_paused': route('account', IN_APP),
+  // 51-17: the company storage root is at risk (holder left, personal drive) — owners only.
+  'storage_connection.root_at_risk.v1': route('account', MAIL),
   'credential_change.notice.v1': route('account', { email: true, inApp: false }),
   'privacy_export.ready.v1': route('account', { email: true, inApp: false }),
   'privacy_deletion.changed.v1': route('account', { email: true, inApp: false }),
@@ -174,6 +176,7 @@ const PREFIX_GROUPS: Readonly<Record<string, RouteGroup>> = {
   privacy_export: 'account',
   privacy_deletion: 'account',
   security: 'account',
+  storage_connection: 'account',
 };
 
 /** The route for a type: the catalog entry, else its prefix group (in-app only), else work. */

@@ -19666,5 +19666,7 @@
   "PublicLinks.saving": "Wird gespeichert…",
   "PublicLinks.saveExpiry": "Ablauf speichern",
   "ControlCenter.publicLinks": "Öffentliche Links",
-  "AuditActionLabel.public_link.expiry_changed": "Ablauf eines öffentlichen Links geändert"
+  "AuditActionLabel.public_link.expiry_changed": "Ablauf eines öffentlichen Links geändert",
+  "NotificationsFeedScreen.typeStorageRootAtRisk": "Firmenspeicher braucht einen neuen Verantwortlichen",
+  "NotificationsFeedScreen.objectStorageConnection": "Firmenspeicher"
 }

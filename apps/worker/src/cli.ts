@@ -28,6 +28,8 @@ export type WorkerCommand =
   | { readonly kind: 'sweep-due-soon' }
   /** 55-24: the first-week getting-started nudges. */
   | { readonly kind: 'sweep-getting-started' }
+  /** 51-17: the weekly owner check of the company's storage root. */
+  | { readonly kind: 'sweep-storage-root' }
   // ---- platform-admin v2 · PA-03 ---- the content purge (0245).
   | { readonly kind: 'sweep-purge' }
   // ---- platform-admin v2 · PA-05 ---- the Support-session expiry sweep.
@@ -73,6 +75,8 @@ export function selectWorkerCommand(argv: readonly string[]): WorkerCommand {
   if (sweepDueSoon) return { kind: 'sweep-due-soon' };
   // 55-24: same rank — one invocation does one thing.
   if (argv.includes('--sweep-getting-started')) return { kind: 'sweep-getting-started' };
+  // 51-17: same rank — one invocation does one thing.
+  if (argv.includes('--sweep-storage-root')) return { kind: 'sweep-storage-root' };
   // ---- platform-admin v2 · PA-03 ---- same rank: one invocation does one thing.
   if (argv.includes('--sweep-purge')) return { kind: 'sweep-purge' };
   // ---- platform-admin v2 · PA-05 ---- same rank: one invocation does one thing.

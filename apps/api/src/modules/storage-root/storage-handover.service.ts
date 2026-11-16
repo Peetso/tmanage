@@ -1,4 +1,11 @@
-import { authorize, hasCapability, isRole, isUuid } from '@tmanage/domain';
+import {
+  authorize,
+  hasCapability,
+  isRole,
+  isUuid,
+  parseSignInPolicy,
+  twoStepScopeCovers,
+} from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type {
@@ -8,6 +15,9 @@ import type {
 } from '../../common/database/tenant-context.js';
 import type { StorageConnectionRow } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { hasActiveSecondFactor } from '../../common/http/guards/two-step-requirement.guard.js';
+import { readOrgSwitch } from '../tenancy/org-policy.js';
+import { SignInPolicyRepository } from '../identity/sign-in-policy.repository.js';
 import {
   StorageHandoverRepository,
   type HandoverCandidateRow,
@@ -84,11 +94,34 @@ export function canHoldStorage(role: string): boolean {
   );
 }
 
+/**
+ * 51-17 slice 2. Whether the workspace requires two-step sign-in of this person (the company
+ * switch, or the sign-in policy's role rule) and they hold no active second factor. The same
+ * reads the `TwoStepRequirementGuard` makes on every request.
+ */
+export type TwoStepGap = (
+  context: TenantContext,
+  target: { readonly userId: string; readonly role: string },
+) => Promise<boolean>;
+
+export function twoStepGapFrom(database: TenantDatabase): TwoStepGap {
+  const policies = new SignInPolicyRepository();
+  return async (context, target) => {
+    const everyone = await readOrgSwitch(database, context, 'require_two_step');
+    const policy = parseSignInPolicy(
+      await database.read(context, (runner) => policies.readDocument(runner, context)),
+    );
+    if (!everyone && !twoStepScopeCovers(policy.requireTwoStepRoles, target.role)) return false;
+    return !(await hasActiveSecondFactor(database, target.userId, context.correlationId));
+  };
+}
+
 export class StorageHandoverService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly audit: Pick<AuditService, 'record'>,
     private readonly store: StorageHandoverStore = new StorageHandoverRepository(),
+    private readonly twoStepGap: TwoStepGap = twoStepGapFrom(database),
   ) {}
 
   /** Admins who could take the connection over: everyone eligible except its current holder. */
@@ -121,6 +154,21 @@ export class StorageHandoverService {
     const toUserId = input?.toUserId;
     if (typeof toUserId !== 'string' || !isUuid(toUserId)) {
       throw invalid('toUserId', 'must be a user id');
+    }
+    // Slice 2: the company storage never goes to an account the workspace's two-step rule would
+    // refuse at sign-in. Read first (the policy reads run outside the write); the target is
+    // resolved again, tenant-scoped, inside the transaction below.
+    const candidate = await this.database.read(context, (runner) =>
+      this.store.findActiveMember(runner, context, toUserId),
+    );
+    if (
+      candidate &&
+      canHoldStorage(candidate.role) &&
+      (await this.twoStepGap(context, candidate))
+    ) {
+      throw new ApiError(409, 'conflict', 'This admin must turn on two-step sign-in first', [
+        { field: 'toUserId', message: 'two_step_required' },
+      ]);
     }
     return this.database.transaction(context, async (tx) => {
       const connection = live(await this.store.findConnection(tx, context, provider));

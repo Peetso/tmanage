@@ -5,6 +5,8 @@ import {
 } from './client-request-notifications.js';
 import { workItemBlockedConsumer } from './work-blocked-notification.js';
 import { usageThresholdReachedConsumer } from './usage-threshold-notice.js';
+import { createStorageRootAtRisk, createStorageRootMailResume } from './storage-root-at-risk.js';
+import type { StorageRootMailer } from '../notifications/storage-root-mailer.js';
 import {
   createUsageThresholdMail,
   createUsageThresholdMailResume,
@@ -105,6 +107,8 @@ export interface WorkerConsumerDependencies {
   readonly credentialChangeMailer?: CredentialChangeMailer | undefined;
   /** Absent, or present-but-disabled, means the usage-threshold mail half is not registered. */
   readonly usageThresholdMailer?: UsageThresholdMailer | undefined;
+  /** 51-17. Absent or disabled, the storage-root owner notice is still written; only mail is off. */
+  readonly storageRootMailer?: StorageRootMailer | undefined;
   /**
    * CQ-12. Absent or disabled, the collaboration notices still write their inbox rows and only
    * the email half (and the email-only client-action notice) is skipped.
@@ -133,7 +137,11 @@ export function createWorkerOutboxHandlers(
   const collaborationMails =
     collaborationMailer !== undefined && collaborationMailer.enabled ? collaborationMailer : null;
 
+  const rootMailer = dependencies.storageRootMailer;
+  const rootMails = rootMailer !== undefined && rootMailer.enabled ? rootMailer : null;
+
   const resumeHandlers: OutboxHandler[] = [];
+  if (rootMails !== null) resumeHandlers.push(createStorageRootMailResume(rootMails));
   if (mails !== null) resumeHandlers.push(createQuietHoursMailResume(mails));
   if (usageMails !== null) resumeHandlers.push(createUsageThresholdMailResume(usageMails));
   if (collaborationMails !== null) {
@@ -265,6 +273,8 @@ export function createWorkerOutboxHandlers(
       usageMails === null
         ? usageThresholdReachedConsumer
         : both(usageThresholdReachedConsumer, createUsageThresholdMail(usageMails)),
+    // 51-17 — the company's storage root is at risk: owner notice, and mail when wired.
+    'storage_connection.root_at_risk.v1': createStorageRootAtRisk(rootMails),
     // INBOX-001 — a quiet-hours-deferred email resumes on its own internal type, handled only by
     // the resume path(s), never by the notification consumer. Registered only when at least one
     // interrupting producer that defers is wired, since only they produce a resume row.

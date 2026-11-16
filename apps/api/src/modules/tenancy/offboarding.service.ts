@@ -10,6 +10,8 @@ import type { AuditService } from '../audit/audit.service.js';
 import { InvitationsRepository } from './invitations.repository.js';
 import { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
 import { capabilitiesOfStoredRole, exceedsCaller, isRoleAssigner } from './role-grant-ceiling.js';
+import type { StorageHold, StorageHoldsHook } from '../storage-root/storage-holds.js';
+import type { StorageProvider } from '../storage-root/storage-handover.repository.js';
 
 /**
  * Member offboarding — ADM-12 (access-impact preview) and ADM-13 (execution). SEC:Administration.
@@ -64,6 +66,11 @@ export interface MemberOffboardingImpactView {
   readonly ownedWorkItemCount: number;
   /** False once the member is already terminal: offboarding again is refused. */
   readonly offboardable: boolean;
+  /**
+   * 51-17. The company storage this member connected: hand it over before (or right after)
+   * offboarding, or the files stop syncing when their account is removed.
+   */
+  readonly storageConnections: readonly StorageProvider[];
 }
 
 /** The confirmation ADM-13 returns after an offboard. `organizationId` is deliberately absent. */
@@ -72,6 +79,11 @@ export interface OffboardedMemberView {
   readonly userId: string;
   readonly role: string;
   readonly status: string;
+  /**
+   * 51-17. Company storage this member still holds. Nothing was disconnected; the workspace owners
+   * were told to hand it over (inbox + e-mail).
+   */
+  readonly storageHandoverRequired: readonly StorageProvider[];
 }
 
 /** The internal roles whose ceiling includes `org.manage` — computed, never hard-coded to `owner`. */
@@ -85,6 +97,7 @@ function toImpactView(
     readonly projectMembershipCount: number;
     readonly ownedWorkItemCount: number;
   },
+  holds: readonly StorageHold[],
 ): MemberOffboardingImpactView {
   return {
     membershipId: row.id,
@@ -94,11 +107,18 @@ function toImpactView(
     projectMembershipCount: counts.projectMembershipCount,
     ownedWorkItemCount: counts.ownedWorkItemCount,
     offboardable: row.status !== 'offboarded',
+    storageConnections: holds.map((hold) => hold.provider),
   };
 }
 
-function toOffboardedView(row: MembershipRow): OffboardedMemberView {
-  return { membershipId: row.id, userId: row.userId, role: row.role, status: row.status };
+function toOffboardedView(row: MembershipRow, holds: readonly StorageHold[]): OffboardedMemberView {
+  return {
+    membershipId: row.id,
+    userId: row.userId,
+    role: row.role,
+    status: row.status,
+    storageHandoverRequired: holds.map((hold) => hold.provider),
+  };
 }
 
 export class OffboardingService {
@@ -119,6 +139,8 @@ export class OffboardingService {
     private readonly invitations: InvitationsRepository = new InvitationsRepository(),
     /** F23: resolves a custom role the target holds, for the authority ceiling. */
     private readonly customRoles: MemberBulkRoleRepository = new MemberBulkRoleRepository(),
+    /** 51-17. The company storage this member holds; null (tests) reads none. */
+    private readonly storageHolds: StorageHoldsHook | null = null,
   ) {}
 
   /**
@@ -202,9 +224,10 @@ export class OffboardingService {
         membership.userId,
       ),
       ownedWorkItemCount: await this.workItems.countOwnedByUser(db, context, membership.userId),
+      holds: (await this.storageHolds?.heldBy(db, context, membership.userId)) ?? [],
     }));
 
-    return toImpactView(membership, counts);
+    return toImpactView(membership, counts, counts.holds);
   }
 
   /**
@@ -272,7 +295,7 @@ export class OffboardingService {
       }
     }
 
-    const updated = await this.database.transaction(context, async (tx) => {
+    const { updated, holds } = await this.database.transaction(context, async (tx) => {
       const row = await this.memberships.transitionStatus(
         tx,
         context,
@@ -315,9 +338,13 @@ export class OffboardingService {
           invitations_revoked: invitationsRevoked,
         },
       });
-      return row;
+      // 51-17: storage this member connected keeps working on their token; the owners are told
+      // in the same unit of work, so a committed offboard always carries its warning.
+      const held = (await this.storageHolds?.heldBy(tx, context, row.userId)) ?? [];
+      await this.storageHolds?.announceLeft(tx, context, held, `${row.id}:${String(row.version)}`);
+      return { updated: row, holds: held };
     });
 
-    return toOffboardedView(updated);
+    return toOffboardedView(updated, holds);
   }
 }

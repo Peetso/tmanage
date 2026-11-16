@@ -66,6 +66,11 @@ export { createDueSoonSweepStore } from './common/database/due-soon-store.js';
 export { sweepGettingStartedNudges } from './jobs/getting-started-nudges.js';
 export type { NudgeSweepResult } from './jobs/getting-started-nudges.js';
 export { createGettingStartedNudgeStore } from './common/database/getting-started-nudge-store.js';
+// 51-17: the weekly storage-root check and its owner mail.
+export { sweepStorageRootCheck } from './jobs/storage-root-check.js';
+export type { StorageRootCheckResult } from './jobs/storage-root-check.js';
+export { createStorageRootCheckStore } from './common/database/storage-root-check-store.js';
+export { StorageRootMailer } from './notifications/storage-root-mailer.js';
 // R14-a — the outbound webhook delivery sweep, exported so the single Hostinger app
 // (`apps/server`) delivers staged attempts on the same loop the standalone worker runs.
 export {

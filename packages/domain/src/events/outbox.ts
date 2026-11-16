@@ -335,6 +335,15 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'support_thread',
     catalog: '57-10 support reply — writer notification, SLA report',
   },
+  /**
+   * 51-17 slice 2. The company storage connection is at risk: the person who connected it was
+   * offboarded (API), or the weekly check found its root in one person's drive or its holder no
+   * longer an active admin (worker). The consumer tells the workspace owners (inbox + e-mail).
+   */
+  'storage_connection.root_at_risk.v1': {
+    aggregateType: 'storage_connection',
+    catalog: '51-17 company storage root at risk — workspace owner alert',
+  },
 } as const satisfies Record<string, OutboxEventDefinition>;
 
 export type OutboxEventType = keyof typeof OUTBOX_EVENT_CATALOG;
@@ -845,6 +854,28 @@ export interface OutboxEventPayloads {
   readonly 'support.thread_opened.v1': SupportThreadOpenedV1;
   readonly 'support.reply_posted.v1': SupportReplyPostedV1;
   readonly 'approval.chain_broken.v1': ApprovalChainBrokenV1;
+  readonly 'storage_connection.root_at_risk.v1': StorageRootAtRiskV1;
+}
+
+/** 51-17. Why the company storage root is at risk (closed list). */
+export const STORAGE_ROOT_RISK_REASONS = [
+  'holder_offboarded',
+  'holder_not_admin',
+  'personal_root',
+] as const;
+export type StorageRootRiskReason = (typeof STORAGE_ROOT_RISK_REASONS)[number];
+
+/**
+ * 51-17 (0356). Ids and closed tokens only — never an e-mail or a token. `idempotencyKey` is what
+ * the consumer dedupes each owner's notice on (`<connectionId>:<reason>:<scope>`).
+ */
+export interface StorageRootAtRiskV1 {
+  readonly organizationId: string;
+  readonly connectionId: string;
+  readonly provider: 'google_drive' | 'onedrive';
+  readonly reason: StorageRootRiskReason;
+  readonly idempotencyKey: string;
+  readonly occurredAt: string;
 }
 
 /** 52-19 (0355). The verdict id, the first broken record number and the reason — never a hash. */

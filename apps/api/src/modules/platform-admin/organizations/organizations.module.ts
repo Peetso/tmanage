@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { StorageHoldsHook } from '../../storage-root/storage-holds.js';
 import { uuidv7 } from '@tmanage/domain';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import type { TenantDatabase } from '../../../common/database/tenant-context.js';
@@ -137,7 +138,16 @@ export class PlatformOrganizationsModule {
           orgs,
           memberships,
           new InvitationsRepository(),
-          new OffboardingService(database, memberships, audit),
+          new OffboardingService(
+            database,
+            memberships,
+            audit,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            new StorageHoldsHook(),
+          ),
           audit,
         );
       },

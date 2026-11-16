@@ -58,6 +58,7 @@ import {
   oneDriveRootOwner,
   pendingHandoverFor,
   toRootOwnerView,
+  type CompanyRootOptionsView,
   type RootOwnerView,
 } from '../storage-root/root-owner.js';
 import {
@@ -424,6 +425,26 @@ export class OneDriveService implements CloudFolderDrive {
     return toOneDriveStatusView(this.deps.config, row, true, mode, context.userId);
   }
 
+  /**
+   * 51-17 slice 2. The SharePoint document libraries the connected account can put the company's
+   * root in, read from Graph on the server (needs the libraries grant). Saving
+   * `{ kind: 'library' }` accepts only one of these.
+   */
+  async companyRootOptions(context: TenantContext): Promise<CompanyRootOptionsView> {
+    const live = this.requireLive(await this.readConnection(context));
+    if (!grantsLibraries(live.grantedScopes)) throw conflict('consent_required');
+    const accessToken = await this.token(context, live);
+    const libraries = await this.graph(
+      () => this.deps.transport.listLibraries(accessToken),
+      live.id,
+      context,
+    );
+    return {
+      kind: 'sharepoint_library',
+      options: libraries.map((library) => ({ id: library.id, name: library.name })),
+    };
+  }
+
   async updateSettings(
     context: TenantContext,
     input: OneDriveSettingsInput,
@@ -443,9 +464,10 @@ export class OneDriveService implements CloudFolderDrive {
         patch.rootOwnerKind = oneDriveRootOwner(drive.driveType);
       } else if (location.kind === 'library') {
         if (!grantsLibraries(live.grantedScopes)) throw conflict('consent_required');
-        const drive = await this.graph(() =>
-          this.deps.transport.getDrive(accessToken, location.driveId),
-        );
+        // 51-17. Only a library Graph lists for this account.
+        const libraries = await this.graph(() => this.deps.transport.listLibraries(accessToken));
+        const drive = libraries.find((entry) => entry.id === location.driveId);
+        if (!drive) throw invalid('location', 'must be a SharePoint library this account can use');
         patch.rootFolderId = await this.ensureRoot(accessToken, drive.id, 'root');
         patch.onedriveDriveId = drive.id;
         patch.onedriveDriveName = oneDriveFolderName(drive.name, 'SharePoint library');

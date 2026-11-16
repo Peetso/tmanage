@@ -1,4 +1,5 @@
 import { uuidv7 } from '@tmanage/domain';
+import type { StorageHoldsHook } from '../storage-root/storage-holds.js';
 import type { Principal } from '@tmanage/domain';
 import {
   createServiceContext,
@@ -103,6 +104,8 @@ export interface ScimServiceDeps {
   readonly identities?: Pick<UserIdentitiesRepository, 'findUserByEmail'>;
   readonly invitees?: Pick<InviteeAccountsRepository, 'insertUser'>;
   readonly now?: () => Date;
+  /** 51-17. A deactivated member's company storage is announced to the owners. */
+  readonly storageHolds?: Pick<StorageHoldsHook, 'heldBy' | 'announceLeft'>;
 }
 
 function requireOwner(principal: Principal): void {
@@ -392,6 +395,15 @@ export class ScimService {
       const row = await this.memberships.requireById(tx, context, member.membershipId);
       if (row.role === 'owner' && !active) throw new ScimError(400, OWNER_DETAIL, 'mutability');
       await this.memberships.transitionStatus(tx, context, row.id, row.version, to);
+      if (!active && this.deps.storageHolds) {
+        const holds = await this.deps.storageHolds.heldBy(tx, context, row.userId);
+        await this.deps.storageHolds.announceLeft(
+          tx,
+          context,
+          holds,
+          `${row.id}:${String(row.version)}`,
+        );
+      }
       await this.audit(tx, context, null, {
         change: active ? 'scim_user_reactivated' : 'scim_user_deactivated',
         scim_key_id: caller.keyId,

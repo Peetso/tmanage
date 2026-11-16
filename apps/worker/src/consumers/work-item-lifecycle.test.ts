@@ -62,6 +62,7 @@ describe('the handler registry', () => {
       'review.decision_recorded.v1',
       'review.thread_created.v1',
       'review.thread_resolved.v1',
+      'storage_connection.root_at_risk.v1',
       'usage.threshold_reached.v1',
       'work_item.blocked.v1',
       'work_item.client_action_requested.v1',

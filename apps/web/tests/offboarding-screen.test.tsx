@@ -90,12 +90,14 @@ describe('OffboardingScreen', () => {
         projectMembershipCount: 2,
         ownedWorkItemCount: 5,
         offboardable: true,
+        storageConnections: [],
       },
       offboard: {
         membershipId: 'm-omar',
         userId: 'u-omar',
         role: 'manager',
         status: 'offboarded',
+        storageHandoverRequired: [],
       },
     });
 
@@ -128,6 +130,7 @@ describe('OffboardingScreen', () => {
         projectMembershipCount: 0,
         ownedWorkItemCount: 0,
         offboardable: false,
+        storageConnections: [],
       },
     });
 
@@ -148,6 +151,7 @@ describe('OffboardingScreen', () => {
         projectMembershipCount: 1,
         ownedWorkItemCount: 0,
         offboardable: true,
+        storageConnections: [],
       },
       offboard: {
         error: {
@@ -181,6 +185,7 @@ describe('OffboardingScreen', () => {
         projectMembershipCount: 2,
         ownedWorkItemCount: 5,
         offboardable: true,
+        storageConnections: [],
       },
     });
 

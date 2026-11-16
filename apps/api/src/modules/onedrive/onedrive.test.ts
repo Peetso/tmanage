@@ -7,7 +7,12 @@ import type { StorageConnectionRow } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { createSeedCipher } from '../identity/seed-cipher.js';
 import { parseConnectReturnTo } from '../platform-admin/connect-setup/connect-return.js';
-import { oneDriveCallbackTarget, parseOneDriveSettings } from './onedrive.controller.js';
+import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
+import {
+  oneDriveCallbackTarget,
+  OneDriveStorageController,
+  parseOneDriveSettings,
+} from './onedrive.controller.js';
 import {
   ONEDRIVE_FLOW_COOKIE,
   OneDriveGrantRevokedError,
@@ -109,6 +114,7 @@ function setup(
     getItem: vi.fn(),
     listChildren: vi.fn(),
     downloadItem: vi.fn(),
+    listLibraries: vi.fn(async () => []),
     ...overrides,
   };
   const audit = { record: vi.fn(async () => ({})) };
@@ -444,5 +450,47 @@ describe('pure rules', () => {
     expect(pickerTarget('business', web, true, 'https://evil.sharepoint.com')).toBe('refused');
     expect(grantsLibraries('https://graph.microsoft.com/Files.ReadWrite.All openid')).toBe(true);
     expect(grantsLibraries('Files.ReadWrite')).toBe(false);
+  });
+});
+
+describe('51-17 slice 2: a SharePoint library as the company root', () => {
+  const library = {
+    id: 'b!library1',
+    name: 'Documents',
+    driveType: 'documentLibrary',
+    webUrl: null,
+  };
+  const libraries = { grantedScopes: 'Files.ReadWrite Files.ReadWrite.All offline_access' };
+
+  it('lists libraries only with the libraries grant, behind org.manage', async () => {
+    const without = setup({}, { listLibraries: vi.fn(async () => [library]) });
+    await expect(without.service.companyRootOptions(ctx())).rejects.toMatchObject({
+      status: 409,
+    });
+    const granted = setup(libraries, { listLibraries: vi.fn(async () => [library]) });
+    expect(await granted.service.companyRootOptions(ctx())).toEqual({
+      kind: 'sharepoint_library',
+      options: [{ id: 'b!library1', name: 'Documents' }],
+    });
+    expect(
+      Reflect.getMetadata(REQUIRED_CAPABILITY, OneDriveStorageController.prototype.rootOptions),
+    ).toBe('org.manage');
+  });
+
+  it('saves only a listed library', async () => {
+    const ensureFolder = vi.fn(async () => 'LIBROOT!1');
+    const { service, current } = setup(libraries, {
+      listLibraries: vi.fn(async () => [library]),
+      ensureFolder,
+    });
+    await expect(
+      service.updateSettings(ctx(), { location: { kind: 'library', driveId: 'b!foreign' } }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(ensureFolder).not.toHaveBeenCalled();
+    await service.updateSettings(ctx(), { location: { kind: 'library', driveId: 'b!library1' } });
+    expect(current()).toMatchObject({
+      onedriveDriveId: 'b!library1',
+      rootOwnerKind: 'sharepoint_library',
+    });
   });
 });
