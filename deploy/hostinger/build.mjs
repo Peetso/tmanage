@@ -285,6 +285,16 @@ const VENDOR_PKGS = [
 ];
 
 /**
+ * Non-dist trees a vendored package reads at run time, copied next to its dist/: ui ships its raw
+ * style sources; the api ships the fonts record-pdf.ts embeds (it resolves `assets/fonts` from
+ * dist/modules/approvals/, so without them Arabic in a sealed PDF prints as "?").
+ */
+export const VENDOR_EXTRA_TREES = Object.freeze({
+  ui: Object.freeze(['src/styles']),
+  api: Object.freeze(['assets/fonts']),
+});
+
+/**
  * The stage root's direct registry dependencies, each with the workspace package whose resolved
  * version it is pinned to (and whose pnpm-lock.yaml resolution the lockfile check starts from).
  */
@@ -722,12 +732,14 @@ function assemble() {
     cpSync(join(REPO, 'apps/server', file), join(STAGE, file));
   }
 
-  // The vendored private packages (dist + manifest; ui also ships its raw style sources).
+  // The vendored private packages (dist + manifest + the run-time trees in VENDOR_EXTRA_TREES).
   for (const pkg of VENDOR_PKGS) {
     const dest = join(STAGE, 'vendor/@tmanage', pkg);
     mkdirSync(dest, { recursive: true });
     copyTree(join(REPO, `${pkgDir(pkg)}/dist`), join(dest, 'dist'));
-    if (pkg === 'ui') copyTree(join(REPO, 'packages/ui/src/styles'), join(dest, 'src/styles'));
+    for (const tree of VENDOR_EXTRA_TREES[pkg] ?? []) {
+      copyTree(join(REPO, pkgDir(pkg), tree), join(dest, tree));
+    }
     writeFileSync(
       join(dest, 'package.json'),
       `${JSON.stringify(vendorManifest(pkgDir(pkg)), null, 2)}\n`,

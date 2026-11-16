@@ -90,14 +90,17 @@ test('the converted config loads with plain Node and keeps the security headers'
     const headers = await config.headers();
     const catchAll = headers.find((rule) => rule.source === '/:path*');
     const keys = catchAll.headers.map((header) => header.key);
-    for (const key of [
-      'X-Content-Type-Options',
-      'Referrer-Policy',
-      'X-Frame-Options',
-      'Permissions-Policy',
-    ]) {
+    for (const key of ['X-Content-Type-Options', 'Referrer-Policy', 'Permissions-Policy']) {
       assert.ok(keys.includes(key), `missing ${key}`);
     }
+    // X-Frame-Options left the catch-all in 52-20 (the embeddable public form at /f/<id> is
+    // framed); every other page still gets DENY from its own rule.
+    const frameRule = headers.find((rule) =>
+      rule.headers.some((h) => h.key === 'X-Frame-Options' && h.value === 'DENY'),
+    );
+    assert.ok(frameRule, 'missing X-Frame-Options DENY');
+    assert.ok(new RegExp(`^${frameRule.source}$`).test('/projects'), frameRule.source);
+    assert.ok(!new RegExp(`^${frameRule.source}$`).test('/f/abc'), frameRule.source);
     assert.ok(headers.length > 1, 'static asset Cache-Control rules missing');
   } finally {
     for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
