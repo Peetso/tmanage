@@ -1,4 +1,5 @@
 import { isAddressableWorkspaceSlug } from '@tmanage/domain';
+import { resolveApiBaseUrl, resolveCsrfCookieName } from './public-config';
 import { signInPathFor } from './sign-in-return';
 
 /**
@@ -51,6 +52,44 @@ export function workspaceGate({ slug, pathname, hasSession }: WorkspaceRequest):
     return { kind: 'sign-in', location: portalSignIn };
   }
   return { kind: 'sign-in', location: signInPathFor(here) };
+}
+
+/**
+ * The routing hint `hasSession` for a request: the readable CSRF cookie is present, or this web
+ * server cannot see the session's cookies at all (then the client-side boundary decides).
+ */
+export function sessionHint(
+  hasCookie: (name: string) => boolean,
+  host: string | null,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  const environment = {
+    nodeEnv: env['NODE_ENV'],
+    apiBaseUrl: env['NEXT_PUBLIC_API_BASE_URL'],
+    sessionCookieName: env['NEXT_PUBLIC_SESSION_COOKIE_NAME'],
+  };
+  return (
+    hasCookie(resolveCsrfCookieName(environment)) ||
+    !sessionCookieVisible(resolveApiBaseUrl(environment), host)
+  );
+}
+
+/**
+ * The static not-found page a signed-out request for a bare `/{x}` is answered with, or
+ * `undefined` (NOTFOUND, live 2026-11-16). The `[orgSlug]` layout's `notFound()` reaches the
+ * browser as a 404 with an EMPTY body (Next streams the not-found screen as client-only data, and
+ * the page's Trusted Types policy keeps it from drawing), so the proxy answers these with the
+ * prerendered `/_not-found` HTML instead: the full screen, "Back to home" and "Sign in", status
+ * 404. Every such `/{x}` gets it, a workspace address or not, so nothing tells which exist.
+ */
+export const NOT_FOUND_PAGE = '/_not-found';
+
+export function bareNotFoundRewrite(pathname: string, hasSession: boolean): string | undefined {
+  const slug = /^\/([^/]+)$/.exec(pathname)?.[1];
+  // Only an address `[orgSlug]` would take: every static top-level route is a reserved word, so
+  // `/pricing` or `/sign-in` never match, and a scanner word keeps the layout's plain 404.
+  if (slug === undefined || hasSession || !isAddressableWorkspaceSlug(slug)) return undefined;
+  return NOT_FOUND_PAGE;
 }
 
 /**

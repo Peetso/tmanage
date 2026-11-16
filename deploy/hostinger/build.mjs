@@ -126,6 +126,13 @@ export const ROUTE_CONTENT = [
     has: ['<html lang="ar" dir="rtl"', '<title>الأسعار · TManage</title>'],
     hasNot: ['<html lang="en"', '<title>Pricing · TManage</title>', 'setup token'],
   },
+  // NOTFOUND (live 2026-11-16): the 404 page is the full not-found screen, never an empty body.
+  {
+    path: '/_not-found',
+    file: '_not-found.html',
+    has: ['find that page', 'href="/sign-in"'],
+    hasNot: ['setup token'],
+  },
 ];
 
 /**

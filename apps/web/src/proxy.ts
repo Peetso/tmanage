@@ -11,6 +11,7 @@ import {
 } from './lib/i18n/public-locale-routes';
 import { markdownPathFor, prefersMarkdown, publicPageLinkHeader } from './lib/markdown-negotiation';
 import { rememberSignupAttribution } from './lib/signup-attribution-cookie';
+import { bareNotFoundRewrite, sessionHint } from './lib/workspace-gate';
 
 /**
  * The request-time half of the browser security policy (56-01; Next 16 names this file `proxy`).
@@ -52,8 +53,16 @@ const prerenderedHashes = createPrerenderedScriptHashes(
 export function proxy(request: NextRequest): NextResponse {
   const nonce = nonceFromBytes(crypto.getRandomValues(new Uint8Array(16)));
   const development = process.env.NODE_ENV !== 'production';
+  // NOTFOUND: a signed-out bare `/{x}` is answered with the prerendered not-found page, so its
+  // hash policy is that page's.
+  const notFoundPage = bareNotFoundRewrite(
+    request.nextUrl.pathname,
+    sessionHint((name) => request.cookies.has(name), request.headers.get('host')),
+  );
   // `next dev` renders every page per request; a stale build's manifest must not count there.
-  const pageHashes = development ? undefined : prerenderedHashes(request.nextUrl.pathname);
+  const pageHashes = development
+    ? undefined
+    : prerenderedHashes(notFoundPage ?? request.nextUrl.pathname);
   const headers = policyHeaders({
     nonce,
     mode: resolveCspMode(process.env['CSP_MODE'], !development),
@@ -69,7 +78,13 @@ export function proxy(request: NextRequest): NextResponse {
   for (const [name, value] of Object.entries(headers.request)) requestHeaders.set(name, value);
   // `set`, so a client-sent value never survives: the workspace layout redirects on it.
   requestHeaders.set(REQUEST_PATH_HEADER, request.nextUrl.pathname);
-  const response = publicPageResponse(request, requestHeaders);
+  const response =
+    notFoundPage === undefined
+      ? publicPageResponse(request, requestHeaders)
+      : NextResponse.rewrite(new URL(notFoundPage, request.url), {
+          status: 404,
+          request: { headers: requestHeaders },
+        });
   // `append`: in report-only mode `content-security-policy` carries the enforced frame-ancestors
   // stand-in; appending never overwrites a header Next or next.config.ts already set.
   for (const [name, value] of headers.response) response.headers.append(name, value);

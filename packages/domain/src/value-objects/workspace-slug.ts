@@ -38,6 +38,8 @@ export const RESERVED_WORKSPACE_SLUGS: ReadonlySet<string> = new Set([
   'features',
   'integrations',
   'pricing',
+  // The public compare pages (/compare, /compare/{tool}, 57-06).
+  'compare',
   'product',
   'resources',
   'solutions',
