@@ -585,6 +585,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/ar/compare/[slug]': PAGE_OWNS_TITLE,
   '/ar/help': PAGE_OWNS_TITLE,
   '/ar/help/[slug]': PAGE_OWNS_TITLE,
+  '/ar/page-not-found': PAGE_OWNS_TITLE,
   '/ar/resources/[slug]': PAGE_OWNS_TITLE,
   '/ar/sign-in': PAGE_OWNS_TITLE,
   '/ar/sign-up': PAGE_OWNS_TITLE,

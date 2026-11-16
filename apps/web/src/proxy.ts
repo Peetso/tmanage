@@ -11,6 +11,7 @@ import {
 } from './lib/i18n/public-locale-routes';
 import { markdownPathFor, prefersMarkdown, publicPageLinkHeader } from './lib/markdown-negotiation';
 import { rememberSignupAttribution } from './lib/signup-attribution-cookie';
+import { publicNotFoundPage } from './lib/public-not-found';
 import { bareNotFoundRewrite, sessionHint } from './lib/workspace-gate';
 
 /**
@@ -55,10 +56,12 @@ export function proxy(request: NextRequest): NextResponse {
   const development = process.env.NODE_ENV !== 'production';
   // NOTFOUND: a signed-out bare `/{x}` is answered with the prerendered not-found page, so its
   // hash policy is that page's.
-  const notFoundPage = bareNotFoundRewrite(
-    request.nextUrl.pathname,
-    sessionHint((name) => request.cookies.has(name), request.headers.get('host')),
-  );
+  // NEXTUP: so is an unknown public website page (`/help/<x>`, `/compare/<x>`, `/ar/...`).
+  const notFoundPage =
+    bareNotFoundRewrite(
+      request.nextUrl.pathname,
+      sessionHint((name) => request.cookies.has(name), request.headers.get('host')),
+    ) ?? publicNotFoundPage(request.nextUrl.pathname);
   // `next dev` renders every page per request; a stale build's manifest must not count there.
   const pageHashes = development
     ? undefined

@@ -349,12 +349,12 @@ async function main() {
     check('GET /healthz ok', health.status === 200 && /"status":"ok"/.test(healthBody));
     // Each public page serves its own content, not another page's (live-check 014a9d51 reported
     // /features/communication as the Privacy Policy and /status as the setup screen).
-    for (const { path } of ROUTE_CONTENT) {
+    for (const { path, status = 200 } of ROUTE_CONTENT) {
       const page = await hit(path);
-      const problems = page.status === 200 ? routeContentProblems(path, await page.text()) : [];
+      const problems = page.status === status ? routeContentProblems(path, await page.text()) : [];
       check(
         `GET ${path} serves its own page`,
-        page.status === 200 && problems.length === 0,
+        page.status === status && problems.length === 0,
         `status ${page.status}${problems.length ? `; ${problems.join('; ')}` : ''}`,
       );
     }

@@ -127,11 +127,21 @@ export const ROUTE_CONTENT = [
     hasNot: ['<html lang="en"', '<title>Pricing · TManage</title>', 'setup token'],
   },
   // NOTFOUND (live 2026-11-16): the 404 page is the full not-found screen, never an empty body.
+  // A not-found page answers 404 on the running server too (`status`; every other rule is 200).
   {
     path: '/_not-found',
     file: '_not-found.html',
+    status: 404,
     has: ['find that page', 'href="/sign-in"'],
     hasNot: ['setup token'],
+  },
+  // NEXTUP: the Arabic 404 an unknown /ar/... path is answered with, Arabic and right to left.
+  {
+    path: '/ar/page-not-found',
+    file: 'ar/page-not-found.html',
+    status: 404,
+    has: ['<html lang="ar" dir="rtl"', 'لم نجد هذه الصفحة', 'href="/ar"'],
+    hasNot: ['<html lang="en"', 'setup token'],
   },
 ];
 
