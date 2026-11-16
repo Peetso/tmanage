@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   Inject,
+  Optional,
   Post,
   Query,
   Redirect,
@@ -96,13 +97,6 @@ export class MicrosoftAuthController {
     @Inject(MICROSOFT_AUTH_OPTIONS) private readonly options: MicrosoftAuthOptions,
     @Inject(MICROSOFT_AUTH_ADMISSION) private readonly admit: RequestAdmission,
   ) {}
-
-  @Get()
-  @Public()
-  async availability(@Req() request: RequestLike): Promise<GoogleAvailabilityView> {
-    const correlationId = requireRequestState(request).correlationId;
-    return { available: true, signUp: await this.service.isSignupOpen(correlationId) };
-  }
 
   @Post('start')
   @Public()
@@ -296,6 +290,35 @@ function headerOf(request: RequestLike, name: string): string | undefined {
 }
 
 /** Back to the screen the person started from, with a short code the screen translates. */
+/** `GET /v1/auth/microsoft` on a deployment without Microsoft sign-in keys. */
+export interface MicrosoftUnavailableView {
+  readonly available: false;
+}
+
+/**
+ * `GET /v1/auth/microsoft`, registered on every deployment (the other routes only when both keys
+ * are set). Without keys there is no sign-in service, and the answer is a plain "no" rather than
+ * the router's 404, which every browser prints as a console error on each sign-in page load.
+ */
+@Controller('v1/auth/microsoft')
+export class MicrosoftAvailabilityController {
+  constructor(
+    @Optional()
+    @Inject(MICROSOFT_AUTH_SERVICE)
+    private readonly service: GoogleAuthService | undefined,
+  ) {}
+
+  @Get()
+  @Public()
+  async availability(
+    @Req() request: RequestLike,
+  ): Promise<GoogleAvailabilityView | MicrosoftUnavailableView> {
+    if (this.service === undefined) return { available: false };
+    const correlationId = requireRequestState(request).correlationId;
+    return { available: true, signUp: await this.service.isSignupOpen(correlationId) };
+  }
+}
+
 export function microsoftErrorPath(flow: GoogleFlow, code: string): string {
   const suffix = `microsoft_error=${encodeURIComponent(code)}`;
   if (flow.intent === 'invitation' && flow.invitationToken) {

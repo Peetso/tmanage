@@ -10,17 +10,22 @@ import type {
 /**
  * "Continue with Microsoft" (51-05) — the browser half. The API's `/v1/auth/microsoft/*` routes
  * have exactly the wire bodies of `/v1/auth/google/*` and exist only when
- * `MICROSOFT_SIGNIN_CLIENT_ID` and `MICROSOFT_SIGNIN_CLIENT_SECRET` are set; a 404 from the
- * availability probe hides the button. State, nonce and the PKCE verifier stay in the API's
- * HttpOnly cookie.
+ * `MICROSOFT_SIGNIN_CLIENT_ID` and `MICROSOFT_SIGNIN_CLIENT_SECRET` are set; without them the
+ * availability probe answers `{ available: false }` and the button stays hidden. State, nonce
+ * and the PKCE verifier stay in the API's HttpOnly cookie.
  */
 
-/** Whether the button should show; null on 404 (not configured) and on any failure. */
+/** `GET /v1/auth/microsoft` on a deployment without Microsoft sign-in keys. */
+export interface MicrosoftUnavailableView {
+  readonly available: false;
+}
+
+/** Whether the button should show; null when not configured and on any failure. */
 export async function fetchMicrosoftAvailability(
   client: ApiClient,
 ): Promise<GoogleAvailabilityView | null> {
   try {
-    const { data } = await client.request<GoogleAvailabilityView>({
+    const { data } = await client.request<GoogleAvailabilityView | MicrosoftUnavailableView>({
       method: 'GET',
       path: '/v1/auth/microsoft',
       authentication: 'none',

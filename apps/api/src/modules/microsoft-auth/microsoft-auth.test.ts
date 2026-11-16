@@ -11,7 +11,11 @@ import {
   sealFlow,
   type GoogleFlow,
 } from '../google-auth/google-oidc.js';
-import { MicrosoftAuthController } from './microsoft-auth.controller.js';
+import {
+  MicrosoftAuthController,
+  MicrosoftAvailabilityController,
+} from './microsoft-auth.controller.js';
+import { microsoftAuthModules } from './microsoft-auth.module.js';
 import {
   authorizationUrl,
   MICROSOFT_CONSUMER_TENANT,
@@ -188,5 +192,29 @@ describe('MicrosoftAuthController callback', () => {
       expect.objectContaining({ verifier: flow.verifier }),
     );
     expect(h.complete).not.toHaveBeenCalled();
+  });
+});
+
+describe('Microsoft sign-in not configured', () => {
+  it('registers only the availability probe, which answers no instead of a 404', async () => {
+    const modules = microsoftAuthModules({});
+    expect(modules).toHaveLength(1);
+    expect(modules[0]?.controllers).toEqual([MicrosoftAvailabilityController]);
+    const request = {};
+    ensureRequestState(request as never);
+    await expect(
+      new MicrosoftAvailabilityController(undefined).availability(request as never),
+    ).resolves.toEqual({ available: false });
+  });
+
+  it('registers the probe and the full flow when both keys are set', () => {
+    const modules = microsoftAuthModules({
+      MICROSOFT_SIGNIN_CLIENT_ID: 'client-id',
+      MICROSOFT_SIGNIN_CLIENT_SECRET: 'client-secret',
+    });
+    expect(modules[0]?.controllers).toEqual([
+      MicrosoftAvailabilityController,
+      MicrosoftAuthController,
+    ]);
   });
 });

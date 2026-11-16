@@ -154,6 +154,7 @@ import type {
   GooglePendingMfaView as ApiGooglePendingMfaView,
   GoogleStartView as ApiGoogleStartView,
 } from '../../apps/api/src/modules/google-auth/google-auth.controller.js';
+import type { MicrosoftUnavailableView as ApiMicrosoftUnavailableView } from '../../apps/api/src/modules/microsoft-auth/microsoft-auth.controller.js';
 import type {
   ImportCommitRowView as ApiImportCommitRowView,
   ImportCommitView as ApiImportCommitView,
@@ -878,6 +879,7 @@ import type {
   GooglePendingMfaView as WebGooglePendingMfaView,
   GoogleStartView as WebGoogleStartView,
 } from '../../apps/web/src/lib/api/google-auth';
+import type { MicrosoftUnavailableView as WebMicrosoftUnavailableView } from '../../apps/web/src/lib/api/microsoft-auth';
 import type { Command as WebCommand } from '../../apps/web/src/lib/api/commands';
 import type { CopilotAnswerView as WebCopilotAnswerView } from '../../apps/web/src/lib/api/copilot';
 import type {
@@ -3144,6 +3146,10 @@ type _publicSignup = Assert<Exact<ApiPublicSignupView, WebPublicSignupView>>;
 type _googleAvailability = Assert<Exact<ApiGoogleAvailabilityView, WebGoogleAvailabilityView>>;
 type _googleStart = Assert<Exact<ApiGoogleStartView, WebGoogleStartView>>;
 type _googlePendingMfa = Assert<Exact<ApiGooglePendingMfaView, WebGooglePendingMfaView>>;
+/** `GET /v1/auth/microsoft` without Microsoft keys: the probe's plain no. */
+type _microsoftUnavailable = Assert<
+  Exact<ApiMicrosoftUnavailableView, WebMicrosoftUnavailableView>
+>;
 
 /** x255 - calendar focus blocks (personal protected time). Paired Exact. */
 type _focusBlock = Assert<Exact<ApiFocusBlockView, WebFocusBlockView>>;

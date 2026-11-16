@@ -4,7 +4,11 @@ import { API_CONFIG } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import { externalSignInProviders } from '../google-auth/google-auth.module.js';
 import { MICROSOFT_SIGN_IN_PROVIDER } from '../google-auth/google-auth.service.js';
-import { MicrosoftAuthController, type MicrosoftAuthOptions } from './microsoft-auth.controller.js';
+import {
+  MicrosoftAuthController,
+  MicrosoftAvailabilityController,
+  type MicrosoftAuthOptions,
+} from './microsoft-auth.controller.js';
 import {
   MICROSOFT_AUTH_ADMISSION,
   MICROSOFT_AUTH_OPTIONS,
@@ -55,15 +59,23 @@ export class MicrosoftAuthModule {
         ),
         { provide: MICROSOFT_TRANSPORT, useValue: transport },
       ],
-      controllers: [MicrosoftAuthController],
+      controllers: [MicrosoftAvailabilityController, MicrosoftAuthController],
     };
+  }
+
+  /** Without credentials: only `GET /v1/auth/microsoft`, answering `{ available: false }`. */
+  static unavailable(): DynamicModule {
+    return { module: MicrosoftAuthModule, controllers: [MicrosoftAvailabilityController] };
   }
 }
 
-/** Registered only when both Microsoft sign-in credentials are set; otherwise the routes 404. */
+/**
+ * The full module when both Microsoft sign-in credentials are set; otherwise only the availability
+ * probe, which says no (every other `/v1/auth/microsoft/*` route stays the router's 404).
+ */
 export function microsoftAuthModules(
   env: Readonly<Record<string, string | undefined>>,
 ): DynamicModule[] {
   const config = microsoftSignInConfigFrom(env);
-  return config ? [MicrosoftAuthModule.register(config)] : [];
+  return [config ? MicrosoftAuthModule.register(config) : MicrosoftAuthModule.unavailable()];
 }
