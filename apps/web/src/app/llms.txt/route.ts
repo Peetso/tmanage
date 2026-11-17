@@ -1,8 +1,9 @@
 import { llmsTxt } from '../../lib/site-text-files';
 
 /**
- * `/llms.txt` (llmstxt.org, AGENTREADY): the site's name, a one-paragraph summary and every
- * public page by section, built from the same page list as `sitemap.xml`. Prerendered.
+ * `/llms.txt` (llmstxt.org, AGENTREADY; key facts and start links since SEOA): the site's name, a
+ * one-paragraph summary, key facts, the pages to start with and every public page by section,
+ * built from the same page list as `sitemap.xml`. Prerendered.
  */
 export const dynamic = 'force-static';
 

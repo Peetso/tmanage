@@ -1,5 +1,6 @@
 import { PUBLIC_PAGES } from '../../../lib/public-pages';
 import { markdownPathFor } from '../../../lib/markdown-negotiation';
+import { absoluteSiteUrl } from '../../../lib/site-origin';
 import { pageForMarkdownSegments, publicPageMarkdown } from '../../../lib/site-text-files';
 
 /**
@@ -26,12 +27,19 @@ export function generateStaticParams(): { path: string[] }[] {
 export async function GET(_request: Request, { params }: { params: Params }): Promise<Response> {
   const page = pageForMarkdownSegments((await params).path);
   if (page === undefined) return new Response('Not found\n', { status: 404 });
-  return new Response(publicPageMarkdown(page), {
-    headers: {
-      'content-type': 'text/markdown; charset=utf-8',
-      vary: 'Accept',
-      'x-content-type-options': 'nosniff',
-      link: `<${page.path}>; rel="canonical"; type="text/html"`,
-    },
-  });
+  return new Response(publicPageMarkdown(page), { headers: markdownHeaders(page.path) });
+}
+
+/**
+ * The Markdown twin's headers (SEOA 2026-11-17): kept out of search indexes (`noindex`) and
+ * pointing at the HTML page as the canonical address, so the twin never competes with the page.
+ */
+function markdownHeaders(path: string): Record<string, string> {
+  return {
+    'content-type': 'text/markdown; charset=utf-8',
+    vary: 'Accept',
+    'x-content-type-options': 'nosniff',
+    'x-robots-tag': 'noindex',
+    link: `<${absoluteSiteUrl(path)}>; rel="canonical"; type="text/html"`,
+  };
 }
