@@ -1156,6 +1156,12 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/platform/flags/', reason: 'platform_admin' },
   { method: 'GET', path: '/v1/platform/flags/:flagKey/organizations', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/flags/:flagKey', reason: 'platform_admin' },
+  // EMAILBUILD: the people who sign tips (platform settings card).
+  { method: 'GET', path: '/v1/platform/mail-people/', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/mail-people/', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/mail-people/import', reason: 'platform_admin' },
+  { method: 'PUT', path: '/v1/platform/mail-people/:personId', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/mail-people/:personId/test', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/settings/billing-mode', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/settings/beta-banner', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/settings/retention', reason: 'platform_admin' },

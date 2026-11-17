@@ -3,7 +3,8 @@ import type { DynamicModule } from '@nestjs/common';
 import type { TenantDatabase } from '../../../common/database/tenant-context.js';
 import { loadFieldCipherKeyring, keyringFromSeedKeyring } from '@tmanage/domain/field-cipher';
 import type { ApiConfig } from '../../../common/http/api-config.js';
-import { API_CONFIG, TENANT_DATABASE } from '../../../common/http/tokens.js';
+import { API_CONFIG, MAILER, TENANT_DATABASE } from '../../../common/http/tokens.js';
+import type { Mailer } from '@tmanage/mail';
 import {
   PLATFORM_PUBLIC_SIGNUP_DEFAULT,
   platformAdminCore,
@@ -17,6 +18,12 @@ import {
 import { PlatformAnnouncementsRepository } from './announcements.repository.js';
 import { PlatformAnnouncementsService } from './announcements.service.js';
 import { PLATFORM_FLAGS_SERVICE, PlatformFlagsController } from './flags.controller.js';
+import {
+  PLATFORM_MAIL_PEOPLE_SERVICE,
+  PlatformMailPeopleController,
+} from './mail-people.controller.js';
+import { MailPeopleRepository } from './mail-people.repository.js';
+import { MailPeopleService } from './mail-people.service.js';
 import { PlatformFlagsRepository } from './flags.repository.js';
 import { PlatformFlagsService } from './flags.service.js';
 import { PLATFORM_KEYS_SERVICE, PlatformKeysController } from './keys.controller.js';
@@ -62,6 +69,18 @@ export class PlatformSettingsModule {
           useFactory: (database: TenantDatabase) =>
             new PlatformAnnouncementsService(new PlatformAnnouncementsRepository(database)),
         },
+        // ---- EMAILBUILD ---- the people who sign tips; the test send goes to the admin only.
+        {
+          provide: PLATFORM_MAIL_PEOPLE_SERVICE,
+          inject: [TENANT_DATABASE, { token: MAILER, optional: true }],
+          useFactory: (database: TenantDatabase, mailer: Mailer | null | undefined) =>
+            new MailPeopleService(new MailPeopleRepository(database), {
+              mailer: mailer ?? null,
+              supportLoginConfigured:
+                (process.env['SMTP_SUPPORT_USER'] ?? '').trim() !== '' &&
+                (process.env['SMTP_SUPPORT_PASS'] ?? '') !== '',
+            }),
+        },
         // ---- 56-02 Keys ---- status only; key ids from env, never a value.
         {
           provide: PLATFORM_KEYS_SERVICE,
@@ -82,6 +101,7 @@ export class PlatformSettingsModule {
         PlatformFlagsController,
         PlatformAnnouncementsController,
         PlatformKeysController,
+        PlatformMailPeopleController,
       ],
     };
   }

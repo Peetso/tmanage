@@ -221,7 +221,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // attachments switch (+5 NEVER, public_intake).
 // 56-26: bounce intake + bounce status / clear (+3 NEVER: public_intake, org_security_manage).
 // 54-29: GET projects/:projectId/export (+1 NEVER, project_export).
-const EXPECTED_ROUTE_COUNT = 1528;
+// EMAILBUILD: the mail people card, list/add/import/change/test (+5 NEVER, platform_admin).
+const EXPECTED_ROUTE_COUNT = 1533;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

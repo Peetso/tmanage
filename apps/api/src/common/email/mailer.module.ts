@@ -9,7 +9,8 @@ import {
   withTemplateKey,
 } from '@tmanage/mail';
 import { CONTACT_EMAILS } from '@tmanage/domain';
-import type { IdentityLogin, Mailer } from '@tmanage/mail';
+import type { IdentityLogin, Mailer, SenderDirectory } from '@tmanage/mail';
+import { mailPeopleTestDirectory } from '../../modules/platform-admin/settings/mail-people.repository.js';
 import { MailBounceLookup } from '../../modules/mail-bounces/mail-bounces.service.js';
 import { MailQueueRepository } from '../database/mail-queue.repository.js';
 import type { TenantDatabase } from '../database/tenant-context.js';
@@ -71,14 +72,19 @@ export interface MailerModuleConfig {
 
 /**
  * EMAILBUILD. Every message's sender is chosen here, from its template key, above the queue or
- * driver and below the bounce guard (`sender-resolver.ts`). The API sends no tips, so it needs no
- * registry directory: a `tip` from here would be signed by the TManage team.
+ * driver and below the bounce guard (`sender-resolver.ts`). The API sends no tips; its directory
+ * (SMTP shapes only) answers the people card's test send.
  */
-function resolved(transport: Mailer, config: MailerModuleConfig): Mailer {
+function resolved(
+  transport: Mailer,
+  config: MailerModuleConfig,
+  directory?: SenderDirectory,
+): Mailer {
   return new SenderResolvingMailer(transport, {
     identityAddress: config.fromAddress,
     sendAs: config.sendAs === true,
     addresses: CONTACT_EMAILS,
+    directory,
   });
 }
 
@@ -150,7 +156,8 @@ function guardedModule(
     inject: [TENANT_DATABASE],
     useFactory: (database: TenantDatabase) => {
       const mailer = new BounceGuardMailer(
-        resolved(transport(database), config),
+        // The API's directory answers only the people card's "Send test".
+        resolved(transport(database), config, mailPeopleTestDirectory(database)),
         new MailBounceLookup(database),
       );
       return { mailer, ...producersFor(mailer, config.webPublicUrl) };
