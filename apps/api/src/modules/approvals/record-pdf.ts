@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fontkit from '@pdf-lib/fontkit';
-import bidiModule from 'bidi-js';
+import bidiModule, { type Bidi } from 'bidi-js';
 import {
   AFRelationship,
   PDFDocument,
@@ -121,8 +121,9 @@ const CP1252 = new Set([
 ]);
 
 const STRONG_RTL = /[\p{Script=Arabic}\p{Script=Hebrew}]/u;
-// bidi-js is CommonJS whose `module.exports` is the factory; its types declare an ES default.
-const bidiFactory = bidiModule as unknown as (typeof bidiModule)['default'];
+// bidi-js is CommonJS whose `module.exports` is the factory; its types declare an ES default, which
+// NodeNext (api) and bundler (e2e typecheck) resolve differently: name the factory type directly.
+const bidiFactory = bidiModule as unknown as () => Bidi;
 const bidi = bidiFactory();
 
 /** The bundled Arabic face, read once: next to this file's build (src or dist), else the cwd. */

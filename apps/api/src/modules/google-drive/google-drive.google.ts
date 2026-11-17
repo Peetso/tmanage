@@ -594,7 +594,7 @@ export function createDriveTransport(fetchImpl: typeof fetch = fetch): DriveTran
               ...auth(accessToken),
               'content-range': total === 0 ? 'bytes */0' : `bytes ${offset}-${end - 1}/${total}`,
             },
-            body: input.bytes.subarray(offset, end),
+            body: Uint8Array.from(input.bytes.subarray(offset, end)),
             redirect: 'manual',
           });
         } catch {

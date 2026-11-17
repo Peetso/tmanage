@@ -705,7 +705,7 @@ export function createOneDriveTransport(fetchImpl: typeof fetch = fetch): OneDri
         response = await send(`${target}/content?@microsoft.graph.conflictBehavior=rename`, {
           method: 'PUT',
           headers: { ...auth(accessToken), 'content-type': 'application/octet-stream' },
-          body: input.bytes,
+          body: Uint8Array.from(input.bytes),
         });
         if (!response.ok) throw refused(response.status);
       } else {
@@ -725,7 +725,7 @@ export function createOneDriveTransport(fetchImpl: typeof fetch = fetch): OneDri
           response = await send(session, {
             method: 'PUT',
             headers: { 'content-range': `bytes ${offset}-${end - 1}/${total}` },
-            body: input.bytes.subarray(offset, end),
+            body: Uint8Array.from(input.bytes.subarray(offset, end)),
           });
           if (!response.ok) throw refused(response.status);
         }
