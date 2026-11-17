@@ -4860,3 +4860,10 @@ type _portalInvoiceSummary = Assert<Exact<ApiPortalInvoiceSummary, WebPortalInvo
 type _portalRetainer = Assert<Exact<ApiPortalRetainerSummary, WebPortalRetainer>>;
 /** `GET …/portal/projects/:projectId/budget` — the share used and a status, never an amount. */
 type _portalBudget = Assert<Exact<ApiPortalBudgetView, WebPortalBudget>>;
+
+// ---- 56-32 · host capacity ----
+import type { CapacityView as ApiCapacityView } from '../../apps/api/src/modules/platform-admin/health/capacity.controller.js';
+import type { CapacityView as WebCapacityView } from '../../apps/web/src/lib/api/platform-capacity.js';
+
+/** `GET /v1/platform/health/capacity` — the Server capacity card on the platform overview. */
+type _platformCapacity = Assert<Exact<ApiCapacityView, WebCapacityView>>;

@@ -7,6 +7,7 @@ import { browserApiClient } from '../../../lib/api/browser-client';
 import { fetchPlatformOrgOverview } from '../../../lib/api/platform-organizations';
 import type { PlatformOrgOverviewView } from '../../../lib/api/platform-organizations';
 import { useT } from '../../../lib/i18n/use-t';
+import { PlatformCapacityCard } from '../health/PlatformCapacityCard';
 import { PlatformPageState } from '../shared/PlatformPageState';
 import { formatBytes, PlatformGate } from '../shared/platform-kit';
 import type { ScreenProps } from '../shared/platform-kit';
@@ -55,6 +56,9 @@ export function PlatformOrgOverviewScreen({ client }: ScreenProps) {
             />
           ) : null}
           {overview.isSuccess ? <OverviewBody data={overview.data} /> : null}
+          {me.permissions.includes('platform.activity.view') ? (
+            <PlatformCapacityCard api={api} />
+          ) : null}
         </>
       )}
     </PlatformGate>

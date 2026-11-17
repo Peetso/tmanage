@@ -97,4 +97,25 @@ describe('GET /v1/platform/health/capacity', () => {
     expect(view.trigger).toMatchObject({ days: 7, due: true });
     expect(view.latest.sample?.takenAt).toBe('2026-10-29T09:00:00.000Z');
   });
+
+  it('names no path, host or environment value in the answer', async () => {
+    const store: CapacityStore = {
+      insert: async () => undefined,
+      purgeOlderThan: async () => 0,
+      readDatabaseFigures: async () => ({ dbMb: null, dbConnections: null }),
+      readProfileJson: async () => null,
+      latest: async () => reading('sample', 0, 300),
+      recentNightly: async () => [reading('nightly', 0, 300)],
+    };
+    const keys: string[] = [];
+    const walk = (value: unknown): void => {
+      if (value === null || typeof value !== 'object') return;
+      for (const [key, inner] of Object.entries(value)) {
+        keys.push(key);
+        walk(inner);
+      }
+    };
+    walk(await readCapacity(store));
+    expect(keys.filter((key) => /path|host|root|dir|env|url/iu.test(key))).toEqual([]);
+  });
 });
