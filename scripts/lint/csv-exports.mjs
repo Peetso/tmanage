@@ -37,8 +37,10 @@ const STREAMS_STORED_FILE = new Map([
 const PRODUCER = /['"`]text\/csv;|filename="[^"]*\.csv"|\.download\s*=\s*['"`][^'"`]*\.csv['"`]/;
 const WRITER = /\b(?:function\s+|const\s+)(?:escapeCsvCell|escapeCsv|csvCell|csvEscape|toCsv)\b/;
 const HAND_JOIN = /\.join\(\s*(['"]),\1\s*\)/;
+// A domain CSV builder that is itself one `toCsv` call counts as the domain writer:
+// `projectExportCsv` (packages/domain/src/export/project-export.ts, 54-29 project export).
 const DOMAIN_IMPORT =
-  /import\s*\{[^}]*\b(?:toCsv|escapeCsvCell)\b[^}]*\}\s*from\s*['"]@tmanage\/domain['"]/;
+  /import\s*\{[^}]*\b(?:toCsv|escapeCsvCell|projectExportCsv)\b[^}]*\}\s*from\s*['"]@tmanage\/domain['"]/;
 const IMPORT_FROM = /(?:import|export)\s[^;]*?from\s*['"](\.[^'"]+)['"]/g;
 
 /** Relative import specifiers resolved to source files (`./x.js` → `./x.ts` / `.tsx`). */
