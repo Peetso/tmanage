@@ -32,7 +32,7 @@ const VIEW: PublicLegalView = {
     {
       id: 'contact',
       heading: 'Contact',
-      body: 'Email tm-support@peetrix.com or read https://developers.google.com/terms/api-services-user-data-policy.',
+      body: 'Email hello@tmanageapp.com or read https://developers.google.com/terms/api-services-user-data-policy.',
     },
   ],
 };
@@ -80,8 +80,8 @@ describe('MarketingLegalScreen', () => {
     render(withQuery(<MarketingLegalScreen doc="terms" client={clientReturning(VIEW)} />));
 
     await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toBeDefined());
-    expect(screen.getByRole('link', { name: 'tm-support@peetrix.com' }).getAttribute('href')).toBe(
-      'mailto:tm-support@peetrix.com',
+    expect(screen.getByRole('link', { name: 'hello@tmanageapp.com' }).getAttribute('href')).toBe(
+      'mailto:hello@tmanageapp.com',
     );
     const policy = 'https://developers.google.com/terms/api-services-user-data-policy';
     expect(screen.getByRole('link', { name: policy }).getAttribute('href')).toBe(policy);

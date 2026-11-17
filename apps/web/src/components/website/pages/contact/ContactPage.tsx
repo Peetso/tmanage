@@ -3,6 +3,7 @@
 import Link from '../../WebLink';
 import { Avatar } from '@tmanage/ui';
 import type { ApiClient } from '../../../../lib/api/client';
+import { SALES_EMAIL } from '../../../../lib/public-contact';
 import { useT } from '../../../../lib/i18n/use-t';
 import type { MessageKey } from '../../../../lib/i18n/t';
 import { FaqRow, SectionHeader, WebSection } from '../../sections';
@@ -28,7 +29,7 @@ export const OTHER_WAYS: readonly OtherWay[] = [
   {
     titleKey: 'ContactPage.salesTitle',
     bodyKey: 'ContactPage.salesCardBody',
-    href: 'mailto:tm-support@peetrix.com',
+    href: `mailto:${SALES_EMAIL}`,
   },
   { titleKey: 'ContactPage.supportTitle', bodyKey: 'ContactPage.supportCardBody', href: '/faq' },
   {

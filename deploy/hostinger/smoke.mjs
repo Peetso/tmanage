@@ -274,7 +274,7 @@ async function main() {
       AUTH_MFA_SEED_KEYS: `1:${Buffer.from('smoke-mfa-key-000000000000000000').toString('base64url')}`,
       AUTH_TOTP_ISSUER: 'TManage',
       EMAIL_DRIVER: 'smtp',
-      EMAIL_FROM_ADDRESS: 'no-reply@tmanageapp.com',
+      EMAIL_FROM_ADDRESS: 'noreply@tmanageapp.com',
       EMAIL_FROM_NAME: 'TManage',
       SMTP_HOST: 'localhost',
       STORAGE_DRIVER: 's3',

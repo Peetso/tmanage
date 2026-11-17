@@ -195,7 +195,7 @@ describe('55-17 support · platform path', () => {
     );
     expect(h.queries.some((q) => /platform_admin_audit_events/u.test(q))).toBe(true);
     expect(h.mailer.send).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'lina@example.com', replyTo: 'tm-support@peetrix.com' }),
+      expect.objectContaining({ to: 'lina@example.com', replyTo: 'support@tmanageapp.com' }),
     );
   });
 

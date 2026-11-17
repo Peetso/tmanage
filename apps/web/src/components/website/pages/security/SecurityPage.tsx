@@ -2,6 +2,7 @@
 
 import { StateCapsule } from '@tmanage/ui';
 import Link from 'next/link';
+import { SUPPORT_EMAIL } from '../../../../lib/public-contact';
 import {
   CLAIM_CAPSULE,
   SECURITY_CARDS,
@@ -20,7 +21,7 @@ import './security-trust.css';
  * copy carries an `{email}` placeholder so a dedicated security@ address can replace this constant
  * later without touching either translation.
  */
-export const SECURITY_DISCLOSURE_EMAIL = 'tm-support@peetrix.com';
+export const SECURITY_DISCLOSURE_EMAIL = SUPPORT_EMAIL;
 const EMAIL_PLACEHOLDER = '{email}';
 
 /** The disclosure sentence with the address as a real mailto link, in either language. */

@@ -42,7 +42,7 @@ describe('Book a demo page', () => {
     const hrefs = [...container.querySelectorAll('a.tm-web-contact-way')].map((a) =>
       a.getAttribute('href'),
     );
-    expect(hrefs).toEqual(['mailto:tm-support@peetrix.com', '/faq', '/security']);
+    expect(hrefs).toEqual(['mailto:sales@tmanageapp.com', '/faq', '/security']);
   });
 
   it('shows every FAQ answer open, as drawn', () => {

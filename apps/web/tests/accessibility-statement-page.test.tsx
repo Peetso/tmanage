@@ -18,7 +18,7 @@ describe('accessibility statement page', () => {
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(title);
     expect(screen.getByTestId('a11y-claim-wcag').dataset['status']).toBe('not_audited');
     expect(container.textContent).not.toMatch(/fully (compliant|accessible)|WCAG[^.]*conform/iu);
-    const mail = container.querySelectorAll('a[href="mailto:tm-support@peetrix.com"]');
+    const mail = container.querySelectorAll('a[href="mailto:support@tmanageapp.com"]');
     expect(mail.length).toBeGreaterThan(0);
   });
 

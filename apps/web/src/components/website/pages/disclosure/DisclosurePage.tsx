@@ -2,10 +2,11 @@
 
 import { ButtonLink } from '../../primitives';
 import { useTOr } from '../../../../lib/i18n/use-t-or';
+import { SUPPORT_EMAIL } from '../../../../lib/public-contact';
 import './disclosure.css';
 
-/** The one place a security report goes (the real support mailbox; there is no security@ box). */
-export const SECURITY_REPORT_EMAIL = 'tm-support@peetrix.com';
+/** The one place a security report goes (the support mailbox; there is no security@ box). */
+export const SECURITY_REPORT_EMAIL = SUPPORT_EMAIL;
 
 /** The mail link the page offers: the subject is pre-filled so the report is easy to triage. */
 export const SECURITY_REPORT_HREF = `mailto:${SECURITY_REPORT_EMAIL}?subject=Security`;

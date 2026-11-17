@@ -14,7 +14,11 @@
  * `LEGAL_DOCUMENTS` stays the English map every existing caller reads.
  */
 
+import { CONTACT_EMAILS } from '../contact/contact-addresses.js';
 import { LEGAL_COPY_AR, OPERATOR_ACCESS_AR } from './legal-content-ar.js';
+
+/** Legal and privacy questions go to the general mailbox. */
+const LEGAL_CONTACT_EMAIL = CONTACT_EMAILS.hello;
 
 /** The two legal documents — a closed allowlist. */
 export type LegalDocumentKey = 'terms' | 'privacy';
@@ -65,7 +69,7 @@ export const LEGAL_DOCUMENTS: Readonly<Record<LegalDocumentKey, LegalDocument>> 
       section(
         'operator',
         'Who provides the service',
-        'TManage is provided by Peter Designs (peetrix.com), referred to here as “TManage”, “we” or “us”. Questions about these terms can be sent to tm-support@peetrix.com.',
+        `TManage is provided by Peter Designs (peetrix.com), referred to here as “TManage”, “we” or “us”. Questions about these terms can be sent to ${LEGAL_CONTACT_EMAIL}.`,
       ),
       section(
         'accounts',
@@ -106,7 +110,7 @@ export const LEGAL_DOCUMENTS: Readonly<Record<LegalDocumentKey, LegalDocument>> 
       section(
         'contact',
         'Contact',
-        'Peter Designs (peetrix.com), operator of TManage. Email: tm-support@peetrix.com. Website: https://tmanageapp.com.',
+        `Peter Designs (peetrix.com), operator of TManage. Email: ${LEGAL_CONTACT_EMAIL}. Website: https://tmanageapp.com.`,
       ),
     ]),
   }),
@@ -120,7 +124,7 @@ export const LEGAL_DOCUMENTS: Readonly<Record<LegalDocumentKey, LegalDocument>> 
       section(
         'who-we-are',
         'Who we are',
-        'TManage is a work-management service at tmanageapp.com, operated by Peter Designs (peetrix.com) — “TManage”, “we” or “us”. We are the controller of account, website and service-operation data. For the content an organization puts into its workspace, the organization is the controller and we process that content on its behalf. Contact: tm-support@peetrix.com.',
+        `TManage is a work-management service at tmanageapp.com, operated by Peter Designs (peetrix.com) — “TManage”, “we” or “us”. We are the controller of account, website and service-operation data. For the content an organization puts into its workspace, the organization is the controller and we process that content on its behalf. Contact: ${LEGAL_CONTACT_EMAIL}.`,
       ),
       section(
         'what-we-collect',
@@ -171,7 +175,7 @@ export const LEGAL_DOCUMENTS: Readonly<Record<LegalDocumentKey, LegalDocument>> 
       section(
         'your-rights',
         'Your rights',
-        'Depending on where you live, you may have the right to access, correct, export or delete your personal data, to restrict or object to its processing, to withdraw consent, and to complain to a data-protection authority. Members can view and correct their own profile in TManage, and organization owners can export workspace data. To make a request — including a data export or deletion request — email tm-support@peetrix.com using the address on your account; we answer within 30 days. Where the data sits in an organization’s workspace, we may pass the request to that organization, which controls the content.',
+        `Depending on where you live, you may have the right to access, correct, export or delete your personal data, to restrict or object to its processing, to withdraw consent, and to complain to a data-protection authority. Members can view and correct their own profile in TManage, and organization owners can export workspace data. To make a request — including a data export or deletion request — email ${LEGAL_CONTACT_EMAIL} using the address on your account; we answer within 30 days. Where the data sits in an organization’s workspace, we may pass the request to that organization, which controls the content.`,
       ),
       section(
         'children',
@@ -191,7 +195,7 @@ export const LEGAL_DOCUMENTS: Readonly<Record<LegalDocumentKey, LegalDocument>> 
       section(
         'contact',
         'Contact',
-        'Peter Designs (peetrix.com), operator of TManage. Email: tm-support@peetrix.com. Website: https://tmanageapp.com.',
+        `Peter Designs (peetrix.com), operator of TManage. Email: ${LEGAL_CONTACT_EMAIL}. Website: https://tmanageapp.com.`,
       ),
     ]),
   }),

@@ -68,7 +68,7 @@ describe('56-17 security disclosure page', () => {
   it('offers a mail link to the real support mailbox with the four policy parts', () => {
     render(<DisclosurePage />);
     const mail = screen.getByRole('link', { name: 'Email the security team' });
-    expect(mail.getAttribute('href')).toBe('mailto:tm-support@peetrix.com?subject=Security');
+    expect(mail.getAttribute('href')).toBe('mailto:support@tmanageapp.com?subject=Security');
     for (const heading of [
       'How to report',
       'What is in scope',
@@ -82,7 +82,7 @@ describe('56-17 security disclosure page', () => {
 
   it('publishes a security.txt that points at the policy and has not expired', () => {
     const text = readFileSync(join(process.cwd(), 'public', '.well-known', 'security.txt'), 'utf8');
-    expect(text).toContain('Contact: mailto:tm-support@peetrix.com');
+    expect(text).toContain('Contact: mailto:support@tmanageapp.com');
     expect(text).toContain('Policy: https://tmanageapp.com/security/disclosure');
     const expires = /^Expires: (.+)$/m.exec(text)?.[1];
     expect(new Date(expires!).getTime()).toBeGreaterThan(Date.now());

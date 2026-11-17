@@ -1,3 +1,4 @@
+import { CONTACT_EMAILS } from '@tmanage/domain';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { ApiError } from '../../common/http/errors.js';
 import { SUPPORT_CATEGORIES, SUPPORT_PRIORITIES } from './support-sla.js';
@@ -25,7 +26,7 @@ export const PATH_MAX = 300;
 export const VERSION_MAX = 40;
 
 /** Replies to the person come from this address (reply-to of the support e-mail). */
-export const SUPPORT_REPLY_TO = 'tm-support@peetrix.com';
+export const SUPPORT_REPLY_TO = CONTACT_EMAILS.support;
 
 /** The platform permission that reads support threads, and the one that answers them. */
 export const PLATFORM_SUPPORT_READ = 'platform.orgs.view';

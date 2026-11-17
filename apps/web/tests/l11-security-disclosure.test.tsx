@@ -23,19 +23,19 @@ function disclosureLink(): HTMLElement {
 
 describe('Security page responsible-disclosure address', () => {
   it('points at the live support mailbox', () => {
-    expect(SECURITY_DISCLOSURE_EMAIL).toBe('tm-support@peetrix.com');
+    expect(SECURITY_DISCLOSURE_EMAIL).toBe('support@tmanageapp.com');
   });
 
   it('renders the address on the page as a mailto link', () => {
     render(<SecurityPage />);
-    expect(disclosureLink()).toHaveAttribute('href', 'mailto:tm-support@peetrix.com');
+    expect(disclosureLink()).toHaveAttribute('href', 'mailto:support@tmanageapp.com');
   });
 
   it('puts the link where the English sentence has the placeholder', () => {
     const { container } = render(<DisclosureText text={EN} />);
-    expect(disclosureLink()).toHaveAttribute('href', 'mailto:tm-support@peetrix.com');
+    expect(disclosureLink()).toHaveAttribute('href', 'mailto:support@tmanageapp.com');
     expect(container.textContent).toBe(
-      'Found a vulnerability? Write to tm-support@peetrix.com — we respond within two business days.',
+      'Found a vulnerability? Write to support@tmanageapp.com — we respond within two business days.',
     );
   });
 
@@ -43,12 +43,12 @@ describe('Security page responsible-disclosure address', () => {
     const { container } = render(<DisclosureText text={AR} />);
     expect(disclosureLink()).toHaveAttribute('dir', 'ltr');
     expect(container.textContent).toBe(
-      'اكتشفت ثغرة؟ راسِلنا على ‏tm-support@peetrix.com — نردّ خلال يومَي عمل.',
+      'اكتشفت ثغرة؟ راسِلنا على ‏support@tmanageapp.com — نردّ خلال يومَي عمل.',
     );
   });
 
   it('still offers the link when a catalog sentence has no placeholder', () => {
     render(<DisclosureText text="Found a vulnerability? Write to us." />);
-    expect(disclosureLink()).toHaveAttribute('href', 'mailto:tm-support@peetrix.com');
+    expect(disclosureLink()).toHaveAttribute('href', 'mailto:support@tmanageapp.com');
   });
 });

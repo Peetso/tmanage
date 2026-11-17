@@ -87,8 +87,8 @@ describe('agent-ready public site', () => {
     expect(graph[1]?.['inLanguage']).toBe('ar');
   });
 
-  it('9. the public footer shows the support mailto link', () => {
-    expect(chromeHtml('/pricing')).toContain('href="mailto:tm-support@peetrix.com"');
+  it('9. the public footer shows the contact mailto link', () => {
+    expect(chromeHtml('/pricing')).toContain('href="mailto:hello@tmanageapp.com"');
   });
 
   it('10-11. llms.txt starts with the site name and links the key pages', () => {

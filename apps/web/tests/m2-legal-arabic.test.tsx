@@ -59,8 +59,8 @@ describe('MarketingLegalScreen in Arabic', () => {
     const policy = 'https://developers.google.com/terms/api-services-user-data-policy';
     expect(screen.getByRole('link', { name: policy }).getAttribute('href')).toBe(policy);
     expect(
-      screen.getAllByRole('link', { name: 'tm-support@peetrix.com' })[0]?.getAttribute('href'),
-    ).toBe('mailto:tm-support@peetrix.com');
+      screen.getAllByRole('link', { name: 'hello@tmanageapp.com' })[0]?.getAttribute('href'),
+    ).toBe('mailto:hello@tmanageapp.com');
   });
 
   it('renders the Arabic terms', () => {

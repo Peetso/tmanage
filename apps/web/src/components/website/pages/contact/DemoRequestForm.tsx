@@ -300,7 +300,7 @@ export function demoCalendarHold(now: Date = new Date()): string {
     'VERSION:2.0',
     'PRODID:-//TManage//Book a demo//EN',
     'BEGIN:VEVENT',
-    `UID:${stamp(now)}-demo@tmanage.app`,
+    `UID:${stamp(now)}-demo@tmanageapp.com`,
     `DTSTAMP:${stamp(now)}`,
     `DTSTART:${stamp(start)}`,
     `DTEND:${stamp(end)}`,

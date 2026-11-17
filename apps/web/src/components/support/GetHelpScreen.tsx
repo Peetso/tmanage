@@ -41,6 +41,7 @@ import type { RequestState } from '../../lib/support-sla-text';
 import { AppShell } from '../shell/AppShell';
 import { SupportBadge } from './SupportBadge';
 import { isToday, planName, shortWhen, useSupportText } from './support-text';
+import { SUPPORT_EMAIL } from '../../lib/public-contact';
 import './support.css';
 
 /**
@@ -571,10 +572,7 @@ function RequestThread({
             </form>
           ) : null}
           <p className="tm-support-muted">
-            {tOr(
-              'Support.mailNotice',
-              'You also get replies by e-mail from tm-support@peetrix.com.',
-            )}
+            {tOr('Support.mailNotice', `You also get replies by e-mail from ${SUPPORT_EMAIL}.`)}
           </p>
         </>
       )}

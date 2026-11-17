@@ -9,7 +9,11 @@
  * digits and that this slice wrote start with U+200F (the workshop rule).
  */
 
+import { CONTACT_EMAILS } from '../contact/contact-addresses.js';
 import type { LegalDocumentKey } from './legal-content.js';
+
+/** Legal and privacy questions go to the general mailbox (the same one as the English text). */
+const LEGAL_CONTACT_EMAIL = CONTACT_EMAILS.hello;
 
 /** One Arabic document: title, intro and the translated sections by English section id. */
 export interface ArabicLegalCopy {
@@ -39,7 +43,7 @@ export const LEGAL_COPY_AR: Readonly<Record<LegalDocumentKey, ArabicLegalCopy>> 
     sections: {
       operator: {
         heading: 'مَن يقدّم الخدمة',
-        body: 'تقدّم Peter Designs ‏(peetrix.com) خدمة TManage، ويُشار إليها هنا بـ«TManage» أو «نحن». يمكن إرسال الأسئلة المتعلقة بهذه الشروط إلى tm-support@peetrix.com .',
+        body: `تقدّم Peter Designs ‏(peetrix.com) خدمة TManage، ويُشار إليها هنا بـ«TManage» أو «نحن». يمكن إرسال الأسئلة المتعلقة بهذه الشروط إلى ${LEGAL_CONTACT_EMAIL} .`,
       },
       accounts: {
         heading: 'الحسابات والمؤسسات',
@@ -72,7 +76,7 @@ export const LEGAL_COPY_AR: Readonly<Record<LegalDocumentKey, ArabicLegalCopy>> 
       },
       contact: {
         heading: 'التواصل',
-        body: 'Peter Designs ‏(peetrix.com)، مشغّل TManage. البريد الإلكتروني: tm-support@peetrix.com . الموقع: https://tmanageapp.com .',
+        body: `Peter Designs ‏(peetrix.com)، مشغّل TManage. البريد الإلكتروني: ${LEGAL_CONTACT_EMAIL} . الموقع: https://tmanageapp.com .`,
       },
     },
   },
@@ -83,7 +87,7 @@ export const LEGAL_COPY_AR: Readonly<Record<LegalDocumentKey, ArabicLegalCopy>> 
     sections: {
       'who-we-are': {
         heading: 'مَن نحن',
-        body: 'TManage خدمة لإدارة العمل على tmanageapp.com، تشغّلها Peter Designs ‏(peetrix.com)، ويُشار إليها بـ«TManage» أو «نحن». نحن المتحكم في بيانات الحساب والموقع وتشغيل الخدمة. أما المحتوى الذي تضعه المؤسسة في مساحة عملها، فالمؤسسة هي المتحكم فيه ونحن نعالجه نيابة عنها. للتواصل: tm-support@peetrix.com .',
+        body: `TManage خدمة لإدارة العمل على tmanageapp.com، تشغّلها Peter Designs ‏(peetrix.com)، ويُشار إليها بـ«TManage» أو «نحن». نحن المتحكم في بيانات الحساب والموقع وتشغيل الخدمة. أما المحتوى الذي تضعه المؤسسة في مساحة عملها، فالمؤسسة هي المتحكم فيه ونحن نعالجه نيابة عنها. للتواصل: ${LEGAL_CONTACT_EMAIL} .`,
       },
       'what-we-collect': {
         heading: 'البيانات التي نجمعها',
@@ -124,7 +128,7 @@ export const LEGAL_COPY_AR: Readonly<Record<LegalDocumentKey, ArabicLegalCopy>> 
       },
       'your-rights': {
         heading: 'حقوقك',
-        body: 'بحسب مكان إقامتك، قد يكون لك الحق في الوصول إلى بياناتك الشخصية أو تصحيحها أو تصديرها أو حذفها، وفي تقييد معالجتها أو الاعتراض عليها، وفي سحب الموافقة، وفي تقديم شكوى إلى سلطة حماية البيانات. ويمكن للأعضاء عرض ملفاتهم الشخصية وتصحيحها في TManage، ويمكن لمالكي المؤسسات تصدير بيانات مساحة العمل. لتقديم طلب، بما في ذلك طلب تصدير البيانات أو حذفها، راسل tm-support@peetrix.com من العنوان المسجّل في حسابك؛ ونرد خلال 30 يومًا. وحيث توجد البيانات في مساحة عمل مؤسسة، قد نحيل الطلب إلى تلك المؤسسة، التي تتحكم في المحتوى.',
+        body: `بحسب مكان إقامتك، قد يكون لك الحق في الوصول إلى بياناتك الشخصية أو تصحيحها أو تصديرها أو حذفها، وفي تقييد معالجتها أو الاعتراض عليها، وفي سحب الموافقة، وفي تقديم شكوى إلى سلطة حماية البيانات. ويمكن للأعضاء عرض ملفاتهم الشخصية وتصحيحها في TManage، ويمكن لمالكي المؤسسات تصدير بيانات مساحة العمل. لتقديم طلب، بما في ذلك طلب تصدير البيانات أو حذفها، راسل ${LEGAL_CONTACT_EMAIL} من العنوان المسجّل في حسابك؛ ونرد خلال 30 يومًا. وحيث توجد البيانات في مساحة عمل مؤسسة، قد نحيل الطلب إلى تلك المؤسسة، التي تتحكم في المحتوى.`,
       },
       children: {
         heading: 'الأطفال',
@@ -140,7 +144,7 @@ export const LEGAL_COPY_AR: Readonly<Record<LegalDocumentKey, ArabicLegalCopy>> 
       },
       contact: {
         heading: 'التواصل',
-        body: 'Peter Designs ‏(peetrix.com)، مشغّل TManage. البريد الإلكتروني: tm-support@peetrix.com . الموقع: https://tmanageapp.com .',
+        body: `Peter Designs ‏(peetrix.com)، مشغّل TManage. البريد الإلكتروني: ${LEGAL_CONTACT_EMAIL} . الموقع: https://tmanageapp.com .`,
       },
     },
   },

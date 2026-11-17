@@ -1,4 +1,4 @@
-import { SOCIAL_PROFILES, SUPPORT_EMAIL } from './public-contact';
+import { HELLO_EMAIL, SOCIAL_PROFILES, SUPPORT_EMAIL } from './public-contact';
 import { absoluteSiteUrl, siteOrigin } from './site-origin';
 
 /**
@@ -37,7 +37,7 @@ export function homeGraph(input: {
         name: 'TManage',
         url: absoluteSiteUrl('/', origin),
         logo: `${origin}/brand/tmanage-icon-512.png`,
-        email: SUPPORT_EMAIL,
+        email: HELLO_EMAIL,
         contactPoint: {
           '@type': 'ContactPoint',
           contactType: 'customer support',

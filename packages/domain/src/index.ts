@@ -303,6 +303,10 @@ export type {
 // 53-15 — notification routing: every type → kind and channels; the kind × channel matrix
 export * from './notifications/routing.js';
 
+// NEWMAIL — the public mailboxes at tmanageapp.com (one source of truth for every contact address)
+export { CONTACT_EMAILS } from './contact/contact-addresses.js';
+export type { ContactMailbox } from './contact/contact-addresses.js';
+
 // Public legal documents — x188, rendered server-side by the web and served by the API
 export { LEGAL_DOCUMENTS } from './legal/legal-content.js';
 export type { LegalDocument, LegalDocumentKey } from './legal/legal-content.js';

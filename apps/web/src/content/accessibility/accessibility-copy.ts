@@ -1,5 +1,7 @@
 import type { CapsuleState } from '@tmanage/ui';
 
+import { SUPPORT_EMAIL } from '../../lib/public-contact';
+
 /**
  * The public accessibility statement (`/accessibility`, `/ar/accessibility`), English and Arabic
  * side by side (the security page's repo-content pattern; it reuses that page's layout because no
@@ -10,7 +12,7 @@ import type { CapsuleState } from '@tmanage/ui';
  */
 
 /** Where accessibility feedback goes: the support mailbox, read by a person. */
-export const ACCESSIBILITY_FEEDBACK_EMAIL = 'tm-support@peetrix.com';
+export const ACCESSIBILITY_FEEDBACK_EMAIL = SUPPORT_EMAIL;
 
 export type AccessibilityLanguage = 'en' | 'ar';
 export type A11yStatus = 'live' | 'planned' | 'not_audited';

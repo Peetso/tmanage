@@ -50,7 +50,7 @@ import type {
  * replying run under a service context for the thread's own organization, and every reply or
  * status change writes a platform audit row in the same transaction. A reply also writes the
  * person's in-app notification there, and after commit sends the e-mail (reply-to
- * `tm-support@peetrix.com`); a mail failure never undoes the reply.
+ * `support@tmanageapp.com`); a mail failure never undoes the reply.
  */
 
 export const SUPPORT_LIST_REASON =

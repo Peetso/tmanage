@@ -11,6 +11,8 @@
  * Figma: 604:33897 (desktop 608:34272 / 608:34464, mobile 608:34616 / 608:34708).
  */
 
+import { HELLO_EMAIL } from '../../lib/public-contact';
+
 export type CompareLanguage = 'en' | 'ar';
 
 export type Bilingual = Readonly<Record<CompareLanguage, string>>;
@@ -52,7 +54,7 @@ export const COMPARE_CHECKED_ON = '2026-11-15';
 export const COMPARE_STALE_AFTER_DAYS = 90;
 
 /** The address readers write to when a fact has changed. */
-export const COMPARE_CORRECTIONS_EMAIL = 'tm-support@peetrix.com';
+export const COMPARE_CORRECTIONS_EMAIL = HELLO_EMAIL;
 
 export const COMPARE_FEATURES: readonly CompareFeature[] = [
   'tasks',
