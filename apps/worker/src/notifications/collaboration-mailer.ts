@@ -1,5 +1,6 @@
-import { forCompany } from '@tmanage/mail';
+import { forCompany, greeting } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
+import { noticeSignature, signatureRowHtml } from './notice-sign-off.js';
 import { composeReviewEmail } from './review-email.js';
 
 /**
@@ -83,34 +84,6 @@ function oneLine(value: string): string {
   return value.replaceAll(/\s+/gu, ' ').trim();
 }
 
-function inProject(facts: CollaborationEmailFacts): string {
-  return facts.projectName === undefined ? '' : ` in ${oneLine(facts.projectName)}`;
-}
-
-/**
- * NT1 — `request_message` in Arabic. Same facts, same lines, same link; never what anybody wrote.
- * (`approval_requested` has its own designed composer in `approval-email` below.)
- */
-function composeArabicRequestMessage(facts: CollaborationEmailFacts): MailMessage {
-  const name = oneLine(facts.recipientName);
-  const actor = oneLine(facts.actorName ?? facts.organizationName);
-  const title = oneLine(facts.subjectTitle);
-  const studio = oneLine(facts.organizationName);
-  const where = facts.projectName === undefined ? '' : ` في ${oneLine(facts.projectName)}`;
-  const subject = `رسالة جديدة على ${title}`;
-  const middle = `نشر ${actor} رسالة جديدة على الطلب ${title}${where}.`;
-  return {
-    to: facts.recipientEmail,
-    subject,
-    text: [
-      `مرحبًا ${name}،`,
-      middle,
-      `افتحه من هنا: ${facts.link}`,
-      `تصلك هذه الرسالة بسبب إعدادات الإشعارات لديك في ${studio} على TManage.`,
-    ].join('\n\n'),
-  };
-}
-
 /**
  * t8-b — the designed approval request (Figma 371:1786 English, 371:2214 Arabic): wordmark, rule,
  * who sent it and the project, "Your approval is needed: <title>, version N", the decide-by date
@@ -155,45 +128,65 @@ function initialsOf(name: string): string {
 
 interface ApprovalCopy {
   readonly subject: string;
+  readonly greeting: string;
   readonly sender: string;
   readonly project: string;
-  readonly body: string;
-  readonly approve: string;
-  readonly change: string;
-  readonly note: string;
-  readonly footer: string;
+  /** The lead sentence, then the sender's note and the decide-by line when there are any. */
+  readonly lines: readonly string[];
+  readonly button: string;
+  readonly signature: readonly string[];
 }
 
+/** EMAIL-COPY N6 (a team approver) and K8 (a client approver in the portal). */
 function approvalCopy(facts: CollaborationEmailFacts, arabic: boolean): ApprovalCopy {
+  const language = arabic ? 'ar' : 'en';
   const studio = oneLine(facts.organizationName);
   const actor = facts.actorName === undefined ? null : oneLine(facts.actorName);
+  const who = actor ?? studio;
   const title = oneLine(facts.subjectTitle);
   const project = facts.projectName === undefined ? '' : oneLine(facts.projectName);
   const due = facts.dueDate === undefined ? null : oneLine(facts.dueDate);
   const check = facts.checkNote === undefined ? '' : oneLine(facts.checkNote);
   const version = facts.versionNumber;
+  const portal = facts.portal === true;
   const sender = actor === null || actor === studio ? studio : `${actor} · ${studio}`;
+  const signature = noticeSignature(language, { portal, workspaceName: studio, link: facts.link });
+  const head = { greeting: greeting(language, facts.recipientName), project, signature };
   if (arabic) {
+    const suffix = version === undefined ? '' : `، الإصدار ${version}`;
+    const lead = portal
+      ? `يطلب ${who} من ${studio} اعتمادك على ${title}${suffix}.`
+      : `طلب ${who} اعتمادك على ${title}${suffix}.`;
     return {
-      subject: `${RLM}مطلوب اعتمادك: ${title}${version === undefined ? '' : `، الإصدار ${version}`}`,
+      ...head,
+      subject: portal
+        ? `${RLM}${studio}: مطلوب اعتمادك على ${title}${suffix}`
+        : `${RLM}مطلوب اعتمادك: ${title}${suffix}`,
       sender: `${RLM}${sender}`,
-      project,
-      body: [due === null ? '' : `يُرجى اتخاذ القرار قبل ${due}.`, check].filter(Boolean).join(' '),
-      approve: 'المراجعة والاعتماد',
-      change: 'طلب تعديلات',
-      note: 'يُسجَّل قرارك على هذا الإصدار تحديدًا.',
-      footer: `${RLM}أُرسلت من TManage نيابةً عن ${studio}`,
+      lines: [
+        `${RLM}${lead}`,
+        check === '' ? '' : `"${check}"`,
+        due === null ? '' : `مطلوب قبل ${due}.`,
+      ].filter(Boolean),
+      button: 'راجع وقرّر',
     };
   }
+  const suffix = version === undefined ? '' : `, version ${version}`;
+  const lead = portal
+    ? `${who} from ${studio} asks for your approval on ${title}${suffix}.`
+    : `${who} asked for your approval on ${title}${suffix}.`;
   return {
-    subject: `Your approval is needed: ${title}${version === undefined ? '' : `, version ${version}`}`,
+    ...head,
+    subject: portal
+      ? `${studio}: your approval is needed on ${title}${suffix}`
+      : `Your approval is needed: ${title}${suffix}`,
     sender,
-    project,
-    body: [due === null ? '' : `Please decide by ${due}.`, check].filter(Boolean).join(' '),
-    approve: 'Review and approve',
-    change: 'Request changes',
-    note: 'Your decision is recorded against this exact version.',
-    footer: `Sent by TManage on behalf of ${studio}`,
+    lines: [
+      lead,
+      check === '' ? '' : `"${check}"`,
+      due === null ? '' : `Requested by ${due}.`,
+    ].filter(Boolean),
+    button: 'Review and decide',
   };
 }
 
@@ -209,10 +202,12 @@ function renderApprovalHtml(
   const align = arabic ? 'right' : 'left';
   const font = arabic ? t.fontArabic : t.fontLatin;
   const href = e(link);
-  const body =
-    copy.body === ''
-      ? ''
-      : `<p style="margin:0 0 20px 0;font-family:${font};font-size:15px;line-height:22px;color:${t.ink650};">${e(copy.body)}</p>`;
+  const body = copy.lines
+    .map(
+      (line) =>
+        `<p style="margin:0 0 20px 0;font-family:${font};font-size:15px;line-height:22px;color:${t.ink650};">${e(line)}</p>`,
+    )
+    .join('');
   const project =
     copy.project === ''
       ? ''
@@ -242,12 +237,11 @@ function renderApprovalHtml(
 <h1 style="margin:0 0 16px 0;font-family:${font};font-size:24px;line-height:32px;font-weight:600;color:${t.ink950};">${e(copy.subject)}</h1>
 ${body}
 <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="${align}"><tr>
-${button(copy.approve, true)}<td width="12" style="font-size:0;">&nbsp;</td>${button(copy.change, false)}
+${button(copy.button, true)}
 </tr></table>
-<div style="clear:both;height:20px;line-height:20px;font-size:0;">&nbsp;</div>
-<p style="margin:0;font-family:${font};font-size:12px;line-height:18px;color:${t.ink500};">${e(copy.note)}</p>
+<div style="clear:both;height:4px;line-height:4px;font-size:0;">&nbsp;</div>
 </td></tr>
-<tr><td align="center" style="padding:20px 8px 0 8px;font-family:${font};font-size:12px;line-height:18px;color:${t.ink500};">${e(copy.footer)}</td></tr>
+${signatureRowHtml(copy.signature, font, align)}
 </table>
 </td></tr>
 </table>
@@ -262,147 +256,228 @@ export function composeApprovalRequestedEmail(facts: CollaborationEmailFacts): M
   const who = oneLine(facts.actorName ?? facts.organizationName);
   return {
     to: facts.recipientEmail,
+    language: arabic ? 'ar' : 'en',
     subject: copy.subject,
     text: [
-      copy.subject,
-      [copy.sender, copy.project].filter(Boolean).join(' — '),
-      copy.body,
-      `${copy.approve} / ${copy.change}: ${facts.link}`,
-      copy.note,
-      copy.footer,
-    ]
-      .filter(Boolean)
-      .join('\n\n'),
+      copy.greeting,
+      ...copy.lines,
+      `${copy.button}: ${facts.link}`,
+      copy.signature.join('\n'),
+    ].join('\n\n'),
     html: renderApprovalHtml(copy, initialsOf(who), facts.link, arabic),
   };
 }
 
-/**
- * Q3 — `approval_decided`, English or Arabic by the recipient's locale: "<who> approved / requested
- * changes on a deliverable in <project>", and the link to the deliverable. Never the feedback text:
- * the deliverable page shows it to people who may read it.
- */
-export function composeApprovalDecidedEmail(facts: CollaborationEmailFacts): MailMessage {
-  const name = oneLine(facts.recipientName);
-  const actor = oneLine(facts.actorName ?? facts.organizationName);
-  const project = oneLine(facts.projectName ?? facts.subjectTitle);
+interface NoticeCopy {
+  readonly subject: string;
+  readonly lines: readonly string[];
+  readonly button: string;
+}
+
+type PlainKind = Exclude<
+  CollaborationMailKind,
+  'approval_requested' | 'review_comment' | 'review_reply' | 'review_mention' | 'review_decided'
+>;
+
+/** EMAIL-COPY N1-N5, N7, N10-N12 (team) and K8 (portal). Never what anybody wrote. */
+function noticeCopy(kind: PlainKind, facts: CollaborationEmailFacts, arabic: boolean): NoticeCopy {
   const studio = oneLine(facts.organizationName);
+  const actorName = oneLine(facts.actorName ?? facts.organizationName);
+  const portal = facts.portal === true;
+  const actor =
+    portal && actorName !== studio
+      ? arabic
+        ? `${actorName} من ${studio}`
+        : `${actorName} from ${studio}`
+      : actorName;
+  const title = oneLine(facts.subjectTitle);
+  const when = facts.when === undefined ? null : oneLine(facts.when);
+  const due = facts.dueDate === undefined ? null : oneLine(facts.dueDate);
   const approved = facts.decision === 'approved';
-  if (isArabicLocale(facts.locale)) {
-    const line = approved
-      ? `اعتمد ${actor} تسليمًا في ${project}`
-      : `طلب ${actor} تعديلات على تسليم في ${project}`;
-    return {
-      to: facts.recipientEmail,
-      subject: `${RLM}${line}`,
-      text: [
-        `مرحبًا ${name}،`,
-        `${RLM}${line}.`,
-        `افتحه من هنا: ${facts.link}`,
-        `${RLM}تصلك هذه الرسالة بسبب إعدادات الإشعارات لديك في ${studio} على TManage.`,
-      ].join('\n\n'),
-    };
-  }
-  const subject = approved
-    ? `${actor} approved a deliverable in ${project}`
-    : `${actor} requested changes on a deliverable in ${project}`;
-  return {
-    to: facts.recipientEmail,
-    subject,
-    text: [
-      `Hello ${name},`,
-      `${subject}.`,
-      `Open it here: ${facts.link}`,
-      `You are receiving this because of your notification settings in ${studio} on TManage.`,
-    ].join('\n\n'),
-  };
-}
-
-/**
- * BK5 — the meeting invite and the "meeting changed" notice in Arabic, for an `ar*` locale. Same
- * facts, same link; the time is the readable UTC string, kept left-to-right inside the line.
- */
-function composeArabicMeetingEmail(
-  kind: 'meeting_invite' | 'meeting_changed',
-  facts: CollaborationEmailFacts,
-): MailMessage {
-  const name = oneLine(facts.recipientName);
-  const actor = oneLine(facts.actorName ?? facts.organizationName);
-  const title = oneLine(facts.subjectTitle);
-  const studio = oneLine(facts.organizationName);
-  const where = facts.projectName === undefined ? '' : ` في ${oneLine(facts.projectName)}`;
-  const when = facts.when === undefined ? '' : `، في ${facts.when}`;
-  const subject =
-    kind === 'meeting_invite' ? `${RLM}دعاك ${actor} إلى ${title}` : `${RLM}تغيّر موعد ${title}`;
-  const middle =
-    kind === 'meeting_invite'
-      ? `${RLM}دعاك ${actor} إلى الاجتماع ${title}${where}${when}. يمكنك القبول أو الاعتذار من صفحة الاجتماع.`
-      : `${RLM}عدّل ${actor} الاجتماع ${title}${where}. الموعد الآن${when === '' ? '' : `: ${facts.when}`}.`;
-  return {
-    to: facts.recipientEmail,
-    subject,
-    text: [
-      `مرحبًا ${name}،`,
-      middle,
-      `افتحه من هنا: ${facts.link}`,
-      `${RLM}تصلك هذه الرسالة بسبب إعدادات الإشعارات لديك في ${studio} على TManage.`,
-    ].join('\n\n'),
-  };
-}
-
-/**
- * C27 — the two task-people emails, in Arabic for an `ar*` locale and in English otherwise:
- * "you were made a doer / supervisor of <task>" and "<task> you supervise is waiting for your
- * approval". Plain text like the other collaboration emails; the task title is all it quotes.
- */
-function composeWorkPeopleEmail(
-  kind: 'people_assigned' | 'supervised_done',
-  facts: CollaborationEmailFacts,
-): MailMessage {
-  const name = oneLine(facts.recipientName);
-  const actor = oneLine(facts.actorName ?? facts.organizationName);
-  const title = oneLine(facts.subjectTitle);
-  const studio = oneLine(facts.organizationName);
   const supervisor = facts.assigneeRole === 'supervisor';
-  if (isArabicLocale(facts.locale)) {
-    const where = facts.projectName === undefined ? '' : ` في مشروع ${oneLine(facts.projectName)}`;
-    const subject =
-      kind === 'people_assigned'
-        ? `${RLM}${supervisor ? 'أصبحت مشرفًا على' : 'أُضفت منفذًا في'} المهمة ${title}`
-        : `${RLM}المهمة ${title} في انتظار اعتمادك`;
-    const middle =
-      kind === 'people_assigned'
-        ? `${RLM}${supervisor ? `جعلك ${actor} مشرفًا على المهمة ${title}${where}. ستصلك رسالة عندما تصبح جاهزة لاعتمادك.` : `أضافك ${actor} إلى منفذي المهمة ${title}${where}.`}`
-        : `${RLM}علّم ${actor} المهمة ${title}${where} كمكتملة، وهي في انتظار اعتمادك. يمكنك الاعتماد أو إعادتها للعمل من صفحة المهمة.`;
-    return {
-      to: facts.recipientEmail,
-      subject,
-      text: [
-        `مرحبًا ${name}،`,
-        middle,
-        `افتحها من هنا: ${facts.link}`,
-        `${RLM}تصلك هذه الرسالة بسبب إعدادات الإشعارات لديك في ${studio} على TManage.`,
-      ].join('\n\n'),
-    };
+  if (arabic) {
+    switch (kind) {
+      case 'mention':
+        return {
+          subject: `أشار إليك ${actorName} في ${title}`,
+          lines: [`أشار إليك ${actor} في ${title} (${studio}).`],
+          button: 'افتح المحادثة',
+        };
+      case 'comment':
+        return {
+          subject: `علّق ${actorName} على ${title}`,
+          lines: [`كتب ${actor} تعليقًا على ${title}.`],
+          button: 'اقرأ وردّ',
+        };
+      case 'meeting_invite':
+        return {
+          subject: `دعاك ${actorName} إلى ${title}`,
+          lines: [`دعاك ${actor} إلى ${title}.`, when === null ? '' : `الموعد: ${when}`],
+          button: 'عرض الاجتماع',
+        };
+      case 'meeting_changed':
+        return {
+          subject: `تغيّر موعد ${title}`,
+          lines: [`غيّر ${actor} موعد ${title}.`, when === null ? '' : `الموعد الجديد: ${when}`],
+          button: 'عرض الاجتماع',
+        };
+      case 'project_added':
+        return {
+          subject: `أصبحت ضمن مشروع ${title}`,
+          lines: [`أضافك ${actor} إلى مشروع ${title} في ${studio}.`],
+          button: 'افتح المشروع',
+        };
+      case 'approval_decided':
+        return {
+          subject: `${approved ? 'تم الاعتماد' : 'مطلوب تعديلات'}: تسليم في ${title}`,
+          lines: [
+            approved
+              ? `اعتمد ${actor} تسليمًا في ${title}.`
+              : `طلب ${actor} تعديلات على تسليم في ${title}.`,
+          ],
+          button: 'عرض القرار',
+        };
+      case 'people_assigned':
+        return {
+          subject: `مهمة جديدة لك: ${title}`,
+          lines: [
+            `عيّنك ${actor} ${supervisor ? 'مشرفًا' : 'منفّذًا'} لمهمة ${title}.`,
+            due === null ? '' : `موعد التسليم ${due}.`,
+          ],
+          button: 'افتح المهمة',
+        };
+      case 'supervised_done':
+        return {
+          subject: `جاهزة لمراجعتك: ${title}`,
+          lines: [`أنهى ${actor} مهمة ${title}، وهي الآن في انتظار اعتمادك كمشرف.`],
+          button: 'راجع المهمة',
+        };
+      case 'request_message':
+        return portal
+          ? {
+              subject: `ردّ ${actorName} على طلبك ${title}`,
+              lines: [`كتب ${actor} على طلبك ${title}.`],
+              button: 'اقرأ وردّ',
+            }
+          : {
+              subject: `رسالة جديدة على الطلب ${title}`,
+              lines: [`كتب ${actor} على الطلب ${title}.`],
+              button: 'ردّ من داخل TManage',
+            };
+      case 'client_action':
+        return {
+          subject: `${studio} تحتاج إلى ردّك على ${title}`,
+          lines: [`${studio} في انتظارك بخصوص ${title}.`],
+          button: 'افتح البوابة',
+        };
+    }
   }
-  const subject =
-    kind === 'people_assigned'
-      ? `${actor} made you ${supervisor ? 'a supervisor of' : 'a doer on'} ${title}`
-      : `${title} is waiting for your approval`;
-  const middle =
-    kind === 'people_assigned'
-      ? supervisor
-        ? `${actor} made you a supervisor of the task ${title}${inProject(facts)}. You will be told when it is ready for your approval.`
-        : `${actor} added you to the people doing the task ${title}${inProject(facts)}.`
-      : `${actor} marked the task ${title}${inProject(facts)} as done and it is waiting for your approval. You can approve it or send it back from the task page.`;
+  switch (kind) {
+    case 'mention':
+      return {
+        subject: `${actorName} mentioned you in ${title}`,
+        lines: [`${actor} mentioned you in ${title} (${studio}).`],
+        button: 'Open the conversation',
+      };
+    case 'comment':
+      return {
+        subject: `${actorName} commented on ${title}`,
+        lines: [`${actor} left a comment on ${title}.`],
+        button: 'Read and answer',
+      };
+    case 'meeting_invite':
+      return {
+        subject: `${actorName} invited you to ${title}`,
+        lines: [`${actor} invited you to ${title}.`, when === null ? '' : `When: ${when}`],
+        button: 'See the meeting',
+      };
+    case 'meeting_changed':
+      return {
+        subject: `New time for ${title}`,
+        lines: [`${actor} moved ${title}.`, when === null ? '' : `New time: ${when}`],
+        button: 'See the meeting',
+      };
+    case 'project_added':
+      return {
+        subject: `You are now on ${title}`,
+        lines: [`${actor} added you to the project ${title} in ${studio}.`],
+        button: 'Open the project',
+      };
+    case 'approval_decided':
+      return {
+        // The worker reads no deliverable title: the subject is the project the deliverable is in.
+        subject: approved
+          ? `A deliverable in ${title} was approved`
+          : `Changes requested on a deliverable in ${title}`,
+        lines: [
+          approved
+            ? `${actor} approved a deliverable in ${title}.`
+            : `${actor} asked for changes on a deliverable in ${title}.`,
+        ],
+        button: 'See the decision',
+      };
+    case 'people_assigned':
+      return {
+        subject: `New task for you: ${title}`,
+        lines: [
+          `${actor} made you the ${supervisor ? 'supervisor' : 'doer'} of ${title}.`,
+          due === null ? '' : `Due ${due}.`,
+        ],
+        button: 'Open the task',
+      };
+    case 'supervised_done':
+      return {
+        subject: `Ready for your check: ${title}`,
+        lines: [`${actor} finished ${title} and it now waits for your approval as supervisor.`],
+        button: 'Check the task',
+      };
+    case 'request_message':
+      return portal
+        ? {
+            subject: `${actorName} answered your request ${title}`,
+            lines: [`${actor} wrote on your request ${title}.`],
+            button: 'Read and answer',
+          }
+        : {
+            subject: `New message on the request ${title}`,
+            lines: [`${actor} wrote on the request ${title}.`],
+            button: 'Answer in TManage',
+          };
+    case 'client_action':
+      return {
+        subject: `${studio} needs your input on ${title}`,
+        lines: [`${studio} is waiting on you for ${title}.`],
+        button: 'Open the portal',
+      };
+  }
+}
+
+/** Q3 — `approval_decided` (N7): who decided, on what, and the link. Never the feedback text. */
+export function composeApprovalDecidedEmail(facts: CollaborationEmailFacts): MailMessage {
+  return composePlainNotice('approval_decided', facts);
+}
+
+function composePlainNotice(kind: PlainKind, facts: CollaborationEmailFacts): MailMessage {
+  const arabic = isArabicLocale(facts.locale);
+  const language = arabic ? 'ar' : 'en';
+  const copy = noticeCopy(kind, facts, arabic);
+  // The client-action e-mail always reaches a client person: the agency signs it.
+  const portal = facts.portal === true || kind === 'client_action';
+  const signature = noticeSignature(language, {
+    portal,
+    workspaceName: oneLine(facts.organizationName),
+    link: facts.link,
+  });
+  const mark = arabic ? RLM : '';
   return {
     to: facts.recipientEmail,
-    subject,
+    language,
+    subject: `${mark}${copy.subject}`,
     text: [
-      `Hello ${name},`,
-      middle,
-      `Open it here: ${facts.link}`,
-      `You are receiving this because of your notification settings in ${studio} on TManage.`,
+      greeting(language, facts.recipientName),
+      ...copy.lines.filter(Boolean).map((line) => `${mark}${line}`),
+      `${copy.button}: ${facts.link}`,
+      signature.join('\n'),
     ].join('\n\n'),
   };
 }
@@ -412,9 +487,6 @@ export function composeCollaborationEmail(
   facts: CollaborationEmailFacts,
 ): MailMessage {
   if (kind === 'approval_requested') return composeApprovalRequestedEmail(facts);
-  if (kind === 'people_assigned' || kind === 'supervised_done') {
-    return composeWorkPeopleEmail(kind, facts);
-  }
   if (
     kind === 'review_comment' ||
     kind === 'review_reply' ||
@@ -423,64 +495,7 @@ export function composeCollaborationEmail(
   ) {
     return composeReviewEmail(kind, facts);
   }
-  if ((kind === 'meeting_invite' || kind === 'meeting_changed') && isArabicLocale(facts.locale)) {
-    return composeArabicMeetingEmail(kind, facts);
-  }
-  if (kind === 'approval_decided') return composeApprovalDecidedEmail(facts);
-  if (kind === 'request_message' && isArabicLocale(facts.locale)) {
-    return composeArabicRequestMessage(facts);
-  }
-  const name = oneLine(facts.recipientName);
-  const actor = oneLine(facts.actorName ?? facts.organizationName);
-  const title = oneLine(facts.subjectTitle);
-  const studio = oneLine(facts.organizationName);
-  let subject: string;
-  let middle: string;
-  switch (kind) {
-    case 'mention':
-      subject = `${actor} mentioned you in ${title}`;
-      middle = `${actor} mentioned you in ${title}${inProject(facts)}.`;
-      break;
-    case 'comment':
-      subject = `${actor} commented on ${title}`;
-      middle = `${actor} commented on the document ${title}${inProject(facts)}.`;
-      break;
-    case 'meeting_invite':
-      subject = `${actor} invited you to ${title}`;
-      middle =
-        `${actor} invited you to the meeting ${title}${inProject(facts)}` +
-        (facts.when === undefined ? '.' : `, on ${facts.when}.`) +
-        ' You can accept or decline from the meeting page.';
-      break;
-    case 'meeting_changed':
-      subject = `${title} has changed`;
-      middle =
-        `${actor} changed the meeting ${title}${inProject(facts)}.` +
-        (facts.when === undefined ? '' : ` It is now on ${facts.when}.`);
-      break;
-    case 'project_added':
-      subject = `${actor} added you to ${title}`;
-      middle = `${actor} added you to the project ${title}. Its work, channels and documents are now open to you.`;
-      break;
-    case 'client_action':
-      subject = `${studio} needs your input on ${title}`;
-      middle = `${studio} is waiting on you for ${title}${inProject(facts)}.`;
-      break;
-    case 'request_message':
-      subject = `New message on ${title}`;
-      middle = `${actor} posted a new message on the request ${title}${inProject(facts)}.`;
-      break;
-  }
-  return {
-    to: facts.recipientEmail,
-    subject,
-    text: [
-      `Hello ${name},`,
-      middle,
-      `Open it here: ${facts.link}`,
-      `You are receiving this because of your notification settings in ${studio} on TManage.`,
-    ].join('\n\n'),
-  };
+  return composePlainNotice(kind, facts);
 }
 
 export type CollaborationMailDelivery = 'sent' | 'none' | 'failed';

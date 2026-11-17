@@ -1,5 +1,5 @@
 import type { OutboxEventPayloads } from '@tmanage/domain';
-import { forCompany } from '@tmanage/mail';
+import { forCompany, greeting, signOffText } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 
 /**
@@ -17,7 +17,15 @@ export interface StorageRootEmailFacts {
   readonly recipientName: string;
   readonly provider: RootAtRisk['provider'];
   readonly reason: RootAtRisk['reason'];
+  /** EMAILBUILD (c): the workspace, who holds the storage, the locale and the screen, when known. */
+  readonly workspaceName?: string;
+  readonly holderName?: string;
+  readonly locale?: string;
+  readonly link?: string;
 }
+
+/** U+200F, the right-to-left mark: keeps a mixed Arabic/Latin line anchored right. */
+const RLM = String.fromCodePoint(0x20_0f);
 
 /** Flattened before it reaches a header: a display name is a string a person typed. */
 function oneLine(value: string): string {
@@ -29,32 +37,59 @@ const PROVIDER_NAME: Readonly<Record<StorageRootEmailFacts['provider'], string>>
   onedrive: 'OneDrive',
 };
 
+/** EMAIL-COPY N16, signed "TManage Support" (reply-able). */
 export function composeStorageRootEmail(facts: StorageRootEmailFacts): MailMessage {
-  const name = oneLine(facts.recipientName);
+  const language = facts.locale !== undefined && /^ar(?:-|$)/iu.test(facts.locale) ? 'ar' : 'en';
+  const arabic = language === 'ar';
   const provider = PROVIDER_NAME[facts.provider];
-  const what =
-    facts.reason === 'personal_root'
-      ? `Your company's TManage files are stored in one person's own ${provider}. If that ` +
-        `account is removed, the files go with it.`
-      : `The person who connected your company's ${provider} is no longer an admin of this ` +
-        `workspace. The files still work for now, but they stay in that person's account until ` +
-        `the storage is handed over.`;
-  const fix =
-    facts.reason === 'personal_root'
-      ? `Move the storage to a company-owned place (a Shared Drive or a SharePoint library) in ` +
-        `Settings, Storage.`
-      : `Hand the storage over to another admin in Settings, Storage, before that account is removed.`;
+  const named = facts.workspaceName === undefined ? '' : oneLine(facts.workspaceName);
+  const holder = facts.holderName === undefined ? '' : oneLine(facts.holderName);
+  const personal = facts.reason === 'personal_root';
+  const target = facts.link ?? (arabic ? 'الإعدادات > التخزين' : 'Settings > Storage');
+  const mark = arabic ? RLM : '';
+  let subject: string;
+  let lines: string[];
+  if (arabic) {
+    const ws = named === '' ? 'مساحة عملك' : named;
+    const who = holder === '' ? 'شخص واحد' : holder;
+    subject = personal
+      ? `ملفات ${ws} محفوظة في ${provider} شخصي`
+      : `سلّم تخزين ${provider} الخاص بـ ${ws}`;
+    lines = personal
+      ? [
+          `ملفات ${ws} محفوظة في حساب ${provider} الشخصي لـ ${who}. لو أُغلق هذا الحساب أو غادر صاحبه، تفقد الشركة الوصول إليها.`,
+          `انقل الملفات إلى حساب الشركة: ${target}`,
+          'ردّ علينا لو أردت أن نشرح لك الخطوات.',
+        ]
+      : [
+          `تخزين ${provider} الخاص بـ ${ws} مربوط بحساب شخص لم يعد مسؤولًا في مساحة العمل. من فضلك سلّمه إلى حساب تابع للشركة حتى تبقى الملفات مع الشركة.`,
+          `ابدأ التسليم: ${target}`,
+        ];
+  } else {
+    const ws = named === '' ? 'Your workspace' : named;
+    const whose = holder === '' ? "one person's" : `${holder}'s`;
+    subject = personal
+      ? `${ws} files are stored in a personal ${provider}`
+      : `Hand over the ${provider} storage of ${ws}`;
+    lines = personal
+      ? [
+          `The files of ${ws} are stored in ${whose} personal ${provider}. If that account is closed or its owner leaves, the company loses access to them.`,
+          `Move the files to a company account: ${target}`,
+          'Reply if you want us to walk you through it.',
+        ]
+      : [
+          `The ${provider} storage of ${ws} is connected through the account of someone who is no longer an admin. Please hand it over to a company account so the files stay with the company.`,
+          `Start the handover: ${target}`,
+        ];
+  }
   return {
     to: facts.recipientEmail,
-    subject:
-      facts.reason === 'personal_root'
-        ? `Your TManage files are in a personal ${provider}`
-        : `Hand over your TManage ${provider} storage`,
+    language,
+    subject: `${mark}${subject}`,
     text: [
-      `Hello ${name},`,
-      what,
-      fix,
-      `You are receiving this because you own this TManage workspace.`,
+      greeting(language, facts.recipientName),
+      ...lines.map((line) => `${mark}${line}`),
+      signOffText('support', language, true),
     ].join('\n\n'),
   };
 }

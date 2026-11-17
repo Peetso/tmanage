@@ -1,4 +1,4 @@
-import { forCompany } from '@tmanage/mail';
+import { forCompany, greeting, signOffText } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import { isArabicLocale } from './collaboration-mailer.js';
 
@@ -61,52 +61,48 @@ interface Copy {
 function englishCopy(kind: PrivacyMailKind, facts: PrivacyEmailFacts): Copy {
   const studio = oneLine(facts.organizationName);
   const company = facts.scope === 'company';
+  const subject = company ? studio : `your account in ${studio}`;
+  const Subject = company ? studio : `Your account in ${studio}`;
   const when = facts.scheduledFor === undefined ? '' : formatMailDate(facts.scheduledFor, false);
-  const open = facts.link === undefined ? [] : [`Open it here: ${facts.link}`];
+  const link = (label: string): string[] =>
+    facts.link === undefined ? [] : [`${label}: ${facts.link}`];
   switch (kind) {
     case 'export_ready':
       return {
         subject: 'Your TManage data export is ready',
         lines: [
           company
-            ? `The export of ${studio}'s data you asked for is ready to download.`
-            : `The personal data export you asked for in ${studio} is ready to download.`,
-          'The download link works for 7 days. After that the file is removed.',
-          ...open,
+            ? `The copy of the data of ${studio} that you asked for is ready.`
+            : 'The copy of your data that you asked for is ready.',
+          ...link('Download it'),
+          'The file stays available for 7 days. You need to be signed in to download it.',
         ],
       };
     case 'deletion_scheduled':
       return {
-        subject: company
-          ? `${studio} is scheduled to be deleted on ${when}`
-          : `Your account in ${studio} is scheduled to be deleted on ${when}`,
+        subject: `${Subject} will be deleted on ${when}`,
         lines: [
-          company
-            ? `A request was made to delete ${studio} and all of its data. It will be carried out on ${when}. Until then, an owner can cancel it.`
-            : `A request was made to delete your account in ${studio}. It will be carried out on ${when}. Until then, you can cancel it.`,
-          ...open,
-          'If you did not expect this, contact an owner of your company now.',
+          `${Subject} is scheduled to be deleted on ${when}. Until then nothing is removed.`,
+          ...link('Cancel the deletion'),
         ],
       };
     case 'deletion_cancelled':
       return {
-        subject: company
-          ? `The deletion of ${studio} was cancelled`
-          : `The deletion of your account in ${studio} was cancelled`,
+        subject: `The deletion of ${subject} was cancelled`,
         lines: [
           company
-            ? `${studio} will not be deleted. Everything stays as it was.`
-            : `Your account in ${studio} will not be deleted. Everything stays as it was.`,
-          ...open,
+            ? `The deletion was cancelled. ${studio} and its data stay as they were.`
+            : 'The deletion was cancelled. Your account and its data stay as they were.',
+          ...link('Open TManage'),
         ],
       };
     case 'deletion_executed':
       return {
-        subject: company ? `${studio} was deleted` : `Your account in ${studio} was deleted`,
+        subject: `${Subject} was deleted`,
         lines: [
           company
-            ? `As requested, ${studio} was closed and can no longer be opened. Its data and files are erased within the next day.`
-            : `As requested, your access to ${studio} was removed. Work you shared with the team stays, shown as a former member.`,
+            ? `${studio} and its data were deleted, as requested. This is the last e-mail we send about it.`
+            : `Your account in ${studio} and its personal data were deleted, as requested. This is the last e-mail we send about it.`,
         ],
       };
   }
@@ -115,78 +111,69 @@ function englishCopy(kind: PrivacyMailKind, facts: PrivacyEmailFacts): Copy {
 function arabicCopy(kind: PrivacyMailKind, facts: PrivacyEmailFacts): Copy {
   const studio = oneLine(facts.organizationName);
   const company = facts.scope === 'company';
+  const target = company ? studio : `حسابك في ${studio}`;
   const when = facts.scheduledFor === undefined ? '' : formatMailDate(facts.scheduledFor, true);
-  const open = facts.link === undefined ? [] : [`افتحه من هنا: ${facts.link}`];
+  const link = (label: string): string[] =>
+    facts.link === undefined ? [] : [`${label}: ${facts.link}`];
   switch (kind) {
     case 'export_ready':
       return {
         subject: 'نسخة بياناتك من TManage جاهزة',
         lines: [
           company
-            ? `نسخة بيانات ${studio} التي طلبتها جاهزة للتنزيل.`
-            : `نسخة بياناتك الشخصية في ${studio} التي طلبتها جاهزة للتنزيل.`,
-          'رابط التنزيل صالح لمدة 7 أيام، وبعدها يُحذف الملف.',
-          ...open,
+            ? `نسخة بيانات ${studio} التي طلبتها أصبحت جاهزة.`
+            : 'نسخة بياناتك التي طلبتها أصبحت جاهزة.',
+          ...link('نزّل النسخة'),
+          'يبقى الملف متاحًا لمدة 7 أيام، ويلزم تسجيل الدخول لتنزيله.',
         ],
       };
     case 'deletion_scheduled':
       return {
-        subject: company ? `سيُحذف ${studio} في ${when}` : `سيُحذف حسابك في ${studio} في ${when}`,
+        subject: `سيُحذف ${target} يوم ${when}`,
         lines: [
-          company
-            ? `طُلب حذف ${studio} وكل بياناته. سيتم الحذف في ${when}، ويمكن لأي مالك إلغاؤه قبل ذلك.`
-            : `طُلب حذف حسابك في ${studio}. سيتم الحذف في ${when}، ويمكنك إلغاؤه قبل ذلك.`,
-          ...open,
-          'إذا لم تكن تتوقع هذا، فتواصل الآن مع أحد مالكي شركتك.',
+          `${target} مجدول للحذف يوم ${when}. حتى ذلك اليوم لن يُحذف أي شيء.`,
+          ...link('إلغاء الحذف'),
         ],
       };
     case 'deletion_cancelled':
       return {
-        subject: company ? `أُلغي حذف ${studio}` : `أُلغي حذف حسابك في ${studio}`,
+        subject: `أُلغي حذف ${target}`,
         lines: [
           company
-            ? `لن يُحذف ${studio}، وكل شيء باقٍ كما كان.`
-            : `لن يُحذف حسابك في ${studio}، وكل شيء باقٍ كما كان.`,
-          ...open,
+            ? `أُلغي الحذف. ${studio} وبياناتها باقية كما كانت.`
+            : 'أُلغي الحذف. حسابك وبياناته باقية كما كانت.',
+          ...link('افتح TManage'),
         ],
       };
     case 'deletion_executed':
       return {
-        subject: company ? `حُذف ${studio}` : `حُذف حسابك في ${studio}`,
+        subject: `حُذف ${target}`,
         lines: [
           company
-            ? `بناءً على الطلب، أُغلق ${studio} ولم يعد بالإمكان فتحه. تُمحى بياناته وملفاته خلال اليوم التالي.`
-            : `بناءً على الطلب، أُزيل وصولك إلى ${studio}. يبقى العمل الذي شاركته مع الفريق ظاهرًا باسم عضو سابق.`,
+            ? `حُذفت ${studio} وبياناتها كما طلبت. هذه آخر رسالة نرسلها بخصوصها.`
+            : `حُذف حسابك في ${studio} وبياناته الشخصية كما طلبت. هذه آخر رسالة نرسلها بخصوصه.`,
         ],
       };
   }
 }
 
+/** EMAIL-COPY S11, signed [SEC]. */
 export function composePrivacyEmail(kind: PrivacyMailKind, facts: PrivacyEmailFacts): MailMessage {
-  const name = oneLine(facts.recipientName);
-  const studio = oneLine(facts.organizationName);
-  if (isArabicLocale(facts.locale)) {
-    const copy = arabicCopy(kind, facts);
-    return {
-      to: facts.recipientEmail,
-      subject: copy.subject,
-      text: [
-        `مرحبًا ${name}،`,
-        ...copy.lines,
-        `تصلك هذه الرسالة لأنها تخص بياناتك في ${studio} على TManage.`,
-      ]
-        .map((line) => `${RLM}${line}`)
-        .join('\n\n'),
-    };
-  }
-  const copy = englishCopy(kind, facts);
+  const arabic = isArabicLocale(facts.locale);
+  const language = arabic ? 'ar' : 'en';
+  const copy = arabic ? arabicCopy(kind, facts) : englishCopy(kind, facts);
+  const mark = arabic ? RLM : '';
+  const help = arabic
+    ? 'لم تطلب ذلك؟ راسلنا على support@tmanageapp.com.'
+    : 'Did not ask for this? Write to support@tmanageapp.com.';
   return {
     to: facts.recipientEmail,
-    subject: copy.subject,
+    language,
+    subject: `${mark}${copy.subject}`,
     text: [
-      `Hello ${name},`,
-      ...copy.lines,
-      `You are receiving this because it concerns your data in ${studio} on TManage.`,
+      `${mark}${greeting(language, facts.recipientName)}`,
+      ...[...copy.lines, help].map((line) => `${mark}${line}`),
+      signOffText('security', language),
     ].join('\n\n'),
   };
 }

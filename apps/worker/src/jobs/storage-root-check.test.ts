@@ -170,7 +170,7 @@ describe('the owners are told, once', () => {
       },
     ]);
     expect(composeStorageRootEmail(sent[0] as StorageRootEmailFacts).subject).toBe(
-      'Hand over your TManage OneDrive storage',
+      'Hand over the OneDrive storage of Your workspace',
     );
   });
 });

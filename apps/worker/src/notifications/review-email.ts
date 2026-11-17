@@ -1,5 +1,7 @@
+import { greeting } from '@tmanage/mail';
 import type { MailMessage } from '@tmanage/mail';
 import type { CollaborationEmailFacts } from './collaboration-mailer.js';
+import { noticeSignature, signatureRowHtml } from './notice-sign-off.js';
 
 /**
  * R4 slice 12 — the proofing viewer's four emails (`review-comment`, `review-reply`,
@@ -84,21 +86,29 @@ export interface ReviewEmailCopy {
   /** File, comment number (when there is one) and project, in that order. */
   readonly facts: readonly ReviewEmailFact[];
   readonly button: string;
-  readonly footer: string;
+  /** EMAILBUILD (c): [TM] for the studio, the agency's [WS] in the portal. */
+  readonly signature: readonly string[];
 }
 
-/** The words of one review email — exported so the suite can read them without the markup. */
+/** The words of one review email (EMAIL-COPY N8, N9; K8 for the portal). */
 export function reviewEmailCopy(
   kind: ReviewMailKind,
   facts: CollaborationEmailFacts,
 ): ReviewEmailCopy {
   const ar = arabic(facts.locale);
+  const language = ar ? 'ar' : 'en';
   const studio = oneLine(facts.organizationName);
-  const actor = oneLine(facts.actorName ?? facts.organizationName);
+  const actorName = oneLine(facts.actorName ?? facts.organizationName);
   const file = fileWithVersion(oneLine(facts.subjectTitle), facts.versionNumber);
-  const name = oneLine(facts.recipientName);
   const pin = facts.pinNumber;
   const portal = facts.portal === true;
+  // K8: in the portal the lead sentence names the agency.
+  const actor =
+    portal && actorName !== studio
+      ? ar
+        ? `${actorName} من ${studio}`
+        : `${actorName} from ${studio}`
+      : actorName;
   const project = facts.projectName === undefined ? undefined : oneLine(facts.projectName);
   const factRows = (labels: {
     file: string;
@@ -111,99 +121,80 @@ export function reviewEmailCopy(
       : [{ label: labels.comment, value: String(pin) }]),
     ...(project === undefined ? [] : [{ label: labels.project, value: project }]),
   ];
+  const base = {
+    greeting: greeting(language, facts.recipientName),
+    signature: noticeSignature(language, { portal, workspaceName: studio, link: facts.link }),
+  };
+  const approved = facts.decision === 'approved';
 
   if (ar) {
-    const where = project === undefined ? '' : ` في ${project}`;
-    const which = pin === undefined ? 'تعليقًا' : `التعليق ${pin}`;
-    const footer = portal
-      ? `${RLM}أُرسلت من TManage نيابةً عن ${studio}`
-      : `${RLM}تصلك هذه الرسالة بسبب إعدادات الإشعارات لديك في ${studio} على TManage.`;
-    const base = {
-      greeting: `مرحبًا ${name}،`,
+    const head = {
+      ...base,
       eyebrow: 'مراجعة ملف',
       facts: factRows({ file: 'الملف', comment: 'التعليق', project: 'المشروع' }),
-      footer,
+      button: 'افتح الملف عند هذا التعليق',
     };
     switch (kind) {
       case 'review_comment':
         return {
-          ...base,
+          ...head,
           subject: `${RLM}علّق ${actor} على ${file}`,
-          line: `${RLM}ترك ${actor} ${which} على ${file}${where}.`,
-          button: 'فتح التعليق',
+          line: `${RLM}علّق ${actor} على ${file}.`,
         };
       case 'review_reply':
         return {
-          ...base,
+          ...head,
           subject: `${RLM}ردّ ${actor} على ${file}`,
-          line: `${RLM}ردّ ${actor} على ${pin === undefined ? 'تعليق' : which} على ${file}${where}.`,
-          button: 'فتح التعليق',
+          line: `${RLM}ردّ ${actor} على تعليق في ${file}.`,
         };
       case 'review_mention':
         return {
-          ...base,
+          ...head,
           subject: `${RLM}أشار إليك ${actor} في ${file}`,
-          line: `${RLM}أشار إليك ${actor} في ${pin === undefined ? 'تعليق' : which} على ${file}${where}.`,
-          button: 'فتح التعليق',
+          line: `${RLM}أشار إليك ${actor} في ${file}.`,
         };
-      case 'review_decided': {
-        const approved = facts.decision === 'approved';
-        const said = approved ? `اعتمد ${actor} ${file}` : `طلب ${actor} تعديلات على ${file}`;
+      case 'review_decided':
         return {
-          ...base,
-          subject: `${RLM}${said}`,
-          line: `${RLM}${said}${where}.`,
-          button: 'فتح الملف',
+          ...head,
+          subject: `${RLM}${file}: ${approved ? 'تم الاعتماد' : 'مطلوب تعديلات'}`,
+          line: `${RLM}${approved ? `اعتمد ${actor} ${file}` : `طلب ${actor} تعديلات على ${file}`}.`,
+          button: 'افتح الملف',
         };
-      }
     }
   }
 
-  const where = project === undefined ? '' : ` in ${project}`;
-  const which = pin === undefined ? 'a comment' : `comment ${pin}`;
-  const footer = portal
-    ? `Sent by TManage on behalf of ${studio}`
-    : `You are receiving this because of your notification settings in ${studio} on TManage.`;
-  const base = {
-    greeting: `Hello ${name},`,
+  const head = {
+    ...base,
     eyebrow: 'File review',
     facts: factRows({ file: 'File', comment: 'Comment', project: 'Project' }),
-    footer,
+    button: 'Open the file at this comment',
   };
   switch (kind) {
     case 'review_comment':
       return {
-        ...base,
-        subject: `${actor} commented on ${file}`,
-        line: `${actor} left ${which} on ${file}${where}.`,
-        button: 'Open the comment',
+        ...head,
+        subject: `${actorName} commented on ${file}`,
+        line: `${actor} commented on ${file}.`,
       };
     case 'review_reply':
       return {
-        ...base,
-        subject: `${actor} replied on ${file}`,
-        line: `${actor} replied to ${which} on ${file}${where}.`,
-        button: 'Open the comment',
+        ...head,
+        subject: `${actorName} replied on ${file}`,
+        line: `${actor} replied to a comment on ${file}.`,
       };
     case 'review_mention':
       return {
-        ...base,
-        subject: `${actor} mentioned you on ${file}`,
-        line: `${actor} mentioned you in ${which} on ${file}${where}.`,
-        button: 'Open the comment',
+        ...head,
+        subject: `${actorName} mentioned you on ${file}`,
+        line: `${actor} mentioned you on ${file}.`,
       };
-    case 'review_decided': {
-      const said =
-        facts.decision === 'approved'
-          ? `${actor} approved ${file}`
-          : `${actor} asked for changes on ${file}`;
+    case 'review_decided':
       return {
-        ...base,
-        subject: said,
-        line: `${said}${where}.`,
+        ...head,
+        subject: `${file}: ${approved ? 'approved' : 'changes requested'}`,
+        line: approved ? `${actor} approved ${file}.` : `${actor} asked for changes on ${file}.`,
         button: 'Open the file',
       };
-    }
   }
 }
 
@@ -251,7 +242,7 @@ ${facts}
 </tr></table>
 <div style="clear:both;height:4px;line-height:4px;font-size:0;">&nbsp;</div>
 </td></tr>
-<tr><td style="padding:16px 8px 0 8px;text-align:${align};font-family:${font};font-size:12px;line-height:17px;color:${t.ink500};">${e(copy.footer)}</td></tr>
+${signatureRowHtml(copy.signature, font, align)}
 </table>
 </td></tr>
 </table>
@@ -267,8 +258,14 @@ export function composeReviewEmail(
   const ar = arabic(facts.locale);
   return {
     to: facts.recipientEmail,
+    language: ar ? 'ar' : 'en',
     subject: copy.subject,
-    text: [copy.greeting, copy.line, `${copy.button}: ${facts.link}`, copy.footer].join('\n\n'),
+    text: [
+      copy.greeting,
+      copy.line,
+      `${copy.button}: ${facts.link}`,
+      copy.signature.join('\n'),
+    ].join('\n\n'),
     html: renderHtml(copy, facts.link, ar),
   };
 }

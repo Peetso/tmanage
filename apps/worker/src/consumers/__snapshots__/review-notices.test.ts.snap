@@ -5,24 +5,26 @@ exports[`review emails (EN + AR, studio + portal) > comment · portal · ar 1`] 
   "subject": "‏علّق Atlas Studio على Homepage Concept",
   "text": "مرحبًا Lina،
 
-‏ترك Atlas Studio التعليق 4 على Homepage Concept في Atlas Rebrand.
+‏علّق Atlas Studio على Homepage Concept.
 
-فتح التعليق: https://app.example/atlas/files/file-root?thread=thread-1
+افتح الملف عند هذا التعليق: https://app.example/atlas/files/file-root?thread=thread-1
 
-‏أُرسلت من TManage نيابةً عن Atlas Studio",
+Atlas Studio
+أرسلها TManage بالنيابة عن Atlas Studio. الردود على هذه الرسالة لا تُقرأ. للرد افتح البوابة: https://app.example/atlas/files/file-root?thread=thread-1",
 }
 `;
 
 exports[`review emails (EN + AR, studio + portal) > comment · portal · en 1`] = `
 {
   "subject": "Atlas Studio commented on Homepage Concept",
-  "text": "Hello Lina,
+  "text": "Hi Lina,
 
-Atlas Studio left comment 4 on Homepage Concept in Atlas Rebrand.
+Atlas Studio commented on Homepage Concept.
 
-Open the comment: https://app.example/atlas/portal/files/file-root?thread=thread-1
+Open the file at this comment: https://app.example/atlas/portal/files/file-root?thread=thread-1
 
-Sent by TManage on behalf of Atlas Studio",
+Atlas Studio
+Sent by TManage on behalf of Atlas Studio. Replies to this e-mail are not read. To answer, open the portal: https://app.example/atlas/portal/files/file-root?thread=thread-1",
 }
 `;
 
@@ -31,50 +33,58 @@ exports[`review emails (EN + AR, studio + portal) > comment · studio · ar 1`] 
   "subject": "‏علّق Maya على Homepage Concept",
   "text": "مرحبًا Lina،
 
-‏ترك Maya التعليق 4 على Homepage Concept في Atlas Rebrand.
+‏علّق Maya على Homepage Concept.
 
-فتح التعليق: https://app.example/atlas/files/file-root?thread=thread-1
+افتح الملف عند هذا التعليق: https://app.example/atlas/files/file-root?thread=thread-1
 
-‏تصلك هذه الرسالة بسبب إعدادات الإشعارات لديك في Atlas Studio على TManage.",
+TManage
+هذا إشعار آلي، والردود عليه لا تُقرأ. تحتاج إلى مساعدة؟ راسلنا على support@tmanageapp.com.
+إعدادات الإشعارات: [[tm.link.settings]] | إلغاء الاشتراك: [[tm.link.unsubscribe]]",
 }
 `;
 
 exports[`review emails (EN + AR, studio + portal) > comment · studio · en 1`] = `
 {
   "subject": "Maya commented on Homepage Concept",
-  "text": "Hello Lina,
+  "text": "Hi Lina,
 
-Maya left comment 4 on Homepage Concept in Atlas Rebrand.
+Maya commented on Homepage Concept.
 
-Open the comment: https://app.example/atlas/files/file-root?thread=thread-1
+Open the file at this comment: https://app.example/atlas/files/file-root?thread=thread-1
 
-You are receiving this because of your notification settings in Atlas Studio on TManage.",
+TManage
+This is an automatic notification, so replies are not read. Need help? Write to support@tmanageapp.com.
+Notification settings: [[tm.link.settings]] | Unsubscribe: [[tm.link.unsubscribe]]",
 }
 `;
 
 exports[`review emails (EN + AR, studio + portal) > decided approved · en 1`] = `
 {
-  "subject": "Youssef approved Homepage Concept",
-  "text": "Hello Lina,
+  "subject": "Homepage Concept: approved",
+  "text": "Hi Lina,
 
-Youssef approved Homepage Concept in Atlas Rebrand.
+Youssef approved Homepage Concept.
 
 Open the file: https://app.example/atlas/files/file-root?thread=thread-1
 
-You are receiving this because of your notification settings in Atlas Studio on TManage.",
+TManage
+This is an automatic notification, so replies are not read. Need help? Write to support@tmanageapp.com.
+Notification settings: [[tm.link.settings]] | Unsubscribe: [[tm.link.unsubscribe]]",
 }
 `;
 
 exports[`review emails (EN + AR, studio + portal) > decided changes · ar 1`] = `
 {
-  "subject": "‏طلب Youssef تعديلات على Homepage Concept",
+  "subject": "‏Homepage Concept: مطلوب تعديلات",
   "text": "مرحبًا Lina،
 
-‏طلب Youssef تعديلات على Homepage Concept في Atlas Rebrand.
+‏طلب Youssef تعديلات على Homepage Concept.
 
-فتح الملف: https://app.example/atlas/files/file-root?thread=thread-1
+افتح الملف: https://app.example/atlas/files/file-root?thread=thread-1
 
-‏تصلك هذه الرسالة بسبب إعدادات الإشعارات لديك في Atlas Studio على TManage.",
+TManage
+هذا إشعار آلي، والردود عليه لا تُقرأ. تحتاج إلى مساعدة؟ راسلنا على support@tmanageapp.com.
+إعدادات الإشعارات: [[tm.link.settings]] | إلغاء الاشتراك: [[tm.link.unsubscribe]]",
 }
 `;
 
@@ -83,24 +93,28 @@ exports[`review emails (EN + AR, studio + portal) > mention · studio · ar 1`] 
   "subject": "‏أشار إليك Maya في Homepage Concept",
   "text": "مرحبًا Lina،
 
-‏أشار إليك Maya في التعليق 4 على Homepage Concept في Atlas Rebrand.
+‏أشار إليك Maya في Homepage Concept.
 
-فتح التعليق: https://app.example/atlas/files/file-root?thread=thread-1
+افتح الملف عند هذا التعليق: https://app.example/atlas/files/file-root?thread=thread-1
 
-‏تصلك هذه الرسالة بسبب إعدادات الإشعارات لديك في Atlas Studio على TManage.",
+TManage
+هذا إشعار آلي، والردود عليه لا تُقرأ. تحتاج إلى مساعدة؟ راسلنا على support@tmanageapp.com.
+إعدادات الإشعارات: [[tm.link.settings]] | إلغاء الاشتراك: [[tm.link.unsubscribe]]",
 }
 `;
 
 exports[`review emails (EN + AR, studio + portal) > mention · studio · en 1`] = `
 {
   "subject": "Maya mentioned you on Homepage Concept",
-  "text": "Hello Lina,
+  "text": "Hi Lina,
 
-Maya mentioned you in comment 4 on Homepage Concept in Atlas Rebrand.
+Maya mentioned you on Homepage Concept.
 
-Open the comment: https://app.example/atlas/files/file-root?thread=thread-1
+Open the file at this comment: https://app.example/atlas/files/file-root?thread=thread-1
 
-You are receiving this because of your notification settings in Atlas Studio on TManage.",
+TManage
+This is an automatic notification, so replies are not read. Need help? Write to support@tmanageapp.com.
+Notification settings: [[tm.link.settings]] | Unsubscribe: [[tm.link.unsubscribe]]",
 }
 `;
 
@@ -109,10 +123,11 @@ exports[`review emails (EN + AR, studio + portal) > reply · portal · ar 1`] = 
   "subject": "‏ردّ Atlas Studio على Homepage Concept",
   "text": "مرحبًا Lina،
 
-‏ردّ Atlas Studio على التعليق 4 على Homepage Concept في Atlas Rebrand.
+‏ردّ Atlas Studio على تعليق في Homepage Concept.
 
-فتح التعليق: https://app.example/atlas/files/file-root?thread=thread-1
+افتح الملف عند هذا التعليق: https://app.example/atlas/files/file-root?thread=thread-1
 
-‏أُرسلت من TManage نيابةً عن Atlas Studio",
+Atlas Studio
+أرسلها TManage بالنيابة عن Atlas Studio. الردود على هذه الرسالة لا تُقرأ. للرد افتح البوابة: https://app.example/atlas/files/file-root?thread=thread-1",
 }
 `;

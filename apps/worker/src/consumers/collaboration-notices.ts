@@ -313,6 +313,7 @@ export const planMeetingInviteNotices: NoticePlanner = async (event, tx, mailer)
     const project = await findProjectName(tx, event.organizationId, projectId);
     return {
       organizationName: org.name,
+      ...(portal ? { portal: true } : {}),
       ...(actor === null ? {} : { actorName: actor }),
       subjectTitle: meeting.title,
       ...(project === null ? {} : { projectName: project }),
@@ -401,6 +402,7 @@ export const planMeetingChangedNotices: NoticePlanner = async (event, tx, mailer
     const project = await findProjectName(tx, event.organizationId, projectId);
     return {
       organizationName: org.name,
+      ...(portal ? { portal: true } : {}),
       ...(actor === null ? {} : { actorName: actor }),
       subjectTitle: meeting.title,
       ...(project === null ? {} : { projectName: project }),
@@ -742,6 +744,7 @@ export const planClientActionNotices: NoticePlanner = async (event, tx, mailer) 
           subjectTitle: item.title,
           ...(project === null ? {} : { projectName: project }),
           link: mailer.linkTo(`/${org.slug}/portal/actions`),
+          portal: true,
         };
       },
     }));
@@ -786,6 +789,7 @@ export const planApprovalRequestedNotices: NoticePlanner = async (event, tx, mai
           organizationName: org.name,
           subjectTitle: project,
           link: mailer.linkTo(`/${org.slug}/portal/deliverables/${versionId}`),
+          portal: true,
         };
       },
     }));
@@ -831,6 +835,7 @@ export const planRequestMessageNotices: NoticePlanner = async (event, tx, mailer
     const project = await findProjectName(tx, event.organizationId, projectId);
     return {
       organizationName: org.name,
+      ...(portal ? { portal: true } : {}),
       ...(actor === null ? {} : { actorName: actor }),
       subjectTitle: request.title,
       ...(project === null ? {} : { projectName: project }),

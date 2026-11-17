@@ -1,3 +1,4 @@
+import { workspaceReplyLine, workspaceSignOff } from '@tmanage/mail';
 import type { MailMessage } from '@tmanage/mail';
 import type { ClientRequestMailFacts } from '../common/database/mail-store.js';
 
@@ -106,10 +107,17 @@ function subjectTitle(value: string): string {
  * that 404s would fail §1 more completely than naming the real route does.
  */
 function whyAndSupport(organization: string): string {
-  return (
-    `You are receiving this because you submitted this request to ${organization} using ` +
-    `this address. If you did not, contact ${organization} directly.`
+  // EMAILBUILD (c): then the agency's sign-off [WS] with reply line R3 (replies are not read).
+  const signature = workspaceSignOff(
+    'en',
+    organization,
+    workspaceReplyLine('en', 'none', { workspaceName: organization }),
   );
+  return [
+    `You are receiving this because you submitted this request to ${organization} using ` +
+      `this address. If you did not, contact ${organization} directly.`,
+    signature.join('\n'),
+  ].join('\n\n');
 }
 
 /** `Request received: {{requestTitle}}` — §3, on submission. */

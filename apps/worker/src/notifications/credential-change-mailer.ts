@@ -1,3 +1,4 @@
+import { greeting, signOff } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import type { CredentialNoticeRecipient } from '../common/database/notice-store.js';
 import { renderSecurityNoticeHtml } from './security-notice-html.js';
@@ -52,38 +53,65 @@ import { renderSecurityNoticeHtml } from './security-notice-html.js';
  * dispatcher gives an event type with no consumer.
  */
 
-/** The four the API writes (`CREDENTIAL_CHANGE_ACTIONS`), each as the owner's own sentence. */
-const CHANGED_BY_ACTION: Readonly<Record<string, string>> = {
-  password_set: 'Your password was changed.',
-  mfa_factor_enrolled: 'A two-factor authentication method was added to your account.',
-  mfa_factor_disabled: 'A two-factor authentication method was removed from your account.',
-  recovery_codes_issued: 'A new set of recovery codes was issued for your account.',
-  // MFAOPTIONS.
-  mfa_default_changed:
-    'The two-step verification method asked for first at sign-in was changed on your account.',
-  // 56-22. Passkeys and the new-device sign-in notice.
-  passkey_added: 'A passkey was added to your account.',
-  passkey_removed: 'A passkey was removed from your account.',
-  new_device_sign_in: 'Your account was signed in to from a device it has not used before.',
+/** EMAIL-COPY S5: subject and fact line per action, English and Arabic. */
+const COPY_BY_ACTION: Readonly<
+  Record<string, { readonly en: readonly [string, string]; readonly ar: readonly [string, string] }>
+> = {
+  password_set: {
+    en: ['Your TManage password was changed', 'The password of your TManage account was changed.'],
+    ar: ['تغيّرت كلمة مرورك في TManage', 'تغيّرت كلمة مرور حسابك في TManage.'],
+  },
+  mfa_factor_enrolled: {
+    en: [
+      'Two-step verification was added to your account',
+      'A two-step verification method was added to your account.',
+    ],
+    ar: ['أُضيف التحقق بخطوتين إلى حسابك', 'أُضيفت وسيلة تحقق بخطوتين إلى حسابك.'],
+  },
+  mfa_factor_disabled: {
+    en: [
+      'Two-step verification was removed from your account',
+      'A two-step verification method was removed from your account.',
+    ],
+    ar: ['أُزيل التحقق بخطوتين من حسابك', 'أُزيلت وسيلة تحقق بخطوتين من حسابك.'],
+  },
+  recovery_codes_issued: {
+    en: [
+      'New recovery codes were issued',
+      'A new set of recovery codes was issued. The old codes no longer work.',
+    ],
+    ar: [
+      'صدرت رموز استرداد جديدة',
+      'صدرت مجموعة جديدة من رموز الاسترداد، والرموز القديمة لم تعد تعمل.',
+    ],
+  },
+  mfa_default_changed: {
+    en: [
+      'Your first verification method changed',
+      'The verification method asked for first at sign-in was changed.',
+    ],
+    ar: ['تغيّرت وسيلة التحقق الأولى', 'تغيّرت وسيلة التحقق التي تُطلب أولًا عند تسجيل الدخول.'],
+  },
+  passkey_added: {
+    en: ['A passkey was added to your account', 'A passkey was added to your account.'],
+    ar: ['أُضيف مفتاح مرور إلى حسابك', 'أُضيف مفتاح مرور إلى حسابك.'],
+  },
+  passkey_removed: {
+    en: ['A passkey was removed from your account', 'A passkey was removed from your account.'],
+    ar: ['أُزيل مفتاح مرور من حسابك', 'أُزيل مفتاح مرور من حسابك.'],
+  },
+  new_device_sign_in: {
+    en: [
+      'New device signed in to your account',
+      'Your account was signed in to from a device it has not used before.',
+    ],
+    ar: ['تسجيل دخول من جهاز جديد', 'سُجّل الدخول إلى حسابك من جهاز لم يُستخدم من قبل.'],
+  },
 };
 
-/** The subject line per action — short, and specific enough to read in a notification bar. */
-const SUBJECT_BY_ACTION: Readonly<Record<string, string>> = {
-  password_set: 'Your TManage password was changed',
-  mfa_factor_enrolled: 'Two-factor authentication was added to your TManage account',
-  mfa_factor_disabled: 'Two-factor authentication was removed from your TManage account',
-  recovery_codes_issued: 'New TManage recovery codes were issued',
-  mfa_default_changed: 'Your TManage two-step verification default was changed',
-  passkey_added: 'A passkey was added to your TManage account',
-  passkey_removed: 'A passkey was removed from your TManage account',
-  new_device_sign_in: 'New device signed in to your TManage account',
-};
+/** U+200F, the right-to-left mark: keeps a mixed Arabic/Latin line anchored right. */
+const RLM = String.fromCodePoint(0x20_0f);
 
-/**
- * Flattened before it reaches a header or a body, for `invitation-email.ts`'s reason: a
- * display name is a string a person typed, and a newline in a subject is how one message
- * grows a second recipient.
- */
 function oneLine(value: string): string {
   return value.replaceAll(/\s+/gu, ' ').trim();
 }
@@ -97,42 +125,47 @@ export interface CredentialChangeEmailFacts {
   readonly recipient: CredentialNoticeRecipient;
   readonly action: string;
   readonly occurredAt: Date;
+  /** EMAILBUILD (c): the account's locale when known; English otherwise. */
+  readonly locale?: string;
 }
 
 /** The message, or `null` when the action is outside the closed vocabulary — see the header. */
 export function composeCredentialChangeEmail(
   facts: CredentialChangeEmailFacts,
 ): MailMessage | null {
-  if (!Object.hasOwn(CHANGED_BY_ACTION, facts.action)) return null;
-  const changed = CHANGED_BY_ACTION[facts.action];
-  const subject = SUBJECT_BY_ACTION[facts.action];
-  if (changed === undefined || subject === undefined) return null;
-
-  const name = oneLine(facts.recipient.displayName);
+  if (!Object.hasOwn(COPY_BY_ACTION, facts.action)) return null;
+  const copy = COPY_BY_ACTION[facts.action];
+  if (copy === undefined) return null;
+  const arabic = facts.locale !== undefined && /^ar(?:-|$)/iu.test(facts.locale);
+  const language = arabic ? 'ar' : 'en';
+  const [subject, changed] = copy[language];
   const when = utcMinute(facts.occurredAt);
-  const why =
-    'You are receiving this because the change was made to the TManage account that uses ' +
-    'this address.';
-  const advice =
-    'If it was you, nothing further is needed. If it was not, your account may be ' +
-    'compromised, and you may no longer be able to sign in to put it right yourself: ask ' +
-    'whoever administers your TManage workspace to reset your password for you, as soon as ' +
-    'you can.';
+  const hello = greeting(language, oneLine(facts.recipient.displayName));
+  const signature = signOff('security', language);
+  const advice = arabic
+    ? 'إن كنت أنت من فعل ذلك فلا شيء مطلوب منك. وإن لم تكن أنت، غيّر كلمة مرورك الآن وراسلنا على support@tmanageapp.com.'
+    : 'If this was you, there is nothing to do. If it was not, change your password now and write to support@tmanageapp.com.';
+  const whenLine = arabic ? `الوقت: ${when}.` : `When: ${when}.`;
+  const mark = arabic ? RLM : '';
   return {
     to: facts.recipient.email,
-    subject,
-    text: [`Hello ${name},`, `${changed} This happened at ${when}.`, `${why} ${advice}`].join(
+    language,
+    subject: `${mark}${subject}`,
+    text: [hello, `${mark}${changed}`, whenLine, `${mark}${advice}`, signature.join('\n')].join(
       '\n\n',
     ),
     html: renderSecurityNoticeHtml({
-      subject,
-      intro: `Hello ${name}. ${changed}`,
+      arabic,
+      eyebrow: arabic ? 'إشعار أمان' : 'Security notice',
+      subject: `${mark}${subject}`,
+      intro: `${hello} ${mark}${changed}`,
       rows: [
-        { label: 'What changed', value: changed },
-        { label: 'When', value: when },
+        { label: arabic ? 'ما الذي تغيّر' : 'What changed', value: changed },
+        { label: arabic ? 'الوقت' : 'When', value: when },
       ],
       note: advice,
-      footer: why,
+      footer: '',
+      signature,
     }),
   };
 }

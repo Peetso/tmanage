@@ -118,7 +118,7 @@ describe('Privacy emails — export ready', () => {
     );
     await run();
     expect(sent[0]?.text).toContain('https://app.test/northstar/admin/privacy');
-    expect(sent[0]?.text).toContain("Northstar Studio's data");
+    expect(sent[0]?.text).toContain('the data of Northstar Studio');
   });
 });
 
@@ -140,9 +140,7 @@ describe('Privacy emails — deletion changed', () => {
     );
     await run();
     expect(sent.map((m) => m.to)).toEqual(['a@example.test', 'b@example.test']);
-    expect(sent[0]?.subject).toBe(
-      'Northstar Studio is scheduled to be deleted on 24 November 2026',
-    );
+    expect(sent[0]?.subject).toBe('Northstar Studio will be deleted on 24 November 2026');
     expect(sent[1]?.subject).toContain('سيُحذف Northstar Studio');
     expect(sent[1]?.text.startsWith('‏')).toBe(true);
   });

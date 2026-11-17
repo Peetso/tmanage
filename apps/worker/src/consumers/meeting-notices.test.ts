@@ -133,8 +133,8 @@ describe('meeting_changed email (BK5)', () => {
 
   it('is written in English or Arabic by the recipient locale, with the new time and the link', () => {
     const english = composeCollaborationEmail('meeting_changed', { ...facts, locale: 'en' });
-    expect(english.subject).toBe('Weekly client review has changed');
-    expect(english.text).toContain('It is now on 2026-10-29 10:00 UTC.');
+    expect(english.subject).toBe('New time for Weekly client review');
+    expect(english.text).toContain('New time: 2026-10-29 10:00 UTC');
     expect(english.text).toContain(facts.link);
 
     const arabic = composeCollaborationEmail('meeting_changed', { ...facts, locale: 'ar-EG' });

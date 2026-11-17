@@ -414,14 +414,16 @@ describe('planApprovalDecidedNotices (Q3)', () => {
       ...facts,
       decision: 'approved',
     });
-    expect(approved.subject).toBe('Youssef approved a deliverable in Website');
+    expect(approved.subject).toBe('A deliverable in Website was approved');
+    expect(approved.text).toContain('Youssef approved a deliverable in Website.');
     expect(approved.text).toContain(facts.link);
     const changes = composeCollaborationEmail('approval_decided', {
       ...facts,
       decision: 'changes_requested',
       locale: 'ar',
     });
-    expect(changes.subject).toContain('طلب Youssef تعديلات');
+    expect(changes.subject).toContain('مطلوب تعديلات');
+    expect(changes.text).toContain('طلب Youssef تعديلات');
     expect(changes.text).toContain(facts.link);
   });
 });

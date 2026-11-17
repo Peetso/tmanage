@@ -15,7 +15,7 @@ describe('composeUsageThresholdEmail', () => {
     const message = composeUsageThresholdEmail({ ...facts, band: 85 });
     expect(message.to).toBe('o@x');
     expect(message.subject).toContain('85%');
-    expect(message.text).toMatch(/85% \([\d.]+ GB of [\d.]+ GB\)/u);
+    expect(message.text).toMatch(/has used [\d.]+ GB of its [\d.]+ GB storage \(85%\)/u);
   });
 
   it('band 100 says uploads are blocked, not merely near a limit', () => {

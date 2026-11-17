@@ -1,4 +1,4 @@
-import { forCompany } from '@tmanage/mail';
+import { LINK_TOKENS, forCompany, greeting, signOff } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import type { NaturalNotificationKind } from '@tmanage/domain';
 import { isArabicLocale } from './collaboration-mailer.js';
@@ -49,6 +49,9 @@ const AR_KIND: Readonly<Record<NaturalNotificationKind, string>> = {
   message: 'الرسائل والتعليقات',
 };
 
+/** U+200F, the right-to-left mark: keeps a mixed Arabic/Latin line anchored right. */
+const RLM = String.fromCodePoint(0x20_0f);
+
 function oneLine(value: string): string {
   return value.replaceAll(/\s+/gu, ' ').trim();
 }
@@ -58,35 +61,46 @@ export function digestTotal(counts: DigestEmailFacts['counts']): number {
   return KIND_ORDER.reduce((sum, kind) => sum + (counts[kind] ?? 0), 0);
 }
 
+/** EMAIL-COPY N14, signed [TM]; its settings link is the real notification-settings screen. */
 export function composeDigestEmail(facts: DigestEmailFacts): MailMessage {
   const total = digestTotal(facts.counts);
-  const name = oneLine(facts.recipientName);
   const studio = oneLine(facts.organizationName);
   const kinds = KIND_ORDER.filter((kind) => (facts.counts[kind] ?? 0) > 0);
-  if (isArabicLocale(facts.locale)) {
+  const arabic = isArabicLocale(facts.locale);
+  const language = arabic ? 'ar' : 'en';
+  const signature = signOff('notice', language)
+    .map((line) => line.replace(LINK_TOKENS.settings, facts.settingsLink))
+    .join('\n');
+  if (arabic) {
     const period = facts.cadence === 'weekly' ? 'الأسبوعي' : 'اليومي';
+    const phrase = facts.cadence === 'weekly' ? 'هذا الأسبوع' : 'منذ أمس';
     return {
       to: facts.recipientEmail,
-      subject: `ملخصك ${period} في ${studio}: ${String(total)} تحديثات`,
+      language,
+      subject: `${RLM}ملخصك ${period} في ${studio}: ${String(total)} تحديثات`,
       text: [
-        `مرحبًا ${name}،`,
-        `لديك ${String(total)} تحديثات لم تقرأها بعد في ${studio}:`,
+        greeting(language, facts.recipientName),
+        `${RLM}هذا ما حدث في ${studio} ${phrase}:`,
         kinds.map((kind) => `• ${AR_KIND[kind]}: ${String(facts.counts[kind])}`).join('\n'),
-        `افتح صندوق الوارد: ${facts.inboxLink}`,
-        `تصلك هذه الرسالة لأنك اخترت الملخص في إعدادات الإشعارات. غيّرها من هنا: ${facts.settingsLink}`,
+        `${RLM}افتح TManage: ${facts.inboxLink}`,
+        'تريد الملخص بوتيرة أقل أو لا تريده؟ غيّر ذلك من إعدادات الإشعارات بالأسفل.',
+        signature,
       ].join('\n\n'),
     };
   }
   const period = facts.cadence === 'weekly' ? 'weekly' : 'daily';
+  const phrase = facts.cadence === 'weekly' ? 'this week' : 'since yesterday';
   return {
     to: facts.recipientEmail,
+    language,
     subject: `Your ${period} summary for ${studio}: ${String(total)} update${total === 1 ? '' : 's'}`,
     text: [
-      `Hi ${name},`,
-      `You have ${String(total)} unread update${total === 1 ? '' : 's'} in ${studio}:`,
+      greeting(language, facts.recipientName),
+      `Here is what happened in ${studio} ${phrase}:`,
       kinds.map((kind) => `• ${EN_KIND[kind]}: ${String(facts.counts[kind])}`).join('\n'),
-      `Open your inbox: ${facts.inboxLink}`,
-      `You get this because the summary is on in your notification settings. Change it here: ${facts.settingsLink}`,
+      `Open TManage: ${facts.inboxLink}`,
+      'Want this less often, or not at all? Change it in Notification settings below.',
+      signature,
     ].join('\n\n'),
   };
 }

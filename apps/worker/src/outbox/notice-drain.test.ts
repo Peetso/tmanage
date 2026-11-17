@@ -211,7 +211,7 @@ describe('the credential-change notice drain', () => {
     expect(sent[0]?.text).not.toMatch(/https?:\/\//u);
     // The route back in must be one that still works after an intruder has changed the
     // password, so it is the workspace administrator rather than "sign in and change it".
-    expect(sent[0]?.text).toMatch(/administers your TManage workspace to reset your password/u);
+    expect(sent[0]?.text).toMatch(/If it was not, change your password now/u);
     expect(sent[0]?.text).not.toMatch(/sign in, change your password/u);
   });
 
