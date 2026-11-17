@@ -29,7 +29,9 @@ describe('52-20a public form attachments (web)', () => {
         ? { data: { id: 's1', partSizeBytes: 4, uploadUrls: [{ partNumber: 1, url: 'u' }] } }
         : { data: {} },
     );
-    const fetcher = vi.fn(async () => new Response(null, { headers: { etag: '"e"' } }));
+    const fetcher = vi.fn(
+      async (_url: string, _init?: RequestInit) => new Response(null, { headers: { etag: '"e"' } }),
+    );
     const file = new File(['abc'], 'brief.pdf', { type: 'application/pdf' });
     await uploadPublicFormFile({ request } as unknown as ApiClient, 'abcdefghjk', 'tok', file, {
       idempotencyKey: 'key-0123456789abcdef',

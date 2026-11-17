@@ -70,7 +70,11 @@ describe('INVPDFUI · Attach the invoice as a PDF', () => {
       readCsrfToken: () => undefined,
       newCorrelationId: () => 'c',
     });
-    const invoice = { id: 'i-1', state: 'draft', lines: [{ id: 'l-1' }] } as ClientInvoiceDocument;
+    const invoice = {
+      id: 'i-1',
+      state: 'draft',
+      lines: [{ id: 'l-1' }],
+    } as unknown as ClientInvoiceDocument;
     render(
       <QueryClientProvider client={new QueryClient()}>
         <InvoiceSendCard
