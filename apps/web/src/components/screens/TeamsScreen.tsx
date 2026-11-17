@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchTeam, listTeams } from '../../lib/api/people-teams';
 import type { TeamDetailView, TeamView } from '../../lib/api/people-teams';
@@ -162,7 +163,14 @@ function TeamsList({
 }) {
   const t = useT();
   if (teams.length === 0) {
-    return <p className="ppl-note">{t('TeamsScreen.noTeamsShort')}</p>;
+    return (
+      <TeachingEmptyState
+        title={t('teachEmpty.teamsTitle')}
+        explanation={t('teachEmpty.teamsBody')}
+        helpSlug="invite-your-team"
+        helpLabel={t('EmptyStates.howInvitingWorks')}
+      />
+    );
   }
   return (
     <ul className="ppl-soft-list" aria-label={t('TeamsScreen.teamsListAria')}>

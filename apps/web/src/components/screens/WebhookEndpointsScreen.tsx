@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
@@ -19,6 +19,8 @@ import {
 } from '../../lib/api/webhooks';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
@@ -49,6 +51,8 @@ export function WebhookEndpointsScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const tOr = useTOr();
   const eventName = (kind: string) => tOr(webhookEventMessageKey(kind), webhookEventLabel(kind));
 
@@ -148,10 +152,21 @@ export function WebhookEndpointsScreen({
             ) : null}
 
             {!endpoints.isPending && !endpoints.isError && rows.length === 0 ? (
-              <div className="tm-aut-empty tm-aut-empty--flush">
-                <p className="tm-aut-empty__title">{t('WebhookEndpointsScreen.emptyTitle')}</p>
-                <p className="tm-aut-empty__body">{t('WebhookEndpointsScreen.emptyBody')}</p>
-              </div>
+              <TeachingEmptyState
+                title={t('WebhookEndpointsScreen.emptyTitle')}
+                explanation={t('teachEmpty.webhooksBody')}
+                action={
+                  canUse('org.manage') ? (
+                    <Button
+                      tone="lime"
+                      size="accessible"
+                      onClick={() => focusFirstField(firstStep.current)}
+                    >
+                      {t('teachEmpty.webhooksAction')}
+                    </Button>
+                  ) : undefined
+                }
+              />
             ) : null}
 
             {rows.length > 0 ? (
@@ -211,6 +226,7 @@ export function WebhookEndpointsScreen({
               {t('WebhookEndpointsScreen.registerHeading')}
             </h2>
             <form
+              ref={firstStep}
               className="tm-stack"
               noValidate
               onSubmit={(event: FormEvent<HTMLFormElement>) => {

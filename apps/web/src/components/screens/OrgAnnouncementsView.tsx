@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState, type FormEvent } from 'react';
+import { useRef, useId, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -13,6 +13,8 @@ import {
 import type { AnnouncementSummary } from '../../lib/api/admin-announcements';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface OrgAnnouncementsViewProps {
@@ -51,6 +53,8 @@ export function OrgAnnouncementsView({
   const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const queryClient = useQueryClient();
   const bodyId = useId();
 
@@ -133,9 +137,21 @@ export function OrgAnnouncementsView({
         ) : null}
 
         {announcements.isSuccess && visible.length === 0 ? (
-          <InlineAlert tone="neutral" title={t('OrgAnnouncementsView.noActiveTitle')}>
-            {t('OrgAnnouncementsView.noActiveBody')}
-          </InlineAlert>
+          <TeachingEmptyState
+            title={t('OrgAnnouncementsView.noActiveTitle')}
+            explanation={t('teachEmpty.announcementsBody')}
+            action={
+              canUse('org.manage') ? (
+                <Button
+                  tone="lime"
+                  size="accessible"
+                  onClick={() => focusFirstField(firstStep.current)}
+                >
+                  {t('teachEmpty.announcementsAction')}
+                </Button>
+              ) : undefined
+            }
+          />
         ) : null}
 
         {visible.map((item) => (
@@ -149,6 +165,7 @@ export function OrgAnnouncementsView({
         </h2>
 
         <form
+          ref={firstStep}
           className="tm-stack"
           noValidate
           aria-label={t('OrgAnnouncementsView.postHeading')}

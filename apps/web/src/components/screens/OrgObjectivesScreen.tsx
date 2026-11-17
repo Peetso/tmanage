@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type FormEvent } from 'react';
+import { useRef, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -18,6 +18,8 @@ import type {
 } from '../../lib/api/org-objectives';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/portfolio.css';
@@ -58,6 +60,8 @@ export function OrgObjectivesScreen({
   const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const queryClient = useQueryClient();
 
   const [name, setName] = useState('');
@@ -141,9 +145,21 @@ export function OrgObjectivesScreen({
           ) : null}
 
           {!objectives.isPending && !objectives.isError && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title={t('OrgObjectivesScreen.emptyTitle')}>
-              {t('OrgObjectivesScreen.emptyBody')}
-            </InlineAlert>
+            <TeachingEmptyState
+              title={t('OrgObjectivesScreen.emptyTitle')}
+              explanation={t('teachEmpty.objectivesBody')}
+              action={
+                canUse('project.manage') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {t('teachEmpty.objectivesAction')}
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : null}
 
           {rows.length > 0 && transition.isError ? (
@@ -185,7 +201,7 @@ export function OrgObjectivesScreen({
                   {t('OrgObjectivesScreen.setAnObjective')}
                 </h2>
               </summary>
-              <form className="tm-stack" onSubmit={onSubmit} noValidate>
+              <form ref={firstStep} className="tm-stack" onSubmit={onSubmit} noValidate>
                 <fieldset className="tm-fieldset tm-stack" disabled={create.isPending}>
                   <Field
                     label={t('OrgObjectivesScreen.objectiveLabel')}

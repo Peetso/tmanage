@@ -7,6 +7,8 @@ import { Announce, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { MAX_CLIENT_REQUEST_PAGE, listClientRequestRecords } from '../../lib/api/client-requests';
 import type { ClientRequestRecord } from '../../lib/api/client-requests';
 import { useDescribeApiError } from '../../lib/api/describe-error';
@@ -63,6 +65,7 @@ export function RequestInboxScreen({
   const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
   const [bucket, setBucket] = useState<TriageBucketId | 'all'>('all');
 
   /*
@@ -145,10 +148,22 @@ export function RequestInboxScreen({
       ) : null}
 
       {!requests.isPending && !requests.isError && all.length === 0 ? (
-        <div className="wp-empty">
-          <h2 className="wp-empty__title">{t('RequestInboxScreen.emptyTitle')}</h2>
-          <p className="wp-empty__body">{t('RequestInboxScreen.emptyBody')}</p>
-        </div>
+        <TeachingEmptyState
+          title={t('RequestInboxScreen.emptyTitle')}
+          explanation={t('teachEmpty.requestInboxBody')}
+          action={
+            canUse('org.manage') ? (
+              <Link
+                className="tm-button tm-button--lime tm-button--accessible"
+                href={`/${organizationSlug}/clients`}
+              >
+                {t('Clients.inviteClient')}
+              </Link>
+            ) : undefined
+          }
+          helpSlug="invite-a-client"
+          helpLabel={t('EmptyStates.howClientInvitesWork')}
+        />
       ) : null}
 
       {shown.length > 0 ? (

@@ -4,6 +4,7 @@ import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ChecklistTemplatesView } from '../src/components/screens/ChecklistTemplatesView';
 import { ClientsScreen } from '../src/components/screens/ClientsScreen';
+import { ConversationSearchView } from '../src/components/screens/ConversationSearchView';
 import { DecisionRegisterScreen } from '../src/components/screens/DecisionRegisterScreen';
 import { DocsHubScreen } from '../src/components/screens/DocsHubScreen';
 import { AdminExportRequestsScreen } from '../src/components/screens/AdminExportRequestsScreen';
@@ -18,12 +19,23 @@ import { FilesHubScreen } from '../src/components/screens/FilesHubScreen';
 import { FocusBlocksScreen } from '../src/components/screens/FocusBlocksScreen';
 import { GlossaryScreen } from '../src/components/screens/GlossaryScreen';
 import { InsightCustomReportsView } from '../src/components/screens/InsightCustomReportsView';
+import { InsightMetricAlertsScreen } from '../src/components/screens/InsightMetricAlertsScreen';
+import { InsightSnapshotsScreen } from '../src/components/screens/InsightSnapshotsScreen';
 import { MeetingActionItemsScreen } from '../src/components/screens/MeetingActionItemsScreen';
+import { MeetingSeriesScreen } from '../src/components/screens/MeetingSeriesScreen';
 import { MyBookmarksScreen } from '../src/components/screens/MyBookmarksScreen';
+import { NotificationsFeedScreen } from '../src/components/screens/NotificationsFeedScreen';
+import { OrgAnnouncementsView } from '../src/components/screens/OrgAnnouncementsView';
+import { OrgObjectivesScreen } from '../src/components/screens/OrgObjectivesScreen';
 import { ReportSchedulesScreen } from '../src/components/screens/ReportSchedulesScreen';
+import { RequestInboxScreen } from '../src/components/screens/RequestInboxScreen';
 import { SavedMessagesScreen } from '../src/components/screens/SavedMessagesScreen';
+import { SavedInsightViewsScreen } from '../src/components/screens/SavedInsightViewsScreen';
 import { SavedSearchesScreen } from '../src/components/screens/SavedSearchesScreen';
+import { TeamsScreen } from '../src/components/screens/TeamsScreen';
+import { WebhookEndpointsScreen } from '../src/components/screens/WebhookEndpointsScreen';
 import { WorkLabelsScreen } from '../src/components/screens/WorkLabelsScreen';
+import { WorkCalendarScreen } from '../src/components/screens/WorkCalendarScreen';
 import { PortalMilestonesScreen } from '../src/components/screens/PortalMilestonesScreen';
 import { PortalPeopleScreen } from '../src/components/screens/PortalPeopleScreen';
 import { PortalRisksScreen } from '../src/components/screens/PortalRisksScreen';
@@ -258,6 +270,16 @@ describe('teaching empty states (55-10p)', () => {
       '/work/labels': { labels: [] },
       '/message-bookmarks': { messages: [] },
       '/document-bookmarks': { bookmarks: [] },
+      '/insights/saved-views': { savedViews: [] },
+      '/insights/snapshots': [],
+      '/insights/metric-alerts': { alerts: [] },
+      '/notifications': { items: [], nextCursor: null },
+      '/objectives': { objectives: [] },
+      '/meeting-series': { series: [] },
+      '/automations/webhooks': { endpoints: [] },
+      '/announcements': { announcements: [] },
+      '/client-requests': { clientRequests: [] },
+      '/people/teams': { teams: [] },
     };
     const props = { organizationSlug: 'acme', organizationName: 'Acme' };
     const cases: readonly [string, (client: ApiClient) => ReactElement, RegExp, string][] = [
@@ -351,6 +373,36 @@ describe('teaching empty states (55-10p)', () => {
         /no labels yet/i,
         'Create a label',
       ],
+      [
+        'Saved report views',
+        (client) => <SavedInsightViewsScreen {...props} client={client} />,
+        /no saved views yet/i,
+        'Save a view',
+      ],
+      [
+        'Objectives',
+        (client) => <OrgObjectivesScreen {...props} client={client} />,
+        /no objectives yet/i,
+        'Set an objective',
+      ],
+      [
+        'Meeting series',
+        (client) => <MeetingSeriesScreen {...props} client={client} />,
+        /no series yet/i,
+        'Plan a repeating meeting',
+      ],
+      [
+        'Webhooks',
+        (client) => <WebhookEndpointsScreen {...props} client={client} />,
+        /no endpoints yet/i,
+        'Add a webhook',
+      ],
+      [
+        'Announcements',
+        (client) => <OrgAnnouncementsView {...props} client={client} />,
+        /no active announcements/i,
+        'Write an announcement',
+      ],
     ];
     it.each(cases)('%s', async (_name, view, title, action) => {
       mount(view, routes);
@@ -385,10 +437,50 @@ describe('teaching empty states (55-10p)', () => {
     it.each([
       ['Doc bookmarks', MyBookmarksScreen, /no bookmarks yet/i],
       ['Saved messages', SavedMessagesScreen, /no saved messages yet/i],
+      ['Notifications', NotificationsFeedScreen, /nothing to catch up on/i],
+      ['Report snapshots', InsightSnapshotsScreen, /no snapshots yet/i],
+      ['Metric alerts', InsightMetricAlertsScreen, /no alerts yet/i],
+      ['Teams', TeamsScreen, /no teams yet/i],
     ] as const)('%s: teaches, with nothing to start', async (_name, View, title) => {
       mount((client) => <View {...props} client={client} />, routes);
       const section = (await teaching(title)).closest('section') as HTMLElement;
       expect(within(section).queryByRole('button')).toBeNull();
+    });
+
+    it('Calendar: with no project, teaches with New project only for those who may create one', async () => {
+      const calendar = (client: ApiClient) => <WorkCalendarScreen {...props} client={client} />;
+      mount(calendar, routes);
+      const section = (await teaching(/no project to show yet/i)).closest('section') as HTMLElement;
+      expect(await within(section).findByRole('link', { name: /new project/i })).toBeTruthy();
+      cleanup();
+      mount(calendar, routes, 'custom-viewer');
+      const bare = (await teaching(/no project to show yet/i)).closest('section') as HTMLElement;
+      expect(within(bare).queryByRole('link', { name: /new project/i })).toBeNull();
+    });
+
+    it('Client requests: teaches with Invite client only for admins', async () => {
+      const inbox = (client: ApiClient) => <RequestInboxScreen {...props} client={client} />;
+      mount(inbox, routes);
+      const section = (await screen.findByRole('link', { name: /invite client/i })).closest(
+        'section',
+      ) as HTMLElement;
+      expect(section.querySelector('h2')).not.toBeNull();
+      cleanup();
+      mount(inbox, routes, 'custom-viewer');
+      await screen.findByText(/the request lands here/i);
+      expect(screen.queryByRole('link', { name: /invite client/i })).toBeNull();
+    });
+
+    it('Chat search: a search with no match teaches how to search', async () => {
+      mount((client) => <ConversationSearchView {...props} conversationId="c1" client={client} />, {
+        '/conversations/c1': { id: 'c1', title: 'General' },
+        '/conversations/c1/messages/search': { results: [] },
+      });
+      const field = await screen.findByRole('searchbox');
+      fireEvent.change(field, { target: { value: 'invoice' } });
+      fireEvent.submit(field.closest('form') as HTMLFormElement);
+      await teaching(/no messages match that search/i);
+      expect(screen.getByText(/try fewer words/i)).toBeTruthy();
     });
 
     it('Automation runs: teaches, with nothing to start', async () => {
