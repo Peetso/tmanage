@@ -418,16 +418,20 @@ a.tm-web-orb--outline:hover {
   white-space: nowrap;
 }
 
-/* Tighter header spacing where the labels are long: 1280-1439 in every language, all widths
-   in the languages with the longest labels. */
-:is(:lang(ar), :lang(de), :lang(es), :lang(fr), :lang(pt)) .tm-web-nav__bar {
-  gap: var(--s8);
-}
-
-:is(:lang(ar), :lang(de), :lang(es), :lang(fr), :lang(pt)) .tm-web-nav__list {
-  gap: var(--s6);
-}
-
+/*
+ * Header breakpoints per language, all in this one place (PAGEFIX2, measured 2026-11-17 with
+ * pagefix-navmeasure / pagefix2-need; bar = min(viewport - 2 x gutter, 1248 px), 8 px spare).
+ * Below 1280 every language has the compact header (menu orb + drawer). From 1280:
+ *   language   spacing          compact     pill in menu   full row
+ *   en         tight <1440      -           1280-1323      1324+
+ *   ar         tight            -           1280-1387      1388+
+ *   de         tight            1280-1342   1343-1430      1431+
+ *   pt         tight            1280-1396   1397+          (never: the pill alone is too wide)
+ *   es         compact spacing  1280-1413   1414+          (never)
+ *   fr         compact spacing  1280-1382   1383+          (never)
+ *   ur, zh     tight <1440      -           -              1280+
+ * "pill in menu": the Desktop app pill moves into the menu (orb shown; the drawer lists it).
+ */
 @media (min-width: 1280px) and (max-width: 1439px) {
   .tm-web-nav__bar {
     gap: var(--s8);
@@ -436,48 +440,94 @@ a.tm-web-orb--outline:hover {
   .tm-web-nav__list {
     gap: var(--s6);
   }
-
-  /* Where it still does not fit, the Desktop app pill moves into the menu. */
-  :is(:lang(en), :lang(ar)) .tm-web-nav__list > li:has(> .tm-web-nav__link--accent) {
-    display: none;
-  }
-
-  :is(:lang(en), :lang(ar)) .tm-web-nav__menu-orb {
-    display: inline-grid;
-  }
-}
-
-@media (min-width: 1440px) {
-  :lang(pt) .tm-web-nav__list > li:has(> .tm-web-nav__link--accent) {
-    display: none;
-  }
-
-  :lang(pt) .tm-web-nav__menu-orb {
-    display: inline-grid;
-  }
-}
-
-/* Languages whose full row cannot fit keep the compact header (menu orb and drawer) longer. */
-@media (min-width: 1280px) and (max-width: 1439px) {
-  :is(:lang(de), :lang(pt))
-    .tm-web-nav__bar
-    :is(.tm-web-nav__menu, .tm-web-nav__signin, .tm-web-nav__demo) {
-    display: none;
-  }
-
-  :is(:lang(de), :lang(pt)) .tm-web-nav__menu-orb {
-    display: inline-grid;
-  }
 }
 
 @media (min-width: 1280px) {
-  :is(:lang(es), :lang(fr))
-    .tm-web-nav__bar
-    :is(.tm-web-nav__menu, .tm-web-nav__signin, .tm-web-nav__demo) {
+  :is(:lang(ar), :lang(de), :lang(pt)) .tm-web-nav__bar {
+    gap: var(--s8);
+  }
+
+  :is(:lang(ar), :lang(de), :lang(pt)) .tm-web-nav__list {
+    gap: var(--s6);
+  }
+
+  :is(:lang(es), :lang(fr)) .tm-web-nav__bar {
+    gap: var(--s6);
+  }
+
+  :is(:lang(es), :lang(fr)) .tm-web-nav__list {
+    gap: var(--s4);
+  }
+
+  :is(:lang(es), :lang(fr)) .tm-web-nav__actions {
+    gap: var(--s2);
+  }
+}
+
+/* Compact header. */
+@media (min-width: 1280px) and (max-width: 1342px) {
+  :lang(de) .tm-web-nav__bar :is(.tm-web-nav__menu, .tm-web-nav__signin, .tm-web-nav__demo) {
     display: none;
   }
 
-  :is(:lang(es), :lang(fr)) .tm-web-nav__menu-orb {
+  :lang(de) .tm-web-nav__menu-orb {
+    display: inline-grid;
+  }
+}
+
+@media (min-width: 1280px) and (max-width: 1382px) {
+  :lang(fr) .tm-web-nav__bar :is(.tm-web-nav__menu, .tm-web-nav__signin, .tm-web-nav__demo) {
+    display: none;
+  }
+}
+
+@media (min-width: 1280px) and (max-width: 1396px) {
+  :lang(pt) .tm-web-nav__bar :is(.tm-web-nav__menu, .tm-web-nav__signin, .tm-web-nav__demo) {
+    display: none;
+  }
+}
+
+@media (min-width: 1280px) and (max-width: 1413px) {
+  :lang(es) .tm-web-nav__bar :is(.tm-web-nav__menu, .tm-web-nav__signin, .tm-web-nav__demo) {
+    display: none;
+  }
+}
+
+/* Pill in the menu (pt, es, fr keep it there at every desktop width). */
+:is(:lang(pt), :lang(es), :lang(fr)) .tm-web-nav__list > li:has(> .tm-web-nav__link--accent) {
+  display: none;
+}
+
+:is(:lang(pt), :lang(es), :lang(fr)) .tm-web-nav__menu-orb {
+  display: inline-grid;
+}
+
+@media (min-width: 1280px) and (max-width: 1323px) {
+  :lang(en) .tm-web-nav__list > li:has(> .tm-web-nav__link--accent) {
+    display: none;
+  }
+
+  :lang(en) .tm-web-nav__menu-orb {
+    display: inline-grid;
+  }
+}
+
+@media (min-width: 1280px) and (max-width: 1387px) {
+  :lang(ar) .tm-web-nav__list > li:has(> .tm-web-nav__link--accent) {
+    display: none;
+  }
+
+  :lang(ar) .tm-web-nav__menu-orb {
+    display: inline-grid;
+  }
+}
+
+@media (min-width: 1280px) and (max-width: 1430px) {
+  :lang(de) .tm-web-nav__list > li:has(> .tm-web-nav__link--accent) {
+    display: none;
+  }
+
+  :lang(de) .tm-web-nav__menu-orb {
     display: inline-grid;
   }
 }
