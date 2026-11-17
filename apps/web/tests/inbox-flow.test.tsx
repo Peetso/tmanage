@@ -327,7 +327,7 @@ describe('TM-04 the inbox', () => {
     render(withQuery(<InboxScreen {...NAMES} client={client} />));
 
     const more = await screen.findByRole('button', { name: 'Load more' });
-    expect(screen.queryByText('Nothing has happened yet')).not.toBeInTheDocument();
+    expect(screen.queryByText('Your inbox is ready')).not.toBeInTheDocument();
     expect(
       screen.getByText('Nothing you can still see on this page. There are older pages.'),
     ).toBeInTheDocument();
@@ -335,7 +335,7 @@ describe('TM-04 the inbox', () => {
     await user.click(more);
 
     // Only once the cursor is gone is the absolute statement made.
-    expect(await screen.findByText('Nothing has happened yet')).toBeInTheDocument();
+    expect(await screen.findByText('Your inbox is ready')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
   });
 
@@ -395,7 +395,7 @@ describe('TM-04 the inbox', () => {
     const { client } = clientOver(() => json({ items: [], nextCursor: null }));
     render(withQuery(<InboxScreen {...NAMES} client={client} />));
 
-    expect(await screen.findByText('Nothing has happened yet')).toBeInTheDocument();
+    expect(await screen.findByText('Your inbox is ready')).toBeInTheDocument();
     expect(screen.queryByText('Not available yet')).not.toBeInTheDocument();
   });
 });

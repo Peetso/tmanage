@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { useShellCapability } from '../shell/use-shell-capability';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { DayScheduleBar } from './MyDayScreen';
 import '../../styles/screens/docs.css';
 import { AudienceBadge } from '../docs/DocumentAudience';
@@ -56,6 +58,7 @@ export function DocsHubScreen({
   const api = client ?? browserApiClient();
   const t = useT();
   const tOr = useTOr();
+  const canUse = useShellCapability(organizationSlug, client);
   const [tab, setTab] = useState<HubTab>(initialProjectId ? 'project' : 'recent');
   const [chosenId, setProjectId] = useState<string>(initialProjectId ?? '');
 
@@ -196,7 +199,32 @@ export function DocsHubScreen({
           </LoadingRegion>
         ) : null}
 
-        {documents.isSuccess && rows.length === 0 && hidden === 0 ? (
+        {/*
+          55-10p: Recent is every document the caller may read, so an empty Recent is a truly
+          empty Docs and teaches; the other tabs are narrower lists and keep their own line.
+        */}
+        {documents.isSuccess && rows.length === 0 && hidden === 0 && tab === 'recent' ? (
+          <TeachingEmptyState
+            title={t('DocsHubScreen.noDocsTitle')}
+            explanation={t('EmptyStates.docsBody')}
+            action={
+              canUse('doc.write') ? (
+                <Button
+                  tone="lime"
+                  size="accessible"
+                  loading={createBlank.isPending}
+                  onClick={() => createBlank.mutate()}
+                >
+                  {t('DocsHubScreen.newDoc')}
+                </Button>
+              ) : undefined
+            }
+            helpSlug="start-a-project"
+            helpLabel={t('EmptyStates.howProjectsWork')}
+          />
+        ) : null}
+
+        {documents.isSuccess && rows.length === 0 && hidden === 0 && tab !== 'recent' ? (
           <div className="tm-dx-empty">
             <p className="tm-dx-empty__title">
               {tab === 'favourites'

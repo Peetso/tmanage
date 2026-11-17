@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, SearchField, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { useShellCapability } from '../shell/use-shell-capability';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { ViewSwitcher } from '../views/ViewSwitcher';
 import { useViewPreference } from '../views/use-view-preference';
 import {
@@ -121,6 +123,7 @@ export function ClientsScreen({
   const api = client ?? browserApiClient();
   const t = useClientsT();
   const tOr = useTOr();
+  const canUse = useShellCapability(organizationSlug, client);
   const locale = useActiveLocale();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -317,6 +320,22 @@ export function ClientsScreen({
           <InlineAlert tone="danger" title={t('Clients.loadFailed')} live>
             {describePeopleError(organizations.error)}
           </InlineAlert>
+        ) : organizations.isSuccess && companies.length === 0 ? (
+          // 55-10p: no company means no invitation either (each belongs to a company), so a truly
+          // empty Clients page teaches in place of the two cards.
+          <TeachingEmptyState
+            title={tOr('EmptyStates.clientsTitle', 'No clients yet')}
+            explanation={t('Clients.emptyOrganizations')}
+            action={
+              canUse('org.manage') ? (
+                <Button tone="lime" size="accessible" onClick={() => setInviting(true)}>
+                  {t('Clients.inviteClient')}
+                </Button>
+              ) : undefined
+            }
+            helpSlug="invite-a-client"
+            helpLabel={tOr('EmptyStates.howClientInvitesWork', 'How client invites work')}
+          />
         ) : (
           <div className="cl-grid">
             <section
@@ -336,9 +355,7 @@ export function ClientsScreen({
                   <Skeleton height="56px" />
                 </LoadingRegion>
               ) : shownRows.length === 0 ? (
-                <p className="cl-empty">
-                  {term === '' ? t('Clients.emptyOrganizations') : t('Clients.noMatches')}
-                </p>
+                <p className="cl-empty">{t('Clients.noMatches')}</p>
               ) : (
                 <ul
                   className={layout === 'grid' ? 'cl-list tm-view-grid' : 'cl-list'}

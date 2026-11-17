@@ -1,10 +1,12 @@
 'use client';
 
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { useShellCapability } from '../shell/use-shell-capability';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import '../../styles/screens/docs.css';
 import { DecisionWorkLinksPanel } from './DecisionWorkLinksPanel';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -68,6 +70,8 @@ export function DecisionRegisterScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const authorForm = useRef<HTMLFormElement>(null);
 
   const [chosenId, setProjectId] = useState<string>(initialProjectId ?? '');
   // DEC-01's filter capsules. "All" is the default so a decision just superseded stays in view.
@@ -161,6 +165,11 @@ export function DecisionRegisterScreen({
   );
   const canSubmit = projectId !== '' && title.trim() !== '' && statement.trim() !== '';
   const lifecycleError = accept.error ?? supersede.error ?? lock.error;
+
+  function focusAuthoring() {
+    const field = authorForm.current?.elements.namedItem('title');
+    if (field instanceof HTMLInputElement) field.focus();
+  }
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -283,10 +292,21 @@ export function DecisionRegisterScreen({
               ) : null}
 
               {!register.isPending && !register.isError && rows.length === 0 ? (
-                <div className="tm-dx-empty">
-                  <p className="tm-dx-empty__title">{t('DecisionRegisterScreen.emptyTitle')}</p>
-                  <p className="tm-dx-empty__body">{t('DecisionRegisterScreen.emptyBody')}</p>
-                </div>
+                // 55-10p: the first step is the form beside the register; the action takes the
+                // keyboard straight to its first field.
+                <TeachingEmptyState
+                  title={t('DecisionRegisterScreen.emptyTitle')}
+                  explanation={t('DecisionRegisterScreen.emptyBody')}
+                  action={
+                    canUse('decision.write') ? (
+                      <Button tone="lime" size="accessible" onClick={focusAuthoring}>
+                        {t('EmptyStates.recordDecision')}
+                      </Button>
+                    ) : undefined
+                  }
+                  helpSlug="start-a-project"
+                  helpLabel={t('EmptyStates.howProjectsWork')}
+                />
               ) : null}
 
               {rows.length > 0 && lifecycleError ? (
@@ -376,7 +396,7 @@ export function DecisionRegisterScreen({
                 <h2 id="tm-decisions-author" className="tm-dx-card__title">
                   {t('DecisionRegisterScreen.recordHeading')}
                 </h2>
-                <form className="tm-dx-form" onSubmit={onSubmit} noValidate>
+                <form className="tm-dx-form" onSubmit={onSubmit} noValidate ref={authorForm}>
                   <fieldset className="tm-fieldset" disabled={create.isPending}>
                     <Field
                       label={t('DecisionRegisterScreen.decisionLabel')}

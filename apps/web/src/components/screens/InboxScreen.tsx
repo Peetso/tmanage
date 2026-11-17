@@ -22,6 +22,8 @@ import type { MessageKey } from '../../lib/i18n/t';
 import { formatInstant, stateCapsule, stateLabel } from '../../lib/work-item-presentation';
 import { triageStateCapsule, triageStateLabel } from '../../lib/triage-presentation';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import '../../styles/screens/inbox.css';
 
 export interface InboxScreenProps {
@@ -74,6 +76,7 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
     null,
   );
   const now = useNow();
+  const canUse = useShellCapability(organizationSlug, client);
 
   // 2026-10-31 live test: the chosen filter was lost on reload. The mode lives in `?mode=`,
   // read once on mount and written with replaceState so Back is not filled with filter clicks.
@@ -255,7 +258,38 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
             bundle on it dropped because its object is no longer this person's to see — while a
             cursor beneath it says there is more. That is "nothing on this page", not "nothing".
           */}
-          {!inbox.isPending && !inbox.isError && bundles.length === 0 && !inbox.hasNextPage ? (
+          {/*
+            55-10p: the unfiltered list, truly empty, teaches what the inbox is for. The other
+            modes are filters over it, so an empty one keeps its own "nothing here" line.
+          */}
+          {!inbox.isPending &&
+          !inbox.isError &&
+          bundles.length === 0 &&
+          !inbox.hasNextPage &&
+          mode === 'all' ? (
+            <TeachingEmptyState
+              title={t(EMPTY_TITLE_KEYS.all)}
+              explanation={t(EMPTY_BODY_KEYS.all)}
+              action={
+                canUse('people.invite') ? (
+                  <Link
+                    className="tm-button tm-button--lime tm-button--accessible"
+                    href={`/${organizationSlug}/people`}
+                  >
+                    {t('EmptyStates.inviteTeam')}
+                  </Link>
+                ) : undefined
+              }
+              helpSlug="invite-your-team"
+              helpLabel={t('EmptyStates.howInvitingWorks')}
+            />
+          ) : null}
+
+          {!inbox.isPending &&
+          !inbox.isError &&
+          bundles.length === 0 &&
+          !inbox.hasNextPage &&
+          mode !== 'all' ? (
             <div className="tm-inbox-caught-up">
               <span className="tm-inbox-orb tm-inbox-orb--quiet" aria-hidden="true">
                 ✓
