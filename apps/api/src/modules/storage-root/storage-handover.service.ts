@@ -130,7 +130,7 @@ export class StorageHandoverService {
     principal: Principal,
     provider: StorageProvider,
   ): Promise<StorageHandoverTargetList> {
-    this.requireSecurityManage(context, principal);
+    requireStorageAdmin(context, principal);
     const { connection, members } = await this.database.read(context, async (runner) => ({
       connection: await this.store.findConnection(runner, context, provider),
       members: await this.store.listActiveMembers(runner, context),
@@ -148,7 +148,7 @@ export class StorageHandoverService {
     principal: Principal,
     body: unknown,
   ): Promise<StorageHandoverView> {
-    this.requireSecurityManage(context, principal);
+    requireStorageAdmin(context, principal);
     const input = body as { readonly provider?: unknown; readonly toUserId?: unknown } | null;
     const provider = parseProvider(input?.provider);
     const toUserId = input?.toUserId;
@@ -211,24 +211,29 @@ export class StorageHandoverService {
       };
     });
   }
+}
 
-  private requireSecurityManage(context: TenantContext, principal: Principal): void {
-    const verdict = authorize({
-      principal,
-      capability: 'org.security.manage',
-      resource: {
-        organizationId: context.organizationId,
-        projectId: null,
-        audience: 'internal',
-        lifecycle: 'active',
-      },
-    });
-    if (!verdict.allowed) {
-      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, verdict.code);
-    }
+/**
+ * The company storage actions (hand-over, 57-13b move) are `org.security.manage`, decided again
+ * on the server for the acting tenant whatever the route guard said.
+ */
+export function requireStorageAdmin(context: TenantContext, principal: Principal): void {
+  const verdict = authorize({
+    principal,
+    capability: 'org.security.manage',
+    resource: {
+      organizationId: context.organizationId,
+      projectId: null,
+      audience: 'internal',
+      lifecycle: 'active',
+    },
+  });
+  if (!verdict.allowed) {
+    throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, verdict.code);
   }
 }
 
-function live(row: StorageConnectionRow | undefined): StorageConnectionRow | undefined {
+/** A connection that still holds a grant: not disconnected, a refresh token stored. */
+export function live(row: StorageConnectionRow | undefined): StorageConnectionRow | undefined {
   return row && row.status !== 'disconnected' && row.refreshTokenEnc ? row : undefined;
 }

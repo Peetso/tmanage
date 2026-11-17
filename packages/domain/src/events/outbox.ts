@@ -149,6 +149,15 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'file_asset',
     catalog: '§4 file lifecycle — FILE-003 retention deletion; usage reconciliation',
   },
+  /**
+   * 57-13b. A version's bytes moved from TManage's storage into the company's own Drive or
+   * OneDrive (the "Move to Drive" job), after the copy was read back and its SHA-256 matched. It
+   * sources the ledger row that gives the bytes back on `storage.bytes`, as `file.purged.v1` does.
+   */
+  'file.moved_to_provider.v1': {
+    aggregateType: 'file_asset',
+    catalog: '§4 file lifecycle — 57-13b move to the company storage; usage reconciliation',
+  },
   /** CQ-12 (AUT-01): "work item created" — the automation trigger `work_item_created`. */
   'work_item.created.v1': {
     aggregateType: 'work_item',
@@ -559,6 +568,19 @@ export interface FilePurgedV1 {
   readonly deltaBytes: number;
 }
 
+/**
+ * 57-13b. Ids, where the bytes went and the byte delta — no filename, no digest, no provider file
+ * id. `deltaBytes` is what the `used` dimension of `storage.bytes` gave back.
+ */
+export interface FileMovedToProviderV1 {
+  readonly fileAssetId: string;
+  readonly fileVersionId: string;
+  readonly backend: 'google_drive' | 'onedrive';
+  readonly storageMigrationJobId: string;
+  readonly metricKey: string;
+  readonly deltaBytes: number;
+}
+
 /** CQ-12: ids and the creation state; the title stays on the row. */
 export interface WorkItemCreatedV1 {
   readonly workItemId: string;
@@ -824,6 +846,7 @@ export interface OutboxEventPayloads {
   readonly 'file.rejected.v1': FileRejectedV1;
   readonly 'file.ready.v1': FileReadyV1;
   readonly 'file.purged.v1': FilePurgedV1;
+  readonly 'file.moved_to_provider.v1': FileMovedToProviderV1;
   readonly 'work_item.created.v1': WorkItemCreatedV1;
   readonly 'work_item.client_action_requested.v1': WorkItemClientActionRequestedV1;
   readonly 'work_item.changed.v1': WorkItemChangedV1;

@@ -463,6 +463,23 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/integrations/storage/handover',
     reason: 'storage_connection',
   },
+  // 57-13b (0364). "Move to Drive" copies the company's files into its own storage and deletes
+  // TManage's local copies; starting it, and reading its progress, is a person's decision.
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/integrations/storage/migration-jobs/',
+    reason: 'storage_connection',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/integrations/storage/migration-jobs/',
+    reason: 'storage_connection',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/integrations/storage/migration-jobs/:jobId',
+    reason: 'storage_connection',
+  },
   // 0236. OneDrive storage: the same connection and credential routes as Google Drive.
   {
     method: 'POST',

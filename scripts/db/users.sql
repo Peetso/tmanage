@@ -2500,6 +2500,14 @@ GRANT INSERT, UPDATE ON `tmanage`.`signature_request_signers` TO 'tmanage_app'@'
 -- `uq_client_a11y_preferences_org_client_membership`. No DELETE: a client clears settings by saving
 -- the defaults. SELECT rides the database-wide read. The worker needs no grant.
 GRANT INSERT, UPDATE ON `tmanage`.`client_a11y_preferences` TO 'tmanage_app'@'%';
+-- 0364 (57-13b). `storage_migration_jobs` (tenant): an owner or admin starts a "Move to Drive" job
+-- (INSERT); the API's in-process move job claims it and writes its counts, cursor and status
+-- (UPDATE). No DELETE at runtime. Moving a version flips `file_versions.storage_backend` and its
+-- provider ids on the existing `file_versions` UPDATE grant and gives the bytes back on the
+-- existing `usage_counters` / `usage_ledger_entries` grants. SELECT rides the database-wide read.
+-- The worker needs no grant: the job runs in the API process, where the vault and the provider
+-- transports already are.
+GRANT INSERT, UPDATE ON `tmanage`.`storage_migration_jobs` TO 'tmanage_app'@'%';
 -- 0359 (ADTRACK). `organizations` gains four nullable `signup_utm_*` columns, written once in the
 -- sign-up INSERT and read by the platform overview. They ride the existing `organizations` INSERT
 -- grant above and the database-wide read; the worker needs no grant.

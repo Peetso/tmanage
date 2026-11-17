@@ -42,6 +42,8 @@ export const USAGE_LEDGER_REASON = {
   purged: 'purged',
   previewDerivative: 'preview_derivative',
   previewRemoved: 'preview_removed',
+  /** 57-13b. A version's bytes moved into the company's Drive/OneDrive (`file.moved_to_provider.v1`). */
+  movedToProvider: 'moved_to_provider',
 } as const;
 
 /**

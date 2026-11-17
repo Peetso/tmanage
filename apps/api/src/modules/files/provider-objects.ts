@@ -175,4 +175,13 @@ export class VersionStore {
     }
     return ref;
   }
+
+  /** Best-effort removal of a copy this process just made and will not use (57-13b). */
+  async removeFromProvider(
+    context: TenantContext,
+    backend: ProviderBackend,
+    ref: ProviderObjectRef,
+  ): Promise<void> {
+    await this.providers[backend]?.remove(context, ref).catch(() => undefined);
+  }
 }

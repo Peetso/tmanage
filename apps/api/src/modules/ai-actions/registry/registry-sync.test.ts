@@ -216,7 +216,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // 52-10: invoice and quote PDFs, team and portal (+4 NEVER).
 // 52-27: client journey steps (list, add, from template, edit, remove), journey templates, and the
 // portal form step read and send (+8 classified).
-const EXPECTED_ROUTE_COUNT = 1516;
+// 57-13b: "Move to Drive" start, latest and one job (+3 NEVER, storage_connection).
+const EXPECTED_ROUTE_COUNT = 1519;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

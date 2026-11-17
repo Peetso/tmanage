@@ -2,9 +2,25 @@ import { Body, Controller, Get, HttpCode, Inject, Module, Post, Query } from '@n
 import type { DynamicModule, Provider } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
-import { AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
+import type { ObjectStore } from '@tmanage/storage';
+import type { ApiConfig } from '../../common/http/api-config.js';
+import {
+  API_CONFIG,
+  AUDIT_SERVICE,
+  OBJECT_STORE,
+  TENANT_DATABASE,
+} from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { providerObjectSources } from '../files/provider-object-sources.js';
+import {
+  STORAGE_MOVE_JOB,
+  StorageMoveJob,
+  StorageMovePass,
+  storageMoveJobEnabled,
+} from './storage-move-job.js';
+import { STORAGE_MOVE_SERVICE, StorageMoveController } from './storage-move.controller.js';
+import { StorageMoveService } from './storage-move.service.js';
 import {
   StorageHandoverService,
   parseProvider,
@@ -61,10 +77,37 @@ export class StorageRootModule {
       useFactory: (database: TenantDatabase, audit: AuditService) =>
         new StorageHandoverService(database, audit),
     };
+    // 57-13b. The "Move to Drive" job runs here, in the API, where the vault and the provider
+    // transports are; the routes only start it and read it.
+    const moveJob: Provider = {
+      provide: STORAGE_MOVE_JOB,
+      inject: [TENANT_DATABASE, OBJECT_STORE, AUDIT_SERVICE, API_CONFIG],
+      useFactory: (
+        database: TenantDatabase,
+        store: ObjectStore,
+        audit: AuditService,
+        config: ApiConfig,
+      ) =>
+        new StorageMoveJob(
+          new StorageMovePass(
+            database,
+            store,
+            providerObjectSources(database, audit, config),
+            audit,
+          ),
+          storageMoveJobEnabled(),
+        ),
+    };
+    const moveService: Provider = {
+      provide: STORAGE_MOVE_SERVICE,
+      inject: [TENANT_DATABASE, AUDIT_SERVICE, STORAGE_MOVE_JOB],
+      useFactory: (database: TenantDatabase, audit: AuditService, job: StorageMoveJob) =>
+        new StorageMoveService(database, audit, job),
+    };
     return {
       module: StorageRootModule,
-      providers: [service],
-      controllers: [StorageHandoverController],
+      providers: [service, moveJob, moveService],
+      controllers: [StorageHandoverController, StorageMoveController],
     };
   }
 }

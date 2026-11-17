@@ -659,6 +659,19 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'storage_connection',
     clause: '§12 organization settings — the company storage connection changed hands',
   },
+  /**
+   * 0364 (57-13b). An owner or admin started moving the files TManage still holds into the
+   * company's connected Drive or OneDrive. Metadata is the provider and the file count.
+   */
+  'storage_migration.started': {
+    objectType: 'storage_migration_job',
+    clause: '§12 organization settings — moving the company files to its own storage',
+  },
+  /** 0364 (57-13b). The move job finished or stopped; metadata is the counts and the reason. */
+  'storage_migration.finished': {
+    objectType: 'storage_migration_job',
+    clause: '§12 — a system job moved tenant files and deleted their local copies',
+  },
   /** 0210. A Drive file attached to, or detached from, a work item (ids and type only). */
   'drive_attachment.attached': {
     objectType: 'google_drive_attachment',
@@ -1847,6 +1860,8 @@ const AUDIT_ACTION_LABELS = {
   'storage_connection.disconnected': 'Disconnected Google Drive',
   'storage_connection.handover_requested': 'Asked an admin to take over company storage',
   'storage_connection.handover': 'Took over the company storage connection',
+  'storage_migration.started': 'Started moving files to company storage',
+  'storage_migration.finished': 'Finished moving files to company storage',
   'drive_attachment.attached': 'Attached a Google Drive file',
   'drive_attachment.removed': 'Removed a Google Drive file',
   'onedrive_attachment.attached': 'Attached a OneDrive file',

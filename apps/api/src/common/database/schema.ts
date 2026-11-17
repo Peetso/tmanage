@@ -13779,6 +13779,55 @@ export type UserMfaEmailCodeRow = typeof userMfaEmailCodes.$inferSelect;
 
 Object.assign(TABLES, { user_mfa_email_codes: userMfaEmailCodes });
 
+// ---- 57-13b · "Move to Drive" jobs (0364) ----
+export const STORAGE_MIGRATION_JOB_STATUSES = ['queued', 'running', 'done', 'stopped'] as const;
+export type StorageMigrationJobStatus = (typeof STORAGE_MIGRATION_JOB_STATUSES)[number];
+
+/**
+ * 0364 (57-13b). One request to move the company's local, clean versions into its connected
+ * Drive or OneDrive, worked through by the API's move job (`storage-root/storage-move-job.ts`).
+ * `activeOrganizationId` is set while queued or running (one live job per company);
+ * `pendingObjectKey` names a local object whose version was flipped but whose delete has not been
+ * confirmed yet. TENANT; INSERT and UPDATE for the API. `0364_storage_migration_jobs.sql` is the
+ * source of truth.
+ */
+export const storageMigrationJobs = mysqlTable(
+  'storage_migration_jobs',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    activeOrganizationId: char('active_organization_id', { length: 36 }),
+    kind: varchar('kind', { length: 32 }).$type<'transient_to_provider'>().notNull(),
+    backend: varchar('backend', { length: 16 }).$type<'google_drive' | 'onedrive'>().notNull(),
+    storageConnectionId: char('storage_connection_id', { length: 36 }).notNull(),
+    status: varchar('status', { length: 16 }).$type<StorageMigrationJobStatus>().notNull(),
+    requestedByUserId: char('requested_by_user_id', { length: 36 }).notNull(),
+    total: int('total', { unsigned: true }).notNull().default(0),
+    moved: int('moved', { unsigned: true }).notNull().default(0),
+    failed: int('failed', { unsigned: true }).notNull().default(0),
+    skipped: int('skipped', { unsigned: true }).notNull().default(0),
+    movedBytes: bigint('moved_bytes', { mode: 'number', unsigned: true }).notNull().default(0),
+    cursorVersionId: char('cursor_version_id', { length: 36 }),
+    pendingObjectKey: varchar('pending_object_key', { length: 512 }),
+    error: varchar('error', { length: 64 }),
+    claimedAt: datetime('claimed_at', { mode: 'date', fsp: 3 }),
+    startedAt: datetime('started_at', { mode: 'date', fsp: 3 }),
+    finishedAt: datetime('finished_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_storage_migration_jobs_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_storage_migration_jobs_active').on(table.activeOrganizationId),
+    index('ix_storage_migration_jobs_org_created').on(table.organizationId, table.createdAt),
+    index('ix_storage_migration_jobs_status').on(table.status, table.claimedAt),
+  ],
+);
+
+export type StorageMigrationJobRow = typeof storageMigrationJobs.$inferSelect;
+
+Object.assign(TABLES, { storage_migration_jobs: storageMigrationJobs });
+
 // ---- R46 L2 · 56-21 platform governance (0334) ----
 
 /**
