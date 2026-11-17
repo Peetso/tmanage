@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { safeReturnPath, signInPathFor } from '../src/lib/sign-in-return';
+import {
+  CONFIRM_EMAIL_RETURN,
+  SIGN_IN_TO_CONFIRM_EMAIL,
+  confirmEmailSettingPath,
+  safeReturnPath,
+  signInPathFor,
+  wantsConfirmEmailSetting,
+} from '../src/lib/sign-in-return';
 
 /** ACC-01: sign-in brings an invitee back to their invitation, and never anywhere else. */
 const INVITE = `/invitations/${'A'.repeat(43)}`;
@@ -24,6 +31,21 @@ describe('sign-in return path', () => {
       expect(safeReturnPath(next)).toBe('/organizations');
     }
     expect(signInPathFor('/acme/home')).toBe('/sign-in');
+  });
+
+  it('returns to the confirmation-mail setting only by its exact path (CONFIRMPOLISH 2)', () => {
+    expect(safeReturnPath(CONFIRM_EMAIL_RETURN)).toBe('/organizations?then=confirm-email');
+    expect(SIGN_IN_TO_CONFIRM_EMAIL).toBe('/sign-in?next=%2Forganizations%3Fthen%3Dconfirm-email');
+    for (const next of [
+      '/organizations?then=confirm-email&next=//evil.example',
+      '/organizations?then=//evil.example',
+      '//evil.example/organizations?then=confirm-email',
+    ]) {
+      expect(safeReturnPath(next)).toBe('/organizations');
+    }
+    expect(wantsConfirmEmailSetting('?then=confirm-email')).toBe(true);
+    expect(wantsConfirmEmailSetting('?then=home')).toBe(false);
+    expect(confirmEmailSettingPath('acme')).toBe('/acme/settings/two-step#tm-confirm-email');
   });
 
   it('returns to the AI-app consent page with its query, and only that same-origin form (S9)', () => {

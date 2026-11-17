@@ -16,6 +16,7 @@ import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { pluralPhrase } from '../../lib/i18n/plural';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { confirmEmailSettingPath, wantsConfirmEmailSetting } from '../../lib/sign-in-return';
 import '../../styles/screens/identity.css';
 
 export interface OrganizationSelectorScreenProps {
@@ -28,11 +29,13 @@ export interface OrganizationSelectorScreenProps {
   navigate?: (href: string) => void;
 }
 
-/** Where a membership opens: a client lands in the portal, everyone else in the app. */
-function destinationFor(organization: OrganizationSummary): string {
-  return organization.audience === 'client'
-    ? `/${organization.slug}/portal`
-    : `/${organization.slug}/home`;
+/**
+ * Where a membership opens: a client lands in the portal, everyone else in the app, or, after an
+ * expired confirmation link (`?then=confirm-email`), on the "Confirm your e-mail" setting.
+ */
+function destinationFor(organization: OrganizationSummary, confirmEmail = false): string {
+  if (organization.audience === 'client') return `/${organization.slug}/portal`;
+  return confirmEmail ? confirmEmailSettingPath(organization.slug) : `/${organization.slug}/home`;
 }
 
 /**
@@ -92,6 +95,11 @@ export function OrganizationSelectorScreen({
     }
   });
 
+  /** CONFIRMPOLISH 2: sent here after sign-in from an expired confirmation link. Read once. */
+  const [confirmEmail] = useState(
+    () => typeof window !== 'undefined' && wantsConfirmEmailSetting(window.location.search),
+  );
+
   const organizations = useQuery({
     queryKey: ['organizations'],
     queryFn: () => listOrganizations(api),
@@ -119,9 +127,22 @@ export function OrganizationSelectorScreen({
       ? organizations.data[0]!
       : undefined;
 
+  /** With one workspace, the confirmation-mail setting opens straight away (no choice to make). */
+  const soleConfirmEmailOrganization =
+    confirmEmail &&
+    organizations.isSuccess &&
+    organizations.data.length === 1 &&
+    organizations.data[0]!.audience !== 'client'
+      ? organizations.data[0]!
+      : undefined;
+
   useEffect(() => {
     if (soleClientOrganization) navigate(destinationFor(soleClientOrganization));
   }, [soleClientOrganization, navigate]);
+
+  useEffect(() => {
+    if (soleConfirmEmailOrganization) navigate(destinationFor(soleConfirmEmailOrganization, true));
+  }, [soleConfirmEmailOrganization, navigate]);
 
   if (soleClientOrganization) {
     const name = soleClientOrganization.clientOrganizationName ?? soleClientOrganization.name;
@@ -220,7 +241,7 @@ export function OrganizationSelectorScreen({
                     <li key={`${organization.id}-${organization.audience}`}>
                       <Link
                         className={isClient ? 'tm-id-org tm-id-org--client' : 'tm-id-org'}
-                        href={destinationFor(organization)}
+                        href={destinationFor(organization, confirmEmail)}
                       >
                         <span className="tm-id-org__orb" aria-hidden="true">
                           {initials(name)}

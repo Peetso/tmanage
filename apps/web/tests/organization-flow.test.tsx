@@ -181,6 +181,22 @@ describe('ID-04 organization selector', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
+  /** CONFIRMPOLISH 2: after sign-in from an expired confirmation link, straight to the resend. */
+  it('opens the confirmation-mail setting when sent with ?then=confirm-email', async () => {
+    const originalSearch = window.location.search;
+    window.history.replaceState({}, '', '/organizations?then=confirm-email');
+    try {
+      const { client } = clientOver(() => json({ organizations: [NORTHSTAR] }));
+      const navigate = vi.fn();
+      await renderSettled(<OrganizationSelectorScreen client={client} navigate={navigate} />);
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith('/northstar/settings/two-step#tm-confirm-email'),
+      );
+    } finally {
+      window.history.replaceState({}, '', `/organizations${originalSearch}`);
+    }
+  });
+
   it('sends a client row to the portal and an internal row to the app', async () => {
     const { client } = clientOver(() => json({ organizations: [NORTHSTAR, ATLAS] }));
     await renderSettled(<OrganizationSelectorScreen client={client} />);

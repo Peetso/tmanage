@@ -6,6 +6,14 @@ import { TwoStepSignInScreen } from '../src/components/screens/TwoStepSignInScre
 import { ConfirmEmailScreen } from '../src/components/screens/ConfirmEmailScreen';
 import { localeFromSearch } from '../src/lib/i18n/locale-boot';
 import { activeLocale } from '../src/lib/i18n/locale-store';
+import en from '../src/lib/i18n/messages/en.json';
+import ar from '../src/lib/i18n/messages/ar.json';
+import de from '../src/lib/i18n/messages/de.json';
+import es from '../src/lib/i18n/messages/es.json';
+import fr from '../src/lib/i18n/messages/fr.json';
+import ptBR from '../src/lib/i18n/messages/pt-BR.json';
+import zhCN from '../src/lib/i18n/messages/zh-CN.json';
+import ur from '../src/lib/i18n/messages/ur.json';
 
 /**
  * VERIFYMAIL (2026-11-16): a password account could not confirm its address, so e-mail codes
@@ -99,6 +107,8 @@ describe('the "Confirm your e-mail" notice on Two-step sign-in', () => {
 
 describe('the confirmation link page', () => {
   const TOKEN = 'A'.repeat(43);
+  /** The card's links (the skip link sits outside it). */
+  const cardLinks = () => [...document.querySelectorAll<HTMLAnchorElement>('.tm-identity__card a')];
 
   it('spends the link only on a click, in the body, and never renders it', async () => {
     const calls: Call[] = [];
@@ -106,7 +116,9 @@ describe('the confirmation link page', () => {
     expect(calls).toHaveLength(0);
     expect(document.body.textContent?.includes(TOKEN)).toBe(false);
     fireEvent.click(screen.getByRole('button', { name: 'Confirm my e-mail' }));
-    expect(await screen.findByText('Your e-mail is confirmed.')).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Your e-mail is confirmed' })).toBeTruthy();
+    // CONFIRMPOLISH 1: one way on, the "Sign in" button; no second "Back to sign in" link.
+    expect(cardLinks().map((link) => link.textContent)).toEqual(['Sign in']);
     expect(calls.map((call) => [call.method, call.url, call.body])).toEqual([
       [
         'POST',
@@ -146,8 +158,26 @@ describe('the confirmation link page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm my e-mail' }));
     expect(
       await screen.findByText(
-        'This link has expired or was already used. Sign in and send a new one from Two-step sign-in.',
+        'This link has expired or was already used. Sign in and we take you to Settings › Two-step sign-in, where you can send a new confirmation e-mail.',
       ),
     ).toBeTruthy();
+    // CONFIRMPOLISH 2: the button signs in and comes back to the resend setting; no duplicate link.
+    expect(cardLinks().map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
+      ['Sign in', '/sign-in?next=%2Forganizations%3Fthen%3Dconfirm-email'],
+    ]);
+  });
+
+  it('asks first with a way back to sign in, and no eyebrow repeating the heading', () => {
+    const { container } = render(
+      <ConfirmEmailScreen token={TOKEN} client={client(() => ({ status: 204 }), [])} />,
+    );
+    expect(screen.getByRole('link', { name: 'Back to sign in' })).toBeTruthy();
+    expect(container.querySelector('.tm-identity__eyebrow')).toBeNull();
+  });
+
+  it('ends the confirmed heading without a full stop in every language (CONFIRMPOLISH 3)', () => {
+    for (const catalog of [en, ar, de, es, fr, ptBR, zhCN, ur]) {
+      expect(catalog['ConfirmEmail.done']).not.toMatch(/[.。۔]$/u);
+    }
   });
 });

@@ -29,8 +29,35 @@ const AI_APPROVE_PATH = /^\/[a-z0-9][a-z0-9-]{0,62}\/ai\/approve\/[0-9a-f-]{36}$
  */
 const PLATFORM_PATH = /^\/platform(?:\/[A-Za-z0-9_-]{1,64}){0,6}$/u;
 
+/**
+ * CONFIRMPOLISH 2 — after an expired confirmation link: the workspace chooser, told to open the
+ * person's Two-step sign-in settings, where "Send confirmation e-mail" lives. Exactly this value.
+ */
+export const CONFIRM_EMAIL_RETURN = '/organizations?then=confirm-email';
+
+/** The `then` value of {@link CONFIRM_EMAIL_RETURN}. */
+const THEN_CONFIRM_EMAIL = 'confirm-email';
+
+/** Sign-in that comes back to the confirmation-mail setting (the expired link's button). */
+export const SIGN_IN_TO_CONFIRM_EMAIL = `/sign-in?next=${encodeURIComponent(CONFIRM_EMAIL_RETURN)}`;
+
+/** True when the chooser's query (`location.search`) asks for the confirmation-mail setting. */
+export function wantsConfirmEmailSetting(search: string): boolean {
+  try {
+    return new URLSearchParams(search).get('then') === THEN_CONFIRM_EMAIL;
+  } catch {
+    return false;
+  }
+}
+
+/** A workspace's Two-step sign-in settings, at the "Confirm your e-mail" section. */
+export function confirmEmailSettingPath(organizationSlug: string): string {
+  return `/${encodeURIComponent(organizationSlug)}/settings/two-step#tm-confirm-email`;
+}
+
 function isAllowedReturn(path: string): boolean {
   return (
+    path === CONFIRM_EMAIL_RETURN ||
     INVITATION_PATH.test(path) ||
     CONSENT_PATH.test(path) ||
     AI_APPROVE_PATH.test(path) ||

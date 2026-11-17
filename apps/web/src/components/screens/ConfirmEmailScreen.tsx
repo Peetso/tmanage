@@ -9,6 +9,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { completeEmailConfirmation } from '../../lib/api/email-confirmation';
 import { ApiRequestError } from '../../lib/api/errors';
 import { useT } from '../../lib/i18n/use-t';
+import { SIGN_IN_TO_CONFIRM_EMAIL } from '../../lib/sign-in-return';
 import '../../styles/screens/identity.css';
 
 type ConfirmState = 'ask' | 'done' | 'expired';
@@ -42,9 +43,12 @@ export function ConfirmEmailScreen({ token, client }: { token: string; client?: 
   }
 
   return (
+    // CONFIRMPOLISH 1 + 4: no eyebrow repeating the heading, and "Back to sign in" only before
+    // the click; a result state's own "Sign in" button is the way on.
     <IdentityShell
-      eyebrow={t('ConfirmEmail.pageTitle')}
-      footer={<Link href="/sign-in">{t('RecoveryScreen.backToSignIn')}</Link>}
+      {...(state === 'ask'
+        ? { footer: <Link href="/sign-in">{t('RecoveryScreen.backToSignIn')}</Link> }
+        : {})}
     >
       {state === 'ask' ? (
         <div className="tm-id-bare tm-stack">
@@ -93,7 +97,11 @@ export function ConfirmEmailScreen({ token, client }: { token: string; client?: 
             <h1 className="tm-id-card__title">{t('RecoveryScreen.linkExpired')}</h1>
             <p className="tm-id-card__body">{t('ConfirmEmail.expired')}</p>
             <div className="tm-id-action-row">
-              <Link className="tm-button tm-button--ink tm-button--accessible" href="/sign-in">
+              {/* After sign-in: the Two-step sign-in settings, where the resend button is. */}
+              <Link
+                className="tm-button tm-button--ink tm-button--accessible"
+                href={SIGN_IN_TO_CONFIRM_EMAIL}
+              >
                 {t('RecoveryScreen.signIn')}
               </Link>
             </div>
