@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useRef, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
@@ -18,6 +18,8 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { MeetingBackLink, MeetingHeaderActions } from './MeetingsScreen';
 import '../../styles/screens/calendar.css';
 
@@ -66,6 +68,8 @@ export function MeetingActionItemsScreen({
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
 
   const [title, setTitle] = useState('');
   const [dueOn, setDueOn] = useState('');
@@ -189,9 +193,21 @@ export function MeetingActionItemsScreen({
               ) : null}
 
               {!actionItems.isPending && !actionItems.isError && rows.length === 0 ? (
-                <InlineAlert tone="neutral" title={t('MeetingActionItemsScreen.emptyTitle')}>
-                  {t('MeetingActionItemsScreen.emptyBody')}
-                </InlineAlert>
+                <TeachingEmptyState
+                  title={t('MeetingActionItemsScreen.emptyTitle')}
+                  explanation={t('teachEmpty.meetingActionsBody')}
+                  action={
+                    canUse('meeting.write') ? (
+                      <Button
+                        tone="lime"
+                        size="accessible"
+                        onClick={() => focusFirstField(firstStep.current)}
+                      >
+                        {t('teachEmpty.meetingActionsAction')}
+                      </Button>
+                    ) : undefined
+                  }
+                />
               ) : null}
 
               {rows.length > 0 ? (
@@ -268,7 +284,7 @@ export function MeetingActionItemsScreen({
                 <h2 id="tm-action-items-capture" className="tm-cal-eyebrow">
                   {t('MeetingActionItemsScreen.captureHeading')}
                 </h2>
-                <form className="tm-cal-form" onSubmit={submitCapture}>
+                <form ref={firstStep} className="tm-cal-form" onSubmit={submitCapture}>
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-action-item-title">
                       {t('MeetingActionItemsScreen.captureTitleLabel')}

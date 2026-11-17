@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Announce, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -20,6 +20,8 @@ import type {
 } from '../../lib/api/insight-custom-reports';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
@@ -68,6 +70,8 @@ export function InsightCustomReportsView({
 }: InsightCustomReportsViewProps) {
   const describeError = useDescribeApiError();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const listKey = ['insight-custom-reports', organizationSlug] as const;
@@ -132,6 +136,7 @@ export function InsightCustomReportsView({
           </h2>
 
           <form
+            ref={firstStep}
             className="tm-stack"
             onSubmit={(event) => {
               event.preventDefault();
@@ -238,9 +243,21 @@ export function InsightCustomReportsView({
           ) : null}
 
           {!reports.isPending && !reports.isError && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title={t('InsightCustomReportsView.emptyTitle')}>
-              {t('InsightCustomReportsView.emptyBody')}
-            </InlineAlert>
+            <TeachingEmptyState
+              title={t('InsightCustomReportsView.emptyTitle')}
+              explanation={t('teachEmpty.customReportsBody')}
+              action={
+                canUse('report.view') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {t('teachEmpty.customReportsAction')}
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : null}
 
           {rows.length > 0 ? (

@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Announce, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import '../../styles/screens/insights.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import type { MessageKey } from '../../lib/i18n/t';
 import {
   INSIGHT_REPORT_KINDS,
@@ -97,6 +99,8 @@ export function ReportSchedulesScreen({
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const listKey = ['insight-report-schedules', organizationSlug] as const;
 
   const [reportKey, setReportKey] = useState<InsightReportKind>('portfolio');
@@ -148,6 +152,7 @@ export function ReportSchedulesScreen({
           </h2>
 
           <form
+            ref={firstStep}
             className="tm-stack"
             onSubmit={(event) => {
               event.preventDefault();
@@ -272,9 +277,21 @@ export function ReportSchedulesScreen({
           ) : null}
 
           {!schedules.isPending && !schedules.isError && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title={t('ReportSchedulesScreen.emptyTitle')}>
-              {t('ReportSchedulesScreen.emptyBody')}
-            </InlineAlert>
+            <TeachingEmptyState
+              title={t('ReportSchedulesScreen.emptyTitle')}
+              explanation={t('teachEmpty.reportSchedulesBody')}
+              action={
+                canUse('report.view') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {t('teachEmpty.reportSchedulesAction')}
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : null}
 
           {rows.length > 0 ? (

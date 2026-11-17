@@ -1,10 +1,12 @@
 'use client';
 
-import { useMemo, useState, type FormEvent } from 'react';
+import { useRef, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { createFocusBlock, deleteFocusBlock, listFocusBlocks } from '../../lib/api/focus-blocks';
 import type { FocusBlockView } from '../../lib/api/focus-blocks';
@@ -49,6 +51,8 @@ export function FocusBlocksScreen({
 }: FocusBlocksScreenProps) {
   const errorMessage = useDescribeApiError(OFFLINE_LINES);
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const window = useMemo(listWindow, []);
@@ -125,9 +129,21 @@ export function FocusBlocksScreen({
                 {errorMessage(blocks.error)}
               </InlineAlert>
             ) : blocks.data.length === 0 ? (
-              <InlineAlert tone="neutral" title={t('FocusBlocksScreen.emptyTitle')}>
-                {t('FocusBlocksScreen.emptyBody')}
-              </InlineAlert>
+              <TeachingEmptyState
+                title={t('FocusBlocksScreen.emptyTitle')}
+                explanation={t('teachEmpty.focusBlocksBody')}
+                action={
+                  canUse('work.read') ? (
+                    <Button
+                      tone="lime"
+                      size="accessible"
+                      onClick={() => focusFirstField(firstStep.current)}
+                    >
+                      {t('teachEmpty.focusBlocksAction')}
+                    </Button>
+                  ) : undefined
+                }
+              />
             ) : (
               <div className="tm-cal-sheet">
                 <table>
@@ -187,7 +203,12 @@ export function FocusBlocksScreen({
           </div>
 
           <div className="tm-cal-side">
-            <form className="tm-cal-card" aria-labelledby="tm-focus-heading" onSubmit={submit}>
+            <form
+              ref={firstStep}
+              className="tm-cal-card"
+              aria-labelledby="tm-focus-heading"
+              onSubmit={submit}
+            >
               <h2 id="tm-focus-heading" className="tm-cal-eyebrow">
                 {t('FocusBlocksScreen.newHeading')}
               </h2>

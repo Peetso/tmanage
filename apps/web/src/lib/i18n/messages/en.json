@@ -20314,5 +20314,17 @@
   "teachEmpty.docCollectionsBody": "Group related documents, like an onboarding pack or a style guide, so they are easy to find.",
   "teachEmpty.docCollectionsAction": "Create a collection",
   "teachEmpty.meetingActionsBody": "Write down who does what after this meeting, so nothing agreed gets lost.",
-  "teachEmpty.meetingActionsAction": "Add an action item"
+  "teachEmpty.meetingActionsAction": "Add an action item",
+  "teachEmpty.savedSearchesBody": "Save a search you run often and open it again in one click.",
+  "teachEmpty.savedSearchesAction": "Save a search",
+  "teachEmpty.customRolesBody": "Make a role that fits how your company works, with exactly the rights it needs.",
+  "teachEmpty.customRolesAction": "Create a role",
+  "teachEmpty.invitationsBody": "Invitations you send wait here until people join, so you can resend or cancel them.",
+  "teachEmpty.exportRequestsBody": "Ask for a full copy of your company's data, ready to download when it is prepared.",
+  "teachEmpty.exportRequestsAction": "Request an export",
+  "teachEmpty.inboxFiltersBody": "Save the inbox view you use most, so the right messages are one click away.",
+  "teachEmpty.inboxFiltersAction": "Save a filter",
+  "teachEmpty.checklistTemplatesTitle": "No checklist templates yet",
+  "teachEmpty.checklistTemplatesBody": "Turn steps you repeat on every task into a checklist you can add in one go.",
+  "teachEmpty.checklistTemplatesAction": "Create a checklist"
 }

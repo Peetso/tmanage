@@ -20119,5 +20119,17 @@
   "teachEmpty.docCollectionsBody": "把相关文档归在一起，比如入职资料包或风格指南，方便查找。",
   "teachEmpty.docCollectionsAction": "创建合集",
   "teachEmpty.meetingActionsBody": "记下会后谁负责做什么，确保达成的事项不会遗漏。",
-  "teachEmpty.meetingActionsAction": "添加行动项"
+  "teachEmpty.meetingActionsAction": "添加行动项",
+  "teachEmpty.savedSearchesBody": "保存常用的搜索，一键即可再次打开。",
+  "teachEmpty.savedSearchesAction": "保存搜索",
+  "teachEmpty.customRolesBody": "创建符合公司工作方式的角色，只给它真正需要的权限。",
+  "teachEmpty.customRolesAction": "创建角色",
+  "teachEmpty.invitationsBody": "发出的邀请会在这里等待对方加入，你可以重新发送或取消。",
+  "teachEmpty.exportRequestsBody": "申请公司数据的完整副本，准备好后即可下载。",
+  "teachEmpty.exportRequestsAction": "申请导出",
+  "teachEmpty.inboxFiltersBody": "保存最常用的收件箱视图，一键就能看到需要的消息。",
+  "teachEmpty.inboxFiltersAction": "保存筛选",
+  "teachEmpty.checklistTemplatesTitle": "暂无清单模板",
+  "teachEmpty.checklistTemplatesBody": "把每个任务都要重复的步骤做成清单，一次即可添加。",
+  "teachEmpty.checklistTemplatesAction": "创建清单"
 }

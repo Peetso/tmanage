@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
@@ -16,6 +16,8 @@ import { listProjects } from '../../lib/api/projects';
 import { useHydrated } from '../../lib/use-hydrated';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface DocumentTemplatesScreenProps {
@@ -53,6 +55,8 @@ export function DocumentTemplatesScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
 
   const templates = useQuery({
     queryKey: ['document-templates', organizationSlug],
@@ -186,10 +190,21 @@ export function DocumentTemplatesScreen({
           ) : null}
 
           {!templates.isPending && !templates.isError && rows.length === 0 ? (
-            <div className="tm-dx-empty">
-              <p className="tm-dx-empty__title">{t('DocumentTemplatesScreen.emptyTitle')}</p>
-              <p className="tm-dx-empty__body">{t('DocumentTemplatesScreen.emptyBody')}</p>
-            </div>
+            <TeachingEmptyState
+              title={t('DocumentTemplatesScreen.emptyTitle')}
+              explanation={t('teachEmpty.docTemplatesBody')}
+              action={
+                canUse('doc.write') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {t('teachEmpty.docTemplatesAction')}
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : null}
 
           {rows.length > 0 ? (
@@ -274,6 +289,7 @@ export function DocumentTemplatesScreen({
               {t('DocumentTemplatesScreen.newTemplate')}
             </h2>
             <form
+              ref={firstStep}
               className="tm-dx-form"
               noValidate
               onSubmit={(event: FormEvent<HTMLFormElement>) => {

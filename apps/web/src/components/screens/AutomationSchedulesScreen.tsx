@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState, type FormEvent } from 'react';
+import { useRef, Fragment, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Checkbox, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { SettingsShell } from '../admin/SettingsShell';
@@ -18,6 +18,8 @@ import {
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useTOr } from '../../lib/i18n/use-t-or';
 
 export interface AutomationSchedulesScreenProps {
@@ -55,6 +57,8 @@ export function AutomationSchedulesScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const tOr = useTOr();
   const queryKey = ['automation-schedules', organizationSlug];
 
@@ -205,10 +209,21 @@ export function AutomationSchedulesScreen({
               ) : null}
 
               {!schedules.isPending && !schedules.isError && rows.length === 0 ? (
-                <div className="tm-aut-empty">
-                  <p className="tm-aut-empty__title">{t('AutomationSchedulesScreen.emptyTitle')}</p>
-                  <p className="tm-aut-empty__body">{t('AutomationSchedulesScreen.emptyBody')}</p>
-                </div>
+                <TeachingEmptyState
+                  title={t('AutomationSchedulesScreen.emptyTitle')}
+                  explanation={t('teachEmpty.automationSchedulesBody')}
+                  action={
+                    canUse('org.manage') ? (
+                      <Button
+                        tone="lime"
+                        size="accessible"
+                        onClick={() => focusFirstField(firstStep.current)}
+                      >
+                        {t('teachEmpty.automationSchedulesAction')}
+                      </Button>
+                    ) : undefined
+                  }
+                />
               ) : null}
 
               {rows.length > 0 ? (
@@ -380,6 +395,7 @@ export function AutomationSchedulesScreen({
                 {t('AutomationSchedulesScreen.newScheduleTitle')}
               </h2>
               <form
+                ref={firstStep}
                 className="tm-stack"
                 noValidate
                 onSubmit={(event: FormEvent<HTMLFormElement>) => {

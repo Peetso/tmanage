@@ -17,6 +17,7 @@ import { useHydrated } from '../../lib/use-hydrated';
 import type { ApiClient } from '../../lib/api/client';
 import { describeRunDetail } from './run-detail-view';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { useTOr } from '../../lib/i18n/use-t-or';
 
 export interface AutomationRunHistoryScreenProps {
@@ -238,12 +239,10 @@ export function AutomationRunHistoryScreen({
               ) : null}
 
               {loaded && rows.length === 0 && status === 'all' ? (
-                <div className="tm-aut-empty">
-                  <p className="tm-aut-empty__title">
-                    {t('AutomationRunHistoryScreen.emptyTitle')}
-                  </p>
-                  <p className="tm-aut-empty__body">{t('AutomationRunHistoryScreen.emptyBody')}</p>
-                </div>
+                <TeachingEmptyState
+                  title={t('AutomationRunHistoryScreen.emptyTitle')}
+                  explanation={t('teachEmpty.automationRunsBody')}
+                />
               ) : null}
 
               {rows.length > 0 ? (

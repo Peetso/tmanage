@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import type { FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -15,6 +15,8 @@ import {
 } from '../../lib/api/doc-collections';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { appLocale } from '../../lib/i18n/app-locale';
 
@@ -49,6 +51,8 @@ export function DocCollectionsScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
 
   const collections = useQuery({
     queryKey: ['doc-collections', organizationSlug],
@@ -123,14 +127,21 @@ export function DocCollectionsScreen({
             ) : null}
 
             {!collections.isPending && !collections.isError && rows.length === 0 ? (
-              <div className="tm-dx-empty">
-                <p className="tm-dx-empty__title">
-                  {t('DocCollectionsScreen.emptyCollectionsTitle')}
-                </p>
-                <p className="tm-dx-empty__body">
-                  {t('DocCollectionsScreen.emptyCollectionsBody')}
-                </p>
-              </div>
+              <TeachingEmptyState
+                title={t('DocCollectionsScreen.emptyCollectionsTitle')}
+                explanation={t('teachEmpty.docCollectionsBody')}
+                action={
+                  canUse('doc.write') ? (
+                    <Button
+                      tone="lime"
+                      size="accessible"
+                      onClick={() => focusFirstField(firstStep.current)}
+                    >
+                      {t('teachEmpty.docCollectionsAction')}
+                    </Button>
+                  ) : undefined
+                }
+              />
             ) : null}
 
             {rows.length > 0 ? (
@@ -237,6 +248,7 @@ export function DocCollectionsScreen({
               {t('DocCollectionsScreen.newCollection')}
             </h2>
             <form
+              ref={firstStep}
               className="tm-dx-form"
               noValidate
               onSubmit={(event: FormEvent<HTMLFormElement>) => {

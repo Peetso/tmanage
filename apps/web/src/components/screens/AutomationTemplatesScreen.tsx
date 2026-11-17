@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
@@ -17,6 +17,8 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { useHydrated } from '../../lib/use-hydrated';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { actionLabel, triggerLabel } from './automation-labels';
 
@@ -70,6 +72,8 @@ export function AutomationTemplatesScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const tOr = useTOr();
 
   const stateFilterLabel = (value: StateFilter): string => {
@@ -210,10 +214,21 @@ export function AutomationTemplatesScreen({
               ) : null}
 
               {!templates.isPending && !templates.isError && rows.length === 0 ? (
-                <div className="tm-aut-empty">
-                  <p className="tm-aut-empty__title">{t('AutomationTemplatesScreen.emptyTitle')}</p>
-                  <p className="tm-aut-empty__body">{t('AutomationTemplatesScreen.emptyBody')}</p>
-                </div>
+                <TeachingEmptyState
+                  title={t('AutomationTemplatesScreen.emptyTitle')}
+                  explanation={t('teachEmpty.automationsBody')}
+                  action={
+                    canUse('org.manage') ? (
+                      <Button
+                        tone="lime"
+                        size="accessible"
+                        onClick={() => focusFirstField(firstStep.current)}
+                      >
+                        {t('teachEmpty.automationsAction')}
+                      </Button>
+                    ) : undefined
+                  }
+                />
               ) : null}
 
               {rows.length > 0 ? (
@@ -305,6 +320,7 @@ export function AutomationTemplatesScreen({
                   {t('AutomationTemplatesScreen.newTemplate')}
                 </h2>
                 <form
+                  ref={firstStep}
                   className="tm-stack"
                   noValidate
                   onSubmit={(event: FormEvent<HTMLFormElement>) => {

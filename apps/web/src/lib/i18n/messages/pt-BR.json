@@ -20119,5 +20119,17 @@
   "teachEmpty.docCollectionsBody": "Agrupe documentos relacionados, como um kit de boas-vindas ou um guia de estilo, para encontrá-los com facilidade.",
   "teachEmpty.docCollectionsAction": "Criar uma coleção",
   "teachEmpty.meetingActionsBody": "Anote quem faz o quê depois desta reunião, para que nada do que foi combinado se perca.",
-  "teachEmpty.meetingActionsAction": "Adicionar uma ação"
+  "teachEmpty.meetingActionsAction": "Adicionar uma ação",
+  "teachEmpty.savedSearchesBody": "Salve uma busca que você faz com frequência e abra de novo com um clique.",
+  "teachEmpty.savedSearchesAction": "Salvar uma busca",
+  "teachEmpty.customRolesBody": "Crie uma função que combine com o jeito de trabalhar da sua empresa, com exatamente as permissões necessárias.",
+  "teachEmpty.customRolesAction": "Criar uma função",
+  "teachEmpty.invitationsBody": "Os convites enviados ficam aqui até as pessoas entrarem, para você reenviar ou cancelar.",
+  "teachEmpty.exportRequestsBody": "Peça uma cópia completa dos dados da sua empresa, pronta para baixar quando estiver preparada.",
+  "teachEmpty.exportRequestsAction": "Solicitar uma exportação",
+  "teachEmpty.inboxFiltersBody": "Salve a visualização da caixa de entrada que você mais usa, para ter as mensagens certas a um clique.",
+  "teachEmpty.inboxFiltersAction": "Salvar um filtro",
+  "teachEmpty.checklistTemplatesTitle": "Ainda não há modelos de checklist",
+  "teachEmpty.checklistTemplatesBody": "Transforme as etapas que você repete em toda tarefa em um checklist para adicionar de uma vez.",
+  "teachEmpty.checklistTemplatesAction": "Criar um checklist"
 }

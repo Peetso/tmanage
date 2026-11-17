@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   createGlossaryTerm,
@@ -45,6 +47,8 @@ export function GlossaryScreen({
 }: GlossaryScreenProps) {
   const describeError = useDescribeApiError();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
 
@@ -131,9 +135,27 @@ export function GlossaryScreen({
         ) : null}
 
         {!terms.isPending && !terms.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title={t('GlossaryScreen.emptyTitle')}>
-            {search.trim() === '' ? t('GlossaryScreen.emptyAll') : t('GlossaryScreen.emptySearch')}
-          </InlineAlert>
+          search.trim() === '' ? (
+            <TeachingEmptyState
+              title={t('GlossaryScreen.emptyTitle')}
+              explanation={t('teachEmpty.glossaryBody')}
+              action={
+                canUse('doc.write') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {t('teachEmpty.glossaryAction')}
+                  </Button>
+                ) : undefined
+              }
+            />
+          ) : (
+            <InlineAlert tone="neutral" title={t('GlossaryScreen.emptyTitle')}>
+              {t('GlossaryScreen.emptySearch')}
+            </InlineAlert>
+          )
         ) : null}
 
         {rows.length > 0 ? (
@@ -174,6 +196,7 @@ export function GlossaryScreen({
         </h2>
 
         <form
+          ref={firstStep}
           className="tm-stack"
           noValidate
           aria-label={

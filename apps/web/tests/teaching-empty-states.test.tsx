@@ -1,11 +1,21 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ClientsScreen } from '../src/components/screens/ClientsScreen';
 import { DecisionRegisterScreen } from '../src/components/screens/DecisionRegisterScreen';
 import { DocsHubScreen } from '../src/components/screens/DocsHubScreen';
+import { AutomationRunHistoryScreen } from '../src/components/screens/AutomationRunHistoryScreen';
+import { AutomationSchedulesScreen } from '../src/components/screens/AutomationSchedulesScreen';
+import { AutomationTemplatesScreen } from '../src/components/screens/AutomationTemplatesScreen';
+import { DocCollectionsScreen } from '../src/components/screens/DocCollectionsScreen';
+import { DocumentTemplatesScreen } from '../src/components/screens/DocumentTemplatesScreen';
 import { FilesHubScreen } from '../src/components/screens/FilesHubScreen';
+import { FocusBlocksScreen } from '../src/components/screens/FocusBlocksScreen';
+import { GlossaryScreen } from '../src/components/screens/GlossaryScreen';
+import { InsightCustomReportsView } from '../src/components/screens/InsightCustomReportsView';
+import { MeetingActionItemsScreen } from '../src/components/screens/MeetingActionItemsScreen';
+import { ReportSchedulesScreen } from '../src/components/screens/ReportSchedulesScreen';
 import { PortalMilestonesScreen } from '../src/components/screens/PortalMilestonesScreen';
 import { PortalPeopleScreen } from '../src/components/screens/PortalPeopleScreen';
 import { PortalRisksScreen } from '../src/components/screens/PortalRisksScreen';
@@ -17,7 +27,7 @@ import { translate } from '../src/lib/i18n/t';
 /** 55-10p: a truly empty list teaches with one action; a list with rows, or a filter, does not. */
 type Routes = Record<string, unknown>;
 
-function mount(screenFor: (client: ApiClient) => ReactElement, routes: Routes) {
+function mount(screenFor: (client: ApiClient) => ReactElement, routes: Routes, role = 'owner') {
   const answer = (path: string) =>
     Object.entries(routes)
       .filter(([suffix]) => path.endsWith(suffix))
@@ -39,7 +49,8 @@ function mount(screenFor: (client: ApiClient) => ReactElement, routes: Routes) {
   });
   const query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   // The shell reads the role through its own browser client; seed it as an owner.
-  query.setQueryData(['shell', 'organizations'], [{ slug: 'acme', role: 'owner' }]);
+  // A custom role with no capabilities stands for a person without the permission.
+  query.setQueryData(['shell', 'organizations'], [{ slug: 'acme', role, capabilities: [] }]);
   render(<QueryClientProvider client={query}>{screenFor(client)}</QueryClientProvider>);
 }
 
@@ -214,6 +225,96 @@ describe('teaching empty states (55-10p)', () => {
       const section = (await teaching(title)).closest('section') as HTMLElement;
       expect(section.textContent).toContain('Acme');
       expect(section.querySelector('button, a')).toBeNull();
+    });
+  });
+
+  describe('team screens: the action needs the permission', () => {
+    const routes = {
+      '/automations/templates': { templates: [] },
+      '/automations/schedules': { schedules: [] },
+      '/automations/runs': { runs: [] },
+      '/documents/templates': { templates: [] },
+      '/insights/report-schedules': { schedules: [] },
+      '/insights/custom-reports': { reports: [] },
+      '/projects': { projects: [] },
+      '/glossary/terms': { terms: [] },
+      '/calendar/focus-blocks': { blocks: [] },
+      '/doc-collections': { collections: [] },
+      '/meetings/m1/action-items': { actionItems: [] },
+    };
+    const props = { organizationSlug: 'acme', organizationName: 'Acme' };
+    const cases: readonly [string, (client: ApiClient) => ReactElement, RegExp, string][] = [
+      [
+        'Automations',
+        (client) => <AutomationTemplatesScreen {...props} client={client} />,
+        /no automations yet/i,
+        'Create an automation',
+      ],
+      [
+        'Automation schedules',
+        (client) => <AutomationSchedulesScreen {...props} client={client} />,
+        /no schedules yet/i,
+        'Add a schedule',
+      ],
+      [
+        'Document templates',
+        (client) => <DocumentTemplatesScreen {...props} client={client} />,
+        /no templates yet/i,
+        'Create a template',
+      ],
+      [
+        'Report schedules',
+        (client) => <ReportSchedulesScreen {...props} client={client} />,
+        /no schedules yet/i,
+        'Schedule a report',
+      ],
+      [
+        'Custom reports',
+        (client) => <InsightCustomReportsView {...props} client={client} />,
+        /no custom reports yet/i,
+        'Build a report',
+      ],
+      [
+        'Glossary',
+        (client) => <GlossaryScreen {...props} client={client} />,
+        /no terms/i,
+        'Add a term',
+      ],
+      [
+        'Focus blocks',
+        (client) => <FocusBlocksScreen {...props} client={client} />,
+        /no focus blocks/i,
+        'Plan focus time',
+      ],
+      [
+        'Doc collections',
+        (client) => <DocCollectionsScreen {...props} client={client} />,
+        /no collections yet/i,
+        'Create a collection',
+      ],
+      [
+        'Meeting action items',
+        (client) => <MeetingActionItemsScreen {...props} meetingId="m1" client={client} />,
+        /no action items yet/i,
+        'Add an action item',
+      ],
+    ];
+    it.each(cases)('%s', async (_name, view, title, action) => {
+      mount(view, routes);
+      const section = (await teaching(title)).closest('section') as HTMLElement;
+      const button = await within(section).findByRole('button', { name: action });
+      fireEvent.click(button);
+      expect(document.activeElement?.closest('form')).not.toBeNull();
+      cleanup();
+      mount(view, routes, 'custom-viewer');
+      const bare = (await teaching(title)).closest('section') as HTMLElement;
+      expect(within(bare).queryByRole('button')).toBeNull();
+    });
+
+    it('Automation runs: teaches, with nothing to start', async () => {
+      mount((client) => <AutomationRunHistoryScreen {...props} client={client} />, routes);
+      const section = (await teaching(/no runs yet/i)).closest('section') as HTMLElement;
+      expect(within(section).queryByRole('button')).toBeNull();
     });
   });
 });
