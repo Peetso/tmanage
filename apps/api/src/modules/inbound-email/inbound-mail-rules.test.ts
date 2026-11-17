@@ -16,7 +16,7 @@ import {
 } from './inbound-mail-rules.js';
 
 /** R21-f — 54-12 / 54-12a pure rules. */
-const D = 'tmanage.peetrix.com';
+const D = 'tmanageapp.com';
 const pass = {
   sizeBytes: 1000,
   declaredType: 'application/pdf',
@@ -27,7 +27,7 @@ const pass = {
 describe('inbound mail rules (R21-f)', () => {
   it('parses only requests+<slug>-<6> at the exact domain', () => {
     expect(localPartFor('Acme-Studio', 'ab12cd')).toBe('requests+acme-studio-ab12cd');
-    expect(parseRecipient(`Acme <Requests+acme-ab12cd@TManage.Peetrix.com>`, D)).toBe(
+    expect(parseRecipient(`Acme <Requests+acme-ab12cd@TManageApp.com>`, D)).toBe(
       'requests+acme-ab12cd',
     );
     expect(parseRecipient(`requests+acme-ab12cd@evil.com`, D)).toBeNull();

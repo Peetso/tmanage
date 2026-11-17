@@ -17,7 +17,7 @@ import {
 
 /** The receiving domain. `requests+<slug>-<6>@<INBOUND_DOMAIN>`. */
 export const INBOUND_DOMAIN: string = (
-  process.env['INBOUND_EMAIL_DOMAIN'] ?? 'tmanage.peetrix.com'
+  process.env['INBOUND_EMAIL_DOMAIN'] ?? 'tmanageapp.com'
 ).toLowerCase();
 
 /** 54-12 Security: at most five attachments are recorded; the rest are counted and dropped. */

@@ -72,7 +72,7 @@ export interface ApiConfig extends SessionServiceOptions {
   /** `WEB_PUBLIC_URL` — the origin the browser uses; the Google callback lives under it. */
   readonly webPublicUrl?: string;
   /**
-   * `API_PUBLIC_URL` — the API's own public origin, e.g. `https://tmanage.peetrix.com`. The OAuth
+   * `API_PUBLIC_URL` — the API's own public origin, e.g. `https://tmanageapp.com`. The OAuth
    * authorization server (MCP connector S7) uses it as the issuer and derives the canonical MCP
    * resource `<origin>/mcp` from it; both must be exact, so the server reads its own origin rather
    * than guessing. Optional on the type so existing config fixtures need not set it.

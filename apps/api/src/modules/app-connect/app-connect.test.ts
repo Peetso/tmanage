@@ -152,7 +152,7 @@ function build(
     vault,
     audit,
     config: { github: gitHubOAuthConfigFrom(env) },
-    apiPublicUrl: 'https://tmanage.peetrix.com',
+    apiPublicUrl: 'https://tmanageapp.com',
     github: createGitHubClient(fetchImpl),
     log: (message) => logs.push(message),
   });
@@ -208,20 +208,20 @@ describe('app-connect flow and callback', () => {
       membershipId: 'm',
     });
     const cookie = sealAppConnectFlow(flow, SECRET);
-    const options = { sessionSecret: SECRET, webPublicUrl: 'https://tmanage.peetrix.com/' };
+    const options = { sessionSecret: SECRET, webPublicUrl: 'https://tmanageapp.com/' };
     const target = appConnectCallbackTarget('github', options, cookie, {
       code: 'c1',
       state: flow.state,
     });
-    expect(target.startsWith('https://tmanage.peetrix.com/acme/automations/apps#')).toBe(true);
+    expect(target.startsWith('https://tmanageapp.com/acme/automations/apps#')).toBe(true);
     const fragment = new URLSearchParams(target.split('#')[1]);
     expect(fragment.get('github')).toBe('complete');
     expect(fragment.get('code')).toBe('c1');
     expect(appConnectCallbackTarget('github', options, cookie, { error: 'access_denied' })).toBe(
-      'https://tmanage.peetrix.com/acme/automations/apps#github=error',
+      'https://tmanageapp.com/acme/automations/apps#github=error',
     );
     expect(appConnectCallbackTarget('github', options, undefined, { code: 'c', state: 's' })).toBe(
-      'https://tmanage.peetrix.com/',
+      'https://tmanageapp.com/',
     );
   });
 
@@ -230,7 +230,7 @@ describe('app-connect flow and callback', () => {
     expect(isAppConnectProvider('slack')).toBe(false);
     expect(isAppConnectProvider('teams')).toBe(false);
     expect(build().service.redirectUri('github')).toBe(
-      'https://tmanage.peetrix.com/v1/integrations/github/callback',
+      'https://tmanageapp.com/v1/integrations/github/callback',
     );
     expect(appConnectCallbackPath('github')).toBe('/v1/integrations/github/callback');
   });
@@ -325,7 +325,7 @@ describe('app-connect service (GitHub)', () => {
     expect(consent.searchParams.get('scope')).toBe('read:user');
     expect(consent.searchParams.get('scope')).not.toContain('repo');
     expect(consent.searchParams.get('redirect_uri')).toBe(
-      'https://tmanage.peetrix.com/v1/integrations/github/callback',
+      'https://tmanageapp.com/v1/integrations/github/callback',
     );
     expect(consent.searchParams.get('code_challenge')).toBe(pkceChallenge(flow.verifier));
     expect(consent.searchParams.get('code_challenge_method')).toBe('S256');

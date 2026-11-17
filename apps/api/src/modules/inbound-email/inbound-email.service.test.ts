@@ -114,7 +114,7 @@ function harness(
     workItems: workItems as never,
     store,
     now: () => NOW,
-    domain: 'tmanage.peetrix.com',
+    domain: 'tmanageapp.com',
   });
   return { service, emails, atts, submitted, created, store };
 }
@@ -123,7 +123,7 @@ const pass = { 'Authentication-Results': 'mx; dmarc=pass' };
 const fail = { 'Authentication-Results': 'mx; dmarc=fail' };
 
 const mail = (over: Partial<ParsedInboundMessage> = {}): ParsedInboundMessage => ({
-  to: 'requests+acme-ab12cd@tmanage.peetrix.com',
+  to: 'requests+acme-ab12cd@tmanageapp.com',
   from: 'Client <client@acme.com>',
   messageId: '<m-1@acme.com>',
   date: null,

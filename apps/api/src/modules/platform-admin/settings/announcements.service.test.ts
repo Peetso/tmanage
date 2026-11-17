@@ -133,9 +133,9 @@ describe('parseAnnouncementBody', () => {
       parseAnnouncementBody({ titleEn: 'a', bodyEn: 'b', audience: 'organizations' }),
     ).toThrow();
     expect(
-      parseAnnouncementBody({ titleEn: 'a', bodyEn: 'b', linkUrl: 'tmanage.peetrix.com/status' })
+      parseAnnouncementBody({ titleEn: 'a', bodyEn: 'b', linkUrl: 'tmanageapp.com/status' })
         .linkUrl,
-    ).toBe('https://tmanage.peetrix.com/status');
+    ).toBe('https://tmanageapp.com/status');
   });
 });
 

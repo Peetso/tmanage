@@ -177,9 +177,9 @@ export function parseAuthenticatorData(data: Buffer): AuthenticatorData {
 // ─── The two ceremonies ──────────────────────────────────────────────────────
 
 export interface RelyingParty {
-  /** The RP id: the web host, e.g. `tmanage.peetrix.com`. */
+  /** The RP id: the web host, e.g. `tmanageapp.com`. */
   readonly rpId: string;
-  /** Every origin a ceremony may come from, e.g. `https://tmanage.peetrix.com`. */
+  /** Every origin a ceremony may come from, e.g. `https://tmanageapp.com`. */
   readonly origins: readonly string[];
 }
 

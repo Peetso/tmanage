@@ -39,7 +39,7 @@ export const REFRESH_ABSOLUTE_TTL_SECONDS = 90 * 24 * 60 * 60;
 export interface OAuthServiceOptions {
   readonly database: TenantDatabase;
   readonly repository: OauthTokensRepository;
-  /** The AS issuer — the API's public origin, e.g. `https://tmanage.peetrix.com`. */
+  /** The AS issuer — the API's public origin, e.g. `https://tmanageapp.com`. */
   readonly issuer: string;
   /** The canonical resource/audience — `<issuer>/mcp`. Every request must name exactly this. */
   readonly canonicalResource: string;

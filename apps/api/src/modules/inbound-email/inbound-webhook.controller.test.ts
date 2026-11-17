@@ -9,7 +9,7 @@ import { MAX_WEBHOOK_BODY_BYTES } from './inbound-mail-rules.js';
 const SECRET = 'k'.repeat(40);
 const NOW = new Date('2026-11-02T12:00:00.000Z');
 const TS = String(Math.floor(NOW.getTime() / 1000));
-const BODY = JSON.stringify({ to: 'requests+a-ab12cd@tmanage.peetrix.com', from: 'm@a.com' });
+const BODY = JSON.stringify({ to: 'requests+a-ab12cd@tmanageapp.com', from: 'm@a.com' });
 
 const sign = (body: string, ts = TS) =>
   `v1=${createHmac('sha256', SECRET).update(`${ts}.${body}`).digest('hex')}`;
