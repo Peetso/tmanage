@@ -20131,5 +20131,11 @@
   "teachEmpty.inboxFiltersAction": "保存筛选",
   "teachEmpty.checklistTemplatesTitle": "暂无清单模板",
   "teachEmpty.checklistTemplatesBody": "把每个任务都要重复的步骤做成清单，一次即可添加。",
-  "teachEmpty.checklistTemplatesAction": "创建清单"
+  "teachEmpty.checklistTemplatesAction": "创建清单",
+  "teachEmpty.docBookmarksBody": "给常打开的文档加上书签，它就会在这里等你。",
+  "teachEmpty.savedMessagesTitle": "暂无已保存的消息",
+  "teachEmpty.savedMessagesBody": "保存想稍后再看的聊天消息，它会一直留在这里。",
+  "teachEmpty.workLabelsTitle": "暂无标签",
+  "teachEmpty.workLabelsBody": "标签能让你一眼分清任务，比如“紧急”“设计”或“等待客户”。",
+  "teachEmpty.workLabelsAction": "创建标签"
 }

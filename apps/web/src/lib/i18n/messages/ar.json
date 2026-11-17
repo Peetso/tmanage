@@ -20326,5 +20326,11 @@
   "teachEmpty.inboxFiltersAction": "احفظ عامل تصفية",
   "teachEmpty.checklistTemplatesTitle": "لا توجد قوالب قوائم تحقق بعد",
   "teachEmpty.checklistTemplatesBody": "حوّل الخطوات التي تكرّرها في كل مهمة إلى قائمة تحقق تضيفها دفعة واحدة.",
-  "teachEmpty.checklistTemplatesAction": "أنشئ قائمة تحقق"
+  "teachEmpty.checklistTemplatesAction": "أنشئ قائمة تحقق",
+  "teachEmpty.docBookmarksBody": "ضع إشارة مرجعية على مستند تفتحه كثيرًا، وستجده هنا بانتظارك.",
+  "teachEmpty.savedMessagesTitle": "لا توجد رسائل محفوظة بعد",
+  "teachEmpty.savedMessagesBody": "احفظ رسالة دردشة تريد الرجوع إليها، وستبقى هنا من أجلك.",
+  "teachEmpty.workLabelsTitle": "لا توجد تصنيفات بعد",
+  "teachEmpty.workLabelsBody": "تساعدك التصنيفات على فرز المهام بنظرة واحدة، مثل «عاجل» أو «تصميم» أو «بانتظار العميل».",
+  "teachEmpty.workLabelsAction": "أنشئ تصنيفًا"
 }

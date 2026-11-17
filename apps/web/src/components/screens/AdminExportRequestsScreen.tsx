@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -13,6 +13,8 @@ import {
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface AdminExportRequestsScreenProps {
@@ -39,6 +41,8 @@ export function AdminExportRequestsScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
 
   /** Human labels for the fixed export scopes. */
   const scopeLabels: Record<string, string> = {
@@ -105,9 +109,21 @@ export function AdminExportRequestsScreen({
         ) : null}
 
         {!requests.isPending && !requests.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title={t('AdminExportRequestsScreen.emptyTitle')}>
-            {t('AdminExportRequestsScreen.emptyBody')}
-          </InlineAlert>
+          <TeachingEmptyState
+            title={t('AdminExportRequestsScreen.emptyTitle')}
+            explanation={t('teachEmpty.exportRequestsBody')}
+            action={
+              canUse('org.manage') ? (
+                <Button
+                  tone="lime"
+                  size="accessible"
+                  onClick={() => focusFirstField(firstStep.current)}
+                >
+                  {t('teachEmpty.exportRequestsAction')}
+                </Button>
+              ) : undefined
+            }
+          />
         ) : null}
 
         {rows.length > 0 ? (
@@ -129,6 +145,7 @@ export function AdminExportRequestsScreen({
         </h2>
 
         <form
+          ref={firstStep}
           className="tm-stack"
           noValidate
           aria-label={t('AdminExportRequestsScreen.formLabel')}

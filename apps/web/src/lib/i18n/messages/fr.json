@@ -20131,5 +20131,11 @@
   "teachEmpty.inboxFiltersAction": "Enregistrer un filtre",
   "teachEmpty.checklistTemplatesTitle": "Pas encore de modèles de checklist",
   "teachEmpty.checklistTemplatesBody": "Transformez les étapes que vous répétez à chaque tâche en une checklist à ajouter d'un coup.",
-  "teachEmpty.checklistTemplatesAction": "Créer une checklist"
+  "teachEmpty.checklistTemplatesAction": "Créer une checklist",
+  "teachEmpty.docBookmarksBody": "Ajoutez aux favoris un document que vous ouvrez souvent, il vous attendra ici.",
+  "teachEmpty.savedMessagesTitle": "Aucun message enregistré",
+  "teachEmpty.savedMessagesBody": "Enregistrez un message du chat que vous voulez retrouver, il restera ici pour vous.",
+  "teachEmpty.workLabelsTitle": "Pas encore d'étiquettes",
+  "teachEmpty.workLabelsBody": "Les étiquettes trient les tâches d'un coup d'œil, comme Urgent, Design ou En attente du client.",
+  "teachEmpty.workLabelsAction": "Créer une étiquette"
 }

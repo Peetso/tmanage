@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -13,6 +14,8 @@ import { useRoleDescription } from '../../lib/use-role-description';
 import { useCustomRoles } from '../people/ChangeRoleDialog';
 import type { CustomRoleOption } from '../people/ChangeRoleDialog';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { invitationProjectNames } from '../people/PendingInvitations';
 import { appLocale } from '../../lib/i18n/app-locale';
@@ -46,6 +49,7 @@ export function AdminInvitationsView({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
   const tr = useTOr();
   const queryKey = ['admin-invitations', organizationSlug];
 
@@ -101,9 +105,22 @@ export function AdminInvitationsView({
         ) : null}
 
         {!invitations.isPending && !invitations.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title={t('AdminInvitationsView.emptyTitle')}>
-            {t('AdminInvitationsView.emptyBody')}
-          </InlineAlert>
+          <TeachingEmptyState
+            title={t('AdminInvitationsView.emptyTitle')}
+            explanation={t('teachEmpty.invitationsBody')}
+            action={
+              canUse('people.invite') ? (
+                <Link
+                  className="tm-button tm-button--lime tm-button--accessible"
+                  href={`/${organizationSlug}/people`}
+                >
+                  {t('EmptyStates.inviteTeam')}
+                </Link>
+              ) : undefined
+            }
+            helpSlug="invite-your-team"
+            helpLabel={t('EmptyStates.howInvitingWorks')}
+          />
         ) : null}
 
         {revoke.isError ? (

@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { appLocale } from '../../lib/i18n/app-locale';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -71,6 +73,8 @@ export function SavedSearchesScreen({
 }: SavedSearchesScreenProps) {
   const describeError = useDescribeApiError();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
 
@@ -157,10 +161,21 @@ export function SavedSearchesScreen({
               </LoadingRegion>
             ) : null}
             {!saved.isPending && !saved.isError && savedList.length === 0 ? (
-              <div className="tm-sa-empty">
-                <p className="tm-sa-empty__title">{t('SavedSearchesScreen.savedEmptyTitle')}</p>
-                <p className="tm-sa-empty__body">{t('SavedSearchesScreen.savedEmptyBody')}</p>
-              </div>
+              <TeachingEmptyState
+                title={t('SavedSearchesScreen.savedEmptyTitle')}
+                explanation={t('teachEmpty.savedSearchesBody')}
+                action={
+                  canUse('search.use') ? (
+                    <Button
+                      tone="lime"
+                      size="accessible"
+                      onClick={() => focusFirstField(firstStep.current)}
+                    >
+                      {t('teachEmpty.savedSearchesAction')}
+                    </Button>
+                  ) : undefined
+                }
+              />
             ) : null}
             {savedList.length > 0 ? (
               <ul className="tm-sa-saved__list" aria-label={t('SavedSearchesScreen.savedListAria')}>
@@ -251,7 +266,7 @@ export function SavedSearchesScreen({
               <h2 id="tm-saved-search-form-title" className="tm-sa-eyebrow">
                 {t('SavedSearchesScreen.formHeading')}
               </h2>
-              <form className="tm-stack" onSubmit={onSubmit}>
+              <form ref={firstStep} className="tm-stack" onSubmit={onSubmit}>
                 <div className="tm-sa-form__fields">
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-saved-name">

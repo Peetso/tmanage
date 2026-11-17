@@ -20326,5 +20326,11 @@
   "teachEmpty.inboxFiltersAction": "Save a filter",
   "teachEmpty.checklistTemplatesTitle": "No checklist templates yet",
   "teachEmpty.checklistTemplatesBody": "Turn steps you repeat on every task into a checklist you can add in one go.",
-  "teachEmpty.checklistTemplatesAction": "Create a checklist"
+  "teachEmpty.checklistTemplatesAction": "Create a checklist",
+  "teachEmpty.docBookmarksBody": "Bookmark a document you open often, and it waits for you here.",
+  "teachEmpty.savedMessagesTitle": "No saved messages yet",
+  "teachEmpty.savedMessagesBody": "Save a chat message you want to come back to, and it stays here for you.",
+  "teachEmpty.workLabelsTitle": "No labels yet",
+  "teachEmpty.workLabelsBody": "Labels sort tasks at a glance, like Urgent, Design or Waiting on client.",
+  "teachEmpty.workLabelsAction": "Create a label"
 }

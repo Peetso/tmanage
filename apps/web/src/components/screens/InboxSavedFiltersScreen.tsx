@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   createInboxSavedFilter,
@@ -39,12 +41,21 @@ export function InboxSavedFiltersScreen({
 }: InboxSavedFiltersScreenProps) {
   const describeError = useDescribeApiError();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const queryKey = ['inbox-saved-filters', organizationSlug];
 
   const [name, setName] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  // The empty state's action opens the form and takes the keyboard to its first field.
+  const focusOnOpen = useRef(false);
+  useEffect(() => {
+    if (!dialogOpen || !focusOnOpen.current) return;
+    focusOnOpen.current = false;
+    focusFirstField(firstStep.current);
+  }, [dialogOpen]);
 
   const filters = useQuery({
     queryKey,
@@ -107,9 +118,24 @@ export function InboxSavedFiltersScreen({
         ) : null}
 
         {!filters.isPending && !filters.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title={t('InboxSavedFiltersScreen.emptyTitle')}>
-            {t('InboxSavedFiltersScreen.emptyBody')}
-          </InlineAlert>
+          <TeachingEmptyState
+            title={t('InboxSavedFiltersScreen.emptyTitle')}
+            explanation={t('teachEmpty.inboxFiltersBody')}
+            action={
+              canUse('work.read') ? (
+                <Button
+                  tone="lime"
+                  size="accessible"
+                  onClick={() => {
+                    focusOnOpen.current = true;
+                    setDialogOpen(true);
+                  }}
+                >
+                  {t('teachEmpty.inboxFiltersAction')}
+                </Button>
+              ) : undefined
+            }
+          />
         ) : null}
 
         {rows.length > 0 ? (
@@ -133,6 +159,7 @@ export function InboxSavedFiltersScreen({
 
         {dialogOpen ? (
           <form
+            ref={firstStep}
             className="tm-stack"
             onSubmit={(event) => {
               event.preventDefault();

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -12,6 +12,8 @@ import {
 } from '../../lib/api/work-checklist-templates';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface ChecklistTemplatesViewProps {
@@ -46,6 +48,8 @@ export function ChecklistTemplatesView({
   const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const queries = useQueryClient();
   const queryKey = ['work-checklist-templates', organizationSlug] as const;
 
@@ -97,6 +101,7 @@ export function ChecklistTemplatesView({
           {t('ChecklistTemplatesView.newTemplateHeading')}
         </h2>
         <form
+          ref={firstStep}
           className="tm-stack"
           noValidate
           onSubmit={(event: FormEvent<HTMLFormElement>) => {
@@ -168,7 +173,21 @@ export function ChecklistTemplatesView({
 
         {templates.data ? (
           rows.length === 0 ? (
-            <p className="tm-prose">{t('ChecklistTemplatesView.emptyList')}</p>
+            <TeachingEmptyState
+              title={t('teachEmpty.checklistTemplatesTitle')}
+              explanation={t('teachEmpty.checklistTemplatesBody')}
+              action={
+                canUse('work.update') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {t('teachEmpty.checklistTemplatesAction')}
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : (
             <ul className="tm-stack" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
               {rows.map((template) => (

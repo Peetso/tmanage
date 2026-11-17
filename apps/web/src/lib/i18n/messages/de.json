@@ -20131,5 +20131,11 @@
   "teachEmpty.inboxFiltersAction": "Filter speichern",
   "teachEmpty.checklistTemplatesTitle": "Noch keine Checklisten-Vorlagen",
   "teachEmpty.checklistTemplatesBody": "Mach aus Schritten, die du bei jeder Aufgabe wiederholst, eine Checkliste, die du auf einmal hinzufügst.",
-  "teachEmpty.checklistTemplatesAction": "Checkliste erstellen"
+  "teachEmpty.checklistTemplatesAction": "Checkliste erstellen",
+  "teachEmpty.docBookmarksBody": "Setze ein Lesezeichen auf ein Dokument, das du oft öffnest, und es wartet hier auf dich.",
+  "teachEmpty.savedMessagesTitle": "Noch keine gespeicherten Nachrichten",
+  "teachEmpty.savedMessagesBody": "Speichere eine Chatnachricht, zu der du zurückkehren willst, und sie bleibt hier für dich.",
+  "teachEmpty.workLabelsTitle": "Noch keine Labels",
+  "teachEmpty.workLabelsBody": "Labels ordnen Aufgaben auf einen Blick, etwa Dringend, Design oder Wartet auf Kunde.",
+  "teachEmpty.workLabelsAction": "Label erstellen"
 }

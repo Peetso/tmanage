@@ -2,9 +2,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
+import { ChecklistTemplatesView } from '../src/components/screens/ChecklistTemplatesView';
 import { ClientsScreen } from '../src/components/screens/ClientsScreen';
 import { DecisionRegisterScreen } from '../src/components/screens/DecisionRegisterScreen';
 import { DocsHubScreen } from '../src/components/screens/DocsHubScreen';
+import { AdminExportRequestsScreen } from '../src/components/screens/AdminExportRequestsScreen';
+import { AdminInvitationsView } from '../src/components/screens/AdminInvitationsView';
+import { AdminRolesScreen } from '../src/components/screens/AdminRolesScreen';
 import { AutomationRunHistoryScreen } from '../src/components/screens/AutomationRunHistoryScreen';
 import { AutomationSchedulesScreen } from '../src/components/screens/AutomationSchedulesScreen';
 import { AutomationTemplatesScreen } from '../src/components/screens/AutomationTemplatesScreen';
@@ -16,10 +20,12 @@ import { GlossaryScreen } from '../src/components/screens/GlossaryScreen';
 import { InsightCustomReportsView } from '../src/components/screens/InsightCustomReportsView';
 import { MeetingActionItemsScreen } from '../src/components/screens/MeetingActionItemsScreen';
 import { ReportSchedulesScreen } from '../src/components/screens/ReportSchedulesScreen';
+import { SavedSearchesScreen } from '../src/components/screens/SavedSearchesScreen';
 import { PortalMilestonesScreen } from '../src/components/screens/PortalMilestonesScreen';
 import { PortalPeopleScreen } from '../src/components/screens/PortalPeopleScreen';
 import { PortalRisksScreen } from '../src/components/screens/PortalRisksScreen';
 import { PortalUpdatesScreen } from '../src/components/screens/PortalUpdatesScreen';
+import { InboxSavedFiltersScreen } from '../src/components/screens/InboxSavedFiltersScreen';
 import { InboxScreen } from '../src/components/screens/InboxScreen';
 import { ApiClient } from '../src/lib/api/client';
 import { translate } from '../src/lib/i18n/t';
@@ -241,6 +247,11 @@ describe('teaching empty states (55-10p)', () => {
       '/calendar/focus-blocks': { blocks: [] },
       '/doc-collections': { collections: [] },
       '/meetings/m1/action-items': { actionItems: [] },
+      '/search/saved': { savedSearches: [] },
+      '/admin/roles': { roles: [] },
+      '/admin/export-requests': { requests: [] },
+      '/inbox/saved-filters': { savedFilters: [] },
+      '/work/checklist-templates': { templates: [] },
     };
     const props = { organizationSlug: 'acme', organizationName: 'Acme' };
     const cases: readonly [string, (client: ApiClient) => ReactElement, RegExp, string][] = [
@@ -298,6 +309,36 @@ describe('teaching empty states (55-10p)', () => {
         /no action items yet/i,
         'Add an action item',
       ],
+      [
+        'Saved searches',
+        (client) => <SavedSearchesScreen {...props} client={client} />,
+        /no saved searches yet/i,
+        'Save a search',
+      ],
+      [
+        'Custom roles',
+        (client) => <AdminRolesScreen {...props} client={client} />,
+        /no custom roles yet/i,
+        'Create a role',
+      ],
+      [
+        'Export requests',
+        (client) => <AdminExportRequestsScreen {...props} client={client} />,
+        /no export requests yet/i,
+        'Request an export',
+      ],
+      [
+        'Inbox saved filters',
+        (client) => <InboxSavedFiltersScreen {...props} client={client} />,
+        /no saved filters yet/i,
+        'Save a filter',
+      ],
+      [
+        'Checklist templates',
+        (client) => <ChecklistTemplatesView {...props} client={client} />,
+        /no checklist templates yet/i,
+        'Create a checklist',
+      ],
     ];
     it.each(cases)('%s', async (_name, view, title, action) => {
       mount(view, routes);
@@ -309,6 +350,24 @@ describe('teaching empty states (55-10p)', () => {
       mount(view, routes, 'custom-viewer');
       const bare = (await teaching(title)).closest('section') as HTMLElement;
       expect(within(bare).queryByRole('button')).toBeNull();
+    });
+
+    it('Invitations: Invite your team links to People, only with the right to invite', async () => {
+      const invitations = (client: ApiClient) => (
+        <AdminInvitationsView {...props} client={client} />
+      );
+      const withInvites = { ...routes, '/admin/invitations': { invitations: [] } };
+      mount(invitations, withInvites);
+      const section = (await teaching(/no pending invitations/i)).closest('section') as HTMLElement;
+      expect(
+        (await within(section).findByRole('link', { name: /invite your team/i })).getAttribute(
+          'href',
+        ),
+      ).toBe('/acme/people');
+      cleanup();
+      mount(invitations, withInvites, 'custom-viewer');
+      const bare = (await teaching(/no pending invitations/i)).closest('section') as HTMLElement;
+      expect(within(bare).queryByRole('link', { name: /invite your team/i })).toBeNull();
     });
 
     it('Automation runs: teaches, with nothing to start', async () => {

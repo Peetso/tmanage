@@ -20133,5 +20133,11 @@
   "teachEmpty.inboxFiltersAction": "Guardar un filtro",
   "teachEmpty.checklistTemplatesTitle": "Aún no hay plantillas de checklist",
   "teachEmpty.checklistTemplatesBody": "Convierte los pasos que repites en cada tarea en una checklist que añades de una vez.",
-  "teachEmpty.checklistTemplatesAction": "Crear una checklist"
+  "teachEmpty.checklistTemplatesAction": "Crear una checklist",
+  "teachEmpty.docBookmarksBody": "Marca un documento que abres a menudo y te esperará aquí.",
+  "teachEmpty.savedMessagesTitle": "Aún no hay mensajes guardados",
+  "teachEmpty.savedMessagesBody": "Guarda un mensaje del chat al que quieras volver y se quedará aquí para ti.",
+  "teachEmpty.workLabelsTitle": "Aún no hay etiquetas",
+  "teachEmpty.workLabelsBody": "Las etiquetas ordenan las tareas de un vistazo, como Urgente, Diseño o Esperando al cliente.",
+  "teachEmpty.workLabelsAction": "Crear una etiqueta"
 }

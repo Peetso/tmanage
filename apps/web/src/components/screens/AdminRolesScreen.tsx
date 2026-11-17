@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Checkbox, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
@@ -10,6 +10,8 @@ import { createCustomRole, readCustomRoles } from '../../lib/api/admin-roles';
 import type { ApiClient } from '../../lib/api/client';
 import { CAPABILITIES_BY_AREA, capabilityLabel } from '../../lib/capability-labels';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useDisplayFormatters } from '../../lib/i18n/use-formatters';
 import { useDescribeApiError } from '../../lib/api/describe-error';
@@ -45,6 +47,8 @@ export function AdminRolesScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const tr = useTOr();
   const format = useDisplayFormatters();
   // C6: the plain name in the active locale; the English name until the key is merged.
@@ -129,10 +133,21 @@ export function AdminRolesScreen({
           ) : null}
 
           {!roles.isPending && !roles.isError && rows.length === 0 ? (
-            <div className="tm-cc-card tm-cc-card--quiet">
-              <p className="tm-cc-card__title">{t('AdminRolesScreen.emptyTitle')}</p>
-              <p className="tm-cc-card__body">{t('AdminRolesScreen.emptyBody')}</p>
-            </div>
+            <TeachingEmptyState
+              title={t('AdminRolesScreen.emptyTitle')}
+              explanation={t('teachEmpty.customRolesBody')}
+              action={
+                canUse('org.manage') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {t('teachEmpty.customRolesAction')}
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : null}
 
           {rows.length > 0 ? (
@@ -193,6 +208,7 @@ export function AdminRolesScreen({
           </h2>
 
           <form
+            ref={firstStep}
             className="tm-stack"
             noValidate
             aria-label={t('AdminRolesScreen.formLabel')}
