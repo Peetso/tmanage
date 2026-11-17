@@ -35,7 +35,7 @@ export const LEGAL_COPY_AR: Readonly<Record<LegalDocumentKey, ArabicLegalCopy>> 
   terms: {
     title: 'شروط الخدمة',
     intro:
-      '‏آخر تحديث: 28 أكتوبر 2026. تحكم هذه الشروط الوصول إلى TManage واستخدامه، وهي خدمة لإدارة العمل على tmanage.peetrix.com تشغّلها Peter Designs ‏(peetrix.com). بإنشاء حساب أو استخدام الخدمة، توافق المؤسسة وأعضاؤها على هذه الشروط.',
+      '‏آخر تحديث: 28 أكتوبر 2026. تحكم هذه الشروط الوصول إلى TManage واستخدامه، وهي خدمة لإدارة العمل على tmanageapp.com تشغّلها Peter Designs ‏(peetrix.com). بإنشاء حساب أو استخدام الخدمة، توافق المؤسسة وأعضاؤها على هذه الشروط.',
     sections: {
       operator: {
         heading: 'مَن يقدّم الخدمة',
@@ -51,7 +51,7 @@ export const LEGAL_COPY_AR: Readonly<Record<LegalDocumentKey, ArabicLegalCopy>> 
       },
       'customer-data': {
         heading: 'المحتوى الخاص بك',
-        body: 'يظل المحتوى الذي تضعه المؤسسة في الخدمة محتوى تلك المؤسسة. وتمنح المؤسسة TManage الأذونات اللازمة لتشغيل الخدمة فقط، أي تخزين ذلك المحتوى ومعالجته وعرضه على أعضاء المؤسسة أنفسهم وعلى جماهير العملاء الذين تختار المؤسسة مشاركته معهم. وتوضّح سياسة الخصوصية على https://tmanage.peetrix.com/ar/legal/privacy كيفية تعاملنا مع البيانات الشخصية، وهي جزء من هذه الشروط.',
+        body: 'يظل المحتوى الذي تضعه المؤسسة في الخدمة محتوى تلك المؤسسة. وتمنح المؤسسة TManage الأذونات اللازمة لتشغيل الخدمة فقط، أي تخزين ذلك المحتوى ومعالجته وعرضه على أعضاء المؤسسة أنفسهم وعلى جماهير العملاء الذين تختار المؤسسة مشاركته معهم. وتوضّح سياسة الخصوصية على https://tmanageapp.com/ar/legal/privacy كيفية تعاملنا مع البيانات الشخصية، وهي جزء من هذه الشروط.',
       },
       'operator-access': OPERATOR_ACCESS_AR,
       'google-drive': {
@@ -72,7 +72,7 @@ export const LEGAL_COPY_AR: Readonly<Record<LegalDocumentKey, ArabicLegalCopy>> 
       },
       contact: {
         heading: 'التواصل',
-        body: 'Peter Designs ‏(peetrix.com)، مشغّل TManage. البريد الإلكتروني: tm-support@peetrix.com . الموقع: https://tmanage.peetrix.com .',
+        body: 'Peter Designs ‏(peetrix.com)، مشغّل TManage. البريد الإلكتروني: tm-support@peetrix.com . الموقع: https://tmanageapp.com .',
       },
     },
   },
@@ -83,7 +83,7 @@ export const LEGAL_COPY_AR: Readonly<Record<LegalDocumentKey, ArabicLegalCopy>> 
     sections: {
       'who-we-are': {
         heading: 'مَن نحن',
-        body: 'TManage خدمة لإدارة العمل على tmanage.peetrix.com، تشغّلها Peter Designs ‏(peetrix.com)، ويُشار إليها بـ«TManage» أو «نحن». نحن المتحكم في بيانات الحساب والموقع وتشغيل الخدمة. أما المحتوى الذي تضعه المؤسسة في مساحة عملها، فالمؤسسة هي المتحكم فيه ونحن نعالجه نيابة عنها. للتواصل: tm-support@peetrix.com .',
+        body: 'TManage خدمة لإدارة العمل على tmanageapp.com، تشغّلها Peter Designs ‏(peetrix.com)، ويُشار إليها بـ«TManage» أو «نحن». نحن المتحكم في بيانات الحساب والموقع وتشغيل الخدمة. أما المحتوى الذي تضعه المؤسسة في مساحة عملها، فالمؤسسة هي المتحكم فيه ونحن نعالجه نيابة عنها. للتواصل: tm-support@peetrix.com .',
       },
       'what-we-collect': {
         heading: 'البيانات التي نجمعها',
@@ -140,7 +140,7 @@ export const LEGAL_COPY_AR: Readonly<Record<LegalDocumentKey, ArabicLegalCopy>> 
       },
       contact: {
         heading: 'التواصل',
-        body: 'Peter Designs ‏(peetrix.com)، مشغّل TManage. البريد الإلكتروني: tm-support@peetrix.com . الموقع: https://tmanage.peetrix.com .',
+        body: 'Peter Designs ‏(peetrix.com)، مشغّل TManage. البريد الإلكتروني: tm-support@peetrix.com . الموقع: https://tmanageapp.com .',
       },
     },
   },

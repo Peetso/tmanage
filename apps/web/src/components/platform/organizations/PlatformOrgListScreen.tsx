@@ -368,7 +368,7 @@ function NewOrganizationDialog({ api, onClose }: { api: ApiClient; onClose: () =
         />
         <Field
           label={t('PlatformOrgs.fieldSlug')}
-          hint={`tmanage.peetrix.com/${effectiveSlug}`}
+          hint={`tmanageapp.com/${effectiveSlug}`}
           value={effectiveSlug}
           onChange={(e) => {
             setSlugTouched(true);

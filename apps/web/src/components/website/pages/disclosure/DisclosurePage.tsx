@@ -19,7 +19,7 @@ const RESPONSE_TIMES: readonly Pair[] = [
 ];
 
 const IN_SCOPE: readonly (readonly [key: string, text: string])[] = [
-  ['site', 'tmanage.peetrix.com and the TManage web and desktop apps'],
+  ['site', 'tmanageapp.com and the TManage web and desktop apps'],
   ['api', 'The TManage API and sign-in'],
 ];
 

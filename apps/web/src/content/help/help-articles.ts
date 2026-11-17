@@ -123,7 +123,7 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
         {
           kind: 'steps',
           items: [
-            'Open tmanage.peetrix.com and choose Start free.',
+            'Open tmanageapp.com and choose Start free.',
             'Confirm your email with the code we send you.',
             'Name your workspace and choose its language and time zone.',
             'Create your first project, or skip and explore first.',
@@ -144,7 +144,7 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
         {
           kind: 'steps',
           items: [
-            'افتح tmanage.peetrix.com واختر «ابدأ مجانًا».',
+            'افتح tmanageapp.com واختر «ابدأ مجانًا».',
             'أكّد بريدك الإلكتروني بالرمز الذي نرسله إليك.',
             'سمِّ مساحة العمل واختر لغتها ومنطقتها الزمنية.',
             'أنشئ مشروعك الأول، أو تخطَّ هذه الخطوة واستكشف أولًا.',

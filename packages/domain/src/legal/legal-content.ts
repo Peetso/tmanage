@@ -60,7 +60,7 @@ export const LEGAL_DOCUMENTS: Readonly<Record<LegalDocumentKey, LegalDocument>> 
     title: 'Terms of Service',
     effectiveDate: LEGAL_EFFECTIVE_DATE,
     intro:
-      'Last updated: 28 October 2026. These terms govern access to and use of TManage, a work-management service at tmanage.peetrix.com operated by Peter Designs (peetrix.com). By creating an account or using the service, an organization and its members agree to them.',
+      'Last updated: 28 October 2026. These terms govern access to and use of TManage, a work-management service at tmanageapp.com operated by Peter Designs (peetrix.com). By creating an account or using the service, an organization and its members agree to them.',
     sections: Object.freeze([
       section(
         'operator',
@@ -80,7 +80,7 @@ export const LEGAL_DOCUMENTS: Readonly<Record<LegalDocumentKey, LegalDocument>> 
       section(
         'customer-data',
         'Your content',
-        'Content an organization puts into the service remains that organization’s content. The organization grants TManage only the permissions needed to operate the service — to store, process, and display that content back to the organization’s own members and to the client audiences the organization chooses to share it with. How we handle personal data is described in the Privacy Policy at https://tmanage.peetrix.com/legal/privacy, which forms part of these terms.',
+        'Content an organization puts into the service remains that organization’s content. The organization grants TManage only the permissions needed to operate the service — to store, process, and display that content back to the organization’s own members and to the client audiences the organization chooses to share it with. How we handle personal data is described in the Privacy Policy at https://tmanageapp.com/legal/privacy, which forms part of these terms.',
       ),
       section(OPERATOR_ACCESS_SECTION_ID, OPERATOR_ACCESS_EN.heading, OPERATOR_ACCESS_EN.body),
       section(
@@ -106,7 +106,7 @@ export const LEGAL_DOCUMENTS: Readonly<Record<LegalDocumentKey, LegalDocument>> 
       section(
         'contact',
         'Contact',
-        'Peter Designs (peetrix.com), operator of TManage. Email: tm-support@peetrix.com. Website: https://tmanage.peetrix.com.',
+        'Peter Designs (peetrix.com), operator of TManage. Email: tm-support@peetrix.com. Website: https://tmanageapp.com.',
       ),
     ]),
   }),
@@ -120,7 +120,7 @@ export const LEGAL_DOCUMENTS: Readonly<Record<LegalDocumentKey, LegalDocument>> 
       section(
         'who-we-are',
         'Who we are',
-        'TManage is a work-management service at tmanage.peetrix.com, operated by Peter Designs (peetrix.com) — “TManage”, “we” or “us”. We are the controller of account, website and service-operation data. For the content an organization puts into its workspace, the organization is the controller and we process that content on its behalf. Contact: tm-support@peetrix.com.',
+        'TManage is a work-management service at tmanageapp.com, operated by Peter Designs (peetrix.com) — “TManage”, “we” or “us”. We are the controller of account, website and service-operation data. For the content an organization puts into its workspace, the organization is the controller and we process that content on its behalf. Contact: tm-support@peetrix.com.',
       ),
       section(
         'what-we-collect',
@@ -191,7 +191,7 @@ export const LEGAL_DOCUMENTS: Readonly<Record<LegalDocumentKey, LegalDocument>> 
       section(
         'contact',
         'Contact',
-        'Peter Designs (peetrix.com), operator of TManage. Email: tm-support@peetrix.com. Website: https://tmanage.peetrix.com.',
+        'Peter Designs (peetrix.com), operator of TManage. Email: tm-support@peetrix.com. Website: https://tmanageapp.com.',
       ),
     ]),
   }),
