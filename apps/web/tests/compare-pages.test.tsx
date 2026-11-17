@@ -36,4 +36,14 @@ describe('compare pages', () => {
       expect(findClaimViolations(en, 'en', new Date())).toEqual([]);
     }
   });
+
+  it('dates every entry and reads every fact on the rival’s own site (SEO B3)', () => {
+    const site = (url: string) => new URL(url).hostname.split('.').slice(-2).join('.');
+    for (const e of COMPARE_ENTRIES) {
+      expect(e.checkedOn, e.slug).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      for (const cell of Object.values(e.rows))
+        expect(site(cell.source), e.slug).toBe(site(e.pricingUrl));
+    }
+    expect(new Set(COMPARE_ENTRIES.map((e) => e.slug)).size).toBe(COMPARE_ENTRIES.length);
+  });
 });

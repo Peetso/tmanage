@@ -2,7 +2,7 @@
  * Row 57-06 — the compare pages' facts (`/compare/<slug>`, Arabic at `/ar/compare/<slug>`).
  *
  * Repo content, written in English and Arabic side by side like the Help centre. Every competitor
- * cell was checked on that competitor's own website on {@link COMPARE_CHECKED_ON}; the source of
+ * cell was checked on that competitor's own website on the entry's `checkedOn` date; the source of
  * each one is kept beside it (`source`). A fact that could not be confirmed there is left out of
  * the table rather than guessed, and no competitor price is ever shown: the price row links the
  * competitor's own pricing page. The TManage column ({@link OURS}) says only what the product does
@@ -47,8 +47,11 @@ export interface CompareEntry {
 /** U+200F RIGHT-TO-LEFT MARK. */
 export const RLM = '‏';
 
-/** The date every entry below was checked. */
+/** The date the first eight entries below were checked. */
 export const COMPARE_CHECKED_ON = '2026-11-15';
+
+/** SEO B3 — the date the twelve entries added after them were checked. */
+const CHECKED_2026_11_17 = '2026-11-17';
 
 /** Facts older than this many days show a "may be out of date" notice. */
 export const COMPARE_STALE_AFTER_DAYS = 90;
@@ -98,6 +101,18 @@ const TEAMWORK = 'https://www.teamwork.com/pricing/';
 const ZOHO = 'https://www.zoho.com/projects/zohoprojects-pricing.html';
 const NOTION = 'https://www.notion.com/pricing';
 const TEAMS = 'https://learn.microsoft.com/en-us/microsoftteams/teams-overview';
+const TRELLO = 'https://trello.com/pricing';
+const JIRA = 'https://www.atlassian.com/software/jira/features';
+const SLACK = 'https://slack.com/pricing';
+const WRIKE = 'https://www.wrike.com/price/';
+const PRODUCTIVE = 'https://www.productive.io/pricing/';
+const SCORO = 'https://www.scoro.com/features/';
+const ACCELO = 'https://www.accelo.com/features';
+const BONSAI = 'https://www.hellobonsai.com/pricing';
+const PLUTIO = 'https://www.plutio.com/pricing';
+const SUITEDASH = 'https://www.suitedash.com/pricing/';
+const MOXO = 'https://www.moxo.com/pricing';
+const ASSEMBLY = 'https://assembly.com/';
 
 export const COMPARE_ENTRIES: readonly CompareEntry[] = [
   {
@@ -387,6 +402,437 @@ export const COMPARE_ENTRIES: readonly CompareEntry[] = [
         'https://learn.microsoft.com/en-us/microsoftteams/guest-access',
       ),
       files: note('In a SharePoint site for each team', `في موقع SharePoint${RLM} لكل فريق`, TEAMS),
+    },
+  },
+  {
+    slug: 'trello',
+    name: 'Trello',
+    pricingUrl: 'https://trello.com/pricing',
+    checkedOn: CHECKED_2026_11_17,
+    suits: {
+      en: [
+        'You want simple boards and cards your whole team understands',
+        'You want no-code automation built into every board',
+        'You connect boards to other apps with Power-Ups (200+ listed)',
+      ],
+      ar: [
+        'تريد لوحات وبطاقات بسيطة يفهمها فريقك كله',
+        'تريد أتمتة بلا برمجة مدمجة في كل لوحة',
+        `تربط لوحاتك بتطبيقات أخرى عبر Power-Ups${RLM} (أكثر من 200 تطبيق معلن)`,
+      ],
+    },
+    strong: {
+      en: 'Trello keeps work on simple boards and cards, builds no-code automation into every board, and adds Calendar, Timeline, Table and Dashboard views on the Premium plan.',
+      ar: `يعرض Trello${RLM} العمل على لوحات وبطاقات بسيطة، ويدمج أتمتة بلا برمجة في كل لوحة، ويضيف عروض التقويم والخط الزمني والجدول ولوحة المعلومات في خطة Premium${RLM}.`,
+    },
+    rows: {
+      tasks: yes('Yes, boards and cards', 'نعم، لوحات وبطاقات', TRELLO),
+      clients: yes(
+        'Yes, board guests; a guest on more than one board is billed as a member',
+        'نعم، ضيوف على اللوحات، والضيف على أكثر من لوحة يُحتسب عضوًا مدفوعًا',
+        TRELLO,
+      ),
+      files: note(
+        'Attached to cards, up to 10 MB a file on Free and 250 MB on Standard',
+        'مرفقة بالبطاقات، حتى 10 ميغابايت للملف في الخطة المجانية و250 ميغابايت في Standard',
+        TRELLO,
+      ),
+    },
+  },
+  {
+    slug: 'jira',
+    name: 'Jira',
+    pricingUrl: 'https://www.atlassian.com/software/jira/pricing',
+    checkedOn: CHECKED_2026_11_17,
+    suits: {
+      en: [
+        'You want boards, lists, timelines and calendars over the same work',
+        'You want burndown, cycle time and capacity reports',
+        'You rely on a large marketplace (3,000+ integrations listed)',
+      ],
+      ar: [
+        'تريد اللوحات والقوائم والخطوط الزمنية والتقويم فوق العمل نفسه',
+        'تريد تقارير الإنجاز التنازلي وزمن الدورة وسعة الفريق',
+        'تعتمد على سوق تكاملات كبير (أكثر من 3000 تكامل معلن)',
+      ],
+    },
+    strong: {
+      en: 'Jira shows work as boards, lists, timelines or calendars, maps dependencies across teams, and reports burndown, cycle time and capacity. Its Rovo AI builds automations from plain instructions.',
+      ar: `يعرض Jira${RLM} العمل لوحاتٍ أو قوائم أو خطوطًا زمنية أو تقويمًا، ويربط التبعيات بين الفرق، ويقدّم تقارير الإنجاز التنازلي وزمن الدورة والسعة. ويبني ذكاؤه الاصطناعي Rovo${RLM} الأتمتة من تعليمات بلغة عادية.`,
+    },
+    rows: {
+      tasks: yes(
+        'Yes, boards, lists, timelines and calendars',
+        'نعم، لوحات وقوائم وخطوط زمنية وتقويم',
+        JIRA,
+      ),
+      time: yes(
+        'Yes, log work on each work item',
+        'نعم، تسجيل الوقت على كل بند عمل',
+        'https://support.atlassian.com/jira-software-cloud/docs/log-time-on-an-issue/',
+      ),
+    },
+  },
+  {
+    slug: 'slack',
+    name: 'Slack',
+    pricingUrl: 'https://slack.com/pricing',
+    checkedOn: CHECKED_2026_11_17,
+    suits: {
+      en: [
+        'Your team lives in channels and direct messages',
+        'You talk with outside partners in shared Slack Connect channels',
+        'You want quick group huddles with notes and transcripts',
+      ],
+      ar: [
+        'يعمل فريقك داخل القنوات والرسائل المباشرة',
+        `تتحدّث مع شركاء من الخارج في قنوات Slack Connect${RLM} المشتركة`,
+        'تريد اجتماعات صوتية سريعة مع ملاحظات ونصوص مكتوبة',
+      ],
+    },
+    strong: {
+      en: 'Slack is built for conversation: channels, group huddles with notes and transcripts, Slack Connect with up to 250 outside organisations, and lists and canvases that keep work beside the chat on paid plans.',
+      ar: `صُمّم Slack${RLM} للمحادثة: قنوات، واجتماعات صوتية جماعية مع ملاحظات ونصوص، وSlack Connect${RLM} مع ما يصل إلى 250 مؤسسة خارجية، وقوائم ولوحات canvas${RLM} تبقي العمل بجانب المحادثة في الخطط المدفوعة.`,
+    },
+    rows: {
+      tasks: note(
+        'In Slack lists, on paid plans',
+        `في قوائم Slack${RLM}، في الخطط المدفوعة`,
+        SLACK,
+      ),
+      clients: yes(
+        'Yes, Slack Connect on paid plans; one-to-one only on Free',
+        `نعم، Slack Connect${RLM} في الخطط المدفوعة، ومحادثات فردية فقط في الخطة المجانية`,
+        SLACK,
+      ),
+      files: note(
+        'Inside Slack; Free keeps 90 days of history',
+        `داخل Slack${RLM}، وتحتفظ الخطة المجانية بسجل 90 يومًا`,
+        SLACK,
+      ),
+    },
+  },
+  {
+    slug: 'wrike',
+    name: 'Wrike',
+    pricingUrl: 'https://www.wrike.com/price/',
+    checkedOn: CHECKED_2026_11_17,
+    suits: {
+      en: [
+        'You want interactive Gantt charts and shareable dashboards',
+        'You track budgets and billable hours across portfolios',
+        'You want capacity planning for a large team',
+      ],
+      ar: [
+        `تريد مخططات Gantt${RLM} تفاعلية ولوحات معلومات قابلة للمشاركة`,
+        'تتابع الميزانيات والساعات القابلة للفوترة عبر المحافظ',
+        'تريد تخطيط السعة لفريق كبير',
+      ],
+    },
+    strong: {
+      en: 'Wrike offers board and table views on its Free plan and interactive Gantt charts from the Team plan. On Pinnacle it adds resource and capacity planning with time tracking, and budgets for projects, portfolios and clients.',
+      ar: `يقدّم Wrike${RLM} عرضَي اللوحة والجدول في خطته المجانية، ومخططات Gantt${RLM} تفاعلية بدءًا من خطة Team${RLM}. وفي خطة Pinnacle${RLM} يضيف تخطيط الموارد والسعة مع تتبّع الوقت، وميزانيات للمشاريع والمحافظ والعملاء.`,
+    },
+    rows: {
+      tasks: yes(
+        'Yes, with Gantt charts from the Team plan',
+        `نعم، مع مخططات Gantt${RLM} بدءًا من خطة Team`,
+        WRIKE,
+      ),
+      clients: note(
+        'Outside users need a paid seat; free viewers are allowed',
+        'يحتاج المستخدم الخارجي إلى مقعد مدفوع، ويُسمح بمشاهدين مجانًا',
+        WRIKE,
+      ),
+      time: yes('Yes, on the Pinnacle plan', 'نعم، في خطة Pinnacle', WRIKE),
+    },
+  },
+  {
+    slug: 'productive',
+    name: 'Productive',
+    pricingUrl: 'https://www.productive.io/pricing/',
+    checkedOn: CHECKED_2026_11_17,
+    suits: {
+      en: [
+        'You run an agency on budgets, rate cards and margins',
+        'You plan people’s time with resource planning',
+        'You want revenue forecasting and scenario planning',
+      ],
+      ar: [
+        'تدير وكالتك بالميزانيات وجداول الأسعار وهوامش الربح',
+        'تخطّط وقت فريقك بتخطيط الموارد',
+        'تريد توقّع الإيرادات وتخطيط السيناريوهات',
+      ],
+    },
+    strong: {
+      en: 'Productive is built for agencies: time tracking, budgets and rate cards, resource planning, and client invoices sent from the same tool. Clients can be added free of charge to follow progress.',
+      ar: `صُمّم Productive${RLM} للوكالات: تتبّع الوقت، والميزانيات وجداول الأسعار، وتخطيط الموارد، وفواتير العملاء تُرسل من الأداة نفسها. ويمكن إضافة العملاء مجانًا ليتابعوا التقدّم.`,
+    },
+    rows: {
+      tasks: yes('Yes, task management', 'نعم، إدارة المهام', PRODUCTIVE),
+      clients: yes('Yes, clients join free of charge', 'نعم، وينضم العملاء مجانًا', PRODUCTIVE),
+      time: yes('Yes, on every plan', 'نعم، في كل الخطط', PRODUCTIVE),
+      invoices: yes(
+        'Yes, client invoices sent from Productive',
+        'نعم، فواتير العملاء تُرسل من Productive',
+        PRODUCTIVE,
+      ),
+    },
+  },
+  {
+    slug: 'scoro',
+    name: 'Scoro',
+    pricingUrl: 'https://www.scoro.com/pricing/',
+    checkedOn: CHECKED_2026_11_17,
+    suits: {
+      en: [
+        'You want quotes, delivery and billing in one flow',
+        'You compare quoted against actual on every job',
+        'You want a CRM and sales pipeline in the same tool',
+      ],
+      ar: [
+        'تريد عروض الأسعار والتنفيذ والفوترة في مسار واحد',
+        'تقارن المُقدَّر بالفعلي في كل عمل',
+        'تريد إدارة علاقات العملاء ومسار المبيعات في الأداة نفسها',
+      ],
+    },
+    strong: {
+      en: 'Scoro connects quotes with margin estimates, project delivery, time tracking and invoicing from logged hours, with quoted-against-actual and revenue forecasting reports on its End-to-end plan.',
+      ar: `يربط Scoro${RLM} عروض الأسعار وتقدير الهامش بتنفيذ المشاريع وتتبّع الوقت والفوترة من الساعات المسجَّلة، مع تقارير المُقدَّر مقابل الفعلي وتوقّع الإيرادات في خطة End-to-end${RLM}.`,
+    },
+    rows: {
+      tasks: yes('Yes, tasks and projects', 'نعم، مهام ومشاريع', SCORO),
+      clients: note(
+        'A client portal is a paid extra',
+        'بوابة العملاء إضافة مدفوعة',
+        'https://www.scoro.com/pricing/',
+      ),
+      time: yes('Yes, on every plan', 'نعم، في كل الخطط', 'https://www.scoro.com/pricing/'),
+      invoices: yes('Yes, from logged hours', 'نعم، من الساعات المسجَّلة', SCORO),
+    },
+  },
+  {
+    slug: 'accelo',
+    name: 'Accelo',
+    pricingUrl: 'https://www.accelo.com/pricing',
+    checkedOn: CHECKED_2026_11_17,
+    suits: {
+      en: [
+        'You run fixed-fee projects and retainers side by side',
+        'You want quotes, rate cards and budgets in one place',
+        'You use Xero, QuickBooks Online or Sage Intacct',
+      ],
+      ar: [
+        'تدير مشاريع بسعر ثابت وعقودًا شهرية جنبًا إلى جنب',
+        'تريد عروض الأسعار وجداول الأسعار والميزانيات في مكان واحد',
+        `تستخدم Xero${RLM} أو QuickBooks Online${RLM} أو Sage Intacct${RLM}`,
+      ],
+    },
+    strong: {
+      en: 'Accelo is built for professional services: retainer management, quotes and rate cards, time tracking that feeds invoicing, Gantt charts with dependencies, and links to Xero, QuickBooks Online and Sage Intacct.',
+      ar: `صُمّم Accelo${RLM} للخدمات المهنية: إدارة العقود الشهرية، وعروض الأسعار وجداول الأسعار، وتتبّع وقت يغذّي الفوترة، ومخططات Gantt${RLM} مع التبعيات، وربط مع Xero${RLM} و QuickBooks Online${RLM} و Sage Intacct${RLM}.`,
+    },
+    rows: {
+      tasks: yes(
+        'Yes, with Gantt charts and dependencies',
+        `نعم، مع مخططات Gantt${RLM} والتبعيات`,
+        ACCELO,
+      ),
+      clients: note(
+        'Client approvals and requests in a Client Workspace',
+        'اعتمادات العملاء وطلباتهم في مساحة Client Workspace',
+        ACCELO,
+      ),
+      time: yes('Yes, with automated timesheets', 'نعم، مع جداول زمنية آلية', ACCELO),
+      invoices: yes(
+        'Yes, from logged time, retainers too',
+        'نعم، من الوقت المسجَّل، والعقود الشهرية أيضًا',
+        ACCELO,
+      ),
+    },
+  },
+  {
+    slug: 'bonsai',
+    name: 'Bonsai',
+    pricingUrl: 'https://www.hellobonsai.com/pricing',
+    checkedOn: CHECKED_2026_11_17,
+    suits: {
+      en: [
+        'You want proposals, contracts and invoices next to the work',
+        'You track income and expenses in the same tool',
+        'You connect QuickBooks or Xero',
+      ],
+      ar: [
+        'تريد العروض والعقود والفواتير بجانب العمل',
+        'تتابع الدخل والمصروفات في الأداة نفسها',
+        `تربط QuickBooks${RLM} أو Xero${RLM}`,
+      ],
+    },
+    strong: {
+      en: 'Bonsai covers the path from proposal to payment: proposals and contracts, a client portal, invoices with payments, time tracking with timesheets, and income and expense tracking from the Essentials plan.',
+      ar: `يغطّي Bonsai${RLM} الطريق من العرض إلى الدفع: العروض والعقود، وبوابة للعملاء، وفواتير مع الدفع، وتتبّع الوقت مع الجداول الزمنية، وتتبّع الدخل والمصروفات بدءًا من خطة Essentials${RLM}.`,
+    },
+    rows: {
+      tasks: yes(
+        'Yes, with a Gantt view on Premium',
+        `نعم، مع عرض Gantt${RLM} في خطة Premium`,
+        BONSAI,
+      ),
+      clients: yes(
+        'Yes, a client portal from the Essentials plan',
+        'نعم، بوابة للعملاء بدءًا من خطة Essentials',
+        BONSAI,
+      ),
+      time: yes('Yes, on every plan', 'نعم، في كل الخطط', BONSAI),
+      invoices: yes(
+        'Yes, with payments, from the Essentials plan',
+        'نعم، مع الدفع، بدءًا من خطة Essentials',
+        BONSAI,
+      ),
+      files: note('10 GB to 500 GB, by plan', 'من 10 إلى 500 غيغابايت حسب الخطة', BONSAI),
+    },
+  },
+  {
+    slug: 'plutio',
+    name: 'Plutio',
+    pricingUrl: 'https://www.plutio.com/pricing',
+    checkedOn: CHECKED_2026_11_17,
+    suits: {
+      en: [
+        'You are a freelancer or small agency that wants one app',
+        'You send proposals and contracts for clients to sign',
+        'You take payments through Stripe, PayPal or Square',
+      ],
+      ar: [
+        'تعمل مستقلًا أو في وكالة صغيرة وتريد تطبيقًا واحدًا',
+        'ترسل العروض والعقود ليوقّعها العملاء',
+        `تستقبل المدفوعات عبر Stripe${RLM} أو PayPal${RLM} أو Square${RLM}`,
+      ],
+    },
+    strong: {
+      en: 'Plutio puts projects with Kanban, list, calendar and Gantt views, time tracking, proposals and contracts clients sign, and invoices paid through Stripe, PayPal or Square behind one client portal.',
+      ar: `يجمع Plutio${RLM} خلف بوابة عملاء واحدة مشاريع بعروض Kanban${RLM} والقائمة والتقويم و Gantt${RLM}، وتتبّع الوقت، وعروضًا وعقودًا يوقّعها العملاء، وفواتير تُدفع عبر Stripe${RLM} أو PayPal${RLM} أو Square${RLM}.`,
+    },
+    rows: {
+      tasks: yes(
+        'Yes, Kanban, list, calendar and Gantt views',
+        `نعم، عروض Kanban${RLM} والقائمة والتقويم و Gantt`,
+        PLUTIO,
+      ),
+      clients: yes('Yes, a client portal on every plan', 'نعم، بوابة للعملاء في كل الخطط', PLUTIO),
+      time: yes(
+        'Yes, logged to projects and invoices',
+        'نعم، يُسجَّل على المشاريع والفواتير',
+        PLUTIO,
+      ),
+      invoices: yes(
+        'Yes, paid through Stripe, PayPal or Square',
+        `نعم، تُدفع عبر Stripe${RLM} أو PayPal${RLM} أو Square`,
+        PLUTIO,
+      ),
+      files: note('100 GB to 2 TB, by plan', 'من 100 غيغابايت إلى 2 تيرابايت حسب الخطة', PLUTIO),
+    },
+  },
+  {
+    slug: 'suitedash',
+    name: 'SuiteDash',
+    pricingUrl: 'https://www.suitedash.com/pricing/',
+    checkedOn: CHECKED_2026_11_17,
+    suits: {
+      en: [
+        'You want unlimited white-label client portals',
+        'You want one price for the whole account, not by seat',
+        'You want a CRM with deal pipelines',
+      ],
+      ar: [
+        'تريد بوابات عملاء بلا حد تحمل علامتك التجارية',
+        'تريد سعرًا واحدًا للحساب كله لا حسب عدد المقاعد',
+        'تريد إدارة علاقات العملاء مع مراحل الصفقات',
+      ],
+    },
+    strong: {
+      en: 'SuiteDash bundles white-label client portals, a CRM, projects and tasks, billing with subscriptions, proposals and file exchange, and charges one price for the whole account rather than by seat.',
+      ar: `يجمع SuiteDash${RLM} بوابات عملاء تحمل علامتك التجارية، وإدارة علاقات العملاء، والمشاريع والمهام، والفوترة مع الاشتراكات، والعروض وتبادل الملفات، ويحتسب سعرًا واحدًا للحساب كله لا حسب عدد المقاعد.`,
+    },
+    rows: {
+      tasks: yes('Yes, projects and tasks', 'نعم، مشاريع ومهام', SUITEDASH),
+      clients: yes(
+        'Yes, unlimited white-label portals',
+        'نعم، بوابات بلا حد تحمل علامتك التجارية',
+        SUITEDASH,
+      ),
+      invoices: yes('Yes, billing and subscriptions', 'نعم، فوترة واشتراكات', SUITEDASH),
+      files: note(
+        'File exchange, 100 GB to 2 TB by plan',
+        'تبادل الملفات، من 100 غيغابايت إلى 2 تيرابايت حسب الخطة',
+        SUITEDASH,
+      ),
+    },
+  },
+  {
+    slug: 'moxo',
+    name: 'Moxo',
+    pricingUrl: 'https://www.moxo.com/pricing',
+    checkedOn: CHECKED_2026_11_17,
+    suits: {
+      en: [
+        'You run client processes in a regulated industry',
+        'You want approvals, reviews and document collection as workflow steps',
+        'Outside people act through a magic link, without an account',
+      ],
+      ar: [
+        'تدير إجراءات العملاء في قطاع خاضع للتنظيم',
+        'تريد الاعتمادات والمراجعات وجمع المستندات خطواتٍ في سير العمل',
+        'يتصرّف الأشخاص من الخارج عبر رابط سحري دون حساب',
+      ],
+    },
+    strong: {
+      en: 'Moxo is built for client processes in regulated industries: a flow designer with 36 step types, approvals and reviews as steps, escalation when a due date passes, and branded portals outside people open with a magic link.',
+      ar: `صُمّم Moxo${RLM} لإجراءات العملاء في القطاعات الخاضعة للتنظيم: مصمّم مسارات فيه 36 نوعًا من الخطوات، واعتمادات ومراجعات كخطوات، وتصعيد عند تجاوز الموعد، وبوابات تحمل علامتك يفتحها الأشخاص من الخارج برابط سحري.`,
+    },
+    rows: {
+      tasks: note('Workflow steps with due dates', 'خطوات سير عمل لها مواعيد استحقاق', MOXO),
+      clients: yes(
+        'Yes, branded portals with no account needed',
+        'نعم، بوابات تحمل علامتك ولا تحتاج إلى حساب',
+        MOXO,
+      ),
+    },
+  },
+  {
+    slug: 'assembly',
+    name: 'Assembly',
+    pricingUrl: 'https://assembly.com/pricing',
+    checkedOn: CHECKED_2026_11_17,
+    suits: {
+      en: [
+        'You want a branded portal where clients message, share files and pay',
+        'You want to start on a free plan',
+        'You add ready-made apps for intake and onboarding',
+      ],
+      ar: [
+        'تريد بوابة تحمل علامتك يراسل فيها العملاء ويشاركون الملفات ويدفعون',
+        'تريد أن تبدأ بخطة مجانية',
+        'تضيف تطبيقات جاهزة لاستقبال العملاء وتهيئتهم',
+      ],
+    },
+    strong: {
+      en: 'Assembly gives each client a branded portal to message your team, share files, sign contracts, pay invoices and see the stage of their project, with ready-made intake and onboarding apps.',
+      ar: `يمنح Assembly${RLM} كل عميل بوابة تحمل علامتك ليراسل فريقك ويشارك الملفات ويوقّع العقود ويدفع الفواتير ويرى مرحلة مشروعه، مع تطبيقات جاهزة لاستقبال العملاء وتهيئتهم.`,
+    },
+    rows: {
+      tasks: note('A project tracker clients can see', 'متتبّع مشاريع يراه العملاء', ASSEMBLY),
+      clients: yes(
+        'Yes, a branded client portal',
+        'نعم، بوابة عملاء تحمل علامتك',
+        'https://assembly.com/pricing',
+      ),
+      invoices: yes(
+        'Yes, billing and payments on every plan',
+        'نعم، فوترة ومدفوعات في كل الخطط',
+        'https://assembly.com/pricing',
+      ),
+      files: note('Shared with clients in the portal', 'تُشارك مع العملاء في البوابة', ASSEMBLY),
     },
   },
 ];
