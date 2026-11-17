@@ -54,7 +54,7 @@ export function MembershipGoneGate({
   if (loaded.some((org) => org.slug === organizationSlug)) return <>{children}</>;
   if (!wasKnownOrganization(organizationSlug)) {
     return (
-      <StateScreen label="Not found" labelKey="StateScreens.eyebrowNotFound">
+      <StateScreen>
         <NotFoundState homeHref="/organizations" />
       </StateScreen>
     );

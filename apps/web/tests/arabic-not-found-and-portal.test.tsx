@@ -25,25 +25,27 @@ const SITE = join(__dirname, '..', 'src', 'app', 'ar', '(site)');
  * English words ("Delivered by", "Client portal", "Client preview") on an Arabic screen.
  */
 describe('Arabic not-found page', () => {
-  it('reads in Arabic and links back to the Arabic home and resources', () => {
-    render(
+  it('reads in Arabic and links back to the Arabic home and sign-in (CONFIRMPOLISH 5)', () => {
+    const { container } = render(
       <RouteLocaleProvider locale="ar-EG">
         <ArabicNotFound />
       </RouteLocaleProvider>,
     );
     const heading = screen.getByRole('heading', { level: 1 });
-    expect(heading).toHaveTextContent(ARABIC_NOT_FOUND_COPY.heading);
-    expect(screen.getByRole('link', { name: ARABIC_NOT_FOUND_COPY.home })).toHaveAttribute(
+    expect(heading).toHaveTextContent('لم نعثر على هذه الصفحة');
+    expect(screen.getByRole('link', { name: 'العودة إلى الرئيسية' })).toHaveAttribute(
       'href',
       '/ar',
     );
-    expect(screen.getByRole('link', { name: ARABIC_NOT_FOUND_COPY.resources })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'تسجيل الدخول' })).toHaveAttribute(
       'href',
-      '/ar/resources',
+      '/ar/sign-in',
     );
-    for (const text of Object.values(ARABIC_NOT_FOUND_COPY)) {
-      expect(text).not.toMatch(LATIN_WORD);
-    }
+    // The same centred page-level 404 as every other one: glyph and the small label.
+    expect(container.querySelector('.tm-state--page .tm-state__glyph')).not.toBeNull();
+    expect(container.querySelector('.tm-state__eyebrow')).toHaveTextContent('غير موجود');
+    expect(container.textContent ?? '').not.toMatch(LATIN_WORD);
+    expect(ARABIC_NOT_FOUND_COPY.title).not.toMatch(LATIN_WORD);
   });
 
   it('is reached by notFound() rather than pre-empted by dynamicParams = false', () => {

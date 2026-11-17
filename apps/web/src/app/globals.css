@@ -2912,3 +2912,35 @@ html[lang^='zh'] body {
 .tm-web-lang__option {
   min-height: var(--s6);
 }
+
+/* CONFIRMPOLISH 5 (Figma 640:35585, frames 01/02): a page-level 404, wherever it renders (the
+   prerendered page, a workspace that is gone, the Arabic website), is centred, with its glyph and
+   the small "Not found" label above the heading. */
+.tm-state--page {
+  inline-size: min(680px, 100%);
+  margin-inline: auto;
+}
+
+.tm-state--page .tm-state__panel {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.tm-state--page .tm-state__panel,
+.tm-state--page .tm-state__text {
+  align-items: center;
+  text-align: center;
+}
+
+.tm-state--page .tm-state__glyph {
+  display: grid;
+}
+
+.tm-state--page .tm-state__eyebrow {
+  display: block;
+}
+
+.tm-state--page .tm-state__actions {
+  justify-content: center;
+}

@@ -1,20 +1,11 @@
 import type { Metadata } from 'next';
 import { TITLE_SUFFIX } from '../../lib/route-titles';
-import { ButtonLink } from './primitives';
-import { WebSection } from './sections';
+import { NotFoundState } from '../state/StateScreens';
 import './arabic-not-found.css';
 
-/**
- * The Arabic 404 copy. The page exists only under `/ar`, so it is written in Arabic here rather
- * than carried as catalog keys with an English twin nobody would ever see.
- */
+/** The Arabic 404's tab title (the page's text comes from the shared `NotFoundState`). */
 export const ARABIC_NOT_FOUND_COPY = {
   title: 'الصفحة غير موجودة',
-  eyebrow: 'خطأ 404',
-  heading: 'لم نجد هذه الصفحة',
-  description: 'ربما نُقل الرابط أو كُتب بشكل خاطئ. ارجع إلى الصفحة الرئيسية أو تصفّح المصادر.',
-  home: 'العودة إلى الصفحة الرئيسية',
-  resources: 'تصفّح المصادر',
 } as const;
 
 /**
@@ -28,28 +19,16 @@ export const ARABIC_NOT_FOUND_METADATA: Metadata = {
 };
 
 /**
- * The not-found page of the Arabic website (Figma `429:22543`, the Arabic not-found frame): an
- * eyebrow, the heading, one line of help, and two ways back — the Arabic home (lime) and the
- * Arabic resources (outline). It renders inside the website chrome, so Web/Nav and Web/Footer
- * stay Arabic and the visitor is never dropped onto the English site.
+ * The not-found page of the Arabic website, inside the website chrome (Web/Nav and Web/Footer
+ * stay Arabic). CONFIRMPOLISH 5: the same `NotFoundState` as every other 404 (Figma 640:35585,
+ * frames 01/02): centred, the glyph, the small "غير موجود" label, the heading, one line of help,
+ * and two ways on, the Arabic home and the Arabic sign-in. Its words come from the `ar` catalog
+ * through the route locale.
  */
 export function ArabicNotFound() {
-  const copy = ARABIC_NOT_FOUND_COPY;
   return (
-    <WebSection className="tm-web-not-found" aria-labelledby="tm-web-not-found-title">
-      <p className="tm-web-not-found__eyebrow">{copy.eyebrow}</p>
-      <h1 id="tm-web-not-found-title" className="tm-web-not-found__title">
-        {copy.heading}
-      </h1>
-      <p className="tm-web-not-found__description">{copy.description}</p>
-      <div className="tm-web-not-found__actions">
-        <ButtonLink href="/ar" tone="lime" size="default">
-          {copy.home}
-        </ButtonLink>
-        <ButtonLink href="/ar/resources" tone="outline" size="default">
-          {copy.resources}
-        </ButtonLink>
-      </div>
-    </WebSection>
+    <div className="tm-web-not-found">
+      <NotFoundState homeHref="/ar" signInHref="/ar/sign-in" />
+    </div>
   );
 }

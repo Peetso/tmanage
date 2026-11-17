@@ -238,7 +238,10 @@ export function NotFoundState({
       headingLevel={headingLevel}
       title={title ?? tOr('StateScreens.notFoundTitle', copy.title)}
       description={description ?? tOr('StateScreens.notFoundDescription', copy.description)}
-      className={className}
+      // CONFIRMPOLISH 5: a page-level 404 is the centred frame with its glyph and small label.
+      className={
+        headingLevel === 1 ? ['tm-state--page', className].filter(Boolean).join(' ') : className
+      }
       action={
         <>
           <a

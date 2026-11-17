@@ -10,6 +10,8 @@ import { COMPARE_ENTRIES } from '../src/content/compare/compare-entries';
 import { HELP_ARTICLES } from '../src/content/help/help-articles';
 import { ARABIC_NOT_FOUND_PAGE, publicNotFoundPage } from '../src/lib/public-not-found';
 import { proxy } from '../src/proxy';
+import { LocaleStore } from '../src/lib/i18n/locale-store';
+import { RouteLocaleProvider } from '../src/lib/i18n/route-locale';
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/help/nope-xyz',
@@ -64,7 +66,12 @@ describe('an unknown page of the public website', () => {
     expect(routes.length).toBeGreaterThanOrEqual(6);
     const pages: Record<string, string> = {
       [`${ORIGIN}/_not-found`]: renderToString(<NotFound />),
-      [`${ORIGIN}${ARABIC_NOT_FOUND_PAGE}`]: renderToString(<ArabicNotFoundStaticPage />),
+      [`${ORIGIN}${ARABIC_NOT_FOUND_PAGE}`]: renderToString(
+        // As `app/ar/layout.tsx` renders it: under the Arabic route locale.
+        <RouteLocaleProvider locale="ar-EG" store={new LocaleStore('ar-EG')}>
+          <ArabicNotFoundStaticPage />
+        </RouteLocaleProvider>,
+      ),
     };
     const answers = routes.map((route) => {
       const response = proxy(request(probe(route)));
@@ -76,7 +83,7 @@ describe('an unknown page of the public website', () => {
       routes.map((route) => ({
         route,
         status: 404,
-        heading: route.startsWith('/ar') ? 'لم نجد هذه الصفحة' : 'We couldn’t find that page',
+        heading: route.startsWith('/ar') ? 'لم نعثر على هذه الصفحة' : 'We couldn’t find that page',
       })),
     );
   });
