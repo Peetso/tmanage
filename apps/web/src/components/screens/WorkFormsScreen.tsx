@@ -325,6 +325,7 @@ export function WorkFormsScreen({
 
           {activeForm ? (
             <WorkFormAttachmentSetting
+              key={activeForm.id}
               api={api}
               organizationSlug={organizationSlug}
               form={activeForm}

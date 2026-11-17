@@ -14964,6 +14964,7 @@
   "WorkFormAttachments.choose": "Escolha um projeto",
   "WorkFormAttachments.projectHint": "Os arquivos aparecem em Arquivos deste projeto.",
   "WorkFormAttachments.needProject": "Escolha um projeto para que os arquivos tenham onde ficar.",
+  "WorkFormAttachments.notShared": "As pessoas poderão anexar arquivos quando o formulário tiver um link público.",
   "WorkFormAttachments.save": "Salvar",
   "WorkFormAttachments.saving": "Salvando",
   "WorkFormAttachments.saved": "Salvo",

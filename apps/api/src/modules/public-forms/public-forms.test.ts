@@ -191,6 +191,20 @@ describe('52-20a public form attachments', () => {
     expect(gateFor(null).gate.rule(formRow(null))).toBeNull();
   });
 
+  it('never names the attachment project in the public form response', async () => {
+    const { gate, repository } = gateFor(PROJECT);
+    const service = new PublicFormsService(
+      database,
+      repository as unknown as PublicFormsRepository,
+      { create: vi.fn() },
+      vi.fn() as unknown as AssessPublicWrite,
+      gate,
+    );
+    const view = await service.publicDefinition(slug, ORG_A);
+    expect(view.attachments).not.toBeNull();
+    expect(JSON.stringify(view)).not.toContain(PROJECT);
+  });
+
   it("binds an upload to this form's owner, project and token submission only", async () => {
     const { gate } = gateFor(PROJECT);
     const { uploadToken } = await gate.openDraft(slug, ORG_A);

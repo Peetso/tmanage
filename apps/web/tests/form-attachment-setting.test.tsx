@@ -6,6 +6,7 @@ import { withIsolates } from '../src/components/screens/PublicFormAttachments';
 import {
   attachmentSettingReady,
   canEditWorkForms,
+  savedSetting,
 } from '../src/components/screens/WorkFormAttachmentSetting';
 
 // 52-20a owner switch + the visitor's isolated sizes (FIGMA8 673:37507).
@@ -25,6 +26,22 @@ describe('52-20a form attachment setting (web)', () => {
     expect(attachmentSettingReady({ enabled: false, projectId: '' })).toBe(true);
     expect(canEditWorkForms('owner')).toBe(true);
     expect(canEditWorkForms(undefined)).toBe(false);
+  });
+
+  it('opens on the saved project, or on with "Choose a project" when it is out of reach', () => {
+    const live = [{ id: 'p1' }];
+    expect(savedSetting({ attachmentProjectId: 'p1' }, live)).toEqual({
+      enabled: true,
+      projectId: 'p1',
+    });
+    expect(savedSetting({ attachmentProjectId: 'gone' }, live)).toEqual({
+      enabled: true,
+      projectId: '',
+    });
+    expect(savedSetting({ attachmentProjectId: null }, live)).toEqual({
+      enabled: false,
+      projectId: '',
+    });
   });
 
   it('keeps "25 MB" whole in a left-to-right isolate inside an Arabic sentence', () => {

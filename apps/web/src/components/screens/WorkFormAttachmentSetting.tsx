@@ -1,12 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { hasCapability, isInternalRole } from '@tmanage/domain';
 import { Button, InlineAlert, Select, Switch } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
 import type { ProjectSummary } from '../../lib/api/projects';
-import { getPublicForm } from '../../lib/api/public-forms';
 import { setWorkFormAttachments, type WorkFormSummary } from '../../lib/api/work-forms';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { useTOr } from '../../lib/i18n/use-t-or';
@@ -23,8 +22,24 @@ export function canEditWorkForms(role: string | undefined): boolean {
 
 interface Setting {
   readonly enabled: boolean;
-  /** `''` while no project is chosen (or the saved one is not known to this page). */
+  /** `''` while no project is chosen (or the saved one is archived or out of this person's sight). */
   readonly projectId: string;
+}
+
+/**
+ * The saved setting as the card opens: on/off from `attachmentProjectId`, the picker preselected
+ * when that project is still one this person can choose, otherwise on with "Choose a project".
+ */
+export function savedSetting(
+  form: Pick<WorkFormSummary, 'attachmentProjectId'>,
+  choosable: readonly Pick<ProjectSummary, 'id'>[],
+): Setting {
+  const saved = form.attachmentProjectId;
+  if (saved === null) return { enabled: false, projectId: '' };
+  return {
+    enabled: true,
+    projectId: choosable.some((project) => project.id === saved) ? saved : '',
+  };
 }
 
 /** True when Save may be pressed: off, or on with a project chosen. */
@@ -45,9 +60,6 @@ export interface WorkFormAttachmentSettingProps {
  * Figma: "Intake form attachments (2026-11-17)" 673:37507 — off (673:37508), on with a project
  * (673:37565), on without one (673:37631); AR 673:37701 / 673:37758 / 673:37826. Save sends
  * `PUT …/attachments` with the project, or `null` when off; the server re-checks the project.
- *
- * The form list does not carry the saved project, so the switch starts from what a visitor meets on
- * the public link (files allowed or not); the project is known once this page saves it.
  */
 export function WorkFormAttachmentSetting({
   api,
@@ -60,16 +72,6 @@ export function WorkFormAttachmentSetting({
   const queryClient = useQueryClient();
   const role = useOrganizationSummary(organizationSlug, api)?.role;
   const [draft, setDraft] = useState<Setting | null>(null);
-  const queryKey = ['work-form-attachments', organizationSlug, form.id, form.publicSlug];
-
-  const saved = useQuery({
-    queryKey,
-    queryFn: async (): Promise<Setting> => {
-      if (form.publicSlug === null) return { enabled: false, projectId: '' };
-      const definition = await getPublicForm(api, form.publicSlug);
-      return { enabled: (definition.attachments ?? null) !== null, projectId: '' };
-    },
-  });
 
   const save = useMutation({
     mutationFn: (setting: Setting) =>
@@ -79,19 +81,22 @@ export function WorkFormAttachmentSetting({
         form.id,
         setting.enabled ? setting.projectId : null,
       ),
-    onSuccess: (reply) => {
-      queryClient.setQueryData<Setting>(queryKey, {
-        enabled: reply.attachmentProjectId !== null,
-        projectId: reply.attachmentProjectId ?? '',
-      });
+    onSuccess: async (reply) => {
+      const listKey = ['work-forms', organizationSlug];
+      queryClient.setQueryData<readonly WorkFormSummary[]>(listKey, (forms) =>
+        forms?.map((row) =>
+          row.id === form.id ? { ...row, attachmentProjectId: reply.attachmentProjectId } : row,
+        ),
+      );
       setDraft(null);
+      await queryClient.invalidateQueries({ queryKey: listKey });
     },
   });
 
   if (!canEditWorkForms(role)) return null;
 
-  const setting = draft ?? saved.data ?? { enabled: false, projectId: '' };
   const live = projects.filter((project) => project.archivedAt === null);
+  const setting = draft ?? savedSetting(form, live);
   const change = (patch: Partial<Setting>) => {
     save.reset();
     setDraft({ ...setting, ...patch });
@@ -105,7 +110,6 @@ export function WorkFormAttachmentSetting({
       <Switch
         label={t('WorkFormAttachments.toggle', 'Let people attach files')}
         checked={setting.enabled}
-        disabled={saved.isPending}
         onChange={(event) => change({ enabled: event.target.checked })}
       />
       <p className="wf-link__body">
@@ -148,6 +152,15 @@ export function WorkFormAttachmentSetting({
             </InlineAlert>
           ) : null}
         </>
+      ) : null}
+
+      {form.attachmentProjectId !== null && !form.published ? (
+        <p className="wf-link__body">
+          {t(
+            'WorkFormAttachments.notShared',
+            'People can attach files once the form has a public link.',
+          )}
+        </p>
       ) : null}
 
       <div className="wf-link__actions">

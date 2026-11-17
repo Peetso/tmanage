@@ -54,6 +54,11 @@ export interface WorkFormView {
   readonly published: boolean;
   /** The public link's slug while published; `null` when the form is not shared. */
   readonly publicSlug: string | null;
+  /**
+   * 52-20a. The project visitors' files are kept in, or `null` when the form takes no files. Team
+   * view only: the public form response (`PublicFormView`) never names a project.
+   */
+  readonly attachmentProjectId: string | null;
 }
 
 /** An explicit projection, not a serialised row: a column added later is invisible until named. */
@@ -66,6 +71,7 @@ function toView(row: WorkFormRow): WorkFormView {
     createdAt: row.createdAt.toISOString(),
     published: row.publicEnabled === true && row.publicSlug !== null,
     publicSlug: row.publicEnabled === true ? row.publicSlug : null,
+    attachmentProjectId: row.attachmentProjectId,
   };
 }
 

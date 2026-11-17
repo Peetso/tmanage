@@ -38,6 +38,8 @@ export interface WorkFormSummary {
   readonly published: boolean;
   /** The public link's slug while published; `null` when the form is not shared. */
   readonly publicSlug: string | null;
+  /** 52-20a. The project visitors' files are kept in; `null` when the form takes no files. */
+  readonly attachmentProjectId: string | null;
 }
 
 /** `POST …/work-forms/:id/publish|unpublish`. Mirrors the API's `PublicFormState`. */

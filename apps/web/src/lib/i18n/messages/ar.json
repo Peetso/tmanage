@@ -14982,6 +14982,7 @@
   "WorkFormAttachments.choose": "اختر مشروعًا",
   "WorkFormAttachments.projectHint": "تظهر الملفات في قسم الملفات لهذا المشروع.",
   "WorkFormAttachments.needProject": "اختر مشروعًا ليكون للملفات مكان تُحفظ فيه.",
+  "WorkFormAttachments.notShared": "يمكن للأشخاص إرفاق الملفات بعد مشاركة النموذج عبر رابط عام.",
   "WorkFormAttachments.save": "حفظ",
   "WorkFormAttachments.saving": "جارٍ الحفظ",
   "WorkFormAttachments.saved": "تم الحفظ",

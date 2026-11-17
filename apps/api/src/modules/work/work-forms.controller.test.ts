@@ -145,6 +145,8 @@ describe('WorkFormsController', () => {
     expect(created).not.toHaveProperty('organizationId');
     // 2026-10-31 live-test fix: the screen needs the public-link state to show Share / Copy.
     expect(created).toMatchObject({ published: false, publicSlug: null });
+    // 52-20a: the team view carries the owner's attachment project (none yet).
+    expect(created).toHaveProperty('attachmentProjectId', null);
 
     const listed = await controller.list(context, actor);
     expect(listed.forms.map((form) => form.id)).toContain(created.id);
