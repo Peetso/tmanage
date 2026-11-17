@@ -19680,6 +19680,8 @@
   "PublicLinks.saveExpiry": "Enregistrer l’expiration",
   "ControlCenter.publicLinks": "Liens publics",
   "AuditActionLabel.public_link.expiry_changed": "A modifié l’expiration d’un lien public",
+  "AuditActionLabel.storage_migration.started": "A commencé à déplacer les fichiers vers le stockage de l'entreprise",
+  "AuditActionLabel.storage_migration.finished": "A fini de déplacer les fichiers vers le stockage de l'entreprise",
   "NotificationsFeedScreen.typeStorageRootAtRisk": "Le stockage de l’entreprise a besoin d’un nouveau responsable",
   "NotificationsFeedScreen.objectStorageConnection": "Stockage de l’entreprise",
   "nav.money": "Paiements",
