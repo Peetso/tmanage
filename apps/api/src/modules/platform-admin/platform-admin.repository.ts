@@ -175,6 +175,8 @@ export interface PlatformSignupSourceRow {
   readonly medium: string | null;
   readonly campaign: string | null;
   readonly content: string | null;
+  /** SEOD (B11). The referring site's host (`chatgpt.com`), when the browser sent one. */
+  readonly referrerHost: string | null;
   readonly signups: number;
 }
 
@@ -282,12 +284,15 @@ export const SQL = {
       (select count(*) from outbox_events
          where published_at is null and last_error is not null) as outbox_errors`,
   signupSources: `select signup_utm_source as source, signup_utm_medium as medium,
-      signup_utm_campaign as campaign, signup_utm_content as content, count(*) as signups
+      signup_utm_campaign as campaign, signup_utm_content as content,
+      signup_referrer_host as referrer_host, count(*) as signups
     from organizations
     where created_at >= ? and (signup_utm_source is not null or signup_utm_medium is not null
-      or signup_utm_campaign is not null or signup_utm_content is not null)
-    group by signup_utm_source, signup_utm_medium, signup_utm_campaign, signup_utm_content
-    order by signups desc, source, campaign, content limit ?`,
+      or signup_utm_campaign is not null or signup_utm_content is not null
+      or signup_referrer_host is not null)
+    group by signup_utm_source, signup_utm_medium, signup_utm_campaign, signup_utm_content,
+      signup_referrer_host
+    order by signups desc, source, campaign, content, referrer_host limit ?`,
   listCompanies: `select ${COMPANY_COLUMNS} from organizations o
     order by o.created_at desc, o.id desc limit ?`,
   searchCompanies: `select ${COMPANY_COLUMNS} from organizations o
@@ -584,6 +589,7 @@ export class PlatformAdminRepository {
           medium: text(source['medium']),
           campaign: text(source['campaign']),
           content: text(source['content']),
+          referrerHost: text(source['referrer_host']),
           signups: num(source['signups']),
         })),
       };

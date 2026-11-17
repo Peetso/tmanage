@@ -2525,6 +2525,8 @@ GRANT SELECT ON `tmanage`.`mail_recipient_bounces` TO 'tmanage_worker'@'%';
 -- 0359 (ADTRACK). `organizations` gains four nullable `signup_utm_*` columns, written once in the
 -- sign-up INSERT and read by the platform overview. They ride the existing `organizations` INSERT
 -- grant above and the database-wide read; the worker needs no grant.
+-- 0368 (SEOD B11). `organizations.signup_referrer_host` (the referring site's host) rides the same
+-- `organizations` INSERT grant and database-wide read; no new grant.
 -- 0363 (52-27). `client_journey_steps` (tenant): the studio adds, renames, links and removes a
 -- client's journey steps; the portal records a form step's stored submission (`evidence_id`) by
 -- UPDATE. DELETE is the studio removing a step (and the company erasure). SELECT rides the

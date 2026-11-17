@@ -368,6 +368,8 @@ export const organizations = mysqlTable(
     signupUtmMedium: varchar('signup_utm_medium', { length: 100 }),
     signupUtmCampaign: varchar('signup_utm_campaign', { length: 100 }),
     signupUtmContent: varchar('signup_utm_content', { length: 100 }),
+    /** 0368 (SEOD B11). The referring site's validated host only (`chatgpt.com`), never a URL. */
+    signupReferrerHost: varchar('signup_referrer_host', { length: 253 }),
   },
   (table) => [uniqueIndex('uq_organizations_slug').on(table.slug)],
 );

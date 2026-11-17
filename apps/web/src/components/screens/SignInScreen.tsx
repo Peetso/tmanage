@@ -42,6 +42,7 @@ import { InAppBrowserNotice, useInAppBrowser } from './InAppBrowserNotice';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { refusalLine } from '../../lib/api/auth-refusal';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { useImportToolHref } from '../../lib/use-import-tool-href';
 import '../../styles/screens/identity.css';
 
 export interface SignInScreenProps {
@@ -165,6 +166,8 @@ export function SignInScreen({
   const hydrated = useHydrated();
   const t = useT();
   const locale = useActiveLocale();
+  /** "Create account" keeps a "switch from X" visitor's `?import=<tool>` (allow-listed). */
+  const signUpHref = useImportToolHref('/sign-up');
 
   /**
    * A new principal is a boundary (review finding D01). Announced before the caller
@@ -392,7 +395,7 @@ export function SignInScreen({
           {googleError === 'google.error.noAccount' && signUpOffered ? (
             <>
               {' '}
-              <Link href="/sign-up">{t('signIn.createAccount')}</Link>
+              <Link href={signUpHref}>{t('signIn.createAccount')}</Link>
             </>
           ) : null}
         </InlineAlert>
@@ -404,7 +407,7 @@ export function SignInScreen({
           {microsoftError[0] === 'microsoft.error.noAccount' && signUpOffered ? (
             <>
               {' '}
-              <Link href="/sign-up">{t('signIn.createAccount')}</Link>
+              <Link href={signUpHref}>{t('signIn.createAccount')}</Link>
             </>
           ) : null}
         </InlineAlert>
@@ -512,7 +515,7 @@ export function SignInScreen({
 
       {signUpOffered ? (
         <p className="tm-id-lede">
-          {t('signIn.newHere')} <Link href="/sign-up">{t('signIn.createAccount')}</Link>
+          {t('signIn.newHere')} <Link href={signUpHref}>{t('signIn.createAccount')}</Link>
         </p>
       ) : null}
 

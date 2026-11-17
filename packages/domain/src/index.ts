@@ -140,6 +140,8 @@ export {
   SIGNUP_ATTRIBUTION_MAX_LENGTH,
   signupAttributionCookieValue,
   signupAttributionFromCookie,
+  SIGNUP_REFERRER_HOST_MAX_LENGTH,
+  signupReferrerHost,
 } from './value-objects/signup-attribution.js';
 export type {
   SignupAttribution,

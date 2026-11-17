@@ -93,6 +93,8 @@ export interface PlatformSignupSourceView {
   readonly medium: string | null;
   readonly campaign: string | null;
   readonly content: string | null;
+  /** SEOD (B11). The referring site's host (`chatgpt.com`), when the browser sent one. */
+  readonly referrerHost: string | null;
   readonly signups: number;
 }
 

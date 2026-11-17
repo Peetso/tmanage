@@ -106,6 +106,42 @@ export const HELP_CATEGORIES: readonly HelpCategory[] = [
   },
 ];
 
+/**
+ * SEOD (B18, 2026-11-17) — the TManage half of every "export from X" article: the same Import page
+ * for each source, so the steps are written once per language. `columns` is false for a source
+ * whose file has no columns to match (Basecamp's ZIP of pages).
+ */
+function importSteps(language: HelpLanguage, source: string, columns = true): HelpBlock {
+  const en = [
+    'In TManage, open Projects and choose Import (owners and admins see it).',
+    `Choose ${source} as the source and pick the file you exported.`,
+    'Choose the target project the items go into.',
+    ...(columns ? ['Check how the columns are matched, then choose Check file.'] : []),
+    'Choose Start import. Rows that need a fix are listed and skipped.',
+  ];
+  const ar = [
+    'في TManage افتح «المشاريع» واختر «استيراد» (يظهر للمالكين والمسؤولين).',
+    `اختر ${source} مصدرًا، ثم اختر الملف الذي صدّرته.`,
+    'اختر «المشروع المستهدف» الذي تُضاف إليه العناصر.',
+    ...(columns ? ['راجع «مطابقة الأعمدة»، ثم اختر «افحص الملف».'] : []),
+    'اختر «ابدأ الاستيراد». تُعرض الصفوف التي تحتاج إلى تصحيح ولا تُستورد.',
+  ];
+  return { kind: 'steps', items: language === 'en' ? en : ar };
+}
+
+const IMPORT_TIP: Record<HelpLanguage, HelpBlock> = {
+  en: {
+    kind: 'tip',
+    text: 'One file brings in up to 1,000 rows. Changed your mind? Undo the import from Recent imports.',
+  },
+  ar: {
+    kind: 'tip',
+    text: 'يستورد الملف الواحد حتى 1,000 صف. وإن غيّرت رأيك، فتراجع عن الاستيراد من «عمليات الاستيراد الأخيرة».',
+  },
+};
+
+const EXPORT_RELATED = ['start-a-project', 'invite-your-team'] as const;
+
 export const HELP_ARTICLES: readonly HelpArticle[] = [
   {
     slug: 'create-your-workspace',
@@ -742,6 +778,391 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
         },
       ],
       keywords: ['تسجيل الخروج', 'أجهزة', 'سجل الدخول', 'مشبوه'],
+    },
+  },
+  // ---- SEOD (B18, 2026-11-17): "export from X" for the six switch sources, and AI set-up. ----
+  // Each rival's steps were checked on its own help site on 2026-11-17 (see SEOD-REPORT.md).
+  {
+    slug: 'export-from-monday',
+    category: 'getting-started',
+    minutes: 3,
+    related: [...EXPORT_RELATED],
+    en: {
+      title: 'Move your work from monday.com',
+      summary: 'Export a monday.com board to Excel and import it into a TManage project.',
+      body: [
+        { kind: 'p', text: 'In monday.com:' },
+        {
+          kind: 'steps',
+          items: [
+            'Open the board and clear any filters (the export keeps only the items a filter shows).',
+            'Open the three-dot menu at the top right of the board, then More actions.',
+            'Choose Export board to Excel, include subitems if you want them, then choose Export.',
+          ],
+        },
+        { kind: 'p', text: 'In TManage:' },
+        importSteps('en', 'monday.com'),
+        IMPORT_TIP.en,
+      ],
+      keywords: ['monday', 'excel', 'xlsx', 'switch', 'migrate', 'move', 'import'],
+    },
+    ar: {
+      title: 'انقل عملك من monday.com',
+      summary: 'صدّر لوحة monday.com إلى Excel واستوردها إلى مشروع في TManage.',
+      body: [
+        { kind: 'p', text: 'في monday.com:' },
+        {
+          kind: 'steps',
+          items: [
+            'افتح اللوحة وأزل أي تصفية (فالتصدير يأخذ العناصر الظاهرة بعد التصفية فقط).',
+            'افتح قائمة النقاط الثلاث أعلى يمين اللوحة، ثم More actions.',
+            'اختر Export board to Excel، وأضف العناصر الفرعية إن أردتها، ثم اختر Export.',
+          ],
+        },
+        { kind: 'p', text: 'في TManage:' },
+        importSteps('ar', 'monday.com'),
+        IMPORT_TIP.ar,
+      ],
+      keywords: ['مونداي', 'إكسل', 'نقل', 'انتقال', 'استيراد', 'تصدير'],
+    },
+  },
+  {
+    slug: 'export-from-asana',
+    category: 'getting-started',
+    minutes: 3,
+    related: [...EXPORT_RELATED],
+    en: {
+      title: 'Move your work from Asana',
+      summary: 'Export an Asana project to CSV and import it into a TManage project.',
+      body: [
+        { kind: 'p', text: 'In Asana:' },
+        {
+          kind: 'steps',
+          items: [
+            'Open the project.',
+            'Open the dropdown arrow next to the project title.',
+            'Hover over Export/Print and choose CSV.',
+          ],
+        },
+        { kind: 'p', text: 'In TManage:' },
+        importSteps('en', 'Asana'),
+        IMPORT_TIP.en,
+      ],
+      keywords: ['asana', 'csv', 'switch', 'migrate', 'move', 'import'],
+    },
+    ar: {
+      title: 'انقل عملك من Asana',
+      summary: 'صدّر مشروع Asana بصيغة CSV واستورده إلى مشروع في TManage.',
+      body: [
+        { kind: 'p', text: 'في Asana:' },
+        {
+          kind: 'steps',
+          items: [
+            'افتح المشروع.',
+            'افتح السهم المنسدل بجوار اسم المشروع.',
+            'مرّر المؤشر على Export/Print واختر CSV.',
+          ],
+        },
+        { kind: 'p', text: 'في TManage:' },
+        importSteps('ar', 'Asana'),
+        IMPORT_TIP.ar,
+      ],
+      keywords: ['أسانا', 'نقل', 'انتقال', 'استيراد', 'تصدير'],
+    },
+  },
+  {
+    slug: 'export-from-clickup',
+    category: 'getting-started',
+    minutes: 3,
+    related: [...EXPORT_RELATED],
+    en: {
+      title: 'Move your work from ClickUp',
+      summary: 'Export your ClickUp tasks to CSV and import them into a TManage project.',
+      body: [
+        { kind: 'p', text: 'In ClickUp:' },
+        {
+          kind: 'steps',
+          items: [
+            'Open Settings, then Imports / Exports, and choose Export Items.',
+            'Choose the Spaces, Folders or Lists to export, then start the export.',
+            'Download the CSV when it is ready. ClickUp also e-mails a link, which works for one hour.',
+          ],
+        },
+        {
+          kind: 'tip',
+          text: 'In ClickUp, owners and admins can export; a member needs an admin to allow it.',
+        },
+        { kind: 'p', text: 'In TManage:' },
+        importSteps('en', 'ClickUp'),
+        IMPORT_TIP.en,
+      ],
+      keywords: ['clickup', 'csv', 'switch', 'migrate', 'move', 'import'],
+    },
+    ar: {
+      title: 'انقل عملك من ClickUp',
+      summary: 'صدّر مهامك من ClickUp بصيغة CSV واستوردها إلى مشروع في TManage.',
+      body: [
+        { kind: 'p', text: 'في ClickUp:' },
+        {
+          kind: 'steps',
+          items: [
+            'افتح Settings ثم Imports / Exports، واختر Export Items.',
+            'اختر المساحات أو المجلدات أو القوائم التي تريد تصديرها، ثم ابدأ التصدير.',
+            'نزّل ملف CSV عندما يجهز. يرسل ClickUp أيضًا رابطًا بالبريد يعمل لمدة ساعة واحدة.',
+          ],
+        },
+        {
+          kind: 'tip',
+          text: 'في ClickUp يستطيع المالكون والمسؤولون التصدير، أما العضو فيحتاج إلى إذن من المسؤول.',
+        },
+        { kind: 'p', text: 'في TManage:' },
+        importSteps('ar', 'ClickUp'),
+        IMPORT_TIP.ar,
+      ],
+      keywords: ['كليك أب', 'نقل', 'انتقال', 'استيراد', 'تصدير'],
+    },
+  },
+  {
+    slug: 'export-from-trello',
+    category: 'getting-started',
+    minutes: 3,
+    related: [...EXPORT_RELATED],
+    en: {
+      title: 'Move your work from Trello',
+      summary: 'Export a Trello board to CSV and import its cards into a TManage project.',
+      body: [
+        { kind: 'p', text: 'In Trello:' },
+        {
+          kind: 'steps',
+          items: [
+            'Open the board, then open the board menu.',
+            'Choose Print, export, and share, then the CSV export.',
+          ],
+        },
+        {
+          kind: 'tip',
+          text: 'Trello offers the CSV export on boards in a Premium Workspace, and leaves archived cards and comments out. TManage reads the CSV file; Trello’s JSON export is not read today.',
+        },
+        { kind: 'p', text: 'In TManage:' },
+        importSteps('en', 'Trello'),
+        IMPORT_TIP.en,
+      ],
+      keywords: ['trello', 'csv', 'cards', 'board', 'switch', 'migrate', 'move', 'import'],
+    },
+    ar: {
+      title: 'انقل عملك من Trello',
+      summary: 'صدّر لوحة Trello بصيغة CSV واستورد بطاقاتها إلى مشروع في TManage.',
+      body: [
+        { kind: 'p', text: 'في Trello:' },
+        {
+          kind: 'steps',
+          items: [
+            'افتح اللوحة، ثم افتح قائمة اللوحة.',
+            'اختر Print, export, and share، ثم التصدير بصيغة CSV.',
+          ],
+        },
+        {
+          kind: 'tip',
+          text: 'يتيح Trello التصدير بصيغة CSV للوحات مساحات العمل في خطة Premium، ولا يشمل البطاقات المؤرشفة والتعليقات. يقرأ TManage ملف CSV، ولا يقرأ حاليًا ملف JSON الذي يصدّره Trello.',
+        },
+        { kind: 'p', text: 'في TManage:' },
+        importSteps('ar', 'Trello'),
+        IMPORT_TIP.ar,
+      ],
+      keywords: ['تريلو', 'بطاقات', 'لوحة', 'نقل', 'انتقال', 'استيراد', 'تصدير'],
+    },
+  },
+  {
+    slug: 'export-from-basecamp',
+    category: 'getting-started',
+    minutes: 3,
+    related: [...EXPORT_RELATED],
+    en: {
+      title: 'Move your work from Basecamp',
+      summary: 'Export your Basecamp account and bring its pages into a TManage project.',
+      body: [
+        { kind: 'p', text: 'In Basecamp (account owners only):' },
+        {
+          kind: 'steps',
+          items: [
+            'Open Adminland: the Adminland button on Home, or type Admin in the Jump bar.',
+            'In Export data from this account, start the export.',
+            'Download the export when it is ready and keep the .zip file as it is.',
+          ],
+        },
+        { kind: 'p', text: 'In TManage:' },
+        importSteps('en', 'Basecamp', false),
+        {
+          kind: 'tip',
+          text: 'Each page of the export becomes a message in the project you choose, so the history stays readable. Changed your mind? Undo the import from Recent imports.',
+        },
+      ],
+      keywords: ['basecamp', 'zip', 'adminland', 'switch', 'migrate', 'move', 'import'],
+    },
+    ar: {
+      title: 'انقل عملك من Basecamp',
+      summary: 'صدّر حساب Basecamp وأضف صفحاته إلى مشروع في TManage.',
+      body: [
+        { kind: 'p', text: 'في Basecamp (لمالكي الحساب فقط):' },
+        {
+          kind: 'steps',
+          items: [
+            'افتح Adminland: من زر Adminland في الصفحة الرئيسية، أو اكتب Admin في شريط Jump.',
+            'من قسم Export data from this account ابدأ التصدير.',
+            'نزّل ملف التصدير عندما يجهز، واحتفظ بملف ‎.zip كما هو.',
+          ],
+        },
+        { kind: 'p', text: 'في TManage:' },
+        importSteps('ar', 'Basecamp', false),
+        {
+          kind: 'tip',
+          text: 'تصبح كل صفحة من التصدير رسالة في المشروع الذي تختاره، فيبقى السجل مقروءًا. وإن غيّرت رأيك، فتراجع عن الاستيراد من «عمليات الاستيراد الأخيرة».',
+        },
+      ],
+      keywords: ['بيس كامب', 'نقل', 'انتقال', 'استيراد', 'تصدير'],
+    },
+  },
+  {
+    slug: 'export-from-jira',
+    category: 'getting-started',
+    minutes: 3,
+    related: [...EXPORT_RELATED],
+    en: {
+      title: 'Move your work from Jira',
+      summary: 'Export Jira work items to CSV and import them into a TManage project.',
+      body: [
+        { kind: 'p', text: 'In Jira:' },
+        {
+          kind: 'steps',
+          items: [
+            'Run a search that finds the work items you want, for example one project.',
+            'Open the More actions menu (•••) and choose Export.',
+            'Choose Export Excel CSV (all fields).',
+          ],
+        },
+        {
+          kind: 'tip',
+          text: 'All fields includes the Issue key and Summary columns TManage needs.',
+        },
+        { kind: 'p', text: 'In TManage:' },
+        importSteps('en', 'Jira'),
+        IMPORT_TIP.en,
+      ],
+      keywords: ['jira', 'issues', 'csv', 'switch', 'migrate', 'move', 'import'],
+    },
+    ar: {
+      title: 'انقل عملك من Jira',
+      summary: 'صدّر عناصر العمل من Jira بصيغة CSV واستوردها إلى مشروع في TManage.',
+      body: [
+        { kind: 'p', text: 'في Jira:' },
+        {
+          kind: 'steps',
+          items: [
+            'ابحث عن عناصر العمل التي تريدها، مثل عناصر مشروع واحد.',
+            'افتح قائمة More actions (•••) واختر Export.',
+            'اختر Export Excel CSV (all fields).',
+          ],
+        },
+        {
+          kind: 'tip',
+          text: 'خيار all fields يتضمّن عمودَي Issue key وSummary اللذين يحتاجهما TManage.',
+        },
+        { kind: 'p', text: 'في TManage:' },
+        importSteps('ar', 'Jira'),
+        IMPORT_TIP.ar,
+      ],
+      keywords: ['جيرا', 'نقل', 'انتقال', 'استيراد', 'تصدير'],
+    },
+  },
+  {
+    slug: 'connect-an-ai-assistant',
+    category: 'getting-started',
+    minutes: 3,
+    related: ['two-step-sign-in', 'create-your-workspace'],
+    en: {
+      title: 'Connect Claude, ChatGPT or another AI',
+      summary: 'Use your own AI app with your workspace through MCP, with no AI fee from TManage.',
+      body: [
+        {
+          kind: 'p',
+          text: 'The AI can do only what your role allows, and risky actions wait for a person to approve them. First copy your workspace address: open Settings, then AI assistant, then Step-by-step setup for every AI app.',
+        },
+        { kind: 'p', text: 'Claude (web, desktop and mobile):' },
+        {
+          kind: 'steps',
+          items: [
+            'Open Customize, then Connectors, then Add custom connector.',
+            'Paste the address, then choose Sign in now.',
+            'Approve the workspace and scopes once; phone and desktop reuse it.',
+          ],
+        },
+        { kind: 'p', text: 'ChatGPT:' },
+        {
+          kind: 'steps',
+          items: [
+            'Open Settings, then Connectors, then Add custom MCP server.',
+            'Choose Public endpoint and paste the address.',
+            'Pick OAuth and sign in to your workspace.',
+          ],
+        },
+        { kind: 'p', text: 'Claude Code, Cursor and VS Code:' },
+        {
+          kind: 'steps',
+          items: [
+            'Claude Code: run the command the setup page shows, then /mcp to sign in.',
+            'Cursor or VS Code: add TManage to your mcp.json, then sign in with OAuth.',
+            'Any other MCP app: add an HTTP MCP server at the address, then sign in with OAuth.',
+          ],
+        },
+        {
+          kind: 'tip',
+          text: 'An app without MCP can use the OpenAPI file from the same page as a custom action.',
+        },
+      ],
+      keywords: ['mcp', 'claude', 'chatgpt', 'cursor', 'ai', 'assistant', 'connector', 'oauth'],
+    },
+    ar: {
+      title: 'اربط Claude أو ChatGPT أو مساعدًا ذكيًا آخر',
+      summary:
+        'استخدم تطبيق الذكاء الاصطناعي الخاص بك مع مساحة عملك عبر MCP، دون رسوم ذكاء اصطناعي من TManage.',
+      body: [
+        {
+          kind: 'p',
+          text: 'لا يفعل المساعد إلا ما يسمح به دورك، والإجراءات الحساسة تنتظر موافقة شخص. انسخ أولًا عنوان مساحة عملك: افتح «الإعدادات» ثم «المساعد الذكي» ثم «خطوات الإعداد لكل تطبيقات الذكاء الاصطناعي».',
+        },
+        { kind: 'p', text: 'Claude (الويب وسطح المكتب والهاتف):' },
+        {
+          kind: 'steps',
+          items: [
+            'افتح Customize ثم Connectors ثم Add custom connector.',
+            'الصق العنوان، ثم اختر Sign in now.',
+            'وافق على مساحة العمل والصلاحيات مرة واحدة، وسيستخدمها الهاتف وسطح المكتب تلقائيًا.',
+          ],
+        },
+        { kind: 'p', text: 'ChatGPT:' },
+        {
+          kind: 'steps',
+          items: [
+            'افتح Settings ثم Connectors ثم Add custom MCP server.',
+            'اختر Public endpoint والصق العنوان.',
+            'اختر OAuth وسجّل الدخول إلى مساحة عملك.',
+          ],
+        },
+        { kind: 'p', text: 'Claude Code وCursor وVS Code:' },
+        {
+          kind: 'steps',
+          items: [
+            'Claude Code: شغّل الأمر الظاهر في صفحة الإعداد، ثم اكتب ‎/mcp لتسجيل الدخول.',
+            'Cursor أو VS Code: أضف TManage إلى ملف mcp.json، ثم سجّل الدخول عبر OAuth.',
+            'أي تطبيق MCP آخر: أضف خادم MCP من نوع HTTP على العنوان، ثم سجّل الدخول عبر OAuth.',
+          ],
+        },
+        {
+          kind: 'tip',
+          text: 'التطبيق الذي لا يدعم MCP يمكنه استخدام ملف OpenAPI من الصفحة نفسها كإجراء مخصّص.',
+        },
+      ],
+      keywords: ['ذكاء اصطناعي', 'مساعد', 'كلود', 'شات جي بي تي', 'موصل', 'ربط'],
     },
   },
 ];

@@ -17,6 +17,7 @@ import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { readsApiLanguage, refusalLine } from '../../lib/api/auth-refusal';
 import { GETTING_IN_MIN_PASSWORD, gettingIn, type GettingInKey } from '../../lib/public-signup';
 import { suggestWorkspaceName } from '../../lib/workspace-name-suggestion';
+import { useImportToolHref } from '../../lib/use-import-tool-href';
 import {
   GoogleErrorMessage,
   GoogleSignInButton,
@@ -103,6 +104,8 @@ export function SignUpScreen({
   const t = useT();
   const g = (key: GettingInKey) => gettingIn(t, key);
   const locale = useActiveLocale();
+  /** "Sign in instead" keeps a "switch from X" visitor's `?import=<tool>` (allow-listed). */
+  const signInHref = useImportToolHref('/sign-in');
 
   const [availability, setAvailability] = useState<Availability>('checking');
   /** Bumped by "Try again": re-runs the load (and the form proof) without a page reload. */
@@ -297,7 +300,7 @@ export function SignUpScreen({
           <h1 className="tm-identity__title">{t('signUp.unavailableTitle')}</h1>
           <p className="tm-id-lede">
             {t('signUp.unavailableBody')}{' '}
-            <Link className="tm-id-link" href="/sign-in">
+            <Link className="tm-id-link" href={signInHref}>
               {t('signUp.signIn')}
             </Link>
           </p>
@@ -577,7 +580,7 @@ export function SignUpScreen({
             {emailProblem === 'exists' ? (
               <Link
                 className="tm-button tm-button--lime tm-button--accessible tm-id-wide"
-                href="/sign-in"
+                href={signInHref}
               >
                 {t('signUp.signIn')}
               </Link>
@@ -611,7 +614,7 @@ export function SignUpScreen({
 
       <p className="tm-id-lede">
         {t('signUp.haveAccount')}{' '}
-        <Link className="tm-id-link" href="/sign-in">
+        <Link className="tm-id-link" href={signInHref}>
           {t('signUp.signIn')}
         </Link>
       </p>

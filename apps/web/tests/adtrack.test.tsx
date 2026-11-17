@@ -28,6 +28,30 @@ describe('ad landing attribution', () => {
     rememberSignupAttribution(new NextRequest('https://tmanageapp.com/pricing'), response);
     expect(response.cookies.get('tm_signup_source')).toBeUndefined();
   });
+
+  it('adds the referring host only, and never lets a plain referral replace a campaign (SEOD)', () => {
+    const landing = (url: string, headers: Record<string, string>) => {
+      const response = NextResponse.next();
+      rememberSignupAttribution(new NextRequest(url, { headers }), response);
+      return response.cookies.get('tm_signup_source')?.value;
+    };
+    const chatgpt = { referer: 'https://chatgpt.com/c/abc?q=private' };
+    expect(landing('https://tmanageapp.com/?utm_source=chatgpt.com', chatgpt)).toBe(
+      'utm_source=chatgpt.com&referrer_host=chatgpt.com',
+    );
+    expect(landing('https://tmanageapp.com/compare/basecamp', chatgpt)).toBe(
+      'referrer_host=chatgpt.com',
+    );
+    expect(
+      landing('https://tmanageapp.com/pricing', {
+        ...chatgpt,
+        cookie: 'tm_signup_source=utm_source%3Dfacebook',
+      }),
+    ).toBeUndefined();
+    expect(
+      landing('https://tmanageapp.com/pricing', { referer: 'https://tmanageapp.com/' }),
+    ).toBeUndefined();
+  });
 });
 
 describe('the public 404 page', () => {

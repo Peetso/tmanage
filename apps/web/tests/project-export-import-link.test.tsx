@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { ImportLink } from '../src/components/projects/ImportLink';
@@ -15,6 +15,7 @@ import {
   withImportTool,
 } from '../src/lib/import-link';
 import { afterSignInPath } from '../src/lib/sign-in-return';
+import { useImportToolHref } from '../src/lib/use-import-tool-href';
 
 /**
  * 54-29 — the project Export menu's visibility, the `?import=<tool>` allow-list from the switch
@@ -97,6 +98,18 @@ describe('?import=<tool> allow-list', () => {
       '/organizations?import=notion',
     );
     expect(afterSignInPath('/platform', '?import=notion')).toBe('/platform');
+  });
+
+  it('sign-up ↔ sign-in links keep an allowed tool and drop anything else (SEOD)', () => {
+    const hrefAt = (search: string, path: string) => {
+      window.history.replaceState(null, '', `/sign-up${search}`);
+      return renderHook(() => useImportToolHref(path)).result.current;
+    };
+    expect(hrefAt('?import=trello', '/sign-in')).toBe('/sign-in?import=trello');
+    expect(hrefAt('?import=asana', '/sign-up')).toBe('/sign-up?import=asana');
+    expect(hrefAt('?import=%2F%2Fevil.example', '/sign-in')).toBe('/sign-in');
+    expect(hrefAt('', '/sign-up')).toBe('/sign-up');
+    window.history.replaceState(null, '', '/');
   });
 });
 

@@ -188,11 +188,15 @@ function OverviewBody({ data }: { data: PlatformOrgOverviewView }) {
           <ul className="tm-cc-rows">
             {data.signupSources.map((row) => (
               <li
-                key={[row.source, row.medium, row.campaign, row.content].join('|')}
+                key={[row.source, row.medium, row.campaign, row.content, row.referrerHost].join(
+                  '|',
+                )}
                 className="tm-cc-rows__grow tm-cc-hero__actions"
               >
                 <span className="tm-cc-rows__title">
-                  {[row.source, row.medium].filter((part) => part !== null).join(' · ')}
+                  {[row.source, row.medium, row.referrerHost]
+                    .filter((part) => part !== null)
+                    .join(' · ')}
                 </span>
                 <span className="tm-cc-cell-mono">
                   {[row.campaign, row.content].filter((part) => part !== null).join(' · ')}

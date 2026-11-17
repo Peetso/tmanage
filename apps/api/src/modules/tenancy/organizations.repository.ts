@@ -124,6 +124,7 @@ export class OrganizationsRepository {
           signupUtmMedium: input.signupAttribution?.utm_medium ?? null,
           signupUtmCampaign: input.signupAttribution?.utm_campaign ?? null,
           signupUtmContent: input.signupAttribution?.utm_content ?? null,
+          signupReferrerHost: input.signupAttribution?.referrer_host ?? null,
           createdAt: sql`current_timestamp(3)`,
           updatedAt: sql`current_timestamp(3)`,
         });
