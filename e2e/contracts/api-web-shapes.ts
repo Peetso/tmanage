@@ -4778,6 +4778,17 @@ type _companyRootOptions = Assert<Exact<ApiCompanyRootOptionsView, WebCompanyRoo
 import type { StorageMoveView as ApiStorageMoveView } from '../../apps/api/src/modules/storage-root/storage-move.service.js';
 import type { StorageMoveView as WebStorageMoveView } from '../../apps/web/src/lib/api/storage-root.js';
 type _storageMove = Assert<Exact<ApiStorageMoveView, WebStorageMoveView>>;
+// What is still on TManage, beside the latest job (the Plan & usage storage card).
+import type {
+  StorageMoveLatest as ApiStorageMoveLatest,
+  StorageOnTManageView as ApiStorageOnTManageView,
+} from '../../apps/api/src/modules/storage-root/storage-move.service.js';
+import type {
+  StorageMoveLatest as WebStorageMoveLatest,
+  StorageOnTManageView as WebStorageOnTManageView,
+} from '../../apps/web/src/lib/api/storage-root.js';
+type _storageOnTManage = Assert<Exact<ApiStorageOnTManageView, WebStorageOnTManageView>>;
+type _storageMoveLatest = Assert<Exact<ApiStorageMoveLatest, WebStorageMoveLatest>>;
 
 // ---- 52-20a public form attachments ----
 import type { PublicFormUploadView as ApiPublicFormUploadView } from '../../apps/api/src/modules/files/files.service.js';

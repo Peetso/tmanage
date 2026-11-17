@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ApiClient } from '../src/lib/api/client';
-import type { StorageMoveView } from '../src/lib/api/storage-root';
+import type { StorageMoveView, StorageOnTManageView } from '../src/lib/api/storage-root';
 import { StorageCard } from '../src/components/billing/StorageCard';
 import { PlanUsageScreen } from '../src/components/screens/PlanUsageScreen';
 
@@ -30,6 +30,7 @@ function job(overrides: Partial<StorageMoveView>): StorageMoveView {
     failed: 0,
     skipped: 0,
     movedBytes: 1.1 * 1024 ** 3,
+    totalBytes: 3.4 * 1024 ** 3,
     error: null,
     createdAt: '2026-11-17T10:00:00.000Z',
     finishedAt: null,
@@ -88,11 +89,21 @@ function client(routes: Record<string, unknown>, calls: string[]) {
   });
 }
 
-function mount(latest: StorageMoveView | null, connected = true, started?: StorageMoveView) {
+const ON_TMANAGE: StorageOnTManageView = { files: 1240, bytes: 3.4 * 1024 ** 3, movable: 1240 };
+
+function mount(
+  latest: StorageMoveView | null,
+  connected = true,
+  started?: StorageMoveView,
+  onTManage: StorageOnTManageView = ON_TMANAGE,
+) {
   const calls: string[] = [];
   const api = client(
     {
-      [`GET https://api.example.test/v1/organizations/northstar${JOBS}`]: { job: latest },
+      [`GET https://api.example.test/v1/organizations/northstar${JOBS}`]: {
+        job: latest,
+        onTManage,
+      },
       [`POST https://api.example.test/v1/organizations/northstar${JOBS}`]: started ?? {},
       '/google-drive': drive(connected),
       '/onedrive': ONEDRIVE_OFF,
@@ -114,6 +125,9 @@ describe('StorageCard', () => {
     const google = await screen.findByRole('link', { name: 'Connect Google Drive' });
     expect(google.getAttribute('href')).toBe('/northstar/automations/apps');
     expect(screen.getByRole('link', { name: 'Connect OneDrive' })).toBeTruthy();
+    expect(screen.getByText('Temporary storage on TManage')).toBeTruthy();
+    expect(screen.getByText('3.4 GB')).toBeTruthy();
+    expect(screen.queryByRole('progressbar')).toBeNull();
     expect(screen.queryByRole('button')).toBeNull();
   });
 
@@ -121,12 +135,19 @@ describe('StorageCard', () => {
     mount(null);
     expect(await screen.findByText('Files live in: Google Drive (studio@alnoor.sa)')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Move files to Google Drive' })).toBeTruthy();
+    expect(screen.getByText('Still in temporary storage')).toBeTruthy();
+  });
+
+  it('S2: nothing left to move shows the amount and no Move button', async () => {
+    mount(null, true, undefined, { files: 0, bytes: 0, movable: 0 });
+    expect(await screen.findByText('0 B')).toBeTruthy();
+    expect(screen.queryByRole('button')).toBeNull();
   });
 
   it('S3: confirm asks first, Cancel starts nothing, Move files starts the job', async () => {
     const calls = mount(null, true, job({ status: 'queued', moved: 0, movedBytes: 0 }));
     fireEvent.click(await screen.findByRole('button', { name: 'Move files to Google Drive' }));
-    const dialog = screen.getByRole('dialog', { name: 'Move files to Google Drive?' });
+    const dialog = screen.getByRole('dialog', { name: 'Move 1,240 files to Google Drive?' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     expect(calls.some((call) => call.startsWith('POST'))).toBe(false);
     fireEvent.click(screen.getByRole('button', { name: 'Move files to Google Drive' }));
@@ -140,15 +161,31 @@ describe('StorageCard', () => {
     expect(await screen.findByText('312 of 1,240 files moved')).toBeTruthy();
     const bar = screen.getByRole('progressbar', { name: '312 of 1,240 files moved' });
     expect(bar.getAttribute('aria-valuenow')).toBe('312');
-    expect(screen.getByText('1.1 GB')).toBeTruthy();
+    expect(screen.getByText('1.1 GB of 3.4 GB')).toBeTruthy();
   });
 
-  it('S5: finished shows the success notice and plain count lines', async () => {
-    mount(job({ status: 'done', moved: 1236, skipped: 3, failed: 1 }));
+  it('S5: finished shows the success notice, 0 B and plain count lines', async () => {
+    mount(job({ status: 'done', moved: 1236, skipped: 3, failed: 0 }), true, undefined, {
+      files: 3,
+      bytes: 0,
+      movable: 0,
+    });
     expect(await screen.findByText('All done. Your files now live in Google Drive.')).toBeTruthy();
     expect(screen.getByText('1,236 files moved.')).toBeTruthy();
     expect(screen.getByText(/^3 files stayed on TManage/)).toBeTruthy();
-    expect(screen.getByText('1 file could not be moved.')).toBeTruthy();
+    expect(screen.getByText('0 B')).toBeTruthy();
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('S5: failed files are named with Try again, which asks before a new move', async () => {
+    mount(job({ status: 'done', moved: 1236, failed: 1 }), true, undefined, {
+      files: 1,
+      bytes: 2048,
+      movable: 1,
+    });
+    expect(await screen.findByText('1 file could not be moved. Try again moves it.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(screen.getByRole('dialog', { name: 'Move 1 file to Google Drive?' })).toBeTruthy();
   });
 
   it('S6: each stop reason has its calm notice and one way forward', async () => {

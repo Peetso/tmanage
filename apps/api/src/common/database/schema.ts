@@ -13815,6 +13815,8 @@ export const storageMigrationJobs = mysqlTable(
     failed: int('failed', { unsigned: true }).notNull().default(0),
     skipped: int('skipped', { unsigned: true }).notNull().default(0),
     movedBytes: bigint('moved_bytes', { mode: 'number', unsigned: true }).notNull().default(0),
+    /** 0367. Bytes of the versions counted in `total` when the job started. */
+    totalBytes: bigint('total_bytes', { mode: 'number', unsigned: true }).notNull().default(0),
     cursorVersionId: char('cursor_version_id', { length: 36 }),
     pendingObjectKey: varchar('pending_object_key', { length: 512 }),
     error: varchar('error', { length: 64 }),

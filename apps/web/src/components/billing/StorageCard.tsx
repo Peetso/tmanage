@@ -4,7 +4,11 @@ import { useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Button, InlineAlert } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
-import type { StorageMoveView, StorageProvider } from '../../lib/api/storage-root';
+import type {
+  StorageMoveView,
+  StorageOnTManageView,
+  StorageProvider,
+} from '../../lib/api/storage-root';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useStorageCard } from '../../lib/use-storage-card';
@@ -27,13 +31,20 @@ const LINK_INK = 'tm-button tm-button--ink tm-button--accessible';
  * first (S1), move the files TManage still holds (S2, confirmed in S3), follow the move (S4), the
  * result (S5), or one calm way forward when it stopped (S6). Connecting goes to the existing flow
  * on Integrations. Rendered only for `org.security.manage`; the server decides every request.
+ * The amount still on TManage has no bar: no temporary allowance exists to measure it against.
+ * After a finished move the Move button comes back while files are left to move (new uploads, or
+ * files that failed: then it reads Try again).
  */
 export function StorageCard({ organizationSlug, client }: StorageCardProps) {
   const tr = planUsageText(useTOr());
   const locale = useActiveLocale();
-  const { state, isStarting, startError, start } = useStorageCard(client, organizationSlug);
+  const { state, onTManage, isStarting, startError, start } = useStorageCard(
+    client,
+    organizationSlug,
+  );
   const [confirming, setConfirming] = useState<StorageProvider | null>(null);
   const integrations = `/${organizationSlug}/automations/apps`;
+  const movable = onTManage?.movable ?? 0;
 
   if (state.kind === 'loading') return null;
 
@@ -72,6 +83,8 @@ export function StorageCard({ organizationSlug, client }: StorageCardProps) {
     );
   }
 
+  const doneTarget = state.kind === 'done' && movable > 0 ? state.connection : null;
+
   return (
     <section className="tm-pu-card tm-pu-files" aria-labelledby="tm-pu-files-heading">
       <h2 id="tm-pu-files-heading" className="tm-pu-usage__title">
@@ -84,6 +97,7 @@ export function StorageCard({ organizationSlug, client }: StorageCardProps) {
 
       {state.kind === 'connect' ? (
         <>
+          <OnTManageAmount label={tr('PlanUsage.filesTemporary')} figures={onTManage} />
           <p className="tm-pu-files__text">{tr('PlanUsage.filesConnectNote')}</p>
           <div className="tm-pu-files__actions">
             <Link href={integrations} className={LINK_OUTLINE}>
@@ -99,19 +113,31 @@ export function StorageCard({ organizationSlug, client }: StorageCardProps) {
       {state.kind === 'ready' ? (
         <ReadyBody
           connection={state.connection}
+          figures={onTManage}
           tr={tr}
           busy={isStarting}
           onMove={() => setConfirming(state.connection.provider)}
         />
       ) : null}
 
-      {state.kind === 'done' ? <DoneBody job={state.job} locale={locale} tr={tr} /> : null}
+      {state.kind === 'done' ? (
+        <DoneBody
+          job={state.job}
+          figures={onTManage}
+          locale={locale}
+          tr={tr}
+          busy={isStarting}
+          onMove={doneTarget === null ? null : () => setConfirming(doneTarget.provider)}
+        />
+      ) : null}
 
       {startAlert}
 
       {confirming === null ? null : (
         <MoveDialog
           provider={confirming}
+          files={movable}
+          locale={locale}
           tr={tr}
           onCancel={() => setConfirming(null)}
           onMove={() => {
@@ -124,13 +150,34 @@ export function StorageCard({ organizationSlug, client }: StorageCardProps) {
   );
 }
 
+/** How much is still on TManage: an amount without a bar (no allowance to measure it against). */
+function OnTManageAmount({
+  label,
+  figures,
+}: {
+  label: string;
+  figures: StorageOnTManageView | null;
+}) {
+  if (figures === null) return null;
+  return (
+    <div className="tm-pu-meter">
+      <div className="tm-pu-meter__row">
+        <span className="tm-pu-meter__label">{label}</span>
+        <span className="tm-pu-meter__value">{formatSize(figures.bytes)}</span>
+      </div>
+    </div>
+  );
+}
+
 function ReadyBody({
   connection,
+  figures,
   tr,
   busy,
   onMove,
 }: {
   connection: StorageConnection;
+  figures: StorageOnTManageView | null;
   tr: PlanUsageText;
   busy: boolean;
   onMove: () => void;
@@ -143,12 +190,17 @@ function ReadyBody({
           ? fill(tr('PlanUsage.filesLiveIn'), { provider })
           : fill(tr('PlanUsage.filesLiveInAccount'), { provider, account: connection.account })}
       </p>
-      <p className="tm-pu-files__text">{fill(tr('PlanUsage.filesMoveNote'), { provider })}</p>
-      <div className="tm-pu-files__actions">
-        <Button type="button" tone="ink" size="accessible" disabled={busy} onClick={onMove}>
-          {fill(tr('PlanUsage.filesMove'), { provider })}
-        </Button>
-      </div>
+      <OnTManageAmount label={tr('PlanUsage.filesStillTemporary')} figures={figures} />
+      {figures !== null && figures.movable > 0 ? (
+        <>
+          <p className="tm-pu-files__text">{fill(tr('PlanUsage.filesMoveNote'), { provider })}</p>
+          <div className="tm-pu-files__actions">
+            <Button type="button" tone="ink" size="accessible" disabled={busy} onClick={onMove}>
+              {fill(tr('PlanUsage.filesMove'), { provider })}
+            </Button>
+          </div>
+        </>
+      ) : null}
     </>
   );
 }
@@ -166,7 +218,10 @@ function MovingBody({
     moved: count(job.moved, locale),
     total: count(job.total, locale),
   });
-  const size = formatSize(job.movedBytes);
+  const size = fill(tr('PlanUsage.valueOf'), {
+    used: formatSize(job.movedBytes),
+    limit: formatSize(job.totalBytes),
+  });
   return (
     <>
       <div aria-live="polite">
@@ -185,14 +240,22 @@ function MovingBody({
 
 function DoneBody({
   job,
+  figures,
   locale,
   tr,
+  busy,
+  onMove,
 }: {
   job: StorageMoveView;
+  figures: StorageOnTManageView | null;
   locale: string;
   tr: PlanUsageText;
+  busy: boolean;
+  /** Opens the confirm for a new move; null when nothing is left to move or nowhere to move it. */
+  onMove: (() => void) | null;
 }) {
   const provider = providerName(job.provider);
+  const retry = onMove !== null && job.failed > 0;
   const lines: string[] = [
     job.moved === 1
       ? tr('PlanUsage.filesDoneMovedOne')
@@ -206,22 +269,31 @@ function DoneBody({
     );
   }
   if (job.failed > 0) {
-    lines.push(
-      job.failed === 1
-        ? tr('PlanUsage.filesDoneFailedOne')
-        : fill(tr('PlanUsage.filesDoneFailed'), { count: count(job.failed, locale) }),
-    );
+    const [one, many] = retry
+      ? (['PlanUsage.filesDoneFailedRetryOne', 'PlanUsage.filesDoneFailedRetry'] as const)
+      : (['PlanUsage.filesDoneFailedOne', 'PlanUsage.filesDoneFailed'] as const);
+    lines.push(job.failed === 1 ? tr(one) : fill(tr(many), { count: count(job.failed, locale) }));
+  } else if (onMove !== null) {
+    lines.push(fill(tr('PlanUsage.filesMoveNote'), { provider }));
   }
   return (
     <>
       <InlineAlert tone="success" live>
         {fill(tr('PlanUsage.filesDone'), { provider })}
       </InlineAlert>
+      <OnTManageAmount label={tr('PlanUsage.filesTemporary')} figures={figures} />
       {lines.map((line, index) => (
         <p key={line} className={index === 0 ? 'tm-pu-files__where' : 'tm-pu-files__text'}>
           {line}
         </p>
       ))}
+      {onMove === null ? null : (
+        <div className="tm-pu-files__actions">
+          <Button type="button" tone="ink" size="accessible" disabled={busy} onClick={onMove}>
+            {retry ? tr('PlanUsage.filesTryAgain') : fill(tr('PlanUsage.filesMove'), { provider })}
+          </Button>
+        </div>
+      )}
     </>
   );
 }
@@ -290,11 +362,15 @@ function StoppedBody({
  */
 function MoveDialog({
   provider,
+  files,
+  locale,
   tr,
   onCancel,
   onMove,
 }: {
   provider: StorageProvider;
+  files: number;
+  locale: string;
   tr: PlanUsageText;
   onCancel: () => void;
   onMove: () => void;
@@ -319,7 +395,12 @@ function MoveDialog({
       }}
     >
       <h2 id={titleId} className="tm-pu-dialog__title">
-        {fill(tr('PlanUsage.filesConfirmTitle'), { provider: name })}
+        {files === 1
+          ? fill(tr('PlanUsage.filesConfirmTitleOne'), { provider: name })
+          : fill(tr('PlanUsage.filesConfirmTitle'), {
+              provider: name,
+              count: count(files, locale),
+            })}
       </h2>
       <p className="tm-pu-files__text">
         {fill(tr('PlanUsage.filesConfirmWhat'), { provider: name })}

@@ -113,10 +113,13 @@ export const PLAN_USAGE_COPY = {
   'PlanUsage.filesConnectOneDrive': 'Connect OneDrive',
   'PlanUsage.filesLiveIn': 'Files live in: {provider}',
   'PlanUsage.filesLiveInAccount': 'Files live in: {provider} ({account})',
+  'PlanUsage.filesTemporary': 'Temporary storage on TManage',
+  'PlanUsage.filesStillTemporary': 'Still in temporary storage',
   'PlanUsage.filesMoveNote':
-    'Files added before you connected may still be on TManage. Move them to {provider} so everything sits in one place.',
+    'These files are still on TManage. Move them to {provider} so everything sits in one place.',
   'PlanUsage.filesMove': 'Move files to {provider}',
-  'PlanUsage.filesConfirmTitle': 'Move files to {provider}?',
+  'PlanUsage.filesConfirmTitle': 'Move {count} files to {provider}?',
+  'PlanUsage.filesConfirmTitleOne': 'Move 1 file to {provider}?',
   'PlanUsage.filesConfirmWhat':
     'All files and their older versions move from temporary storage to your {provider}.',
   'PlanUsage.filesConfirmOpen': 'Everyone can keep opening the files while they move.',
@@ -138,6 +141,8 @@ export const PLAN_USAGE_COPY = {
     '1 file stayed on TManage because it is larger than {provider} allows (over 100 MB).',
   'PlanUsage.filesDoneFailed': '{count} files could not be moved.',
   'PlanUsage.filesDoneFailedOne': '1 file could not be moved.',
+  'PlanUsage.filesDoneFailedRetry': '{count} files could not be moved. Try again moves them.',
+  'PlanUsage.filesDoneFailedRetryOne': '1 file could not be moved. Try again moves it.',
   'PlanUsage.filesStoppedHeading': 'The move has stopped',
   'PlanUsage.filesStoppedSoFar': '{moved} of {total} files moved so far — nothing is lost.',
   'PlanUsage.filesStoppedNotConnected':

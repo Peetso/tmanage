@@ -65,6 +65,7 @@ function job(patch: Partial<StorageMigrationJobRow> = {}): StorageMigrationJobRo
     failed: 0,
     skipped: 0,
     movedBytes: 0,
+    totalBytes: 0,
     cursorVersionId: null,
     pendingObjectKey: null,
     error: null,
@@ -267,6 +268,24 @@ describe('57-13b move job — the candidates query', () => {
     expect(statement?.params.filter((value) => value === ORG)).toHaveLength(2);
     expect(statement?.params).not.toContain(OTHER);
   });
+
+  it("counts only the caller's local versions for the card, and binds the file limit", async () => {
+    const statements: { sql: string; params: readonly unknown[] }[] = [];
+    const runner = {
+      query: (sql: string, params: readonly unknown[]) => {
+        statements.push({ sql, params });
+        return Promise.resolve([[4, '3650722201', 3]]);
+      },
+    };
+    const context = { organizationId: ORG, correlationId: 'c' } as unknown as TenantContext;
+    const figures = await new StorageMoveRepository().localFigures(runner as never, context, 100);
+    const [statement] = statements;
+    expect(statement?.sql).toContain('`file_versions`.`organization_id` = ?');
+    expect(statement?.sql).toContain('`file_assets`.`organization_id` = ?');
+    expect(statement?.params.filter((value) => value === ORG)).toHaveLength(2);
+    expect(statement?.params).toContain(100);
+    expect(figures).toEqual({ files: 4, bytes: 3650722201, movable: 3 });
+  });
 });
 
 describe('57-13b start and status', () => {
@@ -288,7 +307,10 @@ describe('57-13b start and status', () => {
     const inserted: unknown[] = [];
     const jobs = {
       findActive: () => Promise.resolve(undefined),
-      countCandidates: () => Promise.resolve(3),
+      measureCandidates: () => Promise.resolve({ files: 3, bytes: 7340032 }),
+      findLatest: () => Promise.resolve(job({ status: 'done', moved: 3, totalBytes: 7340032 })),
+      localFigures: (_r: unknown, _c: unknown, max: number) =>
+        Promise.resolve({ files: 2, bytes: 120 * 1024 * 1024, movable: max > 0 ? 1 : 0 }),
       insert: (_r: unknown, _c: unknown, row: unknown) => Promise.resolve(inserted.push(row)),
       findById: () => Promise.resolve(job({ total: 3 })),
     } as unknown as StorageMoveRepository;
@@ -309,7 +331,12 @@ describe('57-13b start and status', () => {
     const view = await moves.start(context, principal('owner'), { provider: 'google_drive' });
     expect(view).toMatchObject({ id: JOB, status: 'queued', total: 3, provider: 'google_drive' });
     expect(inserted).toEqual([
-      expect.objectContaining({ backend: 'google_drive', storageConnectionId: 'conn-1', total: 3 }),
+      expect.objectContaining({
+        backend: 'google_drive',
+        storageConnectionId: 'conn-1',
+        total: 3,
+        totalBytes: 7340032,
+      }),
     ]);
     expect(requested).toEqual(['request']);
   });
@@ -323,6 +350,16 @@ describe('57-13b start and status', () => {
       status: 403,
     });
     expect(inserted).toEqual([]);
+  });
+
+  it('gives the latest job with its planned bytes and what is still on TManage', async () => {
+    const { moves } = service();
+    const latest = await moves.latest(context, principal('owner'));
+    expect(latest.job).toMatchObject({ status: 'done', totalBytes: 7340032 });
+    expect(latest.onTManage).toEqual({ files: 2, bytes: 120 * 1024 * 1024, movable: 1 });
+    await expect(moves.latest(context, principal('member'))).rejects.toMatchObject({
+      status: 403,
+    });
   });
 
   it('answers 404 for a job id that is not a uuid of this workspace', async () => {

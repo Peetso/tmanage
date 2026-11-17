@@ -7,6 +7,7 @@ import type { AuditService } from '../audit/audit.service.js';
 import { isDuplicateKey } from '../tenancy/invitee-accounts.repository.js';
 import { StorageHandoverRepository } from './storage-handover.repository.js';
 import { live, parseProvider, requireStorageAdmin } from './storage-handover.service.js';
+import { MAX_MOVE_FILE_BYTES } from './storage-move-job.js';
 import { StorageMoveRepository } from './storage-move.repository.js';
 
 /**
@@ -29,14 +30,31 @@ export interface StorageMoveView {
   readonly failed: number;
   readonly skipped: number;
   readonly movedBytes: number;
+  /** Bytes of the files counted in `total` when the job started ("1.1 of 3.4 GB"). */
+  readonly totalBytes: number;
   /** Why a job stopped (`not_connected`, `provider_unavailable`, `connection_changed`), else null. */
   readonly error: string | null;
   readonly createdAt: string;
   readonly finishedAt: string | null;
 }
 
-/** The latest job of the company, for the storage card after a reload. */
-export type StorageMoveLatest = { readonly job: StorageMoveView | null };
+/**
+ * What TManage still holds for the company: the versions on its own storage (count and bytes) and
+ * how many of them a new move would copy (clean, ready, no larger than the move's file limit).
+ * No temporary allowance is returned: none exists in code or plan config (plan 57 §19.3 is not
+ * built), so the card shows the amount without a bar.
+ */
+export interface StorageOnTManageView {
+  readonly files: number;
+  readonly bytes: number;
+  readonly movable: number;
+}
+
+/** The latest job of the company and what is still on TManage, for the storage card. */
+export type StorageMoveLatest = {
+  readonly job: StorageMoveView | null;
+  readonly onTManage: StorageOnTManageView;
+};
 
 /** The job timer's nudge after a start, so the first pass does not wait for the interval. */
 export interface StorageMoveRequester {
@@ -77,20 +95,21 @@ export class StorageMoveService {
         const running = await this.jobs.findActive(tx, context);
         if (running) return running;
         const id = uuidv7();
-        const total = await this.jobs.countCandidates(tx, context);
+        const planned = await this.jobs.measureCandidates(tx, context);
         await this.jobs.insert(tx, context, {
           id,
           backend: provider,
           storageConnectionId: connection.id,
           requestedByUserId: principal.userId,
-          total,
+          total: planned.files,
+          totalBytes: planned.bytes,
           now: this.now(),
         });
         await this.audit.record(tx, context, {
           action: 'storage_migration.started',
           result: 'allowed',
           objectId: id,
-          metadata: { provider, files: total },
+          metadata: { provider, files: planned.files },
         });
         return this.jobs.findById(tx, context, id);
       });
@@ -121,10 +140,11 @@ export class StorageMoveService {
 
   async latest(context: TenantContext, principal: Principal): Promise<StorageMoveLatest> {
     requireStorageAdmin(context, principal);
-    const row = await this.database.read(context, (runner) =>
-      this.jobs.findLatest(runner, context),
-    );
-    return { job: row ? view(row) : null };
+    const { row, onTManage } = await this.database.read(context, async (runner) => ({
+      row: await this.jobs.findLatest(runner, context),
+      onTManage: await this.jobs.localFigures(runner, context, MAX_MOVE_FILE_BYTES),
+    }));
+    return { job: row ? view(row) : null, onTManage };
   }
 }
 
@@ -138,6 +158,7 @@ function view(row: StorageMigrationJobRow): StorageMoveView {
     failed: row.failed,
     skipped: row.skipped,
     movedBytes: row.movedBytes,
+    totalBytes: row.totalBytes,
     error: row.error,
     createdAt: row.createdAt.toISOString(),
     finishedAt: row.finishedAt?.toISOString() ?? null,

@@ -2511,6 +2511,8 @@ GRANT INSERT, UPDATE ON `tmanage`.`client_a11y_preferences` TO 'tmanage_app'@'%'
 -- The worker needs no grant: the job runs in the API process, where the vault and the provider
 -- transports already are.
 GRANT INSERT, UPDATE ON `tmanage`.`storage_migration_jobs` TO 'tmanage_app'@'%';
+-- 0367 (57-13 follow-up). `storage_migration_jobs.total_bytes` (the size the job set out to move) is
+-- written once in the job's INSERT by the existing `storage_migration_jobs` grant; no new grant.
 -- 0359 (ADTRACK). `organizations` gains four nullable `signup_utm_*` columns, written once in the
 -- sign-up INSERT and read by the platform overview. They ride the existing `organizations` INSERT
 -- grant above and the database-wide read; the worker needs no grant.

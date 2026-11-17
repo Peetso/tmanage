@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { fileAssets, fileVersions, storageMigrationJobs } from '../../common/database/schema.js';
 import type { StorageMigrationJobRow } from '../../common/database/schema.js';
@@ -22,6 +22,17 @@ export interface MoveCandidate {
   readonly storageBackend: string;
   readonly providerFileId: string | null;
   readonly storageConnectionId: string | null;
+}
+
+/** A number of file versions and their bytes. */
+export interface FileFigures {
+  readonly files: number;
+  readonly bytes: number;
+}
+
+/** What TManage still holds for a company, and how much of it a move would copy. */
+export interface LocalFigures extends FileFigures {
+  readonly movable: number;
 }
 
 /** What one moved, failed or skipped file adds to a job row. */
@@ -51,6 +62,7 @@ export class StorageMoveRepository {
       readonly storageConnectionId: string;
       readonly requestedByUserId: string;
       readonly total: number;
+      readonly totalBytes: number;
       readonly now: Date;
     },
   ): Promise<void> {
@@ -64,6 +76,7 @@ export class StorageMoveRepository {
       status: 'queued',
       requestedByUserId: row.requestedByUserId,
       total: row.total,
+      totalBytes: row.totalBytes,
       createdAt: row.now,
       updatedAt: row.now,
     });
@@ -118,10 +131,13 @@ export class StorageMoveRepository {
     return rows[0];
   }
 
-  /** How many versions a new job would move (the job's `total`). */
-  async countCandidates(runner: TenantQueryRunner, context: TenantContext): Promise<number> {
+  /** How many versions a new job would move, and their bytes (the job's `total` / `total_bytes`). */
+  async measureCandidates(runner: TenantQueryRunner, context: TenantContext): Promise<FileFigures> {
     const rows = await tenantDrizzle(runner)
-      .select({ n: sql<number>`count(*)` })
+      .select({
+        files: sql<number>`count(*)`,
+        bytes: sql<number>`coalesce(sum(${fileVersions.sizeBytes}), 0)`,
+      })
       .from(fileVersions)
       .innerJoin(
         fileAssets,
@@ -131,7 +147,53 @@ export class StorageMoveRepository {
         ),
       )
       .where(candidateWhere(context, ''));
-    return Number(rows[0]?.n ?? 0);
+    return { files: Number(rows[0]?.files ?? 0), bytes: Number(rows[0]?.bytes ?? 0) };
+  }
+
+  /**
+   * The company's versions whose bytes are still on TManage's own storage (every file not yet
+   * purged), and how many of them a new move would copy: the candidates no larger than
+   * `maxFileBytes`.
+   */
+  async localFigures(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    maxFileBytes: number,
+  ): Promise<LocalFigures> {
+    const rows = await tenantDrizzle(runner)
+      .select({
+        files: sql<number>`count(*)`,
+        bytes: sql<number>`coalesce(sum(${fileVersions.sizeBytes}), 0)`,
+        movable: sql<number>`coalesce(sum(case when ${and(
+          eq(fileVersions.trustZone, 'private'),
+          eq(fileVersions.scanVerdict, 'clean'),
+          isNotNull(fileVersions.contentHash),
+          eq(fileAssets.status, 'ready'),
+          isNull(fileAssets.deletedAt),
+          lte(fileVersions.sizeBytes, maxFileBytes),
+        )} then 1 else 0 end), 0)`,
+      })
+      .from(fileVersions)
+      .innerJoin(
+        fileAssets,
+        and(
+          eq(fileAssets.organizationId, fileVersions.organizationId),
+          eq(fileAssets.id, fileVersions.fileAssetId),
+        ),
+      )
+      .where(
+        and(
+          eq(fileVersions.organizationId, context.organizationId),
+          eq(fileAssets.organizationId, context.organizationId),
+          eq(fileVersions.storageBackend, 'local'),
+          isNull(fileAssets.purgedAt),
+        ),
+      );
+    return {
+      files: Number(rows[0]?.files ?? 0),
+      bytes: Number(rows[0]?.bytes ?? 0),
+      movable: Number(rows[0]?.movable ?? 0),
+    };
   }
 
   /** The next candidates after `afterId`, in id order: the resumable cursor. */

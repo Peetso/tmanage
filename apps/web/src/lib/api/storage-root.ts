@@ -83,6 +83,8 @@ export interface StorageMoveView {
   readonly failed: number;
   readonly skipped: number;
   readonly movedBytes: number;
+  /** Bytes of the files counted in `total` when the job started. */
+  readonly totalBytes: number;
   /** Why a job stopped (`not_connected`, `provider_unavailable`, `connection_changed`), else null. */
   readonly error: string | null;
   readonly createdAt: string;
@@ -102,15 +104,31 @@ export async function startStorageMove(
   return data;
 }
 
-/** The company's latest job (or null), for the storage card after a reload. */
+/**
+ * What TManage still holds: versions on its own storage (count, bytes) and how many a new move
+ * would copy. Mirrors the API's `StorageOnTManageView`.
+ */
+export interface StorageOnTManageView {
+  readonly files: number;
+  readonly bytes: number;
+  readonly movable: number;
+}
+
+/** The latest job and what is still on TManage. Mirrors the API's `StorageMoveLatest`. */
+export interface StorageMoveLatest {
+  readonly job: StorageMoveView | null;
+  readonly onTManage: StorageOnTManageView;
+}
+
+/** The company's latest job (or null) and its files still on TManage, for the storage card. */
 export async function getLatestStorageMove(
   client: ApiClient,
   organizationSlug: string,
-): Promise<StorageMoveView | null> {
-  const { data } = await client.request<{ job: StorageMoveView | null }>({
+): Promise<StorageMoveLatest> {
+  const { data } = await client.request<StorageMoveLatest>({
     path: `${basePath(organizationSlug)}/migration-jobs`,
   });
-  return data.job;
+  return data;
 }
 
 export async function getStorageMove(

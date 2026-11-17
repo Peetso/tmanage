@@ -20,6 +20,7 @@ function job(status: StorageMoveView['status']): StorageMoveView {
     failed: 0,
     skipped: 0,
     movedBytes: 1024,
+    totalBytes: 4096,
     error: null,
     createdAt: '2026-11-17T10:00:00.000Z',
     finishedAt: status === 'done' ? '2026-11-17T10:01:00.000Z' : null,
@@ -71,13 +72,22 @@ describe('useStorageMove', () => {
     expect(JSON.parse(post?.body ?? '{}')).toEqual({ provider: 'google_drive' });
   });
 
-  it('follows a running job by its id until it is done', async () => {
-    const { calls, hook, queryClient } = mount(true, (_method, url) =>
-      url.endsWith(JOB_ID) ? job('done') : { job: job('running') },
-    );
+  it('follows a running job by its id, then reads what is left once it is done', async () => {
+    let finished = false;
+    const { calls, hook, queryClient } = mount(true, (_method, url) => {
+      if (url.endsWith(JOB_ID)) finished = true;
+      return url.endsWith(JOB_ID)
+        ? job('done')
+        : {
+            job: job(finished ? 'done' : 'running'),
+            onTManage: { files: finished ? 0 : 3, bytes: 0, movable: 0 },
+          };
+    });
     await waitFor(() => expect(hook.result.current.job?.status).toBe('running'));
     await act(() => queryClient.refetchQueries({ queryKey: storageMoveKeys.latest('northstar') }));
-    expect(calls.at(-1)?.url).toBe(`${BASE}/migration-jobs/${JOB_ID}`);
+    expect(calls.at(-2)?.url).toBe(`${BASE}/migration-jobs/${JOB_ID}`);
+    expect(calls.at(-1)?.url).toBe(`${BASE}/migration-jobs`);
     await waitFor(() => expect(hook.result.current.job?.status).toBe('done'));
+    expect(hook.result.current.onTManage?.files).toBe(0);
   });
 });

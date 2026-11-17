@@ -4,7 +4,7 @@ import { getStorageStatus } from './api/google-drive';
 import type { StorageStatusView } from './api/google-drive';
 import { getOneDriveStatus } from './api/onedrive';
 import type { OneDriveStatusView } from './api/onedrive';
-import type { StorageMoveView, StorageProvider } from './api/storage-root';
+import type { StorageMoveView, StorageOnTManageView, StorageProvider } from './api/storage-root';
 import { isStorageMoveActive, useStorageMove } from './use-storage-move';
 
 /**
@@ -26,7 +26,12 @@ export type StorageCardState =
   | { readonly kind: 'connect' }
   | { readonly kind: 'ready'; readonly connection: StorageConnection }
   | { readonly kind: 'moving'; readonly job: StorageMoveView }
-  | { readonly kind: 'done'; readonly job: StorageMoveView }
+  | {
+      readonly kind: 'done';
+      readonly job: StorageMoveView;
+      /** The provider a new move would go to; null once nothing is connected any more. */
+      readonly connection: StorageConnection | null;
+    }
   | { readonly kind: 'stopped'; readonly job: StorageMoveView; readonly reason: StorageStopReason };
 
 export interface StorageCardInput {
@@ -66,7 +71,7 @@ export function storageCardState(input: StorageCardInput): StorageCardState {
   if (job !== null) {
     if (isStorageMoveActive(job)) return { kind: 'moving', job };
     if (job.status === 'stopped') return { kind: 'stopped', job, reason: stopReason(job.error) };
-    return { kind: 'done', job };
+    return { kind: 'done', job, connection: connectedStorage(input.google, input.oneDrive) };
   }
   if (input.isError) return { kind: 'error' };
   if (input.isPending) return { kind: 'loading' };
@@ -76,6 +81,8 @@ export function storageCardState(input: StorageCardInput): StorageCardState {
 
 export interface StorageCardModel {
   readonly state: StorageCardState;
+  /** What is still on TManage (S1, S2, S5); null until the first read answers. */
+  readonly onTManage: StorageOnTManageView | null;
   readonly isStarting: boolean;
   readonly startError: unknown;
   readonly start: (provider: StorageProvider) => void;
@@ -100,6 +107,7 @@ export function useStorageCard(api: ApiClient, organizationSlug: string): Storag
   });
   return {
     state,
+    onTManage: move.onTManage,
     isStarting: move.isStarting,
     startError: move.startError,
     start: move.start,
