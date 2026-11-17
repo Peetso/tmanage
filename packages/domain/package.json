@@ -20,6 +20,10 @@
     "./zatca-sign": {
       "types": "./dist/finance/zatca/sign.d.ts",
       "default": "./dist/finance/zatca/sign.js"
+    },
+    "./contact-addresses": {
+      "types": "./dist/contact/contact-addresses.d.ts",
+      "default": "./dist/contact/contact-addresses.js"
     }
   },
   "main": "./dist/index.js",
