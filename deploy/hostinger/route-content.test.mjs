@@ -2,7 +2,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { dirtyBundleInputs, isFreshBuild, routeContentProblems } from './build.mjs';
+import {
+  dirtyBundleInputs,
+  isFreshBuild,
+  ROUTE_CONTENT,
+  routeContentProblems,
+  webCatalogText,
+} from './build.mjs';
 
 const COMMUNICATION =
   '<title>Chat &amp; calendar · TManage</title><h1>Conversations that end in commitments.</h1>';
@@ -106,4 +112,36 @@ test('a BUILD_ID older than the run is not a fresh build', () => {
   assert.equal(isFreshBuild(1_000, 2_000), false);
   assert.equal(isFreshBuild(2_000, 2_000), true);
   assert.equal(isFreshBuild(3_000, 2_000), true);
+});
+
+// The 404 headings come from the web catalog, so a wording change cannot break the build guard
+// while the page is right, and a page without the heading still fails.
+const AR_HEADING = webCatalogText('ar', 'StateScreens.notFoundTitle');
+const EN_HEADING = webCatalogText('en', 'StateScreens.notFoundTitle');
+const AR_404 = (heading) =>
+  `<!DOCTYPE html><html lang="ar" dir="rtl"><body><h1>${heading}</h1><a href="/ar">الرئيسية</a></body></html>`;
+
+test('the 404 rules expect the catalog headings', () => {
+  const rule = (path) => ROUTE_CONTENT.find((entry) => entry.path === path);
+  assert.ok(rule('/ar/page-not-found').has.includes(AR_HEADING));
+  assert.ok(rule('/_not-found').has.includes(EN_HEADING));
+});
+
+test('the Arabic 404 passes with the catalog heading and fails without it', () => {
+  assert.deepEqual(routeContentProblems('/ar/page-not-found', AR_404(AR_HEADING)), []);
+  assert.deepEqual(routeContentProblems('/ar/page-not-found', AR_404('صفحة أخرى')), [
+    `/ar/page-not-found is missing '${AR_HEADING}'`,
+  ]);
+});
+
+test('the English 404 heading matches through React escaping', () => {
+  const escaped = EN_HEADING.replaceAll("'", '&#x27;').replaceAll('&', '&amp;');
+  assert.deepEqual(
+    routeContentProblems('/_not-found', `<h1>${escaped}</h1><a href="/sign-in">Sign in</a>`),
+    [],
+  );
+});
+
+test('a missing catalog key throws instead of checking nothing', () => {
+  assert.throws(() => webCatalogText('ar', 'StateScreens.noSuchKey'), /has no text/);
 });

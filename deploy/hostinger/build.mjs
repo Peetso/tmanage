@@ -87,6 +87,25 @@ const SITE_ORIGIN = (
 ).replace(/\/+$/, '');
 
 /**
+ * A string from the web app's message catalog (apps/web/src/lib/i18n/messages/<locale>.json), so
+ * a rule checks the words the page really renders: a wording change in the catalog moves the
+ * rule with it instead of failing the deploy build (the Arabic 404 heading, CONFIRMPOLISH 5).
+ * Throws when the key is missing or empty, so a renamed key cannot turn a rule into a no-op.
+ *
+ * @param {string} locale  catalog file name without `.json`, e.g. `en` or `ar`
+ * @param {string} key     a flat catalog key, e.g. `StateScreens.notFoundTitle`
+ * @returns {string} the catalog's text for `key`
+ */
+export function webCatalogText(locale, key) {
+  const file = join(REPO, 'apps/web/src/lib/i18n/messages', `${locale}.json`);
+  const value = JSON.parse(readFileSync(file, 'utf8'))[key];
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error(`${file} has no text for '${key}'`);
+  }
+  return value;
+}
+
+/**
  * Pages whose prerendered HTML is checked in the bundle and on the running server. Each page
  * must hold its own text and none of the page it was once confused with (live-check 014a9d51:
  * /features/communication was reported as the Privacy Policy and /status as the setup screen).
@@ -132,7 +151,8 @@ export const ROUTE_CONTENT = [
     path: '/_not-found',
     file: '_not-found.html',
     status: 404,
-    has: ['find that page', 'href="/sign-in"'],
+    // The heading NotFoundState renders, from the catalog (`StateScreens.notFoundTitle`).
+    has: [webCatalogText('en', 'StateScreens.notFoundTitle'), 'href="/sign-in"'],
     hasNot: ['setup token'],
   },
   // NEXTUP: the Arabic 404 an unknown /ar/... path is answered with, Arabic and right to left.
@@ -140,7 +160,11 @@ export const ROUTE_CONTENT = [
     path: '/ar/page-not-found',
     file: 'ar/page-not-found.html',
     status: 404,
-    has: ['<html lang="ar" dir="rtl"', 'لم نجد هذه الصفحة', 'href="/ar"'],
+    has: [
+      '<html lang="ar" dir="rtl"',
+      webCatalogText('ar', 'StateScreens.notFoundTitle'),
+      'href="/ar"',
+    ],
     hasNot: ['<html lang="en"', 'setup token'],
   },
 ];
@@ -155,7 +179,13 @@ export const ROUTE_CONTENT = [
 export function routeContentProblems(path, html) {
   const rule = ROUTE_CONTENT.find((entry) => entry.path === path);
   if (!rule) return [`no content rule for ${path}`];
-  const text = html.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '').replaceAll('&amp;', '&');
+  // React escapes ' and " in text; catalog strings are matched as written.
+  const text = html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '')
+    .replaceAll('&#x27;', "'")
+    .replaceAll('&#39;', "'")
+    .replaceAll('&quot;', '"')
+    .replaceAll('&amp;', '&');
   return [
     ...rule.has.filter((s) => !text.includes(s)).map((s) => `${path} is missing '${s}'`),
     ...rule.hasNot.filter((s) => text.includes(s)).map((s) => `${path} contains '${s}'`),
