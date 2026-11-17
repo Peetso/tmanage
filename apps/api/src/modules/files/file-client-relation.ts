@@ -26,6 +26,9 @@ import { mayDownloadFor, objectTableFor } from './purpose-policy.js';
  *   organization: exactly the rows the portal's deliverable file list shows.
  * - **`cloud_folder`** (FIX6 C3b) — the checked copy of a file opened from a drive folder that is
  *   still attached to a client-visible work item of the asset's project.
+ * - **`client_upload`** (55-14a) — a file a client sent from the portal's Files page: the asset's
+ *   own client organization is this client's, its audience is client-readable and
+ *   `client_projection.read` passes on its project. A sibling client on a shared project is a 404.
  * - **`chain`** — for a `deliverable` file, another version of the same attachment chain is
  *   reachable by one of the rules above. The asset's own audience still decides in `authorize()`, so an internal later version
  *   stays the same 404.
@@ -36,7 +39,13 @@ import { mayDownloadFor, objectTableFor } from './purpose-policy.js';
  * An internal principal is not narrowed here; `authorize()` alone decides for it.
  */
 export type ClientReachVia =
-  'internal' | 'request' | 'published_deliverable' | 'deliverable_file' | 'chain' | 'cloud_folder';
+  | 'internal'
+  | 'request'
+  | 'published_deliverable'
+  | 'deliverable_file'
+  | 'chain'
+  | 'cloud_folder'
+  | 'client_upload';
 
 export interface ClientReach {
   readonly via: ClientReachVia;
@@ -101,6 +110,13 @@ export class FileClientRelation {
         request.projectId === asset.projectId &&
         request.clientOrganizationId === principal.clientOrganizationId;
       return related ? { via: 'request', audience: asset.audience } : null;
+    }
+    if (asset.purpose === 'client_upload') {
+      const own =
+        asset.clientOrganizationId === principal.clientOrganizationId &&
+        isClientReadableAudience(asset.audience) &&
+        mayReadProjection(principal, asset.projectId);
+      return own ? { via: 'client_upload', audience: asset.audience } : null;
     }
     if (asset.purpose !== 'deliverable') return null;
     if (!mayReadProjection(principal, asset.projectId)) return null;

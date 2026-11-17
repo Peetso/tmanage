@@ -334,6 +334,13 @@ export function FilesHubScreen({
                         <span dir="auto">{file.name}</span>
                       </Link>
                       {file.scanStatus === 'not_scanned' ? <CheckedLabel /> : null}
+                      {file.purpose === 'client_upload' ? (
+                        // 55-14a: a file the client sent from the portal's Files page.
+                        <span className="tm-dx-table__quiet tm-dx-table__mono">
+                          {' '}
+                          · {tOr('FilesHub.uploadedByClient', 'Uploaded by client')}
+                        </span>
+                      ) : null}
                     </th>
                     <td className="tm-dx-table__quiet">{projectName(file.projectId)}</td>
                     <td className="tm-dx-table__quiet tm-dx-table__mono">

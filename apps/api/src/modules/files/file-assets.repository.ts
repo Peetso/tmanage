@@ -928,6 +928,8 @@ export class FileAssetsRepository {
             'message_attachment',
             'request_attachment',
             'request_message',
+            // 55-14a: what clients sent from the portal (shown as "Uploaded by client").
+            'client_upload',
           ]),
           isNull(fileAssets.deletedAt),
           // FIX4 item 1b: and files waiting for a scan; the service keeps those the owner's
@@ -937,6 +939,46 @@ export class FileAssetsRepository {
       )
       .orderBy(desc(fileAssets.updatedAt), desc(fileAssets.id))
       .limit(limit);
+    return rows.map((row) => ({ asset: row.asset, version: row.version ?? null }));
+  }
+
+  /**
+   * 55-14a. A client organization's own portal uploads in one project, each with its latest
+   * version, newest first: purpose `client_upload`, this client organization on the asset (the
+   * upload service stamps it from the principal), a client audience, not soft-deleted. The portal
+   * list then applies the download door's rules per row, as for request attachments.
+   */
+  async listClientUploadsForProject(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+    clientOrganizationId: string,
+  ): Promise<readonly { readonly asset: FileAssetRow; readonly version: FileVersionRow | null }[]> {
+    const rows = await tenantDrizzle(runner)
+      .select({ asset: fileAssets, version: fileVersions })
+      .from(fileAssets)
+      .leftJoin(
+        fileVersions,
+        and(
+          eq(fileVersions.organizationId, fileAssets.organizationId),
+          eq(fileVersions.fileAssetId, fileAssets.id),
+          eq(
+            fileVersions.versionNo,
+            sql`(select max(l.version_no) from file_versions l where l.organization_id = ${fileAssets.organizationId} and l.file_asset_id = ${fileAssets.id})`,
+          ),
+        ),
+      )
+      .where(
+        and(
+          eq(fileAssets.organizationId, context.organizationId),
+          eq(fileAssets.projectId, projectId),
+          eq(fileAssets.purpose, 'client_upload'),
+          eq(fileAssets.clientOrganizationId, clientOrganizationId),
+          isNull(fileAssets.deletedAt),
+          inArray(fileAssets.audience, ['client_visible', 'client_action_required']),
+        ),
+      )
+      .orderBy(desc(fileAssets.createdAt), desc(fileAssets.id));
     return rows.map((row) => ({ asset: row.asset, version: row.version ?? null }));
   }
 

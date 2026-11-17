@@ -19,7 +19,8 @@ import { ReviewThreadsRepository } from './review-threads.repository.js';
  *
  * The per-file download door (`FileDownloadService.downloadForClient`, `/portal/files/:id/content`)
  * already exists; a client could download a file whose id they held but had nowhere to *see* which
- * files were theirs. This is that missing read: the request-attachment files in one of the client's
+ * files were theirs. This is that missing read: the request-attachment files (and, 55-14a, the
+ * files the client's organization sent from the portal) in one of the client's
  * projects that the download door would actually serve, so the list can never name a file the door
  * then refuses, and never omit one it would serve.
  *
@@ -70,6 +71,8 @@ export interface PortalFileView {
   readonly reviewable: boolean;
   /** R4 slice 8. Open comments the client can see on this file (team-only ones never count). */
   readonly openComments: number;
+  /** 55-14a. Sent by this client organization from the portal (the "You sent it" badge). */
+  readonly sentByClient: boolean;
 }
 
 export class PortalFileListService {
@@ -113,20 +116,39 @@ export class PortalFileListService {
     }
 
     const clientOrganizationId = principal.clientOrganizationId;
-    const { rows, archived } = await this.database.read(context, async (runner) => ({
-      rows: await this.assets.listRequestAttachmentsForProject(runner, context, projectId),
-      archived: (await this.projects.findById(runner, context, projectId))?.archivedAt != null,
-    }));
+    const { requestRows, uploads, archived } = await this.database.read(
+      context,
+      async (runner) => ({
+        requestRows: await this.assets.listRequestAttachmentsForProject(runner, context, projectId),
+        uploads: await this.assets.listClientUploadsForProject(
+          runner,
+          context,
+          projectId,
+          clientOrganizationId,
+        ),
+        archived: (await this.projects.findById(runner, context, projectId))?.archivedAt != null,
+      }),
+    );
+    // The audience guard: a client sees only their own client organization's request files,
+    // read from the request row (an internal upload leaves the asset's own column null). The
+    // project is re-checked defensively — the query scopes it, and a mismatch is never listed.
+    // 55-14a: a portal upload carries the client organization on the asset itself; it is held
+    // to this client's own organization the same way.
+    const rows = [
+      ...requestRows
+        .filter(
+          (row) =>
+            row.request.clientOrganizationId === clientOrganizationId &&
+            row.request.projectId === row.asset.projectId,
+        )
+        .map((row) => ({ asset: row.asset, version: row.version })),
+      ...uploads.filter((row) => row.asset.clientOrganizationId === clientOrganizationId),
+    ].sort((a, b) => b.asset.createdAt.getTime() - a.asset.createdAt.getTime());
 
     const files: PortalFileView[] = [];
     // FIX6 item 1. The policies are read once; each row is decided by the one sharing rule.
     let policies: ClientSharingPolicies | undefined;
     for (const row of rows) {
-      // The audience guard: a client sees only their own client organization's request files,
-      // read from the request row (an internal upload leaves the asset's own column null). The
-      // project is re-checked defensively — the query scopes it, and a mismatch is never listed.
-      if (row.request.clientOrganizationId !== clientOrganizationId) continue;
-      if (row.request.projectId !== row.asset.projectId) continue;
       if (!mayDownloadFor('client', row.asset.purpose)) continue;
       // F48. The download door's own decision on the asset — audience, client organization,
       // project relation and lifecycle — so an `internal` staff attachment is never listed.
@@ -140,7 +162,7 @@ export class PortalFileListService {
         awaitingScan(row.asset.status, row.version),
         policies.scannerPresent,
       );
-      if (status !== null) files.push(toView(row.asset, row.version, status));
+      if (status !== null) files.push(toView(row.asset, row.version, status, clientOrganizationId));
     }
     if (files.length === 0) return files;
     const open = await this.database.read(context, (runner) =>
@@ -209,6 +231,7 @@ function toView(
   asset: FileAssetRow,
   version: FileVersionRow,
   scanStatus: PortalFileScanStatus,
+  clientOrganizationId: string,
 ): PortalFileView {
   const contentType = version.detectedMimeType ?? version.declaredMimeType;
   return {
@@ -221,5 +244,8 @@ function toView(
     scanStatus,
     reviewable: viewerKindFor(contentType) !== 'unsupported',
     openComments: 0,
+    // A client's own upload (portal file or request attachment) carries its organization on the
+    // asset; a studio upload leaves it null.
+    sentByClient: asset.clientOrganizationId === clientOrganizationId,
   };
 }

@@ -122,10 +122,13 @@ function serviceWith(
     readonly clientFiles?: string;
     readonly archivedAt?: Date;
     readonly openComments?: ReadonlyMap<string, number>;
+    /** 55-14a. The client organization's portal uploads the query returns. */
+    readonly uploads?: readonly Omit<Candidate, 'request'>[];
   } = {},
 ): PortalFileListService {
   const assets = {
     listRequestAttachmentsForProject: () => Promise.resolve(rows),
+    listClientUploadsForProject: () => Promise.resolve(policy.uploads ?? []),
   } as unknown as FileAssetsRepository;
   const settings = {
     findByKey: (_r: unknown, _c: unknown, key: string) => {
@@ -162,6 +165,36 @@ function awaiting(id: string): Candidate {
 }
 
 describe('PortalFileListService.listForClient', () => {
+  it("55-14a: lists the client's own portal upload as sent by them, never a sibling's", async () => {
+    const upload = (id: string, clientOrganizationId: string) => {
+      const { asset, version } = candidate({ id, requestClientOrganizationId: CLIENT_ORG });
+      return {
+        asset: {
+          ...asset,
+          purpose: 'client_upload' as const,
+          objectId: null,
+          clientOrganizationId,
+        },
+        version,
+      };
+    };
+    const service = serviceWith(
+      [candidate({ id: 'studio', requestClientOrganizationId: CLIENT_ORG })],
+      {
+        uploads: [upload('mine', CLIENT_ORG), upload('sibling', SIBLING_CLIENT_ORG)],
+      },
+    );
+    const files = await service.listForClient(
+      context,
+      clientPrincipal(READABLE_PROJECT),
+      READABLE_PROJECT,
+    );
+    expect(files.map((f) => [f.id, f.sentByClient])).toEqual([
+      ['studio', false],
+      ['mine', true],
+    ]);
+  });
+
   it('R4 slice 8: says which files the viewer can open and how many comments wait on each', async () => {
     const service = serviceWith(
       [

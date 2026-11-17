@@ -765,6 +765,8 @@ export interface PortalFile {
   readonly reviewable: boolean;
   /** R4 slice 8. Open comments the client can see on this file. */
   readonly openComments: number;
+  /** 55-14a. Sent by the client's organization (the "You sent it" badge). */
+  readonly sentByClient: boolean;
 }
 
 /** C4. Mirrors the API's `PortalFileScanStatus`. */

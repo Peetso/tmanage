@@ -17,6 +17,7 @@ import type { UploadPurpose } from '../../common/database/schema.js';
  * | `deliverable`        | yes      | no — `12-PERMISSION-MATRIX` gives no client role    |
  * |                      |          | "Publish to client"; a client does not deliver      |
  * | `document`           | no       | no — Docs is deferred past the vertical slice (`13`) |
+ * | `client_upload`      | no       | yes — 55-14a: a file sent from the portal's Files page |
  *
  * `document` refused for everyone means the enum member exists in the contract without a
  * live path, which is the honest state of a module nobody has built.
@@ -32,7 +33,8 @@ const PERMITTED: Readonly<Record<PrincipalKind, readonly UploadPurpose[]>> = {
     // 0292 (52-07): an expense receipt — internal only, never a client.
     'expense_receipt',
   ],
-  client: ['request_attachment', 'request_message'],
+  // 55-14a (0362): `client_upload`, a client's own project file from the portal's Files page.
+  client: ['request_attachment', 'request_message', 'client_upload'],
   // A service principal never uploads through the API; the worker writes versions directly.
   service: [],
 };
@@ -53,6 +55,7 @@ export function mayUploadFor(kind: PrincipalKind, purpose: UploadPurpose): boole
  * | `message_attachment` | yes      | no — a client reads no messages yet (CHAT-001)            |
  * | `deliverable`        | yes      | only when published — R4 slice 4 (see below)              |
  * | `document`           | no       | no — Docs is deferred                                     |
+ * | `client_upload`      | yes      | yes — their own client organization's portal uploads      |
  *
  * R4 slice 4 supplies the published fact a client `deliverable` download waited for (CL-05): the
  * purpose is admitted here, and {@link FileClientRelation} then holds it to a deliverable version
@@ -70,8 +73,11 @@ const DOWNLOADABLE: Readonly<Record<PrincipalKind, readonly UploadPurpose[]>> = 
     'request_message',
     // 0292 (52-07): receipts are internal files; a client never downloads one.
     'expense_receipt',
+    // 55-14a: the team reads what a client sent.
+    'client_upload',
   ],
-  client: ['request_attachment', 'request_message', 'deliverable'],
+  // 55-14a: a client reads their own client organization's portal uploads (`FileClientRelation`).
+  client: ['request_attachment', 'request_message', 'deliverable', 'client_upload'],
   service: [],
 };
 

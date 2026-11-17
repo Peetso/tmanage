@@ -175,7 +175,9 @@ describe('request_message — the client download gate', () => {
 
 describe('expense_receipt (0292, 52-07)', () => {
   it('is internal-only, images or PDF up to 10 MB', () => {
-    expect(UPLOAD_PURPOSES.at(-1)).toBe('expense_receipt');
+    expect(UPLOAD_PURPOSES.indexOf('expense_receipt')).toBe(
+      UPLOAD_PURPOSES.indexOf('client_upload') - 1,
+    );
     expect(mayUploadFor('internal', 'expense_receipt')).toBe(true);
     expect(mayUploadFor('client', 'expense_receipt')).toBe(false);
     expect(mayDownloadFor('client', 'expense_receipt')).toBe(false);

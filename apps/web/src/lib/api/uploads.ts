@@ -573,6 +573,26 @@ export async function uploadPortalRequestFile(
   );
 }
 
+/**
+ * 55-14a. A client's file for one of their own projects, from the portal's Files page: purpose
+ * `client_upload` (0362), no `objectId`. The API holds it to the client's own projects and runs the
+ * same type, size, quota, daily-allowance and scan checks as every client upload.
+ */
+export async function uploadPortalProjectFile(
+  client: ApiClient,
+  organizationSlug: string,
+  input: { readonly projectId: string; readonly file: Blob & AttachmentFileInput },
+  deps: UploadAttachmentOptions = {},
+): Promise<string> {
+  return runUpload(
+    client,
+    `${orgBase(organizationSlug)}/portal/upload-sessions`,
+    { projectId: input.projectId, purpose: 'client_upload' },
+    input.file,
+    deps,
+  );
+}
+
 async function runUpload(
   client: ApiClient,
   sessionsPath: string,

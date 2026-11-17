@@ -3784,6 +3784,9 @@ export const UPLOAD_PURPOSES = [
   'request_message',
   // 0292 (52-07): an expense receipt (image or PDF, <= 10 MB), internal upload and download only.
   'expense_receipt',
+  // 0362 (55-14a): a project file a client sent from the portal's Files page; no `objectId`, bound
+  // to the project and the uploader's client organization. The team sees it as "Uploaded by client".
+  'client_upload',
 ] as const;
 export type UploadPurpose = (typeof UPLOAD_PURPOSES)[number];
 

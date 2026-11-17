@@ -8,7 +8,6 @@ import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { PortalFigmaLinks } from '../viewer/FigmaLinks';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import { listPortalFiles, listPortalProjects, portalFileDownloadPath } from '../../lib/api/portal';
-import type { PortalFile } from '../../lib/api/portal';
 import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { shortDay } from './PortalParts';
@@ -16,6 +15,15 @@ import { PortalOpenComments, PortalReviewLink } from './PortalReviewLink';
 import { CheckedLabel } from './CheckedLabel';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { useA6T } from '../work/DueDatePicker';
+import {
+  DropArea,
+  UploadProblemCard,
+  UploadingRow,
+  WhichProjectDialog,
+  useFileDrop,
+  usePortalFileUpload,
+} from './PortalFileUpload';
 import './download-scan-policy.css';
 
 export interface PortalFilesScreenProps {
@@ -35,12 +43,12 @@ export interface PortalFilesScreenProps {
  * per-file link points at the existing authenticated door (`portalFileDownloadPath`); nothing here
  * widens the short-lived scoped grant that door issues.
  *
- * ## What is honestly not here
+ * ## Sending a file (55-14a, Figma 644:35633)
  *
- * A client's files are request attachments today — the only purpose `12-PERMISSION-MATRIX` lets a
- * client download (`purpose-policy.ts`). Published deliverables are `DEL-001`/CL-05, unbuilt, so
- * they are named in `BackendPending` rather than drawn empty. Uploading from the portal is the
- * next scope (NS-13); this screen reads, it does not write.
+ * "Upload a file" (or a file dropped on the list) sends one file to the studio through the
+ * existing client upload door (`PortalFileUpload.tsx`). A file the client sent says "You sent it";
+ * one sent in this visit also says "Uploaded by you · just now". The "Which project?" sheet only
+ * appears when the client has more than one project.
  *
  * ## A file the virus scan has not checked yet (C4)
  *
@@ -51,8 +59,8 @@ export interface PortalFilesScreenProps {
  *
  * ## The empty state
  *
- * A client with no files needs to know the tab works and nothing is waiting — the same job the
- * actions screen's empty state does. It says so plainly rather than looking broken.
+ * A client with no files needs to know the tab works and nothing is waiting, and that they can
+ * send the first one. It says so plainly rather than looking broken.
  */
 export function PortalFilesScreen({
   organizationSlug,
@@ -68,6 +76,7 @@ export function PortalFilesScreen({
   );
   const api = client ?? browserApiClient();
   const t = useT();
+  const ta = useA6T();
   const [search, setSearch] = useState('');
 
   const projects = useQuery({
@@ -100,6 +109,24 @@ export function PortalFilesScreen({
   const totalFiles = fileQueries.reduce((sum, query) => sum + (query.data?.length ?? 0), 0);
   const needle = search.trim().toLowerCase();
 
+  const upload = usePortalFileUpload(api, organizationSlug, projectList);
+  const canUpload = projectList.length > 0 && upload.uploading === null;
+  const drop = useFileDrop(upload.take, canUpload);
+  const uploadingProject = projectList.find(
+    (project) => project.id === upload.uploading?.projectId,
+  );
+  const showTable = totalFiles > 0 || upload.uploading !== null;
+  const uploadButton = (
+    <button
+      type="button"
+      className="tm-pt-btn tm-pt-btn--ink tm-pfu-upload"
+      onClick={upload.choose}
+      disabled={!canUpload}
+    >
+      {ta('PortalFilesScreen.upload')}
+    </button>
+  );
+
   const rows = projectList.flatMap((project, index) =>
     (fileQueries[index]?.data ?? [])
       .filter((file) => needle === '' || file.name.toLowerCase().includes(needle))
@@ -113,25 +140,34 @@ export function PortalFilesScreen({
       providerName={providerName}
       activeNavigationId="files"
       title={t('PortalFilesScreen.title')}
-      eyebrow={`${t('PortalFilesScreen.eyebrowPrefix')} · ${totalFiles} ${
+      eyebrow={`${ta('PortalFilesScreen.eyebrowShared', { studio: providerName })} · ${totalFiles} ${
         totalFiles === 1 ? t('PortalFilesScreen.itemWord') : t('PortalFilesScreen.itemsWord')
       }`}
       headerAside={
-        totalFiles > 0 ? (
-          <label className="tm-pt-aside-row">
-            <span className="tm-pt-visually-hidden">{t('PortalFilesScreen.searchLabel')}</span>
-            <input
-              type="search"
-              className="tm-pt-search"
-              placeholder={t('PortalFilesScreen.searchLabel')}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </label>
+        showTable ? (
+          <div className="tm-pt-aside-row tm-pfu-aside">
+            {uploadButton}
+            <label className="tm-pfu-search">
+              <span className="tm-pt-visually-hidden">{t('PortalFilesScreen.searchLabel')}</span>
+              <input
+                type="search"
+                className="tm-pt-search"
+                placeholder={t('PortalFilesScreen.searchLabel')}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </label>
+          </div>
         ) : undefined
       }
     >
-      <div className="tm-pt tm-pt--compact">
+      <div className="tm-pt tm-pt--compact tm-pfu" {...drop.handlers}>
+        {upload.picker}
+        <p className="tm-pt-visually-hidden" role="status">
+          {upload.sentName
+            ? ta('PortalFilesScreen.sentAnnounce', { name: upload.sentName, studio: providerName })
+            : ''}
+        </p>
         <PortalFigmaLinks organizationSlug={organizationSlug} client={api} />
         {projects.isError ? (
           <InlineAlert tone="danger" title={t('PortalFilesScreen.loadErrorTitle')} live>
@@ -152,20 +188,36 @@ export function PortalFilesScreen({
           </LoadingRegion>
         ) : null}
 
-        {!anyFilesLoading && !projects.isError && !anyFilesError && totalFiles === 0 ? (
-          <div className="tm-pt-card tm-pt-card--dashed tm-pt-card--lg">
+        {upload.problems.map((problem) => (
+          <UploadProblemCard
+            key={problem.id}
+            problem={problem}
+            organizationSlug={organizationSlug}
+            providerName={providerName}
+            onChooseAgain={upload.chooseAgain}
+          />
+        ))}
+
+        {drop.over ? (
+          <DropArea
+            projectName={projectList.length === 1 ? (projectList[0]?.name ?? null) : null}
+          />
+        ) : null}
+
+        {!drop.over && !anyFilesLoading && !projects.isError && !anyFilesError && !showTable ? (
+          <div className="tm-pt-card tm-pt-card--dashed tm-pt-card--lg tm-pfu-empty">
             <h2 className="tm-pt-card__title">{t('PortalFilesScreen.emptyTitle')}</h2>
             <p className="tm-pt-card__body">
-              {t('PortalFilesScreen.emptyPrefix')} {providerName}{' '}
-              {t('PortalFilesScreen.emptySuffix')}
+              {ta('PortalFilesScreen.emptyBody', { studio: providerName })}
             </p>
+            {projectList.length > 0 ? uploadButton : null}
           </div>
         ) : null}
 
-        {totalFiles > 0 ? (
+        {!drop.over && showTable ? (
           <div className="tm-pt-table-wrap">
             <table
-              className="tm-pt-table"
+              className="tm-pt-table tm-pfu-table"
               aria-label={`${t('PortalFilesScreen.filesFrom')} ${providerName}`}
             >
               <thead>
@@ -174,6 +226,7 @@ export function PortalFilesScreen({
                   <th scope="col">{t('PortalFilesScreen.thBelongsTo')}</th>
                   <th scope="col">{t('PortalFilesScreen.thShared')}</th>
                   <th scope="col">{t('Viewer.portal.commentsColumn')}</th>
+                  <th scope="col">{ta('PortalFilesScreen.thStatus')}</th>
                   <th scope="col">
                     <span className="tm-pt-visually-hidden">
                       {t('PortalFilesScreen.downloadLabel')}
@@ -182,69 +235,88 @@ export function PortalFilesScreen({
                 </tr>
               </thead>
               <tbody>
-                {rows.map(({ file, project }) => (
-                  <tr key={file.id}>
-                    <td>
-                      <div className="tm-pt-file">
-                        <span className="tm-pt-file__icon" aria-hidden="true" />
-                        <div>
-                          <p className="tm-pt-file__name">{file.name}</p>
-                          <p className="tm-pt-mono">{describeFile(file)}</p>
+                {upload.uploading ? (
+                  <UploadingRow
+                    uploading={upload.uploading}
+                    projectName={uploadingProject?.name ?? ''}
+                    onCancel={upload.cancel}
+                  />
+                ) : null}
+                {rows.map(({ file, project }) => {
+                  const fresh = upload.fresh.has(file.id);
+                  return (
+                    <tr
+                      key={file.id}
+                      className={fresh ? 'tm-pfu-row tm-pfu-row--fresh' : 'tm-pfu-row'}
+                    >
+                      <td className="tm-pfu-cell--file">
+                        <p className="tm-pt-file__name">{file.name}</p>
+                        <p className="tm-pt-mono">
+                          {fresh
+                            ? ta('PortalFilesScreen.uploadedByYou')
+                            : formatBytes(file.sizeBytes)}
+                        </p>
+                        {file.scanStatus === 'being_checked' ? (
+                          <p className="tm-pt-mono" id={`tm-scan-why-${file.id}`}>
+                            {t('DownloadScan.blocked')}
+                          </p>
+                        ) : null}
+                      </td>
+                      <td className="tm-pfu-cell--project">{project.name}</td>
+                      <td className="tm-pfu-cell--day">{shortDay(file.uploadedAt)}</td>
+                      <td className="tm-pfu-cell--comments">
+                        <PortalOpenComments openComments={file.openComments} />
+                      </td>
+                      <td className="tm-pfu-cell--status">
+                        <StateCapsule state="neutral">
+                          {file.sentByClient
+                            ? ta('PortalFilesScreen.statusSent')
+                            : ta('PortalFilesScreen.statusShared')}
+                        </StateCapsule>
+                      </td>
+                      <td className="tm-pfu-cell--actions">
+                        <span className="tm-scan-row__actions">
+                          {file.scanStatus === 'not_scanned' ? <CheckedLabel withNote /> : null}
                           {file.scanStatus === 'being_checked' ? (
-                            <p className="tm-pt-mono" id={`tm-scan-why-${file.id}`}>
-                              {t('DownloadScan.blocked')}
-                            </p>
+                            <StateCapsule state="waiting" className="tm-scan-capsule">
+                              {t('WorkDetail.scanning')}
+                            </StateCapsule>
                           ) : null}
-                        </div>
-                      </div>
-                    </td>
-                    <td>{project.name}</td>
-                    <td>{shortDay(file.uploadedAt)}</td>
-                    <td>
-                      <PortalOpenComments openComments={file.openComments} />
-                    </td>
-                    <td>
-                      <span className="tm-scan-row__actions">
-                        {file.scanStatus === 'not_scanned' ? <CheckedLabel withNote /> : null}
-                        {file.scanStatus === 'being_checked' ? (
-                          <StateCapsule state="waiting" className="tm-scan-capsule">
-                            {t('WorkDetail.scanning')}
-                          </StateCapsule>
-                        ) : null}
-                        {file.scanStatus === 'being_checked' ? (
-                          <button
-                            type="button"
-                            className="tm-pt-btn tm-pt-btn--quiet"
-                            disabled
-                            aria-describedby={`tm-scan-why-${file.id}`}
-                          >
-                            {t('PortalFilesScreen.download')}
-                          </button>
-                        ) : (
-                          <a
-                            className="tm-pt-btn tm-pt-btn--quiet"
-                            href={`${apiBaseUrl()}${portalFileDownloadPath(organizationSlug, file.id)}`}
-                            download={file.name}
-                          >
-                            {t('PortalFilesScreen.download')}
-                          </a>
-                        )}
-                        {file.reviewable && file.scanStatus !== 'being_checked' ? (
-                          <PortalReviewLink
-                            organizationSlug={organizationSlug}
-                            fileId={file.id}
-                            fileName={file.name}
-                            openComments={file.openComments}
-                            showCount={false}
-                          />
-                        ) : null}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-                {rows.length === 0 ? (
+                          {file.scanStatus === 'being_checked' ? (
+                            <button
+                              type="button"
+                              className="tm-pt-btn tm-pt-btn--quiet"
+                              disabled
+                              aria-describedby={`tm-scan-why-${file.id}`}
+                            >
+                              {t('PortalFilesScreen.download')}
+                            </button>
+                          ) : (
+                            <a
+                              className="tm-pt-btn tm-pt-btn--quiet"
+                              href={`${apiBaseUrl()}${portalFileDownloadPath(organizationSlug, file.id)}`}
+                              download={file.name}
+                            >
+                              {t('PortalFilesScreen.download')}
+                            </a>
+                          )}
+                          {file.reviewable && file.scanStatus !== 'being_checked' ? (
+                            <PortalReviewLink
+                              organizationSlug={organizationSlug}
+                              fileId={file.id}
+                              fileName={file.name}
+                              openComments={file.openComments}
+                              showCount={false}
+                            />
+                          ) : null}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {rows.length === 0 && totalFiles > 0 ? (
                   <tr>
-                    <td colSpan={5}>
+                    <td colSpan={6}>
                       {t('PortalFilesScreen.noMatch')} “{search}”.
                     </td>
                   </tr>
@@ -254,18 +326,22 @@ export function PortalFilesScreen({
           </div>
         ) : null}
 
-        <p className="tm-pt-eyebrow">
-          ⊘ {t('PortalFilesScreen.footPrefix')} {providerName} {t('PortalFilesScreen.footMid')}{' '}
-          {clientName} {t('PortalFilesScreen.footSuffix')}
+        <p className="tm-pfu-foot">
+          {ta(showTable ? 'PortalFilesScreen.footReview' : 'PortalFilesScreen.footEmpty', {
+            studio: providerName,
+          })}
         </p>
       </div>
+      {upload.asking ? (
+        <WhichProjectDialog
+          file={upload.asking}
+          projects={projectList}
+          onUpload={upload.confirmProject}
+          onCancel={upload.dismissAsking}
+        />
+      ) : null}
     </ClientPortalShell>
   );
-}
-
-function describeFile(file: PortalFile): string {
-  const kind = file.contentType.split('/').pop()?.split(/[.+-]/).pop() ?? '';
-  return kind ? `${kind} · ${formatBytes(file.sizeBytes)}` : formatBytes(file.sizeBytes);
 }
 
 function formatBytes(bytes: number): string {

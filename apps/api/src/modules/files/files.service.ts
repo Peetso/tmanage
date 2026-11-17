@@ -1598,6 +1598,12 @@ export class FilesService {
     draft: Draft,
     input: CreateUploadInput,
   ): Promise<void> {
+    // 55-14a: a client's portal file belongs to the project alone; it names no other row.
+    if (input.purpose === 'client_upload' && input.objectId !== null) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'objectId', message: 'must be absent for a client_upload' },
+      ]);
+    }
     if (objectTableFor(input.purpose) !== 'client_requests') return;
     if (input.objectId === null) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
