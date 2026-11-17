@@ -1,13 +1,13 @@
 'use client';
 
+import { lazy, Suspense, type ComponentType } from 'react';
 import { usePathname } from 'next/navigation';
-import { findResource } from './pages/resources/resources-data';
 import { BETA_FAQ } from './pages/pricing/pricing-data';
-import { COMPARE_COPY, SWITCH_COPY } from '../../content/compare/compare-copy';
-import { COMPARE_ENTRIES, findCompareEntry } from '../../content/compare/compare-entries';
-import { findSwitchEntry } from '../../content/compare/switch-entries';
-import { findHelpArticle, findHelpCategory } from '../../content/help/help-articles';
-import { helpCopy } from '../../content/help/help-copy';
+import {
+  JsonLdScript,
+  type PageContext,
+  type PageFamilyProps,
+} from './structured-data/page-context';
 import { siteDescription } from '../../lib/i18n/locale-html';
 import {
   ARABIC_ROUTE_LOCALE,
@@ -17,138 +17,37 @@ import {
 } from '../../lib/i18n/public-locale-routes';
 import { translate, type MessageKey } from '../../lib/i18n/t';
 import { absoluteSiteUrl } from '../../lib/site-origin';
-import {
-  article,
-  breadcrumbList,
-  faqPage,
-  homeGraph,
-  howTo,
-  itemList,
-  jsonLdGraph,
-  jsonLdText,
-  webPageAbout,
-  type JsonLd,
-  type PageLanguage,
-} from '../../lib/structured-data';
+import { faqPage, homeGraph, type JsonLd } from '../../lib/structured-data';
 
-interface PageContext {
-  readonly english: string;
-  readonly language: PageLanguage;
-  readonly t: (key: MessageKey) => string;
-  /** The page's address in its own language, absolute. */
-  readonly url: (englishPath: string) => string;
+/*
+ * The help, library and compare families each load their own code and data only on their own
+ * pages (SEOC, 2026-11-17): this component sits in the chrome of every public page, and importing
+ * them here put every help article, compare entry and library card into every page's bundle. The
+ * server still renders their JSON-LD into the prerendered HTML; the browser fetches the family's
+ * chunk only to hydrate a page of that family.
+ */
+const HelpJsonLd = lazy(() =>
+  import('./structured-data/HelpJsonLd').then((module) => ({ default: module.HelpJsonLd })),
+);
+const ResourceJsonLd = lazy(() =>
+  import('./structured-data/ResourceJsonLd').then((module) => ({ default: module.ResourceJsonLd })),
+);
+const CompareJsonLd = lazy(() =>
+  import('./structured-data/CompareJsonLd').then((module) => ({ default: module.CompareJsonLd })),
+);
+
+/** The family whose structured data the page at an English path has, if any. */
+function familyOf(english: string): ComponentType<PageFamilyProps> | undefined {
+  if (english.startsWith('/help/')) return HelpJsonLd;
+  if (english.startsWith('/resources/')) return ResourceJsonLd;
+  if (english === '/compare' || english.startsWith('/compare/') || english.startsWith('/switch/')) {
+    return CompareJsonLd;
+  }
+  return undefined;
 }
 
-function helpData(context: PageContext, slug: string): JsonLd[] {
-  const found = findHelpArticle(slug);
-  if (found === undefined) return [];
-  const copy = helpCopy(context.language);
-  const category = findHelpCategory(found.category);
-  const text = found[context.language];
-  const url = context.url(context.english);
-  const steps = text.body.flatMap((block) => (block.kind === 'steps' ? block.items : []));
-  return [
-    breadcrumbList([
-      { name: copy.home, url: context.url('/help') },
-      {
-        name: category.title[context.language],
-        url: `${context.url('/help')}#topic-${category.id}`,
-      },
-      { name: text.title, url },
-    ]),
-    ...(steps.length === 0
-      ? []
-      : [howTo({ language: context.language, url, name: text.title, steps })]),
-  ];
-}
-
-function resourceData(context: PageContext, slug: string): JsonLd[] {
-  const item = findResource(slug);
-  if (item === undefined) return [];
-  const url = context.url(context.english);
-  const headline = context.t(item.titleKey);
-  return [
-    breadcrumbList([
-      { name: context.t('ResourceArticlePage.resources'), url: context.url('/resources') },
-      { name: headline, url },
-    ]),
-    article({
-      language: context.language,
-      url,
-      headline,
-      description: context.t(item.lineKey),
-    }),
-  ];
-}
-
-/** The compare hub: the list of compare pages its cards show. */
-function compareIndexData(context: PageContext): JsonLd[] {
-  const copy = COMPARE_COPY[context.language];
-  return [
-    itemList({
-      name: copy.indexTitle,
-      items: COMPARE_ENTRIES.map((entry) => ({
-        name: copy.title(entry.name),
-        url: context.url(`/compare/${entry.slug}`),
-      })),
-    }),
-  ];
-}
-
-/** A compare page: its trail back to the hub and the two products, with the checked date. */
-function compareData(context: PageContext, slug: string): JsonLd[] {
-  const entry = findCompareEntry(slug);
-  if (entry === undefined) return [];
-  const copy = COMPARE_COPY[context.language];
-  const url = context.url(context.english);
-  const name = copy.title(entry.name);
-  return [
-    breadcrumbList([
-      { name: copy.allCompare, url: context.url('/compare') },
-      { name, url },
-    ]),
-    webPageAbout({
-      language: context.language,
-      url,
-      name,
-      about: ['TManage', entry.name],
-      dateModified: entry.checkedOn,
-    }),
-  ];
-}
-
-/** A switch page: the two products and the "How the move works" text it shows. */
-function switchData(context: PageContext, slug: string): JsonLd[] {
-  const entry = findSwitchEntry(slug);
-  if (entry === undefined) return [];
-  const words = SWITCH_COPY[context.language];
-  const url = context.url(context.english);
-  return [
-    webPageAbout({
-      language: context.language,
-      url,
-      name: words.title(entry.name),
-      about: ['TManage', entry.name],
-    }),
-    howTo({
-      language: context.language,
-      url,
-      name: words.howTitle,
-      steps: [entry.how[context.language]],
-    }),
-  ];
-}
-
-/** Pages under a prefix and the structured data of the one named by the rest of the path. */
-const BY_PREFIX: readonly [string, (context: PageContext, slug: string) => JsonLd[]][] = [
-  ['/help/', helpData],
-  ['/resources/', resourceData],
-  ['/compare/', compareData],
-  ['/switch/', switchData],
-];
-
-/** Every JSON-LD item of a public page; empty when the page has none. */
-function structuredDataFor(context: PageContext): JsonLd[] {
+/** The home page's and the pricing page's JSON-LD; empty for any other page. */
+function ownData(context: PageContext): JsonLd[] {
   const { english } = context;
   if (english === '/') {
     return [
@@ -170,9 +69,7 @@ function structuredDataFor(context: PageContext): JsonLd[] {
       }),
     ];
   }
-  if (english === '/compare') return compareIndexData(context);
-  const match = BY_PREFIX.find(([prefix]) => english.startsWith(prefix));
-  return match === undefined ? [] : match[1](context, english.slice(match[0].length));
+  return [];
 }
 
 /**
@@ -181,23 +78,23 @@ function structuredDataFor(context: PageContext): JsonLd[] {
  * and checked date on a compare or switch page, the breadcrumb trail (and steps, or the article)
  * on a help or library article. Only what the page shows. Always in the language of the URL
  * (`/ar/...` is Arabic), never the visitor's saved one, so the prerendered HTML and the hydrated
- * page agree. A data block, not a script: the browser never runs it, and the text is escaped so it
- * cannot close the element.
+ * page agree.
  */
 export function PublicStructuredData() {
   const pathname = usePathname() ?? '/';
   const arabic = isArabicPublicPath(pathname);
   const locale = arabic ? ARABIC_ROUTE_LOCALE : 'en';
-  const data = jsonLdGraph(
-    structuredDataFor({
-      english: englishPublicPath(pathname),
-      language: arabic ? 'ar' : 'en',
-      t: (key) => translate(locale, key),
-      url: (path) => absoluteSiteUrl(arabic ? arabicTwinPath(path) : path),
-    }),
-  );
-  if (data === undefined) return null;
+  const context: PageContext = {
+    english: englishPublicPath(pathname),
+    language: arabic ? 'ar' : 'en',
+    t: (key) => translate(locale, key),
+    url: (path) => absoluteSiteUrl(arabic ? arabicTwinPath(path) : path),
+  };
+  const Family = familyOf(context.english);
+  if (Family === undefined) return <JsonLdScript items={ownData(context)} />;
   return (
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdText(data) }} />
+    <Suspense fallback={null}>
+      <Family context={context} />
+    </Suspense>
   );
 }
