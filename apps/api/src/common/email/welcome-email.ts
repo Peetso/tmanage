@@ -1,7 +1,7 @@
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import { serializeForLog } from '../observability/logger.js';
 import { renderActionEmail } from './action-email.js';
-import { emailIsRtl, emailT } from '../i18n/email-messages.js';
+import { emailIsRtl, emailT, mailLink } from '../i18n/email-messages.js';
 
 /**
  * The welcome email a public sign-up sends (in the shared action-email layout).
@@ -68,7 +68,7 @@ export class WelcomeMailer {
   ): Promise<'sent' | 'none' | 'failed'> {
     if (this.mailer === null) return 'none';
     // Only the fields the template uses: anything else a caller passes never reaches the mail.
-    const link = `${this.webPublicUrl.replace(/\/+$/u, '')}/sign-in`;
+    const link = mailLink(this.webPublicUrl, '/sign-in', facts.locale);
     try {
       return await this.mailer.send(
         composeWelcomeEmail({

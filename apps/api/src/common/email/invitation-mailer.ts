@@ -1,6 +1,7 @@
 import { composeInvitationEmail } from './invitation-email.js';
 import type { InvitationEmailFacts } from './invitation-email.js';
 import { serializeForLog } from '../observability/logger.js';
+import { mailLink } from '../i18n/email-messages.js';
 import type { Mailer } from '@tmanage/mail';
 
 /**
@@ -55,7 +56,7 @@ export class InvitationMailer {
     }
 
     const { token, ...rest } = facts;
-    const link = `${this.webPublicUrl.replace(/\/+$/u, '')}/invitations/${token}`;
+    const link = mailLink(this.webPublicUrl, `/invitations/${token}`, rest.locale);
     try {
       return await this.mailer.send(composeInvitationEmail({ ...rest, link }));
     } catch (error) {

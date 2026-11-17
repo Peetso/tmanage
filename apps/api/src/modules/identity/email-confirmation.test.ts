@@ -129,7 +129,7 @@ describe('the confirmation e-mail', () => {
       mail.text.includes('https://tmanage.example/confirm-email/TOKEN'),
       mail.text.includes('expires in 30 minutes'),
       mail.text.includes('does not change your password or sign you in'),
-      mail.html.includes('https://tmanage.example/confirm-email/TOKEN'),
+      mail.html?.includes('https://tmanage.example/confirm-email/TOKEN'),
     ]).toEqual(['Confirm your e-mail for TManage', true, true, true, true]);
   });
 
@@ -159,10 +159,12 @@ describe('the confirmation e-mail', () => {
     await mailer.deliverConfirmation({ ...facts, locale: 'ar-EG' });
     await mailer.deliverConfirmation({ ...facts, locale: 'ur-PK' });
     await mailer.deliverConfirmation({ ...facts, locale: 'x"><a href=//evil.example>' });
+    await mailer.deliver({ ...facts, locale: 'ar-EG' });
     expect(sent.map((mail) => mail.text.match(/https:\S+/u)?.[0])).toEqual([
       'https://tmanage.example/confirm-email/TOKEN?lang=ar',
       'https://tmanage.example/confirm-email/TOKEN?lang=ur',
       'https://tmanage.example/confirm-email/TOKEN?lang=en',
+      'https://tmanage.example/recover/TOKEN?lang=ar',
     ]);
   });
 });

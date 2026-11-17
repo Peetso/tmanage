@@ -1,7 +1,7 @@
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import { serializeForLog } from '../observability/logger.js';
 import { renderActionEmail } from './action-email.js';
-import { emailIsRtl, emailLangParam, emailT } from '../i18n/email-messages.js';
+import { emailIsRtl, emailT, mailLink } from '../i18n/email-messages.js';
 
 /**
  * The password-reset email (ACC-02) and its sender.
@@ -85,7 +85,7 @@ export function composeEmailConfirmationEmail(facts: PasswordResetEmailFacts): M
 }
 
 /**
- * Sends the reset email. Owns the link — `${WEB_PUBLIC_URL}/recover/${token}`, built from
+ * Sends the reset email. Owns the link — `${WEB_PUBLIC_URL}/recover/${token}?lang=…` (`mailLink`), built from
  * configuration and never from a request header, because a `Host` header is attacker-writable
  * and this link carries a credential — and absorbs a mail failure loudly (the operator's log,
  * through the OBS-001 redactor) rather than letting it reach the person, whose answer must not
@@ -106,7 +106,7 @@ export class PasswordResetMailer {
   ): Promise<'sent' | 'none' | 'failed'> {
     if (this.mailer === null) return 'none';
     const { token, ...rest } = facts;
-    const link = `${this.webPublicUrl.replace(/\/+$/u, '')}/recover/${token}`;
+    const link = mailLink(this.webPublicUrl, `/recover/${token}`, rest.locale);
     try {
       return await this.mailer.send(composePasswordResetEmail({ ...rest, link }));
     } catch (error) {
@@ -124,8 +124,7 @@ export class PasswordResetMailer {
   ): Promise<'sent' | 'none' | 'failed'> {
     if (this.mailer === null) return 'none';
     const { token, ...rest } = facts;
-    const lang = emailLangParam(rest.locale);
-    const link = `${this.webPublicUrl.replace(/\/+$/u, '')}/confirm-email/${token}?lang=${lang}`;
+    const link = mailLink(this.webPublicUrl, `/confirm-email/${token}`, rest.locale);
     try {
       return await this.mailer.send(composeEmailConfirmationEmail({ ...rest, link }));
     } catch (error) {

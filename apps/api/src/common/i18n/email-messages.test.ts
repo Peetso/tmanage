@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import en from './email/en.json' with { type: 'json' };
 import ar from './email/ar.json' with { type: 'json' };
 import ur from './email/ur.json' with { type: 'json' };
-import { emailCatalogOf, emailIsRtl, emailLocale, emailT } from './email-messages.js';
+import { emailCatalogOf, emailIsRtl, emailLocale, emailT, mailLink } from './email-messages.js';
 
 describe('emailT (R12 R2)', () => {
   it('picks the catalog by language, fills placeholders and falls back to English', () => {
@@ -31,5 +31,19 @@ describe('emailT (R12 R2)', () => {
     expect(emailIsRtl('ur-PK')).toBe(true);
     expect(emailT('ur-PK', 'emailConfirm.button')).toBe(ur['emailConfirm.button']);
     expect(Object.keys(ur).sort()).toEqual(Object.keys(en).sort());
+  });
+
+  it('builds every signed-out mail link with the allow-listed ?lang= (CONFIRMPOLISH 6)', () => {
+    expect([
+      mailLink('https://t.example//', '/invitations/TOKEN', 'pt-PT'),
+      mailLink('https://t.example', '/sign-in', 'ur-PK'),
+      mailLink('https://t.example', '/sign-in', '"><script>'),
+      mailLink('https://t.example', '/sign-in', undefined),
+    ]).toEqual([
+      'https://t.example/invitations/TOKEN?lang=pt',
+      'https://t.example/sign-in?lang=ur',
+      'https://t.example/sign-in?lang=en',
+      'https://t.example/sign-in?lang=en',
+    ]);
   });
 });

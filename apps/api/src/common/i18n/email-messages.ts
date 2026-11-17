@@ -68,6 +68,18 @@ export function emailLangParam(locale: string | null | undefined): string {
 }
 
 /**
+ * CONFIRMPOLISH 6 — every signed-out mail link (reset, confirmation, invitation, welcome, e-mail
+ * change): `WEB_PUBLIC_URL` + a fixed path + the allow-listed `?lang=` of the mail's language.
+ */
+export function mailLink(
+  webPublicUrl: string,
+  path: string,
+  locale: string | null | undefined,
+): string {
+  return `${webPublicUrl.replace(/\/+$/u, '')}${path}?lang=${emailLangParam(locale)}`;
+}
+
+/**
  * The language an email goes out in: the person's own `users.locale`, else the workspace's
  * `organizations.default_locale`, else English.
  */

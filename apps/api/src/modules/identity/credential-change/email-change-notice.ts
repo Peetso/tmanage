@@ -1,7 +1,7 @@
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import { renderActionEmail } from '../../../common/email/action-email.js';
 import { serializeForLog } from '../../../common/observability/logger.js';
-import { emailIsRtl, emailT } from '../../../common/i18n/email-messages.js';
+import { emailIsRtl, emailT, mailLink } from '../../../common/i18n/email-messages.js';
 
 /**
  * Platform admin v2 (PA-06, SPEC §4 B2) — "your sign-in email changed", to the OLD and the NEW
@@ -86,7 +86,7 @@ export class EmailChangeNotifier {
     readonly locale?: string;
   }): Promise<{ readonly sent: number }> {
     if (this.mailer === null) return { sent: 0 };
-    const link = `${this.webPublicUrl.replace(/\/+$/u, '')}/sign-in`;
+    const link = mailLink(this.webPublicUrl, '/sign-in', input.locale);
     let sent = 0;
     for (const recipient of ['old', 'new'] as const) {
       try {
