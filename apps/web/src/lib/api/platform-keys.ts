@@ -17,7 +17,10 @@ export type KeyPurpose =
   | 'zatca_key'
   | 'reporter_email'
   // R22-a: the organization secrets envelope (ZATCA signing certificate + key).
-  | 'org_secret';
+  | 'org_secret'
+  // 56-03p: the connector token vault (connector credentials, Figma tokens).
+  | 'connector_token'
+  | 'figma_token';
 
 export type KeyRotationStatus = 'queued' | 'running' | 'done' | 'failed';
 

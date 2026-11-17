@@ -14745,6 +14745,8 @@
   "PlatformKeys.purpose_push_key": "الإشعارات الفورية",
   "PlatformKeys.purpose_integration_token": "التكاملات",
   "PlatformKeys.purpose_zatca_key": "الفوترة الإلكترونية (‏ZATCA)",
+  "PlatformKeys.purpose_connector_token": "الموصِّلات (مفاتيح ‏API، تسجيلات الدخول)",
+  "PlatformKeys.purpose_figma_token": "‏Figma",
   "PlatformKeys.sessions": "جلسات تسجيل الدخول",
   "PlatformKeys.footer": "كل تجديد يُسجَّل في «إجراءات مسؤولي المنصة» باسمك وعنوان ‏IP والجهاز. قيم المفاتيح لا تُعرض ولا تُسجَّل ولا تُصدَّر أبدًا.",
   "PlatformKeys.confirmTitle": "تجديد مفتاح {purpose}؟",

@@ -14745,6 +14745,8 @@
   "PlatformKeys.purpose_push_key": "Push notifications",
   "PlatformKeys.purpose_integration_token": "Integrations",
   "PlatformKeys.purpose_zatca_key": "E-invoicing (ZATCA)",
+  "PlatformKeys.purpose_connector_token": "Connectors (API keys, sign-ins)",
+  "PlatformKeys.purpose_figma_token": "Figma",
   "PlatformKeys.sessions": "Sign-in sessions",
   "PlatformKeys.footer": "Every rotation is recorded in Platform admin actions with your name, IP and device. Key values are never shown, logged or exported.",
   "PlatformKeys.confirmTitle": "Rotate {purpose}?",

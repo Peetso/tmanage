@@ -14727,6 +14727,8 @@
   "PlatformKeys.purpose_push_key": "推送通知",
   "PlatformKeys.purpose_integration_token": "集成",
   "PlatformKeys.purpose_zatca_key": "电子发票（ZATCA）",
+  "PlatformKeys.purpose_connector_token": "连接器（API 密钥、登录）",
+  "PlatformKeys.purpose_figma_token": "Figma",
   "PlatformKeys.sessions": "登录会话",
   "PlatformKeys.footer": "每次轮换都会连同你的姓名、IP 和设备记录在“平台管理员操作”中。密钥值从不显示、记录或导出。",
   "PlatformKeys.confirmTitle": "轮换 {purpose}？",

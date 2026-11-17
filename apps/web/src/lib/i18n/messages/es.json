@@ -14727,6 +14727,8 @@
   "PlatformKeys.purpose_push_key": "Notificaciones push",
   "PlatformKeys.purpose_integration_token": "Integraciones",
   "PlatformKeys.purpose_zatca_key": "Facturación electrónica (ZATCA)",
+  "PlatformKeys.purpose_connector_token": "Conectores (claves de API, inicios de sesión)",
+  "PlatformKeys.purpose_figma_token": "Figma",
   "PlatformKeys.sessions": "Sesiones de inicio de sesión",
   "PlatformKeys.footer": "Cada rotación se registra en Acciones de administración de la plataforma con su nombre, IP y dispositivo. Los valores de las claves nunca se muestran, registran ni exportan.",
   "PlatformKeys.confirmTitle": "¿Rotar {purpose}?",

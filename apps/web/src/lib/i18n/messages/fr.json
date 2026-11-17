@@ -14727,6 +14727,8 @@
   "PlatformKeys.purpose_push_key": "Notifications push",
   "PlatformKeys.purpose_integration_token": "Intégrations",
   "PlatformKeys.purpose_zatca_key": "Facturation électronique (ZATCA)",
+  "PlatformKeys.purpose_connector_token": "Connecteurs (clés d’API, connexions)",
+  "PlatformKeys.purpose_figma_token": "Figma",
   "PlatformKeys.sessions": "Sessions de connexion",
   "PlatformKeys.footer": "Chaque rotation est enregistrée dans Actions des admins de la plateforme avec votre nom, votre IP et votre appareil. Les valeurs des clés ne sont jamais affichées, journalisées ni exportées.",
   "PlatformKeys.confirmTitle": "Effectuer la rotation de {purpose} ?",
