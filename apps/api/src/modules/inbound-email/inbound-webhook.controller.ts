@@ -15,6 +15,7 @@ import { HttpAdapterHost } from '@nestjs/core';
 import { Public } from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { requestState } from '../../common/http/request-state.js';
+import { MAX_BOUNCE_BYTES } from '@tmanage/mail';
 import { Throttle } from '../rate-limits/throttle-policies.js';
 import { InboundEmailService } from './inbound-email.service.js';
 import type { IngestStatus } from './inbound-email.service.js';
@@ -48,8 +49,11 @@ import {
 
 export const INBOUND_WEBHOOK_DEPS = Symbol('tmanage.inboundEmail.webhookDeps');
 export const INBOUND_WEBHOOK_CONTENT_TYPE = 'application/vnd.tmanage.inbound-email+json';
+/** 56-26: the raw bounce `POST /v1/public/inbound-email/bounces` takes (mail-bounces module). */
+export const BOUNCE_CONTENT_TYPE = 'message/rfc822';
 const MIN_SECRET_LENGTH = 32;
 const INBOUND_PATH = /^\/v1\/public\/inbound-email\/webhook$/u;
+const BOUNCE_PATH = /^\/v1\/public\/inbound-email\/bounces$/u;
 
 export interface InboundWebhookDeps {
   /** Overrides `process.env.INBOUND_EMAIL_WEBHOOK_SECRET` (tests). */
@@ -67,11 +71,22 @@ const header = (request: WebhookRequest, name: string): string | undefined => {
   return Array.isArray(value) ? value[0] : value;
 };
 
-/** `true` for the one URL whose raw body is kept for the HMAC check. */
-export function isInboundWebhookRoute(url: string | undefined): boolean {
-  if (typeof url !== 'string') return false;
+function pathOf(url: string | undefined): string | null {
+  if (typeof url !== 'string') return null;
   const end = url.search(/[?#]/u);
-  return INBOUND_PATH.test(end === -1 ? url : url.slice(0, end));
+  return end === -1 ? url : url.slice(0, end);
+}
+
+/** `true` for the inbound-mail webhook URL. */
+export function isInboundWebhookRoute(url: string | undefined): boolean {
+  const path = pathOf(url);
+  return path !== null && INBOUND_PATH.test(path);
+}
+
+/** 56-26: `true` for the bounce intake URL. */
+export function isBounceIntakeRoute(url: string | undefined): boolean {
+  const path = pathOf(url);
+  return path !== null && BOUNCE_PATH.test(path);
 }
 
 /** The configured secret, or `null` (absent or shorter than 32 characters: the route is off). */
@@ -146,7 +161,7 @@ export async function captureInboundRawBody(
   _reply: unknown,
   payload: NodeJS.ReadableStream,
 ): Promise<NodeJS.ReadableStream> {
-  if (!isInboundWebhookRoute(request.url)) return payload;
+  if (!isInboundWebhookRoute(request.url) && !isBounceIntakeRoute(request.url)) return payload;
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of payload) {
@@ -170,6 +185,19 @@ export function parseInboundVendorBody(
   done: (error: Error | null, value?: unknown) => void,
 ): void {
   if (!isInboundWebhookRoute(request.url)) {
+    done(Object.assign(new Error('Unsupported Media Type'), { statusCode: 415 }));
+    return;
+  }
+  done(null, body);
+}
+
+/** 56-26: the bounce parser — the bytes `captureInboundRawBody` kept; 415 on any other URL. */
+export function parseBounceBody(
+  request: { readonly url?: string },
+  body: Buffer,
+  done: (error: Error | null, value?: unknown) => void,
+): void {
+  if (!isBounceIntakeRoute(request.url)) {
     done(Object.assign(new Error('Unsupported Media Type'), { statusCode: 415 }));
     return;
   }
@@ -217,6 +245,11 @@ export class InboundWebhookBodyCapture implements OnApplicationBootstrap {
         INBOUND_WEBHOOK_CONTENT_TYPE,
         { parseAs: 'buffer', bodyLimit: MAX_WEBHOOK_BODY_BYTES },
         parseInboundVendorBody,
+      );
+      instance.addContentTypeParser(
+        BOUNCE_CONTENT_TYPE,
+        { parseAs: 'buffer', bodyLimit: MAX_BOUNCE_BYTES },
+        parseBounceBody,
       );
     } catch (error) {
       this.logger.warn(`Inbound e-mail webhook body capture not registered: ${String(error)}`);

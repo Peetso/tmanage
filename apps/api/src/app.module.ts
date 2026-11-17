@@ -238,6 +238,7 @@ import { BillingUsageExportModule } from './modules/billing/usage-export.control
 import { ChatModule } from './modules/chat/chat.module.js';
 import { UnfurlModule } from './modules/unfurl/unfurl.module.js';
 import { InboundEmailModule } from './modules/inbound-email/inbound-email.module.js';
+import { MailBouncesModule } from './modules/mail-bounces/mail-bounces.module.js';
 import { SupportModule } from './modules/support/support.module.js';
 
 /**
@@ -1212,6 +1213,8 @@ export class AppModule {
         UnfurlModule.register(),
         // R21-f (54-12 / 54-12a): inbound request address, ingest core, log and trust; no poller.
         InboundEmailModule.register(),
+        // 56-26: the signed bounce intake and the admin bounce status / clear routes.
+        MailBouncesModule.register(),
         // Row 55-17: in-app support conversations to the platform team (/support/threads).
         SupportModule.register(),
       ],

@@ -1,6 +1,13 @@
 import { Global, Module } from '@nestjs/common';
-import { ConsoleMailer, QueueMailer, SmtpMailer, withTemplateKey } from '@tmanage/mail';
+import {
+  BounceGuardMailer,
+  ConsoleMailer,
+  QueueMailer,
+  SmtpMailer,
+  withTemplateKey,
+} from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
+import { MailBouncesService } from '../../modules/mail-bounces/mail-bounces.service.js';
 import { MailQueueRepository } from '../database/mail-queue.repository.js';
 import type { TenantDatabase } from '../database/tenant-context.js';
 import type { DynamicModule, Provider } from '@nestjs/common';
@@ -47,6 +54,11 @@ export interface MailerModuleConfig {
    * printing in-process. Off until the drainer runs wherever this API runs (MAIL_QUEUE=on).
    */
   readonly queue?: boolean | undefined;
+  /**
+   * 56-26. `deriveBounceKey(SESSION_SECRET)`: the SMTP driver signs company mail's Message-ID with
+   * it so a bounce can be matched (the worker drainer's driver holds the same key).
+   */
+  readonly bounceKey?: Buffer | undefined;
 }
 
 function driverFrom(config: MailerModuleConfig): Mailer {
@@ -66,6 +78,7 @@ function driverFrom(config: MailerModuleConfig): Mailer {
     password: config.smtpPassword,
     fromAddress: config.fromAddress,
     fromName: config.fromName,
+    bounceKey: config.bounceKey,
   });
 }
 
@@ -101,15 +114,25 @@ function moduleFor(mailer: Mailer | null, webPublicUrl: string): DynamicModule {
   };
 }
 
-/** 56-31: every producer enqueues through `mail_queue` on the global `TENANT_DATABASE`. */
-function queuedModule(webPublicUrl: string): DynamicModule {
+/**
+ * The SMTP shapes, on the global `TENANT_DATABASE`: 56-31's queue (every producer enqueues through
+ * `mail_queue`) or the driver itself, and over either 56-26's `BounceGuardMailer`, which holds a
+ * company's mail to an address that bounced in that company.
+ */
+function guardedModule(
+  transport: (database: TenantDatabase) => Mailer,
+  config: MailerModuleConfig,
+): DynamicModule {
   const QUEUE = Symbol.for('tmanage.MailQueueProducers');
   const queue: Provider = {
     provide: QUEUE,
     inject: [TENANT_DATABASE],
     useFactory: (database: TenantDatabase) => {
-      const mailer = new QueueMailer(new MailQueueRepository(database));
-      return { mailer, ...producersFor(mailer, webPublicUrl) };
+      const mailer = new BounceGuardMailer(
+        transport(database),
+        new MailBouncesService(database, config.bounceKey ?? null),
+      );
+      return { mailer, ...producersFor(mailer, config.webPublicUrl) };
     },
   };
   type Queued = { mailer: Mailer } & ReturnType<typeof producersFor>;
@@ -137,8 +160,15 @@ function queuedModule(webPublicUrl: string): DynamicModule {
 @Module({})
 export class MailerModule {
   static forConfig(config: MailerModuleConfig): DynamicModule {
-    if (config.queue === true && config.driver === 'smtp') return queuedModule(config.webPublicUrl);
-    return moduleFor(driverFrom(config), config.webPublicUrl);
+    if (config.driver === 'console') return moduleFor(driverFrom(config), config.webPublicUrl);
+    if (config.queue === true) {
+      return guardedModule(
+        (database) => new QueueMailer(new MailQueueRepository(database)),
+        config,
+      );
+    }
+    const driver = driverFrom(config);
+    return guardedModule(() => driver, config);
   }
 
   /** A suite's transport, held by the suite. `webPublicUrl` shapes the link under test. */

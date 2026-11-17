@@ -7,6 +7,7 @@ import {
   SendCeilingMailer,
   SmtpMailer,
   composeSecurityAlertDigest,
+  deriveBounceKey,
   deriveUnsubscribeKey,
   withTemplateKey,
 } from '@tmanage/mail';
@@ -195,6 +196,8 @@ function mailerFrom(env: Env): Mailer | null {
     secure: env.SMTP_SECURE,
     username: env.SMTP_USERNAME,
     password: env.SMTP_PASSWORD,
+    // 56-26: queued company mail gets the signed Message-ID its bounce is matched by.
+    bounceKey: deriveBounceKey(env.SESSION_SECRET),
   });
 }
 

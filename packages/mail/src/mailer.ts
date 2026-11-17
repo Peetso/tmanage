@@ -57,6 +57,13 @@ export interface MailMessage {
    * content type is a plain `type/subtype`.
    */
   readonly attachments?: readonly MailAttachment[];
+  /**
+   * 56-26. The company the message is sent for. Set by producers that know it (an invitation);
+   * absent on platform mail. With it, the SMTP driver stamps a signed `Message-ID` a bounce can be
+   * matched by (`bounce-id.ts`), and `BounceGuardMailer` holds mail to an address that bounced in
+   * that company.
+   */
+  readonly organizationId?: string;
 }
 
 /** INVMAIL. One file attached to a message. */

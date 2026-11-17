@@ -174,7 +174,8 @@ export class QueueMailer implements Mailer {
     const ttl = lane === 'auth' ? authDeadlineMs(message.templateKey) : null;
     await this.writer.enqueue({
       id: this.newId(),
-      organizationId: null,
+      // 56-26: the drainer hands it back to the SMTP driver, which signs the Message-ID with it.
+      organizationId: message.organizationId ?? null,
       lane,
       // The intended mailbox; the drainer falls back to noreply@ when security@ is absent.
       mailbox: mailboxForLane(lane, true),

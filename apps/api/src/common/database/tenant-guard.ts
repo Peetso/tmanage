@@ -1367,6 +1367,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0364 (57-13b). Tenant-owned: a company's "Move to Drive" jobs and their counts. Its only parent is
   // `organizations`, so the company erasure may empty it in any order.
   storage_migration_jobs: 'organization_id',
+  // 0366 (56-26). Tenant-owned: a company's bounce record per recipient address hash. Its only
+  // parent is `organizations`, so the company erasure may empty it in any order.
+  mail_recipient_bounces: 'organization_id',
   // 0363 (52-27). Tenant-owned: a client's journey steps on one project. Registered after
   // `project_clients` and `form_submissions` so the company erasure empties it first.
   client_journey_steps: 'organization_id',

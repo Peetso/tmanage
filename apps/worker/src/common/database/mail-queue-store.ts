@@ -19,6 +19,8 @@ import type { WorkerDatabase, WorkerTransaction } from './worker-database.js';
 
 export interface ClaimedMail {
   readonly id: string;
+  /** 56-26: the sending company, handed back to the SMTP driver to sign the Message-ID. */
+  readonly organizationId: string | null;
   readonly lane: MailLane;
   readonly mailbox: Mailbox;
   readonly templateKey: string;
@@ -74,7 +76,7 @@ const SQL = {
       available_at = ?
     where status = 'queued' and lane = ? and available_at <= ?
     order by available_at, id limit ?`,
-  claimed: `select id, lane, mailbox, template_key, payload_json, attempts, deadline_at
+  claimed: `select id, organization_id, lane, mailbox, template_key, payload_json, attempts, deadline_at
     from mail_queue where claim_token = ? and lane = ? and status = 'sending'
     order by available_at, id`,
   defer: `update mail_queue set status = 'deferred', available_at = ?
@@ -169,6 +171,8 @@ export function createMailQueueStore(database: WorkerDatabase): MailQueueStore {
       });
       return rows.map((row) => ({
         id: String(row['id']),
+        organizationId:
+          typeof row['organization_id'] === 'string' ? (row['organization_id'] as string) : null,
         lane: String(row['lane']) as MailLane,
         mailbox: String(row['mailbox']) === 'security' ? 'security' : 'noreply',
         templateKey: String(row['template_key']),

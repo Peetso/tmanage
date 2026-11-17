@@ -170,6 +170,8 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'GET /v1/public/calendar-feeds/:token/tmanage.ics': 'named',
   // R22-c (54-12): inbound e-mail provider webhook - signed delivery, named throttle.
   'POST /v1/public/inbound-email/webhook': 'named',
+  // 56-26: the bounce intake - the same signed delivery, its own named throttle.
+  'POST /v1/public/inbound-email/bounces': 'named',
 };
 
 /** Signed-in routes with no capability because they act only on the caller's own account. */

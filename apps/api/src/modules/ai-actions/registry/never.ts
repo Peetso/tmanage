@@ -1965,6 +1965,19 @@ export const NEVER: readonly NeverEntry[] = [
   },
   { method: 'POST', path: '/v1/public/integrations/github/:hookId', reason: 'public_intake' },
   { method: 'POST', path: '/v1/public/inbound-email/webhook', reason: 'public_intake' },
+  // 56-26 (0366). The signed bounce intake; and an admin checking or clearing a bounce
+  // suppression decides whether the company mails an address again — a person's decision.
+  { method: 'POST', path: '/v1/public/inbound-email/bounces', reason: 'public_intake' },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/mail/bounces/status',
+    reason: 'org_security_manage',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/mail/bounces/clear',
+    reason: 'org_security_manage',
+  },
   {
     method: 'PUT',
     path: '/v1/organizations/:orgSlug/projects/:projectId/work-key-prefix',

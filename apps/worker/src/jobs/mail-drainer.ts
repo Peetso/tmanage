@@ -257,12 +257,15 @@ export async function drainMailOnce(
       report.failed += 1;
       continue;
     }
-    const message = decodeQueuedMessage(row.payloadJson, row.templateKey);
-    if (message === null) {
+    const decoded = decodeQueuedMessage(row.payloadJson, row.templateKey);
+    if (decoded === null) {
       await deps.store.markFailed(row.id, token, 'payload');
       report.failed += 1;
       continue;
     }
+    // 56-26: the company the row was queued for; the SMTP driver signs the Message-ID with it.
+    const message: MailMessage =
+      row.organizationId === null ? decoded : { ...decoded, organizationId: row.organizationId };
     if ((row.lane === 'digest' || row.lane === 'bulk') && deps.suppressions !== undefined) {
       let suppressed = false;
       try {

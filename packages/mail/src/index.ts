@@ -81,6 +81,13 @@ export {
   withTemplateKey,
 } from './queue-mailer.js';
 export type { MailQueueEntry, MailQueueWriter, QueueMailerOptions } from './queue-mailer.js';
+// 56-26 — bounces: the signed Message-ID, the RFC 3464 report reader, the company-scoped guard.
+export { bounceMessageId, deriveBounceKey, readBounceMessageId } from './bounce-id.js';
+export type { BounceMessageIdInput, BounceReference } from './bounce-id.js';
+export { MAX_BOUNCE_BYTES, parseDeliveryReport } from './bounce-report.js';
+export type { BounceKind, DeliveryReport } from './bounce-report.js';
+export { BounceGuardMailer, MailRecipientSuppressedError } from './bounce-guard.js';
+export type { BounceSuppressionLookup } from './bounce-guard.js';
 // 56-23 — the batched security alert's words (sent by the worker's security detector).
 export {
   composeSecurityAlertDigest,

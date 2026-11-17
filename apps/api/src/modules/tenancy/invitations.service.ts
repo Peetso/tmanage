@@ -993,6 +993,7 @@ export class InvitationsService {
       delivery = 'failed';
     } else {
       delivery = await mail.deliver({
+        organizationId: context.organizationId,
         to: row.email,
         clientOrganizationName: facts.clientOrganizationName,
         organizationName: facts.organizationName,

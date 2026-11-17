@@ -1,5 +1,6 @@
 import type { DynamicModule } from '@nestjs/common';
 import type { Env } from '@tmanage/config';
+import { deriveBounceKey } from '@tmanage/mail';
 import { DatabaseModule } from './common/database/database.module.js';
 import { MailerModule } from './common/email/mailer.module.js';
 import { StorageModule } from './common/storage/storage.module.js';
@@ -62,6 +63,8 @@ export function composeAppModule(env: Env): DynamicModule {
       // (lane order, shared hour window). Read here rather than in `packages/config` so the one
       // schema stays untouched this batch; off until the drainer runs beside this API on live.
       queue: process.env['MAIL_QUEUE']?.trim().toLowerCase() === 'on',
+      // 56-26: the key company mail's Message-ID is signed with, so its bounce can be matched.
+      bounceKey: deriveBounceKey(env.SESSION_SECRET),
     }),
     // FILE-001b. `local` is the production single-host driver (Hostinger shared hosting):
     // it stores under `STORAGE_LOCAL_ROOT`, which the module checks at boot is absolute and

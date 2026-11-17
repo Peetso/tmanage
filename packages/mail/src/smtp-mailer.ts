@@ -8,6 +8,7 @@ import type {
   ReceiptMailer,
 } from './mailer.js';
 import { safeAttachment } from './mailer.js';
+import { bounceMessageId } from './bounce-id.js';
 
 /**
  * The `smtp` driver — nodemailer over one configured submission endpoint.
@@ -34,13 +35,23 @@ export interface SmtpMailerOptions extends MailFromOptions {
    * certificate is its own. Absent means full verification, which is the right default.
    */
   readonly tls?: { readonly rejectUnauthorized?: boolean } | undefined;
+  /**
+   * 56-26. `deriveBounceKey(SESSION_SECRET)`. With it, a message that names its company gets a
+   * signed `Message-ID` (`bounce-id.ts`) so its bounce can be matched; without it nodemailer's
+   * random id is used and a bounce cannot be tied to the company.
+   */
+  readonly bounceKey?: Buffer | undefined;
 }
 
 export class SmtpMailer implements ReceiptMailer {
   private readonly transport: Transporter;
   private readonly from: string;
+  private readonly bounceKey: Buffer | undefined;
+  private readonly domain: string;
 
   constructor(options: SmtpMailerOptions) {
+    this.bounceKey = options.bounceKey;
+    this.domain = options.fromAddress.slice(options.fromAddress.lastIndexOf('@') + 1);
     const auth =
       options.username === undefined || options.password === undefined
         ? undefined
@@ -85,7 +96,16 @@ export class SmtpMailer implements ReceiptMailer {
 
   /** 56-31: `send`, plus the server's message id for DSN matching (56-26). */
   async submit(message: MailMessage): Promise<MailReceipt> {
+    const messageId =
+      this.bounceKey === undefined || message.organizationId === undefined
+        ? null
+        : bounceMessageId(this.bounceKey, {
+            organizationId: message.organizationId,
+            to: message.to,
+            domain: this.domain,
+          });
     const result = await this.transport.sendMail({
+      ...(messageId === null ? {} : { messageId }),
       from: this.from,
       to: message.to,
       subject: message.subject,
@@ -113,7 +133,7 @@ export class SmtpMailer implements ReceiptMailer {
     if (rejected.length > 0) {
       throw new Error(`the SMTP server refused ${rejected.length} recipient(s)`);
     }
-    const messageId = typeof result.messageId === 'string' ? result.messageId.slice(0, 255) : null;
-    return { delivery: 'sent', messageId };
+    const serverId = typeof result.messageId === 'string' ? result.messageId.slice(0, 255) : null;
+    return { delivery: 'sent', messageId: serverId };
   }
 }

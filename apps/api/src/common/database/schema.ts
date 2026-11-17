@@ -13838,6 +13838,43 @@ export type StorageMigrationJobRow = typeof storageMigrationJobs.$inferSelect;
 
 Object.assign(TABLES, { storage_migration_jobs: storageMigrationJobs });
 
+// ---- 56-26 · mail bounces (0366) ----
+export const MAIL_BOUNCE_KINDS = ['hard', 'soft'] as const;
+export type MailBounceKind = (typeof MAIL_BOUNCE_KINDS)[number];
+
+/**
+ * 0366 (56-26). One company's bounce record for one recipient address hash (`emailAddressHash`;
+ * the raw address is never stored). `suppressedAt` set = the company's mail to that address is held
+ * back until an owner or admin clears it. TENANT; INSERT and UPDATE for the API.
+ * `0366_mail_recipient_bounces.sql` is the source of truth.
+ */
+export const mailRecipientBounces = mysqlTable(
+  'mail_recipient_bounces',
+  {
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    addressHash: varchar('address_hash', { length: 64 }).notNull(),
+    hardCount: int('hard_count', { unsigned: true }).notNull().default(0),
+    softCount: int('soft_count', { unsigned: true }).notNull().default(0),
+    lastKind: varchar('last_kind', { length: 8 }).$type<MailBounceKind>().notNull(),
+    lastStatus: varchar('last_status', { length: 16 }).notNull(),
+    lastMessageRef: varchar('last_message_ref', { length: 32 }).notNull(),
+    lastBouncedAt: datetime('last_bounced_at', { mode: 'date', fsp: 3 }).notNull(),
+    suppressedAt: datetime('suppressed_at', { mode: 'date', fsp: 3 }),
+    clearedAt: datetime('cleared_at', { mode: 'date', fsp: 3 }),
+    clearedByUserId: char('cleared_by_user_id', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.addressHash] }),
+    index('ix_mail_recipient_bounces_org_suppressed').on(table.organizationId, table.suppressedAt),
+  ],
+);
+
+export type MailRecipientBounceRow = typeof mailRecipientBounces.$inferSelect;
+
+Object.assign(TABLES, { mail_recipient_bounces: mailRecipientBounces });
+
 // ---- R46 L2 · 56-21 platform governance (0334) ----
 
 /**

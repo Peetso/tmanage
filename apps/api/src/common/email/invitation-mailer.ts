@@ -27,6 +27,11 @@ export type InvitationDelivery = 'sent' | 'none' | 'failed';
 /** `deliver`'s input: the composer's facts, minus the link this class builds. */
 export type InvitationDeliveryFacts = Omit<InvitationEmailFacts, 'link'> & {
   readonly token: string;
+  /**
+   * 56-26. The inviting company: the mail's Message-ID is signed with it, and an address that
+   * bounced in this company is not mailed again (`'failed'`: the screen shows the link to send).
+   */
+  readonly organizationId?: string;
 };
 
 export class InvitationMailer {
@@ -55,10 +60,13 @@ export class InvitationMailer {
       return 'none';
     }
 
-    const { token, ...rest } = facts;
+    const { token, organizationId, ...rest } = facts;
     const link = mailLink(this.webPublicUrl, `/invitations/${token}`, rest.locale);
     try {
-      return await this.mailer.send(composeInvitationEmail({ ...rest, link }));
+      const message = composeInvitationEmail({ ...rest, link });
+      return await this.mailer.send(
+        organizationId === undefined ? message : { ...message, organizationId },
+      );
     } catch (error) {
       // The one place a mail error is absorbed, and it is absorbed loudly: the audit row
       // the service writes says `error`, and this line carries the driver's own words —
