@@ -10,7 +10,7 @@ import { setWorkFormAttachments, type WorkFormSummary } from '../../lib/api/work
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useOrganizationSummary } from '../projects/NewProjectLink';
-import { withIsolates } from './PublicFormAttachments';
+import { withIsolates } from '../../lib/i18n/with-isolates';
 
 /** The visitor limit the helper states; the API's `PUBLIC_FORM_UPLOAD_LIMITS` enforces it. */
 const SIZE_EACH = '25 MB';

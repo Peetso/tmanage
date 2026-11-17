@@ -4811,6 +4811,10 @@ import type { PublicFormAttachmentSetting as WebPublicFormAttachmentSetting } fr
 type _publicFormAttachmentSetting = Assert<
   Exact<ApiPublicFormAttachmentSetting, WebPublicFormAttachmentSetting>
 >;
+// 56-26: `POST …/mail/bounces/status|clear` — the Security card "Addresses we stopped sending to".
+import type { MailBounceStatus as ApiMailBounceStatus } from '../../apps/api/src/modules/mail-bounces/mail-bounces.service.js';
+import type { MailBounceStatus as WebMailBounceStatus } from '../../apps/web/src/lib/api/mail-bounces.js';
+type _mailBounceStatus = Assert<Exact<ApiMailBounceStatus, WebMailBounceStatus>>;
 
 // ---- 56-07p Settings · Public links: the workspace link manager ----
 import type {

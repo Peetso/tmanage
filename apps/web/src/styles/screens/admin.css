@@ -868,3 +868,13 @@
     inline-size: auto;
   }
 }
+
+/* 56-26: "Addresses we stopped sending to" — the field takes the row, Check sits on its baseline. */
+.tm-stopped__form {
+  align-items: flex-end;
+}
+
+.tm-stopped__field {
+  flex: 1 1 16rem;
+  min-inline-size: 0;
+}

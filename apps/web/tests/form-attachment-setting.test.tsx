@@ -2,7 +2,7 @@ import { render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ApiClient } from '../src/lib/api/client';
 import { setWorkFormAttachments } from '../src/lib/api/work-forms';
-import { withIsolates } from '../src/components/screens/PublicFormAttachments';
+import { withIsolates } from '../src/lib/i18n/with-isolates';
 import {
   attachmentSettingReady,
   canEditWorkForms,

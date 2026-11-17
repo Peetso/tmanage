@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, InlineAlert } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
 import {
@@ -13,6 +13,7 @@ import {
 } from '../../lib/api/public-forms';
 import { formatBytes } from '../../lib/api/uploads';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { withIsolates } from '../../lib/i18n/with-isolates';
 import { CloseIcon } from '../ai-panel/icons';
 import { FormatIcon } from '../viewer/format-icons';
 
@@ -52,26 +53,6 @@ export interface PublicFormAttachmentsState {
   /** The draft token to send with the form, when at least one file is attached. */
   token(): string | undefined;
   reset(): void;
-}
-
-/**
- * Fills `{name}` placeholders with values each kept in a bidi isolate, so "25 MB" or a Latin file
- * name stays whole and in order inside an Arabic sentence.
- */
-export function withIsolates(
-  template: string,
-  values: Readonly<Record<string, string>>,
-): ReactNode {
-  return template.split(/(\{[a-z]+\})/u).map((part, index) => {
-    const value = /^\{([a-z]+)\}$/u.exec(part)?.[1];
-    return value !== undefined && values[value] !== undefined ? (
-      <bdi key={index} dir="ltr">
-        {values[value]}
-      </bdi>
-    ) : (
-      part
-    );
-  });
 }
 
 export function usePublicFormAttachments(
