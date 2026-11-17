@@ -805,11 +805,15 @@ import type {
   PortalJourney as WebPortalJourney,
   PortalJourneyStep as WebPortalJourneyStep,
   PortalJourneyTurn as WebPortalJourneyTurn,
+  PortalJourneyReviewTurn as WebPortalJourneyReviewTurn,
+  PortalJourneyStepTurn as WebPortalJourneyStepTurn,
 } from '../../apps/web/src/lib/api/portal';
 import type {
   PortalJourney as ApiPortalJourney,
   PortalJourneyStep as ApiPortalJourneyStep,
   PortalJourneyTurn as ApiPortalJourneyTurn,
+  PortalJourneyReviewTurn as ApiPortalJourneyReviewTurn,
+  PortalJourneyStepTurn as ApiPortalJourneyStepTurn,
 } from '../../apps/api/src/modules/portal/portal-journey.js';
 import type {
   PortalSignatureView as ApiPortalSignatureView,
@@ -4624,6 +4628,10 @@ type _autoTrackingPolicyChoice = Assert<
 type _portalJourney = Assert<Exact<ApiPortalJourney, WebPortalJourney>>;
 type _portalJourneyStep = Assert<Exact<ApiPortalJourneyStep, WebPortalJourneyStep>>;
 type _portalJourneyTurn = Assert<Exact<ApiPortalJourneyTurn, WebPortalJourneyTurn>>;
+type _portalJourneyReviewTurn = Assert<
+  Exact<ApiPortalJourneyReviewTurn, WebPortalJourneyReviewTurn>
+>;
+type _portalJourneyStepTurn = Assert<Exact<ApiPortalJourneyStepTurn, WebPortalJourneyStepTurn>>;
 
 /**
  * 58-C1 branching rule builder. `GET|PUT …/automations/templates/:templateId/flow` (and the turn-on)

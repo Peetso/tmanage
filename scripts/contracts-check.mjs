@@ -69,6 +69,18 @@ const asJson = process.argv.includes('--json');
  */
 const EXEMPT = new Map([
   [
+    'JourneyStepView',
+    'No web consumer yet: 52-27 studio journey steps (GET|POST|PATCH|DELETE …/projects/:projectId/journey-steps) have no apps/web client; only the portal stepper is built.',
+  ],
+  [
+    'JourneyTemplateView',
+    'No web consumer yet: 52-27 GET …/journey-templates has no apps/web client; the studio template picker is not built.',
+  ],
+  [
+    'StorageMoveView',
+    'No web consumer yet: 57-13b "Move to Drive" job (…/integrations/storage/migration-jobs) is backend only; no apps/web client is built.',
+  ],
+  [
     'PlanVersionView',
     'No web consumer yet: 57-02 plan ladder is backend only (GET|POST /v1/platform/plan-versions); no platform screen or apps/web client is built.',
   ],
