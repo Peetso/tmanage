@@ -1049,5 +1049,10 @@
   "PortalJourney.kindMeeting": "میٹنگ",
   "AuditActionLabel.storage_migration.started": "کمپنی اسٹوریج میں فائلیں منتقل کرنا شروع کیا",
   "AuditActionLabel.mail_bounce.cleared": "واپس آنے والا ای میل پتہ بحال کیا",
+  "StoppedInvitation.chip": "نہیں پہنچی",
+  "StoppedInvitation.notice": "{address} کو بھیجی گئی دعوت نہیں پہنچی۔ اس پتے پر بھیجی گئی میل بار بار واپس آ رہی ہے، اس لیے TManage نے اس پر بھیجنا بند کر دیا۔",
+  "StoppedInvitation.check": "پتہ چیک کریں",
+  "StoppedInvitation.sendAgain": "اسے دوبارہ بھیجیں",
+  "StoppedInvitation.clearError": "ہم اس پتے پر دوبارہ بھیجنا شروع نہیں کر سکے۔ دوبارہ کوشش کریں۔",
   "AuditActionLabel.storage_migration.finished": "کمپنی اسٹوریج میں فائلیں منتقل کرنا مکمل کیا"
 }
