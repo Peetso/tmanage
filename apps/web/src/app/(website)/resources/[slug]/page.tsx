@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { MarketingResourceScreen } from '../../../../components/screens/MarketingResourceScreen';
 import { ResourceArticlePage } from '../../../../components/website/pages/resources/ResourceArticlePage';
 import { findResource } from '../../../../components/website/pages/resources/resources-data';
+import { ResourceJsonLd } from '../../../../components/website/structured-data/ResourceJsonLd';
 
 /**
  * **Public resource / guide article** — `/resources/[slug]`.
@@ -26,5 +27,11 @@ export async function generateMetadata({
 export default async function ResourcePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const item = findResource(slug);
-  return item ? <ResourceArticlePage item={item} /> : <MarketingResourceScreen slug={slug} />;
+  if (item === undefined) return <MarketingResourceScreen slug={slug} />;
+  return (
+    <>
+      <ResourceJsonLd english={`/resources/${item.slug}`} language="en" />
+      <ResourceArticlePage item={item} />
+    </>
+  );
 }

@@ -8,7 +8,7 @@ import {
   webPageAbout,
   type JsonLd,
 } from '../../../lib/structured-data';
-import { JsonLdScript, type PageContext, type PageFamilyProps } from './page-context';
+import { JsonLdScript, pageContext, type PageContext, type PageFamilyProps } from './page-context';
 
 /** The compare hub: the list of compare pages its cards show. */
 function compareIndexData(context: PageContext): JsonLd[] {
@@ -79,6 +79,6 @@ function compareFamilyData(context: PageContext): JsonLd[] {
 }
 
 /** The compare hub, a compare page (`/compare/<slug>`) or a switch page (`/switch/<slug>`). */
-export function CompareJsonLd({ context }: PageFamilyProps) {
-  return <JsonLdScript items={compareFamilyData(context)} />;
+export function CompareJsonLd({ english, language }: PageFamilyProps) {
+  return <JsonLdScript items={compareFamilyData(pageContext(english, language))} />;
 }

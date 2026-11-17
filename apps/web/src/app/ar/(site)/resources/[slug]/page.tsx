@@ -9,6 +9,7 @@ import {
 import { ARABIC_ROUTE_LOCALE } from '../../../../../lib/i18n/public-locale-routes';
 import { translate } from '../../../../../lib/i18n/t';
 import { TITLE_SUFFIX } from '../../../../../lib/route-titles';
+import { ResourceJsonLd } from '../../../../../components/website/structured-data/ResourceJsonLd';
 
 /**
  * **A library article in Arabic** — `/ar/resources/[slug]` (Figma `426:13485`).
@@ -38,5 +39,10 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 export default async function ArabicResourcePage({ params }: { params: Params }) {
   const item = findResource((await params).slug);
   if (item === undefined) notFound();
-  return <ResourceArticlePage item={item} />;
+  return (
+    <>
+      <ResourceJsonLd english={`/resources/${item.slug}`} language="ar" />
+      <ResourceArticlePage item={item} />
+    </>
+  );
 }

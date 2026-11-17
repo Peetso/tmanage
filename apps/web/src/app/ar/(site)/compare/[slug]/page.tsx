@@ -5,6 +5,7 @@ import { ComparePage } from '../../../../../components/website/pages/compare/Com
 import { COMPARE_ENTRIES, findCompareEntry } from '../../../../../content/compare/compare-entries';
 import { COMPARE_COPY } from '../../../../../content/compare/compare-copy';
 import { TITLE_SUFFIX } from '../../../../../lib/route-titles';
+import { CompareJsonLd } from '../../../../../components/website/structured-data/CompareJsonLd';
 
 /** Row 57-06 — one compare page in Arabic, `/ar/compare/[slug]`; other slugs are the Arabic 404. */
 type Params = Promise<{ slug: string }>;
@@ -25,5 +26,10 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 export default async function ArabicCompareEntryRoute({ params }: { params: Params }) {
   const entry = findCompareEntry((await params).slug);
   if (entry === undefined) notFound();
-  return <ComparePage entry={entry} />;
+  return (
+    <>
+      <CompareJsonLd english={`/compare/${entry.slug}`} language="ar" />
+      <ComparePage entry={entry} />
+    </>
+  );
 }

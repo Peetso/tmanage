@@ -1,27 +1,70 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { prerender } from 'react-dom/static';
+import type { ReactElement } from 'react';
+import { renderToString } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { PublicStructuredData } from '../src/components/website/PublicStructuredData';
+import CompareRoute from '../src/app/(website)/compare/page';
+import CompareEntryRoute from '../src/app/(website)/compare/[slug]/page';
+import HelpArticleRoute from '../src/app/(website)/help/[slug]/page';
+import ResourcePage from '../src/app/(website)/resources/[slug]/page';
+import SwitchEntryRoute from '../src/app/(website)/switch/[slug]/page';
+import ArabicCompareEntryRoute from '../src/app/ar/(site)/compare/[slug]/page';
+import { WebsiteChrome } from '../src/components/website/WebsiteChrome';
 import { COMPARE_ENTRIES } from '../src/content/compare/compare-entries';
+import { RouteLocaleProvider } from '../src/lib/i18n/route-locale';
 import { jsonLdGraph, type JsonLd, type JsonLdValue } from '../src/lib/structured-data';
 
 let mockPathname = '/';
-vi.mock('next/navigation', () => ({ usePathname: () => mockPathname }));
+vi.mock('next/navigation', () => ({
+  usePathname: () => mockPathname,
+  notFound: () => {
+    throw new Error('not found');
+  },
+}));
 
 const ORIGIN = 'https://tmanageapp.com';
 
-/**
- * The JSON-LD items the page at `pathname` emits, one per `@graph` node. Prerendered like the
- * build does it: the help, library and compare families load lazily and are waited for.
- */
-async function itemsAt(pathname: string): Promise<JsonLd[]> {
+type SlugRoute = (props: { params: Promise<{ slug: string }> }) => Promise<ReactElement>;
+
+/** The route that renders each page family, by the start of its path. */
+const SLUG_ROUTES: readonly (readonly [string, SlugRoute])[] = [
+  ['/ar/compare/', ArabicCompareEntryRoute],
+  ['/compare/', CompareEntryRoute],
+  ['/switch/', SwitchEntryRoute],
+  ['/help/', HelpArticleRoute],
+  ['/resources/', ResourcePage],
+];
+
+/** The page at `pathname` as its route renders it on the server, inside the website chrome. */
+async function pageAt(pathname: string): Promise<ReactElement> {
+  if (pathname === '/compare') return CompareRoute();
+  const found = SLUG_ROUTES.find(([prefix]) => pathname.startsWith(prefix));
+  // Home, pricing and every other page: the chrome's own JSON-LD only.
+  if (found === undefined) return <p />;
+  const [prefix, route] = found;
+  return route({ params: Promise.resolve({ slug: pathname.slice(prefix.length) }) });
+}
+
+/** The server-rendered HTML of the page at `pathname`: what a crawler gets before any script. */
+async function serverHtml(pathname: string): Promise<string> {
   mockPathname = pathname;
-  const { prelude } = await prerender(<PublicStructuredData />);
-  const html = await new Response(prelude).text();
-  const match = /<script type="application\/ld\+json">([^<]*)<\/script>/.exec(html);
-  if (match === null) return [];
-  const data = JSON.parse(match[1] ?? 'null') as JsonLd;
+  const page = await pageAt(pathname);
+  return renderToString(
+    <RouteLocaleProvider locale={pathname.startsWith('/ar/') ? 'ar-EG' : 'en-US'}>
+      <WebsiteChrome>{page}</WebsiteChrome>
+    </RouteLocaleProvider>,
+  );
+}
+
+const JSON_LD = /<script type="application\/ld\+json">([^<]*)<\/script>/g;
+
+/** The JSON-LD items the page at `pathname` emits in its first HTML, one per `@graph` node. */
+async function itemsAt(pathname: string): Promise<JsonLd[]> {
+  const blocks = [...(await serverHtml(pathname)).matchAll(JSON_LD)];
+  expect(blocks.length).toBeLessThanOrEqual(1);
+  const text = blocks[0]?.[1];
+  if (text === undefined) return [];
+  const data = JSON.parse(text) as JsonLd;
   const graph = data['@graph'];
   return Array.isArray(graph) ? (graph as JsonLd[]) : [data];
 }
@@ -92,18 +135,18 @@ describe('public structured data per page type', () => {
     });
   });
 
-  it('the chrome loads no help, library or compare data until a page of that family needs it', async () => {
-    const source = readFileSync(
-      join(__dirname, '..', 'src', 'components', 'website', 'PublicStructuredData.tsx'),
-      'utf8',
-    );
-    const staticImports = [...source.matchAll(/^import [^;]*? from '([^']+)';/gms)].map(
-      (match) => match[1] ?? '',
-    );
-    expect(staticImports.length).toBeGreaterThan(5);
-    expect(staticImports.filter((path) => /content\/|resources-data|JsonLd$/.test(path))).toEqual(
-      [],
-    );
+  it('the browser code of every public page carries no help, library or compare content', async () => {
+    const importsOf = (...path: string[]): string[] =>
+      [
+        ...readFileSync(join(__dirname, '..', 'src', ...path), 'utf8').matchAll(
+          /^import [^;]*? from '([^']+)';/gms,
+        ),
+      ].map((match) => match[1] ?? '');
+    const chrome = importsOf('components', 'website', 'PublicStructuredData.tsx');
+    const routes = importsOf('lib', 'i18n', 'public-locale-routes.ts');
+    expect(Math.min(chrome.length, routes.length)).toBeGreaterThan(5);
+    const content = /content\/(?!.*-slugs$)|resources-data|JsonLd$/;
+    expect([...chrome, ...routes].filter((path) => content.test(path))).toEqual([]);
     expect(await typesAt('/pricing')).toEqual(['FAQPage']);
   });
 });

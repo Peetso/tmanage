@@ -6,7 +6,8 @@ import { absoluteSiteUrl, siteOrigin } from './site-origin';
  * says: the company, the site and the product (free during the beta, price 0, no ratings), the
  * pricing page's FAQ and the breadcrumbs an article page shows; since SEOA (2026-11-17) also the
  * compare hub's list, a compare or switch page's WebPage, a help article's steps and a library
- * article. `PublicStructuredData` chooses and renders it.
+ * article. `PublicStructuredData` renders the home and pricing data; the help, library, compare
+ * and switch routes render their own on the server (`structured-data/*JsonLd`, SEOE).
  */
 
 export type JsonLd = { readonly [key: string]: JsonLdValue };

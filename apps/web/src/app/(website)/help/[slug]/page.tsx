@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { HelpArticlePage } from '../../../../components/website/pages/help/HelpArticlePage';
 import { HELP_ARTICLES, findHelpArticle } from '../../../../content/help/help-articles';
+import { HelpJsonLd } from '../../../../components/website/structured-data/HelpJsonLd';
 
 /** Row 55-16 — one Help centre article, `/help/[slug]`; every article is prerendered. */
 type Params = Promise<{ slug: string }>;
@@ -20,5 +21,10 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 export default async function HelpArticleRoute({ params }: { params: Params }) {
   const article = findHelpArticle((await params).slug);
   if (article === undefined) notFound();
-  return <HelpArticlePage article={article} />;
+  return (
+    <>
+      <HelpJsonLd english={`/help/${article.slug}`} language="en" />
+      <HelpArticlePage article={article} />
+    </>
+  );
 }

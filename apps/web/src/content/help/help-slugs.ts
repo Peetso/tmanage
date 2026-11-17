@@ -1,0 +1,30 @@
+/**
+ * The slugs of the Help centre articles (`/help/<slug>`), without their content (SEOE,
+ * 2026-11-17): the Arabic twin table reads these, so the articles stay out of every public page's
+ * bundle. `compare-slugs.test.tsx` keeps them equal to the slugs of `HELP_ARTICLES`, in order.
+ */
+export const HELP_SLUGS = [
+  'create-your-workspace',
+  'invite-your-team',
+  'start-a-project',
+  'milestones-and-dates',
+  'create-and-assign-tasks',
+  'task-approval',
+  'invite-a-client',
+  'what-clients-see',
+  'upload-and-share-files',
+  'connect-drive-onedrive',
+  'log-time-timesheets',
+  'invoices-and-expenses',
+  'two-step-sign-in',
+  'sessions-and-devices',
+  'export-from-monday',
+  'export-from-asana',
+  'export-from-clickup',
+  'export-from-trello',
+  'export-from-basecamp',
+  'export-from-jira',
+  'connect-an-ai-assistant',
+] as const;
+
+export type HelpSlug = (typeof HELP_SLUGS)[number];

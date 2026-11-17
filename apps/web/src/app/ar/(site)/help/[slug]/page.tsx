@@ -4,6 +4,7 @@ import { ARABIC_NOT_FOUND_METADATA } from '../../../../../components/website/Ara
 import { HelpArticlePage } from '../../../../../components/website/pages/help/HelpArticlePage';
 import { HELP_ARTICLES, findHelpArticle } from '../../../../../content/help/help-articles';
 import { TITLE_SUFFIX } from '../../../../../lib/route-titles';
+import { HelpJsonLd } from '../../../../../components/website/structured-data/HelpJsonLd';
 
 /** Row 55-16 — one Help centre article in Arabic, `/ar/help/[slug]`; other slugs are the Arabic 404. */
 type Params = Promise<{ slug: string }>;
@@ -24,5 +25,10 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 export default async function ArabicHelpArticleRoute({ params }: { params: Params }) {
   const article = findHelpArticle((await params).slug);
   if (article === undefined) notFound();
-  return <HelpArticlePage article={article} />;
+  return (
+    <>
+      <HelpJsonLd english={`/help/${article.slug}`} language="ar" />
+      <HelpArticlePage article={article} />
+    </>
+  );
 }

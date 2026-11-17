@@ -143,6 +143,7 @@ export const SWITCH_COPY = {
     files:
       'Attachments are not copied over. Your files can stay in your own Google Drive or OneDrive.',
     compareLink: (name: string) => `TManage vs ${name}`,
+    helpLink: (name: string) => `How to export your work from ${name}, step by step`,
   },
   ar: {
     eyebrow: 'الانتقال',
@@ -160,6 +161,7 @@ export const SWITCH_COPY = {
     filesTitle: 'الملفات والمرفقات',
     files: 'لا تُنسخ المرفقات. ويمكن أن تبقى ملفاتك في Google Drive أو OneDrive الخاص بك.',
     compareLink: (name: string) => `${RLM}TManage مقابل ${name}`,
+    helpLink: (name: string) => `كيف تصدّر عملك من ${name}${RLM}، خطوة بخطوة`,
   },
 } satisfies Record<CompareLanguage, unknown>;
 

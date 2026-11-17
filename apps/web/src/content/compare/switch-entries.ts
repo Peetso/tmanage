@@ -23,12 +23,10 @@ export interface SwitchRow {
 
 export interface SwitchEntry {
   readonly slug: string;
-  /** The product name, in Latin script in both languages. */
+  /** The product name, in Latin script in both languages (also in `SWITCH_LINKS`). */
   readonly name: string;
   /** The import source the page leads to. */
   readonly source: ImportSourceId;
-  /** The matching compare page, when there is one. */
-  readonly compareSlug?: string;
   /** Three situations a reader may recognise; never a claim about the other product. */
   readonly situations: Readonly<Record<CompareLanguage, readonly [string, string, string]>>;
   /** How the move works in TManage, step by step. */
@@ -83,7 +81,6 @@ export const SWITCH_ENTRIES: readonly SwitchEntry[] = [
     slug: 'monday',
     name: 'monday.com',
     source: 'monday',
-    compareSlug: 'monday',
     situations: {
       en: [
         'Your boards now hold client projects, and clients keep asking where things stand',
@@ -121,7 +118,6 @@ export const SWITCH_ENTRIES: readonly SwitchEntry[] = [
     slug: 'asana',
     name: 'Asana',
     source: 'asana',
-    compareSlug: 'asana',
     situations: {
       en: [
         'You plan client work in projects and want clients to approve it in the same place',
@@ -155,7 +151,6 @@ export const SWITCH_ENTRIES: readonly SwitchEntry[] = [
     slug: 'clickup',
     name: 'ClickUp',
     source: 'clickup',
-    compareSlug: 'clickup',
     situations: {
       en: [
         'You want one place where clients review and approve your work',
@@ -226,7 +221,6 @@ export const SWITCH_ENTRIES: readonly SwitchEntry[] = [
     slug: 'basecamp',
     name: 'Basecamp',
     source: 'basecamp',
-    compareSlug: 'basecamp',
     situations: {
       en: [
         'You want clients to approve work and keep a record of each approval',

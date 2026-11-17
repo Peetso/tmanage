@@ -1,7 +1,7 @@
 import { findHelpArticle, findHelpCategory } from '../../../content/help/help-articles';
 import { helpCopy } from '../../../content/help/help-copy';
 import { breadcrumbList, howTo, type JsonLd } from '../../../lib/structured-data';
-import { JsonLdScript, type PageContext, type PageFamilyProps } from './page-context';
+import { JsonLdScript, pageContext, type PageContext, type PageFamilyProps } from './page-context';
 
 function helpData(context: PageContext): JsonLd[] {
   const found = findHelpArticle(context.english.slice('/help/'.length));
@@ -27,6 +27,6 @@ function helpData(context: PageContext): JsonLd[] {
 }
 
 /** A help article (`/help/<slug>`): its breadcrumb trail, and its numbered steps as a HowTo. */
-export function HelpJsonLd({ context }: PageFamilyProps) {
-  return <JsonLdScript items={helpData(context)} />;
+export function HelpJsonLd({ english, language }: PageFamilyProps) {
+  return <JsonLdScript items={helpData(pageContext(english, language))} />;
 }

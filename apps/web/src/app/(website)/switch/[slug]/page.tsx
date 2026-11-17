@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { SwitchPage } from '../../../../components/website/pages/compare/ComparePage';
 import { SWITCH_COPY } from '../../../../content/compare/compare-copy';
 import { SWITCH_ENTRIES, findSwitchEntry } from '../../../../content/compare/switch-entries';
+import { CompareJsonLd } from '../../../../components/website/structured-data/CompareJsonLd';
 
 /** Row 54-29 — one "switch from X" page, `/switch/[slug]`; every entry is prerendered. */
 type Params = Promise<{ slug: string }>;
@@ -24,5 +25,10 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 export default async function SwitchEntryRoute({ params }: { params: Params }) {
   const entry = findSwitchEntry((await params).slug);
   if (entry === undefined) notFound();
-  return <SwitchPage entry={entry} />;
+  return (
+    <>
+      <CompareJsonLd english={`/switch/${entry.slug}`} language="en" />
+      <SwitchPage entry={entry} />
+    </>
+  );
 }

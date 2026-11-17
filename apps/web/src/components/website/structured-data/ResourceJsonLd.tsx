@@ -1,6 +1,6 @@
 import { article, breadcrumbList, type JsonLd } from '../../../lib/structured-data';
 import { findResource } from '../pages/resources/resources-data';
-import { JsonLdScript, type PageContext, type PageFamilyProps } from './page-context';
+import { JsonLdScript, pageContext, type PageContext, type PageFamilyProps } from './page-context';
 
 function resourceData(context: PageContext): JsonLd[] {
   const item = findResource(context.english.slice('/resources/'.length));
@@ -22,6 +22,6 @@ function resourceData(context: PageContext): JsonLd[] {
 }
 
 /** A library article (`/resources/<slug>`): its breadcrumb trail and the Article itself. */
-export function ResourceJsonLd({ context }: PageFamilyProps) {
-  return <JsonLdScript items={resourceData(context)} />;
+export function ResourceJsonLd({ english, language }: PageFamilyProps) {
+  return <JsonLdScript items={resourceData(pageContext(english, language))} />;
 }

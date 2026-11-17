@@ -72,9 +72,10 @@ describe('the Arabic twins of sign-in, sign-up and the articles', () => {
     expect(readFileSync(join(APP, 'ar', 'sign-in', 'page.tsx'), 'utf8')).toContain(
       "import SignInPage from '../../sign-in/page';",
     );
-    expect(readFileSync(join(APP, 'ar', 'sign-up', 'page.tsx'), 'utf8')).toContain(
-      '<SignUpScreen />',
-    );
+    // Both wrap the screen in SignUpWithImport (d7c520fd), which keeps ?import= after sign-up.
+    for (const page of [join(APP, 'ar', 'sign-up', 'page.tsx'), join(APP, 'sign-up', 'page.tsx')]) {
+      expect(readFileSync(page, 'utf8')).toContain('<SignUpWithImport />');
+    }
   });
 
   it('knows which paths have a twin', () => {

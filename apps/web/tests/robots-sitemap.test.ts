@@ -5,7 +5,17 @@ import { metadata as signInMetadata } from '@/app/sign-in/layout';
 import { metadata as signUpMetadata } from '@/app/sign-up/page';
 import { metadata as arabicSignInMetadata } from '@/app/ar/sign-in/page';
 import { metadata as arabicSignUpMetadata } from '@/app/ar/sign-up/page';
-import { arabicTwinPath, NOINDEX_AUTH_PATHS } from '@/lib/i18n/public-locale-routes';
+import { ALL_RESOURCES } from '@/components/website/pages/resources/resources-data';
+import { COMPARE_ENTRIES } from '@/content/compare/compare-entries';
+import { SWITCH_ENTRIES } from '@/content/compare/switch-entries';
+import { HELP_ARTICLES } from '@/content/help/help-articles';
+import {
+  ARABIC_AUTH_PATHS,
+  arabicTwinPath,
+  NOINDEX_AUTH_PATHS,
+  PUBLIC_LOCALIZED_PATHS,
+} from '@/lib/i18n/public-locale-routes';
+import { SINGLE_LOCALE_PATHS } from '@/lib/i18n/public-single-locale';
 import { absoluteSiteUrl } from '@/lib/site-origin';
 
 describe('robots.txt and sitemap.xml (live 307 to /robots.txt/home, 2026-10-26)', () => {
@@ -26,12 +36,22 @@ describe('robots.txt and sitemap.xml (live 307 to /robots.txt/home, 2026-10-26)'
         'https://tmanageapp.com/ar/pricing',
       ]),
     );
-    // 27 website pages (A11YPAGE /accessibility, 51-10a /download, 54-17 /security/data-location, 56-17
-    // /security/disclosure, 54-04 /developers), 12 library articles,
-    // sign-up (not the noindex sign-in, SEOFIX), the Help centre and its 14 articles (55-16), and
-    // the 57-06 compare index and its 20 pages (12 added by SEO B3), and the 6 switch pages (54-29)
-    // — each in English and Arabic.
-    expect(urls.length).toBe(164);
+    // Each indexed page with a twin in English and Arabic: the website pages, sign-up (not the
+    // noindex sign-in, SEOFIX), the library articles, the Help centre and its articles (55-16),
+    // the compare index and its pages (57-06) and the switch pages (54-29); and each single-language
+    // page once (B12). Counted from the content, so a new page does not break this test (SEOE).
+    const withTwin =
+      PUBLIC_LOCALIZED_PATHS.length +
+      ARABIC_AUTH_PATHS.length -
+      NOINDEX_AUTH_PATHS.length +
+      ALL_RESOURCES.length +
+      1 +
+      HELP_ARTICLES.length +
+      1 +
+      COMPARE_ENTRIES.length +
+      SWITCH_ENTRIES.length;
+    expect(urls.length).toBe(2 * withTwin + SINGLE_LOCALE_PATHS.length);
+    expect(new Set(urls).size).toBe(urls.length);
   });
 
   it('names no noindex page (SEOFIX: /sign-in and /ar/sign-in were listed)', () => {

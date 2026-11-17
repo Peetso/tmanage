@@ -11,6 +11,7 @@ import {
   type CompareEntry,
 } from '../../../../content/compare/compare-entries';
 import { SWITCH_COPY, compareCopy } from '../../../../content/compare/compare-copy';
+import { switchLinks } from '../../../../content/compare/compare-slugs';
 import type { SwitchEntry } from '../../../../content/compare/switch-entries';
 import { localizeHref } from '../../../../lib/i18n/public-locale-routes';
 import { SIGN_UP_HREF } from '../../../../lib/public-signup';
@@ -133,6 +134,7 @@ export function SwitchPage({ entry }: { entry: SwitchEntry }) {
   const copy = compareCopy(language);
   const words = SWITCH_COPY[language];
   const href = (path: string) => (language === 'ar' ? localizeHref(path) : path);
+  const links = switchLinks(entry.slug);
 
   return (
     <>
@@ -182,14 +184,19 @@ export function SwitchPage({ entry }: { entry: SwitchEntry }) {
           <InfoCard title={words.filesTitle} body={words.files} />
         </div>
         <p className="tm-web-compare-all">
-          {entry.compareSlug === undefined ? (
+          {links?.compareSlug === undefined ? (
             <Link href={compareHref(undefined, language)}>{copy.allCompare}</Link>
           ) : (
-            <Link href={compareHref(entry.compareSlug, language)}>
+            <Link href={compareHref(links.compareSlug, language)}>
               {words.compareLink(entry.name)}
             </Link>
           )}
         </p>
+        {links === undefined ? null : (
+          <p className="tm-web-compare-all">
+            <Link href={href(`/help/${links.helpSlug}`)}>{words.helpLink(entry.name)}</Link>
+          </p>
+        )}
       </WebSection>
 
       <CtaBand

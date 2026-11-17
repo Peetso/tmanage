@@ -1,4 +1,6 @@
-import type { MessageKey } from '../../../lib/i18n/t';
+import { ARABIC_ROUTE_LOCALE, arabicTwinPath } from '../../../lib/i18n/public-locale-routes';
+import { translate, type MessageKey } from '../../../lib/i18n/t';
+import { absoluteSiteUrl } from '../../../lib/site-origin';
 import {
   jsonLdGraph,
   jsonLdText,
@@ -16,9 +18,25 @@ export interface PageContext {
   readonly url: (englishPath: string) => string;
 }
 
-/** The props of a page family's structured data (help, library, compare and switch). */
+/** The context of the page at an English path, in the language of its URL. */
+export function pageContext(english: string, language: PageLanguage): PageContext {
+  const arabic = language === 'ar';
+  return {
+    english,
+    language,
+    t: (key) => translate(arabic ? ARABIC_ROUTE_LOCALE : 'en', key),
+    url: (path) => absoluteSiteUrl(arabic ? arabicTwinPath(path) : path),
+  };
+}
+
+/**
+ * The props of a page family's structured data (help, library, compare and switch): rendered on
+ * the server by the page's own route, so the JSON-LD is in the prerendered HTML.
+ */
 export interface PageFamilyProps {
-  readonly context: PageContext;
+  /** The page's English path (`/compare/basecamp`), also for its Arabic twin. */
+  readonly english: string;
+  readonly language: PageLanguage;
 }
 
 /**

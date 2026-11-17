@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
-import { ALL_RESOURCES } from '../../components/website/pages/resources/resources-data';
-import { COMPARE_ENTRIES } from '../../content/compare/compare-entries';
-import { SWITCH_ENTRIES } from '../../content/compare/switch-entries';
-import { HELP_ARTICLES } from '../../content/help/help-articles';
+import { RESOURCE_SLUGS } from '../../components/website/pages/resources/resource-slugs';
+import { COMPARE_SLUGS, SWITCH_SLUGS } from '../../content/compare/compare-slugs';
+import { HELP_SLUGS } from '../../content/help/help-slugs';
 import type { DisplayLocale } from '../api/display-preferences';
 import { homePageTitle, PAGE_OWNS_TITLE, ROUTE_TITLES, TITLE_SUFFIX } from '../route-titles';
 import { siteDescription } from './locale-html';
@@ -89,27 +88,28 @@ export function authPageRobots(path: ArabicAuthPath): NonNullable<Metadata['robo
     : { index: true, follow: true };
 }
 
+/*
+ * The article, help, compare and switch paths are built from slug-only lists (SEOE): this module
+ * runs in the browser on every public page, and the full content must not come with it.
+ */
+
 /** Every article of the resources library (`/resources/<slug>`), which has an Arabic twin. */
-export const ARTICLE_PATHS: readonly string[] = ALL_RESOURCES.map(
-  (item) => `/resources/${item.slug}`,
-);
+export const ARTICLE_PATHS: readonly string[] = RESOURCE_SLUGS.map((slug) => `/resources/${slug}`);
 
 /** The Help centre (row 55-16) and its articles, each with an Arabic twin under `/ar/help`. */
 export const HELP_PATHS: readonly string[] = [
   '/help',
-  ...HELP_ARTICLES.map((article) => `/help/${article.slug}`),
+  ...HELP_SLUGS.map((slug) => `/help/${slug}`),
 ];
 
 /** The compare pages (row 57-06) and their index, each with an Arabic twin under `/ar/compare`. */
 export const COMPARE_PATHS: readonly string[] = [
   '/compare',
-  ...COMPARE_ENTRIES.map((entry) => `/compare/${entry.slug}`),
+  ...COMPARE_SLUGS.map((slug) => `/compare/${slug}`),
 ];
 
 /** The "switch from X" pages (row 54-29), each with an Arabic twin under `/ar/switch`. */
-export const SWITCH_PATHS: readonly string[] = SWITCH_ENTRIES.map(
-  (entry) => `/switch/${entry.slug}`,
-);
+export const SWITCH_PATHS: readonly string[] = SWITCH_SLUGS.map((slug) => `/switch/${slug}`);
 
 const WITH_TWIN: ReadonlySet<string> = new Set<string>([
   ...PUBLIC_LOCALIZED_PATHS,

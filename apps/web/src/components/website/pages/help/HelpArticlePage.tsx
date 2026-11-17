@@ -9,10 +9,36 @@ import {
   findHelpCategory,
   helpHref,
   type HelpArticle,
+  type HelpLanguage,
 } from '../../../../content/help/help-articles';
 import { helpCopy } from '../../../../content/help/help-copy';
+import { switchLinksOfHelp } from '../../../../content/compare/compare-slugs';
+import { localizeHref } from '../../../../lib/i18n/public-locale-routes';
 import { useHelpLanguage } from './use-help-language';
 import './help.css';
+
+interface HelpLink {
+  readonly href: string;
+  readonly label: string;
+}
+
+/** A "Move your work from X" article links back to the switch and compare pages of X (SEOE). */
+function switchBackLinks(slug: string, language: HelpLanguage): HelpLink[] {
+  const switching = switchLinksOfHelp(slug);
+  if (switching === undefined) return [];
+  const copy = helpCopy(language);
+  const href = (path: string) => (language === 'ar' ? localizeHref(path) : path);
+  const links = [
+    { href: href(`/switch/${switching.slug}`), label: copy.switchLink(switching.name) },
+  ];
+  if (switching.compareSlug !== undefined) {
+    links.push({
+      href: href(`/compare/${switching.compareSlug}`),
+      label: copy.compareLink(switching.name),
+    });
+  }
+  return links;
+}
 
 /**
  * Row 55-16 — one help article (`/help/<slug>`, `/ar/help/<slug>`; Figma R35 L2-55-16): breadcrumb,
@@ -26,7 +52,9 @@ export function HelpArticlePage({ article }: { article: HelpArticle }) {
   const category = findHelpCategory(article.category);
   const related = article.related
     .map(findHelpArticle)
-    .filter((a): a is HelpArticle => a !== undefined);
+    .filter((a): a is HelpArticle => a !== undefined)
+    .map((r): HelpLink => ({ href: helpHref(r.slug, language), label: r[language].title }));
+  const links = [...switchBackLinks(article.slug, language), ...related];
 
   return (
     <WebSection className="tm-web-help-article" aria-labelledby="help-article-title">
@@ -75,16 +103,16 @@ export function HelpArticlePage({ article }: { article: HelpArticle }) {
           })}
         </div>
 
-        {related.length > 0 ? (
+        {links.length > 0 ? (
           <aside className="tm-web-help-related" aria-labelledby="help-related-title">
             <h2 id="help-related-title" className="tm-web-help-related__title">
               {copy.related}
             </h2>
             <ul>
-              {related.map((r) => (
-                <li key={r.slug}>
-                  <Link href={helpHref(r.slug, language)} className="tm-web-help-link">
-                    {r[language].title}
+              {links.map((link) => (
+                <li key={link.href}>
+                  <Link href={link.href} className="tm-web-help-link">
+                    {link.label}
                   </Link>
                 </li>
               ))}

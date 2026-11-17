@@ -1,5 +1,8 @@
 import type { HelpLanguage } from './help-articles';
 
+/** U+200F after a Latin product name where Arabic text continues (as on the compare pages). */
+const RLM = '‏';
+
 /**
  * Row 55-16 — the Help centre's own interface words, in English and Arabic beside the articles
  * they frame (the same repo-content pattern as the articles). Other interface languages read the
@@ -27,6 +30,8 @@ export const HELP_COPY = {
     contact: 'Contact support',
     allArticles: 'All help articles',
     contextLink: 'Help for this page',
+    switchLink: (name: string) => `Switching from ${name} to TManage`,
+    compareLink: (name: string) => `TManage vs ${name}`,
   },
   ar: {
     eyebrow: 'مركز المساعدة',
@@ -52,6 +57,8 @@ export const HELP_COPY = {
     contact: 'تواصل مع الدعم',
     allArticles: 'كل مقالات المساعدة',
     contextLink: 'مساعدة لهذه الصفحة',
+    switchLink: (name: string) => `الانتقال من ${name}${RLM} إلى TManage${RLM}`,
+    compareLink: (name: string) => `${RLM}TManage مقابل ${name}`,
   },
 } satisfies Record<HelpLanguage, unknown>;
 
