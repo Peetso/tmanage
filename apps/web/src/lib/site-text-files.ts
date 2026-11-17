@@ -1,7 +1,7 @@
 import { BETA_FAQ, BETA_INCLUDED } from '../components/website/pages/pricing/pricing-data';
 import { ALL_RESOURCES } from '../components/website/pages/resources/resources-data';
 import { alternativeMarkdown } from '../content/alternatives/alternative-markdown';
-import { factsMarkdown } from '../content/facts/facts';
+import { FACTS_DESCRIPTION, factsMarkdown } from '../content/facts/facts';
 import { COMPARE_COPY, SWITCH_COPY } from '../content/compare/compare-copy';
 import { COMPARE_ENTRIES, COMPARE_FEATURES, OURS } from '../content/compare/compare-entries';
 import { findSwitchEntry } from '../content/compare/switch-entries';
@@ -60,8 +60,7 @@ function link(page: PublicPage, origin: string): string {
  * The one fixed description of TManage (SEO/GEO plan 4.3), used word for word wherever the site
  * describes itself to machines.
  */
-export const TMANAGE_DESCRIPTION =
-  'TManage is a project and client-approvals workspace for agencies and freelancers: chat, projects, files with client viewers, approvals, time, invoices and a client portal in one place, in English and Arabic.';
+export const TMANAGE_DESCRIPTION: string = FACTS_DESCRIPTION.en;
 
 /** The address of the full-text file. */
 export const LLMS_FULL_PATH = '/llms-full.txt';

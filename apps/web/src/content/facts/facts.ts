@@ -5,8 +5,9 @@ import { HELLO_EMAIL } from '../../lib/public-contact';
  * SEOF (backlog B7) — the facts page, `/facts` (Arabic at `/ar/facts`; Figma 687:15435 /
  * 687:15669, phone 687:15867 / 687:16043): one fixed description of TManage, the facts in one
  * table and what the product does today. Every line is true of the product today
- * (`social-media-plan/01-FACTS.md` section 3, LIVE rows): no invoices, desktop app for Windows
- * only, no phone app. Repo content, English and Arabic side by side.
+ * (`social-media-plan/01-FACTS.md` section 3, LIVE rows): client invoices yes (Finance > Invoices,
+ * live since A10b; INTEG14 corrected the facts file's "not built"), but clients cannot pay them
+ * online; desktop app for Windows only, no phone app. Repo content, English and Arabic side by side.
  */
 
 /** The day the facts page's words last changed (its "Last updated" line). */
@@ -19,10 +20,15 @@ export interface FactRow {
   readonly link?: 'website' | 'email';
 }
 
-const DESCRIPTION = {
-  en: 'TManage is a project and client-approvals workspace for agencies and freelancers: chat, projects, files with client viewers, approvals, time tracking and a client portal in one place, in English and Arabic.',
-  ar: `${RLM}TManage مساحة عمل لإدارة المشاريع واعتماد العملاء، للوكالات والمستقلين: المحادثة والمشاريع والملفات مع عارض للعملاء والاعتمادات وتسجيل الوقت وبوابة العملاء في مكان واحد، بالعربية والإنجليزية.`,
+/**
+ * The one fixed description of TManage (SEO/GEO plan 4.3), word for word on this page, in
+ * `llms.txt` and wherever the site describes itself to machines (`TMANAGE_DESCRIPTION`).
+ */
+export const FACTS_DESCRIPTION = {
+  en: 'TManage is a project and client-approvals workspace for agencies and freelancers: chat, projects, files with client viewers, approvals, time tracking, client invoices and a client portal in one place, in English and Arabic.',
+  ar: `${RLM}TManage مساحة عمل لإدارة المشاريع واعتماد العملاء، للوكالات والمستقلين: المحادثة والمشاريع والملفات مع عارض للعملاء والاعتمادات وتسجيل الوقت وفواتير العملاء وبوابة العملاء في مكان واحد، بالعربية والإنجليزية.`,
 } as const;
+const DESCRIPTION = FACTS_DESCRIPTION;
 
 export const FACTS_COPY = {
   en: {
@@ -67,6 +73,7 @@ export const FACTS_COPY = {
       'Docs, meetings, decisions and risks',
       'Workload and capacity view',
       'Running timer for time tracking',
+      'Client invoices and retainers, sent to the client and shown in the portal (no online payment yet)',
       'Files in your own Google Drive or OneDrive',
       'Your own Claude or ChatGPT through a connector, with no AI fee',
       'Roles, audit log and two-step sign-in on every plan',
@@ -114,6 +121,7 @@ export const FACTS_COPY = {
       'المستندات والاجتماعات والقرارات والمخاطر',
       'عرض عبء العمل وسعة الفريق',
       'مؤقّت لتسجيل الوقت',
+      'فواتير العملاء والعقود الشهرية، تُرسل إلى العميل وتظهر في بوابته (الدفع الإلكتروني غير متاح بعد)',
       `ملفاتك في ${RLM}Google Drive أو ${RLM}OneDrive الخاص بشركتك`,
       `استخدم ${RLM}Claude أو ${RLM}ChatGPT الخاص بك عبر موصّل، بدون رسوم ذكاء اصطناعي`,
       'الأدوار وسجل التدقيق والتحقق بخطوتين في كل الخطط',

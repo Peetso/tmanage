@@ -8,6 +8,8 @@ import {
   llmsFullTxt,
   llmsTxt,
 } from '../src/lib/site-text-files';
+import { OURS } from '../src/content/compare/compare-entries';
+import { FACTS_DESCRIPTION } from '../src/content/facts/facts';
 
 const ORIGIN = 'https://tmanageapp.com';
 
@@ -22,6 +24,18 @@ describe('llms files and Markdown twins', () => {
     expect(text.slice(start)).toContain(`](${ORIGIN}/pricing)`);
     expect(text).toContain(`](${ORIGIN}/llms-full.txt)`);
     expect(text).toContain('- Price: Free during the beta.');
+  });
+
+  it('says invoices exactly as they are live: one description everywhere, no online payment', () => {
+    // INTEG14: client invoices are live (Finance > Invoices, portal invoices); paying them online
+    // is not built (public-claims `pay_invoices_online` hidden).
+    expect(TMANAGE_DESCRIPTION).toBe(FACTS_DESCRIPTION.en);
+    expect(FACTS_DESCRIPTION.en).toContain('client invoices');
+    expect(FACTS_DESCRIPTION.ar).toContain('فواتير العملاء');
+    expect(OURS.invoices.en).toBe('Yes, invoices and retainers (no online payment yet)');
+    expect(OURS.invoices.ar).toBe('نعم، فواتير وعقود شهرية (الدفع الإلكتروني غير متاح بعد)');
+    expect(llmsTxt(ORIGIN)).toContain('Yes, invoices and retainers (no online payment yet)');
+    expect(llmsFullTxt(ORIGIN)).not.toMatch(/pay invoices online/iu);
   });
 
   it('llms-full.txt carries at most the page limit, pricing first, each with its own address', () => {

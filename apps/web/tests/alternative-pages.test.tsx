@@ -151,7 +151,14 @@ describe('SEOF alternative pages and facts page', () => {
       const claims =
         text(facts.root.querySelector('table')) +
         text(facts.root.querySelector('ul.tm-web-alt-features'));
-      expect(claims).not.toMatch(/[Ii]nvoice|\biOS\b|Android|\bMac\b|فاتورة|فواتير/);
+      expect(claims).not.toMatch(/\biOS\b|Android|\bMac\b/);
+      // INTEG14: invoices are live, paying them online is not; the line says both.
+      expect(claims).toMatch(
+        language === 'en'
+          ? /invoices.*no online payment yet/u
+          : /فواتير.*الدفع الإلكتروني غير متاح بعد/u,
+      );
+      expect(claims).not.toMatch(/pay invoices online|دفع الفواتير إلكترونياً/iu);
     },
   );
 

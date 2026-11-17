@@ -73,7 +73,12 @@ export const OURS: Readonly<Record<CompareFeature | 'price', Bilingual>> = {
   tasks: { en: 'Yes', ar: 'نعم' },
   clients: { en: 'Yes, client users are always free', ar: 'نعم، ومستخدمو العملاء مجانيون دائمًا' },
   time: { en: 'Yes, timer and timesheets', ar: 'نعم، مؤقّت وجداول زمنية' },
-  invoices: { en: 'Yes, invoices and retainers', ar: 'نعم، فواتير وعقود شهرية' },
+  // Live (Finance > Invoices, portal invoices); online payment is not built (public-claims
+  // `pay_invoices_online` hidden), so the cell says so (INTEG14).
+  invoices: {
+    en: 'Yes, invoices and retainers (no online payment yet)',
+    ar: 'نعم، فواتير وعقود شهرية (الدفع الإلكتروني غير متاح بعد)',
+  },
   arabic: { en: 'Yes', ar: 'نعم' },
   files: {
     en: 'Your own Google Drive or OneDrive',

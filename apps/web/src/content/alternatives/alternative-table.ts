@@ -9,8 +9,8 @@ import type { AlternativePage } from './alternative-entries';
 
 /**
  * SEOF (B1) — the side-by-side table of an alternative page, built from the other product's
- * compare entry: one row per feature that entry confirms (invoices aside: TManage does not offer
- * them yet), the pricing row linking their pricing page instead of naming a price, and a last row
+ * compare entry: one row per feature that entry confirms (invoices aside: kept to the compare
+ * page, where the TManage cell notes there is no online payment yet), the pricing row linking their pricing page instead of naming a price, and a last row
  * with the entry's own "where it is strong" line, marked as the place they are ahead.
  */
 
