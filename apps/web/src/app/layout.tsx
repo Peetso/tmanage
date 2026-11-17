@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import '@tmanage/ui/styles.css';
 import './globals.css';
 import '../styles/phone-tables.css';
@@ -161,23 +161,30 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         ))}
       </head>
       <body>
-        <RenderedDisplayProvider value={rendered}>
-          <QueryProvider>
-            <LocaleDirectionProvider>
-              <AuthBoundaryProvider>{children}</AuthBoundaryProvider>
-            </LocaleDirectionProvider>
-          </QueryProvider>
-          {/* Every route's page name in the tab, in the active locale (`lib/route-titles.ts`). */}
-          <RouteDocumentTitle />
-          <ServiceWorkerRegister />
-          {/* The service worker's "update available" affordance (slice 08): an always-mounted toast
+        {/* DOMAINIMPORT2: in the browser a non-English page waits (suspends) for its catalog while
+          it hydrates. This boundary keeps that wait inside <body>: without it the root itself
+          suspended, an early update switched the whole root to client rendering, and React's
+          re-creation of the <head> boot scripts was refused by Trusted Types ("This page couldn't
+          load" on /ar, INTEG17). The server renders it in full, so the HTML is unchanged. */}
+        <Suspense fallback={null}>
+          <RenderedDisplayProvider value={rendered}>
+            <QueryProvider>
+              <LocaleDirectionProvider>
+                <AuthBoundaryProvider>{children}</AuthBoundaryProvider>
+              </LocaleDirectionProvider>
+            </QueryProvider>
+            {/* Every route's page name in the tab, in the active locale (`lib/route-titles.ts`). */}
+            <RouteDocumentTitle />
+            <ServiceWorkerRegister />
+            {/* The service worker's "update available" affordance (slice 08): an always-mounted toast
             region that offers a reload when a new build is waiting to take over. */}
-          <UpdateToast />
-          {/* R12 R2: the first-visit language guess, applied once and announced (Change · Keep). */}
-          <LocaleHintToast />
-          {/* 55-23: the Undo toasts for held delete / archive / move / complete actions. */}
-          <UndoToastHost />
-        </RenderedDisplayProvider>
+            <UpdateToast />
+            {/* R12 R2: the first-visit language guess, applied once and announced (Change · Keep). */}
+            <LocaleHintToast />
+            {/* 55-23: the Undo toasts for held delete / archive / move / complete actions. */}
+            <UndoToastHost />
+          </RenderedDisplayProvider>
+        </Suspense>
       </body>
     </html>
   );

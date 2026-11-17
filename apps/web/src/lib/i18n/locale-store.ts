@@ -133,6 +133,9 @@ export class LocaleStore {
       if (locale !== this.current) this.publish(locale);
       return;
     }
+    // The choice is saved now, not when the words arrive: the footer switch navigates at once
+    // (`/ar` -> `/` for Español), and the next page must boot in the chosen language (INTEG17).
+    persist(locale);
     void this.catalogs.load(locale).then(() => {
       if (this.requested === locale && locale !== this.current) this.publish(locale);
     });

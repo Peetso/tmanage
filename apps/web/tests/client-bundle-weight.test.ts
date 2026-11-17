@@ -70,6 +70,8 @@ describe('client bundle weight guards', () => {
 
     store.set('fr-FR');
     expect(store.get()).toBe('en-US');
+    // Saved at once, so a page the switch navigates to boots in French.
+    expect(document.cookie).toContain('tmanage_locale=fr-FR');
     arrive();
     await Promise.resolve();
     await Promise.resolve();
