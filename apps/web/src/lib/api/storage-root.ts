@@ -66,3 +66,60 @@ export async function requestStorageHandover(
   });
   return data;
 }
+
+/**
+ * 57-13b. "Move to Drive": the job that moves the files TManage still holds into the connected
+ * provider. Mirrors the API's `StorageMoveView` (`storage-root/storage-move.service.ts`). The
+ * request names only the provider; the destination folder and the files are chosen by the server.
+ */
+export type StorageMoveStatus = 'queued' | 'running' | 'done' | 'stopped';
+
+export interface StorageMoveView {
+  readonly id: string;
+  readonly provider: StorageProvider;
+  readonly status: StorageMoveStatus;
+  readonly total: number;
+  readonly moved: number;
+  readonly failed: number;
+  readonly skipped: number;
+  readonly movedBytes: number;
+  /** Why a job stopped (`not_connected`, `provider_unavailable`, `connection_changed`), else null. */
+  readonly error: string | null;
+  readonly createdAt: string;
+  readonly finishedAt: string | null;
+}
+
+export async function startStorageMove(
+  client: ApiClient,
+  organizationSlug: string,
+  provider: StorageProvider,
+): Promise<StorageMoveView> {
+  const { data } = await client.request<StorageMoveView>({
+    method: 'POST',
+    path: `${basePath(organizationSlug)}/migration-jobs`,
+    body: { provider },
+  });
+  return data;
+}
+
+/** The company's latest job (or null), for the storage card after a reload. */
+export async function getLatestStorageMove(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<StorageMoveView | null> {
+  const { data } = await client.request<{ job: StorageMoveView | null }>({
+    path: `${basePath(organizationSlug)}/migration-jobs`,
+  });
+  return data.job;
+}
+
+export async function getStorageMove(
+  client: ApiClient,
+  organizationSlug: string,
+  jobId: string,
+): Promise<StorageMoveView> {
+  const { data } = await client.request<StorageMoveView>({
+    path: `${basePath(organizationSlug)}/migration-jobs/${encodeURIComponent(jobId)}`,
+  });
+  return data;
+}
