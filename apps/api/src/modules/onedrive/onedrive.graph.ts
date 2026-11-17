@@ -43,6 +43,10 @@ export const ONEDRIVE_FLOW_COOKIE = 'tm_onedrive_flow';
 export const ONEDRIVE_FLOW_TTL_SECONDS = 600;
 export const ONEDRIVE_ROOT_FOLDER_NAME = 'TManage';
 export const ONEDRIVE_CHILDREN_PAGE_SIZE = 50;
+/** 57-13a. Below this a file is sent in one PUT; above it, through an upload session. */
+export const ONEDRIVE_SIMPLE_UPLOAD_BYTES = 4 * 1024 * 1024;
+/** 57-13a. Session chunk: a multiple of 320 KiB, as Graph requires. */
+export const ONEDRIVE_UPLOAD_CHUNK_BYTES = 32 * 320 * 1024;
 const FLOW_PURPOSE = 'onedrive-flow.v1';
 
 export interface OneDriveConfig {
@@ -354,6 +358,17 @@ export interface OneDriveTransport {
   ): Promise<Buffer>;
   /** 51-17. The document libraries of the organisation's root SharePoint site this account sees. */
   listLibraries(accessToken: string): Promise<readonly OneDriveDrive[]>;
+  /**
+   * 57-13a. Upload bytes into the folder `parentId` (a name clash is renamed); answers the new
+   * item id. Large files go through an upload session whose URL must pass
+   * {@link isOneDriveContentUrl}; it carries no token and is never logged.
+   */
+  uploadItem(
+    accessToken: string,
+    input: { driveId: string; parentId: string; name: string; bytes: Buffer },
+  ): Promise<string>;
+  /** 57-13a. Remove an item TManage uploaded (a failed verification); an absent item is fine. */
+  deleteItem(accessToken: string, input: { driveId: string; itemId: string }): Promise<void>;
 }
 
 function idTokenLabel(idToken: unknown): string | null {
@@ -667,6 +682,73 @@ export function createOneDriveTransport(fetchImpl: typeof fetch = fetch): OneDri
       if (refused) throw refused;
       if (!response.ok) throw new OneDriveUnavailableError(`Graph answered ${response.status}`);
       return readCappedBody(response, maxBytes);
+    },
+
+    async uploadItem(accessToken, input) {
+      const refused = (status: number): Error => {
+        if (status === 401) return new OneDriveGrantRevokedError('Graph refused the token');
+        if (status === 403) return new OneDriveNoAccessError('Graph refused the upload');
+        if (status === 404) return new OneDriveItemNotFoundError('Graph shows no such folder');
+        return new OneDriveUnavailableError(`Graph answered ${status}`);
+      };
+      const send = async (url: string, init: RequestInit): Promise<Response> => {
+        try {
+          return await fetchImpl(url, { ...init, redirect: 'error' });
+        } catch {
+          throw new OneDriveUnavailableError('Microsoft Graph could not be reached');
+        }
+      };
+      const target = `${item(input.driveId, input.parentId)}:/${encodeURIComponent(input.name)}:`;
+      const total = input.bytes.byteLength;
+      let response: Response;
+      if (total < ONEDRIVE_SIMPLE_UPLOAD_BYTES) {
+        response = await send(`${target}/content?@microsoft.graph.conflictBehavior=rename`, {
+          method: 'PUT',
+          headers: { ...auth(accessToken), 'content-type': 'application/octet-stream' },
+          body: input.bytes,
+        });
+        if (!response.ok) throw refused(response.status);
+      } else {
+        response = await send(`${target}/createUploadSession`, {
+          method: 'POST',
+          headers: { ...auth(accessToken), 'content-type': 'application/json' },
+          body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'rename' } }),
+        });
+        if (!response.ok) throw refused(response.status);
+        const session = ((await response.json()) as { uploadUrl?: unknown }).uploadUrl;
+        if (typeof session !== 'string' || !isOneDriveContentUrl(session)) {
+          throw new OneDriveRedirectRefusedError('Graph gave an upload session outside Microsoft');
+        }
+        for (let offset = 0; offset < total; offset += ONEDRIVE_UPLOAD_CHUNK_BYTES) {
+          const end = Math.min(offset + ONEDRIVE_UPLOAD_CHUNK_BYTES, total);
+          // The session URL is pre-authenticated: the token must not travel to it.
+          response = await send(session, {
+            method: 'PUT',
+            headers: { 'content-range': `bytes ${offset}-${end - 1}/${total}` },
+            body: input.bytes.subarray(offset, end),
+          });
+          if (!response.ok) throw refused(response.status);
+        }
+      }
+      const id = ((await response.json()) as { id?: unknown }).id;
+      if (!isGraphId(id)) throw new OneDriveUnavailableError('Graph gave no item id');
+      return id;
+    },
+
+    async deleteItem(accessToken, input) {
+      let response: Response;
+      try {
+        response = await fetchImpl(item(input.driveId, input.itemId), {
+          method: 'DELETE',
+          headers: auth(accessToken),
+          redirect: 'error',
+        });
+      } catch {
+        throw new OneDriveUnavailableError('Microsoft Graph could not be reached');
+      }
+      if (response.status === 404 || response.ok) return;
+      if (response.status === 401) throw new OneDriveGrantRevokedError('Graph refused the token');
+      throw new OneDriveUnavailableError(`Graph answered ${response.status}`);
     },
   };
 }

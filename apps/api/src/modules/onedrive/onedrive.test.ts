@@ -115,6 +115,8 @@ function setup(
     listChildren: vi.fn(),
     downloadItem: vi.fn(),
     listLibraries: vi.fn(async () => []),
+    uploadItem: vi.fn(),
+    deleteItem: vi.fn(),
     ...overrides,
   };
   const audit = { record: vi.fn(async () => ({})) };

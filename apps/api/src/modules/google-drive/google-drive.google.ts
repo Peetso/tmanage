@@ -24,6 +24,10 @@ export const DRIVE_AUTHORIZATION_ENDPOINT = 'https://accounts.google.com/o/oauth
 export const DRIVE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 export const DRIVE_REVOKE_ENDPOINT = 'https://oauth2.googleapis.com/revoke';
 export const DRIVE_API = 'https://www.googleapis.com/drive/v3';
+/** 57-13a. Drive's upload host; a resumable session URL must start here. */
+export const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
+/** 57-13a. Resumable chunk: a multiple of 256 KiB, as Drive requires. */
+export const DRIVE_UPLOAD_CHUNK_BYTES = 8 * 1024 * 1024;
 export const DRIVE_SCOPES = 'openid email https://www.googleapis.com/auth/drive.file';
 export const DRIVE_CALLBACK_PATH = '/v1/integrations/google-drive/callback';
 /** The flow cookie must reach both the callback and the org-scoped completion route. */
@@ -291,6 +295,16 @@ export interface DriveTransport {
   downloadFile(accessToken: string, fileId: string, maxBytes: number): Promise<Buffer>;
   /** 51-17. The Shared Drives this account may add files to (one page, at most 100). */
   listSharedDrives(accessToken: string): Promise<readonly DriveSharedDrive[]>;
+  /**
+   * 57-13a. Upload bytes into `parentId` with a resumable session (chunked); answers the new file
+   * id. The session URL is accepted only on {@link DRIVE_UPLOAD_API} and is never logged.
+   */
+  uploadFile(
+    accessToken: string,
+    input: { name: string; mimeType: string; parentId: string; bytes: Buffer },
+  ): Promise<string>;
+  /** 57-13a. Remove a file TManage uploaded (a failed verification); an absent file is fine. */
+  deleteFile(accessToken: string, fileId: string): Promise<void>;
 }
 
 export interface DriveSharedDrive {
@@ -536,6 +550,78 @@ export function createDriveTransport(fetchImpl: typeof fetch = fetch): DriveTran
       if (response.status === 404) throw new DriveFileNotFoundError('Google has no such file');
       if (!response.ok) throw new DriveUnavailableError(`Google Drive answered ${response.status}`);
       return readCappedBody(response, maxBytes);
+    },
+
+    async uploadFile(accessToken, input) {
+      const refused = (status: number): Error => {
+        if (status === 401) return new DriveGrantRevokedError('Google refused the token');
+        if (status === 403) return new DriveNoAccessError('Google refused the upload');
+        if (status === 404) return new DriveFileNotFoundError('Google has no such folder');
+        return new DriveUnavailableError(`Google Drive answered ${status}`);
+      };
+      const total = input.bytes.byteLength;
+      let response: Response;
+      try {
+        response = await fetchImpl(
+          `${DRIVE_UPLOAD_API}/files?uploadType=resumable&supportsAllDrives=true&fields=id`,
+          {
+            method: 'POST',
+            headers: {
+              ...auth(accessToken),
+              'content-type': 'application/json; charset=UTF-8',
+              'x-upload-content-type': input.mimeType,
+              'x-upload-content-length': String(total),
+            },
+            body: JSON.stringify({ name: input.name, parents: [input.parentId] }),
+            redirect: 'error',
+          },
+        );
+      } catch {
+        throw new DriveUnavailableError('Google Drive could not be reached');
+      }
+      if (!response.ok) throw refused(response.status);
+      const session = response.headers.get('location');
+      if (session === null || !session.startsWith(`${DRIVE_UPLOAD_API}/`)) {
+        throw new DriveUnavailableError('Google Drive gave no upload session');
+      }
+      let offset = 0;
+      do {
+        const end = Math.min(offset + DRIVE_UPLOAD_CHUNK_BYTES, total);
+        try {
+          response = await fetchImpl(session, {
+            method: 'PUT',
+            headers: {
+              ...auth(accessToken),
+              'content-range': total === 0 ? 'bytes */0' : `bytes ${offset}-${end - 1}/${total}`,
+            },
+            body: input.bytes.subarray(offset, end),
+            redirect: 'manual',
+          });
+        } catch {
+          throw new DriveUnavailableError('Google Drive could not be reached');
+        }
+        if (response.status !== 308 && !response.ok) throw refused(response.status);
+        offset = end;
+      } while (offset < total);
+      if (!response.ok) throw new DriveUnavailableError('Google Drive did not finish the upload');
+      const body = (await response.json()) as { id?: unknown };
+      if (!isDriveId(body.id)) throw new DriveUnavailableError('Google Drive gave no file id');
+      return body.id;
+    },
+
+    async deleteFile(accessToken, fileId) {
+      let response: Response;
+      try {
+        response = await fetchImpl(
+          `${DRIVE_API}/files/${encodeURIComponent(fileId)}?supportsAllDrives=true`,
+          { method: 'DELETE', headers: auth(accessToken), redirect: 'error' },
+        );
+      } catch {
+        throw new DriveUnavailableError('Google Drive could not be reached');
+      }
+      if (response.status === 404 || response.ok) return;
+      if (response.status === 401) throw new DriveGrantRevokedError('Google refused the token');
+      throw new DriveUnavailableError(`Google Drive answered ${response.status}`);
     },
   };
 }

@@ -190,6 +190,8 @@ function setup(options: { ancestors?: Record<string, readonly string[]>; file?: 
     })),
     downloadFile: vi.fn(),
     listSharedDrives: vi.fn(async () => []),
+    uploadFile: vi.fn(),
+    deleteFile: vi.fn(),
   } satisfies DriveTransport;
   const audit = { record: vi.fn(async () => ({})) };
   const drive = new GoogleDriveService({

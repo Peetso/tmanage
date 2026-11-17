@@ -155,6 +155,8 @@ function setup(
     listChildren: vi.fn(async () => ({ files: [], nextPageToken: null })),
     downloadFile: vi.fn(),
     listSharedDrives: vi.fn(async () => []),
+    uploadFile: vi.fn(),
+    deleteFile: vi.fn(),
   };
   const audit = { record: vi.fn(async () => ({})) };
   const drive = new GoogleDriveService({

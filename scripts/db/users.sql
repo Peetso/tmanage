@@ -2330,6 +2330,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`milestone_client_projections`
 GRANT UPDATE ON `tmanage`.`project_milestones`                              TO 'tmanage_app'@'%';
 GRANT UPDATE ON `tmanage`.`project_phases`                                  TO 'tmanage_app'@'%';
 
+-- 57-13a (0361): `file_versions.storage_backend` / `provider_file_id` / `storage_connection_id` (where a
+-- version's bytes live) are written by the existing UPDATE grant on `file_versions`; no new grant.
 -- R19-e · 56-06 (0307): `file_versions.scan_source` (tmanage|provider|none) is written beside the
 -- scan verdict by the existing UPDATE grant on `file_versions` (above); no new grant. The file-safety
 -- settings are `org_settings` rows (`file_safety_presets`, `require_scan_for_clients`).

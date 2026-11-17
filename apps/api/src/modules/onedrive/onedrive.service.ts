@@ -26,6 +26,8 @@ import type {
 } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { TokenVaultSlot } from '../connectors/token-vault.js';
+import { providerCall, ProviderObjectUnavailableError } from '../files/provider-objects.js';
+import type { ProviderObjectRef, ProviderObjectSource } from '../files/provider-objects.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import {
@@ -1093,6 +1095,67 @@ export class OneDriveService implements CloudFolderDrive {
       throw conflict('unreachable');
     }
     return connection as LiveConnection;
+  }
+
+  /**
+   * 57-13a. The company connection as file storage (`files/provider-objects.ts`). Every call
+   * re-reads this organization's own connection first and, for an existing object, requires the
+   * version row's connection id, before Graph is asked anything. Uploads land in the
+   * connection's own TManage root folder of its own drive; nothing comes from a request.
+   */
+  objectSource(): ProviderObjectSource {
+    const live = async (context: TenantContext, ref?: ProviderObjectRef) => {
+      const connection = this.requireLive(await this.readConnection(context));
+      if (ref !== undefined && connection.id !== ref.connectionId) {
+        throw new ProviderObjectUnavailableError('not_connected');
+      }
+      return { connection, accessToken: await this.token(context, connection) };
+    };
+    return {
+      put: (context, input) =>
+        providerCall(async () => {
+          const { connection, accessToken } = await live(context);
+          const providerFileId = await this.graph(
+            () =>
+              this.deps.transport.uploadItem(accessToken, {
+                driveId: connection.onedriveDriveId,
+                parentId: connection.rootFolderId,
+                name: input.name,
+                bytes: input.bytes,
+              }),
+            connection.id,
+            context,
+          );
+          return { connectionId: connection.id, providerFileId };
+        }),
+      read: (context, ref, maxBytes) =>
+        providerCall(async () => {
+          const { connection, accessToken } = await live(context, ref);
+          return this.graph(
+            () =>
+              this.deps.transport.downloadItem(
+                accessToken,
+                { driveId: connection.onedriveDriveId, itemId: ref.providerFileId },
+                maxBytes,
+              ),
+            connection.id,
+            context,
+          );
+        }),
+      remove: (context, ref) =>
+        providerCall(async () => {
+          const { connection, accessToken } = await live(context, ref);
+          await this.graph(
+            () =>
+              this.deps.transport.deleteItem(accessToken, {
+                driveId: connection.onedriveDriveId,
+                itemId: ref.providerFileId,
+              }),
+            connection.id,
+            context,
+          );
+        }),
+    };
   }
 
   private readConnection(context: TenantContext): Promise<StorageConnectionRow | undefined> {

@@ -1,3 +1,5 @@
+import { VersionStore } from './provider-objects.js';
+import type { ProviderObjectSources, StoredVersion } from './provider-objects.js';
 import type { OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { uuidv7 } from '@tmanage/domain';
 import { ObjectNotFoundError, derivativeObjectKey } from '@tmanage/storage';
@@ -211,7 +213,13 @@ export class PreviewJob implements PreviewRequester, OnApplicationBootstrap, OnM
     private readonly rss: () => number = () => process.memoryUsage().rss,
     /** Counts each derivative's stored bytes against the quota; null leaves them uncounted. */
     private readonly usage: PreviewUsageMeter | null = null,
-  ) {}
+    /** 57-13a. The company's Drive/OneDrive, for versions held there. */
+    providers: ProviderObjectSources = {},
+  ) {
+    this.versions = new VersionStore(store, providers);
+  }
+
+  private readonly versions: VersionStore;
 
   onApplicationBootstrap(): void {
     if (!this.enabled) return;
@@ -447,9 +455,9 @@ export class PreviewJob implements PreviewRequester, OnApplicationBootstrap, OnM
     let outcomes: readonly PreviewOutcome[];
     try {
       const bytes = await this.readObject(
+        context,
+        version,
         version.trustZone === 'private' ? 'private' : 'quarantine',
-        version.objectKey,
-        version.sizeBytes,
       );
       outcomes = await generator.generate(
         { bytes, mimeType: version.detectedMimeType },
@@ -482,13 +490,14 @@ export class PreviewJob implements PreviewRequester, OnApplicationBootstrap, OnM
   }
 
   private async readObject(
+    context: TenantContext,
+    version: StoredVersion,
     zone: 'private' | 'quarantine',
-    objectKey: string,
-    sizeBytes: number,
   ): Promise<Uint8Array> {
+    const { sizeBytes } = version;
     let opened;
     try {
-      opened = await this.store.openObject({ zone, objectKey });
+      opened = await this.versions.open(context, version, zone);
     } catch (error) {
       if (error instanceof ObjectStoreUnavailableError) throw error;
       if (error instanceof ObjectNotFoundError) throw new PreviewReadError('object_not_found');

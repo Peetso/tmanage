@@ -26,6 +26,8 @@ import type {
 } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { TokenVaultSlot } from '../connectors/token-vault.js';
+import { providerCall, ProviderObjectUnavailableError } from '../files/provider-objects.js';
+import type { ProviderObjectRef, ProviderObjectSource } from '../files/provider-objects.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import {
@@ -1084,6 +1086,56 @@ export class GoogleDriveService implements CloudFolderDrive {
     return this.deps.database.read(context, (runner) =>
       this.repository.findConnection(runner, context),
     );
+  }
+
+  /**
+   * 57-13a. The company connection as file storage (`files/provider-objects.ts`). Every call
+   * re-reads this organization's own connection first and, for an existing object, requires the
+   * version row's connection id, before Google is asked anything. Uploads land in the
+   * connection's own TManage root folder; nothing about the destination comes from a request.
+   */
+  objectSource(): ProviderObjectSource {
+    const live = async (context: TenantContext, ref?: ProviderObjectRef) => {
+      const connection = this.requireLive(await this.readConnection(context));
+      if (ref !== undefined && connection.id !== ref.connectionId) {
+        throw new ProviderObjectUnavailableError('not_connected');
+      }
+      return { connection, accessToken: await this.accessToken(context, connection) };
+    };
+    return {
+      put: (context, input) =>
+        providerCall(async () => {
+          const { connection, accessToken } = await live(context);
+          const providerFileId = await this.google(
+            () =>
+              this.deps.transport.uploadFile(accessToken, {
+                ...input,
+                parentId: connection.rootFolderId,
+              }),
+            connection.id,
+            context,
+          );
+          return { connectionId: connection.id, providerFileId };
+        }),
+      read: (context, ref, maxBytes) =>
+        providerCall(async () => {
+          const { connection, accessToken } = await live(context, ref);
+          return this.google(
+            () => this.deps.transport.downloadFile(accessToken, ref.providerFileId, maxBytes),
+            connection.id,
+            context,
+          );
+        }),
+      remove: (context, ref) =>
+        providerCall(async () => {
+          const { connection, accessToken } = await live(context, ref);
+          await this.google(
+            () => this.deps.transport.deleteFile(accessToken, ref.providerFileId),
+            connection.id,
+            context,
+          );
+        }),
+    };
   }
 
   /** A fresh access token; a refused grant moves the connection to `error`. */

@@ -132,6 +132,8 @@ function transport(overrides: Partial<DriveTransport> = {}): DriveTransport {
     listChildren: vi.fn(async () => ({ files: [], nextPageToken: null })),
     downloadFile: vi.fn(),
     listSharedDrives: vi.fn(async () => []),
+    uploadFile: vi.fn(),
+    deleteFile: vi.fn(),
     ...overrides,
   };
 }
@@ -533,5 +535,37 @@ describe('51-17 slice 2: a Shared Drive as the company root', () => {
       locationName: 'Studio',
     });
     expect(() => parseSettings({ location: { kind: 'shared_drive', driveId: '../x' } })).toThrow();
+  });
+});
+
+describe('Drive as file storage (57-13a)', () => {
+  const connected = () =>
+    fakeRepository({ refreshTokenEnc: CIPHER.encrypt('plain-refresh-token', tokenBinding(ORG_A)) });
+
+  it('reads only through this organization connection named by the version row', async () => {
+    const google = transport({ downloadFile: vi.fn(async () => Buffer.from('bytes')) });
+    const source = service(connected().repository, google).objectSource();
+    await expect(
+      source.read(ctx(), { connectionId: 'conn-other', providerFileId: 'file_1x' }, 10),
+    ).rejects.toMatchObject({ reason: 'not_connected' });
+    expect(google.downloadFile).not.toHaveBeenCalled();
+    const bytes = await source.read(
+      ctx(),
+      { connectionId: 'conn-1', providerFileId: 'file_1x' },
+      10,
+    );
+    expect(bytes.toString()).toBe('bytes');
+  });
+
+  it('uploads into the connection root folder, never a requested one', async () => {
+    const google = transport({ uploadFile: vi.fn(async () => 'new_file_1') });
+    const ref = await service(connected().repository, google)
+      .objectSource()
+      .put(ctx(), { name: 'a.pdf', mimeType: 'application/pdf', bytes: Buffer.from('x') });
+    expect(ref).toEqual({ connectionId: 'conn-1', providerFileId: 'new_file_1' });
+    expect(google.uploadFile).toHaveBeenCalledWith(
+      'fresh-access',
+      expect.objectContaining({ parentId: 'root_folder_1' }),
+    );
   });
 });

@@ -49,6 +49,7 @@ import { WorkItemFilesService } from '../work/item-files.service.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { createDriveTransport, type DriveTransport } from '../google-drive/google-drive.google.js';
 import { googleDriveServiceFor } from '../google-drive/google-drive.controller.js';
+import type { ProviderObjectSources } from './provider-objects.js';
 import { createOneDriveTransport, type OneDriveTransport } from '../onedrive/onedrive.graph.js';
 import { oneDriveServiceFor } from '../onedrive/onedrive.controller.js';
 import { CloudFoldersService } from '../cloud-folders/cloud-folders.service.js';
@@ -161,6 +162,25 @@ export class FilesModule {
   static register(
     drives: { readonly drive?: DriveTransport; readonly oneDrive?: OneDriveTransport } = {},
   ): DynamicModule {
+    // 57-13a. The company's Drive/OneDrive as storage for versions held there (VersionStore).
+    const providerSources = (
+      database: TenantDatabase,
+      audit: AuditService,
+      config: ApiConfig,
+    ): ProviderObjectSources => ({
+      google_drive: googleDriveServiceFor(
+        database,
+        audit,
+        config,
+        drives.drive ?? createDriveTransport(),
+      ).objectSource(),
+      onedrive: oneDriveServiceFor(
+        database,
+        audit,
+        config,
+        drives.oneDrive ?? createOneDriveTransport(),
+      ).objectSource(),
+    });
     const repositories: Provider[] = [
       { provide: UPLOAD_SESSIONS_REPOSITORY, useFactory: () => new UploadSessionsRepository() },
       { provide: FILE_ASSETS_REPOSITORY, useFactory: () => new FileAssetsRepository() },
@@ -368,6 +388,8 @@ export class FilesModule {
         USAGE_COUNTERS_REPOSITORY,
         USAGE_LEDGER_REPOSITORY,
         OUTBOX_EVENTS_REPOSITORY,
+        AUDIT_SERVICE,
+        API_CONFIG,
       ],
       useFactory: (
         database: TenantDatabase,
@@ -376,6 +398,8 @@ export class FilesModule {
         counters: UsageCountersRepository,
         ledger: UsageLedgerRepository,
         outbox: OutboxEventsRepository,
+        audit: AuditService,
+        config: ApiConfig,
       ) =>
         new PreviewJob(
           database,
@@ -388,6 +412,7 @@ export class FilesModule {
           undefined,
           undefined,
           new PreviewUsageMeter(counters, ledger, outbox),
+          providerSources(database, audit, config),
         ),
     };
 
@@ -443,6 +468,7 @@ export class FilesModule {
         OBJECT_STORE,
         AUDIT_SERVICE,
         MALWARE_SCANNER,
+        API_CONFIG,
       ],
       useFactory: (
         database: TenantDatabase,
@@ -450,6 +476,7 @@ export class FilesModule {
         store: ObjectStore,
         audit: AuditService,
         malwareScanner: MalwareScanner,
+        config: ApiConfig,
       ) =>
         new FileDownloadService(
           database,
@@ -459,6 +486,9 @@ export class FilesModule {
           store,
           audit,
           malwareScanner,
+          undefined,
+          undefined,
+          providerSources(database, audit, config),
         ),
     };
 

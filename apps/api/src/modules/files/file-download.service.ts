@@ -15,6 +15,8 @@ import { awaitingScan, ClientFileSharing } from './client-file-sharing.js';
 import type { ScannerPresence } from '../tenancy/download-scan-policy.js';
 import { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import type { FileAssetRow, FileVersionRow, ProjectRow } from '../../common/database/schema.js';
+import { ProviderObjectUnavailableError, VersionStore } from './provider-objects.js';
+import type { ProviderObjectSources } from './provider-objects.js';
 
 /**
  * FILE-002 slice C — the download gate.
@@ -145,19 +147,23 @@ export function parseByteRange(header: string | undefined, size: number): ByteRa
 export class FileDownloadService {
   private readonly relation: FileClientRelation;
   private readonly sharing: ClientFileSharing;
+  private readonly versions: VersionStore;
 
   constructor(
     private readonly database: TenantDatabase,
     private readonly assets: FileAssetsRepository,
     private readonly projects: ProjectsRepository,
     requests: ClientRequestsRepository,
-    private readonly store: ObjectStore,
+    store: ObjectStore,
     private readonly audit: AuditService,
     /** B3. The configured scanner; absent or `none` means unscanned files are allowed, labelled. */
     private readonly scanner?: ScannerPresence,
     private readonly settings: OrgSettingsRepository = new OrgSettingsRepository(),
     relation?: FileClientRelation,
+    /** 57-13a. The company's Drive/OneDrive, for versions held there. */
+    providers: ProviderObjectSources = {},
   ) {
+    this.versions = new VersionStore(store, providers);
     this.relation = relation ?? new FileClientRelation(requests);
     this.sharing = new ClientFileSharing(scanner, settings);
   }
@@ -206,15 +212,12 @@ export class FileDownloadService {
     try {
       // `private` for a cleared file. An unscanned one still sits in quarantine; the zone is one
       // of the two literals chosen in step 5, never a string read from the row.
-      opened = await this.store.openObject({
-        zone,
-        objectKey: version.objectKey,
-        ...(range ? { range } : {}),
-      });
+      opened = await this.versions.open(context, version, zone, range);
     } catch (error) {
       if (error instanceof ObjectNotFoundError) {
         throw await this.refuse(context, 'private_object_missing', action);
       }
+      if (error instanceof ProviderObjectUnavailableError) throw storageUnreachable(error);
       throw error;
     }
     if (opened.sizeBytes !== version.sizeBytes) {
@@ -432,6 +435,16 @@ export class FileDownloadService {
     });
     return new ApiError(404, 'not_found', MESSAGES.notFound, undefined, auditCode);
   }
+}
+
+/** 57-13a. A version held in Drive/OneDrive that cannot be read now: a calm 409, never a crash. */
+function storageUnreachable(error: ProviderObjectUnavailableError): ApiError {
+  return new ApiError(
+    409,
+    'conflict',
+    'This file is kept in your connected storage, which cannot be reached right now',
+    [{ field: 'file', message: `storage_${error.reason}` }],
+  );
 }
 
 /** R4 slice 4. The door's principal kind, refused with the existing 403 otherwise. */

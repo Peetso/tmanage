@@ -197,8 +197,9 @@ export const ORG_SQL = {
     set status = 'disconnected', refresh_token_enc = null,
         disconnected_at = current_timestamp(3), updated_at = current_timestamp(3)
     where organization_id = ? and id = ? and status <> 'disconnected'`,
+  // 57-13a: only bytes on TManage's own store count; a version in Drive/OneDrive is the customer's.
   storageSum: `select coalesce(sum(size_bytes), 0) as bytes from file_versions
-    where organization_id = ?`,
+    where organization_id = ? and storage_backend = 'local'`,
   storageCounterUpdate: `update usage_counters
     set used_value = ?, reconciled_at = current_timestamp(3), version = version + 1
     where organization_id = ? and metric_key = 'storage.bytes'`,

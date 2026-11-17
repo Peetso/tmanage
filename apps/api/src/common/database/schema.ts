@@ -5700,6 +5700,15 @@ export const fileVersions = mysqlTable(
     trustZone: varchar('trust_zone', { length: 16 }).notNull().default('quarantine'),
     etag: varchar('etag', { length: 255 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    /**
+     * 57-13a (0361). Where the bytes are: `local` (TManage's store, `objectKey`) | `google_drive` |
+     * `onedrive` (closed list in `files/provider-objects.ts`). Existing rows are `local`.
+     */
+    storageBackend: varchar('storage_backend', { length: 16 }).notNull().default('local'),
+    /** 0361. Internal. The provider's file/item id, written only by TManage; NULL when local. */
+    providerFileId: varchar('provider_file_id', { length: 255 }),
+    /** 0361. Internal. The `storage_connections` row that holds it; NULL when local. */
+    storageConnectionId: char('storage_connection_id', { length: 36 }),
   },
   (table) => [
     uniqueIndex('uq_file_versions_org_id').on(table.organizationId, table.id),
