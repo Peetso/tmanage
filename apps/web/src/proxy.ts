@@ -12,6 +12,7 @@ import {
 import { markdownPathFor, prefersMarkdown, publicPageLinkHeader } from './lib/markdown-negotiation';
 import { rememberSignupAttribution } from './lib/signup-attribution-cookie';
 import { publicNotFoundPage } from './lib/public-not-found';
+import { createUnroutedNotFound } from './lib/unrouted-not-found';
 import { signedOutAreaRedirect } from './lib/signed-in-shell-gate';
 import { bareNotFoundRewrite, sessionHint } from './lib/workspace-gate';
 
@@ -48,9 +49,10 @@ import { bareNotFoundRewrite, sessionHint } from './lib/workspace-gate';
 const BOOT_SCRIPT_HASHES = bootScripts(process.env.NODE_ENV !== 'production').map(sha256Source);
 
 /** `next start` runs with the web app as its working directory; the dist dir as next.config.ts. */
-const prerenderedHashes = createPrerenderedScriptHashes(
-  join(process.cwd(), process.env['TMANAGE_NEXT_DIST_DIR'] ?? '.next'),
-);
+const distDir = join(process.cwd(), process.env['TMANAGE_NEXT_DIST_DIR'] ?? '.next');
+const prerenderedHashes = createPrerenderedScriptHashes(distDir);
+/** SMALLFIX 4: the build's route table, for every other address that would 404 at request time. */
+const unroutedNotFound = createUnroutedNotFound(distDir);
 
 export function proxy(request: NextRequest): NextResponse {
   const nonce = nonceFromBytes(crypto.getRandomValues(new Uint8Array(16)));
@@ -59,9 +61,11 @@ export function proxy(request: NextRequest): NextResponse {
   // hash policy is that page's.
   // NEXTUP: so is an unknown public website page (`/help/<x>`, `/compare/<x>`, `/ar/...`).
   const hasSession = sessionHint((name) => request.cookies.has(name), request.headers.get('host'));
+  // SMALLFIX 4: so is any other address no route takes, signed in or out (`/confirm-email`).
   const notFoundPage =
     bareNotFoundRewrite(request.nextUrl.pathname, hasSession) ??
-    publicNotFoundPage(request.nextUrl.pathname);
+    publicNotFoundPage(request.nextUrl.pathname) ??
+    (development ? undefined : unroutedNotFound(request.nextUrl.pathname));
   // PLATFORMFIX: a signed-out request for a signed-in area (Platform admin above all) is sent to
   // sign-in here, before any of the area's shell is rendered.
   const signIn = signedOutAreaRedirect(request.nextUrl.pathname, hasSession);
