@@ -121,8 +121,8 @@ export function bootTitleTable(): Readonly<Record<string, string>> {
     if (arabic === entry.key || arabic === entry.en) continue;
     table[`${entry.en}${TITLE_SUFFIX}`] = `${arabic}${TITLE_SUFFIX}`;
   }
-  const heroEn = translate('en-US', 'HomePage.heroTitle');
-  const heroAr = translate(BOOT_TITLE_LOCALE, 'HomePage.heroTitle');
+  const heroEn = translate('en-US', 'HomePage.betaHeroTitle');
+  const heroAr = translate(BOOT_TITLE_LOCALE, 'HomePage.betaHeroTitle');
   if (heroAr !== heroEn) table[`${HOME_TITLE_PREFIX}${heroEn}`] = `${HOME_TITLE_PREFIX}${heroAr}`;
   return table;
 }

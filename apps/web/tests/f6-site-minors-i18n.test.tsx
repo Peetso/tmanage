@@ -30,9 +30,9 @@ afterEach(() => {
 
 describe('localizedWebsiteTitle', () => {
   it('translates the home title through the hero line', () => {
-    const english = `TManage — ${translate('en-US', 'HomePage.heroTitle')}`;
+    const english = `TManage — ${translate('en-US', 'HomePage.betaHeroTitle')}`;
     expect(localizedWebsiteTitle(english, 'ar-EG')).toBe(
-      `TManage — ${translate('ar-EG', 'HomePage.heroTitle')}`,
+      `TManage — ${translate('ar-EG', 'HomePage.betaHeroTitle')}`,
     );
     expect(localizedWebsiteTitle(english, 'en-US')).toBe(english);
   });
@@ -49,11 +49,11 @@ describe('localizedWebsiteTitle', () => {
 
 describe('WebsiteDocumentTitle', () => {
   it('follows the locale and restores English when switched back', () => {
-    const english = `TManage — ${translate('en-US', 'HomePage.heroTitle')}`;
+    const english = `TManage — ${translate('en-US', 'HomePage.betaHeroTitle')}`;
     document.title = english;
     act(() => activeLocale.set('ar-EG'));
     render(<WebsiteDocumentTitle />);
-    expect(document.title).toBe(`TManage — ${translate('ar-EG', 'HomePage.heroTitle')}`);
+    expect(document.title).toBe(`TManage — ${translate('ar-EG', 'HomePage.betaHeroTitle')}`);
     act(() => activeLocale.set('en-US'));
     expect(document.title).toBe(english);
   });

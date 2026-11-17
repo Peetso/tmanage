@@ -53,7 +53,7 @@ export const WEBSITE_TITLE_KEYS: Readonly<Record<string, string>> = {
 };
 
 /** The home page's absolute title is the brand plus its hero line. */
-const HOME_TITLE_KEY: MessageKey = 'HomePage.heroTitle';
+const HOME_TITLE_KEY: MessageKey = 'HomePage.betaHeroTitle';
 
 /** The catalog string, or `undefined` while the key is not in the catalogs yet. */
 function lookup(locale: string, key: string): string | undefined {

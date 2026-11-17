@@ -970,3 +970,155 @@
   border-color: var(--ink-950);
   box-shadow: 0 0 0 3px var(--lime-500);
 }
+
+/* ── SIGNUP2 sign-up funnel (Figma 652:13273) ─────────────────────────── */
+
+/* Fix 4: Arabic headings need the Arabic leading, or the marks above letters collide. */
+.tm-identity:lang(ar) .tm-identity__title {
+  line-height: 1.47;
+}
+
+/* The funnel's primary actions run the card's width (B2/C2). */
+.tm-identity .tm-id-wide {
+  inline-size: 100%;
+  justify-content: center;
+}
+
+.tm-identity .tm-id-or {
+  text-transform: uppercase;
+}
+
+.tm-id-terms {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ink-650);
+}
+
+/* The card shows the e-mail error in full; the field's own line stays for the screen reader. */
+.tm-id-quiet-error .tm-field__error {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* "Step 2 of 2" and its two bars. */
+.tm-id-steps {
+  display: grid;
+  grid-template-columns: 48px 48px;
+  gap: var(--s1);
+  margin-block-end: var(--s2);
+}
+
+.tm-id-steps__label {
+  grid-column: 1 / -1;
+  margin: 0 0 var(--s2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-id-steps__bar {
+  block-size: 3px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-950);
+}
+
+.tm-identity .tm-identity__title:focus {
+  outline: none;
+}
+
+.tm-identity .tm-identity__title:focus-visible {
+  outline: 2px solid var(--ink-950);
+  outline-offset: 4px;
+}
+
+/* Password with Show/Hide inside the field's end: the label is one line, so the toggle sits on
+   the control by the label's line and the field's 6px gap. */
+.tm-id-password {
+  position: relative;
+}
+
+.tm-id-password .tm-field__control {
+  padding-inline-end: 72px;
+}
+
+.tm-id-password__toggle {
+  position: absolute;
+  inset-block-start: calc(var(--t-caption-line) + 6px);
+  inset-inline-end: var(--s1);
+  min-inline-size: 44px;
+  block-size: calc(var(--control) + var(--s2));
+  padding-inline: var(--s3);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--ink-650);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tm-id-password__toggle:hover {
+  color: var(--ink-950);
+}
+
+.tm-identity .tm-id-back {
+  padding-inline: 0;
+  gap: var(--s2);
+}
+
+[dir='rtl'] .tm-id-back__arrow {
+  display: inline-block;
+  transform: scaleX(-1);
+}
+
+/* D1/D2: the in-app browser card, in place of "Continue with Google". */
+.tm-id-inapp {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-50);
+}
+
+.tm-id-inapp__icon {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 24px;
+  block-size: 24px;
+  border: 1px solid var(--ink-650);
+  border-radius: var(--r-capsule);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-650);
+}
+
+.tm-id-inapp__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-inline-size: 0;
+}
+
+.tm-id-inapp__line {
+  margin: 0;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-650);
+  overflow-wrap: anywhere;
+}
+
+.tm-id-inapp__status {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-800);
+}

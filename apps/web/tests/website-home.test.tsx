@@ -74,7 +74,8 @@ describe('website home — open beta', () => {
   it('leads with the beta: free for everyone, start free and see the product', () => {
     render(<HomePage />);
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(L('HomePage.betaHeroTitle'));
-    expect(screen.getByText(L('HomePage.betaCapsule'))).toBeInTheDocument();
+    // SIGNUP2: the wide and the phone capsule now say the same "Free during the beta".
+    expect(screen.getAllByText(L('HomePage.betaCapsule')).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: L('HomePage.startFree') })[0]).toHaveAttribute(
       'href',
       SIGN_UP_HREF,

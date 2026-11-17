@@ -499,12 +499,15 @@ export function SignInScreen({
         </fieldset>
       </form>
 
-      {inAppBrowser.inApp ? (
-        <InAppBrowserNotice
-          google={Boolean(google)}
-          microsoft={Boolean(microsoft)}
-          android={inAppBrowser.android}
-        />
+      {inAppBrowser.inApp && (google || microsoft) ? (
+        <>
+          <p className="tm-divider tm-id-or">{t('SignUpFunnel.or')}</p>
+          <InAppBrowserNotice
+            google={Boolean(google)}
+            microsoft={Boolean(microsoft)}
+            android={inAppBrowser.android}
+          />
+        </>
       ) : null}
 
       {signUpOffered ? (

@@ -199,7 +199,7 @@ const HOME_TITLE_PREFIX = 'TManage — ';
  */
 export function arabicPublicTitle(path: PublicLocalizedPath): string {
   if (path === '/') {
-    return `${HOME_TITLE_PREFIX}${translate(ARABIC_ROUTE_LOCALE, 'HomePage.heroTitle')}`;
+    return `${HOME_TITLE_PREFIX}${translate(ARABIC_ROUTE_LOCALE, 'HomePage.betaHeroTitle')}`;
   }
   const entry = ROUTE_TITLES[path];
   if (entry === undefined || entry === PAGE_OWNS_TITLE) {
@@ -213,7 +213,10 @@ export function arabicPublicTitle(path: PublicLocalizedPath): string {
 export function arabicPublicMetadata(path: PublicLocalizedPath): Metadata {
   return {
     title: { absolute: arabicPublicTitle(path) },
-    description: siteDescription(ARABIC_ROUTE_LOCALE),
+    description:
+      path === '/'
+        ? translate(ARABIC_ROUTE_LOCALE, 'HomePage.betaHeroLede')
+        : siteDescription(ARABIC_ROUTE_LOCALE),
   };
 }
 

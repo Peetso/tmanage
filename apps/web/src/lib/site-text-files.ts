@@ -66,7 +66,7 @@ export function llmsTxt(origin: string = siteOrigin()): string {
   return [
     '# TManage',
     '',
-    `> ${siteDescription('en-US')} ${translate('en', 'HomePage.heroLede')} Free for everyone during the beta; client users are always free. Available in English and Arabic (every page below has an Arabic twin under /ar).`,
+    `> ${siteDescription('en-US')} ${translate('en', 'HomePage.betaHeroLede')} Free for everyone during the beta; client users are always free. Available in English and Arabic (every page below has an Arabic twin under /ar).`,
     '',
     `Every page below is also available as Markdown: send \`Accept: text/markdown\`, or open the same path under ${MARKDOWN_PREFIX} (for example ${origin}${markdownPathFor('/pricing')}).`,
     ...sections,

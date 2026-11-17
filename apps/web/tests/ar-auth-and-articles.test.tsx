@@ -246,7 +246,7 @@ describe('/ar/sign-up', () => {
                 code: 'validation_failed',
                 message: 'Request validation failed',
                 correlationId: 'c1',
-                details: [{ field: 'email', message: 'email must be an email address' }],
+                details: [{ field: 'displayName', message: 'displayName is too long' }],
               },
             },
             422,
@@ -254,22 +254,18 @@ describe('/ar/sign-up', () => {
         : json({ available: true }),
     );
     render(inArabic(<SignUpScreen client={client} />));
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'إنشاء مساحة عملي' })).toBeEnabled(),
-    );
-    await user.type(screen.getByLabelText(/^الاسم الكامل/), 'منى عادل');
-    await user.type(screen.getByLabelText(/^بريد العمل/), 'mona@example.com');
-    await user.type(screen.getByLabelText(/^اسم المؤسسة/), 'استوديو النيل');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'متابعة' })).toBeEnabled());
+    await user.type(screen.getByLabelText(/^البريد الإلكتروني/), 'mona@example.com');
+    await user.click(screen.getByRole('button', { name: 'متابعة' }));
+    await user.type(await screen.findByLabelText(/^الاسم الكامل/), 'منى عادل');
+    await user.type(screen.getByLabelText(/^اسم مساحة العمل/), 'استوديو النيل');
     await user.type(screen.getByLabelText(/^كلمة المرور/), 'violet-harbour-lantern-41');
-    await user.click(screen.getByLabelText(/أوافق على الشروط/));
     await user.click(screen.getByRole('button', { name: 'إنشاء مساحة عملي' }));
     expect(
       await screen.findByText(translate('ar-EG', 'signUp.fieldsNeedAttention')),
     ).toBeInTheDocument();
     expect(screen.getByText(translate('ar-EG', 'AuthRefusal.checkField'))).toBeInTheDocument();
-    expect(
-      screen.queryByText(/email must be an email address|Request validation failed/),
-    ).toBeNull();
+    expect(screen.queryByText(/displayName is too long|Request validation failed/)).toBeNull();
   });
 });
 

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { HomePage } from '../../components/website/pages/home/HomePage';
+import { translate } from '../../lib/i18n/t';
 
 /**
  * WEB-01 Home — the public website's landing page (`/`).
@@ -9,9 +10,9 @@ import { HomePage } from '../../components/website/pages/home/HomePage';
  * SITE-SPEC "PAGE: Home". Sign-in stays one click away in the nav and the hero.
  */
 export const metadata: Metadata = {
-  title: { absolute: 'TManage — All the work. One connected story.' },
-  description:
-    'Plan, talk, deliver and get client approval in one place — without rebuilding context across five tools.',
+  // The hero's own lines (SIGNUP2), so the tab, the search snippet and the page say the same.
+  title: { absolute: `TManage — ${translate('en-US', 'HomePage.betaHeroTitle')}` },
+  description: translate('en-US', 'HomePage.betaHeroLede'),
 };
 
 export default function RootPage() {

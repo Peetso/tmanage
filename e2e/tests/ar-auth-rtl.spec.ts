@@ -52,13 +52,13 @@ test.describe('Arabic sign-in and sign-up', () => {
     await expect(page.getByText('The request carries no valid session')).toHaveCount(0);
   });
 
-  test('/ar/sign-up renders right to left in Arabic with the same form', async ({ page }) => {
+  test('/ar/sign-up renders right to left in Arabic, step 1 of the funnel', async ({ page }) => {
     await page.goto('/ar/sign-up');
     await expectRtlArabic(page);
     await expect(page).toHaveTitle(/TManage$/);
-    await expect(page.getByLabel(/^الاسم الكامل/)).toBeVisible();
-    await expect(page.getByLabel(/^البريد الإلكتروني للعمل/)).toHaveAttribute('dir', 'ltr');
-    await expect(page.getByRole('button', { name: 'إنشاء مساحة عملي' })).toBeVisible();
+    // SIGNUP2: step 1 is the e-mail alone; the name and password come on step 2.
+    await expect(page.getByLabel(/^البريد الإلكتروني/)).toHaveAttribute('dir', 'ltr');
+    await expect(page.getByRole('button', { name: 'متابعة' })).toBeVisible();
     await expect(page.locator('a[href="/ar/sign-in"]').first()).toBeVisible();
   });
 });

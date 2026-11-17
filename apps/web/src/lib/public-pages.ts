@@ -89,7 +89,7 @@ function websitePage(path: string): PublicPage {
     return {
       path,
       title: 'TManage',
-      summary: translate('en', 'HomePage.heroLede'),
+      summary: translate('en', 'HomePage.betaHeroLede'),
       section: 'product',
       lastModified: SITE_BUILD_DATE,
     };

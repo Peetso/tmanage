@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import Link from '../website/WebLink';
-import { Badge, Button, Checkbox, Field, InlineAlert } from '@tmanage/ui';
+import { Badge, Button, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchSignupAvailability, signUp } from '../../lib/api/sign-up';
@@ -16,6 +16,7 @@ import type { MessageKey } from '../../lib/i18n/t';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { readsApiLanguage, refusalLine } from '../../lib/api/auth-refusal';
 import { GETTING_IN_MIN_PASSWORD, gettingIn, type GettingInKey } from '../../lib/public-signup';
+import { suggestWorkspaceName } from '../../lib/workspace-name-suggestion';
 import {
   GoogleErrorMessage,
   GoogleSignInButton,
@@ -34,11 +35,16 @@ import '../../styles/screens/identity.css';
 
 const MAX_NAME = 190;
 const MAX_EMAIL = 254;
+/** Enough to catch a typo (`omar@northstar`); the API is the real check. */
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-type SignUpField = 'displayName' | 'email' | 'password' | 'organizationName' | 'agree';
+type SignUpField = 'displayName' | 'email' | 'password' | 'organizationName';
 const API_FIELDS: readonly SignUpField[] = ['displayName', 'email', 'password', 'organizationName'];
 
 type Availability = 'checking' | 'available' | 'unavailable' | 'failed';
+type Step = 'email' | 'details';
+/** Step 1's own refusals: the e-mail's shape, or the API's "this account exists" answer. */
+type EmailProblem = 'missing' | 'invalid' | 'exists';
 
 /** What the check-your-email state needs once the workspace exists. */
 interface Created {
@@ -63,13 +69,16 @@ export interface SignUpScreenProps {
 }
 
 /**
- * **Start free** (`/sign-up`), Figma t1-c (369:1289 EN, 369:1459 AR).
+ * **Start free** (`/sign-up`), the two-step "Sign-up funnel" (Figma 652:13273, SIGNUP2).
  *
- * Public self-service account creation on `lib/api/sign-up.ts`: full name, work email,
- * organization name and password create the person and a new organization they own, and sign
- * them in. The API sends a welcome email, so success shows the check-your-email state with a
- * button into the new workspace. With the API's `PUBLIC_SIGNUP` switch off (404) the screen
- * says sign-up is not open and shows no form.
+ * Step 1 asks for the e-mail only (or Google); step 2 for the name, the workspace name (suggested
+ * from the e-mail, `lib/workspace-name-suggestion.ts`) and the password. The steps are client
+ * state on one route: nothing is sent until "Create my workspace", which makes the one existing
+ * `lib/api/sign-up.ts` call. There is no "does this e-mail exist" lookup at step 1 (it would let
+ * anyone test who has an account): "You already have an account" appears only when that final
+ * answer is a 409, and then on step 1, where the e-mail is. Terms are accepted by the explicit
+ * "By continuing you agree" line (the API takes no acceptance field). With the API's
+ * `PUBLIC_SIGNUP` switch off (404) the screen says sign-up is not open and shows no form.
  */
 export function SignUpScreen({
   client,
@@ -84,17 +93,22 @@ export function SignUpScreen({
   const locale = useActiveLocale();
 
   const [availability, setAvailability] = useState<Availability>('checking');
+  const [step, setStep] = useState<Step>('email');
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
+  const [emailProblem, setEmailProblem] = useState<EmailProblem | undefined>(undefined);
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [organizationName, setOrganizationName] = useState('');
-  const [agreed, setAgreed] = useState(false);
+  /** Once the person types a workspace name, the suggestion stops following theirs. */
+  const [organizationTouched, setOrganizationTouched] = useState(false);
   const [website, setWebsite] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
-  const [accountExists, setAccountExists] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<SignUpField, string>>>({});
   const [created, setCreated] = useState<Created | undefined>(undefined);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const stepChanged = useRef(false);
   const google = useGoogleAvailability(api);
   const [googleError, setGoogleError] = useState<MessageKey | undefined>(undefined);
   // 52-21: the invisible form proof, fetched once when the form is shown.
@@ -131,14 +145,25 @@ export function SignUpScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Focus follows the step: the new step's heading, so a screen reader starts at its top.
+  useEffect(() => {
+    if (!stepChanged.current) return;
+    heading.current?.focus();
+  }, [step]);
+
+  function goTo(next: Step) {
+    stepChanged.current = true;
+    setFailure(undefined);
+    setStep(next);
+  }
+
   function clearFieldError(field: SignUpField) {
     setFailure(undefined);
-    setAccountExists(false);
     setFieldErrors((current) => {
       if (current[field] === undefined) return current;
-      const next = { ...current };
-      delete next[field];
-      return next;
+      const rest = { ...current };
+      delete rest[field];
+      return rest;
     });
   }
 
@@ -147,20 +172,31 @@ export function SignUpScreen({
     else window.location.assign(`/${encodeURIComponent(organizationSlug)}/home`);
   }
 
+  function continueWithEmail(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const typed = email.trim();
+    if (typed === '') {
+      setEmailProblem('missing');
+      return;
+    }
+    if (typed.length > MAX_EMAIL || !EMAIL_SHAPE.test(typed)) {
+      setEmailProblem('invalid');
+      return;
+    }
+    setEmailProblem(undefined);
+    if (!organizationTouched) setOrganizationName(suggestWorkspaceName(typed, displayName));
+    goTo('details');
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFailure(undefined);
-    setAccountExists(false);
     setFieldErrors({});
 
     const missing: Partial<Record<SignUpField, string>> = {};
     if (displayName.trim() === '') missing.displayName = g('GettingIn.nameMissing');
-    if (email.trim() === '') missing.email = g('GettingIn.emailMissing');
-    if (organizationName.trim() === '') {
-      missing.organizationName = g('GettingIn.organizationMissing');
-    }
+    if (organizationName.trim() === '') missing.organizationName = t('signUp.missingWorkspace');
     if (password.length < GETTING_IN_MIN_PASSWORD) missing.password = g('GettingIn.passwordShort');
-    if (!agreed) missing.agree = g('GettingIn.mustAgree');
     if (Object.keys(missing).length > 0) {
       setFieldErrors(missing);
       setFailure(g('GettingIn.fieldsNeedAttention'));
@@ -194,12 +230,19 @@ export function SignUpScreen({
         return;
       }
       if (error instanceof ApiRequestError && error.status === 409) {
-        setAccountExists(true);
-        setFailure(t('signUp.accountExists'));
+        // The one place "you already have an account" can come from: the sign-up answer itself.
+        setPassword('');
+        setEmailProblem('exists');
+        goTo('email');
         return;
       }
       if (error instanceof ApiRequestError && [400, 422].includes(error.status)) {
         const byField = error.fieldErrors();
+        if (byField.get('email') !== undefined) {
+          setEmailProblem('invalid');
+          goTo('email');
+          return;
+        }
         const next: Partial<Record<SignUpField, string>> = {};
         for (const field of API_FIELDS) {
           const message = byField.get(field);
@@ -254,14 +297,172 @@ export function SignUpScreen({
     );
   }
 
+  const providers = google?.signUp === true || microsoft?.signUp === true;
+
+  if (availability === 'available' && step === 'details') {
+    return (
+      <IdentityShell brand={false}>
+        <div className="tm-id-intro">
+          <div className="tm-id-steps">
+            <p className="tm-id-steps__label">
+              {fill(t('SignUpFunnel.stepOf'), { current: '2', total: '2' })}
+            </p>
+            <span className="tm-id-steps__bar" aria-hidden="true" />
+            <span className="tm-id-steps__bar" aria-hidden="true" />
+          </div>
+          <h1 ref={heading} tabIndex={-1} className="tm-identity__title">
+            {t('SignUpFunnel.almostTitle')}
+          </h1>
+          <p className="tm-id-lede">
+            {t('SignUpFunnel.signedUpAs')
+              .split(/(\{email\})/)
+              .map((part, index) =>
+                part === '{email}' ? (
+                  <bdi key={index} dir="ltr">
+                    {email.trim()}
+                  </bdi>
+                ) : (
+                  part
+                ),
+              )}
+          </p>
+        </div>
+
+        <form className="tm-stack tm-stack--loose" noValidate onSubmit={submit}>
+          <fieldset className="tm-fieldset tm-stack" disabled={!hydrated || submitting}>
+            <Field
+              label={g('GettingIn.fullName')}
+              name="displayName"
+              autoComplete="name"
+              maxLength={MAX_NAME}
+              value={displayName}
+              onChange={(event) => {
+                const value = event.target.value;
+                setDisplayName(value);
+                if (!organizationTouched) setOrganizationName(suggestWorkspaceName(email, value));
+                clearFieldError('displayName');
+              }}
+              required
+              {...errorProp(fieldErrors.displayName)}
+            />
+            <Field
+              label={t('SignUpFunnel.workspaceName')}
+              name="organizationName"
+              autoComplete="organization"
+              maxLength={MAX_NAME}
+              value={organizationName}
+              onChange={(event) => {
+                setOrganizationName(event.target.value);
+                setOrganizationTouched(true);
+                clearFieldError('organizationName');
+              }}
+              hint={t('SignUpFunnel.workspaceHint')}
+              required
+              {...errorProp(fieldErrors.organizationName)}
+            />
+            <div className="tm-id-password">
+              <Field
+                label={g('GettingIn.password')}
+                type={showPassword ? 'text' : 'password'}
+                name="password"
+                autoComplete="new-password"
+                minLength={GETTING_IN_MIN_PASSWORD}
+                value={password}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  clearFieldError('password');
+                }}
+                hint={t('SignUpFunnel.passwordHint')}
+                required
+                {...errorProp(fieldErrors.password)}
+              />
+              <button
+                type="button"
+                className="tm-id-password__toggle"
+                aria-pressed={showPassword}
+                aria-label={t(
+                  showPassword ? 'SignUpFunnel.hidePassword' : 'SignUpFunnel.showPassword',
+                )}
+                onClick={() => setShowPassword((shown) => !shown)}
+              >
+                {t(showPassword ? 'SignUpFunnel.hide' : 'SignUpFunnel.show')}
+              </button>
+            </div>
+            {/* Honeypot: hidden from people and from assistive technology; bots fill it. */}
+            <div hidden aria-hidden="true">
+              <Field
+                label={t('signUp.honeypot')}
+                name="website"
+                autoComplete="off"
+                tabIndex={-1}
+                value={website}
+                onChange={(event) => setWebsite(event.target.value)}
+              />
+            </div>
+            {/* 52-21 form proof: invisible; the submit adds the browser-computed proof. */}
+            <input type="hidden" name="startedAt" value={formProof.issue?.startedAt ?? ''} />
+            <input type="hidden" name="nonce" value={formProof.issue?.nonce ?? ''} />
+          </fieldset>
+
+          {failure ? (
+            <InlineAlert tone="danger" title={t('signUp.failureTitle')} live>
+              {failure}
+            </InlineAlert>
+          ) : null}
+
+          <Button
+            type="submit"
+            tone="lime"
+            size="accessible"
+            className="tm-id-wide"
+            loading={submitting}
+            loadingLabel={g('GettingIn.creatingWorkspace')}
+            disabled={!hydrated}
+          >
+            {g('GettingIn.createWorkspace')}
+          </Button>
+        </form>
+
+        <div>
+          <Button
+            type="button"
+            tone="text"
+            size="accessible"
+            className="tm-id-back"
+            onClick={() => goTo('email')}
+            disabled={submitting}
+          >
+            <span className="tm-id-back__arrow" aria-hidden="true">
+              ←
+            </span>
+            {t('SignUpFunnel.back')}
+          </Button>
+        </div>
+      </IdentityShell>
+    );
+  }
+
+  const emailAlert =
+    emailProblem === 'exists' ? (
+      <InlineAlert tone="danger" title={t('SignUpFunnel.existsTitle')} live>
+        {t('SignUpFunnel.existsBody')}
+      </InlineAlert>
+    ) : emailProblem !== undefined ? (
+      <InlineAlert tone="danger" title={t('SignUpFunnel.emailInvalidTitle')} live>
+        {t(emailProblem === 'missing' ? 'SignUpFunnel.emailMissing' : 'SignUpFunnel.emailInvalid')}
+      </InlineAlert>
+    ) : null;
+
   return (
     <IdentityShell brand={false}>
       <div className="tm-id-intro">
         <p>
-          <Badge>{g('GettingIn.freePlan')}</Badge>
+          <Badge>{t('SignUpFunnel.badge')}</Badge>
         </p>
-        <h1 className="tm-identity__title">{g('GettingIn.startTitle')}</h1>
-        <p className="tm-id-lede">{g('GettingIn.startLede')}</p>
+        <h1 ref={heading} tabIndex={-1} className="tm-identity__title">
+          {t('SignUpFunnel.title')}
+        </h1>
+        <p className="tm-id-lede">{t('SignUpFunnel.lede')}</p>
       </div>
 
       {availability === 'checking' ? (
@@ -289,133 +490,81 @@ export function SignUpScreen({
             </InlineAlert>
           ) : null}
           {alternatives}
-          {!inAppBrowser.inApp && (google?.signUp || microsoft?.signUp) ? (
+          {!inAppBrowser.inApp && providers ? (
             <>
               <div className="tm-id-methods">
                 {google?.signUp ? <GoogleSignInButton api={api} input={signUpInput} /> : null}
                 {microsoft?.signUp ? <MicrosoftSignInButton api={api} input={signUpInput} /> : null}
               </div>
-              <p className="tm-divider">{t('google.or')}</p>
+              <p className="tm-divider tm-id-or">{t('SignUpFunnel.or')}</p>
             </>
           ) : null}
-          <form className="tm-stack tm-stack--loose" noValidate onSubmit={submit}>
-            <fieldset className="tm-fieldset tm-stack" disabled={!hydrated || submitting}>
+          <form className="tm-stack" noValidate onSubmit={continueWithEmail}>
+            <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
               <Field
-                label={g('GettingIn.fullName')}
-                name="displayName"
-                autoComplete="name"
-                maxLength={MAX_NAME}
-                value={displayName}
-                onChange={(event) => {
-                  setDisplayName(event.target.value);
-                  clearFieldError('displayName');
-                }}
-                required
-                {...errorProp(fieldErrors.displayName)}
-              />
-              <Field
-                label={g('GettingIn.workEmail')}
+                className="tm-id-quiet-error"
+                label={t('SignUpFunnel.email')}
                 type="email"
                 name="email"
-                autoComplete="username"
+                autoComplete="email"
                 inputMode="email"
                 dir="ltr"
                 maxLength={MAX_EMAIL}
+                placeholder={t('SignUpFunnel.emailPlaceholder')}
                 value={email}
                 onChange={(event) => {
                   setEmail(event.target.value);
+                  setEmailProblem(undefined);
                   clearFieldError('email');
                 }}
                 required
-                {...errorProp(fieldErrors.email)}
+                // The card below says it in full; the field's own line is for the screen reader.
+                {...errorProp(
+                  emailProblem === undefined
+                    ? undefined
+                    : t(
+                        emailProblem === 'exists'
+                          ? 'SignUpFunnel.existsBody'
+                          : emailProblem === 'missing'
+                            ? 'SignUpFunnel.emailMissing'
+                            : 'SignUpFunnel.emailInvalid',
+                      ),
+                )}
               />
-              <Field
-                label={g('GettingIn.organizationName')}
-                name="organizationName"
-                autoComplete="organization"
-                maxLength={MAX_NAME}
-                value={organizationName}
-                onChange={(event) => {
-                  setOrganizationName(event.target.value);
-                  clearFieldError('organizationName');
-                }}
-                hint={g('GettingIn.organizationHint')}
-                required
-                {...errorProp(fieldErrors.organizationName)}
-              />
-              <Field
-                label={g('GettingIn.password')}
-                type="password"
-                name="password"
-                autoComplete="new-password"
-                minLength={GETTING_IN_MIN_PASSWORD}
-                placeholder={g('GettingIn.passwordHint')}
-                value={password}
-                onChange={(event) => {
-                  setPassword(event.target.value);
-                  clearFieldError('password');
-                }}
-                required
-                {...errorProp(fieldErrors.password)}
-              />
-              <Checkbox
-                label={g('GettingIn.agree')}
-                name="agree"
-                checked={agreed}
-                onChange={(event) => {
-                  setAgreed(event.target.checked);
-                  clearFieldError('agree');
-                }}
-                {...errorProp(fieldErrors.agree)}
-              />
-              {/* Honeypot: hidden from people and from assistive technology; bots fill it. */}
-              <div hidden aria-hidden="true">
-                <Field
-                  label={t('signUp.honeypot')}
-                  name="website"
-                  autoComplete="off"
-                  tabIndex={-1}
-                  value={website}
-                  onChange={(event) => setWebsite(event.target.value)}
-                />
-              </div>
-              {/* 52-21 form proof: invisible; the submit adds the browser-computed proof. */}
-              <input type="hidden" name="startedAt" value={formProof.issue?.startedAt ?? ''} />
-              <input type="hidden" name="nonce" value={formProof.issue?.nonce ?? ''} />
             </fieldset>
-
-            {failure ? (
-              <InlineAlert tone="danger" title={t('signUp.failureTitle')} live>
-                {failure}
-                {accountExists ? (
-                  <>
-                    {' '}
-                    <Link href="/sign-in">{t('signUp.signIn')}</Link>
-                  </>
-                ) : null}
-              </InlineAlert>
-            ) : null}
-
-            <div style={ACTION_ROW}>
+            {emailAlert}
+            {emailProblem === 'exists' ? (
+              <Link
+                className="tm-button tm-button--lime tm-button--accessible tm-id-wide"
+                href="/sign-in"
+              >
+                {t('signUp.signIn')}
+              </Link>
+            ) : (
               <Button
                 type="submit"
                 tone="lime"
                 size="accessible"
-                loading={submitting}
-                loadingLabel={g('GettingIn.creatingWorkspace')}
+                className="tm-id-wide"
                 disabled={!hydrated}
               >
-                {g('GettingIn.createWorkspace')}
+                {t('SignUpFunnel.continue')}
               </Button>
-            </div>
+            )}
           </form>
-          {inAppBrowser.inApp ? (
-            <InAppBrowserNotice
-              google={google?.signUp === true}
-              microsoft={microsoft?.signUp === true}
-              android={inAppBrowser.android}
-            />
+          {inAppBrowser.inApp && providers ? (
+            <>
+              <p className="tm-divider tm-id-or">{t('SignUpFunnel.or')}</p>
+              <InAppBrowserNotice
+                google={google?.signUp === true}
+                microsoft={microsoft?.signUp === true}
+                android={inAppBrowser.android}
+              />
+            </>
           ) : null}
+          <p className="tm-id-terms">
+            <TermsLine template={t('SignUpFunnel.terms')} t={t} />
+          </p>
         </>
       ) : null}
 
@@ -427,6 +576,31 @@ export function SignUpScreen({
       </p>
     </IdentityShell>
   );
+}
+
+/** "By continuing you agree to the {terms} and the {privacy}." with the two links in place. */
+function TermsLine({ template, t }: { template: string; t: (key: MessageKey) => string }) {
+  return (
+    <>
+      {template.split(/(\{terms\}|\{privacy\})/).map((part, index) =>
+        part === '{terms}' ? (
+          <Link key={index} className="tm-id-link" href="/legal/terms">
+            {t('SignUpFunnel.termsLink')}
+          </Link>
+        ) : part === '{privacy}' ? (
+          <Link key={index} className="tm-id-link" href="/legal/privacy">
+            {t('SignUpFunnel.privacyLink')}
+          </Link>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
+}
+
+function fill(template: string, values: Readonly<Record<string, string>>): string {
+  return template.replace(/\{(\w+)\}/g, (match, name: string) => values[name] ?? match);
 }
 
 function errorProp(message: string | undefined): { error?: string } {

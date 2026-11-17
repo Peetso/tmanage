@@ -62,24 +62,29 @@ export function InAppBrowserNotice({ google, microsoft, android }: InAppBrowserN
   }
 
   return (
-    <div className="tm-id-methods" data-testid="in-app-browser-notice">
-      <p className="tm-id-lede">{t(line)}</p>
-      <div className="tm-id-action-row">
-        <Button type="button" tone="outline" size="accessible" onClick={() => void copy()}>
-          {t('InAppBrowser.copyLink')}
-        </Button>
+    <div className="tm-id-inapp" data-testid="in-app-browser-notice">
+      <span className="tm-id-inapp__icon" aria-hidden="true">
+        i
+      </span>
+      <div className="tm-id-inapp__text">
+        <p className="tm-id-inapp__line">{t(line)}</p>
         {intent === undefined ? null : (
-          <a className="tm-id-link" href={intent}>
+          <a className="tm-id-link tm-id-inapp__open" href={intent}>
             {t('InAppBrowser.openInBrowser')}
           </a>
         )}
-        <span role="status">{copied ? t('InAppBrowser.copied') : null}</span>
+        <span role="status" className="tm-id-inapp__status">
+          {copied ? t('InAppBrowser.copied') : null}
+        </span>
+        {manual === undefined ? null : (
+          <p className="tm-id-inapp__line">
+            {t('InAppBrowser.copyManual')} <bdi dir="ltr">{manual}</bdi>
+          </p>
+        )}
       </div>
-      {manual === undefined ? null : (
-        <p className="tm-id-lede">
-          {t('InAppBrowser.copyManual')} <span dir="ltr">{manual}</span>
-        </p>
-      )}
+      <Button type="button" tone="outline" size="accessible" onClick={() => void copy()}>
+        {t('InAppBrowser.copyLink')}
+      </Button>
     </div>
   );
 }

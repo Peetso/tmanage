@@ -49,18 +49,19 @@ function json(body: unknown, status = 200): Response {
 const open = (post: () => Response) =>
   clientOver((call) => (call.method === 'POST' ? post() : json({ available: true })));
 
+/** Step 1 (e-mail) then step 2 (name, workspace, password), as a person fills the funnel. */
 async function fill(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(screen.getByLabelText(/^Full name/), 'Mona Adel');
-  await user.type(screen.getByLabelText(/^Work email/), 'mona@example.com');
-  await user.type(screen.getByLabelText(/^Organization name/), 'Nile Studio');
+  await user.type(screen.getByLabelText(/^Email/), 'mona@example.com');
+  await user.click(screen.getByRole('button', { name: 'Continue' }));
+  await user.type(await screen.findByLabelText(/^Full name/), 'Mona Adel');
+  const workspace = screen.getByLabelText(/^Workspace name/);
+  await user.clear(workspace);
+  await user.type(workspace, 'Nile Studio');
   await user.type(screen.getByLabelText(/^Password/), 'violet-harbour-lantern-41');
-  await user.click(screen.getByLabelText(/I agree to the Terms/));
 }
 
 async function ready() {
-  await waitFor(() =>
-    expect(screen.getByRole('button', { name: 'Create my workspace' })).toBeEnabled(),
-  );
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled());
 }
 
 describe('SignUpScreen', () => {
@@ -123,8 +124,14 @@ describe('SignUpScreen', () => {
     await fill(user);
     await user.click(screen.getByRole('button', { name: 'Create my workspace' }));
 
-    expect(await screen.findByText(/You already have an account/)).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: 'Sign in' }).length).toBeGreaterThan(0);
+    // Back on step 1, where the e-mail is: the card, and Sign in in place of Continue.
+    expect(await screen.findByText('You already have an account')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Start your free workspace' }),
+    ).toHaveFocus();
+    expect(screen.getByLabelText(/^Email/)).toHaveValue('mona@example.com');
+    expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
+    expect(screen.getAllByRole('link', { name: 'Sign in' })[0]).toHaveAttribute('href', '/sign-in');
   });
 
   it('shows "not open" and no form when the switch is off (404)', async () => {
@@ -190,7 +197,7 @@ describe('Continue with Google', () => {
     expect(await screen.findByRole('button', { name: /Continue with Google/ })).toBeInTheDocument();
   });
 
-  it('starts a sign-up attempt carrying the typed workspace name', async () => {
+  it('starts a sign-up attempt from step 1', async () => {
     const user = userEvent.setup();
     const assign = vi.fn();
     const original = window.location;
@@ -207,17 +214,140 @@ describe('Continue with Google', () => {
       });
       render(<SignUpScreen client={client} boundary={new AuthBoundary()} />);
       await ready();
-      await user.type(screen.getByLabelText(/^Organization name/), 'Nile Studio');
       await user.click(await screen.findByRole('button', { name: /Continue with Google/ }));
       await waitFor(() =>
         expect(assign).toHaveBeenCalledWith('https://accounts.google.com/o/oauth2/v2/auth?x=1'),
       );
       expect(calls.find((c) => c.url.endsWith('/v1/auth/google/start'))?.body).toEqual({
         intent: 'sign-up',
-        organizationName: 'Nile Studio',
       });
     } finally {
       Object.defineProperty(window, 'location', { configurable: true, value: original });
+    }
+  });
+});
+
+describe('the two-step funnel (SIGNUP2)', () => {
+  it('step 1 checks the e-mail on the client and sends nothing', async () => {
+    const user = userEvent.setup();
+    const { client, calls } = open(() => json({}, 500));
+    render(<SignUpScreen client={client} boundary={new AuthBoundary()} />);
+    await ready();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText('Check the e-mail address')).toBeInTheDocument();
+    await user.type(screen.getByLabelText(/^Email/), 'omar@northstar');
+    await user.keyboard('{Enter}');
+    expect(screen.getByText('Check the e-mail address')).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Email/)).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.queryByLabelText(/^Full name/)).toBeNull();
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(0);
+  });
+
+  it('shows the terms line with its links in place of a checkbox', async () => {
+    const { client } = open(() => json({}, 500));
+    render(<SignUpScreen client={client} boundary={new AuthBoundary()} />);
+    await ready();
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Terms' })).toHaveAttribute('href', '/legal/terms');
+    expect(screen.getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute(
+      'href',
+      '/legal/privacy',
+    );
+    expect(screen.getByLabelText(/^Email/)).toHaveAttribute('placeholder', 'you@example.com');
+  });
+
+  it('step 2 suggests the workspace, keeps values over Back and submits once with every field', async () => {
+    const user = userEvent.setup();
+    const { client, calls } = open(() =>
+      json(
+        {
+          status: 'authenticated',
+          csrfToken: 'csrf-1',
+          expiresAt: '2026-10-19T00:00:00.000Z',
+          organizationSlug: 'northstar-studio',
+        },
+        201,
+      ),
+    );
+    render(<SignUpScreen client={client} boundary={new AuthBoundary()} onCompleted={vi.fn()} />);
+    await ready();
+    await user.type(screen.getByLabelText(/^Email/), 'omar@northstar.studio{Enter}');
+
+    const title = await screen.findByRole('heading', { level: 1, name: 'Almost there' });
+    expect(title).toHaveFocus();
+    expect(screen.getByText('Step 2 of 2')).toBeInTheDocument();
+    expect(screen.getByText('omar@northstar.studio')).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Workspace name/)).toHaveValue('Northstar Studio');
+
+    await user.type(screen.getByLabelText(/^Full name/), 'Omar Adel');
+    const password = screen.getByLabelText(/^Password/);
+    await user.type(password, 'violet-harbour-lantern-41');
+    expect(password).toHaveAttribute('type', 'password');
+    await user.click(screen.getByRole('button', { name: 'Show password' }));
+    expect(password).toHaveAttribute('type', 'text');
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Start your free workspace' }),
+    ).toHaveFocus();
+    expect(screen.getByLabelText(/^Email/)).toHaveValue('omar@northstar.studio');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByLabelText(/^Full name/)).toHaveValue('Omar Adel');
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(0);
+
+    // Enter in a field submits step 2; the typed password survived Back.
+    await user.type(screen.getByLabelText(/^Password/), '{Enter}');
+    await screen.findByRole('heading', { level: 1, name: 'Check your email' });
+    const posts = calls.filter((c) => c.method === 'POST');
+    expect(posts).toHaveLength(1);
+    expect(posts[0]?.body).toMatchObject({
+      displayName: 'Omar Adel',
+      email: 'omar@northstar.studio',
+      organizationName: 'Northstar Studio',
+      password: 'violet-harbour-lantern-41',
+      website: '',
+    });
+    expect(Object.keys(posts[0]?.body as object)).not.toContain('agree');
+  });
+
+  it('refuses a short password on step 2 without calling the API', async () => {
+    const user = userEvent.setup();
+    const { client, calls } = open(() => json({}, 500));
+    render(<SignUpScreen client={client} boundary={new AuthBoundary()} />);
+    await ready();
+    await user.type(screen.getByLabelText(/^Email/), 'mona@gmail.com{Enter}');
+    await user.type(await screen.findByLabelText(/^Full name/), 'Mona Adel');
+    // A free mail provider: the suggestion follows the person's name.
+    expect(screen.getByLabelText(/^Workspace name/)).toHaveValue('Mona Adel');
+    await user.type(screen.getByLabelText(/^Password/), 'short');
+    await user.click(screen.getByRole('button', { name: 'Create my workspace' }));
+    expect(await screen.findByText('Some fields need attention.')).toBeInTheDocument();
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(0);
+  });
+
+  it('in an in-app browser puts the e-mail first, then "or", then the notice', async () => {
+    const agent = vi
+      .spyOn(window.navigator, 'userAgent', 'get')
+      .mockReturnValue(
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 345.0.0.32.97',
+      );
+    try {
+      const { client } = clientOver((call) =>
+        call.url.endsWith('/v1/auth/google')
+          ? json({ available: true, signUp: true })
+          : json({ available: true }),
+      );
+      render(<SignUpScreen client={client} boundary={new AuthBoundary()} />);
+      const notice = await screen.findByTestId('in-app-browser-notice');
+      expect(screen.queryByRole('button', { name: /Continue with Google/ })).toBeNull();
+      const email = screen.getByLabelText(/^Email/);
+      const or = screen.getByText('or');
+      const follows = (a: Node, b: Node) =>
+        Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(follows(email, or)).toBe(true);
+      expect(follows(or, notice)).toBe(true);
+    } finally {
+      agent.mockRestore();
     }
   });
 });
