@@ -48,7 +48,7 @@ import '../../styles/screens/storage.css';
 import './admin-label-spacing.css';
 import { BrandLogo } from '../brand/BrandLogo';
 import { isServicePaused } from '../../lib/api/service-paused';
-import { ServicePausedNotice } from './ServicePausedNotice';
+import { ServicePausedNotice, pausedButtonProps } from './ServicePausedNotice';
 
 /**
  * Owner decision 2026-10-31 (reverses 2026-10-26): TManage storage (1 GB per company) is
@@ -216,9 +216,10 @@ export function AdminStorageScreen({
     disconnect.isError ||
     changeFolder.isError ||
     oneDriveMutations.some((mutation) => mutation.isError);
-  const paused = [complete, connect, settings, changeFolder, ...oneDriveMutations].some(
-    (mutation) => isServicePaused(mutation.error),
+  const drivePaused = [complete, connect, settings, changeFolder].some((mutation) =>
+    isServicePaused(mutation.error),
   );
+  const oneDrivePaused = oneDriveMutations.some((mutation) => isServicePaused(mutation.error));
   const busy =
     complete.isPending ||
     connect.isPending ||
@@ -274,8 +275,11 @@ export function AdminStorageScreen({
             </p>
           )}
 
-          {paused ? (
-            <ServicePausedNotice />
+          {drivePaused || oneDrivePaused ? (
+            <>
+              {drivePaused ? <ServicePausedNotice service="google_drive" /> : null}
+              {oneDrivePaused ? <ServicePausedNotice service="onedrive" /> : null}
+            </>
           ) : failed ? (
             <InlineAlert tone="danger" title={t('AdminStorageScreen.actionFailedTitle')} live>
               {t('AdminStorageScreen.actionFailedBody')}
@@ -305,6 +309,7 @@ export function AdminStorageScreen({
               oneDrive={oneDriveView}
               firstTime={firstTime}
               busy={busy}
+              paused={drivePaused}
               notice={
                 status.data.googleDrive.rootOwner ? (
                   <StorageRootNotice
@@ -330,6 +335,7 @@ export function AdminStorageScreen({
                 view={oneDriveView}
                 firstTime={firstTime}
                 busy={busy}
+                paused={oneDrivePaused}
                 notice={
                   oneDriveView.oneDrive.rootOwner ? (
                     <StorageRootNotice
@@ -384,6 +390,8 @@ interface DriveOptionProps {
   busy: boolean;
   /** 51-17. Who owns the root, the steer and the hand-over (connected or error state). */
   notice: ReactNode;
+  /** ADMINSVC3: Google Drive is switched off for the platform (Connect / Reconnect disabled). */
+  paused: boolean;
   onUseDrive: () => void;
   onConnect: () => void;
   onDisconnect: () => void;
@@ -397,6 +405,7 @@ function DriveOption({
   firstTime,
   busy,
   notice,
+  paused,
   onUseDrive,
   onConnect,
   onDisconnect,
@@ -436,7 +445,13 @@ function DriveOption({
             {t('AdminStorageScreen.notConnected')}
           </StateCapsule>
           <div className="tm-storage__actions">
-            <Button tone="ink" size="feature" loading={busy} onClick={onConnect}>
+            <Button
+              tone="ink"
+              size="feature"
+              loading={busy}
+              onClick={onConnect}
+              {...pausedButtonProps('google_drive', paused)}
+            >
               {t('AdminStorageScreen.connect')}
             </Button>
           </div>
@@ -452,6 +467,7 @@ function DriveOption({
               size="feature"
               loading={busy}
               onClick={onConnect}
+              {...pausedButtonProps('google_drive', paused)}
             >
               {t('AdminStorageScreen.connect')}
             </Button>
@@ -466,7 +482,13 @@ function DriveOption({
             {t('AdminStorageScreen.errorBody')}
           </InlineAlert>
           <div className="tm-storage__actions">
-            <Button tone="lime" size="feature" loading={busy} onClick={onConnect}>
+            <Button
+              tone="lime"
+              size="feature"
+              loading={busy}
+              onClick={onConnect}
+              {...pausedButtonProps('google_drive', paused)}
+            >
               {t('AdminStorageScreen.reconnect')}
             </Button>
             <Button tone="destructive" size="feature" disabled={busy} onClick={onDisconnect}>
@@ -547,6 +569,8 @@ interface OneDriveOptionProps {
   busy: boolean;
   /** 51-17. Who owns the root, the steer and the hand-over (connected or error state). */
   notice: ReactNode;
+  /** ADMINSVC3: OneDrive is switched off for the platform (Connect / Reconnect disabled). */
+  paused: boolean;
   onUse: () => void;
   onConnect: (libraries: boolean) => void;
   onDisconnect: () => void;
@@ -563,6 +587,7 @@ function OneDriveOption({
   firstTime,
   busy,
   notice,
+  paused,
   onUse,
   onConnect,
   onDisconnect,
@@ -610,7 +635,13 @@ function OneDriveOption({
             {t('OneDriveStorage.notConnected')}
           </StateCapsule>
           <div className="tm-storage__actions">
-            <Button tone="ink" size="feature" loading={busy} onClick={() => onConnect(false)}>
+            <Button
+              tone="ink"
+              size="feature"
+              loading={busy}
+              onClick={() => onConnect(false)}
+              {...pausedButtonProps('onedrive', paused)}
+            >
               {t('OneDriveStorage.connect')}
             </Button>
           </div>
@@ -622,7 +653,13 @@ function OneDriveOption({
             {t('OneDriveStorage.notConnected')}
           </StateCapsule>
           <div className="tm-storage__actions">
-            <Button tone="lime" size="feature" loading={busy} onClick={() => onConnect(false)}>
+            <Button
+              tone="lime"
+              size="feature"
+              loading={busy}
+              onClick={() => onConnect(false)}
+              {...pausedButtonProps('onedrive', paused)}
+            >
               {t('OneDriveStorage.connect')}
             </Button>
           </div>
@@ -639,6 +676,7 @@ function OneDriveOption({
               size="feature"
               loading={busy}
               onClick={() => onConnect(drive.librariesEnabled)}
+              {...pausedButtonProps('onedrive', paused)}
             >
               {t('OneDriveStorage.reconnect')}
             </Button>

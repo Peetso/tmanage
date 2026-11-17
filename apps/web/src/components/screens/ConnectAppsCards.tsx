@@ -42,7 +42,7 @@ import { ConnectSetupGuide } from './ConnectSetupGuide';
 import { BrandLogo, type BrandId } from '../brand/BrandLogo';
 import '../../styles/screens/connect-apps.css';
 import { isServicePaused } from '../../lib/api/service-paused';
-import { ServicePausedNotice } from './ServicePausedNotice';
+import { ServicePausedNotice, pausedButtonProps } from './ServicePausedNotice';
 
 type AppId = 'google_calendar' | 'microsoft_calendar' | 'google_drive' | 'onedrive';
 
@@ -310,6 +310,14 @@ export function ConnectAppsCards({
       }),
   });
 
+  // ADMINSVC3: the app the platform paused, from the refusal of its connect or its return.
+  const pausedApp: AppId | null =
+    isServicePaused(connect.error) && connect.variables
+      ? connect.variables
+      : isServicePaused(complete.error) && complete.variables
+        ? complete.variables.app
+        : null;
+
   // The provider's return: finish once, then drop the code from the address bar.
   const handled = useRef(false);
   useEffect(() => {
@@ -346,8 +354,8 @@ export function ConnectAppsCards({
             {fillTemplate(t('ConnectApps.success'), { app: outcomeName })}
           </InlineAlert>
         ) : null}
-        {isServicePaused(complete.error) ? (
-          <ServicePausedNotice />
+        {isServicePaused(complete.error) && pausedApp ? (
+          <ServicePausedNotice service={pausedApp} />
         ) : outcome?.kind === 'failure' && outcomeApp ? (
           <InlineAlert
             tone="danger"
@@ -373,8 +381,8 @@ export function ConnectAppsCards({
           {fillTemplate(t('ConnectApps.success'), { app: outcomeName })}
         </InlineAlert>
       ) : null}
-      {isServicePaused(complete.error) ? (
-        <ServicePausedNotice />
+      {isServicePaused(complete.error) && pausedApp ? (
+        <ServicePausedNotice service={pausedApp} />
       ) : outcome?.kind === 'failure' && outcomeApp ? (
         <InlineAlert
           tone="danger"
@@ -384,8 +392,8 @@ export function ConnectAppsCards({
           {fillTemplate(t(outcome.why.userKey), { provider: providerName(outcomeApp.provider) })}
         </InlineAlert>
       ) : null}
-      {isServicePaused(connect.error) ? (
-        <ServicePausedNotice />
+      {isServicePaused(connect.error) && pausedApp ? (
+        <ServicePausedNotice service={pausedApp} />
       ) : actionFailed ? (
         <InlineAlert tone="danger" live>
           {t('ConnectApps.actionError')}
@@ -473,6 +481,7 @@ export function ConnectAppsCards({
                     loadingLabel={t('ConnectApps.connecting')}
                     aria-label={fillTemplate(t('ConnectApps.connectLabel'), { app: name })}
                     onClick={() => connect.mutate(app.id)}
+                    {...pausedButtonProps(app.id, pausedApp === app.id)}
                   >
                     {t('ConnectApps.connect')}
                   </Button>

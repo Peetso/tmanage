@@ -18,7 +18,7 @@ import { useTOr } from '../../lib/i18n/use-t-or';
 import '../../styles/screens/connector-directory.css';
 import { BrandLogo, type BrandId } from '../brand/BrandLogo';
 import { isServicePaused } from '../../lib/api/service-paused';
-import { ServicePausedNotice } from './ServicePausedNotice';
+import { ServicePausedNotice, pausedButtonProps } from './ServicePausedNotice';
 
 /** Registry key → the app's mark (the same tile as Integrations and Storage). */
 const BRAND_OF: Readonly<Record<string, BrandId>> = {
@@ -134,13 +134,14 @@ export function ConnectorDirectory({
               onDisconnect={() => uninstall.mutate(connector.key)}
             />
           </ul>
-          {isServicePaused(install.error) ? <ServicePausedNotice /> : null}
+          {isServicePaused(install.error) ? <ServicePausedNotice service={connector.key} /> : null}
           {!isConnected && !formClosed ? (
             <InstallCard
               labelledBy={headingId}
               connector={connector}
               busy={install.isPending}
               failed={install.isError && !isServicePaused(install.error)}
+              paused={isServicePaused(install.error)}
               onCancel={() => {
                 setFormClosed(true);
                 onDone?.();
@@ -215,6 +216,7 @@ function InstallCard({
   connector,
   busy,
   failed,
+  paused,
   onCancel,
   onInstall,
 }: {
@@ -223,6 +225,8 @@ function InstallCard({
   connector: ConnectorView;
   busy: boolean;
   failed: boolean;
+  /** ADMINSVC3: the platform paused this connector (Connect disabled). */
+  paused: boolean;
   onCancel: () => void;
   onInstall: (apiKey: string) => void;
 }) {
@@ -234,7 +238,7 @@ function InstallCard({
       aria-labelledby={labelledBy}
       onSubmit={(event) => {
         event.preventDefault();
-        if (apiKey.trim() !== '' && !busy) onInstall(apiKey.trim());
+        if (apiKey.trim() !== '' && !busy && !paused) onInstall(apiKey.trim());
       }}
     >
       <p className="tm-connectors__install-body">{t('ConnectorDirectory.installBody')}</p>
@@ -266,6 +270,7 @@ function InstallCard({
           loading={busy}
           loadingLabel={t('ConnectorDirectory.installing')}
           disabled={apiKey.trim() === ''}
+          {...pausedButtonProps(connector.key, paused)}
         >
           {t('ConnectApps.connect')}
         </Button>

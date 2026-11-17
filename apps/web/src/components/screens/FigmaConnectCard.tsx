@@ -20,7 +20,7 @@ import '../viewer/figma-stage.css';
 import { BrandLogo } from '../brand/BrandLogo';
 import '../../styles/screens/connected-apps.css';
 import { isServicePaused } from '../../lib/api/service-paused';
-import { ServicePausedNotice } from './ServicePausedNotice';
+import { ServicePausedNotice, pausedButtonProps } from './ServicePausedNotice';
 
 /**
  * **V-52 — Connect Figma.** Each person connects their own Figma account with a personal access
@@ -94,6 +94,7 @@ export function FigmaConnectCard({
 
   const view = connection.data;
   const connected = view?.status === 'connected';
+  const paused = [connect, oneClick, complete].some((mutation) => isServicePaused(mutation.error));
   const refused = connect.error instanceof ApiRequestError && connect.error.status === 422;
 
   return (
@@ -137,6 +138,7 @@ export function FigmaConnectCard({
             loading={oneClick.isPending || complete.isPending}
             loadingLabel={t('Figma.connect.connecting')}
             onClick={() => oneClick.mutate()}
+            {...pausedButtonProps('figma', paused)}
           >
             {tOr('Figma.connect.connectButton', 'Connect')}
           </Button>
@@ -163,8 +165,8 @@ export function FigmaConnectCard({
       {view?.status === 'error' ? (
         <InlineAlert tone="warning">{t('Figma.connect.errorBody')}</InlineAlert>
       ) : null}
-      {[connect, oneClick, complete].some((mutation) => isServicePaused(mutation.error)) ? (
-        <ServicePausedNotice />
+      {paused ? (
+        <ServicePausedNotice service="figma" />
       ) : returnFailed || complete.isError || oneClick.isError ? (
         <InlineAlert tone="danger" live>
           {tOr(
@@ -233,6 +235,7 @@ export function FigmaConnectCard({
                 disabled={token.trim() === ''}
                 loading={connect.isPending}
                 loadingLabel={t('Figma.connect.connecting')}
+                {...pausedButtonProps('figma', paused)}
               >
                 {t('Figma.connect.submit')}
               </Button>

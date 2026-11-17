@@ -38,7 +38,7 @@ import {
 import './meetings.css';
 import { BrandLogo } from '../brand/BrandLogo';
 import { isServicePaused } from '../../lib/api/service-paused';
-import { ServicePausedNotice } from '../screens/ServicePausedNotice';
+import { ServicePausedNotice, pausedButtonProps } from '../screens/ServicePausedNotice';
 
 /**
  * After a connect or disconnect: the person's own connections and the owners' team card both
@@ -111,6 +111,13 @@ export function CalendarConnectionsScreen({
     onError: (_error, input) => setReturnError(input.provider),
   });
 
+  // ADMINSVC3: which calendars the platform has paused, from the refusal of a connect or its return.
+  const pausedProviders = new Set<CalendarProviderId>();
+  if (isServicePaused(connect.error) && connect.variables) pausedProviders.add(connect.variables);
+  if (isServicePaused(complete.error) && complete.variables) {
+    pausedProviders.add(complete.variables.provider);
+  }
+
   // The provider's return: finish once, then drop the code from the address bar.
   const handled = useRef(false);
   useEffect(() => {
@@ -135,8 +142,10 @@ export function CalendarConnectionsScreen({
       <div className="tm-mtg tm-mtg-settings">
         <div className="tm-mtg-settings__main">
           <p className="tm-mtg-lede">{t('CalendarConnections.lede')}</p>
-          {isServicePaused(connect.error) || isServicePaused(complete.error) ? (
-            <ServicePausedNotice />
+          {pausedProviders.size > 0 ? (
+            [...pausedProviders].map((provider) => (
+              <ServicePausedNotice key={provider} service={calendarService(provider)} />
+            ))
           ) : returnError ? (
             <InlineAlert tone="danger" title={t('CalendarConnections.connectFailed')} live>
               {complete.error instanceof ApiRequestError
@@ -160,6 +169,7 @@ export function CalendarConnectionsScreen({
                 now={now}
                 busy={connect.isPending || disconnect.isPending || complete.isPending}
                 mirrorBusy={mirror.isPending}
+                paused={pausedProviders.has(account.provider)}
                 onConnect={() => connect.mutate(account.provider)}
                 onDisconnect={() => disconnect.mutate(account.provider)}
                 onMirror={(enabled) => mirror.mutate({ provider: account.provider, enabled })}
@@ -183,6 +193,7 @@ function AccountCard({
   now,
   busy,
   mirrorBusy,
+  paused,
   onConnect,
   onDisconnect,
   onMirror,
@@ -191,6 +202,8 @@ function AccountCard({
   now: Date;
   busy: boolean;
   mirrorBusy: boolean;
+  /** ADMINSVC3: the platform paused this calendar (Connect / Reconnect disabled). */
+  paused: boolean;
   onConnect: () => void;
   onDisconnect: () => void;
   onMirror: (enabled: boolean) => void;
@@ -271,6 +284,7 @@ function AccountCard({
             className="tm-mtg-btn tm-mtg-btn--ink"
             onClick={onConnect}
             disabled={busy}
+            {...pausedButtonProps(calendarService(account.provider), paused)}
           >
             {account.status === 'error'
               ? t('CalendarConnections.reconnect')
@@ -680,4 +694,9 @@ function TeamCalendars({ api, organizationSlug }: { api: ApiClient; organization
       <p className="tm-mtg-hint">{t('CalendarConnections.teamFoot')}</p>
     </section>
   );
+}
+
+/** The platform service key of a calendar provider (its paused line's id). */
+function calendarService(provider: CalendarProviderId): string {
+  return provider === 'microsoft' ? 'microsoft_calendar' : 'google_calendar';
 }
