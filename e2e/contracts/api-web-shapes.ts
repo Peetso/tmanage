@@ -4870,3 +4870,18 @@ import type { CapacityView as WebCapacityView } from '../../apps/web/src/lib/api
 
 /** `GET /v1/platform/health/capacity` — the Server capacity card on the platform overview. */
 type _platformCapacity = Assert<Exact<ApiCapacityView, WebCapacityView>>;
+import type {
+  Gauge as ApiCapacityGauge,
+  HostProfile as ApiCapacityHostProfile,
+} from '../../apps/api/src/modules/platform-admin/health/capacity-budget.js';
+import type { CapacityReadingView as ApiCapacityReadingView } from '../../apps/api/src/modules/platform-admin/health/capacity.controller.js';
+import type {
+  CapacityGaugeView as WebCapacityGaugeView,
+  CapacityHostProfileView as WebCapacityHostProfileView,
+  CapacityReadingView as WebCapacityReadingView,
+} from '../../apps/web/src/lib/api/platform-capacity.js';
+
+/** The card's nested shapes: the plan ceilings, one reading, one gauge. */
+type _platformCapacityProfile = Assert<Exact<ApiCapacityHostProfile, WebCapacityHostProfileView>>;
+type _platformCapacityReading = Assert<Exact<ApiCapacityReadingView, WebCapacityReadingView>>;
+type _platformCapacityGauge = Assert<Exact<ApiCapacityGauge, WebCapacityGaugeView>>;

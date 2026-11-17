@@ -249,13 +249,24 @@ function deeper(markdown: string): string {
 }
 
 /**
- * The pages `llms-full.txt` carries: those whose text is held as data, in the order of
- * {@link PAGE_BODIES}, at most {@link LLMS_FULL_PAGE_LIMIT}.
+ * The pages `llms-full.txt` carries: those whose text is held as data, at most
+ * {@link LLMS_FULL_PAGE_LIMIT}. The {@link PAGE_BODIES} groups are taken in turn (the first page of
+ * each group in order, then the second of each, ...), so one large group (18 alternative pages)
+ * cannot push the compare, switch, help and library pages out of the file.
  */
 export function llmsFullPages(): PublicPage[] {
-  return PAGE_BODIES.flatMap(([path]) => PUBLIC_PAGES.filter((page) => names(path, page)))
-    .filter((page) => bodyOf(page).length > 0)
-    .slice(0, LLMS_FULL_PAGE_LIMIT);
+  const groups = PAGE_BODIES.map(([path]) =>
+    PUBLIC_PAGES.filter((page) => names(path, page) && bodyOf(page).length > 0),
+  );
+  const rounds = Math.max(0, ...groups.map((group) => group.length));
+  const pages: PublicPage[] = [];
+  for (let round = 0; round < rounds; round += 1) {
+    for (const group of groups) {
+      const page = group[round];
+      if (page !== undefined) pages.push(page);
+    }
+  }
+  return pages.slice(0, LLMS_FULL_PAGE_LIMIT);
 }
 
 /**
