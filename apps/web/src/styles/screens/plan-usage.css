@@ -176,6 +176,48 @@
   color: var(--ink-650);
 }
 
+/* ── Where your files live (57-13c, Figma 668:36868) ──────────────────────── */
+
+.tm-pu-files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-pu-files .tm-pu-usage__title {
+  margin-block-end: var(--s1);
+}
+
+.tm-pu-files__where {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-950);
+}
+
+.tm-pu-files__text {
+  margin: 0;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+.tm-pu-files__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s4);
+}
+
+/* The confirm is a native modal <dialog>: the browser traps focus; the scrim is its backdrop. */
+.tm-pu-files-dialog {
+  margin: auto;
+  color: inherit;
+}
+
+.tm-pu-files-dialog::backdrop {
+  background: var(--tm-scrim);
+}
+
 /* ── Change preview dialog ─────────────────────────────────────────────────── */
 
 .tm-pu-scrim {
@@ -351,5 +393,10 @@
   .tm-pu-dialog__actions {
     flex-direction: column-reverse;
     margin-block-start: auto;
+  }
+
+  .tm-pu-files__actions > * {
+    flex: 1 1 100%;
+    justify-content: center;
   }
 }

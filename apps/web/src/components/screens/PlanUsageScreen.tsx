@@ -1,12 +1,15 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { SettingsShell } from '../admin/SettingsShell';
 import { PlanChangeDialog } from '../billing/PlanChangeDialog';
+import { StorageCard } from '../billing/StorageCard';
+import { UsageMeter } from '../billing/UsageMeter';
 import { BetaBillingPanel, useBetaBillingHeading } from '../billing/BetaBillingPanel';
 import { dayMonth, fill, gb, money, planName, planUsageText } from '../billing/plan-usage-format';
 import type { PlanUsageText } from '../billing/plan-usage-format';
@@ -15,6 +18,7 @@ import { ApiRequestError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { fetchPlanUsage } from '../../lib/api/plan-usage';
 import type { PlanUsageMeterView, PlanUsageView } from '../../lib/api/plan-usage';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import '../../styles/screens/plan-usage.css';
@@ -57,6 +61,11 @@ export function PlanUsageScreen({
   });
   // The public beta (BILLING_MODE=beta_free, the API's default): free for everyone, nothing to buy.
   const beta = usage.data?.billingMode !== 'paid';
+  // 57-13c. Only people who may move company files see where they live; the server still decides.
+  const canUse = useShellCapability(organizationSlug, client);
+  const storageCard = canUse('org.security.manage') ? (
+    <StorageCard organizationSlug={organizationSlug} client={api} />
+  ) : null;
   const betaHeading = useBetaBillingHeading(organizationSlug, organizationName);
 
   const closeDialog = useCallback(
@@ -102,7 +111,10 @@ export function PlanUsageScreen({
         ) : null}
 
         {usage.isSuccess && beta ? (
-          <BetaBillingPanel internalPeople={usage.data.people.used} />
+          <>
+            <BetaBillingPanel internalPeople={usage.data.people.used} />
+            {storageCard}
+          </>
         ) : null}
 
         {usage.isSuccess && !beta ? (
@@ -111,6 +123,7 @@ export function PlanUsageScreen({
             locale={locale}
             tr={tr}
             organizationSlug={organizationSlug}
+            storageCard={storageCard}
             onChangePlan={() => setChangeTarget(changeTargetFor(usage.data))}
           />
         ) : null}
@@ -141,12 +154,14 @@ function PlanUsageBody({
   locale,
   tr,
   organizationSlug,
+  storageCard,
   onChangePlan,
 }: {
   view: PlanUsageView;
   locale: string;
   tr: PlanUsageText;
   organizationSlug: string;
+  storageCard: ReactNode;
   onChangePlan: () => void;
 }) {
   const plan = planName(view.planId);
@@ -215,7 +230,7 @@ function PlanUsageBody({
               note={tr('PlanUsage.peopleUnlimited')}
             />
           ) : (
-            <Meter
+            <UsageMeter
               id="people"
               label={tr('PlanUsage.people')}
               meter={view.people}
@@ -234,7 +249,7 @@ function PlanUsageBody({
               note={tr('PlanUsage.projectsNote')}
             />
           ) : (
-            <Meter
+            <UsageMeter
               id="projects"
               label={tr('PlanUsage.projects')}
               meter={view.projects}
@@ -245,7 +260,7 @@ function PlanUsageBody({
               note={projectsNote(view.projects, plan, tr)}
             />
           )}
-          <Meter
+          <UsageMeter
             id="storage"
             label={tr('PlanUsage.storage')}
             meter={view.storage}
@@ -264,52 +279,14 @@ function PlanUsageBody({
         </div>
       </section>
 
+      {storageCard}
+
       <p className="tm-pu-foot">
         {price !== null && renews !== null && view.monthlyCents !== 0
           ? fill(tr('PlanUsage.nextBill'), { price, date: renews })
           : tr('PlanUsage.noBill')}
       </p>
     </>
-  );
-}
-
-function Meter({
-  id,
-  label,
-  meter,
-  value,
-  note,
-}: {
-  id: string;
-  label: string;
-  meter: PlanUsageMeterView;
-  value: string;
-  note: string;
-}) {
-  const limit = meter.limit ?? 0;
-  const percent = limit > 0 ? Math.min(100, Math.round((meter.used / limit) * 100)) : 0;
-  const labelId = `tm-pu-meter-${id}`;
-  return (
-    <div className="tm-pu-meter" data-level={meter.level}>
-      <div className="tm-pu-meter__row">
-        <span id={labelId} className="tm-pu-meter__label">
-          {label}
-        </span>
-        <span className="tm-pu-meter__value">{value}</span>
-      </div>
-      <div
-        className="tm-pu-meter__track"
-        role="progressbar"
-        aria-labelledby={labelId}
-        aria-valuemin={0}
-        aria-valuemax={limit}
-        aria-valuenow={Math.min(meter.used, limit)}
-        aria-valuetext={value}
-      >
-        <div className="tm-pu-meter__fill" style={{ inlineSize: `${percent}%` }} />
-      </div>
-      <p className="tm-pu-meter__note">{note}</p>
-    </div>
   );
 }
 

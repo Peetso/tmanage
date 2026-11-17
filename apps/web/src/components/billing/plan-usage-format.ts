@@ -28,6 +28,24 @@ export function planName(planId: string): string {
   return PLAN_NAMES[planId] ?? planId;
 }
 
+/** Storage providers are product names, the same in every language. */
+const PROVIDER_NAMES = { google_drive: 'Google Drive', onedrive: 'OneDrive' } as const;
+/** Whose account a provider signs in with ("A different Google account …"). */
+const PROVIDER_COMPANIES = { google_drive: 'Google', onedrive: 'Microsoft' } as const;
+
+export function providerName(provider: keyof typeof PROVIDER_NAMES): string {
+  return PROVIDER_NAMES[provider];
+}
+
+export function providerCompany(provider: keyof typeof PROVIDER_COMPANIES): string {
+  return PROVIDER_COMPANIES[provider];
+}
+
+/** A count with grouping in Latin digits, as the page writes numbers ("1,240"). */
+export function count(value: number, locale: string): string {
+  return new Intl.NumberFormat(locale, { numberingSystem: 'latn' }).format(value);
+}
+
 const GB = 1024 ** 3;
 
 /** Bytes as whole-or-one-decimal GB, the way F4 writes them ("22.8", "25"). */
