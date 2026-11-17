@@ -22,6 +22,7 @@ import { auditDetails } from './audit.js';
 import { importDetails } from './import.js';
 import { privacyDetails } from './privacy.js';
 import { financeTimeDetails } from './finance-time.js';
+import { financeDocumentDetails } from './finance-documents.js';
 import { taxDocumentDetails } from './tax-documents.js';
 import { financeExportDetails } from './finance-exports.js';
 import { einvoiceChainDetails } from './einvoice-chain.js';
@@ -41,6 +42,7 @@ export const waveCDetails: readonly AiActionDetail[] = [
   ...importDetails,
   ...privacyDetails,
   ...financeTimeDetails,
+  ...financeDocumentDetails,
   ...taxDocumentDetails,
   ...financeExportDetails,
   ...einvoiceChainDetails,

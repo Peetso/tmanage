@@ -1239,35 +1239,10 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/admin/block-rules/:ruleId',
     reason: 'org_security_manage',
   },
-  // 52-20. Public intake forms: the publish switch, the anonymous door and the triage of what
-  // anonymous visitors sent (untrusted outside content).
+  // 52-20. Public intake forms: the anonymous door. The publish switch and the triage of what
+  // visitors sent are ops since 52-22 (`work_forms.*`, `finance-documents.ts`).
   { method: 'GET', path: '/v1/public/forms/:slug', reason: 'public_intake' },
   { method: 'POST', path: '/v1/public/forms/:slug/submissions', reason: 'public_intake' },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/work-forms/:formId/publish',
-    reason: 'public_intake',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/work-forms/:formId/unpublish',
-    reason: 'public_intake',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/work-forms/:formId/submissions',
-    reason: 'public_intake',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/work-forms/:formId/submissions/:submissionId/spam',
-    reason: 'public_intake',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/work-forms/:formId/submissions/:submissionId/convert',
-    reason: 'public_intake',
-  },
   // 56-07. Public links: the outsider's routes (anonymous, nothing an AI acts on) and the member
   // routes that hand an outsider access to one object — an AI never issues or revokes that.
   { method: 'GET', path: '/v1/public/links/:token/', reason: 'public_site' },
@@ -1323,22 +1298,8 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/deliverables/:deliverableId/versions/:versionId/external-approvals',
     reason: 'org_security_manage',
   },
-  // 52-08. Quotes: client money and the route that issues an outsider's accept link.
-  { method: 'GET', path: '/v1/organizations/:orgSlug/quotes/', reason: 'client_quote' },
-  { method: 'POST', path: '/v1/organizations/:orgSlug/quotes/', reason: 'client_quote' },
-  { method: 'GET', path: '/v1/organizations/:orgSlug/quotes/:quoteId', reason: 'client_quote' },
-  { method: 'PUT', path: '/v1/organizations/:orgSlug/quotes/:quoteId', reason: 'client_quote' },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/quotes/:quoteId/send',
-    reason: 'client_quote',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/quotes/:quoteId/convert',
-    reason: 'client_quote',
-  },
-  // 52-10: the quote PDF, team and the client's own in the portal.
+  // 52-08. Quotes: list/get/draft/send/convert are ops since 52-22 (`quotes.*`, send and convert
+  // confirm-class). 52-10: the quote PDF, team and the client's own in the portal, stay here.
   { method: 'GET', path: '/v1/organizations/:orgSlug/quotes/:quoteId/pdf', reason: 'client_quote' },
   {
     method: 'GET',
@@ -1855,18 +1816,12 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/projects/:projectId/working-calendar',
     reason: 'policy_definitions',
   },
-  // R15-b (52-03). Period locks: closing and reopening finance periods, and the member's request to
-  // reopen one. Finance settings; never an AI tool.
-  { method: 'GET', path: '/v1/organizations/:orgSlug/time/locks/', reason: 'finance_settings' },
+  // R15-b (52-03). Period locks: closing and reopening finance periods. Finance settings; never an
+  // AI tool. The list and the member's unlock request are ops since 52-22 (`time.locks.*`).
   { method: 'POST', path: '/v1/organizations/:orgSlug/time/locks/', reason: 'finance_settings' },
   {
     method: 'DELETE',
     path: '/v1/organizations/:orgSlug/time/locks/:lockId',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/time/locks/:lockId/unlock-request',
     reason: 'finance_settings',
   },
   // R16-a (52-02 / 52-03). Timesheets moved to ops in R18-b (`time.timesheets.*`; approve,
@@ -2037,45 +1992,9 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/security/sign-in-policy',
     reason: 'org_security_manage',
   },
-  // ---- R18-a · 52-09 client invoices ---- withheld under the finance reason until reviewed
-  // `client_invoices.*` ops exist (52-22): a send issues a fiscal number and mails the client, a
-  // payment or credit note moves money state, and the portal pair is the client's own projection.
-  { method: 'GET', path: '/v1/organizations/:orgSlug/client-invoices', reason: 'finance_settings' },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/client-invoices',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/client-invoices/aging',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/pull',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/send',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/mark-sent',
-    reason: 'finance_settings',
-  },
+  // ---- R18-a · 52-09 client invoices ---- the drafts, reads, send and reminders are ops since
+  // 52-22 (`client_invoices.*`, `finance-documents.ts`). What stays: a payment, a void or a credit
+  // note moves money state, and the print / PDF / e-invoice files are documents to keep.
   {
     method: 'POST',
     path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/payments',
@@ -2092,11 +2011,6 @@ export const NEVER: readonly NeverEntry[] = [
     reason: 'finance_settings',
   },
   {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/reminders',
-    reason: 'finance_settings',
-  },
-  {
     method: 'GET',
     path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/print',
     reason: 'finance_settings',
@@ -2105,12 +2019,6 @@ export const NEVER: readonly NeverEntry[] = [
   {
     method: 'GET',
     path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/einvoice',
-    reason: 'finance_settings',
-  },
-  { method: 'GET', path: '/v1/organizations/:orgSlug/portal/invoices', reason: 'finance_settings' },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/invoices/:invoiceId',
     reason: 'finance_settings',
   },
   // 52-13: the client's invoice print document ("Download PDF") — NEVER, as every invoice route.
@@ -2128,18 +2036,6 @@ export const NEVER: readonly NeverEntry[] = [
   {
     method: 'GET',
     path: '/v1/organizations/:orgSlug/portal/invoices/:invoiceId/pdf',
-    reason: 'finance_settings',
-  },
-  // ---- R19-a · 52-28 tax-document labels ---- a label on a fiscal document and a recorded tax
-  // registration reference are the agency's own legal claims; no AI op (MCP ops are 52-28 later).
-  {
-    method: 'PATCH',
-    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/label',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/tax-registration',
     reason: 'finance_settings',
   },
   // ---- R19-d · 53-21 iterations: every planning write (reads are ops in index.ts) ----

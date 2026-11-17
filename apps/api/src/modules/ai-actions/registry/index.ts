@@ -17,6 +17,7 @@ import type { AiActionOp, RouteKey } from './types.js';
 import { routeKey } from './types.js';
 import { NEVER, neverByKey, isNever } from './never.js';
 import { financeTimeOps } from './finance-time.js';
+import { financeDocumentOps } from './finance-documents.js';
 
 export * from './types.js';
 export { NEVER, neverByKey, isNever };
@@ -6285,6 +6286,8 @@ export const OPS: readonly AiActionOp[] = [
   },
   // ---- R18-b · 52-22 time, timesheets, expenses, rates, retainers, finance reports ----
   ...financeTimeOps,
+  // ---- 52-22 · quotes, client invoices, period-lock requests, public-form triage ----
+  ...financeDocumentOps,
   // ---- R18-c · 55-25 quick-add resolve (read: title + chips, visible names only) ----
   {
     id: 'work.quick_add.resolve',
