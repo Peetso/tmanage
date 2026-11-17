@@ -188,6 +188,16 @@ describe('D1 · Platform settings — General', () => {
     expect(screen.getByText(/affects 124 organizations/u)).toBeTruthy();
   });
 
+  it('shows a day-long step-up window as "24 hours", not "1440 minutes"', async () => {
+    const dayLong: Route = (method, path, body) =>
+      path === '/v1/platform/settings'
+        ? json({ ...SETTINGS, stepUpMinutes: 1440 })
+        : route(method, path, body);
+    mount((client) => <PlatformGeneralSettingsScreen client={client} />, dayLong);
+    expect(await screen.findByText('Fixed at 24 hours by safety rule 8.')).toBeTruthy();
+    expect(screen.getByText('Read only · 24 hours')).toBeTruthy();
+  });
+
   it('switching billing mode to Paid needs a reason, then PUTs it', async () => {
     const calls = mount((client) => <PlatformGeneralSettingsScreen client={client} />, route);
     fireEvent.click(await screen.findByRole('radio', { name: /Paid/u }));

@@ -1,7 +1,7 @@
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import { serializeForLog } from '../observability/logger.js';
 import { renderActionEmail } from './action-email.js';
-import { emailIsRtl, emailT } from '../i18n/email-messages.js';
+import { emailIsRtl, emailLangParam, emailT } from '../i18n/email-messages.js';
 
 /**
  * The password-reset email (ACC-02) and its sender.
@@ -115,13 +115,17 @@ export class PasswordResetMailer {
     }
   }
 
-  /** VERIFYMAIL. `${WEB_PUBLIC_URL}/confirm-email/${token}`, built from configuration only. */
+  /**
+   * VERIFYMAIL. `${WEB_PUBLIC_URL}/confirm-email/${token}?lang=<catalog>`, built from
+   * configuration only; `?lang=` is the allow-listed alias of the mail's own language (SMALLFIX 3).
+   */
   async deliverConfirmation(
     facts: Omit<PasswordResetEmailFacts, 'link'> & { readonly token: string },
   ): Promise<'sent' | 'none' | 'failed'> {
     if (this.mailer === null) return 'none';
     const { token, ...rest } = facts;
-    const link = `${this.webPublicUrl.replace(/\/+$/u, '')}/confirm-email/${token}`;
+    const lang = emailLangParam(rest.locale);
+    const link = `${this.webPublicUrl.replace(/\/+$/u, '')}/confirm-email/${token}?lang=${lang}`;
     try {
       return await this.mailer.send(composeEmailConfirmationEmail({ ...rest, link }));
     } catch (error) {

@@ -28,6 +28,7 @@ import type {
   PlatformSettingsFullView,
 } from '../../../lib/api/platform-settings';
 import type { MessageKey } from '../../../lib/i18n/t';
+import { formatWholeDuration } from '../../../lib/i18n/duration';
 import { useActiveLocale } from '../../../lib/i18n/use-active-locale';
 import { useT } from '../../../lib/i18n/use-t';
 import { PlatformGate } from '../shared/platform-kit';
@@ -682,6 +683,7 @@ const SUPPORT_HOURS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 
 function SupportCard({ api, view, canEdit }: CardProps) {
   const t = useT();
+  const locale = useActiveLocale();
   const refresh = useRefresh();
   const save = useMutation({
     mutationFn: (next: { maxMinutes: number; requireReason: boolean }) =>
@@ -733,11 +735,15 @@ function SupportCard({ api, view, canEdit }: CardProps) {
         <div className="tm-stack tm-stack--tight">
           <span className="tm-cc-cell-title">{t('PlatformSettings.supportStepUp')}</span>
           <span className="tm-cc-note">
-            {fill(t('PlatformSettings.supportStepUpBody'), { minutes: view.stepUpMinutes })}
+            {fill(t('PlatformSettings.supportStepUpBody'), {
+              duration: formatWholeDuration(view.stepUpMinutes, locale),
+            })}
           </span>
         </div>
         <span className="tm-cc-pill tm-cc-pill--muted">
-          {fill(t('PlatformSettings.readOnlyMinutes'), { minutes: view.stepUpMinutes })}
+          {fill(t('PlatformSettings.readOnlyMinutes'), {
+            duration: formatWholeDuration(view.stepUpMinutes, locale),
+          })}
         </span>
       </div>
       {save.isError ? (

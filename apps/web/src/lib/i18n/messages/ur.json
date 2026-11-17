@@ -915,5 +915,17 @@
   "PortalMoney.overdueCount.two": "{count} انوائس واجب الادا",
   "PortalMoney.overdueCount.few": "{count} انوائس واجب الادا",
   "PortalMoney.overdueCount.many": "{count} انوائس واجب الادا",
-  "PortalMoney.overdueCount.other": "{count} انوائس واجب الادا"
+  "PortalMoney.overdueCount.other": "{count} انوائس واجب الادا",
+  "ConfirmEmail.noticeTitle": "اپنی ای میل کی تصدیق کریں",
+  "ConfirmEmail.noticeBody": "آپ کے ای میل ایڈریس کی ابھی تصدیق نہیں ہوئی۔ ہم آپ کو ایک لنک بھیجتے ہیں؛ اسے کلک کر کے تصدیق کریں کہ یہ ایڈریس آپ کا ہے۔",
+  "ConfirmEmail.send": "تصدیقی ای میل بھیجیں",
+  "ConfirmEmail.sent": "بھیج دی گئی۔ ای میل کھولیں اور 30 منٹ کے اندر لنک پر کلک کریں۔",
+  "ConfirmEmail.already": "آپ کی ای میل کی تصدیق پہلے ہی ہو چکی ہے۔",
+  "ConfirmEmail.notSent": "ابھی ہم اسے نہیں بھیج سکے۔ کچھ دیر بعد دوبارہ کوشش کریں۔",
+  "ConfirmEmail.pageTitle": "اپنی ای میل کی تصدیق کریں",
+  "ConfirmEmail.pageBody": "بٹن دبا کر تصدیق کریں کہ یہ ایڈریس آپ کا ہے۔ اس سے آپ سائن اِن نہیں ہوتے۔",
+  "ConfirmEmail.confirm": "میری ای میل کی تصدیق کریں",
+  "ConfirmEmail.done": "آپ کی ای میل کی تصدیق ہو گئی۔",
+  "ConfirmEmail.doneBody": "آپ یہ صفحہ بند کر سکتے ہیں، یا آگے بڑھنے کے لیے سائن اِن کریں۔",
+  "ConfirmEmail.expired": "یہ لنک ختم ہو چکا ہے یا پہلے استعمال ہو چکا ہے۔ سائن اِن کریں اور دو مرحلوں والے سائن اِن سے نیا لنک بھیجیں۔"
 }

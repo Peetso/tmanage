@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import type { MailMessage } from '@tmanage/mail';
 import {
   composeEmailConfirmationEmail,
-  type PasswordResetMailer,
+  PasswordResetMailer,
 } from '../../common/email/password-reset-email.js';
 import { hashInvitationToken } from './invitation-token.js';
 import type { PasswordResetRepository } from './password-reset.repository.js';
@@ -141,5 +142,27 @@ describe('the confirmation e-mail', () => {
       locale: 'ar-EG',
     });
     expect(mail.subject).toBe('أكّد بريدك الإلكتروني في TManage');
+  });
+
+  it('links in the language of the mail, allow-listed, never the raw account locale (SMALLFIX 3)', async () => {
+    const sent: MailMessage[] = [];
+    const mailer = new PasswordResetMailer(
+      {
+        send: async (message: MailMessage) => {
+          sent.push(message);
+          return 'sent' as const;
+        },
+      },
+      'https://tmanage.example/',
+    );
+    const facts = { to: 'owner@example.com', displayName: 'Owner', ttlMinutes: 30, token: 'TOKEN' };
+    await mailer.deliverConfirmation({ ...facts, locale: 'ar-EG' });
+    await mailer.deliverConfirmation({ ...facts, locale: 'ur-PK' });
+    await mailer.deliverConfirmation({ ...facts, locale: 'x"><a href=//evil.example>' });
+    expect(sent.map((mail) => mail.text.match(/https:\S+/u)?.[0])).toEqual([
+      'https://tmanage.example/confirm-email/TOKEN?lang=ar',
+      'https://tmanage.example/confirm-email/TOKEN?lang=ur',
+      'https://tmanage.example/confirm-email/TOKEN?lang=en',
+    ]);
   });
 });

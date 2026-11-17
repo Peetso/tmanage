@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
 import { ApiClient } from '../src/lib/api/client';
 import { TwoStepSignInScreen } from '../src/components/screens/TwoStepSignInScreen';
 import { ConfirmEmailScreen } from '../src/components/screens/ConfirmEmailScreen';
+import { localeFromSearch } from '../src/lib/i18n/locale-boot';
+import { activeLocale } from '../src/lib/i18n/locale-store';
 
 /**
  * VERIFYMAIL (2026-11-16): a password account could not confirm its address, so e-mail codes
@@ -112,6 +114,26 @@ describe('the confirmation link page', () => {
         JSON.stringify({ token: TOKEN }),
       ],
     ]);
+  });
+
+  afterEach(() => {
+    act(() => activeLocale.set('en-US'));
+  });
+
+  it('opens in the language its mail link names (?lang=ar, ?lang=ur)', () => {
+    for (const [search, button] of [
+      ['?lang=ar', 'تأكيد بريدي'],
+      ['?lang=ur', 'میری ای میل کی تصدیق کریں'],
+    ] as const) {
+      const locale = localeFromSearch(search);
+      if (locale === undefined) throw new Error(`no locale for ${search}`);
+      act(() => activeLocale.set(locale));
+      const view = render(
+        <ConfirmEmailScreen token={TOKEN} client={client(() => ({ status: 204 }), [])} />,
+      );
+      expect(screen.getByRole('button', { name: button })).toBeTruthy();
+      view.unmount();
+    }
   });
 
   it('a used or expired link says how to get a new one', async () => {

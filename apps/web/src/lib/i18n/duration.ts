@@ -22,6 +22,21 @@ export function formatDuration(totalMinutes: number, locale: string): string {
     : `${part(hours, 'hour')} ${part(minutes, 'minute')}`;
 }
 
+/**
+ * SMALLFIX 1 — a fixed window in plain words: "24 hours", "٢٤ ساعة", "2 days", "15 minutes".
+ * The largest whole unit (days from two days up, so a day-long window still reads "24 hours"),
+ * spelled out (long unit names), in the reader's language and saved digits.
+ */
+export function formatWholeDuration(totalMinutes: number, locale: string): string {
+  const total = Math.max(0, Math.round(totalMinutes));
+  const tag = withNumerals(locale);
+  const part = (value: number, unit: 'day' | 'hour' | 'minute') =>
+    new Intl.NumberFormat(tag, { style: 'unit', unit, unitDisplay: 'long' }).format(value);
+  if (total >= 2 * 1440 && total % 1440 === 0) return part(total / 1440, 'day');
+  if (total >= 60 && total % 60 === 0) return part(total / 60, 'hour');
+  return part(total, 'minute');
+}
+
 /** Arabic names of the time zones companies here use most; elsewhere the city of the IANA id. */
 const ARABIC_CITY: Readonly<Record<string, string>> = {
   'Africa/Cairo': 'القاهرة',

@@ -5,6 +5,7 @@ import fr from './email/fr.json' with { type: 'json' };
 import ptBR from './email/pt-BR.json' with { type: 'json' };
 import de from './email/de.json' with { type: 'json' };
 import zhCN from './email/zh-CN.json' with { type: 'json' };
+import ur from './email/ur.json' with { type: 'json' };
 
 /**
  * R12 R2 — the email copy, one flat catalog per language (`email/<lang>.json`), the API's twin of
@@ -18,7 +19,7 @@ import zhCN from './email/zh-CN.json' with { type: 'json' };
 
 export type EmailKey = keyof typeof en;
 
-type EmailCatalogName = 'en' | 'ar' | 'es' | 'fr' | 'pt-BR' | 'de' | 'zh-CN';
+type EmailCatalogName = 'en' | 'ar' | 'es' | 'fr' | 'pt-BR' | 'de' | 'zh-CN' | 'ur';
 
 const CATALOGS: Readonly<Record<EmailCatalogName, Readonly<Record<string, string>>>> = {
   en,
@@ -28,16 +29,42 @@ const CATALOGS: Readonly<Record<EmailCatalogName, Readonly<Record<string, string
   'pt-BR': ptBR,
   de,
   'zh-CN': zhCN,
+  ur,
 };
 
-/** The catalog a locale reads: ar, es, fr, pt → pt-BR, de, zh → zh-CN, English otherwise. */
+/** The catalog a locale reads: ar, es, fr, pt → pt-BR, de, zh → zh-CN, ur, English otherwise. */
 export function emailCatalogOf(locale: string | null | undefined): EmailCatalogName {
   const primary = (locale ?? '').split('-')[0]?.toLowerCase() ?? '';
   if (primary === 'pt') return 'pt-BR';
   if (primary === 'zh') return 'zh-CN';
-  return primary === 'ar' || primary === 'es' || primary === 'fr' || primary === 'de'
+  return primary === 'ar' ||
+    primary === 'es' ||
+    primary === 'fr' ||
+    primary === 'de' ||
+    primary === 'ur'
     ? primary
     : 'en';
+}
+
+/** The web's short `?lang=` alias of each catalog (`apps/web` `LANG_QUERY_ALIASES`). */
+const LANG_PARAM: Readonly<Record<EmailCatalogName, string>> = {
+  en: 'en',
+  ar: 'ar',
+  es: 'es',
+  fr: 'fr',
+  'pt-BR': 'pt',
+  de: 'de',
+  'zh-CN': 'zh',
+  ur: 'ur',
+};
+
+/**
+ * SMALLFIX 3 — the `?lang=` a mail link carries, so its page opens in the language the mail was
+ * written in. Never the stored locale itself: only a catalog's fixed alias (anything unknown
+ * reads `en`), so no account value reaches the URL.
+ */
+export function emailLangParam(locale: string | null | undefined): string {
+  return LANG_PARAM[emailCatalogOf(locale)];
 }
 
 /**
