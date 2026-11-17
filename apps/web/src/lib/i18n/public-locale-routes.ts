@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { ALL_RESOURCES } from '../../components/website/pages/resources/resources-data';
 import { COMPARE_ENTRIES } from '../../content/compare/compare-entries';
+import { SWITCH_ENTRIES } from '../../content/compare/switch-entries';
 import { HELP_ARTICLES } from '../../content/help/help-articles';
 import type { DisplayLocale } from '../api/display-preferences';
 import { PAGE_OWNS_TITLE, ROUTE_TITLES, TITLE_SUFFIX } from '../route-titles';
@@ -89,12 +90,18 @@ export const COMPARE_PATHS: readonly string[] = [
   ...COMPARE_ENTRIES.map((entry) => `/compare/${entry.slug}`),
 ];
 
+/** The "switch from X" pages (row 54-29), each with an Arabic twin under `/ar/switch`. */
+export const SWITCH_PATHS: readonly string[] = SWITCH_ENTRIES.map(
+  (entry) => `/switch/${entry.slug}`,
+);
+
 const WITH_TWIN: ReadonlySet<string> = new Set<string>([
   ...PUBLIC_LOCALIZED_PATHS,
   ...ARABIC_AUTH_PATHS,
   ...ARTICLE_PATHS,
   ...HELP_PATHS,
   ...COMPARE_PATHS,
+  ...SWITCH_PATHS,
 ]);
 
 /**

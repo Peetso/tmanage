@@ -48,6 +48,12 @@ const ROUTES: Record<string, RouteRow> = {
     from: 'website/pages/compare/ComparePage',
     title: null,
   },
+  // 54-29: the switch pages share the compare template; titles come from SWITCH_COPY.
+  '/switch/[slug]': {
+    component: 'SwitchPage',
+    from: 'website/pages/compare/ComparePage',
+    title: null,
+  },
   '/contact': {
     component: 'ContactPage',
     from: 'website/pages/contact/ContactPage',

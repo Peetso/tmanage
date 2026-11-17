@@ -592,10 +592,12 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/ar/resources/[slug]': PAGE_OWNS_TITLE,
   '/ar/sign-in': PAGE_OWNS_TITLE,
   '/ar/sign-up': PAGE_OWNS_TITLE,
+  '/ar/switch/[slug]': PAGE_OWNS_TITLE,
   '/compare': PAGE_OWNS_TITLE,
   '/compare/[slug]': PAGE_OWNS_TITLE,
   '/help/[slug]': PAGE_OWNS_TITLE,
   '/resources/[slug]': PAGE_OWNS_TITLE,
+  '/switch/[slug]': PAGE_OWNS_TITLE,
   '/website-kit': PAGE_OWNS_TITLE,
 };
 

@@ -10,7 +10,8 @@ import {
   type CompareCell,
   type CompareEntry,
 } from '../../../../content/compare/compare-entries';
-import { compareCopy } from '../../../../content/compare/compare-copy';
+import { SWITCH_COPY, compareCopy } from '../../../../content/compare/compare-copy';
+import type { SwitchEntry } from '../../../../content/compare/switch-entries';
 import { localizeHref } from '../../../../lib/i18n/public-locale-routes';
 import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 import { CtaBand, WebSection } from '../../sections';
@@ -105,6 +106,88 @@ export function ComparePage({ entry }: { entry: CompareEntry }) {
         </div>
         <p className="tm-web-compare-all">
           <Link href={compareHref(undefined, language)}>{copy.allCompare}</Link>
+        </p>
+      </WebSection>
+
+      <CtaBand
+        title={copy.ctaTitle}
+        lede={copy.ctaLede}
+        primary={{ label: copy.ctaPrimary, href: href(SIGN_UP_HREF) }}
+        secondary={{ label: copy.ctaSecondary, href: href('/contact') }}
+        note=""
+        visual={null}
+      />
+    </>
+  );
+}
+
+/**
+ * Row 54-29 — one "switch from X" page (`/switch/<slug>`, `/ar/switch/<slug>`) on this template:
+ * the same hero, cards, table and call to action. The reader's situations sit beside what TManage
+ * suits; the table says what the importer brings over and where it lands; the cards say how the
+ * move works, how to undo it and what stays where it is.
+ */
+export function SwitchPage({ entry }: { entry: SwitchEntry }) {
+  const language = useCompareLanguage();
+  const copy = compareCopy(language);
+  const words = SWITCH_COPY[language];
+  const href = (path: string) => (language === 'ar' ? localizeHref(path) : path);
+
+  return (
+    <>
+      <WebSection className="tm-web-compare-hero" spacing="compact" aria-labelledby="compare-title">
+        <div className="tm-web-compare-hero__inner">
+          <p className="tm-web-compare-label">{words.eyebrow}</p>
+          <h1 id="compare-title" className="tm-web-compare-hero__title">
+            {words.title(entry.name)}
+          </h1>
+          <p className="tm-web-compare-hero__lede">{words.lede}</p>
+          <p className="tm-web-compare-hero__meta">
+            <a href={`mailto:${COMPARE_CORRECTIONS_EMAIL}`}>{copy.spotMistake}</a>
+          </p>
+        </div>
+      </WebSection>
+
+      <WebSection spacing="flush" className="tm-web-compare-body">
+        <div className="tm-web-compare-suits">
+          <SuitsCard title={words.situationsTitle} items={entry.situations[language]} />
+          <SuitsCard title={copy.suitsUs} items={copy.usSuits} />
+        </div>
+
+        <h2 id="compare-table-title" className="tm-web-compare-section-title">
+          {words.carriesTitle}
+        </h2>
+        <table className="tm-web-compare-table" aria-labelledby="compare-table-title">
+          <thead>
+            <tr>
+              <th scope="col">{words.from(entry.name)}</th>
+              <th scope="col">{words.into}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entry.rows.map((row) => (
+              <tr key={row.from.en}>
+                <th scope="row">{row.from[language]}</th>
+                <td data-label={words.into}>{row.to[language]}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="tm-web-compare-footnote">{copy.trademark(entry.name)}</p>
+
+        <div className="tm-web-compare-cards">
+          <InfoCard title={words.howTitle} body={entry.how[language]} />
+          <InfoCard title={words.undoTitle} body={words.undo} />
+          <InfoCard title={words.filesTitle} body={words.files} />
+        </div>
+        <p className="tm-web-compare-all">
+          {entry.compareSlug === undefined ? (
+            <Link href={compareHref(undefined, language)}>{copy.allCompare}</Link>
+          ) : (
+            <Link href={compareHref(entry.compareSlug, language)}>
+              {words.compareLink(entry.name)}
+            </Link>
+          )}
         </p>
       </WebSection>
 

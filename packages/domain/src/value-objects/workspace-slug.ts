@@ -43,6 +43,8 @@ export const RESERVED_WORKSPACE_SLUGS: ReadonlySet<string> = new Set([
   'product',
   'resources',
   'solutions',
+  // The public "switch from X" pages (/switch/{tool}, 54-29).
+  'switch',
   'terms',
   'website-kit',
   // The web app's own top-level routes beside [orgSlug].

@@ -1,6 +1,7 @@
 import { ALL_RESOURCES } from '../components/website/pages/resources/resources-data';
-import { COMPARE_COPY } from '../content/compare/compare-copy';
+import { COMPARE_COPY, SWITCH_COPY } from '../content/compare/compare-copy';
 import { COMPARE_ENTRIES } from '../content/compare/compare-entries';
+import { SWITCH_ENTRIES } from '../content/compare/switch-entries';
 import { HELP_ARTICLES } from '../content/help/help-articles';
 import { ARABIC_AUTH_PATHS, PUBLIC_LOCALIZED_PATHS } from './i18n/public-locale-routes';
 import { translate } from './i18n/t';
@@ -142,12 +143,24 @@ function comparePages(): PublicPage[] {
   ];
 }
 
+/** Row 54-29 — the "switch from X" pages, listed with the comparisons. */
+function switchPages(): PublicPage[] {
+  return SWITCH_ENTRIES.map((entry): PublicPage => ({
+    path: `/switch/${entry.slug}`,
+    title: SWITCH_COPY.en.title(entry.name),
+    summary: SWITCH_COPY.en.description(entry.name),
+    section: 'compare',
+    lastModified: SITE_BUILD_DATE,
+  }));
+}
+
 /** Every English public page, in the sitemap's order. */
 export const PUBLIC_PAGES: readonly PublicPage[] = [
   ...PUBLIC_LOCALIZED_PATHS.map(websitePage),
   ...resourcePages(),
   ...helpPages(),
   ...comparePages(),
+  ...switchPages(),
   ...ARABIC_AUTH_PATHS.map(websitePage),
 ];
 

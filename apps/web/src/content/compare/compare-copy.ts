@@ -121,6 +121,48 @@ export const COMPARE_COPY = {
   },
 } satisfies Record<CompareLanguage, unknown>;
 
+/**
+ * Row 54-29 — the "switch from X" pages' own words, on the compare template. They speak about the
+ * reader and about TManage today, never about the other product.
+ */
+export const SWITCH_COPY = {
+  en: {
+    eyebrow: 'Switch',
+    title: (name: string) => `Switching from ${name} to TManage`,
+    description: (name: string) =>
+      `What TManage brings over from ${name}, how the import works, and how to undo it.`,
+    lede: 'What TManage brings over from your export, and what to check before you start.',
+    situationsTitle: 'It may be time to move if…',
+    carriesTitle: 'What comes over',
+    from: (name: string) => `From ${name}`,
+    into: 'In TManage',
+    howTitle: 'How the move works',
+    undoTitle: 'Changed your mind?',
+    undo: 'Any import can be undone in one click for 7 days. Work whose owner does not match a member of your team comes over unassigned, so you can assign it afterwards.',
+    filesTitle: 'Files and attachments',
+    files:
+      'Attachments are not copied over. Your files can stay in your own Google Drive or OneDrive.',
+    compareLink: (name: string) => `TManage vs ${name}`,
+  },
+  ar: {
+    eyebrow: 'الانتقال',
+    title: (name: string) => `الانتقال من ${name}${RLM} إلى TManage${RLM}`,
+    description: (name: string) =>
+      `ما ينقله TManage${RLM} من ${name}${RLM}، وكيف يعمل الاستيراد، وكيف تتراجع عنه.`,
+    lede: 'ما ينقله TManage من ملف التصدير، وما تتحقّق منه قبل أن تبدأ.',
+    situationsTitle: 'ربما حان وقت الانتقال إذا…',
+    carriesTitle: 'ما الذي ينتقل',
+    from: (name: string) => `من ${name}${RLM}`,
+    into: `في TManage${RLM}`,
+    howTitle: 'كيف يتم الانتقال',
+    undoTitle: 'غيّرت رأيك؟',
+    undo: 'يمكنك التراجع عن أي استيراد بنقرة واحدة خلال 7 أيام. والعمل الذي لا يطابق مسؤوله أحدًا من أعضاء فريقك يأتي بلا مسؤول، فتسنده لاحقًا.',
+    filesTitle: 'الملفات والمرفقات',
+    files: 'لا تُنسخ المرفقات. ويمكن أن تبقى ملفاتك في Google Drive أو OneDrive الخاص بك.',
+    compareLink: (name: string) => `${RLM}TManage مقابل ${name}`,
+  },
+} satisfies Record<CompareLanguage, unknown>;
+
 export type CompareCopy = (typeof COMPARE_COPY)['en'];
 
 export function compareCopy(language: CompareLanguage): CompareCopy {

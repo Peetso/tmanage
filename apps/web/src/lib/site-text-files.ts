@@ -1,7 +1,8 @@
 import { BETA_FAQ, BETA_INCLUDED } from '../components/website/pages/pricing/pricing-data';
 import { ALL_RESOURCES } from '../components/website/pages/resources/resources-data';
-import { COMPARE_COPY } from '../content/compare/compare-copy';
+import { COMPARE_COPY, SWITCH_COPY } from '../content/compare/compare-copy';
 import { COMPARE_ENTRIES, COMPARE_FEATURES, OURS } from '../content/compare/compare-entries';
+import { findSwitchEntry } from '../content/compare/switch-entries';
 import { HELP_ARTICLES, type HelpBlock } from '../content/help/help-articles';
 import { siteDescription } from './i18n/locale-html';
 import { translate, type MessageKey } from './i18n/t';
@@ -113,6 +114,25 @@ function compareBody(slug: string): string[] {
   ];
 }
 
+function switchBody(slug: string): string[] {
+  const entry = findSwitchEntry(slug);
+  if (entry === undefined) return [];
+  const words = SWITCH_COPY.en;
+  const rows = entry.rows.map((row) => `| ${row.from.en} | ${row.to.en} |`);
+  return [
+    `## ${words.situationsTitle}`,
+    entry.situations.en.map((line) => `- ${line}`).join('\n'),
+    `## ${words.carriesTitle}`,
+    [`| ${words.from(entry.name)} | ${words.into} |`, '| --- | --- |', ...rows].join('\n'),
+    `## ${words.howTitle}`,
+    entry.how.en,
+    `## ${words.undoTitle}`,
+    words.undo,
+    `## ${words.filesTitle}`,
+    words.files,
+  ];
+}
+
 function bodyOf(page: PublicPage): string[] {
   if (page.path === '/pricing') return pricingBody();
   if (page.path.startsWith('/help/')) {
@@ -120,6 +140,7 @@ function bodyOf(page: PublicPage): string[] {
     return article === undefined ? [] : article.en.body.map(helpBlock);
   }
   if (page.path.startsWith('/compare/')) return compareBody(page.path.slice('/compare/'.length));
+  if (page.path.startsWith('/switch/')) return switchBody(page.path.slice('/switch/'.length));
   if (page.path.startsWith('/resources/')) {
     const item = ALL_RESOURCES.find((resource) => `/resources/${resource.slug}` === page.path);
     return item === undefined ? [] : [item.points.map((point) => `- ${point}`).join('\n')];
