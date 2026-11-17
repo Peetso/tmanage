@@ -298,18 +298,28 @@
 
 .wf-attach__item {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 4px 12px;
-  padding: 8px 12px;
-  border: 1px solid var(--line-300);
+  gap: 12px;
+  padding-block: 4px;
+  padding-inline: 12px 4px;
   border-radius: 12px;
-  background: var(--paper-0);
+  background: var(--paper-150);
+}
+
+.wf-attach__icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--ink-950);
+}
+
+.wf-attach__text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-inline-size: 0;
 }
 
 .wf-attach__name {
-  flex: 1 1 12rem;
-  min-inline-size: 0;
   overflow-wrap: anywhere;
   font-size: 13px;
   line-height: 18px;
@@ -324,4 +334,65 @@
 
 .wf-attach__item[data-state='failed'] .wf-attach__status {
   color: var(--ink-800);
+}
+
+/* 44 px hit area around the 16 px close glyph. */
+.wf-attach__remove {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 44px;
+  block-size: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink-950);
+  cursor: pointer;
+}
+
+.wf-attach__remove:focus-visible {
+  outline: 2px solid var(--ink-950);
+  outline-offset: -2px;
+}
+
+.wf-attach__notice {
+  inline-size: 100%;
+}
+
+.wf-attach__notice:empty {
+  display: none;
+}
+
+.wf-attach__drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  inline-size: 100%;
+  padding: 16px;
+  border: 1px dashed var(--line-700);
+  border-radius: 12px;
+}
+
+.wf-attach__hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 17px;
+  text-align: center;
+  color: var(--ink-650);
+}
+
+.wf-attach__full {
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+}
+
+/* ── 52-20a: the owner's attachment setting (Work › Intake forms) ─────── */
+
+.wf-files .tm-inline-alert,
+.wf-files .tm-field {
+  inline-size: 100%;
 }

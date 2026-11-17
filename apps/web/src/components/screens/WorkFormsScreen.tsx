@@ -21,6 +21,7 @@ import { useOrganizationName } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { WorkFormPublicLink } from './WorkFormPublicLink';
+import { WorkFormAttachmentSetting } from './WorkFormAttachmentSetting';
 
 export interface WorkFormsScreenProps {
   organizationSlug: string;
@@ -320,6 +321,15 @@ export function WorkFormsScreen({
 
           {activeForm ? (
             <WorkFormPublicLink api={api} organizationSlug={organizationSlug} form={activeForm} />
+          ) : null}
+
+          {activeForm ? (
+            <WorkFormAttachmentSetting
+              api={api}
+              organizationSlug={organizationSlug}
+              form={activeForm}
+              projects={available}
+            />
           ) : null}
 
           {activeForm ? (

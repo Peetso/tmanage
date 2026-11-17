@@ -4794,6 +4794,12 @@ type _publicAttachmentRule = Assert<Exact<ApiPublicAttachmentRule, WebPublicAtta
 type _publicFormView = Assert<Narrows<ApiPublicFormView, WebPublicFormDefinitionWithFiles>>;
 /** `POST …/uploads`: the page reads id, part size and part URLs only. */
 type _publicFormUpload = Assert<Narrows<ApiPublicFormUploadView, WebPublicUploadReply>>;
+// `PUT …/work-forms/:formId/attachments`: the owner's switch on the Intake forms card.
+import type { PublicFormAttachmentSetting as ApiPublicFormAttachmentSetting } from '../../apps/api/src/modules/public-forms/public-forms.service.js';
+import type { PublicFormAttachmentSetting as WebPublicFormAttachmentSetting } from '../../apps/web/src/lib/api/work-forms.js';
+type _publicFormAttachmentSetting = Assert<
+  Exact<ApiPublicFormAttachmentSetting, WebPublicFormAttachmentSetting>
+>;
 
 // ---- 56-07p Settings · Public links: the workspace link manager ----
 import type {

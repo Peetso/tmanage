@@ -116,6 +116,32 @@ export async function publishWorkForm(
   return data;
 }
 
+/**
+ * 52-20a. `PUT …/work-forms/:id/attachments`. Mirrors the API's `PublicFormAttachmentSetting`:
+ * the project visitors' files are kept in, or `null` when the form takes no files.
+ */
+export interface PublicFormAttachmentSetting {
+  readonly attachmentProjectId: string | null;
+}
+
+/**
+ * 52-20a. Let visitors of the form's public link attach files, kept in `projectId`; `null` turns it
+ * off. The server re-checks that the caller may upload to the project (404 otherwise).
+ */
+export async function setWorkFormAttachments(
+  client: ApiClient,
+  organizationSlug: string,
+  formId: string,
+  projectId: string | null,
+): Promise<PublicFormAttachmentSetting> {
+  const { data } = await client.request<PublicFormAttachmentSetting>({
+    method: 'PUT',
+    path: `${base(organizationSlug)}/${encodeURIComponent(formId)}/attachments`,
+    body: { projectId },
+  });
+  return data;
+}
+
 /** Stop sharing a form: its public link answers "not found" straight away. */
 export async function unpublishWorkForm(
   client: ApiClient,
