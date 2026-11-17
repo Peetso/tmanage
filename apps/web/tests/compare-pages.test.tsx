@@ -1,5 +1,6 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+// eslint-disable-next-line no-restricted-imports -- a test reads the claim rules from source; nothing here ships to the browser.
 import { findClaimViolations } from '../../../packages/domain/src/legal/public-claims';
 import { COMPARE_ENTRIES } from '../src/content/compare/compare-entries';
 import { ComparePage } from '../src/components/website/pages/compare/ComparePage';
