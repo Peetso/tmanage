@@ -33,18 +33,21 @@ export function InviteMemberDialog({
   organizationSlug,
   organizationName,
   onClose,
+  initialEmail = '',
 }: {
   api: ApiClient;
   organizationSlug: string;
   organizationName: string;
   onClose: (issued: IssuedInvitation | null) => void;
+  /** 56-26 (B1): "Check the address" opens the dialog with the stopped address to correct. */
+  initialEmail?: string | undefined;
 }) {
   const tr = useTOr();
   const titleId = useId();
   const groupName = useId();
   const projectsId = useId();
   const panelRef = useRef<HTMLElement>(null);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail);
   const [touched, setTouched] = useState(false);
   const [role, setRole] = useState<string | null>('member');
   const [projectIds, setProjectIds] = useState<readonly string[]>([]);

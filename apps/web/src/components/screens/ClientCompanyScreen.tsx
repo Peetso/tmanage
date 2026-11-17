@@ -20,6 +20,7 @@ import type { ClientOrganization } from '../../lib/api/clients';
 import type { InvitationSummary, IssuedInvitation } from '../../lib/api/invitations';
 import type { ApiClient } from '../../lib/api/client';
 import { describePeopleError, initialsOf } from './peopleShared';
+import { NotDeliveredChip, StoppedInvitationNotice } from '../people/StoppedInvitationNotice';
 import { ROLE_KEY, clientStatus } from './ClientsScreen';
 import { PreviewAsClientLink } from './PreviewAsClientLink';
 import '../../styles/screens/clients.css';
@@ -74,6 +75,8 @@ export function ClientCompanyScreen({
   const t = useClientsT();
   const queryClient = useQueryClient();
   const [dialog, setDialog] = useState<'invite' | 'rename' | 'archive' | null>(null);
+  // 56-26 (B1): the stopped address "Check the address" opens the invite with.
+  const [recheckEmail, setRecheckEmail] = useState('');
   const [issued, setIssued] = useState<IssuedInvitation | null>(null);
   const [resentEmail, setResentEmail] = useState<string | null>(null);
 
@@ -252,12 +255,18 @@ export function ClientCompanyScreen({
                     const expired = isExpired(invitation, nowMs);
                     const justResent = invitation.email === resentEmail;
                     return (
-                      <li key={invitation.id} className="cl-row">
+                      <li
+                        key={invitation.id}
+                        className={invitation.deliveryStopped ? 'cl-row cl-row--stopped' : 'cl-row'}
+                      >
                         <span className="cl-orb" aria-hidden="true">
                           {invitation.email.slice(0, 2).toUpperCase()}
                         </span>
                         <span className="cl-row__text">
-                          <span className="cl-row__name cl-break">{invitation.email}</span>
+                          <span className="cl-row__name cl-break">
+                            {invitation.email}{' '}
+                            {invitation.deliveryStopped ? <NotDeliveredChip /> : null}
+                          </span>
                           <span className="cl-row__meta">{sentLabel(invitation)}</span>
                         </span>
                         <span className="cl-role">{roleLabel(invitation.role)}</span>
@@ -276,6 +285,19 @@ export function ClientCompanyScreen({
                                 : t('Clients.resend')}
                           </Button>
                         )}
+                        {invitation.deliveryStopped && !archived ? (
+                          <StoppedInvitationNotice
+                            api={api}
+                            organizationSlug={organizationSlug}
+                            email={invitation.email}
+                            busy={resend.isPending}
+                            onCheckAddress={() => {
+                              setRecheckEmail(invitation.email);
+                              setDialog('invite');
+                            }}
+                            onResend={() => resend.mutate(invitation)}
+                          />
+                        ) : null}
                       </li>
                     );
                   })}
@@ -335,11 +357,16 @@ export function ClientCompanyScreen({
           organizationSlug={organizationSlug}
           organizations={[org]}
           initialCompanyName={org.name}
-          onClose={() => setDialog(null)}
+          initialEmail={recheckEmail}
+          onClose={() => {
+            setDialog(null);
+            setRecheckEmail('');
+          }}
           onIssued={async (result) => {
             if (result.delivery !== 'sent') setIssued(result);
             await refresh();
             setDialog(null);
+            setRecheckEmail('');
           }}
         />
       ) : null}

@@ -3,6 +3,7 @@ import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import { InvitationManagementRepository } from './invitation-management.repository.js';
+import { MailBouncesRepository } from '../mail-bounces/mail-bounces.repository.js';
 import type { AdminInvitationsView } from './invitation-management.controller.js';
 
 /**
@@ -32,6 +33,8 @@ import type { AdminInvitationsView } from './invitation-management.controller.js
 export class InvitationManagementService {
   constructor(
     private readonly repository: InvitationManagementRepository = new InvitationManagementRepository(),
+    /** 56-26 (B1): the company's stopped addresses, read with the list. */
+    private readonly bounces: MailBouncesRepository = new MailBouncesRepository(),
   ) {}
 
   /**
@@ -61,6 +64,11 @@ export class InvitationManagementService {
       list.push({ id: entry.projectId, name: entry.projectName });
       projectsOf.set(entry.invitationId, list);
     }
+    const stopped = await this.bounces.suppressedAddresses(
+      runner,
+      context,
+      rows.map((row) => row.email),
+    );
     return {
       invitations: rows.map((row) => ({
         id: row.id,
@@ -73,6 +81,7 @@ export class InvitationManagementService {
         createdAt: row.createdAt,
         isExpired: row.expiresAt.getTime() <= now.getTime(),
         projects: projectsOf.get(row.id) ?? [],
+        deliveryStopped: stopped.has(row.email),
       })),
     };
   }

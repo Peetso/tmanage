@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { Fragment, useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
@@ -13,6 +13,7 @@ import type { MemberRoleChoice } from '../../lib/api/member-role';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { fill, RoleChoiceCards, useCustomRoles } from './ChangeRoleDialog';
+import { NotDeliveredChip, StoppedInvitationNotice } from './StoppedInvitationNotice';
 import type { CustomRoleOption } from './ChangeRoleDialog';
 
 /**
@@ -56,18 +57,25 @@ function useShortDate(): (iso: string | undefined) => string {
 }
 
 export function PendingInvitationsSection({
+  api,
+  organizationSlug,
   invitations,
   roleLabel,
   onChangeRole,
   onResend,
   onRevoke,
+  onCheckAddress,
   busyId,
 }: {
+  api: ApiClient;
+  organizationSlug: string;
   invitations: readonly PendingInvitation[];
   roleLabel: (role: string) => string;
   onChangeRole: (invitation: PendingInvitation) => void;
   onResend: (invitation: PendingInvitation) => void;
   onRevoke: (invitation: PendingInvitation) => void;
+  /** 56-26 (B1): "Check the address" on a stopped invitation — the invite path, address filled in. */
+  onCheckAddress: (invitation: PendingInvitation) => void;
   /** The invitation a resend is running for; its menu stays closed and its row reads busy. */
   busyId: string | null;
 }) {
@@ -98,15 +106,30 @@ export function PendingInvitationsSection({
           </thead>
           <tbody>
             {invitations.map((invitation) => (
-              <InvitationRow
-                key={invitation.id}
-                invitation={invitation}
-                roleLabel={roleLabel(invitation.role)}
-                busy={busyId === invitation.id}
-                onChangeRole={() => onChangeRole(invitation)}
-                onResend={() => onResend(invitation)}
-                onRevoke={() => onRevoke(invitation)}
-              />
+              <Fragment key={invitation.id}>
+                <InvitationRow
+                  invitation={invitation}
+                  roleLabel={roleLabel(invitation.role)}
+                  busy={busyId === invitation.id}
+                  onChangeRole={() => onChangeRole(invitation)}
+                  onResend={() => onResend(invitation)}
+                  onRevoke={() => onRevoke(invitation)}
+                />
+                {invitation.deliveryStopped ? (
+                  <tr className="ppl-member ppl-member--stopped">
+                    <td colSpan={5}>
+                      <StoppedInvitationNotice
+                        api={api}
+                        organizationSlug={organizationSlug}
+                        email={invitation.email}
+                        busy={busyId === invitation.id}
+                        onCheckAddress={() => onCheckAddress(invitation)}
+                        onResend={() => onResend(invitation)}
+                      />
+                    </td>
+                  </tr>
+                ) : null}
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -176,6 +199,7 @@ function InvitationRow({
             <span className="ppl-member__name" dir="ltr">
               {invitation.email}
             </span>
+            {invitation.deliveryStopped ? <NotDeliveredChip /> : null}
             <span className="ppl-member__email">
               {fill(tr('PendingInvitations.sent', 'Sent {date}'), {
                 date: shortDate(invitation.createdAt),

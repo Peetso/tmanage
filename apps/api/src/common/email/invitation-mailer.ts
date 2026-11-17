@@ -2,6 +2,7 @@ import { composeInvitationEmail } from './invitation-email.js';
 import type { InvitationEmailFacts } from './invitation-email.js';
 import { serializeForLog } from '../observability/logger.js';
 import { mailLink } from '../i18n/email-messages.js';
+import { MailRecipientSuppressedError } from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
 
 /**
@@ -18,18 +19,19 @@ import type { Mailer } from '@tmanage/mail';
  * - **The failure.** A mail host being down must not roll back or 500 an invitation that
  *   is already committed — the issuer is looking at the printed link, which is the
  *   bootstrap fallback working as designed. So `deliver` never throws: it answers
- *   `'sent'`, `'none'` (no transport was configured to try) or `'failed'`, and the
- *   service records that answer in the audit trail and the response.
+ *   `'sent'`, `'none'` (no transport was configured to try), `'stopped'` (56-26: this
+ *   company's mail to the address keeps bouncing, so the guard held it) or `'failed'`, and
+ *   the service records that answer in the audit trail and the response.
  */
 
-export type InvitationDelivery = 'sent' | 'none' | 'failed';
+export type InvitationDelivery = 'sent' | 'none' | 'stopped' | 'failed';
 
 /** `deliver`'s input: the composer's facts, minus the link this class builds. */
 export type InvitationDeliveryFacts = Omit<InvitationEmailFacts, 'link'> & {
   readonly token: string;
   /**
    * 56-26. The inviting company: the mail's Message-ID is signed with it, and an address that
-   * bounced in this company is not mailed again (`'failed'`: the screen shows the link to send).
+   * bounced in this company is not mailed again (`'stopped'`: the screen names the address).
    */
   readonly organizationId?: string;
 };
@@ -68,6 +70,8 @@ export class InvitationMailer {
         organizationId === undefined ? message : { ...message, organizationId },
       );
     } catch (error) {
+      // Not a failure of the mail host: the address is held, and the screen says so.
+      if (error instanceof MailRecipientSuppressedError) return 'stopped';
       // The one place a mail error is absorbed, and it is absorbed loudly: the audit row
       // the service writes says `error`, and this line carries the driver's own words —
       // which may name the recipient and can carry the SMTP host and credential, so it goes

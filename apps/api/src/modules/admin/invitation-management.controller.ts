@@ -44,6 +44,8 @@ export interface AdminInvitationsView {
     readonly isExpired: boolean;
     /** R38 G4: the projects the invitation is tagged with (shared or joined on acceptance). */
     readonly projects: readonly { readonly id: string; readonly name: string }[];
+    /** 56-26 (B1): this company stopped mailing the address — the invitation did not arrive. */
+    readonly deliveryStopped: boolean;
   }[];
 }
 

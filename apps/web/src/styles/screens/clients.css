@@ -470,3 +470,12 @@
   flex-direction: column;
   align-items: flex-start;
 }
+
+/* 56-26 (B1): a stopped invitation's notice takes the full row under the address. */
+.cl-row--stopped {
+  flex-wrap: wrap;
+}
+
+.cl-row--stopped > .tm-stopped-invite {
+  flex-basis: 100%;
+}

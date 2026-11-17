@@ -1,4 +1,5 @@
-import { and, eq, isNotNull } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull } from 'drizzle-orm';
+import { emailAddressHash } from '@tmanage/mail';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { mailRecipientBounces } from '../../common/database/schema.js';
 import type { MailBounceKind, MailRecipientBounceRow } from '../../common/database/schema.js';
@@ -78,6 +79,31 @@ export class MailBouncesRepository {
       )
       .limit(1);
     return rows.length > 0;
+  }
+
+  /**
+   * 56-26 (B1): which of these addresses the company has stopped mailing — one query for a whole
+   * invitation list. Answers the addresses as given; the hash never leaves this method.
+   */
+  async suppressedAddresses(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    addresses: readonly string[],
+  ): Promise<ReadonlySet<string>> {
+    if (addresses.length === 0) return new Set();
+    const hashes = [...new Set(addresses.map(emailAddressHash))];
+    const rows = await tenantDrizzle(runner)
+      .select({ addressHash: mailRecipientBounces.addressHash })
+      .from(mailRecipientBounces)
+      .where(
+        and(
+          eq(mailRecipientBounces.organizationId, context.organizationId),
+          inArray(mailRecipientBounces.addressHash, hashes),
+          isNotNull(mailRecipientBounces.suppressedAt),
+        ),
+      );
+    const stopped = new Set(rows.map((row) => row.addressHash));
+    return new Set(addresses.filter((address) => stopped.has(emailAddressHash(address))));
   }
 
   async insert(

@@ -39,6 +39,8 @@ export interface InviteClientDialogProps {
   onIssued: (issued: IssuedInvitation) => void | Promise<unknown>;
   /** Prefills the company — "Invite person" on a client company's own page. */
   initialCompanyName?: string;
+  /** 56-26 (B1): "Check the address" opens the dialog with the stopped address to correct. */
+  initialEmail?: string;
 }
 
 type ClientRole = 'client_reviewer' | 'client_admin';
@@ -62,6 +64,7 @@ export function InviteClientDialog({
   onClose,
   onIssued,
   initialCompanyName = '',
+  initialEmail = '',
 }: InviteClientDialogProps) {
   const t = useClientsT();
   const tr = useTOr();
@@ -70,7 +73,7 @@ export function InviteClientDialog({
   const listId = useId();
   const projectsHintId = useId();
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail);
   const [companyName, setCompanyName] = useState(initialCompanyName);
   const [note, setNote] = useState('');
   const [role, setRole] = useState<ClientRole>('client_reviewer');

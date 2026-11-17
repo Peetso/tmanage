@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { InvitationMailer } from './invitation-mailer.js';
 import type { InvitationDeliveryFacts } from './invitation-mailer.js';
+import { MailRecipientSuppressedError } from '@tmanage/mail';
 import type { MailDelivery, Mailer, MailMessage } from '@tmanage/mail';
 
 /**
@@ -47,6 +48,18 @@ describe('InvitationMailer', () => {
     expect(transport.messages).toHaveLength(1);
     expect(transport.messages[0]?.text).toContain('https://app.tmanage.example/invitations/tok123');
     expect(transport.messages[0]?.to).toBe('nadia@brightops.example');
+  });
+
+  it('56-26: answers stopped, quietly, when the bounce guard holds the address', async () => {
+    const held: Mailer = { send: () => Promise.reject(new MailRecipientSuppressedError()) };
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const mailer = new InvitationMailer(held, 'https://app.tmanage.example');
+      await expect(mailer.deliver(facts())).resolves.toBe('stopped');
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('answers failed, without throwing, when the transport throws', async () => {

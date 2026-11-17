@@ -43,7 +43,7 @@ interface Sent {
   /** The invitation link, for the ones that worked. Shown once and never fetchable again. */
   readonly link?: string;
   /** What the server did about email — `IssuedInvitation.delivery`, absent on a failure. */
-  readonly delivery?: 'sent' | 'none' | 'failed';
+  readonly delivery?: 'sent' | 'none' | 'stopped' | 'failed';
   readonly problem?: string;
 }
 
@@ -363,7 +363,7 @@ export function InviteTeamScreen({
                         <p className="tm-ob-team__problem">
                           {result.delivery === 'sent'
                             ? `${t('InviteTeamScreen.alsoEmailedTo')} ${result.email}.`
-                            : result.delivery === 'failed'
+                            : result.delivery === 'failed' || result.delivery === 'stopped'
                               ? t('InviteTeamScreen.emailFailed')
                               : t('InviteTeamScreen.emailNone')}
                         </p>

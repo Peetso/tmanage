@@ -26,6 +26,8 @@ export interface InvitationSummary {
   readonly acceptedByUserId: string | null;
   readonly acceptedAt: string | null;
   readonly createdAt: string;
+  /** 56-26 (B1): TManage stopped mailing this pending invitation's address — it did not arrive. */
+  readonly deliveryStopped: boolean;
 }
 
 export interface IssuedInvitation {
@@ -42,9 +44,10 @@ export interface IssuedInvitation {
    * What happened to the invitation email. `'none'` means no mail transport is configured
    * on the server — the bootstrap default — and the link has to be sent by hand; `'sent'`
    * means an SMTP server accepted a message carrying this same link; `'failed'` means a
-   * transport exists and refused, so the link is, again, the issuer's job.
+   * transport exists and refused, so the link is, again, the issuer's job; `'stopped'` (56-26)
+   * means mail to this address keeps coming back, so TManage no longer sends to it.
    */
-  readonly delivery: 'sent' | 'none' | 'failed';
+  readonly delivery: 'sent' | 'none' | 'stopped' | 'failed';
 }
 
 export interface IssueInvitationInput {

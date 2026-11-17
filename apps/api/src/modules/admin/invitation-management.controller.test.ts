@@ -9,6 +9,7 @@ import type {
   PendingInvitationRow,
 } from './invitation-management.repository.js';
 import { ApiError } from '../../common/http/errors.js';
+import type { MailBouncesRepository } from '../mail-bounces/mail-bounces.repository.js';
 import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 
@@ -98,13 +99,19 @@ class FakeRepository {
   }
 }
 
-function controllerWith(repo: FakeRepository): AdminInvitationManagementController {
+function controllerWith(
+  repo: FakeRepository,
+  stopped: readonly string[] = [],
+): AdminInvitationManagementController {
   const database = {
     read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
     transaction: async (_c: unknown, work: (tx: unknown) => Promise<unknown>) => work({}),
   } as unknown as TenantDatabase;
   const service = new InvitationManagementService(
     repo as unknown as InvitationManagementRepository,
+    {
+      suppressedAddresses: () => Promise.resolve(new Set(stopped)),
+    } as unknown as MailBouncesRepository,
   );
   return new AdminInvitationManagementController(database, service);
 }
@@ -136,6 +143,14 @@ describe('AdminInvitationManagementController (ADM invitations, x328)', () => {
       [{ id: 'p-1', name: 'Website' }],
       [],
     ]);
+  });
+
+  it('56-26 B1: flags a pending invitation whose address the company stopped mailing', async () => {
+    const repo = new FakeRepository([{ id: 'inv-1', status: 'pending' }]);
+    const stopped = await controllerWith(repo, ['invitee@example.test']).list(context, owner());
+    const clear = await controllerWith(repo).list(context, owner());
+    expect(stopped.invitations[0]?.deliveryStopped).toBe(true);
+    expect(clear.invitations[0]?.deliveryStopped).toBe(false);
   });
 
   it('403s list without org.manage (the real authorize), and does not read another tenant’s rows', async () => {

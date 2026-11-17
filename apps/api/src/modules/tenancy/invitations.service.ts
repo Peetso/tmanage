@@ -47,6 +47,7 @@ import {
   isDuplicateKey,
 } from './invitee-accounts.repository.js';
 import { PoliciesRepository } from '../admin/policies.repository.js';
+import { MailBouncesRepository } from '../mail-bounces/mail-bounces.repository.js';
 import { normalizePolicy } from '../admin/policies.allowlist.js';
 import { parsePlatformAdminEmails } from '../platform-admin/platform-admin.access.js';
 import {
@@ -161,13 +162,18 @@ export interface InvitationView {
   readonly acceptedByUserId: string | null;
   readonly acceptedAt: string | null;
   readonly createdAt: string;
+  /**
+   * 56-26 (B1): a pending invitation whose address this company has stopped mailing because mail
+   * to it keeps coming back — the invitation did not arrive. Always `false` once it is not pending.
+   */
+  readonly deliveryStopped: boolean;
 }
 
 /**
  * An explicit projection — `25-AUTH-AND-TENANT-ISOLATION` §7. `token_hash` is absent and there
  * is no code path that could put it here: the field is not on this type.
  */
-function toView(row: InvitationRow): InvitationView {
+function toView(row: InvitationRow, deliveryStopped = false): InvitationView {
   return {
     id: row.id,
     email: row.email,
@@ -179,6 +185,7 @@ function toView(row: InvitationRow): InvitationView {
     acceptedByUserId: row.acceptedByUserId,
     acceptedAt: row.acceptedAt ? row.acceptedAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
+    deliveryStopped: deliveryStopped && row.status === 'pending',
   };
 }
 
@@ -200,8 +207,9 @@ export interface IssuedInvitationView {
   /**
    * What happened to the invitation email. `'none'` — no transport is configured, send the
    * link yourself — is this deployment's normal answer under `EMAIL_DRIVER=console`.
-   * `'failed'` means a transport exists and refused; the invitation itself stands either
-   * way, which is why this is a field and not an error.
+   * `'failed'` means a transport exists and refused; `'stopped'` (56-26) that mail to this
+   * address keeps coming back, so this company no longer sends to it. The invitation itself
+   * stands either way, which is why this is a field and not an error.
    */
   readonly delivery: InvitationDelivery;
 }
@@ -337,6 +345,8 @@ export class InvitationsService {
     private readonly staffClientRows: StaffClientRowsRepository = new StaffClientRowsRepository(),
     /** R38 G4: the project shares a client invitation's projects become on acceptance. */
     private readonly projectShares: ProjectClientsRepository = new ProjectClientsRepository(),
+    /** 56-26 (B1): the company's stopped addresses, read with the list. */
+    private readonly bounces: MailBouncesRepository = new MailBouncesRepository(),
   ) {}
 
   async list(
@@ -348,10 +358,15 @@ export class InvitationsService {
   ): Promise<readonly InvitationView[]> {
     this.requireInviteCapability(principal, context, 'invitation.list');
 
-    const rows = await this.database.read(context, (runner) =>
-      this.invitations.list(runner, context, options),
-    );
-    return rows.map(toView);
+    const { rows, stopped } = await this.database.read(context, async (runner) => {
+      const listed = await this.invitations.list(runner, context, options);
+      const pending = listed.filter((row) => row.status === 'pending').map((row) => row.email);
+      return {
+        rows: listed,
+        stopped: await this.bounces.suppressedAddresses(runner, context, pending),
+      };
+    });
+    return rows.map((row) => toView(row, stopped.has(row.email)));
   }
 
   /**
@@ -476,7 +491,7 @@ export class InvitationsService {
     );
 
     const delivery = await this.deliverInvitationEmail(context, row, mailFacts, token);
-    return { invitation: toView(row), token, delivery };
+    return { invitation: toView(row, delivery === 'stopped'), token, delivery };
   }
 
   /**
@@ -572,7 +587,7 @@ export class InvitationsService {
     );
 
     const delivery = await this.deliverInvitationEmail(context, row, mailFacts, token);
-    return { invitation: toView(row), token, delivery };
+    return { invitation: toView(row, delivery === 'stopped'), token, delivery };
   }
 
   async revoke(

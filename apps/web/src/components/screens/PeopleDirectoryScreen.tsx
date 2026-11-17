@@ -102,7 +102,7 @@ function useLastActive(): (iso: string | null | undefined) => string {
 type Dialog =
   | { readonly kind: 'role'; readonly target: ChangeRoleTarget }
   | { readonly kind: 'reset'; readonly person: MemberRow }
-  | { readonly kind: 'invite' }
+  | { readonly kind: 'invite'; readonly email?: string }
   | { readonly kind: 'invite-role'; readonly invitation: PendingInvitation }
   | { readonly kind: 'invite-revoke'; readonly invitation: PendingInvitation }
   | { readonly kind: 'invite-link'; readonly issued: IssuedInvitation };
@@ -409,6 +409,8 @@ export function PeopleDirectoryScreen({
 
         {canManage && people.isSuccess ? (
           <PendingInvitationsSection
+            api={api}
+            organizationSlug={organizationSlug}
             invitations={pending}
             roleLabel={invitationChip}
             busyId={resend.isPending ? (resend.variables?.id ?? null) : null}
@@ -417,6 +419,7 @@ export function PeopleDirectoryScreen({
               if (!resend.isPending) resend.mutate(invitation);
             }}
             onRevoke={(invitation) => setDialog({ kind: 'invite-revoke', invitation })}
+            onCheckAddress={(invitation) => setDialog({ kind: 'invite', email: invitation.email })}
           />
         ) : null}
 
@@ -528,6 +531,7 @@ export function PeopleDirectoryScreen({
           api={api}
           organizationSlug={organizationSlug}
           organizationName={workspace}
+          initialEmail={dialog.email}
           onClose={(issued) => {
             setDialog(null);
             if (issued) {

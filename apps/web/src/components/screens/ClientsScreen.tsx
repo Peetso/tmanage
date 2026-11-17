@@ -28,6 +28,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { describePeopleError, initialsOf } from './peopleShared';
+import { NotDeliveredChip, StoppedInvitationNotice } from '../people/StoppedInvitationNotice';
 import '../../styles/screens/clients.css';
 
 export type ClientStatus = 'archived' | 'invite_pending' | 'portal_live' | 'not_shared';
@@ -134,6 +135,8 @@ export function ClientsScreen({
     'list',
   );
   const [inviting, setInviting] = useState(false);
+  // 56-26 (B1): "Check the address" on a stopped invitation reopens the invite with it filled in.
+  const [recheck, setRecheck] = useState<{ email: string; companyName: string } | null>(null);
   const [issued, setIssued] = useState<IssuedInvitation | null>(null);
   // The email of the invitation just re-sent. A resend revokes the old row and issues a new one,
   // so the confirmation follows the address, not the row id.
@@ -410,12 +413,20 @@ export function ClientsScreen({
                   {shownInvitations.map((row) => {
                     const justResent = resentEmail !== null && row.invitation.email === resentEmail;
                     return (
-                      <li key={row.invitation.id} className="cl-row">
+                      <li
+                        key={row.invitation.id}
+                        className={
+                          row.invitation.deliveryStopped ? 'cl-row cl-row--stopped' : 'cl-row'
+                        }
+                      >
                         <span className="cl-orb" aria-hidden="true">
                           {row.invitation.email.slice(0, 2).toUpperCase()}
                         </span>
                         <span className="cl-row__text">
-                          <span className="cl-row__name cl-break">{row.invitation.email}</span>
+                          <span className="cl-row__name cl-break">
+                            {row.invitation.email}{' '}
+                            {row.invitation.deliveryStopped ? <NotDeliveredChip /> : null}
+                          </span>
                           <span className="cl-row__meta">
                             {row.organizationName} · {sentLabel(row)}
                           </span>
@@ -438,6 +449,21 @@ export function ClientsScreen({
                               ? t('Clients.sendAgain')
                               : t('Clients.resend')}
                         </Button>
+                        {row.invitation.deliveryStopped ? (
+                          <StoppedInvitationNotice
+                            api={api}
+                            organizationSlug={organizationSlug}
+                            email={row.invitation.email}
+                            busy={resend.isPending}
+                            onCheckAddress={() =>
+                              setRecheck({
+                                email: row.invitation.email,
+                                companyName: row.organizationName,
+                              })
+                            }
+                            onResend={() => resend.mutate(row.invitation)}
+                          />
+                        ) : null}
                       </li>
                     );
                   })}
@@ -452,17 +478,23 @@ export function ClientsScreen({
         )}
       </div>
 
-      {inviting ? (
+      {inviting || recheck !== null ? (
         <InviteClientDialog
           api={api}
           organizationSlug={organizationSlug}
           organizations={companies.filter((company) => company.archivedAt === null)}
-          onClose={() => setInviting(false)}
+          initialEmail={recheck?.email ?? ''}
+          initialCompanyName={recheck?.companyName ?? ''}
+          onClose={() => {
+            setInviting(false);
+            setRecheck(null);
+          }}
           onIssued={async (result) => {
             if (result.delivery !== 'sent') setIssued(result);
             // Refresh first, so the list already shows the new company when the dialog closes.
             await refresh();
             setInviting(false);
+            setRecheck(null);
           }}
         />
       ) : null}
