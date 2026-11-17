@@ -42,6 +42,7 @@ import {
   type UploadSessionsRepository,
 } from './upload-sessions.repository.js';
 import { STORAGE_BYTES_METRIC, type UsageCountersRepository } from './usage-counters.repository.js';
+import type { StorageUploadLimit } from '../billing/storage-allowance.service.js';
 import { USAGE_LEDGER_REASON, type UsageLedgerRepository } from './usage-ledger.repository.js';
 import type { UsageThresholdEvaluator } from './usage-thresholds.js';
 import {
@@ -416,6 +417,11 @@ export class FilesService {
     private readonly dailyUploads: DailyUploadCountRepository = new DailyUploadCountRepository(),
     /** FIX4 item 1b. The configured scanner; absent reads as none (`allow_labeled`). */
     private readonly scanner?: ScannerPresence,
+    /**
+     * 57-13r. The temporary storage allowance every upload door reserves against (plan, support
+     * raise, platform cap). Absent: the platform cap alone (`STORAGE_ORG_BYTES_LIMIT_BYTES`).
+     */
+    private readonly allowance?: StorageUploadLimit,
   ) {}
 
   // ── The studio's door ──────────────────────────────────────────────────────
@@ -848,7 +854,7 @@ export class FilesService {
       expiresInSeconds: this.config.uploadUrlTtlSeconds,
     });
     const expiresAt = new Date(Date.now() + this.config.uploadUrlTtlSeconds * 1_000);
-    const limitBytes = this.storageLimitsFor();
+    const limitBytes = await this.storageLimitsFor(context);
 
     let created: UploadSessionRow;
     try {
@@ -1066,7 +1072,7 @@ export class FilesService {
       uploadId: id,
     });
     const sizeBytes = draft.input.sizeBytes;
-    const limitBytes = this.storageLimitsFor();
+    const limitBytes = await this.storageLimitsFor(context);
     let session: UploadSessionRow;
     try {
       session = await this.writing(() =>
@@ -1339,11 +1345,12 @@ export class FilesService {
   }
 
   /** The commit transaction of a completion: `completing → completed` and everything beside it. */
-  private commitCompletion(
+  private async commitCompletion(
     context: TenantContext,
     session: UploadSessionRow,
     stored: StoredObject,
   ): Promise<{ asset: FileAssetRow; version: FileVersionRow } | null> {
+    const limitBytes = await this.storageLimitsFor(context);
     return this.writing(() =>
       this.database.transaction(context, async (tx) => {
         const moved = await this.sessions.transition(
@@ -1437,7 +1444,7 @@ export class FilesService {
         }
         // Commit can raise used + reserved when the provider's count exceeds the declaration
         // (USAGE-001 slice 4, acceptance §2). Re-evaluate the band in the commit transaction.
-        await this.thresholds?.evaluate(tx, context, STORAGE_BYTES_METRIC, this.storageLimitsFor());
+        await this.thresholds?.evaluate(tx, context, STORAGE_BYTES_METRIC, limitBytes);
         return { asset, version };
       }),
     );
@@ -2096,11 +2103,13 @@ export class FilesService {
   }
 
   /**
-   * The one seam ENT-001 replaces with an entitlement row (`49` §5's effective quota).
-   * Named here because two comments elsewhere already send its implementer looking for it.
+   * `49` §5's effective quota: since 57-13r the workspace's temporary storage allowance, decided
+   * in one place (`StorageAllowanceService.uploadLimitBytes`); the platform cap when not wired.
    */
-  private storageLimitsFor(): number {
-    return this.config.storageOrgBytesLimit;
+  private async storageLimitsFor(context: TenantContext): Promise<number> {
+    return this.allowance
+      ? this.allowance.uploadLimitBytes(context)
+      : this.config.storageOrgBytesLimit;
   }
 
   private requireClient(principal: Principal): string {

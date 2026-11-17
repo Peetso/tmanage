@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { describe, expect, it, vi } from 'vitest';
 import { ApiClient } from '../src/lib/api/client';
 import type { StorageMoveView, StorageOnTManageView } from '../src/lib/api/storage-root';
+import type { PlanStorageView, StorageThreshold } from '../src/lib/api/plan-usage';
 import { StorageCard } from '../src/components/billing/StorageCard';
 import { PlanUsageScreen } from '../src/components/screens/PlanUsageScreen';
 
@@ -96,6 +97,7 @@ function mount(
   connected = true,
   started?: StorageMoveView,
   onTManage: StorageOnTManageView = ON_TMANAGE,
+  allowance: PlanStorageView | null = null,
 ) {
   const calls: string[] = [];
   const api = client(
@@ -113,10 +115,30 @@ function mount(
   const query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={query}>
-      <StorageCard organizationSlug="northstar" client={api} />
+      <StorageCard organizationSlug="northstar" client={api} allowance={allowance} />
     </QueryClientProvider>,
   );
   return calls;
+}
+
+function renderAllowance(allowance: PlanStorageView) {
+  const api = client(
+    {
+      [`GET https://api.example.test/v1/organizations/northstar${JOBS}`]: {
+        job: null,
+        onTManage: ON_TMANAGE,
+      },
+      '/google-drive': drive(false),
+      '/onedrive': ONEDRIVE_OFF,
+    },
+    [],
+  );
+  const query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={query}>
+      <StorageCard organizationSlug="northstar" client={api} allowance={allowance} />
+    </QueryClientProvider>,
+  );
 }
 
 describe('StorageCard', () => {
@@ -129,6 +151,34 @@ describe('StorageCard', () => {
     expect(screen.getByText('3.4 GB')).toBeTruthy();
     expect(screen.queryByRole('progressbar')).toBeNull();
     expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('57-13r: before Drive, a labelled allowance bar and a notice at 70, 85, 95 and 100 %', async () => {
+    const GB = 1024 ** 3;
+    const steps: [StorageThreshold, number, RegExp][] = [
+      [70, 72, /^72% of your temporary storage is used\. Connect Google Drive or OneDrive so/],
+      [85, 88, /^88% of your temporary storage is used\. Connect Google Drive or OneDrive soon/],
+      [95, 96, /^Your temporary storage is almost full \(96%\)/],
+      [100, 100, /New uploads wait until you connect .* Nothing is deleted\.$/],
+    ];
+    for (const [threshold, percent, notice] of steps) {
+      const allowance: PlanStorageView = {
+        used: (percent / 100) * GB,
+        limit: GB,
+        level: 'near',
+        percent,
+        threshold,
+        raisedBySupport: false,
+      };
+      const { unmount } = renderAllowance(allowance);
+      expect(await screen.findByText(notice)).toBeTruthy();
+      const bar = screen.getByRole('progressbar', { name: 'Temporary storage on TManage' });
+      expect(bar.getAttribute('aria-valuetext')).toMatch(
+        new RegExp(`^${percent}% of the temporary storage on TManage is in use`),
+      );
+      expect(screen.getByRole('link', { name: 'Connect Google Drive' })).toBeTruthy();
+      unmount();
+    }
   });
 
   it('S2: connected shows where files live and the one Move button', async () => {

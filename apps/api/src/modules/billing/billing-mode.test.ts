@@ -17,6 +17,7 @@ import {
 } from './platform-settings-reader.js';
 import { PLAN_FEATURE_SET, PLAN_LIMITS } from './plan-catalog.js';
 import { PlanUsageService } from './plan-usage.service.js';
+import { StorageAllowanceService } from './storage-allowance.service.js';
 import { SubscriptionService } from './subscription.service.js';
 import { PlanChangeRequestsService } from './plan-change-requests.service.js';
 import { PurchaseOrdersService } from './purchase-orders.service.js';
@@ -59,6 +60,8 @@ function readOnlyDatabase(): TenantDatabase {
   } as unknown as TenantDatabase;
 }
 
+const PLATFORM_CAP = 1024 ** 4;
+
 /** A Free organization over its Free limits: 5 people, 4 projects, 3 GB stored. */
 function freeOrgUsage(): PlanUsageService {
   const subscriptions = {
@@ -73,12 +76,17 @@ function freeOrgUsage(): PlanUsageService {
   const usage = {
     countActiveProjects: () => Promise.resolve(4),
     countClientPeople: () => Promise.resolve(0),
+    countAutomationRunsSince: () => Promise.resolve(0),
   } as unknown as PlanUsageRepository;
   const counters = {
     find: () =>
       Promise.resolve({ usedValue: 3 * 1024 ** 3, reservedValue: 0 } as unknown as UsageCounterRow),
   } as unknown as UsageCountersRepository;
-  return new PlanUsageService(readOnlyDatabase(), subscriptions, usage, counters);
+  // 57-13r: the platform cap (1 TB here) is the allowance when the plan has no figure.
+  const allowance = new StorageAllowanceService(readOnlyDatabase(), PLATFORM_CAP, subscriptions, {
+    findOverrideBytes: () => Promise.resolve(null),
+  });
+  return new PlanUsageService(readOnlyDatabase(), allowance, subscriptions, usage, counters);
 }
 
 async function refusal(action: () => Promise<unknown>): Promise<ApiError> {
@@ -130,7 +138,7 @@ describe('entitlementsFor', () => {
       nextPlanId: null,
       people: { used: 5, limit: null, level: 'normal' },
       projects: { used: 4, limit: null, level: 'normal' },
-      storage: { limit: PLAN_LIMITS.enterprise.storageBytes, level: 'normal' },
+      storage: { limit: PLATFORM_CAP, level: 'normal' },
     });
   });
 

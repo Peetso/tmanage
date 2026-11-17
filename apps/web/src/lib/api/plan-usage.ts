@@ -18,6 +18,20 @@ export interface PlanUsageMeterView {
 }
 
 /** `beta_free` (the API's default during the public beta): everything is free, nothing is sold. */
+/** 57-13r. The notice step the temporary storage reached (doc 49 §6), else 0. */
+export type StorageThreshold = 0 | 70 | 85 | 95 | 100;
+
+/**
+ * 57-13r. Temporary storage on TManage: bytes held against the allowance (never above the
+ * platform cap), the whole percent, the step reached, and whether TManage support raised it.
+ */
+export interface PlanStorageView extends PlanUsageMeterView {
+  readonly limit: number;
+  readonly percent: number;
+  readonly threshold: StorageThreshold;
+  readonly raisedBySupport: boolean;
+}
+
 export type BillingMode = 'beta_free' | 'paid';
 
 export interface PlanUsageView {
@@ -31,8 +45,10 @@ export interface PlanUsageView {
   readonly graceEndsOn: string | null;
   readonly people: PlanUsageMeterView;
   readonly projects: PlanUsageMeterView;
-  readonly storage: PlanUsageMeterView;
+  readonly storage: PlanStorageView;
   readonly clients: number;
+  /** 57-19. Automation runs this billing period: shown, never a cap. */
+  readonly automationRuns: number;
   readonly nextPlanId: string | null;
   readonly nextPlanPeopleLimit: number | null;
   readonly nextPlanStorageBytes: number | null;

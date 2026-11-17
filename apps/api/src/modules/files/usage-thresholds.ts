@@ -56,7 +56,7 @@ export function usagePercent(used: number, reserved: number, quota: number): num
 }
 
 /** The band `pct` alone would put an organization in, ignoring hysteresis: the highest boundary at or below it. */
-function naturalBand(pct: number): ThresholdBand {
+export function naturalBand(pct: number): ThresholdBand {
   let band: ThresholdBand = 0;
   for (const boundary of STORAGE_THRESHOLD_BANDS) {
     if (pct >= boundary) band = boundary;

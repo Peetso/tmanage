@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
+import type { ApiConfig } from '../../common/http/api-config.js';
 import {
+  API_CONFIG,
   AUDIT_SERVICE,
   BILLING_PROFILE_REPOSITORY,
   BILLING_TAX_DETAILS_REPOSITORY,
@@ -29,6 +31,7 @@ import {
   PlanChangeRequestsController,
 } from './plan-change-requests.controller.js';
 import { PlanUsageService } from './plan-usage.service.js';
+import { StorageAllowanceService } from './storage-allowance.service.js';
 import { PLAN_USAGE_SERVICE, PlanUsageController } from './plan-usage.controller.js';
 import {
   PLAN_VERSIONS_SERVICE,
@@ -113,8 +116,13 @@ export class BillingModule {
     // tables. A slice-private token, no `tokens.ts` edit; the repositories are stateless.
     const planUsage: Provider = {
       provide: PLAN_USAGE_SERVICE,
-      inject: [TENANT_DATABASE],
-      useFactory: (database: TenantDatabase) => new PlanUsageService(database),
+      inject: [TENANT_DATABASE, API_CONFIG],
+      // 57-13r: the storage meter is the temporary allowance, under the platform cap.
+      useFactory: (database: TenantDatabase, config: ApiConfig) =>
+        new PlanUsageService(
+          database,
+          new StorageAllowanceService(database, config.storageOrgBytesLimit),
+        ),
     };
     // 57-02. The versioned plan ladder (`plan_versions`, global): the Platform admin's list and
     // publish routes and the workspace's own current-plan read. Off during the beta (PLAN_LADDER).

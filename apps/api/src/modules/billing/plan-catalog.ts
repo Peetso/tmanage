@@ -71,14 +71,17 @@ const MB = 1024 ** 2;
 
 /**
  * What each flat plan allows — Figma F4 (390:22381) "Plan and usage". `null` is "no limit". People
- * and active projects follow the A12 flat plans (the public pricing page), storage follows doc 30
- * §storage defaults / doc 49 (2 GB Free, 25 GB Starter, 100 GB Studio, 500 GB Business, 1 TB
- * Enterprise). Clients are never limited and never billed, so they have no entry here.
+ * and active projects follow the A12 flat plans (the public pricing page). Storage is the
+ * temporary allowance on TManage before Drive/OneDrive is connected (57-13r, plan 57 §19.3: 1 GB
+ * Free, 5 GB Starter, 10 GB Studio, 25 GB Business; Enterprise by agreement = null, so the
+ * platform cap applies). Never sold. Clients are never limited and never billed, so they have no
+ * entry here. Mirrors the `plan_versions` version-1 rows (0351, corrected by 0369).
  */
 export interface PlanLimits {
   readonly people: number | null;
   readonly activeProjects: number | null;
-  readonly storageBytes: number;
+  /** The temporary allowance in bytes; null = no plan figure (Enterprise, by agreement). */
+  readonly storageBytes: number | null;
   /**
    * 56-06 (R19-e). The largest single file this plan accepts. Never above the upload contract's
    * 5 GiB ceiling (`CONTRACT_MAX_SIZE_BYTES`); `planMaxFileBytes` in `files/file-safety.ts` reads it
@@ -88,11 +91,11 @@ export interface PlanLimits {
 }
 
 export const PLAN_LIMITS: Readonly<Record<CatalogPlanId, PlanLimits>> = {
-  free: { people: 3, activeProjects: 3, storageBytes: 2 * GB, maxFileBytes: 25 * MB },
-  starter: { people: 10, activeProjects: null, storageBytes: 25 * GB, maxFileBytes: 250 * MB },
-  studio: { people: null, activeProjects: null, storageBytes: 100 * GB, maxFileBytes: GB },
-  business: { people: null, activeProjects: null, storageBytes: 500 * GB, maxFileBytes: 2 * GB },
-  enterprise: { people: null, activeProjects: null, storageBytes: 1024 * GB, maxFileBytes: 5 * GB },
+  free: { people: 3, activeProjects: 3, storageBytes: GB, maxFileBytes: 25 * MB },
+  starter: { people: 10, activeProjects: null, storageBytes: 5 * GB, maxFileBytes: 250 * MB },
+  studio: { people: null, activeProjects: null, storageBytes: 10 * GB, maxFileBytes: GB },
+  business: { people: null, activeProjects: null, storageBytes: 25 * GB, maxFileBytes: 2 * GB },
+  enterprise: { people: null, activeProjects: null, storageBytes: null, maxFileBytes: 5 * GB },
 };
 
 /** The plan features a change can switch on or off, in the order the preview lists gains. */
@@ -107,18 +110,24 @@ export const PLAN_FEATURES = [
 
 export type PlanFeature = (typeof PLAN_FEATURES)[number];
 
+/**
+ * 57-18 (plan 57 §19.1). Security controls (IP allowlist, session policies) and the admin
+ * console, custom roles and audit log with its CSV export are on EVERY plan, Free included; the
+ * keys stay so a future Enterprise-only control can be added honestly.
+ */
+const EVERY_PLAN: readonly PlanFeature[] = ['security_controls', 'admin_audit'];
+
 /** The features each plan includes, cumulative up the ladder (the public pricing bullets). */
 export const PLAN_FEATURE_SET: Readonly<Record<CatalogPlanId, readonly PlanFeature[]>> = {
-  free: [],
-  starter: ['requests_approvals', 'client_portal'],
-  studio: ['requests_approvals', 'client_portal', 'docs_decisions', 'insights_automations'],
-  business: [
+  free: [...EVERY_PLAN],
+  starter: ['requests_approvals', 'client_portal', ...EVERY_PLAN],
+  studio: [
     'requests_approvals',
     'client_portal',
     'docs_decisions',
     'insights_automations',
-    'security_controls',
-    'admin_audit',
+    ...EVERY_PLAN,
   ],
+  business: [...PLAN_FEATURES],
   enterprise: [...PLAN_FEATURES],
 };

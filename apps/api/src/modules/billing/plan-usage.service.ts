@@ -22,6 +22,9 @@ import {
 import type { CatalogPlanId, PlanFeature } from './plan-catalog.js';
 import { billingMode, entitlementsFor } from './billing-mode.js';
 import type { BillingMode } from './billing-mode.js';
+import { storagePercent, storageThreshold } from './storage-allowance.js';
+import type { StorageAllowanceReader } from './storage-allowance.service.js';
+import type { ThresholdBand } from '../files/usage-thresholds.js';
 
 /**
  * Plan and usage — Figma F4 (section 390:22381), Billing / module 19, doc 49 §8 / BIL-01–03.
@@ -54,6 +57,18 @@ export interface PlanUsageMeterView {
 }
 
 /**
+ * 57-13r. The temporary storage on TManage: bytes held against the allowance (`limit`, the
+ * plan's figure or a support raise, never above the platform cap), the whole percent, and the
+ * notice step reached (70 / 85 / 95 / 100, else 0).
+ */
+export interface PlanStorageView extends PlanUsageMeterView {
+  readonly limit: number;
+  readonly percent: number;
+  readonly threshold: ThresholdBand;
+  readonly raisedBySupport: boolean;
+}
+
+/**
  * What the Plan and usage screen reads — CONTRACT-001 Exact, paired in
  * `e2e/contracts/api-web-shapes.ts` with the web `PlanUsageView`. Dates are `YYYY-MM-DD` (UTC);
  * storage figures are bytes; money is integer cents.
@@ -71,8 +86,10 @@ export interface PlanUsageView {
   readonly graceEndsOn: string | null;
   readonly people: PlanUsageMeterView;
   readonly projects: PlanUsageMeterView;
-  readonly storage: PlanUsageMeterView;
+  readonly storage: PlanStorageView;
   readonly clients: number;
+  /** 57-19. Automation runs this billing period: information only, never a cap. */
+  readonly automationRuns: number;
   /** The next plan up (for the near/over alert); null on the top listed plan. */
   readonly nextPlanId: string | null;
   readonly nextPlanPeopleLimit: number | null;
@@ -137,7 +154,10 @@ interface Usage {
   readonly people: number;
   readonly projects: number;
   readonly storageBytes: number;
+  readonly storageLimitBytes: number;
+  readonly raisedBySupport: boolean;
   readonly clients: number;
+  readonly automationRuns: number;
 }
 
 /** The level of one meter. Exported for the unit tests. */
@@ -184,6 +204,7 @@ function nextPlanOf(planId: CatalogPlanId): CatalogPlanId | null {
 export class PlanUsageService {
   constructor(
     private readonly database: TenantDatabase,
+    private readonly allowance: StorageAllowanceReader,
     private readonly subscriptions: SubscriptionRepository = new SubscriptionRepository(),
     private readonly usage: PlanUsageRepository = new PlanUsageRepository(),
     private readonly counters: UsageCountersRepository = new UsageCountersRepository(),
@@ -206,13 +227,20 @@ export class PlanUsageService {
     }
   }
 
-  private async load(context: TenantContext): Promise<Usage> {
+  private async load(context: TenantContext, now: Date): Promise<Usage> {
     return this.database.read(context, async (runner) => {
       const row = await this.subscriptions.find(runner, context);
       const people = await this.subscriptions.countInternalPeople(runner, context);
       const projects = await this.usage.countActiveProjects(runner, context);
       const clients = await this.usage.countClientPeople(runner, context);
       const counter = await this.counters.find(runner, context, STORAGE_BYTES_METRIC);
+      const allowance = await this.allowance.allowanceWith(runner, context);
+      const periodStart = addMonthUtc(row?.currentPeriodEnd ?? firstOfNextMonthUtc(now), -1);
+      const automationRuns = await this.usage.countAutomationRunsSince(
+        runner,
+        context,
+        periodStart,
+      );
       return {
         planId: readPlanId(row?.planId),
         pendingChange: row?.status === 'pending_change',
@@ -220,7 +248,10 @@ export class PlanUsageService {
         people,
         projects,
         storageBytes: Number(counter?.usedValue ?? 0) + Number(counter?.reservedValue ?? 0),
+        storageLimitBytes: allowance.limitBytes,
+        raisedBySupport: allowance.raisedBySupport,
         clients,
+        automationRuns,
       };
     });
   }
@@ -233,14 +264,14 @@ export class PlanUsageService {
   /** The current plan, its limits and the usage against them. `org.manage`. No write. */
   async read(context: TenantContext, principal: Principal): Promise<PlanUsageView> {
     this.authorizeOrg(context, principal);
-    const usage = await this.load(context);
     const now = this.now();
+    const usage = await this.load(context, now);
     const mode = billingMode();
     const beta = mode === 'beta_free';
     const { limits } = entitlementsFor(usage.planId, mode);
     const people = { used: usage.people, limit: limits.people };
     const projects = { used: usage.projects, limit: limits.activeProjects };
-    const storage = { used: usage.storageBytes, limit: limits.storageBytes };
+    const storage = { used: usage.storageBytes, limit: usage.storageLimitBytes };
     const meters = [people, projects, storage].map((m) => ({
       ...m,
       level: levelOf(m.used, m.limit),
@@ -259,8 +290,15 @@ export class PlanUsageService {
       graceEndsOn: level === 'over' ? isoDay(addMonthUtc(periodEnd)) : null,
       people: meters[0]!,
       projects: meters[1]!,
-      storage: meters[2]!,
+      storage: {
+        ...meters[2]!,
+        limit: usage.storageLimitBytes,
+        percent: storagePercent(usage.storageBytes, usage.storageLimitBytes),
+        threshold: storageThreshold(usage.storageBytes, usage.storageLimitBytes),
+        raisedBySupport: usage.raisedBySupport,
+      },
       clients: usage.clients,
+      automationRuns: usage.automationRuns,
       nextPlanId: next,
       nextPlanPeopleLimit: next === null ? null : PLAN_LIMITS[next].people,
       nextPlanStorageBytes: next === null ? null : PLAN_LIMITS[next].storageBytes,
@@ -299,7 +337,8 @@ export class PlanUsageService {
     }
     this.authorizeOrg(context, principal);
 
-    const usage = await this.load(context);
+    const now = this.now();
+    const usage = await this.load(context, now);
     if (usage.planId === targetPlanId) {
       throw new ApiError(
         400,
@@ -310,7 +349,6 @@ export class PlanUsageService {
       );
     }
 
-    const now = this.now();
     const periodEnd = this.periodEnd(usage, now);
     const periodStart = addMonthUtc(periodEnd, -1);
     const currentMonthlyCents = priceOf(usage.planId);

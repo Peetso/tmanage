@@ -1,6 +1,6 @@
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, gte, isNull, sql } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { clientMemberships, projects } from '../../common/database/schema.js';
+import { clientMemberships, projects, workflowRuns } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -32,6 +32,24 @@ export class PlanUsageRepository {
         and(
           eq(clientMemberships.organizationId, context.organizationId),
           eq(clientMemberships.status, 'active'),
+        ),
+      );
+    return Number(rows[0]?.count ?? 0);
+  }
+
+  /** 57-19. Automation runs started since `since` (the period start). Shown, never capped. */
+  async countAutomationRunsSince(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    since: Date,
+  ): Promise<number> {
+    const rows = await tenantDrizzle(runner)
+      .select({ count: sql<number>`count(*)` })
+      .from(workflowRuns)
+      .where(
+        and(
+          eq(workflowRuns.organizationId, context.organizationId),
+          gte(workflowRuns.startedAt, since),
         ),
       );
     return Number(rows[0]?.count ?? 0);

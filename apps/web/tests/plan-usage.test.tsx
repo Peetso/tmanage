@@ -35,8 +35,16 @@ function usage(overrides: Partial<PlanUsageView> = {}): PlanUsageView {
     graceEndsOn: null,
     people: { used: 9, limit: 10, level: 'near' },
     projects: { used: 41, limit: null, level: 'normal' },
-    storage: { used: 22.8 * GB, limit: 25 * GB, level: 'near' },
+    storage: {
+      used: 22.8 * GB,
+      limit: 25 * GB,
+      level: 'near',
+      percent: 91,
+      threshold: 85,
+      raisedBySupport: false,
+    },
     clients: 23,
+    automationRuns: 1240,
     nextPlanId: 'studio',
     nextPlanPeopleLimit: null,
     nextPlanStorageBytes: 100 * GB,
@@ -169,6 +177,9 @@ describe('PlanUsageScreen', () => {
     expect(screen.getByText('1 seat left. After that you need Studio.')).toBeTruthy();
     expect(screen.getByText('2.2 GB free. Uploads stop at 25 GB.')).toBeTruthy();
     expect(screen.getByText('41 active')).toBeTruthy();
+    // 57-19: the runs counter is information only, with no bar of its own.
+    expect(screen.getByText('Automation runs this period')).toBeTruthy();
+    expect(screen.getByText('1,240')).toBeTruthy();
     expect(screen.getByText('$19 a month, flat · renews 1 November')).toBeTruthy();
     expect(
       screen.getByText('Next bill: $19 on 1 November. Clients are never billed.'),
@@ -185,7 +196,14 @@ describe('PlanUsageScreen', () => {
           level: 'over',
           graceEndsOn: '2026-12-01',
           people: { used: 11, limit: 10, level: 'over' },
-          storage: { used: 26.4 * GB, limit: 25 * GB, level: 'over' },
+          storage: {
+            used: 26.4 * GB,
+            limit: 25 * GB,
+            level: 'over',
+            percent: 105,
+            threshold: 100,
+            raisedBySupport: false,
+          },
         }),
       },
     });

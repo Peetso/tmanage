@@ -7,6 +7,7 @@ import type { UsageCountersRepository } from '../files/usage-counters.repository
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { SubscriptionRow, UsageCounterRow } from '../../common/database/schema.js';
 import { ApiError } from '../../common/http/errors.js';
+import { StorageAllowanceService } from './storage-allowance.service.js';
 
 // These suites prove the paid behaviour; BILLING_MODE=beta_free (the default) is covered in
 // billing-mode.test.ts.
@@ -54,7 +55,11 @@ interface Fixture {
   readonly projects: number;
   readonly clients: number;
   readonly storage: number;
+  readonly override?: number | null;
+  readonly runs?: number;
 }
+
+const CAP = 60 * GB;
 
 function service(fx: Fixture, now: Date = OCT_25): PlanUsageService {
   const tenant = (ctx: TenantContext) => expect(ctx.organizationId).toBe(ORG);
@@ -81,14 +86,25 @@ function service(fx: Fixture, now: Date = OCT_25): PlanUsageService {
       tenant(ctx),
       Promise.resolve(fx.clients)
     ),
+    countAutomationRunsSince: (_r: never, ctx: TenantContext) => (
+      tenant(ctx),
+      Promise.resolve(fx.runs ?? 0)
+    ),
   } as unknown as PlanUsageRepository;
+  const overrides = {
+    findOverrideBytes: (_r: never, ctx: TenantContext) => (
+      tenant(ctx),
+      Promise.resolve(fx.override ?? null)
+    ),
+  };
   const counters = {
     find: (_r: never, ctx: TenantContext) => {
       tenant(ctx);
       return Promise.resolve({ usedValue: fx.storage, reservedValue: 0 } as UsageCounterRow);
     },
   } as unknown as UsageCountersRepository;
-  return new PlanUsageService(fakeDatabase(), subscriptions, usage, counters, () => now);
+  const allowance = new StorageAllowanceService(fakeDatabase(), CAP, subscriptions, overrides);
+  return new PlanUsageService(fakeDatabase(), allowance, subscriptions, usage, counters, () => now);
 }
 
 describe('levelOf / addMonthUtc', () => {
@@ -114,7 +130,7 @@ describe('PlanUsageService.read', () => {
       people: 9,
       projects: 41,
       clients: 23,
-      storage: 22.8 * GB,
+      storage: 4.5 * GB,
     }).read(context, principal());
     expect(view).toMatchObject({
       planId: 'starter',
@@ -124,11 +140,11 @@ describe('PlanUsageService.read', () => {
       graceEndsOn: null,
       people: { used: 9, limit: 10, level: 'near' },
       projects: { used: 41, limit: null, level: 'normal' },
-      storage: { limit: 25 * GB, level: 'near' },
+      storage: { limit: 5 * GB, level: 'near', percent: 90, threshold: 85 },
       clients: 23,
       nextPlanId: 'studio',
       nextPlanPeopleLimit: null,
-      nextPlanStorageBytes: 100 * GB,
+      nextPlanStorageBytes: 10 * GB,
     });
   });
 
@@ -138,10 +154,65 @@ describe('PlanUsageService.read', () => {
       people: 11,
       projects: 44,
       clients: 23,
-      storage: 26.4 * GB,
+      storage: 5.4 * GB,
     }).read(context, principal());
     expect(view.level).toBe('over');
     expect(view.graceEndsOn).toBe('2026-12-01');
+  });
+
+  it('returns the temporary storage figures, a support raise and the runs counter', async () => {
+    const view = await service({
+      planId: 'free',
+      people: 1,
+      projects: 1,
+      clients: 0,
+      storage: 2 * GB,
+      override: 2 * GB,
+      runs: 1240,
+    }).read(context, principal());
+    expect(view.storage).toMatchObject({
+      used: 2 * GB,
+      limit: 2 * GB,
+      percent: 100,
+      threshold: 100,
+      raisedBySupport: true,
+    });
+    expect(view.automationRuns).toBe(1240);
+  });
+
+  it('reads only the caller workspace: figures are looked up by the context organization', async () => {
+    const byOrg: Record<string, { bytes: number; runs: number; override: number | null }> = {
+      [ORG]: { bytes: 1 * GB, runs: 7, override: null },
+      'another-org': { bytes: 9 * GB, runs: 999, override: 50 * GB },
+    };
+    const of = (ctx: TenantContext) => byOrg[ctx.organizationId]!;
+    const subscriptions = {
+      find: () => Promise.resolve({ planId: 'starter', status: 'active' } as SubscriptionRow),
+      countInternalPeople: () => Promise.resolve(1),
+    } as unknown as SubscriptionRepository;
+    const usage = {
+      countActiveProjects: () => Promise.resolve(0),
+      countClientPeople: () => Promise.resolve(0),
+      countAutomationRunsSince: (_r: never, ctx: TenantContext) => Promise.resolve(of(ctx).runs),
+    } as unknown as PlanUsageRepository;
+    const counters = {
+      find: (_r: never, ctx: TenantContext) =>
+        Promise.resolve({ usedValue: of(ctx).bytes, reservedValue: 0 } as UsageCounterRow),
+    } as unknown as UsageCountersRepository;
+    const overrides = {
+      findOverrideBytes: (_r: never, ctx: TenantContext) => Promise.resolve(of(ctx).override),
+    };
+    const allowance = new StorageAllowanceService(fakeDatabase(), CAP, subscriptions, overrides);
+    const view = await new PlanUsageService(
+      fakeDatabase(),
+      allowance,
+      subscriptions,
+      usage,
+      counters,
+      () => OCT_25,
+    ).read(context, principal());
+    expect(view.storage).toMatchObject({ used: 1 * GB, limit: 5 * GB, raisedBySupport: false });
+    expect(view.automationRuns).toBe(7);
   });
 
   it('refuses a member without org.manage', async () => {
@@ -161,7 +232,7 @@ describe('PlanUsageService.preview', () => {
       people: 9,
       projects: 41,
       clients: 23,
-      storage: 22.8 * GB,
+      storage: 4.5 * GB,
     }).preview(context, principal(), 'studio');
     expect(preview).toMatchObject({
       direction: 'upgrade',
@@ -189,7 +260,7 @@ describe('PlanUsageService.preview', () => {
       people: 8,
       projects: 20,
       clients: 4,
-      storage: 38.5 * GB,
+      storage: 7.5 * GB,
     }).preview(context, principal(), 'starter');
     expect(preview).toMatchObject({
       direction: 'downgrade',
@@ -200,7 +271,7 @@ describe('PlanUsageService.preview', () => {
     });
     expect(preview.overages).toHaveLength(1);
     expect(preview.overages[0]?.kind).toBe('storage');
-    expect(preview.overages[0]?.over).toBeCloseTo(13.5 * GB, -3);
+    expect(preview.overages[0]?.over).toBeCloseTo(2.5 * GB, -3);
     expect(preview.changes.map((c) => `${c.direction}:${c.feature ?? c.kind}:${c.fits}`)).toEqual([
       'lose:storage:false',
       'lose:people:true',

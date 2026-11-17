@@ -11,16 +11,21 @@ import type {
 } from '../../lib/api/storage-root';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import type { PlanStorageView } from '../../lib/api/plan-usage';
 import { useStorageCard } from '../../lib/use-storage-card';
 import type { StorageConnection, StorageStopReason } from '../../lib/use-storage-card';
 import { formatSize } from '../viewer/format-stage-helpers';
 import { count, fill, planUsageText, providerCompany, providerName } from './plan-usage-format';
 import type { PlanUsageText } from './plan-usage-format';
+import { planStorageText } from './plan-storage-copy';
+import { StorageAllowance } from './StorageAllowance';
 import { UsageMeter } from './UsageMeter';
 
 export interface StorageCardProps {
   readonly organizationSlug: string;
   readonly client: ApiClient;
+  /** 57-13r. The temporary storage allowance from the plan-usage read; null while unknown. */
+  readonly allowance: PlanStorageView | null;
 }
 
 const LINK_OUTLINE = 'tm-button tm-button--outline tm-button--accessible';
@@ -31,12 +36,15 @@ const LINK_INK = 'tm-button tm-button--ink tm-button--accessible';
  * first (S1), move the files TManage still holds (S2, confirmed in S3), follow the move (S4), the
  * result (S5), or one calm way forward when it stopped (S6). Connecting goes to the existing flow
  * on Integrations. Rendered only for `org.security.manage`; the server decides every request.
- * The amount still on TManage has no bar: no temporary allowance exists to measure it against.
+ * Before a Drive is connected, the amount on TManage is shown against the temporary allowance
+ * (57-13r) with a notice from 70 %; once a Drive is connected, uploads no longer wait on it.
  * After a finished move the Move button comes back while files are left to move (new uploads, or
  * files that failed: then it reads Try again).
  */
-export function StorageCard({ organizationSlug, client }: StorageCardProps) {
-  const tr = planUsageText(useTOr());
+export function StorageCard({ organizationSlug, client, allowance }: StorageCardProps) {
+  const tOr = useTOr();
+  const tr = planUsageText(tOr);
+  const ts = planStorageText(tOr);
   const locale = useActiveLocale();
   const { state, onTManage, isStarting, startError, start } = useStorageCard(
     client,
@@ -97,7 +105,11 @@ export function StorageCard({ organizationSlug, client }: StorageCardProps) {
 
       {state.kind === 'connect' ? (
         <>
-          <OnTManageAmount label={tr('PlanUsage.filesTemporary')} figures={onTManage} />
+          {allowance === null ? (
+            <OnTManageAmount label={tr('PlanUsage.filesTemporary')} figures={onTManage} />
+          ) : (
+            <StorageAllowance storage={allowance} locale={locale} tr={ts} />
+          )}
           <p className="tm-pu-files__text">{tr('PlanUsage.filesConnectNote')}</p>
           <div className="tm-pu-files__actions">
             <Link href={integrations} className={LINK_OUTLINE}>
@@ -150,7 +162,7 @@ export function StorageCard({ organizationSlug, client }: StorageCardProps) {
   );
 }
 
-/** How much is still on TManage: an amount without a bar (no allowance to measure it against). */
+/** How much is still on TManage, as an amount (once a Drive is connected, or before usage loads). */
 function OnTManageAmount({
   label,
   figures,

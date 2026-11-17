@@ -26,6 +26,7 @@ import {
   USAGE_SERVICE,
 } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
+import { StorageAllowanceService } from '../billing/storage-allowance.service.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
@@ -226,6 +227,8 @@ export class FilesModule {
           undefined,
           // FIX4 item 1b: `complete` tells the browser when a not-yet-scanned file is usable.
           malwareScanner,
+          // 57-13r: every upload door reserves against the temporary storage allowance.
+          new StorageAllowanceService(database, config.storageOrgBytesLimit),
         ),
     };
 

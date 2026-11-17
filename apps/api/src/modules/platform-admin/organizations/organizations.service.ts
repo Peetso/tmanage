@@ -259,7 +259,8 @@ export function limitsFor(
     plan,
     people: row.peopleLimit ?? plan.people,
     activeProjects: row.activeProjectsLimit ?? plan.activeProjects,
-    storageBytes: row.storageBytesLimit ?? plan.storageBytes,
+    // 57-13r: 0 = no plan figure (Enterprise, by agreement); the storage health rules skip 0.
+    storageBytes: row.storageBytesLimit ?? plan.storageBytes ?? 0,
   };
 }
 

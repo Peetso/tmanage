@@ -120,7 +120,11 @@ export function parsePlanLimits(value: unknown): PlanLimits {
   return {
     people: countOrNull(limits['people'], 'limits.people'),
     activeProjects: countOrNull(limits['activeProjects'], 'limits.activeProjects'),
-    storageBytes: boundedInt(limits['storageBytes'], 'limits.storageBytes', MAX_STORAGE_BYTES, 1),
+    // 57-13r: absent or null = no allowance figure (Enterprise, by agreement).
+    storageBytes:
+      limits['storageBytes'] === undefined || limits['storageBytes'] === null
+        ? null
+        : boundedInt(limits['storageBytes'], 'limits.storageBytes', MAX_STORAGE_BYTES, 1),
     maxFileBytes: boundedInt(
       limits['maxFileBytes'],
       'limits.maxFileBytes',

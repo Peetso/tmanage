@@ -299,6 +299,7 @@ import type { PlanChangePreviewView as ApiPlanChangePreviewView } from '../../ap
 import type {
   PlanUsageChangeView as ApiPlanUsageChangeView,
   PlanUsageMeterView as ApiPlanUsageMeterView,
+  PlanStorageView as ApiPlanStorageView,
   PlanUsageOverageView as ApiPlanUsageOverageView,
   PlanUsagePreviewView as ApiPlanUsagePreviewView,
   PlanUsageView as ApiPlanUsageView,
@@ -912,6 +913,7 @@ import type { PlanChangePreviewView as WebPlanChangePreviewView } from '../../ap
 import type {
   PlanUsageChangeView as WebPlanUsageChangeView,
   PlanUsageMeterView as WebPlanUsageMeterView,
+  PlanStorageView as WebPlanStorageView,
   PlanUsageOverageView as WebPlanUsageOverageView,
   PlanUsagePreviewView as WebPlanUsagePreviewView,
   PlanUsageView as WebPlanUsageView,
@@ -1813,6 +1815,7 @@ type _planChangePreview = Assert<Exact<ApiPlanChangePreviewView, WebPlanChangePr
 type _planUsage = Assert<Exact<ApiPlanUsageView, WebPlanUsageView>>;
 type _planUsagePreview = Assert<Exact<ApiPlanUsagePreviewView, WebPlanUsagePreviewView>>;
 type _planUsageMeter = Assert<Exact<ApiPlanUsageMeterView, WebPlanUsageMeterView>>;
+type _planStorage = Assert<Exact<ApiPlanStorageView, WebPlanStorageView>>;
 type _planUsageChange = Assert<Exact<ApiPlanUsageChangeView, WebPlanUsageChangeView>>;
 type _planUsageOverage = Assert<Exact<ApiPlanUsageOverageView, WebPlanUsageOverageView>>;
 

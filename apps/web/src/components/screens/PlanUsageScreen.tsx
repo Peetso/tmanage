@@ -8,6 +8,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { SettingsShell } from '../admin/SettingsShell';
 import { PlanChangeDialog } from '../billing/PlanChangeDialog';
+import { AutomationRunsCounter } from '../billing/AutomationRunsCounter';
+import { planStorageText } from '../billing/plan-storage-copy';
 import { StorageCard } from '../billing/StorageCard';
 import { UsageMeter } from '../billing/UsageMeter';
 import { BetaBillingPanel, useBetaBillingHeading } from '../billing/BetaBillingPanel';
@@ -44,7 +46,9 @@ export function PlanUsageScreen({
   organizationName,
   client,
 }: PlanUsageScreenProps) {
-  const tr = planUsageText(useTOr());
+  const tOr = useTOr();
+  const tr = planUsageText(tOr);
+  const ts = planStorageText(tOr);
   const locale = useActiveLocale();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
@@ -64,7 +68,11 @@ export function PlanUsageScreen({
   // 57-13c. Only people who may move company files see where they live; the server still decides.
   const canUse = useShellCapability(organizationSlug, client);
   const storageCard = canUse('org.security.manage') ? (
-    <StorageCard organizationSlug={organizationSlug} client={api} />
+    <StorageCard
+      organizationSlug={organizationSlug}
+      client={api}
+      allowance={usage.data?.storage ?? null}
+    />
   ) : null;
   const betaHeading = useBetaBillingHeading(organizationSlug, organizationName);
 
@@ -114,6 +122,9 @@ export function PlanUsageScreen({
           <>
             <BetaBillingPanel internalPeople={usage.data.people.used} />
             {storageCard}
+            <section className="tm-pu-card" aria-label={ts('planStorage.runsLabel')}>
+              <AutomationRunsCounter runs={usage.data.automationRuns} locale={locale} tr={ts} />
+            </section>
           </>
         ) : null}
 
@@ -166,6 +177,7 @@ function PlanUsageBody({
 }) {
   const plan = planName(view.planId);
   const next = view.nextPlanId === null ? null : planName(view.nextPlanId);
+  const ts = planStorageText(useTOr());
   const price = view.monthlyCents === null ? null : money(view.monthlyCents, view.currency);
   const renews = view.renewsOn === null ? null : dayMonth(view.renewsOn, locale);
 
@@ -260,22 +272,26 @@ function PlanUsageBody({
               note={projectsNote(view.projects, plan, tr)}
             />
           )}
-          <UsageMeter
-            id="storage"
-            label={tr('PlanUsage.storage')}
-            meter={view.storage}
-            value={fill(tr('PlanUsage.storageOf'), {
-              used: gb(view.storage.used),
-              limit: gb(view.storage.limit ?? 0),
-            })}
-            note={storageNote(view.storage, tr)}
-          />
+          {/* 57-13r: with the files card shown, its allowance bar is the one storage bar. */}
+          {storageCard === null ? (
+            <UsageMeter
+              id="storage"
+              label={tr('PlanUsage.storage')}
+              meter={view.storage}
+              value={fill(tr('PlanUsage.storageOf'), {
+                used: gb(view.storage.used),
+                limit: gb(view.storage.limit),
+              })}
+              note={storageNote(view.storage, tr)}
+            />
+          ) : null}
           <BadgeRow
             label={tr('PlanUsage.clients')}
             badge={tr('PlanUsage.included')}
             count={String(view.clients)}
             note={tr('PlanUsage.clientsNote')}
           />
+          <AutomationRunsCounter runs={view.automationRuns} locale={locale} tr={ts} />
         </div>
       </section>
 
