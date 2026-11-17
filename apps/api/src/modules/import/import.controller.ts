@@ -24,6 +24,7 @@ import {
   jiraBaseUrl,
 } from './jira-rest.js';
 import type { JiraFetch } from './jira-rest.js';
+import { RequireIntegrationOn } from '../platform-admin/settings/integration-switch.js';
 
 /**
  * ON-09 / ADM-10 — the onboarding-import validate / dry-run endpoint.
@@ -230,6 +231,7 @@ export class ImportController {
    * legacy `/search` fallback) — the client calls again sending that one; both at once is a 400.
    */
   @Post('sources/jira')
+  @RequireIntegrationOn('jira')
   @RequireCapability('org.manage')
   @HttpCode(200)
   async jiraSource(

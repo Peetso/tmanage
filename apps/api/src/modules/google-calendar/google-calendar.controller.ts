@@ -56,6 +56,7 @@ import {
   CalendarPushController,
   CalendarSyncSettingsController,
 } from './calendar-sync.controller.js';
+import { RequireIntegrationOn } from '../platform-admin/settings/integration-switch.js';
 
 /**
  * Google Calendar + Meet for meetings (0237) — the HTTP surface. Every route acts on the CALLER'S
@@ -117,6 +118,7 @@ export class GoogleCalendarConnectionController {
   }
 
   @Post('connect')
+  @RequireIntegrationOn('google_calendar')
   @RequireCapability('meeting.write')
   @HttpCode(200)
   connect(
@@ -144,6 +146,7 @@ export class GoogleCalendarConnectionController {
   }
 
   @Post('complete')
+  @RequireIntegrationOn('google_calendar')
   @RequireCapability('meeting.write')
   @HttpCode(200)
   async complete(

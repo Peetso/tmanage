@@ -4,7 +4,16 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Field, InlineAlert, Select, StatusDot, Switch, VisuallyHidden } from '@tmanage/ui';
+import {
+  Button,
+  Field,
+  InlineAlert,
+  Select,
+  StatusDot,
+  Switch,
+  Tooltip,
+  VisuallyHidden,
+} from '@tmanage/ui';
 import { browserApiClient } from '../../../lib/api/browser-client';
 import type { ApiClient } from '../../../lib/api/client';
 import { ApiRequestError } from '../../../lib/api/errors';
@@ -762,8 +771,28 @@ const INTEGRATION_LABELS: Record<PlatformIntegrationKey, MessageKey> = {
   onedrive: 'PlatformSettings.integrationOneDrive',
   google_calendar: 'PlatformSettings.integrationGoogleCalendar',
   microsoft_calendar: 'PlatformSettings.integrationMicrosoftCalendar',
+  figma: 'platformServices.figma',
+  github: 'platformServices.github',
+  jira: 'platformServices.jira',
+  email: 'platformServices.email',
   mcp: 'PlatformSettings.integrationMcp',
 };
+
+/** 51-15p — the row's state in words, never colour alone. */
+function serviceState(row: PlatformIntegrationView): {
+  readonly label: MessageKey;
+  readonly tone: 'success' | 'neutral' | 'danger';
+} {
+  if (!row.switchable) {
+    return row.configured
+      ? { label: 'platformServices.stateAlwaysOn', tone: 'success' }
+      : { label: 'platformServices.stateNotSetUp', tone: 'neutral' };
+  }
+  if (!row.configured) return { label: 'platformServices.stateNotSetUp', tone: 'neutral' };
+  return row.enabled
+    ? { label: 'platformServices.stateOn', tone: 'success' }
+    : { label: 'platformServices.stateOff', tone: 'danger' };
+}
 
 function IntegrationsSection({ api, canEdit }: { api: ApiClient; canEdit: boolean }) {
   const t = useT();
@@ -778,11 +807,11 @@ function IntegrationsSection({ api, canEdit }: { api: ApiClient; canEdit: boolea
   return (
     <section className="tm-stack tm-stack--tight" aria-labelledby="tm-ps-integrations">
       <h2 id="tm-ps-integrations" className="tm-cc-eyebrow">
-        {t('PlatformSettings.integrationsTitle')}
+        {t('platformServices.title')}
       </h2>
       <p className="tm-cc-note">{t('PlatformSettings.integrationsBody')}</p>
       {list.isPending ? (
-        <PlatformPageState state="loading" loadingLabel={t('PlatformSettings.integrationsTitle')} />
+        <PlatformPageState state="loading" loadingLabel={t('platformServices.loading')} />
       ) : list.isError ? (
         <PlatformPageState
           state="error"
@@ -790,9 +819,11 @@ function IntegrationsSection({ api, canEdit }: { api: ApiClient; canEdit: boolea
           title={t('PlatformSettings.integrationsError')}
           onRetry={() => void list.refetch()}
         />
+      ) : list.data.integrations.length === 0 ? (
+        <p className="tm-cc-note">{t('platformServices.empty')}</p>
       ) : (
         <PlatformTable<PlatformIntegrationView>
-          label={t('PlatformSettings.integrationsTitle')}
+          label={t('platformServices.title')}
           rows={list.data.integrations}
           rowKey={(row) => row.key}
           columns={[
@@ -815,10 +846,32 @@ function IntegrationsSection({ api, canEdit }: { api: ApiClient; canEdit: boolea
               ),
             },
             {
+              id: 'state',
+              header: t('platformServices.colState'),
+              cell: (row) => {
+                const state = serviceState(row);
+                return (
+                  <Tooltip
+                    content={
+                      row.switchable
+                        ? t('platformServices.switchHelp')
+                        : t('platformServices.alwaysOnHelp')
+                    }
+                  >
+                    <button type="button" className="tm-cc-row-button">
+                      <StatusDot tone={state.tone}>{t(state.label)}</StatusDot>
+                    </button>
+                  </Tooltip>
+                );
+              },
+            },
+            {
               id: 'on',
               header: t('PlatformSettings.colOnForTManage'),
               cell: (row) =>
-                row.environmentForcedOff ? (
+                !row.switchable ? (
+                  '—'
+                ) : row.environmentForcedOff ? (
                   <span className="tm-cc-pill tm-cc-pill--muted">
                     {t('PlatformSettings.forcedOffByServer')}
                   </span>
@@ -841,7 +894,12 @@ function IntegrationsSection({ api, canEdit }: { api: ApiClient; canEdit: boolea
               id: 'orgs',
               header: t('PlatformSettings.colConnectedOrgs'),
               kind: 'mono',
-              cell: (row) => row.connectedOrganizations,
+              cell: (row) => row.connectedOrganizations ?? '—',
+            },
+            {
+              id: 'success',
+              header: t('platformServices.colLastUse'),
+              cell: (row) => formatShort(row.lastSuccessAt, locale),
             },
             {
               id: 'error',
@@ -876,7 +934,7 @@ function IntegrationsSection({ api, canEdit }: { api: ApiClient; canEdit: boolea
               id: 'open',
               header: <VisuallyHidden>{t('PlatformSettings.openList')}</VisuallyHidden>,
               cell: (row) =>
-                row.connectedOrganizations > 0 ? (
+                (row.connectedOrganizations ?? 0) > 0 ? (
                   <Link
                     href="/platform/organizations"
                     className="tm-button tm-button--outline tm-button--compact"
@@ -904,7 +962,10 @@ function IntegrationsSection({ api, canEdit }: { api: ApiClient; canEdit: boolea
               : t('PlatformSettings.integrationOnTitle'),
             { name: t(INTEGRATION_LABELS[pending.key]) },
           )}
-          body={pending.enabled ? t('PlatformSettings.integrationOffBody') : undefined}
+          body={fill(
+            pending.enabled ? t('platformServices.offBody') : t('platformServices.onBody'),
+            { name: t(INTEGRATION_LABELS[pending.key]) },
+          )}
           reasonRequired
           destructive={pending.enabled}
           confirmLabel={

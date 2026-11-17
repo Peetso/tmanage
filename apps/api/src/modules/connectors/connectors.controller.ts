@@ -4,6 +4,7 @@ import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/deco
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { CONNECTORS_SERVICE } from './connectors.service.js';
 import type { ConnectorView, ConnectorsService } from './connectors.service.js';
+import { RequireIntegrationOn } from '../platform-admin/settings/integration-switch.js';
 
 /**
  * 54-01. The connector framework's routes, owner/admin only (`org.manage`):
@@ -36,6 +37,7 @@ export class ConnectorsController {
   }
 
   @Post(':connectorKey/install')
+  @RequireIntegrationOn({ param: 'connectorKey' })
   @RequireCapability('org.manage')
   @HttpCode(201)
   async install(

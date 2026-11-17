@@ -55,6 +55,7 @@ import type {
   PagesInput,
   SnapshotContent,
 } from './figma.service.js';
+import { RequireIntegrationOn } from '../platform-admin/settings/integration-switch.js';
 
 /**
  * R4 slice 13 — the studio's Figma routes (SPEC R4 §3.3). Like every tenant controller here, none
@@ -99,6 +100,7 @@ export class FigmaController {
    * person, this workspace) rides along for the return. 409 when the server has no Figma app.
    */
   @Post('connection/start')
+  @RequireIntegrationOn('figma')
   @RequireCapability('work.read')
   @HttpCode(200)
   start(
@@ -132,6 +134,7 @@ export class FigmaController {
 
   /** FIX4 item 6. Finish one-click Connect with the `code` and `state` Figma sent back. */
   @Post('connection/complete')
+  @RequireIntegrationOn('figma')
   @RequireCapability('work.read')
   @HttpCode(200)
   async complete(
@@ -165,6 +168,7 @@ export class FigmaController {
 
   /** Store (or replace) the caller's personal access token after Figma accepts it. */
   @Post('connection')
+  @RequireIntegrationOn('figma')
   @RequireCapability('work.read')
   @HttpCode(200)
   async connect(
@@ -201,6 +205,7 @@ export class FigmaController {
    * every captured frame is drawn again.
    */
   @Post('links/:linkId/snapshots')
+  @RequireIntegrationOn('figma')
   @RequireCapability('file.upload')
   @HttpCode(202)
   async refresh(
@@ -213,6 +218,7 @@ export class FigmaController {
 
   /** Which pages to capture when the file has more frames than one link captures. */
   @Put('links/:linkId/pages')
+  @RequireIntegrationOn('figma')
   @RequireCapability('file.upload')
   @HttpCode(200)
   async pages(
@@ -237,6 +243,7 @@ export class FigmaController {
 
   /** A frame's stored PNG snapshot. */
   @Get('frames/:frameId/snapshot')
+  @RequireIntegrationOn('figma')
   @RequireCapability('file.download')
   async snapshot(
     @Ctx() context: TenantContext,
@@ -250,6 +257,7 @@ export class FigmaController {
 
   /** A small picture of the frame's snapshot (the whole-page view). */
   @Get('frames/:frameId/thumb')
+  @RequireIntegrationOn('figma')
   @RequireCapability('file.download')
   async thumb(
     @Ctx() context: TenantContext,
@@ -263,6 +271,7 @@ export class FigmaController {
 
   /** The frame rendered sharper for zooming in (made once, then stored; rate-limited). */
   @Get('frames/:frameId/render')
+  @RequireIntegrationOn('figma')
   @RequireCapability('file.download')
   async render(
     @Ctx() context: TenantContext,
@@ -281,6 +290,7 @@ export class ProjectFigmaController {
 
   /** Read a pasted Figma link with the caller's token: the file's name, pages and frames. */
   @Post('inspect')
+  @RequireIntegrationOn('figma')
   @RequireCapability('file.upload')
   @HttpCode(200)
   async inspect(
@@ -294,6 +304,7 @@ export class ProjectFigmaController {
 
   /** Attach the whole file (or only some frames) to the project, optionally to one item. */
   @Post('links')
+  @RequireIntegrationOn('figma')
   @RequireCapability('file.upload')
   @HttpCode(201)
   async attach(

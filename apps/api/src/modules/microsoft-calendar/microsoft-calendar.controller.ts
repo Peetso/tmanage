@@ -38,6 +38,7 @@ import {
   MicrosoftCalendarService,
   type MicrosoftCalendarStatusView,
 } from './microsoft-calendar.service.js';
+import { RequireIntegrationOn } from '../platform-admin/settings/integration-switch.js';
 
 /**
  * Outlook calendar + Teams meetings (0237, slice B) — the HTTP surface. Every route acts on the
@@ -93,6 +94,7 @@ export class MicrosoftCalendarConnectionController {
   }
 
   @Post('connect')
+  @RequireIntegrationOn('microsoft_calendar')
   @RequireCapability('meeting.write')
   @HttpCode(200)
   connect(
@@ -124,6 +126,7 @@ export class MicrosoftCalendarConnectionController {
   }
 
   @Post('complete')
+  @RequireIntegrationOn('microsoft_calendar')
   @RequireCapability('meeting.write')
   @HttpCode(200)
   async complete(

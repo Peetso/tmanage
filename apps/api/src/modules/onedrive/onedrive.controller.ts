@@ -58,6 +58,7 @@ import {
   type OneDriveSettingsInput,
   type OneDriveStatusView,
 } from './onedrive.service.js';
+import { RequireIntegrationOn } from '../platform-admin/settings/integration-switch.js';
 
 /**
  * OneDrive as company storage — the HTTP surface (0236), the twin of the Google Drive routes.
@@ -127,6 +128,7 @@ export class OneDriveStorageController {
   }
 
   @Post('connect')
+  @RequireIntegrationOn('onedrive')
   @RequireCapability('org.manage')
   @HttpCode(200)
   connect(
@@ -162,6 +164,7 @@ export class OneDriveStorageController {
   }
 
   @Post('complete')
+  @RequireIntegrationOn('onedrive')
   @RequireCapability('org.manage')
   @HttpCode(200)
   async complete(
@@ -187,6 +190,7 @@ export class OneDriveStorageController {
   }
 
   @Put('settings')
+  @RequireIntegrationOn('onedrive')
   @RequireCapability('org.manage')
   async settings(
     @Ctx() context: TenantContext,
@@ -197,6 +201,7 @@ export class OneDriveStorageController {
 
   /** 51-17 slice 2. The SharePoint libraries the connected account can hold the company's root. */
   @Get('root-options')
+  @RequireIntegrationOn('onedrive')
   @RequireCapability('org.manage')
   async rootOptions(@Ctx() context: TenantContext): Promise<CompanyRootOptionsView> {
     return this.onedrive.companyRootOptions(context);
@@ -210,6 +215,7 @@ export class OneDriveStorageController {
 
   /** R36 F2. Change folder browses the connected drive here, with no second Microsoft consent. */
   @Get('folders')
+  @RequireIntegrationOn('onedrive')
   @RequireCapability('org.manage')
   async folders(
     @Ctx() context: TenantContext,
@@ -229,6 +235,7 @@ export class OneDriveStorageController {
   }
 
   @Get('picker-session')
+  @RequireIntegrationOn('onedrive')
   @RequireCapability('work.update')
   async picker(
     @Ctx() context: TenantContext,
@@ -246,6 +253,7 @@ export class OneDriveStorageController {
   }
 
   @Get('projects/:projectId/files')
+  @RequireIntegrationOn('onedrive')
   @RequireCapability('work.update')
   async projectFiles(
     @Ctx() context: TenantContext,
@@ -275,6 +283,7 @@ export class OneDriveAttachmentsController {
   constructor(@Inject(ONEDRIVE_SERVICE) private readonly onedrive: OneDriveService) {}
 
   @Get('attachments')
+  @RequireIntegrationOn('onedrive')
   @RequireCapability('work.read')
   async list(
     @Ctx() context: TenantContext,
@@ -285,6 +294,7 @@ export class OneDriveAttachmentsController {
   }
 
   @Post('attachments')
+  @RequireIntegrationOn('onedrive')
   @RequireCapability('work.update')
   @HttpCode(201)
   async attach(

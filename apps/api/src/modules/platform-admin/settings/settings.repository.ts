@@ -51,6 +51,12 @@ export const SETTINGS_SQL = {
   grantCounts: `select count(distinct og.organization_id) as connected,
       max(og.created_at) as last_success
     from oauth_grants og where og.revoked_at is null`,
+  figmaCounts: `select count(distinct case when fc.status = 'connected' then fc.organization_id end)
+      as connected, max(case when fc.status = 'connected' then fc.updated_at end) as last_success
+    from figma_connections fc`,
+  connectorCounts: `select ci.connector_key as connector_key,
+      count(distinct ci.organization_id) as connected, max(ci.installed_at) as last_success
+    from connector_installations ci group by ci.connector_key`,
 } as const;
 
 type Row = RowDataPacket & Record<string, unknown>;
@@ -74,6 +80,10 @@ export interface IntegrationCounts {
   readonly storage: Readonly<Record<string, ConnectionCount>>;
   readonly calendar: Readonly<Record<string, ConnectionCount>>;
   readonly grants: ConnectionCount;
+  /** Figma: workspaces with a member's connection. */
+  readonly figma: ConnectionCount;
+  /** Framework connectors (`connector_installations`) by registry key. */
+  readonly connectors: Readonly<Record<string, ConnectionCount>>;
 }
 
 function num(value: unknown): number {
@@ -171,7 +181,13 @@ export class PlatformSettingsRepository {
       {
         correlationId,
         reason: SETTINGS_COUNTS_REASON,
-        tables: ['storage_connections', 'calendar_connections', 'oauth_grants'],
+        tables: [
+          'storage_connections',
+          'calendar_connections',
+          'oauth_grants',
+          'figma_connections',
+          'connector_installations',
+        ],
       },
       async (db) => {
         const storage: Record<string, ConnectionCount> = {};
@@ -203,6 +219,16 @@ export class PlatformSettingsRepository {
           };
         }
         const [grants] = await db.query<Row[]>(SETTINGS_SQL.grantCounts);
+        const [figma] = await db.query<Row[]>(SETTINGS_SQL.figmaCounts);
+        const connectors: Record<string, ConnectionCount> = {};
+        for (const row of await db.query<Row[]>(SETTINGS_SQL.connectorCounts)) {
+          connectors[String(row['connector_key'])] = {
+            connected: num(row['connected']),
+            lastSuccessAt: date(row['last_success']),
+            lastErrorAt: null,
+            lastErrorCode: null,
+          };
+        }
         return {
           storage,
           calendar,
@@ -212,6 +238,13 @@ export class PlatformSettingsRepository {
             lastErrorAt: null,
             lastErrorCode: null,
           },
+          figma: {
+            connected: num(figma?.['connected']),
+            lastSuccessAt: date(figma?.['last_success']),
+            lastErrorAt: null,
+            lastErrorCode: null,
+          },
+          connectors,
         };
       },
     );

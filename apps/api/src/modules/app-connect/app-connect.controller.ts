@@ -40,6 +40,7 @@ import {
 } from './app-connect.flow.js';
 import { APP_CONNECT_SERVICE } from './app-connect.service.js';
 import type { AppConnectService, AppConnectView } from './app-connect.service.js';
+import { RequireIntegrationOn } from '../platform-admin/settings/integration-switch.js';
 
 export const APP_CONNECT_HTTP_OPTIONS = Symbol.for('tmanage.AppConnectHttpOptions');
 
@@ -80,6 +81,7 @@ export class AppConnectController {
 
   /** The provider's consent address; the signed flow cookie rides along for the return. */
   @Post(':provider/start')
+  @RequireIntegrationOn({ param: 'provider' })
   @RequireCapability('org.manage')
   @HttpCode(200)
   start(
@@ -109,6 +111,7 @@ export class AppConnectController {
 
   /** Finish Connect with the `code` and `state` the provider sent back. */
   @Post(':provider/complete')
+  @RequireIntegrationOn({ param: 'provider' })
   @RequireCapability('org.manage')
   @HttpCode(200)
   complete(

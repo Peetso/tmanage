@@ -53,7 +53,15 @@ export interface PlatformSettingsFullView extends PlatformSettingsView {
 }
 
 export type PlatformIntegrationKey =
-  'google_drive' | 'onedrive' | 'google_calendar' | 'microsoft_calendar' | 'mcp';
+  | 'google_drive'
+  | 'onedrive'
+  | 'google_calendar'
+  | 'microsoft_calendar'
+  | 'figma'
+  | 'github'
+  | 'jira'
+  | 'email'
+  | 'mcp';
 
 export interface PlatformIntegrationView {
   readonly key: PlatformIntegrationKey;
@@ -61,7 +69,10 @@ export interface PlatformIntegrationView {
   readonly missingEnvironment: readonly string[];
   readonly enabled: boolean;
   readonly environmentForcedOff: boolean;
-  readonly connectedOrganizations: number;
+  /** 51-15p: `false` for a reading-only row (e-mail sending). */
+  readonly switchable: boolean;
+  /** `null` where the service has no per-workspace connection (e-mail sending). */
+  readonly connectedOrganizations: number | null;
   readonly lastErrorCode: string | null;
   readonly lastErrorAt: string | null;
   readonly lastSuccessAt: string | null;

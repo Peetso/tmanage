@@ -43,6 +43,10 @@ const counts: IntegrationCounts = {
     google: { connected: 33, lastSuccessAt: null, lastErrorAt: null, lastErrorCode: null },
   },
   grants: { connected: 2, lastSuccessAt: null, lastErrorAt: null, lastErrorCode: null },
+  figma: { connected: 5, lastSuccessAt: null, lastErrorAt: null, lastErrorCode: null },
+  connectors: {
+    jira: { connected: 3, lastSuccessAt: null, lastErrorAt: null, lastErrorCode: null },
+  },
 };
 
 describe('integrationView', () => {
@@ -84,6 +88,68 @@ describe('integrationView', () => {
   });
 });
 
+describe('51-15p readings', () => {
+  it('lists every connected service and never carries a key, token, secret or e-mail', async () => {
+    const env = {
+      ...GOOGLE,
+      FIGMA_CLIENT_ID: 'figma-id-value',
+      FIGMA_CLIENT_SECRET: 'figma-secret-value',
+      EMAIL_DRIVER: 'smtp',
+      SMTP_HOST: 'smtp.example.com',
+      SMTP_PASSWORD: 'smtp-password-value',
+    };
+    const store = {
+      readAll: async () => new Map(),
+      integrationCounts: async () => counts,
+    } as unknown as PlatformSettingsRepository;
+    const view = await new IntegrationsService(store, {} as PlatformAdminRepository, env).list(ctx);
+    expect(view.integrations.map((row) => row.key)).toEqual([
+      'google_drive',
+      'onedrive',
+      'google_calendar',
+      'microsoft_calendar',
+      'figma',
+      'github',
+      'jira',
+      'email',
+      'mcp',
+    ]);
+    const text = JSON.stringify(view);
+    for (const value of [
+      'figma-id-value',
+      'figma-secret-value',
+      'smtp.example.com',
+      'smtp-password-value',
+      '@',
+    ]) {
+      expect(text).not.toContain(value);
+    }
+    // Only state fields: no field that could carry a credential or an account.
+    for (const row of view.integrations) {
+      expect(Object.keys(row).sort()).toEqual([
+        'configured',
+        'connectedOrganizations',
+        'enabled',
+        'environmentForcedOff',
+        'key',
+        'lastErrorAt',
+        'lastErrorCode',
+        'lastSuccessAt',
+        'missingEnvironment',
+        'switchable',
+      ]);
+    }
+    expect(view.integrations.find((row) => row.key === 'email')).toMatchObject({
+      configured: true,
+      switchable: false,
+      enabled: true,
+      connectedOrganizations: null,
+    });
+    expect(view.integrations.find((row) => row.key === 'jira')?.connectedOrganizations).toBe(3);
+    expect(view.integrations.find((row) => row.key === 'figma')?.connectedOrganizations).toBe(5);
+  });
+});
+
 describe('IntegrationsService.setEnabled', () => {
   function harness(env: NodeJS.ProcessEnv) {
     const store = {
@@ -122,6 +188,16 @@ describe('IntegrationsService.setEnabled', () => {
     const { service, writeSetting } = harness({});
     await service.setEnabled(actor, 'mcp', { enabled: false, reason: 'Pause AI apps' }, ctx);
     expect(writeSetting).toHaveBeenCalledWith('ai_access', 'off', expect.anything());
+  });
+
+  it('51-15p: switching off needs no server keys; e-mail sending is a reading only', async () => {
+    const { service, writeSetting } = harness({});
+    await service.setEnabled(actor, 'figma', { enabled: false, reason: 'Figma outage' }, ctx);
+    expect(writeSetting).toHaveBeenCalledWith('integration.figma', 'off', expect.anything());
+    await expect(
+      service.setEnabled(actor, 'email', { enabled: false, reason: 'Stop mail' }, ctx),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(writeSetting).toHaveBeenCalledTimes(1);
   });
 
   it('refuses a switch without server keys (409) and an unknown integration (404)', async () => {

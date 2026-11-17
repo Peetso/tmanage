@@ -10,6 +10,7 @@ import type { PlatformAdminActor } from '../platform-admin.guard.js';
 import type { PlatformAdminRepository } from '../platform-admin.repository.js';
 import type { RequestContext } from '../platform-admin.service.js';
 import { platformAuditFor } from '../platform-audit.service.js';
+import { forgetIntegrationSwitches } from './integration-switch.js';
 import type {
   ConnectionCount,
   IntegrationCounts,
@@ -25,6 +26,10 @@ import type {
  * organizations are connected, and the last error / last success. The MCP connector's switch IS
  * the platform AI kill switch (`ai_access`), so the row and the AI access card can never
  * disagree; `TMANAGE_MCP_DISABLED` forces it off ("Forced off by server").
+ *
+ * 51-15p: the other switches are enforced by `integration-switch.ts` on every connect, sign-in
+ * completion and use route; e-mail sending is a reading only. No row ever carries a key, a token
+ * or an account e-mail: only the names of missing variables, counts and times.
  */
 
 export const INTEGRATION_KEYS = [
@@ -32,6 +37,10 @@ export const INTEGRATION_KEYS = [
   'onedrive',
   'google_calendar',
   'microsoft_calendar',
+  'figma',
+  'github',
+  'jira',
+  'email',
   'mcp',
 ] as const;
 
@@ -43,8 +52,19 @@ export const INTEGRATION_ENVIRONMENT: Readonly<Record<IntegrationKey, readonly s
   onedrive: ['MICROSOFT_CLIENT_ID', 'MICROSOFT_CLIENT_SECRET'],
   google_calendar: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
   microsoft_calendar: ['MICROSOFT_CLIENT_ID', 'MICROSOFT_CLIENT_SECRET'],
+  figma: ['FIGMA_CLIENT_ID', 'FIGMA_CLIENT_SECRET'],
+  // A GitHub or Jira connection works with the key a workspace owner pastes; GitHub's one-click
+  // sign-in additionally needs GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET (its card says so).
+  github: [],
+  jira: [],
+  email: ['SMTP_HOST'],
   mcp: [],
 };
+
+/**
+ * Read only, never switchable here: sign-in, password-reset and invitation mail must never stop.
+ */
+export const READ_ONLY_INTEGRATIONS: readonly IntegrationKey[] = ['email'];
 
 export function integrationSettingKey(key: IntegrationKey): string {
   return key === 'mcp' ? PLATFORM_AI_ACCESS_SETTING : `integration.${key}`;
@@ -64,7 +84,10 @@ export interface PlatformIntegrationView {
   readonly enabled: boolean;
   /** The server switch wins over this page (`TMANAGE_MCP_DISABLED`). */
   readonly environmentForcedOff: boolean;
-  readonly connectedOrganizations: number;
+  /** `false` for a reading-only row (e-mail sending). */
+  readonly switchable: boolean;
+  /** `null` where the service has no per-workspace connection (e-mail sending). */
+  readonly connectedOrganizations: number | null;
   readonly lastErrorCode: string | null;
   readonly lastErrorAt: string | null;
   readonly lastSuccessAt: string | null;
@@ -148,6 +171,14 @@ function countFor(key: IntegrationKey, counts: IntegrationCounts): ConnectionCou
       return counts.calendar['google'] ?? EMPTY;
     case 'microsoft_calendar':
       return counts.calendar['microsoft'] ?? EMPTY;
+    case 'figma':
+      return counts.figma;
+    case 'github':
+      return counts.connectors['github'] ?? EMPTY;
+    case 'jira':
+      return counts.connectors['jira'] ?? EMPTY;
+    case 'email':
+      return EMPTY;
     case 'mcp':
       return counts.grants;
   }
@@ -166,12 +197,14 @@ export function integrationView(
   counts: IntegrationCounts,
 ): PlatformIntegrationView {
   const missingEnvironment = INTEGRATION_ENVIRONMENT[key].filter((name) => !present(env, name));
-  const configured = missingEnvironment.length === 0;
+  const configured =
+    missingEnvironment.length === 0 && (key !== 'email' || env['EMAIL_DRIVER'] === 'smtp');
+  const switchable = !READ_ONLY_INTEGRATIONS.includes(key);
   const environmentForcedOff = key === 'mcp' && environmentAiDisabled(env['TMANAGE_MCP_DISABLED']);
   const switchOn =
     key === 'mcp'
       ? platformAiAccessOn(stored?.value ?? null, environmentForcedOff)
-      : stored?.value !== 'off';
+      : !switchable || stored?.value !== 'off';
   const count = countFor(key, counts);
   return {
     key,
@@ -179,7 +212,8 @@ export function integrationView(
     missingEnvironment,
     enabled: configured && !environmentForcedOff && switchOn,
     environmentForcedOff,
-    connectedOrganizations: count.connected,
+    switchable,
+    connectedOrganizations: key === 'email' ? null : count.connected,
     lastErrorCode: count.lastErrorCode,
     lastErrorAt: count.lastErrorAt?.toISOString() ?? null,
     lastSuccessAt: count.lastSuccessAt?.toISOString() ?? null,
@@ -232,8 +266,12 @@ export class IntegrationsService {
     }
     const enabled = body['enabled'];
     const reason = requireReason(body['reason']);
+    if (READ_ONLY_INTEGRATIONS.includes(integration)) {
+      throw new ApiError(409, 'conflict', 'E-mail sending cannot be switched off here.');
+    }
     const missing = INTEGRATION_ENVIRONMENT[integration].filter((name) => !present(this.env, name));
-    if (missing.length > 0) {
+    // Switching off is always allowed (a kill switch); switching on needs the server keys.
+    if (enabled && missing.length > 0) {
       throw new ApiError(
         409,
         'conflict',
@@ -258,6 +296,7 @@ export class IntegrationsService {
         afterJson: JSON.stringify({ integration, enabled }),
       }),
     );
+    forgetIntegrationSwitches();
     return this.list(context);
   }
 }

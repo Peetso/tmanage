@@ -57,6 +57,7 @@ import {
   type SettingsInput,
   type StorageStatusView,
 } from './google-drive.service.js';
+import { RequireIntegrationOn } from '../platform-admin/settings/integration-switch.js';
 
 /**
  * Google Drive as company storage — the HTTP surface.
@@ -129,6 +130,7 @@ export class GoogleDriveStorageController {
   }
 
   @Post('connect')
+  @RequireIntegrationOn('google_drive')
   @RequireCapability('org.manage')
   @HttpCode(200)
   connect(
@@ -159,6 +161,7 @@ export class GoogleDriveStorageController {
   }
 
   @Post('complete')
+  @RequireIntegrationOn('google_drive')
   @RequireCapability('org.manage')
   @HttpCode(200)
   async complete(
@@ -184,6 +187,7 @@ export class GoogleDriveStorageController {
   }
 
   @Put('settings')
+  @RequireIntegrationOn('google_drive')
   @RequireCapability('org.manage')
   async settings(
     @Ctx() context: TenantContext,
@@ -194,6 +198,7 @@ export class GoogleDriveStorageController {
 
   /** 51-17 slice 2. The Shared Drives the connected account can hold the company's root. */
   @Get('root-options')
+  @RequireIntegrationOn('google_drive')
   @RequireCapability('org.manage')
   async rootOptions(@Ctx() context: TenantContext): Promise<CompanyRootOptionsView> {
     return this.drive.companyRootOptions(context);
@@ -206,6 +211,7 @@ export class GoogleDriveStorageController {
   }
 
   @Get('picker-session')
+  @RequireIntegrationOn('google_drive')
   @RequireCapability('work.update')
   async picker(
     @Ctx() context: TenantContext,
@@ -221,6 +227,7 @@ export class GoogleDriveStorageController {
   }
 
   @Get('projects/:projectId/files')
+  @RequireIntegrationOn('google_drive')
   @RequireCapability('work.update')
   async projectFiles(
     @Ctx() context: TenantContext,
@@ -251,6 +258,7 @@ export class GoogleDriveAttachmentsController {
   constructor(@Inject(GOOGLE_DRIVE_SERVICE) private readonly drive: GoogleDriveService) {}
 
   @Get('attachments')
+  @RequireIntegrationOn('google_drive')
   @RequireCapability('work.read')
   async list(
     @Ctx() context: TenantContext,
@@ -261,6 +269,7 @@ export class GoogleDriveAttachmentsController {
   }
 
   @Post('attachments')
+  @RequireIntegrationOn('google_drive')
   @RequireCapability('work.update')
   @HttpCode(201)
   async attach(

@@ -77,6 +77,7 @@ const INTEGRATIONS: PlatformIntegrationsView = {
       missingEnvironment: [],
       enabled: true,
       environmentForcedOff: false,
+      switchable: true,
       connectedOrganizations: 41,
       lastErrorCode: null,
       lastErrorAt: null,
@@ -88,7 +89,20 @@ const INTEGRATIONS: PlatformIntegrationsView = {
       missingEnvironment: ['MICROSOFT_CLIENT_ID', 'MICROSOFT_CLIENT_SECRET'],
       enabled: false,
       environmentForcedOff: false,
+      switchable: true,
       connectedOrganizations: 0,
+      lastErrorCode: null,
+      lastErrorAt: null,
+      lastSuccessAt: null,
+    },
+    {
+      key: 'email',
+      configured: true,
+      missingEnvironment: [],
+      enabled: true,
+      environmentForcedOff: false,
+      switchable: false,
+      connectedOrganizations: null,
       lastErrorCode: null,
       lastErrorAt: null,
       lastSuccessAt: null,
@@ -186,6 +200,34 @@ describe('D1 · Platform settings — General', () => {
     expect(await screen.findByText('Google Drive')).toBeTruthy();
     expect(screen.getByText('Add MICROSOFT_CLIENT_ID in Hostinger')).toBeTruthy();
     expect(screen.getByText(/affects 124 organizations/u)).toBeTruthy();
+  });
+
+  it('51-15p: connected services show their state in words and confirm before switching off', async () => {
+    const calls = mount(
+      (client) => <PlatformGeneralSettingsScreen client={client} />,
+      (method, path, body) =>
+        method === 'PUT' && path === '/v1/platform/settings/integrations/google_drive'
+          ? json(INTEGRATIONS)
+          : route(method, path, body),
+    );
+    expect(await screen.findByRole('heading', { name: 'Connected services' })).toBeTruthy();
+    expect(await screen.findByText('E-mail sending')).toBeTruthy();
+    expect(screen.getByText('Always on')).toBeTruthy();
+    expect(screen.getByText('Not set up')).toBeTruthy();
+    expect(screen.queryByRole('switch', { name: 'E-mail sending on for TManage' })).toBeNull();
+    fireEvent.click(screen.getByRole('switch', { name: 'Google Drive on for TManage' }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText(/Nothing is deleted/u)).toBeTruthy();
+    fireEvent.change(within(dialog).getByRole('textbox'), {
+      target: { value: 'Google outage today' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Turn off' }));
+    await waitFor(() =>
+      expect(calls.find((call) => call.method === 'PUT')).toMatchObject({
+        path: '/v1/platform/settings/integrations/google_drive',
+        body: { enabled: false, reason: 'Google outage today' },
+      }),
+    );
   });
 
   it('shows a day-long step-up window as "24 hours", not "1440 minutes"', async () => {
