@@ -146,6 +146,24 @@ export function webConnectTarget(transport) {
     : { path: transport.path };
 }
 
+/**
+ * The `-H` the web child's `next start` gets (NOTFOUND500, live 2026-11-17).
+ *
+ * Next builds the URL its proxy sees as `<x-forwarded-proto>://localhost:<port>`, but decides
+ * whether a proxy rewrite stays inside the server by comparing it with `<proto>://<-H>:<port>`.
+ * With `-H 127.0.0.1` the two never matched, so every rewrite (the not-found page, the Markdown
+ * twins) became an outbound fetch to `https://localhost:<port>`: TLS against a plain-http port
+ * that, on Hostinger, is not even listening (the child is on a socket). Every unknown page
+ * answered 500.
+ *
+ * On a socket or pipe the preload ignores the host, so `localhost` binds nothing public and makes
+ * the two URLs agree. Loopback TCP (local development only) keeps `127.0.0.1`, the address
+ * webTarget() connects to.
+ */
+export function webChildHost(transport) {
+  return transport.kind === 'tcp' ? '127.0.0.1' : 'localhost';
+}
+
 /** A human-readable name for logs. */
 export function describeWebTransport(transport) {
   return transport.kind === 'tcp' ? `127.0.0.1:${transport.port}` : transport.path;

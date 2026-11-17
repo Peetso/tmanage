@@ -38,7 +38,8 @@ import { ROUTE_CONTENT, routeContentProblems } from './build.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '../..');
-const ZIP = join(HERE, 'out', 'tmanage-hostinger.zip');
+// `SMOKE_ZIP` checks another bundle (a patched copy, say) without touching out/.
+const ZIP = process.env['SMOKE_ZIP'] ?? join(HERE, 'out', 'tmanage-hostinger.zip');
 // Where the bundle is unpacked and the report written — OUTSIDE the repo (an artefact, not a
 // project copy). Override with TMANAGE_DEPLOY_CHECK_DIR.
 const CHECK = process.env['TMANAGE_DEPLOY_CHECK_DIR'] ?? join(tmpdir(), 'tmanage-deploy-check');
@@ -109,6 +110,16 @@ function remember(setCookie) {
 function cookieHeader() {
   return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
 }
+/** Requests the web child answers through a proxy rewrite, each as Hostinger's front sends it. */
+const FORWARDED_REWRITES = [
+  { path: '/no-such-page', status: 404, page: '/_not-found' },
+  { path: '/help/no-such-article', status: 404, page: '/_not-found' },
+  { path: '/compare/no-such-tool', status: 404, page: '/_not-found' },
+  { path: '/ar/no-such-page', status: 404, page: '/ar/page-not-found' },
+  { path: '/pricing', status: 200, accept: 'text/markdown' },
+  { path: '/platform', status: 307 },
+];
+
 async function hit(path, init = {}) {
   const headers = { ...(init.headers ?? {}) };
   if (jar.size) headers['cookie'] = cookieHeader();
@@ -356,6 +367,25 @@ async function main() {
         `GET ${path} serves its own page`,
         page.status === status && problems.length === 0,
         `status ${page.status}${problems.length ? `; ${problems.join('; ')}` : ''}`,
+      );
+    }
+    // NOTFOUND500 (live 2026-11-17): with Hostinger's `X-Forwarded-Proto: https` every proxy
+    // rewrite (unknown page -> not-found page, Accept: text/markdown -> /md/*) answered 500, as
+    // the web child fetched `https://localhost:<port>` instead of rewriting inside itself.
+    for (const { path, status, page, accept } of FORWARDED_REWRITES) {
+      const res = await hit(path, {
+        headers: {
+          'x-forwarded-proto': 'https',
+          'x-forwarded-host': 'tmanage.peetrix.com',
+          ...(accept ? { accept } : {}),
+        },
+      });
+      const problems =
+        res.status === status && page ? routeContentProblems(page, await res.text()) : [];
+      check(
+        `GET ${path}${accept ? ` (${accept})` : ''} behind https answers ${status}`,
+        res.status === status && problems.length === 0,
+        `status ${res.status}${problems.length ? `; ${problems.join('; ')}` : ''}`,
       );
     }
     // First-owner setup is an API route: the API answers it (JSON; 404 here, as SETUP_TOKEN is

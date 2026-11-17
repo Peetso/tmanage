@@ -7,7 +7,7 @@
   "main": "server.mjs",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test database-env.test.mjs boot-guards.test.mjs csp-report.test.mjs web-transport.test.mjs web-restart.test.mjs cache-headers.test.mjs scheduled-sweeps.test.mjs job-alerts.test.mjs realtime-inprocess.test.mjs brand-icons.test.mjs migration-shutdown.test.mjs process-alerts.test.mjs security-txt.test.mjs page-limit.test.mjs platform-gate.test.mjs"
+    "test": "node --test database-env.test.mjs boot-guards.test.mjs csp-report.test.mjs web-transport.test.mjs web-restart.test.mjs cache-headers.test.mjs scheduled-sweeps.test.mjs job-alerts.test.mjs realtime-inprocess.test.mjs brand-icons.test.mjs migration-shutdown.test.mjs process-alerts.test.mjs security-txt.test.mjs page-limit.test.mjs platform-gate.test.mjs web-child-host.test.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.102.4",

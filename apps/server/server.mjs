@@ -109,6 +109,7 @@ import {
   prepareWebTransport,
   resolveWebTransport,
   webChildEnv,
+  webChildHost,
   webConnectTarget,
   webTarget,
 } from './web-transport.mjs';
@@ -224,7 +225,7 @@ function spawnWebChild(transport, nominalPort) {
       : ['--import', pathToFileURL(resolve(ROOT, 'web-socket-preload.mjs')).href];
   return spawn(
     process.execPath,
-    [...preload, nextBin, 'start', '-p', String(nominalPort), '-H', '127.0.0.1'],
+    [...preload, nextBin, 'start', '-p', String(nominalPort), '-H', webChildHost(transport)],
     {
       cwd: WEB_DIR,
       env: {
