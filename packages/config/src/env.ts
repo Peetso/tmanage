@@ -677,6 +677,16 @@ export const envSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
+    /**
+     * EMAILBUILD. `off` (default): every mail leaves from EMAIL_FROM_ADDRESS and only the display
+     * name and Reply-To change per sender (security, support, hello, a tips person). `on`: the
+     * sender's own address on the same domain is shown in `From`; switch it on only after one
+     * test mail proves the SMTP host accepts it. The envelope sender never changes.
+     */
+    EMAIL_SEND_AS: z
+      .enum(['on', 'off'])
+      .default('off')
+      .transform((value) => value === 'on'),
 
     /**
      * 57-02. The versioned plan ladder's switch: only `on` turns it on, and only when billing is

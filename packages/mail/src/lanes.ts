@@ -73,6 +73,8 @@ const DIGEST_TEMPLATES = new Set([
   'while_you_were_away',
   'collaboration_notice',
   'usage_threshold',
+  // EMAILBUILD: tips and reminders wait behind everything a person is waiting for.
+  'tip',
 ]);
 
 const BULK_TEMPLATES = new Set(['announcement', 'gtm', 'report']);

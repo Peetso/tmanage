@@ -139,6 +139,8 @@ interface Mail {
   readonly to: string;
   readonly subject: string;
   readonly text: string;
+  /** EMAILBUILD: both are security mail (`sender.ts`), never signed by a person. */
+  readonly templateKey: 'portal_sign_in' | 'portal_sign_in_cancelled';
 }
 
 export class PortalSignInService {
@@ -402,7 +404,12 @@ export class PortalSignInService {
       );
     }
     lines.push('', `Not you? Cancel this link: ${url}?not-you=1`);
-    return { to, subject: `Sign in to ${organizationName}`, text: lines.join('\n') };
+    return {
+      to,
+      subject: `Sign in to ${organizationName}`,
+      text: lines.join('\n'),
+      templateKey: 'portal_sign_in',
+    };
   }
 
   private async send(mail: Mail): Promise<void> {
@@ -456,6 +463,7 @@ function notYouMail(to: string, organizationName: string): Mail {
   return {
     to,
     subject: `A sign-in link to ${organizationName} was cancelled`,
+    templateKey: 'portal_sign_in_cancelled',
     text:
       `Someone asked for a link to sign in to the ${organizationName} client portal with this ` +
       'address, and the link was cancelled from the sign-in page. Nobody can use it now.\n\n' +

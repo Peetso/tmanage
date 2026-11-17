@@ -253,6 +253,29 @@ describe('SmtpMailer', () => {
     expect(server.data).toContain('<p>html body</p>');
   });
 
+  it('EMAILBUILD: shows the resolved sender on its own domain, keeps the envelope, refuses others', async () => {
+    server = await startServer();
+    const mailer = mailerFor(server.port);
+    await mailer.send({
+      to: 'nadia@brightops.example',
+      subject: 'x',
+      text: 'body',
+      from: { name: 'TManage Support', address: 'support@tmanage.example' },
+    });
+    expect(server.data).toMatch(/From: "?TManage Support"? <support@tmanage\.example>/u);
+    expect(server.envelope[0]).toContain('<no-reply@tmanage.example>');
+
+    await server.close();
+    server = await startServer();
+    await mailerFor(server.port).send({
+      to: 'nadia@brightops.example',
+      subject: 'x',
+      text: 'body',
+      from: { name: 'Bank', address: 'ceo@bank.example' },
+    });
+    expect(server.data).toMatch(/From: "?Bank"? <no-reply@tmanage\.example>/u);
+  });
+
   it('upgrades via STARTTLS and authenticates only inside the TLS session', async () => {
     server = await startServer({ starttls: true });
 

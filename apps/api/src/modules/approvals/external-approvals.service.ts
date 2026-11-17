@@ -180,6 +180,9 @@ export class ExternalApprovalsService {
             expiresAt: staged.link.expiresAt,
           }),
           organizationId: context.organizationId,
+          templateKey: 'external_approval',
+          audience: 'client',
+          actingFor: { workspaceName: staged.organizationName, replyRoute: 'none' },
         });
         mailed = true;
       } catch (error) {

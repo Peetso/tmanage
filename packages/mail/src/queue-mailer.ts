@@ -1,8 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { authDeadlineMs, laneForTemplate, mailboxForLane } from './lanes.js';
 import type { MailLane, Mailbox } from './lanes.js';
-import type { MailAttachment, MailDelivery, Mailer, MailMessage } from './mailer.js';
+import type { MailAttachment, MailDelivery, Mailer, MailMessage, MailSender } from './mailer.js';
 import { MAX_MAIL_MESSAGE_BYTES, safeAttachment } from './mailer.js';
+import { MAX_DISPLAY_NAME, validateSenderAddress, validateSenderName } from './sender.js';
 
 /**
  * 56-31 — the `Mailer` producers send through once the queue is on: `send` writes one
@@ -55,6 +56,8 @@ interface QueuedPayload {
   readonly replyTo?: string;
   readonly headers?: Readonly<Record<string, string>>;
   readonly attachments?: readonly QueuedAttachment[];
+  /** EMAILBUILD. The resolver's sender; re-validated on decode and again by the SMTP driver. */
+  readonly from?: MailSender;
 }
 
 /** INVMAIL. An attachment as stored: its content base64-encoded. */
@@ -72,6 +75,7 @@ export function encodeQueuedMessage(message: MailMessage): string {
     ...(message.html === undefined ? {} : { html: message.html }),
     ...(message.replyTo === undefined ? {} : { replyTo: message.replyTo }),
     ...(message.headers === undefined ? {} : { headers: { ...message.headers } }),
+    ...(message.from === undefined ? {} : { from: { ...message.from } }),
     ...(message.attachments === undefined || message.attachments.length === 0
       ? {}
       : {
@@ -120,6 +124,17 @@ function decodeAttachments(value: unknown): MailAttachment[] | undefined {
   return files.length === 0 ? undefined : files;
 }
 
+/** EMAILBUILD. A stored sender, or `undefined` when it is missing or fails validation. */
+function decodeSender(value: unknown): MailSender | undefined {
+  if (value === null || typeof value !== 'object') return undefined;
+  const { name, address } = value as Record<string, unknown>;
+  if (typeof name !== 'string' || !validateSenderName(name, MAX_DISPLAY_NAME)) return undefined;
+  if (address === undefined) return { name };
+  return typeof address === 'string' && validateSenderAddress(address)
+    ? { name, address }
+    : undefined;
+}
+
 /** The message back from `payload_json`, or `null` for a stripped or malformed row. */
 export function decodeQueuedMessage(json: string, templateKey: string): MailMessage | null {
   let parsed: unknown;
@@ -132,6 +147,7 @@ export function decodeQueuedMessage(json: string, templateKey: string): MailMess
   const value = parsed as Record<string, unknown>;
   const { to, subject, text, html, replyTo, headers } = value;
   const attachments = decodeAttachments(value['attachments']);
+  const from = decodeSender(value['from']);
   if (typeof to !== 'string' || typeof subject !== 'string' || typeof text !== 'string') {
     return null;
   }
@@ -152,6 +168,7 @@ export function decodeQueuedMessage(json: string, templateKey: string): MailMess
     ...(typeof replyTo === 'string' ? { replyTo } : {}),
     ...(headerMap === undefined ? {} : { headers: headerMap }),
     ...(attachments === undefined ? {} : { attachments }),
+    ...(from === undefined ? {} : { from }),
   };
 }
 

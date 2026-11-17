@@ -9,6 +9,12 @@ import type {
 } from './mailer.js';
 import { safeAttachment } from './mailer.js';
 import { bounceMessageId } from './bounce-id.js';
+import {
+  MAX_DISPLAY_NAME,
+  formatFrom,
+  validateSenderAddress,
+  validateSenderName,
+} from './sender.js';
 
 /**
  * The `smtp` driver — nodemailer over one configured submission endpoint.
@@ -48,10 +54,12 @@ export class SmtpMailer implements ReceiptMailer {
   private readonly from: string;
   private readonly bounceKey: Buffer | undefined;
   private readonly domain: string;
+  private readonly identityAddress: string;
 
   constructor(options: SmtpMailerOptions) {
     this.bounceKey = options.bounceKey;
     this.domain = options.fromAddress.slice(options.fromAddress.lastIndexOf('@') + 1);
+    this.identityAddress = options.fromAddress;
     const auth =
       options.username === undefined || options.password === undefined
         ? undefined
@@ -104,9 +112,14 @@ export class SmtpMailer implements ReceiptMailer {
             to: message.to,
             domain: this.domain,
           });
+    const from = this.fromFor(message);
     const result = await this.transport.sendMail({
       ...(messageId === null ? {} : { messageId }),
-      from: this.from,
+      from: from.header,
+      // The envelope sender stays the SMTP identity, so bounces reach the intake (56-26).
+      ...(from.address === this.identityAddress
+        ? {}
+        : { envelope: { from: this.identityAddress, to: message.to } }),
       to: message.to,
       subject: message.subject,
       text: message.text,
@@ -135,5 +148,21 @@ export class SmtpMailer implements ReceiptMailer {
     }
     const serverId = typeof result.messageId === 'string' ? result.messageId.slice(0, 255) : null;
     return { delivery: 'sent', messageId: serverId };
+  }
+
+  /**
+   * EMAILBUILD. The resolver's sender, re-validated here (name, and an address on this identity's
+   * own domain); anything that fails is replaced by the constructor's `From`.
+   */
+  private fromFor(message: MailMessage): { header: string; address: string } {
+    const sender = message.from;
+    if (sender === undefined || !validateSenderName(sender.name, MAX_DISPLAY_NAME)) {
+      return { header: this.from, address: this.identityAddress };
+    }
+    const address =
+      sender.address !== undefined && validateSenderAddress(sender.address, this.domain)
+        ? sender.address
+        : this.identityAddress;
+    return { header: formatFrom(sender.name, address), address };
   }
 }

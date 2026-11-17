@@ -64,6 +64,38 @@ export interface MailMessage {
    * that company.
    */
   readonly organizationId?: string;
+  /**
+   * EMAILBUILD. The language the message is written in (`en` when absent). The sender resolver
+   * uses it for the display name and the registry person; server code only.
+   */
+  readonly language?: 'en' | 'ar';
+  /**
+   * EMAILBUILD. Set by a producer whose mail reaches a client: such mail is never signed by a
+   * TManage person (`sender.ts`). Server code only; no request can set it.
+   */
+  readonly audience?: 'client';
+  /** EMAILBUILD. The agency a client mail is sent for; it shapes the sender's display name. */
+  readonly actingFor?: MailActingFor;
+  /**
+   * EMAILBUILD. The visible sender. ONLY `SenderResolvingMailer` sets it (it discards any value it
+   * receives); the SMTP driver re-validates it and falls back to its own `From` otherwise. Without
+   * `address` the SMTP identity's own address is shown under `name`.
+   */
+  readonly from?: MailSender;
+}
+
+/** EMAILBUILD. A resolved sender. */
+export interface MailSender {
+  readonly name: string;
+  readonly address?: string;
+}
+
+/** EMAILBUILD. Who an agency-to-client message is sent for, and where a reply goes. */
+export interface MailActingFor {
+  readonly workspaceName: string;
+  readonly actorName?: string;
+  /** `inviter`/`requests`: keep the producer's server-set Reply-To; `none`: no Reply-To. */
+  readonly replyRoute?: 'inviter' | 'requests' | 'none';
 }
 
 /** INVMAIL. One file attached to a message. */

@@ -145,7 +145,9 @@ export class ChallengeService {
       try {
         await this.options.mailer.send({
           to: email,
-          subject: `Your TManage code: ${code}`,
+          // EMAILBUILD: the code is never in the subject.
+          subject: 'Your TManage code',
+          templateKey: 'challenge_code',
           text:
             `Your TManage code is ${code}.\n\n` +
             'It works for 10 minutes. If you did not ask for it, you can ignore this message.',

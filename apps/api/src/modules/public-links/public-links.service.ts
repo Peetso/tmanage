@@ -366,7 +366,9 @@ export class PublicLinksService {
     if (this.options.mailer !== null) {
       await this.options.mailer.send({
         to: mail.to,
-        subject: `Your TManage code: ${mail.code}`,
+        // EMAILBUILD: the code is never in the subject.
+        subject: 'Your TManage code',
+        templateKey: 'public_link_code',
         text:
           `Your code for the link ${mail.organizationName} sent you is ${mail.code}.\n\n` +
           'It works for 10 minutes. If you did not open this link, you can ignore this message.',

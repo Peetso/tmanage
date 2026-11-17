@@ -2102,14 +2102,11 @@ export class ClientInvoicesService {
     const link = `${base}/${encodeURIComponent(orgSlug)}/portal/invoices/${encodeURIComponent(view.id)}`;
     for (const recipient of to) {
       try {
-        const mailMessage = composeInvoiceEmail({
-          to: recipient,
-          view,
-          link,
-          kind,
-          message,
-          country,
-        });
+        const mailMessage = {
+          ...composeInvoiceEmail({ to: recipient, view, link, kind, message, country }),
+          templateKey: 'client_invoice',
+          audience: 'client' as const,
+        };
         // INVMAIL: a PDF over the mailer's size limit is skipped; the link above still reaches it.
         await this.mailer.send(
           forCompany(

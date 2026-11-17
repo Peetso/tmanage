@@ -22,7 +22,8 @@ export class ConsoleMailer implements Mailer {
     console.warn(
       [
         '[mailer] console driver — nothing was sent',
-        `From: ${this.options.fromName} <${this.options.fromAddress}>`,
+        `From: ${message.from?.name ?? this.options.fromName} <${message.from?.address ?? this.options.fromAddress}>`,
+        ...(message.replyTo === undefined ? [] : [`Reply-To: ${message.replyTo}`]),
         `To: ${message.to}`,
         `Subject: ${message.subject}`,
         ...(message.attachments ?? []).map((attachment) => {

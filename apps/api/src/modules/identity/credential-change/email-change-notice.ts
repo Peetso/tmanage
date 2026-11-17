@@ -90,14 +90,15 @@ export class EmailChangeNotifier {
     let sent = 0;
     for (const recipient of ['old', 'new'] as const) {
       try {
-        await this.mailer.send(
-          composeEmailChangeNotice({
+        await this.mailer.send({
+          ...composeEmailChangeNotice({
             ...input,
             to: recipient === 'old' ? input.oldEmail : input.newEmail,
             recipient,
             link,
           }),
-        );
+          templateKey: 'email_change',
+        });
         sent += 1;
       } catch (error) {
         console.error('[mailer] email change notice failed', serializeForLog(error));

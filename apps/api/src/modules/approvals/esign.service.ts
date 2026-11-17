@@ -327,7 +327,9 @@ export class EsignService {
     if (this.options.mailer !== null && email !== '') {
       await this.options.mailer.send({
         to: email,
-        subject: `Your TManage signature code: ${code}`,
+        // EMAILBUILD: the code is never in the subject (a preview pane shows the subject).
+        subject: 'Your TManage signature code',
+        templateKey: 'esign_code',
         text:
           `Your code to sign the document is ${code}.\n\n` +
           'It works for 10 minutes. If you did not ask to sign a document, you can ignore this message.',
@@ -795,6 +797,9 @@ export class EsignService {
           subject: `${organization.name} asked you to sign ${title}`,
           text: `${organization.name} asked you to sign "${title}" in your client portal.${link}`,
           organizationId,
+          templateKey: 'esign_request',
+          audience: 'client',
+          actingFor: { workspaceName: organization.name, replyRoute: 'none' },
         });
       } catch (error) {
         // 56-26: an address that bounced in this company is skipped; the request stays in the

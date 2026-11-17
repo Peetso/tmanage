@@ -3,9 +3,11 @@ import {
   BounceGuardMailer,
   ConsoleMailer,
   QueueMailer,
+  SenderResolvingMailer,
   SmtpMailer,
   withTemplateKey,
 } from '@tmanage/mail';
+import { CONTACT_EMAILS } from '@tmanage/domain';
 import type { Mailer } from '@tmanage/mail';
 import { MailBounceLookup } from '../../modules/mail-bounces/mail-bounces.service.js';
 import { MailQueueRepository } from '../database/mail-queue.repository.js';
@@ -59,6 +61,21 @@ export interface MailerModuleConfig {
    * it so a bounce can be matched (the worker drainer's driver holds the same key).
    */
   readonly bounceKey?: Buffer | undefined;
+  /** EMAILBUILD. EMAIL_SEND_AS: show the sender's own address in `From` (default off). */
+  readonly sendAs?: boolean | undefined;
+}
+
+/**
+ * EMAILBUILD. Every message's sender is chosen here, from its template key, above the queue or
+ * driver and below the bounce guard (`sender-resolver.ts`). The API sends no tips, so it needs no
+ * registry directory: a `tip` from here would be signed by the TManage team.
+ */
+function resolved(transport: Mailer, config: MailerModuleConfig): Mailer {
+  return new SenderResolvingMailer(transport, {
+    identityAddress: config.fromAddress,
+    sendAs: config.sendAs === true,
+    addresses: CONTACT_EMAILS,
+  });
 }
 
 function driverFrom(config: MailerModuleConfig): Mailer {
@@ -128,7 +145,10 @@ function guardedModule(
     provide: QUEUE,
     inject: [TENANT_DATABASE],
     useFactory: (database: TenantDatabase) => {
-      const mailer = new BounceGuardMailer(transport(database), new MailBounceLookup(database));
+      const mailer = new BounceGuardMailer(
+        resolved(transport(database), config),
+        new MailBounceLookup(database),
+      );
       return { mailer, ...producersFor(mailer, config.webPublicUrl) };
     },
   };
@@ -157,7 +177,9 @@ function guardedModule(
 @Module({})
 export class MailerModule {
   static forConfig(config: MailerModuleConfig): DynamicModule {
-    if (config.driver === 'console') return moduleFor(driverFrom(config), config.webPublicUrl);
+    if (config.driver === 'console') {
+      return moduleFor(resolved(driverFrom(config), config), config.webPublicUrl);
+    }
     if (config.queue === true) {
       return guardedModule(
         (database) => new QueueMailer(new MailQueueRepository(database)),

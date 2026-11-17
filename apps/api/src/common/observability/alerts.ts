@@ -126,7 +126,12 @@ export class AlertNotifier {
     let failed = false;
     for (const to of this.options.recipients) {
       try {
-        await mailer.send({ to, subject: message.subject, text: message.text });
+        await mailer.send({
+          to,
+          subject: message.subject,
+          text: message.text,
+          templateKey: 'ops_alert',
+        });
       } catch (error) {
         failed = true;
         const name = error instanceof Error ? error.name : 'unknown';

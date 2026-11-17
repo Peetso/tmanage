@@ -6,6 +6,7 @@ import {
   NotificationMailTransport,
   QueueMailer,
   SendCeilingMailer,
+  SenderResolvingMailer,
   SmtpMailer,
   composeSecurityAlertDigest,
   deriveBounceKey,
@@ -13,6 +14,7 @@ import {
   withTemplateKey,
 } from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
+import { CONTACT_EMAILS } from '@tmanage/domain';
 // ---- 56-31 ---- the mail priority lanes: the queue store and its drainer.
 import { createMailQueueStore } from './common/database/mail-queue-store.js';
 import { createBounceSuppressionLookup } from './common/database/bounce-suppression-store.js';
@@ -582,7 +584,15 @@ async function main(): Promise<void> {
     driver === null
       ? null
       : new BounceGuardMailer(
-          queueStore !== null ? new QueueMailer(queueStore) : new SendCeilingMailer(driver),
+          // EMAILBUILD: the sender is chosen from the template key here, above the queue.
+          new SenderResolvingMailer(
+            queueStore !== null ? new QueueMailer(queueStore) : new SendCeilingMailer(driver),
+            {
+              identityAddress: env.EMAIL_FROM_ADDRESS,
+              sendAs: env.EMAIL_SEND_AS,
+              addresses: CONTACT_EMAILS,
+            },
+          ),
           createBounceSuppressionLookup(database),
         );
   const keyed = (key: string): Mailer | null =>

@@ -25,14 +25,33 @@
 export type {
   MailAttachment,
   MailDelivery,
+  MailActingFor,
   MailFromOptions,
   Mailer,
   MailMessage,
+  MailSender,
   MailReceipt,
   ReceiptMailer,
 } from './mailer.js';
 export { MAX_MAIL_MESSAGE_BYTES, safeAttachment } from './mailer.js';
 export { ConsoleMailer } from './console-mailer.js';
+// EMAILBUILD — who a message is from: the category map and the resolving decorator.
+export {
+  MAX_DISPLAY_NAME,
+  MAX_SENDER_ADDRESS,
+  MAX_SENDER_NAME,
+  SENDER_CATEGORIES,
+  addressDomain,
+  categoryForTemplate,
+  cleanDisplayPart,
+  formatFrom,
+  isClientOnlyTemplate,
+  validateSenderAddress,
+  validateSenderName,
+} from './sender.js';
+export type { MailLanguage, SenderCategory } from './sender.js';
+export { SIGNATURE_TOKENS, SenderResolvingMailer } from './sender-resolver.js';
+export type { MailPerson, SenderDirectory, SenderResolverOptions } from './sender-resolver.js';
 export { SmtpMailer } from './smtp-mailer.js';
 export type { SmtpMailerOptions } from './smtp-mailer.js';
 // 51-11 — deliverability: one-click unsubscribe, the notification transport, the host ceiling.

@@ -588,15 +588,16 @@ export class SupportService {
   ): Promise<void> {
     if (this.deps.mailer === null || !thread.startedByEmail || !organizationSlug) return;
     try {
-      await this.deps.mailer.send(
-        buildSupportReplyEmail({
+      await this.deps.mailer.send({
+        ...buildSupportReplyEmail({
           to: thread.startedByEmail,
           subject: thread.subject,
           organizationSlug,
           threadId: thread.id,
           webPublicUrl: this.deps.webPublicUrl,
         }),
-      );
+        templateKey: 'support_reply',
+      });
     } catch (error) {
       this.deps.onMailError?.(error);
     }
