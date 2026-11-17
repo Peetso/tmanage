@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -40,6 +40,7 @@ import {
   readMondayWorkbook,
 } from '../../lib/import-sources';
 import type { ImportSourceId } from '../../lib/import-sources';
+import { importToolFromSearch } from '../../lib/import-link';
 
 export interface ImportStartScreenProps {
   organizationSlug: string;
@@ -164,6 +165,12 @@ function ImportStart({ organizationSlug, api }: { organizationSlug: string; api:
   const queryClient = useQueryClient();
 
   const [sourceId, setSourceId] = useState<ImportSourceId | null>(null);
+  // 54-29: `?import=<tool>` from a "switch from X" page preselects that tool (allow-listed id
+  // only; anything else leaves the choice open). Read after mount so the first render matches SSR.
+  useEffect(() => {
+    const tool = importToolFromSearch(window.location.search);
+    if (tool !== undefined) setSourceId((current) => current ?? tool);
+  }, []);
   const [file, setFile] = useState<LoadedFile | null>(null);
   const [fileError, setFileError] = useState(false);
   const [mapping, setMapping] = useState<Record<string, string>>({});

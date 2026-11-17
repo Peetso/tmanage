@@ -20014,5 +20014,15 @@
   "PortalFilesScreen.dialogCancel": "取消",
   "PortalFilesScreen.fileInputLabel": "选择要上传的文件",
   "PortalFilesScreen.sentAnnounce": "{name} 已发送给 {studio}。",
-  "FilesHub.uploadedByClient": "客户上传"
+  "FilesHub.uploadedByClient": "客户上传",
+  "AuditActionLabel.project.exported": "导出了一个项目",
+  "ImportLink.label": "导入",
+  "ProjectExport.trigger": "导出",
+  "ProjectExport.busy": "正在导出…",
+  "ProjectExport.menuLabel": "导出此项目",
+  "ProjectExport.csv": "CSV",
+  "ProjectExport.csvHint": ".csv — 可在 Excel 中打开；可作为 ClickUp CSV 重新导入",
+  "ProjectExport.json": "JSON",
+  "ProjectExport.jsonHint": ".json — 包含所有字段，适用于脚本和备份",
+  "ProjectExport.failed": "导出未能下载。请几分钟后重试，或请管理员授予导出权限。"
 }

@@ -17,6 +17,8 @@ import { pluralPhrase } from '../../lib/i18n/plural';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { confirmEmailSettingPath, wantsConfirmEmailSetting } from '../../lib/sign-in-return';
+import { importPagePath, importToolFromSearch } from '../../lib/import-link';
+import type { ImportSourceId } from '../../lib/import-sources';
 import '../../styles/screens/identity.css';
 
 export interface OrganizationSelectorScreenProps {
@@ -33,9 +35,15 @@ export interface OrganizationSelectorScreenProps {
  * Where a membership opens: a client lands in the portal, everyone else in the app, or, after an
  * expired confirmation link (`?then=confirm-email`), on the "Confirm your e-mail" setting.
  */
-function destinationFor(organization: OrganizationSummary, confirmEmail = false): string {
+function destinationFor(
+  organization: OrganizationSummary,
+  confirmEmail = false,
+  importTool?: ImportSourceId,
+): string {
   if (organization.audience === 'client') return `/${organization.slug}/portal`;
-  return confirmEmail ? confirmEmailSettingPath(organization.slug) : `/${organization.slug}/home`;
+  if (confirmEmail) return confirmEmailSettingPath(organization.slug);
+  // 54-29: arrived from a "switch from X" page — the Import page, with that tool chosen.
+  return importTool ? importPagePath(organization.slug, importTool) : `/${organization.slug}/home`;
 }
 
 /**
@@ -100,6 +108,11 @@ export function OrganizationSelectorScreen({
     () => typeof window !== 'undefined' && wantsConfirmEmailSetting(window.location.search),
   );
 
+  /** 54-29: the allow-listed `?import=<tool>` from a "switch from X" page. Read once. */
+  const [importTool] = useState<ImportSourceId | undefined>(() =>
+    typeof window === 'undefined' ? undefined : importToolFromSearch(window.location.search),
+  );
+
   const organizations = useQuery({
     queryKey: ['organizations'],
     queryFn: () => listOrganizations(api),
@@ -143,6 +156,20 @@ export function OrganizationSelectorScreen({
   useEffect(() => {
     if (soleConfirmEmailOrganization) navigate(destinationFor(soleConfirmEmailOrganization, true));
   }, [soleConfirmEmailOrganization, navigate]);
+
+  /** 54-29: with one workspace, a "switch from X" visitor goes straight to its Import page. */
+  const soleImportOrganization =
+    importTool !== undefined &&
+    !confirmEmail &&
+    organizations.isSuccess &&
+    organizations.data.length === 1 &&
+    organizations.data[0]!.audience !== 'client'
+      ? organizations.data[0]!
+      : undefined;
+
+  useEffect(() => {
+    if (soleImportOrganization) navigate(destinationFor(soleImportOrganization, false, importTool));
+  }, [soleImportOrganization, importTool, navigate]);
 
   if (soleClientOrganization) {
     const name = soleClientOrganization.clientOrganizationName ?? soleClientOrganization.name;
@@ -241,7 +268,7 @@ export function OrganizationSelectorScreen({
                     <li key={`${organization.id}-${organization.audience}`}>
                       <Link
                         className={isClient ? 'tm-id-org tm-id-org--client' : 'tm-id-org'}
-                        href={destinationFor(organization, confirmEmail)}
+                        href={destinationFor(organization, confirmEmail, importTool)}
                       >
                         <span className="tm-id-org__orb" aria-hidden="true">
                           {initials(name)}

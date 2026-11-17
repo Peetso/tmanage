@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { SignInScreen } from '../../components/screens/SignInScreen';
 import { LanguageSwitch } from '../../components/website/WebFooter';
-import { safeReturnPath } from '../../lib/sign-in-return';
+import { afterSignInPath } from '../../lib/sign-in-return';
 import './sign-in-lang.css';
 
 /**
@@ -25,11 +25,9 @@ export default function SignInPage() {
       language={<LanguageSwitch />}
       onAlreadySignedIn={(destination) => router.replace(destination)}
       onSignedIn={() => {
-        const next =
-          typeof window === 'undefined'
-            ? null
-            : new URLSearchParams(window.location.search).get('next');
-        router.push(safeReturnPath(next));
+        const search = typeof window === 'undefined' ? '' : window.location.search;
+        const next = new URLSearchParams(search).get('next');
+        router.push(afterSignInPath(next, search));
       }}
     />
   );

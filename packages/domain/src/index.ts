@@ -412,6 +412,22 @@ export type { SuggestedLocale } from './i18n/country-locale.js';
 // One CSV cell-escaping rule for every export — 52-29 (R13-s1)
 export { CSV_BOM, CSV_RECORD_SEPARATOR, escapeCsvCell, toCsv } from './export/csv.js';
 export type { CsvValue, ToCsvOptions } from './export/csv.js';
+// The per-project export's format allow-list, CSV columns and file name — 54-29
+export {
+  PROJECT_EXPORT_CSV_COLUMNS,
+  PROJECT_EXPORT_FORMATS,
+  PROJECT_EXPORT_MAX_ITEMS,
+  PROJECT_EXPORT_VERSION,
+  parseProjectExportFormat,
+  projectExportCsv,
+  projectExportFileName,
+  projectExportSlug,
+} from './export/project-export.js';
+export type {
+  ProjectExportDocument,
+  ProjectExportFormat,
+  ProjectExportItem,
+} from './export/project-export.js';
 
 // Working calendar and MENA holiday packs — 53-02 (R13-s4)
 export {

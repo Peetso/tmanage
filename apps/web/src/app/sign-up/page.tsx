@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { SignUpScreen } from '../../components/screens/SignUpScreen';
+import { SignUpWithImport } from '../../components/screens/SignUpWithImport';
 import { PublicLocaleAlternates } from '../../components/website/PublicLocaleAlternates';
 import { authPageRobots } from '../../lib/i18n/public-locale-routes';
 
@@ -24,7 +24,7 @@ export default function SignUpPage() {
   return (
     <>
       <PublicLocaleAlternates />
-      <SignUpScreen />
+      <SignUpWithImport />
     </>
   );
 }

@@ -14,6 +14,7 @@ import { SWITCH_COPY, compareCopy } from '../../../../content/compare/compare-co
 import type { SwitchEntry } from '../../../../content/compare/switch-entries';
 import { localizeHref } from '../../../../lib/i18n/public-locale-routes';
 import { SIGN_UP_HREF } from '../../../../lib/public-signup';
+import { withImportTool } from '../../../../lib/import-link';
 import { CtaBand, WebSection } from '../../sections';
 import { useCompareLanguage } from './use-compare-language';
 import './compare.css';
@@ -194,13 +195,18 @@ export function SwitchPage({ entry }: { entry: SwitchEntry }) {
       <CtaBand
         title={copy.ctaTitle}
         lede={copy.ctaLede}
-        primary={{ label: copy.ctaPrimary, href: href(SIGN_UP_HREF) }}
+        primary={{ label: copy.ctaPrimary, href: href(switchStartHref(entry)) }}
         secondary={{ label: copy.ctaSecondary, href: href('/contact') }}
         note=""
         visual={null}
       />
     </>
   );
+}
+
+/** 54-29: the switch page's "Start free" carries the tool to the Import page (allow-listed id). */
+export function switchStartHref(entry: SwitchEntry): string {
+  return withImportTool(SIGN_UP_HREF, entry.source);
 }
 
 function SuitsCard({ title, items }: { title: string; items: readonly string[] }) {

@@ -115,6 +115,9 @@ export const NEVER_REASONS = [
   // 52-19 / 52-26. The sealed record PDFs (approval certificate, signed document): a file for a
   // person to keep or hand on. The AI reads the same sealed facts through the JSON record ops.
   'record_pdf',
+  // 54-29. The per-project CSV/JSON export: a rate-limited bulk download for a person to keep or
+  // re-import elsewhere. The AI reads the same work items through the work-item list ops.
+  'project_export',
 ] as const;
 export type NeverReason = (typeof NEVER_REASONS)[number];
 

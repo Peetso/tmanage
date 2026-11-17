@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { NewProjectLink } from '../projects/NewProjectLink';
+import { ImportLink } from '../projects/ImportLink';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getPortfolioCapacity, listProjectPortfolio } from '../../lib/api/project-portfolio';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -145,7 +146,10 @@ export function ProjectPortfolioScreen({
       }
       title={hasRows ? headline(atRisk.length) : t('ProjectPortfolioScreen.portfolio')}
       actions={
-        <NewProjectLink organizationSlug={organizationSlug} {...(client ? { client } : {})} />
+        <>
+          <ImportLink organizationSlug={organizationSlug} {...(client ? { client } : {})} />
+          <NewProjectLink organizationSlug={organizationSlug} {...(client ? { client } : {})} />
+        </>
       }
       {...(hasRows
         ? {

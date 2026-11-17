@@ -1230,6 +1230,12 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/portal/signature-requests/:signatureRequestId/signed.pdf',
     reason: 'record_pdf',
   },
+  // 54-29. One project's work items as a CSV or JSON download (work.export, rate-limited, audited).
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/export/',
+    reason: 'project_export',
+  },
   // 57-02. Platform admin → the plan ladder: list the plan versions and publish a new one.
   { method: 'GET', path: '/v1/platform/plan-versions/', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/plan-versions/', reason: 'platform_admin' },

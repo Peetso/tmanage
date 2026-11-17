@@ -8,6 +8,8 @@
  * redirect.
  */
 
+import { importToolFromSearch, withImportTool } from './import-link';
+
 const INVITATION_PATH = /^\/invitations\/[A-Za-z0-9_-]{40,64}$/u;
 
 /**
@@ -70,6 +72,17 @@ export const DEFAULT_AFTER_SIGN_IN = '/organizations';
 /** The path sign-in should go to next, from an untrusted `?next=` value. */
 export function safeReturnPath(next: string | null | undefined): string {
   return typeof next === 'string' && isAllowedReturn(next) ? next : DEFAULT_AFTER_SIGN_IN;
+}
+
+/**
+ * 54-29: where sign-in goes. An allowed `?next=` wins; otherwise a "switch from X" visitor's
+ * allow-listed `?import=<tool>` rides to the workspace chooser, which opens that workspace's
+ * Import page. Anything else is the plain chooser.
+ */
+export function afterSignInPath(next: string | null | undefined, search = ''): string {
+  const allowed = safeReturnPath(next);
+  if (allowed !== DEFAULT_AFTER_SIGN_IN) return allowed;
+  return withImportTool(DEFAULT_AFTER_SIGN_IN, importToolFromSearch(search));
 }
 
 /** The sign-in URL for a page whose session just ended: carries the page back only if allowed. */

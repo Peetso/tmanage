@@ -1,4 +1,6 @@
+import { projectExportFileName, type ProjectExportFormat } from '@tmanage/domain';
 import type { ApiClient } from './client';
+import { downloadRecordPdf } from './approval-records';
 
 /**
  * The project and workspace endpoints — PROJ-001, behind `ON-03`.
@@ -84,6 +86,34 @@ export async function listProjects(
     path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/projects`,
   });
   return data.projects;
+}
+
+/** 54-29 — `GET …/projects/:projectId/export?format=csv|json`, relative to the API origin. */
+export function projectExportPath(
+  organizationSlug: string,
+  projectId: string,
+  format: ProjectExportFormat,
+): string {
+  return `/v1/organizations/${encodeURIComponent(organizationSlug)}/projects/${encodeURIComponent(projectId)}/export?format=${format}`;
+}
+
+/**
+ * 54-29 — download one project's export with the session cookie (a `GET`, no CSRF token) and hand
+ * it to the browser as a save. `false` when the server refused (403/404/413/429) or the network
+ * failed. The bytes are never parsed here, so the JSON `ApiClient` is not involved.
+ */
+export function downloadProjectExport(
+  apiOrigin: string,
+  organizationSlug: string,
+  project: { readonly id: string; readonly name: string },
+  format: ProjectExportFormat,
+  fetchImpl: typeof globalThis.fetch = globalThis.fetch,
+): Promise<boolean> {
+  return downloadRecordPdf(
+    `${apiOrigin}${projectExportPath(organizationSlug, project.id, format)}`,
+    projectExportFileName(project.name, format),
+    fetchImpl,
+  );
 }
 
 /**

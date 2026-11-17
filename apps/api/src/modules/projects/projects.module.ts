@@ -22,6 +22,8 @@ import type { AuditService } from '../audit/audit.service.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { SuggestDueController } from './suggest-due.controller.js';
 import { SuggestDueService } from './suggest-due.service.js';
+import { ProjectExportController } from './project-export.controller.js';
+import { ProjectExportService } from './project-export.service.js';
 
 @Module({})
 export class ProjectsModule {
@@ -74,6 +76,14 @@ export class ProjectsModule {
       useFactory: (database: TenantDatabase) => new SuggestDueService(database),
     };
 
+    // 54-29: the per-project export — stateless repositories, the tenant database, the audit writer.
+    const exportService: Provider = {
+      provide: ProjectExportService,
+      inject: [TENANT_DATABASE, AUDIT_SERVICE],
+      useFactory: (database: TenantDatabase, audit: AuditService) =>
+        new ProjectExportService(database, audit),
+    };
+
     return {
       module: ProjectsModule,
       providers: [
@@ -83,9 +93,15 @@ export class ProjectsModule {
         directoryRepository,
         membershipsService,
         suggestDueService,
+        exportService,
       ],
       exports: [service, membershipsService],
-      controllers: [ProjectsController, ProjectMembersController, SuggestDueController],
+      controllers: [
+        ProjectsController,
+        ProjectMembersController,
+        SuggestDueController,
+        ProjectExportController,
+      ],
     };
   }
 }

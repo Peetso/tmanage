@@ -220,7 +220,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // 52-20a: public form attachments — upload-token, uploads open/complete/cancel and the owner's
 // attachments switch (+5 NEVER, public_intake).
 // 56-26: bounce intake + bounce status / clear (+3 NEVER: public_intake, org_security_manage).
-const EXPECTED_ROUTE_COUNT = 1527;
+// 54-29: GET projects/:projectId/export (+1 NEVER, project_export).
+const EXPECTED_ROUTE_COUNT = 1528;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

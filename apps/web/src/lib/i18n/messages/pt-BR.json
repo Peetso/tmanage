@@ -20014,5 +20014,15 @@
   "PortalFilesScreen.dialogCancel": "Cancelar",
   "PortalFilesScreen.fileInputLabel": "Escolher um arquivo para enviar",
   "PortalFilesScreen.sentAnnounce": "{name} foi enviado para {studio}.",
-  "FilesHub.uploadedByClient": "Enviado pelo cliente"
+  "FilesHub.uploadedByClient": "Enviado pelo cliente",
+  "AuditActionLabel.project.exported": "Exportou um projeto",
+  "ImportLink.label": "Importar",
+  "ProjectExport.trigger": "Exportar",
+  "ProjectExport.busy": "Exportando…",
+  "ProjectExport.menuLabel": "Exportar este projeto",
+  "ProjectExport.csv": "CSV",
+  "ProjectExport.csvHint": ".csv — abre no Excel; pode ser importado de volta como CSV do ClickUp",
+  "ProjectExport.json": "JSON",
+  "ProjectExport.jsonHint": ".json — todos os campos, para scripts e backups",
+  "ProjectExport.failed": "A exportação não foi baixada. Tente novamente em alguns minutos ou peça a um administrador permissão para exportar."
 }

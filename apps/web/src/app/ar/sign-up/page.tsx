@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { SignUpScreen } from '../../../components/screens/SignUpScreen';
+import { SignUpWithImport } from '../../../components/screens/SignUpWithImport';
 import { PublicLocaleAlternates } from '../../../components/website/PublicLocaleAlternates';
 import { arabicRouteMetadata } from '../../../lib/i18n/public-locale-routes';
 
@@ -13,7 +13,7 @@ export default function ArabicSignUpPage() {
   return (
     <>
       <PublicLocaleAlternates />
-      <SignUpScreen />
+      <SignUpWithImport />
     </>
   );
 }

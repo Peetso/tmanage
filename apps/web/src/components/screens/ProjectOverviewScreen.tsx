@@ -15,6 +15,7 @@ import {
 import { AppShell } from '../shell/AppShell';
 import { BudgetBurnPanel } from '../projects/BudgetBurnPanel';
 import { ProjectTabs } from '../projects/ProjectTabs';
+import { ProjectExportButton } from '../projects/ProjectExportButton';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getProject } from '../../lib/api/projects';
 import {
@@ -191,6 +192,11 @@ export function ProjectOverviewScreen({
               >
                 {t('ProjectOverviewScreen.updateWork')}
               </Link>
+              <ProjectExportButton
+                organizationSlug={organizationSlug}
+                project={project.data}
+                client={api}
+              />
               <a
                 className="tm-button tm-button--ink tm-button--accessible"
                 href="#tm-project-update-composer"

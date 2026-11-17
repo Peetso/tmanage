@@ -974,6 +974,11 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'organization',
     clause: '§12 export — a bulk copy of the usage counters',
   },
+  /** 54-29. A project's work items left the system as CSV or JSON (format and row count only). */
+  'project.exported': {
+    objectType: 'project',
+    clause: '§12 export — a bulk copy of one project’s work items',
+  },
   /** Wave 9 S8 (F56). A private admin note about a member was written (ids only, never the text). */
   'member_admin_note.created': {
     objectType: 'member_admin_note',
@@ -1918,6 +1923,7 @@ const AUDIT_ACTION_LABELS = {
   'audit.exported': 'Exported the audit log',
   'audit.purged': 'Old audit entries were removed by the retention setting',
   'usage.exported': 'Exported the usage figures',
+  'project.exported': 'Exported a project',
   'member_admin_note.created': 'Added a private note about a member',
   'member_admin_note.deleted': 'Deleted a private note about a member',
   'organization.security_settings_changed': 'Changed how people sign in',

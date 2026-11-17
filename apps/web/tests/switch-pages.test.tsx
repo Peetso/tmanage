@@ -19,9 +19,10 @@ describe('switch pages', () => {
     for (const entry of SWITCH_ENTRIES) {
       render(<SwitchPage entry={entry} />);
       expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(words.title(entry.name));
+      // 54-29: the CTA carries the page's import tool through sign-up to the Import page.
       expect(
         screen.getByRole('link', { name: /Start free|ابدأ مجانًا/u }).getAttribute('href'),
-      ).toMatch(/sign-up$/u);
+      ).toMatch(new RegExp(`sign-up\\?import=${entry.source}$`, 'u'));
       cleanup();
     }
   });

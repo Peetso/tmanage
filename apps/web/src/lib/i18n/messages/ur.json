@@ -1055,5 +1055,15 @@
   "StoppedInvitation.check": "پتہ چیک کریں",
   "StoppedInvitation.sendAgain": "اسے دوبارہ بھیجیں",
   "StoppedInvitation.clearError": "ہم اس پتے پر دوبارہ بھیجنا شروع نہیں کر سکے۔ دوبارہ کوشش کریں۔",
-  "AuditActionLabel.storage_migration.finished": "کمپنی اسٹوریج میں فائلیں منتقل کرنا مکمل کیا"
+  "AuditActionLabel.storage_migration.finished": "کمپنی اسٹوریج میں فائلیں منتقل کرنا مکمل کیا",
+  "AuditActionLabel.project.exported": "ایک پروجیکٹ ایکسپورٹ کیا",
+  "ImportLink.label": "امپورٹ",
+  "ProjectExport.trigger": "ایکسپورٹ",
+  "ProjectExport.busy": "ایکسپورٹ ہو رہا ہے…",
+  "ProjectExport.menuLabel": "یہ پروجیکٹ ایکسپورٹ کریں",
+  "ProjectExport.csv": "CSV",
+  "ProjectExport.csvHint": ".csv — Excel میں کھلتی ہے؛ ClickUp CSV کے طور پر دوبارہ امپورٹ ہو سکتی ہے",
+  "ProjectExport.json": "JSON",
+  "ProjectExport.jsonHint": ".json — تمام فیلڈز، اسکرپٹس اور بیک اپ کے لیے",
+  "ProjectExport.failed": "ایکسپورٹ ڈاؤن لوڈ نہیں ہوا۔ چند منٹ بعد دوبارہ کوشش کریں، یا ایڈمن سے ایکسپورٹ کی اجازت مانگیں۔"
 }

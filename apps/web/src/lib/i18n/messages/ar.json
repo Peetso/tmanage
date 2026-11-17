@@ -20209,5 +20209,15 @@
   "PortalFilesScreen.dialogCancel": "إلغاء",
   "PortalFilesScreen.fileInputLabel": "اختر ملفًا لرفعه",
   "PortalFilesScreen.sentAnnounce": "أُرسل {name} إلى {studio}.",
-  "FilesHub.uploadedByClient": "رفعه العميل"
+  "FilesHub.uploadedByClient": "رفعه العميل",
+  "AuditActionLabel.project.exported": "صدّر مشروعًا",
+  "ImportLink.label": "استيراد",
+  "ProjectExport.trigger": "تصدير",
+  "ProjectExport.busy": "جارٍ التصدير…",
+  "ProjectExport.menuLabel": "تصدير هذا المشروع",
+  "ProjectExport.csv": "CSV",
+  "ProjectExport.csvHint": "ملف ‎.csv‏ يُفتح في Excel‏، ويمكن استيراده مجددًا بصيغة ClickUp‏",
+  "ProjectExport.json": "JSON",
+  "ProjectExport.jsonHint": "ملف ‎.json‏ بكل الحقول، للبرامج والنسخ الاحتياطية",
+  "ProjectExport.failed": "لم يكتمل تنزيل الملف. حاول مرة أخرى بعد دقائق، أو اطلب من المسؤول صلاحية التصدير."
 }
