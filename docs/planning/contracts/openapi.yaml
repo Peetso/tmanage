@@ -622,7 +622,7 @@ components:
         mimeType: { type: string, maxLength: 150 }
         sizeBytes: { type: integer, minimum: 1, maximum: 5368709120 }
         contentHash: { type: string, maxLength: 128 }
-        purpose: { type: string, enum: [message_attachment, request_attachment, deliverable, document, org_logo, request_message, expense_receipt, client_upload] }
+        purpose: { type: string, enum: [message_attachment, request_attachment, deliverable, document, org_logo, request_message, expense_receipt, client_upload, form_attachment] }
         objectId: { $ref: '#/components/schemas/Id' }
     UploadSession:
       type: object
