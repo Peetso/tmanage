@@ -32,8 +32,11 @@ export function FeatureOn({ organizationSlug, flag, children }: FeatureOnProps) 
 }
 
 function FeatureOnRead({ organizationSlug, flag, children }: FeatureOnProps) {
+  // Its own cache key: this read goes through the browser client, while a screen (SearchScreen)
+  // may read the same endpoint through an injected client. One key with two fetchers lets
+  // whichever mounts first answer for both.
   const resolved = useQuery({
-    queryKey: ['resolved-feature-flags', organizationSlug],
+    queryKey: ['resolved-feature-flags', organizationSlug, 'shell'],
     queryFn: () => getResolvedFeatureFlags(browserApiClient(), organizationSlug),
   });
   return (resolved.data?.flags[flag] ?? DEFAULT_MODULE_ENABLED[flag]) ? children : null;

@@ -284,8 +284,8 @@ export const SWITCH_ENTRIES: readonly SwitchEntry[] = [
         'issueKey',
         { en: 'Issues and their keys', ar: 'المسائل ومفاتيحها' },
         {
-          en: 'Work items that keep their keys (WEB-123 stays WEB-123)',
-          ar: 'عناصر عمل تحتفظ بمفاتيحها (WEB-123 يبقى WEB-123)',
+          en: 'Work items that keep their keys (WEB-42 stays WEB-42)',
+          ar: 'عناصر عمل تحتفظ بمفاتيحها (WEB-42 يبقى WEB-42)',
         },
       ),
       row(
