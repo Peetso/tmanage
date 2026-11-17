@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import Link from 'next/link';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -23,10 +24,40 @@ export interface PublicFormScreenProps {
   readonly client?: ApiClient;
 }
 
-type Phase =
-  | { readonly kind: 'filling' }
+/** The answers a form sends, keyed `f1…fn` as the definition names its fields. */
+export type IntakeFormValues = Readonly<Record<string, string | number | boolean>>;
+
+/** How one send ended. */
+export type IntakeSendOutcome =
   | { readonly kind: 'failed'; readonly reason: 'invalid' | 'refused' | 'busy' }
   | { readonly kind: 'sent'; readonly reference: string };
+
+type Phase = { readonly kind: 'filling' } | IntakeSendOutcome;
+
+/** What the shared form needs: its definition's load state and a way to send. */
+export interface IntakeFormProps {
+  readonly definition: {
+    readonly isPending: boolean;
+    readonly isError: boolean;
+    readonly data: PublicFormDefinition | undefined;
+  };
+  send(values: IntakeFormValues): Promise<IntakeSendOutcome>;
+  /** 52-27. Shown inside the client portal: no page landmark or footer, and "back" once sent. */
+  readonly embedded?: { readonly backHref: string; readonly backLabel: string };
+  /** Hidden inputs a door adds to the form (the public form proof). */
+  readonly hidden?: ReactNode;
+}
+
+/** A 400 with field details is a wrong answer; without details the studio refused it. */
+export function sendFailure(error: unknown): IntakeSendOutcome {
+  const reason =
+    error instanceof ApiRequestError && (error.status === 400 || error.status === 409)
+      ? error.details.length === 0
+        ? 'refused'
+        : 'invalid'
+      : 'busy';
+  return { kind: 'failed', reason };
+}
 
 /**
  * 2026-10-31 live-test fix — the public page of a shared intake form (`/f/<slug>`).
@@ -39,7 +70,6 @@ type Phase =
  */
 export function PublicFormScreen({ slug, client }: PublicFormScreenProps) {
   const api = client ?? browserApiClient();
-  const t = useT();
   const locale = useActiveLocale();
   const formProof = useFormProof(api);
 
@@ -49,6 +79,55 @@ export function PublicFormScreen({ slug, client }: PublicFormScreenProps) {
     retry: false,
   });
 
+  const send = async (values: IntakeFormValues): Promise<IntakeSendOutcome> => {
+    try {
+      const body = {
+        values,
+        pageLocale: locale.startsWith('ar') ? 'ar' : 'en',
+        ...(await formProof.fields()),
+      };
+      let result: PublicSubmitResult = await submitPublicForm(api, slug, body);
+      if ('challenge' in result) {
+        const challenge = result.challenge;
+        const solution =
+          challenge.kind === 'pow' && challenge.salt !== undefined && challenge.bits !== undefined
+            ? await solvePow(challenge.salt, challenge.bits)
+            : null;
+        if (solution === null) return { kind: 'failed', reason: 'busy' };
+        result = await submitPublicForm(api, slug, {
+          ...body,
+          challengeId: challenge.challengeId,
+          powSolution: solution,
+        });
+      }
+      return 'reference' in result
+        ? { kind: 'sent', reference: result.reference }
+        : { kind: 'failed', reason: 'busy' };
+    } catch (error) {
+      return sendFailure(error);
+    }
+  };
+
+  return (
+    <IntakeForm
+      definition={definition}
+      send={send}
+      hidden={
+        <>
+          <input type="hidden" name="startedAt" value={formProof.issue?.startedAt ?? ''} />
+          <input type="hidden" name="nonce" value={formProof.issue?.nonce ?? ''} />
+        </>
+      }
+    />
+  );
+}
+
+/**
+ * The intake form itself — the public page's card, also shown by a 52-27 portal journey form step
+ * (`embedded`). One field per question; the answers go to whichever door `send` names.
+ */
+export function IntakeForm({ definition, send, embedded, hidden }: IntakeFormProps) {
+  const t = useT();
   const [values, setValues] = useState<Record<string, string>>({});
   const [checks, setChecks] = useState<Record<string, boolean>>({});
   const [sending, setSending] = useState(false);
@@ -72,56 +151,26 @@ export function PublicFormScreen({ slug, client }: PublicFormScreenProps) {
     return out;
   };
 
-  const send = async (current: PublicFormDefinition) => {
+  const submit = async (current: PublicFormDefinition) => {
     setSending(true);
     try {
-      const body = {
-        values: payload(current.fields),
-        pageLocale: locale.startsWith('ar') ? 'ar' : 'en',
-        ...(await formProof.fields()),
-      };
-      let result: PublicSubmitResult = await submitPublicForm(api, slug, body);
-      if ('challenge' in result) {
-        const challenge = result.challenge;
-        const solution =
-          challenge.kind === 'pow' && challenge.salt !== undefined && challenge.bits !== undefined
-            ? await solvePow(challenge.salt, challenge.bits)
-            : null;
-        if (solution === null) {
-          setPhase({ kind: 'failed', reason: 'busy' });
-          return;
-        }
-        result = await submitPublicForm(api, slug, {
-          ...body,
-          challengeId: challenge.challengeId,
-          powSolution: solution,
-        });
-      }
-      if ('reference' in result) {
-        setPhase({ kind: 'sent', reference: result.reference });
+      const outcome = await send(payload(current.fields));
+      setPhase(outcome);
+      if (outcome.kind === 'sent') {
         setValues({});
         setChecks({});
-      } else {
-        setPhase({ kind: 'failed', reason: 'busy' });
       }
-    } catch (error) {
-      const reason =
-        error instanceof ApiRequestError && error.status === 400
-          ? error.details.length === 0
-            ? 'refused'
-            : 'invalid'
-          : 'busy';
-      setPhase({ kind: 'failed', reason });
     } finally {
       setSending(false);
     }
   };
 
-  const footer = <p className="wf-public__footer">{t('PublicForm.poweredBy')}</p>;
+  const Page = embedded ? 'div' : 'main';
+  const footer = embedded ? null : <p className="wf-public__footer">{t('PublicForm.poweredBy')}</p>;
 
   if (definition.isPending) {
     return (
-      <main className="wf-public">
+      <Page className="wf-public">
         <div className="wf-public__card">
           <LoadingRegion label={t('PublicForm.loading')}>
             <Skeleton height="32px" />
@@ -130,25 +179,25 @@ export function PublicFormScreen({ slug, client }: PublicFormScreenProps) {
           </LoadingRegion>
         </div>
         {footer}
-      </main>
+      </Page>
     );
   }
 
   if (definition.isError || !form) {
     return (
-      <main className="wf-public">
+      <Page className="wf-public">
         <div className="wf-public__card">
           <h1 className="wf-public__title">{t('PublicForm.unavailableTitle')}</h1>
           <p className="wf-public__intro">{t('PublicForm.unavailableBody')}</p>
         </div>
         {footer}
-      </main>
+      </Page>
     );
   }
 
   if (phase.kind === 'sent') {
     return (
-      <main className="wf-public">
+      <Page className="wf-public">
         <div className="wf-public__card wf-public__card--sent" role="status" aria-live="polite">
           <h1 className="wf-public__title">{t('PublicForm.sentTitle')}</h1>
           <p className="wf-public__intro">{t('PublicForm.sentBody')}</p>
@@ -158,13 +207,22 @@ export function PublicFormScreen({ slug, client }: PublicFormScreenProps) {
             <span className="wf-public__reference-hint">{t('PublicForm.referenceHint')}</span>
           </div>
           <div>
-            <Button tone="outline" onClick={() => setPhase({ kind: 'filling' })}>
-              {t('PublicForm.sendAnother')}
-            </Button>
+            {embedded ? (
+              <Link
+                className="tm-button tm-button--default tm-button--ink"
+                href={embedded.backHref}
+              >
+                {embedded.backLabel}
+              </Link>
+            ) : (
+              <Button tone="outline" onClick={() => setPhase({ kind: 'filling' })}>
+                {t('PublicForm.sendAnother')}
+              </Button>
+            )}
           </div>
         </div>
         {footer}
-      </main>
+      </Page>
     );
   }
 
@@ -174,7 +232,7 @@ export function PublicFormScreen({ slug, client }: PublicFormScreenProps) {
   );
 
   return (
-    <main className="wf-public">
+    <Page className="wf-public">
       <div className="wf-public__card">
         <h1 className="wf-public__title">{form.title}</h1>
         <p className="wf-public__intro">{t('PublicForm.intro')}</p>
@@ -183,11 +241,10 @@ export function PublicFormScreen({ slug, client }: PublicFormScreenProps) {
           noValidate
           onSubmit={(event: FormEvent<HTMLFormElement>) => {
             event.preventDefault();
-            if (!sending && !missingRequired) void send(form);
+            if (!sending && !missingRequired) void submit(form);
           }}
         >
-          <input type="hidden" name="startedAt" value={formProof.issue?.startedAt ?? ''} />
-          <input type="hidden" name="nonce" value={formProof.issue?.nonce ?? ''} />
+          {hidden}
           {form.fields.map((field) =>
             field.type === 'checkbox' ? (
               <div key={field.key} className="tm-field tm-field--checkbox wf-public__check">
@@ -243,6 +300,6 @@ export function PublicFormScreen({ slug, client }: PublicFormScreenProps) {
         </form>
       </div>
       {footer}
-    </main>
+    </Page>
   );
 }

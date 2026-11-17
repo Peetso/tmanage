@@ -1,4 +1,5 @@
 import type { ApiClient } from './client';
+import type { PublicFormDefinition } from './public-forms';
 
 /**
  * The client portal's endpoints — CLIENT-002, behind `CL-01` and `CL-02`.
@@ -378,9 +379,13 @@ export async function listPortalMilestones(
 /** 52-27. Where one step sits on the client's path. */
 export type PortalJourneyStepState = 'done' | 'now' | 'next';
 
-/** 52-27. One published milestone as a journey step. */
+/** 52-27. What a client does on one journey step. */
+export type PortalJourneyStepKind = 'form' | 'upload' | 'sign' | 'meeting';
+
+/** 52-27. One step: a client journey step of one kind, or a published milestone. */
 export interface PortalJourneyStep {
   readonly id: string;
+  readonly kind: 'milestone' | PortalJourneyStepKind;
   readonly title: string;
   /** A 'YYYY-MM-DD' day, or null when no date is committed. */
   readonly dueOn: string | null;
@@ -388,13 +393,29 @@ export interface PortalJourneyStep {
   readonly missed: boolean;
 }
 
-/** 52-27. The one review the client owes now; the id opens `portal/deliverables/:id`. */
-export interface PortalJourneyTurn {
+/** 52-27. A review the client owes; the id opens `portal/deliverables/:id`. */
+export interface PortalJourneyReviewTurn {
+  readonly kind: 'review';
   readonly deliverableVersionId: string;
   readonly title: string;
   /** An ISO-8601 instant. */
   readonly sentAt: string;
 }
+
+/**
+ * 52-27. The open journey step. `targetId` is what its screen opens: the step for a form
+ * (`portal/journey/:id`), the request for a sign step, the meeting for a meeting step; null for an
+ * upload (`portal/files`).
+ */
+export interface PortalJourneyStepTurn {
+  readonly kind: PortalJourneyStepKind;
+  readonly stepId: string;
+  readonly title: string;
+  readonly targetId: string | null;
+}
+
+/** 52-27. The one action the client owes now. */
+export type PortalJourneyTurn = PortalJourneyReviewTurn | PortalJourneyStepTurn;
 
 /** 52-27. The client's journey through one project. */
 export interface PortalJourney {
@@ -415,6 +436,37 @@ export async function getPortalJourney(
     path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/projects/${encodeURIComponent(projectId)}/journey`,
   });
   return data.journey;
+}
+
+function journeyFormPath(organizationSlug: string, stepId: string): string {
+  return `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/journey-steps/${encodeURIComponent(stepId)}/form`;
+}
+
+/** 52-27. The form a journey form step shows; 404 for a step that is not the caller's. */
+export async function getPortalJourneyForm(
+  client: ApiClient,
+  organizationSlug: string,
+  stepId: string,
+): Promise<PublicFormDefinition> {
+  const { data } = await client.request<PublicFormDefinition>({
+    path: journeyFormPath(organizationSlug, stepId),
+  });
+  return data;
+}
+
+/** 52-27. Send a journey form step's answers (keyed `f1…fn`); 409 once the step is answered. */
+export async function submitPortalJourneyForm(
+  client: ApiClient,
+  organizationSlug: string,
+  stepId: string,
+  values: Readonly<Record<string, string | number | boolean>>,
+): Promise<{ readonly reference: string }> {
+  const { data } = await client.request<{ readonly reference: string }>({
+    method: 'POST',
+    path: journeyFormPath(organizationSlug, stepId),
+    body: { values },
+  });
+  return data;
 }
 
 /** The full internal milestones list for a project — behind `project.manage`, on the `projects` path. */

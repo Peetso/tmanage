@@ -4,9 +4,15 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { getPortalJourney } from '../../lib/api/portal';
-import type { PortalJourney, PortalJourneyStep } from '../../lib/api/portal';
+import type {
+  PortalJourney,
+  PortalJourneyStep,
+  PortalJourneyStepKind,
+  PortalJourneyStepTurn,
+} from '../../lib/api/portal';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import { shortDay } from './PortalParts';
 
 export interface PortalJourneyStepperProps {
@@ -22,12 +28,53 @@ function fill(template: string, values: Readonly<Record<string, string>>): strin
   return template.replace(/\{(\w+)\}/g, (whole, name: string) => values[name] ?? whole);
 }
 
+/** The words and the screen of each client step kind's "Your turn" card. */
+const STEP_TURN: Readonly<
+  Record<
+    PortalJourneyStepKind,
+    {
+      readonly body: MessageKey;
+      readonly action: MessageKey;
+      href(turn: PortalJourneyStepTurn): string;
+    }
+  >
+> = {
+  form: {
+    body: 'PortalJourney.formBody',
+    action: 'PortalJourney.openForm',
+    href: (turn) => `journey/${encodeURIComponent(turn.stepId)}`,
+  },
+  upload: {
+    body: 'PortalJourney.uploadBody',
+    action: 'PortalJourney.sendFiles',
+    href: () => 'files',
+  },
+  sign: {
+    body: 'PortalJourney.signBody',
+    action: 'PortalJourney.signNow',
+    href: (turn) => `sign/${encodeURIComponent(turn.targetId ?? '')}`,
+  },
+  meeting: {
+    body: 'PortalJourney.meetingBody',
+    action: 'PortalJourney.openMeeting',
+    href: (turn) => `meetings/${encodeURIComponent(turn.targetId ?? '')}`,
+  },
+};
+
+const KIND_LABEL: Readonly<Record<PortalJourneyStepKind, MessageKey>> = {
+  form: 'PortalJourney.kindForm',
+  upload: 'PortalJourney.kindUpload',
+  sign: 'PortalJourney.kindSign',
+  meeting: 'PortalJourney.kindMeeting',
+};
+
 /**
  * **52-27 Client journey** — the portal home stepper (Figma 604:33897).
  *
- * The steps, their states and the client's one open review all come from the API
+ * The steps, their states and the client's one open action all come from the API
  * (`GET …/portal/projects/:id/journey`); this component only lays them out. The "Your turn"
- * button opens the real review-and-approve screen for that version.
+ * button opens the real screen for that action: the review-and-approve screen for a version, or
+ * the existing form, Files, e-sign or meeting screen for a client journey step.
  */
 export function PortalJourneyStepper({
   api,
@@ -82,6 +129,7 @@ export function PortalJourneyStepper({
   }
 
   const { steps, yourTurn, completed } = journey.data;
+  const nowStep = steps.find((step) => step.state === 'now');
 
   if (steps.length === 0 && yourTurn === null) {
     return (
@@ -124,7 +172,26 @@ export function PortalJourneyStepper({
 
       <div className="tm-pt-journey__next">
         <section className="tm-pt-journey__turn">
-          {yourTurn ? (
+          {yourTurn && yourTurn.kind !== 'review' ? (
+            <>
+              <StateCapsule state="client">{t('PortalJourney.yourTurn')}</StateCapsule>
+              <h2 className="tm-pt-journey__turn-title">{yourTurn.title}</h2>
+              <p className="tm-pt-journey__turn-body">
+                {fill(t(STEP_TURN[yourTurn.kind].body), { provider: providerName })}
+              </p>
+              <div className="tm-pt-journey__actions">
+                <Link
+                  className={`${BUTTON} tm-button--ink`}
+                  href={`${portal}/${STEP_TURN[yourTurn.kind].href(yourTurn)}`}
+                >
+                  {t(STEP_TURN[yourTurn.kind].action)}
+                </Link>
+                <Link className={`${BUTTON} tm-button--outline`} href={`${portal}/chat`}>
+                  {t('PortalJourney.askQuestion')}
+                </Link>
+              </div>
+            </>
+          ) : yourTurn ? (
             <>
               <StateCapsule state="client">{t('PortalJourney.yourTurn')}</StateCapsule>
               <h2 className="tm-pt-journey__turn-title">
@@ -154,10 +221,14 @@ export function PortalJourneyStepper({
                 {fill(t('PortalJourney.withProvider'), { provider: providerName })}
               </StateCapsule>
               <h2 className="tm-pt-journey__turn-title">
-                {fill(t('PortalJourney.workingTitle'), {
-                  provider: providerName,
-                  step: steps.find((step) => step.state === 'now')?.title ?? '',
-                })}
+                {fill(
+                  t(
+                    nowStep && nowStep.kind !== 'milestone'
+                      ? 'PortalJourney.preparingTitle'
+                      : 'PortalJourney.workingTitle',
+                  ),
+                  { provider: providerName, step: nowStep?.title ?? '' },
+                )}
               </h2>
               <p className="tm-pt-journey__turn-body">{t('PortalJourney.workingBody')}</p>
               <div className="tm-pt-journey__actions">
@@ -219,6 +290,9 @@ function stepNote(
     return t(clientTurn ? 'PortalJourney.nowYourTurn' : 'PortalJourney.now');
   }
   if (step.missed) return t('PortalJourney.missed');
+  if (step.kind !== 'milestone') {
+    return t(step.state === 'done' ? 'PortalJourney.done' : KIND_LABEL[step.kind]);
+  }
   if (step.dueOn === null) {
     return t(step.state === 'done' ? 'PortalJourney.done' : 'PortalJourney.notDated');
   }

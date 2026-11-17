@@ -2503,3 +2503,8 @@ GRANT INSERT, UPDATE ON `tmanage`.`client_a11y_preferences` TO 'tmanage_app'@'%'
 -- 0359 (ADTRACK). `organizations` gains four nullable `signup_utm_*` columns, written once in the
 -- sign-up INSERT and read by the platform overview. They ride the existing `organizations` INSERT
 -- grant above and the database-wide read; the worker needs no grant.
+-- 0363 (52-27). `client_journey_steps` (tenant): the studio adds, renames, links and removes a
+-- client's journey steps; the portal records a form step's stored submission (`evidence_id`) by
+-- UPDATE. DELETE is the studio removing a step (and the company erasure). SELECT rides the
+-- database-wide read. The worker needs no grant.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`client_journey_steps` TO 'tmanage_app'@'%';

@@ -1364,6 +1364,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // an unscoped read would be every client's settings on the server. Registered after
   // `client_memberships` so the company erasure empties it first (children-first).
   client_a11y_preferences: 'organization_id',
+  // 0363 (52-27). Tenant-owned: a client's journey steps on one project. Registered after
+  // `project_clients` and `form_submissions` so the company erasure empties it first.
+  client_journey_steps: 'organization_id',
 });
 
 /**

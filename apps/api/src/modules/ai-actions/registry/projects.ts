@@ -8,7 +8,7 @@
  * status updates set `notifies`. `:orgSlug` is never an argument (architecture B3/T-TEN-01).
  */
 import { z } from 'zod';
-import { det, pathOnly, listArgs, bodyArgs, f, type AiActionDetail } from './detail.js';
+import { det, pathOnly, listArgs, noArgs, bodyArgs, f, type AiActionDetail } from './detail.js';
 
 export const projectsDetails: readonly AiActionDetail[] = [
   det({
@@ -867,6 +867,84 @@ export const projectsDetails: readonly AiActionDetail[] = [
         args: { templateId: 'tmpl_1', name: 'Design review' },
       },
     ],
+  }),
+  det({
+    id: 'projects.journey_steps.list',
+    title: 'List client journey steps',
+    description: "A project's client journey steps (form, upload, sign, meeting), per client.",
+    input: pathOnly('projectId'),
+    redact: 'standard',
+    examples: [{ summary: 'By project', args: { projectId: 'p_1' } }],
+  }),
+  det({
+    id: 'projects.journey_steps.create',
+    title: 'Add a client journey step',
+    description:
+      'Add a step to a client journey: kind form, upload, sign or meeting; refId links the form, signature request or meeting.',
+    input: bodyArgs(['projectId'], {
+      clientOrganizationId: f.id(36),
+      kind: z.enum(['form', 'upload', 'sign', 'meeting']),
+      title: f.shortText(200),
+      refId: f.id(36).optional(),
+    }),
+    redact: 'standard',
+    examples: [
+      {
+        summary: 'Add a sign step',
+        args: { projectId: 'p_1', clientOrganizationId: 'c_1', kind: 'sign', title: 'Sign' },
+      },
+    ],
+  }),
+  det({
+    id: 'projects.journey_steps.from_template.create',
+    title: 'Start a client journey from a template',
+    description: "Append an installed pack's journey template to a client's journey on a project.",
+    input: bodyArgs(['projectId'], {
+      clientOrganizationId: f.id(36),
+      packKey: f.id(64),
+      templateKey: f.id(64),
+    }),
+    redact: 'standard',
+    examples: [
+      {
+        summary: 'Onboarding',
+        args: {
+          projectId: 'p_1',
+          clientOrganizationId: 'c_1',
+          packKey: 'agency-client-launch',
+          templateKey: 'new-client-onboarding',
+        },
+      },
+    ],
+  }),
+  det({
+    id: 'projects.journey_steps.update',
+    title: 'Edit a client journey step',
+    description:
+      'Rename a client journey step or link it to its form, signature request or meeting.',
+    input: bodyArgs(['projectId', 'stepId'], {
+      title: f.shortText(200).optional(),
+      refId: f.id(36).nullable().optional(),
+    }),
+    redact: 'standard',
+    examples: [{ summary: 'Link', args: { projectId: 'p_1', stepId: 's_1', refId: 'm_1' } }],
+  }),
+  det({
+    id: 'projects.journey_steps.delete',
+    title: 'Remove a client journey step',
+    description: "Remove a step from a client's journey. Confirm-class.",
+    input: pathOnly('projectId', 'stepId'),
+    redact: 'standard',
+    examples: [{ summary: 'Remove', args: { projectId: 'p_1', stepId: 's_1' } }],
+  }),
+  det({
+    id: 'projects.journey_templates.list',
+    title: 'List client journey templates',
+    description:
+      'The client journey templates offered by the template packs this workspace installed.',
+    input: noArgs(),
+    redact: 'standard',
+    examples: [{ summary: 'All', args: {} }],
   }),
   det({
     id: 'projects.templates.list',

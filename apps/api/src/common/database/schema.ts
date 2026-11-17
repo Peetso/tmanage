@@ -14236,3 +14236,46 @@ export const clientA11yPreferences = mysqlTable(
 export type ClientA11yPreferenceRow = typeof clientA11yPreferences.$inferSelect;
 
 Object.assign(TABLES, { client_a11y_preferences: clientA11yPreferences });
+
+// ---- 52-27 · client journey steps (0363) ----
+/** 0363 (52-27). What a client does on one journey step — a closed list, CHECKed by the engine. */
+export const CLIENT_JOURNEY_STEP_KINDS = ['form', 'upload', 'sign', 'meeting'] as const;
+export type ClientJourneyStepKind = (typeof CLIENT_JOURNEY_STEP_KINDS)[number];
+
+/**
+ * 0363 (52-27). One step on a client's path through a project. It stores no content: `refId`
+ * names the work form, signature request or meeting the client acts on (NULL for an upload step
+ * or one not linked yet) and `evidenceId` the `form_submissions` row a form step stored. Done is
+ * decided by the server from that evidence. Bound to `project_clients`, so the client is one the
+ * project is shared with. TENANT; INSERT, UPDATE and DELETE for the API.
+ */
+export const clientJourneySteps = mysqlTable(
+  'client_journey_steps',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    clientOrganizationId: char('client_organization_id', { length: 36 }).notNull(),
+    sequence: smallint('sequence', { unsigned: true }).notNull(),
+    kind: varchar('kind', { length: 12 }).$type<ClientJourneyStepKind>().notNull(),
+    title: varchar('title', { length: 200 }).notNull(),
+    refId: char('ref_id', { length: 36 }),
+    evidenceId: char('evidence_id', { length: 36 }),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_client_journey_steps_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_client_journey_steps_order').on(
+      table.organizationId,
+      table.projectId,
+      table.clientOrganizationId,
+      table.sequence,
+    ),
+  ],
+);
+
+export type ClientJourneyStepRow = typeof clientJourneySteps.$inferSelect;
+
+Object.assign(TABLES, { client_journey_steps: clientJourneySteps });

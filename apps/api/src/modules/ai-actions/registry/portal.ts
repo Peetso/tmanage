@@ -46,10 +46,27 @@ export const portalDetails: readonly AiActionDetail[] = [
     id: 'portal.projects.journey.get',
     title: 'Portal project journey',
     description:
-      "The client's journey through a project: published milestones as steps, and the one review waiting on the client.",
+      "The client's journey through a project: the client's steps (form, upload, sign, meeting) and published milestones, and the one action waiting on the client.",
     input: pathOnly('projectId'),
     redact: 'client_safe',
     examples: [{ summary: 'By project', args: { projectId: 'p_1' } }],
+  }),
+  det({
+    id: 'portal.journey_steps.form.get',
+    title: 'Portal journey form',
+    description: 'The form a client journey form step shows: its title and fields.',
+    input: pathOnly('stepId'),
+    redact: 'client_safe',
+    examples: [{ summary: 'By step', args: { stepId: 's_1' } }],
+  }),
+  det({
+    id: 'portal.journey_steps.form.create',
+    title: 'Send a portal journey form',
+    description:
+      "Send the answers of a client journey form step, keyed f1, f2 and so on. Confirm-class: completes the client's step.",
+    input: bodyArgs(['stepId'], { values: f.config() }),
+    redact: 'client_safe',
+    examples: [{ summary: 'Answer', args: { stepId: 's_1', values: { f1: 'Acme' } } }],
   }),
   det({
     id: 'portal.projects.people.list',

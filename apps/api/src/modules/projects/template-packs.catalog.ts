@@ -1,4 +1,5 @@
 import type {
+  ClientJourneyStepKind,
   ProjectTemplateMilestone,
   ProjectTemplateWorkItem,
 } from '../../common/database/schema.js';
@@ -12,7 +13,25 @@ import type {
  * Installing a pack creates its project templates. The pack's docs and automations are written
  * into each template's description as setup steps, so the person starting a project from the
  * template sees what to add; nothing is switched on behind their back.
+ *
+ * 52-27. A pack can also carry client journey templates: ordered client steps (form, upload, sign,
+ * meeting). They need no install row of their own: a journey template is offered once its pack is
+ * installed, and applying it to a project writes `client_journey_steps` the studio then links.
  */
+
+/** 52-27. One client step a journey template lays out; the studio links its form, request or meeting. */
+export interface PackJourneyStep {
+  readonly kind: ClientJourneyStepKind;
+  readonly title: string;
+}
+
+/** 52-27. A client journey a pack ships, in the pack's language. */
+export interface PackJourneyTemplate {
+  /** Stable within its pack: `(packKey, key)` names it in the apply request. */
+  readonly key: string;
+  readonly name: string;
+  readonly steps: readonly PackJourneyStep[];
+}
 
 export interface TemplatePackTemplate {
   readonly name: string;
@@ -54,6 +73,8 @@ export interface TemplatePack {
   readonly docs: readonly string[];
   /** Plain descriptions of the automations the pack suggests. */
   readonly automations: readonly string[];
+  /** 52-27. Client journeys the pack offers once installed. */
+  readonly journeys?: readonly PackJourneyTemplate[];
 }
 
 export const TEMPLATE_PACKS: readonly TemplatePack[] = [
@@ -114,6 +135,27 @@ export const TEMPLATE_PACKS: readonly TemplatePack[] = [
       'Tell the client when a milestone is done',
       'Remind the lead two days before a due date',
     ],
+    journeys: [
+      {
+        key: 'new-client-onboarding',
+        name: 'New client onboarding',
+        steps: [
+          { kind: 'form', title: 'Tell us about your business' },
+          { kind: 'upload', title: 'Send your logo and brand files' },
+          { kind: 'sign', title: 'Sign the agreement' },
+          { kind: 'meeting', title: 'Join the kick-off meeting' },
+        ],
+      },
+      {
+        key: 'website-handover',
+        name: 'Website handover',
+        steps: [
+          { kind: 'upload', title: 'Send your final page texts' },
+          { kind: 'sign', title: 'Sign the launch approval' },
+          { kind: 'meeting', title: 'Join the handover call' },
+        ],
+      },
+    ],
   },
   {
     key: 'monthly-retainer',
@@ -146,6 +188,16 @@ export const TEMPLATE_PACKS: readonly TemplatePack[] = [
     ],
     docs: ['Monthly report outline'],
     automations: ['Start the next month’s retainer on the first of the month'],
+    journeys: [
+      {
+        key: 'monthly-retainer-review',
+        name: 'Monthly retainer review',
+        steps: [
+          { kind: 'form', title: 'Tell us how this month went' },
+          { kind: 'meeting', title: 'Join the monthly review' },
+        ],
+      },
+    ],
   },
   {
     key: 'product-sprint-kit',
@@ -419,6 +471,18 @@ export const TEMPLATE_PACKS: readonly TemplatePack[] = [
     ],
     docs: ['دليل استقبال العميل', 'الملخص الإبداعي'],
     automations: ['إبلاغ العميل عند اكتمال مرحلة'],
+    journeys: [
+      {
+        key: 'new-client-onboarding',
+        name: 'استقبال عميل جديد',
+        steps: [
+          { kind: 'form', title: 'أخبرنا عن نشاطك' },
+          { kind: 'upload', title: 'أرسل الشعار وملفات الهوية' },
+          { kind: 'sign', title: 'وقّع الاتفاقية' },
+          { kind: 'meeting', title: 'احضر اجتماع الانطلاق' },
+        ],
+      },
+    ],
   },
   {
     key: 'ar-agency-egypt',
@@ -459,6 +523,18 @@ export const TEMPLATE_PACKS: readonly TemplatePack[] = [
     ],
     docs: ['الملخص الإبداعي', 'دليل استخدام الهوية'],
     automations: ['تذكير المسؤول قبل موعد التسليم بيومين'],
+    journeys: [
+      {
+        key: 'new-client-onboarding',
+        name: 'استقبال عميل جديد',
+        steps: [
+          { kind: 'form', title: 'أخبرنا عن نشاطك' },
+          { kind: 'upload', title: 'أرسل الشعار وملفات الهوية' },
+          { kind: 'sign', title: 'وقّع الاتفاقية' },
+          { kind: 'meeting', title: 'احضر اجتماع الانطلاق' },
+        ],
+      },
+    ],
   },
 ];
 
@@ -467,6 +543,14 @@ export function findTemplatePack(key: string): TemplatePack | undefined {
 }
 
 /** 55-02. The packs for a role, or every pack when no role is given. Catalog order is kept. */
+/** 52-27. A journey template of one pack, or undefined for an unknown pack or key. */
+export function findPackJourney(
+  packKey: string,
+  journeyKey: string,
+): PackJourneyTemplate | undefined {
+  return findTemplatePack(packKey)?.journeys?.find((journey) => journey.key === journeyKey);
+}
+
 export function templatePacksForRole(role: PackRole | null): readonly TemplatePack[] {
   return role === null
     ? TEMPLATE_PACKS
