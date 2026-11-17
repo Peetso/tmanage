@@ -13,6 +13,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { longDay, shortDay, Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { appDateLocale } from '../../lib/i18n/app-locale';
 import { formatDay } from '../../lib/i18n/format';
@@ -204,9 +205,10 @@ function MilestonesSection({
   }
   if (milestones.length === 0) {
     return (
-      <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
-        {providerName} {t('PortalMilestonesScreen.noMilestonesTail')}
-      </p>
+      <TeachingEmptyState
+        title={t('teachEmpty.portalTimelineTitle')}
+        explanation={t('teachEmpty.portalTimelineBody').replace('{studio}', providerName)}
+      />
     );
   }
 

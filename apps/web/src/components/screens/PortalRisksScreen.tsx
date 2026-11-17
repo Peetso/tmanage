@@ -13,6 +13,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { shortDay, Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 
 type Translate = ReturnType<typeof useT>;
 
@@ -171,9 +172,10 @@ function RisksSection({
             : t('PortalRisksScreen.riskPlural')}
         </h2>
         {risks.length === 0 ? (
-          <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
-            {providerName} {t('PortalRisksScreen.notFlaggedTail')}
-          </p>
+          <TeachingEmptyState
+            title={t('teachEmpty.portalRisksTitle')}
+            explanation={t('teachEmpty.portalRisksBody').replace('{studio}', providerName)}
+          />
         ) : (
           <ul className="tm-pt-list">
             {ordered.map((risk) => (

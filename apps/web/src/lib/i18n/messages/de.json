@@ -12167,6 +12167,8 @@
   "planStorage.valueText": "{percent} % des vorübergehenden Speichers bei TManage sind belegt: {used} von {limit}",
   "planStorage.help": "Dateien bleiben nur bei TManage, bis Sie Google Drive oder OneDrive verbinden. Dieser Platz ist ein vorübergehendes Kontingent: Er wird nie verkauft und erfordert nie einen größeren Plan.",
   "planStorage.raised": "Vom TManage-Support für Sie erhöht",
+  "planStorage.noSetLimit": "Kein festes Limit",
+  "planStorage.valueNoLimit": "{used} · Kein festes Limit",
   "planStorage.notice70": "{percent} % Ihres vorübergehenden Speichers sind belegt. Verbinden Sie Google Drive oder OneDrive, damit neue Dateien dort landen.",
   "planStorage.notice85": "{percent} % Ihres vorübergehenden Speichers sind belegt. Verbinden Sie bald Google Drive oder OneDrive, damit Uploads weiter funktionieren.",
   "planStorage.notice95": "Ihr vorübergehender Speicher ist fast voll ({percent} %). Verbinden Sie jetzt Google Drive oder OneDrive.",
@@ -20090,5 +20092,13 @@
   "EmptyStates.filesBody": "Bewahre Briefings, Entwürfe und Ergebnisse beim passenden Projekt auf und teile sie mit Kunden, sobald sie fertig sind.",
   "EmptyStates.howFilesWork": "So funktionieren Dateien",
   "platformServices.pausedTitle": "Von TManage pausiert",
-  "platformServices.pausedBody": "TManage hat diesen Dienst vorübergehend pausiert. Nichts geht verloren: Deine Verbindung bleibt erhalten. Versuche es später noch einmal."
+  "platformServices.pausedBody": "TManage hat diesen Dienst vorübergehend pausiert. Nichts geht verloren: Deine Verbindung bleibt erhalten. Versuche es später noch einmal.",
+  "teachEmpty.portalUpdatesTitle": "Noch keine Updates",
+  "teachEmpty.portalUpdatesBody": "{studio} zeigt hier den Fortschritt, sobald sich etwas bewegt, damit du immer weißt, wo es steht.",
+  "teachEmpty.portalRisksTitle": "Keine Risiken gemeldet",
+  "teachEmpty.portalRisksBody": "Falls etwas dein Projekt verzögern könnte, erklärt {studio} es hier – und was dagegen getan wird.",
+  "teachEmpty.portalTimelineTitle": "Noch keine Meilensteine",
+  "teachEmpty.portalTimelineBody": "Die wichtigen Termine deines Projekts erscheinen hier, sobald {studio} sie plant.",
+  "teachEmpty.portalPeopleTitle": "Noch keine Kontakte geteilt",
+  "teachEmpty.portalPeopleBody": "Hier erscheinen die Personen bei {studio}, die an deinem Projekt arbeiten, damit du weißt, wen du fragen kannst."
 }

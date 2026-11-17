@@ -12167,6 +12167,8 @@
   "planStorage.valueText": "TManage 上的临时存储已使用 {percent}%：{used} / {limit}",
   "planStorage.help": "在您连接 Google Drive 或 OneDrive 之前，文件才会暂存在 TManage 上。这是一份临时额度：从不出售，也从不需要升级套餐。",
   "planStorage.raised": "已由 TManage 支持团队为您提高",
+  "planStorage.noSetLimit": "未设上限",
+  "planStorage.valueNoLimit": "{used} · 未设上限",
   "planStorage.notice70": "您的临时存储已使用 {percent}%。请连接 Google Drive 或 OneDrive，让新文件存到那里。",
   "planStorage.notice85": "您的临时存储已使用 {percent}%。请尽快连接 Google Drive 或 OneDrive，以便继续上传。",
   "planStorage.notice95": "您的临时存储快满了（{percent}%）。请立即连接 Google Drive 或 OneDrive。",
@@ -20090,5 +20092,13 @@
   "EmptyStates.filesBody": "把简报、设计稿和交付物放在所属项目里，准备好后再分享给客户。",
   "EmptyStates.howFilesWork": "文件如何运作",
   "platformServices.pausedTitle": "已被 TManage 暂停",
-  "platformServices.pausedBody": "TManage 暂时暂停了这项服务。不会丢失任何内容，你的连接会保留。请稍后再试。"
+  "platformServices.pausedBody": "TManage 暂时暂停了这项服务。不会丢失任何内容，你的连接会保留。请稍后再试。",
+  "teachEmpty.portalUpdatesTitle": "暂无进展更新",
+  "teachEmpty.portalUpdatesBody": "{studio} 会随着工作推进在这里发布进展，让你随时了解情况。",
+  "teachEmpty.portalRisksTitle": "暂无风险提示",
+  "teachEmpty.portalRisksBody": "如果有任何可能延误项目的情况，{studio} 会在这里说明，并告诉你他们的应对措施。",
+  "teachEmpty.portalTimelineTitle": "暂无里程碑",
+  "teachEmpty.portalTimelineBody": "{studio} 规划好项目的关键日期后，会显示在这里。",
+  "teachEmpty.portalPeopleTitle": "暂未共享联系人",
+  "teachEmpty.portalPeopleBody": "{studio} 负责你项目的成员会显示在这里，方便你知道该找谁。"
 }

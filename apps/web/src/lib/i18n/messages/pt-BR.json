@@ -12167,6 +12167,8 @@
   "planStorage.valueText": "{percent}% do armazenamento temporário no TManage está em uso: {used} de {limit}",
   "planStorage.help": "Os arquivos ficam no TManage só até você conectar o Google Drive ou o OneDrive. Este espaço é uma cota temporária: nunca é vendido e nunca exige um plano maior.",
   "planStorage.raised": "Aumentado para você pelo suporte do TManage",
+  "planStorage.noSetLimit": "Sem limite definido",
+  "planStorage.valueNoLimit": "{used} · Sem limite definido",
   "planStorage.notice70": "{percent}% do seu armazenamento temporário está em uso. Conecte o Google Drive ou o OneDrive para que os novos arquivos vão para lá.",
   "planStorage.notice85": "{percent}% do seu armazenamento temporário está em uso. Conecte logo o Google Drive ou o OneDrive para que os envios continuem funcionando.",
   "planStorage.notice95": "Seu armazenamento temporário está quase cheio ({percent}%). Conecte o Google Drive ou o OneDrive agora.",
@@ -20090,5 +20092,13 @@
   "EmptyStates.filesBody": "Guarde briefings, designs e entregas junto ao projeto a que pertencem e compartilhe com os clientes quando estiverem prontos.",
   "EmptyStates.howFilesWork": "Como os arquivos funcionam",
   "platformServices.pausedTitle": "Pausado pelo TManage",
-  "platformServices.pausedBody": "O TManage pausou este serviço por enquanto. Nada se perde: sua conexão continua guardada. Tente de novo mais tarde."
+  "platformServices.pausedBody": "O TManage pausou este serviço por enquanto. Nada se perde: sua conexão continua guardada. Tente de novo mais tarde.",
+  "teachEmpty.portalUpdatesTitle": "Ainda não há novidades",
+  "teachEmpty.portalUpdatesBody": "{studio} publica aqui o andamento conforme o trabalho avança, para você sempre saber como estão as coisas.",
+  "teachEmpty.portalRisksTitle": "Nenhum risco sinalizado",
+  "teachEmpty.portalRisksBody": "Se algo puder atrasar seu projeto, {studio} explica aqui, junto com o que está fazendo a respeito.",
+  "teachEmpty.portalTimelineTitle": "Ainda não há marcos",
+  "teachEmpty.portalTimelineBody": "As datas principais do seu projeto aparecem aqui assim que {studio} as planejar.",
+  "teachEmpty.portalPeopleTitle": "Nenhum contato compartilhado ainda",
+  "teachEmpty.portalPeopleBody": "As pessoas de {studio} que trabalham no seu projeto aparecem aqui, para você saber a quem perguntar."
 }

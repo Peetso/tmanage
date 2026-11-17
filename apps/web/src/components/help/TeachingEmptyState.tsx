@@ -1,5 +1,6 @@
 'use client';
 
+import { useId } from 'react';
 import type { ReactNode } from 'react';
 import { findHelpArticle, helpHref } from '../../content/help/help-articles';
 import { useHelpLanguage } from '../website/pages/help/use-help-language';
@@ -22,18 +23,22 @@ export function TeachingEmptyState({
   readonly explanation: string;
   /** The one primary action — a Link or Button the screen owns. */
   readonly action?: ReactNode;
-  readonly helpSlug: string;
-  readonly helpLabel: string;
+  /** The Help centre article; leave out where none explains this screen. */
+  readonly helpSlug?: string;
+  readonly helpLabel?: string;
 }) {
   const language = useHelpLanguage();
-  const article = findHelpArticle(helpSlug);
+  const headingId = useId();
+  const article = helpSlug === undefined ? undefined : findHelpArticle(helpSlug);
   return (
-    <section className="tm-teach-empty" aria-label={title}>
-      <h2 className="tm-teach-empty__title">{title}</h2>
+    <section className="tm-teach-empty" aria-labelledby={headingId}>
+      <h2 id={headingId} className="tm-teach-empty__title">
+        {title}
+      </h2>
       <p className="tm-teach-empty__line">{explanation}</p>
       <div className="tm-teach-empty__actions">
         {action}
-        {article === undefined ? null : (
+        {article === undefined || helpLabel === undefined ? null : (
           <a
             className="tm-teach-empty__help"
             href={helpHref(article.slug, language)}

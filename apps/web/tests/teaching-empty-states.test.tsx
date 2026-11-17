@@ -6,6 +6,10 @@ import { ClientsScreen } from '../src/components/screens/ClientsScreen';
 import { DecisionRegisterScreen } from '../src/components/screens/DecisionRegisterScreen';
 import { DocsHubScreen } from '../src/components/screens/DocsHubScreen';
 import { FilesHubScreen } from '../src/components/screens/FilesHubScreen';
+import { PortalMilestonesScreen } from '../src/components/screens/PortalMilestonesScreen';
+import { PortalPeopleScreen } from '../src/components/screens/PortalPeopleScreen';
+import { PortalRisksScreen } from '../src/components/screens/PortalRisksScreen';
+import { PortalUpdatesScreen } from '../src/components/screens/PortalUpdatesScreen';
 import { InboxScreen } from '../src/components/screens/InboxScreen';
 import { ApiClient } from '../src/lib/api/client';
 import { translate } from '../src/lib/i18n/t';
@@ -176,5 +180,40 @@ describe('teaching empty states (55-10p)', () => {
     );
     await screen.findByText('No files yet');
     expect(screen.queryByRole('heading', { name: /no files yet/i })).toBeNull();
+  });
+
+  describe('client portal: teaches with no team-only action', () => {
+    const portal = {
+      '/portal/projects': { projects: [{ id: 'p1', name: 'Site' }] },
+      '/portal/projects/p1/updates': { updates: [] },
+      '/portal/projects/p1/milestones': { milestones: [] },
+      '/portal/projects/p1/risks': { risks: [] },
+      '/portal/projects/p1/people': { people: [] },
+    };
+    const props = { organizationSlug: 'acme', clientName: 'Bloom', providerName: 'Acme' };
+    const cases: readonly [string, (client: ApiClient) => ReactElement, RegExp][] = [
+      [
+        'Updates',
+        (client) => <PortalUpdatesScreen {...props} client={client} />,
+        /no updates yet/i,
+      ],
+      ['Risks', (client) => <PortalRisksScreen {...props} client={client} />, /no risks flagged/i],
+      [
+        'Timeline',
+        (client) => <PortalMilestonesScreen {...props} client={client} />,
+        /no milestones yet/i,
+      ],
+      [
+        'People',
+        (client) => <PortalPeopleScreen {...props} client={client} />,
+        /no contacts shared yet/i,
+      ],
+    ];
+    it.each(cases)('%s', async (_name, view, title) => {
+      mount(view, portal);
+      const section = (await teaching(title)).closest('section') as HTMLElement;
+      expect(section.textContent).toContain('Acme');
+      expect(section.querySelector('button, a')).toBeNull();
+    });
   });
 });

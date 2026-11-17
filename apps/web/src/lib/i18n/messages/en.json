@@ -12181,6 +12181,8 @@
   "planStorage.valueText": "{percent}% of the temporary storage on TManage is in use: {used} of {limit}",
   "planStorage.help": "Files stay on TManage only until you connect Google Drive or OneDrive. This space is a temporary allowance: it is never sold and never needs a bigger plan.",
   "planStorage.raised": "Raised for you by TManage support",
+  "planStorage.noSetLimit": "No set limit",
+  "planStorage.valueNoLimit": "{used} · No set limit",
   "planStorage.notice70": "{percent}% of your temporary storage is used. Connect Google Drive or OneDrive so new files go there.",
   "planStorage.notice85": "{percent}% of your temporary storage is used. Connect Google Drive or OneDrive soon so uploads keep working.",
   "planStorage.notice95": "Your temporary storage is almost full ({percent}%). Connect Google Drive or OneDrive now.",
@@ -20285,5 +20287,13 @@
   "EmptyStates.filesBody": "Keep briefs, designs and deliverables with the project they belong to, and share them with clients when they are ready.",
   "EmptyStates.howFilesWork": "How files work",
   "platformServices.pausedTitle": "Paused by TManage",
-  "platformServices.pausedBody": "TManage has paused this service for now. Nothing is lost: your connection is kept. Try again later."
+  "platformServices.pausedBody": "TManage has paused this service for now. Nothing is lost: your connection is kept. Try again later.",
+  "teachEmpty.portalUpdatesTitle": "No updates yet",
+  "teachEmpty.portalUpdatesBody": "{studio} posts progress here as the work moves, so you always know where things stand.",
+  "teachEmpty.portalRisksTitle": "No risks flagged",
+  "teachEmpty.portalRisksBody": "If anything could delay your project, {studio} explains it here, with what they are doing about it.",
+  "teachEmpty.portalTimelineTitle": "No milestones yet",
+  "teachEmpty.portalTimelineBody": "The key dates of your project appear here once {studio} plans them.",
+  "teachEmpty.portalPeopleTitle": "No contacts shared yet",
+  "teachEmpty.portalPeopleBody": "The people at {studio} working on your project appear here, so you know who to ask."
 }

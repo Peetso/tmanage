@@ -13,6 +13,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { Avatar, humanize, Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 
 type Translate = ReturnType<typeof useT>;
 
@@ -125,10 +126,10 @@ export function PortalPeopleScreen({
           ) : null}
 
           {project != null && !people.isPending && !people.isError && roster.length === 0 ? (
-            <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
-              {t('PortalPeopleScreen.noContactsLead')} {providerName}{' '}
-              {t('PortalPeopleScreen.noContactsTail')}
-            </p>
+            <TeachingEmptyState
+              title={t('teachEmpty.portalPeopleTitle')}
+              explanation={t('teachEmpty.portalPeopleBody').replace('{studio}', providerName)}
+            />
           ) : null}
 
           {contact ? (

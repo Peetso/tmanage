@@ -13,6 +13,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { longDay, shortDay, Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 
 type Translate = ReturnType<typeof useT>;
 
@@ -108,9 +109,10 @@ export function PortalUpdatesScreen({
             ) : null}
 
             {updates.isSuccess && rows.length === 0 ? (
-              <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
-                {providerName} {t('PortalUpdatesScreen.noUpdatesTail')}
-              </p>
+              <TeachingEmptyState
+                title={t('teachEmpty.portalUpdatesTitle')}
+                explanation={t('teachEmpty.portalUpdatesBody').replace('{studio}', providerName)}
+              />
             ) : null}
 
             {rows.length > 0 ? (
