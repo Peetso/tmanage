@@ -92,6 +92,8 @@ export type { InvitationSweepResult } from './invitations/invitation-sweep.js';
 export { createInvitationSweepStore } from './common/database/invitations-sweep-store.js';
 // 51-11 — the suppression read the in-process worker (apps/server) also uses.
 export { createEmailSuppressionLookup } from './common/database/email-suppression-store.js';
+// 56-26 — the company bounce-suppression read the in-process worker (apps/server) also uses.
+export { createBounceSuppressionLookup } from './common/database/bounce-suppression-store.js';
 // Is the relay draining? — the audit's CRITICAL-2, exported so the db suite can drive the
 // same readings the `--status` command prints.
 export {

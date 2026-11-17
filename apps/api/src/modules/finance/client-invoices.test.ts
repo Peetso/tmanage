@@ -1,5 +1,6 @@
 import { generateKeyPairSync, randomBytes } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
+import { MailRecipientSuppressedError } from '@tmanage/mail';
 import { assertSafeAuditMetadata, decodeTlv } from '@tmanage/domain';
 import { createFieldCipher, loadFieldCipherKeyring } from '@tmanage/domain/field-cipher';
 import { selfSignedCertificate } from '@tmanage/domain/zatca-sign';
@@ -932,5 +933,17 @@ describe('INVMAIL the send mail attaches the issued PDF', () => {
       }
     ).pdfAttachment.bind(w.service);
     expect(await attach(context, owner, w.invoice.id)).toBeNull();
+  });
+});
+
+describe('56-26 invoice mail and bounces', () => {
+  it('names the company on the mail; a bounced address fails quietly, the invoice is still sent', async () => {
+    const w = world();
+    w.mailer.send.mockRejectedValueOnce(new MailRecipientSuppressedError());
+    const sent = await w.service.send(context, owner, w.invoice.id, { to: ['ap@acme.test'] }, meta);
+    expect(sent).toMatchObject({ state: 'sent' });
+    expect(w.mailer.send).toHaveBeenCalledTimes(1);
+    const message = (w.mailer.send.mock.calls[0] as unknown[])[0] as { organizationId?: string };
+    expect(message.organizationId).toBe(ORG);
   });
 });

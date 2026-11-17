@@ -139,7 +139,7 @@ async function stageClientMail(input: {
   }
 
   effects.afterCommit(async () => {
-    await mailer.deliver(kind, requestId, facts);
+    await mailer.deliver(kind, requestId, facts, event.organizationId);
   });
 }
 

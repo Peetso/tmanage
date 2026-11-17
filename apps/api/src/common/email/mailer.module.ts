@@ -7,7 +7,7 @@ import {
   withTemplateKey,
 } from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
-import { MailBouncesService } from '../../modules/mail-bounces/mail-bounces.service.js';
+import { MailBounceLookup } from '../../modules/mail-bounces/mail-bounces.service.js';
 import { MailQueueRepository } from '../database/mail-queue.repository.js';
 import type { TenantDatabase } from '../database/tenant-context.js';
 import type { DynamicModule, Provider } from '@nestjs/common';
@@ -128,10 +128,7 @@ function guardedModule(
     provide: QUEUE,
     inject: [TENANT_DATABASE],
     useFactory: (database: TenantDatabase) => {
-      const mailer = new BounceGuardMailer(
-        transport(database),
-        new MailBouncesService(database, config.bounceKey ?? null),
-      );
+      const mailer = new BounceGuardMailer(transport(database), new MailBounceLookup(database));
       return { mailer, ...producersFor(mailer, config.webPublicUrl) };
     },
   };

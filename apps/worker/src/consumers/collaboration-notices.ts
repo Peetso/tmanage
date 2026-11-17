@@ -995,6 +995,7 @@ async function stageMail(input: {
   effects.afterCommit(async () => {
     await mailer.deliver(kind, {
       ...subject,
+      organizationId: event.organizationId,
       recipientEmail: recipient.email,
       recipientName: recipient.displayName,
       locale: recipient.locale,

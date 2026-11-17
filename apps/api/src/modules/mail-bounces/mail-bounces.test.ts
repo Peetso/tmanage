@@ -9,7 +9,10 @@ import type {
 } from '../../common/database/tenant-context.js';
 import type { MailRecipientBounceRow } from '../../common/database/schema.js';
 import { BounceIntakeController } from './bounce-intake.controller.js';
-import { MailBouncesService, nextBounceState } from './mail-bounces.service.js';
+import { MailBounceLookup, MailBouncesService, nextBounceState } from './mail-bounces.service.js';
+
+const AUDIT = { record: vi.fn(() => Promise.resolve({})) };
+const noAudit = AUDIT as unknown as ConstructorParameters<typeof MailBouncesService>[2];
 
 const SECRET = 'w'.repeat(40);
 const KEY = deriveBounceKey('s'.repeat(48));
@@ -107,17 +110,17 @@ describe('56-26 bounce matching and company scope', () => {
 
   it('(b) ignores a quoted id that is not signed by our key, whatever the report names', async () => {
     const { database, statements } = fakeDatabase();
-    const service = new MailBouncesService(database, KEY, undefined, () => NOW);
+    const service = new MailBouncesService(database, KEY, noAudit, undefined, () => NOW);
     const forged = ours.replace(/\.[A-Za-z0-9_-]{22}@/u, `.${'A'.repeat(22)}@`);
     await expect(service.record(report(forged), 'c')).resolves.toBe('unmatched');
-    const foreignKey = new MailBouncesService(database, deriveBounceKey('o'.repeat(48)));
+    const foreignKey = new MailBouncesService(database, deriveBounceKey('o'.repeat(48)), noAudit);
     await expect(foreignKey.record(report(ours), 'c')).resolves.toBe('unmatched');
     expect(statements).toHaveLength(0);
   });
 
   it('(c) records under the signed company and address, never the Final-Recipient', async () => {
     const { database, statements } = fakeDatabase();
-    const service = new MailBouncesService(database, KEY, undefined, () => NOW);
+    const service = new MailBouncesService(database, KEY, noAudit, undefined, () => NOW);
     await expect(service.record(report(ours), 'c')).resolves.toBe('suppressed');
     const hash = emailAddressHash('ann@client.example');
     expect(statements.length).toBeGreaterThan(0);
@@ -130,7 +133,7 @@ describe('56-26 bounce matching and company scope', () => {
     expect(statements.some((s) => s.params.includes(hash))).toBe(true);
 
     statements.length = 0;
-    await service.isBounceSuppressed(ORG_A, hash);
+    await new MailBounceLookup(database).isBounceSuppressed(ORG_A, hash);
     expect(statements).toHaveLength(1);
     expect(statements[0]).toMatchObject({ org: ORG_A });
     expect(statements[0]?.params).toContain(ORG_A);
@@ -172,5 +175,41 @@ describe('56-26 nextBounceState', () => {
       softCount: 1,
       suppressedAt: null,
     });
+  });
+});
+
+describe('56-26 clearing a suppression', () => {
+  it('is audited as mail_bounce.cleared in the admin company, with no address in it', async () => {
+    const { database, statements } = fakeDatabase();
+    const record = vi.fn(() => Promise.resolve({}));
+    const service = new MailBouncesService(
+      database,
+      KEY,
+      { record } as unknown as ConstructorParameters<typeof MailBouncesService>[2],
+      undefined,
+      () => NOW,
+    );
+    const context = { organizationId: ORG_A, userId: ORG_A } as TenantContext;
+    const principal = {
+      userId: ORG_A,
+      organizationId: ORG_A,
+      kind: 'internal',
+      role: 'owner',
+      membershipId: 'm-1',
+      membershipStatus: 'active',
+      clientOrganizationId: null,
+      projectIds: [],
+      hasOrgWideScope: true,
+    } as unknown as Parameters<MailBouncesService['clear']>[1];
+    await expect(
+      service.clear(context, principal, { address: 'ann@client.example' }),
+    ).resolves.toMatchObject({ status: 'clear' });
+    expect(record).toHaveBeenCalledWith(expect.anything(), context, {
+      action: 'mail_bounce.cleared',
+      result: 'allowed',
+      objectId: null,
+      metadata: { was_suppressed: false },
+    });
+    expect(statements.every((s) => s.org === ORG_A)).toBe(true);
   });
 });

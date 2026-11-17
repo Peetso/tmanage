@@ -1,4 +1,5 @@
 import type { OutboxEventPayloads } from '@tmanage/domain';
+import { forCompany } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 
 /**
@@ -10,6 +11,8 @@ import type { Mailer, MailMessage } from '@tmanage/mail';
 type RootAtRisk = OutboxEventPayloads['storage_connection.root_at_risk.v1'];
 
 export interface StorageRootEmailFacts {
+  /** 56-26: the sending company — its Message-ID is signed and its bounce suppressions apply. */
+  readonly organizationId?: string;
   readonly recipientEmail: string;
   readonly recipientName: string;
   readonly provider: RootAtRisk['provider'];
@@ -69,7 +72,9 @@ export class StorageRootMailer {
   async deliver(facts: StorageRootEmailFacts): Promise<StorageRootMailDelivery> {
     if (this.mailer === null) return 'none';
     try {
-      return await this.mailer.send(composeStorageRootEmail(facts));
+      return await this.mailer.send(
+        forCompany(composeStorageRootEmail(facts), facts.organizationId),
+      );
     } catch (error) {
       // Absorbed loudly, without the address, as the sibling mailers do.
       console.error('[worker] storage root email failed', error);

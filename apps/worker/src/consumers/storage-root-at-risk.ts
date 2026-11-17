@@ -77,9 +77,11 @@ function stageMail(
   mailer: StorageRootMailer,
   recipient: UsageMailRecipient,
   payload: RootAtRisk,
+  organizationId: string,
 ): void {
   effects.afterCommit(async () => {
     await mailer.deliver({
+      organizationId,
       recipientEmail: recipient.email,
       recipientName: recipient.displayName,
       provider: payload.provider,
@@ -115,7 +117,7 @@ export function createStorageRootAtRisk(mailer: StorageRootMailer | null): Outbo
           continue;
         }
       }
-      stageMail(effects, mailer, recipient, payload);
+      stageMail(effects, mailer, recipient, payload, event.organizationId);
     }
   };
 }
@@ -135,6 +137,6 @@ export function createStorageRootMailResume(mailer: StorageRootMailer): OutboxHa
     const payload = readRootAtRisk({ ...event, payload: envelope.originalPayload });
     const recipient = await findUsageMailRecipient(tx, event.organizationId, recipientUserId);
     if (recipient === null || !recipient.emailEnabled) return;
-    stageMail(effects, mailer, recipient, payload);
+    stageMail(effects, mailer, recipient, payload, event.organizationId);
   };
 }

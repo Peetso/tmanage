@@ -162,6 +162,7 @@ describe('the owners are told, once', () => {
     // The redelivery found the notice already there: no second mail.
     expect(sent).toEqual([
       {
+        organizationId: 'org-a',
         recipientEmail: 'owner@example.com',
         recipientName: 'Owner',
         provider: 'onedrive',

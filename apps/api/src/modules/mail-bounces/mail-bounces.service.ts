@@ -6,6 +6,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { createServiceContext } from '../../common/database/tenant-context.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { MailBounceKind, MailRecipientBounceRow } from '../../common/database/schema.js';
+import type { AuditService } from '../audit/audit.service.js';
 import { MailBouncesRepository } from './mail-bounces.repository.js';
 import type { BounceState } from './mail-bounces.repository.js';
 
@@ -20,11 +21,11 @@ import type { BounceState } from './mail-bounces.repository.js';
  * one within {@link SOFT_WINDOW_MS}, suppresses the address; a report for the same message counts
  * once (a hard report after a soft one for the same message is counted as the hard one).
  *
- * **Guard** (`isBounceSuppressed`): the lookup `BounceGuardMailer` asks before company mail goes.
+ * **Guard** ({@link MailBounceLookup}): the lookup `BounceGuardMailer` asks before company mail goes.
  *
  * **Admin** (`status`, `clear`): an owner or admin types an address to see whether it bounced in
- * their company, and clears the suppression. `org.security.manage`, decided again here. The
- * address arrives in the body (never a URL) and is only hashed.
+ * their company, and clears the suppression (audited `mail_bounce.cleared`). `org.security.manage`,
+ * decided again here. The address arrives in the body (never a URL) and is only hashed.
  */
 
 export const SOFT_LIMIT = 3;
@@ -139,11 +140,31 @@ function statusOf(row: MailRecipientBounceRow | null): MailBounceStatus {
   };
 }
 
-export class MailBouncesService implements BounceSuppressionLookup {
+/** The guard's question, on the API's database: one probe bound to the message's company. */
+export class MailBounceLookup implements BounceSuppressionLookup {
+  constructor(
+    private readonly database: TenantDatabase,
+    private readonly repository: MailBouncesRepository = new MailBouncesRepository(),
+  ) {}
+
+  async isBounceSuppressed(organizationId: string, addressHash: string): Promise<boolean> {
+    const context = createServiceContext({
+      organizationId,
+      correlationId: uuidv7(),
+      policyVersion: POLICY,
+    });
+    return this.database.read(context, (runner) =>
+      this.repository.isSuppressed(runner, context, addressHash),
+    );
+  }
+}
+
+export class MailBouncesService {
   constructor(
     private readonly database: TenantDatabase,
     /** `deriveBounceKey(SESSION_SECRET)`; `null` = no server secret, nothing ever matches. */
     private readonly key: Buffer | null,
+    private readonly audit: Pick<AuditService, 'record'>,
     private readonly repository: MailBouncesRepository = new MailBouncesRepository(),
     private readonly now: () => Date = () => new Date(),
   ) {}
@@ -183,17 +204,6 @@ export class MailBouncesService implements BounceSuppressionLookup {
     });
   }
 
-  async isBounceSuppressed(organizationId: string, addressHash: string): Promise<boolean> {
-    const context = createServiceContext({
-      organizationId,
-      correlationId: uuidv7(),
-      policyVersion: POLICY,
-    });
-    return this.database.read(context, (runner) =>
-      this.repository.isSuppressed(runner, context, addressHash),
-    );
-  }
-
   async status(
     context: TenantContext,
     principal: Principal,
@@ -213,9 +223,16 @@ export class MailBouncesService implements BounceSuppressionLookup {
   ): Promise<MailBounceStatus> {
     requireMailAdmin(context, principal);
     const hash = emailAddressHash(addressFrom(body));
-    await this.database.transaction(context, (runner) =>
-      this.repository.clear(runner, context, hash, this.now()),
-    );
+    await this.database.transaction(context, async (runner) => {
+      const row = await this.repository.findForUpdate(runner, context, hash);
+      await this.repository.clear(runner, context, hash, this.now());
+      await this.audit.record(runner, context, {
+        action: 'mail_bounce.cleared',
+        result: 'allowed',
+        objectId: null,
+        metadata: { was_suppressed: row?.suppressedAt != null },
+      });
+    });
     return statusOf(null);
   }
 }

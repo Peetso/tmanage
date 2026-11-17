@@ -1,3 +1,4 @@
+import { forCompany } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import { composeReviewEmail } from './review-email.js';
 
@@ -32,6 +33,8 @@ export type CollaborationMailKind =
   | 'supervised_done';
 
 export interface CollaborationEmailFacts {
+  /** 56-26: the sending company — its Message-ID is signed and its bounce suppressions apply. */
+  readonly organizationId?: string;
   readonly recipientEmail: string;
   readonly recipientName: string;
   /** The studio's name — the organization the recipient belongs to or works with. */
@@ -512,7 +515,9 @@ export class CollaborationMailer {
   ): Promise<CollaborationMailDelivery> {
     if (this.mailer === null) return 'none';
     try {
-      return await this.mailer.send(composeCollaborationEmail(kind, facts));
+      return await this.mailer.send(
+        forCompany(composeCollaborationEmail(kind, facts), facts.organizationId),
+      );
     } catch (error) {
       // Absorbed loudly, without the address: the driver's words may name the recipient.
       console.error(`[worker] ${kind} email failed`, error);

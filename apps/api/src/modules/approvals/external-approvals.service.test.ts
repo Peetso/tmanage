@@ -1,4 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import {
+  BounceGuardMailer,
+  bounceMessageId,
+  deriveBounceKey,
+  emailAddressHash,
+  readBounceMessageId,
+} from '@tmanage/mail';
+import type { MailMessage } from '@tmanage/mail';
 import type { Principal } from '@tmanage/domain';
 import type {
   ExternalApproverRow,
@@ -254,5 +262,41 @@ describe('52-18 external approver: token and code check', () => {
   it('masks the audience e-mail for the watermark', () => {
     expect(maskEmail('sara@client.com')).toBe('s•••@client.com');
     expect(maskEmail(null)).toBeNull();
+  });
+});
+
+describe('56-26 external approver mail and bounces', () => {
+  const key = deriveBounceKey('k'.repeat(48));
+  it('names the company (so the Message-ID is signed for it); a bounced address is not mailed', async () => {
+    const sentMail: MailMessage[] = [];
+    let suppressed = false;
+    const mailer = new BounceGuardMailer(
+      { send: async (m) => (sentMail.push(m), 'sent' as const) },
+      { isBounceSuppressed: async () => suppressed },
+    );
+    const s = service({ mailer });
+    const ok = await s.svc.send(context, {} as Principal, DELIVERABLE, VERSION, {
+      email: 'sara@client.com',
+    });
+    expect(ok.mailed).toBe(true);
+    const message = sentMail[0] as MailMessage;
+    expect(message.organizationId).toBe(context.organizationId);
+    const id = bounceMessageId(key, {
+      organizationId: message.organizationId as string,
+      to: message.to,
+      domain: 'tm.io',
+    }) as string;
+    expect(readBounceMessageId(key, id)).toMatchObject({
+      organizationId: context.organizationId,
+      addressHash: emailAddressHash('sara@client.com'),
+    });
+
+    suppressed = true;
+    const held = await s.svc.send(context, {} as Principal, DELIVERABLE, VERSION, {
+      email: 'sara@client.com',
+    });
+    expect(held.mailed).toBe(false);
+    expect(held.url).toBe('https://tmanage.example/a/tmanage_lnk_abc');
+    expect(sentMail).toHaveLength(1);
   });
 });

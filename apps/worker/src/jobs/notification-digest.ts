@@ -125,7 +125,11 @@ export async function sweepNotificationDigests(
     try {
       const facts = await store.collectAndClaim(recipient, window, (path) => mailer.linkTo(path));
       if (facts === null) continue;
-      if ((await mailer.deliver(facts)) === 'sent') sent += 1;
+      if (
+        (await mailer.deliver({ ...facts, organizationId: recipient.organizationId })) === 'sent'
+      ) {
+        sent += 1;
+      }
     } catch (error) {
       failed += 1;
       onError(error);

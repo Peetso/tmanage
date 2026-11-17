@@ -1,6 +1,7 @@
 import { loadEnv } from '@tmanage/config';
 import type { Env } from '@tmanage/config';
 import {
+  BounceGuardMailer,
   ConsoleMailer,
   NotificationMailTransport,
   QueueMailer,
@@ -14,6 +15,7 @@ import {
 import type { Mailer } from '@tmanage/mail';
 // ---- 56-31 ---- the mail priority lanes: the queue store and its drainer.
 import { createMailQueueStore } from './common/database/mail-queue-store.js';
+import { createBounceSuppressionLookup } from './common/database/bounce-suppression-store.js';
 import type { MailQueueStore } from './common/database/mail-queue-store.js';
 import { createMailDrainerState, drainMailOnce, runMailDrainLoop } from './jobs/mail-drainer.js';
 import type { MailDrainerDeps } from './jobs/mail-drainer.js';
@@ -575,12 +577,14 @@ async function main(): Promise<void> {
           suppressions: createEmailSuppressionLookup(database),
           alert: mailAlertsFor(env, new QueueMailer(queueStore)),
         };
+  // 56-26: company mail to an address that bounced in that company is held (auth mail never).
   const transport: Mailer | null =
     driver === null
       ? null
-      : queueStore !== null
-        ? new QueueMailer(queueStore)
-        : new SendCeilingMailer(driver);
+      : new BounceGuardMailer(
+          queueStore !== null ? new QueueMailer(queueStore) : new SendCeilingMailer(driver),
+          createBounceSuppressionLookup(database),
+        );
   const keyed = (key: string): Mailer | null =>
     transport === null ? null : withTemplateKey(transport, key);
   const notificationTransport =

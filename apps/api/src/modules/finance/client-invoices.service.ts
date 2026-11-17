@@ -34,7 +34,7 @@ import type {
   TaxRateTotal,
 } from '@tmanage/domain';
 import { phase2Qr, verifyXmlSignature } from '@tmanage/domain/zatca-sign';
-import { withTemplateKey } from '@tmanage/mail';
+import { forCompany, withTemplateKey } from '@tmanage/mail';
 import { attachIfFits } from '@tmanage/mail';
 import type { MailAttachment, Mailer, MailMessage } from '@tmanage/mail';
 import type {
@@ -1175,6 +1175,7 @@ export class ClientInvoicesService {
     if (outcome.fresh && mail) {
       const attachment = input.attachPdf ? await this.pdfAttachment(context, principal, id) : null;
       await this.deliver(
+        context.organizationId,
         input.to,
         outcome.view,
         meta.orgSlug,
@@ -1652,7 +1653,15 @@ export class ClientInvoicesService {
         country: sellerFromSnapshot(row.sellerSnapshotJson).country,
       };
     });
-    await this.deliver(view.to, view.view, meta.orgSlug, 'reminder', null, view.country);
+    await this.deliver(
+      context.organizationId,
+      view.to,
+      view.view,
+      meta.orgSlug,
+      'reminder',
+      null,
+      view.country,
+    );
     return { sent: true, recipients: view.to.length };
   }
 
@@ -2078,6 +2087,8 @@ export class ClientInvoicesService {
   }
 
   private async deliver(
+    /** 56-26: the sending company — signed Message-ID, bounce suppressions apply. */
+    organizationId: string,
     to: readonly string[],
     view: InvoiceView,
     orgSlug: string,
@@ -2101,7 +2112,10 @@ export class ClientInvoicesService {
         });
         // INVMAIL: a PDF over the mailer's size limit is skipped; the link above still reaches it.
         await this.mailer.send(
-          attachment === null ? mailMessage : attachIfFits(mailMessage, attachment),
+          forCompany(
+            attachment === null ? mailMessage : attachIfFits(mailMessage, attachment),
+            organizationId,
+          ),
         );
       } catch {
         // A mail failure never undoes an issued invoice; the timeline already holds the send.

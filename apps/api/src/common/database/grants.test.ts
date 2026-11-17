@@ -207,6 +207,7 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // ---- 0355 ---- +1: the walk reads its own verdicts, `approval_chain_checks`.
     // ---- 56-03p ---- +2: the key rotation re-encrypts the token vault's `connector_installations`
     // and `figma_connections`.
+    // ---- 56-26 ---- +1: the worker's company mail reads `mail_recipient_bounces` before a send.
     expect(reads).toHaveLength(
       26 +
         15 +
@@ -240,7 +241,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
         1 +
         1 +
         1 +
-        2,
+        2 +
+        1,
     );
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });

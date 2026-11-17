@@ -352,12 +352,15 @@ async function startInProcessWorker(env, attachRealtime) {
     writeHeartbeat,
     readHeartbeat,
     createEmailSuppressionLookup,
+    createBounceSuppressionLookup,
   } = worker;
   const {
+    BounceGuardMailer,
     ConsoleMailer,
     NotificationMailTransport,
     SendCeilingMailer,
     SmtpMailer,
+    deriveBounceKey,
     deriveUnsubscribeKey,
   } = await import('@tmanage/mail');
 
@@ -373,6 +376,8 @@ async function startInProcessWorker(env, attachRealtime) {
             secure: env.SMTP_SECURE,
             username: env.SMTP_USERNAME,
             password: env.SMTP_PASSWORD,
+            // 56-26: company mail gets the signed Message-ID its bounce is matched by.
+            bounceKey: deriveBounceKey(env.SESSION_SECRET),
           })
         : null;
 
@@ -385,7 +390,14 @@ async function startInProcessWorker(env, attachRealtime) {
   // 51-11: every send passes the host ceiling (§9.2); notification mail also goes through the
   // suppression list and carries the signed one-click List-Unsubscribe headers. Privacy and
   // credential notices stay transactional — no unsubscribe, never suppressed.
-  const transport = driver === null ? null : new SendCeilingMailer(driver);
+  // 56-26: company mail to an address that bounced in that company is held (auth mail never).
+  const transport =
+    driver === null
+      ? null
+      : new BounceGuardMailer(
+          new SendCeilingMailer(driver),
+          createBounceSuppressionLookup(database),
+        );
   const notificationTransport =
     transport === null
       ? null

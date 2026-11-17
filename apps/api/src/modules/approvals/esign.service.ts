@@ -1,5 +1,6 @@
 import { authorize, uuidv7 } from '@tmanage/domain';
 import type { Capability, Principal } from '@tmanage/domain';
+import { MailRecipientSuppressedError } from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
 import { uploadObjectKey } from '@tmanage/storage';
 import type { ObjectStore } from '@tmanage/storage';
@@ -168,7 +169,7 @@ export class EsignService {
         };
       },
     );
-    await this.mailRequest(organization, mails, view.title, view.id);
+    await this.mailRequest(context.organizationId, organization, mails, view.title, view.id);
     return view;
   }
 
@@ -251,7 +252,7 @@ export class EsignService {
         };
       },
     );
-    await this.mailRequest(organization, mails, view.title, view.id);
+    await this.mailRequest(context.organizationId, organization, mails, view.title, view.id);
     return view;
   }
 
@@ -778,6 +779,7 @@ export class EsignService {
   }
 
   private async mailRequest(
+    organizationId: string,
     organization: { readonly name: string; readonly slug: string },
     to: readonly string[],
     title: string,
@@ -787,11 +789,18 @@ export class EsignService {
     const base = this.options.webPublicUrl?.replace(/\/+$/u, '') ?? null;
     const link = base === null ? '' : `\n\n${base}/${organization.slug}/portal/sign/${requestId}`;
     for (const address of to) {
-      await this.options.mailer.send({
-        to: address,
-        subject: `${organization.name} asked you to sign ${title}`,
-        text: `${organization.name} asked you to sign "${title}" in your client portal.${link}`,
-      });
+      try {
+        await this.options.mailer.send({
+          to: address,
+          subject: `${organization.name} asked you to sign ${title}`,
+          text: `${organization.name} asked you to sign "${title}" in your client portal.${link}`,
+          organizationId,
+        });
+      } catch (error) {
+        // 56-26: an address that bounced in this company is skipped; the request stays in the
+        // signer's portal. Any other transport failure is reported as before.
+        if (!(error instanceof MailRecipientSuppressedError)) throw error;
+      }
     }
   }
 }

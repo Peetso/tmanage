@@ -1,3 +1,4 @@
+import { forCompany } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import type { ClientRequestMailFacts } from '../common/database/mail-store.js';
 import {
@@ -108,10 +109,14 @@ export class ClientRequestMailer {
     kind: ClientRequestMailKind,
     requestId: string,
     facts: ClientRequestMailFacts,
+    /** 56-26: the sending company — its Message-ID is signed and its bounce suppressions apply. */
+    organizationId?: string,
   ): Promise<ClientRequestMailDelivery> {
     if (this.mailer === null) return 'none';
     try {
-      return await this.mailer.send(this.compose(kind, requestId, facts));
+      return await this.mailer.send(
+        forCompany(this.compose(kind, requestId, facts), organizationId),
+      );
     } catch (error) {
       // Absorbed loudly. The driver's words may name the recipient's address, so they go to
       // the operator's log and nowhere else — never into the batch report, which `main.ts`

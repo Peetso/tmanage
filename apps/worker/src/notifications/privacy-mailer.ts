@@ -1,3 +1,4 @@
+import { forCompany } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import { isArabicLocale } from './collaboration-mailer.js';
 
@@ -22,6 +23,8 @@ export type PrivacyMailKind =
   'export_ready' | 'deletion_scheduled' | 'deletion_cancelled' | 'deletion_executed';
 
 export interface PrivacyEmailFacts {
+  /** 56-26: the sending company — its Message-ID is signed and its bounce suppressions apply. */
+  readonly organizationId?: string;
   readonly recipientEmail: string;
   readonly recipientName: string;
   readonly locale: string;
@@ -217,7 +220,9 @@ export class PrivacyMailer {
   async deliver(kind: PrivacyMailKind, facts: PrivacyEmailFacts): Promise<PrivacyMailDelivery> {
     if (this.mailer === null) return 'none';
     try {
-      return await this.mailer.send(composePrivacyEmail(kind, facts));
+      return await this.mailer.send(
+        forCompany(composePrivacyEmail(kind, facts), facts.organizationId),
+      );
     } catch (error) {
       // Absorbed loudly, without the address: the driver's words may name the recipient.
       console.error(`[worker] privacy ${kind} email failed`, error);

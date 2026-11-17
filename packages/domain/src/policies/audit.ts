@@ -672,6 +672,15 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'storage_migration_job',
     clause: '§12 — a system job moved tenant files and deleted their local copies',
   },
+  /**
+   * 0366 (56-26). An owner or admin cleared a bounce suppression: the company mails that address
+   * again. No object row id (the record is keyed by an address hash, never logged); metadata says
+   * only whether the address was suppressed.
+   */
+  'mail_bounce.cleared': {
+    objectType: 'mail_recipient_bounce',
+    clause: '§12 organization settings — letting the company mail an address that bounced',
+  },
   /** 0210. A Drive file attached to, or detached from, a work item (ids and type only). */
   'drive_attachment.attached': {
     objectType: 'google_drive_attachment',
@@ -1862,6 +1871,7 @@ const AUDIT_ACTION_LABELS = {
   'storage_connection.handover': 'Took over the company storage connection',
   'storage_migration.started': 'Started moving files to company storage',
   'storage_migration.finished': 'Finished moving files to company storage',
+  'mail_bounce.cleared': 'Cleared a bounced email address',
   'drive_attachment.attached': 'Attached a Google Drive file',
   'drive_attachment.removed': 'Removed a Google Drive file',
   'onedrive_attachment.attached': 'Attached a OneDrive file',

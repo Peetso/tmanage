@@ -80,6 +80,7 @@ export function createPrivacyExportReadyMail(mailer: PrivacyMailer): OutboxHandl
     const own = kind === 'member' && subject === requester;
     const path = own ? `/${org.slug}/settings/my-data` : `/${org.slug}/admin/privacy`;
     stage(effects, mailer, 'export_ready', recipient, {
+      organizationId: event.organizationId,
       organizationName: org.name,
       scope: kind,
       link: mailer.linkTo(path),
@@ -123,6 +124,7 @@ export function createPrivacyDeletionChangedMail(mailer: PrivacyMailer): OutboxH
     const link = mailKind === 'deletion_executed' ? undefined : mailer.linkTo(path);
     for (const recipient of recipients) {
       stage(effects, mailer, mailKind, recipient, {
+        organizationId: event.organizationId,
         organizationName: org.name,
         scope: company ? 'company' : 'account',
         ...(scheduledFor === undefined ? {} : { scheduledFor }),

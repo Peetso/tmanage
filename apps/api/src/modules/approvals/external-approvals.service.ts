@@ -1,5 +1,6 @@
 import { uuidv7 } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
+import { MailRecipientSuppressedError } from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
 import type { ExternalApproverRow, PublicLinkRow } from '../../common/database/schema.js';
 import type {
@@ -167,18 +168,24 @@ export class ExternalApprovalsService {
     let mailed = false;
     // A relative link (no WEB_PUBLIC_URL) is never mailed: the sender copies it instead.
     if (this.options.mailer !== null && /^https?:\/\//u.test(url)) {
-      await this.options.mailer.send({
-        to: input.email,
-        ...approvalMail({
-          url,
-          organizationName: staged.organizationName,
-          title: staged.title,
-          versionNo: staged.versionNo,
-          message: input.message,
-          expiresAt: staged.link.expiresAt,
-        }),
-      });
-      mailed = true;
+      try {
+        await this.options.mailer.send({
+          to: input.email,
+          ...approvalMail({
+            url,
+            organizationName: staged.organizationName,
+            title: staged.title,
+            versionNo: staged.versionNo,
+            message: input.message,
+            expiresAt: staged.link.expiresAt,
+          }),
+          organizationId: context.organizationId,
+        });
+        mailed = true;
+      } catch (error) {
+        // 56-26: the address bounced in this company — not mailed; the sender copies the link.
+        if (!(error instanceof MailRecipientSuppressedError)) throw error;
+      }
     }
     return { approver: toView(staged.row, staged.link), url, mailed };
   }

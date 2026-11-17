@@ -19,6 +19,14 @@ import type { MailDelivery, Mailer, MailMessage } from './mailer.js';
  * wanted until proven otherwise, and a new bounce suppresses the address again.
  */
 
+/**
+ * The message with the company it is sent for, so the SMTP driver signs its Message-ID and the
+ * guard applies; unchanged when the producer knows no company.
+ */
+export function forCompany(message: MailMessage, organizationId: string | undefined): MailMessage {
+  return organizationId === undefined ? message : { ...message, organizationId };
+}
+
 /** Whether a company has stopped mail to an address hash (`emailAddressHash`). */
 export interface BounceSuppressionLookup {
   isBounceSuppressed(organizationId: string, addressHash: string): Promise<boolean>;

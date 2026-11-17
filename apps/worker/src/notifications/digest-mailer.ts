@@ -1,3 +1,4 @@
+import { forCompany } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import type { NaturalNotificationKind } from '@tmanage/domain';
 import { isArabicLocale } from './collaboration-mailer.js';
@@ -10,6 +11,8 @@ import { isArabicLocale } from './collaboration-mailer.js';
  */
 
 export interface DigestEmailFacts {
+  /** 56-26: the sending company — its Message-ID is signed and its bounce suppressions apply. */
+  readonly organizationId?: string;
   readonly recipientEmail: string;
   readonly recipientName: string;
   readonly organizationName: string;
@@ -109,7 +112,7 @@ export class DigestMailer {
   async deliver(facts: DigestEmailFacts): Promise<DigestMailDelivery> {
     if (this.mailer === null) return 'none';
     try {
-      return await this.mailer.send(composeDigestEmail(facts));
+      return await this.mailer.send(forCompany(composeDigestEmail(facts), facts.organizationId));
     } catch (error) {
       console.error('[worker] notification digest email failed', error);
       return 'failed';

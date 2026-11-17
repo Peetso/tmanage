@@ -1,3 +1,4 @@
+import { forCompany } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 
 /**
@@ -46,6 +47,8 @@ function oneLine(value: string): string {
 
 /** Everything one usage mail says, resolved from the payload and the recipient's user row. */
 export interface UsageThresholdEmailFacts {
+  /** 56-26: the sending company — its Message-ID is signed and its bounce suppressions apply. */
+  readonly organizationId?: string;
   readonly recipientEmail: string;
   readonly recipientName: string;
   /** The band crossed: 70, 85, 95 (a warning) or 100 (uploads now blocked). */
@@ -110,7 +113,9 @@ export class UsageThresholdMailer {
   async deliver(facts: UsageThresholdEmailFacts): Promise<UsageThresholdMailDelivery> {
     if (this.mailer === null) return 'none';
     try {
-      return await this.mailer.send(composeUsageThresholdEmail(facts));
+      return await this.mailer.send(
+        forCompany(composeUsageThresholdEmail(facts), facts.organizationId),
+      );
     } catch (error) {
       // Absorbed loudly, without the address: the driver's words may name the recipient, so
       // they go to the operator's log and nowhere else — never into the batch report.

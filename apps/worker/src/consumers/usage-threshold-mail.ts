@@ -93,10 +93,12 @@ function stageUsageMail(input: {
   readonly mailer: UsageThresholdMailer;
   readonly recipient: UsageMailRecipient;
   readonly payload: UsagePayload;
+  readonly organizationId: string;
 }): void {
   const { recipient, payload } = input;
   input.effects.afterCommit(async () => {
     await input.mailer.deliver({
+      organizationId: input.organizationId,
       recipientEmail: recipient.email,
       recipientName: recipient.displayName,
       band: payload.band,
@@ -134,7 +136,7 @@ export function createUsageThresholdMail(mailer: UsageThresholdMailer): OutboxHa
         }
       }
 
-      stageUsageMail({ effects, mailer, recipient, payload });
+      stageUsageMail({ effects, mailer, recipient, payload, organizationId: event.organizationId });
     }
   };
 }
@@ -168,6 +170,6 @@ export function createUsageThresholdMailResume(mailer: UsageThresholdMailer): Ou
     if (recipient === null) return; // The user is gone.
     if (!recipient.emailEnabled) return; // Turned the mail channel off during the deferral.
 
-    stageUsageMail({ effects, mailer, recipient, payload });
+    stageUsageMail({ effects, mailer, recipient, payload, organizationId: event.organizationId });
   };
 }

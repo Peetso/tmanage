@@ -1,4 +1,5 @@
 import type { Principal } from '@tmanage/domain';
+import { forCompany } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import { ObjectNotFoundError } from '@tmanage/storage';
 import type { ObjectStore } from '@tmanage/storage';
@@ -170,7 +171,9 @@ export class InboundAttachmentsService {
     if (this.mailer === null)
       return { id: mailId, attachments: plan.names.length, delivery: 'none' };
     try {
-      const delivery = await this.mailer.send(composeAskResendEmail(plan));
+      const delivery = await this.mailer.send(
+        forCompany(composeAskResendEmail(plan), context.organizationId),
+      );
       return { id: mailId, attachments: plan.names.length, delivery };
     } catch {
       // The ask is recorded; a transport failure is reported, never retried here.
