@@ -6,6 +6,7 @@ import { GoogleCalendarRepository } from './google-calendar.repository.js';
 import type { ConnectionRef } from './google-calendar.repository.js';
 import { isCalendarRemote } from './calendar-sync-extras.js';
 import type { CalendarSyncExtras } from './calendar-sync-extras.js';
+import { integrationOnForJob } from '../platform-admin/settings/integration-switch.js';
 
 /**
  * 0237 — the calendar pull, run inside the API process (the Hostinger app is one Node process and
@@ -156,6 +157,8 @@ export class CalendarSyncJob implements OnApplicationBootstrap, OnModuleDestroy 
   private async visit(ref: ConnectionRef, correlationId: string): Promise<void> {
     const adapter = this.adapters.get(ref.provider);
     if (!adapter) return;
+    const service = ref.provider === 'microsoft' ? 'microsoft_calendar' : 'google_calendar';
+    if (!(await integrationOnForJob(this.database, service, correlationId))) return;
     const context = createServiceContext({
       organizationId: ref.organizationId,
       correlationId,

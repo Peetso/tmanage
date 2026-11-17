@@ -5,6 +5,7 @@ import { activeLocale } from '../i18n/locale-store';
 import { translate, type MessageKey } from '../i18n/t';
 import { useTOr } from '../i18n/use-t-or';
 import { ApiRequestError, NetworkError } from './errors';
+import { isServicePaused } from './service-paused';
 
 /** The catalog lookup this helper needs: `useTOr()`'s shape (key, English fallback). */
 export type TranslateOr = (key: string, english: string) => string;
@@ -43,6 +44,10 @@ export const STATUS_LINES: ApiErrorLines = {
   network: ['ApiError.statusDown', API_ERROR_STATUS_DOWN_EN],
 };
 
+/** ADMINSVC2 — a connected service the platform switched off (409 `integration: switched_off`). */
+const SERVICE_PAUSED_EN =
+  'TManage has paused this service for now. Nothing is lost: your connection is kept. Try again later.';
+
 const NETWORK_DOWN: CatalogLine = ['ApiError.networkDown', API_ERROR_NETWORK_DOWN_EN];
 const GENERIC: CatalogLine = ['ApiError.generic', API_ERROR_GENERIC_EN];
 
@@ -75,6 +80,7 @@ const STOCK_MESSAGE_KEYS: ReadonlyMap<string, string> = new Map([
  * never shows English here.
  */
 export function describeApiError(error: unknown, t: TranslateOr, lines?: ApiErrorLines): string {
+  if (isServicePaused(error)) return t('platformServices.pausedBody', SERVICE_PAUSED_EN);
   if (error instanceof ApiRequestError) {
     const stockKey = STOCK_MESSAGE_KEYS.get(error.message);
     return stockKey === undefined ? error.message : t(stockKey, error.message);

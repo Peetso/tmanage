@@ -86,22 +86,26 @@ export function createIntegrationSwitchesFrom(
   };
 }
 
-let processSwitches: IntegrationSwitches | null = null;
+const processSwitches = new WeakMap<TenantDatabase, IntegrationSwitches>();
+const allSwitches = new Set<IntegrationSwitches>();
 
-/** The process-wide switches over the database (one cache, so a flip here is seen at once). */
+/** The process-wide switches over one database (one cache, so a flip here is seen at once). */
 export function integrationSwitches(database: TenantDatabase): IntegrationSwitches {
-  if (processSwitches === null) {
+  let switches = processSwitches.get(database);
+  if (switches === undefined) {
     const repository = new PlatformAdminRepository(database);
-    processSwitches = createIntegrationSwitchesFrom((key, correlationId) =>
+    switches = createIntegrationSwitchesFrom((key, correlationId) =>
       repository.readSetting(key, correlationId),
     );
+    processSwitches.set(database, switches);
+    allSwitches.add(switches);
   }
-  return processSwitches;
+  return switches;
 }
 
 /** Called by the settings page after it wrote a switch. */
 export function forgetIntegrationSwitches(): void {
-  processSwitches?.forget();
+  for (const switches of allSwitches) switches.forget();
 }
 
 /** Throws {@link integrationSwitchedOff} while `key` is off. The one shared check. */
@@ -111,6 +115,22 @@ export async function requireIntegrationOn(
   correlationId: string,
 ): Promise<void> {
   if (!(await switches.isOn(key, correlationId))) throw integrationSwitchedOff(key);
+}
+
+/**
+ * ADMINSVC2 — the one gate every background job asks before it touches a connected service.
+ * `false` while the service is off (or the switch cannot be read): the job skips this round
+ * quietly — no error state, no retry, nothing deleted — and works again on its next pass once the
+ * service is on. A harness database without the identity reader counts as on, as in
+ * admin/feature-gate.ts, so unit harnesses of a job need no platform tables.
+ */
+export async function integrationOnForJob(
+  database: TenantDatabase,
+  key: SwitchableIntegration,
+  correlationId: string,
+): Promise<boolean> {
+  if (typeof database.identityRead !== 'function') return true;
+  return integrationSwitches(database).isOn(key, correlationId);
 }
 
 /** A fixed service, or the route parameter that names it (`:provider`, `:connectorKey`). */

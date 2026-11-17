@@ -24,6 +24,7 @@ import { live } from './storage-handover.service.js';
 import { StorageMoveRepository } from './storage-move.repository.js';
 import type { MoveCandidate } from './storage-move.repository.js';
 import type { StorageMoveRequester } from './storage-move.service.js';
+import { integrationOnForJob } from '../platform-admin/settings/integration-switch.js';
 
 /**
  * 57-13b. The "Move to Drive" job: the background half of `storage-move.service.ts`.
@@ -140,6 +141,8 @@ export class StorageMovePass {
         this.jobs.findActive(runner, context),
       );
       if (!job) continue;
+      // The service is switched off for the platform: leave the job untouched until it is on.
+      if (!(await integrationOnForJob(this.database, job.backend, correlationId))) continue;
       const claimed = await this.database.transaction(context, (tx) =>
         this.jobs.claim(tx, context, job.id, this.options.now(), staleBefore),
       );

@@ -8,13 +8,19 @@ import type { TenantDatabase } from '../../../common/database/tenant-context.js'
 import { ensureRequestState } from '../../../common/http/request-state.js';
 import { AppConnectController } from '../../app-connect/app-connect.controller.js';
 import { FigmaController } from '../../figma/figma.controller.js';
+import { FigmaSnapshotJob } from '../../figma/figma-snapshot-job.js';
+import type { FigmaRestClient } from '../../figma/figma.rest.js';
+import type { ObjectStore } from '@tmanage/storage';
+import type { TokenVaultSlot } from '../../connectors/token-vault.js';
 import { GoogleDriveStorageController } from '../../google-drive/google-drive.controller.js';
+import { GoogleCalendarConnectionController } from '../../google-calendar/google-calendar.controller.js';
 import { PlatformAdminGuard } from '../platform-admin.guard.js';
 import type { PlatformAdminLookup } from '../platform-admin.guard.js';
 import {
   createIntegrationSwitchesFrom,
   forgetIntegrationSwitches,
   IntegrationSwitchGuard,
+  integrationOnForJob,
   requireIntegrationOn,
 } from './integration-switch.js';
 import { PlatformSettingsController } from './settings.controller.js';
@@ -109,6 +115,21 @@ describe('IntegrationSwitchGuard on the connect, completion and use routes', () 
     ).rejects.toMatchObject({ status: 409 });
     forgetIntegrationSwitches();
   });
+
+  it('ADMINSVC2: the sign-in start routes refuse, so nobody is sent to the provider', async () => {
+    forgetIntegrationSwitches();
+    const guard = new IntegrationSwitchGuard(new Reflector(), database);
+    for (const [handler, owner] of [
+      [GoogleCalendarConnectionController.prototype.connect, GoogleCalendarConnectionController],
+      [FigmaController.prototype.start, FigmaController],
+    ] as const) {
+      await expect(guard.canActivate(contextFor(handler, owner, {}))).rejects.toMatchObject({
+        status: 409,
+        details: [{ field: 'integration', message: 'switched_off' }],
+      });
+    }
+    forgetIntegrationSwitches();
+  });
 });
 
 describe('the settings routes stay behind the platform admin guard', () => {
@@ -165,5 +186,47 @@ describe('the settings routes stay behind the platform admin guard', () => {
       await status(['platform.orgs.view'], put),
       await status(['platform.settings.edit'], put),
     ]).toEqual([404, 404, 403, 200]);
+  });
+});
+
+describe('ADMINSVC2 background jobs ask the same switch', () => {
+  function databaseWith(setting: { value: string }) {
+    let bootstrapReads = 0;
+    const database = {
+      identityRead: async (
+        _options: unknown,
+        work: (db: { query: () => Promise<unknown[]> }) => Promise<unknown>,
+      ) => work({ query: async () => [{ setting_value: setting.value }] }),
+      bootstrapRead: async () => {
+        bootstrapReads += 1;
+        return [];
+      },
+    } as unknown as TenantDatabase;
+    return { database, reads: () => bootstrapReads };
+  }
+
+  it('the Figma snapshot job skips quietly while off and works again once on', async () => {
+    forgetIntegrationSwitches();
+    const setting = { value: 'off' };
+    const { database, reads } = databaseWith(setting);
+    const job = new FigmaSnapshotJob(
+      database,
+      {} as ObjectStore,
+      {} as FigmaRestClient,
+      {} as TokenVaultSlot,
+      null,
+      false,
+    );
+    expect(await job.pass()).toMatchObject({ organizations: 0, failed: 0, retrying: 0 });
+    expect(reads()).toBe(0);
+    setting.value = 'on';
+    forgetIntegrationSwitches();
+    await job.pass();
+    expect(reads()).toBe(1);
+    forgetIntegrationSwitches();
+  });
+
+  it('a harness database without the identity reader counts as on', async () => {
+    expect(await integrationOnForJob({} as TenantDatabase, 'google_calendar', 'c')).toBe(true);
   });
 });

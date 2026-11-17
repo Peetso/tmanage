@@ -13842,7 +13842,6 @@
   "PlatformSettings.supportStepUp": "Revérification de l’identité (confirmation renforcée)",
   "PlatformSettings.supportStepUpBody": "Fixée à {duration} par la règle de sécurité 8.",
   "PlatformSettings.readOnlyMinutes": "Lecture seule · {duration}",
-  "PlatformSettings.integrationsTitle": "INTÉGRATIONS",
   "PlatformSettings.integrationsBody": "Les clés serveur se trouvent dans Hostinger et sont en lecture seule ici. L’interrupteur active ou désactive une intégration pour toutes les organisations ; un motif est obligatoire.",
   "PlatformSettings.integrationsError": "Nous n’avons pas pu charger les intégrations",
   "PlatformSettings.colIntegration": "Intégration",
@@ -13859,7 +13858,6 @@
   "PlatformSettings.integrationSwitch": "{name} activé pour TManage",
   "PlatformSettings.integrationOffTitle": "Désactiver {name} pour toutes les organisations ?",
   "PlatformSettings.integrationOnTitle": "Activer {name} pour toutes les organisations ?",
-  "PlatformSettings.integrationOffBody": "Les organisations connectées cessent de se synchroniser jusqu’à sa réactivation.",
   "PlatformSettings.turnOff": "Désactiver",
   "PlatformSettings.turnOn": "Activer",
   "PlatformSettings.integrationGoogleDrive": "Google Drive",
@@ -20090,5 +20088,7 @@
   "platformServices.offBody": "Les espaces de travail ne peuvent plus connecter ni utiliser {name} tant que vous ne le réactivez pas. Rien n’est supprimé : leurs connexions restent et fonctionnent de nouveau dès sa réactivation.",
   "platformServices.onBody": "Les espaces de travail peuvent de nouveau connecter et utiliser {name}. Leurs connexions précédentes reviennent telles quelles.",
   "EmptyStates.filesBody": "Gardez briefs, maquettes et livrables avec le projet auquel ils appartiennent, et partagez-les avec vos clients quand ils sont prêts.",
-  "EmptyStates.howFilesWork": "Comment fonctionnent les fichiers"
+  "EmptyStates.howFilesWork": "Comment fonctionnent les fichiers",
+  "platformServices.pausedTitle": "Mis en pause par TManage",
+  "platformServices.pausedBody": "TManage a mis ce service en pause pour le moment. Rien n’est perdu : votre connexion est conservée. Réessayez plus tard."
 }

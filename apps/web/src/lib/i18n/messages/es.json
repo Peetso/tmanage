@@ -13842,7 +13842,6 @@
   "PlatformSettings.supportStepUp": "Nueva comprobación de identidad (verificación reciente)",
   "PlatformSettings.supportStepUpBody": "Fijado en {duration} por la regla de seguridad 8.",
   "PlatformSettings.readOnlyMinutes": "Solo lectura · {duration}",
-  "PlatformSettings.integrationsTitle": "INTEGRACIONES",
   "PlatformSettings.integrationsBody": "Las claves del servidor están en Hostinger y aquí son de solo lectura. El interruptor activa o desactiva una integración para todas las organizaciones; se requiere un motivo.",
   "PlatformSettings.integrationsError": "No pudimos cargar las integraciones",
   "PlatformSettings.colIntegration": "Integración",
@@ -13859,7 +13858,6 @@
   "PlatformSettings.integrationSwitch": "{name} activado para TManage",
   "PlatformSettings.integrationOffTitle": "¿Desactivar {name} para todas las organizaciones?",
   "PlatformSettings.integrationOnTitle": "¿Activar {name} para todas las organizaciones?",
-  "PlatformSettings.integrationOffBody": "Las organizaciones conectadas dejan de sincronizar hasta que se vuelva a activar.",
   "PlatformSettings.turnOff": "Desactivar",
   "PlatformSettings.turnOn": "Activar",
   "PlatformSettings.integrationGoogleDrive": "Google Drive",
@@ -20092,5 +20090,7 @@
   "platformServices.offBody": "Los espacios de trabajo no podrán conectar ni usar {name} hasta que lo vuelvas a activar. No se borra nada: sus conexiones se mantienen y vuelven a funcionar en cuanto esté activado.",
   "platformServices.onBody": "Los espacios de trabajo pueden volver a conectar y usar {name}. Sus conexiones anteriores vuelven tal como estaban.",
   "EmptyStates.filesBody": "Guarda briefs, diseños y entregables junto al proyecto al que pertenecen y compártelos con los clientes cuando estén listos.",
-  "EmptyStates.howFilesWork": "Cómo funcionan los archivos"
+  "EmptyStates.howFilesWork": "Cómo funcionan los archivos",
+  "platformServices.pausedTitle": "En pausa por TManage",
+  "platformServices.pausedBody": "TManage ha pausado este servicio por ahora. No se pierde nada: tu conexión se mantiene. Inténtalo de nuevo más tarde."
 }

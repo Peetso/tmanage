@@ -20,6 +20,7 @@ import {
   type FigmaRestClient,
 } from './figma.rest.js';
 import { figmaSnapshotObjectKey, figmaThumbObjectKey, readMemberToken } from './figma.service.js';
+import { integrationOnForJob } from '../platform-admin/settings/integration-switch.js';
 
 /**
  * R4 slice 13, reworked 2026-11-10 — the Figma snapshot job (SPEC R4 §3.5.2), the preview job's
@@ -255,6 +256,9 @@ export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy
     const correlationId = uuidv7();
     const staleBefore = new Date(this.now().getTime() - this.options.claimStaleMs);
     const tally: Tally = { ready: 0, failed: 0, retrying: 0 };
+    if (!(await integrationOnForJob(this.database, 'figma', correlationId))) {
+      return { organizations: 0, ...tally, rateLimited: false };
+    }
     const organizations = await this.database.bootstrapRead(
       { correlationId, reason: FIGMA_SNAPSHOT_REASON, tables: ['figma_frames'] },
       (db) => this.repository.organizationsWithPendingFrames(db, staleBefore),

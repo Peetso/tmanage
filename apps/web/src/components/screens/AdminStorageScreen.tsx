@@ -47,6 +47,8 @@ import { useTOr } from '../../lib/i18n/use-t-or';
 import '../../styles/screens/storage.css';
 import './admin-label-spacing.css';
 import { BrandLogo } from '../brand/BrandLogo';
+import { isServicePaused } from '../../lib/api/service-paused';
+import { ServicePausedNotice } from './ServicePausedNotice';
 
 /**
  * Owner decision 2026-10-31 (reverses 2026-10-26): TManage storage (1 GB per company) is
@@ -214,6 +216,9 @@ export function AdminStorageScreen({
     disconnect.isError ||
     changeFolder.isError ||
     oneDriveMutations.some((mutation) => mutation.isError);
+  const paused = [complete, connect, settings, changeFolder, ...oneDriveMutations].some(
+    (mutation) => isServicePaused(mutation.error),
+  );
   const busy =
     complete.isPending ||
     connect.isPending ||
@@ -269,7 +274,9 @@ export function AdminStorageScreen({
             </p>
           )}
 
-          {failed ? (
+          {paused ? (
+            <ServicePausedNotice />
+          ) : failed ? (
             <InlineAlert tone="danger" title={t('AdminStorageScreen.actionFailedTitle')} live>
               {t('AdminStorageScreen.actionFailedBody')}
             </InlineAlert>

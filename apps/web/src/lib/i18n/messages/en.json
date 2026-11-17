@@ -13856,7 +13856,6 @@
   "PlatformSettings.supportStepUp": "Identity re-check (step-up)",
   "PlatformSettings.supportStepUpBody": "Fixed at {duration} by safety rule 8.",
   "PlatformSettings.readOnlyMinutes": "Read only · {duration}",
-  "PlatformSettings.integrationsTitle": "INTEGRATIONS",
   "PlatformSettings.integrationsBody": "Server keys live in Hostinger and are read only here. The switch turns an integration on or off for every organization; a reason is required.",
   "PlatformSettings.integrationsError": "We couldn't load the integrations",
   "PlatformSettings.colIntegration": "Integration",
@@ -13873,7 +13872,6 @@
   "PlatformSettings.integrationSwitch": "{name} on for TManage",
   "PlatformSettings.integrationOffTitle": "Turn off {name} for every organization?",
   "PlatformSettings.integrationOnTitle": "Turn on {name} for every organization?",
-  "PlatformSettings.integrationOffBody": "Connected organizations stop syncing until it is turned back on.",
   "PlatformSettings.turnOff": "Turn off",
   "PlatformSettings.turnOn": "Turn on",
   "PlatformSettings.integrationGoogleDrive": "Google Drive",
@@ -20285,5 +20283,7 @@
   "platformServices.offBody": "Workspaces can no longer connect or use {name} until you turn it back on. Nothing is deleted: their connections stay and work again as soon as it is on.",
   "platformServices.onBody": "Workspaces can connect and use {name} again. Their earlier connections come back as they were.",
   "EmptyStates.filesBody": "Keep briefs, designs and deliverables with the project they belong to, and share them with clients when they are ready.",
-  "EmptyStates.howFilesWork": "How files work"
+  "EmptyStates.howFilesWork": "How files work",
+  "platformServices.pausedTitle": "Paused by TManage",
+  "platformServices.pausedBody": "TManage has paused this service for now. Nothing is lost: your connection is kept. Try again later."
 }

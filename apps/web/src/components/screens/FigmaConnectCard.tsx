@@ -19,6 +19,8 @@ import { useTOr } from '../../lib/i18n/use-t-or';
 import '../viewer/figma-stage.css';
 import { BrandLogo } from '../brand/BrandLogo';
 import '../../styles/screens/connected-apps.css';
+import { isServicePaused } from '../../lib/api/service-paused';
+import { ServicePausedNotice } from './ServicePausedNotice';
 
 /**
  * **V-52 — Connect Figma.** Each person connects their own Figma account with a personal access
@@ -161,7 +163,9 @@ export function FigmaConnectCard({
       {view?.status === 'error' ? (
         <InlineAlert tone="warning">{t('Figma.connect.errorBody')}</InlineAlert>
       ) : null}
-      {returnFailed || complete.isError || oneClick.isError ? (
+      {[connect, oneClick, complete].some((mutation) => isServicePaused(mutation.error)) ? (
+        <ServicePausedNotice />
+      ) : returnFailed || complete.isError || oneClick.isError ? (
         <InlineAlert tone="danger" live>
           {tOr(
             'IntegrationDirectoryScreen.figmaFailed',

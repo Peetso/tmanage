@@ -37,6 +37,8 @@ import {
 } from './meeting-defaults';
 import './meetings.css';
 import { BrandLogo } from '../brand/BrandLogo';
+import { isServicePaused } from '../../lib/api/service-paused';
+import { ServicePausedNotice } from '../screens/ServicePausedNotice';
 
 /**
  * After a connect or disconnect: the person's own connections and the owners' team card both
@@ -133,7 +135,9 @@ export function CalendarConnectionsScreen({
       <div className="tm-mtg tm-mtg-settings">
         <div className="tm-mtg-settings__main">
           <p className="tm-mtg-lede">{t('CalendarConnections.lede')}</p>
-          {returnError ? (
+          {isServicePaused(connect.error) || isServicePaused(complete.error) ? (
+            <ServicePausedNotice />
+          ) : returnError ? (
             <InlineAlert tone="danger" title={t('CalendarConnections.connectFailed')} live>
               {complete.error instanceof ApiRequestError
                 ? complete.error.message

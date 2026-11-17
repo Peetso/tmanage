@@ -41,6 +41,8 @@ import { useOrganizationRole } from '../../lib/use-organization-names';
 import { ConnectSetupGuide } from './ConnectSetupGuide';
 import { BrandLogo, type BrandId } from '../brand/BrandLogo';
 import '../../styles/screens/connect-apps.css';
+import { isServicePaused } from '../../lib/api/service-paused';
+import { ServicePausedNotice } from './ServicePausedNotice';
 
 type AppId = 'google_calendar' | 'microsoft_calendar' | 'google_drive' | 'onedrive';
 
@@ -344,7 +346,9 @@ export function ConnectAppsCards({
             {fillTemplate(t('ConnectApps.success'), { app: outcomeName })}
           </InlineAlert>
         ) : null}
-        {outcome?.kind === 'failure' && outcomeApp ? (
+        {isServicePaused(complete.error) ? (
+          <ServicePausedNotice />
+        ) : outcome?.kind === 'failure' && outcomeApp ? (
           <InlineAlert
             tone="danger"
             title={fillTemplate(t('ConnectApps.failedTitle'), { app: outcomeName })}
@@ -369,7 +373,9 @@ export function ConnectAppsCards({
           {fillTemplate(t('ConnectApps.success'), { app: outcomeName })}
         </InlineAlert>
       ) : null}
-      {outcome?.kind === 'failure' && outcomeApp ? (
+      {isServicePaused(complete.error) ? (
+        <ServicePausedNotice />
+      ) : outcome?.kind === 'failure' && outcomeApp ? (
         <InlineAlert
           tone="danger"
           title={fillTemplate(t('ConnectApps.failedTitle'), { app: outcomeName })}
@@ -378,7 +384,9 @@ export function ConnectAppsCards({
           {fillTemplate(t(outcome.why.userKey), { provider: providerName(outcomeApp.provider) })}
         </InlineAlert>
       ) : null}
-      {actionFailed ? (
+      {isServicePaused(connect.error) ? (
+        <ServicePausedNotice />
+      ) : actionFailed ? (
         <InlineAlert tone="danger" live>
           {t('ConnectApps.actionError')}
         </InlineAlert>

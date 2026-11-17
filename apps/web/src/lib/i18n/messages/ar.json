@@ -13856,7 +13856,6 @@
   "PlatformSettings.supportStepUp": "إعادة تأكيد الهوية",
   "PlatformSettings.supportStepUpBody": "‏ثابتة على {duration} وفق قاعدة الأمان 8.",
   "PlatformSettings.readOnlyMinutes": "‏للقراءة فقط · {duration}",
-  "PlatformSettings.integrationsTitle": "التكاملات",
   "PlatformSettings.integrationsBody": "‏مفاتيح الخادم محفوظة في Hostinger، وتظهر هنا للعرض فقط. زر التشغيل يفعّل التكامل أو يوقفه لكل المؤسسات، ويلزم ذكر السبب.",
   "PlatformSettings.integrationsError": "تعذّر تحميل التكاملات",
   "PlatformSettings.colIntegration": "التكامل",
@@ -13873,7 +13872,6 @@
   "PlatformSettings.integrationSwitch": "‏تفعيل {name} في TManage",
   "PlatformSettings.integrationOffTitle": "‏إيقاف {name} لكل المؤسسات؟",
   "PlatformSettings.integrationOnTitle": "‏تشغيل {name} لكل المؤسسات؟",
-  "PlatformSettings.integrationOffBody": "ستتوقف المزامنة في المؤسسات المتصلة إلى أن يُعاد تشغيله.",
   "PlatformSettings.turnOff": "إيقاف",
   "PlatformSettings.turnOn": "تشغيل",
   "PlatformSettings.integrationGoogleDrive": "‏Google Drive",
@@ -20285,5 +20283,7 @@
   "platformServices.offBody": "‏لن تتمكن مساحات العمل من ربط {name} أو استخدامه حتى تعيد تشغيله. لا يُحذف أي شيء: تبقى اتصالاتها كما هي وتعمل من جديد فور تشغيله.",
   "platformServices.onBody": "‏ستتمكن مساحات العمل من ربط {name} واستخدامه من جديد، وتعود اتصالاتها السابقة كما كانت.",
   "EmptyStates.filesBody": "احفظ الملخصات والتصاميم والمخرجات مع المشروع الذي تنتمي إليه، وشاركها مع العملاء عندما تصبح جاهزة.",
-  "EmptyStates.howFilesWork": "كيف تعمل الملفات"
+  "EmptyStates.howFilesWork": "كيف تعمل الملفات",
+  "platformServices.pausedTitle": "‏أوقفتها TManage مؤقتًا",
+  "platformServices.pausedBody": "‏أوقفت TManage هذه الخدمة مؤقتًا. لم يضِع شيء، واتصالك محفوظ. حاول مرة أخرى لاحقًا."
 }

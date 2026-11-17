@@ -13842,7 +13842,6 @@
   "PlatformSettings.supportStepUp": "Erneute Identitätsprüfung (Step-up)",
   "PlatformSettings.supportStepUpBody": "Durch Sicherheitsregel 8 auf {duration} festgelegt.",
   "PlatformSettings.readOnlyMinutes": "Nur Lesen · {duration}",
-  "PlatformSettings.integrationsTitle": "INTEGRATIONEN",
   "PlatformSettings.integrationsBody": "Serverschlüssel liegen in Hostinger und sind hier schreibgeschützt. Der Schalter schaltet eine Integration für jede Organisation ein oder aus; ein Grund ist erforderlich.",
   "PlatformSettings.integrationsError": "Die Integrationen konnten nicht geladen werden",
   "PlatformSettings.colIntegration": "Integration",
@@ -13859,7 +13858,6 @@
   "PlatformSettings.integrationSwitch": "{name} an für TManage",
   "PlatformSettings.integrationOffTitle": "{name} für jede Organisation ausschalten?",
   "PlatformSettings.integrationOnTitle": "{name} für jede Organisation einschalten?",
-  "PlatformSettings.integrationOffBody": "Verbundene Organisationen synchronisieren nicht mehr, bis es wieder eingeschaltet ist.",
   "PlatformSettings.turnOff": "Ausschalten",
   "PlatformSettings.turnOn": "Einschalten",
   "PlatformSettings.integrationGoogleDrive": "Google Drive",
@@ -20090,5 +20088,7 @@
   "platformServices.offBody": "Arbeitsbereiche können {name} nicht mehr verbinden oder nutzen, bis du es wieder einschaltest. Es wird nichts gelöscht: Ihre Verbindungen bleiben und funktionieren wieder, sobald es an ist.",
   "platformServices.onBody": "Arbeitsbereiche können {name} wieder verbinden und nutzen. Ihre bisherigen Verbindungen sind wieder wie vorher da.",
   "EmptyStates.filesBody": "Bewahre Briefings, Entwürfe und Ergebnisse beim passenden Projekt auf und teile sie mit Kunden, sobald sie fertig sind.",
-  "EmptyStates.howFilesWork": "So funktionieren Dateien"
+  "EmptyStates.howFilesWork": "So funktionieren Dateien",
+  "platformServices.pausedTitle": "Von TManage pausiert",
+  "platformServices.pausedBody": "TManage hat diesen Dienst vorübergehend pausiert. Nichts geht verloren: Deine Verbindung bleibt erhalten. Versuche es später noch einmal."
 }

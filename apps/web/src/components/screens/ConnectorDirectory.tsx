@@ -17,6 +17,8 @@ import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import '../../styles/screens/connector-directory.css';
 import { BrandLogo, type BrandId } from '../brand/BrandLogo';
+import { isServicePaused } from '../../lib/api/service-paused';
+import { ServicePausedNotice } from './ServicePausedNotice';
 
 /** Registry key → the app's mark (the same tile as Integrations and Storage). */
 const BRAND_OF: Readonly<Record<string, BrandId>> = {
@@ -132,12 +134,13 @@ export function ConnectorDirectory({
               onDisconnect={() => uninstall.mutate(connector.key)}
             />
           </ul>
+          {isServicePaused(install.error) ? <ServicePausedNotice /> : null}
           {!isConnected && !formClosed ? (
             <InstallCard
               labelledBy={headingId}
               connector={connector}
               busy={install.isPending}
-              failed={install.isError}
+              failed={install.isError && !isServicePaused(install.error)}
               onCancel={() => {
                 setFormClosed(true);
                 onDone?.();
