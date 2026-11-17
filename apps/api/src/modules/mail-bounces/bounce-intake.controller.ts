@@ -15,7 +15,8 @@ import type { MailBouncesService } from './mail-bounces.service.js';
 
 /**
  * 56-26 — `POST /v1/public/inbound-email/bounces`: the forwarder of the sending mailbox posts each
- * bounce it receives as the raw message (`Content-Type: message/rfc822`, at most 1 MiB), signed
+ * bounce — and each feedback-loop spam complaint (ARF) — it receives as the raw message
+ * (`Content-Type: message/rfc822`, at most 1 MiB), signed
  * exactly like the inbound-mail webhook — the same platform secret `INBOUND_EMAIL_WEBHOOK_SECRET`
  * and headers:
  *

@@ -86,6 +86,8 @@ export { bounceMessageId, deriveBounceKey, readBounceMessageId } from './bounce-
 export type { BounceMessageIdInput, BounceReference } from './bounce-id.js';
 export { MAX_BOUNCE_BYTES, parseDeliveryReport } from './bounce-report.js';
 export type { BounceKind, DeliveryReport } from './bounce-report.js';
+export { parseFeedbackReport } from './feedback-report.js';
+export type { FeedbackReport, FeedbackType } from './feedback-report.js';
 export { BounceGuardMailer, MailRecipientSuppressedError, forCompany } from './bounce-guard.js';
 export type { BounceSuppressionLookup } from './bounce-guard.js';
 // 56-23 — the batched security alert's words (sent by the worker's security detector).

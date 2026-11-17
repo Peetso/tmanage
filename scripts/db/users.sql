@@ -2520,6 +2520,8 @@ GRANT INSERT, UPDATE ON `tmanage`.`mail_recipient_bounces` TO 'tmanage_app'@'%';
 -- (`BounceGuardMailer` over `createBounceSuppressionLookup`): SELECT only, one probe per company
 -- mail, always bound to that company.
 GRANT SELECT ON `tmanage`.`mail_recipient_bounces` TO 'tmanage_worker'@'%';
+-- 0370 (56-26 ARF). `mail_recipient_bounces.last_kind` widened for 'complaint': a spam complaint
+-- is recorded by the same intake through the existing 0366 grants; no new grant.
 -- 0367 (57-13 follow-up). `storage_migration_jobs.total_bytes` (the size the job set out to move) is
 -- written once in the job's INSERT by the existing `storage_migration_jobs` grant; no new grant.
 -- 0359 (ADTRACK). `organizations` gains four nullable `signup_utm_*` columns, written once in the

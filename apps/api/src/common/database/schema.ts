@@ -13841,14 +13841,15 @@ export type StorageMigrationJobRow = typeof storageMigrationJobs.$inferSelect;
 Object.assign(TABLES, { storage_migration_jobs: storageMigrationJobs });
 
 // ---- 56-26 · mail bounces (0366) ----
-export const MAIL_BOUNCE_KINDS = ['hard', 'soft'] as const;
+// 'complaint' (0370): a feedback-loop spam complaint (ARF) suppressed the address.
+export const MAIL_BOUNCE_KINDS = ['hard', 'soft', 'complaint'] as const;
 export type MailBounceKind = (typeof MAIL_BOUNCE_KINDS)[number];
 
 /**
  * 0366 (56-26). One company's bounce record for one recipient address hash (`emailAddressHash`;
  * the raw address is never stored). `suppressedAt` set = the company's mail to that address is held
  * back until an owner or admin clears it. TENANT; INSERT and UPDATE for the API.
- * `0366_mail_recipient_bounces.sql` is the source of truth.
+ * `0366_mail_recipient_bounces.sql` (with 0370 widening `last_kind`) is the source of truth.
  */
 export const mailRecipientBounces = mysqlTable(
   'mail_recipient_bounces',
@@ -13857,7 +13858,7 @@ export const mailRecipientBounces = mysqlTable(
     addressHash: varchar('address_hash', { length: 64 }).notNull(),
     hardCount: int('hard_count', { unsigned: true }).notNull().default(0),
     softCount: int('soft_count', { unsigned: true }).notNull().default(0),
-    lastKind: varchar('last_kind', { length: 8 }).$type<MailBounceKind>().notNull(),
+    lastKind: varchar('last_kind', { length: 16 }).$type<MailBounceKind>().notNull(),
     lastStatus: varchar('last_status', { length: 16 }).notNull(),
     lastMessageRef: varchar('last_message_ref', { length: 32 }).notNull(),
     lastBouncedAt: datetime('last_bounced_at', { mode: 'date', fsp: 3 }).notNull(),

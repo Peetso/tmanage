@@ -1,7 +1,17 @@
 import { authorize, isUuid, uuidv7 } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
-import { emailAddressHash, parseDeliveryReport, readBounceMessageId } from '@tmanage/mail';
-import type { BounceReference, BounceSuppressionLookup, DeliveryReport } from '@tmanage/mail';
+import {
+  emailAddressHash,
+  parseDeliveryReport,
+  parseFeedbackReport,
+  readBounceMessageId,
+} from '@tmanage/mail';
+import type {
+  BounceReference,
+  BounceSuppressionLookup,
+  DeliveryReport,
+  FeedbackReport,
+} from '@tmanage/mail';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { createServiceContext } from '../../common/database/tenant-context.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -20,6 +30,13 @@ import type { BounceState } from './mail-bounces.repository.js';
  * another company's recipient. Per (company, address): the first hard bounce, or the third soft
  * one within {@link SOFT_WINDOW_MS}, suppresses the address; a report for the same message counts
  * once (a hard report after a soft one for the same message is counted as the hard one).
+ *
+ * **Complaints** (ARF, `parseFeedbackReport`): a feedback-loop report that the person marked the
+ * mail as spam (`abuse`) or phishing (`fraud`) arrives on the same intake. It is matched the same
+ * way, by the signed Message-ID of the returned original alone; an `Original-Rcpt-To` that names a
+ * different address makes the match fail (it can never make one). A complaint suppresses the
+ * address at once in the same store (`last_kind = 'complaint'`), and the guard then holds the
+ * company's non-auth mail to it exactly as it does after a hard bounce.
  *
  * **Guard** ({@link MailBounceLookup}): the lookup `BounceGuardMailer` asks before company mail goes.
  *
@@ -87,6 +104,25 @@ export function nextBounceState(
     lastMessageRef: reference,
     lastBouncedAt: at,
     suppressedAt: existing.suppressedAt ?? (suppress ? at : null),
+  };
+}
+
+/** The record after a spam complaint, or `null` when this complaint is one already recorded. */
+export function nextComplaintState(
+  existing: MailRecipientBounceRow | null,
+  complaint: Pick<FeedbackReport, 'feedbackType'>,
+  reference: string,
+  at: Date,
+): BounceState | null {
+  if (existing?.lastKind === 'complaint' && existing.lastMessageRef === reference) return null;
+  return {
+    hardCount: existing?.hardCount ?? 0,
+    softCount: existing?.softCount ?? 0,
+    lastKind: 'complaint',
+    lastStatus: complaint.feedbackType,
+    lastMessageRef: reference,
+    lastBouncedAt: at,
+    suppressedAt: existing?.suppressedAt ?? at,
   };
 }
 
@@ -170,9 +206,9 @@ export class MailBouncesService {
   ) {}
 
   /** The first quoted Message-ID this key signed, if any. */
-  private reference(report: DeliveryReport): BounceReference | null {
+  private reference(messageIds: readonly string[]): BounceReference | null {
     if (this.key === null) return null;
-    for (const candidate of report.messageIds) {
+    for (const candidate of messageIds) {
       const reference = readBounceMessageId(this.key, candidate);
       if (reference !== null) return reference;
     }
@@ -181,9 +217,34 @@ export class MailBouncesService {
 
   async record(raw: Uint8Array, correlationId: string): Promise<BounceOutcome> {
     const report = parseDeliveryReport(raw);
-    if (report === null) return 'not_a_report';
-    const reference = this.reference(report);
+    if (report !== null) {
+      const reference = this.reference(report.messageIds);
+      if (reference === null) return 'unmatched';
+      return this.apply(reference, correlationId, (existing, at) =>
+        nextBounceState(existing, report, reference.reference, at),
+      );
+    }
+    const complaint = parseFeedbackReport(raw);
+    if (complaint === null) return 'not_a_report';
+    const reference = this.reference(complaint.messageIds);
     if (reference === null) return 'unmatched';
+    if (
+      complaint.originalRcptTo !== null &&
+      emailAddressHash(complaint.originalRcptTo) !== reference.addressHash
+    ) {
+      return 'unmatched';
+    }
+    return this.apply(reference, correlationId, (existing, at) =>
+      nextComplaintState(existing, complaint, reference.reference, at),
+    );
+  }
+
+  /** One report's change to the record of the company and address the signed id named. */
+  private apply(
+    reference: BounceReference,
+    correlationId: string,
+    next: (existing: MailRecipientBounceRow | null, at: Date) => BounceState | null,
+  ): Promise<BounceOutcome> {
     const context = createServiceContext({
       organizationId: reference.organizationId,
       // A caller's id that is not a canonical UUID is replaced, never trusted as one.
@@ -193,14 +254,14 @@ export class MailBouncesService {
     const at = this.now();
     return this.database.transaction(context, async (runner) => {
       const existing = await this.repository.findForUpdate(runner, context, reference.addressHash);
-      const next = nextBounceState(existing, report, reference.reference, at);
-      if (next === null) return 'duplicate';
+      const state = next(existing, at);
+      if (state === null) return 'duplicate';
       if (existing === null) {
-        await this.repository.insert(runner, context, reference.addressHash, next, at);
+        await this.repository.insert(runner, context, reference.addressHash, state, at);
       } else {
-        await this.repository.update(runner, context, reference.addressHash, next, at);
+        await this.repository.update(runner, context, reference.addressHash, state, at);
       }
-      return next.suppressedAt === null ? 'recorded' : 'suppressed';
+      return state.suppressedAt === null ? 'recorded' : 'suppressed';
     });
   }
 
