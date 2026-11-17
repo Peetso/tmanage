@@ -4,6 +4,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { STORAGE_BYTES_METRIC } from './usage-counters.repository.js';
+import type { StorageUploadLimit } from '../billing/storage-allowance.service.js';
 import type { UsageCountersRepository } from './usage-counters.repository.js';
 import type { UsageLedgerRepository } from './usage-ledger.repository.js';
 
@@ -51,6 +52,8 @@ export class UsageService {
     private readonly counters: UsageCountersRepository,
     private readonly ledger: UsageLedgerRepository,
     private readonly config: ApiConfig,
+    /** 57-13r. The one storage allowance; absent, the platform cap. */
+    private readonly allowance: StorageUploadLimit | null = null,
   ) {}
 
   /**
@@ -97,7 +100,9 @@ export class UsageService {
       used: Number(counter?.usedValue ?? 0),
       previews,
       reserved: Number(counter?.reservedValue ?? 0),
-      quota: this.config.storageOrgBytesLimit,
+      quota: this.allowance
+        ? (await this.allowance.limitsFor(context)).allowanceBytes
+        : this.config.storageOrgBytesLimit,
       unit: 'bytes',
       reconciledAt: counter?.reconciledAt?.toISOString() ?? null,
     };

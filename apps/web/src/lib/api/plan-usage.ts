@@ -26,7 +26,8 @@ export type StorageThreshold = 0 | 70 | 85 | 95 | 100;
  * platform cap), the whole percent, the step reached, and whether TManage support raised it.
  */
 export interface PlanStorageView extends PlanUsageMeterView {
-  readonly limit: number;
+  /** Null = "No set limit" (Enterprise without a raise): no bar, no notice. */
+  readonly limit: number | null;
   readonly percent: number;
   readonly threshold: StorageThreshold;
   readonly raisedBySupport: boolean;

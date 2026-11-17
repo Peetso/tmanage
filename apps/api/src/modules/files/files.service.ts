@@ -42,7 +42,7 @@ import {
   type UploadSessionsRepository,
 } from './upload-sessions.repository.js';
 import { STORAGE_BYTES_METRIC, type UsageCountersRepository } from './usage-counters.repository.js';
-import type { StorageUploadLimit } from '../billing/storage-allowance.service.js';
+import type { StorageLimits, StorageUploadLimit } from '../billing/storage-allowance.service.js';
 import { USAGE_LEDGER_REASON, type UsageLedgerRepository } from './usage-ledger.repository.js';
 import type { UsageThresholdEvaluator } from './usage-thresholds.js';
 import {
@@ -854,7 +854,7 @@ export class FilesService {
       expiresInSeconds: this.config.uploadUrlTtlSeconds,
     });
     const expiresAt = new Date(Date.now() + this.config.uploadUrlTtlSeconds * 1_000);
-    const limitBytes = await this.storageLimitsFor(context);
+    const limits = await this.storageLimitsFor(context);
 
     let created: UploadSessionRow;
     try {
@@ -865,7 +865,7 @@ export class FilesService {
           context,
           STORAGE_BYTES_METRIC,
           input.sizeBytes,
-          limitBytes,
+          limits.uploadLimitBytes,
         );
         if (!reserved) throw new QuotaExhausted();
         // Reversal: drop this second count and two simultaneous requests can both land
@@ -902,7 +902,7 @@ export class FilesService {
           uploadTargets: upload.parts,
           expiresAt,
         });
-        await this.recordReservation(tx, context, row.id, input.sizeBytes, limitBytes);
+        await this.recordReservation(tx, context, row.id, input.sizeBytes, limits.allowanceBytes);
         return row;
       });
     } catch (error) {
@@ -924,7 +924,7 @@ export class FilesService {
       }
       if (error instanceof TooManyOpenUploads) throw await cap.refuse(error.open);
       if (error instanceof QuotaExhausted)
-        throw await this.quotaRefusal(context, draft, limitBytes);
+        throw await this.quotaRefusal(context, draft, limits.uploadLimitBytes);
       if (error instanceof UploadSessionKeyTakenError) {
         // Two requests with one key arrived together; the other won. Answer its session.
         const winner = await this.database.read(context, (runner) =>
@@ -1072,7 +1072,7 @@ export class FilesService {
       uploadId: id,
     });
     const sizeBytes = draft.input.sizeBytes;
-    const limitBytes = await this.storageLimitsFor(context);
+    const limits = await this.storageLimitsFor(context);
     let session: UploadSessionRow;
     try {
       session = await this.writing(() =>
@@ -1083,7 +1083,7 @@ export class FilesService {
             context,
             STORAGE_BYTES_METRIC,
             sizeBytes,
-            limitBytes,
+            limits.uploadLimitBytes,
           );
           if (!reserved) throw new QuotaExhausted();
           const asset = await this.assets.create(tx, context, {
@@ -1115,14 +1115,14 @@ export class FilesService {
             uploadTargets: [],
             expiresAt: new Date(Date.now() + this.config.uploadUrlTtlSeconds * 1_000),
           });
-          await this.recordReservation(tx, context, row.id, sizeBytes, limitBytes);
+          await this.recordReservation(tx, context, row.id, sizeBytes, limits.allowanceBytes);
           await this.sessions.transition(tx, context, row.id, ['reserved'], 'completing');
           return row;
         }),
       );
     } catch (error) {
       if (error instanceof QuotaExhausted)
-        throw await this.quotaRefusal(context, draft, limitBytes);
+        throw await this.quotaRefusal(context, draft, limits.uploadLimitBytes);
       throw error;
     }
 
@@ -1350,7 +1350,7 @@ export class FilesService {
     session: UploadSessionRow,
     stored: StoredObject,
   ): Promise<{ asset: FileAssetRow; version: FileVersionRow } | null> {
-    const limitBytes = await this.storageLimitsFor(context);
+    const { allowanceBytes } = await this.storageLimitsFor(context);
     return this.writing(() =>
       this.database.transaction(context, async (tx) => {
         const moved = await this.sessions.transition(
@@ -1444,7 +1444,7 @@ export class FilesService {
         }
         // Commit can raise used + reserved when the provider's count exceeds the declaration
         // (USAGE-001 slice 4, acceptance §2). Re-evaluate the band in the commit transaction.
-        await this.thresholds?.evaluate(tx, context, STORAGE_BYTES_METRIC, limitBytes);
+        await this.thresholds?.evaluate(tx, context, STORAGE_BYTES_METRIC, allowanceBytes);
         return { asset, version };
       }),
     );
@@ -2104,12 +2104,12 @@ export class FilesService {
 
   /**
    * `49` §5's effective quota: since 57-13r the workspace's temporary storage allowance, decided
-   * in one place (`StorageAllowanceService.uploadLimitBytes`); the platform cap when not wired.
+   * in one place (`StorageAllowanceService.limitsFor`); the platform cap when not wired.
    */
-  private async storageLimitsFor(context: TenantContext): Promise<number> {
-    return this.allowance
-      ? this.allowance.uploadLimitBytes(context)
-      : this.config.storageOrgBytesLimit;
+  private async storageLimitsFor(context: TenantContext): Promise<StorageLimits> {
+    if (this.allowance) return this.allowance.limitsFor(context);
+    const cap = this.config.storageOrgBytesLimit;
+    return { allowanceBytes: cap, uploadLimitBytes: cap };
   }
 
   private requireClient(principal: Principal): string {

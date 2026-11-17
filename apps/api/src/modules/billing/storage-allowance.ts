@@ -15,6 +15,11 @@ export interface StorageAllowance {
   readonly limitBytes: number;
   /** A platform admin raised (or set) this workspace's allowance above its plan's figure. */
   readonly raisedBySupport: boolean;
+  /**
+   * False when neither the plan (Enterprise, by agreement) nor support set a figure: screens say
+   * "No set limit" and draw no bar; the platform cap still bounds the bytes.
+   */
+  readonly hasFigure: boolean;
 }
 
 export function allowanceOf(
@@ -26,6 +31,7 @@ export function allowanceOf(
   return {
     limitBytes: Math.min(wanted, capBytes),
     raisedBySupport: overrideBytes !== null && (planBytes === null || overrideBytes > planBytes),
+    hasFigure: planBytes !== null || overrideBytes !== null,
   };
 }
 

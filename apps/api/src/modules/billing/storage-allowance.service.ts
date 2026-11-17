@@ -12,9 +12,23 @@ import type { StorageAllowance } from './storage-allowance.js';
 import { StorageAllowanceRepository } from './storage-allowance.repository.js';
 import { SubscriptionRepository } from './subscription.repository.js';
 
-/** What the upload doors ask before they reserve bytes on TManage's own storage. */
+/**
+ * A workspace that keeps its files in its own Drive/OneDrive has no workspace byte limit on
+ * TManage: a file only passes through on its way there. Large enough that no sum reaches it.
+ */
+export const NO_WORKSPACE_LIMIT = Number.MAX_SAFE_INTEGER;
+
+/** The two readings of the one allowance (both from {@link StorageAllowanceService.limitsFor}). */
+export interface StorageLimits {
+  /** What usage is measured against: notices, bands, the figures on screen. */
+  readonly allowanceBytes: number;
+  /** What a new upload is refused at: the allowance, or none once Drive/OneDrive is the storage. */
+  readonly uploadLimitBytes: number;
+}
+
+/** What every door, meter and reader of the storage allowance asks. */
 export interface StorageUploadLimit {
-  uploadLimitBytes(context: TenantContext): Promise<number>;
+  limitsFor(context: TenantContext): Promise<StorageLimits>;
 }
 
 /** What the plan-usage read asks, inside its own read. */
@@ -27,10 +41,12 @@ export interface StorageAllowanceReader {
  * workspace: its plan's figure (the top plan's in `beta_free`), a support raise, and the platform
  * cap (`capBytes`, `STORAGE_ORG_BYTES_LIMIT_BYTES`) over both.
  *
- * {@link uploadLimitBytes} is what every upload door reserves against. While the workspace keeps
+ * {@link limitsFor} is the one call every upload door, the inbound-mail attachments, the usage
+ * reconciler's bands, the storage usage read and the inbox notice make. While the workspace keeps
  * its files on TManage it is the allowance, so at 100 % a new upload is refused (the existing
  * `storage_quota_exhausted` 422). Once Google Drive or OneDrive is the workspace's storage the
- * allowance never holds an upload back: only the platform cap that protects the shared disk does.
+ * workspace has no byte limit on TManage at all (a file passes through on its way to the Drive);
+ * the per-file limit, the open-upload count and the daily upload count still apply.
  */
 export class StorageAllowanceService implements StorageUploadLimit, StorageAllowanceReader {
   constructor(
@@ -60,10 +76,14 @@ export class StorageAllowanceService implements StorageUploadLimit, StorageAllow
     return allowanceOf(plan.limits.storageBytes, overrideBytes, this.capBytes);
   }
 
-  async uploadLimitBytes(context: TenantContext): Promise<number> {
+  async limitsFor(context: TenantContext): Promise<StorageLimits> {
     return this.database.read(context, async (runner) => {
-      if ((await this.storageMode(runner, context)) !== 'tmanage') return this.capBytes;
-      return (await this.allowanceWith(runner, context)).limitBytes;
+      const mode = await this.storageMode(runner, context);
+      const { limitBytes } = await this.allowanceWith(runner, context);
+      return {
+        allowanceBytes: limitBytes,
+        uploadLimitBytes: mode === 'tmanage' ? limitBytes : NO_WORKSPACE_LIMIT,
+      };
     });
   }
 }

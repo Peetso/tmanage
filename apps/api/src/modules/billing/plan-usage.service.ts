@@ -62,7 +62,8 @@ export interface PlanUsageMeterView {
  * notice step reached (70 / 85 / 95 / 100, else 0).
  */
 export interface PlanStorageView extends PlanUsageMeterView {
-  readonly limit: number;
+  /** Null = "No set limit" (Enterprise without a raise): no bar, no notice; the cap still applies. */
+  readonly limit: number | null;
   readonly percent: number;
   readonly threshold: ThresholdBand;
   readonly raisedBySupport: boolean;
@@ -156,6 +157,7 @@ interface Usage {
   readonly storageBytes: number;
   readonly storageLimitBytes: number;
   readonly raisedBySupport: boolean;
+  readonly storageHasFigure: boolean;
   readonly clients: number;
   readonly automationRuns: number;
 }
@@ -250,6 +252,7 @@ export class PlanUsageService {
         storageBytes: Number(counter?.usedValue ?? 0) + Number(counter?.reservedValue ?? 0),
         storageLimitBytes: allowance.limitBytes,
         raisedBySupport: allowance.raisedBySupport,
+        storageHasFigure: allowance.hasFigure,
         clients,
         automationRuns,
       };
@@ -271,7 +274,8 @@ export class PlanUsageService {
     const { limits } = entitlementsFor(usage.planId, mode);
     const people = { used: usage.people, limit: limits.people };
     const projects = { used: usage.projects, limit: limits.activeProjects };
-    const storage = { used: usage.storageBytes, limit: usage.storageLimitBytes };
+    const storageLimit = usage.storageHasFigure ? usage.storageLimitBytes : null;
+    const storage = { used: usage.storageBytes, limit: storageLimit };
     const meters = [people, projects, storage].map((m) => ({
       ...m,
       level: levelOf(m.used, m.limit),
@@ -292,9 +296,9 @@ export class PlanUsageService {
       projects: meters[1]!,
       storage: {
         ...meters[2]!,
-        limit: usage.storageLimitBytes,
-        percent: storagePercent(usage.storageBytes, usage.storageLimitBytes),
-        threshold: storageThreshold(usage.storageBytes, usage.storageLimitBytes),
+        limit: storageLimit,
+        percent: storageLimit === null ? 0 : storagePercent(usage.storageBytes, storageLimit),
+        threshold: storageLimit === null ? 0 : storageThreshold(usage.storageBytes, storageLimit),
         raisedBySupport: usage.raisedBySupport,
       },
       clients: usage.clients,

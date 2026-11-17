@@ -13,6 +13,12 @@ import { InboxService, type InboxUsageNoticeView } from './inbox.service.js';
 import type { NotificationsRepository } from './notifications.repository.js';
 import type { InboxSnoozeRepository } from './inbox-snooze.repository.js';
 
+/** 57-13r: the storage allowance as the inbox reads it, fixed for these tests. */
+function fixedQuota(bytes: number) {
+  const limits = { allowanceBytes: bytes, uploadLimitBytes: bytes };
+  return { limitsFor: () => Promise.resolve(limits) };
+}
+
 /**
  * USAGE-001 slice 4b read side — the `organization_usage` resolver, the one behaviour the DB
  * suite (`inbox-001-inbox.db.test.ts`) does not cover because it needs a usage counter the inbox
@@ -80,7 +86,7 @@ function serviceFor(
     {} as unknown as WorkItemsService,
     {} as unknown as ClientRequestsService,
     notificationsReturning(rows),
-    { quotaBytes: 10_000_000_000, counters: countersReturning(counter) },
+    { quota: fixedQuota(10_000_000_000), counters: countersReturning(counter) },
   );
 }
 
@@ -119,7 +125,7 @@ function markingService(marked: number): InboxService {
     {} as unknown as WorkItemsService,
     {} as unknown as ClientRequestsService,
     notifications,
-    { quotaBytes: 10_000_000_000, counters: countersReturning(COUNTER) },
+    { quota: fixedQuota(10_000_000_000), counters: countersReturning(COUNTER) },
   );
 }
 
@@ -192,7 +198,7 @@ describe('InboxService.list hides snoozed bundles (2026-10-31 live test)', () =>
       {} as unknown as WorkItemsService,
       {} as unknown as ClientRequestsService,
       notificationsReturning([usageRow('org-1')]),
-      { quotaBytes: 10_000_000_000, counters: countersReturning(COUNTER) },
+      { quota: fixedQuota(10_000_000_000), counters: countersReturning(COUNTER) },
       {},
       snoozing(until),
       () => NOW,

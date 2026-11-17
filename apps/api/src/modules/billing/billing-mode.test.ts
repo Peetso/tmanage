@@ -138,7 +138,7 @@ describe('entitlementsFor', () => {
       nextPlanId: null,
       people: { used: 5, limit: null, level: 'normal' },
       projects: { used: 4, limit: null, level: 'normal' },
-      storage: { limit: PLATFORM_CAP, level: 'normal' },
+      storage: { limit: null, level: 'normal', threshold: 0 },
     });
   });
 

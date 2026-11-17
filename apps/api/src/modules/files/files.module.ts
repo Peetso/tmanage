@@ -276,7 +276,8 @@ export class FilesModule {
           ledger,
           audit,
           new UsageThresholdEvaluator(counters, outbox, audit),
-          config.storageOrgBytesLimit,
+          // 57-13r: the band is a percentage of the workspace's allowance, not the bare cap.
+          new StorageAllowanceService(database, config.storageOrgBytesLimit),
           undefined,
           // R4 follow-up: preview derivatives made before counting existed are counted here.
           {
@@ -312,7 +313,14 @@ export class FilesModule {
         counters: UsageCountersRepository,
         ledger: UsageLedgerRepository,
         config: ApiConfig,
-      ) => new UsageService(database, counters, ledger, config),
+      ) =>
+        new UsageService(
+          database,
+          counters,
+          ledger,
+          config,
+          new StorageAllowanceService(database, config.storageOrgBytesLimit),
+        ),
     };
 
     // FILE-002. The verification pass is a job too: exported so `verify.ts` can resolve

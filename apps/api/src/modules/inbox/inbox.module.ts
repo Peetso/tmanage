@@ -11,6 +11,7 @@ import {
   PORTAL_INBOX_SERVICE,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
+import { StorageAllowanceService } from '../billing/storage-allowance.service.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { ObjectStore } from '@tmanage/storage';
 import type { MalwareScanner } from '../../common/scan/malware-scanner.js';
@@ -126,7 +127,7 @@ export class InboxModule {
           notifications,
           // USAGE-001 slice 4b: the effective storage quota the reservation guard uses, so the
           // inbox can render "Storage at 85 % — 8.5 GB of 10 GB" for an owner/admin.
-          { quotaBytes: config.storageOrgBytesLimit },
+          { quota: new StorageAllowanceService(database, config.storageOrgBytesLimit) },
           // CQ-12: mentions, comments, invites, project adds and rule test runs, each resolved
           // through the object's own authorized read. Read-only use: no outbox or audit needed.
           createInboxObjectResolvers({

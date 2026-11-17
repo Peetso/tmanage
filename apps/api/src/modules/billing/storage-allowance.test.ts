@@ -4,7 +4,7 @@ import type { SubscriptionRow } from '../../common/database/schema.js';
 import type { StorageMode } from '../google-drive/storage-mode.repository.js';
 import { PLAN_FEATURE_SET, PLAN_IDS } from './plan-catalog.js';
 import { allowanceOf, storageThreshold } from './storage-allowance.js';
-import { StorageAllowanceService } from './storage-allowance.service.js';
+import { NO_WORKSPACE_LIMIT, StorageAllowanceService } from './storage-allowance.service.js';
 
 // 57-13r / 57-18 (plan 57 §19.1, §19.3): one assertion per key behaviour.
 
@@ -32,6 +32,7 @@ describe('allowanceOf', () => {
     expect(allowanceOf(25 * GB, null, 10 * GB)).toEqual({
       limitBytes: 10 * GB,
       raisedBySupport: false,
+      hasFigure: true,
     });
   });
 
@@ -39,16 +40,20 @@ describe('allowanceOf', () => {
     expect(allowanceOf(1 * GB, 3 * GB, 10 * GB)).toEqual({
       limitBytes: 3 * GB,
       raisedBySupport: true,
+      hasFigure: true,
     });
     expect(allowanceOf(1 * GB, 40 * GB, 10 * GB).limitBytes).toBe(10 * GB);
   });
 
   it('falls back to the cap when the plan has no figure (Enterprise, by agreement)', () => {
-    expect(allowanceOf(null, null, 10 * GB).limitBytes).toBe(10 * GB);
+    expect(allowanceOf(null, null, 10 * GB)).toMatchObject({
+      limitBytes: 10 * GB,
+      hasFigure: false,
+    });
   });
 });
 
-describe('StorageAllowanceService.uploadLimitBytes', () => {
+describe('StorageAllowanceService.limitsFor', () => {
   function service(mode: StorageMode): StorageAllowanceService {
     const runner = {} as never;
     const database = {
@@ -70,15 +75,17 @@ describe('StorageAllowanceService.uploadLimitBytes', () => {
   }
 
   it('holds a TManage upload to the allowance, so a full allowance refuses the next byte', async () => {
-    const limit = await service('tmanage').uploadLimitBytes(context);
-    expect(limit).toBe(1 * GB);
-    expect(1 * GB + 1 > limit).toBe(true);
+    const limits = await service('tmanage').limitsFor(context);
+    expect(limits).toEqual({ allowanceBytes: 1 * GB, uploadLimitBytes: 1 * GB });
+    expect(1 * GB + 1 > limits.uploadLimitBytes).toBe(true);
   });
 
-  it('never holds an upload back by the allowance once Drive is the storage', async () => {
-    const limit = await service('google_drive').uploadLimitBytes(context);
-    expect(limit).toBe(60 * GB);
-    expect(1 * GB + 1 <= limit).toBe(true);
+  it('passes a file through to Drive even with the platform cap already reached', async () => {
+    const limits = await service('google_drive').limitsFor(context);
+    expect(limits.uploadLimitBytes).toBe(NO_WORKSPACE_LIMIT);
+    expect(limits.allowanceBytes).toBe(1 * GB);
+    const heldAtCap = 60 * GB;
+    expect(heldAtCap + 2 * GB <= limits.uploadLimitBytes).toBe(true);
   });
 });
 

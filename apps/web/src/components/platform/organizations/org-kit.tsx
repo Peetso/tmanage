@@ -95,8 +95,16 @@ export function formatGb(bytes: number): string {
 }
 
 /** "38 / 100 GB" with a bar; red when over the limit. */
-export function StorageBar({ used, limit }: { used: number; limit: number }) {
+export function StorageBar({ used, limit }: { used: number; limit: number | null }) {
   const t = useT();
+  // 57-13r: no plan figure and no raise (Enterprise) — the words, never a bar against 0.
+  if (limit === null) {
+    return (
+      <span className="tm-cc-cell-mono">
+        {formatGb(used)} {t('PlatformOrgs.gb')} · {t('planStorage.noSetLimit')}
+      </span>
+    );
+  }
   const share = limit > 0 ? Math.min(1, used / limit) : 0;
   const over = limit > 0 && used > limit;
   return (

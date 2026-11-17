@@ -54,7 +54,10 @@ function DetailBody({ detail }: { detail: PlatformOrgDetailView }) {
       id: 'storage',
       label: t('PlatformOrgs.tileStorage'),
       value: formatGb(org.storageBytes),
-      sub: `${t('PlatformOrgs.of')} ${formatGb(org.storageLimitBytes)}`,
+      sub:
+        org.storageLimitBytes === null
+          ? t('planStorage.noSetLimit')
+          : `${t('PlatformOrgs.of')} ${formatGb(org.storageLimitBytes)}`,
     },
     {
       id: 'runs',

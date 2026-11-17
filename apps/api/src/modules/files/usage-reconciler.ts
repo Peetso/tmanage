@@ -5,6 +5,7 @@ import type { AuditService } from '../audit/audit.service.js';
 import type { FilePreviewsRepository } from './file-previews.repository.js';
 import type { PreviewUsageMeter } from './preview-usage.js';
 import { STORAGE_BYTES_METRIC } from './usage-counters.repository.js';
+import type { StorageUploadLimit } from '../billing/storage-allowance.service.js';
 import type { UsageCountersRepository } from './usage-counters.repository.js';
 import type { UsageLedgerRepository } from './usage-ledger.repository.js';
 import type { UsageThresholdEvaluator } from './usage-thresholds.js';
@@ -143,12 +144,15 @@ export class UsageReconciler {
      * USAGE-001 slice 4. Re-evaluates the band under the same lock this pass already holds, so a
      * counter whose usage rose without the reserve/commit path emitting (a drift the pass just
      * corrected, or a band left stale by an earlier code path) still crosses its threshold. The
-     * quota it evaluates against is {@link quotaBytes}. Nullable so the slice-3 constructor
+     * quota it evaluates against is the workspace's allowance from {@link quota}. Nullable so the slice-3 constructor
      * signature still builds a reconciler that reconciles but does not evaluate bands.
      */
     private readonly thresholds: UsageThresholdEvaluator | null = null,
-    /** The effective storage quota the band is a percentage of (`49-PRICING` §5's seam). */
-    private readonly quotaBytes: number = 0,
+    /**
+     * 57-13r. The one storage allowance (`StorageAllowanceService.limitsFor`) the band is a
+     * percentage of, read per organization before its lock. Absent: no quota (0).
+     */
+    private readonly quota: StorageUploadLimit | null = null,
     /** Where a failed reconciliation is reported. The organization is named, never its payload. */
     private readonly onFailure: (organizationId: string, error: unknown) => void = (id, error) =>
       console.error(`[reconciler] reconciling organization ${id} failed`, describeFailure(error)),
@@ -198,6 +202,7 @@ export class UsageReconciler {
   private async reconcileOrganization(
     context: TenantContext,
   ): Promise<'absent' | 'clean' | 'corrected'> {
+    const quotaBytes = this.quota ? (await this.quota.limitsFor(context)).allowanceBytes : 0;
     return this.database.transaction(context, async (tx) => {
       // Preview bytes first: their moves bump the counter's version, which the lock reads next.
       await this.previewUsage?.meter.backfill(tx, context, this.previewUsage.previews);
@@ -213,7 +218,7 @@ export class UsageReconciler {
       if (!diff.drifted) {
         await this.counters.touchReconciledAt(tx, context, STORAGE_BYTES_METRIC);
         // Re-evaluate the band under the lock, in case an earlier path left it stale (slice 4).
-        await this.thresholds?.evaluate(tx, context, STORAGE_BYTES_METRIC, this.quotaBytes);
+        await this.thresholds?.evaluate(tx, context, STORAGE_BYTES_METRIC, quotaBytes);
         return 'clean';
       }
 
@@ -249,7 +254,7 @@ export class UsageReconciler {
       });
       // The corrected counter may have crossed a band the drifting path never emitted for
       // (USAGE-001 slice 4): re-evaluate under the same lock and emit if it rose.
-      await this.thresholds?.evaluate(tx, context, STORAGE_BYTES_METRIC, this.quotaBytes);
+      await this.thresholds?.evaluate(tx, context, STORAGE_BYTES_METRIC, quotaBytes);
       return 'corrected';
     });
   }

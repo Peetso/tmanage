@@ -3,6 +3,7 @@ import type { DynamicModule, Provider } from '@nestjs/common';
 import type { ObjectStore } from '@tmanage/storage';
 import type { Mailer } from '@tmanage/mail';
 import {
+  API_CONFIG,
   AUDIT_SERVICE,
   MAILER,
   MALWARE_SCANNER,
@@ -22,6 +23,9 @@ import {
   InboundAttachmentScanJob,
 } from './inbound-attachment-scan.job.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import type { ApiConfig } from '../../common/http/api-config.js';
+import { StorageAllowanceService } from '../billing/storage-allowance.service.js';
+import { UsageCountersRepository } from '../files/usage-counters.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
@@ -54,12 +58,14 @@ export class InboundEmailModule {
         AUDIT_SERVICE,
         OUTBOX_EVENTS_REPOSITORY,
         { token: OBJECT_STORE, optional: true },
+        API_CONFIG,
       ],
       useFactory: (
         database: TenantDatabase,
         audit: AuditService,
         outbox: OutboxEventsRepository,
         store: ObjectStore | undefined,
+        config: ApiConfig,
       ) =>
         new InboundEmailService(database, new InboundEmailRepository(), {
           workItems: new WorkItemsService(
@@ -70,6 +76,11 @@ export class InboundEmailModule {
             outbox,
           ),
           ...(store !== undefined ? { store } : {}),
+          // 57-13r: attachments are held to the same storage allowance as uploads.
+          storage: {
+            limits: new StorageAllowanceService(database, config.storageOrgBytesLimit),
+            counters: new UsageCountersRepository(),
+          },
         }),
     };
     // R22-d (hunk 2): preview/download/ask-resend, and the in-process attachment scan pass (the

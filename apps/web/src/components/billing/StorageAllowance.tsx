@@ -34,6 +34,20 @@ export function StorageAllowance({
   locale: string;
   tr: PlanStorageText;
 }) {
+  if (storage.limit === null) {
+    return (
+      <HelpTip tip={tr('planStorage.help')} block>
+        <div className="tm-pu-meter">
+          <div className="tm-pu-meter__row">
+            <span className="tm-pu-meter__label">{tr('planStorage.label')}</span>
+            <span className="tm-pu-meter__value">
+              {fill(tr('planStorage.valueNoLimit'), { used: formatSize(storage.used) })}
+            </span>
+          </div>
+        </div>
+      </HelpTip>
+    );
+  }
   const figures = {
     used: formatSize(storage.used),
     limit: formatSize(storage.limit),

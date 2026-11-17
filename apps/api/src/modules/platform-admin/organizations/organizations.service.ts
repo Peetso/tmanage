@@ -64,7 +64,8 @@ export interface PlatformOrgSummaryView {
   readonly projects: number;
   readonly plan: string | null;
   readonly storageBytes: number;
-  readonly storageLimitBytes: number;
+  /** Null = "No set limit" (57-13r: Enterprise without a raise). */
+  readonly storageLimitBytes: number | null;
   readonly peopleLimit: number | null;
   readonly createdAt: string;
   readonly lastActiveAt: string | null;
@@ -215,7 +216,8 @@ export interface PlatformOrgPlanView {
 
 export interface PlatformOrgStorageView {
   readonly usedBytes: number;
-  readonly limitBytes: number;
+  /** Null = "No set limit" (57-13r: Enterprise without a raise). */
+  readonly limitBytes: number | null;
   readonly connections: readonly {
     readonly id: string;
     readonly provider: string;
@@ -259,8 +261,8 @@ export function limitsFor(
     plan,
     people: row.peopleLimit ?? plan.people,
     activeProjects: row.activeProjectsLimit ?? plan.activeProjects,
-    // 57-13r: 0 = no plan figure (Enterprise, by agreement); the storage health rules skip 0.
-    storageBytes: row.storageBytesLimit ?? plan.storageBytes ?? 0,
+    // 57-13r: null = no set limit (Enterprise, by agreement, without a raise).
+    storageBytes: row.storageBytesLimit ?? plan.storageBytes,
   };
 }
 
@@ -277,7 +279,7 @@ export function statusOf(
 export function healthOf(row: OrgRow): PlatformOrgHealth {
   if (row.failedRuns > 0) return 'failing';
   const limits = limitsFor(row);
-  if (limits.storageBytes > 0 && row.storageBytes > limits.storageBytes * 0.9) return 'check';
+  if (limits.storageBytes !== null && row.storageBytes > limits.storageBytes * 0.9) return 'check';
   if (limits.people !== null && row.people > limits.people) return 'check';
   return 'good';
 }
@@ -1041,7 +1043,7 @@ export function attentionFor(
         level: 'action',
         detail: `${row.failedRuns} failed runs · 7 d`,
       });
-    } else if (limits.storageBytes > 0 && row.storageBytes > limits.storageBytes * 0.9) {
+    } else if (limits.storageBytes !== null && row.storageBytes > limits.storageBytes * 0.9) {
       items.push({
         organizationId: row.id,
         name: row.name,

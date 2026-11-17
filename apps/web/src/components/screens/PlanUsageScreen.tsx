@@ -273,7 +273,15 @@ function PlanUsageBody({
             />
           )}
           {/* 57-13r: with the files card shown, its allowance bar is the one storage bar. */}
-          {storageCard === null ? (
+          {storageCard === null && view.storage.limit === null ? (
+            <BadgeRow
+              label={tr('PlanUsage.storage')}
+              badge={ts('planStorage.noSetLimit')}
+              count={`${gb(view.storage.used)} GB`}
+              note={ts('planStorage.help')}
+            />
+          ) : null}
+          {storageCard === null && view.storage.limit !== null ? (
             <UsageMeter
               id="storage"
               label={tr('PlanUsage.storage')}

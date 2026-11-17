@@ -44,6 +44,8 @@ function harness(
     member?: boolean;
     shared?: boolean;
     usedToday?: number;
+    /** 57-13r: bytes already held on TManage, against a 1,000,000-byte upload limit. */
+    storageHeld?: number;
   } = {},
 ) {
   const emails: Row[] = [];
@@ -115,6 +117,20 @@ function harness(
     store,
     now: () => NOW,
     domain: 'tmanageapp.com',
+    ...(opts.storageHeld === undefined
+      ? {}
+      : {
+          storage: {
+            limits: {
+              limitsFor: () =>
+                Promise.resolve({ allowanceBytes: 1_000_000, uploadLimitBytes: 1_000_000 }),
+            },
+            counters: {
+              find: () =>
+                Promise.resolve({ usedValue: opts.storageHeld, reservedValue: 0 } as never),
+            },
+          },
+        }),
   });
   return { service, emails, atts, submitted, created, store };
 }
@@ -285,6 +301,17 @@ describe('InboundEmailService — webhook outcomes and bytes (R22-c)', () => {
     await capped.service.ingest(mail());
     expect(capped.atts[0]?.['state']).toBe('too_large');
     expect([...h.store.quarantinePut, ...capped.store.quarantinePut]).toHaveLength(0);
+  });
+
+  it('57-13r: refuses an attachment at a full storage allowance and parks it below', async () => {
+    const full = harness({ storageHeld: 1_000_000 });
+    await full.service.ingest(mail());
+    expect(full.atts[0]?.['state']).toBe('too_large');
+    expect(full.store.quarantinePut).toHaveLength(0);
+    const room = harness({ storageHeld: 0 });
+    await room.service.ingest(mail());
+    expect(room.atts[0]?.['state']).toBe('scanning');
+    expect(room.store.quarantinePut).toHaveLength(1);
   });
 
   it('trusting a held mail creates the request and turns its attachments unavailable', async () => {

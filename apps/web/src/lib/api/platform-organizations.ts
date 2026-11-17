@@ -22,7 +22,8 @@ export interface PlatformOrgSummaryView {
   readonly projects: number;
   readonly plan: string | null;
   readonly storageBytes: number;
-  readonly storageLimitBytes: number;
+  /** Null = no set limit (57-13r: Enterprise without a raise). */
+  readonly storageLimitBytes: number | null;
   readonly peopleLimit: number | null;
   readonly createdAt: string;
   readonly lastActiveAt: string | null;
@@ -183,7 +184,8 @@ export interface PlatformOrgPlanView {
 
 export interface PlatformOrgStorageView {
   readonly usedBytes: number;
-  readonly limitBytes: number;
+  /** Null = no set limit (57-13r: Enterprise without a raise). */
+  readonly limitBytes: number | null;
   readonly connections: readonly {
     readonly id: string;
     readonly provider: string;

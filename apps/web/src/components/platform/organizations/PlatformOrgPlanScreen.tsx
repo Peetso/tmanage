@@ -184,7 +184,7 @@ function LimitsCard({ api, id, view }: { api: ApiClient; id: string; view: Platf
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ORGS_KEY }),
   });
   const planHint = (item: PlatformOrgLimitView, bytes: boolean) =>
-    `${t('PlatformOrgs.planLimit')} ${item.plan === null ? '∞' : bytes ? formatGb(item.plan) : item.plan} · ${t('PlatformOrgs.inUse')} ${bytes ? formatGb(item.usage) : item.usage}`;
+    `${t('PlatformOrgs.planLimit')} ${item.plan === null ? (bytes ? t('planStorage.noSetLimit') : '∞') : bytes ? formatGb(item.plan) : item.plan} · ${t('PlatformOrgs.inUse')} ${bytes ? formatGb(item.usage) : item.usage}`;
   return (
     <section className="tm-cc-card" aria-labelledby="tm-org-limits">
       <div className="tm-cc-card__head">

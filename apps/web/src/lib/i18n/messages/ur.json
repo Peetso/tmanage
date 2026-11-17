@@ -1086,5 +1086,19 @@
   "platformServices.offBody": "‏ورک اسپیسز {name} کو اس وقت تک نہ جوڑ سکیں گی نہ استعمال کر سکیں گی جب تک آپ اسے دوبارہ آن نہ کریں۔ کچھ حذف نہیں ہوتا: ان کے کنکشن برقرار رہتے ہیں اور آن ہوتے ہی دوبارہ کام کرتے ہیں۔",
   "platformServices.onBody": "‏ورک اسپیسز {name} کو دوبارہ جوڑ اور استعمال کر سکتی ہیں۔ ان کے پچھلے کنکشن ویسے ہی واپس آ جاتے ہیں۔",
   "platformServices.pausedTitle": "‏TManage نے عارضی طور پر روکا ہے",
-  "platformServices.pausedBody": "‏TManage نے یہ سروس فی الحال روک دی ہے۔ کچھ ضائع نہیں ہوا، آپ کا کنکشن محفوظ ہے۔ بعد میں دوبارہ کوشش کریں۔"
+  "platformServices.pausedBody": "‏TManage نے یہ سروس فی الحال روک دی ہے۔ کچھ ضائع نہیں ہوا، آپ کا کنکشن محفوظ ہے۔ بعد میں دوبارہ کوشش کریں۔",
+  "planStorage.label": "‏TManage پر عارضی اسٹوریج",
+  "planStorage.value": "‏{limit} میں سے {used}",
+  "planStorage.valueText": "‏TManage پر عارضی اسٹوریج کا {percent}% استعمال ہو چکا ہے: {limit} میں سے {used}",
+  "planStorage.help": "فائلیں TManage پر صرف تب تک رہتی ہیں جب تک آپ Google Drive یا OneDrive نہیں جوڑتے۔ یہ جگہ ایک عارضی سہولت ہے: یہ کبھی فروخت نہیں ہوتی اور اس کے لیے کبھی بڑا پلان نہیں چاہیے۔",
+  "planStorage.raised": "‏TManage سپورٹ نے آپ کے لیے بڑھا دیا",
+  "planStorage.noSetLimit": "کوئی مقررہ حد نہیں",
+  "planStorage.valueNoLimit": "‏{used} · کوئی مقررہ حد نہیں",
+  "planStorage.notice70": "آپ کے عارضی اسٹوریج کا {percent}% استعمال ہو چکا ہے۔ Google Drive یا OneDrive جوڑیں تاکہ نئی فائلیں وہاں جائیں۔",
+  "planStorage.notice85": "آپ کے عارضی اسٹوریج کا {percent}% استعمال ہو چکا ہے۔ جلد Google Drive یا OneDrive جوڑیں تاکہ اپ لوڈ جاری رہیں۔",
+  "planStorage.notice95": "آپ کا عارضی اسٹوریج تقریباً بھر چکا ہے ({percent}%)۔ ابھی Google Drive یا OneDrive جوڑیں۔",
+  "planStorage.notice100": "آپ کا عارضی اسٹوریج بھر گیا ہے۔ نئے اپ لوڈ تب تک رکے رہیں گے جب تک آپ Google Drive یا OneDrive نہ جوڑیں یا فائلیں وہاں منتقل نہ کریں۔ کچھ بھی حذف نہیں ہوتا۔",
+  "planStorage.runsLabel": "اس مدت میں آٹومیشن کے رن",
+  "planStorage.runsBadge": "کوئی حد نہیں",
+  "planStorage.runsNote": "صرف آپ کی معلومات کے لیے۔ ہر پلان میں آٹومیشن لامحدود ہیں اور آپ کے پلان کی وجہ سے کبھی نہیں رکتیں۔"
 }

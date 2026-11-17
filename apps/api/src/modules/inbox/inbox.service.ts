@@ -14,6 +14,7 @@ import {
   STORAGE_BYTES_METRIC,
   UsageCountersRepository,
 } from '../files/usage-counters.repository.js';
+import type { StorageUploadLimit } from '../billing/storage-allowance.service.js';
 import { isCollaborationObjectType } from './inbox-object-resolvers.js';
 import type { InboxSnoozeRepository } from './inbox-snooze.repository.js';
 import { isDoneUntil } from './inbox-snooze.service.js';
@@ -175,13 +176,13 @@ const CLIENT_ACTION_TYPES: readonly string[] = ['client_request.submitted.v1'];
 
 /**
  * How the inbox reads the organization's storage usage for a `usage.threshold_reached.v1`
- * notice. `quotaBytes` is the effective quota — the same number `files` service's
- * `storageLimitsFor` hands the reservation guard (config today, ENT-001's entitlement row
- * later). Absent, the inbox has no usage read wired and drops `organization_usage` notices
+ * notice. `quota` is the workspace's storage allowance — the same one `files` service's
+ * `storageLimitsFor` measures against. Absent, the inbox has no usage read wired and drops `organization_usage` notices
  * gracefully, exactly as it drops any objectType it cannot resolve.
  */
 export interface InboxUsageConfig {
-  readonly quotaBytes: number;
+  /** 57-13r. The one storage allowance (`StorageAllowanceService.limitsFor`). */
+  readonly quota: StorageUploadLimit;
   readonly counters?: UsageCountersRepository;
 }
 
@@ -371,6 +372,8 @@ export class InboxService {
       this.usage !== undefined &&
       [...byObject.values()].some((group) => group[0]?.objectType === 'organization_usage');
     const usage = wantsUsage ? await this.resolveUsage(context) : null;
+    const quotaBytes =
+      usage !== null && this.usage ? (await this.usage.quota.limitsFor(context)).allowanceBytes : 0;
 
     const bundles: InboxItemView[] = [];
     for (const [bundleId, group] of byObject) {
@@ -393,7 +396,7 @@ export class InboxService {
           band: usage.band,
           used: usage.used,
           reserved: usage.reserved,
-          quota: this.usage.quotaBytes,
+          quota: quotaBytes,
           count: group.length,
           unreadCount: group.filter((row) => row.readAt === null).length,
           latestAt: first.createdAt.toISOString(),

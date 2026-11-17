@@ -181,6 +181,20 @@ describe('StorageCard', () => {
     }
   });
 
+  it('57-13r: no set limit (Enterprise) says so in words and draws no bar or notice', async () => {
+    renderAllowance({
+      used: 3.4 * 1024 ** 3,
+      limit: null,
+      level: 'normal',
+      percent: 0,
+      threshold: 0,
+      raisedBySupport: false,
+    });
+    expect(await screen.findByText('3.4 GB · No set limit')).toBeTruthy();
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    expect(screen.queryByText(/temporary storage is/u)).toBeNull();
+  });
+
   it('S2: connected shows where files live and the one Move button', async () => {
     mount(null);
     expect(await screen.findByText('Files live in: Google Drive (studio@alnoor.sa)')).toBeTruthy();

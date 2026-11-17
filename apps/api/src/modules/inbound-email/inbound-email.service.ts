@@ -16,6 +16,9 @@ import type {
 } from '../../common/database/schema.js';
 import { AuditEventsRepository } from '../audit/audit-events.repository.js';
 import { ClientRequestsRepository } from '../requests/client-requests.repository.js';
+import type { StorageUploadLimit } from '../billing/storage-allowance.service.js';
+import { STORAGE_BYTES_METRIC } from '../files/usage-counters.repository.js';
+import type { UsageCountersRepository } from '../files/usage-counters.repository.js';
 import type { WorkItemsService } from '../work/work-items.service.js';
 import type { InboundEmailRepository, LogCursor } from './inbound-email.repository.js';
 import {
@@ -150,6 +153,14 @@ export interface InboundEmailDeps {
   readonly workItems?: Pick<WorkItemsService, 'create'>;
   /** R22-c: where a passing mail's attachment bytes are parked. Absent: rows are `unavailable`. */
   readonly store?: Pick<ObjectStore, 'putQuarantine'>;
+  /**
+   * 57-13r. The one storage allowance: an attachment that would take the workspace past it is
+   * not parked (`too_large`). Absent: no allowance check (the daily byte cap still applies).
+   */
+  readonly storage?: {
+    readonly limits: StorageUploadLimit;
+    readonly counters: Pick<UsageCountersRepository, 'find'>;
+  };
   readonly random?: (size: number) => Buffer;
   readonly now?: () => Date;
   readonly domain?: string;
@@ -212,6 +223,7 @@ export class InboundEmailService {
   private readonly domain: string;
   private readonly workItems: Pick<WorkItemsService, 'create'> | null;
   private readonly store: Pick<ObjectStore, 'putQuarantine'> | null;
+  private readonly storage: NonNullable<InboundEmailDeps['storage']> | null;
 
   constructor(
     private readonly database: TenantDatabase,
@@ -227,6 +239,7 @@ export class InboundEmailService {
     this.domain = deps.domain ?? INBOUND_DOMAIN;
     this.workItems = deps.workItems ?? null;
     this.store = deps.store ?? null;
+    this.storage = deps.storage ?? null;
   }
 
   // ── Org side ──────────────────────────────────────────────────────────────
@@ -531,6 +544,10 @@ export class InboundEmailService {
     });
     const at = this.now();
     const id = uuidv7();
+    const uploadLimitBytes =
+      this.storage !== null && kept.some((a) => a.state === 'scanning')
+        ? (await this.storage.limits.limitsFor(context)).uploadLimitBytes
+        : null;
 
     let result: { readonly ingest: IngestResult; readonly decided: Decided };
     try {
@@ -571,7 +588,14 @@ export class InboundEmailService {
           },
           at,
         );
-        const rows = await this.parkAttachments(runner, context, address.id, kept, at);
+        const rows = await this.parkAttachments(
+          runner,
+          context,
+          address.id,
+          kept,
+          at,
+          uploadLimitBytes,
+        );
         await this.repository.insertAttachments(
           runner,
           context,
@@ -606,8 +630,8 @@ export class InboundEmailService {
 
   /**
    * 54-12a: the state each kept attachment is recorded in, and — for a passing mail's `scanning`
-   * rows — its bytes parked in quarantine with their SHA-256. Over the organization's daily bytes
-   * a row is `too_large`; a `scanning` row with no bytes (or no store) is `unavailable`.
+   * rows — its bytes parked in quarantine with their SHA-256. Over the organization's daily bytes,
+   * or past its storage allowance (57-13r), a row is `too_large`; a `scanning` row with no bytes (or no store) is `unavailable`.
    */
   private async parkAttachments(
     runner: Parameters<Parameters<TenantDatabase['transaction']>[1]>[0],
@@ -615,17 +639,26 @@ export class InboundEmailService {
     addressId: string,
     kept: readonly KeptAttachment[],
     at: Date,
+    uploadLimitBytes: number | null,
   ): Promise<readonly ParkedAttachment[]> {
     const scanning = kept.some((a) => a.state === 'scanning');
     let usedToday = scanning
       ? await this.repository.dailyAttachmentBytes(runner, context, startOfUtcDay(at))
       : 0;
+    let held = 0;
+    if (scanning && uploadLimitBytes !== null && this.storage !== null) {
+      const counter = await this.storage.counters.find(runner, context, STORAGE_BYTES_METRIC);
+      held = Number(counter?.usedValue ?? 0) + Number(counter?.reservedValue ?? 0);
+    }
     const rows: ParkedAttachment[] = [];
     for (const a of kept) {
       let state: AttachmentState = a.state;
       let sha256: string | null = null;
       if (state === 'scanning') {
-        if (usedToday + a.sizeBytes > MAX_DAILY_ATTACHMENT_BYTES) {
+        if (
+          usedToday + a.sizeBytes > MAX_DAILY_ATTACHMENT_BYTES ||
+          (uploadLimitBytes !== null && held + a.sizeBytes > uploadLimitBytes)
+        ) {
           state = 'too_large';
         } else if (a.bytes === null || this.store === null) {
           state = 'unavailable';
@@ -636,6 +669,7 @@ export class InboundEmailService {
           });
           sha256 = createHash('sha256').update(a.bytes).digest('hex');
           usedToday += a.sizeBytes;
+          held += a.sizeBytes;
         }
       }
       rows.push({

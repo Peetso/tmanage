@@ -11,6 +11,8 @@ export const PLAN_STORAGE_COPY = {
   'planStorage.help':
     'Files stay on TManage only until you connect Google Drive or OneDrive. This space is a temporary allowance: it is never sold and never needs a bigger plan.',
   'planStorage.raised': 'Raised for you by TManage support',
+  'planStorage.noSetLimit': 'No set limit',
+  'planStorage.valueNoLimit': '{used} · No set limit',
   'planStorage.notice70':
     '{percent}% of your temporary storage is used. Connect Google Drive or OneDrive so new files go there.',
   'planStorage.notice85':
