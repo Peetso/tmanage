@@ -19,8 +19,11 @@ import { FocusBlocksScreen } from '../src/components/screens/FocusBlocksScreen';
 import { GlossaryScreen } from '../src/components/screens/GlossaryScreen';
 import { InsightCustomReportsView } from '../src/components/screens/InsightCustomReportsView';
 import { MeetingActionItemsScreen } from '../src/components/screens/MeetingActionItemsScreen';
+import { MyBookmarksScreen } from '../src/components/screens/MyBookmarksScreen';
 import { ReportSchedulesScreen } from '../src/components/screens/ReportSchedulesScreen';
+import { SavedMessagesScreen } from '../src/components/screens/SavedMessagesScreen';
 import { SavedSearchesScreen } from '../src/components/screens/SavedSearchesScreen';
+import { WorkLabelsScreen } from '../src/components/screens/WorkLabelsScreen';
 import { PortalMilestonesScreen } from '../src/components/screens/PortalMilestonesScreen';
 import { PortalPeopleScreen } from '../src/components/screens/PortalPeopleScreen';
 import { PortalRisksScreen } from '../src/components/screens/PortalRisksScreen';
@@ -252,6 +255,9 @@ describe('teaching empty states (55-10p)', () => {
       '/admin/export-requests': { requests: [] },
       '/inbox/saved-filters': { savedFilters: [] },
       '/work/checklist-templates': { templates: [] },
+      '/work/labels': { labels: [] },
+      '/message-bookmarks': { messages: [] },
+      '/document-bookmarks': { bookmarks: [] },
     };
     const props = { organizationSlug: 'acme', organizationName: 'Acme' };
     const cases: readonly [string, (client: ApiClient) => ReactElement, RegExp, string][] = [
@@ -339,6 +345,12 @@ describe('teaching empty states (55-10p)', () => {
         /no checklist templates yet/i,
         'Create a checklist',
       ],
+      [
+        'Work labels',
+        (client) => <WorkLabelsScreen {...props} client={client} />,
+        /no labels yet/i,
+        'Create a label',
+      ],
     ];
     it.each(cases)('%s', async (_name, view, title, action) => {
       mount(view, routes);
@@ -368,6 +380,15 @@ describe('teaching empty states (55-10p)', () => {
       mount(invitations, withInvites, 'custom-viewer');
       const bare = (await teaching(/no pending invitations/i)).closest('section') as HTMLElement;
       expect(within(bare).queryByRole('link', { name: /invite your team/i })).toBeNull();
+    });
+
+    it.each([
+      ['Doc bookmarks', MyBookmarksScreen, /no bookmarks yet/i],
+      ['Saved messages', SavedMessagesScreen, /no saved messages yet/i],
+    ] as const)('%s: teaches, with nothing to start', async (_name, View, title) => {
+      mount((client) => <View {...props} client={client} />, routes);
+      const section = (await teaching(title)).closest('section') as HTMLElement;
+      expect(within(section).queryByRole('button')).toBeNull();
     });
 
     it('Automation runs: teaches, with nothing to start', async () => {

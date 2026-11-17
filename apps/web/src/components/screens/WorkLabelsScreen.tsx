@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -13,6 +13,8 @@ import {
 } from '../../lib/api/work-labels';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface WorkLabelsScreenProps {
@@ -38,6 +40,8 @@ export function WorkLabelsScreen({
 }: WorkLabelsScreenProps) {
   const describe = useDescribeApiError();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const queryKey = ['work-labels', organizationSlug] as const;
@@ -77,6 +81,7 @@ export function WorkLabelsScreen({
           {t('WorkLabelsScreen.newLabel')}
         </h2>
         <form
+          ref={firstStep}
           className="tm-stack"
           noValidate
           onSubmit={(event: FormEvent<HTMLFormElement>) => {
@@ -151,7 +156,21 @@ export function WorkLabelsScreen({
 
         {labels.data ? (
           rows.length === 0 ? (
-            <p className="tm-prose">{t('WorkLabelsScreen.empty')}</p>
+            <TeachingEmptyState
+              title={t('teachEmpty.workLabelsTitle')}
+              explanation={t('teachEmpty.workLabelsBody')}
+              action={
+                canUse('work.update') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {t('teachEmpty.workLabelsAction')}
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : (
             <ul
               className="tm-row tm-row--wrap"

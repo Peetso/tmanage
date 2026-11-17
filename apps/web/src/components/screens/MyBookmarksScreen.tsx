@@ -7,6 +7,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listDocBookmarks } from '../../lib/api/doc-bookmarks';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { appLocale } from '../../lib/i18n/app-locale';
 
@@ -73,9 +74,10 @@ export function MyBookmarksScreen({
         ) : null}
 
         {!bookmarks.isPending && !bookmarks.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title={t('MyBookmarksScreen.emptyTitle')}>
-            {t('MyBookmarksScreen.emptyBody')}
-          </InlineAlert>
+          <TeachingEmptyState
+            title={t('MyBookmarksScreen.emptyTitle')}
+            explanation={t('teachEmpty.docBookmarksBody')}
+          />
         ) : null}
 
         {rows.length > 0 ? (

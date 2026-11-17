@@ -5,6 +5,7 @@ import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { listMyMessageBookmarks } from '../../lib/api/message-bookmarks';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
@@ -72,7 +73,10 @@ export function SavedMessagesScreen({
                 : t('SavedMessagesScreen.loadFailedGeneric')}
           </InlineAlert>
         ) : rows.length === 0 ? (
-          <p className="tm-muted">{t('SavedMessagesScreen.empty')}</p>
+          <TeachingEmptyState
+            title={t('teachEmpty.savedMessagesTitle')}
+            explanation={t('teachEmpty.savedMessagesBody')}
+          />
         ) : (
           <ul className="tm-stack">
             {rows.map((message) => (
