@@ -19982,6 +19982,7 @@
   "AuditActionLabel.public_link.expiry_changed": "Changed when a public link expires",
   "AuditActionLabel.storage_migration.started": "Started moving files to company storage",
   "AuditActionLabel.storage_migration.finished": "Finished moving files to company storage",
+  "AuditActionLabel.mail_bounce.cleared": "Cleared a bounced email address",
   "NotificationsFeedScreen.typeStorageRootAtRisk": "Company storage needs a new owner",
   "NotificationsFeedScreen.objectStorageConnection": "Company storage",
   "nav.money": "Money",

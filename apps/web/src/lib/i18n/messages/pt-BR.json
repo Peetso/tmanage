@@ -19787,6 +19787,7 @@
   "AuditActionLabel.public_link.expiry_changed": "Alterou a validade de um link público",
   "AuditActionLabel.storage_migration.started": "Começou a mover arquivos para o armazenamento da empresa",
   "AuditActionLabel.storage_migration.finished": "Terminou de mover arquivos para o armazenamento da empresa",
+  "AuditActionLabel.mail_bounce.cleared": "Liberou um endereço de e-mail que retornou",
   "NotificationsFeedScreen.typeStorageRootAtRisk": "O armazenamento da empresa precisa de um novo responsável",
   "NotificationsFeedScreen.objectStorageConnection": "Armazenamento da empresa",
   "nav.money": "Pagamentos",

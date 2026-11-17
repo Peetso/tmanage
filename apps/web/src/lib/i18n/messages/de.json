@@ -19787,6 +19787,7 @@
   "AuditActionLabel.public_link.expiry_changed": "Ablauf eines öffentlichen Links geändert",
   "AuditActionLabel.storage_migration.started": "Hat begonnen, Dateien in den Firmenspeicher zu verschieben",
   "AuditActionLabel.storage_migration.finished": "Verschieben der Dateien in den Firmenspeicher abgeschlossen",
+  "AuditActionLabel.mail_bounce.cleared": "Hat eine unzustellbare E-Mail-Adresse wieder freigegeben",
   "NotificationsFeedScreen.typeStorageRootAtRisk": "Firmenspeicher braucht einen neuen Verantwortlichen",
   "NotificationsFeedScreen.objectStorageConnection": "Firmenspeicher",
   "nav.money": "Zahlungen",

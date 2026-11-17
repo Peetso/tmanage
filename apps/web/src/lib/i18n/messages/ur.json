@@ -1048,5 +1048,6 @@
   "PortalJourney.kindSign": "دستخط",
   "PortalJourney.kindMeeting": "میٹنگ",
   "AuditActionLabel.storage_migration.started": "کمپنی اسٹوریج میں فائلیں منتقل کرنا شروع کیا",
+  "AuditActionLabel.mail_bounce.cleared": "واپس آنے والا ای میل پتہ بحال کیا",
   "AuditActionLabel.storage_migration.finished": "کمپنی اسٹوریج میں فائلیں منتقل کرنا مکمل کیا"
 }

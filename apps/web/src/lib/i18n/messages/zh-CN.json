@@ -19786,6 +19786,7 @@
   "ControlCenter.publicLinks": "公开链接",
   "AuditActionLabel.public_link.expiry_changed": "更改了公开链接的到期时间",
   "AuditActionLabel.storage_migration.started": "开始将文件移至公司存储",
+  "AuditActionLabel.mail_bounce.cleared": "解除了退信邮箱地址的限制",
   "AuditActionLabel.storage_migration.finished": "已完成将文件移至公司存储",
   "NotificationsFeedScreen.typeStorageRootAtRisk": "公司存储需要新的负责人",
   "NotificationsFeedScreen.objectStorageConnection": "公司存储",

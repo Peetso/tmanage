@@ -19982,6 +19982,7 @@
   "AuditActionLabel.public_link.expiry_changed": "غيّر موعد انتهاء رابط عام",
   "AuditActionLabel.storage_migration.started": "بدأ نقل الملفات إلى تخزين الشركة",
   "AuditActionLabel.storage_migration.finished": "انتهى نقل الملفات إلى تخزين الشركة",
+  "AuditActionLabel.mail_bounce.cleared": "أزال حظر عنوان بريد إلكتروني مرتدّ",
   "NotificationsFeedScreen.typeStorageRootAtRisk": "تخزين الشركة يحتاج إلى مالك جديد",
   "NotificationsFeedScreen.objectStorageConnection": "تخزين الشركة",
   "nav.money": "المدفوعات",
