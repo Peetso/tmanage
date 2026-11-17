@@ -90,6 +90,8 @@ const LIST_READS: Readonly<Record<string, readonly string[]>> = {
     'listRequestAttachmentsForProject',
     // FIX3 item 11: the Files hub's per-project list.
     'listReadyForProject',
+    // 55-14a: a client's own portal uploads in one project.
+    'listClientUploadsForProject',
   ],
   'files/comments.repository.ts': ['listForFile'],
   'clients/update-comments.repository.ts': ['listForUpdate'],
