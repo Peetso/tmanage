@@ -351,3 +351,61 @@ describe('the two-step funnel (SIGNUP2)', () => {
     }
   });
 });
+
+describe('when /sign-up cannot load (SIGNUP3)', () => {
+  const availabilityCalls = (calls: Call[]) =>
+    calls.filter((c) => c.method === 'GET' && c.url.endsWith('/v1/public/sign-up')).length;
+
+  it('retries twice, then offers Try again instead of a sign-up error, and recovers', async () => {
+    const user = userEvent.setup();
+    let reachable = false;
+    const { client, calls } = clientOver((call) => {
+      if (!call.url.endsWith('/v1/public/sign-up')) return json({});
+      return reachable
+        ? json({ available: true })
+        : json({ error: { code: 'unavailable', message: 'x' } }, 503);
+    });
+    render(<SignUpScreen client={client} boundary={new AuthBoundary()} retryDelaysMs={[0, 0]} />);
+
+    const tryAgain = await screen.findByRole('button', { name: 'Try again' });
+    expect(availabilityCalls(calls)).toBe(3);
+    expect(
+      screen.getByText("Sign-up didn't load. Check your connection and try again."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Could not create your account')).toBeNull();
+    expect(tryAgain.parentElement).toHaveFocus();
+    expect(screen.getByRole('heading', { level: 1, name: 'Start your free workspace' }));
+    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/sign-in');
+
+    reachable = true;
+    await user.click(tryAgain);
+    await ready();
+    expect(screen.getByLabelText(/^Email/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+  });
+
+  it('shows the form when only the optional Google probe fails', async () => {
+    const { client } = clientOver((call) =>
+      call.url.endsWith('/v1/auth/google')
+        ? json({ error: { code: 'internal', message: 'x' } }, 500)
+        : json({ available: true }),
+    );
+    render(<SignUpScreen client={client} boundary={new AuthBoundary()} />);
+    await ready();
+    expect(screen.getByLabelText(/^Email/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Continue with Google/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+  });
+
+  it('keeps "Could not create your account" for a failed submit, with the values kept', async () => {
+    const user = userEvent.setup();
+    const { client } = open(() => json({ error: { code: 'internal', message: 'x' } }, 500));
+    render(<SignUpScreen client={client} boundary={new AuthBoundary()} />);
+    await ready();
+    await fill(user);
+    await user.click(screen.getByRole('button', { name: 'Create my workspace' }));
+    expect(await screen.findByText('Could not create your account')).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Full name/)).toHaveValue('Mona Adel');
+    expect(screen.getByRole('button', { name: 'Create my workspace' })).toBeEnabled();
+  });
+});

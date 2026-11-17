@@ -1,4 +1,6 @@
 {
+  "SignUpFunnel.loadFailed": "لم تُحمَّل صفحة التسجيل. تحقّق من اتصالك وحاول مرة أخرى.",
+  "SignUpFunnel.tryAgain": "حاول مرة أخرى",
   "SignUpFunnel.back": "رجوع",
   "SignUpFunnel.hidePassword": "إخفاء كلمة المرور",
   "SignUpFunnel.showPassword": "إظهار كلمة المرور",

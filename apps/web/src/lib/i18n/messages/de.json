@@ -1,4 +1,6 @@
 {
+  "SignUpFunnel.loadFailed": "Die Registrierung wurde nicht geladen. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+  "SignUpFunnel.tryAgain": "Erneut versuchen",
   "SignUpFunnel.back": "Zurück",
   "SignUpFunnel.hidePassword": "Passwort verbergen",
   "SignUpFunnel.showPassword": "Passwort anzeigen",

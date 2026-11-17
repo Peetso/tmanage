@@ -1,4 +1,6 @@
 {
+  "SignUpFunnel.loadFailed": "Sign-up didn't load. Check your connection and try again.",
+  "SignUpFunnel.tryAgain": "Try again",
   "SignUpFunnel.back": "Back",
   "SignUpFunnel.hidePassword": "Hide password",
   "SignUpFunnel.showPassword": "Show password",

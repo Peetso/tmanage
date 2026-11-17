@@ -66,6 +66,17 @@ export interface SignUpScreenProps {
   boundary?: AuthBoundary;
   /** Rendered above the form — the "Continue with Google" button when configured. */
   alternatives?: ReactNode;
+  /**
+   * The waits before the automatic retries of the page's one required load (is sign-up open?).
+   * Default: two retries, 0.6 s then 1.5 s. Tests pass zeros.
+   */
+  retryDelaysMs?: readonly number[];
+}
+
+const RETRY_DELAYS_MS: readonly number[] = [600, 1500];
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -85,6 +96,7 @@ export function SignUpScreen({
   onCompleted,
   boundary = authBoundary,
   alternatives,
+  retryDelaysMs = RETRY_DELAYS_MS,
 }: SignUpScreenProps) {
   const api = client ?? browserApiClient();
   const hydrated = useHydrated();
@@ -93,6 +105,9 @@ export function SignUpScreen({
   const locale = useActiveLocale();
 
   const [availability, setAvailability] = useState<Availability>('checking');
+  /** Bumped by "Try again": re-runs the load (and the form proof) without a page reload. */
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const loadNotice = useRef<HTMLDivElement>(null);
   const [step, setStep] = useState<Step>('email');
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -112,7 +127,7 @@ export function SignUpScreen({
   const google = useGoogleAvailability(api);
   const [googleError, setGoogleError] = useState<MessageKey | undefined>(undefined);
   // 52-21: the invisible form proof, fetched once when the form is shown.
-  const formProof = useFormProof(api);
+  const formProof = useFormProof(api, loadAttempt);
   // 51-05 "Continue with Microsoft", beside Google.
   const microsoft = useMicrosoftAvailability(api);
   // LANDFIX: inside Facebook/Instagram/TikTok webviews the providers refuse the sign-in.
@@ -130,20 +145,35 @@ export function SignUpScreen({
     setMicrosoftError(microsoftErrorOf(window.location.search));
   }, []);
 
+  // SIGNUP3: the one required load. A weak connection gets two quiet retries, then a calm
+  // "didn't load" notice with Try again; nothing was submitted, so it is never a sign-up error.
   useEffect(() => {
     let cancelled = false;
-    fetchSignupAvailability(api)
-      .then((open) => {
-        if (!cancelled) setAvailability(open ? 'available' : 'unavailable');
-      })
-      .catch(() => {
-        if (!cancelled) setAvailability('failed');
-      });
+    setAvailability('checking');
+    void (async () => {
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          const open = await fetchSignupAvailability(api);
+          if (!cancelled) setAvailability(open ? 'available' : 'unavailable');
+          return;
+        } catch {
+          const delay = retryDelaysMs[attempt];
+          if (delay === undefined) break;
+          await wait(delay);
+          if (cancelled) return;
+        }
+      }
+      if (!cancelled) setAvailability('failed');
+    })();
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadAttempt]);
+
+  useEffect(() => {
+    if (availability === 'failed') loadNotice.current?.focus();
+  }, [availability]);
 
   // Focus follows the step: the new step's heading, so a screen reader starts at its top.
   useEffect(() => {
@@ -472,9 +502,20 @@ export function SignUpScreen({
       ) : null}
 
       {availability === 'failed' ? (
-        <InlineAlert tone="danger" title={t('signUp.failureTitle')} live>
-          {t('signUp.network')}
-        </InlineAlert>
+        <div ref={loadNotice} tabIndex={-1} className="tm-stack tm-id-load-failed">
+          <InlineAlert tone="neutral" live>
+            {t('SignUpFunnel.loadFailed')}
+          </InlineAlert>
+          <Button
+            type="button"
+            tone="lime"
+            size="accessible"
+            className="tm-id-wide"
+            onClick={() => setLoadAttempt((n) => n + 1)}
+          >
+            {t('SignUpFunnel.tryAgain')}
+          </Button>
+        </div>
       ) : null}
 
       {availability === 'available' ? (

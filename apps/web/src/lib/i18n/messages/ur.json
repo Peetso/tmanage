@@ -1,4 +1,6 @@
 {
+  "SignUpFunnel.loadFailed": "سائن اپ لوڈ نہیں ہوا۔ اپنا کنکشن چیک کریں اور دوبارہ کوشش کریں۔",
+  "SignUpFunnel.tryAgain": "دوبارہ کوشش کریں",
   "SignUpFunnel.back": "واپس",
   "SignUpFunnel.hidePassword": "پاس ورڈ چھپائیں",
   "SignUpFunnel.showPassword": "پاس ورڈ دکھائیں",

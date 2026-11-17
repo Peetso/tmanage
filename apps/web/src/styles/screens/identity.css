@@ -1122,3 +1122,14 @@
   line-height: 17px;
   color: var(--ink-800);
 }
+
+/* SIGNUP3: the "didn't load" notice takes focus; the ring sits on the notice, not the page. */
+.tm-id-load-failed:focus {
+  outline: none;
+}
+
+.tm-id-load-failed:focus-visible {
+  outline: 2px solid var(--ink-950);
+  outline-offset: 4px;
+  border-radius: var(--r-compact);
+}

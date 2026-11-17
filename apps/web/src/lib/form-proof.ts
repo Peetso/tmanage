@@ -63,9 +63,13 @@ export async function formProofFields(issue: FormProofView | null): Promise<Form
 
 /**
  * Fetch the proof once when the form mounts. `issue` feeds the hidden inputs; `fields()` is what
- * the submit handler spreads into its body (it waits for a fetch still in flight).
+ * the submit handler spreads into its body (it waits for a fetch still in flight). A new
+ * `generation` fetches it again (sign-up's "Try again" after the page failed to load).
  */
-export function useFormProof(client: ApiClient): {
+export function useFormProof(
+  client: ApiClient,
+  generation = 0,
+): {
   readonly issue: FormProofView | null;
   fields(): Promise<FormProofFields>;
 } {
@@ -82,7 +86,7 @@ export function useFormProof(client: ApiClient): {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [generation]);
   return {
     issue,
     fields: async () =>

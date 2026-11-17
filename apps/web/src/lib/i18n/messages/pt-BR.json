@@ -1,4 +1,6 @@
 {
+  "SignUpFunnel.loadFailed": "O cadastro não carregou. Verifique sua conexão e tente novamente.",
+  "SignUpFunnel.tryAgain": "Tentar novamente",
   "SignUpFunnel.back": "Voltar",
   "SignUpFunnel.hidePassword": "Ocultar senha",
   "SignUpFunnel.showPassword": "Mostrar senha",

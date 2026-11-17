@@ -1,4 +1,6 @@
 {
+  "SignUpFunnel.loadFailed": "注册页面未能加载。请检查网络连接后重试。",
+  "SignUpFunnel.tryAgain": "重试",
   "SignUpFunnel.back": "返回",
   "SignUpFunnel.hidePassword": "隐藏密码",
   "SignUpFunnel.showPassword": "显示密码",
